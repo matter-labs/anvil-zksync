@@ -31,7 +31,7 @@ Current features:
 
 The easiest way is to install from source:
 ```
-cargo install --git https://github.com/mm-zk/era-test-node.git
+cargo install --git https://github.com/matter-labs/era-test-node.git
 ```
 
 Rust should install it in ``~/.cargo/bin`` directory.
