@@ -634,22 +634,25 @@ impl EthNamespaceT for InMemoryNode {
         Ok(hash)
     }
 
-    // Methods below are not currently implemented.
-
     fn get_block_number(&self) -> jsonrpc_core::Result<zksync_basic_types::U64> {
-        not_implemented()
+        let reader = self.inner.read().unwrap();
+        Ok(U64::from(reader.current_miniblock))
     }
+
+    // Methods below are not currently implemented or using default values.
 
     fn estimate_gas(
         &self,
         _req: zksync_types::transaction_request::CallRequest,
         _block: Option<zksync_types::api::BlockNumber>,
     ) -> jsonrpc_core::Result<U256> {
-        not_implemented()
+        let gas_used = U256::from(ETH_CALL_GAS_LIMIT);
+        Ok(gas_used)
     }
 
     fn gas_price(&self) -> jsonrpc_core::Result<U256> {
-        not_implemented()
+        let fair_l2_gas_price: u64 = 250_000_000; // 0.25 gwei
+        Ok(U256::from(fair_l2_gas_price))
     }
 
     fn new_filter(&self, _filter: Filter) -> jsonrpc_core::Result<U256> {
