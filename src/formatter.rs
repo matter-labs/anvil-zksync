@@ -114,8 +114,7 @@ pub fn print_call(call: &Call, padding: usize, show_calls: &ShowCalls, resolve_h
             } else {
                 block_on(async move {
                     let fetch = resolver::decode_function_selector(&sig).await.unwrap();
-                    fetch
-                        .unwrap_or(format!("{:>16}", format!("0x{}", sig).dimmed()))
+                    fetch.unwrap_or(format!("{:>16}", format!("0x{}", sig).dimmed()))
                 })
             }
         } else {
@@ -136,7 +135,10 @@ pub fn print_call(call: &Call, padding: usize, show_calls: &ShowCalls, resolve_h
             call.r#type,
             address_to_human_readable(call.to)
                 .map(|x| format!("{:<52}", x))
-                .unwrap_or(format!("{}", format!("{:<52}", format!("{:?}", call.to).bold()))),
+                .unwrap_or(format!(
+                    "{}",
+                    format!("{:<52}", format!("{:?}", call.to).bold())
+                )),
             function_signature,
             call.revert_reason
                 .as_ref()
