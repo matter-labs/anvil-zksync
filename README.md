@@ -47,7 +47,7 @@ apt-get install -y cmake pkg-config libssl-dev clang
 To start a node:
 
 ```shell
-zksync_test_node run
+era_test_node run
 ```
 
 This will run a node (with an empty state) and make it available on port 8011
@@ -55,7 +55,7 @@ This will run a node (with an empty state) and make it available on port 8011
 To fork mainnet:
 
 ```shell
-zksync_test_node fork mainnet
+era_test_node fork mainnet
 ```
 
 This will run the node, forked at current head of mainnet
@@ -63,14 +63,14 @@ This will run the node, forked at current head of mainnet
 You can also specify the custom http endpoint and custom forking height:
 
 ```shell
-zksync_test_node fork --fork-at 7000000 http://172.17.0.3:3060
+era_test_node fork --fork-at 7000000 http://172.17.0.3:3060
 ```
 
 Or replay locally a remote transaction (for example to see more debug
 information).
 
 ```shell
-zksync_test_node replay_tx testnet 0x7f039bcbb1490b855be37e74cf2400503ad57f51c84856362f99b0cbf1ef478a
+era_test_node replay_tx testnet 0x7f039bcbb1490b855be37e74cf2400503ad57f51c84856362f99b0cbf1ef478a
 ```
 
 
@@ -81,7 +81,7 @@ By default, the tool is just printing the basic information about the executed t
 But with `--show-calls` flag, it can print more detailed call traces, and with --resolve-hashes, it will ask openchain for ABI names.
 
 ```shell
-$ zksync_test_node --show-calls=user --resolve-hashes replay_tx testnet 0x7f039bcbb1490b855be37e74cf2400503ad57f51c84856362f99b0cbf1ef478a
+era_test_node --show-calls=user --resolve-hashes replay_tx testnet 0x7f039bcbb1490b855be37e74cf2400503ad57f51c84856362f99b0cbf1ef478a
 
 
 Executing 0x7f039bcbb1490b855be37e74cf2400503ad57f51c84856362f99b0cbf1ef478a
@@ -106,21 +106,21 @@ You can use your favorite development tool (or tools like `curl`) or zksync-foun
 Check testnet LINK balance
 
 ```shell
-$ zksync_test_node fork testnet
+era_test_node fork testnet
 
-$ zkcast call 0x40609141Db628BeEE3BfAB8034Fc2D8278D0Cc78 "name()(string)" --rpc-url http://localhost:8011
+zkcast call 0x40609141Db628BeEE3BfAB8034Fc2D8278D0Cc78 "name()(string)" --rpc-url http://localhost:8011
 
 > ChainLink Token (goerli)
 
 
-$ zkcast call 0x40609141Db628BeEE3BfAB8034Fc2D8278D0Cc78 "balanceOf(address)(uint256)"  0x40609141Db628BeEE3BfAB8034Fc2D8278D0Cc78  --rpc-url http://localhost:8011
+zkcast call 0x40609141Db628BeEE3BfAB8034Fc2D8278D0Cc78 "balanceOf(address)(uint256)"  0x40609141Db628BeEE3BfAB8034Fc2D8278D0Cc78  --rpc-url http://localhost:8011
 > 28762283719732275444443116625665
 ```
 
 Or Mainnet USDT:
 
 ```shell
-zksync_test_node fork mainnet
+era_test_node fork mainnet
 
 zkcast call 0x493257fD37EDB34451f62EDf8D2a0C418852bA4C "name()(string)" --rpc-url http://localhost:8011
 
@@ -147,7 +147,7 @@ run it with mainnet fork.
 cd etc/system-contracts
 yarn preprocess && yarn hardhat run ./scripts/compile-yul.ts
 cd -
-RUST_LOG=vm=trace cargo run -p zksync_test_node fork --dev_use_local_contracts --fork-at 70000000 testnet
+RUST_LOG=vm=trace era_test_node --dev-use-local-contracts fork testnet
 ```
 
 
