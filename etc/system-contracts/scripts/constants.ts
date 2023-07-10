@@ -121,7 +121,7 @@ export const SYSTEM_CONTRACTS: ISystemContracts = {
 } as const;
 
 export const EIP712_TX_ID = 113;
-export const CHAIN_ID = 270;
+export const CHAIN_ID = 260;
 
 // For now, these types are hardcoded, but maybe it will make sense
 export const EIP712_DOMAIN = {

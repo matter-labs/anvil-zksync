@@ -52,7 +52,7 @@ pub const MAX_TX_SIZE: usize = 1000000;
 // Timestamp of the first block (if not running in fork mode).
 pub const NON_FORK_FIRST_BLOCK_TIMESTAMP: u64 = 1000;
 /// Network ID we use for the test node.
-pub const TEST_NODE_NETWORK_ID: u16 = 270;
+pub const TEST_NODE_NETWORK_ID: u16 = 260;
 
 /// Basic information about the generated block (which is block l1 batch and miniblock).
 /// Currently, this test node supports exactly one transaction per block.
@@ -113,8 +113,13 @@ impl InMemoryNodeInner {
     }
 }
 
-fn not_implemented<T: Send + 'static>() -> Result<T, jsonrpc_core::Error> {
-    Err(jsonrpc_core::Error::method_not_found())
+fn not_implemented<T: Send + 'static>(method_name: &str) -> Result<T, jsonrpc_core::Error> {
+    println!("Method {} is not implemented", method_name);
+    Err(jsonrpc_core::Error {
+        data: None,
+        code: jsonrpc_core::ErrorCode::MethodNotFound,
+        message: format!("Method {} is not implemented", method_name),
+    })
 }
 
 /// In-memory node, that can be used for local & unit testing.
@@ -504,9 +509,14 @@ impl EthNamespaceT for InMemoryNode {
             zksync_types::api::BlockNumber::Committed
             | zksync_types::api::BlockNumber::Finalized
             | zksync_types::api::BlockNumber::Latest => {}
-            zksync_types::api::BlockNumber::Earliest
-            | zksync_types::api::BlockNumber::Pending
-            | zksync_types::api::BlockNumber::Number(_) => return not_implemented(),
+            zksync_types::api::BlockNumber::Earliest => return not_implemented("get_block_by_number__Earliest"),
+            | zksync_types::api::BlockNumber::Pending => return not_implemented("get_block_by_number__Pending"),
+            zksync_types::api::BlockNumber::Number(ask_number) => {
+                if ask_number != U64::from(reader.current_miniblock) {
+                    let not_implemented_format = format!("get_block_by_number__{}", ask_number);
+                    return not_implemented(&not_implemented_format)
+                }
+            },
         }
 
         let txn: Vec<TransactionVariant> = vec![];
@@ -523,7 +533,7 @@ impl EthNamespaceT for InMemoryNode {
             number: U64::from(reader.current_miniblock),
             l1_batch_number: Some(U64::from(reader.current_batch)),
             gas_used: Default::default(),
-            gas_limit: Default::default(),
+            gas_limit: U256::from(ETH_CALL_GAS_LIMIT),
             base_fee_per_gas: Default::default(),
             extra_data: Default::default(),
             logs_bloom: Default::default(),
@@ -693,31 +703,31 @@ impl EthNamespaceT for InMemoryNode {
     }
 
     fn new_filter(&self, _filter: Filter) -> jsonrpc_core::Result<U256> {
-        not_implemented()
+        not_implemented("new_filter")
     }
 
     fn new_block_filter(&self) -> jsonrpc_core::Result<U256> {
-        not_implemented()
+        not_implemented("new_block_filter")
     }
 
     fn uninstall_filter(&self, _idx: U256) -> jsonrpc_core::Result<bool> {
-        not_implemented()
+        not_implemented("uninstall_filter")
     }
 
     fn new_pending_transaction_filter(&self) -> jsonrpc_core::Result<U256> {
-        not_implemented()
+        not_implemented("new_pending_transaction_filter")
     }
 
     fn get_logs(&self, _filter: Filter) -> jsonrpc_core::Result<Vec<zksync_types::api::Log>> {
-        not_implemented()
+        not_implemented("get_logs")
     }
 
     fn get_filter_logs(&self, _filter_index: U256) -> jsonrpc_core::Result<FilterChanges> {
-        not_implemented()
+        not_implemented("get_filter_logs")
     }
 
     fn get_filter_changes(&self, _filter_index: U256) -> jsonrpc_core::Result<FilterChanges> {
-        not_implemented()
+        not_implemented("get_filter_changes")
     }
 
     fn get_block_by_hash(
@@ -726,21 +736,21 @@ impl EthNamespaceT for InMemoryNode {
         _full_transactions: bool,
     ) -> jsonrpc_core::Result<Option<zksync_types::api::Block<zksync_types::api::TransactionVariant>>>
     {
-        not_implemented()
+        not_implemented("get_block_by_hash")
     }
 
     fn get_block_transaction_count_by_number(
         &self,
         _block_number: zksync_types::api::BlockNumber,
     ) -> jsonrpc_core::Result<Option<U256>> {
-        not_implemented()
+        not_implemented("get_block_transaction_count_by_number")
     }
 
     fn get_block_transaction_count_by_hash(
         &self,
         _block_hash: zksync_basic_types::H256,
     ) -> jsonrpc_core::Result<Option<U256>> {
-        not_implemented()
+        not_implemented("get_block_transaction_count_by_hash")
     }
 
     fn get_storage(
@@ -749,14 +759,14 @@ impl EthNamespaceT for InMemoryNode {
         _idx: U256,
         _block: Option<zksync_types::api::BlockIdVariant>,
     ) -> jsonrpc_core::Result<zksync_basic_types::H256> {
-        not_implemented()
+        not_implemented("get_storage")
     }
 
     fn get_transaction_by_hash(
         &self,
         _hash: zksync_basic_types::H256,
     ) -> jsonrpc_core::Result<Option<zksync_types::api::Transaction>> {
-        not_implemented()
+        not_implemented("get_transaction_by_hash")
     }
 
     fn get_transaction_by_block_hash_and_index(
@@ -764,7 +774,7 @@ impl EthNamespaceT for InMemoryNode {
         _block_hash: zksync_basic_types::H256,
         _index: zksync_basic_types::web3::types::Index,
     ) -> jsonrpc_core::Result<Option<zksync_types::api::Transaction>> {
-        not_implemented()
+        not_implemented("get_transaction_by_block_hash_and_index")
     }
 
     fn get_transaction_by_block_number_and_index(
@@ -772,55 +782,55 @@ impl EthNamespaceT for InMemoryNode {
         _block_number: zksync_types::api::BlockNumber,
         _index: zksync_basic_types::web3::types::Index,
     ) -> jsonrpc_core::Result<Option<zksync_types::api::Transaction>> {
-        not_implemented()
+        not_implemented("get_transaction_by_block_number_and_index")
     }
 
     fn protocol_version(&self) -> jsonrpc_core::Result<String> {
-        not_implemented()
+        not_implemented("protocol_version")
     }
 
     fn syncing(&self) -> jsonrpc_core::Result<zksync_basic_types::web3::types::SyncState> {
-        not_implemented()
+        not_implemented("syncing")
     }
 
     fn accounts(&self) -> jsonrpc_core::Result<Vec<zksync_basic_types::Address>> {
-        not_implemented()
+        not_implemented("accounts")
     }
 
     fn coinbase(&self) -> jsonrpc_core::Result<zksync_basic_types::Address> {
-        not_implemented()
+        not_implemented("coinbase")
     }
 
     fn compilers(&self) -> jsonrpc_core::Result<Vec<String>> {
-        not_implemented()
+        not_implemented("compilers")
     }
 
     fn hashrate(&self) -> jsonrpc_core::Result<U256> {
-        not_implemented()
+        not_implemented("hashrate")
     }
 
     fn get_uncle_count_by_block_hash(
         &self,
         _hash: zksync_basic_types::H256,
     ) -> jsonrpc_core::Result<Option<U256>> {
-        not_implemented()
+        not_implemented("get_uncle_count_by_block_hash")
     }
 
     fn get_uncle_count_by_block_number(
         &self,
         _number: zksync_types::api::BlockNumber,
     ) -> jsonrpc_core::Result<Option<U256>> {
-        not_implemented()
+        not_implemented("get_uncle_count_by_block_number")
     }
 
     fn mining(&self) -> jsonrpc_core::Result<bool> {
-        not_implemented()
+        not_implemented("mining")
     }
 
     fn send_transaction(
         &self,
         _transaction_request: zksync_types::web3::types::TransactionRequest,
     ) -> jsonrpc_core::Result<zksync_basic_types::H256> {
-        not_implemented()
+        not_implemented("send_transaction")
     }
 }
