@@ -67,15 +67,15 @@ pub fn print_event(event: &VmEvent, resolve_hashes: bool) {
                 ))
                 .await
                 .unwrap();
-                tt.push(selector.unwrap_or(topic.to_string()));
+                tt.push(selector.unwrap_or(format!("{:?}", topic)));
             }
         }
 
         println!(
             "{} {}",
             address_to_human_readable(event.address)
-                .map(|x| format!("{:42}", x))
-                .unwrap_or(format!("{:?}", event.address)),
+                .map(|x| format!("{:42}", x.blue()))
+                .unwrap_or(format!("{:42}", format!("{:?}", event.address).blue())),
             tt.join(", ")
         );
     });

@@ -9,6 +9,7 @@ use zksync_types::U256;
 
 // Local uses
 use crate::web3::namespaces::NetNamespace;
+use crate::node::TEST_NODE_NETWORK_ID;
 
 #[rpc]
 pub trait NetNamespaceT {
@@ -24,14 +25,14 @@ pub trait NetNamespaceT {
 
 impl NetNamespaceT for NetNamespace {
     fn net_version(&self) -> Result<String> {
-        Ok(String::From("2.0.0"))
+        Ok(String::From(TEST_NODE_NETWORK_ID))
     }
 
     fn net_peer_count(&self) -> Result<U256> {
-        Ok(U256::From(10))
+        Ok(U256::From(0))
     }
 
     fn net_listening(&self) -> Result<bool> {
-        Ok(true)
+        Ok(false)
     }
 }

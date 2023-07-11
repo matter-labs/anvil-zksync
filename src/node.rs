@@ -681,6 +681,57 @@ impl EthNamespaceT for InMemoryNode {
         Ok(hash)
     }
 
+    fn get_block_by_hash(
+        &self,
+        hash: zksync_basic_types::H256,
+        _full_transactions: bool,
+    ) -> jsonrpc_core::Result<Option<zksync_types::api::Block<zksync_types::api::TransactionVariant>>>
+    {
+        // Currently we support only hashes for blocks in memory
+        let reader = self.inner.read().unwrap();
+        let not_implemented_format = format!("get_block_by_hash__{}", hash);
+        
+        let matching_transaction = reader.tx_results.get(&hash);
+        if matching_transaction.is_none() {
+            return not_implemented(&not_implemented_format)
+        }
+
+        let matching_block = reader.blocks.get(&matching_transaction.unwrap().batch_number);
+        if matching_block.is_none() {
+            return not_implemented(&not_implemented_format)
+        }
+
+        let txn: Vec<TransactionVariant> = vec![];
+        let block = zksync_types::api::Block {
+            transactions: txn,
+            hash: Default::default(),
+            parent_hash: Default::default(),
+            uncles_hash: Default::default(),
+            author: Default::default(),
+            state_root: Default::default(),
+            transactions_root: Default::default(),
+            receipts_root: Default::default(),
+            number: U64::from(matching_block.unwrap().batch_number),
+            l1_batch_number: Some(U64::from(reader.current_batch)),
+            gas_used: Default::default(),
+            gas_limit: U256::from(ETH_CALL_GAS_LIMIT),
+            base_fee_per_gas: Default::default(),
+            extra_data: Default::default(),
+            logs_bloom: Default::default(),
+            timestamp: Default::default(),
+            l1_batch_timestamp: Default::default(),
+            difficulty: Default::default(),
+            total_difficulty: Default::default(),
+            seal_fields: Default::default(),
+            uncles: Default::default(),
+            size: Default::default(),
+            mix_hash: Default::default(),
+            nonce: Default::default(),
+        };
+
+        Ok(Some(block))
+    }
+
     // Methods below are not currently implemented.
 
     fn get_block_number(&self) -> jsonrpc_core::Result<zksync_basic_types::U64> {
@@ -728,15 +779,6 @@ impl EthNamespaceT for InMemoryNode {
 
     fn get_filter_changes(&self, _filter_index: U256) -> jsonrpc_core::Result<FilterChanges> {
         not_implemented("get_filter_changes")
-    }
-
-    fn get_block_by_hash(
-        &self,
-        _hash: zksync_basic_types::H256,
-        _full_transactions: bool,
-    ) -> jsonrpc_core::Result<Option<zksync_types::api::Block<zksync_types::api::TransactionVariant>>>
-    {
-        not_implemented("get_block_by_hash")
     }
 
     fn get_block_transaction_count_by_number(

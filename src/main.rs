@@ -35,6 +35,7 @@ use zksync_basic_types::{H160, H256, L2ChainId};
 use zksync_core::api_server::web3::backend_jsonrpc::namespaces::{
     eth::EthNamespaceT, zks::ZksNamespaceT, net::NetNamespaceT
 };
+use crate::node::TEST_NODE_NETWORK_ID;
 
 /// List of wallets (address, private key) that we seed with tokens at start.
 pub const RICH_WALLETS: [(&str, &str); 4] = [
@@ -220,7 +221,7 @@ async fn main() -> anyhow::Result<()> {
         println!("Address: {:?} Key: {:?}", address, private_key)
     }
 
-    let net = NetNamespace::new(L2ChainId(260));
+    let net = NetNamespace::new(L2ChainId(TEST_NODE_NETWORK_ID));
 
     let threads = build_json_http(
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), opt.port),
