@@ -215,10 +215,15 @@ async fn main() -> anyhow::Result<()> {
         node.apply_txs(transactions_to_replay);
     }
 
-    println!("Setting Rich accounts:");
-    for (address, private_key) in RICH_WALLETS.iter() {
+    println!("\nRich Accounts");
+    println!("=============");
+    // for (address, private_key) in RICH_WALLETS.iter() {
+    for (index, wallet) in RICH_WALLETS.iter().enumerate() {
+        let address = wallet.0;
+        let private_key = wallet.1;
         node.set_rich_account(H160::from_str(address).unwrap());
-        println!("Address: {:?} Key: {:?}", address, private_key)
+        println!("Account #{}: {} (10000 ETH)", index, address);
+        println!("Private Key: {}\n", private_key);
     }
 
     let net = NetNamespace::new(L2ChainId(TEST_NODE_NETWORK_ID));

@@ -163,7 +163,7 @@ Moreover it also uses the remote server (openchain) to resolve the ABI and topic
 
 
 ## Rich accounts
-The node is also starting with a bunch of tokens allocated to the following accounts, that you can use for testing:
+The node is also starting with 10000 ETH allocated to each of the following accounts, so that you can use for testing:
 
 | account id | private key |
 |---|---|
