@@ -217,7 +217,6 @@ async fn main() -> anyhow::Result<()> {
 
     println!("\nRich Accounts");
     println!("=============");
-    // for (address, private_key) in RICH_WALLETS.iter() {
     for (index, wallet) in RICH_WALLETS.iter().enumerate() {
         let address = wallet.0;
         let private_key = wallet.1;
