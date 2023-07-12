@@ -15,17 +15,18 @@ Current limitations:
 - No support for accessing historical data, such as the storage state at a specific block.
 - Only one transaction is allowed per Layer 1 batch.
 - Fixed values are returned for zk Gas estimation.
+- With every redeploy of the local node, MetaMask will require a reset of cached account data (Settings >> Advanced >> Click `Clear activity tab data`)
 
 Current features:
 
 - Can fork the state of the mainnet, testnet, or a custom network at any given height.
-- Can replay the existing mainnet, testnet transaaction.
+- Can replay the existing mainnet, testnet transaction.
 - Uses local bootloader and system contracts, making it suitable for testing new changes.
 - When running in non-fork mode, it operates deterministically (only one transaction per block, etc.), which simplifies
   testing.
 - Starts up quickly and comes pre-configured with a few 'rich' accounts.
 - Supports hardhat's console.log debugging.
-- Can resolve the names of ABI functions and Events (using openchain)
+- Can resolve the names of ABI functions and Events (using openchain).
 
 ## Installation
 
