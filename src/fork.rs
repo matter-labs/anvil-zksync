@@ -3,12 +3,11 @@
 //! There is ForkStorage (that is a wrapper over InMemoryStorage)
 //! And ForkDetails - that parses network address and fork height from arguments.
 
-
 use std::{
     collections::HashMap,
     convert::TryInto,
-    sync::{Arc, RwLock},
     future::Future,
+    sync::{Arc, RwLock},
 };
 
 use tokio::runtime::Builder;
@@ -17,7 +16,7 @@ use zksync_basic_types::{L1BatchNumber, L2ChainId, MiniblockNumber, H256, U64};
 use zksync_types::{
     api::{BlockIdVariant, BlockNumber},
     l2::L2Tx,
-    StorageKey
+    StorageKey,
 };
 
 use zksync_state::{InMemoryStorage, ReadStorage};

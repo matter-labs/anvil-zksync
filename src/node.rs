@@ -1,20 +1,21 @@
 //! In-memory node, that supports forking other networks.
 use crate::{
     console_log::ConsoleLogHandler,
-    deps::{system_contracts::bytecode_from_slice},
+    deps::system_contracts::bytecode_from_slice,
     fork::{ForkDetails, ForkStorage},
+    formatter,
     utils::IntoBoxedFuture,
-    formatter, ShowCalls,
+    ShowCalls,
 };
 
 use colored::Colorize;
+use once_cell::sync::Lazy;
 use std::{
     collections::HashMap,
     convert::TryInto,
     sync::{Arc, RwLock},
 };
 use zksync_state::{ReadStorage, StorageView, WriteStorage};
-use once_cell::sync::Lazy;
 
 use zksync_basic_types::{AccountTreeId, Bytes, H160, H256, U256, U64};
 use zksync_contracts::{
@@ -115,13 +116,16 @@ impl InMemoryNodeInner {
     }
 }
 
-fn not_implemented<T: Send + 'static>(method_name: &str) ->  jsonrpc_core::BoxFuture<Result<T, jsonrpc_core::Error>> {
+fn not_implemented<T: Send + 'static>(
+    method_name: &str,
+) -> jsonrpc_core::BoxFuture<Result<T, jsonrpc_core::Error>> {
     println!("Method {} is not implemented", method_name);
     Err(jsonrpc_core::Error {
         data: None,
         code: jsonrpc_core::ErrorCode::MethodNotFound,
         message: format!("Method {} is not implemented", method_name),
-    }).into_boxed_future()
+    })
+    .into_boxed_future()
 }
 
 /// In-memory node, that can be used for local & unit testing.
@@ -490,7 +494,7 @@ impl EthNamespaceT for InMemoryNode {
         &self,
         address: zksync_basic_types::Address,
         _block: Option<zksync_types::api::BlockIdVariant>,
-    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<U256>>  {
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<U256>> {
         let balance_key = storage_key_for_standard_token_balance(
             AccountTreeId::new(L2_ETH_TOKEN_ADDRESS),
             &address,
@@ -511,25 +515,28 @@ impl EthNamespaceT for InMemoryNode {
         block_number: zksync_types::api::BlockNumber,
         _full_transactions: bool,
     ) -> jsonrpc_core::BoxFuture<
-    jsonrpc_core::Result<
-        Option<zksync_types::api::Block<zksync_types::api::TransactionVariant>>,
-    >,
-> 
-    {
+        jsonrpc_core::Result<
+            Option<zksync_types::api::Block<zksync_types::api::TransactionVariant>>,
+        >,
+    > {
         // Currently we support only the 'most recent' block.
         let reader = self.inner.read().unwrap();
         match block_number {
             zksync_types::api::BlockNumber::Committed
             | zksync_types::api::BlockNumber::Finalized
             | zksync_types::api::BlockNumber::Latest => {}
-            zksync_types::api::BlockNumber::Earliest => return not_implemented("get_block_by_number__Earliest"),
-            | zksync_types::api::BlockNumber::Pending => return not_implemented("get_block_by_number__Pending"),
+            zksync_types::api::BlockNumber::Earliest => {
+                return not_implemented("get_block_by_number__Earliest")
+            }
+            zksync_types::api::BlockNumber::Pending => {
+                return not_implemented("get_block_by_number__Pending")
+            }
             zksync_types::api::BlockNumber::Number(ask_number) => {
                 if ask_number != U64::from(reader.current_miniblock) {
                     let not_implemented_format = format!("get_block_by_number__{}", ask_number);
-                    return not_implemented(&not_implemented_format)
+                    return not_implemented(&not_implemented_format);
                 }
-            },
+            }
         }
 
         let txn: Vec<TransactionVariant> = vec![];
@@ -600,7 +607,8 @@ impl EthNamespaceT for InMemoryNode {
     fn get_transaction_receipt(
         &self,
         hash: zksync_basic_types::H256,
-    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<zksync_types::api::TransactionReceipt>>> {
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<zksync_types::api::TransactionReceipt>>>
+    {
         let reader = self.inner.read().unwrap();
         let tx_result = reader.tx_results.get(&hash);
 
@@ -699,23 +707,24 @@ impl EthNamespaceT for InMemoryNode {
         hash: zksync_basic_types::H256,
         _full_transactions: bool,
     ) -> jsonrpc_core::BoxFuture<
-    jsonrpc_core::Result<
-        Option<zksync_types::api::Block<zksync_types::api::TransactionVariant>>,
-    >,
-> 
-    {
+        jsonrpc_core::Result<
+            Option<zksync_types::api::Block<zksync_types::api::TransactionVariant>>,
+        >,
+    > {
         // Currently we support only hashes for blocks in memory
         let reader = self.inner.read().unwrap();
         let not_implemented_format = format!("get_block_by_hash__{}", hash);
-        
+
         let matching_transaction = reader.tx_results.get(&hash);
         if matching_transaction.is_none() {
-            return not_implemented(&not_implemented_format)
+            return not_implemented(&not_implemented_format);
         }
 
-        let matching_block = reader.blocks.get(&matching_transaction.unwrap().batch_number);
+        let matching_block = reader
+            .blocks
+            .get(&matching_transaction.unwrap().batch_number);
         if matching_block.is_none() {
-            return not_implemented(&not_implemented_format)
+            return not_implemented(&not_implemented_format);
         }
 
         let txn: Vec<TransactionVariant> = vec![];
@@ -751,7 +760,9 @@ impl EthNamespaceT for InMemoryNode {
 
     // Methods below are not currently implemented.
 
-    fn get_block_number(&self) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::U64>> {
+    fn get_block_number(
+        &self,
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::U64>> {
         let reader = self.inner.read().unwrap();
         Ok(U64::from(reader.current_miniblock)).into_boxed_future()
     }
@@ -782,19 +793,30 @@ impl EthNamespaceT for InMemoryNode {
         not_implemented("uninstall_filter")
     }
 
-    fn new_pending_transaction_filter(&self) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<U256>> {
+    fn new_pending_transaction_filter(
+        &self,
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<U256>> {
         not_implemented("new_pending_transaction_filter")
     }
 
-    fn get_logs(&self, _filter: Filter) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Vec<zksync_types::api::Log>>> {
+    fn get_logs(
+        &self,
+        _filter: Filter,
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Vec<zksync_types::api::Log>>> {
         not_implemented("get_logs")
     }
 
-    fn get_filter_logs(&self, _filter_index: U256) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<FilterChanges>> {
+    fn get_filter_logs(
+        &self,
+        _filter_index: U256,
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<FilterChanges>> {
         not_implemented("get_filter_logs")
     }
 
-    fn get_filter_changes(&self, _filter_index: U256) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<FilterChanges>> {
+    fn get_filter_changes(
+        &self,
+        _filter_index: U256,
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<FilterChanges>> {
         not_implemented("get_filter_changes")
     }
 
@@ -848,15 +870,22 @@ impl EthNamespaceT for InMemoryNode {
         not_implemented("protocol_version")
     }
 
-    fn syncing(&self) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::web3::types::SyncState>> {
+    fn syncing(
+        &self,
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::web3::types::SyncState>>
+    {
         not_implemented("syncing")
     }
 
-    fn accounts(&self) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Vec<zksync_basic_types::Address>>> {
+    fn accounts(
+        &self,
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Vec<zksync_basic_types::Address>>> {
         not_implemented("accounts")
     }
 
-    fn coinbase(&self) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::Address>> {
+    fn coinbase(
+        &self,
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::Address>> {
         not_implemented("coinbase")
     }
 
