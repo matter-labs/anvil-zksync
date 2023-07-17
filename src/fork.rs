@@ -2,30 +2,46 @@
 //!
 //! There is ForkStorage (that is a wrapper over InMemoryStorage)
 //! And ForkDetails - that parses network address and fork height from arguments.
-use zksync_core::block_on;
+
 
 use std::{
     collections::HashMap,
     convert::TryInto,
     sync::{Arc, RwLock},
+    future::Future,
 };
 
+use tokio::runtime::Builder;
 use zksync_basic_types::{L1BatchNumber, L2ChainId, MiniblockNumber, H256, U64};
 
 use zksync_types::{
     api::{BlockIdVariant, BlockNumber},
     l2::L2Tx,
-    StorageKey, ZkSyncReadStorage,
+    StorageKey
 };
+
+use zksync_state::{InMemoryStorage, ReadStorage};
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 
 use zksync_web3_decl::{jsonrpsee::http_client::HttpClient, namespaces::EthNamespaceClient};
 use zksync_web3_decl::{jsonrpsee::http_client::HttpClientBuilder, namespaces::ZksNamespaceClient};
 
-use crate::{
-    deps::{InMemoryStorage, ReadStorage},
-    node::TEST_NODE_NETWORK_ID,
-};
+use crate::node::TEST_NODE_NETWORK_ID;
+
+pub fn block_on<F: Future + Send + 'static>(future: F) -> F::Output
+where
+    F::Output: Send,
+{
+    std::thread::spawn(move || {
+        let runtime = Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("tokio runtime creation failed");
+        runtime.block_on(future)
+    })
+    .join()
+    .unwrap()
+}
 
 /// In memory storage, that allows 'forking' from other network.
 /// If forking is enabled, it reads missing data from remote location.
@@ -61,7 +77,7 @@ impl ForkStorage {
                 raw_storage: InMemoryStorage::with_system_contracts_and_chain_id(
                     chain_id,
                     hash_bytecode,
-                    dev_use_local_contracts,
+                    // dev_use_local_contracts,
                 ),
                 value_read_cache: Default::default(),
                 fork,
@@ -145,36 +161,6 @@ impl ReadStorage for ForkStorage {
 }
 
 impl ReadStorage for &ForkStorage {
-    fn read_value(&mut self, key: &StorageKey) -> zksync_types::StorageValue {
-        self.read_value_internal(key)
-    }
-
-    fn is_write_initial(&mut self, key: &StorageKey) -> bool {
-        let mut mutator = self.inner.write().unwrap();
-        mutator.raw_storage.is_write_initial(key)
-    }
-
-    fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
-        self.load_factory_dep_internal(hash)
-    }
-}
-
-impl ZkSyncReadStorage for ForkStorage {
-    fn read_value(&mut self, key: &StorageKey) -> zksync_types::StorageValue {
-        self.read_value_internal(key)
-    }
-
-    fn is_write_initial(&mut self, key: &StorageKey) -> bool {
-        let mut mutator = self.inner.write().unwrap();
-        mutator.raw_storage.is_write_initial(key)
-    }
-
-    fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
-        self.load_factory_dep_internal(hash)
-    }
-}
-
-impl ZkSyncReadStorage for &ForkStorage {
     fn read_value(&mut self, key: &StorageKey) -> zksync_types::StorageValue {
         self.read_value_internal(key)
     }

@@ -6,7 +6,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 
 use zksync_basic_types::H160;
-use zksync_core::block_on;
+use crate::fork::block_on;
 
 use zksync_types::{vm_trace::Call, VmEvent};
 

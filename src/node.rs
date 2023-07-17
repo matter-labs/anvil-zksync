@@ -1,8 +1,9 @@
 //! In-memory node, that supports forking other networks.
 use crate::{
     console_log::ConsoleLogHandler,
-    deps::{system_contracts::bytecode_from_slice, ReadStorage},
+    deps::{system_contracts::bytecode_from_slice},
     fork::{ForkDetails, ForkStorage},
+    utils::IntoBoxedFuture,
     formatter, ShowCalls,
 };
 
@@ -12,7 +13,8 @@ use std::{
     convert::TryInto,
     sync::{Arc, RwLock},
 };
-use zksync_state::storage_view::StorageView;
+use zksync_state::{ReadStorage, StorageView, WriteStorage};
+use once_cell::sync::Lazy;
 
 use zksync_basic_types::{AccountTreeId, Bytes, H160, H256, U256, U64};
 use zksync_contracts::{
@@ -38,7 +40,7 @@ use zksync_utils::{
 };
 
 use vm::{
-    utils::{BLOCK_GAS_LIMIT, ETH_CALL_GAS_LIMIT},
+    utils::{create_test_block_params, BASE_SYSTEM_CONTRACTS, BLOCK_GAS_LIMIT, ETH_CALL_GAS_LIMIT},
     vm::VmTxExecutionResult,
     vm_with_bootloader::{
         init_vm_inner, push_transaction_to_bootloader_memory, BlockContext, BlockContextMode,
@@ -113,13 +115,13 @@ impl InMemoryNodeInner {
     }
 }
 
-fn not_implemented<T: Send + 'static>(method_name: &str) -> Result<T, jsonrpc_core::Error> {
+fn not_implemented<T: Send + 'static>(method_name: &str) ->  jsonrpc_core::BoxFuture<Result<T, jsonrpc_core::Error>> {
     println!("Method {} is not implemented", method_name);
     Err(jsonrpc_core::Error {
         data: None,
         code: jsonrpc_core::ErrorCode::MethodNotFound,
         message: format!("Method {} is not implemented", method_name),
-    })
+    }).into_boxed_future()
 }
 
 /// In-memory node, that can be used for local & unit testing.
@@ -128,6 +130,9 @@ fn not_implemented<T: Send + 'static>(method_name: &str) -> Result<T, jsonrpc_co
 pub struct InMemoryNode {
     inner: Arc<RwLock<InMemoryNodeInner>>,
 }
+
+pub static PLAYGROUND_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
+    Lazy::new(BaseSystemContracts::playground);
 
 fn bsc_load_with_bootloader(
     bootloader_bytecode: Vec<u8>,
@@ -238,8 +243,8 @@ impl InMemoryNode {
         let mut inner = self.inner.write().unwrap();
         let keys = {
             let mut storage_view = StorageView::new(&inner.fork_storage);
-            storage_view.set_value(&key, u256_to_h256(U256::from(10u128.pow(22))));
-            storage_view.get_modified_storage_keys().clone()
+            storage_view.set_value(key, u256_to_h256(U256::from(10u128.pow(19))));
+            storage_view.modified_storage_keys().clone()
         };
 
         for (key, value) in keys.iter() {
@@ -252,16 +257,17 @@ impl InMemoryNode {
         let execution_mode = TxExecutionMode::EthCall {
             missed_storage_invocation_limit: 1000000,
         };
+        let (mut block_context, block_properties) = create_test_block_params();
 
         let inner = self.inner.write().unwrap();
-        let block_context = inner.create_block_context();
-        let bootloader_code = &inner.playground_contracts;
-
-        let block_properties = InMemoryNodeInner::create_block_properties(bootloader_code);
 
         let mut storage_view = StorageView::new(&inner.fork_storage);
 
         let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryEnabled);
+
+        let bootloader_code = &PLAYGROUND_SYSTEM_CONTRACTS;
+        block_context.block_number = inner.current_batch;
+        block_context.block_timestamp = inner.current_timestamp;
 
         // init vm
         let mut vm = init_vm_inner(
@@ -321,15 +327,18 @@ impl InMemoryNode {
         BlockInfo,
         HashMap<U256, Vec<U256>>,
     ) {
+        let (mut block_context, block_properties) = create_test_block_params();
+
         let inner = self.inner.write().unwrap();
 
         let mut storage_view = StorageView::new(&inner.fork_storage);
 
         let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryEnabled);
 
-        let bootloader_code = match execution_mode {
-            TxExecutionMode::VerifyExecute => &inner.baseline_contracts,
-            _ => &inner.playground_contracts,
+        let bootloader_code = if execution_mode == TxExecutionMode::VerifyExecute {
+            &BASE_SYSTEM_CONTRACTS
+        } else {
+            &PLAYGROUND_SYSTEM_CONTRACTS
         };
 
         let block_context = inner.create_block_context();
@@ -410,7 +419,7 @@ impl InMemoryNode {
             .inner()
             .clone();
 
-        let modified_keys = storage_view.get_modified_storage_keys().clone();
+        let modified_keys = storage_view.modified_storage_keys().clone();
         (modified_keys, tx_result, block, bytecodes)
     }
 
@@ -460,28 +469,28 @@ impl InMemoryNode {
 }
 
 impl EthNamespaceT for InMemoryNode {
-    fn chain_id(&self) -> jsonrpc_core::Result<zksync_basic_types::U64> {
+    fn chain_id(&self) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::U64>> {
         let inner = self.inner.read().unwrap();
-        Ok(U64::from(inner.fork_storage.chain_id.0 as u64))
+        Ok(U64::from(inner.fork_storage.chain_id.0 as u64)).into_boxed_future()
     }
 
     fn call(
         &self,
         req: zksync_types::transaction_request::CallRequest,
         _block: Option<zksync_types::api::BlockIdVariant>,
-    ) -> jsonrpc_core::Result<zksync_basic_types::Bytes> {
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::Bytes>> {
         let mut tx = l2_tx_from_call_req(req, MAX_TX_SIZE).unwrap();
         tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
         let result = self.run_l2_call(tx);
 
-        Ok(result.into())
+        Ok(result.into()).into_boxed_future()
     }
 
     fn get_balance(
         &self,
         address: zksync_basic_types::Address,
         _block: Option<zksync_types::api::BlockIdVariant>,
-    ) -> jsonrpc_core::Result<U256> {
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<U256>>  {
         let balance_key = storage_key_for_standard_token_balance(
             AccountTreeId::new(L2_ETH_TOKEN_ADDRESS),
             &address,
@@ -494,14 +503,18 @@ impl EthNamespaceT for InMemoryNode {
             .fork_storage
             .read_value(&balance_key);
 
-        Ok(h256_to_u256(balance))
+        Ok(h256_to_u256(balance)).into_boxed_future()
     }
 
     fn get_block_by_number(
         &self,
         block_number: zksync_types::api::BlockNumber,
         _full_transactions: bool,
-    ) -> jsonrpc_core::Result<Option<zksync_types::api::Block<zksync_types::api::TransactionVariant>>>
+    ) -> jsonrpc_core::BoxFuture<
+    jsonrpc_core::Result<
+        Option<zksync_types::api::Block<zksync_types::api::TransactionVariant>>,
+    >,
+> 
     {
         // Currently we support only the 'most recent' block.
         let reader = self.inner.read().unwrap();
@@ -548,14 +561,14 @@ impl EthNamespaceT for InMemoryNode {
             nonce: Default::default(),
         };
 
-        Ok(Some(block))
+        Ok(Some(block)).into_boxed_future()
     }
 
     fn get_code(
         &self,
         address: zksync_basic_types::Address,
         _block: Option<zksync_types::api::BlockIdVariant>,
-    ) -> jsonrpc_core::Result<zksync_basic_types::Bytes> {
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::Bytes>> {
         let code_key = get_code_key(&address);
 
         let code_hash = self
@@ -565,14 +578,14 @@ impl EthNamespaceT for InMemoryNode {
             .fork_storage
             .read_value(&code_key);
 
-        Ok(Bytes::from(code_hash.as_bytes()))
+        Ok(Bytes::from(code_hash.as_bytes())).into_boxed_future()
     }
 
     fn get_transaction_count(
         &self,
         address: zksync_basic_types::Address,
         _block: Option<zksync_types::api::BlockIdVariant>,
-    ) -> jsonrpc_core::Result<U256> {
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<U256>> {
         let nonce_key = get_nonce_key(&address);
 
         let result = self
@@ -581,13 +594,13 @@ impl EthNamespaceT for InMemoryNode {
             .unwrap()
             .fork_storage
             .read_value(&nonce_key);
-        Ok(h256_to_u64(result).into())
+        Ok(h256_to_u64(result).into()).into_boxed_future()
     }
 
     fn get_transaction_receipt(
         &self,
         hash: zksync_basic_types::H256,
-    ) -> jsonrpc_core::Result<Option<zksync_types::api::TransactionReceipt>> {
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<zksync_types::api::TransactionReceipt>>> {
         let reader = self.inner.read().unwrap();
         let tx_result = reader.tx_results.get(&hash);
 
@@ -657,13 +670,13 @@ impl EthNamespaceT for InMemoryNode {
             }
         });
 
-        Ok(receipt)
+        Ok(receipt).into_boxed_future()
     }
 
     fn send_raw_transaction(
         &self,
         tx_bytes: zksync_basic_types::Bytes,
-    ) -> jsonrpc_core::Result<zksync_basic_types::H256> {
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::H256>> {
         let chain_id = {
             let reader = self.inner.read().unwrap();
             reader.fork_storage.chain_id
@@ -678,14 +691,18 @@ impl EthNamespaceT for InMemoryNode {
 
         self.run_l2_tx(l2_tx, TxExecutionMode::VerifyExecute);
 
-        Ok(hash)
+        Ok(hash).into_boxed_future()
     }
 
     fn get_block_by_hash(
         &self,
         hash: zksync_basic_types::H256,
         _full_transactions: bool,
-    ) -> jsonrpc_core::Result<Option<zksync_types::api::Block<zksync_types::api::TransactionVariant>>>
+    ) -> jsonrpc_core::BoxFuture<
+    jsonrpc_core::Result<
+        Option<zksync_types::api::Block<zksync_types::api::TransactionVariant>>,
+    >,
+> 
     {
         // Currently we support only hashes for blocks in memory
         let reader = self.inner.read().unwrap();
@@ -729,69 +746,69 @@ impl EthNamespaceT for InMemoryNode {
             nonce: Default::default(),
         };
 
-        Ok(Some(block))
+        Ok(Some(block)).into_boxed_future()
     }
 
     // Methods below are not currently implemented.
 
-    fn get_block_number(&self) -> jsonrpc_core::Result<zksync_basic_types::U64> {
+    fn get_block_number(&self) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::U64>> {
         let reader = self.inner.read().unwrap();
-        Ok(U64::from(reader.current_miniblock))
+        Ok(U64::from(reader.current_miniblock)).into_boxed_future()
     }
 
     fn estimate_gas(
         &self,
         _req: zksync_types::transaction_request::CallRequest,
         _block: Option<zksync_types::api::BlockNumber>,
-    ) -> jsonrpc_core::Result<U256> {
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<U256>> {
         let gas_used = U256::from(ETH_CALL_GAS_LIMIT);
-        Ok(gas_used)
+        Ok(gas_used).into_boxed_future()
     }
 
-    fn gas_price(&self) -> jsonrpc_core::Result<U256> {
+    fn gas_price(&self) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<U256>> {
         let fair_l2_gas_price: u64 = 250_000_000; // 0.25 gwei
-        Ok(U256::from(fair_l2_gas_price))
+        Ok(U256::from(fair_l2_gas_price)).into_boxed_future()
     }
 
-    fn new_filter(&self, _filter: Filter) -> jsonrpc_core::Result<U256> {
+    fn new_filter(&self, _filter: Filter) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<U256>> {
         not_implemented("new_filter")
     }
 
-    fn new_block_filter(&self) -> jsonrpc_core::Result<U256> {
+    fn new_block_filter(&self) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<U256>> {
         not_implemented("new_block_filter")
     }
 
-    fn uninstall_filter(&self, _idx: U256) -> jsonrpc_core::Result<bool> {
+    fn uninstall_filter(&self, _idx: U256) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<bool>> {
         not_implemented("uninstall_filter")
     }
 
-    fn new_pending_transaction_filter(&self) -> jsonrpc_core::Result<U256> {
+    fn new_pending_transaction_filter(&self) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<U256>> {
         not_implemented("new_pending_transaction_filter")
     }
 
-    fn get_logs(&self, _filter: Filter) -> jsonrpc_core::Result<Vec<zksync_types::api::Log>> {
+    fn get_logs(&self, _filter: Filter) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Vec<zksync_types::api::Log>>> {
         not_implemented("get_logs")
     }
 
-    fn get_filter_logs(&self, _filter_index: U256) -> jsonrpc_core::Result<FilterChanges> {
+    fn get_filter_logs(&self, _filter_index: U256) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<FilterChanges>> {
         not_implemented("get_filter_logs")
     }
 
-    fn get_filter_changes(&self, _filter_index: U256) -> jsonrpc_core::Result<FilterChanges> {
+    fn get_filter_changes(&self, _filter_index: U256) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<FilterChanges>> {
         not_implemented("get_filter_changes")
     }
 
     fn get_block_transaction_count_by_number(
         &self,
         _block_number: zksync_types::api::BlockNumber,
-    ) -> jsonrpc_core::Result<Option<U256>> {
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<U256>>> {
         not_implemented("get_block_transaction_count_by_number")
     }
 
     fn get_block_transaction_count_by_hash(
         &self,
         _block_hash: zksync_basic_types::H256,
-    ) -> jsonrpc_core::Result<Option<U256>> {
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<U256>>> {
         not_implemented("get_block_transaction_count_by_hash")
     }
 
@@ -800,14 +817,14 @@ impl EthNamespaceT for InMemoryNode {
         _address: zksync_basic_types::Address,
         _idx: U256,
         _block: Option<zksync_types::api::BlockIdVariant>,
-    ) -> jsonrpc_core::Result<zksync_basic_types::H256> {
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::H256>> {
         not_implemented("get_storage")
     }
 
     fn get_transaction_by_hash(
         &self,
         _hash: zksync_basic_types::H256,
-    ) -> jsonrpc_core::Result<Option<zksync_types::api::Transaction>> {
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<zksync_types::api::Transaction>>> {
         not_implemented("get_transaction_by_hash")
     }
 
@@ -815,7 +832,7 @@ impl EthNamespaceT for InMemoryNode {
         &self,
         _block_hash: zksync_basic_types::H256,
         _index: zksync_basic_types::web3::types::Index,
-    ) -> jsonrpc_core::Result<Option<zksync_types::api::Transaction>> {
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<zksync_types::api::Transaction>>> {
         not_implemented("get_transaction_by_block_hash_and_index")
     }
 
@@ -823,56 +840,56 @@ impl EthNamespaceT for InMemoryNode {
         &self,
         _block_number: zksync_types::api::BlockNumber,
         _index: zksync_basic_types::web3::types::Index,
-    ) -> jsonrpc_core::Result<Option<zksync_types::api::Transaction>> {
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<zksync_types::api::Transaction>>> {
         not_implemented("get_transaction_by_block_number_and_index")
     }
 
-    fn protocol_version(&self) -> jsonrpc_core::Result<String> {
+    fn protocol_version(&self) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<String>> {
         not_implemented("protocol_version")
     }
 
-    fn syncing(&self) -> jsonrpc_core::Result<zksync_basic_types::web3::types::SyncState> {
+    fn syncing(&self) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::web3::types::SyncState>> {
         not_implemented("syncing")
     }
 
-    fn accounts(&self) -> jsonrpc_core::Result<Vec<zksync_basic_types::Address>> {
+    fn accounts(&self) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Vec<zksync_basic_types::Address>>> {
         not_implemented("accounts")
     }
 
-    fn coinbase(&self) -> jsonrpc_core::Result<zksync_basic_types::Address> {
+    fn coinbase(&self) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::Address>> {
         not_implemented("coinbase")
     }
 
-    fn compilers(&self) -> jsonrpc_core::Result<Vec<String>> {
+    fn compilers(&self) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Vec<String>>> {
         not_implemented("compilers")
     }
 
-    fn hashrate(&self) -> jsonrpc_core::Result<U256> {
+    fn hashrate(&self) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<U256>> {
         not_implemented("hashrate")
     }
 
     fn get_uncle_count_by_block_hash(
         &self,
         _hash: zksync_basic_types::H256,
-    ) -> jsonrpc_core::Result<Option<U256>> {
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<U256>>> {
         not_implemented("get_uncle_count_by_block_hash")
     }
 
     fn get_uncle_count_by_block_number(
         &self,
         _number: zksync_types::api::BlockNumber,
-    ) -> jsonrpc_core::Result<Option<U256>> {
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<U256>>> {
         not_implemented("get_uncle_count_by_block_number")
     }
 
-    fn mining(&self) -> jsonrpc_core::Result<bool> {
+    fn mining(&self) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<bool>> {
         not_implemented("mining")
     }
 
     fn send_transaction(
         &self,
         _transaction_request: zksync_types::web3::types::TransactionRequest,
-    ) -> jsonrpc_core::Result<zksync_basic_types::H256> {
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::H256>> {
         not_implemented("send_transaction")
     }
 }
