@@ -20,13 +20,14 @@ use zksync_types::{
     StorageKey
 };
 
-use zksync_state::{InMemoryStorage, ReadStorage};
+use zksync_state::{ReadStorage};
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 
 use zksync_web3_decl::{jsonrpsee::http_client::HttpClient, namespaces::EthNamespaceClient};
 use zksync_web3_decl::{jsonrpsee::http_client::HttpClientBuilder, namespaces::ZksNamespaceClient};
 
 use crate::node::TEST_NODE_NETWORK_ID;
+use crate::deps::InMemoryStorage;
 
 pub fn block_on<F: Future + Send + 'static>(future: F) -> F::Output
 where
@@ -72,12 +73,14 @@ impl ForkStorage {
             .unwrap_or(L2ChainId(TEST_NODE_NETWORK_ID));
         println!("Starting network with chain id: {:?}", chain_id);
 
+        // let storate = InMemoryStorage::new()
+
         ForkStorage {
             inner: Arc::new(RwLock::new(ForkStorageInner {
                 raw_storage: InMemoryStorage::with_system_contracts_and_chain_id(
                     chain_id,
                     hash_bytecode,
-                    // dev_use_local_contracts,
+                    dev_use_local_contracts,
                 ),
                 value_read_cache: Default::default(),
                 fork,

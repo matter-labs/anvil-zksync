@@ -7,6 +7,9 @@ use crate::{
     formatter, ShowCalls,
 };
 
+extern crate rand;
+use rand::Rng;
+
 use colored::Colorize;
 use std::{
     collections::HashMap,
@@ -518,6 +521,13 @@ impl EthNamespaceT for InMemoryNode {
     {
         // Currently we support only the 'most recent' block.
         let reader = self.inner.read().unwrap();
+
+        // Generate a random hash
+        let mut rng = rand::thread_rng();
+        let mut bytes = [0u8; 32];
+        rng.fill(&mut bytes[..]);
+        let random_hash = H256::from(bytes);
+
         match block_number {
             zksync_types::api::BlockNumber::Committed
             | zksync_types::api::BlockNumber::Finalized
@@ -536,7 +546,7 @@ impl EthNamespaceT for InMemoryNode {
 
         let block = zksync_types::api::Block {
             transactions: txn,
-            hash: Default::default(),
+            hash: random_hash,
             parent_hash: Default::default(),
             uncles_hash: Default::default(),
             author: Default::default(),
