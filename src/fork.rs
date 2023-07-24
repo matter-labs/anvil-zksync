@@ -25,7 +25,8 @@ use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 use zksync_web3_decl::{jsonrpsee::http_client::HttpClient, namespaces::EthNamespaceClient};
 use zksync_web3_decl::{jsonrpsee::http_client::HttpClientBuilder, namespaces::ZksNamespaceClient};
 
-use crate::deps::{InMemoryStorage, ReadStorage as RS};
+use crate::deps::InMemoryStorage;
+use crate::deps::ReadStorage as RS;
 use crate::node::TEST_NODE_NETWORK_ID;
 
 pub fn block_on<F: Future + Send + 'static>(future: F) -> F::Output
@@ -174,6 +175,36 @@ impl ReadStorage for &ForkStorage {
         self.load_factory_dep_internal(hash)
     }
 }
+
+// impl RS for ForkStorage {
+//     fn is_write_initial(&mut self, key: &StorageKey) -> bool {
+//         let mut mutator = self.inner.write().unwrap();
+//         mutator.raw_storage.is_write_initial(key)
+//     }
+
+//     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
+//         self.load_factory_dep_internal(hash)
+//     }
+
+//     fn read_value(&mut self, key: &StorageKey) -> zksync_types::StorageValue {
+//         self.read_value_internal(key)
+//     }
+// }
+
+// impl RS for &ForkStorage {
+//     fn read_value(&mut self, key: &StorageKey) -> zksync_types::StorageValue {
+//         self.read_value_internal(key)
+//     }
+
+//     fn is_write_initial(&mut self, key: &StorageKey) -> bool {
+//         let mut mutator = self.inner.write().unwrap();
+//         mutator.raw_storage.is_write_initial(key)
+//     }
+
+//     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
+//         self.load_factory_dep_internal(hash)
+//     }
+// }
 
 impl ForkStorage {
     pub fn set_value(&mut self, key: StorageKey, value: zksync_types::StorageValue) {

@@ -11,6 +11,7 @@ use crate::{
 extern crate rand;
 use rand::Rng;
 
+use crate::deps::ReadStorage as RS;
 use colored::Colorize;
 use once_cell::sync::Lazy;
 use std::{
@@ -18,14 +19,13 @@ use std::{
     convert::TryInto,
     sync::{Arc, RwLock},
 };
-use zksync_state::{ReadStorage, StorageView, WriteStorage};
-
 use zksync_basic_types::{AccountTreeId, Bytes, H160, H256, U256, U64};
 use zksync_contracts::{
     read_playground_block_bootloader_bytecode, read_sys_contract_bytecode, BaseSystemContracts,
     ContractLanguage, SystemContractCode,
 };
 use zksync_core::api_server::web3::backend_jsonrpc::namespaces::eth::EthNamespaceT;
+use zksync_state::{ReadStorage, StorageView, WriteStorage};
 use zksync_types::{
     api::{Log, TransactionReceipt, TransactionVariant},
     get_code_key, get_nonce_key,
@@ -334,7 +334,6 @@ impl InMemoryNode {
         BlockInfo,
         HashMap<U256, Vec<U256>>,
     ) {
-        println!("starting run l2 tx inner");
         let inner = self.inner.write().unwrap();
 
         let mut storage_view = StorageView::new(&inner.fork_storage);
@@ -367,11 +366,11 @@ impl InMemoryNode {
         );
 
         let tx: Transaction = l2_tx.into();
-        println!("before push to bootloader memory");
+        println!("tx::::::: {:?} \n\n\n\n\n\n\n\n\n\n\n", tx);
         push_transaction_to_bootloader_memory(&mut vm, &tx, execution_mode, None);
-
+        println!("Errors here w/ Assertion error: Tx data offset is incorrect");
         let tx_result = vm.execute_next_tx(u32::MAX, true).unwrap();
-        println!("a push to bootloader memory");
+        println!("after execute next tx:::: \n\n\n\n\n\n\n\n");
         match tx_result.status {
             TxExecutionStatus::Success => println!("Transaction: {}", "SUCCESS".green()),
             TxExecutionStatus::Failure => println!("Transaction: {}", "FAILED".red()),
