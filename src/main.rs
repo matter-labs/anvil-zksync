@@ -30,12 +30,12 @@ use futures::{
     FutureExt,
 };
 use jsonrpc_core::IoHandler;
-use zksync_basic_types::{H160, H256, L2ChainId};
+use zksync_basic_types::{L2ChainId, H160, H256};
 
-use zksync_core::api_server::web3::backend_jsonrpc::namespaces::{
-    eth::EthNamespaceT, zks::ZksNamespaceT, net::NetNamespaceT
-};
 use crate::node::TEST_NODE_NETWORK_ID;
+use zksync_core::api_server::web3::backend_jsonrpc::namespaces::{
+    eth::EthNamespaceT, net::NetNamespaceT, zks::ZksNamespaceT,
+};
 
 /// List of wallets (address, private key) that we seed with tokens at start.
 pub const RICH_WALLETS: [(&str, &str); 4] = [
@@ -57,7 +57,11 @@ pub const RICH_WALLETS: [(&str, &str); 4] = [
     ),
 ];
 
-async fn build_json_http(addr: SocketAddr, node: InMemoryNode, net: NetNamespace) -> tokio::task::JoinHandle<()> {
+async fn build_json_http(
+    addr: SocketAddr,
+    node: InMemoryNode,
+    net: NetNamespace,
+) -> tokio::task::JoinHandle<()> {
     let (sender, recv) = oneshot::channel::<()>();
 
     let io_handler = {

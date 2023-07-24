@@ -509,14 +509,18 @@ impl EthNamespaceT for InMemoryNode {
             zksync_types::api::BlockNumber::Committed
             | zksync_types::api::BlockNumber::Finalized
             | zksync_types::api::BlockNumber::Latest => {}
-            zksync_types::api::BlockNumber::Earliest => return not_implemented("get_block_by_number__Earliest"),
-            | zksync_types::api::BlockNumber::Pending => return not_implemented("get_block_by_number__Pending"),
+            zksync_types::api::BlockNumber::Earliest => {
+                return not_implemented("get_block_by_number__Earliest")
+            }
+            zksync_types::api::BlockNumber::Pending => {
+                return not_implemented("get_block_by_number__Pending")
+            }
             zksync_types::api::BlockNumber::Number(ask_number) => {
                 if ask_number != U64::from(reader.current_miniblock) {
                     let not_implemented_format = format!("get_block_by_number__{}", ask_number);
-                    return not_implemented(&not_implemented_format)
+                    return not_implemented(&not_implemented_format);
                 }
-            },
+            }
         }
 
         let txn: Vec<TransactionVariant> = vec![];
@@ -690,15 +694,17 @@ impl EthNamespaceT for InMemoryNode {
         // Currently we support only hashes for blocks in memory
         let reader = self.inner.read().unwrap();
         let not_implemented_format = format!("get_block_by_hash__{}", hash);
-        
+
         let matching_transaction = reader.tx_results.get(&hash);
         if matching_transaction.is_none() {
-            return not_implemented(&not_implemented_format)
+            return not_implemented(&not_implemented_format);
         }
 
-        let matching_block = reader.blocks.get(&matching_transaction.unwrap().batch_number);
+        let matching_block = reader
+            .blocks
+            .get(&matching_transaction.unwrap().batch_number);
         if matching_block.is_none() {
-            return not_implemented(&not_implemented_format)
+            return not_implemented(&not_implemented_format);
         }
 
         let txn: Vec<TransactionVariant> = vec![];
