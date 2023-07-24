@@ -44,4 +44,4 @@ jobs:
         uses: Swatinem/rust-cache@v1.3.0
 
       - name: Build Code
-        run: cargo build --verbose
+        run: make all

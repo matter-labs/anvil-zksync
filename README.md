@@ -118,6 +118,6 @@ Feel free to use these wallets in your tests, but remember, they are for develop
 
 ## 🤝 Contributing
 
-We welcome contributions from the community! If you're interested in contributing to the zkSync Era In-Memory Node, please take a look at our [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines and details on the process.
+We welcome contributions from the community! If you're interested in contributing to the zkSync Era In-Memory Node, please take a look at our [CONTRIBUTING.md](./.github/CONTRIBUTING.md) for guidelines and details on the process.
 
 Thank you for making zkSync Era In-Memory Node better! 🙌
