@@ -246,7 +246,7 @@ impl InMemoryNode {
         let mut inner = self.inner.write().unwrap();
         let keys = {
             let mut storage_view = StorageView::new(&inner.fork_storage);
-            storage_view.set_value(key, u256_to_h256(U256::from(10u128.pow(19))));
+            storage_view.set_value(key, u256_to_h256(U256::from(10u128.pow(22))));
             storage_view.modified_storage_keys().clone()
         };
 
