@@ -176,36 +176,6 @@ impl ReadStorage for &ForkStorage {
     }
 }
 
-// impl RS for ForkStorage {
-//     fn is_write_initial(&mut self, key: &StorageKey) -> bool {
-//         let mut mutator = self.inner.write().unwrap();
-//         mutator.raw_storage.is_write_initial(key)
-//     }
-
-//     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
-//         self.load_factory_dep_internal(hash)
-//     }
-
-//     fn read_value(&mut self, key: &StorageKey) -> zksync_types::StorageValue {
-//         self.read_value_internal(key)
-//     }
-// }
-
-// impl RS for &ForkStorage {
-//     fn read_value(&mut self, key: &StorageKey) -> zksync_types::StorageValue {
-//         self.read_value_internal(key)
-//     }
-
-//     fn is_write_initial(&mut self, key: &StorageKey) -> bool {
-//         let mut mutator = self.inner.write().unwrap();
-//         mutator.raw_storage.is_write_initial(key)
-//     }
-
-//     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
-//         self.load_factory_dep_internal(hash)
-//     }
-// }
-
 impl ForkStorage {
     pub fn set_value(&mut self, key: StorageKey, value: zksync_types::StorageValue) {
         let mut mutator = self.inner.write().unwrap();
