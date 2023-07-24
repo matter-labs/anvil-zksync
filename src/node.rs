@@ -386,7 +386,7 @@ impl InMemoryNode {
         }
 
         println!(
-            "\n==== {} Use --show-calls flag to display more info.",
+            "\n==== {} Use --show-calls flag or call config_setResolveHashes to display more info.",
             format!("{:?} call traces. ", tx_result.call_traces.len()).bold()
         );
 
