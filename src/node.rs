@@ -11,7 +11,6 @@ use crate::{
 extern crate rand;
 use rand::Rng;
 
-use crate::deps::ReadStorage as RS;
 use colored::Colorize;
 use once_cell::sync::Lazy;
 use std::{
@@ -366,11 +365,9 @@ impl InMemoryNode {
         );
 
         let tx: Transaction = l2_tx.into();
-        println!("tx::::::: {:?} \n\n\n\n\n\n\n\n\n\n\n", tx);
         push_transaction_to_bootloader_memory(&mut vm, &tx, execution_mode, None);
-        println!("Errors here w/ Assertion error: Tx data offset is incorrect");
         let tx_result = vm.execute_next_tx(u32::MAX, true).unwrap();
-        println!("after execute next tx:::: \n\n\n\n\n\n\n\n");
+
         match tx_result.status {
             TxExecutionStatus::Success => println!("Transaction: {}", "SUCCESS".green()),
             TxExecutionStatus::Failure => println!("Transaction: {}", "FAILED".red()),
@@ -432,9 +429,7 @@ impl InMemoryNode {
     fn run_l2_tx(&self, l2_tx: L2Tx, execution_mode: TxExecutionMode) {
         let tx_hash = l2_tx.hash();
         println!("\nExecuting {}", format!("{:?}", tx_hash).bold());
-        println!("before run l2 tx inner");
         let (keys, result, block, bytecodes) = self.run_l2_tx_inner(l2_tx.clone(), execution_mode);
-        println!("after run l2 tx inner");
         // Write all the mutated keys (storage slots).
         let mut inner = self.inner.write().unwrap();
         for (key, value) in keys.iter() {
@@ -706,7 +701,7 @@ impl EthNamespaceT for InMemoryNode {
         assert_eq!(hash, l2_tx.hash());
 
         self.run_l2_tx(l2_tx, TxExecutionMode::VerifyExecute);
-        println!("after run l2 tx");
+
         Ok(hash).into_boxed_future()
     }
 
