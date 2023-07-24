@@ -334,8 +334,7 @@ impl InMemoryNode {
         BlockInfo,
         HashMap<U256, Vec<U256>>,
     ) {
-        let (mut block_context, block_properties) = create_test_block_params();
-
+        println!("starting run l2 tx inner");
         let inner = self.inner.write().unwrap();
 
         let mut storage_view = StorageView::new(&inner.fork_storage);
@@ -368,11 +367,11 @@ impl InMemoryNode {
         );
 
         let tx: Transaction = l2_tx.into();
-
+        println!("before push to bootloader memory");
         push_transaction_to_bootloader_memory(&mut vm, &tx, execution_mode, None);
 
         let tx_result = vm.execute_next_tx(u32::MAX, true).unwrap();
-
+        println!("a push to bootloader memory");
         match tx_result.status {
             TxExecutionStatus::Success => println!("Transaction: {}", "SUCCESS".green()),
             TxExecutionStatus::Failure => println!("Transaction: {}", "FAILED".red()),
@@ -434,9 +433,9 @@ impl InMemoryNode {
     fn run_l2_tx(&self, l2_tx: L2Tx, execution_mode: TxExecutionMode) {
         let tx_hash = l2_tx.hash();
         println!("\nExecuting {}", format!("{:?}", tx_hash).bold());
-
+        println!("before run l2 tx inner");
         let (keys, result, block, bytecodes) = self.run_l2_tx_inner(l2_tx.clone(), execution_mode);
-
+        println!("after run l2 tx inner");
         // Write all the mutated keys (storage slots).
         let mut inner = self.inner.write().unwrap();
         for (key, value) in keys.iter() {
@@ -708,7 +707,7 @@ impl EthNamespaceT for InMemoryNode {
         assert_eq!(hash, l2_tx.hash());
 
         self.run_l2_tx(l2_tx, TxExecutionMode::VerifyExecute);
-
+        println!("after run l2 tx");
         Ok(hash).into_boxed_future()
     }
 

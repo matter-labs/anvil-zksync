@@ -1727,6 +1727,7 @@ dependencies = [
  "jsonrpc-http-server",
  "lazy_static",
  "once_cell",
+ "rand 0.8.5",
  "reqwest",
  "serde",
  "serde_json",
@@ -7372,46 +7373,6 @@ dependencies = [
  "num_cpus",
  "rocksdb",
  "vlog",
-<<<<<<< Updated upstream
-=======
- "zksync_types",
- "zksync_utils",
-]
-
-[[package]]
-name = "zksync_test_node"
-version = "1.0.1"
-dependencies = [
- "anyhow",
- "bigdecimal",
- "clap 4.3.8",
- "colored",
- "ethabi",
- "eyre",
- "futures 0.3.28",
- "hex",
- "itertools",
- "jsonrpc-core 18.0.0 (git+https://github.com/matter-labs/jsonrpc.git?branch=master)",
- "jsonrpc-http-server",
- "lazy_static",
- "once_cell",
- "rand 0.8.5",
- "reqwest",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "vlog",
- "vm",
- "zksync_basic_types",
- "zksync_contracts",
- "zksync_core",
- "zksync_state",
- "zksync_types",
- "zksync_utils",
- "zksync_web3_decl",
->>>>>>> Stashed changes
 ]
 
 [[package]]
