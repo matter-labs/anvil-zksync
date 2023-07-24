@@ -171,3 +171,46 @@ impl ZksNamespaceT for ZkMockNamespaceImpl {
         not_implemented!()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use zksync_types::transaction_request::CallRequest;
+
+    #[test]
+    fn test_estimate_fee() {
+        let namespace = ZkMockNamespaceImpl;
+
+        // Create a mock CallRequest for testing purposes.
+        // You can adjust the fields of this mock request as needed.
+        let mock_request = CallRequest {
+            from: Some(
+                "0x0000000000000000000000000000000000000000"
+                    .parse()
+                    .unwrap(),
+            ),
+            to: Some(
+                "0x0000000000000000000000000000000000000001"
+                    .parse()
+                    .unwrap(),
+            ),
+            gas: Some(U256::from(21000)),
+            gas_price: Some(U256::from(20)),
+            max_fee_per_gas: Some(U256::from(30)),
+            max_priority_fee_per_gas: Some(U256::from(10)),
+            value: Some(U256::from(1000)),
+            data: Some(vec![1, 2, 3, 4].into()),
+            nonce: Some(U256::from(1)),
+            transaction_type: Some(zksync_basic_types::U64::from(1)),
+            access_list: None,
+            eip712_meta: None,
+        };
+
+        let result = namespace.estimate_fee(mock_request).unwrap();
+
+        assert_eq!(result.gas_limit, U256::from(1000000000));
+        assert_eq!(result.max_fee_per_gas, U256::from(1000000000));
+        assert_eq!(result.max_priority_fee_per_gas, U256::from(1000000000));
+        assert_eq!(result.gas_per_pubdata_limit, U256::from(1000000000));
+    }
+}

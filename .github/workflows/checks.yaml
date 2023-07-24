@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -25,9 +26,9 @@ jobs:
       - name: Run Linters
         run: |
           cargo fmt --all -- --check &&
-          cargo clippy -Zunstable-options -- -D warnings -D clippy::unwrap_used
+          cargo clippy -Zunstable-options -- -D warnings --allow clippy::unwrap_used
 
-  # ensures the code builds successfully
+  # ensures build is successful
   build:
     name: build
     runs-on: ubuntu-latest

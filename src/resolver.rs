@@ -201,10 +201,8 @@ impl SignEthClient {
             return Ok(Some(r.clone()));
         }
 
-        let res = self
-            .decode_selector(&prefixed_selector[..10], SelectorType::Function)
-            .await;
-        res
+        self.decode_selector(&prefixed_selector[..10], SelectorType::Function)
+            .await
     }
 }
 

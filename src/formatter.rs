@@ -135,10 +135,7 @@ pub fn print_call(call: &Call, padding: usize, show_calls: &ShowCalls, resolve_h
             call.r#type,
             address_to_human_readable(call.to)
                 .map(|x| format!("{:<52}", x))
-                .unwrap_or(format!(
-                    "{}",
-                    format!("{:<52}", format!("{:?}", call.to).bold())
-                )),
+                .unwrap_or(format!("{:<52}", format!("{:?}", call.to).bold()).to_string()),
             function_signature,
             call.revert_reason
                 .as_ref()
