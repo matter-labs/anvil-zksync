@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use configuration_api::ConfigurationApiNamespaceT;
 use fork::ForkDetails;
 use zks::ZkMockNamespaceImpl;
 
@@ -10,6 +11,7 @@ mod node;
 mod resolver;
 mod utils;
 mod zks;
+mod configuration_api;
 
 use core::fmt::Display;
 use node::InMemoryNode;
@@ -33,9 +35,14 @@ use jsonrpc_core::IoHandler;
 use zksync_basic_types::{H160, H256, L2ChainId};
 
 use zksync_core::api_server::web3::backend_jsonrpc::namespaces::{
-    eth::EthNamespaceT, zks::ZksNamespaceT, net::NetNamespaceT
+    eth::EthNamespaceT,
+    zks::ZksNamespaceT,
+    net::NetNamespaceT,
 };
-use crate::node::TEST_NODE_NETWORK_ID;
+use crate::{
+    node::TEST_NODE_NETWORK_ID,
+    configuration_api::ConfigurationApiNamespace,
+};
 
 /// List of wallets (address, private key) that we seed with tokens at start.
 pub const RICH_WALLETS: [(&str, &str); 4] = [
@@ -57,13 +64,19 @@ pub const RICH_WALLETS: [(&str, &str); 4] = [
     ),
 ];
 
-async fn build_json_http(addr: SocketAddr, node: InMemoryNode, net: NetNamespace) -> tokio::task::JoinHandle<()> {
+async fn build_json_http(
+    addr: SocketAddr,
+    node: InMemoryNode,
+    net: NetNamespace,
+    config_api: ConfigurationApiNamespace,
+) -> tokio::task::JoinHandle<()> {
     let (sender, recv) = oneshot::channel::<()>();
 
     let io_handler = {
         let mut io = IoHandler::new();
         io.extend_with(node.to_delegate());
         io.extend_with(net.to_delegate());
+        io.extend_with(config_api.to_delegate());
         io.extend_with(ZkMockNamespaceImpl.to_delegate());
 
         io
@@ -117,6 +130,18 @@ pub enum ShowCalls {
     User,
     System,
     All,
+}
+
+impl ShowCalls {
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "None" => Some(ShowCalls::None),
+            "User" => Some(ShowCalls::User),
+            "System" => Some(ShowCalls::System),
+            "All" => Some(ShowCalls::All),
+            _ => None,
+        }
+    }
 }
 
 impl Display for ShowCalls {
@@ -227,10 +252,13 @@ async fn main() -> anyhow::Result<()> {
 
     let net = NetNamespace::new(L2ChainId(TEST_NODE_NETWORK_ID));
 
+    let config_api = ConfigurationApiNamespace::new(node.get_inner());
+
     let threads = build_json_http(
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), opt.port),
         node,
         net,
+        config_api,
     )
     .await;
 

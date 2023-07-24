@@ -30,6 +30,8 @@ once_cell = "1.7"
 
 jsonrpc-http-server = { git = "https://github.com/matter-labs/jsonrpc.git", branch = "master" }
 jsonrpc-core = { git = "https://github.com/matter-labs/jsonrpc.git", branch = "master" }
+jsonrpc-core-client = { git = "https://github.com/matter-labs/jsonrpc.git", branch = "master" }
+jsonrpc-derive = { git = "https://github.com/matter-labs/jsonrpc.git", branch = "master" }
 
 clap = { version = "4.2.4", features = ["derive"] }
 reqwest = { version = "0.11", features = ["blocking"] }

@@ -8,4 +8,5 @@ etc/system-contracts/.yarnrc.yml
 etc/system-contracts/bootloader/build
 
 etc/**/*.zbin
-.vscode/
+.vscode/*
+!.vscode/extensions.json

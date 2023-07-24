@@ -1,0 +1,56 @@
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_blockNumber",
+    "params": []
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "net_version",
+    "params": []
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "config_getShowCalls",
+    "params": []
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "config_setShowCalls",
+    "params": ["All"]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "config_setResolveHashes",
+    "params": [true]
+}
+
+###
+
