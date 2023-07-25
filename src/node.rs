@@ -9,7 +9,6 @@ use crate::{
 };
 
 use colored::Colorize;
-use once_cell::sync::Lazy;
 use std::{
     collections::HashMap,
     convert::TryInto,
@@ -40,7 +39,7 @@ use zksync_utils::{
 };
 
 use vm::{
-    utils::{create_test_block_params, BASE_SYSTEM_CONTRACTS, BLOCK_GAS_LIMIT, ETH_CALL_GAS_LIMIT},
+    utils::{BLOCK_GAS_LIMIT, ETH_CALL_GAS_LIMIT},
     vm::VmTxExecutionResult,
     vm_with_bootloader::{
         init_vm_inner, push_transaction_to_bootloader_memory, BlockContext, BlockContextMode,
@@ -133,9 +132,6 @@ fn not_implemented<T: Send + 'static>(
 pub struct InMemoryNode {
     inner: Arc<RwLock<InMemoryNodeInner>>,
 }
-
-pub static PLAYGROUND_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
-    Lazy::new(BaseSystemContracts::playground);
 
 fn bsc_load_with_bootloader(
     bootloader_bytecode: Vec<u8>,
@@ -260,7 +256,6 @@ impl InMemoryNode {
         let execution_mode = TxExecutionMode::EthCall {
             missed_storage_invocation_limit: 1000000,
         };
-        let (mut block_context, block_properties) = create_test_block_params();
 
         let inner = self.inner.write().unwrap();
 
@@ -268,9 +263,10 @@ impl InMemoryNode {
 
         let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryEnabled);
 
-        let bootloader_code = &PLAYGROUND_SYSTEM_CONTRACTS;
-        block_context.block_number = inner.current_batch;
-        block_context.block_timestamp = inner.current_timestamp;
+        let bootloader_code = &inner.playground_contracts;
+
+        let block_context = inner.create_block_context();
+        let block_properties = InMemoryNodeInner::create_block_properties(&bootloader_code);
 
         // init vm
         let mut vm = init_vm_inner(
@@ -337,9 +333,9 @@ impl InMemoryNode {
         let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryEnabled);
 
         let bootloader_code = if execution_mode == TxExecutionMode::VerifyExecute {
-            &BASE_SYSTEM_CONTRACTS
+            &inner.baseline_contracts
         } else {
-            &PLAYGROUND_SYSTEM_CONTRACTS
+            &inner.playground_contracts
         };
 
         let block_context = inner.create_block_context();
