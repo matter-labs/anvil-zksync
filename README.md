@@ -40,7 +40,7 @@ Please note that `era-test-node` is still in its **alpha** stage. Some features 
 
 1. Install `era-test-node`:
    ```bash
-   cargo install --git https://github.com/matter-labs/era-test-node.git
+   cargo install --git https://github.com/matter-labs/era-test-node.git --locked
    ```
 2. Start the node:
    ```bash
