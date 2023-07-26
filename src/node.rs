@@ -266,7 +266,7 @@ impl InMemoryNode {
         let bootloader_code = &inner.playground_contracts;
 
         let block_context = inner.create_block_context();
-        let block_properties = InMemoryNodeInner::create_block_properties(&bootloader_code);
+        let block_properties = InMemoryNodeInner::create_block_properties(bootloader_code);
 
         // init vm
         let mut vm = init_vm_inner(

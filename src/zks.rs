@@ -177,12 +177,10 @@ mod tests {
     use super::*;
     use zksync_types::transaction_request::CallRequest;
 
-    #[test]
-    fn test_estimate_fee() {
+    #[tokio::test]
+    async fn test_estimate_fee() {
         let namespace = ZkMockNamespaceImpl;
 
-        // Create a mock CallRequest for testing purposes.
-        // You can adjust the fields of this mock request as needed.
         let mock_request = CallRequest {
             from: Some(
                 "0x0000000000000000000000000000000000000000"
@@ -206,7 +204,7 @@ mod tests {
             eip712_meta: None,
         };
 
-        let result = namespace.estimate_fee(mock_request).unwrap();
+        let result = namespace.estimate_fee(mock_request).await.unwrap();
 
         assert_eq!(result.gas_limit, U256::from(1000000000));
         assert_eq!(result.max_fee_per_gas, U256::from(1000000000));
