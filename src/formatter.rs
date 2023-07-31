@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use crate::fork::block_on;
 use zksync_basic_types::H160;
 
-use zksync_types::{vm_trace::Call, VmEvent};
+use zksync_types::{vm_trace::Call, StorageLogQuery, VmEvent};
 
 use lazy_static::lazy_static;
 
@@ -157,4 +157,29 @@ pub fn print_call(call: &Call, padding: usize, show_calls: &ShowCalls, resolve_h
     for subcall in &call.calls {
         print_call(subcall, padding + 2, show_calls, resolve_hashes);
     }
+}
+
+pub fn display_log_details(log_query: &StorageLogQuery) {
+    println!("\nSTORAGE LOGS");
+    println!("------------");
+    let separator = "-".repeat(80);
+    println!("{}", separator);
+    println!("{:<15} {:?}", "Type:", log_query.log_type);
+    println!("{:<15} {}", "Address:", log_query.log_query.address);
+    println!(
+        "{:<15} {}",
+        "Key:",
+        format!("{:?}", log_query.log_query.key)
+    );
+    println!(
+        "{:<15} {}",
+        "Read Value:",
+        format!("{:?}", log_query.log_query.read_value)
+    );
+    println!(
+        "{:<15} {}",
+        "Written Value:",
+        format!("{:?}", log_query.log_query.written_value)
+    );
+    println!("{}", separator);
 }

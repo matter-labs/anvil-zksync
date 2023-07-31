@@ -5,7 +5,7 @@ use crate::{
     fork::{ForkDetails, ForkStorage},
     formatter,
     utils::IntoBoxedFuture,
-    ShowCalls,
+    ShowCalls, ShowStorageLogs, ShowVMDetails,
 };
 
 use colored::Colorize;
@@ -88,6 +88,10 @@ pub struct InMemoryNodeInner {
     pub fork_storage: ForkStorage,
     // Debug level information.
     pub show_calls: ShowCalls,
+    // Displays storage logs.
+    pub show_storage_logs: ShowStorageLogs,
+    // Displays VM details.
+    pub show_vm_details: ShowVMDetails,
     // If true - will contact openchain to resolve the ABI to function names.
     pub resolve_hashes: bool,
     pub console_log_handler: ConsoleLogHandler,
@@ -199,6 +203,8 @@ impl InMemoryNode {
     pub fn new(
         fork: Option<ForkDetails>,
         show_calls: ShowCalls,
+        show_storage_logs: ShowStorageLogs,
+        show_vm_details: ShowVMDetails,
         resolve_hashes: bool,
         dev_use_local_contracts: bool,
     ) -> Self {
@@ -218,6 +224,8 @@ impl InMemoryNode {
                 blocks: Default::default(),
                 fork_storage: ForkStorage::new(fork, dev_use_local_contracts),
                 show_calls,
+                show_storage_logs,
+                show_vm_details,
                 resolve_hashes,
                 console_log_handler: ConsoleLogHandler::default(),
                 dev_use_local_contracts,
@@ -365,50 +373,96 @@ impl InMemoryNode {
         push_transaction_to_bootloader_memory(&mut vm, &tx, execution_mode, None);
         let tx_result = vm.execute_next_tx(u32::MAX, true).unwrap();
 
+        println!("\n=======================");
+        println!("TRANSACTION SUMMARY");
+        println!("=======================\n");
+
         match tx_result.status {
-            TxExecutionStatus::Success => println!("Transaction: {}", "SUCCESS".green()),
-            TxExecutionStatus::Failure => println!("Transaction: {}", "FAILED".red()),
+            TxExecutionStatus::Success => println!("Status: {}", "SUCCESS".green()),
+            TxExecutionStatus::Failure => println!("Status: {}", "FAILED".red()),
         }
 
         println!(
-            "Initiator: {:?} Payer: {:?}",
+            "Initiator: {:?}\nPayer: {:?}",
             tx.initiator_account(),
             tx.payer()
         );
-
         println!(
-            "{} Limit: {:?} used: {:?} refunded: {:?}",
-            "Gas".bold(),
+            "Gas - Limit: {:?} | Used: {:?} | Refunded: {:?}",
             tx.gas_limit(),
             tx.gas_limit() - tx_result.gas_refunded,
             tx_result.gas_refunded
         );
-        println!("\n==== Console logs: ");
 
+        for log_query in &tx_result.result.logs.storage_logs {
+            match inner.show_storage_logs {
+                ShowStorageLogs::Write => {
+                    if matches!(
+                        log_query.log_type,
+                        StorageLogQueryType::RepeatedWrite | StorageLogQueryType::InitialWrite
+                    ) {
+                        formatter::display_log_details(&log_query);
+                    }
+                }
+                ShowStorageLogs::Read => {
+                    if log_query.log_type == StorageLogQueryType::Read {
+                        formatter::display_log_details(&log_query);
+                    }
+                }
+                ShowStorageLogs::All => {
+                    formatter::display_log_details(&log_query);
+                }
+                _ => {}
+            }
+        }
+
+        if inner.show_vm_details != ShowVMDetails::None {
+            println!("\n+---------------------+");
+            println!("| VM EXECUTION RESULTS |");
+            println!("+---------------------+\n");
+
+            println!("Cycles Used:          {}", tx_result.result.cycles_used);
+            println!(
+                "Computation Gas Used: {}",
+                tx_result.result.computational_gas_used
+            );
+            println!("Contracts Used:       {}", tx_result.result.contracts_used);
+
+            if let Some(revert_reason) = &tx_result.result.revert_reason {
+                println!("\n[!] Revert Reason:    {}", revert_reason);
+            }
+
+            println!("\n+---------------------+\n");
+        }
+
+        println!("\nCONSOLE LOGS");
+        println!("------------");
         for call in &tx_result.call_traces {
             inner.console_log_handler.handle_call_recurive(call);
         }
 
+<<<<<<< Updated upstream
         println!(
             "\n==== {} Use --show-calls flag or call config_setResolveHashes to display more info.",
             format!("{:?} call traces. ", tx_result.call_traces.len()).bold()
         );
 
+=======
+        println!("\nCALL TRACES [{}]", tx_result.call_traces.len());
+>>>>>>> Stashed changes
         if inner.show_calls != ShowCalls::None {
             for call in &tx_result.call_traces {
                 formatter::print_call(call, 0, &inner.show_calls, inner.resolve_hashes);
             }
         }
 
-        println!(
-            "\n==== {}",
-            format!("{} events", tx_result.result.logs.events.len()).bold()
-        );
+        println!("\nEVENTS [{}]", tx_result.result.logs.events.len());
         for event in &tx_result.result.logs.events {
             formatter::print_event(event, inner.resolve_hashes);
         }
 
-        println!("\n\n");
+        println!("\n=======================");
+
         vm.execute_till_block_end(BootloaderJobType::BlockPostprocessing);
 
         let bytecodes = vm
