@@ -134,11 +134,11 @@ pub enum ShowCalls {
 
 impl ShowCalls {
     pub fn from_str(s: &str) -> Option<Self> {
-        match s {
-            "None" => Some(ShowCalls::None),
-            "User" => Some(ShowCalls::User),
-            "System" => Some(ShowCalls::System),
-            "All" => Some(ShowCalls::All),
+        match &s.to_lowercase()[..] {
+            "none" => Some(ShowCalls::None),
+            "user" => Some(ShowCalls::User),
+            "system" => Some(ShowCalls::System),
+            "all" => Some(ShowCalls::All),
             _ => None,
         }
     }

@@ -22,14 +22,32 @@ impl ConfigurationApiNamespace {
 
 #[rpc]
 pub trait ConfigurationApiNamespaceT {
+    /// Get the InMemoryNodeInner's show_calls property as a string
+    ///
+    /// # Returns
+    /// The current `show_calls` value for the InMemoryNodeInner.
     #[rpc(name = "config_getShowCalls", returns = "String")]
     fn config_get_show_calls(&self) -> Result<String>;
     
+    /// Set show_calls for the InMemoryNodeInner
+    ///
+    /// # Parameters
+    /// - `value`: A ShowCalls enum to update show_calls to
+    ///
+    /// # Returns
+    /// The updated/current `show_calls` value for the InMemoryNodeInner.
     #[rpc(name = "config_setShowCalls", returns = "String")]
     fn config_set_show_calls(&self, value: String) -> Result<String>;
 
+    /// Set resolve_hashes for the InMemoryNodeInner
+    ///
+    /// # Parameters
+    /// - `value`: A bool to update resolve_hashes to
+    ///
+    /// # Returns
+    /// The updated `resolve_hashes` value for the InMemoryNodeInner.
     #[rpc(name = "config_setResolveHashes", returns = "bool")]
-    fn config_get_resolve_hashes(&self, value: bool) -> Result<bool>;
+    fn config_set_resolve_hashes(&self, value: bool) -> Result<bool>;
 }
 
 impl ConfigurationApiNamespaceT for ConfigurationApiNamespace {
@@ -54,7 +72,7 @@ impl ConfigurationApiNamespaceT for ConfigurationApiNamespace {
         }
     }
 
-    fn config_get_resolve_hashes(&self, value: bool) -> Result<bool> {
+    fn config_set_resolve_hashes(&self, value: bool) -> Result<bool> {
         let mut inner = self.node.write().unwrap();
         inner.resolve_hashes = value;
         Ok(inner.resolve_hashes)
