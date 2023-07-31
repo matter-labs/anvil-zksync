@@ -32,7 +32,7 @@ use futures::{
     FutureExt,
 };
 use jsonrpc_core::IoHandler;
-use zksync_basic_types::{H160, H256, L2ChainId};
+use zksync_basic_types::{L2ChainId, H160, H256};
 
 use zksync_core::api_server::web3::backend_jsonrpc::namespaces::{
     eth::EthNamespaceT,

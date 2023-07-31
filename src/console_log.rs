@@ -1,5 +1,6 @@
 use std::{collections::HashMap, str::FromStr};
 
+use colored::Colorize;
 use ethabi::{Contract, Function};
 use itertools::Itertools;
 use serde_json::Value;
@@ -67,6 +68,6 @@ impl ConsoleLogHandler {
                         tokens.iter().map(|t| format!("{}", t)).join(" ")
                     })
                 });
-        println!("{}", message);
+        println!("{}", message.to_string().cyan());
     }
 }

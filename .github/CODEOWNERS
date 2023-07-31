@@ -1,0 +1,10 @@
+# This CODEOWNERS file sets the individuals responsible for code in the era-test-node repository.
+
+# These users are the default owners for everything in the repo.
+# They will be requested for review when someone opens a pull request.
+* @MexicanAce @uF4No @dutterbutter @mm-zk
+
+# You can also specify code owners for specific directories or files.
+# For example:
+# /src/ @developer1 @developer2
+# /docs/ @documenter

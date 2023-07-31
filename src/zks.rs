@@ -1,17 +1,14 @@
 use bigdecimal::BigDecimal;
 use zksync_basic_types::{MiniblockNumber, U256};
 use zksync_core::api_server::web3::backend_jsonrpc::namespaces::zks::ZksNamespaceT;
-use zksync_types::{
-    api::BridgeAddresses,
-    vm_trace::{ContractSourceDebugInfo, VmDebugTrace},
-};
+use zksync_types::api::BridgeAddresses;
 
 /// Mock implementation of ZksNamespace - used only in the test node.
 pub struct ZkMockNamespaceImpl;
 
 macro_rules! not_implemented {
     () => {
-        Err(jsonrpc_core::Error::method_not_found())
+        Box::pin(async move { Err(jsonrpc_core::Error::method_not_found()) })
     };
 }
 impl ZksNamespaceT for ZkMockNamespaceImpl {
@@ -20,42 +17,52 @@ impl ZksNamespaceT for ZkMockNamespaceImpl {
     fn estimate_fee(
         &self,
         _req: zksync_types::transaction_request::CallRequest,
-    ) -> jsonrpc_core::Result<zksync_types::fee::Fee> {
-        Ok(zksync_types::fee::Fee {
-            gas_limit: U256::from(1000000000),
-            max_fee_per_gas: U256::from(1000000000),
-            max_priority_fee_per_gas: U256::from(1000000000),
-            gas_per_pubdata_limit: U256::from(1000000000),
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_types::fee::Fee>> {
+        Box::pin(async move {
+            Ok(zksync_types::fee::Fee {
+                gas_limit: U256::from(1000000000),
+                max_fee_per_gas: U256::from(1000000000),
+                max_priority_fee_per_gas: U256::from(1000000000),
+                gas_per_pubdata_limit: U256::from(1000000000),
+            })
         })
     }
 
     fn get_raw_block_transactions(
         &self,
         _block_number: MiniblockNumber,
-    ) -> jsonrpc_core::Result<Vec<zksync_types::Transaction>> {
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Vec<zksync_types::Transaction>>> {
         not_implemented!()
     }
 
     fn estimate_gas_l1_to_l2(
         &self,
         _req: zksync_types::transaction_request::CallRequest,
-    ) -> jsonrpc_core::Result<U256> {
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<U256>> {
         not_implemented!()
     }
 
-    fn get_main_contract(&self) -> jsonrpc_core::Result<zksync_basic_types::Address> {
+    fn get_main_contract(
+        &self,
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::Address>> {
         not_implemented!()
     }
 
-    fn get_testnet_paymaster(&self) -> jsonrpc_core::Result<Option<zksync_basic_types::Address>> {
+    fn get_testnet_paymaster(
+        &self,
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<zksync_basic_types::Address>>> {
         not_implemented!()
     }
 
-    fn get_bridge_contracts(&self) -> jsonrpc_core::Result<BridgeAddresses> {
+    fn get_bridge_contracts(
+        &self,
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<BridgeAddresses>> {
         not_implemented!()
     }
 
-    fn l1_chain_id(&self) -> jsonrpc_core::Result<zksync_basic_types::U64> {
+    fn l1_chain_id(
+        &self,
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::U64>> {
         not_implemented!()
     }
 
@@ -63,21 +70,23 @@ impl ZksNamespaceT for ZkMockNamespaceImpl {
         &self,
         _from: u32,
         _limit: u8,
-    ) -> jsonrpc_core::Result<Vec<zksync_web3_decl::types::Token>> {
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Vec<zksync_web3_decl::types::Token>>> {
         not_implemented!()
     }
 
     fn get_token_price(
         &self,
         _token_address: zksync_basic_types::Address,
-    ) -> jsonrpc_core::Result<BigDecimal> {
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<BigDecimal>> {
         not_implemented!()
     }
 
     fn get_all_account_balances(
         &self,
         _address: zksync_basic_types::Address,
-    ) -> jsonrpc_core::Result<std::collections::HashMap<zksync_basic_types::Address, U256>> {
+    ) -> jsonrpc_core::BoxFuture<
+        jsonrpc_core::Result<std::collections::HashMap<zksync_basic_types::Address, U256>>,
+    > {
         not_implemented!()
     }
 
@@ -87,7 +96,8 @@ impl ZksNamespaceT for ZkMockNamespaceImpl {
         _sender: zksync_basic_types::Address,
         _msg: zksync_basic_types::H256,
         _l2_log_position: Option<usize>,
-    ) -> jsonrpc_core::Result<Option<zksync_types::api::L2ToL1LogProof>> {
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<zksync_types::api::L2ToL1LogProof>>>
+    {
         not_implemented!()
     }
 
@@ -95,79 +105,110 @@ impl ZksNamespaceT for ZkMockNamespaceImpl {
         &self,
         _tx_hash: zksync_basic_types::H256,
         _index: Option<usize>,
-    ) -> jsonrpc_core::Result<Option<zksync_types::api::L2ToL1LogProof>> {
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<zksync_types::api::L2ToL1LogProof>>>
+    {
         not_implemented!()
     }
 
-    fn get_l1_batch_number(&self) -> jsonrpc_core::Result<zksync_basic_types::U64> {
+    fn get_l1_batch_number(
+        &self,
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::U64>> {
         not_implemented!()
     }
 
     fn get_block_details(
         &self,
         _block_number: zksync_basic_types::MiniblockNumber,
-    ) -> jsonrpc_core::Result<Option<zksync_types::explorer_api::BlockDetails>> {
+    ) -> jsonrpc_core::BoxFuture<
+        jsonrpc_core::Result<Option<zksync_types::explorer_api::BlockDetails>>,
+    > {
         not_implemented!()
     }
 
     fn get_miniblock_range(
         &self,
         _batch: zksync_basic_types::L1BatchNumber,
-    ) -> jsonrpc_core::Result<Option<(zksync_basic_types::U64, zksync_basic_types::U64)>> {
+    ) -> jsonrpc_core::BoxFuture<
+        jsonrpc_core::Result<Option<(zksync_basic_types::U64, zksync_basic_types::U64)>>,
+    > {
         not_implemented!()
     }
 
     fn set_known_bytecode(
         &self,
         _bytecode: zksync_basic_types::Bytes,
-    ) -> jsonrpc_core::Result<bool> {
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<bool>> {
         not_implemented!()
     }
 
     fn get_transaction_details(
         &self,
         _hash: zksync_basic_types::H256,
-    ) -> jsonrpc_core::Result<Option<zksync_types::api::TransactionDetails>> {
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<zksync_types::api::TransactionDetails>>>
+    {
         not_implemented!()
     }
 
     fn get_l1_batch_details(
         &self,
         _batch: zksync_basic_types::L1BatchNumber,
-    ) -> jsonrpc_core::Result<Option<zksync_types::explorer_api::L1BatchDetails>> {
+    ) -> jsonrpc_core::BoxFuture<
+        jsonrpc_core::Result<Option<zksync_types::explorer_api::L1BatchDetails>>,
+    > {
         not_implemented!()
     }
 
     fn get_bytecode_by_hash(
         &self,
         _hash: zksync_basic_types::H256,
-    ) -> jsonrpc_core::Result<Option<Vec<u8>>> {
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<Vec<u8>>>> {
         not_implemented!()
     }
 
-    fn get_l1_gas_price(&self) -> jsonrpc_core::Result<zksync_basic_types::U64> {
-        not_implemented!()
-    }
-
-    fn set_contract_debug_info(
+    fn get_l1_gas_price(
         &self,
-        _contract_address: zksync_basic_types::Address,
-        _info: ContractSourceDebugInfo,
-    ) -> jsonrpc_core::Result<bool> {
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::U64>> {
         not_implemented!()
     }
+}
 
-    fn get_contract_debug_info(
-        &self,
-        _contract_address: zksync_basic_types::Address,
-    ) -> jsonrpc_core::Result<Option<ContractSourceDebugInfo>> {
-        not_implemented!()
-    }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use zksync_types::transaction_request::CallRequest;
 
-    fn get_transaction_trace(
-        &self,
-        _hash: zksync_basic_types::H256,
-    ) -> jsonrpc_core::Result<Option<VmDebugTrace>> {
-        not_implemented!()
+    #[tokio::test]
+    async fn test_estimate_fee() {
+        let namespace = ZkMockNamespaceImpl;
+
+        let mock_request = CallRequest {
+            from: Some(
+                "0x0000000000000000000000000000000000000000"
+                    .parse()
+                    .unwrap(),
+            ),
+            to: Some(
+                "0x0000000000000000000000000000000000000001"
+                    .parse()
+                    .unwrap(),
+            ),
+            gas: Some(U256::from(21000)),
+            gas_price: Some(U256::from(20)),
+            max_fee_per_gas: Some(U256::from(30)),
+            max_priority_fee_per_gas: Some(U256::from(10)),
+            value: Some(U256::from(1000)),
+            data: Some(vec![1, 2, 3, 4].into()),
+            nonce: Some(U256::from(1)),
+            transaction_type: Some(zksync_basic_types::U64::from(1)),
+            access_list: None,
+            eip712_meta: None,
+        };
+
+        let result = namespace.estimate_fee(mock_request).await.unwrap();
+
+        assert_eq!(result.gas_limit, U256::from(1000000000));
+        assert_eq!(result.max_fee_per_gas, U256::from(1000000000));
+        assert_eq!(result.max_priority_fee_per_gas, U256::from(1000000000));
+        assert_eq!(result.gas_per_pubdata_limit, U256::from(1000000000));
     }
 }
