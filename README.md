@@ -116,6 +116,10 @@ Here's a list of the available rich wallets:
 
 Feel free to use these wallets in your tests, but remember, they are for development purposes only and should not be used in production or with real assets.
 
+## 🔧 Supported APIs
+
+See our list of [Supported APIs here](SUPPORTED_APIS.md).
+
 ## 🤝 Contributing
 
 We welcome contributions from the community! If you're interested in contributing to the zkSync Era In-Memory Node, please take a look at our [CONTRIBUTING.md](./.github/CONTRIBUTING.md) for guidelines and details on the process.
