@@ -1716,7 +1716,6 @@ version = "1.0.3"
 dependencies = [
  "anyhow",
  "bigdecimal",
- "chrono",
  "clap 4.3.8",
  "colored",
  "ethabi",
