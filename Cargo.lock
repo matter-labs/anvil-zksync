@@ -1712,7 +1712,7 @@ checksum = "88bffebc5d80432c9b140ee17875ff173a8ab62faad5b257da912bd2f6c1c0a1"
 
 [[package]]
 name = "era_test_node"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "anyhow",
  "bigdecimal",
@@ -7374,8 +7374,6 @@ dependencies = [
  "num_cpus",
  "rocksdb",
  "vlog",
- "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]

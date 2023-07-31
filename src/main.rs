@@ -3,6 +3,7 @@ use configuration_api::ConfigurationApiNamespaceT;
 use fork::ForkDetails;
 use zks::ZkMockNamespaceImpl;
 
+mod configuration_api;
 mod console_log;
 mod deps;
 mod fork;
@@ -11,7 +12,6 @@ mod node;
 mod resolver;
 mod utils;
 mod zks;
-mod configuration_api;
 
 use core::fmt::Display;
 use node::InMemoryNode;
@@ -34,14 +34,9 @@ use futures::{
 use jsonrpc_core::IoHandler;
 use zksync_basic_types::{L2ChainId, H160, H256};
 
+use crate::{configuration_api::ConfigurationApiNamespace, node::TEST_NODE_NETWORK_ID};
 use zksync_core::api_server::web3::backend_jsonrpc::namespaces::{
-    eth::EthNamespaceT,
-    zks::ZksNamespaceT,
-    net::NetNamespaceT,
-};
-use crate::{
-    node::TEST_NODE_NETWORK_ID,
-    configuration_api::ConfigurationApiNamespace,
+    eth::EthNamespaceT, net::NetNamespaceT, zks::ZksNamespaceT,
 };
 
 /// List of wallets (address, private key) that we seed with tokens at start.
@@ -132,14 +127,16 @@ pub enum ShowCalls {
     All,
 }
 
-impl ShowCalls {
-    pub fn from_str(s: &str) -> Option<Self> {
-        match &s.to_lowercase()[..] {
-            "none" => Some(ShowCalls::None),
-            "user" => Some(ShowCalls::User),
-            "system" => Some(ShowCalls::System),
-            "all" => Some(ShowCalls::All),
-            _ => None,
+impl FromStr for ShowCalls {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_ref() {
+            "none" => Ok(ShowCalls::None),
+            "user" => Ok(ShowCalls::User),
+            "system" => Ok(ShowCalls::System),
+            "all" => Ok(ShowCalls::All),
+            _ => Err(()),
         }
     }
 }

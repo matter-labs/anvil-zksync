@@ -28,7 +28,7 @@ pub trait ConfigurationApiNamespaceT {
     /// The current `show_calls` value for the InMemoryNodeInner.
     #[rpc(name = "config_getShowCalls", returns = "String")]
     fn config_get_show_calls(&self) -> Result<String>;
-    
+
     /// Set show_calls for the InMemoryNodeInner
     ///
     /// # Parameters
@@ -57,19 +57,17 @@ impl ConfigurationApiNamespaceT for ConfigurationApiNamespace {
     }
 
     fn config_set_show_calls(&self, value: String) -> Result<String> {
-        let show_calls = ShowCalls::from_str(&value);
-        
-        match show_calls {
-            Some(show_calls) => {
-                let mut inner = self.node.write().unwrap();
-                inner.show_calls = show_calls;
-                Ok(inner.show_calls.to_string())
-            },
-            None => {
+        let show_calls = match value.parse::<ShowCalls>() {
+            Ok(value) => value,
+            Err(_) => {
                 let reader = self.node.read().unwrap();
-                Ok(reader.show_calls.to_string())
+                return Ok(reader.show_calls.to_string());
             }
-        }
+        };
+
+        let mut inner = self.node.write().unwrap();
+        inner.show_calls = show_calls;
+        Ok(inner.show_calls.to_string())
     }
 
     fn config_set_resolve_hashes(&self, value: bool) -> Result<bool> {
