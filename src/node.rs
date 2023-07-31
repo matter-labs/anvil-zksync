@@ -378,8 +378,8 @@ impl InMemoryNode {
         println!("=======================\n");
 
         match tx_result.status {
-            TxExecutionStatus::Success => println!("Status: {}", "SUCCESS".green()),
-            TxExecutionStatus::Failure => println!("Status: {}", "FAILED".red()),
+            TxExecutionStatus::Success => println!("Transaction: {}", "SUCCESS".green()),
+            TxExecutionStatus::Failure => println!("Transaction: {}", "FAILED".red()),
         }
 
         println!(
@@ -437,12 +437,15 @@ impl InMemoryNode {
             }
         }
 
-        println!("\nEVENTS [{}]", tx_result.result.logs.events.len());
+        println!(
+            "\n==== {}",
+            format!("{} events", tx_result.result.logs.events.len()).bold()
+        );
         for event in &tx_result.result.logs.events {
             formatter::print_event(event, inner.resolve_hashes);
         }
 
-        println!("\n=======================");
+        println!("\n\n");
 
         vm.execute_till_block_end(BootloaderJobType::BlockPostprocessing);
 
