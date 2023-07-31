@@ -401,38 +401,23 @@ impl InMemoryNode {
                         log_query.log_type,
                         StorageLogQueryType::RepeatedWrite | StorageLogQueryType::InitialWrite
                     ) {
-                        formatter::display_log_details(&log_query);
+                        formatter::print_logs(&log_query);
                     }
                 }
                 ShowStorageLogs::Read => {
                     if log_query.log_type == StorageLogQueryType::Read {
-                        formatter::display_log_details(&log_query);
+                        formatter::print_logs(&log_query);
                     }
                 }
                 ShowStorageLogs::All => {
-                    formatter::display_log_details(&log_query);
+                    formatter::print_logs(&log_query);
                 }
                 _ => {}
             }
         }
 
         if inner.show_vm_details != ShowVMDetails::None {
-            println!("\n+---------------------+");
-            println!("| VM EXECUTION RESULTS |");
-            println!("+---------------------+\n");
-
-            println!("Cycles Used:          {}", tx_result.result.cycles_used);
-            println!(
-                "Computation Gas Used: {}",
-                tx_result.result.computational_gas_used
-            );
-            println!("Contracts Used:       {}", tx_result.result.contracts_used);
-
-            if let Some(revert_reason) = &tx_result.result.revert_reason {
-                println!("\n[!] Revert Reason:    {}", revert_reason);
-            }
-
-            println!("\n+---------------------+\n");
+            formatter::print_vm_details(&tx_result.result);
         }
 
         println!("\nCONSOLE LOGS");
@@ -441,15 +426,11 @@ impl InMemoryNode {
             inner.console_log_handler.handle_call_recurive(call);
         }
 
-<<<<<<< Updated upstream
         println!(
             "\n==== {} Use --show-calls flag or call config_setResolveHashes to display more info.",
             format!("{:?} call traces. ", tx_result.call_traces.len()).bold()
         );
 
-=======
-        println!("\nCALL TRACES [{}]", tx_result.call_traces.len());
->>>>>>> Stashed changes
         if inner.show_calls != ShowCalls::None {
             for call in &tx_result.call_traces {
                 formatter::print_call(call, 0, &inner.show_calls, inner.resolve_hashes);
