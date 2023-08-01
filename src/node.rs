@@ -839,9 +839,48 @@ impl EthNamespaceT for InMemoryNode {
 
     fn get_transaction_by_hash(
         &self,
-        _hash: zksync_basic_types::H256,
+        hash: zksync_basic_types::H256,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<zksync_types::api::Transaction>>> {
-        not_implemented("get_transaction_by_hash")
+        let reader = self.inner.read().unwrap();
+        let tx_result = reader.tx_results.get(&hash);
+
+        let tx = tx_result.map(|info| zksync_types::api::Transaction {
+            hash,
+            nonce: U256::from(info.tx.common_data.nonce.0),
+            block_hash: Some(hash),
+            block_number: Some(U64::from(info.miniblock_number)),
+            transaction_index: Some(U64::from(1)),
+            from: Some(info.tx.initiator_account()),
+            to: Some(info.tx.recipient_account()),
+            value: info.tx.execute.value,
+            gas_price: Default::default(),
+            gas: Default::default(),
+            input: info.tx.common_data.input.clone().unwrap().data.into(),
+            v: Some(U64::from_big_endian(&info.tx.common_data.signature[0..8])),
+            r: Some(U256::from_big_endian(&info.tx.common_data.signature[8..40])),
+            s: Some(U256::from_big_endian(
+                &info.tx.common_data.signature[40..72],
+            )),
+            raw: None,
+            transaction_type: {
+                let tx_type = match info.tx.common_data.transaction_type {
+                    zksync_types::l2::TransactionType::LegacyTransaction => 0,
+                    zksync_types::l2::TransactionType::EIP2930Transaction => 1,
+                    zksync_types::l2::TransactionType::EIP1559Transaction => 2,
+                    zksync_types::l2::TransactionType::EIP712Transaction => 113,
+                    zksync_types::l2::TransactionType::PriorityOpTransaction => 255,
+                };
+                Some(tx_type.into())
+            },
+            access_list: None,
+            max_fee_per_gas: Some(info.tx.common_data.fee.max_fee_per_gas),
+            max_priority_fee_per_gas: Some(info.tx.common_data.fee.max_priority_fee_per_gas),
+            chain_id: info.tx.extract_chain_id().unwrap().into(),
+            l1_batch_number: Some(U64::from(info.batch_number as u64)),
+            l1_batch_tx_index: None,
+        });
+
+        Ok(tx).into_boxed_future()
     }
 
     fn get_transaction_by_block_hash_and_index(
