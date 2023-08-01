@@ -167,20 +167,11 @@ pub fn print_logs(log_query: &StorageLogQuery) {
     println!("{}", separator);
     println!("{:<15} {:?}", "Type:", log_query.log_type);
     println!("{:<15} {}", "Address:", log_query.log_query.address);
+    println!("{:<15} {:?}", "Key:", log_query.log_query.key);
+    println!("{:<15} {:?}", "Read Value:", log_query.log_query.read_value);
     println!(
-        "{:<15} {}",
-        "Key:",
-        format!("{:?}", log_query.log_query.key)
-    );
-    println!(
-        "{:<15} {}",
-        "Read Value:",
-        format!("{:?}", log_query.log_query.read_value)
-    );
-    println!(
-        "{:<15} {}",
-        "Written Value:",
-        format!("{:?}", log_query.log_query.written_value)
+        "{:<15} {:?}",
+        "Written Value:", log_query.log_query.written_value
     );
     println!("{}", separator);
 }

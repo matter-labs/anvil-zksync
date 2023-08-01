@@ -401,16 +401,16 @@ impl InMemoryNode {
                         log_query.log_type,
                         StorageLogQueryType::RepeatedWrite | StorageLogQueryType::InitialWrite
                     ) {
-                        formatter::print_logs(&log_query);
+                        formatter::print_logs(log_query);
                     }
                 }
                 ShowStorageLogs::Read => {
                     if log_query.log_type == StorageLogQueryType::Read {
-                        formatter::print_logs(&log_query);
+                        formatter::print_logs(log_query);
                     }
                 }
                 ShowStorageLogs::All => {
-                    formatter::print_logs(&log_query);
+                    formatter::print_logs(log_query);
                 }
                 _ => {}
             }
