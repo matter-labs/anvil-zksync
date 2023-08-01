@@ -26,6 +26,28 @@ content-type: application/json
 {
     "jsonrpc": "2.0",
     "id": "1",
+    "method": "net_listening",
+    "params": []
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "net_peerCount",
+    "params": []
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
     "method": "config_getShowCalls",
     "params": []
 }
