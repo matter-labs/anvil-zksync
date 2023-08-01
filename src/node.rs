@@ -856,9 +856,9 @@ impl EthNamespaceT for InMemoryNode {
             gas_price: Default::default(),
             gas: Default::default(),
             input: info.tx.common_data.input.clone().unwrap().data.into(),
-            v: Default::default(),
-            r: Default::default(),
-            s: Default::default(),
+            v: Some(info.tx.extract_chain_id().unwrap().into()),
+            r: Some(U256::zero()),
+            s: Some(U256::zero()),
             raw: None,
             transaction_type: {
                 let tx_type = match info.tx.common_data.transaction_type {
