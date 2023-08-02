@@ -198,10 +198,19 @@ fn contract_address_from_tx_result(execution_result: &VmTxExecutionResult) -> Op
 impl InMemoryNode {
     pub fn new(
         fork: Option<ForkDetails>,
+        override_l1_gas_price: Option<u64>,
         show_calls: ShowCalls,
         resolve_hashes: bool,
         dev_use_local_contracts: bool,
     ) -> Self {
+        let mut l1_gas_price = fork
+            .as_ref()
+            .map(|f| f.l1_gas_price)
+            .unwrap_or(1_000_000_000); // 1 gwei
+        if let Some(override_l1_gas_price) = override_l1_gas_price {
+            l1_gas_price = override_l1_gas_price;
+        }
+
         InMemoryNode {
             inner: Arc::new(RwLock::new(InMemoryNodeInner {
                 current_timestamp: fork
@@ -210,10 +219,7 @@ impl InMemoryNode {
                     .unwrap_or(NON_FORK_FIRST_BLOCK_TIMESTAMP),
                 current_batch: fork.as_ref().map(|f| f.l1_block.0 + 1).unwrap_or(1),
                 current_miniblock: fork.as_ref().map(|f| f.l2_miniblock + 1).unwrap_or(1),
-                l1_gas_price: fork
-                    .as_ref()
-                    .map(|f| f.l1_gas_price)
-                    .unwrap_or(50_000_000_000),
+                l1_gas_price,
                 tx_results: Default::default(),
                 blocks: Default::default(),
                 fork_storage: ForkStorage::new(fork, dev_use_local_contracts),

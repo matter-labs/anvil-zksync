@@ -117,6 +117,11 @@ struct Cli {
     #[arg(long)]
     /// If true, will load the locally compiled system contracts (useful when doing changes to system contracts or bootloader)
     dev_use_local_contracts: bool,
+
+    #[arg(long)]
+    /// Whether to override the l1 gas price.
+    /// If not set - fork or default value(`1 gwei`) will be used.
+    override_l1_gas_price: Option<u64>,
 }
 
 #[derive(Debug, Parser, Clone, clap::ValueEnum, PartialEq, Eq)]
@@ -170,10 +175,11 @@ struct ForkArgs {
     ///  - http://XXX:YY
     network: String,
     #[arg(long)]
-    // Fork at a given L2 miniblock height.
-    // If not set - will use the current finalized block from the network.
+    /// Fork at a given L2 miniblock height.
+    /// If not set - will use the current finalized block from the network.
     fork_at: Option<u64>,
 }
+
 #[derive(Debug, Parser)]
 struct ReplayArgs {
     /// Whether to fork from existing network.
@@ -228,6 +234,7 @@ async fn main() -> anyhow::Result<()> {
 
     let node = InMemoryNode::new(
         fork_details,
+        opt.override_l1_gas_price,
         opt.show_calls,
         opt.resolve_hashes,
         opt.dev_use_local_contracts,
