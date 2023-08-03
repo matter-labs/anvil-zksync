@@ -13,7 +13,7 @@
 | [`NETWORK`](#network-namespace) | [`net_peerCount`](#net_peercount) |SUPPORTED | Returns the number of peers currently connected to the client |
 | [`NETWORK`](#network-namespace) | [`net_listening`](#net_listening) | SUPPORTED | Returns `true` if the client is actively listening for network connections |
 | `DEBUG` | `debug_storageRangeAt` | NOT IMPLEMENTED | Attempts to replay the transaction as it was executed on the network and return storage data |
-| `DEBUG` | `debug_traceTransaction` | PARTIALLY | Attempt to run the transaction in the exact same manner as it was executed on the network |
+| `DEBUG` | `debug_traceTransaction` | NOT IMPLEMENTED | Attempt to run the transaction in the exact same manner as it was executed on the network |
 | `HARDHAT` | `hardhat_addCompilationResult` | NOT IMPLEMENTED | Add information about compiled contracts |
 | `HARDHAT` | `hardhat_dropTransaction` | NOT IMPLEMENTED | Remove a transaction from the mempool |
 | `HARDHAT` | `hardhat_impersonateAccount` | NOT IMPLEMENTED | Impersonate an account |
