@@ -887,13 +887,9 @@ impl EthNamespaceT for InMemoryNode {
             let tx_result = reader.tx_results.get(&hash);
 
             Ok(tx_result.and_then(|info| {
-                let input_data = info.tx.common_data.input.clone().or_else(|| {
-                    return None;
-                })?;
+                let input_data = info.tx.common_data.input.clone().or(None)?;
 
-                let chain_id = info.tx.extract_chain_id().or_else(|| {
-                    return None;
-                })?;
+                let chain_id = info.tx.extract_chain_id().or(None)?;
 
                 Some(zksync_types::api::Transaction {
                     hash,
