@@ -49,6 +49,7 @@
 | [`ETH`](#eth-namespace) | [`eth_getBlockByNumber`](#eth_getblockbynumber) | PARTIALLY | Returns information about a block by block number |
 | [`ETH`](#eth-namespace) | `eth_getBlockByHash` | NOT IMPLEMENTED | Returns information about a block by block hash |
 | [`ETH`](#eth-namespace) | [`eth_getTransactionByHash`](#eth_gettransactionbyhash) | IMPLEMENTED | Returns the information about a transaction requested by transaction hash |
+| [`ETH`](#eth-namespace) | [`eth_getTransactionCount`](#eth_gettransactioncount) | IMPLEMENTED | Returns the number of transactions sent from an address |
 | `ETH` | `eth_accounts` | NOT IMPLEMENTED | Returns a list of addresses owned by client |
 | `ETH` | `eth_blockNumber` | NOT IMPLEMENTED | Returns the number of the most recent block |
 | `ETH` | `eth_call` | NOT IMPLEMENTED | Executes a new message call immediately without creating a transaction on the block chain |
@@ -65,7 +66,6 @@
 | `ETH` | `eth_getStorageAt` | NOT IMPLEMENTED | Returns the value from a storage position at a given address |
 | `ETH` | `eth_getTransactionByBlockHashAndIndex` | NOT IMPLEMENTED | Returns information about a transaction by block hash and transaction index position |
 | `ETH` | `eth_getTransactionByBlockNumberAndIndex` | NOT IMPLEMENTED | Returns information about a transaction by block number and transaction index position |
-| `ETH` | `eth_getTransactionCount` | NOT IMPLEMENTED | Returns the number of transactions sent from an address |
 | `ETH` | `eth_getTransactionReceipt` | NOT IMPLEMENTED | Returns the receipt of a transaction by transaction hash |
 | `ETH` | `eth_getUncleByBlockHashAndIndex` | NOT IMPLEMENTED | Returns information about a uncle of a block by hash and uncle index position |
 | `ETH` | `eth_getUncleByBlockNumberAndIndex` | NOT IMPLEMENTED | Returns information about a uncle of a block by hash and uncle index position |
@@ -436,5 +436,35 @@ curl --request POST \
     "id": "1",
     "method": "eth_getTransactionByHash",
     "params": ["0x0000000000000000000000000000000000000000000000000000000000000000"]
+}'
+```
+
+### `eth_getTransactionCount`
+
+[source](src/eth_api.rs)
+
+Returns the number of transactions sent from an address
+
+#### Arguments
+
++ `address: Address`
+
++ `block: BlockNumber`
+
+#### Status
+
+`IMPLEMENTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_getTransactionCount",
+    "params": ["0x0000000000000000000000000000000000000000", "latest"]
 }'
 ```
