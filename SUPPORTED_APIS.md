@@ -45,12 +45,12 @@
 | [`ETH`](#eth-namespace) | [`eth_chainId`](#eth_chainid) | SUPPORTED | Returns the currently configured chain id |
 | [`ETH`](#eth-namespace) | [`eth_estimateGas`](#eth_estimategas) | PARTIALLY | Generates and returns an estimate of how much gas is necessary for the transaction to complete |
 | [`ETH`](#eth-namespace) | [`eth_gasPrice`](#eth_gasprice) | IMPLEMENTED | Returns the current price per gas in wei |
+| [`ETH`](#eth-namespace) | [`eth_getBalance`](#eth_getbalance) | IMPLEMENTED | Returns the balance of the account of given address |
 | `ETH` | `eth_accounts` | NOT IMPLEMENTED | Returns a list of addresses owned by client |
 | `ETH` | `eth_blockNumber` | NOT IMPLEMENTED | Returns the number of the most recent block |
 | `ETH` | `eth_call` | NOT IMPLEMENTED | Executes a new message call immediately without creating a transaction on the block chain |
 | `ETH` | `eth_coinbase` | NOT IMPLEMENTED | Returns the client coinbase address |
 | `ETH` | `eth_feeHistory` | NOT IMPLEMENTED | Returns a collection of historical block gas data |
-| `ETH` | `eth_getBalance` | NOT IMPLEMENTED | Returns the balance of the account of given address |
 | `ETH` | `eth_getBlockByHash` | NOT IMPLEMENTED | Returns information about a block by block hash |
 | `ETH` | `eth_getBlockByNumber` | NOT IMPLEMENTED | Returns information about a block by block number |
 | `ETH` | `eth_getBlockTransactionCountByHash` | NOT IMPLEMENTED | Number of transactions in a block from a block matching the given block hash |
@@ -319,4 +319,34 @@ curl --request POST \
   --url http://localhost:8011/ \
   --header 'content-type: application/json' \
   --data '{"jsonrpc": "2.0","id": "1","method": "eth_gasPrice","params": []}'
+```
+
+### `eth_getBalance`
+
+[source](src/eth_api.rs)
+
+Returns the balance of the account of given address
+
+#### Arguments
+
++ `address: Address`
+
++ `block: BlockNumber`
+
+#### Status
+
+`IMPLEMENTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_getBalance",
+    "params": ["0x0000000000000000000000000000000000000000", "latest"]
+}'
 ```
