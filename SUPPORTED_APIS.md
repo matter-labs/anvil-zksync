@@ -42,10 +42,10 @@
 | `EVM` | `evm_setAccountStorageAt` | NOT IMPLEMENTED | Sets the given account's storage slot to the specified data |
 | `EVM` | `evm_setTime` | NOT IMPLEMENTED | Sets the internal clock time to the given timestamp |
 | `EVM` | `evm_snapshot` | NOT IMPLEMENTED | Snapshot the state of the blockchain at the current block |
+| [`ETH`](#eth-namespace) | [`eth_chainId`](#eth_chainid) | SUPPORTED | Returns the currently configured chain id |
 | `ETH` | `eth_accounts` | NOT IMPLEMENTED | Returns a list of addresses owned by client |
 | `ETH` | `eth_blockNumber` | NOT IMPLEMENTED | Returns the number of the most recent block |
 | `ETH` | `eth_call` | NOT IMPLEMENTED | Executes a new message call immediately without creating a transaction on the block chain |
-| `ETH` | `eth_chainId` | NOT IMPLEMENTED | Returns the currently configured chain id |
 | `ETH` | `eth_coinbase` | NOT IMPLEMENTED | Returns the client coinbase address |
 | `ETH` | `eth_estimateGas` | NOT IMPLEMENTED | Generates and returns an estimate of how much gas is necessary for the transaction to complete |
 | `ETH` | `eth_feeHistory` | NOT IMPLEMENTED | Returns a collection of historical block gas data |
@@ -241,4 +241,29 @@ curl --request POST \
   --url http://localhost:8011/ \
   --header 'content-type: application/json' \
   --data '{"jsonrpc": "2.0","id": "1","method": "net_listening","params": []}'
+```
+
+## `ETH NAMESPACE`
+
+### `eth_chainId`
+
+[source](src/eth_api.rs)
+
+Returns the current chain id
+
+#### Arguments
+
++ _NONE_
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "eth_chainId","params": []}'
 ```
