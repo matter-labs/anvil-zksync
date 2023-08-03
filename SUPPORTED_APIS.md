@@ -44,7 +44,7 @@
 | `EVM` | `evm_snapshot` | NOT IMPLEMENTED | Snapshot the state of the blockchain at the current block |
 | [`ETH`](#eth-namespace) | [`eth_chainId`](#eth_chainid) | SUPPORTED | Returns the currently configured chain id |
 | [`ETH`](#eth-namespace) | [`eth_estimateGas`](#eth_estimategas) | PARTIALLY | Generates and returns an estimate of how much gas is necessary for the transaction to complete |
-| [`ETH`](#eth-namespace) | `eth_gasPrice` | PARTIALLY | Returns the current price per gas in wei |
+| [`ETH`](#eth-namespace) | [`eth_gasPrice`](#eth_gasprice) | IMPLEMENTED | Returns the current price per gas in wei |
 | `ETH` | `eth_accounts` | NOT IMPLEMENTED | Returns a list of addresses owned by client |
 | `ETH` | `eth_blockNumber` | NOT IMPLEMENTED | Returns the number of the most recent block |
 | `ETH` | `eth_call` | NOT IMPLEMENTED | Executes a new message call immediately without creating a transaction on the block chain |
