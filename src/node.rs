@@ -99,6 +99,13 @@ pub struct InMemoryNodeInner {
     pub playground_contracts: BaseSystemContracts,
 }
 
+type L2TxResult = (
+    HashMap<StorageKey, H256>,
+    VmTxExecutionResult,
+    BlockInfo,
+    HashMap<U256, Vec<U256>>,
+);
+
 impl InMemoryNodeInner {
     fn create_block_context(&self) -> BlockContext {
         BlockContext {
@@ -340,15 +347,7 @@ impl InMemoryNode {
         &self,
         l2_tx: L2Tx,
         execution_mode: TxExecutionMode,
-    ) -> Result<
-        (
-            HashMap<StorageKey, H256>,
-            VmTxExecutionResult,
-            BlockInfo,
-            HashMap<U256, Vec<U256>>,
-        ),
-        String,
-    > {
+    ) -> Result<L2TxResult, String> {
         let inner = self
             .inner
             .write()
@@ -539,7 +538,7 @@ impl EthNamespaceT for InMemoryNode {
                 }
             }
             Err(e) => {
-                let error = Web3Error::SerializationError(e.into());
+                let error = Web3Error::SerializationError(e);
                 Err(into_jsrpc_error(error)).into_boxed_future()
             }
         }
@@ -757,8 +756,7 @@ impl EthNamespaceT for InMemoryNode {
                 ..Default::default()
             });
 
-            Ok(receipt)
-                .or_else(|_: jsonrpc_core::Error| Err(into_jsrpc_error(Web3Error::InternalError)))
+            Ok(receipt).map_err(|_: jsonrpc_core::Error| into_jsrpc_error(Web3Error::InternalError))
         })
     }
     /// Sends a raw transaction to the L2 network.
