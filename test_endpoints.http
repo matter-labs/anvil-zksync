@@ -84,3 +84,16 @@ content-type: application/json
     "method": "eth_chainId",
     "params": []
 }
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_estimateGas",
+    "params": [{
+        "0x0000000000000000000000000000000000000000": true
+    }]
+}
