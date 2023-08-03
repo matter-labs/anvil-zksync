@@ -53,7 +53,7 @@ use vm::{
 use zksync_web3_decl::types::{Filter, FilterChanges};
 
 pub const MAX_TX_SIZE: usize = 1000000;
-// Timestamp of the first block (if not running in fork mode).
+/// Timestamp of the first block (if not running in fork mode).
 pub const NON_FORK_FIRST_BLOCK_TIMESTAMP: u64 = 1000;
 /// Network ID we use for the test node.
 pub const TEST_NODE_NETWORK_ID: u16 = 260;
@@ -502,13 +502,23 @@ impl InMemoryNode {
 }
 
 impl EthNamespaceT for InMemoryNode {
+    /// Returns the chain ID of the node.
     fn chain_id(&self) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::U64>> {
         match self.inner.read() {
             Ok(inner) => Ok(U64::from(inner.fork_storage.chain_id.0 as u64)).into_boxed_future(),
             Err(_) => Err(into_jsrpc_error(Web3Error::InternalError)).into_boxed_future(),
         }
     }
-
+    /// Calls the specified function on the L2 contract with the given arguments.
+    ///
+    /// # Arguments
+    ///
+    /// * `req` - The call request containing the function name and arguments.
+    /// * `_block` - The block ID variant (unused).
+    ///
+    /// # Returns
+    ///
+    /// A boxed future containing the result of the function call.
     fn call(
         &self,
         req: zksync_types::transaction_request::CallRequest,
@@ -521,17 +531,29 @@ impl EthNamespaceT for InMemoryNode {
 
                 match result {
                     Ok(vec) => Ok(vec.into()).into_boxed_future(),
-                    Err(e) => Err(jsonrpc_core::Error::invalid_params(e)).into_boxed_future(),
+                    Err(e) => {
+                        let error =
+                            Web3Error::InvalidTransactionData(ethabi::Error::InvalidName(e));
+                        Err(into_jsrpc_error(error)).into_boxed_future()
+                    }
                 }
             }
             Err(e) => {
-                // Convert the error to a string or use a custom error message.
-                let error_message = format!("Failed to process transaction request: {}", e);
-                Err(jsonrpc_core::Error::invalid_params(error_message)).into_boxed_future()
+                let error = Web3Error::SerializationError(e.into());
+                Err(into_jsrpc_error(error)).into_boxed_future()
             }
         }
     }
-
+    /// Returns the balance of the specified address.
+    ///
+    /// # Arguments
+    ///
+    /// * `address` - The address to get the balance of.
+    /// * `_block` - The block ID variant (optional).
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` that resolves to a `Result` containing the balance of the specified address as a `U256` or a `jsonrpc_core::Error` if an error occurred.
     fn get_balance(
         &self,
         address: zksync_basic_types::Address,
@@ -557,7 +579,16 @@ impl EthNamespaceT for InMemoryNode {
             }
         })
     }
-
+    /// Returns a block by its number.
+    ///
+    /// # Arguments
+    ///
+    /// * `block_number` - A `BlockNumber` enum variant representing the block number to retrieve.
+    /// * `_full_transactions` - A boolean value indicating whether to retrieve full transactions or not.
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `jsonrpc_core::Result` that resolves to an `Option` of `zksync_types::api::Block<zksync_types::api::TransactionVariant>`.
     fn get_block_by_number(
         &self,
         block_number: zksync_types::api::BlockNumber,
@@ -601,7 +632,17 @@ impl EthNamespaceT for InMemoryNode {
             Ok(Some(block))
         })
     }
-
+    /// Returns the code stored at the specified address.
+    ///
+    /// # Arguments
+    ///
+    /// * `address` - The address to retrieve the code from.
+    /// * `_block` - An optional block ID variant.
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing the result of the operation, which is a `jsonrpc_core::Result` containing
+    /// the code as a `zksync_basic_types::Bytes` object.
     fn get_code(
         &self,
         address: zksync_basic_types::Address,
@@ -621,7 +662,16 @@ impl EthNamespaceT for InMemoryNode {
             }
         })
     }
-
+    /// Returns the transaction count for a given address.
+    ///
+    /// # Arguments
+    ///
+    /// * `address` - The address to get the transaction count for.
+    /// * `_block` - Optional block ID variant.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `BoxFuture` containing the transaction count as a `U256` wrapped in a `jsonrpc_core::Result`.
     fn get_transaction_count(
         &self,
         address: zksync_basic_types::Address,
@@ -641,12 +691,19 @@ impl EthNamespaceT for InMemoryNode {
             }
         })
     }
-
+    /// Retrieves the transaction receipt for a given transaction hash.
+    ///
+    /// # Arguments
+    ///
+    /// * `hash` - The hash of the transaction to retrieve the receipt for.
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` that resolves to an `Option` of a `TransactionReceipt` or an error.
     fn get_transaction_receipt(
         &self,
         hash: zksync_basic_types::H256,
     ) -> BoxFuture<jsonrpc_core::Result<Option<zksync_types::api::TransactionReceipt>>> {
-        println!("get_transaction_receipt: {:?}", hash);
         let inner = Arc::clone(&self.inner);
 
         Box::pin(async move {
@@ -704,55 +761,75 @@ impl EthNamespaceT for InMemoryNode {
                 .or_else(|_: jsonrpc_core::Error| Err(into_jsrpc_error(Web3Error::InternalError)))
         })
     }
-
+    /// Sends a raw transaction to the L2 network.
+    ///
+    /// # Arguments
+    ///
+    /// * `tx_bytes` - The transaction bytes to send.
+    ///
+    /// # Returns
+    ///
+    /// A future that resolves to the hash of the transaction if successful, or an error if the transaction is invalid or execution fails.
     fn send_raw_transaction(
         &self,
         tx_bytes: zksync_basic_types::Bytes,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::H256>> {
-        println!("send_raw_transaction: {:?}", tx_bytes);
         let chain_id = match self.inner.read() {
             Ok(reader) => reader.fork_storage.chain_id,
-            Err(_) => return futures::future::err(jsonrpc_core::Error::internal_error()).boxed(),
+            Err(_) => {
+                return futures::future::err(into_jsrpc_error(Web3Error::InternalError)).boxed()
+            }
         };
 
         let (tx_req, hash) =
             match TransactionRequest::from_bytes(&tx_bytes.0, chain_id.0, MAX_TX_SIZE) {
                 Ok(result) => result,
-                Err(_) => {
-                    return futures::future::err(jsonrpc_core::Error::invalid_params(
-                        "Invalid transaction bytes",
-                    ))
-                    .boxed()
+                Err(e) => {
+                    return futures::future::err(into_jsrpc_error(Web3Error::SerializationError(e)))
+                        .boxed()
                 }
             };
 
         let mut l2_tx: L2Tx = match tx_req.try_into() {
             Ok(tx) => tx,
-            Err(_) => {
-                return futures::future::err(jsonrpc_core::Error::invalid_params(
-                    "Failed to convert transaction request",
-                ))
-                .boxed()
+            Err(e) => {
+                return futures::future::err(into_jsrpc_error(Web3Error::SerializationError(e)))
+                    .boxed()
             }
         };
 
         l2_tx.set_input(tx_bytes.0, hash);
         if hash != l2_tx.hash() {
-            return futures::future::err(jsonrpc_core::Error::invalid_params("Hash mismatch"))
-                .boxed();
+            return futures::future::err(into_jsrpc_error(Web3Error::InvalidTransactionData(
+                zksync_types::ethabi::Error::InvalidData,
+            )))
+            .boxed();
         };
 
-        match self.run_l2_tx(l2_tx, TxExecutionMode::VerifyExecute) {
+        match self.run_l2_tx(l2_tx.clone(), TxExecutionMode::VerifyExecute) {
             Ok(_) => Ok(hash).into_boxed_future(),
             Err(e) => {
                 let error_message = format!("Execution error: {}", e);
-                futures::future::err(error_message).boxed()
+                futures::future::err(into_jsrpc_error(Web3Error::SubmitTransactionError(
+                    error_message,
+                    l2_tx.hash().as_bytes().to_vec(),
+                )))
+                .boxed()
             }
         };
 
         Ok(hash).into_boxed_future()
     }
-
+    /// Returns a block by its hash. Currently, only hashes for blocks in memory are supported.
+    ///
+    /// # Arguments
+    ///
+    /// * `hash` - A `H256` type representing the hash of the block to retrieve.
+    /// * `_full_transactions` - A boolean value indicating whether to retrieve full transactions or not.
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` that resolves to a `Result` containing an `Option` of a `Block` with its transactions and other details.
     fn get_block_by_hash(
         &self,
         hash: zksync_basic_types::H256,
@@ -762,87 +839,137 @@ impl EthNamespaceT for InMemoryNode {
             Option<zksync_types::api::Block<zksync_types::api::TransactionVariant>>,
         >,
     > {
-        // Currently we support only hashes for blocks in memory
-        let reader = self.inner.read().unwrap();
-        let not_implemented_format = format!("get_block_by_hash__{}", hash);
+        let inner = Arc::clone(&self.inner);
 
-        let matching_transaction = reader.tx_results.get(&hash);
-        if matching_transaction.is_none() {
-            return not_implemented(&not_implemented_format);
-        }
+        Box::pin(async move {
+            // Currently we support only hashes for blocks in memory
+            let reader = inner
+                .read()
+                .map_err(|_| jsonrpc_core::Error::internal_error())?;
 
-        let matching_block = reader
-            .blocks
-            .get(&matching_transaction.unwrap().batch_number);
-        if matching_block.is_none() {
-            return not_implemented(&not_implemented_format);
-        }
+            let matching_transaction = reader.tx_results.get(&hash);
+            if matching_transaction.is_none() {
+                return Err(into_jsrpc_error(Web3Error::NotImplemented));
+            }
 
-        let txn: Vec<TransactionVariant> = vec![];
-        let block = zksync_types::api::Block {
-            transactions: txn,
-            number: U64::from(matching_block.unwrap().batch_number),
-            l1_batch_number: Some(U64::from(reader.current_batch)),
-            gas_limit: U256::from(ETH_CALL_GAS_LIMIT),
-            ..Default::default()
-        };
+            let matching_block = reader
+                .blocks
+                .get(&matching_transaction.unwrap().batch_number);
+            if matching_block.is_none() {
+                return Err(into_jsrpc_error(Web3Error::NotImplemented));
+            }
 
-        Ok(Some(block)).into_boxed_future()
+            let txn: Vec<TransactionVariant> = vec![];
+            let block = zksync_types::api::Block {
+                transactions: txn,
+                number: U64::from(matching_block.unwrap().batch_number),
+                l1_batch_number: Some(U64::from(reader.current_batch)),
+                gas_limit: U256::from(ETH_CALL_GAS_LIMIT),
+                ..Default::default()
+            };
+
+            Ok(Some(block))
+        })
     }
-
+    /// Returns a future that resolves to an optional transaction with the given hash.
+    ///
+    /// # Arguments
+    ///
+    /// * `hash` - A 32-byte hash of the transaction.
+    ///
+    /// # Returns
+    ///
+    /// A `jsonrpc_core::BoxFuture` that resolves to a `jsonrpc_core::Result` containing an optional `zksync_types::api::Transaction`.
     fn get_transaction_by_hash(
         &self,
         hash: zksync_basic_types::H256,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<zksync_types::api::Transaction>>> {
-        let reader = self.inner.read().unwrap();
-        let tx_result = reader.tx_results.get(&hash);
+        let inner = Arc::clone(&self.inner);
 
-        let tx = tx_result.map(|info| zksync_types::api::Transaction {
-            hash,
-            nonce: U256::from(info.tx.common_data.nonce.0),
-            block_hash: Some(hash),
-            block_number: Some(U64::from(info.miniblock_number)),
-            transaction_index: Some(U64::from(1)),
-            from: Some(info.tx.initiator_account()),
-            to: Some(info.tx.recipient_account()),
-            value: info.tx.execute.value,
-            gas_price: Default::default(),
-            gas: Default::default(),
-            input: info.tx.common_data.input.clone().unwrap().data.into(),
-            v: Some(info.tx.extract_chain_id().unwrap().into()),
-            r: Some(U256::zero()),
-            s: Some(U256::zero()),
-            raw: None,
-            transaction_type: {
-                let tx_type = match info.tx.common_data.transaction_type {
-                    zksync_types::l2::TransactionType::LegacyTransaction => 0,
-                    zksync_types::l2::TransactionType::EIP2930Transaction => 1,
-                    zksync_types::l2::TransactionType::EIP1559Transaction => 2,
-                    zksync_types::l2::TransactionType::EIP712Transaction => 113,
-                    zksync_types::l2::TransactionType::PriorityOpTransaction => 255,
-                };
-                Some(tx_type.into())
-            },
-            access_list: None,
-            max_fee_per_gas: Some(info.tx.common_data.fee.max_fee_per_gas),
-            max_priority_fee_per_gas: Some(info.tx.common_data.fee.max_priority_fee_per_gas),
-            chain_id: info.tx.extract_chain_id().unwrap().into(),
-            l1_batch_number: Some(U64::from(info.batch_number as u64)),
-            l1_batch_tx_index: None,
-        });
+        Box::pin(async move {
+            let reader = inner
+                .read()
+                .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
+            let tx_result = reader.tx_results.get(&hash);
 
-        Ok(tx).into_boxed_future()
+            let tx = if let Some(info) = tx_result {
+                let input_data = info.tx.common_data.input.clone().ok_or_else(|| {
+                    into_jsrpc_error(Web3Error::InvalidTransactionData(
+                        ethabi::Error::InvalidData,
+                    ))
+                })?;
+
+                let chain_id = info.tx.extract_chain_id().ok_or_else(|| {
+                    into_jsrpc_error(Web3Error::InvalidTransactionData(
+                        ethabi::Error::InvalidData,
+                    ))
+                })?;
+
+                Some(zksync_types::api::Transaction {
+                    hash,
+                    nonce: U256::from(info.tx.common_data.nonce.0),
+                    block_hash: Some(hash),
+                    block_number: Some(U64::from(info.miniblock_number)),
+                    transaction_index: Some(U64::from(1)),
+                    from: Some(info.tx.initiator_account()),
+                    to: Some(info.tx.recipient_account()),
+                    value: info.tx.execute.value,
+                    gas_price: Default::default(),
+                    gas: Default::default(),
+                    input: input_data.data.into(),
+                    v: Some(chain_id.into()),
+                    r: Some(U256::zero()),
+                    s: Some(U256::zero()),
+                    raw: None,
+                    transaction_type: {
+                        let tx_type = match info.tx.common_data.transaction_type {
+                            zksync_types::l2::TransactionType::LegacyTransaction => 0,
+                            zksync_types::l2::TransactionType::EIP2930Transaction => 1,
+                            zksync_types::l2::TransactionType::EIP1559Transaction => 2,
+                            zksync_types::l2::TransactionType::EIP712Transaction => 113,
+                            zksync_types::l2::TransactionType::PriorityOpTransaction => 255,
+                        };
+                        Some(tx_type.into())
+                    },
+                    access_list: None,
+                    max_fee_per_gas: Some(info.tx.common_data.fee.max_fee_per_gas),
+                    max_priority_fee_per_gas: Some(
+                        info.tx.common_data.fee.max_priority_fee_per_gas,
+                    ),
+                    chain_id: chain_id.into(),
+                    l1_batch_number: Some(U64::from(info.batch_number as u64)),
+                    l1_batch_tx_index: None,
+                })
+            } else {
+                None
+            };
+
+            Ok(tx)
+        })
     }
-
-    // Methods below are not currently implemented.
-
+    /// Returns the current block number as a `U64` wrapped in a `BoxFuture`.
     fn get_block_number(
         &self,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::U64>> {
-        let reader = self.inner.read().unwrap();
-        Ok(U64::from(reader.current_miniblock)).into_boxed_future()
-    }
+        let inner = Arc::clone(&self.inner);
 
+        Box::pin(async move {
+            let reader = inner
+                .read()
+                .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
+            Ok(U64::from(reader.current_miniblock))
+        })
+    }
+    /// Estimates the gas required for a given call request.
+    ///
+    /// # Arguments
+    ///
+    /// * `_req` - A `CallRequest` struct representing the call request to estimate gas for.
+    /// * `_block` - An optional `BlockNumber` struct representing the block number to estimate gas for.
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `Result` with a `U256` representing the estimated gas required.
     fn estimate_gas(
         &self,
         _req: zksync_types::transaction_request::CallRequest,
@@ -851,11 +978,13 @@ impl EthNamespaceT for InMemoryNode {
         let gas_used = U256::from(ETH_CALL_GAS_LIMIT);
         Ok(gas_used).into_boxed_future()
     }
-
+    /// Returns the current gas price in U256 format.
     fn gas_price(&self) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<U256>> {
         let fair_l2_gas_price: u64 = 250_000_000; // 0.25 gwei
         Ok(U256::from(fair_l2_gas_price)).into_boxed_future()
     }
+
+    // Methods below are not currently implemented.
 
     fn new_filter(&self, _filter: Filter) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<U256>> {
         not_implemented("new_filter")
