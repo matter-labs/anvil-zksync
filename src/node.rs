@@ -15,13 +15,23 @@ use std::{
     convert::TryInto,
     sync::{Arc, RwLock},
 };
+use vm::{
+    utils::{BLOCK_GAS_LIMIT, ETH_CALL_GAS_LIMIT},
+    vm::VmTxExecutionResult,
+    vm_with_bootloader::{
+        init_vm_inner, push_transaction_to_bootloader_memory, BlockContext, BlockContextMode,
+        BootloaderJobType, TxExecutionMode,
+    },
+    HistoryEnabled, OracleTools,
+};
 use zksync_basic_types::{AccountTreeId, Bytes, H160, H256, U256, U64};
 use zksync_contracts::{
     read_playground_block_bootloader_bytecode, read_sys_contract_bytecode, BaseSystemContracts,
     ContractLanguage, SystemContractCode,
 };
-use zksync_core::api_server::web3::backend_jsonrpc::error::into_jsrpc_error;
-use zksync_core::api_server::web3::backend_jsonrpc::namespaces::eth::EthNamespaceT;
+use zksync_core::api_server::web3::backend_jsonrpc::{
+    error::into_jsrpc_error, namespaces::eth::EthNamespaceT,
+};
 use zksync_state::{ReadStorage, StorageView, WriteStorage};
 use zksync_types::{
     api::{Log, TransactionReceipt, TransactionVariant},
@@ -39,18 +49,10 @@ use zksync_utils::{
     bytecode::hash_bytecode, bytes_to_be_words, h256_to_account_address, h256_to_u256, h256_to_u64,
     u256_to_h256,
 };
-use zksync_web3_decl::error::Web3Error;
-
-use vm::{
-    utils::{BLOCK_GAS_LIMIT, ETH_CALL_GAS_LIMIT},
-    vm::VmTxExecutionResult,
-    vm_with_bootloader::{
-        init_vm_inner, push_transaction_to_bootloader_memory, BlockContext, BlockContextMode,
-        BootloaderJobType, TxExecutionMode,
-    },
-    HistoryEnabled, OracleTools,
+use zksync_web3_decl::{
+    error::Web3Error,
+    types::{Filter, FilterChanges},
 };
-use zksync_web3_decl::types::{Filter, FilterChanges};
 
 pub const MAX_TX_SIZE: usize = 1000000;
 /// Timestamp of the first block (if not running in fork mode).
@@ -387,12 +389,6 @@ impl InMemoryNode {
         let tx_result = vm
             .execute_next_tx(u32::MAX, true)
             .map_err(|e| format!("Failed to execute next transaction: {}", e))?;
-
-        if let Some(ref revert_reason) = tx_result.result.revert_reason {
-            println!("\n\n\nRevert reason: {:?}", revert_reason);
-        } else {
-            println!("No revert reason provided.");
-        }
 
         match tx_result.status {
             TxExecutionStatus::Success => println!("Transaction: {}", "SUCCESS".green()),
@@ -843,7 +839,7 @@ impl EthNamespaceT for InMemoryNode {
             // Currently we support only hashes for blocks in memory
             let reader = inner
                 .read()
-                .map_err(|_| jsonrpc_core::Error::internal_error())?;
+                .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
 
             let matching_transaction = reader.tx_results.get(&hash);
             if matching_transaction.is_none() {
@@ -890,17 +886,13 @@ impl EthNamespaceT for InMemoryNode {
                 .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
             let tx_result = reader.tx_results.get(&hash);
 
-            let tx = if let Some(info) = tx_result {
-                let input_data = info.tx.common_data.input.clone().ok_or_else(|| {
-                    into_jsrpc_error(Web3Error::InvalidTransactionData(
-                        ethabi::Error::InvalidData,
-                    ))
+            Ok(tx_result.and_then(|info| {
+                let input_data = info.tx.common_data.input.clone().or_else(|| {
+                    return None;
                 })?;
 
-                let chain_id = info.tx.extract_chain_id().ok_or_else(|| {
-                    into_jsrpc_error(Web3Error::InvalidTransactionData(
-                        ethabi::Error::InvalidData,
-                    ))
+                let chain_id = info.tx.extract_chain_id().or_else(|| {
+                    return None;
                 })?;
 
                 Some(zksync_types::api::Transaction {
@@ -938,11 +930,7 @@ impl EthNamespaceT for InMemoryNode {
                     l1_batch_number: Some(U64::from(info.batch_number as u64)),
                     l1_batch_tx_index: None,
                 })
-            } else {
-                None
-            };
-
-            Ok(tx)
+            }))
         })
     }
     /// Returns the current block number as a `U64` wrapped in a `BoxFuture`.
