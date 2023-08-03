@@ -174,3 +174,25 @@ content-type: application/json
     "method": "eth_getTransactionCount",
     "params": ["0x0000000000000000000000000000000000000000", "latest"]
 }
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_sendRawTransaction",
+    "params": ["0x0000"]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_blockNumber",
+    "params": []
+}

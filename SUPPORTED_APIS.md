@@ -50,8 +50,8 @@
 | [`ETH`](#eth-namespace) | `eth_getBlockByHash` | NOT IMPLEMENTED | Returns information about a block by block hash |
 | [`ETH`](#eth-namespace) | [`eth_getTransactionByHash`](#eth_gettransactionbyhash) | IMPLEMENTED | Returns the information about a transaction requested by transaction hash |
 | [`ETH`](#eth-namespace) | [`eth_getTransactionCount`](#eth_gettransactioncount) | IMPLEMENTED | Returns the number of transactions sent from an address |
+| [`ETH`](#eth-namespace) | [`eth_blockNumber`](#eth_blocknumber) | IMPLEMENTED | Returns the number of the most recent block |
 | `ETH` | `eth_accounts` | NOT IMPLEMENTED | Returns a list of addresses owned by client |
-| `ETH` | `eth_blockNumber` | NOT IMPLEMENTED | Returns the number of the most recent block |
 | `ETH` | `eth_call` | NOT IMPLEMENTED | Executes a new message call immediately without creating a transaction on the block chain |
 | `ETH` | `eth_coinbase` | NOT IMPLEMENTED | Returns the client coinbase address |
 | `ETH` | `eth_feeHistory` | NOT IMPLEMENTED | Returns a collection of historical block gas data |
@@ -467,4 +467,27 @@ curl --request POST \
     "method": "eth_getTransactionCount",
     "params": ["0x0000000000000000000000000000000000000000", "latest"]
 }'
+```
+
+### `eth_blockNumber`
+
+[source](src/eth_api.rs)
+
+Returns the number of most recent block
+
+#### Arguments
+
++ _NONE_
+
+#### Status
+
+`IMPLEMENTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "eth_blockNumber","params": []}'
 ```
