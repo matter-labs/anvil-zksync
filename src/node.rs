@@ -7,8 +7,9 @@ use crate::{
     utils::IntoBoxedFuture,
     ShowCalls,
 };
-
 use colored::Colorize;
+use futures::FutureExt;
+use jsonrpc_core::BoxFuture;
 use std::{
     collections::HashMap,
     convert::TryInto,
@@ -19,6 +20,7 @@ use zksync_contracts::{
     read_playground_block_bootloader_bytecode, read_sys_contract_bytecode, BaseSystemContracts,
     ContractLanguage, SystemContractCode,
 };
+use zksync_core::api_server::web3::backend_jsonrpc::error::into_jsrpc_error;
 use zksync_core::api_server::web3::backend_jsonrpc::namespaces::eth::EthNamespaceT;
 use zksync_state::{ReadStorage, StorageView, WriteStorage};
 use zksync_types::{
@@ -37,6 +39,7 @@ use zksync_utils::{
     bytecode::hash_bytecode, bytes_to_be_words, h256_to_account_address, h256_to_u256, h256_to_u64,
     u256_to_h256,
 };
+use zksync_web3_decl::error::Web3Error;
 
 use vm::{
     utils::{BLOCK_GAS_LIMIT, ETH_CALL_GAS_LIMIT},
@@ -232,18 +235,28 @@ impl InMemoryNode {
     }
 
     /// Applies multiple transactions - but still one per L1 batch.
-    pub fn apply_txs(&self, txs: Vec<L2Tx>) {
+    pub fn apply_txs(&self, txs: Vec<L2Tx>) -> Result<(), String> {
         println!("Running {:?} transactions (one per batch)", txs.len());
 
         for tx in txs {
-            self.run_l2_tx(tx, TxExecutionMode::VerifyExecute);
+            self.run_l2_tx(tx, TxExecutionMode::VerifyExecute)?;
         }
+
+        Ok(())
     }
 
     /// Adds a lot of tokens to a given account.
     pub fn set_rich_account(&self, address: H160) {
         let key = storage_key_for_eth_balance(&address);
-        let mut inner = self.inner.write().unwrap();
+
+        let mut inner = match self.inner.write() {
+            Ok(guard) => guard,
+            Err(e) => {
+                println!("Failed to acquire write lock: {}", e);
+                return;
+            }
+        };
+
         let keys = {
             let mut storage_view = StorageView::new(&inner.fork_storage);
             storage_view.set_value(key, u256_to_h256(U256::from(10u128.pow(22))));
@@ -256,12 +269,15 @@ impl InMemoryNode {
     }
 
     /// Runs L2 'eth call' method - that doesn't commit to a block.
-    fn run_l2_call(&self, l2_tx: L2Tx) -> Vec<u8> {
+    fn run_l2_call(&self, l2_tx: L2Tx) -> Result<Vec<u8>, String> {
         let execution_mode = TxExecutionMode::EthCall {
             missed_storage_invocation_limit: 1000000,
         };
 
-        let inner = self.inner.write().unwrap();
+        let inner = match self.inner.write() {
+            Ok(guard) => guard,
+            Err(e) => return Err(format!("Failed to acquire write lock: {}", e)),
+        };
 
         let mut storage_view = StorageView::new(&inner.fork_storage);
 
@@ -307,8 +323,8 @@ impl InMemoryNode {
         }
 
         match vm_block_result.full_result.revert_reason {
-            Some(result) => result.original_data,
-            None => vm_block_result
+            Some(result) => Ok(result.original_data),
+            None => Ok(vm_block_result
                 .full_result
                 .return_data
                 .into_iter()
@@ -316,7 +332,7 @@ impl InMemoryNode {
                     let bytes: [u8; 32] = val.into();
                     bytes.to_vec()
                 })
-                .collect::<Vec<_>>(),
+                .collect::<Vec<_>>()),
         }
     }
 
@@ -324,13 +340,19 @@ impl InMemoryNode {
         &self,
         l2_tx: L2Tx,
         execution_mode: TxExecutionMode,
-    ) -> (
-        HashMap<StorageKey, H256>,
-        VmTxExecutionResult,
-        BlockInfo,
-        HashMap<U256, Vec<U256>>,
-    ) {
-        let inner = self.inner.write().unwrap();
+    ) -> Result<
+        (
+            HashMap<StorageKey, H256>,
+            VmTxExecutionResult,
+            BlockInfo,
+            HashMap<U256, Vec<U256>>,
+        ),
+        String,
+    > {
+        let inner = self
+            .inner
+            .write()
+            .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
 
         let mut storage_view = StorageView::new(&inner.fork_storage);
 
@@ -363,7 +385,15 @@ impl InMemoryNode {
 
         let tx: Transaction = l2_tx.into();
         push_transaction_to_bootloader_memory(&mut vm, &tx, execution_mode, None);
-        let tx_result = vm.execute_next_tx(u32::MAX, true).unwrap();
+        let tx_result = vm
+            .execute_next_tx(u32::MAX, true)
+            .map_err(|e| format!("Failed to execute next transaction: {}", e))?;
+
+        if let Some(ref revert_reason) = tx_result.result.revert_reason {
+            println!("\n\n\nRevert reason: {:?}", revert_reason);
+        } else {
+            println!("No revert reason provided.");
+        }
 
         match tx_result.status {
             TxExecutionStatus::Success => println!("Transaction: {}", "SUCCESS".green()),
@@ -419,16 +449,20 @@ impl InMemoryNode {
             .clone();
 
         let modified_keys = storage_view.modified_storage_keys().clone();
-        (modified_keys, tx_result, block, bytecodes)
+        Ok((modified_keys, tx_result, block, bytecodes))
     }
 
     /// Runs L2 transaction and commits it to a new block.
-    fn run_l2_tx(&self, l2_tx: L2Tx, execution_mode: TxExecutionMode) {
+    fn run_l2_tx(&self, l2_tx: L2Tx, execution_mode: TxExecutionMode) -> Result<(), String> {
         let tx_hash = l2_tx.hash();
         println!("\nExecuting {}", format!("{:?}", tx_hash).bold());
-        let (keys, result, block, bytecodes) = self.run_l2_tx_inner(l2_tx.clone(), execution_mode);
+        let (keys, result, block, bytecodes) =
+            self.run_l2_tx_inner(l2_tx.clone(), execution_mode)?;
         // Write all the mutated keys (storage slots).
-        let mut inner = self.inner.write().unwrap();
+        let mut inner = self
+            .inner
+            .write()
+            .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
         for (key, value) in keys.iter() {
             inner.fork_storage.set_value(*key, *value);
         }
@@ -462,13 +496,17 @@ impl InMemoryNode {
             inner.current_batch += 1;
             inner.current_miniblock += 1;
         }
+
+        Ok(())
     }
 }
 
 impl EthNamespaceT for InMemoryNode {
     fn chain_id(&self) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::U64>> {
-        let inner = self.inner.read().unwrap();
-        Ok(U64::from(inner.fork_storage.chain_id.0 as u64)).into_boxed_future()
+        match self.inner.read() {
+            Ok(inner) => Ok(U64::from(inner.fork_storage.chain_id.0 as u64)).into_boxed_future(),
+            Err(_) => Err(into_jsrpc_error(Web3Error::InternalError)).into_boxed_future(),
+        }
     }
 
     fn call(
@@ -476,181 +514,150 @@ impl EthNamespaceT for InMemoryNode {
         req: zksync_types::transaction_request::CallRequest,
         _block: Option<zksync_types::api::BlockIdVariant>,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::Bytes>> {
-        let mut tx = l2_tx_from_call_req(req, MAX_TX_SIZE).unwrap();
-        tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
-        let result = self.run_l2_call(tx);
+        match l2_tx_from_call_req(req, MAX_TX_SIZE) {
+            Ok(mut tx) => {
+                tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
+                let result = self.run_l2_call(tx);
 
-        Ok(result.into()).into_boxed_future()
+                match result {
+                    Ok(vec) => Ok(vec.into()).into_boxed_future(),
+                    Err(e) => Err(jsonrpc_core::Error::invalid_params(e)).into_boxed_future(),
+                }
+            }
+            Err(e) => {
+                // Convert the error to a string or use a custom error message.
+                let error_message = format!("Failed to process transaction request: {}", e);
+                Err(jsonrpc_core::Error::invalid_params(error_message)).into_boxed_future()
+            }
+        }
     }
 
     fn get_balance(
         &self,
         address: zksync_basic_types::Address,
         _block: Option<zksync_types::api::BlockIdVariant>,
-    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<U256>> {
-        let balance_key = storage_key_for_standard_token_balance(
-            AccountTreeId::new(L2_ETH_TOKEN_ADDRESS),
-            &address,
-        );
+    ) -> BoxFuture<Result<U256, jsonrpc_core::Error>> {
+        let inner = Arc::clone(&self.inner);
 
-        let balance = self
-            .inner
-            .write()
-            .unwrap()
-            .fork_storage
-            .read_value(&balance_key);
+        Box::pin(async move {
+            let balance_key = storage_key_for_standard_token_balance(
+                AccountTreeId::new(L2_ETH_TOKEN_ADDRESS),
+                &address,
+            );
 
-        Ok(h256_to_u256(balance)).into_boxed_future()
+            match inner.write() {
+                Ok(mut inner_guard) => {
+                    let balance = inner_guard.fork_storage.read_value(&balance_key);
+                    Ok(h256_to_u256(balance))
+                }
+                Err(_) => {
+                    let web3_error = Web3Error::InternalError;
+                    Err(into_jsrpc_error(web3_error))
+                }
+            }
+        })
     }
 
     fn get_block_by_number(
         &self,
         block_number: zksync_types::api::BlockNumber,
         _full_transactions: bool,
-    ) -> jsonrpc_core::BoxFuture<
+    ) -> BoxFuture<
         jsonrpc_core::Result<
             Option<zksync_types::api::Block<zksync_types::api::TransactionVariant>>,
         >,
     > {
-        // Currently we support only the 'most recent' block.
-        let reader = self.inner.read().unwrap();
+        let inner = Arc::clone(&self.inner);
 
-        match block_number {
-            zksync_types::api::BlockNumber::Committed
-            | zksync_types::api::BlockNumber::Finalized
-            | zksync_types::api::BlockNumber::Latest => {}
-            zksync_types::api::BlockNumber::Earliest => {
-                return not_implemented("get_block_by_number__Earliest")
-            }
-            zksync_types::api::BlockNumber::Pending => {
-                return not_implemented("get_block_by_number__Pending")
-            }
-            zksync_types::api::BlockNumber::Number(ask_number) => {
-                if ask_number != U64::from(reader.current_miniblock) {
-                    let not_implemented_format = format!("get_block_by_number__{}", ask_number);
-                    return not_implemented(&not_implemented_format);
+        Box::pin(async move {
+            let reader = match inner.read() {
+                Ok(r) => r,
+                Err(_) => return Err(into_jsrpc_error(Web3Error::InternalError)),
+            };
+
+            match block_number {
+                zksync_types::api::BlockNumber::Earliest => {
+                    return Err(into_jsrpc_error(Web3Error::NotImplemented));
                 }
+                zksync_types::api::BlockNumber::Pending => {
+                    return Err(into_jsrpc_error(Web3Error::NotImplemented));
+                }
+                zksync_types::api::BlockNumber::Number(ask_number)
+                    if ask_number != U64::from(reader.current_miniblock) =>
+                {
+                    return Err(into_jsrpc_error(Web3Error::NotImplemented));
+                }
+                _ => {}
             }
-        }
 
-        let txn: Vec<TransactionVariant> = vec![];
+            let block = zksync_types::api::Block {
+                transactions: vec![],
+                number: U64::from(reader.current_miniblock),
+                l1_batch_number: Some(U64::from(reader.current_batch)),
+                gas_limit: U256::from(ETH_CALL_GAS_LIMIT),
+                ..Default::default()
+            };
 
-        let block = zksync_types::api::Block {
-            transactions: txn,
-            hash: Default::default(),
-            parent_hash: Default::default(),
-            uncles_hash: Default::default(),
-            author: Default::default(),
-            state_root: Default::default(),
-            transactions_root: Default::default(),
-            receipts_root: Default::default(),
-            number: U64::from(reader.current_miniblock),
-            l1_batch_number: Some(U64::from(reader.current_batch)),
-            gas_used: Default::default(),
-            gas_limit: U256::from(ETH_CALL_GAS_LIMIT),
-            base_fee_per_gas: Default::default(),
-            extra_data: Default::default(),
-            logs_bloom: Default::default(),
-            timestamp: Default::default(),
-            l1_batch_timestamp: Default::default(),
-            difficulty: Default::default(),
-            total_difficulty: Default::default(),
-            seal_fields: Default::default(),
-            uncles: Default::default(),
-            size: Default::default(),
-            mix_hash: Default::default(),
-            nonce: Default::default(),
-        };
-
-        Ok(Some(block)).into_boxed_future()
+            Ok(Some(block))
+        })
     }
 
     fn get_code(
         &self,
         address: zksync_basic_types::Address,
         _block: Option<zksync_types::api::BlockIdVariant>,
-    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::Bytes>> {
-        let code_key = get_code_key(&address);
+    ) -> BoxFuture<jsonrpc_core::Result<zksync_basic_types::Bytes>> {
+        let inner = Arc::clone(&self.inner);
 
-        let code_hash = self
-            .inner
-            .write()
-            .unwrap()
-            .fork_storage
-            .read_value(&code_key);
+        Box::pin(async move {
+            let code_key = get_code_key(&address);
 
-        Ok(Bytes::from(code_hash.as_bytes())).into_boxed_future()
+            match inner.write() {
+                Ok(mut guard) => {
+                    let code_hash = guard.fork_storage.read_value(&code_key);
+                    Ok(Bytes::from(code_hash.as_bytes()))
+                }
+                Err(_) => Err(into_jsrpc_error(Web3Error::InternalError)),
+            }
+        })
     }
 
     fn get_transaction_count(
         &self,
         address: zksync_basic_types::Address,
         _block: Option<zksync_types::api::BlockIdVariant>,
-    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<U256>> {
-        let nonce_key = get_nonce_key(&address);
+    ) -> BoxFuture<jsonrpc_core::Result<U256>> {
+        let inner = Arc::clone(&self.inner);
 
-        let result = self
-            .inner
-            .write()
-            .unwrap()
-            .fork_storage
-            .read_value(&nonce_key);
-        Ok(h256_to_u64(result).into()).into_boxed_future()
+        Box::pin(async move {
+            let nonce_key = get_nonce_key(&address);
+
+            match inner.write() {
+                Ok(mut guard) => {
+                    let result = guard.fork_storage.read_value(&nonce_key);
+                    Ok(h256_to_u64(result).into())
+                }
+                Err(_) => Err(into_jsrpc_error(Web3Error::InternalError)),
+            }
+        })
     }
 
     fn get_transaction_receipt(
         &self,
         hash: zksync_basic_types::H256,
-    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<zksync_types::api::TransactionReceipt>>>
-    {
-        let reader = self.inner.read().unwrap();
-        let tx_result = reader.tx_results.get(&hash);
+    ) -> BoxFuture<jsonrpc_core::Result<Option<zksync_types::api::TransactionReceipt>>> {
+        println!("get_transaction_receipt: {:?}", hash);
+        let inner = Arc::clone(&self.inner);
 
-        let receipt = tx_result.map(|info| {
-            let status = if info.result.status == TxExecutionStatus::Success {
-                U64::from(1)
-            } else {
-                U64::from(0)
+        Box::pin(async move {
+            let reader = match inner.read() {
+                Ok(r) => r,
+                Err(_) => return Err(into_jsrpc_error(Web3Error::InternalError)),
             };
 
-            let logs: Vec<Log> = info
-                .result
-                .result
-                .logs
-                .events
-                .iter()
-                .map(|log| {
-                    let address = log.address;
-                    let topics = &log.indexed_topics;
-                    let data = log.value.clone();
-                    let block_hash = Some(hash);
-                    let block_number = Some(U64::from(info.miniblock_number));
-                    let l1_batch_number = Some(U64::from(info.batch_number as u64));
-                    let transaction_hash = Some(hash);
-                    let transaction_index = Some(U64::from(1));
-                    let log_index = Some(U256::default());
-                    let transaction_log_index = Some(U256::default());
-                    let log_type = None;
-                    let removed = None;
+            let tx_result = reader.tx_results.get(&hash);
 
-                    Log {
-                        address,
-                        topics: topics.to_vec(),
-                        data: zksync_types::Bytes(data),
-                        block_hash,
-                        block_number,
-                        l1_batch_number,
-                        transaction_hash,
-                        transaction_index,
-                        log_index,
-                        transaction_log_index,
-                        log_type,
-                        removed,
-                    }
-                })
-                .collect();
-
-            TransactionReceipt {
+            let receipt = tx_result.map(|info| TransactionReceipt {
                 transaction_hash: hash,
                 transaction_index: U64::from(1),
                 block_hash: Some(hash),
@@ -662,36 +669,86 @@ impl EthNamespaceT for InMemoryNode {
                 cumulative_gas_used: Default::default(),
                 gas_used: Some(info.tx.common_data.fee.gas_limit - info.result.gas_refunded),
                 contract_address: contract_address_from_tx_result(&info.result),
-                logs,
+                logs: info
+                    .result
+                    .result
+                    .logs
+                    .events
+                    .iter()
+                    .map(|log| Log {
+                        address: log.address,
+                        topics: log.indexed_topics.clone(),
+                        data: zksync_types::Bytes(log.value.clone()),
+                        block_hash: Some(hash),
+                        block_number: Some(U64::from(info.miniblock_number)),
+                        l1_batch_number: Some(U64::from(info.batch_number as u64)),
+                        transaction_hash: Some(hash),
+                        transaction_index: Some(U64::from(1)),
+                        log_index: Some(U256::default()),
+                        transaction_log_index: Some(U256::default()),
+                        log_type: None,
+                        removed: None,
+                    })
+                    .collect(),
                 l2_to_l1_logs: vec![],
-                status: Some(status),
-                root: None,
-                logs_bloom: Default::default(),
-                transaction_type: None,
+                status: Some(if info.result.status == TxExecutionStatus::Success {
+                    U64::from(1)
+                } else {
+                    U64::from(0)
+                }),
                 effective_gas_price: Some(500.into()),
-            }
-        });
+                ..Default::default()
+            });
 
-        Ok(receipt).into_boxed_future()
+            Ok(receipt)
+                .or_else(|_: jsonrpc_core::Error| Err(into_jsrpc_error(Web3Error::InternalError)))
+        })
     }
 
     fn send_raw_transaction(
         &self,
         tx_bytes: zksync_basic_types::Bytes,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::H256>> {
-        let chain_id = {
-            let reader = self.inner.read().unwrap();
-            reader.fork_storage.chain_id
+        println!("send_raw_transaction: {:?}", tx_bytes);
+        let chain_id = match self.inner.read() {
+            Ok(reader) => reader.fork_storage.chain_id,
+            Err(_) => return futures::future::err(jsonrpc_core::Error::internal_error()).boxed(),
         };
 
         let (tx_req, hash) =
-            TransactionRequest::from_bytes(&tx_bytes.0, chain_id.0, MAX_TX_SIZE).unwrap();
+            match TransactionRequest::from_bytes(&tx_bytes.0, chain_id.0, MAX_TX_SIZE) {
+                Ok(result) => result,
+                Err(_) => {
+                    return futures::future::err(jsonrpc_core::Error::invalid_params(
+                        "Invalid transaction bytes",
+                    ))
+                    .boxed()
+                }
+            };
 
-        let mut l2_tx: L2Tx = tx_req.try_into().unwrap();
+        let mut l2_tx: L2Tx = match tx_req.try_into() {
+            Ok(tx) => tx,
+            Err(_) => {
+                return futures::future::err(jsonrpc_core::Error::invalid_params(
+                    "Failed to convert transaction request",
+                ))
+                .boxed()
+            }
+        };
+
         l2_tx.set_input(tx_bytes.0, hash);
-        assert_eq!(hash, l2_tx.hash());
+        if hash != l2_tx.hash() {
+            return futures::future::err(jsonrpc_core::Error::invalid_params("Hash mismatch"))
+                .boxed();
+        };
 
-        self.run_l2_tx(l2_tx, TxExecutionMode::VerifyExecute);
+        match self.run_l2_tx(l2_tx, TxExecutionMode::VerifyExecute) {
+            Ok(_) => Ok(hash).into_boxed_future(),
+            Err(e) => {
+                let error_message = format!("Execution error: {}", e);
+                futures::future::err(error_message).boxed()
+            }
+        };
 
         Ok(hash).into_boxed_future()
     }
@@ -724,29 +781,10 @@ impl EthNamespaceT for InMemoryNode {
         let txn: Vec<TransactionVariant> = vec![];
         let block = zksync_types::api::Block {
             transactions: txn,
-            hash: Default::default(),
-            parent_hash: Default::default(),
-            uncles_hash: Default::default(),
-            author: Default::default(),
-            state_root: Default::default(),
-            transactions_root: Default::default(),
-            receipts_root: Default::default(),
             number: U64::from(matching_block.unwrap().batch_number),
             l1_batch_number: Some(U64::from(reader.current_batch)),
-            gas_used: Default::default(),
             gas_limit: U256::from(ETH_CALL_GAS_LIMIT),
-            base_fee_per_gas: Default::default(),
-            extra_data: Default::default(),
-            logs_bloom: Default::default(),
-            timestamp: Default::default(),
-            l1_batch_timestamp: Default::default(),
-            difficulty: Default::default(),
-            total_difficulty: Default::default(),
-            seal_fields: Default::default(),
-            uncles: Default::default(),
-            size: Default::default(),
-            mix_hash: Default::default(),
-            nonce: Default::default(),
+            ..Default::default()
         };
 
         Ok(Some(block)).into_boxed_future()

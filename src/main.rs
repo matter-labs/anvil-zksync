@@ -234,7 +234,7 @@ async fn main() -> anyhow::Result<()> {
     );
 
     if !transactions_to_replay.is_empty() {
-        node.apply_txs(transactions_to_replay);
+        let _ = node.apply_txs(transactions_to_replay);
     }
 
     println!("\nRich Accounts");
