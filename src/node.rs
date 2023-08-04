@@ -283,10 +283,10 @@ impl InMemoryNode {
             missed_storage_invocation_limit: 1000000,
         };
 
-        let inner = match self.inner.write() {
-            Ok(guard) => guard,
-            Err(e) => return Err(format!("Failed to acquire write lock: {}", e)),
-        };
+        let inner = self
+            .inner
+            .write()
+            .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
 
         let mut storage_view = StorageView::new(&inner.fork_storage);
 
@@ -810,9 +810,7 @@ impl EthNamespaceT for InMemoryNode {
                 )))
                 .boxed()
             }
-        };
-
-        Ok(hash).into_boxed_future()
+        }
     }
     /// Returns a block by its hash. Currently, only hashes for blocks in memory are supported.
     ///
@@ -843,14 +841,16 @@ impl EthNamespaceT for InMemoryNode {
 
             let matching_transaction = reader.tx_results.get(&hash);
             if matching_transaction.is_none() {
-                return Err(into_jsrpc_error(Web3Error::NotImplemented));
+                return Err(into_jsrpc_error(Web3Error::InvalidTransactionData(
+                    zksync_types::ethabi::Error::InvalidData,
+                )));
             }
 
             let matching_block = reader
                 .blocks
                 .get(&matching_transaction.unwrap().batch_number);
             if matching_block.is_none() {
-                return Err(into_jsrpc_error(Web3Error::NotImplemented));
+                return Err(into_jsrpc_error(Web3Error::NoBlock));
             }
 
             let txn: Vec<TransactionVariant> = vec![];
