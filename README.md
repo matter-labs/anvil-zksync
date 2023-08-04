@@ -1,7 +1,7 @@
 <div align="center">
 <a href="https://era.zksync.io/docs/tools/testing/era-test-node.html">
-   <img src="./.github/assets/era_test_node_banner_light.png#gh-light-mode-only" alt="era-test-node banner" />
-   <img src="./.github/assets/era_test_node_banner_dark.png#gh-dark-mode-only" alt="era-test-node banner" />
+   ![era-test-node banner light](https://github.com/matter-labs/era-test-node/raw/db/add-banner-readme/.github/assets/era_test_node_banner_light.png#gh-light-mode-only)
+   ![era-test-node banner dark](https://github.com/matter-labs/era-test-node/raw/db/add-banner-readme/.github/assets/era_test_node_banner_dark.png#gh-dark-mode-only)
 </a>
 </div>
 
