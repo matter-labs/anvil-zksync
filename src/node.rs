@@ -606,14 +606,21 @@ impl EthNamespaceT for InMemoryNode {
 
             match block_number {
                 zksync_types::api::BlockNumber::Earliest => {
+                    println!(
+                        "Method get_block_by_number with BlockNumber::Earliest is not implemented"
+                    );
                     return Err(into_jsrpc_error(Web3Error::NotImplemented));
                 }
                 zksync_types::api::BlockNumber::Pending => {
+                    println!(
+                        "Method get_block_by_number with BlockNumber::Pending is not implemented"
+                    );
                     return Err(into_jsrpc_error(Web3Error::NotImplemented));
                 }
                 zksync_types::api::BlockNumber::Number(ask_number)
                     if ask_number != U64::from(reader.current_miniblock) =>
                 {
+                    println!("Method get_block_by_number with BlockNumber::Number({}) is not implemented", ask_number);
                     return Err(into_jsrpc_error(Web3Error::NotImplemented));
                 }
                 _ => {}
