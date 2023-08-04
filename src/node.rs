@@ -504,6 +504,7 @@ impl EthNamespaceT for InMemoryNode {
             Err(_) => Err(into_jsrpc_error(Web3Error::InternalError)).into_boxed_future(),
         }
     }
+
     /// Calls the specified function on the L2 contract with the given arguments.
     ///
     /// # Arguments
@@ -539,6 +540,7 @@ impl EthNamespaceT for InMemoryNode {
             }
         }
     }
+
     /// Returns the balance of the specified address.
     ///
     /// # Arguments
@@ -574,6 +576,7 @@ impl EthNamespaceT for InMemoryNode {
             }
         })
     }
+
     /// Returns a block by its number.
     ///
     /// # Arguments
@@ -627,6 +630,7 @@ impl EthNamespaceT for InMemoryNode {
             Ok(Some(block))
         })
     }
+
     /// Returns the code stored at the specified address.
     ///
     /// # Arguments
@@ -657,6 +661,7 @@ impl EthNamespaceT for InMemoryNode {
             }
         })
     }
+
     /// Returns the transaction count for a given address.
     ///
     /// # Arguments
@@ -686,6 +691,7 @@ impl EthNamespaceT for InMemoryNode {
             }
         })
     }
+
     /// Retrieves the transaction receipt for a given transaction hash.
     ///
     /// # Arguments
@@ -755,6 +761,7 @@ impl EthNamespaceT for InMemoryNode {
             Ok(receipt).map_err(|_: jsonrpc_core::Error| into_jsrpc_error(Web3Error::InternalError))
         })
     }
+
     /// Sends a raw transaction to the L2 network.
     ///
     /// # Arguments
@@ -812,6 +819,7 @@ impl EthNamespaceT for InMemoryNode {
             }
         }
     }
+
     /// Returns a block by its hash. Currently, only hashes for blocks in memory are supported.
     ///
     /// # Arguments
@@ -865,6 +873,7 @@ impl EthNamespaceT for InMemoryNode {
             Ok(Some(block))
         })
     }
+
     /// Returns a future that resolves to an optional transaction with the given hash.
     ///
     /// # Arguments
@@ -929,6 +938,7 @@ impl EthNamespaceT for InMemoryNode {
             }))
         })
     }
+
     /// Returns the current block number as a `U64` wrapped in a `BoxFuture`.
     fn get_block_number(
         &self,
@@ -942,6 +952,7 @@ impl EthNamespaceT for InMemoryNode {
             Ok(U64::from(reader.current_miniblock))
         })
     }
+
     /// Estimates the gas required for a given call request.
     ///
     /// # Arguments
