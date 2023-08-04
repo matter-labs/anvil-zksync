@@ -1,9 +1,11 @@
 <div align="center">
-    <a href="https://era.zksync.io/docs/tools/testing/era-test-node.html">
-        <img src="https://github.com/matter-labs/era-test-node/blob/db/add-banner-readme/.github/assets/era_test_node_banner_light.png?raw=true#gh-light-mode-only" alt="era-test-node banner light" style="max-width:100%;" />
-        <img src="https://github.com/matter-labs/era-test-node/blob/db/add-banner-readme/.github/assets/era_test_node_banner_dark.png?raw=true#gh-dark-mode-only" alt="era-test-node banner dark" style="max-width:100%;" />
-    </a>
-</div>
+<a href="https://era.zksync.io/docs/tools/testing/era-test-node.html">
+
+![era-test-node](./.github/assets/era_test_node_banner_light.png#gh-light-mode-only)
+![Webb Logo](./.github/assets/era_test_node_banner_dark.png#gh-dark-mode-only)
+</a>
+
+  </div>
 
 # 🚀 zkSync Era In-Memory Node 🚀
 
