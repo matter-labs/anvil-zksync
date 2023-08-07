@@ -51,8 +51,8 @@
 | [`ETH`](#eth-namespace) | [`eth_getTransactionByHash`](#eth_gettransactionbyhash) | IMPLEMENTED | Returns the information about a transaction requested by transaction hash |
 | [`ETH`](#eth-namespace) | [`eth_getTransactionCount`](#eth_gettransactioncount) | IMPLEMENTED | Returns the number of transactions sent from an address |
 | [`ETH`](#eth-namespace) | [`eth_blockNumber`](#eth_blocknumber) | IMPLEMENTED | Returns the number of the most recent block |
+| [`ETH`](#eth-namespace) | [`eth_call`]() | IMPLEMENTED | Executes a new message call immediately without creating a transaction on the block chain |
 | `ETH` | `eth_accounts` | NOT IMPLEMENTED | Returns a list of addresses owned by client |
-| `ETH` | `eth_call` | NOT IMPLEMENTED | Executes a new message call immediately without creating a transaction on the block chain |
 | `ETH` | `eth_coinbase` | NOT IMPLEMENTED | Returns the client coinbase address |
 | `ETH` | `eth_feeHistory` | NOT IMPLEMENTED | Returns a collection of historical block gas data |
 | `ETH` | `eth_getBlockTransactionCountByHash` | NOT IMPLEMENTED | Number of transactions in a block from a block matching the given block hash |
@@ -490,4 +490,42 @@ curl --request POST \
   --url http://localhost:8011/ \
   --header 'content-type: application/json' \
   --data '{"jsonrpc": "2.0","id": "1","method": "eth_blockNumber","params": []}'
+```
+
+### `eth_call`
+
+[source](src/eth_api.rs)
+
+Executes a new message call immediately without creating a transaction on the block chain
+
+#### Arguments
+
++ `transaction: Transaction`
+
++ `block: BlockNumber`
+
+#### Status
+
+`IMPLEMENTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+      "id": "2",
+      "method": "eth_call",
+      "params": [{
+          "to": "0x36615Cf349d7F6344891B1e7CA7C72883F5dc049",
+          "data": "0x0000",
+          "from": "0xa61464658AfeAf65CccaaFD3a512b69A83B77618",
+          "gas": "0x0000",
+          "gasPrice": "0x0000",
+          "value": "0x0000",
+          "nonce": "0x0000"
+      }, "latest"]
+  }'
 ```
