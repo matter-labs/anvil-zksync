@@ -9,7 +9,6 @@ use crate::{
 };
 
 use colored::Colorize;
-use jsonrpc_core::Error;
 use std::{
     collections::HashMap,
     convert::TryInto,
@@ -28,14 +27,14 @@ use zksync_types::{
     l2::L2Tx,
     transaction_request::{l2_tx_from_call_req, TransactionRequest},
     tx::tx_execution_info::TxExecutionStatus,
-    utils::{storage_key_for_eth_balance, storage_key_for_standard_token_balance},
+    utils::{storage_key_for_eth_balance, storage_key_for_standard_token_balance, decompose_full_nonce, nonces_to_full_nonce},
     vm_trace::VmTrace,
     zk_evm::block_properties::BlockProperties,
     StorageKey, StorageLogQueryType, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
     L2_ETH_TOKEN_ADDRESS,
 };
 use zksync_utils::{
-    bytecode::hash_bytecode, bytes_to_be_words, h256_to_account_address, h256_to_u256, h256_to_u64,
+    bytecode::{hash_bytecode, compress_bytecode}, bytes_to_be_words, h256_to_account_address, h256_to_u256, h256_to_u64,
     u256_to_h256,
 };
 
@@ -44,9 +43,9 @@ use vm::{
     vm::VmTxExecutionResult,
     vm_with_bootloader::{
         init_vm_inner, push_transaction_to_bootloader_memory, BlockContext, BlockContextMode,
-        BootloaderJobType, TxExecutionMode,
+        BootloaderJobType, TxExecutionMode, derive_base_fee_and_gas_per_pubdata,
     },
-    HistoryEnabled, OracleTools, HistoryDisabled, TxRevertReason,
+    HistoryEnabled, OracleTools, HistoryDisabled, TxRevertReason, VmBlockResult,
 };
 use zksync_web3_decl::types::{Filter, FilterChanges};
 
@@ -258,7 +257,6 @@ impl InMemoryNode {
 
     /// Runs L2 'eth call' method - that doesn't commit to a block.
     fn run_l2_call(&self, l2_tx: L2Tx) -> Vec<u8> {
-        println!("Running run_l2_call...");
         let execution_mode = TxExecutionMode::EthCall {
             missed_storage_invocation_limit: 1000000,
         };
@@ -307,7 +305,6 @@ impl InMemoryNode {
                 formatter::print_call(call, 0, &inner.show_calls, inner.resolve_hashes);
             }
         }
-        println!("run_l2_call complete");
 
         match vm_block_result.full_result.revert_reason {
             Some(result) => result.original_data,
@@ -323,8 +320,8 @@ impl InMemoryNode {
         }
     }
 
-    /// Runs L2 'eth call' method but with estimate fee execution mode against a sandbox vm.
-    fn run_l2_call_for_fee_estimate(&self, l2_tx: L2Tx, gas_limit: u32) -> Result<u32, TxRevertReason> {
+    /// Runs fee estimation against a sandbox vm with the given gas_limit.
+    fn estimate_gas_step(&self, mut l2_tx: L2Tx, gas_limit: u32) -> Result<VmBlockResult, TxRevertReason> {
         let execution_mode = TxExecutionMode::EstimateFee {
             missed_storage_invocation_limit: 1000000,
         };
@@ -333,20 +330,38 @@ impl InMemoryNode {
         let fork_storage_copy = inner.fork_storage.clone();
         let mut storage_view = StorageView::new(&fork_storage_copy);
 
+        let nonce = l2_tx.nonce();
+        let nonce_key = get_nonce_key(&l2_tx.initiator_account());
+        let full_nonce = storage_view.read_value(&nonce_key);
+        let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
+        let enforced_full_nonce = nonces_to_full_nonce(U256::from(nonce.0), deployment_nonce);
+        storage_view.set_value(nonce_key, u256_to_h256(enforced_full_nonce));
+        
+        // // // let payer = tx.payer();
+        // // // let balance_key = storage_key_for_eth_balance(&payer);
+        // // // let mut current_balance = h256_to_u256(storage_view.read_value(&balance_key));
+        // // // current_balance += execution_args.added_balance;
+        // // // storage_view.set_value(balance_key, u256_to_h256(current_balance));
+
         let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryDisabled);
 
-        let bootloader_code = &inner.playground_contracts;
-
         let block_context = inner.create_block_context();
-        let block_properties = InMemoryNodeInner::create_block_properties(bootloader_code);
+        
+        // Use the fee_estimate bootloader code, as it sets ENSURE_RETURNED_MAGIC to 0 and BOOTLOADER_TYPE to 'playground_block'
+        let fee_estimate_bytecode = include_bytes!("deps/contracts/fee_estimate.yul.zbin").to_vec();
+        let fee_estimate_code = bsc_load_with_bootloader(fee_estimate_bytecode, false);
+        let block_properties = InMemoryNodeInner::create_block_properties(&fee_estimate_code);
+
+        // Set gas_limit for transaction
+        l2_tx.common_data.fee.gas_limit = gas_limit.into();
 
         // init vm
         let mut vm = init_vm_inner(
             &mut oracle_tools,
             BlockContextMode::OverrideCurrent(block_context.into()),
             &block_properties,
-            gas_limit,
-            bootloader_code,
+            BLOCK_GAS_LIMIT,
+            &fee_estimate_code,
             execution_mode,
         );
 
@@ -358,19 +373,10 @@ impl InMemoryNode {
 
         let result = match vm_block_result.full_result.revert_reason {
             None => {
-                println!("Found {} gas_used", vm_block_result.full_result.gas_used);
-                Ok(vm_block_result.full_result.gas_used)
+                Ok(vm_block_result)
             },
             Some(revert) => {
-                match revert.revert_reason {
-                    TxRevertReason::ValidationFailed(_) => {
-                        // This is the "unexpected signature length" error, ignoring for gas estimation
-                        return Ok(vm_block_result.full_result.gas_used)
-                    },
-                    _ => {
-                        Err(revert.revert_reason)
-                    }
-                }
+                Err(revert.revert_reason)
             },
         };
         
@@ -488,7 +494,6 @@ impl InMemoryNode {
 
     /// Runs L2 transaction and commits it to a new block.
     fn run_l2_tx(&self, l2_tx: L2Tx, execution_mode: TxExecutionMode) {
-        println!("Running run_l2_tx...");
         let tx_hash = l2_tx.hash();
         println!("\nExecuting {}", format!("{:?}", tx_hash).bold());
         let (keys, result, block, bytecodes) = self.run_l2_tx_inner(l2_tx.clone(), execution_mode);
@@ -527,7 +532,6 @@ impl InMemoryNode {
             inner.current_batch += 1;
             inner.current_miniblock += 1;
         }
-        println!("run_l2_tx complete");
     }
 }
 
@@ -832,71 +836,130 @@ impl EthNamespaceT for InMemoryNode {
         req: zksync_types::transaction_request::CallRequest,
         _block: Option<zksync_types::api::BlockNumber>,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<U256>> {
-        let mut tx = l2_tx_from_call_req(req, MAX_TX_SIZE).unwrap();
-        tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
+        let mut l2_tx = l2_tx_from_call_req(req, MAX_TX_SIZE).unwrap();
+        let tx: Transaction = l2_tx.clone().into();
 
-        // This needs to be greater than fair_l2_gas_price (250_000_000)
-        tx.common_data.fee.max_fee_per_gas = U256::from(250_000_000) + 1;
+        // TODO: Un-hardcode these values
+        let fair_l1_gas_price = 50_000_000_000;
+        let fair_l2_gas_price = 250_000_000;
 
-        // Running initial gas estimate with max amount to deduce if there's a normal execution error
-        let mut temp_gas_price = BLOCK_GAS_LIMIT;
-        let mut estimate_gas_result = self.run_l2_call_for_fee_estimate(tx.clone(), temp_gas_price);
-        
-        if estimate_gas_result.is_err() {
-            // There's a normal execution error
-            println!("Call failed with maximum gas provided");
-            return Err(Error {
-                code: jsonrpc_core::ErrorCode::ServerError(0),
-                message: "Estimate failed even with maximum possible gas".to_string(),
-                data: None,
-            }).into_boxed_future();
+        // Calculate Adjusted L1 Price
+        let (_, adjusted_current_pubdata_price) = derive_base_fee_and_gas_per_pubdata((fair_l1_gas_price as f64 * 1.2) as u64, fair_l2_gas_price);
+        let adjusted_l1_gas_price = if U256::from(adjusted_current_pubdata_price) <= tx.gas_per_pubdata_byte_limit() {
+            // The current pubdata price is small enough
+            (fair_l1_gas_price as f64 * 1.2) as u64
+        } else {
+            let l1_gas_price = U256::from(fair_l2_gas_price)
+                * (tx.gas_per_pubdata_byte_limit() - U256::from(1u32))
+                / U256::from(17);
+    
+            l1_gas_price.as_u64()
+        };
+
+        let (base_fee, gas_per_pubdata_byte) = derive_base_fee_and_gas_per_pubdata(
+            fair_l1_gas_price,
+            fair_l2_gas_price,
+        );
+
+        // TODO: Implement check for "account: {} does not have enough funds for for transferring tx.value: {}."
+
+        // Check for properly formatted signature
+        if l2_tx.common_data.signature.is_empty() {
+            l2_tx.common_data.signature = vec![0u8; 65];
+            l2_tx.common_data.signature[64] = 27;
         }
-        temp_gas_price = estimate_gas_result.unwrap();
-        println!("Initial gas used: {}", temp_gas_price);
 
+        // MAX_GAS_PER_PUBDATA_BYTE = 20_000
+        l2_tx.common_data.fee.gas_per_pubdata_limit = 20_000.into();
+        l2_tx.common_data.fee.max_fee_per_gas = base_fee.into();
+        l2_tx.common_data.fee.max_priority_fee_per_gas = base_fee.into();
 
-        ///// For L2 transactions we need a properly formatted signature
-        // if let ExecuteTransactionCommon::L2(l2_common_data) = &mut tx.common_data {
-        //     if l2_common_data.signature.is_empty() {
-        //         l2_common_data.signature = vec![0u8; 65];
-        //         l2_common_data.signature[64] = 27;
-        //     }
+        // Calculate gas_for_bytecodes_pubdata
+        let inner = self.inner.read().unwrap();
+        let mut storage_view = StorageView::new(&inner.fork_storage);
+        let pubdata_for_factory_deps = l2_tx.execute.factory_deps.as_deref().unwrap_or_default().iter().map(|bytecode| {
+            if storage_view.is_bytecode_known(&hash_bytecode(bytecode)) {
+                return 0;
+            }
 
-        //     l2_common_data.fee.gas_per_pubdata_limit = MAX_GAS_PER_PUBDATA_BYTE.into();
-        // }
+            let length = if let Ok(compressed) = compress_bytecode(bytecode) {
+                compressed.len()
+            } else {
+                bytecode.len()
+            };
+            let publish_byte_overhead = 100;
+            length as u32 + publish_byte_overhead
+        });
+        let gas_for_bytecodes_pubdata: u32 = pubdata_for_factory_deps.sum::<u32>() * (gas_per_pubdata_byte as u32);
 
-
-
-        // We are using binary search to find the minimal values of gas_limit under which
-        // the transaction succeedes
-        let mut lower_bound = temp_gas_price;
+        // We are using binary search to find the minimal values of gas_limit under which the transaction succeeds
+        let mut lower_bound = 0;
         let mut upper_bound = ETH_CALL_GAS_LIMIT as u32;
         let acceptable_overestimation = 1_000;
         let max_attempts = 30usize;
 
-        println!("Trying binary search with lower_bound: {}, and upper_bound: {}", lower_bound, upper_bound);
         let mut number_of_iterations = 0usize;
         while lower_bound + acceptable_overestimation < upper_bound && number_of_iterations < max_attempts{
             let mid = (lower_bound + upper_bound) / 2;
-            let try_gas_limit = acceptable_overestimation + mid;
-            estimate_gas_result = self.run_l2_call_for_fee_estimate(tx.clone(), try_gas_limit);
+            let try_gas_limit = gas_for_bytecodes_pubdata + mid;
+
+            let overhead = vec![
+                // Single instance circuits overhead
+                // 0.1 is a scaling coefficient L2 transactions
+                // 0.065 is from max_block_overhead / MAX_TX_ERGS_LIMIT
+                (0.1 * 0.065 * (try_gas_limit + gas_for_bytecodes_pubdata) as f32) as u32,
+
+                // Bootloader overhead
+                // 11 is from max_block_overhead / BOOTLOADER_TX_ENCODING_SPACE
+                11 * tx.encoding_len() as u32,
+
+                // Slot overhead
+                // 5_078 is from max_block_overhead / MAX_TXS_IN_BLOCK
+                5_078 as u32,
+            ]
+            .into_iter()
+            .max()
+            .unwrap();
+
+            let estimate_gas_result = self.estimate_gas_step(l2_tx.clone(), try_gas_limit + overhead);
             if estimate_gas_result.is_err() {
                 lower_bound = mid + 1;
-                println!("Attempt {}: Failed, trying again with lower_bound: {}, and upper_bound: {}", number_of_iterations, lower_bound, upper_bound);
+                // println!("Attempt {}: Failed with {}, trying again with lower_bound: {}, and upper_bound: {}", number_of_iterations, try_gas_limit + overhead, lower_bound, upper_bound);
             } else {
                 upper_bound = mid;
-                println!("Attempt {}: Succeeded, trying again with lower_bound: {}, and upper_bound: {}", number_of_iterations, lower_bound, upper_bound);
-                println!("Gas Used: {}", estimate_gas_result.unwrap())
+                // println!("Attempt {}: Succeeded with {}, trying again with lower_bound: {}, and upper_bound: {}", number_of_iterations, try_gas_limit + overhead, lower_bound, upper_bound);
             }
             
             number_of_iterations += 1;
         }
         
-        println!("COMPLETE after {} attempts and with lower_bound: {}, and upper_bound: {}", number_of_iterations, lower_bound, upper_bound);
-        let mut estimation_value = ((upper_bound + acceptable_overestimation) as f32 * 1.3) as u32;
-
+        // println!("COMPLETE after {} attempts and with lower_bound: {}, and upper_bound: {}", number_of_iterations, lower_bound, upper_bound);
+        let estimated_fee_scale_factor = 1.3;
+        let mut estimation_value = (upper_bound as f32 * estimated_fee_scale_factor) as u32;
+        
         estimation_value = min(ETH_CALL_GAS_LIMIT as u32, estimation_value);
-        println!("VALUE RETURNING: {}", estimation_value);
+        
+        let overhead = vec![
+            // Single instance circuits overhead
+            // 0.1 is a scaling coefficient L2 transactions
+            // 0.065 is from max_block_overhead / MAX_TX_ERGS_LIMIT
+            (0.1 * 0.065 * (estimation_value + gas_for_bytecodes_pubdata) as f32) as u32,
+
+            // Bootloader overhead
+            // 11 is from max_block_overhead / BOOTLOADER_TX_ENCODING_SPACE
+            11 * tx.encoding_len() as u32,
+
+            // Slot overhead
+            // 5_078 is from max_block_overhead / MAX_TXS_IN_BLOCK
+            5_078 as u32,
+        ]
+        .into_iter()
+        .max()
+        .unwrap();
+        
+        // Add overhead and gas_for_bytecodes_pubdata
+        estimation_value += gas_for_bytecodes_pubdata + overhead;
+
         Ok(U256::from(estimation_value)).into_boxed_future()
     }
 

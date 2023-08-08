@@ -19,6 +19,7 @@ impl ZksNamespaceT for ZkMockNamespaceImpl {
         _req: zksync_types::transaction_request::CallRequest,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_types::fee::Fee>> {
         Box::pin(async move {
+            // TODO: FIX THIS
             Ok(zksync_types::fee::Fee {
                 gas_limit: U256::from(1000000000),
                 max_fee_per_gas: U256::from(1000000000),
