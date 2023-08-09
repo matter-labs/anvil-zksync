@@ -1,7 +1,10 @@
 use std::pin::Pin;
 
 use futures::Future;
-use vm::vm_with_bootloader::{BOOTLOADER_TX_ENCODING_SPACE, BLOCK_OVERHEAD_GAS, BLOCK_OVERHEAD_PUBDATA, derive_base_fee_and_gas_per_pubdata};
+use vm::vm_with_bootloader::{
+    derive_base_fee_and_gas_per_pubdata, BLOCK_OVERHEAD_GAS, BLOCK_OVERHEAD_PUBDATA,
+    BOOTLOADER_TX_ENCODING_SPACE,
+};
 use zksync_basic_types::U256;
 use zksync_types::{zk_evm::zkevm_opcode_defs::system_params::MAX_TX_ERGS_LIMIT, MAX_TXS_IN_BLOCK};
 use zksync_utils::ceil_div_u256;

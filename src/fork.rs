@@ -57,7 +57,7 @@ impl Clone for ForkStorage {
         let inner = Arc::new(RwLock::new(self.inner.read().unwrap().clone()));
         Self {
             inner,
-            chain_id: self.chain_id.clone(),
+            chain_id: self.chain_id,
         }
     }
 }

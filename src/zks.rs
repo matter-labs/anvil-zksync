@@ -32,15 +32,11 @@ impl ZksNamespaceT for ZkMockNamespaceImpl {
         req: zksync_types::transaction_request::CallRequest,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_types::fee::Fee>> {
         let reader = self.node.read().unwrap();
-        
+
         let result: jsonrpc_core::Result<Fee> = reader.estimate_gas_impl(req);
         match result {
-            Ok(fee) => {
-                Ok(fee).into_boxed_future()
-            },
-            Err(err) => {
-                return futures::future::err(err).boxed()
-            }
+            Ok(fee) => Ok(fee).into_boxed_future(),
+            Err(err) => return futures::future::err(err).boxed(),
         }
     }
 
@@ -197,12 +193,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_estimate_fee() {
-        let node = InMemoryNode::new(
-            Default::default(),
-            crate::ShowCalls::None,
-            false,
-            false,
-        );
+        let node = InMemoryNode::new(Default::default(), crate::ShowCalls::None, false, false);
         let namespace = ZkMockNamespaceImpl::new(node.get_inner());
 
         let mock_request = CallRequest {
