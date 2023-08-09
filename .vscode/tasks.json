@@ -5,8 +5,6 @@
         "command": "make rebuild-contracts",
         "type": "shell",
         "presentation": {
-            "reveal": "silent",
-            "revealProblems": "onProblem",
             "close": true
         }
     }]
