@@ -52,6 +52,7 @@
 | [`ETH`](#eth-namespace) | [`eth_getTransactionCount`](#eth_gettransactioncount) | IMPLEMENTED | Returns the number of transactions sent from an address |
 | [`ETH`](#eth-namespace) | [`eth_blockNumber`](#eth_blocknumber) | IMPLEMENTED | Returns the number of the most recent block |
 | [`ETH`](#eth-namespace) | [`eth_call`](#eth_call) | IMPLEMENTED | Executes a new message call immediately without creating a transaction on the block chain |
+| [`ETH`](#eth-namespace) | [`eth_sendRawTransaction`](#eth_sendrawtransaction) | NOT IMPLEMENTED | Creates new message call transaction or a contract creation for signed transactions |
 | `ETH` | `eth_accounts` | NOT IMPLEMENTED | Returns a list of addresses owned by client |
 | `ETH` | `eth_coinbase` | NOT IMPLEMENTED | Returns the client coinbase address |
 | `ETH` | `eth_feeHistory` | NOT IMPLEMENTED | Returns a collection of historical block gas data |
@@ -79,7 +80,6 @@
 | `ETH` | `eth_newFilter` | NOT IMPLEMENTED | Creates a filter object, based on filter options, to notify when the state changes (logs) |
 | `ETH` | `eth_newPendingTransactionFilter` | NOT IMPLEMENTED | Creates a filter in the node, to notify when new pending transactions arrive |
 | `ETH` | `eth_protocolVersion` | NOT IMPLEMENTED | Returns the current ethereum protocol version |
-| `ETH` | `eth_sendRawTransaction` | NOT IMPLEMENTED | Creates new message call transaction or a contract creation for signed transactions |
 | `ETH` | `eth_sendTransaction` | NOT IMPLEMENTED | Creates new message call transaction or a contract creation, if the data field contains code |
 | `ETH` | `eth_sign` | NOT IMPLEMENTED | The sign method calculates an Ethereum specific signature with: `sign(keccak256("\x19Ethereum Signed Message:\n" + message.length + message)))` |
 | `ETH` | `eth_signTransaction` | NOT IMPLEMENTED | Signs a transaction that can be submitted to the network at a later time using `eth_sendRawTransaction` |
@@ -528,4 +528,28 @@ curl --request POST \
           "nonce": "0x0000"
       }, "latest"]
   }'
+```
+
+### `eth_sendRawTransaction`
+
+[source](src/eth_api.rs)
+
+Creates new message call transaction or a contract creation for signed transactions
+
+#### Arguments
+
++ `transaction: Transaction`
+
+#### Status
+
+`IMPLEMENTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "eth_sendRawTransaction","params": ["0x0000"]
+}'
 ```
