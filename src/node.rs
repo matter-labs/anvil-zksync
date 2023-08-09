@@ -70,11 +70,6 @@ pub const TEST_NODE_NETWORK_ID: u16 = 260;
 pub const L1_GAS_PRICE: u64 = 50_000_000_000;
 /// L2 Gas Price (0.25 gwei)
 pub const L2_GAS_PRICE: u64 = 250_000_000;
-// pub const MAX_TX_ERGS_LIMIT: u32 = 80_000_000;
-// pub const BLOCK_OVERHEAD_GAS: u32 = 1_200_000;
-// pub const BLOCK_OVERHEAD_L1_GAS: u32 = 1_000_000;
-// pub const L1_GAS_PER_PUBDATA_BYTE: u32 = 17;
-// pub const BLOCK_OVERHEAD_PUBDATA: U256 = BLOCK_OVERHEAD_L1_GAS / L1_GAS_PER_PUBDATA_BYTE;
 
 /// Basic information about the generated block (which is block l1 batch and miniblock).
 /// Currently, this test node supports exactly one transaction per block.
@@ -151,7 +146,7 @@ impl InMemoryNodeInner {
     ///
     /// # Returns
     ///
-    /// A `BoxFuture` containing a `Result` with a `Fee` representing the estimated gas related data.
+    /// A `Result` with a `Fee` representing the estimated gas related data.
     pub fn estimate_gas_impl(
         &self,
         req: zksync_types::transaction_request::CallRequest,

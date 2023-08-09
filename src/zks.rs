@@ -193,37 +193,38 @@ mod tests {
 
     #[tokio::test]
     async fn test_estimate_fee() {
-        let node = InMemoryNode::new(Default::default(), crate::ShowCalls::None, false, false);
+        let node = InMemoryNode::new(None, crate::ShowCalls::None, false, false);
         let namespace = ZkMockNamespaceImpl::new(node.get_inner());
 
         let mock_request = CallRequest {
             from: Some(
-                "0x0000000000000000000000000000000000000000"
+                "0xa61464658afeaf65cccaafd3a512b69a83b77618"
                     .parse()
                     .unwrap(),
             ),
             to: Some(
-                "0x0000000000000000000000000000000000000001"
+                "0x36615cf349d7f6344891b1e7ca7c72883f5dc049"
                     .parse()
                     .unwrap(),
             ),
-            gas: Some(U256::from(21000)),
-            gas_price: Some(U256::from(20)),
-            max_fee_per_gas: Some(U256::from(30)),
-            max_priority_fee_per_gas: Some(U256::from(10)),
-            value: Some(U256::from(1000)),
-            data: Some(vec![1, 2, 3, 4].into()),
-            nonce: Some(U256::from(1)),
-            transaction_type: Some(zksync_basic_types::U64::from(1)),
+            gas: Some(U256::from(0)),
+            gas_price: Some(U256::from(0)),
+            max_fee_per_gas: None,
+            max_priority_fee_per_gas: None,
+            value: Some(U256::from(0)),
+            data: Some(vec![0, 0].into()),
+            nonce: Some(U256::from(0)),
+            transaction_type: None,
             access_list: None,
             eip712_meta: None,
         };
 
         let result = namespace.estimate_fee(mock_request).await.unwrap();
+        println!("result: {:?}", result);
 
-        assert_eq!(result.gas_limit, U256::from(1000000000));
-        assert_eq!(result.max_fee_per_gas, U256::from(1000000000));
-        assert_eq!(result.max_priority_fee_per_gas, U256::from(1000000000));
-        assert_eq!(result.gas_per_pubdata_limit, U256::from(1000000000));
+        assert_eq!(result.gas_limit, U256::from(904431));
+        assert_eq!(result.max_fee_per_gas, U256::from(250000000));
+        assert_eq!(result.max_priority_fee_per_gas, U256::from(0));
+        assert_eq!(result.gas_per_pubdata_limit, U256::from(4080));
     }
 }
