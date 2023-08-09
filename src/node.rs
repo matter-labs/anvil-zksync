@@ -128,11 +128,260 @@ impl InMemoryNodeInner {
             operator_address: H160::zero(),
         }
     }
+
     fn create_block_properties(contracts: &BaseSystemContracts) -> BlockProperties {
         BlockProperties {
             default_aa_code_hash: h256_to_u256(contracts.default_aa.hash),
             zkporter_is_available: false,
         }
+    }
+
+    /// Estimates the gas required for a given call request.
+    ///
+    /// # Arguments
+    ///
+    /// * `req` - A `CallRequest` struct representing the call request to estimate gas for.
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `Result` with a `Fee` representing the estimated gas related data.
+    pub fn estimate_gas_impl(
+        &self,
+        req: zksync_types::transaction_request::CallRequest,
+    ) -> jsonrpc_core::Result<Fee> {
+        let mut l2_tx = match l2_tx_from_call_req(req, MAX_TX_SIZE) {
+            Ok(tx) => {tx}
+            Err(e) => {
+                let error = Web3Error::SerializationError(e);
+                return Err(into_jsrpc_error(error))
+            }
+        };
+
+        let tx: Transaction = l2_tx.clone().into();
+        let fair_l2_gas_price = L2_GAS_PRICE;
+
+        // Calculate Adjusted L1 Price
+        let gas_price_scale_factor = 1.2;
+        let l1_gas_price = {
+            let current_l1_gas_price =
+            ((self.l1_gas_price as f64) * gas_price_scale_factor) as u64;
+            
+            // In order for execution to pass smoothly, we need to ensure that block's required gasPerPubdata will be
+            // <= to the one in the transaction itself.
+            adjust_l1_gas_price_for_tx(
+                current_l1_gas_price,
+                L2_GAS_PRICE,
+                tx.gas_per_pubdata_byte_limit(),
+            )
+        };
+
+        let (base_fee, gas_per_pubdata_byte) = derive_base_fee_and_gas_per_pubdata(
+            l1_gas_price,
+            fair_l2_gas_price,
+        );
+
+        // Check for properly formatted signature
+        if l2_tx.common_data.signature.is_empty() {
+            l2_tx.common_data.signature = vec![0u8; 65];
+            l2_tx.common_data.signature[64] = 27;
+        }
+
+        l2_tx.common_data.fee.gas_per_pubdata_limit = MAX_GAS_PER_PUBDATA_BYTE.into();
+        l2_tx.common_data.fee.max_fee_per_gas = base_fee.into();
+        l2_tx.common_data.fee.max_priority_fee_per_gas = base_fee.into();
+        
+        let mut storage_view = StorageView::new(&self.fork_storage);
+
+        // Calculate gas_for_bytecodes_pubdata
+        let pubdata_for_factory_deps = l2_tx.execute.factory_deps
+            .as_deref()
+            .unwrap_or_default()
+            .iter()
+            .map(|bytecode| {
+                if storage_view.is_bytecode_known(&hash_bytecode(bytecode)) {
+                    return 0;
+                }
+
+                let length = if let Ok(compressed) = compress_bytecode(bytecode) {
+                    compressed.len()
+                } else {
+                    bytecode.len()
+                };
+                let publish_byte_overhead = 100;
+                length as u32 + publish_byte_overhead
+            })
+            .sum::<u32>();
+
+        if pubdata_for_factory_deps > MAX_PUBDATA_PER_BLOCK {
+            return Err(into_jsrpc_error(Web3Error::SubmitTransactionError("exceeds limit for published pubdata".into(), Default::default())))
+        }
+
+        let gas_for_bytecodes_pubdata: u32 = pubdata_for_factory_deps * (gas_per_pubdata_byte as u32);
+
+        // We are using binary search to find the minimal values of gas_limit under which the transaction succeeds
+        let mut lower_bound = 0;
+        let mut upper_bound = MAX_L2_TX_GAS_LIMIT as u32;
+        let acceptable_overestimation = 1_000;
+        let max_attempts = 30usize;
+
+        let mut number_of_iterations = 0usize;
+        while lower_bound + acceptable_overestimation < upper_bound && number_of_iterations < max_attempts{
+            let mid = (lower_bound + upper_bound) / 2;
+            let try_gas_limit = gas_for_bytecodes_pubdata + mid;
+
+            let estimate_gas_result = self.estimate_gas_step(
+                l2_tx.clone(),
+                gas_per_pubdata_byte,
+                try_gas_limit,
+                l1_gas_price,
+                base_fee);
+            if estimate_gas_result.is_err() {
+                lower_bound = mid + 1;
+                // println!("Attempt {}: Failed with {}, trying again with lower_bound: {}, and upper_bound: {}", number_of_iterations, try_gas_limit, lower_bound, upper_bound);
+            } else {
+                upper_bound = mid;
+                // println!("Attempt {}: Succeeded with {}, trying again with lower_bound: {}, and upper_bound: {}", number_of_iterations, try_gas_limit, lower_bound, upper_bound);
+            }
+            
+            number_of_iterations += 1;
+        }
+        
+        // println!("COMPLETE after {} attempts and with lower_bound: {}, and upper_bound: {}", number_of_iterations, lower_bound, upper_bound);
+        let estimated_fee_scale_factor = 1.3;
+        let tx_body_gas_limit = cmp::min(
+            MAX_L2_TX_GAS_LIMIT as u32,
+            (upper_bound as f32 * estimated_fee_scale_factor) as u32,
+        );
+        let suggested_gas_limit = tx_body_gas_limit + gas_for_bytecodes_pubdata;
+
+        let estimate_gas_result = self.estimate_gas_step(
+            l2_tx.clone(),
+            gas_per_pubdata_byte,
+            suggested_gas_limit,
+            l1_gas_price,
+            base_fee);
+        
+        match estimate_gas_result {
+            Err(_) => Err(into_jsrpc_error(
+                Web3Error::SubmitTransactionError(
+                    "Transaction is unexecutable".into(),
+                    Default::default(),
+                )
+            )),
+            Ok(_) => {
+                let overhead: u32 = derive_gas_estimation_overhead(
+                    suggested_gas_limit,
+                    gas_per_pubdata_byte as u32, 
+                    tx.encoding_len()
+                );
+
+                let full_gas_limit =
+                    match tx_body_gas_limit.overflowing_add(gas_for_bytecodes_pubdata + overhead) {
+                        (value, false) => value,
+                        (_, true) => {
+                            return Err(into_jsrpc_error(
+                                Web3Error::SubmitTransactionError(
+                                    "exceeds block gas limit".into(),
+                                    Default::default()
+                                )
+                            ))
+                        }
+                    };
+
+                let fee = Fee {
+                    max_fee_per_gas: base_fee.into(),
+                    max_priority_fee_per_gas: 0u32.into(),
+                    gas_limit: full_gas_limit.into(),
+                    gas_per_pubdata_limit: gas_per_pubdata_byte.into(),
+                };
+                Ok(fee)
+            }
+        }
+    }
+
+    /// Runs fee estimation against a sandbox vm with the given gas_limit.
+    fn estimate_gas_step(
+        &self,
+        mut l2_tx: L2Tx,
+        gas_per_pubdata_byte: u64,
+        tx_gas_limit: u32,
+        l1_gas_price: u64,
+        base_fee: u64,
+    ) -> Result<VmBlockResult, TxRevertReason> {     
+        let execution_mode = TxExecutionMode::EstimateFee {
+            missed_storage_invocation_limit: 1000000,
+        };
+
+        let tx: Transaction = l2_tx.clone().into();
+        let l1_gas_price = adjust_l1_gas_price_for_tx(l1_gas_price, L2_GAS_PRICE, tx.gas_per_pubdata_byte_limit());
+
+        // Set gas_limit for transaction
+        let gas_limit_with_overhead = tx_gas_limit
+            + derive_gas_estimation_overhead(
+                tx_gas_limit,
+                gas_per_pubdata_byte as u32,
+                tx.encoding_len(),
+            );
+        l2_tx.common_data.fee.gas_limit = gas_limit_with_overhead.into();
+
+        let fork_storage_copy = self.fork_storage.clone();
+        let mut storage_view = StorageView::new(&fork_storage_copy);
+
+        // The nonce needs to be updated
+        let nonce = l2_tx.nonce();
+        let nonce_key = get_nonce_key(&l2_tx.initiator_account());
+        let full_nonce = storage_view.read_value(&nonce_key);
+        let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
+        let enforced_full_nonce = nonces_to_full_nonce(U256::from(nonce.0), deployment_nonce);
+        storage_view.set_value(nonce_key, u256_to_h256(enforced_full_nonce));
+        
+        // We need to explicitly put enough balance into the account of the users
+        let payer = l2_tx.payer();
+        let balance_key = storage_key_for_eth_balance(&payer);
+        let mut current_balance = h256_to_u256(storage_view.read_value(&balance_key));
+        let added_balance = l2_tx.common_data.fee.gas_limit * l2_tx.common_data.fee.max_fee_per_gas;
+        current_balance += added_balance;
+        storage_view.set_value(balance_key, u256_to_h256(current_balance));
+
+        let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryDisabled);
+
+        let mut block_context = self.create_block_context();
+        block_context.l1_gas_price = l1_gas_price;
+        let derived_block_context = DerivedBlockContext {
+            context: self.create_block_context(),
+            base_fee: base_fee,
+        };
+        
+        // Use the fee_estimate bootloader code, as it sets ENSURE_RETURNED_MAGIC to 0 and BOOTLOADER_TYPE to 'playground_block'
+        let bootloader_code = &self.fee_estimate_contracts;
+        let block_properties = InMemoryNodeInner::create_block_properties(&bootloader_code);
+
+        // init vm
+        let mut vm = init_vm_inner(
+            &mut oracle_tools,
+            BlockContextMode::OverrideCurrent(derived_block_context.into()),
+            &block_properties,
+            BLOCK_GAS_LIMIT,
+            bootloader_code,
+            execution_mode,
+        );
+
+        let tx: Transaction = l2_tx.into();
+
+        push_transaction_to_bootloader_memory(&mut vm, &tx, execution_mode, None);
+
+        let vm_block_result = vm.execute_till_block_end(BootloaderJobType::TransactionExecution);
+
+        let result = match vm_block_result.full_result.revert_reason {
+            None => {
+                Ok(vm_block_result)
+            },
+            Some(revert) => {
+                Err(revert.revert_reason)
+            },
+        };
+        
+        result
     }
 }
 
@@ -364,265 +613,6 @@ impl InMemoryNode {
                 })
                 .collect::<Vec<_>>()),
         }
-    }
-
-    /// Estimates the gas required for a given call request.
-    ///
-    /// # Arguments
-    ///
-    /// * `req` - A `CallRequest` struct representing the call request to estimate gas for.
-    ///
-    /// # Returns
-    ///
-    /// A `BoxFuture` containing a `Result` with a `Fee` representing the estimated gas related data.
-    fn estimate_gas_impl(
-        &self,
-        req: zksync_types::transaction_request::CallRequest,
-    ) -> jsonrpc_core::Result<Fee> {
-        let inner = Arc::clone(&self.inner);
-        let reader = match inner.read() {
-            Ok(r) => r,
-            Err(_) => return Err(into_jsrpc_error(Web3Error::InternalError)),
-        };
-
-        let mut l2_tx = match l2_tx_from_call_req(req, MAX_TX_SIZE) {
-            Ok(tx) => {tx}
-            Err(e) => {
-                let error = Web3Error::SerializationError(e);
-                return Err(into_jsrpc_error(error))
-            }
-        };
-
-        let tx: Transaction = l2_tx.clone().into();
-        let fair_l2_gas_price = L2_GAS_PRICE;
-
-        // Calculate Adjusted L1 Price
-        let gas_price_scale_factor = 1.2;
-        let l1_gas_price = {
-            let current_l1_gas_price =
-            ((reader.l1_gas_price as f64) * gas_price_scale_factor) as u64;
-            
-            // In order for execution to pass smoothly, we need to ensure that block's required gasPerPubdata will be
-            // <= to the one in the transaction itself.
-            adjust_l1_gas_price_for_tx(
-                current_l1_gas_price,
-                L2_GAS_PRICE,
-                tx.gas_per_pubdata_byte_limit(),
-            )
-        };
-
-        let (base_fee, gas_per_pubdata_byte) = derive_base_fee_and_gas_per_pubdata(
-            l1_gas_price,
-            fair_l2_gas_price,
-        );
-
-        // Check for properly formatted signature
-        if l2_tx.common_data.signature.is_empty() {
-            l2_tx.common_data.signature = vec![0u8; 65];
-            l2_tx.common_data.signature[64] = 27;
-        }
-
-        l2_tx.common_data.fee.gas_per_pubdata_limit = MAX_GAS_PER_PUBDATA_BYTE.into();
-        l2_tx.common_data.fee.max_fee_per_gas = base_fee.into();
-        l2_tx.common_data.fee.max_priority_fee_per_gas = base_fee.into();
-        
-        let mut storage_view = StorageView::new(&reader.fork_storage);
-
-        // Calculate gas_for_bytecodes_pubdata
-        let pubdata_for_factory_deps = l2_tx.execute.factory_deps
-            .as_deref()
-            .unwrap_or_default()
-            .iter()
-            .map(|bytecode| {
-                if storage_view.is_bytecode_known(&hash_bytecode(bytecode)) {
-                    return 0;
-                }
-
-                let length = if let Ok(compressed) = compress_bytecode(bytecode) {
-                    compressed.len()
-                } else {
-                    bytecode.len()
-                };
-                let publish_byte_overhead = 100;
-                length as u32 + publish_byte_overhead
-            })
-            .sum::<u32>();
-
-        if pubdata_for_factory_deps > MAX_PUBDATA_PER_BLOCK {
-            return Err(into_jsrpc_error(Web3Error::SubmitTransactionError("exceeds limit for published pubdata".into(), Default::default())))
-        }
-
-        let gas_for_bytecodes_pubdata: u32 = pubdata_for_factory_deps * (gas_per_pubdata_byte as u32);
-
-        // We are using binary search to find the minimal values of gas_limit under which the transaction succeeds
-        let mut lower_bound = 0;
-        let mut upper_bound = MAX_L2_TX_GAS_LIMIT as u32;
-        let acceptable_overestimation = 1_000;
-        let max_attempts = 30usize;
-
-        let mut number_of_iterations = 0usize;
-        while lower_bound + acceptable_overestimation < upper_bound && number_of_iterations < max_attempts{
-            let mid = (lower_bound + upper_bound) / 2;
-            let try_gas_limit = gas_for_bytecodes_pubdata + mid;
-
-            let estimate_gas_result = self.estimate_gas_step(
-                l2_tx.clone(),
-                gas_per_pubdata_byte,
-                try_gas_limit,
-                l1_gas_price,
-                base_fee);
-            if estimate_gas_result.is_err() {
-                lower_bound = mid + 1;
-                // println!("Attempt {}: Failed with {}, trying again with lower_bound: {}, and upper_bound: {}", number_of_iterations, try_gas_limit, lower_bound, upper_bound);
-            } else {
-                upper_bound = mid;
-                // println!("Attempt {}: Succeeded with {}, trying again with lower_bound: {}, and upper_bound: {}", number_of_iterations, try_gas_limit, lower_bound, upper_bound);
-            }
-            
-            number_of_iterations += 1;
-        }
-        
-        // println!("COMPLETE after {} attempts and with lower_bound: {}, and upper_bound: {}", number_of_iterations, lower_bound, upper_bound);
-        let estimated_fee_scale_factor = 1.3;
-        let tx_body_gas_limit = cmp::min(
-            MAX_L2_TX_GAS_LIMIT as u32,
-            (upper_bound as f32 * estimated_fee_scale_factor) as u32,
-        );
-        let suggested_gas_limit = tx_body_gas_limit + gas_for_bytecodes_pubdata;
-
-        let estimate_gas_result = self.estimate_gas_step(
-            l2_tx.clone(),
-            gas_per_pubdata_byte,
-            suggested_gas_limit,
-            l1_gas_price,
-            base_fee);
-        
-        match estimate_gas_result {
-            Err(_) => Err(into_jsrpc_error(
-                Web3Error::SubmitTransactionError(
-                    "Transaction is unexecutable".into(),
-                    Default::default(),
-                )
-            )),
-            Ok(_) => {
-                let overhead: u32 = derive_gas_estimation_overhead(
-                    suggested_gas_limit,
-                    gas_per_pubdata_byte as u32, 
-                    tx.encoding_len()
-                );
-
-                let full_gas_limit =
-                    match tx_body_gas_limit.overflowing_add(gas_for_bytecodes_pubdata + overhead) {
-                        (value, false) => value,
-                        (_, true) => {
-                            return Err(into_jsrpc_error(
-                                Web3Error::SubmitTransactionError(
-                                    "exceeds block gas limit".into(),
-                                    Default::default()
-                                )
-                            ))
-                        }
-                    };
-
-                let fee = Fee {
-                    max_fee_per_gas: base_fee.into(),
-                    max_priority_fee_per_gas: 0u32.into(),
-                    gas_limit: full_gas_limit.into(),
-                    gas_per_pubdata_limit: gas_per_pubdata_byte.into(),
-                };
-                Ok(fee)
-            }
-        }
-    }
-
-    /// Runs fee estimation against a sandbox vm with the given gas_limit.
-    fn estimate_gas_step(
-        &self,
-        mut l2_tx: L2Tx,
-        gas_per_pubdata_byte: u64,
-        tx_gas_limit: u32,
-        l1_gas_price: u64,
-        base_fee: u64,
-    ) -> Result<VmBlockResult, TxRevertReason> {
-        let reader = match self.inner.read() {
-            Ok(r) => r,
-            Err(_) => return Err(TxRevertReason::InnerTxError),
-        };
-        
-        let execution_mode = TxExecutionMode::EstimateFee {
-            missed_storage_invocation_limit: 1000000,
-        };
-
-        let tx: Transaction = l2_tx.clone().into();
-        let l1_gas_price = adjust_l1_gas_price_for_tx(l1_gas_price, L2_GAS_PRICE, tx.gas_per_pubdata_byte_limit());
-
-        // Set gas_limit for transaction
-        let gas_limit_with_overhead = tx_gas_limit
-            + derive_gas_estimation_overhead(
-                tx_gas_limit,
-                gas_per_pubdata_byte as u32,
-                tx.encoding_len(),
-            );
-        l2_tx.common_data.fee.gas_limit = gas_limit_with_overhead.into();
-
-        let fork_storage_copy = reader.fork_storage.clone();
-        let mut storage_view = StorageView::new(&fork_storage_copy);
-
-        // The nonce needs to be updated
-        let nonce = l2_tx.nonce();
-        let nonce_key = get_nonce_key(&l2_tx.initiator_account());
-        let full_nonce = storage_view.read_value(&nonce_key);
-        let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
-        let enforced_full_nonce = nonces_to_full_nonce(U256::from(nonce.0), deployment_nonce);
-        storage_view.set_value(nonce_key, u256_to_h256(enforced_full_nonce));
-        
-        // We need to explicitly put enough balance into the account of the users
-        let payer = l2_tx.payer();
-        let balance_key = storage_key_for_eth_balance(&payer);
-        let mut current_balance = h256_to_u256(storage_view.read_value(&balance_key));
-        let added_balance = l2_tx.common_data.fee.gas_limit * l2_tx.common_data.fee.max_fee_per_gas;
-        current_balance += added_balance;
-        storage_view.set_value(balance_key, u256_to_h256(current_balance));
-
-        let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryDisabled);
-
-        let mut block_context = reader.create_block_context();
-        block_context.l1_gas_price = l1_gas_price;
-        let derived_block_context = DerivedBlockContext {
-            context: reader.create_block_context(),
-            base_fee: base_fee,
-        };
-        
-        // Use the fee_estimate bootloader code, as it sets ENSURE_RETURNED_MAGIC to 0 and BOOTLOADER_TYPE to 'playground_block'
-        let bootloader_code = &reader.fee_estimate_contracts;
-        let block_properties = InMemoryNodeInner::create_block_properties(&bootloader_code);
-
-        // init vm
-        let mut vm = init_vm_inner(
-            &mut oracle_tools,
-            BlockContextMode::OverrideCurrent(derived_block_context.into()),
-            &block_properties,
-            BLOCK_GAS_LIMIT,
-            bootloader_code,
-            execution_mode,
-        );
-
-        let tx: Transaction = l2_tx.into();
-
-        push_transaction_to_bootloader_memory(&mut vm, &tx, execution_mode, None);
-
-        let vm_block_result = vm.execute_till_block_end(BootloaderJobType::TransactionExecution);
-
-        let result = match vm_block_result.full_result.revert_reason {
-            None => {
-                Ok(vm_block_result)
-            },
-            Some(revert) => {
-                Err(revert.revert_reason)
-            },
-        };
-        
-        result
     }
 
     fn run_l2_tx_inner(
@@ -1255,7 +1245,13 @@ impl EthNamespaceT for InMemoryNode {
         req: zksync_types::transaction_request::CallRequest,
         _block: Option<zksync_types::api::BlockNumber>,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<U256>> {
-        let result: jsonrpc_core::Result<Fee> = self.estimate_gas_impl(req);
+        let inner = Arc::clone(&self.inner);
+        let reader = match inner.read() {
+            Ok(r) => r,
+            Err(_) => return futures::future::err(into_jsrpc_error(Web3Error::InternalError)).boxed(),
+        };
+
+        let result: jsonrpc_core::Result<Fee> = reader.estimate_gas_impl(req);
         match result {
             Ok(fee) => {
                 Ok(fee.gas_limit).into_boxed_future()

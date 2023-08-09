@@ -1,10 +1,23 @@
+use std::sync::{Arc, RwLock};
+
 use bigdecimal::BigDecimal;
+use futures::FutureExt;
 use zksync_basic_types::{MiniblockNumber, U256};
 use zksync_core::api_server::web3::backend_jsonrpc::namespaces::zks::ZksNamespaceT;
-use zksync_types::api::BridgeAddresses;
+use zksync_types::{api::BridgeAddresses, fee::Fee};
+
+use crate::{node::InMemoryNodeInner, utils::IntoBoxedFuture};
 
 /// Mock implementation of ZksNamespace - used only in the test node.
-pub struct ZkMockNamespaceImpl;
+pub struct ZkMockNamespaceImpl {
+    node: Arc<RwLock<InMemoryNodeInner>>,
+}
+
+impl ZkMockNamespaceImpl {
+    pub fn new(node: Arc<RwLock<InMemoryNodeInner>>) -> Self {
+        Self { node }
+    }
+}
 
 macro_rules! not_implemented {
     () => {
@@ -16,17 +29,19 @@ impl ZksNamespaceT for ZkMockNamespaceImpl {
     /// For now, returning a fake amount of gas.
     fn estimate_fee(
         &self,
-        _req: zksync_types::transaction_request::CallRequest,
+        req: zksync_types::transaction_request::CallRequest,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_types::fee::Fee>> {
-        Box::pin(async move {
-            // TODO: FIX THIS
-            Ok(zksync_types::fee::Fee {
-                gas_limit: U256::from(1000000000),
-                max_fee_per_gas: U256::from(1000000000),
-                max_priority_fee_per_gas: U256::from(1000000000),
-                gas_per_pubdata_limit: U256::from(1000000000),
-            })
-        })
+        let reader = self.node.read().unwrap();
+        
+        let result: jsonrpc_core::Result<Fee> = reader.estimate_gas_impl(req);
+        match result {
+            Ok(fee) => {
+                Ok(fee).into_boxed_future()
+            },
+            Err(err) => {
+                return futures::future::err(err).boxed()
+            }
+        }
     }
 
     fn get_raw_block_transactions(
@@ -175,12 +190,20 @@ impl ZksNamespaceT for ZkMockNamespaceImpl {
 
 #[cfg(test)]
 mod tests {
+    use crate::node::InMemoryNode;
+
     use super::*;
     use zksync_types::transaction_request::CallRequest;
 
     #[tokio::test]
     async fn test_estimate_fee() {
-        let namespace = ZkMockNamespaceImpl;
+        let node = InMemoryNode::new(
+            Default::default(),
+            crate::ShowCalls::None,
+            false,
+            false,
+        );
+        let namespace = ZkMockNamespaceImpl::new(node.get_inner());
 
         let mock_request = CallRequest {
             from: Some(
