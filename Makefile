@@ -17,6 +17,10 @@ rebuild-contracts:
 rust-build:
 	cargo build --release
 
+# Build the Rust documentation
+rust-doc:
+	cargo doc --no-deps --open
+
 # Lint checks for Rust code
 lint:
 	cargo fmt --all -- --check
