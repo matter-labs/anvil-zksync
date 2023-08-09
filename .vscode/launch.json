@@ -42,7 +42,7 @@
                 "ZKSYNC_HOME": "${workspaceFolder}"
             },
             "args": ["--dev-use-local-contracts", "run"],
-            "preLaunchTask": "compile-yul-preprocess",
+            "preLaunchTask": "rebuild-contracts",
             "cwd": "${workspaceFolder}"
         },
     ]

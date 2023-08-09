@@ -1,12 +1,10 @@
 {
     "version": "2.0.0",
     "tasks": [{
-        "label": "compile-yul-preprocess",
-        "command": "cd etc/system-contracts && yarn preprocess && yarn hardhat run ./scripts/compile-yul.ts && cd ../..",
+        "label": "rebuild-contracts",
+        "command": "make rebuild-contracts",
         "type": "shell",
         "presentation": {
-            "reveal": "silent",
-            "revealProblems": "onProblem",
             "close": true
         }
     }]
