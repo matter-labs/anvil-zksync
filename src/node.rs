@@ -17,7 +17,7 @@ use std::{
 use zksync_basic_types::{AccountTreeId, Bytes, H160, H256, U256, U64};
 use zksync_contracts::{
     read_playground_block_bootloader_bytecode, read_sys_contract_bytecode, BaseSystemContracts,
-    ContractLanguage, SystemContractCode,
+    ContractLanguage, SystemContractCode, read_zbin_bytecode,
 };
 use zksync_core::api_server::web3::backend_jsonrpc::namespaces::eth::EthNamespaceT;
 use zksync_state::{ReadStorage, StorageView, WriteStorage};
@@ -94,6 +94,7 @@ pub struct InMemoryNodeInner {
     pub dev_use_local_contracts: bool,
     pub baseline_contracts: BaseSystemContracts,
     pub playground_contracts: BaseSystemContracts,
+    pub fee_estimate_contracts: BaseSystemContracts,
 }
 
 impl InMemoryNodeInner {
@@ -175,6 +176,16 @@ pub fn playground(use_local_contracts: bool) -> BaseSystemContracts {
     bsc_load_with_bootloader(bootloader_bytecode, use_local_contracts)
 }
 
+/// BaseSystemContracts with fee_estimate bootloader -  used for handling 'eth_estimateGas'.
+pub fn fee_estimate_contracts(use_local_contracts: bool) -> BaseSystemContracts {
+    let bootloader_bytecode = if use_local_contracts {
+        read_zbin_bytecode("etc/system-contracts/bootloader/build/artifacts/fee_estimate.yul/fee_estimate.yul.zbin")
+    } else {
+        include_bytes!("deps/contracts/fee_estimate.yul.zbin").to_vec()
+    };
+    bsc_load_with_bootloader(bootloader_bytecode, use_local_contracts)
+}
+
 pub fn baseline_contracts(use_local_contracts: bool) -> BaseSystemContracts {
     let bootloader_bytecode = if use_local_contracts {
         read_playground_block_bootloader_bytecode()
@@ -223,6 +234,7 @@ impl InMemoryNode {
                 dev_use_local_contracts,
                 playground_contracts: playground(dev_use_local_contracts),
                 baseline_contracts: baseline_contracts(dev_use_local_contracts),
+                fee_estimate_contracts: fee_estimate_contracts(dev_use_local_contracts),
             })),
         }
     }
@@ -326,10 +338,14 @@ impl InMemoryNode {
             missed_storage_invocation_limit: 1000000,
         };
 
+        // Set gas_limit for transaction
+        l2_tx.common_data.fee.gas_limit = gas_limit.into();
+
         let inner = self.inner.read().unwrap();
         let fork_storage_copy = inner.fork_storage.clone();
         let mut storage_view = StorageView::new(&fork_storage_copy);
 
+        // The nonce needs to be updated
         let nonce = l2_tx.nonce();
         let nonce_key = get_nonce_key(&l2_tx.initiator_account());
         let full_nonce = storage_view.read_value(&nonce_key);
@@ -337,23 +353,21 @@ impl InMemoryNode {
         let enforced_full_nonce = nonces_to_full_nonce(U256::from(nonce.0), deployment_nonce);
         storage_view.set_value(nonce_key, u256_to_h256(enforced_full_nonce));
         
-        // // // let payer = tx.payer();
-        // // // let balance_key = storage_key_for_eth_balance(&payer);
-        // // // let mut current_balance = h256_to_u256(storage_view.read_value(&balance_key));
-        // // // current_balance += execution_args.added_balance;
-        // // // storage_view.set_value(balance_key, u256_to_h256(current_balance));
+        // We need to explicitly put enough balance into the account of the users
+        let payer = l2_tx.payer();
+        let balance_key = storage_key_for_eth_balance(&payer);
+        let mut current_balance = h256_to_u256(storage_view.read_value(&balance_key));
+        let added_balance = l2_tx.common_data.fee.gas_limit * l2_tx.common_data.fee.max_fee_per_gas;
+        current_balance += added_balance;
+        storage_view.set_value(balance_key, u256_to_h256(current_balance));
 
         let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryDisabled);
 
         let block_context = inner.create_block_context();
         
         // Use the fee_estimate bootloader code, as it sets ENSURE_RETURNED_MAGIC to 0 and BOOTLOADER_TYPE to 'playground_block'
-        let fee_estimate_bytecode = include_bytes!("deps/contracts/fee_estimate.yul.zbin").to_vec();
-        let fee_estimate_code = bsc_load_with_bootloader(fee_estimate_bytecode, false);
-        let block_properties = InMemoryNodeInner::create_block_properties(&fee_estimate_code);
-
-        // Set gas_limit for transaction
-        l2_tx.common_data.fee.gas_limit = gas_limit.into();
+        let bootloader_code = &inner.fee_estimate_contracts;
+        let block_properties = InMemoryNodeInner::create_block_properties(&bootloader_code);
 
         // init vm
         let mut vm = init_vm_inner(
@@ -361,7 +375,7 @@ impl InMemoryNode {
             BlockContextMode::OverrideCurrent(block_context.into()),
             &block_properties,
             BLOCK_GAS_LIMIT,
-            &fee_estimate_code,
+            bootloader_code,
             execution_mode,
         );
 
@@ -840,11 +854,12 @@ impl EthNamespaceT for InMemoryNode {
         let tx: Transaction = l2_tx.clone().into();
 
         // TODO: Un-hardcode these values
-        let fair_l1_gas_price = 50_000_000_000;
+        let fair_l1_gas_price = 50_000_000_000u64;
         let fair_l2_gas_price = 250_000_000;
 
         // Calculate Adjusted L1 Price
-        let (_, adjusted_current_pubdata_price) = derive_base_fee_and_gas_per_pubdata((fair_l1_gas_price as f64 * 1.2) as u64, fair_l2_gas_price);
+        let gas_price_scale_factor = 1.2;
+        let (_, adjusted_current_pubdata_price) = derive_base_fee_and_gas_per_pubdata((fair_l1_gas_price as f64 * gas_price_scale_factor) as u64, fair_l2_gas_price);
         let adjusted_l1_gas_price = if U256::from(adjusted_current_pubdata_price) <= tx.gas_per_pubdata_byte_limit() {
             // The current pubdata price is small enough
             (fair_l1_gas_price as f64 * 1.2) as u64
@@ -857,7 +872,7 @@ impl EthNamespaceT for InMemoryNode {
         };
 
         let (base_fee, gas_per_pubdata_byte) = derive_base_fee_and_gas_per_pubdata(
-            fair_l1_gas_price,
+            adjusted_l1_gas_price,
             fair_l2_gas_price,
         );
 
