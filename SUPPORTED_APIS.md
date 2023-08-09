@@ -10,7 +10,7 @@
 | [`CONFIG`](#config-namespace) | [`config_setShowCalls`](#config_setshowcalls) | SUPPORTED | Updates `show_calls` to print more detailed call traces |
 | [`CONFIG`](#config-namespace) | [`config_setResolveHashes`](#config_setresolvehashes) | SUPPORTED | Updates `resolve-hashes` to call OpenChain for human-readable ABI names in call traces |
 | [`NETWORK`](#network-namespace) | [`net_version`](#net_version) | SUPPORTED | Returns the current network id |
-| [`NETWORK`](#network-namespace) | [`net_peerCount`](#net_peercount) |SUPPORTED | Returns the number of peers currently connected to the client |
+| [`NETWORK`](#network-namespace) | [`net_peerCount`](#net_peercount) | SUPPORTED | Returns the number of peers currently connected to the client |
 | [`NETWORK`](#network-namespace) | [`net_listening`](#net_listening) | SUPPORTED | Returns `true` if the client is actively listening for network connections |
 | `DEBUG` | `debug_storageRangeAt` | NOT IMPLEMENTED | Attempts to replay the transaction as it was executed on the network and return storage data |
 | `DEBUG` | `debug_traceTransaction` | NOT IMPLEMENTED | Attempt to run the transaction in the exact same manner as it was executed on the network |
@@ -44,15 +44,15 @@
 | `EVM` | `evm_snapshot` | NOT IMPLEMENTED | Snapshot the state of the blockchain at the current block |
 | [`ETH`](#eth-namespace) | [`eth_chainId`](#eth_chainid) | SUPPORTED | Returns the currently configured chain id |
 | [`ETH`](#eth-namespace) | [`eth_estimateGas`](#eth_estimategas) | PARTIALLY | Generates and returns an estimate of how much gas is necessary for the transaction to complete |
-| [`ETH`](#eth-namespace) | [`eth_gasPrice`](#eth_gasprice) | IMPLEMENTED | Returns the current price per gas in wei |
-| [`ETH`](#eth-namespace) | [`eth_getBalance`](#eth_getbalance) | IMPLEMENTED | Returns the balance of the account of given address |
+| [`ETH`](#eth-namespace) | [`eth_gasPrice`](#eth_gasprice) | SUPPORTED | Returns the current price per gas in wei |
+| [`ETH`](#eth-namespace) | [`eth_getBalance`](#eth_getbalance) | SUPPORTED | Returns the balance of the account of given address |
 | [`ETH`](#eth-namespace) | [`eth_getBlockByNumber`](#eth_getblockbynumber) | PARTIALLY | Returns information about a block by block number |
+| [`ETH`](#eth-namespace) | [`eth_getTransactionByHash`](#eth_gettransactionbyhash) | SUPPORTED | Returns the information about a transaction requested by transaction hash |
+| [`ETH`](#eth-namespace) | [`eth_getTransactionCount`](#eth_gettransactioncount) | SUPPORTED | Returns the number of transactions sent from an address |
+| [`ETH`](#eth-namespace) | [`eth_blockNumber`](#eth_blocknumber) | SUPPORTED | Returns the number of the most recent block |
+| [`ETH`](#eth-namespace) | [`eth_call`](#eth_call) | SUPPORTED | Executes a new message call immediately without creating a transaction on the block chain |
+| [`ETH`](#eth-namespace) | [`eth_sendRawTransaction`](#eth_sendrawtransaction) | SUPPORTED | Creates new message call transaction or a contract creation for signed transactions |
 | [`ETH`](#eth-namespace) | `eth_getBlockByHash` | NOT IMPLEMENTED | Returns information about a block by block hash |
-| [`ETH`](#eth-namespace) | [`eth_getTransactionByHash`](#eth_gettransactionbyhash) | IMPLEMENTED | Returns the information about a transaction requested by transaction hash |
-| [`ETH`](#eth-namespace) | [`eth_getTransactionCount`](#eth_gettransactioncount) | IMPLEMENTED | Returns the number of transactions sent from an address |
-| [`ETH`](#eth-namespace) | [`eth_blockNumber`](#eth_blocknumber) | IMPLEMENTED | Returns the number of the most recent block |
-| [`ETH`](#eth-namespace) | [`eth_call`](#eth_call) | IMPLEMENTED | Executes a new message call immediately without creating a transaction on the block chain |
-| [`ETH`](#eth-namespace) | [`eth_sendRawTransaction`](#eth_sendrawtransaction) | NOT IMPLEMENTED | Creates new message call transaction or a contract creation for signed transactions |
 | `ETH` | `eth_accounts` | NOT IMPLEMENTED | Returns a list of addresses owned by client |
 | `ETH` | `eth_coinbase` | NOT IMPLEMENTED | Returns the client coinbase address |
 | `ETH` | `eth_feeHistory` | NOT IMPLEMENTED | Returns a collection of historical block gas data |
@@ -335,7 +335,7 @@ Returns the balance of the account of given address
 
 #### Status
 
-`IMPLEMENTED`
+`SUPPORTED`
 
 #### Example
 
@@ -395,7 +395,7 @@ Returns code at a given address
 
 #### Status
 
-`IMPLEMENTED`
+`SUPPORTED`
 
 #### Example
 
@@ -423,7 +423,7 @@ Returns the information about a transaction requested by transaction hash
 
 #### Status
 
-`IMPLEMENTED`
+`SUPPORTED`
 
 #### Example
 
@@ -453,7 +453,7 @@ Returns the number of transactions sent from an address
 
 #### Status
 
-`IMPLEMENTED`
+`SUPPORTED`
 
 #### Example
 
@@ -481,7 +481,7 @@ Returns the number of most recent block
 
 #### Status
 
-`IMPLEMENTED`
+`SUPPORTED`
 
 #### Example
 
@@ -506,7 +506,7 @@ Executes a new message call immediately without creating a transaction on the bl
 
 #### Status
 
-`IMPLEMENTED`
+`SUPPORTED`
 
 #### Example
 
@@ -542,7 +542,7 @@ Creates new message call transaction or a contract creation for signed transacti
 
 #### Status
 
-`IMPLEMENTED`
+`SUPPORTED`
 
 #### Example
 
