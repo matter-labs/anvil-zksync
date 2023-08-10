@@ -70,7 +70,15 @@ pub fn derive_gas_estimation_overhead(
     .max()
     .unwrap()
 }
-
+/// Calculates the total gas cost of the block overhead, including the gas cost of the public data.
+/// 
+/// # Arguments
+/// 
+/// * `gas_per_pubdata_byte` - The gas cost per byte of public data.
+/// 
+/// # Returns
+/// 
+/// The total gas cost of the block overhead, including the gas cost of the public data.
 pub fn block_overhead_gas(gas_per_pubdata_byte: u32) -> u32 {
     BLOCK_OVERHEAD_GAS + BLOCK_OVERHEAD_PUBDATA * gas_per_pubdata_byte
 }
