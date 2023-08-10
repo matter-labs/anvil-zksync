@@ -188,7 +188,7 @@ impl InMemoryNodeInner {
         let (base_fee, gas_per_pubdata_byte) =
             derive_base_fee_and_gas_per_pubdata(l1_gas_price, fair_l2_gas_price);
 
-        // Check for properly formatted signature
+        // Properly format signature
         if l2_tx.common_data.signature.is_empty() {
             l2_tx.common_data.signature = vec![0u8; 65];
             l2_tx.common_data.signature[64] = 27;
@@ -230,6 +230,9 @@ impl InMemoryNodeInner {
 
         let gas_for_bytecodes_pubdata: u32 =
             pubdata_for_factory_deps * (gas_per_pubdata_byte as u32);
+        
+        let block_context = self.create_block_context();
+        let bootloader_code = &self.fee_estimate_contracts;
 
         // We are using binary search to find the minimal values of gas_limit under which the transaction succeeds
         let mut lower_bound = 0;
@@ -239,13 +242,17 @@ impl InMemoryNodeInner {
             let mid = (lower_bound + upper_bound) / 2;
             let try_gas_limit = gas_for_bytecodes_pubdata + mid;
 
-            let estimate_gas_result = self.estimate_gas_step(
+            let estimate_gas_result = InMemoryNodeInner::estimate_gas_step(
                 l2_tx.clone(),
                 gas_per_pubdata_byte,
                 try_gas_limit,
                 l1_gas_price,
                 base_fee,
+                block_context,
+                &self.fork_storage,
+                bootloader_code
             );
+
             if estimate_gas_result.is_err() {
                 lower_bound = mid + 1;
             } else {
@@ -259,30 +266,43 @@ impl InMemoryNodeInner {
         );
         let suggested_gas_limit = tx_body_gas_limit + gas_for_bytecodes_pubdata;
 
-        let estimate_gas_result = self.estimate_gas_step(
+        let estimate_gas_result = InMemoryNodeInner::estimate_gas_step(
             l2_tx.clone(),
             gas_per_pubdata_byte,
             suggested_gas_limit,
             l1_gas_price,
             base_fee,
+            block_context,
+            &self.fork_storage,
+            bootloader_code,
+        );
+
+        let overhead: u32 = derive_gas_estimation_overhead(
+            suggested_gas_limit,
+            gas_per_pubdata_byte as u32,
+            tx.encoding_len(),
         );
 
         match estimate_gas_result {
-            Err(_) => Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
-                "Transaction is unexecutable".into(),
-                Default::default(),
-            ))),
+            Err(_) => {
+                println!("{}", format!("Unable to estimate gas for the request with our suggested gas limit of {}. The transaction is most likely unexecutable. Breakdown of estimation:", suggested_gas_limit + overhead).to_string().red());
+                println!("{}", format!("\tEstimated transaction body gas cost: {}", tx_body_gas_limit).to_string().red());
+                println!("{}", format!("\tGas for pubdata: {}", gas_for_bytecodes_pubdata).to_string().red());
+                println!("{}", format!("\tOverhead: {}", overhead).to_string().red());
+                Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
+                    "Transaction is unexecutable".into(),
+                    Default::default(),
+                )))
+            },
             Ok(_) => {
-                let overhead: u32 = derive_gas_estimation_overhead(
-                    suggested_gas_limit,
-                    gas_per_pubdata_byte as u32,
-                    tx.encoding_len(),
-                );
-
                 let full_gas_limit =
                     match tx_body_gas_limit.overflowing_add(gas_for_bytecodes_pubdata + overhead) {
                         (value, false) => value,
                         (_, true) => {
+                            println!("{}", "Overflow when calculating gas estimation. We've exceeded the block gas limit by summing the following values:".red());
+                            println!("{}", format!("\tEstimated transaction body gas cost: {}", tx_body_gas_limit).to_string().red());
+                            println!("{}", format!("\tGas for pubdata: {}", gas_for_bytecodes_pubdata).to_string().red());
+                            println!("{}", format!("\tOverhead: {}", overhead).to_string().red());
                             return Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
                                 "exceeds block gas limit".into(),
                                 Default::default(),
@@ -303,12 +323,14 @@ impl InMemoryNodeInner {
 
     /// Runs fee estimation against a sandbox vm with the given gas_limit.
     fn estimate_gas_step(
-        &self,
         mut l2_tx: L2Tx,
         gas_per_pubdata_byte: u64,
         tx_gas_limit: u32,
         l1_gas_price: u64,
         base_fee: u64,
+        mut block_context: BlockContext,
+        fork_storage: &ForkStorage,
+        bootloader_code: &BaseSystemContracts,
     ) -> Result<VmBlockResult, TxRevertReason> {
         let tx: Transaction = l2_tx.clone().into();
         let l1_gas_price =
@@ -323,7 +345,7 @@ impl InMemoryNodeInner {
             );
         l2_tx.common_data.fee.gas_limit = gas_limit_with_overhead.into();
 
-        let mut storage_view = StorageView::new(&self.fork_storage);
+        let mut storage_view = StorageView::new(fork_storage);
 
         // The nonce needs to be updated
         let nonce = l2_tx.nonce();
@@ -343,15 +365,12 @@ impl InMemoryNodeInner {
 
         let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryDisabled);
 
-        let mut block_context = self.create_block_context();
         block_context.l1_gas_price = l1_gas_price;
         let derived_block_context = DerivedBlockContext {
-            context: self.create_block_context(),
+            context: block_context,
             base_fee,
         };
 
-        // Use the fee_estimate bootloader code, as it sets ENSURE_RETURNED_MAGIC to 0 and BOOTLOADER_TYPE to 'playground_block'
-        let bootloader_code = &self.fee_estimate_contracts;
         let block_properties = InMemoryNodeInner::create_block_properties(bootloader_code);
 
         let execution_mode = TxExecutionMode::EstimateFee {
@@ -451,6 +470,7 @@ pub fn playground(use_local_contracts: bool) -> BaseSystemContracts {
 /// # Returns
 ///
 /// A `BaseSystemContracts` struct containing the system contracts used for handling 'eth_estimateGas'.
+/// It sets ENSURE_RETURNED_MAGIC to 0 and BOOTLOADER_TYPE to 'playground_block'
 pub fn fee_estimate_contracts(use_local_contracts: bool) -> BaseSystemContracts {
     let bootloader_bytecode = if use_local_contracts {
         read_zbin_bytecode("etc/system-contracts/bootloader/build/artifacts/fee_estimate.yul/fee_estimate.yul.zbin")

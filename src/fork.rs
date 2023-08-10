@@ -52,16 +52,6 @@ pub struct ForkStorage {
     pub chain_id: L2ChainId,
 }
 
-impl Clone for ForkStorage {
-    fn clone(&self) -> Self {
-        let inner = Arc::new(RwLock::new(self.inner.read().unwrap().clone()));
-        Self {
-            inner,
-            chain_id: self.chain_id,
-        }
-    }
-}
-
 #[derive(Debug)]
 pub struct ForkStorageInner {
     // Underlying local storage
@@ -73,17 +63,6 @@ pub struct ForkStorageInner {
     // If set - it hold the necessary information on where to fetch the data.
     // If not set - it will simply read from underlying storage.
     pub fork: Option<ForkDetails>,
-}
-
-impl Clone for ForkStorageInner {
-    fn clone(&self) -> Self {
-        Self {
-            raw_storage: self.raw_storage.clone(),
-            value_read_cache: self.value_read_cache.clone(),
-            factory_dep_cache: self.factory_dep_cache.clone(),
-            fork: self.fork.clone(),
-        }
-    }
 }
 
 impl ForkStorage {

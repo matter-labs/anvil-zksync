@@ -62,8 +62,14 @@ pub fn derive_gas_estimation_overhead(
     // The overhead for occupying a single tx slot
     let tx_slot_overhead = ceil_div_u256(max_block_overhead, MAX_TXS_IN_BLOCK.into());
 
+    // For L2 transactions we allow a certain default discount with regard to the number of ergs.
+    // Multiinstance circuits can in theory be spawned infinite times, while projected future limitations
+    // on gas per pubdata allow for roughly 800k gas per L1 batch, so the rough trust "discount" on the proof's part
+    // to be paid by the users is 0.1.
+    const ERGS_LIMIT_OVERHEAD_COEFFICIENT: f64 = 0.1;
+
     vec![
-        (0.1 * overhead_for_single_instance_circuits.as_u32() as f64).floor() as u32,
+        (ERGS_LIMIT_OVERHEAD_COEFFICIENT * overhead_for_single_instance_circuits.as_u32() as f64).floor() as u32,
         overhead_for_length.as_u32(),
         tx_slot_overhead.as_u32(),
     ]
