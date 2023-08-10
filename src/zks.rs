@@ -3,7 +3,9 @@ use std::sync::{Arc, RwLock};
 use bigdecimal::BigDecimal;
 use futures::FutureExt;
 use zksync_basic_types::{MiniblockNumber, U256};
-use zksync_core::api_server::web3::backend_jsonrpc::{namespaces::zks::ZksNamespaceT, error::into_jsrpc_error};
+use zksync_core::api_server::web3::backend_jsonrpc::{
+    error::into_jsrpc_error, namespaces::zks::ZksNamespaceT,
+};
 use zksync_types::{api::BridgeAddresses, fee::Fee};
 use zksync_web3_decl::error::Web3Error;
 
@@ -15,7 +17,7 @@ pub struct ZkMockNamespaceImpl {
 }
 
 impl ZkMockNamespaceImpl {
-     /// Creates a new `Zks` instance with the given `node`.
+    /// Creates a new `Zks` instance with the given `node`.
     pub fn new(node: Arc<RwLock<InMemoryNodeInner>>) -> Self {
         Self { node }
     }

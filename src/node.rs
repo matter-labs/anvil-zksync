@@ -173,7 +173,8 @@ impl InMemoryNodeInner {
 
         // Calculate Adjusted L1 Price
         let l1_gas_price = {
-            let current_l1_gas_price = ((self.l1_gas_price as f64) * ESTIMATE_GAS_L1_GAS_PRICE_SCALE_FACTOR) as u64;
+            let current_l1_gas_price =
+                ((self.l1_gas_price as f64) * ESTIMATE_GAS_L1_GAS_PRICE_SCALE_FACTOR) as u64;
 
             // In order for execution to pass smoothly, we need to ensure that block's required gasPerPubdata will be
             // <= to the one in the transaction itself.
@@ -234,8 +235,7 @@ impl InMemoryNodeInner {
         let mut lower_bound = 0;
         let mut upper_bound = MAX_L2_TX_GAS_LIMIT as u32;
 
-        while lower_bound + ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION < upper_bound
-        {
+        while lower_bound + ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION < upper_bound {
             let mid = (lower_bound + upper_bound) / 2;
             let try_gas_limit = gas_for_bytecodes_pubdata + mid;
 

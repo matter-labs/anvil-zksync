@@ -23,15 +23,15 @@ where
 }
 
 /// Derives the gas estimation overhead based on the given gas limit, gas price per pubdata, and encoded length.
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `gas_limit` - A `u32` representing the gas limit.
 /// * `gas_price_per_pubdata` - A `u32` representing the gas price per pubdata.
 /// * `encoded_len` - A `usize` representing the encoded length.
-/// 
+///
 /// # Returns
-/// 
+///
 /// A `u32` representing the derived gas estimation overhead.
 pub fn derive_gas_estimation_overhead(
     gas_limit: u32,
@@ -73,13 +73,13 @@ pub fn derive_gas_estimation_overhead(
 }
 
 /// Calculates the total gas cost of the block overhead, including the gas cost of the public data.
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `gas_per_pubdata_byte` - The gas cost per byte of public data.
-/// 
+///
 /// # Returns
-/// 
+///
 /// The total gas cost of the block overhead, including the gas cost of the public data.
 pub fn block_overhead_gas(gas_per_pubdata_byte: u32) -> u32 {
     BLOCK_OVERHEAD_GAS + BLOCK_OVERHEAD_PUBDATA * gas_per_pubdata_byte
