@@ -446,7 +446,15 @@ pub fn playground(use_local_contracts: bool) -> BaseSystemContracts {
     bsc_load_with_bootloader(bootloader_bytecode, use_local_contracts)
 }
 
-/// BaseSystemContracts with fee_estimate bootloader -  used for handling 'eth_estimateGas'.
+/// Returns the system contracts for fee estimation.
+///
+/// # Arguments
+///
+/// * `use_local_contracts` - A boolean indicating whether to use local contracts or not.
+///
+/// # Returns
+///
+/// A `BaseSystemContracts` struct containing the system contracts used for handling 'eth_estimateGas'.
 pub fn fee_estimate_contracts(use_local_contracts: bool) -> BaseSystemContracts {
     let bootloader_bytecode = if use_local_contracts {
         read_zbin_bytecode("etc/system-contracts/bootloader/build/artifacts/fee_estimate.yul/fee_estimate.yul.zbin")
