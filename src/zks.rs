@@ -14,6 +14,7 @@ pub struct ZkMockNamespaceImpl {
 }
 
 impl ZkMockNamespaceImpl {
+     /// Creates a new `Zks` instance with the given `node`.
     pub fn new(node: Arc<RwLock<InMemoryNodeInner>>) -> Self {
         Self { node }
     }
