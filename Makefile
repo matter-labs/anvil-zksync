@@ -30,10 +30,14 @@ lint:
 test:
 	cargo test
 
+# Run e2e tests against running era_test_node
+test-e2e:
+	./scripts/execute-e2e-tests.sh
+
 # Build everything
 all: build-contracts rust-build
 
 # Clean everything
 clean: clean-contracts
 
-.PHONY: build-contracts clean-contracts rebuild-contracts rust-build lint test all clean
+.PHONY: build-contracts clean-contracts rebuild-contracts rust-build lint test test-e2e all clean

@@ -1,0 +1,20 @@
+name: Testing era_test_node using e2e
+on:
+  workflow_call:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    name: e2e
+    steps:
+      - name: Launch tests
+        id: launch
+        run: |
+          echo "Run tests"
+          make test-e2e
+
+      - name: Publish Test Results
+        uses: dorny/test-reporter@v1
+        if: always() # This ensures the step runs even if the prior step (tests) fail
+        with:
+          path: .e2e-tests/test-results.xml
