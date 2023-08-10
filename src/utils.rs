@@ -69,7 +69,8 @@ pub fn derive_gas_estimation_overhead(
     const ERGS_LIMIT_OVERHEAD_COEFFICIENT: f64 = 0.1;
 
     vec![
-        (ERGS_LIMIT_OVERHEAD_COEFFICIENT * overhead_for_single_instance_circuits.as_u32() as f64).floor() as u32,
+        (ERGS_LIMIT_OVERHEAD_COEFFICIENT * overhead_for_single_instance_circuits.as_u32() as f64)
+            .floor() as u32,
         overhead_for_length.as_u32(),
         tx_slot_overhead.as_u32(),
     ]

@@ -230,7 +230,7 @@ impl InMemoryNodeInner {
 
         let gas_for_bytecodes_pubdata: u32 =
             pubdata_for_factory_deps * (gas_per_pubdata_byte as u32);
-        
+
         let block_context = self.create_block_context();
         let bootloader_code = &self.fee_estimate_contracts;
 
@@ -250,7 +250,7 @@ impl InMemoryNodeInner {
                 base_fee,
                 block_context,
                 &self.fork_storage,
-                bootloader_code
+                bootloader_code,
             );
 
             if estimate_gas_result.is_err() {
@@ -286,29 +286,56 @@ impl InMemoryNodeInner {
         match estimate_gas_result {
             Err(_) => {
                 println!("{}", format!("Unable to estimate gas for the request with our suggested gas limit of {}. The transaction is most likely unexecutable. Breakdown of estimation:", suggested_gas_limit + overhead).to_string().red());
-                println!("{}", format!("\tEstimated transaction body gas cost: {}", tx_body_gas_limit).to_string().red());
-                println!("{}", format!("\tGas for pubdata: {}", gas_for_bytecodes_pubdata).to_string().red());
+                println!(
+                    "{}",
+                    format!(
+                        "\tEstimated transaction body gas cost: {}",
+                        tx_body_gas_limit
+                    )
+                    .to_string()
+                    .red()
+                );
+                println!(
+                    "{}",
+                    format!("\tGas for pubdata: {}", gas_for_bytecodes_pubdata)
+                        .to_string()
+                        .red()
+                );
                 println!("{}", format!("\tOverhead: {}", overhead).to_string().red());
                 Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
                     "Transaction is unexecutable".into(),
                     Default::default(),
                 )))
-            },
+            }
             Ok(_) => {
-                let full_gas_limit =
-                    match tx_body_gas_limit.overflowing_add(gas_for_bytecodes_pubdata + overhead) {
-                        (value, false) => value,
-                        (_, true) => {
-                            println!("{}", "Overflow when calculating gas estimation. We've exceeded the block gas limit by summing the following values:".red());
-                            println!("{}", format!("\tEstimated transaction body gas cost: {}", tx_body_gas_limit).to_string().red());
-                            println!("{}", format!("\tGas for pubdata: {}", gas_for_bytecodes_pubdata).to_string().red());
-                            println!("{}", format!("\tOverhead: {}", overhead).to_string().red());
-                            return Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
-                                "exceeds block gas limit".into(),
-                                Default::default(),
-                            )))
-                        }
-                    };
+                let full_gas_limit = match tx_body_gas_limit
+                    .overflowing_add(gas_for_bytecodes_pubdata + overhead)
+                {
+                    (value, false) => value,
+                    (_, true) => {
+                        println!("{}", "Overflow when calculating gas estimation. We've exceeded the block gas limit by summing the following values:".red());
+                        println!(
+                            "{}",
+                            format!(
+                                "\tEstimated transaction body gas cost: {}",
+                                tx_body_gas_limit
+                            )
+                            .to_string()
+                            .red()
+                        );
+                        println!(
+                            "{}",
+                            format!("\tGas for pubdata: {}", gas_for_bytecodes_pubdata)
+                                .to_string()
+                                .red()
+                        );
+                        println!("{}", format!("\tOverhead: {}", overhead).to_string().red());
+                        return Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
+                            "exceeds block gas limit".into(),
+                            Default::default(),
+                        )));
+                    }
+                };
 
                 let fee = Fee {
                     max_fee_per_gas: base_fee.into(),
@@ -322,6 +349,7 @@ impl InMemoryNodeInner {
     }
 
     /// Runs fee estimation against a sandbox vm with the given gas_limit.
+    #[allow(clippy::too_many_arguments)]
     fn estimate_gas_step(
         mut l2_tx: L2Tx,
         gas_per_pubdata_byte: u64,
