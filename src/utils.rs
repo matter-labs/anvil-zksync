@@ -21,7 +21,17 @@ where
     U: Send + 'static,
 {
 }
-
+/// Derives the gas estimation overhead based on the given gas limit, gas price per pubdata, and encoded length.
+/// 
+/// # Arguments
+/// 
+/// * `gas_limit` - A `u32` representing the gas limit.
+/// * `gas_price_per_pubdata` - A `u32` representing the gas price per pubdata.
+/// * `encoded_len` - A `usize` representing the encoded length.
+/// 
+/// # Returns
+/// 
+/// A `u32` representing the derived gas estimation overhead.
 pub fn derive_gas_estimation_overhead(
     gas_limit: u32,
     gas_price_per_pubdata: u32,
