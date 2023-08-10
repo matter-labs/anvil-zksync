@@ -74,7 +74,19 @@ pub fn derive_gas_estimation_overhead(
 pub fn block_overhead_gas(gas_per_pubdata_byte: u32) -> u32 {
     BLOCK_OVERHEAD_GAS + BLOCK_OVERHEAD_PUBDATA * gas_per_pubdata_byte
 }
-
+/// Adjusts the L1 gas price for a transaction based on the current pubdata price and the fair L2 gas price.
+/// If the current pubdata price is small enough, returns the original L1 gas price.
+/// Otherwise, calculates a new L1 gas price based on the fair L2 gas price and the transaction gas per pubdata limit.
+///
+/// # Arguments
+///
+/// * `l1_gas_price` - The original L1 gas price.
+/// * `fair_l2_gas_price` - The fair L2 gas price.
+/// * `tx_gas_per_pubdata_limit` - The transaction gas per pubdata limit.
+///
+/// # Returns
+///
+/// The adjusted L1 gas price.
 pub fn adjust_l1_gas_price_for_tx(
     l1_gas_price: u64,
     fair_l2_gas_price: u64,
