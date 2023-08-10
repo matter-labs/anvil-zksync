@@ -3,8 +3,9 @@ use std::sync::{Arc, RwLock};
 use bigdecimal::BigDecimal;
 use futures::FutureExt;
 use zksync_basic_types::{MiniblockNumber, U256};
-use zksync_core::api_server::web3::backend_jsonrpc::namespaces::zks::ZksNamespaceT;
+use zksync_core::api_server::web3::backend_jsonrpc::{namespaces::zks::ZksNamespaceT, error::into_jsrpc_error};
 use zksync_types::{api::BridgeAddresses, fee::Fee};
+use zksync_web3_decl::error::Web3Error;
 
 use crate::{node::InMemoryNodeInner, utils::IntoBoxedFuture};
 
@@ -26,13 +27,25 @@ macro_rules! not_implemented {
     };
 }
 impl ZksNamespaceT for ZkMockNamespaceImpl {
-    /// We have to support this method, as zksync foundry depends on it.
-    /// For now, returning a fake amount of gas.
+    /// Estimates the gas fee data required for a given call request.
+    ///
+    /// # Arguments
+    ///
+    /// * `req` - A `CallRequest` struct representing the call request to estimate gas for.
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `Result` with a `Fee` representing the estimated gas data required.
     fn estimate_fee(
         &self,
         req: zksync_types::transaction_request::CallRequest,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_types::fee::Fee>> {
-        let reader = self.node.read().unwrap();
+        let reader = match self.node.read() {
+            Ok(r) => r,
+            Err(_) => {
+                return futures::future::err(into_jsrpc_error(Web3Error::InternalError)).boxed()
+            }
+        };
 
         let result: jsonrpc_core::Result<Fee> = reader.estimate_gas_impl(req);
         match result {

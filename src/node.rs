@@ -61,15 +61,24 @@ use zksync_web3_decl::{
     types::{Filter, FilterChanges},
 };
 
-pub const MAX_TX_SIZE: usize = 1000000;
+/// Max possible size of an ABI encoded tx (in bytes).
+pub const MAX_TX_SIZE: usize = 1_000_000;
 /// Timestamp of the first block (if not running in fork mode).
-pub const NON_FORK_FIRST_BLOCK_TIMESTAMP: u64 = 1000;
+pub const NON_FORK_FIRST_BLOCK_TIMESTAMP: u64 = 1_000;
 /// Network ID we use for the test node.
 pub const TEST_NODE_NETWORK_ID: u16 = 260;
-/// L1 Gas Price
+/// L1 Gas Price.
 pub const L1_GAS_PRICE: u64 = 50_000_000_000;
-/// L2 Gas Price (0.25 gwei)
+/// L2 Gas Price (0.25 gwei).
 pub const L2_GAS_PRICE: u64 = 250_000_000;
+/// L1 Gas Price Scale Factor for gas estimation.
+pub const ESTIMATE_GAS_L1_GAS_PRICE_SCALE_FACTOR: f64 = 1.2;
+/// The max possible number of gas that `eth_estimateGas` is allowed to overestimate.
+pub const ESTIMATE_GAS_PUBLISH_BYTE_OVERHEAD: u32 = 100;
+/// Acceptable gas overestimation limit.
+pub const ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION: u32 = 1_000;
+/// The factor by which to scale the gasLimit.
+pub const ESTIMATE_GAS_SCALE_FACTOR: f32 = 1.3;
 
 /// Basic information about the generated block (which is block l1 batch and miniblock).
 /// Currently, this test node supports exactly one transaction per block.
@@ -163,9 +172,8 @@ impl InMemoryNodeInner {
         let fair_l2_gas_price = L2_GAS_PRICE;
 
         // Calculate Adjusted L1 Price
-        let gas_price_scale_factor = 1.2;
         let l1_gas_price = {
-            let current_l1_gas_price = ((self.l1_gas_price as f64) * gas_price_scale_factor) as u64;
+            let current_l1_gas_price = ((self.l1_gas_price as f64) * ESTIMATE_GAS_L1_GAS_PRICE_SCALE_FACTOR) as u64;
 
             // In order for execution to pass smoothly, we need to ensure that block's required gasPerPubdata will be
             // <= to the one in the transaction itself.
@@ -208,8 +216,7 @@ impl InMemoryNodeInner {
                 } else {
                     bytecode.len()
                 };
-                let publish_byte_overhead = 100;
-                length as u32 + publish_byte_overhead
+                length as u32 + ESTIMATE_GAS_PUBLISH_BYTE_OVERHEAD
             })
             .sum::<u32>();
 
@@ -226,12 +233,8 @@ impl InMemoryNodeInner {
         // We are using binary search to find the minimal values of gas_limit under which the transaction succeeds
         let mut lower_bound = 0;
         let mut upper_bound = MAX_L2_TX_GAS_LIMIT as u32;
-        let acceptable_overestimation = 1_000;
-        let max_attempts = 30usize;
 
-        let mut number_of_iterations = 0usize;
-        while lower_bound + acceptable_overestimation < upper_bound
-            && number_of_iterations < max_attempts
+        while lower_bound + ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION < upper_bound
         {
             let mid = (lower_bound + upper_bound) / 2;
             let try_gas_limit = gas_for_bytecodes_pubdata + mid;
@@ -245,20 +248,14 @@ impl InMemoryNodeInner {
             );
             if estimate_gas_result.is_err() {
                 lower_bound = mid + 1;
-                // println!("Attempt {}: Failed with {}, trying again with lower_bound: {}, and upper_bound: {}", number_of_iterations, try_gas_limit, lower_bound, upper_bound);
             } else {
                 upper_bound = mid;
-                // println!("Attempt {}: Succeeded with {}, trying again with lower_bound: {}, and upper_bound: {}", number_of_iterations, try_gas_limit, lower_bound, upper_bound);
             }
-
-            number_of_iterations += 1;
         }
 
-        // println!("COMPLETE after {} attempts and with lower_bound: {}, and upper_bound: {}", number_of_iterations, lower_bound, upper_bound);
-        let estimated_fee_scale_factor = 1.3;
         let tx_body_gas_limit = cmp::min(
             MAX_L2_TX_GAS_LIMIT as u32,
-            (upper_bound as f32 * estimated_fee_scale_factor) as u32,
+            (upper_bound as f32 * ESTIMATE_GAS_SCALE_FACTOR) as u32,
         );
         let suggested_gas_limit = tx_body_gas_limit + gas_for_bytecodes_pubdata;
 
@@ -313,10 +310,6 @@ impl InMemoryNodeInner {
         l1_gas_price: u64,
         base_fee: u64,
     ) -> Result<VmBlockResult, TxRevertReason> {
-        let execution_mode = TxExecutionMode::EstimateFee {
-            missed_storage_invocation_limit: 1000000,
-        };
-
         let tx: Transaction = l2_tx.clone().into();
         let l1_gas_price =
             adjust_l1_gas_price_for_tx(l1_gas_price, L2_GAS_PRICE, tx.gas_per_pubdata_byte_limit());
@@ -330,8 +323,7 @@ impl InMemoryNodeInner {
             );
         l2_tx.common_data.fee.gas_limit = gas_limit_with_overhead.into();
 
-        let fork_storage_copy = self.fork_storage.clone();
-        let mut storage_view = StorageView::new(&fork_storage_copy);
+        let mut storage_view = StorageView::new(&self.fork_storage);
 
         // The nonce needs to be updated
         let nonce = l2_tx.nonce();
@@ -361,6 +353,10 @@ impl InMemoryNodeInner {
         // Use the fee_estimate bootloader code, as it sets ENSURE_RETURNED_MAGIC to 0 and BOOTLOADER_TYPE to 'playground_block'
         let bootloader_code = &self.fee_estimate_contracts;
         let block_properties = InMemoryNodeInner::create_block_properties(bootloader_code);
+
+        let execution_mode = TxExecutionMode::EstimateFee {
+            missed_storage_invocation_limit: 1000000,
+        };
 
         // init vm
         let mut vm = init_vm_inner(

@@ -21,6 +21,7 @@ where
     U: Send + 'static,
 {
 }
+
 /// Derives the gas estimation overhead based on the given gas limit, gas price per pubdata, and encoded length.
 /// 
 /// # Arguments
@@ -68,8 +69,9 @@ pub fn derive_gas_estimation_overhead(
     ]
     .into_iter()
     .max()
-    .unwrap()
+    .unwrap_or(0)
 }
+
 /// Calculates the total gas cost of the block overhead, including the gas cost of the public data.
 /// 
 /// # Arguments
@@ -82,6 +84,7 @@ pub fn derive_gas_estimation_overhead(
 pub fn block_overhead_gas(gas_per_pubdata_byte: u32) -> u32 {
     BLOCK_OVERHEAD_GAS + BLOCK_OVERHEAD_PUBDATA * gas_per_pubdata_byte
 }
+
 /// Adjusts the L1 gas price for a transaction based on the current pubdata price and the fair L2 gas price.
 /// If the current pubdata price is small enough, returns the original L1 gas price.
 /// Otherwise, calculates a new L1 gas price based on the fair L2 gas price and the transaction gas per pubdata limit.
