@@ -10,6 +10,7 @@ use zksync_types::{api::BridgeAddresses, fee::Fee};
 use zksync_web3_decl::error::Web3Error;
 
 use crate::{node::InMemoryNodeInner, utils::IntoBoxedFuture};
+use colored::Colorize;
 
 /// Mock implementation of ZksNamespace - used only in the test node.
 pub struct ZkMockNamespaceImpl {
@@ -104,9 +105,34 @@ impl ZksNamespaceT for ZkMockNamespaceImpl {
 
     fn get_token_price(
         &self,
-        _token_address: zksync_basic_types::Address,
+        token_address: zksync_basic_types::Address,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<BigDecimal>> {
-        not_implemented!()
+        match format!("{:?}", token_address).to_lowercase().as_str() {
+            "0x0000000000000000000000000000000000000000" => {
+                // ETH
+                Ok(1_500.into()).into_boxed_future()
+            }
+            "0x40609141db628beee3bfab8034fc2d8278d0cc78" => {
+                // LINK
+                Ok(1.into()).into_boxed_future()
+            }
+            "0x0bfce1d53451b4a8175dd94e6e029f7d8a701e9c" => {
+                // wBTC
+                Ok(1.into()).into_boxed_future()
+            }
+            "0x0faf6df7054946141266420b43783387a78d82a9" => {
+                // USDC
+                Ok(1.into()).into_boxed_future()
+            }
+            "0x3e7676937a7e96cfb7616f255b9ad9ff47363d4b" => {
+                // DAI
+                Ok(1.into()).into_boxed_future()
+            }
+            address => {
+                println!("{}", format!("Token price requested for unknown address {:?}", address).to_string().red());
+                futures::future::err(into_jsrpc_error(Web3Error::InternalError)).boxed()
+            }
+        }
     }
 
     fn get_all_account_balances(
@@ -202,9 +228,12 @@ impl ZksNamespaceT for ZkMockNamespaceImpl {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use crate::node::InMemoryNode;
 
     use super::*;
+    use zksync_basic_types::Address;
     use zksync_types::transaction_request::CallRequest;
 
     #[tokio::test]
@@ -241,5 +270,50 @@ mod tests {
         assert_eq!(result.max_fee_per_gas, U256::from(250000000));
         assert_eq!(result.max_priority_fee_per_gas, U256::from(0));
         assert_eq!(result.gas_per_pubdata_limit, U256::from(4080));
+    }
+
+    #[tokio::test]
+    async fn test_get_token_price_given_eth_should_return_price() {
+        // Arrange
+        let node = InMemoryNode::new(None, crate::ShowCalls::None, false, false);
+        let namespace = ZkMockNamespaceImpl::new(node.get_inner());
+
+        let mock_address = Address::from_str("0x0000000000000000000000000000000000000000").expect("Failed to parse address");
+
+        // Act
+        let result = namespace.get_token_price(mock_address).await.unwrap();
+
+        // Assert
+        assert_eq!(result, BigDecimal::from(1_500));
+    }
+
+    #[tokio::test]
+    async fn test_get_token_price_given_capitalized_link_address_should_return_price() {
+        // Arrange
+        let node = InMemoryNode::new(None, crate::ShowCalls::None, false, false);
+        let namespace = ZkMockNamespaceImpl::new(node.get_inner());
+
+        let mock_address = Address::from_str("0x40609141Db628BeEE3BfAB8034Fc2D8278D0Cc78").expect("Failed to parse address");
+
+        // Act
+        let result = namespace.get_token_price(mock_address).await.unwrap();
+
+        // Assert
+        assert_eq!(result, BigDecimal::from(1));
+    }
+
+    #[tokio::test]
+    async fn test_get_token_price_given_unknown_address_should_return_error() {
+        // Arrange
+        let node = InMemoryNode::new(None, crate::ShowCalls::None, false, false);
+        let namespace = ZkMockNamespaceImpl::new(node.get_inner());
+
+        let mock_address = Address::from_str("0x0000000000000000000000000000000000000042").expect("Failed to parse address");
+
+        // Act
+        let result = namespace.get_token_price(mock_address).await;
+
+        // Assert
+        assert!(result.is_err());
     }
 }

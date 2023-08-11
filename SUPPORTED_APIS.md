@@ -92,6 +92,7 @@
 | `ETH` | `eth_uninstallFilter` | NOT IMPLEMENTED | Uninstalls a filter with given id |
 | `ETH` | `eth_accounts` | NOT IMPLEMENTED | Returns a list of addresses owned by client |
 | `ETH` | `eth_unsubscribe` | NOT IMPLEMENTED | Cancel a subscription to a particular event |
+| [`ZKS`](#zks-namespace) | [`zks_getTokenPrice`](#zks_getTokenPrice) | SUPPORTED | Gets the USD price of a token |
 
 ## Key
 
@@ -280,7 +281,7 @@ Generates and returns an estimate of how much gas is necessary to allow the tran
 
 #### Status
 
-`PARTIALLY`
+`SUPPORTED`
 
 #### Example
 
@@ -552,4 +553,30 @@ curl --request POST \
   --header 'content-type: application/json' \
   --data '{"jsonrpc": "2.0","id": "1","method": "eth_sendRawTransaction","params": ["0x0000"]
 }'
+```
+
+
+## `ZKS NAMESPACE`
+
+### `zks_getTokenPrice`
+
+[source](src/zks.rs)
+
+Returns the token price given an Address
+
+#### Arguments
+
++ `address: Address`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "zks_getTokenPrice","params": ["0x0000000000000000000000000000000000000000"]}'
 ```
