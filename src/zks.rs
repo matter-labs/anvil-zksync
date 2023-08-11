@@ -129,7 +129,12 @@ impl ZksNamespaceT for ZkMockNamespaceImpl {
                 Ok(1.into()).into_boxed_future()
             }
             address => {
-                println!("{}", format!("Token price requested for unknown address {:?}", address).to_string().red());
+                println!(
+                    "{}",
+                    format!("Token price requested for unknown address {:?}", address)
+                        .to_string()
+                        .red()
+                );
                 futures::future::err(into_jsrpc_error(Web3Error::InternalError)).boxed()
             }
         }
@@ -278,7 +283,8 @@ mod tests {
         let node = InMemoryNode::new(None, crate::ShowCalls::None, false, false);
         let namespace = ZkMockNamespaceImpl::new(node.get_inner());
 
-        let mock_address = Address::from_str("0x0000000000000000000000000000000000000000").expect("Failed to parse address");
+        let mock_address = Address::from_str("0x0000000000000000000000000000000000000000")
+            .expect("Failed to parse address");
 
         // Act
         let result = namespace.get_token_price(mock_address).await.unwrap();
@@ -293,7 +299,8 @@ mod tests {
         let node = InMemoryNode::new(None, crate::ShowCalls::None, false, false);
         let namespace = ZkMockNamespaceImpl::new(node.get_inner());
 
-        let mock_address = Address::from_str("0x40609141Db628BeEE3BfAB8034Fc2D8278D0Cc78").expect("Failed to parse address");
+        let mock_address = Address::from_str("0x40609141Db628BeEE3BfAB8034Fc2D8278D0Cc78")
+            .expect("Failed to parse address");
 
         // Act
         let result = namespace.get_token_price(mock_address).await.unwrap();
@@ -308,7 +315,8 @@ mod tests {
         let node = InMemoryNode::new(None, crate::ShowCalls::None, false, false);
         let namespace = ZkMockNamespaceImpl::new(node.get_inner());
 
-        let mock_address = Address::from_str("0x0000000000000000000000000000000000000042").expect("Failed to parse address");
+        let mock_address = Address::from_str("0x0000000000000000000000000000000000000042")
+            .expect("Failed to parse address");
 
         // Act
         let result = namespace.get_token_price(mock_address).await;
