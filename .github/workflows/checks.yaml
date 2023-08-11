@@ -48,3 +48,7 @@ jobs:
 
       - name: Build Code
         run: make all
+  e2e:
+    needs: build
+    uses: ./.github/workflows/e2e.yml
+    name: E2E

@@ -7,6 +7,10 @@ jobs:
     runs-on: ubuntu-latest
     name: e2e
     steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
       - name: Launch tests
         id: launch
         run: |
