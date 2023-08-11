@@ -5,24 +5,13 @@ on:
  push:
     tags:
       - v*
- workflow_run:
-    workflows: ["checks", "tests"]
-    types:
-      - completed
 
 env:
   REPO_NAME: ${{ github.repository_owner }}/era-test-node
   CARGO_TERM_COLOR: always
 
 jobs:
-  # Requires the tests and checks workflow to have completed successfully.
-  prerequisite-check:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
-    steps:
-      - run: echo "Both checks and tests have passed!"
   extract-version:
-    needs: [prerequisite-check]
     name: extract version
     runs-on: ubuntu-latest
     steps:
@@ -47,7 +36,7 @@ jobs:
               platform: macos-latest
 
     runs-on: ${{ matrix.platform }}
-    needs: [prerequisite-check, extract-version]
+    needs: [extract-version]
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
@@ -138,9 +127,9 @@ jobs:
           
           ## 📋 Summary
           
-          - 🐛 **Critical Bug Fixes:** 
-          - ✨ **New Features:** 
-          - ⚠️ **Breaking Changes:**
+          🐛 **Critical Bug Fixes:** 
+          ✨ **New Features:** 
+          ⚠️ **Breaking Changes:**
           
           ## 📜 All Changes
           
