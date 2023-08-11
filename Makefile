@@ -45,4 +45,11 @@ all: build-contracts rust-build
 # Clean everything
 clean: clean-contracts
 
-.PHONY: build-contracts clean-contracts rebuild-contracts rust-build lint test all clean build-%
+# Create new draft release based on Cargo.toml version
+new-release-tag:
+	@VERSION_NUMBER=$$(grep '^version =' Cargo.toml | awk -F '"' '{print $$2}') && \
+	git tag -a v$$VERSION_NUMBER -m "Release v$$VERSION_NUMBER" && \
+	echo "\n\033[0;32mGit tag creation SUCCESSFUL! Use the following command to push the tag:\033[0m" && \
+	echo "git push origin v$$VERSION_NUMBER"
+
+.PHONY: build-contracts clean-contracts rebuild-contracts rust-build lint test all clean build-% new-release-tag

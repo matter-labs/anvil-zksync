@@ -30,11 +30,8 @@ Once the draft is reviewed and any required changes are made, we can finalize an
 To trigger the release pipeline, you'll need to create and push a Git tag. Here are the commands:
 
 ```bash
-# Create a tag
-git tag -a v[VERSION_NUMBER] -m "Release v[VERSION_NUMBER]"
-
-# Push the tag to the repository
-git push origin v[VERSION_NUMBER]
+make new-release-tag
+# Be sure to run the 'git push' command included in the output
 ```
 
-Replace `[VERSION_NUMBER]` with the desired version number. This will trigger the `check.yaml` and `test.yaml` workflows, and `release.yaml`.
+The version number comes from [Cargo.toml](../Cargo.toml). This will trigger the `check.yaml` and `test.yaml` workflows, and `release.yaml`.
