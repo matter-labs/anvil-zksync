@@ -1,5 +1,8 @@
-# This workflow is borrowed from reth, which is borrowed from Lighthouse: https://github.com/sigp/lighthouse/blob/693886b94176faa4cb450f024696cb69cda2fe58/.github/workflows/release.yml
-# This workflow is borrowed from reth: https://github.com/paradigmxyz/reth/blob/500b0fac135fe07635d871d64467326599e2b27e/.github/workflows/release.yml
+# This workflow is borrowed from reth, which is borrowed from Lighthouse: 
+# reth: https://github.com/paradigmxyz/reth/blob/500b0fac135fe07635d871d64467326599e2b27e/.github/workflows/release.yml
+# lighthouse: https://github.com/sigp/lighthouse/blob/693886b94176faa4cb450f024696cb69cda2fe58/.github/workflows/release.yml
+
+name: release
 
 on:
  push:
@@ -25,7 +28,7 @@ jobs:
     name: build release
     strategy:
       matrix:
-        # TODO: fix and add aarch64-unknown-linux-gnu
+        # TODO: fix and add aarch64-unknown-linux-gnu target
         arch: [x86_64-unknown-linux-gnu, x86_64-apple-darwin, aarch64-apple-darwin]
         include:
           -   arch: x86_64-unknown-linux-gnu
