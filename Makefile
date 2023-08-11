@@ -40,4 +40,4 @@ all: build-contracts rust-build
 # Clean everything
 clean: clean-contracts
 
-.PHONY: build-contracts clean-contracts rebuild-contracts rust-build lint test all clean
+.PHONY: build-contracts clean-contracts rebuild-contracts rust-build lint test all clean build-%
