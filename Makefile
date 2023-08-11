@@ -17,6 +17,10 @@ rebuild-contracts:
 rust-build:
 	cargo build --release
 
+# Build the Rust project for a specific target. Primarily used for CI.
+build-%:
+	cross build --bin era_test_node --target $* --release
+
 # Build the Rust documentation
 rust-doc:
 	cargo doc --no-deps --open
