@@ -9,6 +9,18 @@ content-type: application/json
 }
 
 ###
+
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_gasPrice",
+    "params": []
+}
+
+###
 POST http://localhost:8011
 content-type: application/json
 

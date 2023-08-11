@@ -108,6 +108,7 @@ async fn build_json_http(
     node: InMemoryNode,
     net: NetNamespace,
     config_api: ConfigurationApiNamespace,
+    zks: ZkMockNamespaceImpl,
 ) -> tokio::task::JoinHandle<()> {
     let (sender, recv) = oneshot::channel::<()>();
 
@@ -116,7 +117,7 @@ async fn build_json_http(
         io.extend_with(node.to_delegate());
         io.extend_with(net.to_delegate());
         io.extend_with(config_api.to_delegate());
-        io.extend_with(ZkMockNamespaceImpl.to_delegate());
+        io.extend_with(zks.to_delegate());
 
         io
     };
@@ -292,14 +293,15 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let net = NetNamespace::new(L2ChainId(TEST_NODE_NETWORK_ID));
-
     let config_api = ConfigurationApiNamespace::new(node.get_inner());
+    let zks = ZkMockNamespaceImpl::new(node.get_inner());
 
     let threads = build_json_http(
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), opt.port),
         node,
         net,
         config_api,
+        zks,
     )
     .await;
 

@@ -1,10 +1,27 @@
+use std::sync::{Arc, RwLock};
+
 use bigdecimal::BigDecimal;
+use futures::FutureExt;
 use zksync_basic_types::{MiniblockNumber, U256};
-use zksync_core::api_server::web3::backend_jsonrpc::namespaces::zks::ZksNamespaceT;
-use zksync_types::api::BridgeAddresses;
+use zksync_core::api_server::web3::backend_jsonrpc::{
+    error::into_jsrpc_error, namespaces::zks::ZksNamespaceT,
+};
+use zksync_types::{api::BridgeAddresses, fee::Fee};
+use zksync_web3_decl::error::Web3Error;
+
+use crate::{node::InMemoryNodeInner, utils::IntoBoxedFuture};
 
 /// Mock implementation of ZksNamespace - used only in the test node.
-pub struct ZkMockNamespaceImpl;
+pub struct ZkMockNamespaceImpl {
+    node: Arc<RwLock<InMemoryNodeInner>>,
+}
+
+impl ZkMockNamespaceImpl {
+    /// Creates a new `Zks` instance with the given `node`.
+    pub fn new(node: Arc<RwLock<InMemoryNodeInner>>) -> Self {
+        Self { node }
+    }
+}
 
 macro_rules! not_implemented {
     () => {
@@ -12,20 +29,31 @@ macro_rules! not_implemented {
     };
 }
 impl ZksNamespaceT for ZkMockNamespaceImpl {
-    /// We have to support this method, as zksync foundry depends on it.
-    /// For now, returning a fake amount of gas.
+    /// Estimates the gas fee data required for a given call request.
+    ///
+    /// # Arguments
+    ///
+    /// * `req` - A `CallRequest` struct representing the call request to estimate gas for.
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `Result` with a `Fee` representing the estimated gas data required.
     fn estimate_fee(
         &self,
-        _req: zksync_types::transaction_request::CallRequest,
+        req: zksync_types::transaction_request::CallRequest,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_types::fee::Fee>> {
-        Box::pin(async move {
-            Ok(zksync_types::fee::Fee {
-                gas_limit: U256::from(1000000000),
-                max_fee_per_gas: U256::from(1000000000),
-                max_priority_fee_per_gas: U256::from(1000000000),
-                gas_per_pubdata_limit: U256::from(1000000000),
-            })
-        })
+        let reader = match self.node.read() {
+            Ok(r) => r,
+            Err(_) => {
+                return futures::future::err(into_jsrpc_error(Web3Error::InternalError)).boxed()
+            }
+        };
+
+        let result: jsonrpc_core::Result<Fee> = reader.estimate_gas_impl(req);
+        match result {
+            Ok(fee) => Ok(fee).into_boxed_future(),
+            Err(err) => return futures::future::err(err).boxed(),
+        }
     }
 
     fn get_raw_block_transactions(
@@ -174,41 +202,44 @@ impl ZksNamespaceT for ZkMockNamespaceImpl {
 
 #[cfg(test)]
 mod tests {
+    use crate::node::InMemoryNode;
+
     use super::*;
     use zksync_types::transaction_request::CallRequest;
 
     #[tokio::test]
     async fn test_estimate_fee() {
-        let namespace = ZkMockNamespaceImpl;
+        let node = InMemoryNode::new(None, crate::ShowCalls::None, false, false);
+        let namespace = ZkMockNamespaceImpl::new(node.get_inner());
 
         let mock_request = CallRequest {
             from: Some(
-                "0x0000000000000000000000000000000000000000"
+                "0xa61464658afeaf65cccaafd3a512b69a83b77618"
                     .parse()
                     .unwrap(),
             ),
             to: Some(
-                "0x0000000000000000000000000000000000000001"
+                "0x36615cf349d7f6344891b1e7ca7c72883f5dc049"
                     .parse()
                     .unwrap(),
             ),
-            gas: Some(U256::from(21000)),
-            gas_price: Some(U256::from(20)),
-            max_fee_per_gas: Some(U256::from(30)),
-            max_priority_fee_per_gas: Some(U256::from(10)),
-            value: Some(U256::from(1000)),
-            data: Some(vec![1, 2, 3, 4].into()),
-            nonce: Some(U256::from(1)),
-            transaction_type: Some(zksync_basic_types::U64::from(1)),
+            gas: Some(U256::from(0)),
+            gas_price: Some(U256::from(0)),
+            max_fee_per_gas: None,
+            max_priority_fee_per_gas: None,
+            value: Some(U256::from(0)),
+            data: Some(vec![0, 0].into()),
+            nonce: Some(U256::from(0)),
+            transaction_type: None,
             access_list: None,
             eip712_meta: None,
         };
 
         let result = namespace.estimate_fee(mock_request).await.unwrap();
 
-        assert_eq!(result.gas_limit, U256::from(1000000000));
-        assert_eq!(result.max_fee_per_gas, U256::from(1000000000));
-        assert_eq!(result.max_priority_fee_per_gas, U256::from(1000000000));
-        assert_eq!(result.gas_per_pubdata_limit, U256::from(1000000000));
+        assert_eq!(result.gas_limit, U256::from(1083285));
+        assert_eq!(result.max_fee_per_gas, U256::from(250000000));
+        assert_eq!(result.max_priority_fee_per_gas, U256::from(0));
+        assert_eq!(result.gas_per_pubdata_limit, U256::from(4080));
     }
 }

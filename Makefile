@@ -30,6 +30,11 @@ lint:
 	cargo fmt --all -- --check
 	cargo clippy -Zunstable-options -- -D warnings --allow clippy::unwrap_used
 
+# Fix lint errors for Rust code
+lint-fix:
+	cargo clippy --fix
+	cargo fmt
+
 # Run unit tests for Rust code
 test:
 	cargo test
