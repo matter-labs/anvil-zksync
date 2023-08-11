@@ -14,6 +14,11 @@ jobs:
       with:
         ref: ${{ github.event.release.tag_name }}
       
+    - name: Update Cargo.toml version
+      run: |
+        chmod +x ./update_version.sh
+        ./update_version.sh "${{ github.event.release.tag_name }}"
+      
     - name: Publish to crates.io
       run: cargo publish
       env:
