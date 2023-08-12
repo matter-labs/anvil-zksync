@@ -9,16 +9,33 @@ jobs:
     name: crates.io
     runs-on: ubuntu-latest
     steps:
+      # Checkout the release tag
+      # This will publish the tag version to crates.io
     - name: Checkout sources
       uses: actions/checkout@v3
       with:
         ref: ${{ github.event.release.tag_name }}
+        token: ${{ secrets.GITHUB_TOKEN }}
       
+      # Note: This is a placeholder until proper user is set up with correct permissoins
+      # It is this "user" that will either open a PR or push directly to main with the updated version
+    - name: Set up Git user
+      run: |
+        git config user.name "GitHub Actions"
+        git config user.email "actions@github.com"
+      # We can standardize or customize the commit message here
     - name: Update Cargo.toml version
       run: |
         chmod +x ./update_version.sh
         ./update_version.sh "${{ github.event.release.tag_name }}"
-      
+        git add Cargo.toml
+        git commit -m "Bump version to ${{ github.event.release.tag_name }}"
+     # Note: Right now this is pushing directly to main, but we can change this to open a PR instead.
+     # If PR is desirable the action will install github cli and then run `gh pr create --title "Bump version to ${{ github.event.release.tag_name }}" --body "Updated Cargo.toml version" --base main --head $BRANCH_NAME` 
+    - name: Push to main
+      run: git push origin HEAD:main
+     # Publish to crates.io
+     # NOTE: we need the org to provide a token for this to work 
     - name: Publish to crates.io
       run: cargo publish
       env:
