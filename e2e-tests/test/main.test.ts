@@ -16,7 +16,7 @@ describe('Greeter', function () {
     // const provider = Provider.getDefaultProvider();
     console.log("Latest version");
     console.log("Connecting directly to: http://localhost:8011");
-    const provider = new Provider('http://localhost:8011');
+    const provider = new Provider('http://127.0.0.1:8011');
     console.log("Provider created");
     
     const wallet = new Wallet(RICH_WALLET_PK, provider);
@@ -44,7 +44,7 @@ describe('Greeter', function () {
     });
 
     const options = {
-      hostname: 'localhost',
+      hostname: '127.0.0.1',
       port: 8011,
       path: '/',
       method: 'POST',
