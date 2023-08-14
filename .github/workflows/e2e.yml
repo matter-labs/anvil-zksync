@@ -11,11 +11,27 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+      
+      - name: Start the era_test_node
+        id: start_node
+        run: |
+          echo "Extracting era_test_node binary"
+          tar -xzf era_test_node.tar.gz
+          echo "Starting node in background"
+          era_test_node run &
+          echo "PID=$!" >> $GITHUB_ENV
+
       - name: Launch tests
         id: launch
         run: |
           echo "Run tests"
           make test-e2e
+
+      - name: Stop the era_test_node
+        id: stop_node
+        run: kill $PID
 
       - name: Publish Test Results
         uses: dorny/test-reporter@v1

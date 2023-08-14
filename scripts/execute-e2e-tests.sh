@@ -38,9 +38,9 @@ cd e2e-tests
 
 # Install dependencies
 echo ""
-echo "==========="
-echo "NPM install"
-echo "==========="
+echo "============"
+echo "Yarn install"
+echo "============"
 yarn install --frozen-lockfile
 
 # Compile contracts

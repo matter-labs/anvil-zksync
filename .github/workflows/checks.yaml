@@ -50,6 +50,20 @@ jobs:
 
       - name: Build Code
         run: make all
+      
+      - name: Create artifact
+        run: |
+          tar -czf era_test_node.tar.gz .target/release/era_test_node*
+    
+        # =======================================================================
+        # Upload artifacts
+        # This is required to share artifacts between different jobs
+        # =======================================================================
+      - name:  Upload artifact
+        uses:  actions/upload-artifact@v3
+        with:
+          name: era_test_node.tar.gz
+          path: era_test_node.tar.gz
   e2e:
     needs: build
     uses: ./.github/workflows/e2e.yml
