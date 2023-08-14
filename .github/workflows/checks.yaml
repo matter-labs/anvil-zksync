@@ -36,7 +36,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest]
     steps:
       - uses: actions/checkout@v3
       
@@ -53,7 +53,8 @@ jobs:
       
       - name: Create artifact
         run: |
-          tar -czf era_test_node-${{ matrix.os }}.tar.gz ./target/release/era_test_node*
+          cd ./target/release
+          tar -czf era_test_node-${{ matrix.os }}.tar.gz ./era_test_node*
     
         # =======================================================================
         # Upload artifacts
@@ -63,7 +64,7 @@ jobs:
         uses:  actions/upload-artifact@v3
         with:
           name: era_test_node-${{ matrix.os }}.tar.gz
-          path: era_test_node-${{ matrix.os }}.tar.gz
+          path: ./target/release/era_test_node-${{ matrix.os }}.tar.gz
   e2e:
     needs: build
     uses: ./.github/workflows/e2e.yml
