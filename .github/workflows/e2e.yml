@@ -43,6 +43,6 @@ jobs:
         uses: dorny/test-reporter@v1
         if: always() # This ensures the step runs even if the prior step (tests) fail
         with:
-          path: .e2e-tests/test-results.xml
+          path: ./e2e-tests/test-results.xml
           name: E2E Test Results
           reporter: 'jest-junit'

@@ -56,12 +56,6 @@ yarn hardhat compile
 # Run tests
 echo ""
 echo "================="
-echo "Printing env vars"
-echo "================="
-printenv
-
-echo ""
-echo "================="
 echo "Running e2e tests"
 echo "================="
 # TODO: Remove this, just debugging for now
