@@ -11,7 +11,7 @@ use std::fmt;
 use self::system_contracts::COMPILED_IN_SYSTEM_CONTRACTS;
 
 /// In-memory storage.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct InMemoryStorage {
     pub(crate) state: HashMap<StorageKey, StorageValue>,
     pub(crate) factory_deps: HashMap<H256, Vec<u8>>,

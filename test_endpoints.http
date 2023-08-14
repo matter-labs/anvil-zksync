@@ -9,6 +9,18 @@ content-type: application/json
 }
 
 ###
+
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_gasPrice",
+    "params": []
+}
+
+###
 POST http://localhost:8011
 content-type: application/json
 
@@ -214,4 +226,15 @@ content-type: application/json
         "value": "0x0000",
         "nonce": "0x0000"
     }, "latest"]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "zks_getTokenPrice",
+    "params": ["0x0000000000000000000000000000000000000000"]
 }

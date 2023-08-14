@@ -43,7 +43,7 @@
 | `EVM` | `evm_setTime` | NOT IMPLEMENTED | Sets the internal clock time to the given timestamp |
 | `EVM` | `evm_snapshot` | NOT IMPLEMENTED | Snapshot the state of the blockchain at the current block |
 | [`ETH`](#eth-namespace) | [`eth_chainId`](#eth_chainid) | SUPPORTED | Returns the currently configured chain id |
-| [`ETH`](#eth-namespace) | [`eth_estimateGas`](#eth_estimategas) | PARTIALLY | Generates and returns an estimate of how much gas is necessary for the transaction to complete |
+| [`ETH`](#eth-namespace) | [`eth_estimateGas`](#eth_estimategas) | SUPPORTED | Generates and returns an estimate of how much gas is necessary for the transaction to complete |
 | [`ETH`](#eth-namespace) | [`eth_gasPrice`](#eth_gasprice) | SUPPORTED | Returns the current price per gas in wei |
 | [`ETH`](#eth-namespace) | [`eth_getBalance`](#eth_getbalance) | SUPPORTED | Returns the balance of the account of given address |
 | [`ETH`](#eth-namespace) | [`eth_getBlockByNumber`](#eth_getblockbynumber) | PARTIALLY | Returns information about a block by block number |
@@ -92,6 +92,8 @@
 | `ETH` | `eth_uninstallFilter` | NOT IMPLEMENTED | Uninstalls a filter with given id |
 | `ETH` | `eth_accounts` | NOT IMPLEMENTED | Returns a list of addresses owned by client |
 | `ETH` | `eth_unsubscribe` | NOT IMPLEMENTED | Cancel a subscription to a particular event |
+| [`ZKS`](#zks-namespace) | [`zks_estimateFee`](#zks_estimateFee) | SUPPORTED | Gets the Fee estimation data for a given Request |
+| [`ZKS`](#zks-namespace) | [`zks_getTokenPrice`](#zks_getTokenPrice) | SUPPORTED | Gets the USD price of a token |
 
 ## Key
 
@@ -176,7 +178,7 @@ curl --request POST \
 
 ### `net_version`
 
-[source](src/network_api.rs)
+[source](src/net.rs)
 
 Returns the current network id
 
@@ -199,7 +201,7 @@ curl --request POST \
 
 ### `net_peerCount`
 
-[source](src/network_api.rs)
+[source](src/net.rs)
 
 Returns the number of connected peers
 
@@ -222,7 +224,7 @@ curl --request POST \
 
 ### `net_listening`
 
-[source](src/network_api.rs)
+[source](src/net.rs)
 
 Returns `true` if the node is listening for connections
 
@@ -247,7 +249,7 @@ curl --request POST \
 
 ### `eth_chainId`
 
-[source](src/eth_api.rs)
+[source](src/node.rs)
 
 Returns the current chain id
 
@@ -270,7 +272,7 @@ curl --request POST \
 
 ### `eth_estimateGas`
 
-[source](src/eth_api.rs)
+[source](src/node.rs)
 
 Generates and returns an estimate of how much gas is necessary to allow the transaction to complete
 
@@ -280,7 +282,7 @@ Generates and returns an estimate of how much gas is necessary to allow the tran
 
 #### Status
 
-`PARTIALLY`
+`SUPPORTED`
 
 #### Example
 
@@ -290,17 +292,23 @@ curl --request POST \
   --header 'content-type: application/json' \
   --data '{
     "jsonrpc": "2.0",
-    "id": "1",
-    "method": "eth_estimateGas",
-    "params": [{
-      "0x0000000000000000000000000000000000000000": true
-    }]
+      "id": "2",
+      "method": "eth_estimateGas",
+      "params": [{
+          "to": "0x36615Cf349d7F6344891B1e7CA7C72883F5dc049",
+          "data": "0x0000",
+          "from": "0xa61464658AfeAf65CccaaFD3a512b69A83B77618",
+          "gas": "0x0000",
+          "gasPrice": "0x0000",
+          "value": "0x0000",
+          "nonce": "0x0000"
+      }, "latest"]
   }'
 ```
 
 ### `eth_gasPrice`
 
-[source](src/eth_api.rs)
+[source](src/node.rs)
 
 Returns the current price per gas in wei
 
@@ -323,7 +331,7 @@ curl --request POST \
 
 ### `eth_getBalance`
 
-[source](src/eth_api.rs)
+[source](src/node.rs)
 
 Returns the balance of the account of given address
 
@@ -353,7 +361,7 @@ curl --request POST \
 
 ### `eth_getBlockByNumber`
 
-[source](src/eth_api.rs)
+[source](src/node.rs)
 
 Returns information about a block by block number
 
@@ -383,7 +391,7 @@ curl --request POST \
 
 ### `eth_getCode`
 
-[source](src/eth_api.rs)
+[source](src/node.rs)
 
 Returns code at a given address
 
@@ -413,7 +421,7 @@ curl --request POST \
 
 ### `eth_getTransactionByHash`
 
-[source](src/eth_api.rs)
+[source](src/node.rs)
 
 Returns the information about a transaction requested by transaction hash
 
@@ -441,7 +449,7 @@ curl --request POST \
 
 ### `eth_getTransactionCount`
 
-[source](src/eth_api.rs)
+[source](src/node.rs)
 
 Returns the number of transactions sent from an address
 
@@ -471,7 +479,7 @@ curl --request POST \
 
 ### `eth_blockNumber`
 
-[source](src/eth_api.rs)
+[source](src/node.rs)
 
 Returns the number of most recent block
 
@@ -494,7 +502,7 @@ curl --request POST \
 
 ### `eth_call`
 
-[source](src/eth_api.rs)
+[source](src/node.rs)
 
 Executes a new message call immediately without creating a transaction on the block chain
 
@@ -532,7 +540,7 @@ curl --request POST \
 
 ### `eth_sendRawTransaction`
 
-[source](src/eth_api.rs)
+[source](src/node.rs)
 
 Creates new message call transaction or a contract creation for signed transactions
 
@@ -552,4 +560,65 @@ curl --request POST \
   --header 'content-type: application/json' \
   --data '{"jsonrpc": "2.0","id": "1","method": "eth_sendRawTransaction","params": ["0x0000"]
 }'
+```
+
+## `ZKS NAMESPACE`
+
+### `zks_estimateFee`
+
+[source](src/zks.rs)
+
+Generates and returns an estimate of how much gas is necessary to allow the transaction to complete
+
+#### Arguments
+
++ `transaction: Transaction`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+      "id": "2",
+      "method": "zks_estimateFee",
+      "params": [{
+          "to": "0x36615Cf349d7F6344891B1e7CA7C72883F5dc049",
+          "data": "0x0000",
+          "from": "0xa61464658AfeAf65CccaaFD3a512b69A83B77618",
+          "gas": "0x0000",
+          "gasPrice": "0x0000",
+          "value": "0x0000",
+          "nonce": "0x0000"
+      }]
+  }'
+```
+
+### `zks_getTokenPrice`
+
+[source](src/zks.rs)
+
+Returns the token price given an Address
+
+#### Arguments
+
++ `address: Address`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "zks_getTokenPrice","params": ["0x0000000000000000000000000000000000000000"]}'
 ```
