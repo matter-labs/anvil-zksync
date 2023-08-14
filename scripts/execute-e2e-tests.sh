@@ -58,4 +58,7 @@ echo ""
 echo "================="
 echo "Running e2e tests"
 echo "================="
+# TODO: Remove this, just debugging for now
+RESPONSE=$(curl -s -X POST -H "content-type: application/json" -d "$DATA" $URL || true)
+echo $RESPONSE
 yarn test
