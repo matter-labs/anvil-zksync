@@ -21,7 +21,7 @@ while [ $COUNTER -lt $MAX_RETRIES ]; do
     # Check if the request was successful
     if [ "$RESPONSE" -eq 200 ]; then
         echo "Node is running! Starting tests..."
-        // TODO: Remove this, just debugging for now
+        # TODO: Remove this, just debugging for now
         RESPONSE=$(curl -s -X POST -H "content-type: application/json" -d "$DATA" $URL || true)
         echo $RESPONSE
         break

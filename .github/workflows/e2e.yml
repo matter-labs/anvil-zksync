@@ -42,4 +42,4 @@ jobs:
         with:
           path: .e2e-tests/test-results.xml
           name: E2E Test Results
-          report: 'jest-junit'
+          reporter: 'jest-junit'
