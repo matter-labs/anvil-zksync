@@ -23,7 +23,7 @@ jobs:
           tar -xzf era_test_node-ubuntu-latest.tar.gz
           chmod +x era_test_node
           echo "Starting node in background"
-          ./era_test_node run &
+          ./era_test_node run 2>&1 | tee era_test_node_ouput.log &
           echo "PID=$!" >> $GITHUB_ENV
 
       - name: Launch tests
@@ -32,9 +32,12 @@ jobs:
           echo "Run tests"
           make test-e2e
 
-      - name: Stop the era_test_node
+      - name: Stop the era_test_node and print output logs
         id: stop_node
-        run: kill $PID
+        if: always() # This ensures the step runs even if the prior step (tests) fail
+        run: |
+          cat era_test_node_ouput.log
+          kill $PID
 
       - name: Publish Test Results
         uses: dorny/test-reporter@v1
