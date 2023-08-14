@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { Wallet, Provider, Contract } from 'zksync-web3';
+import { Wallet, Contract } from 'zksync-web3';
 import * as hre from 'hardhat';
 import { Deployer } from '@matterlabs/hardhat-zksync-deploy';
 
@@ -13,9 +13,7 @@ async function deployGreeter(deployer: Deployer): Promise<Contract> {
 
 describe('Greeter', function () {
   it("Should return the new greeting once it's changed", async function () {
-    const provider = new Provider('http://127.0.0.1:8011');
-
-    const wallet = new Wallet(RICH_WALLET_PK, provider);
+    const wallet = new Wallet(RICH_WALLET_PK);
     const deployer = new Deployer(hre, wallet);
 
     const greeter = await deployGreeter(deployer);
@@ -26,6 +24,6 @@ describe('Greeter', function () {
     // wait until the transaction is mined
     await setGreetingTx.wait();
 
-    expect(await greeter.greet()).to.equal('Hola, mundo2!');
+    expect(await greeter.greet()).to.equal('Hola, mundo!');
   });
 });
