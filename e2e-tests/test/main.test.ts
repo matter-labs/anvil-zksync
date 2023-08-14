@@ -23,8 +23,10 @@ describe('Greeter', function () {
     console.log("Wallet connected");
     const deployer = new Deployer(hre, wallet);
     console.log("Deployer configured");
-
+    console.log(provider.connection);
+    
     const greeter = await deployGreeter(deployer);
+    console.log("Greeting deployed");
 
     expect(await greeter.greet()).to.eq('Hi');
 
