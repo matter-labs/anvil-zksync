@@ -13,7 +13,8 @@ async function deployGreeter(deployer: Deployer): Promise<Contract> {
 
 describe('Greeter', function () {
   it("Should return the new greeting once it's changed", async function () {
-    const provider = Provider.getDefaultProvider();
+    // const provider = Provider.getDefaultProvider();
+    const provider = new Provider('http://localhost:8011');
 
     const wallet = new Wallet(RICH_WALLET_PK, provider);
     const deployer = new Deployer(hre, wallet);
