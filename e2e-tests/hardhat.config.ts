@@ -21,7 +21,10 @@ const config: HardhatUserConfig = {
     version: "0.8.17",
   },
   mocha: {
-    reporter: "mocha-junit-reporter"
+    reporter: "mocha-multi-reporters",
+    reporterOptions: {
+      configFile: "mocha-multireporter-config.json"
+    }
   }
 };
 
