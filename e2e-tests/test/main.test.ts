@@ -25,7 +25,10 @@ describe('Greeter', function () {
     console.log("Deployer configured");
     console.log(provider.connection);
 
+    const test = await provider.getNetwork();
+    console.log(test);
 
+    console.log("Starting manual curl request");
     const http = require('http');
 
     const data = JSON.stringify({

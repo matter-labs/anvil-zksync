@@ -11,9 +11,9 @@ const config: HardhatUserConfig = {
   defaultNetwork: "zkSyncTestnet",
   networks: {
     zkSyncTestnet: {
-      url: "http://localhost:8011",
+      url: "http://127.0.0.1:8011",
       // ethNetwork isn't necessary, but leaving for posterity
-      ethNetwork: "http://localhost:8545",
+      ethNetwork: "http://127.0.0.1:8545",
       zksync: true,
     }
   },
