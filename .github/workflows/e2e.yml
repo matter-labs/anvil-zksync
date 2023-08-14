@@ -22,7 +22,9 @@ jobs:
           ls -l
           echo "Extracting era_test_node binary"
           tar -xzf era_test_node-ubuntu-latest.tar.gz
+          ls -l
           chmod +x era_test_node
+          ls -l
           echo "Starting node in background"
           ./era_test_node run &
           echo "PID=$!" >> $GITHUB_ENV
