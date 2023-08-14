@@ -1,6 +1,6 @@
 # nmv 08-08-2023
 # Ignore test results from mocha
-test-results.xml
+test-results.json
 
 # Logs
 logs
