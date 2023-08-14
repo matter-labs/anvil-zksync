@@ -41,7 +41,7 @@ echo ""
 echo "==========="
 echo "NPM install"
 echo "==========="
-npm ci
+yarn install --frozen-lockfile
 
 # Compile contracts
 echo ""
