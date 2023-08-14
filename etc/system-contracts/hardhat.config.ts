@@ -14,7 +14,7 @@ export default {
         }
     },
     zkSyncDeploy: {
-        zkSyncNetwork: 'http://localhost:3050',
+        zkSyncNetwork: 'http://localhost:8011',
         ethNetwork: 'http://localhost:8545'
     },
     solidity: {
