@@ -36,7 +36,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest]
+        os: [ubuntu-latest] # TODO: Add back macos after I'm done debugging
     steps:
       - uses: actions/checkout@v3
       
