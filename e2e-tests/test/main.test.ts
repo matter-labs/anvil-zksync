@@ -24,7 +24,69 @@ describe('Greeter', function () {
     const deployer = new Deployer(hre, wallet);
     console.log("Deployer configured");
     console.log(provider.connection);
+
+
+    const http = require('http');
+
+    const data = JSON.stringify({
+      jsonrpc: "2.0",
+      id: "2",
+      method: "eth_call",
+      params: [{
+        to: "0x36615Cf349d7F6344891B1e7CA7C72883F5dc049",
+        data: "0x0000",
+        from: "0xa61464658AfeAf65CccaaFD3a512b69A83B77618",
+        gas: "0x0000",
+        gasPrice: "0x0000",
+        value: "0x0000",
+        nonce: "0x0000"
+      }, "latest"]
+    });
+
+    const options = {
+      hostname: 'localhost',
+      port: 8011,
+      path: '/',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': data.length
+      }
+    };
+
+    const req = http.request(options, (res) => {
+      let chunks = [];
+
+      res.on('data', (chunk) => {
+        // @ts-ignore
+        chunks.push(chunk);
+      });
+
+      res.on('end', () => {
+        const responseBody = Buffer.concat(chunks).toString('utf-8');
+        console.log(responseBody);
+      });
+    });
+
+    req.on('error', (error) => {
+      console.error('Error:', error.message);
+    });
+
+    req.write(data);
+    req.end();
+
+
+
+
+
+
+
+
+
+
+
     
+
     const greeter = await deployGreeter(deployer);
     console.log("Greeting deployed");
 
