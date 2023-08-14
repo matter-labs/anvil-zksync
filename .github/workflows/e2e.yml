@@ -13,10 +13,13 @@ jobs:
 
       - name: Download artifacts
         uses: actions/download-artifact@v3
+        with:
+          name: era_test_node-ubuntu-latest.tar.gz
       
       - name: Start the era_test_node
         id: start_node
         run: |
+          ls -l
           echo "Extracting era_test_node binary"
           tar -xzf era_test_node-ubuntu-latest.tar.gz
           echo "Starting node in background"

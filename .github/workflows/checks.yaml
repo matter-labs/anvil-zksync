@@ -67,4 +67,4 @@ jobs:
   e2e:
     needs: build
     uses: ./.github/workflows/e2e.yml
-    name: E2E
+    name: e2e-tests
