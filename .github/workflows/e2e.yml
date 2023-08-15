@@ -30,7 +30,7 @@ jobs:
         id: launch
         run: |
           echo "Run tests"
-          make test-e2e || true
+          make test-e2e
 
       - name: Stop the era_test_node and print output logs
         id: stop_node
@@ -38,15 +38,11 @@ jobs:
         run: |
           cat era_test_node_ouput.log
           kill $PID
-          ls -l
-          ls -l ./e2e-tests
-
 
       - name: Publish Test Results
         uses: dorny/test-reporter@v1
         if: always() # This ensures the step runs even if the prior step (tests) fail
         with:
-          artifact: e2e-test-results
           path: ./e2e-tests/test-results.json
           name: E2E Test Results
           reporter: 'mocha-json'
