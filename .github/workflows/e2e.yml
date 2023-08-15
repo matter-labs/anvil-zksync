@@ -34,14 +34,14 @@ jobs:
 
       - name: Stop the era_test_node and print output logs
         id: stop_node
-        if: always() # This ensures the step runs even if the prior step (tests) fail
+        if: always()
         run: |
           cat era_test_node_ouput.log
           kill $PID
 
       - name: Publish Test Results
         uses: dorny/test-reporter@v1
-        if: always() # This ensures the step runs even if the prior step (tests) fail
+        if: always()
         with:
           path: ./e2e-tests/test-results.json
           name: E2E Test Results

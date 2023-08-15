@@ -24,7 +24,6 @@ describe('Greeter', function () {
     // wait until the transaction is mined
     await setGreetingTx.wait();
 
-    // TODO: REVERT CHANGE WHILE TESTING FAILING TESTS
-    expect(await greeter.greet()).to.equal('Hola, mundo2!');
+    expect(await greeter.greet()).to.equal('Hola, mundo!');
   });
 });
