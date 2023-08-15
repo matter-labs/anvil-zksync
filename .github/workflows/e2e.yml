@@ -46,4 +46,3 @@ jobs:
           path: ./e2e-tests/test-results.json
           name: E2E Test Results
           reporter: 'mocha-json'
-          fail-on-error: 'false'

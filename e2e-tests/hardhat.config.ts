@@ -11,6 +11,7 @@ const config: HardhatUserConfig = {
   defaultNetwork: "zkSyncTestnet",
   networks: {
     zkSyncTestnet: {
+      // Using 127.0.0.1 instead of localhost is necessary for CI builds
       url: "http://127.0.0.1:8011",
       // ethNetwork isn't necessary, but leaving for posterity
       ethNetwork: "http://127.0.0.1:8545",
@@ -21,6 +22,7 @@ const config: HardhatUserConfig = {
     version: "0.8.17",
   },
   mocha: {
+    // Multiple reports allow view of the ouput in the console and as a JSON for the test result exporter in CI
     reporter: "mocha-multi",
     reporterOptions: {
       "spec": "-",
