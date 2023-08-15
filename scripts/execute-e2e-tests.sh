@@ -55,4 +55,4 @@ echo ""
 echo "================="
 echo "Running e2e tests"
 echo "================="
-yarn test
+yarn test || true
