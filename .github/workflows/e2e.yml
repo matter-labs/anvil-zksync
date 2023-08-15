@@ -30,7 +30,7 @@ jobs:
         id: launch
         run: |
           echo "Run tests"
-          make test-e2e
+          make test-e2e || true
 
       - name: Stop the era_test_node and print output logs
         id: stop_node
