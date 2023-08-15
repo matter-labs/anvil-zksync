@@ -590,7 +590,7 @@ impl InMemoryNode {
 
         let keys = {
             let mut storage_view = StorageView::new(&inner.fork_storage);
-            storage_view.set_value(key, u256_to_h256(U256::from(10u128.pow(22))));
+            storage_view.set_value(key, u256_to_h256(U256::from(10u128.pow(30))));
             storage_view.modified_storage_keys().clone()
         };
 
@@ -984,7 +984,11 @@ impl EthNamespaceT for InMemoryNode {
             match inner.write() {
                 Ok(mut guard) => {
                     let code_hash = guard.fork_storage.read_value(&code_key);
-                    Ok(Bytes::from(code_hash.as_bytes()))
+
+                    let code = guard.fork_storage.load_factory_dep_internal(code_hash)
+                        .unwrap_or_default();
+
+                    Ok(Bytes::from(code))
                 }
                 Err(_) => Err(into_jsrpc_error(Web3Error::InternalError)),
             }
