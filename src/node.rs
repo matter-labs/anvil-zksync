@@ -284,7 +284,7 @@ impl InMemoryNodeInner {
         );
 
         match estimate_gas_result {
-            Err(_) => {
+            Err(tx_revert_reason) => {
                 println!("{}", format!("Unable to estimate gas for the request with our suggested gas limit of {}. The transaction is most likely unexecutable. Breakdown of estimation:", suggested_gas_limit + overhead).to_string().red());
                 println!(
                     "{}",
@@ -302,9 +302,15 @@ impl InMemoryNodeInner {
                         .red()
                 );
                 println!("{}", format!("\tOverhead: {}", overhead).to_string().red());
+                let message = tx_revert_reason.to_string();
+                let data = match tx_revert_reason {
+                    TxRevertReason::EthCall(vm_revert_reason ) => vm_revert_reason.encoded_data(),
+                    TxRevertReason::TxReverted(vm_revert_reason) => vm_revert_reason.encoded_data(),
+                    _ => vec![],
+                };
                 Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
-                    "Transaction is unexecutable".into(),
-                    Default::default(),
+                    format!("execution reverted{}{}" , if message.is_empty() { "" } else { ": " }, message),
+                    data,
                 )))
             }
             Ok(_) => {
@@ -600,7 +606,7 @@ impl InMemoryNode {
     }
 
     /// Runs L2 'eth call' method - that doesn't commit to a block.
-    fn run_l2_call(&self, l2_tx: L2Tx) -> Result<Vec<u8>, String> {
+    fn run_l2_call(&self, l2_tx: L2Tx) -> Result<VmBlockResult, String> {
         let execution_mode = TxExecutionMode::EthCall {
             missed_storage_invocation_limit: 1000000,
         };
@@ -653,18 +659,7 @@ impl InMemoryNode {
             }
         }
 
-        match vm_block_result.full_result.revert_reason {
-            Some(result) => Ok(result.original_data),
-            None => Ok(vm_block_result
-                .full_result
-                .return_data
-                .into_iter()
-                .flat_map(|val| {
-                    let bytes: [u8; 32] = val.into();
-                    bytes.to_vec()
-                })
-                .collect::<Vec<_>>()),
-        }
+        Ok(vm_block_result)
     }
 
     fn run_l2_tx_inner(
@@ -848,7 +843,32 @@ impl EthNamespaceT for InMemoryNode {
                 let result = self.run_l2_call(tx);
 
                 match result {
-                    Ok(vec) => Ok(vec.into()).into_boxed_future(),
+                    Ok(vm_block_result) => {
+                        match vm_block_result.full_result.revert_reason {
+                            Some(revert) => {
+                                let message = revert.revert_reason.to_string();
+                                let data = match revert.revert_reason {
+                                    TxRevertReason::EthCall(vm_revert_reason ) => vm_revert_reason.encoded_data(),
+                                    TxRevertReason::TxReverted(vm_revert_reason) => vm_revert_reason.encoded_data(),
+                                    _ => vec![],
+                                };
+                                Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
+                                    format!("execution reverted{}{}" , if message.is_empty() { "" } else { ": " }, message),
+                                    data,
+                                ))).into_boxed_future()
+                            },
+                            None => Ok(vm_block_result
+                                .full_result
+                                .return_data
+                                .into_iter()
+                                .flat_map(|val| {
+                                    let bytes: [u8; 32] = val.into();
+                                    bytes.to_vec()
+                                })
+                                .collect::<Vec<_>>()
+                                .into()).into_boxed_future(),
+                        }
+                    },
                     Err(e) => {
                         let error =
                             Web3Error::InvalidTransactionData(ethabi::Error::InvalidName(e));
@@ -1087,7 +1107,7 @@ impl EthNamespaceT for InMemoryNode {
                 } else {
                     U64::from(0)
                 }),
-                effective_gas_price: Some(500.into()),
+                effective_gas_price: Some(250_000_000.into()),
                 ..Default::default()
             });
 
