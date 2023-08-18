@@ -50,3 +50,18 @@ jobs:
 
       - name: Build Code
         run: make all
+
+      - name: Create artifact
+        run: |
+          cd ./target/release
+          tar -czf era_test_node-${{ matrix.os }}.tar.gz ./era_test_node*
+
+      - name:  Upload artifact
+        uses:  actions/upload-artifact@v3
+        with:
+          name: era_test_node-${{ matrix.os }}.tar.gz
+          path: ./target/release/era_test_node-${{ matrix.os }}.tar.gz
+  e2e:
+    needs: build
+    uses: ./.github/workflows/e2e.yml
+    name: e2e-tests
