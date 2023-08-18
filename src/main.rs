@@ -103,27 +103,27 @@ pub const RICH_WALLETS: [(&str, &str); 10] = [
     ),
     (
         "0x8002cD98Cfb563492A6fB3E7C8243b7B9Ad4cc92",
-        "0xf12e28c0eb1ef4ff90478f6805b68d63737b7f33abfa091601140805da450d93"
+        "0xf12e28c0eb1ef4ff90478f6805b68d63737b7f33abfa091601140805da450d93",
     ),
     (
         "0x4F9133D1d3F50011A6859807C837bdCB31Aaab13",
-        "0xe667e57a9b8aaa6709e51ff7d093f1c5b73b63f9987e4ab4aa9a5c699e024ee8"
+        "0xe667e57a9b8aaa6709e51ff7d093f1c5b73b63f9987e4ab4aa9a5c699e024ee8",
     ),
     (
         "0xbd29A1B981925B94eEc5c4F1125AF02a2Ec4d1cA",
-        "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959"
+        "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959",
     ),
     (
         "0xedB6F5B4aab3dD95C7806Af42881FF12BE7e9daa",
-        "0x74d8b3a188f7260f67698eb44da07397a298df5427df681ef68c45b34b61f998"
+        "0x74d8b3a188f7260f67698eb44da07397a298df5427df681ef68c45b34b61f998",
     ),
     (
         "0xe706e60ab5Dc512C36A4646D719b889F398cbBcB",
-        "0xbe79721778b48bcc679b78edac0ce48306a8578186ffcb9f2ee455ae6efeace1"
+        "0xbe79721778b48bcc679b78edac0ce48306a8578186ffcb9f2ee455ae6efeace1",
     ),
     (
         "0xE90E12261CCb0F3F7976Ae611A29e84a6A85f424",
-        "0x3eb15da85647edd9a1159a4a13b9e7c56877c4eb33f614546d4db06a51868b1c"
+        "0x3eb15da85647edd9a1159a4a13b9e7c56877c4eb33f614546d4db06a51868b1c",
     ),
 ];
 

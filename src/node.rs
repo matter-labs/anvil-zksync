@@ -304,12 +304,16 @@ impl InMemoryNodeInner {
                 println!("{}", format!("\tOverhead: {}", overhead).to_string().red());
                 let message = tx_revert_reason.to_string();
                 let data = match tx_revert_reason {
-                    TxRevertReason::EthCall(vm_revert_reason ) => vm_revert_reason.encoded_data(),
+                    TxRevertReason::EthCall(vm_revert_reason) => vm_revert_reason.encoded_data(),
                     TxRevertReason::TxReverted(vm_revert_reason) => vm_revert_reason.encoded_data(),
                     _ => vec![],
                 };
                 Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
-                    format!("execution reverted{}{}" , if message.is_empty() { "" } else { ": " }, message),
+                    format!(
+                        "execution reverted{}{}",
+                        if message.is_empty() { "" } else { ": " },
+                        message
+                    ),
                     data,
                 )))
             }
@@ -843,31 +847,39 @@ impl EthNamespaceT for InMemoryNode {
                 let result = self.run_l2_call(tx);
 
                 match result {
-                    Ok(vm_block_result) => {
-                        match vm_block_result.full_result.revert_reason {
-                            Some(revert) => {
-                                let message = revert.revert_reason.to_string();
-                                let data = match revert.revert_reason {
-                                    TxRevertReason::EthCall(vm_revert_reason ) => vm_revert_reason.encoded_data(),
-                                    TxRevertReason::TxReverted(vm_revert_reason) => vm_revert_reason.encoded_data(),
-                                    _ => vec![],
-                                };
-                                Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
-                                    format!("execution reverted{}{}" , if message.is_empty() { "" } else { ": " }, message),
-                                    data,
-                                ))).into_boxed_future()
-                            },
-                            None => Ok(vm_block_result
-                                .full_result
-                                .return_data
-                                .into_iter()
-                                .flat_map(|val| {
-                                    let bytes: [u8; 32] = val.into();
-                                    bytes.to_vec()
-                                })
-                                .collect::<Vec<_>>()
-                                .into()).into_boxed_future(),
+                    Ok(vm_block_result) => match vm_block_result.full_result.revert_reason {
+                        Some(revert) => {
+                            let message = revert.revert_reason.to_string();
+                            let data = match revert.revert_reason {
+                                TxRevertReason::EthCall(vm_revert_reason) => {
+                                    vm_revert_reason.encoded_data()
+                                }
+                                TxRevertReason::TxReverted(vm_revert_reason) => {
+                                    vm_revert_reason.encoded_data()
+                                }
+                                _ => vec![],
+                            };
+                            Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
+                                format!(
+                                    "execution reverted{}{}",
+                                    if message.is_empty() { "" } else { ": " },
+                                    message
+                                ),
+                                data,
+                            )))
+                            .into_boxed_future()
                         }
+                        None => Ok(vm_block_result
+                            .full_result
+                            .return_data
+                            .into_iter()
+                            .flat_map(|val| {
+                                let bytes: [u8; 32] = val.into();
+                                bytes.to_vec()
+                            })
+                            .collect::<Vec<_>>()
+                            .into())
+                        .into_boxed_future(),
                     },
                     Err(e) => {
                         let error =
@@ -1005,7 +1017,9 @@ impl EthNamespaceT for InMemoryNode {
                 Ok(mut guard) => {
                     let code_hash = guard.fork_storage.read_value(&code_key);
 
-                    let code = guard.fork_storage.load_factory_dep_internal(code_hash)
+                    let code = guard
+                        .fork_storage
+                        .load_factory_dep_internal(code_hash)
                         .unwrap_or_default();
 
                     Ok(Bytes::from(code))
