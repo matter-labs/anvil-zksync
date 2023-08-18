@@ -312,7 +312,7 @@ async fn main() -> anyhow::Result<()> {
         let address = wallet.0;
         let private_key = wallet.1;
         node.set_rich_account(H160::from_str(address).unwrap());
-        println!("Account #{}: {} (1000000000000 ETH)", index, address);
+        println!("Account #{}: {} (1_000_000_000_000 ETH)", index, address);
         println!("Private Key: {}\n", private_key);
     }
 

@@ -1121,7 +1121,7 @@ impl EthNamespaceT for InMemoryNode {
                 } else {
                     U64::from(0)
                 }),
-                effective_gas_price: Some(250_000_000.into()),
+                effective_gas_price: Some(L2_GAS_PRICE.into()),
                 ..Default::default()
             });
 
