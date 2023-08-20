@@ -1,3 +1,12 @@
+<div align="center">
+<a href="https://era.zksync.io/docs/tools/testing/era-test-node.html">
+
+![era-test-node](./.github/assets/era_test_node_banner_light.png#gh-light-mode-only)
+![Webb Logo](./.github/assets/era_test_node_banner_dark.png#gh-dark-mode-only)
+</a>
+
+  </div>
+
 # 🚀 zkSync Era In-Memory Node 🚀
 
 This crate provides an in-memory node that supports forking the state from other networks.
@@ -17,15 +26,15 @@ Please note that `era-test-node` is still in its **alpha** stage. Some features 
 
 ## 📊 Limitations & Features
 
-| 🚫 Limitations | ✅ Features |
-|----------------|-------------|
-| No communication between Layer 1 and Layer 2. | Can fork the state of mainnet, testnet, or custom network. |
-| Many APIs are not yet implemented. | Can replay existing mainnet or testnet transactions. |
-| No support for accessing historical data. | Uses local bootloader and system contracts. |
-| Only one transaction allowed per Layer 1 batch. | Operates deterministically in non-fork mode. |
-| Fixed values returned for zk Gas estimation. | Starts up quickly with pre-configured 'rich' accounts. |
-| Redeploy requires MetaMask cache reset. | Supports hardhat's console.log debugging. |
-| | Resolves names of ABI functions and Events using openchain. |
+| 🚫 Limitations                                  | ✅ Features                                                 |
+| ----------------------------------------------- | ----------------------------------------------------------- |
+| No communication between Layer 1 and Layer 2.   | Can fork the state of mainnet, testnet, or custom network.  |
+| Many APIs are not yet implemented.              | Can replay existing mainnet or testnet transactions.        |
+| No support for accessing historical data.       | Uses local bootloader and system contracts.                 |
+| Only one transaction allowed per Layer 1 batch. | Operates deterministically in non-fork mode.                |
+| Fixed values returned for zk Gas estimation.    | Starts up quickly with pre-configured 'rich' accounts.      |
+| Redeploy requires MetaMask cache reset.         | Supports hardhat's console.log debugging.                   |
+|                                                 | Resolves names of ABI functions and Events using openchain. |
 
 ## 🛠 Prerequisites
 
@@ -57,6 +66,7 @@ Please note that `era-test-node` is still in its **alpha** stage. Some features 
 ## 🍴 Forking Networks
 
 To fork the mainnet:
+
 ```bash
 era_test_node fork mainnet
 ```
@@ -66,6 +76,7 @@ era_test_node fork mainnet
 ## 🔄 Replay Remote Transactions Locally
 
 If you wish to replay a remote transaction locally for deep debugging, use the following command:
+
 ```bash
 era_test_node replay_tx testnet 0x7f039bcbb1490b855be37e74cf2400503ad57f51c84856362f99b0cbf1ef478a
 ```
@@ -107,12 +118,18 @@ For testing and development purposes, the `era-test-node` comes pre-configured w
 
 Here's a list of the available rich wallets:
 
-| Account Address | Private Key |
-|-----------------|-------------|
+| Account Address                              | Private Key                                                          |
+| -------------------------------------------- | -------------------------------------------------------------------- |
 | `0x36615Cf349d7F6344891B1e7CA7C72883F5dc049` | `0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110` |
 | `0xa61464658AfeAf65CccaaFD3a512b69A83B77618` | `0xac1e735be8536c6534bb4f17f06f6afc73b2b5ba84ac2cfb12f7461b20c0bbe3` |
 | `0x0D43eB5B8a47bA8900d84AA36656c92024e9772e` | `0xd293c684d884d56f8d6abd64fc76757d3664904e309a0645baf8522ab6366d9e` |
 | `0xA13c10C0D5bd6f79041B9835c63f91de35A15883` | `0x850683b40d4a740aa6e745f889a6fdc8327be76e122f5aba645a5b02d0248db8` |
+| `0x8002cD98Cfb563492A6fB3E7C8243b7B9Ad4cc92` | `0xf12e28c0eb1ef4ff90478f6805b68d63737b7f33abfa091601140805da450d93` |
+| `0x4F9133D1d3F50011A6859807C837bdCB31Aaab13` | `0xe667e57a9b8aaa6709e51ff7d093f1c5b73b63f9987e4ab4aa9a5c699e024ee8` |
+| `0xbd29A1B981925B94eEc5c4F1125AF02a2Ec4d1cA` | `0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959` |
+| `0xedB6F5B4aab3dD95C7806Af42881FF12BE7e9daa` | `0x74d8b3a188f7260f67698eb44da07397a298df5427df681ef68c45b34b61f998` |
+| `0xe706e60ab5Dc512C36A4646D719b889F398cbBcB` | `0xbe79721778b48bcc679b78edac0ce48306a8578186ffcb9f2ee455ae6efeace1` |
+| `0xE90E12261CCb0F3F7976Ae611A29e84a6A85f424` | `0x3eb15da85647edd9a1159a4a13b9e7c56877c4eb33f614546d4db06a51868b1c` |
 
 Feel free to use these wallets in your tests, but remember, they are for development purposes only and should not be used in production or with real assets.
 

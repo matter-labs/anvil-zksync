@@ -1,0 +1,157 @@
+# This workflow is borrowed from reth, which is borrowed from Lighthouse: 
+# reth: https://github.com/paradigmxyz/reth/blob/500b0fac135fe07635d871d64467326599e2b27e/.github/workflows/release.yml
+# lighthouse: https://github.com/sigp/lighthouse/blob/693886b94176faa4cb450f024696cb69cda2fe58/.github/workflows/release.yml
+
+name: release
+
+on:
+ push:
+    tags:
+      - v*
+
+env:
+  REPO_NAME: ${{ github.repository_owner }}/era-test-node
+  CARGO_TERM_COLOR: always
+
+jobs:
+  extract-version:
+    name: extract version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract version
+        run: echo "VERSION=$(echo ${GITHUB_REF#refs/tags/})" >> $GITHUB_OUTPUT
+        id: extract_version
+    outputs:
+      VERSION: ${{ steps.extract_version.outputs.VERSION }}
+
+  build:
+    name: build release
+    strategy:
+      matrix:
+        # TODO: fix and add aarch64-unknown-linux-gnu target
+        # See: https://github.com/matter-labs/era-test-node/issues/56
+        arch: [x86_64-unknown-linux-gnu, x86_64-apple-darwin, aarch64-apple-darwin]
+        include:
+          -   arch: x86_64-unknown-linux-gnu
+              platform: ubuntu-20.04
+          -   arch: x86_64-apple-darwin
+              platform: macos-latest
+          -   arch: aarch64-apple-darwin
+              platform: macos-latest
+
+    runs-on: ${{ matrix.platform }}
+    needs: [extract-version]
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+      - name: Get latest version of stable Rust
+        run: rustup update stable
+      - name: Install target
+        run: rustup target add ${{ matrix.arch }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      # ==============================
+      #       Builds
+      # ==============================
+      - name: Build era-test-node for ${{ matrix.arch }}
+        run: |
+          cargo install cross
+          make build-${{ matrix.arch }}
+    
+      - name: Rename and move binary
+        run: |      
+          mkdir artifacts
+          mv target/${{ matrix.arch }}/release/era_test_node ./artifacts
+      
+      - name: Create artifacts
+        run: |
+          cd artifacts
+          tar -czf era_test_node-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.arch }}.tar.gz era_test_node*
+          mv *tar.gz* ..
+    
+        # =======================================================================
+        # Upload artifacts
+        # This is required to share artifacts between different jobs
+        # =======================================================================
+      - name:  Upload artifact
+        uses:  actions/upload-artifact@v3
+        with:
+          name: era_test_node-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.arch }}.tar.gz
+          path: era_test_node-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.arch }}.tar.gz
+
+      - name: Upload signature
+        uses: actions/upload-artifact@v3
+        with:
+          name: era_test_node-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.arch }}.tar.gz.asc
+          path: era_test_node-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.arch }}.tar.gz.asc
+
+  draft-release:
+    name: draft release
+    needs:  [build, extract-version]
+    runs-on: ubuntu-latest
+    env:
+      VERSION:  ${{ needs.extract-version.outputs.VERSION }}
+    permissions:
+      # Required to post the release
+      contents: write
+    steps:
+      # This is necessary for generating the changelog. It has to come before "Download Artifacts" or else it deletes the artifacts.
+      - name: Checkout sources
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      # ==============================
+      #       Download artifacts
+      # ==============================
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+
+      # ==============================
+      #       Create release draft
+      # ==============================
+      - name: Generate full changelog
+        id: changelog
+        run: |
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo "$(git log --pretty=format:"- %s" $(git describe --tags --abbrev=0 ${{ env.VERSION }}^)..${{ env.VERSION }})" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create release draft
+        env:
+          GITHUB_USER: ${{ github.repository_owner }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+        # The formatting here is borrowed from reth which borrowed it from Lighthouse (which is borrowed from OpenEthereum): https://github.com/openethereum/openethereum/blob/main/.github/workflows/build.yml
+        run: |
+          body=$(cat <<- "ENDBODY"
+          # Release: <Release Name>
+          
+          ## 📋 Summary
+          
+          🐛 **Bug Fixes:** 
+          ✨ **New Features:** 
+          ⚠️ **Breaking Changes:**
+          
+          ## 📜 All Changes
+          
+          ${{ steps.changelog.outputs.CHANGELOG }}
+          
+          ## 📥 Binaries
+          
+          | System | Architecture | Binary |
+          |:---:|:---:|:---:|
+          | <img src="https://simpleicons.org/icons/linux.svg" style="width: 32px;"/> | x86_64 | [era-test-node-${{ env.VERSION }}-x86_64-unknown-linux-gnu.tar.gz](https://github.com/${{ env.REPO_NAME }}/releases/download/${{ env.VERSION }}/era_test_node-${{ env.VERSION }}-x86_64-unknown-linux-gnu.tar.gz) | 
+          | <img src="https://simpleicons.org/icons/apple.svg" style="width: 32px;"/> | x86_64 | [era-test-node-${{ env.VERSION }}-x86_64-apple-darwin.tar.gz](https://github.com/${{ env.REPO_NAME }}/releases/download/${{ env.VERSION }}/era_test_node-${{ env.VERSION }}-x86_64-apple-darwin.tar.gz) | 
+          | <img src="https://simpleicons.org/icons/apple.svg" style="width: 32px;"/> | aarch64 | [era-test-node-${{ env.VERSION }}-aarch64-apple-darwin.tar.gz](https://github.com/${{ env.REPO_NAME }}/releases/download/${{ env.VERSION }}/era_test_node-${{ env.VERSION }}-aarch64-apple-darwin.tar.gz) |
+          | | | | 
+          ENDBODY
+          )
+          assets=()
+          for asset in ./era_test_node-*.tar.gz*; do
+              assets+=("-a" "$asset/$asset")
+          done
+          tag_name="${{ env.VERSION }}"
+          echo "$body" | hub release create --draft "${assets[@]}" -F "-" "$tag_name"

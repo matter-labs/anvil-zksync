@@ -1,0 +1,49 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug era_test_node",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=era_test_node",
+                    "--package=era_test_node"
+                ],
+                "filter": {
+                    "name": "era_test_node",
+                    "kind": "bin"
+                }
+            },
+            "args": ["run"],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug era_test_node w/ system-contracts",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=era_test_node",
+                    "--package=era_test_node"
+                ],
+                "filter": {
+                    "name": "era_test_node",
+                    "kind": "bin"
+                }
+            },
+            "env": {
+                "RUST_LOG": "vm=trace",
+                "ZKSYNC_HOME": "${workspaceFolder}"
+            },
+            "args": ["--dev-use-local-contracts", "run"],
+            "preLaunchTask": "rebuild-contracts",
+            "cwd": "${workspaceFolder}"
+        },
+    ]
+}

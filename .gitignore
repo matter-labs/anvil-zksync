@@ -10,3 +10,5 @@ etc/system-contracts/bootloader/build
 etc/**/*.zbin
 .vscode/*
 !.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json

@@ -1,0 +1,11 @@
+{
+    "version": "2.0.0",
+    "tasks": [{
+        "label": "rebuild-contracts",
+        "command": "make rebuild-contracts",
+        "type": "shell",
+        "presentation": {
+            "close": true
+        }
+    }]
+}

@@ -9,6 +9,18 @@ content-type: application/json
 }
 
 ###
+
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_gasPrice",
+    "params": []
+}
+
+###
 POST http://localhost:8011
 content-type: application/json
 
@@ -16,6 +28,28 @@ content-type: application/json
     "jsonrpc": "2.0",
     "id": "1",
     "method": "net_version",
+    "params": []
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "net_listening",
+    "params": []
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "net_peerCount",
     "params": []
 }
 
@@ -53,4 +87,154 @@ content-type: application/json
 }
 
 ###
+POST http://localhost:8011
+content-type: application/json
 
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_chainId",
+    "params": []
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_estimateGas",
+    "params": [{
+        "0x0000000000000000000000000000000000000000": true
+    }]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_gasPrice",
+    "params": []
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_getBalance",
+    "params": ["0x0000000000000000000000000000000000000000", "latest"]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_getBlockByHash",
+    "params": ["0x0000000000000000000000000000000000000000000000000000000000000000", true]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_getBlockByNumber",
+    "params": ["latest", true]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_getCode",
+    "params": ["0x0000000000000000000000000000000000000000", "latest"]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_getTransactionByHash",
+    "params": ["0x0000000000000000000000000000000000000000000000000000000000000000"]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_getTransactionCount",
+    "params": ["0x0000000000000000000000000000000000000000", "latest"]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_sendRawTransaction",
+    "params": ["0x0000"]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_blockNumber",
+    "params": []
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "2",
+    "method": "eth_call",
+    "params": [{
+        "to": "0x36615Cf349d7F6344891B1e7CA7C72883F5dc049",
+        "data": "0x0000",
+        "from": "0xa61464658AfeAf65CccaaFD3a512b69A83B77618",
+        "gas": "0x0000",
+        "gasPrice": "0x0000",
+        "value": "0x0000",
+        "nonce": "0x0000"
+    }, "latest"]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "zks_getTokenPrice",
+    "params": ["0x0000000000000000000000000000000000000000"]
+}
