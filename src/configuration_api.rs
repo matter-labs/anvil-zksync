@@ -8,7 +8,7 @@ use jsonrpc_derive::rpc;
 // Workspace uses
 
 // Local uses
-use crate::{node::InMemoryNodeInner, ShowCalls};
+use crate::{node::InMemoryNodeInner, formatter::ShowCalls};
 
 pub struct ConfigurationApiNamespace {
     node: Arc<RwLock<InMemoryNodeInner>>,

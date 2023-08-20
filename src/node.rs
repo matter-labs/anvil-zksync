@@ -5,7 +5,7 @@ use crate::{
     fork::{ForkDetails, ForkStorage},
     formatter,
     utils::{adjust_l1_gas_price_for_tx, derive_gas_estimation_overhead, IntoBoxedFuture},
-    ShowCalls,
+    formatter::ShowCalls,
 };
 use colored::Colorize;
 use futures::FutureExt;
