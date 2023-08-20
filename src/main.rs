@@ -56,6 +56,7 @@ mod node;
 mod resolver;
 mod utils;
 mod zks;
+mod http_fork_source;
 
 use core::fmt::Display;
 use node::InMemoryNode;

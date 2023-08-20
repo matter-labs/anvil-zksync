@@ -11,10 +11,10 @@ use std::{
 };
 
 use tokio::runtime::Builder;
-use zksync_basic_types::{L1BatchNumber, L2ChainId, MiniblockNumber, H256, U64};
+use zksync_basic_types::{L1BatchNumber, L2ChainId, MiniblockNumber, H256, U64, Address, U256};
 
 use zksync_types::{
-    api::{BlockIdVariant, BlockNumber},
+    api::{BlockIdVariant, BlockNumber, Transaction},
     l2::L2Tx,
     StorageKey,
 };
@@ -185,6 +185,28 @@ impl ForkStorage {
         let mut mutator = self.inner.write().unwrap();
         mutator.raw_storage.store_factory_dep(hash, bytecode)
     }
+}
+
+/// Trait that provides necessary data when
+/// forking a remote chain.
+/// The method signatures are similar to methods from ETHNamespace and ZKNamespace.
+
+pub trait ForkSource {
+    /// Returns the Storage value at a given index for given address.
+    fn get_storage_at(
+        &self,
+        address: Address,
+        idx: U256,
+        block: Option<BlockIdVariant>,
+    ) -> H256;
+
+    fn get_bytecode_by_hash(&self, hash: H256) -> Option<Vec<u8>>;
+    fn get_transaction_by_hash(&self, hash: H256) -> Option<Transaction>;
+    // Gets all transactions that belong to a given miniblock.
+    fn get_raw_block_transactions(
+        &self,
+        block_number: MiniblockNumber,
+    ) -> Vec<zksync_types::Transaction>;
 }
 
 /// Holds the information about the original chain.
