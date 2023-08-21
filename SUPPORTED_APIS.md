@@ -15,8 +15,10 @@ The `status` options are:
 | Namespace | API | <div style="width:130px">Status</div> | Description |
 | --- | --- | --- | --- |
 | [`CONFIG`](#config-namespace) | [`config_getShowCalls`](#config_getshowcalls) | `SUPPORTED` | Gets the current value of `show_calls` that's originally set with `--show-calls` option |
-| [`CONFIG`](#config-namespace) | [`config_setShowCalls`](#config_setshowcalls) | `SUPPORTED` | Updates `show_calls` to print more detailed call traces |
 | [`CONFIG`](#config-namespace) | [`config_setResolveHashes`](#config_setresolvehashes) | `SUPPORTED` | Updates `resolve-hashes` to call OpenChain for human-readable ABI names in call traces |
+| [`CONFIG`](#config-namespace) | [`config_setShowCalls`](#config_setshowcalls) | `SUPPORTED` | Updates `show_calls` to print more detailed call traces |
+| [`CONFIG`](#config-namespace) | [`config_setShowStorageLogs`](#config_setshowstoragelogs) | `SUPPORTED` | Updates `show_storage_logs` to print storage log reads/writes |
+| [`CONFIG`](#config-namespace) | [`config_setShowVmDetails`](#config_setshowvmdetails) | `SUPPORTED` | Updates `show_vm_details` to print more detailed results from vm execution |
 | `DEBUG` | `debug_traceCall` | `NOT IMPLEMENTED`<br />[GitHub Issue #61](https://github.com/matter-labs/era-test-node/issues/61) | Performs a call and returns structured traces of the execution |
 | `DEBUG` | `debug_traceBlockByHash` | `NOT IMPLEMENTED`<br />[GitHub Issue #63](https://github.com/matter-labs/era-test-node/issues/63) | Returns structured traces for operations within the block of the specified block hash |
 | `DEBUG` | `debug_traceBlockByNumber` | `NOT IMPLEMENTED`<br />[GitHub Issue #64](https://github.com/matter-labs/era-test-node/issues/64) | Returns structured traces for operations within the block of the specified block number |
@@ -170,6 +172,52 @@ curl --request POST \
   --url http://localhost:8011/ \
   --header 'content-type: application/json' \
   --data '{"jsonrpc": "2.0","id": "1","method": "config_setShowCalls","params": ["all"]}'
+```
+
+### `config_setShowStorageLogs`
+
+[source](src/configuration_api.rs)
+
+Updates `show_storage_logs` to print storage log reads/writes
+
+#### Arguments
+
++ `value: String ('None', 'Read', 'Write', 'All')`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "config_setShowStorageLogs","params": ["all"]}'
+```
+
+### `config_setShowVmDetails`
+
+[source](src/configuration_api.rs)
+
+Updates `show_vm_details` to print more detailed results from vm execution
+
+#### Arguments
+
++ `value: String ('None', 'All')`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "config_setShowVmDetails","params": ["all"]}'
 ```
 
 ### `config_setResolveHashes`
