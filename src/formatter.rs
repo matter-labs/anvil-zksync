@@ -161,10 +161,7 @@ pub fn print_call(call: &Call, padding: usize, show_calls: &ShowCalls, resolve_h
 }
 
 pub fn print_logs(log_query: &StorageLogQuery) {
-    println!("\nSTORAGE LOGS");
-    println!("------------");
-    let separator = "-".repeat(82);
-    println!("{}", separator);
+    let separator = "─".repeat(82);
     println!("{:<15} {:?}", "Type:", log_query.log_type);
     println!(
         "{:<15} {}",
@@ -189,9 +186,9 @@ pub fn print_logs(log_query: &StorageLogQuery) {
 }
 
 pub fn print_vm_details(result: &VmPartialExecutionResult) {
-    println!("\n+--------------------------+");
-    println!("|   VM EXECUTION RESULTS   |");
-    println!("+--------------------------+\n");
+    println!("\n┌──────────────────────────┐");
+    println!("│   VM EXECUTION RESULTS   │");
+    println!("└──────────────────────────┘");
 
     println!("Cycles Used:          {}", result.cycles_used);
     println!("Computation Gas Used: {}", result.computational_gas_used);
@@ -204,5 +201,5 @@ pub fn print_vm_details(result: &VmPartialExecutionResult) {
         );
     }
 
-    println!("\n+--------------------------+\n");
+    println!("════════════════════════════");
 }

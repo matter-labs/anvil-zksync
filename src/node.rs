@@ -542,6 +542,19 @@ fn contract_address_from_tx_result(execution_result: &VmTxExecutionResult) -> Op
     None
 }
 
+impl Default for InMemoryNode {
+    fn default() -> Self {
+        InMemoryNode::new(
+            None,
+            crate::ShowCalls::None,
+            crate::ShowStorageLogs::None,
+            crate::ShowVMDetails::None,
+            false,
+            false,
+        )
+    }
+}
+
 impl InMemoryNode {
     pub fn new(
         fork: Option<ForkDetails>,
@@ -719,9 +732,9 @@ impl InMemoryNode {
             .execute_next_tx(u32::MAX, true)
             .map_err(|e| format!("Failed to execute next transaction: {}", e))?;
 
-        println!("\n=======================");
-        println!("TRANSACTION SUMMARY");
-        println!("=======================\n");
+        println!("┌─────────────────────────┐");
+        println!("│   TRANSACTION SUMMARY   │");
+        println!("└─────────────────────────┘");
 
         match tx_result.status {
             TxExecutionStatus::Success => println!("Transaction: {}", "SUCCESS".green()),
@@ -739,6 +752,12 @@ impl InMemoryNode {
             tx.gas_limit() - tx_result.gas_refunded,
             tx_result.gas_refunded
         );
+
+        if inner.show_storage_logs != ShowStorageLogs::None {
+            println!("\n┌──────────────────┐");
+            println!("│   STORAGE LOGS   │");
+            println!("└──────────────────┘");
+        }
 
         for log_query in &tx_result.result.logs.storage_logs {
             match inner.show_storage_logs {
@@ -766,14 +785,13 @@ impl InMemoryNode {
             formatter::print_vm_details(&tx_result.result);
         }
 
-        println!("\nCONSOLE LOGS");
-        println!("------------");
+        println!("\n==== Console logs: ");
         for call in &tx_result.call_traces {
             inner.console_log_handler.handle_call_recurive(call);
         }
 
         println!(
-            "\n==== {} Use --show-calls flag or call config_setResolveHashes to display more info.",
+            "\n==== {} Use --show-calls flag or call config_setShowCalls to display more info.",
             format!("{:?} call traces. ", tx_result.call_traces.len()).bold()
         );
 

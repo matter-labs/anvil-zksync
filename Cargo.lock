@@ -1712,7 +1712,7 @@ checksum = "88bffebc5d80432c9b140ee17875ff173a8ab62faad5b257da912bd2f6c1c0a1"
 
 [[package]]
 name = "era_test_node"
-version = "0.0.1-alpha"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "bigdecimal",

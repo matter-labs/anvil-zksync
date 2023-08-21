@@ -230,6 +230,20 @@ pub enum ShowStorageLogs {
     All,
 }
 
+impl FromStr for ShowStorageLogs {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_ref() {
+            "none" => Ok(ShowStorageLogs::None),
+            "read" => Ok(ShowStorageLogs::Read),
+            "write" => Ok(ShowStorageLogs::Write),
+            "all" => Ok(ShowStorageLogs::All),
+            _ => Err(()),
+        }
+    }
+}
+
 impl Display for ShowStorageLogs {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(f, "{:?}", self)
@@ -240,6 +254,18 @@ impl Display for ShowStorageLogs {
 pub enum ShowVMDetails {
     None,
     All,
+}
+
+impl FromStr for ShowVMDetails {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_ref() {
+            "none" => Ok(ShowVMDetails::None),
+            "all" => Ok(ShowVMDetails::All),
+            _ => Err(()),
+        }
+    }
 }
 
 impl Display for ShowVMDetails {
