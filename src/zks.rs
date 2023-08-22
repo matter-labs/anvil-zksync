@@ -9,17 +9,17 @@ use zksync_core::api_server::web3::backend_jsonrpc::{
 use zksync_types::{api::BridgeAddresses, fee::Fee};
 use zksync_web3_decl::error::Web3Error;
 
-use crate::{node::InMemoryNodeInner, utils::IntoBoxedFuture};
+use crate::{fork::ForkSource, node::InMemoryNodeInner, utils::IntoBoxedFuture};
 use colored::Colorize;
 
 /// Mock implementation of ZksNamespace - used only in the test node.
-pub struct ZkMockNamespaceImpl {
-    node: Arc<RwLock<InMemoryNodeInner>>,
+pub struct ZkMockNamespaceImpl<S> {
+    node: Arc<RwLock<InMemoryNodeInner<S>>>,
 }
 
-impl ZkMockNamespaceImpl {
+impl<S> ZkMockNamespaceImpl<S> {
     /// Creates a new `Zks` instance with the given `node`.
-    pub fn new(node: Arc<RwLock<InMemoryNodeInner>>) -> Self {
+    pub fn new(node: Arc<RwLock<InMemoryNodeInner<S>>>) -> Self {
         Self { node }
     }
 }
@@ -29,7 +29,9 @@ macro_rules! not_implemented {
         Box::pin(async move { Err(jsonrpc_core::Error::method_not_found()) })
     };
 }
-impl ZksNamespaceT for ZkMockNamespaceImpl {
+impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
+    for ZkMockNamespaceImpl<S>
+{
     /// Estimates the gas fee data required for a given call request.
     ///
     /// # Arguments
@@ -236,7 +238,7 @@ mod tests {
     use std::str::FromStr;
 
     use crate::formatter::ShowCalls;
-    use crate::node::InMemoryNode;
+    use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
 
     use super::*;
     use zksync_basic_types::Address;

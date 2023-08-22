@@ -2,7 +2,7 @@
 use crate::{
     console_log::ConsoleLogHandler,
     deps::system_contracts::bytecode_from_slice,
-    fork::{ForkDetails, ForkStorage},
+    fork::{ForkDetails, ForkSource, ForkStorage},
     formatter,
     formatter::ShowCalls,
     utils::{adjust_l1_gas_price_for_tx, derive_gas_estimation_overhead, IntoBoxedFuture},
@@ -155,7 +155,8 @@ impl Display for ShowVMDetails {
 }
 
 /// Helper struct for InMemoryNode.
-pub struct InMemoryNodeInner {
+/// S - is the Source of the Fork.
+pub struct InMemoryNodeInner<S> {
     /// Timestamp, batch number and miniblock number that will be used by the next block.
     pub current_timestamp: u64,
     pub current_batch: u32,
@@ -166,7 +167,7 @@ pub struct InMemoryNodeInner {
     // Map from batch number to information about the block.
     pub blocks: HashMap<u32, BlockInfo>,
     // Underlying storage
-    pub fork_storage: ForkStorage,
+    pub fork_storage: ForkStorage<S>,
     // Debug level information.
     pub show_calls: ShowCalls,
     // Displays storage logs.
@@ -189,7 +190,7 @@ type L2TxResult = (
     HashMap<U256, Vec<U256>>,
 );
 
-impl InMemoryNodeInner {
+impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
     fn create_block_context(&self) -> BlockContext {
         BlockContext {
             block_number: self.current_batch,
@@ -427,7 +428,7 @@ impl InMemoryNodeInner {
         l1_gas_price: u64,
         base_fee: u64,
         mut block_context: BlockContext,
-        fork_storage: &ForkStorage,
+        fork_storage: &ForkStorage<S>,
         bootloader_code: &BaseSystemContracts,
     ) -> Result<VmBlockResult, TxRevertReason> {
         let tx: Transaction = l2_tx.clone().into();
@@ -469,7 +470,7 @@ impl InMemoryNodeInner {
             base_fee,
         };
 
-        let block_properties = InMemoryNodeInner::create_block_properties(bootloader_code);
+        let block_properties = InMemoryNodeInner::<S>::create_block_properties(bootloader_code);
 
         let execution_mode = TxExecutionMode::EstimateFee {
             missed_storage_invocation_limit: 1000000,
@@ -513,8 +514,8 @@ fn not_implemented<T: Send + 'static>(
 /// In-memory node, that can be used for local & unit testing.
 /// It also supports the option of forking testnet/mainnet.
 /// All contents are removed when object is destroyed.
-pub struct InMemoryNode {
-    inner: Arc<RwLock<InMemoryNodeInner>>,
+pub struct InMemoryNode<S> {
+    inner: Arc<RwLock<InMemoryNodeInner<S>>>,
 }
 
 fn bsc_load_with_bootloader(
@@ -598,7 +599,7 @@ fn contract_address_from_tx_result(execution_result: &VmTxExecutionResult) -> Op
     None
 }
 
-impl Default for InMemoryNode {
+impl<S: ForkSource + std::fmt::Debug> Default for InMemoryNode<S> {
     fn default() -> Self {
         InMemoryNode::new(
             None,
@@ -611,9 +612,9 @@ impl Default for InMemoryNode {
     }
 }
 
-impl InMemoryNode {
+impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
     pub fn new(
-        fork: Option<ForkDetails>,
+        fork: Option<ForkDetails<S>>,
         show_calls: ShowCalls,
         show_storage_logs: ShowStorageLogs,
         show_vm_details: ShowVMDetails,
@@ -648,7 +649,7 @@ impl InMemoryNode {
         }
     }
 
-    pub fn get_inner(&self) -> Arc<RwLock<InMemoryNodeInner>> {
+    pub fn get_inner(&self) -> Arc<RwLock<InMemoryNodeInner<S>>> {
         self.inner.clone()
     }
 
@@ -704,7 +705,7 @@ impl InMemoryNode {
         let bootloader_code = &inner.playground_contracts;
 
         let block_context = inner.create_block_context();
-        let block_properties = InMemoryNodeInner::create_block_properties(bootloader_code);
+        let block_properties = InMemoryNodeInner::<S>::create_block_properties(bootloader_code);
 
         // init vm
         let mut vm = init_vm_inner(
@@ -764,7 +765,7 @@ impl InMemoryNode {
         };
 
         let block_context = inner.create_block_context();
-        let block_properties = InMemoryNodeInner::create_block_properties(bootloader_code);
+        let block_properties = InMemoryNodeInner::<S>::create_block_properties(bootloader_code);
 
         let block = BlockInfo {
             batch_number: block_context.block_number,
@@ -929,7 +930,7 @@ impl InMemoryNode {
     }
 }
 
-impl EthNamespaceT for InMemoryNode {
+impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for InMemoryNode<S> {
     /// Returns the chain ID of the node.
     fn chain_id(&self) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::U64>> {
         match self.inner.read() {

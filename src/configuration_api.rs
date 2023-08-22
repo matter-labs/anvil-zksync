@@ -12,12 +12,12 @@ use crate::{
     formatter::ShowCalls, node::InMemoryNodeInner, node::ShowStorageLogs, node::ShowVMDetails,
 };
 
-pub struct ConfigurationApiNamespace {
-    node: Arc<RwLock<InMemoryNodeInner>>,
+pub struct ConfigurationApiNamespace<S> {
+    node: Arc<RwLock<InMemoryNodeInner<S>>>,
 }
 
-impl ConfigurationApiNamespace {
-    pub fn new(node: Arc<RwLock<InMemoryNodeInner>>) -> Self {
+impl<S> ConfigurationApiNamespace<S> {
+    pub fn new(node: Arc<RwLock<InMemoryNodeInner<S>>>) -> Self {
         Self { node }
     }
 }
@@ -72,7 +72,9 @@ pub trait ConfigurationApiNamespaceT {
     fn config_set_resolve_hashes(&self, value: bool) -> Result<bool>;
 }
 
-impl ConfigurationApiNamespaceT for ConfigurationApiNamespace {
+impl<S: std::marker::Send + std::marker::Sync + 'static> ConfigurationApiNamespaceT
+    for ConfigurationApiNamespace<S>
+{
     fn config_get_show_calls(&self) -> Result<String> {
         let reader = self.node.read().unwrap();
         Ok(reader.show_calls.to_string())
