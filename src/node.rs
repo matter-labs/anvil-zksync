@@ -543,20 +543,7 @@ fn contract_address_from_tx_result(execution_result: &VmTxExecutionResult) -> Op
     None
 }
 
-impl Default for InMemoryNode {
-    fn default() -> Self {
-        InMemoryNode::new(
-            None,
-            crate::ShowCalls::None,
-            crate::ShowStorageLogs::None,
-            crate::ShowVMDetails::None,
-            false,
-            false,
-        )
-    }
-}
-
-impl Default for InMemoryNode {
+impl<S: ForkSource + std::fmt::Debug> Default for InMemoryNode<S> {
     fn default() -> Self {
         InMemoryNode::new(
             None,
