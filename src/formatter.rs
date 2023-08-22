@@ -2,9 +2,9 @@
 use crate::resolver;
 
 use colored::Colorize;
-use serde::Deserialize;
-use std::{collections::HashMap,  str::FromStr};
 use core::fmt::Display;
+use serde::Deserialize;
+use std::{collections::HashMap, str::FromStr};
 
 use crate::fork::block_on;
 use zksync_basic_types::H160;
@@ -13,7 +13,6 @@ use vm::vm::VmPartialExecutionResult;
 use zksync_types::{vm_trace::Call, StorageLogQuery, StorageLogQueryType, VmEvent};
 
 use lazy_static::lazy_static;
-
 
 #[derive(Debug, clap::Parser, Clone, clap::ValueEnum, PartialEq, Eq)]
 pub enum ShowCalls {
@@ -42,7 +41,6 @@ impl Display for ShowCalls {
         write!(f, "{:?}", self)
     }
 }
-
 
 #[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
 pub enum ContractType {
