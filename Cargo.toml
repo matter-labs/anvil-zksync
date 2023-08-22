@@ -11,15 +11,15 @@ categories = ["cryptography"]
 publish = false # We don't want to publish our binaries.
 
 [dependencies]
-zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era.git", rev = "e575ec101fe88627ab541a52464ab5025c16e6b4" }
-zksync_core = { git = "https://github.com/matter-labs/zksync-era.git", rev = "e575ec101fe88627ab541a52464ab5025c16e6b4" }
-vm = { git = "https://github.com/matter-labs/zksync-era.git", rev = "e575ec101fe88627ab541a52464ab5025c16e6b4" }
-vlog = { git = "https://github.com/matter-labs/zksync-era.git", rev = "e575ec101fe88627ab541a52464ab5025c16e6b4" }
-zksync_contracts = { git = "https://github.com/matter-labs/zksync-era.git", rev = "e575ec101fe88627ab541a52464ab5025c16e6b4" }
-zksync_types = { git = "https://github.com/matter-labs/zksync-era.git", rev = "e575ec101fe88627ab541a52464ab5025c16e6b4" }
-zksync_utils = { git = "https://github.com/matter-labs/zksync-era.git", rev = "e575ec101fe88627ab541a52464ab5025c16e6b4" }
-zksync_state = { git = "https://github.com/matter-labs/zksync-era.git", rev = "e575ec101fe88627ab541a52464ab5025c16e6b4" }
-zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era.git", rev = "e575ec101fe88627ab541a52464ab5025c16e6b4" }
+zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era.git", rev = "8ff948543e2699ff0f95e2330bcebafa8a82e73b" }
+zksync_core = { git = "https://github.com/matter-labs/zksync-era.git", rev = "8ff948543e2699ff0f95e2330bcebafa8a82e73b" }
+vm = { git = "https://github.com/matter-labs/zksync-era.git", rev = "8ff948543e2699ff0f95e2330bcebafa8a82e73b" }
+vlog = { git = "https://github.com/matter-labs/zksync-era.git", rev = "8ff948543e2699ff0f95e2330bcebafa8a82e73b" }
+zksync_contracts = { git = "https://github.com/matter-labs/zksync-era.git", rev = "8ff948543e2699ff0f95e2330bcebafa8a82e73b" }
+zksync_types = { git = "https://github.com/matter-labs/zksync-era.git", rev = "8ff948543e2699ff0f95e2330bcebafa8a82e73b" }
+zksync_utils = { git = "https://github.com/matter-labs/zksync-era.git", rev = "8ff948543e2699ff0f95e2330bcebafa8a82e73b" }
+zksync_state = { git = "https://github.com/matter-labs/zksync-era.git", rev = "8ff948543e2699ff0f95e2330bcebafa8a82e73b" }
+zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era.git", rev = "8ff948543e2699ff0f95e2330bcebafa8a82e73b" }
 
 anyhow = "1.0"
 tokio = { version = "1", features = ["time", "rt"] }

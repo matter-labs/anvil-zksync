@@ -42,6 +42,7 @@
 //!
 //! Contributions to improve `era-test-node` are welcome. Please refer to the contribution guidelines for more details.
 
+use crate::formatter::ShowCalls;
 use crate::node::{ShowStorageLogs, ShowVMDetails};
 use clap::{Parser, Subcommand};
 use configuration_api::ConfigurationApiNamespaceT;

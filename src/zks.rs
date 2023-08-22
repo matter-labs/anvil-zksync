@@ -237,7 +237,6 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
 mod tests {
     use std::str::FromStr;
 
-    use crate::formatter::ShowCalls;
     use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
 
     use super::*;
@@ -246,7 +245,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_estimate_fee() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::<HttpForkSource>::default();
         let namespace = ZkMockNamespaceImpl::new(node.get_inner());
 
         let mock_request = CallRequest {
@@ -283,7 +282,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_token_price_given_eth_should_return_price() {
         // Arrange
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::<HttpForkSource>::default();
         let namespace = ZkMockNamespaceImpl::new(node.get_inner());
 
         let mock_address = Address::from_str("0x0000000000000000000000000000000000000000")
@@ -299,11 +298,11 @@ mod tests {
     #[tokio::test]
     async fn test_get_token_price_given_capitalized_link_address_should_return_price() {
         // Arrange
-        let node = InMemoryNode::new(
+        let node = InMemoryNode::<HttpForkSource>::new(
             None,
-            crate::ShowCalls::None,
-            crate::ShowStorageLogs::None,
-            crate::ShowVMDetails::None,
+            crate::formatter::ShowCalls::None,
+            crate::node::ShowStorageLogs::None,
+            crate::node::ShowVMDetails::None,
             false,
             false,
         );
@@ -322,7 +321,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_token_price_given_unknown_address_should_return_error() {
         // Arrange
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::<HttpForkSource>::default();
         let namespace = ZkMockNamespaceImpl::new(node.get_inner());
 
         let mock_address = Address::from_str("0x0000000000000000000000000000000000000042")
