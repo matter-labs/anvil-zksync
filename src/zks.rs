@@ -299,9 +299,9 @@ mod tests {
         // Arrange
         let node = InMemoryNode::new(
             None,
-            crate::ShowCalls::None,
-            crate::ShowStorageLogs::None,
-            crate::ShowVMDetails::None,
+            ShowCalls::None,
+            crate::node::ShowStorageLogs::None,
+            crate::node::ShowVMDetails::None,
             false,
             false,
         );
