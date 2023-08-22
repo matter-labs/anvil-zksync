@@ -8,7 +8,7 @@ use jsonrpc_derive::rpc;
 // Workspace uses
 
 // Local uses
-use crate::{node::InMemoryNodeInner, formatter::ShowCalls};
+use crate::{formatter::ShowCalls, node::InMemoryNodeInner, ShowStorageLogs, ShowVMDetails};
 
 pub struct ConfigurationApiNamespace {
     node: Arc<RwLock<InMemoryNodeInner>>,
@@ -39,6 +39,26 @@ pub trait ConfigurationApiNamespaceT {
     #[rpc(name = "config_setShowCalls", returns = "String")]
     fn config_set_show_calls(&self, value: String) -> Result<String>;
 
+    /// Set show_storage_logs for the InMemoryNodeInner
+    ///
+    /// # Parameters
+    /// - `value`: A ShowStorageLogs enum to update show_storage_logs to
+    ///
+    /// # Returns
+    /// The updated/current `show_storage_logs` value for the InMemoryNodeInner.
+    #[rpc(name = "config_setShowStorageLogs", returns = "String")]
+    fn config_set_show_storage_logs(&self, value: String) -> Result<String>;
+
+    /// Set show_vm_details for the InMemoryNodeInner
+    ///
+    /// # Parameters
+    /// - `value`: A ShowVMDetails enum to update show_vm_details to
+    ///
+    /// # Returns
+    /// The updated/current `show_vm_details` value for the InMemoryNodeInner.
+    #[rpc(name = "config_setShowVmDetails", returns = "String")]
+    fn config_set_show_vm_details(&self, value: String) -> Result<String>;
+
     /// Set resolve_hashes for the InMemoryNodeInner
     ///
     /// # Parameters
@@ -68,6 +88,34 @@ impl ConfigurationApiNamespaceT for ConfigurationApiNamespace {
         let mut inner = self.node.write().unwrap();
         inner.show_calls = show_calls;
         Ok(inner.show_calls.to_string())
+    }
+
+    fn config_set_show_storage_logs(&self, value: String) -> Result<String> {
+        let show_storage_logs = match value.parse::<ShowStorageLogs>() {
+            Ok(value) => value,
+            Err(_) => {
+                let reader = self.node.read().unwrap();
+                return Ok(reader.show_storage_logs.to_string());
+            }
+        };
+
+        let mut inner = self.node.write().unwrap();
+        inner.show_storage_logs = show_storage_logs;
+        Ok(inner.show_storage_logs.to_string())
+    }
+
+    fn config_set_show_vm_details(&self, value: String) -> Result<String> {
+        let show_vm_details = match value.parse::<ShowVMDetails>() {
+            Ok(value) => value,
+            Err(_) => {
+                let reader = self.node.read().unwrap();
+                return Ok(reader.show_vm_details.to_string());
+            }
+        };
+
+        let mut inner = self.node.write().unwrap();
+        inner.show_vm_details = show_vm_details;
+        Ok(inner.show_vm_details.to_string())
     }
 
     fn config_set_resolve_hashes(&self, value: bool) -> Result<bool> {

@@ -235,8 +235,8 @@ impl ZksNamespaceT for ZkMockNamespaceImpl {
 mod tests {
     use std::str::FromStr;
 
-    use crate::node::InMemoryNode;
     use crate::formatter::ShowCalls;
+    use crate::node::InMemoryNode;
 
     use super::*;
     use zksync_basic_types::Address;
@@ -244,7 +244,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_estimate_fee() {
-        let node = InMemoryNode::new(None, ShowCalls::None, false, false);
+        let node = InMemoryNode::default();
         let namespace = ZkMockNamespaceImpl::new(node.get_inner());
 
         let mock_request = CallRequest {
@@ -281,7 +281,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_token_price_given_eth_should_return_price() {
         // Arrange
-        let node = InMemoryNode::new(None, ShowCalls::None, false, false);
+        let node = InMemoryNode::default();
         let namespace = ZkMockNamespaceImpl::new(node.get_inner());
 
         let mock_address = Address::from_str("0x0000000000000000000000000000000000000000")
@@ -297,7 +297,14 @@ mod tests {
     #[tokio::test]
     async fn test_get_token_price_given_capitalized_link_address_should_return_price() {
         // Arrange
-        let node = InMemoryNode::new(None, ShowCalls::None, false, false);
+        let node = InMemoryNode::new(
+            None,
+            crate::ShowCalls::None,
+            crate::ShowStorageLogs::None,
+            crate::ShowVMDetails::None,
+            false,
+            false,
+        );
         let namespace = ZkMockNamespaceImpl::new(node.get_inner());
 
         let mock_address = Address::from_str("0x40609141Db628BeEE3BfAB8034Fc2D8278D0Cc78")
@@ -313,7 +320,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_token_price_given_unknown_address_should_return_error() {
         // Arrange
-        let node = InMemoryNode::new(None, ShowCalls::None, false, false);
+        let node = InMemoryNode::default();
         let namespace = ZkMockNamespaceImpl::new(node.get_inner());
 
         let mock_address = Address::from_str("0x0000000000000000000000000000000000000042")
