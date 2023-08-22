@@ -180,6 +180,12 @@ struct Cli {
     #[arg(long, default_value = "none")]
     /// Show call debug information
     show_calls: ShowCalls,
+    #[arg(long, default_value = "none")]
+    /// Show storage log information
+    show_storage_logs: ShowStorageLogs,
+    #[arg(long, default_value = "none")]
+    /// Show VM details information
+    show_vm_details: ShowVMDetails,
 
     #[arg(long)]
     /// If true, the tool will try to contact openchain to resolve the ABI & topic names.
@@ -214,6 +220,58 @@ impl FromStr for ShowCalls {
 }
 
 impl Display for ShowCalls {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "{:?}", self)
+    }
+}
+
+#[derive(Debug, Parser, Clone, clap::ValueEnum, PartialEq, Eq)]
+pub enum ShowStorageLogs {
+    None,
+    Read,
+    Write,
+    All,
+}
+
+impl FromStr for ShowStorageLogs {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_ref() {
+            "none" => Ok(ShowStorageLogs::None),
+            "read" => Ok(ShowStorageLogs::Read),
+            "write" => Ok(ShowStorageLogs::Write),
+            "all" => Ok(ShowStorageLogs::All),
+            _ => Err(()),
+        }
+    }
+}
+
+impl Display for ShowStorageLogs {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "{:?}", self)
+    }
+}
+
+#[derive(Debug, Parser, Clone, clap::ValueEnum, PartialEq, Eq)]
+pub enum ShowVMDetails {
+    None,
+    All,
+}
+
+impl FromStr for ShowVMDetails {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_ref() {
+            "none" => Ok(ShowVMDetails::None),
+            "all" => Ok(ShowVMDetails::All),
+            _ => Err(()),
+        }
+    }
+}
+
+impl Display for ShowVMDetails {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(f, "{:?}", self)
     }
@@ -301,6 +359,8 @@ async fn main() -> anyhow::Result<()> {
     let node = InMemoryNode::new(
         fork_details,
         opt.show_calls,
+        opt.show_storage_logs,
+        opt.show_vm_details,
         opt.resolve_hashes,
         opt.dev_use_local_contracts,
     );

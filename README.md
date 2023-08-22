@@ -99,16 +99,23 @@ But with --show-calls flag, it can print more detailed call traces, and with --r
 era_test_node --show-calls=user --resolve-hashes replay_tx testnet 0x7f039bcbb1490b855be37e74cf2400503ad57f51c84856362f99b0cbf1ef478a
 
 Executing 0x7f039bcbb1490b855be37e74cf2400503ad57f51c84856362f99b0cbf1ef478a
+┌─────────────────────────┐
+│   TRANSACTION SUMMARY   │
+└─────────────────────────┘
 Transaction: SUCCESS
-Initiator: 0x55362182242a4de20ea8a0ec055b2134bb24e23d Payer: 0x55362182242a4de20ea8a0ec055b2134bb24e23d
-Gas Limit: 797128 used: 399148 refunded: 397980
-18 call traces. Use --show-calls flag to display more info.
-Call(Normal) 0x55362182242a4de20ea8a0ec055b2134bb24e23d 0x202bcce7   729918
-  Call(Normal) 0x0000000000000000000000000000000000000001 0xbb1e83e6   688275
-Call(Normal) 0x55362182242a4de20ea8a0ec055b2134bb24e23d 0xe2f318e3   693630
-Call(Normal) 0x55362182242a4de20ea8a0ec055b2134bb24e23d 0xdf9c1589   624834
-    Call(Mimic) 0x6eef3310e09df3aa819cc2aa364d4f3ad2e6ffe3 swapExactETHForTokens(uint256,address[],address,uint256)   562275
-      Call(Normal) 0x053f26a020de152a947b8ba7d8974c85c5fc5b81 getPair(address,address)   544068
+Initiator: 0x55362182242a4de20ea8a0ec055b2134bb24e23d
+Payer: 0x55362182242a4de20ea8a0ec055b2134bb24e23d
+Gas - Limit: 797128 | Used: 351250 | Refunded: 445878
+
+==== Console logs: 
+
+==== 18 call traces.  Use --show-calls flag or call config_setShowCalls to display more info.
+Call(Normal) 0x55362182242a4de20ea8a0ec055b2134bb24e23d           validateTransaction(bytes32, bytes32, tuple)   730485
+  Call(Normal) 0x0000000000000000000000000000000000000001                 0xbb1e83e6   698040
+Call(Normal) 0x55362182242a4de20ea8a0ec055b2134bb24e23d           payForTransaction(bytes32, bytes32, tuple)   703647
+Call(Normal) 0x55362182242a4de20ea8a0ec055b2134bb24e23d           executeTransaction(bytes32, bytes32, tuple)   647199
+    Call(Mimic) 0x6eef3310e09df3aa819cc2aa364d4f3ad2e6ffe3           swapExactETHForTokens(uint256,address[],address,uint256)   596358
+      Call(Normal) 0x053f26a020de152a947b8ba7d8974c85c5fc5b81           getPair(address,address)   577647
 
 ```
 

@@ -82,6 +82,28 @@ content-type: application/json
 {
     "jsonrpc": "2.0",
     "id": "1",
+    "method": "config_setShowStorageLogs",
+    "params": ["All"]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "config_setShowVmDetails",
+    "params": ["All"]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
     "method": "config_setResolveHashes",
     "params": [true]
 }

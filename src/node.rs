@@ -5,7 +5,7 @@ use crate::{
     fork::{ForkDetails, ForkSource, ForkStorage},
     formatter,
     utils::{adjust_l1_gas_price_for_tx, derive_gas_estimation_overhead, IntoBoxedFuture},
-    ShowCalls,
+    ShowCalls, ShowStorageLogs, ShowVMDetails,
 };
 use colored::Colorize;
 use futures::FutureExt;
@@ -114,6 +114,10 @@ pub struct InMemoryNodeInner<S> {
     pub fork_storage: ForkStorage<S>,
     // Debug level information.
     pub show_calls: ShowCalls,
+    // Displays storage logs.
+    pub show_storage_logs: ShowStorageLogs,
+    // Displays VM details.
+    pub show_vm_details: ShowVMDetails,
     // If true - will contact openchain to resolve the ABI to function names.
     pub resolve_hashes: bool,
     pub console_log_handler: ConsoleLogHandler,
@@ -539,10 +543,38 @@ fn contract_address_from_tx_result(execution_result: &VmTxExecutionResult) -> Op
     None
 }
 
+impl Default for InMemoryNode {
+    fn default() -> Self {
+        InMemoryNode::new(
+            None,
+            crate::ShowCalls::None,
+            crate::ShowStorageLogs::None,
+            crate::ShowVMDetails::None,
+            false,
+            false,
+        )
+    }
+}
+
+impl Default for InMemoryNode {
+    fn default() -> Self {
+        InMemoryNode::new(
+            None,
+            crate::ShowCalls::None,
+            crate::ShowStorageLogs::None,
+            crate::ShowVMDetails::None,
+            false,
+            false,
+        )
+    }
+}
+
 impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
     pub fn new(
         fork: Option<ForkDetails<S>>,
         show_calls: ShowCalls,
+        show_storage_logs: ShowStorageLogs,
+        show_vm_details: ShowVMDetails,
         resolve_hashes: bool,
         dev_use_local_contracts: bool,
     ) -> Self {
@@ -562,6 +594,8 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 blocks: Default::default(),
                 fork_storage: ForkStorage::new(fork, dev_use_local_contracts),
                 show_calls,
+                show_storage_logs,
+                show_vm_details,
                 resolve_hashes,
                 console_log_handler: ConsoleLogHandler::default(),
                 dev_use_local_contracts,
@@ -712,32 +746,66 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             .execute_next_tx(u32::MAX, true)
             .map_err(|e| format!("Failed to execute next transaction: {}", e))?;
 
+        println!("┌─────────────────────────┐");
+        println!("│   TRANSACTION SUMMARY   │");
+        println!("└─────────────────────────┘");
+
         match tx_result.status {
             TxExecutionStatus::Success => println!("Transaction: {}", "SUCCESS".green()),
             TxExecutionStatus::Failure => println!("Transaction: {}", "FAILED".red()),
         }
 
         println!(
-            "Initiator: {:?} Payer: {:?}",
+            "Initiator: {:?}\nPayer: {:?}",
             tx.initiator_account(),
             tx.payer()
         );
-
         println!(
-            "{} Limit: {:?} used: {:?} refunded: {:?}",
-            "Gas".bold(),
+            "Gas - Limit: {:?} | Used: {:?} | Refunded: {:?}",
             tx.gas_limit(),
             tx.gas_limit() - tx_result.gas_refunded,
             tx_result.gas_refunded
         );
-        println!("\n==== Console logs: ");
 
+        if inner.show_storage_logs != ShowStorageLogs::None {
+            println!("\n┌──────────────────┐");
+            println!("│   STORAGE LOGS   │");
+            println!("└──────────────────┘");
+        }
+
+        for log_query in &tx_result.result.logs.storage_logs {
+            match inner.show_storage_logs {
+                ShowStorageLogs::Write => {
+                    if matches!(
+                        log_query.log_type,
+                        StorageLogQueryType::RepeatedWrite | StorageLogQueryType::InitialWrite
+                    ) {
+                        formatter::print_logs(log_query);
+                    }
+                }
+                ShowStorageLogs::Read => {
+                    if log_query.log_type == StorageLogQueryType::Read {
+                        formatter::print_logs(log_query);
+                    }
+                }
+                ShowStorageLogs::All => {
+                    formatter::print_logs(log_query);
+                }
+                _ => {}
+            }
+        }
+
+        if inner.show_vm_details != ShowVMDetails::None {
+            formatter::print_vm_details(&tx_result.result);
+        }
+
+        println!("\n==== Console logs: ");
         for call in &tx_result.call_traces {
             inner.console_log_handler.handle_call_recurive(call);
         }
 
         println!(
-            "\n==== {} Use --show-calls flag or call config_setResolveHashes to display more info.",
+            "\n==== {} Use --show-calls flag or call config_setShowCalls to display more info.",
             format!("{:?} call traces. ", tx_result.call_traces.len()).bold()
         );
 
@@ -756,6 +824,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         }
 
         println!("\n\n");
+
         vm.execute_till_block_end(BootloaderJobType::BlockPostprocessing);
 
         let bytecodes = vm

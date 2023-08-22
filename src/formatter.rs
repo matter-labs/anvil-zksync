@@ -8,7 +8,8 @@ use std::collections::HashMap;
 use crate::fork::block_on;
 use zksync_basic_types::H160;
 
-use zksync_types::{vm_trace::Call, VmEvent};
+use vm::vm::VmPartialExecutionResult;
+use zksync_types::{vm_trace::Call, StorageLogQuery, StorageLogQueryType, VmEvent};
 
 use lazy_static::lazy_static;
 
@@ -157,4 +158,48 @@ pub fn print_call(call: &Call, padding: usize, show_calls: &ShowCalls, resolve_h
     for subcall in &call.calls {
         print_call(subcall, padding + 2, show_calls, resolve_hashes);
     }
+}
+
+pub fn print_logs(log_query: &StorageLogQuery) {
+    let separator = "─".repeat(82);
+    println!("{:<15} {:?}", "Type:", log_query.log_type);
+    println!(
+        "{:<15} {}",
+        "Address:",
+        address_to_human_readable(log_query.log_query.address)
+            .unwrap_or(format!("{}", log_query.log_query.address))
+    );
+    println!("{:<15} {:#066x}", "Key:", log_query.log_query.key);
+
+    println!(
+        "{:<15} {:#066x}",
+        "Read Value:", log_query.log_query.read_value
+    );
+
+    if log_query.log_type != StorageLogQueryType::Read {
+        println!(
+            "{:<15} {:#066x}",
+            "Written Value:", log_query.log_query.written_value
+        );
+    }
+    println!("{}", separator);
+}
+
+pub fn print_vm_details(result: &VmPartialExecutionResult) {
+    println!("\n┌──────────────────────────┐");
+    println!("│   VM EXECUTION RESULTS   │");
+    println!("└──────────────────────────┘");
+
+    println!("Cycles Used:          {}", result.cycles_used);
+    println!("Computation Gas Used: {}", result.computational_gas_used);
+    println!("Contracts Used:       {}", result.contracts_used);
+
+    if let Some(revert_reason) = &result.revert_reason {
+        println!(
+            "{}",
+            format!("\n[!] Revert Reason:    {}", revert_reason).on_red()
+        );
+    }
+
+    println!("════════════════════════════");
 }
