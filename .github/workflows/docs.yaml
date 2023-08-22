@@ -35,6 +35,11 @@ jobs:
         run: |
           echo "Generating docs..."
           cargo doc --no-deps
+      - name: Fix permissions
+        run: |
+          chmod -c -R +rX "target/doc/" | while read line; do
+            echo "::warning title=Invalid file permissions automatically fixed::$line"
+          done
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v2
         with:
