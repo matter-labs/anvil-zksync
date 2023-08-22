@@ -44,7 +44,7 @@
 
 use clap::{Parser, Subcommand};
 use configuration_api::ConfigurationApiNamespaceT;
-use fork::ForkDetails;
+use fork::{ForkDetails, ForkSource};
 use zks::ZkMockNamespaceImpl;
 
 mod configuration_api;
@@ -52,11 +52,11 @@ mod console_log;
 mod deps;
 mod fork;
 mod formatter;
+mod http_fork_source;
 mod node;
 mod resolver;
 mod utils;
 mod zks;
-mod http_fork_source;
 
 use core::fmt::Display;
 use node::InMemoryNode;
@@ -128,12 +128,14 @@ pub const RICH_WALLETS: [(&str, &str); 10] = [
     ),
 ];
 
-async fn build_json_http(
+async fn build_json_http<
+    S: std::marker::Sync + std::marker::Send + 'static + ForkSource + std::fmt::Debug,
+>(
     addr: SocketAddr,
-    node: InMemoryNode,
+    node: InMemoryNode<S>,
     net: NetNamespace,
-    config_api: ConfigurationApiNamespace,
-    zks: ZkMockNamespaceImpl,
+    config_api: ConfigurationApiNamespace<S>,
+    zks: ZkMockNamespaceImpl<S>,
 ) -> tokio::task::JoinHandle<()> {
     let (sender, recv) = oneshot::channel::<()>();
 

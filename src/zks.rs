@@ -9,17 +9,17 @@ use zksync_core::api_server::web3::backend_jsonrpc::{
 use zksync_types::{api::BridgeAddresses, fee::Fee};
 use zksync_web3_decl::error::Web3Error;
 
-use crate::{node::InMemoryNodeInner, utils::IntoBoxedFuture};
+use crate::{fork::ForkSource, node::InMemoryNodeInner, utils::IntoBoxedFuture};
 use colored::Colorize;
 
 /// Mock implementation of ZksNamespace - used only in the test node.
-pub struct ZkMockNamespaceImpl {
-    node: Arc<RwLock<InMemoryNodeInner>>,
+pub struct ZkMockNamespaceImpl<S> {
+    node: Arc<RwLock<InMemoryNodeInner<S>>>,
 }
 
-impl ZkMockNamespaceImpl {
+impl<S> ZkMockNamespaceImpl<S> {
     /// Creates a new `Zks` instance with the given `node`.
-    pub fn new(node: Arc<RwLock<InMemoryNodeInner>>) -> Self {
+    pub fn new(node: Arc<RwLock<InMemoryNodeInner<S>>>) -> Self {
         Self { node }
     }
 }
@@ -29,7 +29,9 @@ macro_rules! not_implemented {
         Box::pin(async move { Err(jsonrpc_core::Error::method_not_found()) })
     };
 }
-impl ZksNamespaceT for ZkMockNamespaceImpl {
+impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
+    for ZkMockNamespaceImpl<S>
+{
     /// Estimates the gas fee data required for a given call request.
     ///
     /// # Arguments
@@ -235,7 +237,7 @@ impl ZksNamespaceT for ZkMockNamespaceImpl {
 mod tests {
     use std::str::FromStr;
 
-    use crate::node::InMemoryNode;
+    use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
 
     use super::*;
     use zksync_basic_types::Address;
@@ -243,7 +245,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_estimate_fee() {
-        let node = InMemoryNode::new(None, crate::ShowCalls::None, false, false);
+        let node = InMemoryNode::<HttpForkSource>::new(None, crate::ShowCalls::None, false, false);
         let namespace = ZkMockNamespaceImpl::new(node.get_inner());
 
         let mock_request = CallRequest {
@@ -280,7 +282,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_token_price_given_eth_should_return_price() {
         // Arrange
-        let node = InMemoryNode::new(None, crate::ShowCalls::None, false, false);
+        let node = InMemoryNode::<HttpForkSource>::new(None, crate::ShowCalls::None, false, false);
         let namespace = ZkMockNamespaceImpl::new(node.get_inner());
 
         let mock_address = Address::from_str("0x0000000000000000000000000000000000000000")
@@ -296,7 +298,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_token_price_given_capitalized_link_address_should_return_price() {
         // Arrange
-        let node = InMemoryNode::new(None, crate::ShowCalls::None, false, false);
+        let node = InMemoryNode::<HttpForkSource>::new(None, crate::ShowCalls::None, false, false);
         let namespace = ZkMockNamespaceImpl::new(node.get_inner());
 
         let mock_address = Address::from_str("0x40609141Db628BeEE3BfAB8034Fc2D8278D0Cc78")
@@ -312,7 +314,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_token_price_given_unknown_address_should_return_error() {
         // Arrange
-        let node = InMemoryNode::new(None, crate::ShowCalls::None, false, false);
+        let node = InMemoryNode::<HttpForkSource>::new(None, crate::ShowCalls::None, false, false);
         let namespace = ZkMockNamespaceImpl::new(node.get_inner());
 
         let mock_address = Address::from_str("0x0000000000000000000000000000000000000042")

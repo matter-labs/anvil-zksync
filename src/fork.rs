@@ -11,7 +11,7 @@ use std::{
 };
 
 use tokio::runtime::Builder;
-use zksync_basic_types::{L1BatchNumber, L2ChainId, MiniblockNumber, H256, U64, Address, U256};
+use zksync_basic_types::{Address, L1BatchNumber, L2ChainId, MiniblockNumber, H256, U256, U64};
 
 use zksync_types::{
     api::{BlockIdVariant, BlockNumber, Transaction},
@@ -25,9 +25,9 @@ use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 use zksync_web3_decl::{jsonrpsee::http_client::HttpClient, namespaces::EthNamespaceClient};
 use zksync_web3_decl::{jsonrpsee::http_client::HttpClientBuilder, namespaces::ZksNamespaceClient};
 
-use crate::deps::InMemoryStorage;
 use crate::deps::ReadStorage as RS;
 use crate::node::TEST_NODE_NETWORK_ID;
+use crate::{deps::InMemoryStorage, http_fork_source::HttpForkSource};
 
 pub fn block_on<F: Future + Send + 'static>(future: F) -> F::Output
 where
@@ -46,14 +46,15 @@ where
 
 /// In memory storage, that allows 'forking' from other network.
 /// If forking is enabled, it reads missing data from remote location.
+/// S - is a struct that is used for source of the fork.
 #[derive(Debug)]
-pub struct ForkStorage {
-    pub inner: Arc<RwLock<ForkStorageInner>>,
+pub struct ForkStorage<S> {
+    pub inner: Arc<RwLock<ForkStorageInner<S>>>,
     pub chain_id: L2ChainId,
 }
 
 #[derive(Debug)]
-pub struct ForkStorageInner {
+pub struct ForkStorageInner<S> {
     // Underlying local storage
     pub raw_storage: InMemoryStorage,
     // Cache of data that was read from remote location.
@@ -62,11 +63,11 @@ pub struct ForkStorageInner {
     pub factory_dep_cache: HashMap<H256, Option<Vec<u8>>>,
     // If set - it hold the necessary information on where to fetch the data.
     // If not set - it will simply read from underlying storage.
-    pub fork: Option<ForkDetails>,
+    pub fork: Option<ForkDetails<S>>,
 }
 
-impl ForkStorage {
-    pub fn new(fork: Option<ForkDetails>, dev_use_local_contracts: bool) -> Self {
+impl<S: ForkSource> ForkStorage<S> {
+    pub fn new(fork: Option<ForkDetails<S>>, dev_use_local_contracts: bool) -> Self {
         let chain_id = fork
             .as_ref()
             .and_then(|d| d.overwrite_chain_id)
@@ -100,23 +101,16 @@ impl ForkStorage {
             if let Some(value) = mutator.value_read_cache.get(key) {
                 return *value;
             }
-            let fork_ = (*fork).clone();
+            let l2_miniblock = fork.l2_miniblock;
             let key_ = *key;
 
-            let client = fork.create_client();
-
-            let result = block_on(async move {
-                client
-                    .get_storage_at(
-                        *key_.account().address(),
-                        h256_to_u256(*key_.key()),
-                        Some(BlockIdVariant::BlockNumber(BlockNumber::Number(U64::from(
-                            fork_.l2_miniblock,
-                        )))),
-                    )
-                    .await
-            })
-            .unwrap();
+            let result = fork.fork_source.get_storage_at(
+                *key_.account().address(),
+                h256_to_u256(*key_.key()),
+                Some(BlockIdVariant::BlockNumber(BlockNumber::Number(U64::from(
+                    l2_miniblock,
+                )))),
+            );
 
             mutator.value_read_cache.insert(*key, result);
             result
@@ -136,8 +130,7 @@ impl ForkStorage {
                 return value.clone();
             }
 
-            let client = fork.create_client();
-            let result = block_on(async move { client.get_bytecode_by_hash(hash).await }).unwrap();
+            let result = fork.fork_source.get_bytecode_by_hash(hash);
             mutator.factory_dep_cache.insert(hash, result.clone());
             result
         } else {
@@ -146,7 +139,7 @@ impl ForkStorage {
     }
 }
 
-impl ReadStorage for ForkStorage {
+impl<S: std::fmt::Debug + ForkSource> ReadStorage for ForkStorage<S> {
     fn is_write_initial(&mut self, key: &StorageKey) -> bool {
         let mut mutator = self.inner.write().unwrap();
         mutator.raw_storage.is_write_initial(key)
@@ -161,7 +154,7 @@ impl ReadStorage for ForkStorage {
     }
 }
 
-impl ReadStorage for &ForkStorage {
+impl<S: std::fmt::Debug + ForkSource> ReadStorage for &ForkStorage<S> {
     fn read_value(&mut self, key: &StorageKey) -> zksync_types::StorageValue {
         self.read_value_internal(key)
     }
@@ -176,7 +169,7 @@ impl ReadStorage for &ForkStorage {
     }
 }
 
-impl ForkStorage {
+impl<S> ForkStorage<S> {
     pub fn set_value(&mut self, key: StorageKey, value: zksync_types::StorageValue) {
         let mut mutator = self.inner.write().unwrap();
         mutator.raw_storage.set_value(key, value)
@@ -193,12 +186,7 @@ impl ForkStorage {
 
 pub trait ForkSource {
     /// Returns the Storage value at a given index for given address.
-    fn get_storage_at(
-        &self,
-        address: Address,
-        idx: U256,
-        block: Option<BlockIdVariant>,
-    ) -> H256;
+    fn get_storage_at(&self, address: Address, idx: U256, block: Option<BlockIdVariant>) -> H256;
 
     fn get_bytecode_by_hash(&self, hash: H256) -> Option<Vec<u8>>;
     fn get_transaction_by_hash(&self, hash: H256) -> Option<Transaction>;
@@ -210,10 +198,11 @@ pub trait ForkSource {
 }
 
 /// Holds the information about the original chain.
+/// "S" is the impmenetation of the ForkSource.
 #[derive(Debug, Clone)]
-pub struct ForkDetails {
-    // URL to the server.
-    pub fork_url: String,
+pub struct ForkDetails<S> {
+    // Source of the fork data (for example HTTPForkSoruce)
+    pub fork_source: S,
     // Block number at which we forked (the next block to create is l1_block + 1)
     pub l1_block: L1BatchNumber,
     pub l2_miniblock: u64,
@@ -222,7 +211,7 @@ pub struct ForkDetails {
     pub l1_gas_price: u64,
 }
 
-impl ForkDetails {
+impl ForkDetails<HttpForkSource> {
     pub async fn from_url_and_miniblock_and_chain(
         url: &str,
         client: HttpClient,
@@ -243,7 +232,9 @@ impl ForkDetails {
         );
 
         ForkDetails {
-            fork_url: url.to_owned(),
+            fork_source: HttpForkSource {
+                fork_url: url.to_owned(),
+            },
             l1_block: l1_batch_number,
             block_timestamp: block_details.timestamp,
             l2_miniblock: miniblock,
@@ -251,7 +242,6 @@ impl ForkDetails {
             l1_gas_price: block_details.l1_gas_price,
         }
     }
-
     /// Create a fork from a given network at a given height.
     pub async fn from_network(fork: &str, fork_at: Option<u64>) -> Self {
         let (url, client) = Self::fork_to_url_and_client(fork);
@@ -275,7 +265,9 @@ impl ForkDetails {
 
         Self::from_url_and_miniblock_and_chain(url, client, l2_miniblock, overwrite_chain_id).await
     }
+}
 
+impl<S: ForkSource> ForkDetails<S> {
     /// Return URL and HTTP client for a given fork name.
     pub fn fork_to_url_and_client(fork: &str) -> (&str, HttpClient) {
         let url = match fork {
@@ -293,18 +285,12 @@ impl ForkDetails {
 
     /// Returns transactions that are in the same L2 miniblock as replay_tx, but were executed before it.
     pub async fn get_earlier_transactions_in_same_block(&self, replay_tx: H256) -> Vec<L2Tx> {
-        let client = self.create_client();
-
-        let tx_details = client
-            .get_transaction_by_hash(replay_tx)
-            .await
-            .unwrap()
-            .unwrap();
+        let tx_details = self.fork_source.get_transaction_by_hash(replay_tx).unwrap();
         let miniblock = MiniblockNumber(tx_details.block_number.unwrap().as_u32());
 
         // And we're fetching all the transactions from this miniblock.
-        let block_transactions: Vec<zksync_types::Transaction> =
-            client.get_raw_block_transactions(miniblock).await.unwrap();
+        let block_transactions = self.fork_source.get_raw_block_transactions(miniblock);
+
         let mut tx_to_apply = Vec::new();
 
         for tx in block_transactions {
@@ -320,11 +306,5 @@ impl ForkDetails {
             "Cound not find tx {:?} in miniblock: {:?}",
             replay_tx, miniblock
         );
-    }
-
-    pub fn create_client(&self) -> HttpClient {
-        HttpClientBuilder::default()
-            .build(self.fork_url.clone())
-            .expect("Unable to create a client for fork")
     }
 }

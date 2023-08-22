@@ -5,6 +5,7 @@ use zksync_web3_decl::{
 
 use crate::fork::{block_on, ForkSource};
 
+#[derive(Debug)]
 /// Fork source that gets the data via HTTP requests.
 pub struct HttpForkSource {
     pub fork_url: String,
