@@ -1,5 +1,5 @@
 //! Helper methods to display transaction data in more human readable way.
-use crate::{resolver, ShowCalls};
+use crate::{node::ShowCalls, resolver};
 
 use colored::Colorize;
 use serde::Deserialize;
