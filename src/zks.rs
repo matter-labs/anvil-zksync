@@ -6,7 +6,10 @@ use zksync_basic_types::{MiniblockNumber, U256};
 use zksync_core::api_server::web3::backend_jsonrpc::{
     error::into_jsrpc_error, namespaces::zks::ZksNamespaceT,
 };
-use zksync_types::{api::BridgeAddresses, fee::Fee};
+use zksync_types::{
+    api::{BridgeAddresses, ProtocolVersion},
+    fee::Fee,
+};
 use zksync_web3_decl::error::Web3Error;
 
 use crate::{fork::ForkSource, node::InMemoryNodeInner, utils::IntoBoxedFuture};
@@ -180,9 +183,8 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
     fn get_block_details(
         &self,
         _block_number: zksync_basic_types::MiniblockNumber,
-    ) -> jsonrpc_core::BoxFuture<
-        jsonrpc_core::Result<Option<zksync_types::explorer_api::BlockDetails>>,
-    > {
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<zksync_types::api::BlockDetails>>>
+    {
         not_implemented!()
     }
 
@@ -192,13 +194,6 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
     ) -> jsonrpc_core::BoxFuture<
         jsonrpc_core::Result<Option<(zksync_basic_types::U64, zksync_basic_types::U64)>>,
     > {
-        not_implemented!()
-    }
-
-    fn set_known_bytecode(
-        &self,
-        _bytecode: zksync_basic_types::Bytes,
-    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<bool>> {
         not_implemented!()
     }
 
@@ -213,9 +208,8 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
     fn get_l1_batch_details(
         &self,
         _batch: zksync_basic_types::L1BatchNumber,
-    ) -> jsonrpc_core::BoxFuture<
-        jsonrpc_core::Result<Option<zksync_types::explorer_api::L1BatchDetails>>,
-    > {
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<zksync_types::api::L1BatchDetails>>>
+    {
         not_implemented!()
     }
 
@@ -229,6 +223,13 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
     fn get_l1_gas_price(
         &self,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::U64>> {
+        not_implemented!()
+    }
+
+    fn get_protocol_version(
+        &self,
+        version_id: Option<u16>,
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<ProtocolVersion>>> {
         not_implemented!()
     }
 }

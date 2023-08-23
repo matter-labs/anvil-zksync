@@ -228,7 +228,7 @@ impl ForkDetails<HttpForkSource> {
 
         println!(
             "Creating fork from {:?} L1 block: {:?} L2 block: {:?} with timestamp {:?} and L1 gas price {:?}",
-            url, l1_batch_number, miniblock, block_details.timestamp, block_details.l1_gas_price,
+            url, l1_batch_number, miniblock, block_details.base.timestamp, block_details.base.l1_gas_price,
         );
 
         ForkDetails {
@@ -236,10 +236,10 @@ impl ForkDetails<HttpForkSource> {
                 fork_url: url.to_owned(),
             },
             l1_block: l1_batch_number,
-            block_timestamp: block_details.timestamp,
+            block_timestamp: block_details.base.timestamp,
             l2_miniblock: miniblock,
             overwrite_chain_id: chain_id,
-            l1_gas_price: block_details.l1_gas_price,
+            l1_gas_price: block_details.base.l1_gas_price,
         }
     }
     /// Create a fork from a given network at a given height.
