@@ -46,7 +46,7 @@ use crate::node::{ShowStorageLogs, ShowVMDetails};
 use clap::{Parser, Subcommand};
 use configuration_api::ConfigurationApiNamespaceT;
 use fork::ForkDetails;
-use formatter::ShowCalls;
+use node::ShowCalls;
 use zks::ZkMockNamespaceImpl;
 
 mod configuration_api;

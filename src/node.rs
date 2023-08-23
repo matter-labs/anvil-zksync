@@ -4,7 +4,6 @@ use crate::{
     deps::system_contracts::bytecode_from_slice,
     fork::{ForkDetails, ForkStorage},
     formatter,
-    formatter::ShowCalls,
     utils::{adjust_l1_gas_price_for_tx, derive_gas_estimation_overhead, IntoBoxedFuture},
 };
 use clap::Parser;
@@ -102,6 +101,38 @@ pub struct TxExecutionInfo {
     pub result: VmTxExecutionResult,
 }
 
+#[derive(Debug, clap::Parser, Clone, clap::ValueEnum, PartialEq, Eq)]
+pub enum ShowCalls {
+    None,
+    User,
+    System,
+    All,
+}
+
+impl FromStr for ShowCalls {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_ref() {
+            "none" => Ok(ShowCalls::None),
+            "user" => Ok(ShowCalls::User),
+            "system" => Ok(ShowCalls::System),
+            "all" => Ok(ShowCalls::All),
+            _ => Err(format!(
+                "Unknown ShowCalls value {} - expected one of none|user|system|all.",
+                s
+            )
+            .to_owned()),
+        }
+    }
+}
+
+impl Display for ShowCalls {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "{:?}", self)
+    }
+}
+
 #[derive(Debug, Parser, Clone, clap::ValueEnum, PartialEq, Eq)]
 pub enum ShowStorageLogs {
     None,
@@ -111,7 +142,7 @@ pub enum ShowStorageLogs {
 }
 
 impl FromStr for ShowStorageLogs {
-    type Err = ();
+    type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_ref() {
@@ -119,7 +150,10 @@ impl FromStr for ShowStorageLogs {
             "read" => Ok(ShowStorageLogs::Read),
             "write" => Ok(ShowStorageLogs::Write),
             "all" => Ok(ShowStorageLogs::All),
-            _ => Err(()),
+            _ => Err(format!(
+                "Unknown ShowStorageLogs value {} - expected one of none|read|write|all.",
+                s
+            )),
         }
     }
 }
@@ -137,13 +171,16 @@ pub enum ShowVMDetails {
 }
 
 impl FromStr for ShowVMDetails {
-    type Err = ();
+    type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_ref() {
             "none" => Ok(ShowVMDetails::None),
             "all" => Ok(ShowVMDetails::All),
-            _ => Err(()),
+            _ => Err(format!(
+                "Unknown ShowVMDetails value {} - expected one of none|all.",
+                s
+            )),
         }
     }
 }
@@ -602,7 +639,7 @@ impl Default for InMemoryNode {
     fn default() -> Self {
         InMemoryNode::new(
             None,
-            crate::formatter::ShowCalls::None,
+            crate::node::ShowCalls::None,
             ShowStorageLogs::None,
             ShowVMDetails::None,
             false,

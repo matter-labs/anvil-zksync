@@ -235,8 +235,8 @@ impl ZksNamespaceT for ZkMockNamespaceImpl {
 mod tests {
     use std::str::FromStr;
 
-    use crate::formatter::ShowCalls;
     use crate::node::InMemoryNode;
+    use crate::node::ShowCalls;
 
     use super::*;
     use zksync_basic_types::Address;
