@@ -183,14 +183,14 @@ impl<S> ForkStorage<S> {
 /// Trait that provides necessary data when
 /// forking a remote chain.
 /// The method signatures are similar to methods from ETHNamespace and ZKNamespace.
-
 pub trait ForkSource {
     /// Returns the Storage value at a given index for given address.
     fn get_storage_at(&self, address: Address, idx: U256, block: Option<BlockIdVariant>) -> H256;
 
     fn get_bytecode_by_hash(&self, hash: H256) -> Option<Vec<u8>>;
     fn get_transaction_by_hash(&self, hash: H256) -> Option<Transaction>;
-    // Gets all transactions that belong to a given miniblock.
+
+    /// Gets all transactions that belong to a given miniblock.
     fn get_raw_block_transactions(
         &self,
         block_number: MiniblockNumber,
@@ -198,7 +198,7 @@ pub trait ForkSource {
 }
 
 /// Holds the information about the original chain.
-/// "S" is the impmenetation of the ForkSource.
+/// "S" is the implementation of the ForkSource.
 #[derive(Debug, Clone)]
 pub struct ForkDetails<S> {
     // Source of the fork data (for example HTTPForkSoruce)
