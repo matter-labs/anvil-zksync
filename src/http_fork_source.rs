@@ -1,3 +1,4 @@
+use eyre::Context;
 use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
@@ -29,29 +30,36 @@ impl ForkSource for HttpForkSource {
         address: zksync_basic_types::Address,
         idx: zksync_basic_types::U256,
         block: Option<zksync_types::api::BlockIdVariant>,
-    ) -> zksync_basic_types::H256 {
+    ) -> eyre::Result<zksync_basic_types::H256> {
         let client = self.create_client();
-        block_on(async move { client.get_storage_at(address, idx, block).await }).unwrap()
+        block_on(async move { client.get_storage_at(address, idx, block).await })
+            .wrap_err("fork http client failed")
     }
 
-    fn get_bytecode_by_hash(&self, hash: zksync_basic_types::H256) -> Option<Vec<u8>> {
+    fn get_bytecode_by_hash(
+        &self,
+        hash: zksync_basic_types::H256,
+    ) -> eyre::Result<Option<Vec<u8>>> {
         let client = self.create_client();
-        block_on(async move { client.get_bytecode_by_hash(hash).await }).unwrap()
+        block_on(async move { client.get_bytecode_by_hash(hash).await })
+            .wrap_err("fork http client failed")
     }
 
     fn get_transaction_by_hash(
         &self,
         hash: zksync_basic_types::H256,
-    ) -> Option<zksync_types::api::Transaction> {
+    ) -> eyre::Result<Option<zksync_types::api::Transaction>> {
         let client = self.create_client();
-        block_on(async move { client.get_transaction_by_hash(hash).await }).unwrap()
+        block_on(async move { client.get_transaction_by_hash(hash).await })
+            .wrap_err("fork http client failed")
     }
 
     fn get_raw_block_transactions(
         &self,
         block_number: zksync_basic_types::MiniblockNumber,
-    ) -> Vec<zksync_types::Transaction> {
+    ) -> eyre::Result<Vec<zksync_types::Transaction>> {
         let client = self.create_client();
-        block_on(async move { client.get_raw_block_transactions(block_number).await }).unwrap()
+        block_on(async move { client.get_raw_block_transactions(block_number).await })
+            .wrap_err("fork http client failed")
     }
 }
