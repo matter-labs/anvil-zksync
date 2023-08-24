@@ -14,34 +14,6 @@ use zksync_types::{vm_trace::Call, StorageLogQuery, StorageLogQueryType, VmEvent
 
 use lazy_static::lazy_static;
 
-#[derive(Debug, clap::Parser, Clone, clap::ValueEnum, PartialEq, Eq)]
-pub enum ShowCalls {
-    None,
-    User,
-    System,
-    All,
-}
-
-impl FromStr for ShowCalls {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_ref() {
-            "none" => Ok(ShowCalls::None),
-            "user" => Ok(ShowCalls::User),
-            "system" => Ok(ShowCalls::System),
-            "all" => Ok(ShowCalls::All),
-            _ => Err(()),
-        }
-    }
-}
-
-impl Display for ShowCalls {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(f, "{:?}", self)
-    }
-}
-
 #[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
 pub enum ContractType {
     System,

@@ -4,7 +4,6 @@ use crate::{
     deps::system_contracts::bytecode_from_slice,
     fork::{ForkDetails, ForkSource, ForkStorage},
     formatter,
-    formatter::ShowCalls,
     utils::{adjust_l1_gas_price_for_tx, derive_gas_estimation_overhead, IntoBoxedFuture},
 };
 use clap::Parser;
@@ -100,6 +99,96 @@ pub struct TxExecutionInfo {
     pub batch_number: u32,
     pub miniblock_number: u64,
     pub result: VmTxExecutionResult,
+}
+
+#[derive(Debug, clap::Parser, Clone, clap::ValueEnum, PartialEq, Eq)]
+pub enum ShowCalls {
+    None,
+    User,
+    System,
+    All,
+}
+
+impl FromStr for ShowCalls {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_ref() {
+            "none" => Ok(ShowCalls::None),
+            "user" => Ok(ShowCalls::User),
+            "system" => Ok(ShowCalls::System),
+            "all" => Ok(ShowCalls::All),
+            _ => Err(format!(
+                "Unknown ShowCalls value {} - expected one of none|user|system|all.",
+                s
+            )
+            .to_owned()),
+        }
+    }
+}
+
+impl Display for ShowCalls {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "{:?}", self)
+    }
+}
+
+#[derive(Debug, Parser, Clone, clap::ValueEnum, PartialEq, Eq)]
+pub enum ShowStorageLogs {
+    None,
+    Read,
+    Write,
+    All,
+}
+
+impl FromStr for ShowStorageLogs {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_ref() {
+            "none" => Ok(ShowStorageLogs::None),
+            "read" => Ok(ShowStorageLogs::Read),
+            "write" => Ok(ShowStorageLogs::Write),
+            "all" => Ok(ShowStorageLogs::All),
+            _ => Err(format!(
+                "Unknown ShowStorageLogs value {} - expected one of none|read|write|all.",
+                s
+            )),
+        }
+    }
+}
+
+impl Display for ShowStorageLogs {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "{:?}", self)
+    }
+}
+
+#[derive(Debug, Parser, Clone, clap::ValueEnum, PartialEq, Eq)]
+pub enum ShowVMDetails {
+    None,
+    All,
+}
+
+impl FromStr for ShowVMDetails {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_ref() {
+            "none" => Ok(ShowVMDetails::None),
+            "all" => Ok(ShowVMDetails::All),
+            _ => Err(format!(
+                "Unknown ShowVMDetails value {} - expected one of none|all.",
+                s
+            )),
+        }
+    }
+}
+
+impl Display for ShowVMDetails {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "{:?}", self)
+    }
 }
 
 /// Helper struct for InMemoryNode.
