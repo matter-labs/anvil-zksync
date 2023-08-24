@@ -104,13 +104,16 @@ impl<S: ForkSource> ForkStorage<S> {
             let l2_miniblock = fork.l2_miniblock;
             let key_ = *key;
 
-            let result = fork.fork_source.get_storage_at(
-                *key_.account().address(),
-                h256_to_u256(*key_.key()),
-                Some(BlockIdVariant::BlockNumber(BlockNumber::Number(U64::from(
-                    l2_miniblock,
-                )))),
-            );
+            let result = fork
+                .fork_source
+                .get_storage_at(
+                    *key_.account().address(),
+                    h256_to_u256(*key_.key()),
+                    Some(BlockIdVariant::BlockNumber(BlockNumber::Number(U64::from(
+                        l2_miniblock,
+                    )))),
+                )
+                .unwrap();
 
             mutator.value_read_cache.insert(*key, result);
             result
@@ -130,7 +133,7 @@ impl<S: ForkSource> ForkStorage<S> {
                 return value.clone();
             }
 
-            let result = fork.fork_source.get_bytecode_by_hash(hash);
+            let result = fork.fork_source.get_bytecode_by_hash(hash).unwrap();
             mutator.factory_dep_cache.insert(hash, result.clone());
             result
         } else {
@@ -183,22 +186,29 @@ impl<S> ForkStorage<S> {
 /// Trait that provides necessary data when
 /// forking a remote chain.
 /// The method signatures are similar to methods from ETHNamespace and ZKNamespace.
-
 pub trait ForkSource {
     /// Returns the Storage value at a given index for given address.
-    fn get_storage_at(&self, address: Address, idx: U256, block: Option<BlockIdVariant>) -> H256;
+    fn get_storage_at(
+        &self,
+        address: Address,
+        idx: U256,
+        block: Option<BlockIdVariant>,
+    ) -> eyre::Result<H256>;
 
-    fn get_bytecode_by_hash(&self, hash: H256) -> Option<Vec<u8>>;
-    fn get_transaction_by_hash(&self, hash: H256) -> Option<Transaction>;
-    // Gets all transactions that belong to a given miniblock.
+    /// Returns the bytecode stored under this hash (if available).
+    fn get_bytecode_by_hash(&self, hash: H256) -> eyre::Result<Option<Vec<u8>>>;
+    /// Returns the transaction for a given hash.
+    fn get_transaction_by_hash(&self, hash: H256) -> eyre::Result<Option<Transaction>>;
+
+    /// Gets all transactions that belong to a given miniblock.
     fn get_raw_block_transactions(
         &self,
         block_number: MiniblockNumber,
-    ) -> Vec<zksync_types::Transaction>;
+    ) -> eyre::Result<Vec<zksync_types::Transaction>>;
 }
 
 /// Holds the information about the original chain.
-/// "S" is the impmenetation of the ForkSource.
+/// "S" is the implementation of the ForkSource.
 #[derive(Debug, Clone)]
 pub struct ForkDetails<S> {
     // Source of the fork data (for example HTTPForkSoruce)
@@ -285,11 +295,18 @@ impl<S: ForkSource> ForkDetails<S> {
 
     /// Returns transactions that are in the same L2 miniblock as replay_tx, but were executed before it.
     pub async fn get_earlier_transactions_in_same_block(&self, replay_tx: H256) -> Vec<L2Tx> {
-        let tx_details = self.fork_source.get_transaction_by_hash(replay_tx).unwrap();
+        let tx_details = self
+            .fork_source
+            .get_transaction_by_hash(replay_tx)
+            .unwrap()
+            .unwrap();
         let miniblock = MiniblockNumber(tx_details.block_number.unwrap().as_u32());
 
         // And we're fetching all the transactions from this miniblock.
-        let block_transactions = self.fork_source.get_raw_block_transactions(miniblock);
+        let block_transactions = self
+            .fork_source
+            .get_raw_block_transactions(miniblock)
+            .unwrap();
 
         let mut tx_to_apply = Vec::new();
 

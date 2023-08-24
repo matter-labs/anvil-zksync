@@ -238,6 +238,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
 mod tests {
     use std::str::FromStr;
 
+    use crate::node::ShowCalls;
     use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
 
     use super::*;
@@ -301,7 +302,7 @@ mod tests {
         // Arrange
         let node = InMemoryNode::<HttpForkSource>::new(
             None,
-            crate::formatter::ShowCalls::None,
+            ShowCalls::None,
             crate::node::ShowStorageLogs::None,
             crate::node::ShowVMDetails::None,
             false,
