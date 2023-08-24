@@ -158,7 +158,6 @@ contract DefaultAccount is IAccount {
     /// @param _signature The signature of the transaction.
     /// @return EIP1271_SUCCESS_RETURN_VALUE if the signaure is correct. It reverts otherwise.
     function _isValidSignature(bytes32 _hash, bytes memory _signature) internal view returns (bool) {
-        return true;
         require(_signature.length == 65, "Signature length is incorrect");
         uint8 v;
         bytes32 r;

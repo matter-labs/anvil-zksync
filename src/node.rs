@@ -625,7 +625,7 @@ pub fn baseline_contracts(use_local_contracts: bool) -> BaseSystemContracts {
     bsc_load_with_bootloader(bootloader_bytecode, use_local_contracts)
 }
 
-pub fn contract_address_from_tx_result(execution_result: &VmTxExecutionResult) -> Option<H160> {
+fn contract_address_from_tx_result(execution_result: &VmTxExecutionResult) -> Option<H160> {
     for query in execution_result.result.logs.storage_logs.iter().rev() {
         if query.log_type == StorageLogQueryType::InitialWrite
             && query.log_query.address == ACCOUNT_CODE_STORAGE_ADDRESS
@@ -779,9 +779,6 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         }
 
         Ok(vm_block_result)
-    }
-    pub fn run_l2_tx_for_revm(&self, l2_tx: L2Tx) -> Result<L2TxResult, String> {
-        self.run_l2_tx_inner(l2_tx, TxExecutionMode::VerifyExecute)
     }
 
     fn run_l2_tx_inner(

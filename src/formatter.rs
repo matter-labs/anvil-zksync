@@ -2,9 +2,8 @@
 use crate::{node::ShowCalls, resolver};
 
 use colored::Colorize;
-use core::fmt::Display;
 use serde::Deserialize;
-use std::{collections::HashMap, str::FromStr};
+use std::collections::HashMap;
 
 use crate::fork::block_on;
 use zksync_basic_types::H160;

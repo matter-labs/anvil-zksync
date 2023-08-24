@@ -228,7 +228,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
 
     fn get_protocol_version(
         &self,
-        version_id: Option<u16>,
+        _version_id: Option<u16>,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<ProtocolVersion>>> {
         not_implemented!()
     }
