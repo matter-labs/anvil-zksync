@@ -68,6 +68,6 @@ impl ConsoleLogHandler {
                         tokens.iter().map(|t| format!("{}", t)).join(" ")
                     })
                 });
-        println!("{}", message.to_string().cyan());
+        println!("{}", message.cyan());
     }
 }

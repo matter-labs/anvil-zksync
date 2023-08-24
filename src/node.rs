@@ -14,7 +14,6 @@ use jsonrpc_core::BoxFuture;
 use std::{
     cmp::{self},
     collections::HashMap,
-    convert::TryInto,
     str::FromStr,
     sync::{Arc, RwLock},
 };
@@ -121,8 +120,7 @@ impl FromStr for ShowCalls {
             _ => Err(format!(
                 "Unknown ShowCalls value {} - expected one of none|user|system|all.",
                 s
-            )
-            .to_owned()),
+            )),
         }
     }
 }
@@ -383,23 +381,20 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
         match estimate_gas_result {
             Err(tx_revert_reason) => {
-                println!("{}", format!("Unable to estimate gas for the request with our suggested gas limit of {}. The transaction is most likely unexecutable. Breakdown of estimation:", suggested_gas_limit + overhead).to_string().red());
+                println!("{}", format!("Unable to estimate gas for the request with our suggested gas limit of {}. The transaction is most likely unexecutable. Breakdown of estimation:", suggested_gas_limit + overhead).red());
                 println!(
                     "{}",
                     format!(
                         "\tEstimated transaction body gas cost: {}",
                         tx_body_gas_limit
                     )
-                    .to_string()
                     .red()
                 );
                 println!(
                     "{}",
-                    format!("\tGas for pubdata: {}", gas_for_bytecodes_pubdata)
-                        .to_string()
-                        .red()
+                    format!("\tGas for pubdata: {}", gas_for_bytecodes_pubdata).red()
                 );
-                println!("{}", format!("\tOverhead: {}", overhead).to_string().red());
+                println!("{}", format!("\tOverhead: {}", overhead).red());
                 let message = tx_revert_reason.to_string();
                 let data = match tx_revert_reason {
                     TxRevertReason::EthCall(vm_revert_reason) => vm_revert_reason.encoded_data(),
@@ -428,16 +423,13 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                                 "\tEstimated transaction body gas cost: {}",
                                 tx_body_gas_limit
                             )
-                            .to_string()
                             .red()
                         );
                         println!(
                             "{}",
-                            format!("\tGas for pubdata: {}", gas_for_bytecodes_pubdata)
-                                .to_string()
-                                .red()
+                            format!("\tGas for pubdata: {}", gas_for_bytecodes_pubdata).red()
                         );
-                        println!("{}", format!("\tOverhead: {}", overhead).to_string().red());
+                        println!("{}", format!("\tOverhead: {}", overhead).red());
                         return Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
                             "exceeds block gas limit".into(),
                             Default::default(),
@@ -1640,9 +1632,9 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
 
     fn fee_history(
         &self,
-        block_count: U64,
-        newest_block: zksync_types::api::BlockNumber,
-        reward_percentiles: Vec<f32>,
+        _block_count: U64,
+        _newest_block: zksync_types::api::BlockNumber,
+        _reward_percentiles: Vec<f32>,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<FeeHistory>> {
         todo!()
     }

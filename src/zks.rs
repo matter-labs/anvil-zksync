@@ -136,9 +136,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
             address => {
                 println!(
                     "{}",
-                    format!("Token price requested for unknown address {:?}", address)
-                        .to_string()
-                        .red()
+                    format!("Token price requested for unknown address {:?}", address).red()
                 );
                 futures::future::err(into_jsrpc_error(Web3Error::InternalError)).boxed()
             }
