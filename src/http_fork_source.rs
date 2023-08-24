@@ -17,11 +17,7 @@ impl HttpForkSource {
     pub fn create_client(&self) -> HttpClient {
         HttpClientBuilder::default()
             .build(self.fork_url.clone())
-             .unwrap_or_else(|_| panic!("Unable to create a client for fork: {}",
-                 self.fork_url))
-                "Unable to create a client for fork: {}",
-                self.fork_url
-            ))
+            .unwrap_or_else(|_| panic!("Unable to create a client for fork: {}", self.fork_url))
     }
 }
 
