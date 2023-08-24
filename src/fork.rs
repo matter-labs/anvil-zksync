@@ -187,7 +187,9 @@ pub trait ForkSource {
     /// Returns the Storage value at a given index for given address.
     fn get_storage_at(&self, address: Address, idx: U256, block: Option<BlockIdVariant>) -> H256;
 
+    /// Returns the bytecode stored under this hash (if available).
     fn get_bytecode_by_hash(&self, hash: H256) -> Option<Vec<u8>>;
+    /// Returns the transaction for a given hash.
     fn get_transaction_by_hash(&self, hash: H256) -> Option<Transaction>;
 
     /// Gets all transactions that belong to a given miniblock.

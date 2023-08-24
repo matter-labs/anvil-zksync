@@ -8,6 +8,7 @@ use crate::fork::{block_on, ForkSource};
 #[derive(Debug)]
 /// Fork source that gets the data via HTTP requests.
 pub struct HttpForkSource {
+    /// URL for the network to fork.
     pub fork_url: String,
 }
 
@@ -15,7 +16,10 @@ impl HttpForkSource {
     pub fn create_client(&self) -> HttpClient {
         HttpClientBuilder::default()
             .build(self.fork_url.clone())
-            .expect("Unable to create a client for fork")
+            .expect(&format!(
+                "Unable to create a client for fork: {}",
+                self.fork_url
+            ))
     }
 }
 
