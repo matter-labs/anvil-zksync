@@ -123,3 +123,37 @@ pub fn adjust_l1_gas_price_for_tx(
         l1_gas_price.as_u64()
     }
 }
+
+/// Takes long integers and returns them in human friendly format with "_".
+/// For example: 12_334_093
+pub fn to_human_size(input: U256) -> String {
+    let input = format!("{:?}", input);
+    let tmp: Vec<_> = input
+        .chars()
+        .rev()
+        .enumerate()
+        .flat_map(|(index, val)| {
+            if index > 0 && index % 3 == 0 {
+                vec!['_', val]
+            } else {
+                vec![val]
+            }
+        })
+        .collect();
+    tmp.iter().rev().collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use zksync_basic_types::U256;
+
+    #[test]
+    fn test_human_sizes() {
+        assert_eq!("123", to_human_size(U256::from(123u64)));
+        assert_eq!("1_234", to_human_size(U256::from(1234u64)));
+        assert_eq!("12_345", to_human_size(U256::from(12345u64)));
+        assert_eq!("0", to_human_size(U256::from(0)));
+        assert_eq!("1", to_human_size(U256::from(1)));
+        assert_eq!("250_000_000", to_human_size(U256::from(250000000u64)));
+    }
+}

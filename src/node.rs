@@ -4,7 +4,9 @@ use crate::{
     deps::system_contracts::bytecode_from_slice,
     fork::{ForkDetails, ForkSource, ForkStorage},
     formatter,
-    utils::{adjust_l1_gas_price_for_tx, derive_gas_estimation_overhead, IntoBoxedFuture},
+    utils::{
+        adjust_l1_gas_price_for_tx, derive_gas_estimation_overhead, to_human_size, IntoBoxedFuture,
+    },
 };
 use clap::Parser;
 use colored::Colorize;
@@ -841,10 +843,10 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             tx.payer()
         );
         println!(
-            "Gas - Limit: {:?} | Used: {:?} | Refunded: {:?}",
-            tx.gas_limit(),
-            tx.gas_limit() - tx_result.gas_refunded,
-            tx_result.gas_refunded
+            "Gas - Limit: {} | Used: {} | Refunded: {}",
+            to_human_size(tx.gas_limit()),
+            to_human_size(tx.gas_limit() - tx_result.gas_refunded),
+            to_human_size(tx_result.gas_refunded.into())
         );
 
         if inner.show_storage_logs != ShowStorageLogs::None {
