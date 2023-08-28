@@ -785,9 +785,9 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         Ok(vm_block_result)
     }
 
-    fn display_detailed_gas_info<'a, H: HistoryMode>(
+    fn display_detailed_gas_info<H: HistoryMode>(
         &self,
-        vm: &Box<VmInstance<'a, H>>,
+        vm: &VmInstance<H>,
         spent_on_pubdata: u32,
     ) -> eyre::Result<()> {
         let debug = BootloaderDebug::load_from_memory(vm)?;

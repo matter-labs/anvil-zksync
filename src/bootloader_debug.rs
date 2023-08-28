@@ -54,7 +54,7 @@ pub struct BootloaderDebug {
 
     /// How much did operator request for the block.
     pub operator_overhead: U256,
-    
+
     /// The amount of the overhead that circuits / gas are responsible for.
     pub overhead_for_circuits: U256,
     /// The amount of the overhead that transaction length it responsible for.
@@ -63,7 +63,7 @@ pub struct BootloaderDebug {
     pub overhead_for_slot: U256,
 }
 
-fn load_debug_slot<'a, H: HistoryMode>(vm: &Box<VmInstance<'a, H>>, slot: usize) -> U256 {
+fn load_debug_slot<H: HistoryMode>(vm: &VmInstance<H>, slot: usize) -> U256 {
     vm.state
         .memory
         .memory
@@ -73,7 +73,7 @@ fn load_debug_slot<'a, H: HistoryMode>(vm: &Box<VmInstance<'a, H>>, slot: usize)
 }
 
 impl BootloaderDebug {
-    pub fn load_from_memory<'a, H: HistoryMode>(vm: &Box<VmInstance<'a, H>>) -> eyre::Result<Self> {
+    pub fn load_from_memory<H: HistoryMode>(vm: &VmInstance<H>) -> eyre::Result<Self> {
         if load_debug_slot(vm, 0) != U256::from(1337) {
             eyre::bail!("Debug slot has wrong value. Probably bootloader slot mapping has changed.")
         } else {
