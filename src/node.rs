@@ -875,10 +875,13 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         println!("\n\n === Transaction setup costs ===");
         let publish_block_l1_bytes = 58823;
-        println!("Publishing full block costs the operator up to: {}, where {} is due to {} bytes published to L1",
-         to_human_size(debug.total_overhead_for_block), 
-         to_human_size(debug.gas_per_pubdata * publish_block_l1_bytes),
-        publish_block_l1_bytes);
+        println!(
+            "Publishing full block costs the operator up to: {}, where {} is due to {} bytes published to L1",
+            to_human_size(debug.total_overhead_for_block),
+            to_human_size(debug.gas_per_pubdata * publish_block_l1_bytes),
+            publish_block_l1_bytes
+        );
+
         println!(
             "Total transaction setup cost: {}",
             to_human_size(intrinsic_gas)
