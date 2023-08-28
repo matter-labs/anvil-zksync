@@ -1111,6 +1111,19 @@ object "Bootloader" {
                 
                 let gasLimitForTx, reservedGas := getGasLimitForTx(innerTxDataOffset, transactionIndex, gasPerPubdata, L2_TX_INTRINSIC_GAS(), L2_TX_INTRINSIC_PUBDATA())
 
+                let totalGasLimit := getGasLimit(innerTxDataOffset)
+                // We start with total gas limit.
+                mstore(add(SCRATCH_SPACE_BEGIN_BYTE(), 32), totalGasLimit)
+                // This is the amount of gas that will never be used.
+                mstore(add(SCRATCH_SPACE_BEGIN_BYTE(), mul(32, 2)), reservedGas)
+
+                // Amount of gas per each pubdata byte.
+                mstore(add(SCRATCH_SPACE_BEGIN_BYTE(), mul(32, 3)), gasPerPubdata)
+
+                // This is the amount of gas that is left after we removed the minimum amount of gas that will be consumed
+                // by the transaction itself (INTRINSIC GAS).
+                mstore(add(SCRATCH_SPACE_BEGIN_BYTE(), mul(32, 4)), gasLimitForTx)
+
                 let gasPrice := getGasPrice(getMaxFeePerGas(innerTxDataOffset), getMaxPriorityFeePerGas(innerTxDataOffset))
 
                 debugLog("gasLimitForTx", gasLimitForTx)
@@ -1120,12 +1133,17 @@ object "Bootloader" {
                     gasLimitForTx,
                     gasPrice
                 )
+                // This is the amount of gas that is left after validation.
+                mstore(add(SCRATCH_SPACE_BEGIN_BYTE(), mul(32, 5)), gasLeft)
 
                 debugLog("validation finished", 0)
 
                 let gasSpentOnExecute := 0
                 let success := 0
                 success, gasSpentOnExecute := l2TxExecution(txDataOffset, gasLeft)
+                // Amount of gas spent on execute.
+                mstore(add(SCRATCH_SPACE_BEGIN_BYTE(), mul(32, 6)), gasSpentOnExecute)
+
 
                 debugLog("execution finished", 0)
 
@@ -1134,6 +1152,8 @@ object "Bootloader" {
                 if lt(gasLeft, gasSpentOnExecute){
                     gasToRefund := 0
                 }
+                mstore(add(SCRATCH_SPACE_BEGIN_BYTE(), mul(32, 8)), gasToRefund)
+
 
                 // Note, that we pass reservedGas from the refundGas separately as it should not be used
                 // during the postOp execution.
@@ -1145,11 +1165,15 @@ object "Bootloader" {
                     gasPrice,
                     reservedGas
                 )
+                mstore(add(SCRATCH_SPACE_BEGIN_BYTE(), mul(32, 9)), refund)
+
 
                 debugLog("refund", 0)
 
                 notifyAboutRefund(refund)
                 mstore(resultPtr, success)
+
+                mstore(SCRATCH_SPACE_BEGIN_BYTE(), 1337)
             }
 
             /// @dev Calculates the L2 gas limit for the transaction's body, i.e. without intrinsic costs and overhead.
@@ -1275,12 +1299,17 @@ object "Bootloader" {
                 let newCompressedFactoryDepsPointer := 0
                 let gasSpentOnFactoryDeps := 0
                 let gasBeforeFactoryDeps := gas()
+                //                 mstore(SCRATCH_SPACE_BEGIN_BYTE() + 32 * 6, gasSpentOnExecute);
+
                 if gasLeft {
                     let markingDependenciesABI := getNearCallABI(gasLeft)
                     checkEnoughGas(gasLeft)
                     newCompressedFactoryDepsPointer := ZKSYNC_NEAR_CALL_markFactoryDepsL2(markingDependenciesABI, txDataOffset)
                     gasSpentOnFactoryDeps := sub(gasBeforeFactoryDeps, gas())
                 }
+                // Gas spent on fetching and unpacking the bytecodes.
+                mstore(add(SCRATCH_SPACE_BEGIN_BYTE(), mul(32, 7)), gasSpentOnFactoryDeps)
+
 
                 // If marking of factory dependencies has been unsuccessful, 0 value is returned.
                 // Otherwise, all the previous dependencies have been successfully published, so
@@ -1642,6 +1671,7 @@ object "Bootloader" {
                 }
                 let txGasLimit := min(safeSub(txTotalGasLimit, operatorOverheadForTransaction, "www"), MAX_GAS_PER_TRANSACTION())
 
+                // HERE
                 let requiredOverhead := getTransactionUpfrontOverhead(
                     txGasLimit,
                     gasPerPubdataByte,

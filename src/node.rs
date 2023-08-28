@@ -52,7 +52,8 @@ use zksync_types::{
     },
     vm_trace::VmTrace,
     zk_evm::{
-        block_properties::BlockProperties, zkevm_opcode_defs::system_params::MAX_PUBDATA_PER_BLOCK,
+        block_properties::BlockProperties,
+        zkevm_opcode_defs::{system_params::MAX_PUBDATA_PER_BLOCK, BOOTLOADER_HEAP_PAGE},
     },
     StorageKey, StorageLogQueryType, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
     L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT,
@@ -821,12 +822,104 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             bootloader_code,
             execution_mode,
         );
+        let spent_on_pubdata_before = vm.state.local_state.spent_pubdata_counter;
 
         let tx: Transaction = l2_tx.into();
         push_transaction_to_bootloader_memory(&mut vm, &tx, execution_mode, None);
         let tx_result = vm
             .execute_next_tx(u32::MAX, true)
             .map_err(|e| format!("Failed to execute next transaction: {}", e))?;
+
+        let spent_on_pubdata = vm.state.local_state.spent_pubdata_counter - spent_on_pubdata_before;
+
+        let memory = vm.state.memory.memory.inner();
+        let scratch_space_byte = 8;
+        for i in 0..12 {
+            println!(
+                "Slot value: {} {:?}",
+                i,
+                memory.read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + i)
+            );
+        }
+
+        {
+            println!("┌─────────────────────────┐");
+            println!("│   GAS DETAILS           │");
+            println!("└─────────────────────────┘");
+
+            // Total amount of gas (should match tx.gas_limit).
+            let mut total_gas_limit = memory
+                .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 1)
+                .value;
+
+            let reserved_gas = memory
+                .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 2)
+                .value;
+
+            let gas_limit_after_intrinsic = memory
+                .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 4)
+                .value;
+
+            println!(
+                "Total gas limit (set by user in transaction): {}",
+                to_human_size(total_gas_limit)
+            );
+            if !reserved_gas.is_zero() {
+                total_gas_limit = total_gas_limit.saturating_sub(reserved_gas);
+                println!(
+                    "User provided too high limit. So the actual limit is dropped by {} to: {}",
+                    to_human_size(reserved_gas),
+                    to_human_size(total_gas_limit)
+                );
+            }
+            let intrinsic_gas = total_gas_limit - gas_limit_after_intrinsic;
+            println!(
+                "Gas used for transaction / block overhead: {}",
+                to_human_size(intrinsic_gas)
+            );
+
+            let gas_after_validation = memory
+                .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 5)
+                .value;
+            println!(
+                "Gas used for validation (signature check or custom validation for Account Abstraction): {}",
+                to_human_size(gas_limit_after_intrinsic - gas_after_validation)
+            );
+            let gas_spent_on_execution = memory
+                .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 6)
+                .value;
+
+            let gas_spent_on_bytecode_preparation = memory
+                .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 7)
+                .value;
+
+            let gas_spent_on_compute = gas_spent_on_execution - gas_spent_on_bytecode_preparation;
+
+            println!(
+                "Gas spent on bytecode preparation: {}",
+                to_human_size(gas_spent_on_bytecode_preparation)
+            );
+            println!(
+                "Gas spent on compute: {}",
+                to_human_size(gas_spent_on_compute)
+            );
+
+            let refund_computed = memory
+                .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 8)
+                .value;
+            let refund_by_operator = memory
+                .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 9)
+                .value;
+            println!(
+                "VM computed refund as {}, but operator gave a refund of {}",
+                to_human_size(refund_computed),
+                to_human_size(refund_by_operator)
+            );
+            println!(
+                "Gas spent on pubdata: {}",
+                to_human_size(spent_on_pubdata.into())
+            );
+        }
 
         println!("┌─────────────────────────┐");
         println!("│   TRANSACTION SUMMARY   │");
