@@ -1432,9 +1432,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                             zksync_types::l2::TransactionType::EIP1559Transaction => 2,
                             zksync_types::l2::TransactionType::EIP712Transaction => 113,
                             zksync_types::l2::TransactionType::PriorityOpTransaction => 255,
-                            zksync_types::l2::TransactionType::ProtocolUpgradeTransaction => {
-                                todo!()
-                            }
+                            zksync_types::l2::TransactionType::ProtocolUpgradeTransaction => 254,
                         };
                         Some(tx_type.into())
                     },
@@ -1636,6 +1634,6 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
         _newest_block: zksync_types::api::BlockNumber,
         _reward_percentiles: Vec<f32>,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<FeeHistory>> {
-        todo!()
+        not_implemented("fee history")
     }
 }
