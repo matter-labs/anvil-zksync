@@ -408,6 +408,16 @@ object "Bootloader" {
                 ret := sub(MAX_MEM_SIZE(), mul(MAX_TRANSACTIONS_IN_BLOCK(), 32))
             }
 
+            /// Position of the first byte that can be used for debugging.
+            function DEBUG_BEGIN_BYTE() -> ret {
+                ret := sub(VM_HOOK_PARAMS_OFFSET(), mul(MAX_DEBUG_SLOTS(), 32)
+            }
+
+            /// @dev Number of debug slots to use (each one has 32 bytes)
+            function MAX_DEBUG_SLOTS() -> ret {
+                ret := 32
+            }
+
             /// @dev The pointer writing to which invokes the VM hooks
             function VM_HOOK_PTR() -> ret {
                 ret := sub(RESULT_START_PTR(), 32)
@@ -426,7 +436,7 @@ object "Bootloader" {
             function LAST_FREE_SLOT() -> ret {
                 // The slot right before the vm hooks is the last slot that
                 // can be used for transaction's descriptions
-                ret := sub(VM_HOOK_PARAMS_OFFSET(), 32)
+                ret := sub(DEBUG_BEGIN_BYTE(), 32)
             }
 
             /// @dev The formal address of the bootloader
@@ -1112,17 +1122,21 @@ object "Bootloader" {
                 let gasLimitForTx, reservedGas := getGasLimitForTx(innerTxDataOffset, transactionIndex, gasPerPubdata, L2_TX_INTRINSIC_GAS(), L2_TX_INTRINSIC_PUBDATA())
 
                 let totalGasLimit := getGasLimit(innerTxDataOffset)
-                // We start with total gas limit.
-                mstore(add(SCRATCH_SPACE_BEGIN_BYTE(), 32), totalGasLimit)
+
+                // Debug information for the in-memory node.
+                mstore(DEBUG_BEGIN_BYTE(), 1337)
+
+                // We start with total gas limit fro user.
+                mstore(add(DEBUG_BEGIN_BYTE(), 32), totalGasLimit)
                 // This is the amount of gas that will never be used.
-                mstore(add(SCRATCH_SPACE_BEGIN_BYTE(), mul(32, 2)), reservedGas)
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 2)), reservedGas)
 
                 // Amount of gas per each pubdata byte.
-                mstore(add(SCRATCH_SPACE_BEGIN_BYTE(), mul(32, 3)), gasPerPubdata)
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 3)), gasPerPubdata)
 
                 // This is the amount of gas that is left after we removed the minimum amount of gas that will be consumed
                 // by the transaction itself (INTRINSIC GAS).
-                mstore(add(SCRATCH_SPACE_BEGIN_BYTE(), mul(32, 4)), gasLimitForTx)
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 4)), gasLimitForTx)
 
                 let gasPrice := getGasPrice(getMaxFeePerGas(innerTxDataOffset), getMaxPriorityFeePerGas(innerTxDataOffset))
 
@@ -1134,7 +1148,7 @@ object "Bootloader" {
                     gasPrice
                 )
                 // This is the amount of gas that is left after validation.
-                mstore(add(SCRATCH_SPACE_BEGIN_BYTE(), mul(32, 5)), gasLeft)
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 5)), gasLeft)
 
                 debugLog("validation finished", 0)
 
@@ -1142,7 +1156,7 @@ object "Bootloader" {
                 let success := 0
                 success, gasSpentOnExecute := l2TxExecution(txDataOffset, gasLeft)
                 // Amount of gas spent on execute.
-                mstore(add(SCRATCH_SPACE_BEGIN_BYTE(), mul(32, 6)), gasSpentOnExecute)
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 6)), gasSpentOnExecute)
 
 
                 debugLog("execution finished", 0)
@@ -1152,7 +1166,7 @@ object "Bootloader" {
                 if lt(gasLeft, gasSpentOnExecute){
                     gasToRefund := 0
                 }
-                mstore(add(SCRATCH_SPACE_BEGIN_BYTE(), mul(32, 8)), gasToRefund)
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 8)), gasToRefund)
 
 
                 // Note, that we pass reservedGas from the refundGas separately as it should not be used
@@ -1165,15 +1179,13 @@ object "Bootloader" {
                     gasPrice,
                     reservedGas
                 )
-                mstore(add(SCRATCH_SPACE_BEGIN_BYTE(), mul(32, 9)), refund)
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 9)), refund)
 
 
                 debugLog("refund", 0)
 
                 notifyAboutRefund(refund)
                 mstore(resultPtr, success)
-
-                mstore(SCRATCH_SPACE_BEGIN_BYTE(), 1337)
             }
 
             /// @dev Calculates the L2 gas limit for the transaction's body, i.e. without intrinsic costs and overhead.
@@ -1299,7 +1311,6 @@ object "Bootloader" {
                 let newCompressedFactoryDepsPointer := 0
                 let gasSpentOnFactoryDeps := 0
                 let gasBeforeFactoryDeps := gas()
-                //                 mstore(SCRATCH_SPACE_BEGIN_BYTE() + 32 * 6, gasSpentOnExecute);
 
                 if gasLeft {
                     let markingDependenciesABI := getNearCallABI(gasLeft)
@@ -1308,7 +1319,7 @@ object "Bootloader" {
                     gasSpentOnFactoryDeps := sub(gasBeforeFactoryDeps, gas())
                 }
                 // Gas spent on fetching and unpacking the bytecodes.
-                mstore(add(SCRATCH_SPACE_BEGIN_BYTE(), mul(32, 7)), gasSpentOnFactoryDeps)
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 7)), gasSpentOnFactoryDeps)
 
 
                 // If marking of factory dependencies has been unsuccessful, 0 value is returned.

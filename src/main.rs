@@ -49,6 +49,7 @@ use fork::{ForkDetails, ForkSource};
 use node::ShowCalls;
 use zks::ZkMockNamespaceImpl;
 
+mod bootloader_debug;
 mod configuration_api;
 mod console_log;
 mod deps;

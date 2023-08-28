@@ -1,5 +1,6 @@
 //! In-memory node, that supports forking other networks.
 use crate::{
+    bootloader_debug::BootloaderDebug,
     console_log::ConsoleLogHandler,
     deps::system_contracts::bytecode_from_slice,
     fork::{ForkDetails, ForkSource, ForkStorage},
@@ -53,8 +54,7 @@ use zksync_types::{
     },
     vm_trace::VmTrace,
     zk_evm::{
-        block_properties::BlockProperties,
-        zkevm_opcode_defs::{system_params::MAX_PUBDATA_PER_BLOCK, BOOTLOADER_HEAP_PAGE},
+        block_properties::BlockProperties, zkevm_opcode_defs::system_params::MAX_PUBDATA_PER_BLOCK,
     },
     StorageKey, StorageLogQueryType, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
     L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT,
@@ -789,110 +789,65 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         &self,
         vm: &Box<VmInstance<'a, H>>,
         spent_on_pubdata: u32,
-    ) {
-        let memory = vm.state.memory.memory.inner();
-
-        let scratch_space_byte = 8;
-        for i in 0..12 {
-            println!(
-                "Slot value: {} {:?}",
-                i,
-                memory.read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + i)
-            );
-        }
+    ) -> eyre::Result<()> {
+        let debug = BootloaderDebug::load_from_memory(vm)?;
 
         println!("┌─────────────────────────┐");
         println!("│       GAS DETAILS       │");
         println!("└─────────────────────────┘");
 
         // Total amount of gas (should match tx.gas_limit).
-        let total_gas_limit_from_user = memory
-            .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 1)
-            .value;
+        let total_gas_limit = debug
+            .total_gas_limit_from_user
+            .saturating_sub(debug.reserved_gas);
 
-        let reserved_gas = memory
-            .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 2)
-            .value;
+        let intrinsic_gas = total_gas_limit - debug.gas_limit_after_intrinsic;
+        let gas_for_validation = debug.gas_limit_after_intrinsic - debug.gas_after_validation;
 
-        let l1_gas_price = memory
-            .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 3)
-            .value;
-
-        let gas_limit_after_intrinsic = memory
-            .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 4)
-            .value;
-
-        let total_gas_limit = if !reserved_gas.is_zero() {
-            total_gas_limit_from_user.saturating_sub(reserved_gas)
-        } else {
-            total_gas_limit_from_user
-        };
-
-        let intrinsic_gas = total_gas_limit - gas_limit_after_intrinsic;
-
-        let gas_after_validation = memory
-            .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 5)
-            .value;
-        let gas_for_validation = gas_limit_after_intrinsic - gas_after_validation;
-
-        let gas_spent_on_execution = memory
-            .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 6)
-            .value;
-
-        let gas_spent_on_bytecode_preparation = memory
-            .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 7)
-            .value;
-
-        let gas_spent_on_compute = gas_spent_on_execution - gas_spent_on_bytecode_preparation;
-
-        let refund_computed = memory
-            .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 8)
-            .value;
-        let refund_by_operator = memory
-            .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 9)
-            .value;
+        let gas_spent_on_compute =
+            debug.gas_spent_on_execution - debug.gas_spent_on_bytecode_preparation;
 
         let gas_used = intrinsic_gas
             + gas_for_validation
-            + gas_spent_on_bytecode_preparation
+            + debug.gas_spent_on_bytecode_preparation
             + gas_spent_on_compute;
 
         println!(
             "Gas - Limit: {} | Used: {} | Refunded: {}",
             to_human_size(total_gas_limit),
             to_human_size(gas_used),
-            to_human_size(refund_by_operator)
+            to_human_size(debug.refund_by_operator)
         );
 
-        if total_gas_limit_from_user != total_gas_limit {
+        if debug.total_gas_limit_from_user != total_gas_limit {
             println!(
                 "  WARNING: user actually provided more gas {}, but system had a lower max limit.",
-                to_human_size(total_gas_limit_from_user)
+                to_human_size(debug.total_gas_limit_from_user)
             )
         }
-        if refund_computed != refund_by_operator {
+        if debug.refund_computed != debug.refund_by_operator {
             println!(
                 "  WARNING: Refund by VM: {}, but operator refunded more: {}",
-                to_human_size(refund_computed),
-                to_human_size(refund_by_operator)
+                to_human_size(debug.refund_computed),
+                to_human_size(debug.refund_by_operator)
             );
         }
 
-        if refund_computed + gas_used != total_gas_limit {
+        if debug.refund_computed + gas_used != total_gas_limit {
             println!(
                 "  WARNING: Gas totals don't match. {} != {} , delta: {}",
-                to_human_size(refund_computed + gas_used),
+                to_human_size(debug.refund_computed + gas_used),
                 to_human_size(total_gas_limit),
-                to_human_size(total_gas_limit.abs_diff(refund_computed + gas_used))
+                to_human_size(total_gas_limit.abs_diff(debug.refund_computed + gas_used))
             )
         }
 
-        let bytes_published = spent_on_pubdata / l1_gas_price.as_u32();
+        let bytes_published = spent_on_pubdata / debug.gas_per_pubdata.as_u32();
 
         println!(
             "Overall published {} bytes to L1, @{} each - in total {} gas",
             to_human_size(bytes_published.into()),
-            to_human_size(l1_gas_price),
+            to_human_size(debug.gas_per_pubdata),
             to_human_size(spent_on_pubdata.into())
         );
 
@@ -904,8 +859,8 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         );
         println!(
             "  {:>15} gas ({:>2}%) for bytecode preparation",
-            to_human_size(gas_spent_on_bytecode_preparation),
-            to_human_size(gas_spent_on_bytecode_preparation * 100 / gas_used)
+            to_human_size(debug.gas_spent_on_bytecode_preparation),
+            to_human_size(debug.gas_spent_on_bytecode_preparation * 100 / gas_used)
         );
         println!(
             "  {:>15} gas ({:>2}%) for account validation",
@@ -917,6 +872,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             to_human_size(gas_spent_on_compute),
             to_human_size(gas_spent_on_compute * 100 / gas_used)
         );
+        Ok(())
     }
 
     fn run_l2_tx_inner(
@@ -988,7 +944,12 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             to_human_size(tx_result.gas_refunded.into())
         );
 
-        self.display_detailed_gas_info(&vm, spent_on_pubdata);
+        if self
+            .display_detailed_gas_info(&vm, spent_on_pubdata)
+            .is_err()
+        {
+            println!("!!! FAILED TO GET DETAILED GAS INFO !!!");
+        }
 
         if inner.show_storage_logs != ShowStorageLogs::None {
             println!("\n┌──────────────────┐");
