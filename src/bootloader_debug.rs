@@ -39,6 +39,28 @@ pub struct BootloaderDebug {
     pub refund_computed: U256,
     /// Amount of refund provided by the operator (it might be larger than refund computed - for example due to pubdata compression).
     pub refund_by_operator: U256,
+
+    /// Fixed amount of gas for each transaction.
+    pub intrinsic_overhead: U256,
+
+    /// Closing a block has a non-trivial cost for the operator (they have to run the prover, and commit results to L1).
+    /// That's why we have to judge how much a given transaction is contributing the operator closer to sealing the block.
+
+    /// Cost of the whole block for the operator.
+    pub total_overhead_for_block: U256,
+
+    /// The maximum amount that operator could have requested.
+    pub required_overhead: U256,
+
+    /// How much did operator request for the block.
+    pub operator_overhead: U256,
+    
+    /// The amount of the overhead that circuits / gas are responsible for.
+    pub overhead_for_circuits: U256,
+    /// The amount of the overhead that transaction length it responsible for.
+    pub overhead_for_length: U256,
+    /// The amount of the overhead that simply using a slot of the block is responsible for.
+    pub overhead_for_slot: U256,
 }
 
 fn load_debug_slot<'a, H: HistoryMode>(vm: &Box<VmInstance<'a, H>>, slot: usize) -> U256 {
@@ -65,6 +87,13 @@ impl BootloaderDebug {
                 gas_spent_on_bytecode_preparation: load_debug_slot(vm, 7),
                 refund_computed: load_debug_slot(vm, 8),
                 refund_by_operator: load_debug_slot(vm, 9),
+                intrinsic_overhead: load_debug_slot(vm, 10),
+                operator_overhead: load_debug_slot(vm, 11),
+                required_overhead: load_debug_slot(vm, 12),
+                total_overhead_for_block: load_debug_slot(vm, 13),
+                overhead_for_circuits: load_debug_slot(vm, 14),
+                overhead_for_length: load_debug_slot(vm, 15),
+                overhead_for_slot: load_debug_slot(vm, 16),
             })
         }
     }

@@ -1229,6 +1229,8 @@ object "Bootloader" {
                     gasPerPubdata,
                     txEncodingLen
                 )
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 11)), operatorOverheadForTransaction)
+
                 gasLimitForTx := safeSub(totalGasLimit, operatorOverheadForTransaction, "qr")
 
                 let intrinsicOverhead := safeAdd(
@@ -1237,6 +1239,8 @@ object "Bootloader" {
                     safeMul(intrinsicPubdata, gasPerPubdata, "qw"),
                     "fj" 
                 )
+                // Fixed overhead.
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 10)), intrinsicOverhead)
 
                 switch lt(gasLimitForTx, intrinsicOverhead)
                 case 1 {
@@ -1682,12 +1686,13 @@ object "Bootloader" {
                 }
                 let txGasLimit := min(safeSub(txTotalGasLimit, operatorOverheadForTransaction, "www"), MAX_GAS_PER_TRANSACTION())
 
-                // HERE
                 let requiredOverhead := getTransactionUpfrontOverhead(
                     txGasLimit,
                     gasPerPubdataByte,
                     txEncodeLen
                 )
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 12)), requiredOverhead)
+
 
                 debugLog("txTotalGasLimit", txTotalGasLimit)
                 debugLog("requiredOverhead", requiredOverhead)
@@ -1911,6 +1916,7 @@ object "Bootloader" {
                 ret := 0
                 let totalBlockOverhead := getBlockOverheadGas(gasPerPubdataByte)
                 debugLog("totalBlockOverhead", totalBlockOverhead)
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 13)), totalBlockOverhead)
 
                 let overheadForCircuits := ceilDiv(
                     safeMul(totalBlockOverhead, txGasLimit, "ac"),
@@ -1918,6 +1924,7 @@ object "Bootloader" {
                 )
                 ret := max(ret, overheadForCircuits)
                 debugLog("overheadForCircuits", overheadForCircuits)
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 14)), overheadForCircuits)
 
                 
                 let overheadForLength := ceilDiv(
@@ -1926,6 +1933,7 @@ object "Bootloader" {
                 )
                 ret := max(ret, overheadForLength)
                 debugLog("overheadForLength", overheadForLength)
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 15)), overheadForLength)
 
                 
                 let overheadForSlot := ceilDiv(
@@ -1934,6 +1942,7 @@ object "Bootloader" {
                 )
                 ret := max(ret, overheadForSlot)
                 debugLog("overheadForSlot", overheadForSlot)
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 16)), overheadForSlot)
             
                 // In the proved block we ensure that the gasPerPubdataByte is not zero
                 // to avoid the potential edge case of division by zero. In Yul, division by 

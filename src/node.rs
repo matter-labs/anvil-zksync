@@ -845,7 +845,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         let bytes_published = spent_on_pubdata / debug.gas_per_pubdata.as_u32();
 
         println!(
-            "Overall published {} bytes to L1, @{} each - in total {} gas",
+            "During execution published {} bytes to L1, @{} each - in total {} gas",
             to_human_size(bytes_published.into()),
             to_human_size(debug.gas_per_pubdata),
             to_human_size(spent_on_pubdata.into())
@@ -858,7 +858,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             to_human_size(intrinsic_gas * 100 / gas_used)
         );
         println!(
-            "  {:>15} gas ({:>2}%) for bytecode preparation",
+            "  {:>15} gas ({:>2}%) for bytecode preparation (decompression etc)",
             to_human_size(debug.gas_spent_on_bytecode_preparation),
             to_human_size(debug.gas_spent_on_bytecode_preparation * 100 / gas_used)
         );
@@ -871,6 +871,40 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             "  {:>15} gas ({:>2}%) for computations (opcodes)",
             to_human_size(gas_spent_on_compute),
             to_human_size(gas_spent_on_compute * 100 / gas_used)
+        );
+
+        println!("\n\n === Transaction setup costs ===");
+        let publish_block_l1_bytes = 58823;
+        println!("Publishing full block costs the operator up to: {}, where {} is due to {} bytes published to L1",
+         to_human_size(debug.total_overhead_for_block), 
+         to_human_size(debug.gas_per_pubdata * publish_block_l1_bytes),
+        publish_block_l1_bytes);
+        println!(
+            "Total transaction setup cost: {}",
+            to_human_size(intrinsic_gas)
+        );
+        println!(
+            "  where: fixed cost: {} and operator cost: {}",
+            to_human_size(debug.intrinsic_overhead),
+            to_human_size(debug.operator_overhead)
+        );
+        println!(
+            "Operator could have charged up to: {}",
+            to_human_size(debug.required_overhead)
+        );
+        println!(
+            "  Circuits overhead:{:>15} ({}% of the full block: {})",
+            to_human_size(debug.overhead_for_circuits),
+            to_human_size(debug.overhead_for_circuits * 100 / debug.total_overhead_for_block),
+            to_human_size(debug.total_overhead_for_block)
+        );
+        println!(
+            "  Length overhead:  {:>15}",
+            to_human_size(debug.overhead_for_length)
+        );
+        println!(
+            "  Slot overhead:    {:>15}",
+            to_human_size(debug.overhead_for_slot)
         );
         Ok(())
     }
