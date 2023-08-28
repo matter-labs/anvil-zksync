@@ -28,7 +28,8 @@ use vm::{
         derive_base_fee_and_gas_per_pubdata, init_vm_inner, push_transaction_to_bootloader_memory,
         BlockContext, BlockContextMode, BootloaderJobType, DerivedBlockContext, TxExecutionMode,
     },
-    HistoryDisabled, HistoryEnabled, OracleTools, TxRevertReason, VmBlockResult,
+    HistoryDisabled, HistoryEnabled, HistoryMode, OracleTools, TxRevertReason, VmBlockResult,
+    VmInstance,
 };
 use zksync_basic_types::{AccountTreeId, Bytes, H160, H256, U256, U64};
 use zksync_contracts::{
@@ -784,6 +785,140 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         Ok(vm_block_result)
     }
 
+    fn display_detailed_gas_info<'a, H: HistoryMode>(
+        &self,
+        vm: &Box<VmInstance<'a, H>>,
+        spent_on_pubdata: u32,
+    ) {
+        let memory = vm.state.memory.memory.inner();
+
+        let scratch_space_byte = 8;
+        for i in 0..12 {
+            println!(
+                "Slot value: {} {:?}",
+                i,
+                memory.read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + i)
+            );
+        }
+
+        println!("┌─────────────────────────┐");
+        println!("│       GAS DETAILS       │");
+        println!("└─────────────────────────┘");
+
+        // Total amount of gas (should match tx.gas_limit).
+        let total_gas_limit_from_user = memory
+            .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 1)
+            .value;
+
+        let reserved_gas = memory
+            .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 2)
+            .value;
+
+        let l1_gas_price = memory
+            .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 3)
+            .value;
+
+        let gas_limit_after_intrinsic = memory
+            .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 4)
+            .value;
+
+        let total_gas_limit = if !reserved_gas.is_zero() {
+            total_gas_limit_from_user.saturating_sub(reserved_gas)
+        } else {
+            total_gas_limit_from_user
+        };
+
+        let intrinsic_gas = total_gas_limit - gas_limit_after_intrinsic;
+
+        let gas_after_validation = memory
+            .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 5)
+            .value;
+        let gas_for_validation = gas_limit_after_intrinsic - gas_after_validation;
+
+        let gas_spent_on_execution = memory
+            .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 6)
+            .value;
+
+        let gas_spent_on_bytecode_preparation = memory
+            .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 7)
+            .value;
+
+        let gas_spent_on_compute = gas_spent_on_execution - gas_spent_on_bytecode_preparation;
+
+        let refund_computed = memory
+            .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 8)
+            .value;
+        let refund_by_operator = memory
+            .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 9)
+            .value;
+
+        let gas_used = intrinsic_gas
+            + gas_for_validation
+            + gas_spent_on_bytecode_preparation
+            + gas_spent_on_compute;
+
+        println!(
+            "Gas - Limit: {} | Used: {} | Refunded: {}",
+            to_human_size(total_gas_limit),
+            to_human_size(gas_used),
+            to_human_size(refund_by_operator)
+        );
+
+        if total_gas_limit_from_user != total_gas_limit {
+            println!(
+                "  WARNING: user actually provided more gas {}, but system had a lower max limit.",
+                to_human_size(total_gas_limit_from_user)
+            )
+        }
+        if refund_computed != refund_by_operator {
+            println!(
+                "  WARNING: Refund by VM: {}, but operator refunded more: {}",
+                to_human_size(refund_computed),
+                to_human_size(refund_by_operator)
+            );
+        }
+
+        if refund_computed + gas_used != total_gas_limit {
+            println!(
+                "  WARNING: Gas totals don't match. {} != {} , delta: {}",
+                to_human_size(refund_computed + gas_used),
+                to_human_size(total_gas_limit),
+                to_human_size(total_gas_limit.abs_diff(refund_computed + gas_used))
+            )
+        }
+
+        let bytes_published = spent_on_pubdata / l1_gas_price.as_u32();
+
+        println!(
+            "Overall published {} bytes to L1, @{} each - in total {} gas",
+            to_human_size(bytes_published.into()),
+            to_human_size(l1_gas_price),
+            to_human_size(spent_on_pubdata.into())
+        );
+
+        println!("Out of {} gas used, we spent:", to_human_size(gas_used));
+        println!(
+            "  {:>15} gas ({:>2}%) for transaction setup",
+            to_human_size(intrinsic_gas),
+            to_human_size(intrinsic_gas * 100 / gas_used)
+        );
+        println!(
+            "  {:>15} gas ({:>2}%) for bytecode preparation",
+            to_human_size(gas_spent_on_bytecode_preparation),
+            to_human_size(gas_spent_on_bytecode_preparation * 100 / gas_used)
+        );
+        println!(
+            "  {:>15} gas ({:>2}%) for account validation",
+            to_human_size(gas_for_validation),
+            to_human_size(gas_for_validation * 100 / gas_used)
+        );
+        println!(
+            "  {:>15} gas ({:>2}%) for computations (opcodes)",
+            to_human_size(gas_spent_on_compute),
+            to_human_size(gas_spent_on_compute * 100 / gas_used)
+        );
+    }
+
     fn run_l2_tx_inner(
         &self,
         l2_tx: L2Tx,
@@ -832,95 +967,6 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         let spent_on_pubdata = vm.state.local_state.spent_pubdata_counter - spent_on_pubdata_before;
 
-        let memory = vm.state.memory.memory.inner();
-        let scratch_space_byte = 8;
-        for i in 0..12 {
-            println!(
-                "Slot value: {} {:?}",
-                i,
-                memory.read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + i)
-            );
-        }
-
-        {
-            println!("┌─────────────────────────┐");
-            println!("│   GAS DETAILS           │");
-            println!("└─────────────────────────┘");
-
-            // Total amount of gas (should match tx.gas_limit).
-            let mut total_gas_limit = memory
-                .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 1)
-                .value;
-
-            let reserved_gas = memory
-                .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 2)
-                .value;
-
-            let gas_limit_after_intrinsic = memory
-                .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 4)
-                .value;
-
-            println!(
-                "Total gas limit (set by user in transaction): {}",
-                to_human_size(total_gas_limit)
-            );
-            if !reserved_gas.is_zero() {
-                total_gas_limit = total_gas_limit.saturating_sub(reserved_gas);
-                println!(
-                    "User provided too high limit. So the actual limit is dropped by {} to: {}",
-                    to_human_size(reserved_gas),
-                    to_human_size(total_gas_limit)
-                );
-            }
-            let intrinsic_gas = total_gas_limit - gas_limit_after_intrinsic;
-            println!(
-                "Gas used for transaction / block overhead: {}",
-                to_human_size(intrinsic_gas)
-            );
-
-            let gas_after_validation = memory
-                .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 5)
-                .value;
-            println!(
-                "Gas used for validation (signature check or custom validation for Account Abstraction): {}",
-                to_human_size(gas_limit_after_intrinsic - gas_after_validation)
-            );
-            let gas_spent_on_execution = memory
-                .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 6)
-                .value;
-
-            let gas_spent_on_bytecode_preparation = memory
-                .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 7)
-                .value;
-
-            let gas_spent_on_compute = gas_spent_on_execution - gas_spent_on_bytecode_preparation;
-
-            println!(
-                "Gas spent on bytecode preparation: {}",
-                to_human_size(gas_spent_on_bytecode_preparation)
-            );
-            println!(
-                "Gas spent on compute: {}",
-                to_human_size(gas_spent_on_compute)
-            );
-
-            let refund_computed = memory
-                .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 8)
-                .value;
-            let refund_by_operator = memory
-                .read_slot(BOOTLOADER_HEAP_PAGE as usize, scratch_space_byte + 9)
-                .value;
-            println!(
-                "VM computed refund as {}, but operator gave a refund of {}",
-                to_human_size(refund_computed),
-                to_human_size(refund_by_operator)
-            );
-            println!(
-                "Gas spent on pubdata: {}",
-                to_human_size(spent_on_pubdata.into())
-            );
-        }
-
         println!("┌─────────────────────────┐");
         println!("│   TRANSACTION SUMMARY   │");
         println!("└─────────────────────────┘");
@@ -941,6 +987,8 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             to_human_size(tx.gas_limit() - tx_result.gas_refunded),
             to_human_size(tx_result.gas_refunded.into())
         );
+
+        self.display_detailed_gas_info(&vm, spent_on_pubdata);
 
         if inner.show_storage_logs != ShowStorageLogs::None {
             println!("\n┌──────────────────┐");
