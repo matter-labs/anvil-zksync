@@ -1131,11 +1131,12 @@ object "Bootloader" {
                 
                 let gasLimitForTx, reservedGas := getGasLimitForTx(innerTxDataOffset, transactionIndex, gasPerPubdata, L2_TX_INTRINSIC_GAS(), L2_TX_INTRINSIC_PUBDATA())
 
-                let totalGasLimit := getGasLimit(innerTxDataOffset)
 
                 ///
                 /// DEBUG SUPPORT START
                 ///
+
+                let totalGasLimit := getGasLimit(innerTxDataOffset)
 
                 // Setinel value for Debug information for the in-memory node.
                 mstore(DEBUG_BEGIN_BYTE(), 1337)
@@ -1165,16 +1166,28 @@ object "Bootloader" {
                     gasLimitForTx,
                     gasPrice
                 )
+                ///
+                /// DEBUG SUPPORT START
+                ///
                 // This is the amount of gas that is left after validation.
                 mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 5)), gasLeft)
+                ///
+                /// DEBUG SUPPORT END
+                /// 
 
                 debugLog("validation finished", 0)
 
                 let gasSpentOnExecute := 0
                 let success := 0
                 success, gasSpentOnExecute := l2TxExecution(txDataOffset, gasLeft)
+                ///
+                /// DEBUG SUPPORT START
+                ///
                 // Amount of gas spent on execute.
                 mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 6)), gasSpentOnExecute)
+                ///
+                /// DEBUG SUPPORT END
+                /// 
 
 
                 debugLog("execution finished", 0)
@@ -1184,7 +1197,13 @@ object "Bootloader" {
                 if lt(gasLeft, gasSpentOnExecute){
                     gasToRefund := 0
                 }
+                ///
+                /// DEBUG SUPPORT START
+                ///
                 mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 8)), gasToRefund)
+                ///
+                /// DEBUG SUPPORT END
+                /// 
 
 
                 // Note, that we pass reservedGas from the refundGas separately as it should not be used
@@ -1197,8 +1216,13 @@ object "Bootloader" {
                     gasPrice,
                     reservedGas
                 )
+                ///
+                /// DEBUG SUPPORT START
+                ///
                 mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 9)), refund)
-
+                ///
+                /// DEBUG SUPPORT END
+                /// 
 
                 debugLog("refund", 0)
 
@@ -1247,8 +1271,6 @@ object "Bootloader" {
                     gasPerPubdata,
                     txEncodingLen
                 )
-                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 11)), operatorOverheadForTransaction)
-
                 gasLimitForTx := safeSub(totalGasLimit, operatorOverheadForTransaction, "qr")
 
                 let intrinsicOverhead := safeAdd(
@@ -1257,8 +1279,17 @@ object "Bootloader" {
                     safeMul(intrinsicPubdata, gasPerPubdata, "qw"),
                     "fj" 
                 )
+                ///
+                /// DEBUG SUPPORT START
+                /// 
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 11)), operatorOverheadForTransaction)
+
                 // Fixed overhead.
                 mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 10)), intrinsicOverhead)
+                ///
+                /// DEBUG SUPPORT END
+                /// 
+
 
                 switch lt(gasLimitForTx, intrinsicOverhead)
                 case 1 {
@@ -1333,7 +1364,6 @@ object "Bootloader" {
                 let newCompressedFactoryDepsPointer := 0
                 let gasSpentOnFactoryDeps := 0
                 let gasBeforeFactoryDeps := gas()
-
                 if gasLeft {
                     let markingDependenciesABI := getNearCallABI(gasLeft)
                     checkEnoughGas(gasLeft)
