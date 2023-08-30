@@ -921,7 +921,31 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             to_human_size(gas_spent_on_compute * 100 / gas_used)
         );
 
-        println!("\n\n === Transaction setup costs ===");
+        println!(
+            "\n\n {}",
+            "=== Transaction setup cost breakdown ===".to_owned().bold(),
+        );
+
+        println!("Total cost: {}", to_human_size(intrinsic_gas).bold());
+        println!(
+            "  {:>15} gas ({:>2}%) fixed cost",
+            to_human_size(debug.intrinsic_overhead),
+            to_human_size(debug.intrinsic_overhead * 100 / intrinsic_gas)
+        );
+        println!(
+            "  {:>15} gas ({:>2}%) operator cost",
+            to_human_size(debug.operator_overhead),
+            to_human_size(debug.operator_overhead * 100 / intrinsic_gas)
+        );
+
+        println!(
+            "\n FYI: operator could have charged up to: {}, so you got {}% discount",
+            to_human_size(debug.required_overhead),
+            to_human_size(
+                (debug.required_overhead - debug.operator_overhead) * 100 / debug.required_overhead
+            )
+        );
+
         let publish_block_l1_bytes = BLOCK_OVERHEAD_PUBDATA;
         println!(
             "Publishing full block costs the operator up to: {}, where {} is due to {} bytes published to L1",
@@ -929,20 +953,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             to_human_size(debug.gas_per_pubdata * publish_block_l1_bytes),
             publish_block_l1_bytes
         );
-
-        println!(
-            "Total transaction setup cost: {}",
-            to_human_size(intrinsic_gas)
-        );
-        println!(
-            "  where: fixed cost: {} and operator cost: {}",
-            to_human_size(debug.intrinsic_overhead),
-            to_human_size(debug.operator_overhead)
-        );
-        println!(
-            "Operator could have charged up to: {}",
-            to_human_size(debug.required_overhead)
-        );
+        println!("Your transaction has contributed to filling up block in the following way (we take the max contribution as the cost):");
         println!(
             "  Circuits overhead:{:>15} ({}% of the full block: {})",
             to_human_size(debug.overhead_for_circuits),
