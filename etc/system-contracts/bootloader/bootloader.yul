@@ -408,6 +408,11 @@ object "Bootloader" {
                 ret := sub(MAX_MEM_SIZE(), mul(MAX_TRANSACTIONS_IN_BLOCK(), 32))
             }
 
+
+            ///
+            /// DEBUG SUPPORT START
+            ///
+
             /// Position of the first byte that can be used for debugging.
             function DEBUG_BEGIN_BYTE() -> ret {
                 ret := sub(VM_HOOK_PARAMS_OFFSET(), mul(MAX_DEBUG_SLOTS(), 32)
@@ -417,6 +422,10 @@ object "Bootloader" {
             function MAX_DEBUG_SLOTS() -> ret {
                 ret := 32
             }
+
+            ///
+            /// DEBUG SUPPORT END.
+            ///
 
             /// @dev The pointer writing to which invokes the VM hooks
             function VM_HOOK_PTR() -> ret {
@@ -436,6 +445,7 @@ object "Bootloader" {
             function LAST_FREE_SLOT() -> ret {
                 // The slot right before the vm hooks is the last slot that
                 // can be used for transaction's descriptions
+                /// DEBUG SUPPORT: use DEBUG_BEGIN_BYTE (as we reserve some bytes at the end of memory).
                 ret := sub(DEBUG_BEGIN_BYTE(), 32)
             }
 
@@ -1123,7 +1133,11 @@ object "Bootloader" {
 
                 let totalGasLimit := getGasLimit(innerTxDataOffset)
 
-                // Debug information for the in-memory node.
+                ///
+                /// DEBUG SUPPORT START
+                ///
+
+                // Setinel value for Debug information for the in-memory node.
                 mstore(DEBUG_BEGIN_BYTE(), 1337)
 
                 // We start with total gas limit from user.
@@ -1137,6 +1151,10 @@ object "Bootloader" {
                 // This is the amount of gas that is left after we removed the minimum amount of gas that will be consumed
                 // by the transaction itself (INTRINSIC GAS).
                 mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 4)), gasLimitForTx)
+
+                ///
+                /// DEBUG SUPPORT END
+                /// 
 
                 let gasPrice := getGasPrice(getMaxFeePerGas(innerTxDataOffset), getMaxPriorityFeePerGas(innerTxDataOffset))
 
@@ -1322,9 +1340,17 @@ object "Bootloader" {
                     newCompressedFactoryDepsPointer := ZKSYNC_NEAR_CALL_markFactoryDepsL2(markingDependenciesABI, txDataOffset)
                     gasSpentOnFactoryDeps := sub(gasBeforeFactoryDeps, gas())
                 }
+
+                ///
+                /// DEBUG SUPPORT START
+                /// 
+
                 // Gas spent on fetching and unpacking the bytecodes.
                 mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 7)), gasSpentOnFactoryDeps)
 
+                ///
+                /// DEBUG SUPPORT END
+                /// 
 
                 // If marking of factory dependencies has been unsuccessful, 0 value is returned.
                 // Otherwise, all the previous dependencies have been successfully published, so
@@ -1691,7 +1717,13 @@ object "Bootloader" {
                     gasPerPubdataByte,
                     txEncodeLen
                 )
+                ///
+                /// DEBUG SUPPORT START
+                /// 
                 mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 12)), requiredOverhead)
+                ///
+                /// DEBUG SUPPORT END
+                /// 
 
 
                 debugLog("txTotalGasLimit", txTotalGasLimit)
@@ -1916,7 +1948,6 @@ object "Bootloader" {
                 ret := 0
                 let totalBlockOverhead := getBlockOverheadGas(gasPerPubdataByte)
                 debugLog("totalBlockOverhead", totalBlockOverhead)
-                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 13)), totalBlockOverhead)
 
                 let overheadForCircuits := ceilDiv(
                     safeMul(totalBlockOverhead, txGasLimit, "ac"),
@@ -1924,7 +1955,6 @@ object "Bootloader" {
                 )
                 ret := max(ret, overheadForCircuits)
                 debugLog("overheadForCircuits", overheadForCircuits)
-                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 14)), overheadForCircuits)
 
                 
                 let overheadForLength := ceilDiv(
@@ -1933,7 +1963,6 @@ object "Bootloader" {
                 )
                 ret := max(ret, overheadForLength)
                 debugLog("overheadForLength", overheadForLength)
-                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 15)), overheadForLength)
 
                 
                 let overheadForSlot := ceilDiv(
@@ -1942,7 +1971,19 @@ object "Bootloader" {
                 )
                 ret := max(ret, overheadForSlot)
                 debugLog("overheadForSlot", overheadForSlot)
+
+                ///
+                /// DEBUG SUPPORT START
+                /// 
+
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 13)), totalBlockOverhead)
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 14)), overheadForCircuits)
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 15)), overheadForLength)
                 mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 16)), overheadForSlot)
+
+                ///
+                /// DEBUG SUPPORT END
+                /// 
             
                 // In the proved block we ensure that the gasPerPubdataByte is not zero
                 // to avoid the potential edge case of division by zero. In Yul, division by 
