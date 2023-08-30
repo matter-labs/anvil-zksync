@@ -147,6 +147,8 @@ pub fn to_human_size(input: U256) -> String {
 mod tests {
     use zksync_basic_types::U256;
 
+    use crate::utils::to_human_size;
+
     #[test]
     fn test_human_sizes() {
         assert_eq!("123", to_human_size(U256::from(123u64)));
