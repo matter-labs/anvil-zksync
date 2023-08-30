@@ -1126,7 +1126,7 @@ object "Bootloader" {
                 // Debug information for the in-memory node.
                 mstore(DEBUG_BEGIN_BYTE(), 1337)
 
-                // We start with total gas limit fro user.
+                // We start with total gas limit from user.
                 mstore(add(DEBUG_BEGIN_BYTE(), 32), totalGasLimit)
                 // This is the amount of gas that will never be used.
                 mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 2)), reservedGas)

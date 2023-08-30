@@ -28,6 +28,7 @@ use vm::{
     vm_with_bootloader::{
         derive_base_fee_and_gas_per_pubdata, init_vm_inner, push_transaction_to_bootloader_memory,
         BlockContext, BlockContextMode, BootloaderJobType, DerivedBlockContext, TxExecutionMode,
+        BLOCK_OVERHEAD_PUBDATA,
     },
     HistoryDisabled, HistoryEnabled, HistoryMode, OracleTools, TxRevertReason, VmBlockResult,
     VmInstance,
@@ -195,6 +196,33 @@ impl Display for ShowVMDetails {
     }
 }
 
+#[derive(Debug, Parser, Clone, clap::ValueEnum, PartialEq, Eq)]
+pub enum ShowGasDetails {
+    None,
+    All,
+}
+
+impl FromStr for ShowGasDetails {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_ref() {
+            "none" => Ok(ShowGasDetails::None),
+            "all" => Ok(ShowGasDetails::All),
+            _ => Err(format!(
+                "Unknown ShowGasDetails value {} - expected one of none|all.",
+                s
+            )),
+        }
+    }
+}
+
+impl Display for ShowGasDetails {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "{:?}", self)
+    }
+}
+
 /// Helper struct for InMemoryNode.
 /// S - is the Source of the Fork.
 pub struct InMemoryNodeInner<S> {
@@ -215,6 +243,8 @@ pub struct InMemoryNodeInner<S> {
     pub show_storage_logs: ShowStorageLogs,
     // Displays VM details.
     pub show_vm_details: ShowVMDetails,
+    // Gas details information.
+    pub show_gas_details: ShowGasDetails,
     // If true - will contact openchain to resolve the ABI to function names.
     pub resolve_hashes: bool,
     pub console_log_handler: ConsoleLogHandler,
@@ -647,6 +677,7 @@ impl<S: ForkSource + std::fmt::Debug> Default for InMemoryNode<S> {
             crate::node::ShowCalls::None,
             ShowStorageLogs::None,
             ShowVMDetails::None,
+            ShowGasDetails::None,
             false,
             false,
         )
@@ -659,6 +690,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         show_calls: ShowCalls,
         show_storage_logs: ShowStorageLogs,
         show_vm_details: ShowVMDetails,
+        show_gas_details: ShowGasDetails,
         resolve_hashes: bool,
         dev_use_local_contracts: bool,
     ) -> Self {
@@ -680,6 +712,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 show_calls,
                 show_storage_logs,
                 show_vm_details,
+                show_gas_details,
                 resolve_hashes,
                 console_log_handler: ConsoleLogHandler::default(),
                 dev_use_local_contracts,
@@ -821,25 +854,40 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         if debug.total_gas_limit_from_user != total_gas_limit {
             println!(
+                "{}",
+                format!(
                 "  WARNING: user actually provided more gas {}, but system had a lower max limit.",
                 to_human_size(debug.total_gas_limit_from_user)
             )
+                .to_string()
+                .yellow()
+            );
         }
         if debug.refund_computed != debug.refund_by_operator {
             println!(
-                "  WARNING: Refund by VM: {}, but operator refunded more: {}",
-                to_human_size(debug.refund_computed),
-                to_human_size(debug.refund_by_operator)
+                "{}",
+                format!(
+                    "  WARNING: Refund by VM: {}, but operator refunded more: {}",
+                    to_human_size(debug.refund_computed),
+                    to_human_size(debug.refund_by_operator)
+                )
+                .to_string()
+                .yellow()
             );
         }
 
         if debug.refund_computed + gas_used != total_gas_limit {
             println!(
-                "  WARNING: Gas totals don't match. {} != {} , delta: {}",
-                to_human_size(debug.refund_computed + gas_used),
-                to_human_size(total_gas_limit),
-                to_human_size(total_gas_limit.abs_diff(debug.refund_computed + gas_used))
-            )
+                "{}",
+                format!(
+                    "  WARNING: Gas totals don't match. {} != {} , delta: {}",
+                    to_human_size(debug.refund_computed + gas_used),
+                    to_human_size(total_gas_limit),
+                    to_human_size(total_gas_limit.abs_diff(debug.refund_computed + gas_used))
+                )
+                .to_string()
+                .yellow()
+            );
         }
 
         let bytes_published = spent_on_pubdata / debug.gas_per_pubdata.as_u32();
@@ -874,7 +922,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         );
 
         println!("\n\n === Transaction setup costs ===");
-        let publish_block_l1_bytes = 58823;
+        let publish_block_l1_bytes = BLOCK_OVERHEAD_PUBDATA;
         println!(
             "Publishing full block costs the operator up to: {}, where {} is due to {} bytes published to L1",
             to_human_size(debug.total_overhead_for_block),
@@ -981,11 +1029,21 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             to_human_size(tx_result.gas_refunded.into())
         );
 
-        if self
-            .display_detailed_gas_info(&vm, spent_on_pubdata)
-            .is_err()
-        {
-            println!("!!! FAILED TO GET DETAILED GAS INFO !!!");
+        match inner.show_gas_details {
+            ShowGasDetails::None => println!(
+                "Use --show-gas-details flag or call config_setGetDetails to display more info"
+            ),
+            ShowGasDetails::All => {
+                if self
+                    .display_detailed_gas_info(&vm, spent_on_pubdata)
+                    .is_err()
+                {
+                    println!(
+                        "{}",
+                        "!!! FAILED TO GET DETAILED GAS INFO !!!".to_owned().red()
+                    );
+                }
+            }
         }
 
         if inner.show_storage_logs != ShowStorageLogs::None {

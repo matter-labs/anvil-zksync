@@ -2,6 +2,10 @@ use vm::{HistoryMode, VmInstance};
 use zksync_basic_types::U256;
 use zksync_types::zk_evm::zkevm_opcode_defs::BOOTLOADER_HEAP_PAGE;
 
+/// Magic value that we put in bootloader.yul at the beginning of the debug section - to detect that
+/// debugger was enabled.
+const DEBUG_START_SENTINEL: u64 = 1337;
+
 const MAX_MEMORY_BYTES: usize = usize::pow(2, 24);
 
 const MAX_TRANSACTIONS: usize = 1024;
@@ -74,7 +78,7 @@ fn load_debug_slot<H: HistoryMode>(vm: &VmInstance<H>, slot: usize) -> U256 {
 
 impl BootloaderDebug {
     pub fn load_from_memory<H: HistoryMode>(vm: &VmInstance<H>) -> eyre::Result<Self> {
-        if load_debug_slot(vm, 0) != U256::from(1337) {
+        if load_debug_slot(vm, 0) != U256::from(DEBUG_START_SENTINEL) {
             eyre::bail!("Debug slot has wrong value. Probably bootloader slot mapping has changed.")
         } else {
             Ok(BootloaderDebug {
