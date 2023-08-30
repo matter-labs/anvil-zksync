@@ -1587,7 +1587,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
         &self,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::web3::types::SyncState>>
     {
-        not_implemented("syncing")
+        Ok(zksync_basic_types::web3::types::SyncState::NotSyncing).into_boxed_future()
     }
 
     fn accounts(
