@@ -28,7 +28,7 @@
     "prettier-plugin-solidity": "^1.0.0-alpha.27",
     "template-file": "^6.0.1",
     "ts-generator": "^0.1.1",
-    "tsx": "^3.12.7",
+    "ts-node": "^10.9.1",
     "typechain": "^8.1.1",
     "typescript": "^4.6.4"
   },
@@ -38,13 +38,13 @@
     "color": false,
     "slow": 0,
     "require": [
-      "tsx/register"
+      "ts-node/register"
     ]
   },
   "scripts": {
     "build": "hardhat compile",
     "clean": "hardhat clean && rm -rf node_modules && rm -rf ./bootloader/build",
-    "preprocess": "rm -rf ./bootloader/build && yarn tsx scripts/process.ts",
+    "preprocess": "rm -rf ./bootloader/build && yarn ts-node scripts/process.ts",
     "build-bootloader": "yarn hardhat run ./scripts/compile-yul.ts"
   }
 }
