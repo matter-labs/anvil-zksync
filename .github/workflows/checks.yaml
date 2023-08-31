@@ -36,15 +36,16 @@ jobs:
   e2e-fmt:
     runs-on: ubuntu-latest
     env:
-      working-directory: ./e2e-tests
+      working-directory: 
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
         with:
           node-version: 20.x
           cache: "yarn"
+          cache-dependency-path: ./e2e-tests/yarn.lock
       - name: Run Prettier Formatter
-        working-directory: ${{ env.working-directory }}
+        working-directory: ./e2e-tests
         run: |
           yarn install
           yarn fmt
