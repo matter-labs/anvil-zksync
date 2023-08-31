@@ -31,13 +31,15 @@ pub trait EvmNamespaceT {
     #[rpc(name = "evm_increaseTime")]
     fn increase_time(&self, time_delta_seconds: U64) -> BoxFuture<Result<U64>>;
 
-    /// Set the current timestamp for the node
+    /// Set the current timestamp for the node.
+    /// Warning: This will allow you to move backwards in time, which may cause new blocks to appear to be
+    /// mined before old blocks. This will result in an invalid state.
     ///
     /// # Parameters
-    /// - `time_delta`: The number of seconds to increase time by
+    /// - `time`: The timestamp to set the time to
     ///
     /// # Returns
-    /// The applied time delta to `current_timestamp` value for the InMemoryNodeInner.
+    /// The difference between the `current_timestamp` and the new timestamp for the InMemoryNodeInner.
     #[rpc(name = "evm_setTime")]
     fn set_time(&self, time: U64) -> BoxFuture<Result<i64>>;
 }
