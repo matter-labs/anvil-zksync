@@ -24,7 +24,7 @@
     "mocha": "^10.2.0",
     "mocha-multi": "^1.1.7",
     "prettier": "^3.0.3",
-    "ts-node": "^10.9.1",
+    "tsx": "^3.12.7",
     "typescript": "^5.2.2",
     "zksync-web3": "^0.14.3"
   },
@@ -39,8 +39,5 @@
     "dev:start": "./scripts/start_dev_node.sh",
     "dev:kill": "killall era_test_node",
     "typecheck": "tsc"
-  },
-  "dependencies": {
-    "tsx": "^3.12.7"
   }
 }
