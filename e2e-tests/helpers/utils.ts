@@ -16,7 +16,7 @@ import { Contract } from "zksync-web3";
 export async function deployContract(
   deployer: Deployer,
   contractName: string,
-  args: string[] = [],
+  args: string[] = []
 ): Promise<Contract> {
   const artifact = await deployer.loadArtifact(contractName);
   return await deployer.deploy(artifact, args);

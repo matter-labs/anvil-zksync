@@ -11,9 +11,8 @@ on:
 
 jobs:
   
-  # Static Analysis Jobs
-
-  # ensures proper formatting and clippy lint
+  # Static Analyses
+  ## ensures proper formatting and clippy lint
   lint:
     name: lint
     runs-on: ubuntu-latest
@@ -49,6 +48,24 @@ jobs:
         run: |
           yarn install
           yarn fmt
+
+  e2e-lint:
+    runs-on: ubuntu-latest
+    env:
+      working-directory: 
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 20.x
+          cache: "yarn"
+          cache-dependency-path: ./e2e-tests/yarn.lock
+      - name: Run Prettier Formatter
+        working-directory: ./e2e-tests
+        run: |
+          yarn install
+          yarn lint
+        
 
   # ensures build is successful
   build:
