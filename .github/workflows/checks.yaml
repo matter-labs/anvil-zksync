@@ -10,6 +10,9 @@ on:
   workflow_dispatch:
 
 jobs:
+  
+  # Static Analysis Jobs
+
   # ensures proper formatting and clippy lint
   lint:
     name: lint
@@ -29,6 +32,22 @@ jobs:
         run: |
           cargo fmt --all -- --check &&
           cargo clippy -Zunstable-options -- -D warnings --allow clippy::unwrap_used
+  
+  e2e-fmt:
+    runs-on: ubuntu-latest
+    env:
+      working-directory: ./e2e-tests
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 20.x
+          cache: "yarn"
+      - name: Run Prettier Formatter
+        working-directory: ${{ env.working-directory }}
+        run: |
+          yarn install
+          yarn fmt
 
   # ensures build is successful
   build:
