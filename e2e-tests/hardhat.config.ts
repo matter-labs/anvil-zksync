@@ -1,7 +1,7 @@
 import { HardhatUserConfig } from "hardhat/config";
-
 import "@matterlabs/hardhat-zksync-deploy";
 import "@matterlabs/hardhat-zksync-solc";
+import "@nomicfoundation/hardhat-ethers";
 
 const config: HardhatUserConfig = {
   zksolc: {
@@ -16,7 +16,7 @@ const config: HardhatUserConfig = {
       // ethNetwork isn't necessary, but leaving for posterity
       ethNetwork: "http://127.0.0.1:8545",
       zksync: true,
-    }
+    },
   },
   solidity: {
     version: "0.8.17",
@@ -25,10 +25,10 @@ const config: HardhatUserConfig = {
     // Multiple reports allow view of the ouput in the console and as a JSON for the test result exporter in CI
     reporter: "mocha-multi",
     reporterOptions: {
-      "spec": "-",
-      "json": "test-results.json" 
-    }
-  }
+      spec: "-",
+      json: "test-results.json",
+    },
+  },
 };
 
 export default config;

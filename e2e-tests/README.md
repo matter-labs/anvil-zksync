@@ -10,5 +10,11 @@ This project is used for running e2e tests against `era_test_node`
 
 ## Commands
 
-- `yarn hardhat compile` will compile the contracts.
-- `yarn test`: run tests.
+- `yarn build` will compile the contracts.
+- `yarn test`: will run all e2e tests.
+- `yarn fmt:fix`: will format the code using `Prettier` default formatting rules.
+- `yarn dev:start` will launch a locally built node
+- `yarn dev:kill` will kill all `era_test_node` on machine.
+
+> [!WARNING]\
+> Not safe to run `dev:kill` on CI workflows in case the runner has poor separation between workers.
