@@ -66,6 +66,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EvmNamespaceT
             }
         })
     }
+
     fn set_time(&self, time: U64) -> BoxFuture<Result<i64>> {
         let inner = Arc::clone(&self.node);
 
