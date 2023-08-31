@@ -1,6 +1,7 @@
 {
-  "name": "system-contracts",
+  "name": "era-test-node-system-contracts",
   "version": "0.1.0",
+  "private": true,
   "repository": "git@github.com:matter-labs/system-contracts.git",
   "license": "MIT",
   "dependencies": {
@@ -42,7 +43,7 @@
   },
   "scripts": {
     "build": "hardhat compile",
-    "clean": "hardhat clean && rm -rf ./bootloader/build",
+    "clean": "hardhat clean && rm -rf node_modules && rm -rf ./bootloader/build",
     "preprocess": "rm -rf ./bootloader/build && yarn ts-node scripts/process.ts",
     "build-bootloader": "yarn hardhat run ./scripts/compile-yul.ts"
   }

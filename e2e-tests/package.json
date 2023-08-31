@@ -1,5 +1,6 @@
 {
   "name": "era-test-node-e2e-tests",
+  "private": true,
   "version": "1.0.0",
   "main": "index.js",
   "author": "The Matter Labs Team <hello@matterlabs.dev>",

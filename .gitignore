@@ -1,14 +1,25 @@
+# Build directories
 /target
-etc/system-contracts/.yarn
-etc/system-contracts/node_modules
+etc/**/build
+
+
 etc/system-contracts/cache-zk
 etc/system-contracts/artifacts-zk
 etc/system-contracts/typechain-types
-etc/system-contracts/.yarnrc.yml
-etc/system-contracts/bootloader/build
 
+# VSCode s
 etc/**/*.zbin
 .vscode/*
 !.vscode/extensions.json
 !.vscode/launch.json
 !.vscode/tasks.json
+
+# Yarn rules
+**/.yarn/*
+**/!.yarn/patches
+**/!.yarn/plugins
+**/!.yarn/releases
+**/!.yarn/sdks
+**/!.yarn/versions
+
+**/node_modules

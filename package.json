@@ -1,0 +1,16 @@
+{
+  "name": "era-test-node-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "author": "The Matter Labs Team <hello@matterlabs.dev>",
+  "packageManager": "yarn@3.5.0",
+  "scripts": {
+    "clean": "yarn workspaces foreach -pvit run clean",
+    "build": "yarn workspaces foreach -pvit run build"
+  },
+  "workspaces": [
+    "e2e-tests",
+    "etc/*"
+  ]
+}
