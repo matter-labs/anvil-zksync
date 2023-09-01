@@ -216,6 +216,7 @@ pub struct ForkDetails<S> {
     // Block number at which we forked (the next block to create is l1_block + 1)
     pub l1_block: L1BatchNumber,
     pub l2_miniblock: u64,
+    pub l2_miniblock_hash: Option<H256>,
     pub block_timestamp: u64,
     pub overwrite_chain_id: Option<L2ChainId>,
     pub l1_gas_price: u64,
@@ -248,6 +249,7 @@ impl ForkDetails<HttpForkSource> {
             l1_block: l1_batch_number,
             block_timestamp: block_details.base.timestamp,
             l2_miniblock: miniblock,
+            l2_miniblock_hash: block_details.base.root_hash,
             overwrite_chain_id: chain_id,
             l1_gas_price: block_details.base.l1_gas_price,
         }

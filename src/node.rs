@@ -27,7 +27,7 @@ use vm::{
     },
     HistoryDisabled, HistoryEnabled, OracleTools, TxRevertReason, VmBlockResult,
 };
-use zksync_basic_types::{AccountTreeId, Bytes, H160, H256, U256, U64};
+use zksync_basic_types::{web3::signing::keccak256, AccountTreeId, Bytes, H160, H256, U256, U64};
 use zksync_contracts::{
     read_playground_block_bootloader_bytecode, read_sys_contract_bytecode, read_zbin_bytecode,
     BaseSystemContracts, ContractLanguage, SystemContractCode,
@@ -37,7 +37,7 @@ use zksync_core::api_server::web3::backend_jsonrpc::{
 };
 use zksync_state::{ReadStorage, StorageView, WriteStorage};
 use zksync_types::{
-    api::{Log, TransactionReceipt, TransactionVariant},
+    api::{Log, TransactionReceipt},
     fee::Fee,
     get_code_key, get_nonce_key,
     l2::L2Tx,
@@ -87,8 +87,17 @@ pub const ESTIMATE_GAS_SCALE_FACTOR: f32 = 1.3;
 pub struct BlockInfo {
     pub batch_number: u32,
     pub block_timestamp: u64,
-    /// Transaction included in this block.
+    /// Hash associated with this block.
+    pub hash: H256,
+    /// Transaction included in this block
     pub tx_hash: H256,
+}
+
+impl BlockInfo {
+    pub fn compute_hash(block_number: u32, tx_hash: H256) -> H256 {
+        let digest = [&block_number.to_be_bytes()[..], tx_hash.as_bytes()].concat();
+        H256(keccak256(&digest))
+    }
 }
 
 /// Information about the executed transaction.
@@ -200,7 +209,9 @@ pub struct InMemoryNodeInner<S> {
     // Map from transaction to details about the exeuction
     pub tx_results: HashMap<H256, TxExecutionInfo>,
     // Map from batch number to information about the block.
-    pub blocks: HashMap<u32, BlockInfo>,
+    pub blocks: HashMap<H256, BlockInfo>,
+    // Map from batch number to information about the block.
+    pub block_hashes: HashMap<u32, H256>,
     // Underlying storage
     pub fork_storage: ForkStorage<S>,
     // Debug level information.
@@ -664,6 +675,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                     .unwrap_or(L1_GAS_PRICE),
                 tx_results: Default::default(),
                 blocks: Default::default(),
+                block_hashes: Default::default(),
                 fork_storage: ForkStorage::new(fork, dev_use_local_contracts),
                 show_calls,
                 show_storage_logs,
@@ -799,6 +811,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         let block = BlockInfo {
             batch_number: block_context.block_number,
             block_timestamp: block_context.block_timestamp,
+            hash: BlockInfo::compute_hash(block_context.block_number, l2_tx.hash()),
             tx_hash: l2_tx.hash(),
         };
 
@@ -948,7 +961,8 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 result,
             },
         );
-        inner.blocks.insert(block.batch_number, block);
+        inner.block_hashes.insert(block.batch_number, block.hash);
+        inner.blocks.insert(block.hash, block);
         {
             inner.current_timestamp += 1;
             inner.current_batch += 1;
@@ -1356,24 +1370,13 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                 .read()
                 .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
 
-            let matching_transaction = reader.tx_results.get(&hash);
-            if matching_transaction.is_none() {
-                return Err(into_jsrpc_error(Web3Error::InvalidTransactionData(
-                    zksync_types::ethabi::Error::InvalidData,
-                )));
-            }
-
-            let matching_block = reader
-                .blocks
-                .get(&matching_transaction.unwrap().batch_number);
-            if matching_block.is_none() {
+            let Some(matching_block) = reader.blocks.get(&hash) else {
                 return Err(into_jsrpc_error(Web3Error::NoBlock));
-            }
+            };
 
-            let txn: Vec<TransactionVariant> = vec![];
             let block = zksync_types::api::Block {
-                transactions: txn,
-                number: U64::from(matching_block.unwrap().batch_number),
+                hash,
+                number: U64::from(matching_block.batch_number),
                 l1_batch_number: Some(U64::from(reader.current_batch)),
                 gas_limit: U256::from(ETH_CALL_GAS_LIMIT),
                 ..Default::default()
@@ -1635,5 +1638,57 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
         _reward_percentiles: Vec<f32>,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<FeeHistory>> {
         not_implemented("fee history")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use zksync_types::{Address, L2ChainId, Nonce, PackedEthSignature};
+
+    use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_get_block_by_hash() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let private_key = H256::random();
+        let from_account = PackedEthSignature::address_from_private_key(&private_key)
+            .expect("failed generating address");
+        node.set_rich_account(from_account);
+        let mut tx = L2Tx::new_signed(
+            Address::random(),
+            vec![],
+            Nonce(0),
+            Fee {
+                gas_limit: U256::from(1_000_000),
+                max_fee_per_gas: U256::from(250_000_000),
+                max_priority_fee_per_gas: U256::from(250_000_000),
+                gas_per_pubdata_limit: U256::from(20000),
+            },
+            U256::from(1),
+            L2ChainId(260),
+            &private_key,
+            None,
+            Default::default(),
+        )
+        .unwrap();
+        tx.set_input(vec![], H256::repeat_byte(0x01));
+
+        node.apply_txs(vec![tx.into()]).expect("failed applying tx");
+
+        let expected_block_hash =
+            H256::from_str("0x89c0aa770eba1f187235bdad80de9c01fe81bca415d442ca892f087da56fa109")
+                .unwrap();
+        let actual_block = node
+            .get_block_by_hash(expected_block_hash, false)
+            .await
+            .expect("failed fetching block by hash")
+            .expect("no block");
+
+        assert_eq!(expected_block_hash, actual_block.hash);
+        assert_eq!(U64::from(1), actual_block.number);
+        assert_eq!(Some(U64::from(2)), actual_block.l1_batch_number);
     }
 }
