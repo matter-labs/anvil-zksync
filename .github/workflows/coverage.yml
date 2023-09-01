@@ -33,9 +33,16 @@ jobs:
 
       - name: Build and Test
         run: |
-          cargo build --release
           # Temp step to install deps
           apt-get update && apt-get install --assume-yes apt-utils --no-install-recommends pkg-config libssl-dev libsasl2-dev llvm-dev libclang-6.0-dev clang-6.0
+          cargo build --release --all
+
+    # - name: Clean-up possible coverage generated during builds
+    #   run: |
+    #     rm default_*.profraw
+
+      - name: Run tests
+        run: |
           cargo test
 
       - name: Run E2E tests
@@ -46,10 +53,6 @@ jobs:
           cd e2e-tests
           yarn build
           yarn test
-
-      - name: Clean-up possible coverage generated during builds
-        run: |
-          rm default_*.profraw
 
       - name: Retrieve coverage
         id: coverage
