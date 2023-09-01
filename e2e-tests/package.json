@@ -39,7 +39,7 @@
     "lint:fix": "eslint . --fix --ext .ts",
     "test": "hardhat test --network zkSyncTestnet",
     "dev:start": "./scripts/start_dev_node.sh",
-    "dev:kill": "killall era_test_node",
+    "dev:kill": "./scripts/stop_dev_node.sh",
     "typecheck": "tsc"
   }
 }

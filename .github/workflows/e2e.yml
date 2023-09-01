@@ -31,11 +31,7 @@ jobs:
 
       - name: Start the era_test_node
         run: |
-          cd e2e-tests
-
-          # Capture the PID of launched node
-          OUTPUT=$(yarn dev:start)  
-          echo "OUTPUT=$OUTPUT" >> $GITHUB_ENV
+          yarn dev:start | tee era_test_node_output.log
 
       - name: Launch tests
         id: launch
@@ -47,10 +43,8 @@ jobs:
         id: stop_node
         if: always()
         run: |
-          cd e2e-tests
-          cat era_test_node_output.log
-          NODE_PID=$(echo $OUTPUT | grep -o 'Node started successfully with PID [0-9]*' | awk '{print $7}')
-          kill $NODE_PID
+          cat e2e-tests/era_test_node_output.log
+          yarn dev:kill
 
       - name: Publish Test Results
         uses: dorny/test-reporter@v1
@@ -58,4 +52,4 @@ jobs:
         with:
           path: ./e2e-tests/test-results.json
           name: E2E Test Results
-          reporter: 'mocha-json'
+          reporter: "mocha-json"

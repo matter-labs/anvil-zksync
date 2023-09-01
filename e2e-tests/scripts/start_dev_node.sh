@@ -1,6 +1,5 @@
 #!/bin/bash
-
-## Run this script via "yarn dev:start" in the e2e-tests directory
+## Run this script via "yarn dev:start"
 
 # Check if the node is already running
 EXISTING_PID=$(pgrep -f "era_test_node run")
@@ -25,14 +24,39 @@ $BIN run > era_test_node_output.log 2>&1 &
 
 NODE_PID=$!
 
-# Wait for node to start up, check for "Node is ready" in logs
-while true; do
-    if grep -q "Node is ready" era_test_node_output.log; then
-        break
-    fi
+# Check if the node is running
+MAX_RETRIES=10
+COUNTER=0
+URL="http://localhost:8011"
 
+# Payload
+DATA='{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_chainId",
+    "params": []
+}'
+
+while [ $COUNTER -lt $MAX_RETRIES ]; do
     sleep 1
+    # Send eth_chainId request
+    RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -X POST -H "content-type: application/json" -d "$DATA" $URL || true)
+
+    # Check if the request was successful
+    if [ "$RESPONSE" -eq 200 ]; then
+        echo "Node is running and accepting requests! "
+        break
+    else
+        echo "Node not ready, retrying in 1 second..."
+        let COUNTER=COUNTER+1
+    fi
 done
 
-echo "Node started successfully with PID $NODE_PID and is ready."
+if [ $COUNTER -eq $MAX_RETRIES ]; then
+    echo "Failed to contact node after $MAX_RETRIES attempts ❌"
+    echo "Are you sure the node is running at $URL ❓️"
+    exit 1
+fi
+
+echo "Node launched successfully, PID: $NODE_PID ✅"
 exit 0
