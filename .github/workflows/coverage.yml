@@ -33,15 +33,18 @@ jobs:
 
       - name: Build and Test
         run: |
+          cargo build --release
           # Temp step to install deps
           apt-get update && apt-get install --assume-yes apt-utils --no-install-recommends pkg-config libssl-dev libsasl2-dev llvm-dev libclang-6.0-dev clang-6.0
-          cargo test --release
+          cargo test
 
       - name: Run E2E tests
         run: |
           yarn
           yarn dev:start
+
           cd e2e-tests
+          yarn build
           yarn test
 
       - name: Clean-up possible coverage generated during builds
@@ -51,11 +54,11 @@ jobs:
       - name: Retrieve coverage
         id: coverage
         run: |
-          mkdir -p /tmp/proffiles
-          find . -name \*.profraw -exec mv {} /tmp/proffiles/ \;
-          mv /tmp/proffiles proffiles
-          du -sh proffiles
-          ./grcov proffiles/ -s ./ --binary-path ./target/release/ -t html --branch --ignore-not-existing --ignore "target/release/build/*" -o coverage/ --llvm 2>&1 | tee grcov.log
+          mkdir -p /tmp/profiles
+          find . -name \*.profraw -exec mv {} /tmp/profiles/ \;
+          mv /tmp/profiles profiles
+          du -sh profiles
+          ./grcov profiles/ -s ./ --binary-path ./target/release/ -t html --branch --ignore-not-existing --ignore "target/release/build/*" -o coverage/ --llvm 2>&1 | tee grcov.log
           echo "total_percent=$(grep -o '[0-9\.]*%' coverage/html/coverage.json)" >> $GITHUB_ENV
 
       - name: Upload coverage to GitHub Actions
@@ -70,6 +73,24 @@ jobs:
           echo "Code coverage for this PR is: $TOTAL_PERCENT"
         env:
           TOTAL_PERCENT: ${{ env.total_percent }}
+
+      - name: Find Comment
+        uses: peter-evans/find-comment@v2
+        id: find-comment
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: 'Code coverage for this PR is:'
+
+      - name: Post coverage to PR
+        if: github.event_name == 'pull_request'
+        uses: peter-evans/create-or-update-comment@v3
+        with:
+          comment-id: ${{ steps.find-comment.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            Code coverage for this PR is: ${{ env.total_percent }}
+          reactions: 'eyes'
       
       - name: Stop the era_test_node
         id: stop_node
