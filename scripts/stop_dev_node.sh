@@ -1,5 +1,14 @@
 #!/bin/bash
 
+##############################################################################
+# Script Name   : stop_dev_node.sh
+# Description   : This script searches and terminates all processes named
+#                 'era_test_node' owned by the current user. It provides feedback 
+#                 on whether each process was successfully killed or not.
+#
+# Usage         : yarn dev:kill
+##############################################################################
+
 # Search for processes named 'era_test_node' owned by the current user
 PIDS=$(pgrep era_test_node)
 

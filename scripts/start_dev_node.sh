@@ -1,5 +1,19 @@
 #!/bin/bash
-## Run this script via "yarn dev:start"
+
+##############################################################################
+# Script Name   : start_dev_node.sh
+# Description   : This script starts the 'era_test_node' binary in development 
+#                 mode. It ensures that only one instance is running at any time, 
+#                 checks if the binary exists, and confirms that the node is 
+#                 accepting requests by sending an 'eth_chainId' RPC call.
+#                 Output logs of the node are piped to 'era_test_node_output.log'.
+#
+# Usage         : yarn dev:start
+# Requirements  :
+#                 - The 'curl' tool must be available on the system.
+#                 - The node should be accessible at "http://localhost:8011".
+##############################################################################
+
 
 # Check if the node is already running
 EXISTING_PID=$(pgrep -f "era_test_node run")
@@ -9,7 +23,7 @@ if [[ ! -z $EXISTING_PID ]]; then
     exit 0
 fi
 
-BIN=../target/release/era_test_node 
+BIN=target/release/era_test_node 
 
 # Check if built, throw if not
 if [[ ! -f $BIN ]]; then

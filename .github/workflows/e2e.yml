@@ -43,7 +43,7 @@ jobs:
         id: stop_node
         if: always()
         run: |
-          cat e2e-tests/era_test_node_output.log
+          cat era_test_node_output.log
           yarn dev:kill
 
       - name: Publish Test Results

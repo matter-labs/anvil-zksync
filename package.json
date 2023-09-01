@@ -6,6 +6,8 @@
   "author": "The Matter Labs Team <hello@matterlabs.dev>",
   "packageManager": "yarn@3.5.0",
   "scripts": {
+    "dev:start": "./scripts/start_dev_node.sh",
+    "dev:kill": "./scripts/stop_dev_node.sh",
     "clean": "yarn workspaces foreach -pt run clean",
     "build": "yarn workspaces foreach -pt run build"
   },
