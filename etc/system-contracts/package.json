@@ -45,7 +45,7 @@
   },
   "scripts": {
     "build": "hardhat compile",
-    "clean": "rimraf artifacts-zk cache-zk typechain-types yarn-error.log",
+    "clean": "rimraf artifacts-zk cache-zk typechain-types",
     "preprocess": "rimraf ./bootloader/build && yarn ts-node scripts/process.ts",
     "build-bootloader": "yarn hardhat run ./scripts/compile-yul.ts"
   }

@@ -6,11 +6,8 @@
   "author": "The Matter Labs Team <hello@matterlabs.dev>",
   "license": "MIT",
   "devDependencies": {
-    "@matterlabs/hardhat-zksync-chai-matchers": "^0.1.3",
     "@matterlabs/hardhat-zksync-deploy": "^0.6.3",
     "@matterlabs/hardhat-zksync-solc": "^0.4.0",
-    "@nomicfoundation/hardhat-ethers": "^3.0.4",
-    "@nomiclabs/hardhat-etherscan": "^3.1.7",
     "@types/chai": "^4.3.5",
     "@types/mocha": "^10.0.1",
     "@types/node": "^20.5.7",
@@ -32,7 +29,7 @@
   },
   "scripts": {
     "build": "hardhat compile",
-    "clean": "rimraf artifacts-zk cache-zk .yarn/* yarn-error.log",
+    "clean": "rimraf artifacts-zk cache-zk",
     "fmt": "prettier --check \"**/*.{js,ts,md}\"",
     "fmt:fix": "prettier --write \"**/*.{js,ts,md}\"",
     "lint": "eslint . --ext .ts",
