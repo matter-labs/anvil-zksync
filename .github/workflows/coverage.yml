@@ -1,0 +1,79 @@
+name: Code Coverage
+
+on:
+  pull_request:
+  push:
+    branches:
+        - master
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install llvm tools
+        run: rustup component add llvm-tools-preview
+
+      - name: Setup grcov
+        env:
+          GRCOV_VERSION: 0.8.18
+        run: |
+          wget https://github.com/mozilla/grcov/releases/download/v${GRCOV_VERSION}/grcov-x86_64-unknown-linux-gnu.tar.bz2
+          tar xvf grcov-x86_64-unknown-linux-gnu.tar.bz2
+          chmod +x grcov
+
+      - name: Build and Test
+        run: |
+          # Temp step to install deps
+          apt-get update && apt-get install --assume-yes apt-utils --no-install-recommends pkg-config libssl-dev libsasl2-dev llvm-dev libclang-6.0-dev clang-6.0
+          cargo test --release
+
+      - name: Run E2E tests
+        run: |
+          yarn
+          yarn dev:start
+          cd e2e-tests
+          yarn test
+
+      - name: Clean-up possible coverage generated during builds
+        run: |
+          rm default_*.profraw
+
+      - name: Retrieve coverage
+        id: coverage
+        run: |
+          mkdir -p /tmp/proffiles
+          find . -name \*.profraw -exec mv {} /tmp/proffiles/ \;
+          mv /tmp/proffiles proffiles
+          du -sh proffiles
+          ./grcov proffiles/ -s ./ --binary-path ./target/release/ -t html --branch --ignore-not-existing --ignore "target/release/build/*" -o coverage/ --llvm 2>&1 | tee grcov.log
+          echo "total_percent=$(grep -o '[0-9\.]*%' coverage/html/coverage.json)" >> $GITHUB_ENV
+
+      - name: Upload coverage to GitHub Actions
+        uses: actions/upload-artifact@v3.1.2
+        with:
+          name: coverage
+          path: coverage
+
+      - name: Post coverage to PR
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "Code coverage for this PR is: $TOTAL_PERCENT"
+        env:
+          TOTAL_PERCENT: ${{ env.total_percent }}
+      
+      - name: Stop the era_test_node
+        id: stop_node
+        if: always()
+        run: |
+          yarn dev:kill
+
