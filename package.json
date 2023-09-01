@@ -6,11 +6,14 @@
   "author": "The Matter Labs Team <hello@matterlabs.dev>",
   "packageManager": "yarn@3.5.0",
   "scripts": {
-    "clean": "yarn workspaces foreach -pvit run clean",
-    "build": "yarn workspaces foreach -pvit run build"
+    "clean": "yarn workspaces foreach -pt run clean",
+    "build": "yarn workspaces foreach -pt run build"
   },
   "workspaces": [
-    "e2e-tests",
-    "etc/*"
-  ]
+    "etc/*",
+    "e2e-tests"
+  ],
+  "devDependencies": {
+    "rimraf": "^5.0.1"
+  }
 }

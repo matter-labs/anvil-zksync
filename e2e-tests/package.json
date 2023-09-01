@@ -24,6 +24,7 @@
     "mocha": "^10.2.0",
     "mocha-multi": "^1.1.7",
     "prettier": "^3.0.3",
+    "rimraf": "^5.0.1",
     "ts-node": "^10.9.1",
     "tsx": "^3.12.7",
     "typescript": "^5.2.2",
@@ -31,7 +32,7 @@
   },
   "scripts": {
     "build": "hardhat compile",
-    "clean": "rm -rf node_modules && rm -rf artifacts-zk  && rm -rf cache-zk && rm -rf .yarn/cache",
+    "clean": "rimraf artifacts-zk cache-zk .yarn/* yarn-error.log",
     "fmt": "prettier --check \"**/*.{js,ts,md}\"",
     "fmt:fix": "prettier --write \"**/*.{js,ts,md}\"",
     "lint": "eslint . --ext .ts",
