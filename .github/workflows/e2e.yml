@@ -10,34 +10,47 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 20.x
+          cache: "yarn"
       - name: Download artifacts
         uses: actions/download-artifact@v3
         with:
           name: era_test_node-ubuntu-latest.tar.gz
-      
-      - name: Start the era_test_node
-        id: start_node
+
+      - name: Extract Node Binary and install dependencies
+        id: extract_node
         run: |
           echo "Extracting era_test_node binary"
           tar -xzf era_test_node-ubuntu-latest.tar.gz
           chmod +x era_test_node
-          echo "Starting node in background"
-          ./era_test_node run 2>&1 | tee era_test_node_ouput.log &
-          echo "PID=$!" >> $GITHUB_ENV
+          mkdir -p target/release/
+          mv era_test_node target/release/
+          yarn
+
+      - name: Start the era_test_node
+        run: |
+          cd e2e-tests
+
+          # Capture the PID of launched node
+          OUTPUT=$(yarn dev:start)  
+          echo "OUTPUT=$OUTPUT" >> $GITHUB_ENV
 
       - name: Launch tests
         id: launch
         run: |
-          echo "Run tests"
-          make test-e2e
+          cd e2e-tests
+          yarn test
 
       - name: Stop the era_test_node and print output logs
         id: stop_node
         if: always()
         run: |
-          cat era_test_node_ouput.log
-          kill $PID
+          cd e2e-tests
+          cat era_test_node_output.log
+          NODE_PID=$(echo $OUTPUT | grep -o 'Node started successfully with PID [0-9]*' | awk '{print $7}')
+          kill $NODE_PID
 
       - name: Publish Test Results
         uses: dorny/test-reporter@v1
