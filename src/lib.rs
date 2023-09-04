@@ -8,3 +8,5 @@ pub mod node;
 pub mod resolver;
 pub mod utils;
 pub mod zks;
+
+mod testing;

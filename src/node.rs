@@ -84,6 +84,7 @@ pub const ESTIMATE_GAS_SCALE_FACTOR: f32 = 1.3;
 
 /// Basic information about the generated block (which is block l1 batch and miniblock).
 /// Currently, this test node supports exactly one transaction per block.
+#[derive(Debug, Clone)]
 pub struct BlockInfo {
     pub batch_number: u32,
     pub block_timestamp: u64,
@@ -1356,7 +1357,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
     fn get_block_by_hash(
         &self,
         hash: zksync_basic_types::H256,
-        _full_transactions: bool,
+        full_transactions: bool,
     ) -> jsonrpc_core::BoxFuture<
         jsonrpc_core::Result<
             Option<zksync_types::api::Block<zksync_types::api::TransactionVariant>>,
@@ -1370,13 +1371,36 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                 .read()
                 .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
 
-            let Some(matching_block) = reader.blocks.get(&hash) else {
+            // try retrieving block from memory and subsequently from fork, if unavailable
+            let matching_block = reader.blocks.get(&hash).cloned().or_else(|| {
+                reader
+                    .fork_storage
+                    .inner
+                    .read()
+                    .expect("failed reading fork storage")
+                    .fork
+                    .as_ref()
+                    .and_then(|fork| {
+                        fork.fork_source
+                            .get_block_by_hash(hash, full_transactions)
+                            .ok()
+                            .flatten()
+                            .map(|block| BlockInfo {
+                                batch_number: block.l1_batch_number.unwrap_or_default().as_u32(),
+                                block_timestamp: block.timestamp.as_u64(),
+                                hash: block.hash,
+                                tx_hash: Default::default(),
+                            })
+                    })
+            });
+
+            if matching_block.is_none() {
                 return Err(into_jsrpc_error(Web3Error::NoBlock));
-            };
+            }
 
             let block = zksync_types::api::Block {
                 hash,
-                number: U64::from(matching_block.batch_number),
+                number: U64::from(matching_block.unwrap().batch_number),
                 l1_batch_number: Some(U64::from(reader.current_batch)),
                 gas_limit: U256::from(ETH_CALL_GAS_LIMIT),
                 ..Default::default()
@@ -1690,5 +1714,73 @@ mod tests {
         assert_eq!(expected_block_hash, actual_block.hash);
         assert_eq!(U64::from(1), actual_block.number);
         assert_eq!(Some(U64::from(2)), actual_block.l1_batch_number);
+    }
+
+    #[tokio::test]
+    async fn test_get_block_by_hash_uses_fork_source() {
+        let input_block_hash_str =
+            "0x0101010101010101010101010101010101010101010101010101010101010101";
+        let input_block_hash = H256::from_str(input_block_hash_str).expect("invalid hash");
+
+        let mock_server = crate::testing::MockServer::run();
+        mock_server.expect(serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "eth_getBlockByHash",
+            "params": [
+                input_block_hash_str,
+                false
+            ],
+        }), serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "result": {
+                "hash": input_block_hash_str,
+                "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+                "miner": "0x0000000000000000000000000000000000000000",
+                "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "transactionsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "receiptsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "number": "0x1",
+                "l1BatchNumber": "0x2",
+                "gasUsed": "0x0",
+                "gasLimit": "0xffffffff",
+                "baseFeePerGas": "0x1dcd6500",
+                "extraData": "0x",
+                "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                "timestamp": "0x63ecc41a",
+                "l1BatchTimestamp": "0x63ecbd12",
+                "difficulty": "0x0",
+                "totalDifficulty": "0x0",
+                "sealFields": [],
+                "uncles": [],
+                "transactions": [],
+                "size": "0x0",
+                "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "nonce": "0x0000000000000000"
+            },
+        }));
+        let node = InMemoryNode::<HttpForkSource>::new(
+            Some(ForkDetails::from_network(&mock_server.url(), None).await),
+            crate::node::ShowCalls::None,
+            ShowStorageLogs::None,
+            ShowVMDetails::None,
+            false,
+            false,
+        );
+
+        let actual_block = node
+            .get_block_by_hash(input_block_hash, false)
+            .await
+            .expect("failed fetching block by hash")
+            .expect("no block");
+
+        assert_eq!(input_block_hash, actual_block.hash);
+        assert_eq!(U64::from(2), actual_block.number);
+        assert_eq!(
+            Some(U64::from(node.inner.read().unwrap().current_batch)),
+            actual_block.l1_batch_number
+        );
     }
 }
