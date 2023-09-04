@@ -1,8 +1,6 @@
 # Build directories
 /target
 etc/**/build
-
-
 etc/system-contracts/cache-zk
 etc/system-contracts/artifacts-zk
 etc/system-contracts/typechain-types
@@ -22,8 +20,10 @@ etc/**/*.zbin
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
-
 **/node_modules
+
+# Temp Files
+era_test_node_output.log
 
 # Profiling Files
 **/*.profraw

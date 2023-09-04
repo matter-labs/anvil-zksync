@@ -51,32 +51,31 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           echo "Code coverage for this PR is: $TOTAL_COV"
-        env:
-          TOTAL_PERCENT: ${{ env.TOTAL_COV }}
 
       - name: Find Comment
         uses: peter-evans/find-comment@v2
-        id: find-comment
+        id: fc
         with:
           issue-number: ${{ github.event.pull_request.number }}
           comment-author: "github-actions[bot]"
-          body-includes: "Code coverage for this PR is:"
+          body-includes: Coverage generated
 
-      - name: Post coverage to PR
-        if: github.event_name == 'pull_request'
+      - name: Create or update comment
         uses: peter-evans/create-or-update-comment@v3
         with:
-          comment-id: ${{ steps.find-comment.outputs.comment-id }}
+          comment-id: ${{ steps.fc.outputs.comment-id }}
           issue-number: ${{ github.event.pull_request.number }}
           body: |
             Code coverage for this PR is: ${{ env.TOTAL_COV }}
+          edit-mode: replace
           reactions: "eyes"
-
+          
       - name: Zip and Upload Coverage Report
         uses: actions/upload-artifact@v3.1.2
         with:
           name: coverage-report
           path: target/llvm-cov/html
+
       - name: Stop the era_test_node
         id: stop_node
         if: always()
