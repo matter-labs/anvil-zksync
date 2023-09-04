@@ -7,7 +7,7 @@ on:
       - master
 
 jobs:
-  build-and-test:
+  build-and-test-with-coverage:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -28,13 +28,24 @@ jobs:
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
-
-      - name: Build and Test
+      
+      - name: Prepare for coverage
         run: |
           cargo llvm-cov clean --workspace
-          cargo llvm-cov nextest --no-report --all
 
+      - name: Run tests with Coverage
+        run: |
+          # Run Unit Tests
+          cargo llvm-cov nextest --no-report --all
+          
           # Room for other test suites types to run here...
+
+          ## Launch Node /w coverage - uncomment when E2E tests ready
+          # cargo llvm-cov run --no-report -- run > era_test_node_output.log 2>&1 &
+          # cd e2e-tests
+          # yarn install
+          # yarn build
+          # yarn test
 
       - name: Generate Coverage Report
         run: |
@@ -69,7 +80,7 @@ jobs:
             Code coverage for this PR is: ${{ env.TOTAL_COV }}
           edit-mode: replace
           reactions: "eyes"
-          
+
       - name: Zip and Upload Coverage Report
         uses: actions/upload-artifact@v3.1.2
         with:

@@ -37,6 +37,7 @@ jobs:
         id: launch
         run: |
           cd e2e-tests
+          yarn build
           yarn test
 
       - name: Stop the era_test_node and print output logs
