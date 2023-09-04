@@ -1415,8 +1415,8 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
 
                 writer
                     .block_hashes
-                    .insert(matching_block.batch_number, hash.clone());
-                writer.blocks.insert(hash.clone(), matching_block.clone());
+                    .insert(matching_block.batch_number, hash);
+                writer.blocks.insert(hash, matching_block.clone());
             }
 
             let block = zksync_types::api::Block {
