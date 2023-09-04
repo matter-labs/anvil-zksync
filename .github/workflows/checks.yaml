@@ -82,6 +82,8 @@ jobs:
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
 
       - name: Build Code
         run: make all
