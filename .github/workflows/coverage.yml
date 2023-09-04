@@ -4,16 +4,14 @@ on:
   pull_request:
   push:
     branches:
-        - master
+      - master
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    env:
-      RUSTFLAGS: -C opt-level=3 -D warnings -C instrument-coverage
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -25,46 +23,23 @@ jobs:
       - name: Install llvm tools
         run: rustup component add llvm-tools-preview
 
-      - name: Setup grcov
-        env:
-          GRCOV_VERSION: 0.8.18
-        run: |
-          wget https://github.com/mozilla/grcov/releases/download/v${GRCOV_VERSION}/grcov-x86_64-unknown-linux-gnu.tar.bz2
-          tar xvf grcov-x86_64-unknown-linux-gnu.tar.bz2
-          chmod +x grcov
+      - name: Install latest nextest release
+        uses: taiki-e/install-action@nextest
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: Build and Test
         run: |
-          # Temp step to install deps
-          apt-get update && apt-get install --assume-yes apt-utils --no-install-recommends pkg-config libssl-dev libsasl2-dev llvm-dev libclang-6.0-dev clang-6.0
-          cargo build --release --all
+          cargo llvm-cov clean --workspace
+          cargo llvm-cov nextest --no-report --all
 
-    # - name: Clean-up possible coverage generated during builds
-    #   run: |
-    #     rm default_*.profraw
+          # Room for other test suites types to run here...
 
-      - name: Run tests
+      - name: Generate Coverage Report
         run: |
-          cargo test
-
-      - name: Run E2E tests
-        run: |
-          yarn
-          yarn dev:start
-
-          cd e2e-tests
-          yarn build
-          yarn test
-
-      - name: Retrieve coverage
-        id: coverage
-        run: |
-          mkdir -p /tmp/profiles
-          find . -name \*.profraw -exec mv {} /tmp/profiles/ \;
-          mv /tmp/profiles profiles
-          du -sh profiles
-          ./grcov profiles/ -s ./ --binary-path ./target/release/ -t html --branch --ignore-not-existing --ignore "target/release/build/*" -o coverage/ --llvm 2>&1 | tee grcov.log
-          echo "total_percent=$(grep -o '[0-9\.]*%' coverage/html/coverage.json)" >> $GITHUB_ENV
+          echo "TOTAL_COV=${cargo llvm-cov report --summary-only | grep 'TOTAL' | awk '{print $4}' }" >> $GITHUB_ENV
+          cargo llvm-cov report --html
 
       - name: Upload coverage to GitHub Actions
         uses: actions/upload-artifact@v3.1.2
@@ -75,17 +50,17 @@ jobs:
       - name: Post coverage to PR
         if: github.event_name == 'pull_request'
         run: |
-          echo "Code coverage for this PR is: $TOTAL_PERCENT"
+          echo "Code coverage for this PR is: $TOTAL_COV"
         env:
-          TOTAL_PERCENT: ${{ env.total_percent }}
+          TOTAL_PERCENT: ${{ env.TOTAL_COV }}
 
       - name: Find Comment
         uses: peter-evans/find-comment@v2
         id: find-comment
         with:
           issue-number: ${{ github.event.pull_request.number }}
-          comment-author: 'github-actions[bot]'
-          body-includes: 'Code coverage for this PR is:'
+          comment-author: "github-actions[bot]"
+          body-includes: "Code coverage for this PR is:"
 
       - name: Post coverage to PR
         if: github.event_name == 'pull_request'
@@ -94,12 +69,16 @@ jobs:
           comment-id: ${{ steps.find-comment.outputs.comment-id }}
           issue-number: ${{ github.event.pull_request.number }}
           body: |
-            Code coverage for this PR is: ${{ env.total_percent }}
-          reactions: 'eyes'
-      
+            Code coverage for this PR is: ${{ env.TOTAL_COV }}
+          reactions: "eyes"
+
+      - name: Zip and Upload Coverage Report
+        uses: actions/upload-artifact@v3.1.2
+        with:
+          name: coverage-report
+          path: target/llvm-cov/html
       - name: Stop the era_test_node
         id: stop_node
         if: always()
         run: |
           yarn dev:kill
-

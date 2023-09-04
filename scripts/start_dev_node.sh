@@ -14,7 +14,7 @@
 #                 - The node should be accessible at "http://localhost:8011".
 ##############################################################################
 
-
+export LLVM_PROFILE_FILE="../my_coverage_data.profraw"
 # Check if the node is already running
 EXISTING_PID=$(pgrep -f "era_test_node run")
 
