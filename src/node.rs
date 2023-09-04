@@ -859,7 +859,6 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 "  WARNING: user actually provided more gas {}, but system had a lower max limit.",
                 to_human_size(debug.total_gas_limit_from_user)
             )
-                .to_string()
                 .yellow()
             );
         }
@@ -871,7 +870,6 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                     to_human_size(debug.refund_computed),
                     to_human_size(debug.refund_by_operator)
                 )
-                .to_string()
                 .yellow()
             );
         }
@@ -885,7 +883,6 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                     to_human_size(total_gas_limit),
                     to_human_size(total_gas_limit.abs_diff(debug.refund_computed + gas_used))
                 )
-                .to_string()
                 .yellow()
             );
         }
@@ -939,7 +936,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         );
 
         println!(
-            "\n FYI: operator could have charged up to: {}, so you got {}% discount",
+            "\n  FYI: operator could have charged up to: {}, so you got {}% discount",
             to_human_size(debug.required_overhead),
             to_human_size(
                 (debug.required_overhead - debug.operator_overhead) * 100 / debug.required_overhead
@@ -951,9 +948,9 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             "Publishing full block costs the operator up to: {}, where {} is due to {} bytes published to L1",
             to_human_size(debug.total_overhead_for_block),
             to_human_size(debug.gas_per_pubdata * publish_block_l1_bytes),
-            publish_block_l1_bytes
+            to_human_size(publish_block_l1_bytes.into())
         );
-        println!("Your transaction has contributed to filling up block in the following way (we take the max contribution as the cost):");
+        println!("Your transaction has contributed to filling up the block in the following way (we take the max contribution as the cost):");
         println!(
             "  Circuits overhead:{:>15} ({}% of the full block: {})",
             to_human_size(debug.overhead_for_circuits),
@@ -1042,7 +1039,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         match inner.show_gas_details {
             ShowGasDetails::None => println!(
-                "Use --show-gas-details flag or call config_setGetDetails to display more info"
+                "Use --show-gas-details flag or call config_setShowGasDetails to display more info"
             ),
             ShowGasDetails::All => {
                 if self

@@ -140,13 +140,13 @@ impl<S: std::marker::Send + std::marker::Sync + 'static> ConfigurationApiNamespa
             Ok(value) => value,
             Err(_) => {
                 let reader = self.node.read().unwrap();
-                return Ok(reader.show_vm_details.to_string());
+                return Ok(reader.show_gas_details.to_string());
             }
         };
 
         let mut inner = self.node.write().unwrap();
         inner.show_gas_details = show_gas_details;
-        Ok(inner.show_vm_details.to_string())
+        Ok(inner.show_gas_details.to_string())
     }
 
     fn config_set_resolve_hashes(&self, value: bool) -> Result<bool> {

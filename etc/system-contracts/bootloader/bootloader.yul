@@ -1138,7 +1138,7 @@ object "Bootloader" {
 
                 let totalGasLimit := getGasLimit(innerTxDataOffset)
 
-                // Setinel value for Debug information for the in-memory node.
+                // Sentinel value for Debug information for the in-memory node.
                 mstore(DEBUG_BEGIN_BYTE(), 1337)
 
                 // We start with total gas limit from user.
