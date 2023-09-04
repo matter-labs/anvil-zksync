@@ -41,7 +41,7 @@ echo ""
 echo "============"
 echo "Yarn install"
 echo "============"
-yarn install
+yarn install --frozen-lockfile
 
 # Compile contracts
 echo ""
