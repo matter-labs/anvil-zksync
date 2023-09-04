@@ -24,3 +24,8 @@ etc/**/*.zbin
 !.yarn/versions
 
 **/node_modules
+
+# Profiling Files
+**/*.profraw
+**/*.profdata
+**/*.lcov
