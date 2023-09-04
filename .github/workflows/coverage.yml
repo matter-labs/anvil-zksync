@@ -9,6 +9,8 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -C opt-level=3 -D warnings -C instrument-coverage
     steps:
       - uses: actions/checkout@v3
       
