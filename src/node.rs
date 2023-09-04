@@ -1372,6 +1372,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                 .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
 
             // try retrieving block from memory and subsequently from fork, if unavailable
+            let mut fetched_block = false;
             let matching_block = reader.blocks.get(&hash).cloned().or_else(|| {
                 reader
                     .fork_storage
@@ -1385,23 +1386,40 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                             .get_block_by_hash(hash, full_transactions)
                             .ok()
                             .flatten()
-                            .map(|block| BlockInfo {
-                                batch_number: block.l1_batch_number.unwrap_or_default().as_u32(),
-                                block_timestamp: block.timestamp.as_u64(),
-                                hash: block.hash,
-                                tx_hash: Default::default(),
+                            .map(|block| {
+                                fetched_block = true;
+                                BlockInfo {
+                                    batch_number: block
+                                        .l1_batch_number
+                                        .unwrap_or_default()
+                                        .as_u32(),
+                                    block_timestamp: block.timestamp.as_u64(),
+                                    hash: block.hash,
+                                    tx_hash: Default::default(),
+                                }
                             })
                     })
             });
 
-            if matching_block.is_none() {
+            let Some(matching_block) = matching_block else {
                 return Err(into_jsrpc_error(Web3Error::NoBlock));
+            };
+
+            let current_batch = reader.current_batch;
+            drop(reader);
+
+            if fetched_block {
+                inner
+                    .write()
+                    .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?
+                    .blocks
+                    .insert(hash.clone(), matching_block.clone());
             }
 
             let block = zksync_types::api::Block {
                 hash,
-                number: U64::from(matching_block.unwrap().batch_number),
-                l1_batch_number: Some(U64::from(reader.current_batch)),
+                number: U64::from(matching_block.batch_number),
+                l1_batch_number: Some(U64::from(current_batch)),
                 gas_limit: U256::from(ETH_CALL_GAS_LIMIT),
                 ..Default::default()
             };
@@ -1717,12 +1735,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_block_by_hash_uses_fork_source() {
+    async fn test_get_block_by_hash_uses_fork_source_and_caches_it() {
         let input_block_hash_str =
             "0x0101010101010101010101010101010101010101010101010101010101010101";
         let input_block_hash = H256::from_str(input_block_hash_str).expect("invalid hash");
 
         let mock_server = crate::testing::MockServer::run();
+
+        // mock a single eth_getBlockByHash call
         mock_server.expect(serde_json::json!({
             "jsonrpc": "2.0",
             "id": 0,
@@ -1781,6 +1801,19 @@ mod tests {
         assert_eq!(
             Some(U64::from(node.inner.read().unwrap().current_batch)),
             actual_block.l1_batch_number
+        );
+
+        let actual_cached_block = node
+            .get_block_by_hash(input_block_hash, false)
+            .await
+            .expect("failed fetching cached block by hash")
+            .expect("no block");
+
+        assert_eq!(input_block_hash, actual_cached_block.hash);
+        assert_eq!(U64::from(2), actual_cached_block.number);
+        assert_eq!(
+            Some(U64::from(node.inner.read().unwrap().current_batch)),
+            actual_cached_block.l1_batch_number
         );
     }
 }

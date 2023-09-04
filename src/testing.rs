@@ -2,6 +2,7 @@
 //!
 //! There is MockServer that can help simulate a forked network.
 //!
+
 #![cfg(test)]
 
 use httptest::{
