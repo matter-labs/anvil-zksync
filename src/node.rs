@@ -1409,11 +1409,14 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
             drop(reader);
 
             if fetched_block {
-                inner
+                let mut writer = inner
                     .write()
-                    .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?
-                    .blocks
-                    .insert(hash.clone(), matching_block.clone());
+                    .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
+
+                writer
+                    .block_hashes
+                    .insert(matching_block.batch_number, hash.clone());
+                writer.blocks.insert(hash.clone(), matching_block.clone());
             }
 
             let block = zksync_types::api::Block {
@@ -1801,6 +1804,15 @@ mod tests {
         assert_eq!(
             Some(U64::from(node.inner.read().unwrap().current_batch)),
             actual_block.l1_batch_number
+        );
+        assert_eq!(
+            Some(input_block_hash),
+            node.inner
+                .read()
+                .unwrap()
+                .block_hashes
+                .get(&actual_block.number.as_u32())
+                .copied()
         );
 
         let actual_cached_block = node
