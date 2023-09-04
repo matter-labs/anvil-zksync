@@ -30,10 +30,11 @@ jobs:
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
+
       - name: Update Pkg Deps
         run: |
-          apt-get update
-          apt-get install --assume-yes apt-utils --no-install-recommends pkg-config libssl-dev libsasl2-dev llvm-dev libclang-6.0-dev clang-6.0
+          sudo apt update
+          sudo apt install apt-utils pkg-config libssl-dev libsasl2-dev llvm-dev libclang-6.0-dev clang-6.0 -y
       
       - name: Prepare for coverage
         run: |
