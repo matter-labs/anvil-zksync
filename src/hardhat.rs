@@ -23,17 +23,6 @@ impl<S> HardhatNamespaceImpl<S> {
 
 #[rpc]
 pub trait HardhatNamespaceT {
-    #[rpc(name = "hardhat_setBalance")]
-    fn set_balance(
-        &self,
-        address: Address, // The address whose balance will be edited
-        balance: U256,    // The new balance to set for the given address, in wei
-    ) -> BoxFuture<Result<bool>>;
-}
-
-impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> HardhatNamespaceT
-    for HardhatNamespaceImpl<S>
-{
     /// Sets the balance of the given address to the given balance.
     ///
     /// # Arguments
@@ -44,6 +33,13 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> HardhatNamespaceT
     /// # Returns
     ///
     /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
+    #[rpc(name = "hardhat_setBalance")]
+    fn set_balance(&self, address: Address, balance: U256) -> BoxFuture<Result<bool>>;
+}
+
+impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> HardhatNamespaceT
+    for HardhatNamespaceImpl<S>
+{
     fn set_balance(
         &self,
         address: Address,
