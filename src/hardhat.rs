@@ -3,9 +3,9 @@ use std::sync::{Arc, RwLock};
 use crate::{fork::ForkSource, node::InMemoryNodeInner};
 use jsonrpc_core::{BoxFuture, Result};
 use jsonrpc_derive::rpc;
-use zksync_basic_types::{AccountTreeId, Address, U256};
+use zksync_basic_types::{Address, U256};
 use zksync_core::api_server::web3::backend_jsonrpc::error::into_jsrpc_error;
-use zksync_types::{utils::storage_key_for_standard_token_balance, L2_ETH_TOKEN_ADDRESS};
+use zksync_types::utils::storage_key_for_eth_balance;
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::error::Web3Error;
 
@@ -48,13 +48,9 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> HardhatNamespaceT
         let inner = Arc::clone(&self.node);
 
         Box::pin(async move {
-            let balance_key = storage_key_for_standard_token_balance(
-                AccountTreeId::new(L2_ETH_TOKEN_ADDRESS),
-                &address,
-            );
-
             match inner.write() {
                 Ok(mut inner_guard) => {
+                    let balance_key = storage_key_for_eth_balance(&address);
                     inner_guard
                         .fork_storage
                         .set_value(balance_key, u256_to_h256(balance));
