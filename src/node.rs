@@ -1,9 +1,9 @@
 //! In-memory node, that supports forking other networks.
 use crate::{
     console_log::ConsoleLogHandler,
-    deps::system_contracts::bytecode_from_slice,
     fork::{ForkDetails, ForkSource, ForkStorage},
     formatter,
+    system_contracts::{self, SystemContracts},
     utils::{adjust_l1_gas_price_for_tx, derive_gas_estimation_overhead, IntoBoxedFuture},
 };
 use clap::Parser;
@@ -28,10 +28,7 @@ use vm::{
     HistoryDisabled, HistoryEnabled, OracleTools, TxRevertReason, VmBlockResult,
 };
 use zksync_basic_types::{AccountTreeId, Bytes, H160, H256, U256, U64};
-use zksync_contracts::{
-    read_playground_block_bootloader_bytecode, read_sys_contract_bytecode, read_zbin_bytecode,
-    BaseSystemContracts, ContractLanguage, SystemContractCode,
-};
+use zksync_contracts::BaseSystemContracts;
 use zksync_core::api_server::web3::backend_jsonrpc::{
     error::into_jsrpc_error, namespaces::eth::EthNamespaceT,
 };
@@ -56,7 +53,7 @@ use zksync_types::{
 };
 use zksync_utils::{
     bytecode::{compress_bytecode, hash_bytecode},
-    bytes_to_be_words, h256_to_account_address, h256_to_u256, h256_to_u64, u256_to_h256,
+    h256_to_account_address, h256_to_u256, h256_to_u64, u256_to_h256,
 };
 use zksync_web3_decl::{
     error::Web3Error,
@@ -212,10 +209,7 @@ pub struct InMemoryNodeInner<S> {
     // If true - will contact openchain to resolve the ABI to function names.
     pub resolve_hashes: bool,
     pub console_log_handler: ConsoleLogHandler,
-    pub dev_use_local_contracts: bool,
-    pub baseline_contracts: BaseSystemContracts,
-    pub playground_contracts: BaseSystemContracts,
-    pub fee_estimate_contracts: BaseSystemContracts,
+    pub system_contracts: SystemContracts,
 }
 
 type L2TxResult = (
@@ -328,7 +322,6 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             pubdata_for_factory_deps * (gas_per_pubdata_byte as u32);
 
         let block_context = self.create_block_context();
-        let bootloader_code = &self.fee_estimate_contracts;
 
         // We are using binary search to find the minimal values of gas_limit under which the transaction succeeds
         let mut lower_bound = 0;
@@ -346,7 +339,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 base_fee,
                 block_context,
                 &self.fork_storage,
-                bootloader_code,
+                self.system_contracts.contracts_for_fee_estimate(),
             );
 
             if estimate_gas_result.is_err() {
@@ -370,7 +363,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             base_fee,
             block_context,
             &self.fork_storage,
-            bootloader_code,
+            self.system_contracts.contracts_for_fee_estimate(),
         );
 
         let overhead: u32 = derive_gas_estimation_overhead(
@@ -547,76 +540,6 @@ pub struct InMemoryNode<S> {
     inner: Arc<RwLock<InMemoryNodeInner<S>>>,
 }
 
-fn bsc_load_with_bootloader(
-    bootloader_bytecode: Vec<u8>,
-    use_local_contracts: bool,
-) -> BaseSystemContracts {
-    let hash = hash_bytecode(&bootloader_bytecode);
-
-    let bootloader = SystemContractCode {
-        code: bytes_to_be_words(bootloader_bytecode),
-        hash,
-    };
-
-    let bytecode = if use_local_contracts {
-        read_sys_contract_bytecode("", "DefaultAccount", ContractLanguage::Sol)
-    } else {
-        bytecode_from_slice(
-            "DefaultAccount",
-            include_bytes!("deps/contracts/DefaultAccount.json"),
-        )
-    };
-    let hash = hash_bytecode(&bytecode);
-
-    let default_aa = SystemContractCode {
-        code: bytes_to_be_words(bytecode),
-        hash,
-    };
-
-    BaseSystemContracts {
-        bootloader,
-        default_aa,
-    }
-}
-
-/// BaseSystemContracts with playground bootloader -  used for handling 'eth_calls'.
-pub fn playground(use_local_contracts: bool) -> BaseSystemContracts {
-    let bootloader_bytecode = if use_local_contracts {
-        read_playground_block_bootloader_bytecode()
-    } else {
-        include_bytes!("deps/contracts/playground_block.yul.zbin").to_vec()
-    };
-    bsc_load_with_bootloader(bootloader_bytecode, use_local_contracts)
-}
-
-/// Returns the system contracts for fee estimation.
-///
-/// # Arguments
-///
-/// * `use_local_contracts` - A boolean indicating whether to use local contracts or not.
-///
-/// # Returns
-///
-/// A `BaseSystemContracts` struct containing the system contracts used for handling 'eth_estimateGas'.
-/// It sets ENSURE_RETURNED_MAGIC to 0 and BOOTLOADER_TYPE to 'playground_block'
-pub fn fee_estimate_contracts(use_local_contracts: bool) -> BaseSystemContracts {
-    let bootloader_bytecode = if use_local_contracts {
-        read_zbin_bytecode("etc/system-contracts/bootloader/build/artifacts/fee_estimate.yul/fee_estimate.yul.zbin")
-    } else {
-        include_bytes!("deps/contracts/fee_estimate.yul.zbin").to_vec()
-    };
-    bsc_load_with_bootloader(bootloader_bytecode, use_local_contracts)
-}
-
-pub fn baseline_contracts(use_local_contracts: bool) -> BaseSystemContracts {
-    let bootloader_bytecode = if use_local_contracts {
-        read_playground_block_bootloader_bytecode()
-    } else {
-        include_bytes!("deps/contracts/proved_block.yul.zbin").to_vec()
-    };
-    bsc_load_with_bootloader(bootloader_bytecode, use_local_contracts)
-}
-
 fn contract_address_from_tx_result(execution_result: &VmTxExecutionResult) -> Option<H160> {
     for query in execution_result.result.logs.storage_logs.iter().rev() {
         if query.log_type == StorageLogQueryType::InitialWrite
@@ -636,7 +559,7 @@ impl<S: ForkSource + std::fmt::Debug> Default for InMemoryNode<S> {
             ShowStorageLogs::None,
             ShowVMDetails::None,
             false,
-            false,
+            &system_contracts::Options::BuiltIn,
         )
     }
 }
@@ -648,7 +571,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         show_storage_logs: ShowStorageLogs,
         show_vm_details: ShowVMDetails,
         resolve_hashes: bool,
-        dev_use_local_contracts: bool,
+        system_contracts_options: &system_contracts::Options,
     ) -> Self {
         InMemoryNode {
             inner: Arc::new(RwLock::new(InMemoryNodeInner {
@@ -664,16 +587,13 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                     .unwrap_or(L1_GAS_PRICE),
                 tx_results: Default::default(),
                 blocks: Default::default(),
-                fork_storage: ForkStorage::new(fork, dev_use_local_contracts),
+                fork_storage: ForkStorage::new(fork, system_contracts_options),
                 show_calls,
                 show_storage_logs,
                 show_vm_details,
                 resolve_hashes,
                 console_log_handler: ConsoleLogHandler::default(),
-                dev_use_local_contracts,
-                playground_contracts: playground(dev_use_local_contracts),
-                baseline_contracts: baseline_contracts(dev_use_local_contracts),
-                fee_estimate_contracts: fee_estimate_contracts(dev_use_local_contracts),
+                system_contracts: SystemContracts::from_options(system_contracts_options),
             })),
         }
     }
@@ -731,7 +651,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryEnabled);
 
-        let bootloader_code = &inner.playground_contracts;
+        let bootloader_code = &inner.system_contracts.contacts_for_l2_call();
 
         let block_context = inner.create_block_context();
         let block_properties = InMemoryNodeInner::<S>::create_block_properties(bootloader_code);
@@ -773,7 +693,8 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         Ok(vm_block_result)
     }
 
-    fn run_l2_tx_inner(
+    /// Executes the given L2 transaction and returns all the VM logs.
+    pub fn run_l2_tx_inner(
         &self,
         l2_tx: L2Tx,
         execution_mode: TxExecutionMode,
@@ -787,11 +708,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryEnabled);
 
-        let bootloader_code = if execution_mode == TxExecutionMode::VerifyExecute {
-            &inner.baseline_contracts
-        } else {
-            &inner.playground_contracts
-        };
+        let bootloader_code = inner.system_contracts.contracts(execution_mode);
 
         let block_context = inner.create_block_context();
         let block_properties = InMemoryNodeInner::<S>::create_block_properties(bootloader_code);

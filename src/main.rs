@@ -57,6 +57,7 @@ mod formatter;
 mod http_fork_source;
 mod node;
 mod resolver;
+mod system_contracts;
 mod utils;
 mod zks;
 
@@ -276,6 +277,11 @@ async fn main() -> anyhow::Result<()> {
     } else {
         vec![]
     };
+    let system_contracts_options = if opt.dev_use_local_contracts {
+        system_contracts::Options::Local
+    } else {
+        system_contracts::Options::BuiltIn
+    };
 
     let node = InMemoryNode::new(
         fork_details,
@@ -283,7 +289,7 @@ async fn main() -> anyhow::Result<()> {
         opt.show_storage_logs,
         opt.show_vm_details,
         opt.resolve_hashes,
-        opt.dev_use_local_contracts,
+        &system_contracts_options,
     );
 
     if !transactions_to_replay.is_empty() {
