@@ -54,6 +54,10 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> HardhatNamespaceT
                     inner_guard
                         .fork_storage
                         .set_value(balance_key, u256_to_h256(balance));
+                    println!(
+                        "👷 Balance for address {:?} has been manually set to {} Wei",
+                        address, balance
+                    );
                     Ok(true)
                 }
                 Err(_) => {
