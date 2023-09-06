@@ -408,6 +408,25 @@ object "Bootloader" {
                 ret := sub(MAX_MEM_SIZE(), mul(MAX_TRANSACTIONS_IN_BLOCK(), 32))
             }
 
+
+            ///
+            /// DEBUG SUPPORT START
+            ///
+
+            /// Position of the first byte that can be used for debugging.
+            function DEBUG_BEGIN_BYTE() -> ret {
+                ret := sub(VM_HOOK_PARAMS_OFFSET(), mul(MAX_DEBUG_SLOTS(), 32)
+            }
+
+            /// @dev Number of debug slots to use (each one has 32 bytes)
+            function MAX_DEBUG_SLOTS() -> ret {
+                ret := 32
+            }
+
+            ///
+            /// DEBUG SUPPORT END.
+            ///
+
             /// @dev The pointer writing to which invokes the VM hooks
             function VM_HOOK_PTR() -> ret {
                 ret := sub(RESULT_START_PTR(), 32)
@@ -426,7 +445,8 @@ object "Bootloader" {
             function LAST_FREE_SLOT() -> ret {
                 // The slot right before the vm hooks is the last slot that
                 // can be used for transaction's descriptions
-                ret := sub(VM_HOOK_PARAMS_OFFSET(), 32)
+                /// DEBUG SUPPORT: use DEBUG_BEGIN_BYTE (as we reserve some bytes at the end of memory).
+                ret := sub(DEBUG_BEGIN_BYTE(), 32)
             }
 
             /// @dev The formal address of the bootloader
@@ -1111,6 +1131,32 @@ object "Bootloader" {
                 
                 let gasLimitForTx, reservedGas := getGasLimitForTx(innerTxDataOffset, transactionIndex, gasPerPubdata, L2_TX_INTRINSIC_GAS(), L2_TX_INTRINSIC_PUBDATA())
 
+
+                ///
+                /// DEBUG SUPPORT START
+                ///
+
+                let totalGasLimit := getGasLimit(innerTxDataOffset)
+
+                // Sentinel value for Debug information for the in-memory node.
+                mstore(DEBUG_BEGIN_BYTE(), 1337)
+
+                // We start with total gas limit from user.
+                mstore(add(DEBUG_BEGIN_BYTE(), 32), totalGasLimit)
+                // This is the amount of gas that will never be used.
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 2)), reservedGas)
+
+                // Amount of gas per each pubdata byte.
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 3)), gasPerPubdata)
+
+                // This is the amount of gas that is left after we removed the minimum amount of gas that will be consumed
+                // by the transaction itself (INTRINSIC GAS).
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 4)), gasLimitForTx)
+
+                ///
+                /// DEBUG SUPPORT END
+                /// 
+
                 let gasPrice := getGasPrice(getMaxFeePerGas(innerTxDataOffset), getMaxPriorityFeePerGas(innerTxDataOffset))
 
                 debugLog("gasLimitForTx", gasLimitForTx)
@@ -1120,12 +1166,29 @@ object "Bootloader" {
                     gasLimitForTx,
                     gasPrice
                 )
+                ///
+                /// DEBUG SUPPORT START
+                ///
+                // This is the amount of gas that is left after validation.
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 5)), gasLeft)
+                ///
+                /// DEBUG SUPPORT END
+                /// 
 
                 debugLog("validation finished", 0)
 
                 let gasSpentOnExecute := 0
                 let success := 0
                 success, gasSpentOnExecute := l2TxExecution(txDataOffset, gasLeft)
+                ///
+                /// DEBUG SUPPORT START
+                ///
+                // Amount of gas spent on execute.
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 6)), gasSpentOnExecute)
+                ///
+                /// DEBUG SUPPORT END
+                /// 
+
 
                 debugLog("execution finished", 0)
 
@@ -1134,6 +1197,14 @@ object "Bootloader" {
                 if lt(gasLeft, gasSpentOnExecute){
                     gasToRefund := 0
                 }
+                ///
+                /// DEBUG SUPPORT START
+                ///
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 8)), gasToRefund)
+                ///
+                /// DEBUG SUPPORT END
+                /// 
+
 
                 // Note, that we pass reservedGas from the refundGas separately as it should not be used
                 // during the postOp execution.
@@ -1145,6 +1216,13 @@ object "Bootloader" {
                     gasPrice,
                     reservedGas
                 )
+                ///
+                /// DEBUG SUPPORT START
+                ///
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 9)), refund)
+                ///
+                /// DEBUG SUPPORT END
+                /// 
 
                 debugLog("refund", 0)
 
@@ -1201,6 +1279,17 @@ object "Bootloader" {
                     safeMul(intrinsicPubdata, gasPerPubdata, "qw"),
                     "fj" 
                 )
+                ///
+                /// DEBUG SUPPORT START
+                /// 
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 11)), operatorOverheadForTransaction)
+
+                // Fixed overhead.
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 10)), intrinsicOverhead)
+                ///
+                /// DEBUG SUPPORT END
+                /// 
+
 
                 switch lt(gasLimitForTx, intrinsicOverhead)
                 case 1 {
@@ -1281,6 +1370,17 @@ object "Bootloader" {
                     newCompressedFactoryDepsPointer := ZKSYNC_NEAR_CALL_markFactoryDepsL2(markingDependenciesABI, txDataOffset)
                     gasSpentOnFactoryDeps := sub(gasBeforeFactoryDeps, gas())
                 }
+
+                ///
+                /// DEBUG SUPPORT START
+                /// 
+
+                // Gas spent on fetching and unpacking the bytecodes.
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 7)), gasSpentOnFactoryDeps)
+
+                ///
+                /// DEBUG SUPPORT END
+                /// 
 
                 // If marking of factory dependencies has been unsuccessful, 0 value is returned.
                 // Otherwise, all the previous dependencies have been successfully published, so
@@ -1647,6 +1747,14 @@ object "Bootloader" {
                     gasPerPubdataByte,
                     txEncodeLen
                 )
+                ///
+                /// DEBUG SUPPORT START
+                /// 
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 12)), requiredOverhead)
+                ///
+                /// DEBUG SUPPORT END
+                /// 
+
 
                 debugLog("txTotalGasLimit", txTotalGasLimit)
                 debugLog("requiredOverhead", requiredOverhead)
@@ -1893,6 +2001,19 @@ object "Bootloader" {
                 )
                 ret := max(ret, overheadForSlot)
                 debugLog("overheadForSlot", overheadForSlot)
+
+                ///
+                /// DEBUG SUPPORT START
+                /// 
+
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 13)), totalBlockOverhead)
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 14)), overheadForCircuits)
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 15)), overheadForLength)
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 16)), overheadForSlot)
+
+                ///
+                /// DEBUG SUPPORT END
+                /// 
             
                 // In the proved block we ensure that the gasPerPubdataByte is not zero
                 // to avoid the potential edge case of division by zero. In Yul, division by 
