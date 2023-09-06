@@ -8,7 +8,12 @@ use jsonrpc_derive::rpc;
 // Workspace uses
 
 // Local uses
-use crate::{node::InMemoryNodeInner, node::ShowCalls, node::ShowStorageLogs, node::ShowVMDetails};
+use crate::{
+    node::InMemoryNodeInner,
+    node::ShowCalls,
+    node::ShowVMDetails,
+    node::{ShowGasDetails, ShowStorageLogs},
+};
 
 pub struct ConfigurationApiNamespace<S> {
     node: Arc<RwLock<InMemoryNodeInner<S>>>,
@@ -58,6 +63,16 @@ pub trait ConfigurationApiNamespaceT {
     /// The updated/current `show_vm_details` value for the InMemoryNodeInner.
     #[rpc(name = "config_setShowVmDetails", returns = "String")]
     fn config_set_show_vm_details(&self, value: String) -> Result<String>;
+
+    /// Set show_gas_details for the InMemoryNodeInner
+    ///
+    /// # Parameters
+    /// - `value`: A ShowGasDetails enum to update show_gas_details to
+    ///
+    /// # Returns
+    /// The updated/current `show_gas_details` value for the InMemoryNodeInner.
+    #[rpc(name = "config_setShowGasDetails", returns = "String")]
+    fn config_set_show_gas_details(&self, value: String) -> Result<String>;
 
     /// Set resolve_hashes for the InMemoryNodeInner
     ///
@@ -118,6 +133,20 @@ impl<S: std::marker::Send + std::marker::Sync + 'static> ConfigurationApiNamespa
         let mut inner = self.node.write().unwrap();
         inner.show_vm_details = show_vm_details;
         Ok(inner.show_vm_details.to_string())
+    }
+
+    fn config_set_show_gas_details(&self, value: String) -> Result<String> {
+        let show_gas_details = match value.parse::<ShowGasDetails>() {
+            Ok(value) => value,
+            Err(_) => {
+                let reader = self.node.read().unwrap();
+                return Ok(reader.show_gas_details.to_string());
+            }
+        };
+
+        let mut inner = self.node.write().unwrap();
+        inner.show_gas_details = show_gas_details;
+        Ok(inner.show_gas_details.to_string())
     }
 
     fn config_set_resolve_hashes(&self, value: bool) -> Result<bool> {
