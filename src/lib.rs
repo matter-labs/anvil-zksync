@@ -36,7 +36,7 @@
 //! ## Usage
 //!
 //! To start the node, use the command `era_test_node run`. For more advanced functionalities like forking or
-//! replaying transactions, refer to the official documentation.
+//! replaying transactions, refer to the [official documentation](https://era.zksync.io/docs/tools/testing/era-test-node.html).
 //!
 //! ## Contributions
 //!
