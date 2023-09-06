@@ -2,6 +2,11 @@ name: Testing era_test_node using e2e
 on:
   workflow_call:
 
+permissions:
+  statuses: write
+  checks: write
+  actions: write
+
 jobs:
   e2e:
     runs-on: ubuntu-latest
