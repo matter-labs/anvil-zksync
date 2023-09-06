@@ -42,7 +42,7 @@
 //!
 //! Contributions to improve `era-test-node` are welcome. Please refer to the contribution guidelines for more details.
 
-use crate::node::{ShowStorageLogs, ShowVMDetails};
+use crate::node::{ShowGasDetails, ShowStorageLogs, ShowVMDetails};
 use clap::{Parser, Subcommand};
 use configuration_api::ConfigurationApiNamespaceT;
 use evm::{EvmNamespaceImpl, EvmNamespaceT};
@@ -50,6 +50,7 @@ use fork::{ForkDetails, ForkSource};
 use node::ShowCalls;
 use zks::ZkMockNamespaceImpl;
 
+mod bootloader_debug;
 mod configuration_api;
 mod console_log;
 mod deps;
@@ -192,6 +193,10 @@ struct Cli {
     /// Show VM details information
     show_vm_details: ShowVMDetails,
 
+    #[arg(long, default_value = "none")]
+    /// Show Gas details information
+    show_gas_details: ShowGasDetails,
+
     #[arg(long)]
     /// If true, the tool will try to contact openchain to resolve the ABI & topic names.
     /// It will make debug log more readable, but will decrease the performance.
@@ -286,6 +291,7 @@ async fn main() -> anyhow::Result<()> {
         opt.show_calls,
         opt.show_storage_logs,
         opt.show_vm_details,
+        opt.show_gas_details,
         opt.resolve_hashes,
         opt.dev_use_local_contracts,
     );
