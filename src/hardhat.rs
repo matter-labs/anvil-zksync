@@ -99,14 +99,14 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> HardhatNamespaceT
                     let (mut account_nonce, mut deployment_nonce) =
                         decompose_full_nonce(h256_to_u256(full_nonce));
                     if account_nonce >= nonce {
-                        return Err(jsonrpc_core::Error::invalid_params(&format!(
+                        return Err(jsonrpc_core::Error::invalid_params(format!(
                             "Account Nonce is already set to a higher value ({}, requested {})",
                             account_nonce, nonce
                         )));
                     }
                     account_nonce = nonce;
                     if deployment_nonce >= nonce {
-                        return Err(jsonrpc_core::Error::invalid_params(&format!(
+                        return Err(jsonrpc_core::Error::invalid_params(format!(
                             "Deployment Nonce is already set to a higher value ({}, requested {})",
                             deployment_nonce, nonce
                         )));
