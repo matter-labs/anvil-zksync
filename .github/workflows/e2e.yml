@@ -38,11 +38,3 @@ jobs:
         run: |
           cat era_test_node_ouput.log
           kill $PID
-
-      - name: Publish Test Results
-        uses: dorny/test-reporter@v1
-        if: always()
-        with:
-          path: ./e2e-tests/test-results.json
-          name: E2E Test Results
-          reporter: 'mocha-json'

@@ -55,9 +55,13 @@ jobs:
       # ==============================
       #       Builds
       # ==============================
+
+      - name: Install cross from source
+        run: |
+          cargo install --git https://github.com/cross-rs/cross cross --branch main
+
       - name: Build era-test-node for ${{ matrix.arch }}
         run: |
-          cargo install cross
           make build-${{ matrix.arch }}
     
       - name: Rename and move binary
