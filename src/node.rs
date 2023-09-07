@@ -226,7 +226,7 @@ pub struct InMemoryNodeInner<S> {
     pub tx_results: HashMap<H256, TxExecutionInfo>,
     // Map from block hash to information about the block.
     pub blocks: HashMap<H256, Block<TransactionVariant>>,
-    // Map from block number to information about the block.
+    // Map from block number to a block hash.
     pub block_hashes: HashMap<u64, H256>,
     // Underlying storage
     pub fork_storage: ForkStorage<S>,
@@ -901,17 +901,6 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         let block_context = inner.create_block_context();
         let block_properties = InMemoryNodeInner::<S>::create_block_properties(bootloader_code);
 
-        let block = Block {
-            hash: compute_hash(block_context.block_number, l2_tx.hash()),
-            number: U64::from(inner.current_miniblock),
-            timestamp: U256::from(block_context.block_timestamp),
-            l1_batch_number: Some(U64::from(block_context.block_number)),
-            transactions: vec![TransactionVariant::Full(
-                zksync_types::api::Transaction::from(l2_tx.clone()),
-            )],
-            ..Default::default()
-        };
-
         // init vm
         let mut vm = init_vm_inner(
             &mut oracle_tools,
@@ -923,7 +912,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         );
         let spent_on_pubdata_before = vm.state.local_state.spent_pubdata_counter;
 
-        let tx: Transaction = l2_tx.into();
+        let tx: Transaction = l2_tx.clone().into();
         push_transaction_to_bootloader_memory(&mut vm, &tx, execution_mode, None);
         let tx_result = vm
             .execute_next_tx(u32::MAX, true)
@@ -1025,6 +1014,40 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             formatter::print_event(event, inner.resolve_hashes);
         }
 
+        // Compute gas details
+        let debug = BootloaderDebug::load_from_memory(&vm).map_err(|err| err.to_string())?;
+
+        // Total amount of gas (should match tx.gas_limit).
+        let gas_limit = debug
+            .total_gas_limit_from_user
+            .saturating_sub(debug.reserved_gas);
+
+        let intrinsic_gas = gas_limit - debug.gas_limit_after_intrinsic;
+        let gas_for_validation = debug.gas_limit_after_intrinsic - debug.gas_after_validation;
+
+        let gas_spent_on_compute =
+            debug.gas_spent_on_execution - debug.gas_spent_on_bytecode_preparation;
+
+        let gas_used = intrinsic_gas
+            + gas_for_validation
+            + debug.gas_spent_on_bytecode_preparation
+            + gas_spent_on_compute;
+
+        // The computed block hash here will be different than that in production.
+        let hash = compute_hash(block_context.block_number, l2_tx.hash());
+        let block = Block {
+            hash,
+            number: U64::from(inner.current_miniblock),
+            timestamp: U256::from(block_context.block_timestamp),
+            l1_batch_number: Some(U64::from(block_context.block_number)),
+            transactions: vec![TransactionVariant::Full(
+                zksync_types::api::Transaction::from(l2_tx.clone()),
+            )],
+            gas_used,
+            gas_limit,
+            ..Default::default()
+        };
+
         println!("\n\n");
 
         vm.execute_till_block_end(BootloaderJobType::BlockPostprocessing);
@@ -1082,7 +1105,6 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         inner.blocks.insert(block.hash, block);
         {
             inner.current_timestamp += 1;
-            println!("current_batch = {}", inner.current_batch);
             inner.current_batch += 1;
             inner.current_miniblock += 1;
         }
@@ -1324,6 +1346,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                         writer.blocks.insert(block.hash, block.clone());
                     }
 
+                    let block_hash = block.hash;
                     block.transactions = block
                         .transactions
                         .into_iter()
@@ -1337,7 +1360,10 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                             }
                             TransactionVariant::Hash(_) => {
                                 if full_transactions {
-                                    panic!("unexpected non full transaction in the cache")
+                                    panic!(
+                                        "unexpected non full transaction in the cache for block {}",
+                                        block_hash
+                                    )
                                 } else {
                                     transaction
                                 }
@@ -1894,7 +1920,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
 
 #[cfg(test)]
 mod tests {
-    use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
+    use crate::{http_fork_source::HttpForkSource, node::InMemoryNode, testing};
     use zksync_types::{api::BlockNumber, Address, L2ChainId, Nonce, PackedEthSignature};
 
     use super::*;
@@ -1944,57 +1970,34 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_block_by_hash_uses_fork_source_and_caches_it() {
-        let input_block_hash_str =
-            "0x0101010101010101010101010101010101010101010101010101010101010101";
-        let input_block_hash = H256::from_str(input_block_hash_str).expect("invalid hash");
+        let input_block_hash = H256::repeat_byte(0x01);
 
-        let mock_server = crate::testing::MockServer::run();
+        let mock_server = testing::MockServer::run();
         let mock_block_number = 8;
-        mock_server.expect(serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": 0,
-            "method": "eth_getBlockByHash",
-            "params": [
-                input_block_hash_str,
-                true
-            ],
-        }), serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": 0,
-            "result": {
-                "hash": input_block_hash_str,
-                "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
-                "miner": "0x0000000000000000000000000000000000000000",
-                "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "transactionsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "receiptsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "number": format!("{mock_block_number:x}"),
-                "l1BatchNumber": "0x6",
-                "gasUsed": "0x0",
-                "gasLimit": "0xffffffff",
-                "baseFeePerGas": "0x1dcd6500",
-                "extraData": "0x",
-                "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-                "timestamp": "0x63ecc41a",
-                "l1BatchTimestamp": "0x63ecbd12",
-                "difficulty": "0x0",
-                "totalDifficulty": "0x0",
-                "sealFields": [],
-                "uncles": [],
-                "transactions": [],
-                "size": "0x0",
-                "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "nonce": "0x0000000000000000"
-            },
-        }));
+        let block_response = testing::BlockResponseBuilder::new()
+            .set_hash(input_block_hash)
+            .set_number(mock_block_number)
+            .build();
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "eth_getBlockByHash",
+                "params": [
+                    format!("{input_block_hash:#x}"),
+                    true
+                ],
+            }),
+            block_response,
+        );
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(ForkDetails::from_network(&mock_server.url(), None).await),
             crate::node::ShowCalls::None,
             ShowStorageLogs::None,
             ShowVMDetails::None,
+            ShowGasDetails::None,
             false,
-            false,
+            &system_contracts::Options::BuiltIn,
         );
 
         let actual_block = node
@@ -2066,53 +2069,31 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_block_by_number_uses_fork_source_if_missing_number_and_caches_it() {
-        let mock_server = crate::testing::MockServer::run();
+        let mock_server = testing::MockServer::run();
         let mock_block_number = 8;
-        mock_server.expect(serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": 0,
-            "method": "eth_getBlockByNumber",
-            "params": [
-                "0x8",
-                true
-            ],
-        }), serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": 0,
-            "result": {
-                "hash": "0x0101010101010101010101010101010101010101010101010101010101010101",
-                "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
-                "miner": "0x0000000000000000000000000000000000000000",
-                "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "transactionsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "receiptsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "number": format!("{mock_block_number:x}"),
-                "l1BatchNumber": "0x6",
-                "gasUsed": "0x0",
-                "gasLimit": "0xffffffff",
-                "baseFeePerGas": "0x1dcd6500",
-                "extraData": "0x",
-                "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-                "timestamp": "0x63ecc41a",
-                "l1BatchTimestamp": "0x63ecbd12",
-                "difficulty": "0x0",
-                "totalDifficulty": "0x0",
-                "sealFields": [],
-                "uncles": [],
-                "transactions": [],
-                "size": "0x0",
-                "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "nonce": "0x0000000000000000"
-            },
-        }));
+        let block_response = testing::BlockResponseBuilder::new()
+            .set_number(mock_block_number)
+            .build();
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "eth_getBlockByNumber",
+                "params": [
+                    "0x8",
+                    true
+                ],
+            }),
+            block_response,
+        );
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(ForkDetails::from_network(&mock_server.url(), None).await),
             crate::node::ShowCalls::None,
             ShowStorageLogs::None,
             ShowVMDetails::None,
+            ShowGasDetails::None,
             false,
-            false,
+            &system_contracts::Options::BuiltIn,
         );
 
         let actual_block = node
@@ -2173,53 +2154,31 @@ mod tests {
     #[tokio::test]
     async fn test_get_block_by_number_uses_fork_source_for_latest_block_if_locally_unavailable_and_caches_it(
     ) {
-        let mock_server = crate::testing::MockServer::run();
+        let mock_server = testing::MockServer::run();
         let mock_block_number = 1;
-        mock_server.expect(serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": 0,
-            "method": "eth_getBlockByNumber",
-            "params": [
-                "latest",
-                true
-            ],
-        }), serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": 0,
-            "result": {
-                "hash": "0x0101010101010101010101010101010101010101010101010101010101010101",
-                "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
-                "miner": "0x0000000000000000000000000000000000000000",
-                "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "transactionsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "receiptsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "number": format!("0x{mock_block_number:x}"),
-                "l1BatchNumber": "0x6",
-                "gasUsed": "0x0",
-                "gasLimit": "0xffffffff",
-                "baseFeePerGas": "0x1dcd6500",
-                "extraData": "0x",
-                "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-                "timestamp": "0x63ecc41a",
-                "l1BatchTimestamp": "0x63ecbd12",
-                "difficulty": "0x0",
-                "totalDifficulty": "0x0",
-                "sealFields": [],
-                "uncles": [],
-                "transactions": [],
-                "size": "0x0",
-                "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "nonce": "0x0000000000000000"
-            },
-        }));
+        let block_response = testing::BlockResponseBuilder::new()
+            .set_number(mock_block_number)
+            .build();
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "eth_getBlockByNumber",
+                "params": [
+                    "latest",
+                    true
+                ],
+            }),
+            block_response,
+        );
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(ForkDetails::from_network(&mock_server.url(), None).await),
             crate::node::ShowCalls::None,
             ShowStorageLogs::None,
             ShowVMDetails::None,
+            ShowGasDetails::None,
             false,
-            false,
+            &system_contracts::Options::BuiltIn,
         );
 
         let actual_block = node
@@ -2239,53 +2198,31 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_block_by_number_uses_fork_source_for_earliest_block_and_caches_it() {
-        let mock_server = crate::testing::MockServer::run();
+        let mock_server = testing::MockServer::run();
         let mock_block_number = 1;
-        mock_server.expect(serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": 0,
-            "method": "eth_getBlockByNumber",
-            "params": [
-                "earliest",
-                true
-            ],
-        }), serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": 0,
-            "result": {
-                "hash": "0x0101010101010101010101010101010101010101010101010101010101010101",
-                "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
-                "miner": "0x0000000000000000000000000000000000000000",
-                "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "transactionsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "receiptsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "number": format!("0x{mock_block_number:x}"),
-                "l1BatchNumber": "0x6",
-                "gasUsed": "0x0",
-                "gasLimit": "0xffffffff",
-                "baseFeePerGas": "0x1dcd6500",
-                "extraData": "0x",
-                "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-                "timestamp": "0x63ecc41a",
-                "l1BatchTimestamp": "0x63ecbd12",
-                "difficulty": "0x0",
-                "totalDifficulty": "0x0",
-                "sealFields": [],
-                "uncles": [],
-                "transactions": [],
-                "size": "0x0",
-                "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "nonce": "0x0000000000000000"
-            },
-        }));
+        let block_response = testing::BlockResponseBuilder::new()
+            .set_number(mock_block_number)
+            .build();
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "eth_getBlockByNumber",
+                "params": [
+                    "earliest",
+                    true
+                ],
+            }),
+            block_response,
+        );
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(ForkDetails::from_network(&mock_server.url(), None).await),
             crate::node::ShowCalls::None,
             ShowStorageLogs::None,
             ShowVMDetails::None,
+            ShowGasDetails::None,
             false,
-            false,
+            &system_contracts::Options::BuiltIn,
         );
 
         let actual_block = node
@@ -2310,53 +2247,31 @@ mod tests {
             BlockNumber::Committed,
             BlockNumber::Finalized,
         ] {
-            let mock_server = crate::testing::MockServer::run();
+            let mock_server = testing::MockServer::run();
             let mock_block_number = 1;
-            mock_server.expect(serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": 0,
-            "method": "eth_getBlockByNumber",
-            "params": [
-                block_number,
-                true
-            ],
-        }), serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": 0,
-            "result": {
-                "hash": "0x0101010101010101010101010101010101010101010101010101010101010101",
-                "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
-                "miner": "0x0000000000000000000000000000000000000000",
-                "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "transactionsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "receiptsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "number": format!("0x{mock_block_number:x}"),
-                "l1BatchNumber": "0x6",
-                "gasUsed": "0x0",
-                "gasLimit": "0xffffffff",
-                "baseFeePerGas": "0x1dcd6500",
-                "extraData": "0x",
-                "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-                "timestamp": "0x63ecc41a",
-                "l1BatchTimestamp": "0x63ecbd12",
-                "difficulty": "0x0",
-                "totalDifficulty": "0x0",
-                "sealFields": [],
-                "uncles": [],
-                "transactions": [],
-                "size": "0x0",
-                "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "nonce": "0x0000000000000000"
-            },
-        }));
+            let block_response = testing::BlockResponseBuilder::new()
+                .set_number(mock_block_number)
+                .build();
+            mock_server.expect(
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": 0,
+                    "method": "eth_getBlockByNumber",
+                    "params": [
+                        block_number,
+                        true
+                    ],
+                }),
+                block_response,
+            );
             let node = InMemoryNode::<HttpForkSource>::new(
                 Some(ForkDetails::from_network(&mock_server.url(), None).await),
                 crate::node::ShowCalls::None,
                 ShowStorageLogs::None,
                 ShowVMDetails::None,
+                ShowGasDetails::None,
                 false,
-                false,
+                &system_contracts::Options::BuiltIn,
             );
 
             let actual_block = node

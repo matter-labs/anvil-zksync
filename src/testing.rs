@@ -10,6 +10,7 @@ use httptest::{
     responders::json_encoded,
     Expectation, Server,
 };
+use zksync_basic_types::H256;
 
 /// A HTTP server that can be used to mock a fork source.
 pub struct MockServer {
@@ -98,5 +99,100 @@ impl MockServer {
             Expectation::matching(request::body(json_decoded(eq(request))))
                 .respond_with(json_encoded(response)),
         );
+    }
+}
+
+/// A mock response builder for a block
+#[derive(Default, Debug, Clone)]
+pub struct BlockResponseBuilder {
+    hash: H256,
+    number: u64,
+}
+
+impl BlockResponseBuilder {
+    /// Create a new instance of [BlockResponseBuilder]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Sets the block hash
+    pub fn set_hash(&mut self, hash: H256) -> &mut Self {
+        self.hash = hash;
+        self
+    }
+
+    /// Sets the block number
+    pub fn set_number(&mut self, number: u64) -> &mut Self {
+        self.number = number;
+        self
+    }
+
+    /// Builds the json response
+    pub fn build(&mut self) -> serde_json::Value {
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "result": {
+                "hash": format!("{:#x}", self.hash),
+                "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+                "miner": "0x0000000000000000000000000000000000000000",
+                "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "transactionsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "receiptsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "number": format!("{:#x}", self.number),
+                "l1BatchNumber": "0x6",
+                "gasUsed": "0x0",
+                "gasLimit": "0xffffffff",
+                "baseFeePerGas": "0x1dcd6500",
+                "extraData": "0x",
+                "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                "timestamp": "0x63ecc41a",
+                "l1BatchTimestamp": "0x63ecbd12",
+                "difficulty": "0x0",
+                "totalDifficulty": "0x0",
+                "sealFields": [],
+                "uncles": [],
+                "transactions": [],
+                "size": "0x0",
+                "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "nonce": "0x0000000000000000"
+            },
+        })
+    }
+}
+
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_block_response_builder_set_hash() {
+        let builder = BlockResponseBuilder::new()
+            .set_hash(H256::repeat_byte(0x01))
+            .build();
+
+        let actual_value = builder
+            .as_object()
+            .and_then(|o| o.get("result").unwrap().as_object())
+            .and_then(|o| o.get("hash").unwrap().as_str())
+            .expect("failed retrieving value");
+
+        assert_eq!(
+            "0x0101010101010101010101010101010101010101010101010101010101010101",
+            actual_value
+        );
+    }
+
+    #[test]
+    fn test_block_response_builder_set_number() {
+        let builder = BlockResponseBuilder::new().set_number(255).build();
+
+        let actual_value = builder
+            .as_object()
+            .and_then(|o| o.get("result").unwrap().as_object())
+            .and_then(|o| o.get("number").unwrap().as_str())
+            .expect("failed retrieving value");
+
+        assert_eq!("0xff", actual_value);
     }
 }
