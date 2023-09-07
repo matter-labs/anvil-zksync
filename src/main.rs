@@ -48,7 +48,7 @@ use configuration_api::ConfigurationApiNamespaceT;
 use fork::{ForkDetails, ForkSource};
 use node::ShowCalls;
 use simplelog::{
-    ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode, WriteLogger,
+    ColorChoice, CombinedLogger, ConfigBuilder, LevelFilter, TermLogger, TerminalMode, WriteLogger,
 };
 use zks::ZkMockNamespaceImpl;
 
@@ -276,16 +276,19 @@ async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
 
     let log_level_filter = LevelFilter::from(opt.log);
+    let log_config = ConfigBuilder::new()
+        .add_filter_allow_str("era_test_node")
+        .build();
     CombinedLogger::init(vec![
         TermLogger::new(
             log_level_filter,
-            Config::default(),
+            log_config.clone(),
             TerminalMode::Mixed,
             ColorChoice::Auto,
         ),
         WriteLogger::new(
             log_level_filter,
-            Config::default(),
+            log_config,
             File::create("era_test_node.log").unwrap(),
         ),
     ])
