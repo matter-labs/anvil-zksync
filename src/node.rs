@@ -415,8 +415,8 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
         match estimate_gas_result {
             Err(tx_revert_reason) => {
-                println!("{}", format!("Unable to estimate gas for the request with our suggested gas limit of {}. The transaction is most likely unexecutable. Breakdown of estimation:", suggested_gas_limit + overhead).red());
-                println!(
+                log::info!("{}", format!("Unable to estimate gas for the request with our suggested gas limit of {}. The transaction is most likely unexecutable. Breakdown of estimation:", suggested_gas_limit + overhead).red());
+                log::info!(
                     "{}",
                     format!(
                         "\tEstimated transaction body gas cost: {}",
@@ -424,11 +424,11 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                     )
                     .red()
                 );
-                println!(
+                log::info!(
                     "{}",
                     format!("\tGas for pubdata: {}", gas_for_bytecodes_pubdata).red()
                 );
-                println!("{}", format!("\tOverhead: {}", overhead).red());
+                log::info!("{}", format!("\tOverhead: {}", overhead).red());
                 let message = tx_revert_reason.to_string();
                 let pretty_message = format!(
                     "execution reverted{}{}",
@@ -440,7 +440,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                     TxRevertReason::TxReverted(vm_revert_reason) => vm_revert_reason.encoded_data(),
                     _ => vec![],
                 };
-                println!("{}", pretty_message.on_red());
+                log::info!("{}", pretty_message.on_red());
                 Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
                     pretty_message,
                     data,
@@ -452,8 +452,8 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 {
                     (value, false) => value,
                     (_, true) => {
-                        println!("{}", "Overflow when calculating gas estimation. We've exceeded the block gas limit by summing the following values:".red());
-                        println!(
+                        log::info!("{}", "Overflow when calculating gas estimation. We've exceeded the block gas limit by summing the following values:".red());
+                        log::info!(
                             "{}",
                             format!(
                                 "\tEstimated transaction body gas cost: {}",
@@ -461,11 +461,11 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                             )
                             .red()
                         );
-                        println!(
+                        log::info!(
                             "{}",
                             format!("\tGas for pubdata: {}", gas_for_bytecodes_pubdata).red()
                         );
-                        println!("{}", format!("\tOverhead: {}", overhead).red());
+                        log::info!("{}", format!("\tOverhead: {}", overhead).red());
                         return Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
                             "exceeds block gas limit".into(),
                             Default::default(),
@@ -567,7 +567,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 fn not_implemented<T: Send + 'static>(
     method_name: &str,
 ) -> jsonrpc_core::BoxFuture<Result<T, jsonrpc_core::Error>> {
-    println!("Method {} is not implemented", method_name);
+    log::info!("Method {} is not implemented", method_name);
     Err(jsonrpc_core::Error {
         data: None,
         code: jsonrpc_core::ErrorCode::MethodNotFound,
@@ -723,7 +723,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
     /// Applies multiple transactions - but still one per L1 batch.
     pub fn apply_txs(&self, txs: Vec<L2Tx>) -> Result<(), String> {
-        println!("Running {:?} transactions (one per batch)", txs.len());
+        log::info!("Running {:?} transactions (one per batch)", txs.len());
 
         for tx in txs {
             self.run_l2_tx(tx, TxExecutionMode::VerifyExecute)?;
@@ -739,7 +739,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         let mut inner = match self.inner.write() {
             Ok(guard) => guard,
             Err(e) => {
-                println!("Failed to acquire write lock: {}", e);
+                log::info!("Failed to acquire write lock: {}", e);
                 return;
             }
         };
@@ -793,17 +793,17 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             vm.execute_till_block_end_with_call_tracer(BootloaderJobType::TransactionExecution);
 
         if let Some(revert_reason) = &vm_block_result.full_result.revert_reason {
-            println!("Call {} {:?}", "FAILED".red(), revert_reason.revert_reason);
+            log::info!("Call {} {:?}", "FAILED".red(), revert_reason.revert_reason);
         } else {
-            println!("Call {}", "SUCCESS".green());
+            log::info!("Call {}", "SUCCESS".green());
         }
         if let VmTrace::CallTrace(call_trace) = &vm_block_result.full_result.trace {
-            println!("=== Console Logs: ");
+            log::info!("=== Console Logs: ");
             for call in call_trace {
                 inner.console_log_handler.handle_call_recurive(call);
             }
 
-            println!("=== Call traces:");
+            log::info!("=== Call traces:");
             for call in call_trace {
                 formatter::print_call(call, 0, &inner.show_calls, inner.resolve_hashes);
             }
@@ -819,9 +819,9 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
     ) -> eyre::Result<()> {
         let debug = BootloaderDebug::load_from_memory(vm)?;
 
-        println!("┌─────────────────────────┐");
-        println!("│       GAS DETAILS       │");
-        println!("└─────────────────────────┘");
+        log::info!("┌─────────────────────────┐");
+        log::info!("│       GAS DETAILS       │");
+        log::info!("└─────────────────────────┘");
 
         // Total amount of gas (should match tx.gas_limit).
         let total_gas_limit = debug
@@ -839,7 +839,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             + debug.gas_spent_on_bytecode_preparation
             + gas_spent_on_compute;
 
-        println!(
+        log::info!(
             "Gas - Limit: {} | Used: {} | Refunded: {}",
             to_human_size(total_gas_limit),
             to_human_size(gas_used),
@@ -847,7 +847,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         );
 
         if debug.total_gas_limit_from_user != total_gas_limit {
-            println!(
+            log::info!(
                 "{}",
                 format!(
                 "  WARNING: user actually provided more gas {}, but system had a lower max limit.",
@@ -857,7 +857,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             );
         }
         if debug.refund_computed != debug.refund_by_operator {
-            println!(
+            log::info!(
                 "{}",
                 format!(
                     "  WARNING: Refund by VM: {}, but operator refunded more: {}",
@@ -869,7 +869,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         }
 
         if debug.refund_computed + gas_used != total_gas_limit {
-            println!(
+            log::info!(
                 "{}",
                 format!(
                     "  WARNING: Gas totals don't match. {} != {} , delta: {}",
@@ -883,53 +883,53 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         let bytes_published = spent_on_pubdata / debug.gas_per_pubdata.as_u32();
 
-        println!(
+        log::info!(
             "During execution published {} bytes to L1, @{} each - in total {} gas",
             to_human_size(bytes_published.into()),
             to_human_size(debug.gas_per_pubdata),
             to_human_size(spent_on_pubdata.into())
         );
 
-        println!("Out of {} gas used, we spent:", to_human_size(gas_used));
-        println!(
+        log::info!("Out of {} gas used, we spent:", to_human_size(gas_used));
+        log::info!(
             "  {:>15} gas ({:>2}%) for transaction setup",
             to_human_size(intrinsic_gas),
             to_human_size(intrinsic_gas * 100 / gas_used)
         );
-        println!(
+        log::info!(
             "  {:>15} gas ({:>2}%) for bytecode preparation (decompression etc)",
             to_human_size(debug.gas_spent_on_bytecode_preparation),
             to_human_size(debug.gas_spent_on_bytecode_preparation * 100 / gas_used)
         );
-        println!(
+        log::info!(
             "  {:>15} gas ({:>2}%) for account validation",
             to_human_size(gas_for_validation),
             to_human_size(gas_for_validation * 100 / gas_used)
         );
-        println!(
+        log::info!(
             "  {:>15} gas ({:>2}%) for computations (opcodes)",
             to_human_size(gas_spent_on_compute),
             to_human_size(gas_spent_on_compute * 100 / gas_used)
         );
 
-        println!(
+        log::info!(
             "\n\n {}",
             "=== Transaction setup cost breakdown ===".to_owned().bold(),
         );
 
-        println!("Total cost: {}", to_human_size(intrinsic_gas).bold());
-        println!(
+        log::info!("Total cost: {}", to_human_size(intrinsic_gas).bold());
+        log::info!(
             "  {:>15} gas ({:>2}%) fixed cost",
             to_human_size(debug.intrinsic_overhead),
             to_human_size(debug.intrinsic_overhead * 100 / intrinsic_gas)
         );
-        println!(
+        log::info!(
             "  {:>15} gas ({:>2}%) operator cost",
             to_human_size(debug.operator_overhead),
             to_human_size(debug.operator_overhead * 100 / intrinsic_gas)
         );
 
-        println!(
+        log::info!(
             "\n  FYI: operator could have charged up to: {}, so you got {}% discount",
             to_human_size(debug.required_overhead),
             to_human_size(
@@ -938,24 +938,24 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         );
 
         let publish_block_l1_bytes = BLOCK_OVERHEAD_PUBDATA;
-        println!(
+        log::info!(
             "Publishing full block costs the operator up to: {}, where {} is due to {} bytes published to L1",
             to_human_size(debug.total_overhead_for_block),
             to_human_size(debug.gas_per_pubdata * publish_block_l1_bytes),
             to_human_size(publish_block_l1_bytes.into())
         );
-        println!("Your transaction has contributed to filling up the block in the following way (we take the max contribution as the cost):");
-        println!(
+        log::info!("Your transaction has contributed to filling up the block in the following way (we take the max contribution as the cost):");
+        log::info!(
             "  Circuits overhead:{:>15} ({}% of the full block: {})",
             to_human_size(debug.overhead_for_circuits),
             to_human_size(debug.overhead_for_circuits * 100 / debug.total_overhead_for_block),
             to_human_size(debug.total_overhead_for_block)
         );
-        println!(
+        log::info!(
             "  Length overhead:  {:>15}",
             to_human_size(debug.overhead_for_length)
         );
-        println!(
+        log::info!(
             "  Slot overhead:    {:>15}",
             to_human_size(debug.overhead_for_slot)
         );
@@ -1010,21 +1010,21 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         let spent_on_pubdata = vm.state.local_state.spent_pubdata_counter - spent_on_pubdata_before;
 
-        println!("┌─────────────────────────┐");
-        println!("│   TRANSACTION SUMMARY   │");
-        println!("└─────────────────────────┘");
+        log::info!("┌─────────────────────────┐");
+        log::info!("│   TRANSACTION SUMMARY   │");
+        log::info!("└─────────────────────────┘");
 
         match tx_result.status {
-            TxExecutionStatus::Success => println!("Transaction: {}", "SUCCESS".green()),
-            TxExecutionStatus::Failure => println!("Transaction: {}", "FAILED".red()),
+            TxExecutionStatus::Success => log::info!("Transaction: {}", "SUCCESS".green()),
+            TxExecutionStatus::Failure => log::info!("Transaction: {}", "FAILED".red()),
         }
 
-        println!(
+        log::info!(
             "Initiator: {:?}\nPayer: {:?}",
             tx.initiator_account(),
             tx.payer()
         );
-        println!(
+        log::info!(
             "Gas - Limit: {} | Used: {} | Refunded: {}",
             to_human_size(tx.gas_limit()),
             to_human_size(tx.gas_limit() - tx_result.gas_refunded),
@@ -1032,7 +1032,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         );
 
         match inner.show_gas_details {
-            ShowGasDetails::None => println!(
+            ShowGasDetails::None => log::info!(
                 "Use --show-gas-details flag or call config_setShowGasDetails to display more info"
             ),
             ShowGasDetails::All => {
@@ -1040,7 +1040,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                     .display_detailed_gas_info(&vm, spent_on_pubdata)
                     .is_err()
                 {
-                    println!(
+                    log::info!(
                         "{}",
                         "!!! FAILED TO GET DETAILED GAS INFO !!!".to_owned().red()
                     );
@@ -1049,9 +1049,9 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         }
 
         if inner.show_storage_logs != ShowStorageLogs::None {
-            println!("\n┌──────────────────┐");
-            println!("│   STORAGE LOGS   │");
-            println!("└──────────────────┘");
+            log::info!("\n┌──────────────────┐");
+            log::info!("│   STORAGE LOGS   │");
+            log::info!("└──────────────────┘");
         }
 
         for log_query in &tx_result.result.logs.storage_logs {
@@ -1080,12 +1080,12 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             formatter::print_vm_details(&tx_result.result);
         }
 
-        println!("\n==== Console logs: ");
+        log::info!("\n==== Console logs: ");
         for call in &tx_result.call_traces {
             inner.console_log_handler.handle_call_recurive(call);
         }
 
-        println!(
+        log::info!(
             "\n==== {} Use --show-calls flag or call config_setShowCalls to display more info.",
             format!("{:?} call traces. ", tx_result.call_traces.len()).bold()
         );
@@ -1096,7 +1096,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             }
         }
 
-        println!(
+        log::info!(
             "\n==== {}",
             format!("{} events", tx_result.result.logs.events.len()).bold()
         );
@@ -1104,7 +1104,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             formatter::print_event(event, inner.resolve_hashes);
         }
 
-        println!("\n\n");
+        log::info!("\n\n");
 
         vm.execute_till_block_end(BootloaderJobType::BlockPostprocessing);
 
@@ -1122,7 +1122,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
     /// Runs L2 transaction and commits it to a new block.
     fn run_l2_tx(&self, l2_tx: L2Tx, execution_mode: TxExecutionMode) -> Result<(), String> {
         let tx_hash = l2_tx.hash();
-        println!("\nExecuting {}", format!("{:?}", tx_hash).bold());
+        log::info!("\nExecuting {}", format!("{:?}", tx_hash).bold());
         let (keys, result, block, bytecodes) =
             self.run_l2_tx_inner(l2_tx.clone(), execution_mode)?;
         // Write all the mutated keys (storage slots).
@@ -1215,7 +1215,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                                 }
                                 _ => vec![],
                             };
-                            println!("{}", pretty_message.on_red());
+                            log::info!("{}", pretty_message.on_red());
                             Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
                                 pretty_message,
                                 data,
@@ -1314,13 +1314,13 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
 
             match block_number {
                 zksync_types::api::BlockNumber::Earliest => {
-                    println!(
+                    log::info!(
                         "Method get_block_by_number with BlockNumber::Earliest is not implemented"
                     );
                     return Err(into_jsrpc_error(Web3Error::NotImplemented));
                 }
                 zksync_types::api::BlockNumber::Pending => {
-                    println!(
+                    log::info!(
                         "Method get_block_by_number with BlockNumber::Pending is not implemented"
                     );
                     return Err(into_jsrpc_error(Web3Error::NotImplemented));
@@ -1328,7 +1328,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                 zksync_types::api::BlockNumber::Number(ask_number)
                     if ask_number != U64::from(reader.current_miniblock) =>
                 {
-                    println!("Method get_block_by_number with BlockNumber::Number({}) is not implemented", ask_number);
+                    log::info!("Method get_block_by_number with BlockNumber::Number({}) is not implemented", ask_number);
                     return Err(into_jsrpc_error(Web3Error::NotImplemented));
                 }
                 _ => {}

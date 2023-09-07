@@ -72,7 +72,7 @@ pub fn print_event(event: &VmEvent, resolve_hashes: bool) {
             }
         }
 
-        println!(
+        log::info!(
             "{} {}",
             address_to_human_readable(event.address)
                 .map(|x| format!("{:42}", x.blue()))
@@ -150,9 +150,9 @@ pub fn print_call(call: &Call, padding: usize, show_calls: &ShowCalls, resolve_h
         );
 
         if call.revert_reason.as_ref().is_some() || call.error.as_ref().is_some() {
-            println!("{}", pretty_print.on_red());
+            log::info!("{}", pretty_print.on_red());
         } else {
-            println!("{}", pretty_print);
+            log::info!("{}", pretty_print);
         }
     }
     for subcall in &call.calls {
@@ -162,44 +162,46 @@ pub fn print_call(call: &Call, padding: usize, show_calls: &ShowCalls, resolve_h
 
 pub fn print_logs(log_query: &StorageLogQuery) {
     let separator = "─".repeat(82);
-    println!("{:<15} {:?}", "Type:", log_query.log_type);
-    println!(
+    log::info!("{:<15} {:?}", "Type:", log_query.log_type);
+    log::info!(
         "{:<15} {}",
         "Address:",
         address_to_human_readable(log_query.log_query.address)
             .unwrap_or(format!("{}", log_query.log_query.address))
     );
-    println!("{:<15} {:#066x}", "Key:", log_query.log_query.key);
+    log::info!("{:<15} {:#066x}", "Key:", log_query.log_query.key);
 
-    println!(
+    log::info!(
         "{:<15} {:#066x}",
-        "Read Value:", log_query.log_query.read_value
+        "Read Value:",
+        log_query.log_query.read_value
     );
 
     if log_query.log_type != StorageLogQueryType::Read {
-        println!(
+        log::info!(
             "{:<15} {:#066x}",
-            "Written Value:", log_query.log_query.written_value
+            "Written Value:",
+            log_query.log_query.written_value
         );
     }
-    println!("{}", separator);
+    log::info!("{}", separator);
 }
 
 pub fn print_vm_details(result: &VmPartialExecutionResult) {
-    println!("\n┌──────────────────────────┐");
-    println!("│   VM EXECUTION RESULTS   │");
-    println!("└──────────────────────────┘");
+    log::info!("\n┌──────────────────────────┐");
+    log::info!("│   VM EXECUTION RESULTS   │");
+    log::info!("└──────────────────────────┘");
 
-    println!("Cycles Used:          {}", result.cycles_used);
-    println!("Computation Gas Used: {}", result.computational_gas_used);
-    println!("Contracts Used:       {}", result.contracts_used);
+    log::info!("Cycles Used:          {}", result.cycles_used);
+    log::info!("Computation Gas Used: {}", result.computational_gas_used);
+    log::info!("Contracts Used:       {}", result.contracts_used);
 
     if let Some(revert_reason) = &result.revert_reason {
-        println!(
+        log::info!(
             "{}",
             format!("\n[!] Revert Reason:    {}", revert_reason).on_red()
         );
     }
 
-    println!("════════════════════════════");
+    log::info!("════════════════════════════");
 }

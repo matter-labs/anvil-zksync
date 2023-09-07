@@ -296,7 +296,7 @@ async fn main() -> anyhow::Result<()> {
 
     if opt.dev_use_local_contracts {
         if let Some(path) = env::var_os("ZKSYNC_HOME") {
-            println!("+++++ Reading local contracts from {:?} +++++", path);
+            log::info!("+++++ Reading local contracts from {:?} +++++", path);
         }
     }
 
