@@ -86,6 +86,7 @@ The `status` options are:
 | `EVM` | `evm_setBlockGasLimit` | `NOT IMPLEMENTED` | Sets the Block Gas Limit of the network |
 | `EVM` | `evm_setIntervalMining` | `NOT IMPLEMENTED` | Enables (with a numeric argument greater than 0) or disables (with a numeric argument equal to 0), the automatic mining of blocks at a regular interval of milliseconds, each of which will include all pending transactions |
 | [`EVM`](#evm-namespace) | [`evm_setNextBlockTimestamp`](#evm_setnextblocktimestamp) | `SUPPORTED` | Works like `evm_increaseTime`, but takes the exact timestamp that you want in the next block, and increases the time accordingly |
+| [`EVM`](#evm-namespace) | [`evm_setTime`](#evm_settime) | `SUPPORTED` | Sets the internal clock time to the given timestamp |
 | `EVM` | `evm_snapshot` | `NOT IMPLEMENTED`<br />[GitHub Issue #69](https://github.com/matter-labs/era-test-node/issues/69) | Snapshot the state of the blockchain at the current block |
 | `HARDHAT` | `hardhat_addCompilationResult` | `NOT IMPLEMENTED` | Add information about compiled contracts |
 | `HARDHAT` | `hardhat_dropTransaction` | `NOT IMPLEMENTED` | Remove a transaction from the mempool |
@@ -745,8 +746,7 @@ curl --request POST \
 
 [source](src/evm.rs)
 
-Set the current timestamp for the node. Warning: This will allow you to move _backwards_ in time, which 
-may cause new blocks to appear to be mined before old blocks. This will result in an invalid state.
+Sets the timestamp of the next block but doesn't mine one..
 
 #### Arguments
 
@@ -763,6 +763,30 @@ curl --request POST \
   --url http://localhost:8011/ \
   --header 'content-type: application/json' \
   --data '{"jsonrpc": "2.0","id": "1","method": "evm_setNextBlockTimestamp","params": [1672527600]}'
+```
+
+### `evm_setTime`
+
+[source](src/evm.rs)
+
+Set the current timestamp for the node. Warning: This will allow you to move _backwards_ in time, which 
+may cause new blocks to appear to be mined before old blocks. This will result in an invalid state.
+
+#### Arguments
+
++ `time: U64`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "evm_setTime","params": [1672527600]}'
 ```
 
 ## `ZKS NAMESPACE`
