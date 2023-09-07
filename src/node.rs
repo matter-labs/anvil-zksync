@@ -430,17 +430,19 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 );
                 println!("{}", format!("\tOverhead: {}", overhead).red());
                 let message = tx_revert_reason.to_string();
+                let pretty_message = format!(
+                    "execution reverted{}{}",
+                    if message.is_empty() { "" } else { ": " },
+                    message
+                );
                 let data = match tx_revert_reason {
                     TxRevertReason::EthCall(vm_revert_reason) => vm_revert_reason.encoded_data(),
                     TxRevertReason::TxReverted(vm_revert_reason) => vm_revert_reason.encoded_data(),
                     _ => vec![],
                 };
+                println!("{}", pretty_message.on_red());
                 Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
-                    format!(
-                        "execution reverted{}{}",
-                        if message.is_empty() { "" } else { ": " },
-                        message
-                    ),
+                    pretty_message,
                     data,
                 )))
             }
@@ -1199,6 +1201,11 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                     Ok(vm_block_result) => match vm_block_result.full_result.revert_reason {
                         Some(revert) => {
                             let message = revert.revert_reason.to_string();
+                            let pretty_message = format!(
+                                "execution reverted{}{}",
+                                if message.is_empty() { "" } else { ": " },
+                                message
+                            );
                             let data = match revert.revert_reason {
                                 TxRevertReason::EthCall(vm_revert_reason) => {
                                     vm_revert_reason.encoded_data()
@@ -1208,12 +1215,9 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                                 }
                                 _ => vec![],
                             };
+                            println!("{}", pretty_message.on_red());
                             Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
-                                format!(
-                                    "execution reverted{}{}",
-                                    if message.is_empty() { "" } else { ": " },
-                                    message
-                                ),
+                                pretty_message,
                                 data,
                             )))
                             .into_boxed_future()

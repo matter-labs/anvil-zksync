@@ -1,9 +1,10 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.0;
 
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "hardhat/console.sol";
 
-contract Greeter {
+contract Greeter is Ownable {
     string private greeting;
 
     constructor(string memory _greeting) {
@@ -14,7 +15,7 @@ contract Greeter {
         return greeting;
     }
 
-    function setGreeting(string memory _greeting) public {
+    function setGreeting(string memory _greeting) public onlyOwner {
         console.log("setGreeting called");
         console.log(_greeting);
         require(

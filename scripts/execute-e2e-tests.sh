@@ -55,4 +55,4 @@ echo ""
 echo "================="
 echo "Running e2e tests"
 echo "================="
-yarn test || true # Absorb exit codes in-case of test failures
+yarn test
