@@ -1259,7 +1259,10 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                     Err(_) => return Err(into_jsrpc_error(Web3Error::InternalError)),
                 };
                 match block_number {
-                    zksync_types::api::BlockNumber::Latest => reader
+                    zksync_types::api::BlockNumber::Latest
+                    | zksync_types::api::BlockNumber::Pending
+                    | zksync_types::api::BlockNumber::Finalized
+                    | zksync_types::api::BlockNumber::Committed => reader
                         .block_hashes
                         .get(&reader.current_miniblock.saturating_sub(1))
                         .and_then(|hash| reader.blocks.get(hash))
@@ -1310,24 +1313,28 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                             });
                         block
                     }
-                    zksync_types::api::BlockNumber::Earliest
-                    | zksync_types::api::BlockNumber::Pending
-                    | zksync_types::api::BlockNumber::Finalized
-                    | zksync_types::api::BlockNumber::Committed => reader
-                        .fork_storage
-                        .inner
-                        .read()
-                        .expect("failed reading fork storage")
-                        .fork
-                        .as_ref()
-                        .and_then(|fork| {
-                            fork.fork_source
-                                .get_block_by_number(block_number, true)
-                                .ok()
-                                .flatten()
-                                .and_then(|block| {
-                                    cache_block = true;
-                                    Some(block)
+                    zksync_types::api::BlockNumber::Earliest => reader
+                        .block_hashes
+                        .get(&0)
+                        .and_then(|hash| reader.blocks.get(hash))
+                        .cloned()
+                        .or_else(|| {
+                            reader
+                                .fork_storage
+                                .inner
+                                .read()
+                                .expect("failed reading fork storage")
+                                .fork
+                                .as_ref()
+                                .and_then(|fork| {
+                                    fork.fork_source
+                                        .get_block_by_number(block_number, true)
+                                        .ok()
+                                        .flatten()
+                                        .and_then(|block| {
+                                            cache_block = true;
+                                            Some(block)
+                                        })
                                 })
                         }),
                 }
