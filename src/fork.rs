@@ -25,9 +25,9 @@ use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 use zksync_web3_decl::{jsonrpsee::http_client::HttpClient, namespaces::EthNamespaceClient};
 use zksync_web3_decl::{jsonrpsee::http_client::HttpClientBuilder, namespaces::ZksNamespaceClient};
 
-use crate::deps::ReadStorage as RS;
 use crate::node::TEST_NODE_NETWORK_ID;
 use crate::{deps::InMemoryStorage, http_fork_source::HttpForkSource};
+use crate::{deps::ReadStorage as RS, system_contracts};
 
 pub fn block_on<F: Future + Send + 'static>(future: F) -> F::Output
 where
@@ -67,7 +67,10 @@ pub struct ForkStorageInner<S> {
 }
 
 impl<S: ForkSource> ForkStorage<S> {
-    pub fn new(fork: Option<ForkDetails<S>>, dev_use_local_contracts: bool) -> Self {
+    pub fn new(
+        fork: Option<ForkDetails<S>>,
+        system_contracts_options: &system_contracts::Options,
+    ) -> Self {
         let chain_id = fork
             .as_ref()
             .and_then(|d| d.overwrite_chain_id)
@@ -79,7 +82,7 @@ impl<S: ForkSource> ForkStorage<S> {
                 raw_storage: InMemoryStorage::with_system_contracts_and_chain_id(
                     chain_id,
                     hash_bytecode,
-                    dev_use_local_contracts,
+                    system_contracts_options,
                 ),
                 value_read_cache: Default::default(),
                 fork,

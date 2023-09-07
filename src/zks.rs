@@ -237,6 +237,7 @@ mod tests {
     use std::str::FromStr;
 
     use crate::node::ShowCalls;
+    use crate::system_contracts;
     use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
 
     use super::*;
@@ -305,7 +306,7 @@ mod tests {
             crate::node::ShowVMDetails::None,
             crate::node::ShowGasDetails::None,
             false,
-            false,
+            &system_contracts::Options::BuiltIn,
         );
         let namespace = ZkMockNamespaceImpl::new(node.get_inner());
 
