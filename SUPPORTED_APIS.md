@@ -95,7 +95,7 @@ The `status` options are:
 | `HARDHAT` | `hardhat_metadata` | `NOT IMPLEMENTED` | Returns the metadata of the current network |
 | `HARDHAT` | `hardhat_mine` | `NOT IMPLEMENTED`<br />[GitHub Issue #75](https://github.com/matter-labs/era-test-node/issues/75) | Mine any number of blocks at once, in constant time |
 | `HARDHAT` | `hardhat_reset` | `NOT IMPLEMENTED` | Resets the state of the network |
-| `HARDHAT` | `hardhat_setBalance` | `NOT IMPLEMENTED`<br />[GitHub Issue #76](https://github.com/matter-labs/era-test-node/issues/76) | Modifies the balance of an account |
+| [`HARDHAT`](#hardhat-namespace) | [`hardhat_setBalance`](#hardhat_setbalance) | `SUPPORTED` | Modifies the balance of an account |
 | `HARDHAT` | `hardhat_setCode` | `NOT IMPLEMENTED` | Sets the bytecode of a given account |
 | `HARDHAT` | `hardhat_setCoinbase` | `NOT IMPLEMENTED` | Sets the coinbase address |
 | `HARDHAT` | `hardhat_setLoggingEnabled` | `NOT IMPLEMENTED` | Enables or disables logging in Hardhat Network |
@@ -705,6 +705,40 @@ curl --request POST \
   --header 'content-type: application/json' \
   --data '{"jsonrpc": "2.0","id": "1","method": "eth_syncing","params": []
 }'
+```
+
+## `HARDHAT NAMESPACE`
+
+### `hardhat_setBalance`
+
+[source](src/hardhat.rs)
+
+Sets the balance of the given address to the given balance.
+
+#### Arguments
+
++ `address: Address` - The `Address` whose balance will be edited
++ `balance: U256` - The balance to set for the given address, in wei
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+      "id": "1",
+      "method": "hardhat_setBalance",
+      "params": [
+        "0x36615Cf349d7F6344891B1e7CA7C72883F5dc049",
+        "0x1337"
+      ]
+  }'
 ```
 
 ## `ZKS NAMESPACE`
