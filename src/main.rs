@@ -1,3 +1,4 @@
+use crate::hardhat::{HardhatNamespaceImpl, HardhatNamespaceT};
 use crate::node::{ShowGasDetails, ShowStorageLogs, ShowVMDetails};
 use clap::{Parser, Subcommand};
 use configuration_api::ConfigurationApiNamespaceT;
