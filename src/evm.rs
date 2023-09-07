@@ -3,7 +3,6 @@ use std::sync::{Arc, RwLock};
 use crate::{fork::ForkSource, node::InMemoryNodeInner};
 use jsonrpc_core::{BoxFuture, Result};
 use jsonrpc_derive::rpc;
-use zksync_basic_types::U64;
 use zksync_core::api_server::web3::backend_jsonrpc::error::into_jsrpc_error;
 use zksync_web3_decl::error::Web3Error;
 
@@ -29,33 +28,33 @@ pub trait EvmNamespaceT {
     /// # Returns
     /// The applied time delta to `current_timestamp` value for the InMemoryNodeInner.
     #[rpc(name = "evm_increaseTime")]
-    fn increase_time(&self, time_delta_seconds: U64) -> BoxFuture<Result<U64>>;
+    fn increase_time(&self, time_delta_seconds: u64) -> BoxFuture<Result<u64>>;
 
     /// Set the current timestamp for the node.
     /// Warning: This will allow you to move backwards in time, which may cause new blocks to appear to be
     /// mined before old blocks. This will result in an invalid state.
     ///
     /// # Parameters
-    /// - `time`: The timestamp to set the time to
+    /// - `timestamp`: The timestamp to set the time to
     ///
     /// # Returns
     /// The difference between the `current_timestamp` and the new timestamp for the InMemoryNodeInner.
-    #[rpc(name = "evm_setTime")]
-    fn set_time(&self, time: U64) -> BoxFuture<Result<i64>>;
+    #[rpc(name = "evm_setNextBlockTimestamp")]
+    fn set_next_block_timestamp(&self, timestamp: u64) -> BoxFuture<Result<i128>>;
 }
 
 impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EvmNamespaceT
     for EvmNamespaceImpl<S>
 {
-    fn increase_time(&self, time_delta_seconds: U64) -> BoxFuture<Result<U64>> {
+    fn increase_time(&self, time_delta_seconds: u64) -> BoxFuture<Result<u64>> {
         let inner = Arc::clone(&self.node);
 
         Box::pin(async move {
-            if time_delta_seconds.is_zero() {
+            if time_delta_seconds == 0 {
                 return Ok(time_delta_seconds);
             }
 
-            let time_delta = time_delta_seconds.as_u64().saturating_mul(1000);
+            let time_delta = time_delta_seconds.saturating_mul(1000);
             match inner.write() {
                 Ok(mut inner_guard) => {
                     inner_guard.current_timestamp =
@@ -67,16 +66,15 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EvmNamespaceT
         })
     }
 
-    fn set_time(&self, time: U64) -> BoxFuture<Result<i64>> {
+    fn set_next_block_timestamp(&self, timestamp: u64) -> BoxFuture<Result<i128>> {
         let inner = Arc::clone(&self.node);
 
         Box::pin(async move {
             match inner.write() {
                 Ok(mut inner_guard) => {
-                    let time_diff = (time.as_u64() as i128)
-                        .saturating_sub(inner_guard.current_timestamp as i128)
-                        as i64;
-                    inner_guard.current_timestamp = time.as_u64();
+                    let time_diff =
+                        (timestamp as i128).saturating_sub(inner_guard.current_timestamp as i128);
+                    inner_guard.current_timestamp = timestamp;
                     Ok(time_diff)
                 }
                 Err(_) => Err(into_jsrpc_error(Web3Error::InternalError)),
@@ -105,10 +103,9 @@ mod tests {
         let expected_response = increase_value_seconds;
 
         let actual_response = evm
-            .increase_time(U64::from(increase_value_seconds))
+            .increase_time(increase_value_seconds)
             .await
-            .expect("failed increasing timestamp")
-            .as_u64();
+            .expect("failed increasing timestamp");
         let timestamp_after = node
             .get_inner()
             .read()
@@ -138,10 +135,9 @@ mod tests {
         let expected_response = increase_value_seconds;
 
         let actual_response = evm
-            .increase_time(U64::from(increase_value_seconds))
+            .increase_time(increase_value_seconds)
             .await
-            .expect("failed increasing timestamp")
-            .as_u64();
+            .expect("failed increasing timestamp");
         let timestamp_after = node
             .get_inner()
             .read()
@@ -170,10 +166,9 @@ mod tests {
         let expected_response = increase_value_seconds;
 
         let actual_response = evm
-            .increase_time(U64::from(increase_value_seconds))
+            .increase_time(increase_value_seconds)
             .await
-            .expect("failed increasing timestamp")
-            .as_u64();
+            .expect("failed increasing timestamp");
         let timestamp_after = node
             .get_inner()
             .read()
@@ -189,7 +184,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_set_time_future() {
+    async fn test_set_next_block_timestamp_future() {
         let node = InMemoryNode::<HttpForkSource>::default();
         let evm = EvmNamespaceImpl::new(node.get_inner());
 
@@ -203,7 +198,7 @@ mod tests {
         let expected_response = 9000;
 
         let actual_response = evm
-            .set_time(U64::from(new_time))
+            .set_next_block_timestamp(new_time)
             .await
             .expect("failed setting timestamp");
         let timestamp_after = node
@@ -217,7 +212,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_set_time_past() {
+    async fn test_set_next_block_timestamp_past() {
         let node = InMemoryNode::<HttpForkSource>::default();
         let evm = EvmNamespaceImpl::new(node.get_inner());
 
@@ -231,7 +226,7 @@ mod tests {
         let expected_response = -990;
 
         let actual_response = evm
-            .set_time(U64::from(new_time))
+            .set_next_block_timestamp(new_time)
             .await
             .expect("failed setting timestamp");
         let timestamp_after = node
@@ -245,7 +240,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_set_time_same_value() {
+    async fn test_set_next_block_timestamp_same_value() {
         let node = InMemoryNode::<HttpForkSource>::default();
         let evm = EvmNamespaceImpl::new(node.get_inner());
 
@@ -259,7 +254,7 @@ mod tests {
         let expected_response = 0;
 
         let actual_response = evm
-            .set_time(U64::from(new_time))
+            .set_next_block_timestamp(new_time)
             .await
             .expect("failed setting timestamp");
         let timestamp_after = node
@@ -276,7 +271,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_set_time_edges() {
+    async fn test_set_next_block_timestamp_edges() {
         let node = InMemoryNode::<HttpForkSource>::default();
         let evm = EvmNamespaceImpl::new(node.get_inner());
 
@@ -290,11 +285,10 @@ mod tests {
                 timestamp_before, new_time,
                 "case {new_time}: timestamps must be different"
             );
-            let expected_response =
-                (new_time as i128).saturating_sub(timestamp_before as i128) as i64;
+            let expected_response = (new_time as i128).saturating_sub(timestamp_before as i128);
 
             let actual_response = evm
-                .set_time(U64::from(new_time))
+                .set_next_block_timestamp(new_time)
                 .await
                 .expect("failed setting timestamp");
             let timestamp_after = node

@@ -86,7 +86,7 @@ The `status` options are:
 | `EVM` | `evm_setBlockGasLimit` | `NOT IMPLEMENTED` | Sets the Block Gas Limit of the network |
 | `EVM` | `evm_setIntervalMining` | `NOT IMPLEMENTED` | Enables (with a numeric argument greater than 0) or disables (with a numeric argument equal to 0), the automatic mining of blocks at a regular interval of milliseconds, each of which will include all pending transactions |
 | `EVM` | `evm_setNextBlockTimestamp` | `NOT IMPLEMENTED`<br />[GitHub Issue #68](https://github.com/matter-labs/era-test-node/issues/68) | Works like `evm_increaseTime`, but takes the exact timestamp that you want in the next block, and increases the time accordingly |
-| [`EVM`](#evm-namespace) | [`evm_setTime`](#evm_settime) | `SUPPORTED` | Sets the internal clock time to the given timestamp |
+| [`EVM`](#evm-namespace) | [`evm_setNextBlockTimestamp`](#evm_setnextblocktimestamp) | `SUPPORTED` | Sets the internal clock time to the given timestamp |
 | `EVM` | `evm_snapshot` | `NOT IMPLEMENTED`<br />[GitHub Issue #69](https://github.com/matter-labs/era-test-node/issues/69) | Snapshot the state of the blockchain at the current block |
 | `HARDHAT` | `hardhat_addCompilationResult` | `NOT IMPLEMENTED` | Add information about compiled contracts |
 | `HARDHAT` | `hardhat_dropTransaction` | `NOT IMPLEMENTED` | Remove a transaction from the mempool |
@@ -705,10 +705,10 @@ Increase the current timestamp for the node
 curl --request POST \
   --url http://localhost:8011/ \
   --header 'content-type: application/json' \
-  --data '{"jsonrpc": "2.0","id": "1","method": "evm_increaseTime","params": ["0x0a"]}'
+  --data '{"jsonrpc": "2.0","id": "1","method": "evm_increaseTime","params": [10]}'
 ```
 
-### `evm_setTime`
+### `evm_setNextBlockTimestamp`
 
 [source](src/evm.rs)
 
@@ -717,7 +717,7 @@ may cause new blocks to appear to be mined before old blocks. This will result i
 
 #### Arguments
 
-+ `time: U64`
++ `timestamp: U64`
 
 #### Status
 
@@ -729,7 +729,7 @@ may cause new blocks to appear to be mined before old blocks. This will result i
 curl --request POST \
   --url http://localhost:8011/ \
   --header 'content-type: application/json' \
-  --data '{"jsonrpc": "2.0","id": "1","method": "evm_setTime","params": ["0x63b0bef0"]}'
+  --data '{"jsonrpc": "2.0","id": "1","method": "evm_setNextBlockTimestamp","params": [1672527600]}'
 ```
 
 ## `ZKS NAMESPACE`
