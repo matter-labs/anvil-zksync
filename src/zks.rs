@@ -303,6 +303,7 @@ mod tests {
             ShowCalls::None,
             crate::node::ShowStorageLogs::None,
             crate::node::ShowVMDetails::None,
+            crate::node::ShowGasDetails::None,
             false,
             false,
         );

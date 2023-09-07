@@ -1,10 +1,13 @@
 //! In-memory node, that supports forking other networks.
 use crate::{
+    bootloader_debug::BootloaderDebug,
     console_log::ConsoleLogHandler,
     deps::system_contracts::bytecode_from_slice,
     fork::{ForkDetails, ForkSource, ForkStorage},
     formatter,
-    utils::{adjust_l1_gas_price_for_tx, derive_gas_estimation_overhead, IntoBoxedFuture},
+    utils::{
+        adjust_l1_gas_price_for_tx, derive_gas_estimation_overhead, to_human_size, IntoBoxedFuture,
+    },
 };
 use clap::Parser;
 use colored::Colorize;
@@ -24,8 +27,10 @@ use vm::{
     vm_with_bootloader::{
         derive_base_fee_and_gas_per_pubdata, init_vm_inner, push_transaction_to_bootloader_memory,
         BlockContext, BlockContextMode, BootloaderJobType, DerivedBlockContext, TxExecutionMode,
+        BLOCK_OVERHEAD_PUBDATA,
     },
-    HistoryDisabled, HistoryEnabled, OracleTools, TxRevertReason, VmBlockResult,
+    HistoryDisabled, HistoryEnabled, HistoryMode, OracleTools, TxRevertReason, VmBlockResult,
+    VmInstance,
 };
 use zksync_basic_types::{AccountTreeId, Bytes, H160, H256, U256, U64};
 use zksync_contracts::{
@@ -189,6 +194,33 @@ impl Display for ShowVMDetails {
     }
 }
 
+#[derive(Debug, Parser, Clone, clap::ValueEnum, PartialEq, Eq)]
+pub enum ShowGasDetails {
+    None,
+    All,
+}
+
+impl FromStr for ShowGasDetails {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_ref() {
+            "none" => Ok(ShowGasDetails::None),
+            "all" => Ok(ShowGasDetails::All),
+            _ => Err(format!(
+                "Unknown ShowGasDetails value {} - expected one of none|all.",
+                s
+            )),
+        }
+    }
+}
+
+impl Display for ShowGasDetails {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "{:?}", self)
+    }
+}
+
 /// Helper struct for InMemoryNode.
 /// S - is the Source of the Fork.
 pub struct InMemoryNodeInner<S> {
@@ -209,6 +241,8 @@ pub struct InMemoryNodeInner<S> {
     pub show_storage_logs: ShowStorageLogs,
     // Displays VM details.
     pub show_vm_details: ShowVMDetails,
+    // Gas details information.
+    pub show_gas_details: ShowGasDetails,
     // If true - will contact openchain to resolve the ABI to function names.
     pub resolve_hashes: bool,
     pub console_log_handler: ConsoleLogHandler,
@@ -396,17 +430,19 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 );
                 println!("{}", format!("\tOverhead: {}", overhead).red());
                 let message = tx_revert_reason.to_string();
+                let pretty_message = format!(
+                    "execution reverted{}{}",
+                    if message.is_empty() { "" } else { ": " },
+                    message
+                );
                 let data = match tx_revert_reason {
                     TxRevertReason::EthCall(vm_revert_reason) => vm_revert_reason.encoded_data(),
                     TxRevertReason::TxReverted(vm_revert_reason) => vm_revert_reason.encoded_data(),
                     _ => vec![],
                 };
+                println!("{}", pretty_message.on_red());
                 Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
-                    format!(
-                        "execution reverted{}{}",
-                        if message.is_empty() { "" } else { ": " },
-                        message
-                    ),
+                    pretty_message,
                     data,
                 )))
             }
@@ -635,6 +671,7 @@ impl<S: ForkSource + std::fmt::Debug> Default for InMemoryNode<S> {
             crate::node::ShowCalls::None,
             ShowStorageLogs::None,
             ShowVMDetails::None,
+            ShowGasDetails::None,
             false,
             false,
         )
@@ -647,6 +684,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         show_calls: ShowCalls,
         show_storage_logs: ShowStorageLogs,
         show_vm_details: ShowVMDetails,
+        show_gas_details: ShowGasDetails,
         resolve_hashes: bool,
         dev_use_local_contracts: bool,
     ) -> Self {
@@ -668,6 +706,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 show_calls,
                 show_storage_logs,
                 show_vm_details,
+                show_gas_details,
                 resolve_hashes,
                 console_log_handler: ConsoleLogHandler::default(),
                 dev_use_local_contracts,
@@ -773,6 +812,156 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         Ok(vm_block_result)
     }
 
+    fn display_detailed_gas_info<H: HistoryMode>(
+        &self,
+        vm: &VmInstance<H>,
+        spent_on_pubdata: u32,
+    ) -> eyre::Result<()> {
+        let debug = BootloaderDebug::load_from_memory(vm)?;
+
+        println!("┌─────────────────────────┐");
+        println!("│       GAS DETAILS       │");
+        println!("└─────────────────────────┘");
+
+        // Total amount of gas (should match tx.gas_limit).
+        let total_gas_limit = debug
+            .total_gas_limit_from_user
+            .saturating_sub(debug.reserved_gas);
+
+        let intrinsic_gas = total_gas_limit - debug.gas_limit_after_intrinsic;
+        let gas_for_validation = debug.gas_limit_after_intrinsic - debug.gas_after_validation;
+
+        let gas_spent_on_compute =
+            debug.gas_spent_on_execution - debug.gas_spent_on_bytecode_preparation;
+
+        let gas_used = intrinsic_gas
+            + gas_for_validation
+            + debug.gas_spent_on_bytecode_preparation
+            + gas_spent_on_compute;
+
+        println!(
+            "Gas - Limit: {} | Used: {} | Refunded: {}",
+            to_human_size(total_gas_limit),
+            to_human_size(gas_used),
+            to_human_size(debug.refund_by_operator)
+        );
+
+        if debug.total_gas_limit_from_user != total_gas_limit {
+            println!(
+                "{}",
+                format!(
+                "  WARNING: user actually provided more gas {}, but system had a lower max limit.",
+                to_human_size(debug.total_gas_limit_from_user)
+            )
+                .yellow()
+            );
+        }
+        if debug.refund_computed != debug.refund_by_operator {
+            println!(
+                "{}",
+                format!(
+                    "  WARNING: Refund by VM: {}, but operator refunded more: {}",
+                    to_human_size(debug.refund_computed),
+                    to_human_size(debug.refund_by_operator)
+                )
+                .yellow()
+            );
+        }
+
+        if debug.refund_computed + gas_used != total_gas_limit {
+            println!(
+                "{}",
+                format!(
+                    "  WARNING: Gas totals don't match. {} != {} , delta: {}",
+                    to_human_size(debug.refund_computed + gas_used),
+                    to_human_size(total_gas_limit),
+                    to_human_size(total_gas_limit.abs_diff(debug.refund_computed + gas_used))
+                )
+                .yellow()
+            );
+        }
+
+        let bytes_published = spent_on_pubdata / debug.gas_per_pubdata.as_u32();
+
+        println!(
+            "During execution published {} bytes to L1, @{} each - in total {} gas",
+            to_human_size(bytes_published.into()),
+            to_human_size(debug.gas_per_pubdata),
+            to_human_size(spent_on_pubdata.into())
+        );
+
+        println!("Out of {} gas used, we spent:", to_human_size(gas_used));
+        println!(
+            "  {:>15} gas ({:>2}%) for transaction setup",
+            to_human_size(intrinsic_gas),
+            to_human_size(intrinsic_gas * 100 / gas_used)
+        );
+        println!(
+            "  {:>15} gas ({:>2}%) for bytecode preparation (decompression etc)",
+            to_human_size(debug.gas_spent_on_bytecode_preparation),
+            to_human_size(debug.gas_spent_on_bytecode_preparation * 100 / gas_used)
+        );
+        println!(
+            "  {:>15} gas ({:>2}%) for account validation",
+            to_human_size(gas_for_validation),
+            to_human_size(gas_for_validation * 100 / gas_used)
+        );
+        println!(
+            "  {:>15} gas ({:>2}%) for computations (opcodes)",
+            to_human_size(gas_spent_on_compute),
+            to_human_size(gas_spent_on_compute * 100 / gas_used)
+        );
+
+        println!(
+            "\n\n {}",
+            "=== Transaction setup cost breakdown ===".to_owned().bold(),
+        );
+
+        println!("Total cost: {}", to_human_size(intrinsic_gas).bold());
+        println!(
+            "  {:>15} gas ({:>2}%) fixed cost",
+            to_human_size(debug.intrinsic_overhead),
+            to_human_size(debug.intrinsic_overhead * 100 / intrinsic_gas)
+        );
+        println!(
+            "  {:>15} gas ({:>2}%) operator cost",
+            to_human_size(debug.operator_overhead),
+            to_human_size(debug.operator_overhead * 100 / intrinsic_gas)
+        );
+
+        println!(
+            "\n  FYI: operator could have charged up to: {}, so you got {}% discount",
+            to_human_size(debug.required_overhead),
+            to_human_size(
+                (debug.required_overhead - debug.operator_overhead) * 100 / debug.required_overhead
+            )
+        );
+
+        let publish_block_l1_bytes = BLOCK_OVERHEAD_PUBDATA;
+        println!(
+            "Publishing full block costs the operator up to: {}, where {} is due to {} bytes published to L1",
+            to_human_size(debug.total_overhead_for_block),
+            to_human_size(debug.gas_per_pubdata * publish_block_l1_bytes),
+            to_human_size(publish_block_l1_bytes.into())
+        );
+        println!("Your transaction has contributed to filling up the block in the following way (we take the max contribution as the cost):");
+        println!(
+            "  Circuits overhead:{:>15} ({}% of the full block: {})",
+            to_human_size(debug.overhead_for_circuits),
+            to_human_size(debug.overhead_for_circuits * 100 / debug.total_overhead_for_block),
+            to_human_size(debug.total_overhead_for_block)
+        );
+        println!(
+            "  Length overhead:  {:>15}",
+            to_human_size(debug.overhead_for_length)
+        );
+        println!(
+            "  Slot overhead:    {:>15}",
+            to_human_size(debug.overhead_for_slot)
+        );
+        Ok(())
+    }
+
     fn run_l2_tx_inner(
         &self,
         l2_tx: L2Tx,
@@ -811,12 +1000,15 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             bootloader_code,
             execution_mode,
         );
+        let spent_on_pubdata_before = vm.state.local_state.spent_pubdata_counter;
 
         let tx: Transaction = l2_tx.into();
         push_transaction_to_bootloader_memory(&mut vm, &tx, execution_mode, None);
         let tx_result = vm
             .execute_next_tx(u32::MAX, true)
             .map_err(|e| format!("Failed to execute next transaction: {}", e))?;
+
+        let spent_on_pubdata = vm.state.local_state.spent_pubdata_counter - spent_on_pubdata_before;
 
         println!("┌─────────────────────────┐");
         println!("│   TRANSACTION SUMMARY   │");
@@ -833,11 +1025,28 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             tx.payer()
         );
         println!(
-            "Gas - Limit: {:?} | Used: {:?} | Refunded: {:?}",
-            tx.gas_limit(),
-            tx.gas_limit() - tx_result.gas_refunded,
-            tx_result.gas_refunded
+            "Gas - Limit: {} | Used: {} | Refunded: {}",
+            to_human_size(tx.gas_limit()),
+            to_human_size(tx.gas_limit() - tx_result.gas_refunded),
+            to_human_size(tx_result.gas_refunded.into())
         );
+
+        match inner.show_gas_details {
+            ShowGasDetails::None => println!(
+                "Use --show-gas-details flag or call config_setShowGasDetails to display more info"
+            ),
+            ShowGasDetails::All => {
+                if self
+                    .display_detailed_gas_info(&vm, spent_on_pubdata)
+                    .is_err()
+                {
+                    println!(
+                        "{}",
+                        "!!! FAILED TO GET DETAILED GAS INFO !!!".to_owned().red()
+                    );
+                }
+            }
+        }
 
         if inner.show_storage_logs != ShowStorageLogs::None {
             println!("\n┌──────────────────┐");
@@ -992,6 +1201,11 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                     Ok(vm_block_result) => match vm_block_result.full_result.revert_reason {
                         Some(revert) => {
                             let message = revert.revert_reason.to_string();
+                            let pretty_message = format!(
+                                "execution reverted{}{}",
+                                if message.is_empty() { "" } else { ": " },
+                                message
+                            );
                             let data = match revert.revert_reason {
                                 TxRevertReason::EthCall(vm_revert_reason) => {
                                     vm_revert_reason.encoded_data()
@@ -1001,12 +1215,9 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                                 }
                                 _ => vec![],
                             };
+                            println!("{}", pretty_message.on_red());
                             Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
-                                format!(
-                                    "execution reverted{}{}",
-                                    if message.is_empty() { "" } else { ": " },
-                                    message
-                                ),
+                                pretty_message,
                                 data,
                             )))
                             .into_boxed_future()
