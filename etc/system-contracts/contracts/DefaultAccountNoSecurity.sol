@@ -156,10 +156,10 @@ contract DefaultAccountNoSecurity is IAccount {
         }
     }
 
-    /// @notice Validation that the ECDSA signature of the transaction is correct.
+    /// @notice TEST ONLY CODE - No validation is happening !
     /// @param _hash The hash of the transaction to be signed.
     /// @param _signature The signature of the transaction.
-    /// @return EIP1271_SUCCESS_RETURN_VALUE if the signaure is correct. It reverts otherwise.
+    /// @return EIP1271_SUCCESS_RETURN_VALUE Always - as this is TEST only code..
     function _isValidSignature(bytes32 _hash, bytes memory _signature) internal view returns (bool) {
 
         // WARNING - THIS IS TEST ONLY CODE
