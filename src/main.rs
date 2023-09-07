@@ -47,6 +47,9 @@ use clap::{Parser, Subcommand};
 use configuration_api::ConfigurationApiNamespaceT;
 use fork::{ForkDetails, ForkSource};
 use node::ShowCalls;
+use simplelog::{
+    ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode, WriteLogger,
+};
 use zks::ZkMockNamespaceImpl;
 
 mod bootloader_debug;
@@ -66,6 +69,7 @@ use zksync_core::api_server::web3::namespaces::NetNamespace;
 
 use std::{
     env,
+    fs::File,
     net::{IpAddr, Ipv4Addr, SocketAddr},
     str::FromStr,
 };
@@ -245,6 +249,21 @@ struct ReplayArgs {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    CombinedLogger::init(vec![
+        TermLogger::new(
+            LevelFilter::Info,
+            Config::default(),
+            TerminalMode::Mixed,
+            ColorChoice::Auto,
+        ),
+        WriteLogger::new(
+            LevelFilter::Info,
+            Config::default(),
+            File::create("era_test_node.log").unwrap(),
+        ),
+    ])
+    .expect("failed instantiating logger");
+
     let opt = Cli::parse();
     let filter = EnvFilter::from_default_env();
 
@@ -296,14 +315,14 @@ async fn main() -> anyhow::Result<()> {
         let _ = node.apply_txs(transactions_to_replay);
     }
 
-    println!("\nRich Accounts");
-    println!("=============");
+    log::info!("Rich Accounts");
+    log::info!("=============");
     for (index, wallet) in RICH_WALLETS.iter().enumerate() {
         let address = wallet.0;
         let private_key = wallet.1;
         node.set_rich_account(H160::from_str(address).unwrap());
-        println!("Account #{}: {} (1_000_000_000_000 ETH)", index, address);
-        println!("Private Key: {}\n", private_key);
+        log::info!("Account #{}: {} (1_000_000_000_000 ETH)", index, address);
+        log::info!("Private Key: {}\n", private_key);
     }
 
     let net = NetNamespace::new(L2ChainId(TEST_NODE_NETWORK_ID));
@@ -319,9 +338,9 @@ async fn main() -> anyhow::Result<()> {
     )
     .await;
 
-    println!("========================================");
-    println!("  Node is ready at 127.0.0.1:{}", opt.port);
-    println!("========================================");
+    log::info!("========================================");
+    log::info!("  Node is ready at 127.0.0.1:{}", opt.port);
+    log::info!("========================================");
 
     future::select_all(vec![threads]).await.0.unwrap();
 
