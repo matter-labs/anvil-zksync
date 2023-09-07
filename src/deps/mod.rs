@@ -113,7 +113,7 @@ pub trait ReadStorage: fmt::Debug {
 
 /// Functionality to write to the VM storage in a batch.
 ///
-/// So far, this trait is implemented only for [`StorageView`].
+/// So far, this trait is implemented only for [`zksync_state::StorageView`].
 pub trait WriteStorage: ReadStorage {
     /// Sets the new value under a given key and returns the previous value.
     fn set_value(&mut self, key: StorageKey, value: StorageValue) -> StorageValue;
