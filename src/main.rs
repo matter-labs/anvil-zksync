@@ -43,7 +43,7 @@
 //! Contributions to improve `era-test-node` are welcome. Please refer to the contribution guidelines for more details.
 
 use crate::node::{ShowGasDetails, ShowStorageLogs, ShowVMDetails};
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use configuration_api::ConfigurationApiNamespaceT;
 use fork::{ForkDetails, ForkSource};
 use node::ShowCalls;
@@ -175,6 +175,26 @@ async fn build_json_http<
     tokio::spawn(recv.map(drop))
 }
 
+/// Log filter level for the node.
+#[derive(Debug, Clone, ValueEnum)]
+enum LogLevel {
+    Debug,
+    Info,
+    Warn,
+    Error,
+}
+
+impl From<LogLevel> for LevelFilter {
+    fn from(value: LogLevel) -> Self {
+        match value {
+            LogLevel::Debug => LevelFilter::Debug,
+            LogLevel::Info => LevelFilter::Info,
+            LogLevel::Warn => LevelFilter::Warn,
+            LogLevel::Error => LevelFilter::Error,
+        }
+    }
+}
+
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version, about = "Test Node", long_about = None)]
 struct Cli {
@@ -205,6 +225,10 @@ struct Cli {
     #[arg(long)]
     /// If true, will load the locally compiled system contracts (useful when doing changes to system contracts or bootloader)
     dev_use_local_contracts: bool,
+
+    /// Log filter level - default: info
+    #[arg(long, default_value = "info")]
+    log: LogLevel,
 }
 
 #[derive(Debug, Subcommand)]
@@ -249,23 +273,23 @@ struct ReplayArgs {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let opt = Cli::parse();
+
+    let log_level_filter = LevelFilter::from(opt.log);
     CombinedLogger::init(vec![
         TermLogger::new(
-            LevelFilter::Info,
+            log_level_filter,
             Config::default(),
             TerminalMode::Mixed,
             ColorChoice::Auto,
         ),
         WriteLogger::new(
-            LevelFilter::Info,
+            log_level_filter,
             Config::default(),
             File::create("era_test_node.log").unwrap(),
         ),
     ])
     .expect("failed instantiating logger");
-
-    let opt = Cli::parse();
-    let filter = EnvFilter::from_default_env();
 
     if opt.dev_use_local_contracts {
         if let Some(path) = env::var_os("ZKSYNC_HOME") {
@@ -273,6 +297,7 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
+    let filter = EnvFilter::from_default_env();
     let subscriber = FmtSubscriber::builder()
         .with_max_level(Level::TRACE)
         .with_env_filter(filter)
