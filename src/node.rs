@@ -82,18 +82,6 @@ pub const ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION: u32 = 1_000;
 /// The factor by which to scale the gasLimit.
 pub const ESTIMATE_GAS_SCALE_FACTOR: f32 = 1.3;
 
-/// Basic information about the generated block (which is block l1 batch and miniblock).
-/// Currently, this test node supports exactly one transaction per block.
-#[derive(Debug, Clone)]
-pub struct BlockInfo {
-    pub batch_number: u32,
-    pub block_timestamp: u64,
-    /// Hash associated with this block.
-    pub hash: H256,
-    /// Transaction included in this block
-    pub tx_hash: H256,
-}
-
 pub fn compute_hash(block_number: u32, tx_hash: H256) -> H256 {
     let digest = [&block_number.to_be_bytes()[..], tx_hash.as_bytes()].concat();
     H256(keccak256(&digest))
@@ -807,12 +795,6 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         let block_context = inner.create_block_context();
         let block_properties = InMemoryNodeInner::<S>::create_block_properties(bootloader_code);
 
-        // let block = BlockInfo {
-        //     batch_number: block_context.block_number,
-        //     block_timestamp: block_context.block_timestamp,
-        //     hash: BlockInfo::compute_hash(block_context.block_number, l2_tx.hash()),
-        //     tx_hash: l2_tx.hash(),
-        // };
         let block = Block {
             hash: compute_hash(block_context.block_number, l2_tx.hash()),
             number: U64::from(inner.current_miniblock),
