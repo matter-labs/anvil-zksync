@@ -31,7 +31,6 @@
 //! - Many APIs are not yet implemented.
 //! - No support for accessing historical data.
 //! - Only one transaction allowed per Layer 1 batch.
-//! - Fixed values returned for zk Gas estimation.
 //!
 //! ## Usage
 //!
