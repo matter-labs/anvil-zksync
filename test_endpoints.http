@@ -267,6 +267,20 @@ content-type: application/json
 
 {
     "jsonrpc": "2.0",
+    "id": "2",
+    "method": "hardhat_setBalance",
+    "params": [
+        "0x36615Cf349d7F6344891B1e7CA7C72883F5dc049",
+        "0x1337"
+    ]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
     "id": "1",
     "method": "zks_getTokenPrice",
     "params": ["0x0000000000000000000000000000000000000000"]
