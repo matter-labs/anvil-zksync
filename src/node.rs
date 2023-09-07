@@ -1252,7 +1252,6 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
         let inner = Arc::clone(&self.inner);
 
         Box::pin(async move {
-            let mut cache_block = false;
             let maybe_block = {
                 let reader = match inner.read() {
                     Ok(r) => r,
@@ -1280,10 +1279,6 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                                         .get_block_by_number(block_number, true)
                                         .ok()
                                         .flatten()
-                                        .and_then(|block| {
-                                            cache_block = true;
-                                            Some(block)
-                                        })
                                 })
                         }),
                     zksync_types::api::BlockNumber::Number(ask_number) => {
@@ -1305,10 +1300,6 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                                             .get_block_by_number(block_number, true)
                                             .ok()
                                             .flatten()
-                                            .and_then(|block| {
-                                                cache_block = true;
-                                                Some(block)
-                                            })
                                     })
                             });
                         block
@@ -1331,10 +1322,6 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                                         .get_block_by_number(block_number, true)
                                         .ok()
                                         .flatten()
-                                        .and_then(|block| {
-                                            cache_block = true;
-                                            Some(block)
-                                        })
                                 })
                         }),
                 }
@@ -1342,17 +1329,6 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
 
             match maybe_block {
                 Some(mut block) => {
-                    if cache_block {
-                        let mut writer = inner
-                            .write()
-                            .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
-
-                        writer
-                            .block_hashes
-                            .insert(block.number.as_u64(), block.hash);
-                        writer.blocks.insert(block.hash, block.clone());
-                    }
-
                     let block_hash = block.hash;
                     block.transactions = block
                         .transactions
@@ -1368,7 +1344,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                             TransactionVariant::Hash(_) => {
                                 if full_transactions {
                                     panic!(
-                                        "unexpected non full transaction in the cache for block {}",
+                                        "unexpected non full transaction for block {}",
                                         block_hash
                                     )
                                 } else {
@@ -1601,7 +1577,6 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
         let inner = Arc::clone(&self.inner);
 
         Box::pin(async move {
-            let mut cache_block = false;
             let maybe_block = {
                 let reader = inner
                     .read()
@@ -1621,27 +1596,13 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                                 .get_block_by_hash(hash, true)
                                 .ok()
                                 .flatten()
-                                .and_then(|block| {
-                                    cache_block = true;
-                                    Some(block)
-                                })
                         })
                 })
             };
 
             match maybe_block {
                 Some(mut block) => {
-                    if cache_block {
-                        let mut writer = inner
-                            .write()
-                            .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
-
-                        writer
-                            .block_hashes
-                            .insert(block.number.as_u64(), block.hash);
-                        writer.blocks.insert(block.hash, block.clone());
-                    }
-
+                    let block_hash = block.hash;
                     block.transactions = block
                         .transactions
                         .into_iter()
@@ -1655,7 +1616,10 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                             }
                             TransactionVariant::Hash(_) => {
                                 if full_transactions {
-                                    panic!("unexpected non full transaction in the cache")
+                                    panic!(
+                                        "unexpected non full transaction for block {}",
+                                        block_hash
+                                    )
                                 } else {
                                     transaction
                                 }
@@ -1976,7 +1940,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_block_by_hash_uses_fork_source_and_caches_it() {
+    async fn test_get_block_by_hash_uses_fork_source() {
         let input_block_hash = H256::repeat_byte(0x01);
 
         let mock_server = testing::MockServer::run();
@@ -2016,22 +1980,6 @@ mod tests {
         assert_eq!(input_block_hash, actual_block.hash);
         assert_eq!(U64::from(mock_block_number), actual_block.number);
         assert_eq!(Some(U64::from(6)), actual_block.l1_batch_number);
-        assert_eq!(
-            Some(input_block_hash),
-            node.inner
-                .read()
-                .unwrap()
-                .block_hashes
-                .get(&actual_block.number.as_u64())
-                .copied()
-        );
-
-        let is_block_cached = node
-            .inner
-            .read()
-            .and_then(|reader| Ok(reader.block_hashes.contains_key(&mock_block_number)))
-            .unwrap();
-        assert!(is_block_cached);
     }
 
     #[tokio::test]
@@ -2075,7 +2023,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_block_by_number_uses_fork_source_if_missing_number_and_caches_it() {
+    async fn test_get_block_by_number_uses_fork_source_if_missing_number() {
         let mock_server = testing::MockServer::run();
         let mock_block_number = 8;
         let block_response = testing::BlockResponseBuilder::new()
@@ -2109,13 +2057,6 @@ mod tests {
             .expect("failed fetching block by hash")
             .expect("no block");
         assert_eq!(U64::from(mock_block_number), actual_block.number);
-
-        let is_block_cached = node
-            .inner
-            .read()
-            .and_then(|reader| Ok(reader.block_hashes.contains_key(&mock_block_number)))
-            .unwrap();
-        assert!(is_block_cached);
     }
 
     #[tokio::test]
@@ -2159,8 +2100,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_block_by_number_uses_fork_source_for_latest_block_if_locally_unavailable_and_caches_it(
-    ) {
+    async fn test_get_block_by_number_uses_fork_source_for_latest_block_if_locally_unavailable() {
         let mock_server = testing::MockServer::run();
         let mock_block_number = 1;
         let block_response = testing::BlockResponseBuilder::new()
@@ -2194,17 +2134,10 @@ mod tests {
             .expect("failed fetching block by hash")
             .expect("no block");
         assert_eq!(U64::from(mock_block_number), actual_block.number);
-
-        let is_block_cached = node
-            .inner
-            .read()
-            .and_then(|reader| Ok(reader.block_hashes.contains_key(&mock_block_number)))
-            .unwrap();
-        assert!(is_block_cached);
     }
 
     #[tokio::test]
-    async fn test_get_block_by_number_uses_fork_source_for_earliest_block_and_caches_it() {
+    async fn test_get_block_by_number_uses_fork_source_for_earliest_block() {
         let mock_server = testing::MockServer::run();
         let mock_block_number = 1;
         let block_response = testing::BlockResponseBuilder::new()
@@ -2238,17 +2171,10 @@ mod tests {
             .expect("failed fetching block by hash")
             .expect("no block");
         assert_eq!(U64::from(mock_block_number), actual_block.number);
-
-        let is_block_cached = node
-            .inner
-            .read()
-            .and_then(|reader| Ok(reader.block_hashes.contains_key(&mock_block_number)))
-            .unwrap();
-        assert!(is_block_cached);
     }
 
     #[tokio::test]
-    async fn test_get_block_by_number_uses_fork_source_for_misc_blocks_and_caches_it() {
+    async fn test_get_block_by_number_uses_fork_source_for_misc_blocks() {
         for block_number in [
             BlockNumber::Pending,
             BlockNumber::Committed,
@@ -2292,13 +2218,6 @@ mod tests {
                 "case {}",
                 block_number,
             );
-
-            let is_block_cached = node
-                .inner
-                .read()
-                .and_then(|reader| Ok(reader.block_hashes.contains_key(&mock_block_number)))
-                .unwrap();
-            assert!(is_block_cached, "case {}", block_number);
         }
     }
 }
