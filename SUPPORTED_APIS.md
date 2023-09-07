@@ -85,8 +85,7 @@ The `status` options are:
 | `EVM` | `evm_setAutomine` | `NOT IMPLEMENTED` | Enables or disables the automatic mining of new blocks with each new transaction submitted to the network |
 | `EVM` | `evm_setBlockGasLimit` | `NOT IMPLEMENTED` | Sets the Block Gas Limit of the network |
 | `EVM` | `evm_setIntervalMining` | `NOT IMPLEMENTED` | Enables (with a numeric argument greater than 0) or disables (with a numeric argument equal to 0), the automatic mining of blocks at a regular interval of milliseconds, each of which will include all pending transactions |
-| `EVM` | `evm_setNextBlockTimestamp` | `NOT IMPLEMENTED`<br />[GitHub Issue #68](https://github.com/matter-labs/era-test-node/issues/68) | Works like `evm_increaseTime`, but takes the exact timestamp that you want in the next block, and increases the time accordingly |
-| [`EVM`](#evm-namespace) | [`evm_setNextBlockTimestamp`](#evm_setnextblocktimestamp) | `SUPPORTED` | Sets the internal clock time to the given timestamp |
+| [`EVM`](#evm-namespace) | [`evm_setNextBlockTimestamp`](#evm_setnextblocktimestamp) | `SUPPORTED` | Works like `evm_increaseTime`, but takes the exact timestamp that you want in the next block, and increases the time accordingly |
 | `EVM` | `evm_snapshot` | `NOT IMPLEMENTED`<br />[GitHub Issue #69](https://github.com/matter-labs/era-test-node/issues/69) | Snapshot the state of the blockchain at the current block |
 | `HARDHAT` | `hardhat_addCompilationResult` | `NOT IMPLEMENTED` | Add information about compiled contracts |
 | `HARDHAT` | `hardhat_dropTransaction` | `NOT IMPLEMENTED` | Remove a transaction from the mempool |
@@ -95,7 +94,7 @@ The `status` options are:
 | `HARDHAT` | `hardhat_metadata` | `NOT IMPLEMENTED` | Returns the metadata of the current network |
 | `HARDHAT` | `hardhat_mine` | `NOT IMPLEMENTED`<br />[GitHub Issue #75](https://github.com/matter-labs/era-test-node/issues/75) | Mine any number of blocks at once, in constant time |
 | `HARDHAT` | `hardhat_reset` | `NOT IMPLEMENTED` | Resets the state of the network |
-| `HARDHAT` | `hardhat_setBalance` | `NOT IMPLEMENTED`<br />[GitHub Issue #76](https://github.com/matter-labs/era-test-node/issues/76) | Modifies the balance of an account |
+| [`HARDHAT`](#hardhat-namespace) | [`hardhat_setBalance`](#hardhat_setbalance) | `SUPPORTED` | Modifies the balance of an account |
 | `HARDHAT` | `hardhat_setCode` | `NOT IMPLEMENTED` | Sets the bytecode of a given account |
 | `HARDHAT` | `hardhat_setCoinbase` | `NOT IMPLEMENTED` | Sets the coinbase address |
 | `HARDHAT` | `hardhat_setLoggingEnabled` | `NOT IMPLEMENTED` | Enables or disables logging in Hardhat Network |
@@ -681,6 +680,40 @@ curl --request POST \
   --header 'content-type: application/json' \
   --data '{"jsonrpc": "2.0","id": "1","method": "eth_sendRawTransaction","params": ["0x0000"]
 }'
+```
+
+## `HARDHAT NAMESPACE`
+
+### `hardhat_setBalance`
+
+[source](src/hardhat.rs)
+
+Sets the balance of the given address to the given balance.
+
+#### Arguments
+
++ `address: Address` - The `Address` whose balance will be edited
++ `balance: U256` - The balance to set for the given address, in wei
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+      "id": "1",
+      "method": "hardhat_setBalance",
+      "params": [
+        "0x36615Cf349d7F6344891B1e7CA7C72883F5dc049",
+        "0x1337"
+      ]
+  }'
 ```
 
 ## `EVM NAMESPACE`
