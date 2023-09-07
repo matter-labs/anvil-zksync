@@ -229,6 +229,10 @@ struct Cli {
     /// Log filter level - default: info
     #[arg(long, default_value = "info")]
     log: LogLevel,
+
+    /// Log file path - default: era_test_node.log
+    #[arg(long, default_value = "era_test_node.log")]
+    log_file_path: String,
 }
 
 #[derive(Debug, Subcommand)]
@@ -289,7 +293,7 @@ async fn main() -> anyhow::Result<()> {
         WriteLogger::new(
             log_level_filter,
             log_config,
-            File::create("era_test_node.log").unwrap(),
+            File::create(opt.log_file_path).unwrap(),
         ),
     ])
     .expect("failed instantiating logger");
