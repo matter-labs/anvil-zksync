@@ -33,11 +33,6 @@ use vm::{
     VmInstance,
 };
 use zksync_basic_types::{web3::signing::keccak256, AccountTreeId, Bytes, H160, H256, U256, U64};
-use zksync_contracts::{
-    read_playground_block_bootloader_bytecode, read_sys_contract_bytecode, read_zbin_bytecode,
-    BaseSystemContracts, ContractLanguage, SystemContractCode,
-};
-use zksync_basic_types::{AccountTreeId, Bytes, H160, H256, U256, U64};
 use zksync_contracts::BaseSystemContracts;
 use zksync_core::api_server::web3::backend_jsonrpc::{
     error::into_jsrpc_error, namespaces::eth::EthNamespaceT,
@@ -629,7 +624,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 tx_results: Default::default(),
                 blocks: Default::default(),
                 block_hashes: Default::default(),
-                fork_storage: ForkStorage::new(fork, dev_use_local_contracts),
+                fork_storage: ForkStorage::new(fork, system_contracts_options),
                 show_calls,
                 show_storage_logs,
                 show_vm_details,
