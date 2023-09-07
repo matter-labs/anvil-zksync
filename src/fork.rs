@@ -212,6 +212,13 @@ pub trait ForkSource {
         hash: H256,
         full_transactions: bool,
     ) -> eyre::Result<Option<Block<TransactionVariant>>>;
+
+    /// Returns the block for a given hash.
+    fn get_block_by_number(
+        &self,
+        block_number: zksync_types::api::BlockNumber,
+        full_transactions: bool,
+    ) -> eyre::Result<Option<zksync_types::api::Block<zksync_types::api::TransactionVariant>>>;
 }
 
 /// Holds the information about the original chain.

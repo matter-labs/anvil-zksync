@@ -37,7 +37,7 @@ use zksync_core::api_server::web3::backend_jsonrpc::{
 };
 use zksync_state::{ReadStorage, StorageView, WriteStorage};
 use zksync_types::{
-    api::{Log, TransactionReceipt},
+    api::{Block, Log, TransactionReceipt, TransactionVariant},
     fee::Fee,
     get_code_key, get_nonce_key,
     l2::L2Tx,
@@ -94,11 +94,9 @@ pub struct BlockInfo {
     pub tx_hash: H256,
 }
 
-impl BlockInfo {
-    pub fn compute_hash(block_number: u32, tx_hash: H256) -> H256 {
-        let digest = [&block_number.to_be_bytes()[..], tx_hash.as_bytes()].concat();
-        H256(keccak256(&digest))
-    }
+pub fn compute_hash(block_number: u32, tx_hash: H256) -> H256 {
+    let digest = [&block_number.to_be_bytes()[..], tx_hash.as_bytes()].concat();
+    H256(keccak256(&digest))
 }
 
 /// Information about the executed transaction.
@@ -209,10 +207,10 @@ pub struct InMemoryNodeInner<S> {
     pub l1_gas_price: u64,
     // Map from transaction to details about the exeuction
     pub tx_results: HashMap<H256, TxExecutionInfo>,
-    // Map from batch number to information about the block.
-    pub blocks: HashMap<H256, BlockInfo>,
-    // Map from batch number to information about the block.
-    pub block_hashes: HashMap<u32, H256>,
+    // Map from block hash to information about the block.
+    pub blocks: HashMap<H256, Block<TransactionVariant>>,
+    // Map from block number to information about the block.
+    pub block_hashes: HashMap<u64, H256>,
     // Underlying storage
     pub fork_storage: ForkStorage<S>,
     // Debug level information.
@@ -233,7 +231,7 @@ pub struct InMemoryNodeInner<S> {
 type L2TxResult = (
     HashMap<StorageKey, H256>,
     VmTxExecutionResult,
-    BlockInfo,
+    Block<TransactionVariant>,
     HashMap<U256, Vec<U256>>,
 );
 
@@ -809,11 +807,21 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         let block_context = inner.create_block_context();
         let block_properties = InMemoryNodeInner::<S>::create_block_properties(bootloader_code);
 
-        let block = BlockInfo {
-            batch_number: block_context.block_number,
-            block_timestamp: block_context.block_timestamp,
-            hash: BlockInfo::compute_hash(block_context.block_number, l2_tx.hash()),
-            tx_hash: l2_tx.hash(),
+        // let block = BlockInfo {
+        //     batch_number: block_context.block_number,
+        //     block_timestamp: block_context.block_timestamp,
+        //     hash: BlockInfo::compute_hash(block_context.block_number, l2_tx.hash()),
+        //     tx_hash: l2_tx.hash(),
+        // };
+        let block = Block {
+            hash: compute_hash(block_context.block_number, l2_tx.hash()),
+            number: U64::from(inner.current_miniblock),
+            timestamp: U256::from(block_context.block_timestamp),
+            l1_batch_number: Some(U64::from(block_context.block_number)),
+            transactions: vec![TransactionVariant::Full(
+                zksync_types::api::Transaction::from(l2_tx.clone()),
+            )],
+            ..Default::default()
         };
 
         // init vm
@@ -957,15 +965,16 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             tx_hash,
             TxExecutionInfo {
                 tx: l2_tx,
-                batch_number: block.batch_number,
+                batch_number: block.l1_batch_number.unwrap_or_default().as_u32(),
                 miniblock_number: current_miniblock,
                 result,
             },
         );
-        inner.block_hashes.insert(block.batch_number, block.hash);
+        inner.block_hashes.insert(current_miniblock, block.hash);
         inner.blocks.insert(block.hash, block);
         {
             inner.current_timestamp += 1;
+            println!("current_batch = {}", inner.current_batch);
             inner.current_batch += 1;
             inner.current_miniblock += 1;
         }
@@ -1094,7 +1103,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
     /// # Arguments
     ///
     /// * `block_number` - A `BlockNumber` enum variant representing the block number to retrieve.
-    /// * `_full_transactions` - A boolean value indicating whether to retrieve full transactions or not.
+    /// * `full_transactions` - A boolean value indicating whether to retrieve full transactions or not.
     ///
     /// # Returns
     ///
@@ -1102,7 +1111,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
     fn get_block_by_number(
         &self,
         block_number: zksync_types::api::BlockNumber,
-        _full_transactions: bool,
+        full_transactions: bool,
     ) -> BoxFuture<
         jsonrpc_core::Result<
             Option<zksync_types::api::Block<zksync_types::api::TransactionVariant>>,
@@ -1111,42 +1120,125 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
         let inner = Arc::clone(&self.inner);
 
         Box::pin(async move {
-            let reader = match inner.read() {
-                Ok(r) => r,
-                Err(_) => return Err(into_jsrpc_error(Web3Error::InternalError)),
+            let mut cache_block = false;
+            let maybe_block = {
+                let reader = match inner.read() {
+                    Ok(r) => r,
+                    Err(_) => return Err(into_jsrpc_error(Web3Error::InternalError)),
+                };
+                match block_number {
+                    zksync_types::api::BlockNumber::Latest => reader
+                        .block_hashes
+                        .get(&reader.current_miniblock.saturating_sub(1))
+                        .and_then(|hash| reader.blocks.get(hash))
+                        .cloned()
+                        .or_else(|| {
+                            reader
+                                .fork_storage
+                                .inner
+                                .read()
+                                .expect("failed reading fork storage")
+                                .fork
+                                .as_ref()
+                                .and_then(|fork| {
+                                    fork.fork_source
+                                        .get_block_by_number(block_number, true)
+                                        .ok()
+                                        .flatten()
+                                        .and_then(|block| {
+                                            cache_block = true;
+                                            Some(block)
+                                        })
+                                })
+                        }),
+                    zksync_types::api::BlockNumber::Number(ask_number) => {
+                        let block = reader
+                            .block_hashes
+                            .get(&ask_number.as_u64())
+                            .and_then(|hash| reader.blocks.get(hash))
+                            .cloned()
+                            .or_else(|| {
+                                reader
+                                    .fork_storage
+                                    .inner
+                                    .read()
+                                    .expect("failed reading fork storage")
+                                    .fork
+                                    .as_ref()
+                                    .and_then(|fork| {
+                                        fork.fork_source
+                                            .get_block_by_number(block_number, true)
+                                            .ok()
+                                            .flatten()
+                                            .and_then(|block| {
+                                                cache_block = true;
+                                                Some(block)
+                                            })
+                                    })
+                            });
+                        block
+                    }
+                    zksync_types::api::BlockNumber::Earliest
+                    | zksync_types::api::BlockNumber::Pending
+                    | zksync_types::api::BlockNumber::Finalized
+                    | zksync_types::api::BlockNumber::Committed => reader
+                        .fork_storage
+                        .inner
+                        .read()
+                        .expect("failed reading fork storage")
+                        .fork
+                        .as_ref()
+                        .and_then(|fork| {
+                            fork.fork_source
+                                .get_block_by_number(block_number, true)
+                                .ok()
+                                .flatten()
+                                .and_then(|block| {
+                                    cache_block = true;
+                                    Some(block)
+                                })
+                        }),
+                }
             };
 
-            match block_number {
-                zksync_types::api::BlockNumber::Earliest => {
-                    println!(
-                        "Method get_block_by_number with BlockNumber::Earliest is not implemented"
-                    );
-                    return Err(into_jsrpc_error(Web3Error::NotImplemented));
+            match maybe_block {
+                Some(mut block) => {
+                    if cache_block {
+                        let mut writer = inner
+                            .write()
+                            .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
+
+                        writer
+                            .block_hashes
+                            .insert(block.number.as_u64(), block.hash);
+                        writer.blocks.insert(block.hash, block.clone());
+                    }
+
+                    block.transactions = block
+                        .transactions
+                        .into_iter()
+                        .map(|transaction| match &transaction {
+                            TransactionVariant::Full(inner) => {
+                                if full_transactions {
+                                    transaction
+                                } else {
+                                    TransactionVariant::Hash(inner.hash)
+                                }
+                            }
+                            TransactionVariant::Hash(_) => {
+                                if full_transactions {
+                                    panic!("unexpected non full transaction in the cache")
+                                } else {
+                                    transaction
+                                }
+                            }
+                        })
+                        .collect();
+
+                    Ok(Some(block))
                 }
-                zksync_types::api::BlockNumber::Pending => {
-                    println!(
-                        "Method get_block_by_number with BlockNumber::Pending is not implemented"
-                    );
-                    return Err(into_jsrpc_error(Web3Error::NotImplemented));
-                }
-                zksync_types::api::BlockNumber::Number(ask_number)
-                    if ask_number != U64::from(reader.current_miniblock) =>
-                {
-                    println!("Method get_block_by_number with BlockNumber::Number({}) is not implemented", ask_number);
-                    return Err(into_jsrpc_error(Web3Error::NotImplemented));
-                }
-                _ => {}
+                None => Err(into_jsrpc_error(Web3Error::NoBlock)),
             }
-
-            let block = zksync_types::api::Block {
-                transactions: vec![],
-                number: U64::from(reader.current_miniblock),
-                l1_batch_number: Some(U64::from(reader.current_batch)),
-                gas_limit: U256::from(ETH_CALL_GAS_LIMIT),
-                ..Default::default()
-            };
-
-            Ok(Some(block))
         })
     }
 
@@ -1349,11 +1441,11 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
     /// # Arguments
     ///
     /// * `hash` - A `H256` type representing the hash of the block to retrieve.
-    /// * `_full_transactions` - A boolean value indicating whether to retrieve full transactions or not.
+    /// * `full_transactions` - A boolean value indicating whether to retrieve full transactions or not.
     ///
     /// # Returns
     ///
-    /// A `BoxFuture` that resolves to a `Result` containing an `Option` of a `Block` with its transactions and other details.
+    /// A `BoxFuture` containing a `jsonrpc_core::Result` that resolves to an `Option` of `zksync_types::api::Block<zksync_types::api::TransactionVariant>`.
     fn get_block_by_hash(
         &self,
         hash: zksync_basic_types::H256,
@@ -1366,68 +1458,72 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
         let inner = Arc::clone(&self.inner);
 
         Box::pin(async move {
-            // Currently we support only hashes for blocks in memory
-            let reader = inner
-                .read()
-                .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
-
-            // try retrieving block from memory and subsequently from fork, if unavailable
-            let mut fetched_block = false;
-            let matching_block = reader.blocks.get(&hash).cloned().or_else(|| {
-                reader
-                    .fork_storage
-                    .inner
+            let mut cache_block = false;
+            let maybe_block = {
+                let reader = inner
                     .read()
-                    .expect("failed reading fork storage")
-                    .fork
-                    .as_ref()
-                    .and_then(|fork| {
-                        fork.fork_source
-                            .get_block_by_hash(hash, full_transactions)
-                            .ok()
-                            .flatten()
-                            .map(|block| {
-                                fetched_block = true;
-                                BlockInfo {
-                                    batch_number: block
-                                        .l1_batch_number
-                                        .unwrap_or_default()
-                                        .as_u32(),
-                                    block_timestamp: block.timestamp.as_u64(),
-                                    hash: block.hash,
-                                    tx_hash: Default::default(),
-                                }
-                            })
-                    })
-            });
-
-            let Some(matching_block) = matching_block else {
-                return Err(into_jsrpc_error(Web3Error::NoBlock));
-            };
-
-            let current_batch = reader.current_batch;
-            drop(reader);
-
-            if fetched_block {
-                let mut writer = inner
-                    .write()
                     .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
 
-                writer
-                    .block_hashes
-                    .insert(matching_block.batch_number, hash);
-                writer.blocks.insert(hash, matching_block.clone());
-            }
-
-            let block = zksync_types::api::Block {
-                hash,
-                number: U64::from(matching_block.batch_number),
-                l1_batch_number: Some(U64::from(current_batch)),
-                gas_limit: U256::from(ETH_CALL_GAS_LIMIT),
-                ..Default::default()
+                // try retrieving block from memory, and if unavailable subsequently from the fork
+                reader.blocks.get(&hash).cloned().or_else(|| {
+                    reader
+                        .fork_storage
+                        .inner
+                        .read()
+                        .expect("failed reading fork storage")
+                        .fork
+                        .as_ref()
+                        .and_then(|fork| {
+                            fork.fork_source
+                                .get_block_by_hash(hash, true)
+                                .ok()
+                                .flatten()
+                                .and_then(|block| {
+                                    cache_block = true;
+                                    Some(block)
+                                })
+                        })
+                })
             };
 
-            Ok(Some(block))
+            match maybe_block {
+                Some(mut block) => {
+                    if cache_block {
+                        let mut writer = inner
+                            .write()
+                            .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
+
+                        writer
+                            .block_hashes
+                            .insert(block.number.as_u64(), block.hash);
+                        writer.blocks.insert(block.hash, block.clone());
+                    }
+
+                    block.transactions = block
+                        .transactions
+                        .into_iter()
+                        .map(|transaction| match &transaction {
+                            TransactionVariant::Full(inner) => {
+                                if full_transactions {
+                                    transaction
+                                } else {
+                                    TransactionVariant::Hash(inner.hash)
+                                }
+                            }
+                            TransactionVariant::Hash(_) => {
+                                if full_transactions {
+                                    panic!("unexpected non full transaction in the cache")
+                                } else {
+                                    transaction
+                                }
+                            }
+                        })
+                        .collect();
+
+                    Ok(Some(block))
+                }
+                None => Err(into_jsrpc_error(Web3Error::NoBlock)),
+            }
         })
     }
 
@@ -1688,14 +1784,13 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::{Address, L2ChainId, Nonce, PackedEthSignature};
-
     use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
+    use zksync_types::{api::BlockNumber, Address, L2ChainId, Nonce, PackedEthSignature};
 
     use super::*;
 
     #[tokio::test]
-    async fn test_get_block_by_hash() {
+    async fn test_get_block_by_hash_for_produced_block() {
         let node = InMemoryNode::<HttpForkSource>::default();
 
         let private_key = H256::random();
@@ -1734,7 +1829,7 @@ mod tests {
 
         assert_eq!(expected_block_hash, actual_block.hash);
         assert_eq!(U64::from(1), actual_block.number);
-        assert_eq!(Some(U64::from(2)), actual_block.l1_batch_number);
+        assert_eq!(Some(U64::from(1)), actual_block.l1_batch_number);
     }
 
     #[tokio::test]
@@ -1744,15 +1839,14 @@ mod tests {
         let input_block_hash = H256::from_str(input_block_hash_str).expect("invalid hash");
 
         let mock_server = crate::testing::MockServer::run();
-
-        // mock a single eth_getBlockByHash call
+        let mock_block_number = 8;
         mock_server.expect(serde_json::json!({
             "jsonrpc": "2.0",
             "id": 0,
             "method": "eth_getBlockByHash",
             "params": [
                 input_block_hash_str,
-                false
+                true
             ],
         }), serde_json::json!({
             "jsonrpc": "2.0",
@@ -1765,8 +1859,8 @@ mod tests {
                 "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
                 "transactionsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
                 "receiptsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "number": "0x1",
-                "l1BatchNumber": "0x2",
+                "number": format!("{mock_block_number:x}"),
+                "l1BatchNumber": "0x6",
                 "gasUsed": "0x0",
                 "gasLimit": "0xffffffff",
                 "baseFeePerGas": "0x1dcd6500",
@@ -1800,32 +1894,379 @@ mod tests {
             .expect("no block");
 
         assert_eq!(input_block_hash, actual_block.hash);
-        assert_eq!(U64::from(2), actual_block.number);
-        assert_eq!(
-            Some(U64::from(node.inner.read().unwrap().current_batch)),
-            actual_block.l1_batch_number
-        );
+        assert_eq!(U64::from(mock_block_number), actual_block.number);
+        assert_eq!(Some(U64::from(6)), actual_block.l1_batch_number);
         assert_eq!(
             Some(input_block_hash),
             node.inner
                 .read()
                 .unwrap()
                 .block_hashes
-                .get(&actual_block.number.as_u32())
+                .get(&actual_block.number.as_u64())
                 .copied()
         );
 
-        let actual_cached_block = node
-            .get_block_by_hash(input_block_hash, false)
+        let is_block_cached = node
+            .inner
+            .read()
+            .and_then(|reader| Ok(reader.block_hashes.contains_key(&mock_block_number)))
+            .unwrap();
+        assert!(is_block_cached);
+    }
+
+    #[tokio::test]
+    async fn test_get_block_by_number_for_produced_block() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let private_key = H256::random();
+        let from_account = PackedEthSignature::address_from_private_key(&private_key)
+            .expect("failed generating address");
+        node.set_rich_account(from_account);
+        let mut tx = L2Tx::new_signed(
+            Address::random(),
+            vec![],
+            Nonce(0),
+            Fee {
+                gas_limit: U256::from(1_000_000),
+                max_fee_per_gas: U256::from(250_000_000),
+                max_priority_fee_per_gas: U256::from(250_000_000),
+                gas_per_pubdata_limit: U256::from(20000),
+            },
+            U256::from(1),
+            L2ChainId(260),
+            &private_key,
+            None,
+            Default::default(),
+        )
+        .unwrap();
+        tx.set_input(vec![], H256::repeat_byte(0x01));
+
+        node.apply_txs(vec![tx.into()]).expect("failed applying tx");
+
+        let expected_block_number = 1;
+        let actual_block = node
+            .get_block_by_number(BlockNumber::Number(U64::from(expected_block_number)), false)
             .await
-            .expect("failed fetching cached block by hash")
+            .expect("failed fetching block by hash")
             .expect("no block");
 
-        assert_eq!(input_block_hash, actual_cached_block.hash);
-        assert_eq!(U64::from(2), actual_cached_block.number);
-        assert_eq!(
-            Some(U64::from(node.inner.read().unwrap().current_batch)),
-            actual_cached_block.l1_batch_number
+        assert_eq!(U64::from(expected_block_number), actual_block.number);
+        assert_eq!(1, actual_block.transactions.len());
+    }
+
+    #[tokio::test]
+    async fn test_get_block_by_number_uses_fork_source_if_missing_number_and_caches_it() {
+        let mock_server = crate::testing::MockServer::run();
+        let mock_block_number = 8;
+        mock_server.expect(serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "eth_getBlockByNumber",
+            "params": [
+                "0x8",
+                true
+            ],
+        }), serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "result": {
+                "hash": "0x0101010101010101010101010101010101010101010101010101010101010101",
+                "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+                "miner": "0x0000000000000000000000000000000000000000",
+                "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "transactionsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "receiptsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "number": format!("{mock_block_number:x}"),
+                "l1BatchNumber": "0x6",
+                "gasUsed": "0x0",
+                "gasLimit": "0xffffffff",
+                "baseFeePerGas": "0x1dcd6500",
+                "extraData": "0x",
+                "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                "timestamp": "0x63ecc41a",
+                "l1BatchTimestamp": "0x63ecbd12",
+                "difficulty": "0x0",
+                "totalDifficulty": "0x0",
+                "sealFields": [],
+                "uncles": [],
+                "transactions": [],
+                "size": "0x0",
+                "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "nonce": "0x0000000000000000"
+            },
+        }));
+        let node = InMemoryNode::<HttpForkSource>::new(
+            Some(ForkDetails::from_network(&mock_server.url(), None).await),
+            crate::node::ShowCalls::None,
+            ShowStorageLogs::None,
+            ShowVMDetails::None,
+            false,
+            false,
         );
+
+        let actual_block = node
+            .get_block_by_number(BlockNumber::Number(U64::from(8)), false)
+            .await
+            .expect("failed fetching block by hash")
+            .expect("no block");
+        assert_eq!(U64::from(mock_block_number), actual_block.number);
+
+        let is_block_cached = node
+            .inner
+            .read()
+            .and_then(|reader| Ok(reader.block_hashes.contains_key(&mock_block_number)))
+            .unwrap();
+        assert!(is_block_cached);
+    }
+
+    #[tokio::test]
+    async fn test_get_block_by_number_for_latest_block_produced_locally() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let private_key = H256::random();
+        let from_account = PackedEthSignature::address_from_private_key(&private_key)
+            .expect("failed generating address");
+        node.set_rich_account(from_account);
+        let mut tx = L2Tx::new_signed(
+            Address::random(),
+            vec![],
+            Nonce(0),
+            Fee {
+                gas_limit: U256::from(1_000_000),
+                max_fee_per_gas: U256::from(250_000_000),
+                max_priority_fee_per_gas: U256::from(250_000_000),
+                gas_per_pubdata_limit: U256::from(20000),
+            },
+            U256::from(1),
+            L2ChainId(260),
+            &private_key,
+            None,
+            Default::default(),
+        )
+        .unwrap();
+        tx.set_input(vec![], H256::repeat_byte(0x01));
+
+        node.apply_txs(vec![tx.into()]).expect("failed applying tx");
+
+        let latest_block_number = 1;
+        let actual_block = node
+            .get_block_by_number(BlockNumber::Latest, true)
+            .await
+            .expect("failed fetching block by hash")
+            .expect("no block");
+
+        assert_eq!(U64::from(latest_block_number), actual_block.number);
+        assert_eq!(1, actual_block.transactions.len());
+    }
+
+    #[tokio::test]
+    async fn test_get_block_by_number_uses_fork_source_for_latest_block_if_locally_unavailable_and_caches_it(
+    ) {
+        let mock_server = crate::testing::MockServer::run();
+        let mock_block_number = 1;
+        mock_server.expect(serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "eth_getBlockByNumber",
+            "params": [
+                "latest",
+                true
+            ],
+        }), serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "result": {
+                "hash": "0x0101010101010101010101010101010101010101010101010101010101010101",
+                "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+                "miner": "0x0000000000000000000000000000000000000000",
+                "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "transactionsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "receiptsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "number": format!("0x{mock_block_number:x}"),
+                "l1BatchNumber": "0x6",
+                "gasUsed": "0x0",
+                "gasLimit": "0xffffffff",
+                "baseFeePerGas": "0x1dcd6500",
+                "extraData": "0x",
+                "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                "timestamp": "0x63ecc41a",
+                "l1BatchTimestamp": "0x63ecbd12",
+                "difficulty": "0x0",
+                "totalDifficulty": "0x0",
+                "sealFields": [],
+                "uncles": [],
+                "transactions": [],
+                "size": "0x0",
+                "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "nonce": "0x0000000000000000"
+            },
+        }));
+        let node = InMemoryNode::<HttpForkSource>::new(
+            Some(ForkDetails::from_network(&mock_server.url(), None).await),
+            crate::node::ShowCalls::None,
+            ShowStorageLogs::None,
+            ShowVMDetails::None,
+            false,
+            false,
+        );
+
+        let actual_block = node
+            .get_block_by_number(BlockNumber::Latest, false)
+            .await
+            .expect("failed fetching block by hash")
+            .expect("no block");
+        assert_eq!(U64::from(mock_block_number), actual_block.number);
+
+        let is_block_cached = node
+            .inner
+            .read()
+            .and_then(|reader| Ok(reader.block_hashes.contains_key(&mock_block_number)))
+            .unwrap();
+        assert!(is_block_cached);
+    }
+
+    #[tokio::test]
+    async fn test_get_block_by_number_uses_fork_source_for_earliest_block_and_caches_it() {
+        let mock_server = crate::testing::MockServer::run();
+        let mock_block_number = 1;
+        mock_server.expect(serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "eth_getBlockByNumber",
+            "params": [
+                "earliest",
+                true
+            ],
+        }), serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "result": {
+                "hash": "0x0101010101010101010101010101010101010101010101010101010101010101",
+                "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+                "miner": "0x0000000000000000000000000000000000000000",
+                "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "transactionsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "receiptsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "number": format!("0x{mock_block_number:x}"),
+                "l1BatchNumber": "0x6",
+                "gasUsed": "0x0",
+                "gasLimit": "0xffffffff",
+                "baseFeePerGas": "0x1dcd6500",
+                "extraData": "0x",
+                "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                "timestamp": "0x63ecc41a",
+                "l1BatchTimestamp": "0x63ecbd12",
+                "difficulty": "0x0",
+                "totalDifficulty": "0x0",
+                "sealFields": [],
+                "uncles": [],
+                "transactions": [],
+                "size": "0x0",
+                "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "nonce": "0x0000000000000000"
+            },
+        }));
+        let node = InMemoryNode::<HttpForkSource>::new(
+            Some(ForkDetails::from_network(&mock_server.url(), None).await),
+            crate::node::ShowCalls::None,
+            ShowStorageLogs::None,
+            ShowVMDetails::None,
+            false,
+            false,
+        );
+
+        let actual_block = node
+            .get_block_by_number(BlockNumber::Earliest, false)
+            .await
+            .expect("failed fetching block by hash")
+            .expect("no block");
+        assert_eq!(U64::from(mock_block_number), actual_block.number);
+
+        let is_block_cached = node
+            .inner
+            .read()
+            .and_then(|reader| Ok(reader.block_hashes.contains_key(&mock_block_number)))
+            .unwrap();
+        assert!(is_block_cached);
+    }
+
+    #[tokio::test]
+    async fn test_get_block_by_number_uses_fork_source_for_misc_blocks_and_caches_it() {
+        for block_number in [
+            BlockNumber::Pending,
+            BlockNumber::Committed,
+            BlockNumber::Finalized,
+        ] {
+            let mock_server = crate::testing::MockServer::run();
+            let mock_block_number = 1;
+            mock_server.expect(serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "eth_getBlockByNumber",
+            "params": [
+                block_number,
+                true
+            ],
+        }), serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "result": {
+                "hash": "0x0101010101010101010101010101010101010101010101010101010101010101",
+                "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+                "miner": "0x0000000000000000000000000000000000000000",
+                "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "transactionsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "receiptsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "number": format!("0x{mock_block_number:x}"),
+                "l1BatchNumber": "0x6",
+                "gasUsed": "0x0",
+                "gasLimit": "0xffffffff",
+                "baseFeePerGas": "0x1dcd6500",
+                "extraData": "0x",
+                "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                "timestamp": "0x63ecc41a",
+                "l1BatchTimestamp": "0x63ecbd12",
+                "difficulty": "0x0",
+                "totalDifficulty": "0x0",
+                "sealFields": [],
+                "uncles": [],
+                "transactions": [],
+                "size": "0x0",
+                "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "nonce": "0x0000000000000000"
+            },
+        }));
+            let node = InMemoryNode::<HttpForkSource>::new(
+                Some(ForkDetails::from_network(&mock_server.url(), None).await),
+                crate::node::ShowCalls::None,
+                ShowStorageLogs::None,
+                ShowVMDetails::None,
+                false,
+                false,
+            );
+
+            let actual_block = node
+                .get_block_by_number(block_number, false)
+                .await
+                .expect("failed fetching block by hash")
+                .expect("no block");
+            assert_eq!(
+                U64::from(mock_block_number),
+                actual_block.number,
+                "case {}",
+                block_number,
+            );
+
+            let is_block_cached = node
+                .inner
+                .read()
+                .and_then(|reader| Ok(reader.block_hashes.contains_key(&mock_block_number)))
+                .unwrap();
+            assert!(is_block_cached, "case {}", block_number);
+        }
     }
 }

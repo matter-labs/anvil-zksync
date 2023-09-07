@@ -47,7 +47,7 @@ impl MockServer {
                 "id": 1,
                 "result": {
                     "number": 10,
-                    "l1BatchNumber": 5,
+                    "l1BatchNumber": 1,
                     "timestamp": 1676461082u64,
                     "l1TxCount": 0,
                     "l2TxCount": 0,
