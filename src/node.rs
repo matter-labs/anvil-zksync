@@ -1715,7 +1715,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
         &self,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::web3::types::SyncState>>
     {
-        not_implemented("syncing")
+        Ok(zksync_basic_types::web3::types::SyncState::NotSyncing).into_boxed_future()
     }
 
     fn accounts(
@@ -1763,5 +1763,19 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
         _reward_percentiles: Vec<f32>,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<FeeHistory>> {
         not_implemented("fee history")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
+    use zksync_core::api_server::web3::backend_jsonrpc::namespaces::eth::EthNamespaceT;
+    use zksync_web3_decl::types::SyncState;
+
+    #[tokio::test]
+    async fn test_eth_syncing() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let syncing = node.syncing().await.expect("failed syncing");
+        assert!(matches!(syncing, SyncState::NotSyncing));
     }
 }
