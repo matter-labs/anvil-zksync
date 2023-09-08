@@ -273,6 +273,42 @@ content-type: application/json
 }
 
 ###
+
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "2",
+    "method": "evm_increaseTime",
+    "params": [10]
+}
+
+###
+
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "2",
+    "method": "evm_setNextBlockTimestamp",
+    "params": [1672527600]
+}
+
+###
+
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "2",
+    "method": "evm_setTime",
+    "params": [1672527600]
+}
+
+###
 POST http://localhost:8011
 content-type: application/json
 
