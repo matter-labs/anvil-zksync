@@ -70,7 +70,7 @@ The `status` options are:
 | `ETH` | `eth_submitHashrate` | `NOT IMPLEMENTED` | Used for submitting mining hashrate |
 | `ETH` | `eth_submitWork` | `NOT IMPLEMENTED` | Used for submitting a proof-of-work solution |
 | `ETH` | `eth_subscribe` | `NOT IMPLEMENTED` | Starts a subscription to a particular event |
-| `ETH` | `eth_syncing` | `NOT IMPLEMENTED`<br />[GitHub Issue #49](https://github.com/matter-labs/era-test-node/issues/49) | Returns an object containing data about the sync status or `false` when not syncing |
+| [`ETH`](#eth-namespace) | [`eth_syncing`](#eth_syncing) | `SUPPORTED` | Returns an object containing data about the sync status or `false` when not syncing |
 | `ETH` | `eth_uninstallFilter` | `NOT IMPLEMENTED`<br />[GitHub Issue #38](https://github.com/matter-labs/era-test-node/issues/38) | Uninstalls a filter with given id |
 | `ETH` | `eth_unsubscribe` | `NOT IMPLEMENTED` | Cancel a subscription to a particular event |
 | `EVM` | `evm_addAccount` | `NOT IMPLEMENTED` | Adds any arbitrary account |
@@ -102,7 +102,7 @@ The `status` options are:
 | `HARDHAT` | `hardhat_setMinGasPrice` | `NOT IMPLEMENTED` | Sets the minimum gas price |
 | `HARDHAT` | `hardhat_setNextBlockBaseFeePerGas` | `NOT IMPLEMENTED` | Sets the base fee per gas for the next block |
 | `HARDHAT` | `hardhat_setPrevRandao` | `NOT IMPLEMENTED` | Sets the PREVRANDAO value of the next block |
-| `HARDHAT` | `hardhat_setNonce` | `NOT IMPLEMENTED`<br />[GitHub Issue #77](https://github.com/matter-labs/era-test-node/issues/77) | Sets the nonce of a given account |
+| [`HARDHAT`](#hardhat-namespace) | [`hardhat_setNonce`](#hardhat_setnonce) | `SUPPORTED` | Sets the nonce of a given account |
 | `HARDHAT` | `hardhat_setStorageAt` | `NOT IMPLEMENTED` | Sets the storage value at a given key for a given account |
 | `HARDHAT` | `hardhat_stopImpersonatingAccount` | `NOT IMPLEMENTED`<br />[GitHub Issue #74](https://github.com/matter-labs/era-test-node/issues/74) | Stop impersonating an account after having previously used `hardhat_impersonateAccount` |
 | [`NETWORK`](#network-namespace) | [`net_version`](#net_version) | `SUPPORTED` | Returns the current network id <br />_(default is `260`)_ |
@@ -683,6 +683,30 @@ curl --request POST \
 }'
 ```
 
+### `eth_syncing`
+
+[source](src/node.rs)
+
+Returns syncing status of the node. This will always return `false`.
+
+#### Arguments
+
++ _NONE_
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "eth_syncing","params": []
+}'
+```
+
 ## `HARDHAT NAMESPACE`
 
 ### `hardhat_setBalance`
@@ -710,6 +734,35 @@ curl --request POST \
     "jsonrpc": "2.0",
       "id": "1",
       "method": "hardhat_setBalance",
+      "params": [
+        "0x36615Cf349d7F6344891B1e7CA7C72883F5dc049",
+        "0x1337"
+      ]
+  }'
+```
+
+### `hardhat_setNonce`
+
+[source](src/hardhat.rs)
+
+Modifies an account's nonce by overwriting it.
+The new nonce must be greater than the existing nonce.
+
+#### Arguments
+
++ `address: Address` - The `Address` whose nonce is to be changed
++ `nonce: U256` - The new nonce
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+      "id": "1",
+      "method": "hardhat_setNonce",
       "params": [
         "0x36615Cf349d7F6344891B1e7CA7C72883F5dc049",
         "0x1337"
