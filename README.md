@@ -62,6 +62,11 @@ The node may be started in either of `debug`, `info`, `warn` or `error` logging 
 era_test_node --log=error run
 ```
 
+Additionally, the file path can be provided via the `--log-file-path` option (defaults to `./era_test_node.log`):
+```bash
+era_test_node --log=error --log-file-path=run.log run
+```
+
 ## 🌐 Network Details
 
 - L2 RPC: http://localhost:8011
