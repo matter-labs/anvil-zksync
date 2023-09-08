@@ -273,6 +273,55 @@ content-type: application/json
 }
 
 ###
+
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "2",
+    "method": "eth_getBlockByHash",
+    "params": ["0x371c9871792d89fea30e6b947ca45e9798e4f577dcdddb79269a93450f52b459", true]
+}
+
+
+###
+
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "2",
+    "method": "eth_getBlockByNumber",
+    "params": ["0xc9d5bb", false]
+}
+
+###
+
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "2",
+    "method": "eth_getBlockByNumber",
+    "params": ["latest", false]
+}
+
+### Get Block by Number (earliest)
+
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "2",
+    "method": "eth_getBlockByNumber",
+    "params": ["earliest", false]
+}
+
+###
 POST http://localhost:8011
 content-type: application/json
 
