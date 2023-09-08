@@ -7,5 +7,6 @@ pub mod formatter;
 pub mod http_fork_source;
 pub mod node;
 pub mod resolver;
+pub mod system_contracts;
 pub mod utils;
 pub mod zks;
