@@ -1838,7 +1838,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
         &self,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::web3::types::SyncState>>
     {
-        not_implemented("syncing")
+        Ok(zksync_basic_types::web3::types::SyncState::NotSyncing).into_boxed_future()
     }
 
     fn accounts(
@@ -1893,8 +1893,16 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
 mod tests {
     use crate::{http_fork_source::HttpForkSource, node::InMemoryNode, testing};
     use zksync_types::{api::BlockNumber, Address, L2ChainId, Nonce, PackedEthSignature};
-
+    use zksync_web3_decl::types::SyncState;
+    
     use super::*;
+
+    #[tokio::test]
+    async fn test_eth_syncing() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let syncing = node.syncing().await.expect("failed syncing");
+        assert!(matches!(syncing, SyncState::NotSyncing));
+    }
 
     #[tokio::test]
     async fn test_get_block_by_hash_for_produced_block() {
