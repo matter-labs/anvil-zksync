@@ -609,44 +609,56 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         resolve_hashes: bool,
         system_contracts_options: &system_contracts::Options,
     ) -> Self {
-        InMemoryNode {
-            inner: Arc::new(RwLock::new(InMemoryNodeInner {
-                current_timestamp: fork
-                    .as_ref()
-                    .map(|f| f.block_timestamp + 1)
-                    .unwrap_or(NON_FORK_FIRST_BLOCK_TIMESTAMP),
-                current_batch: fork.as_ref().map(|f| f.l1_block.0 + 1).unwrap_or(1),
-                current_miniblock: fork.as_ref().map(|f| f.l2_miniblock + 1).unwrap_or(1),
-                l1_gas_price: fork
-                    .as_ref()
-                    .map(|f| f.l1_gas_price)
-                    .unwrap_or(L1_GAS_PRICE),
-                tx_results: Default::default(),
-                blocks: fork
-                    .as_ref()
-                    .map(|f| {
-                        let mut value = HashMap::<H256, Block<TransactionVariant>>::new();
-                        value.insert(f.l2_block.hash, f.l2_block.clone());
-                        value
-                    })
-                    .unwrap_or_default(),
-                block_hashes: fork
-                    .as_ref()
-                    .map(|f| {
-                        let mut value = HashMap::<u64, H256>::new();
-                        value.insert(f.l2_block.number.as_u64(), f.l2_block.hash);
-                        value
-                    })
-                    .unwrap_or_default(),
-                fork_storage: ForkStorage::new(fork, system_contracts_options),
-                show_calls,
-                show_storage_logs,
-                show_vm_details,
-                show_gas_details,
-                resolve_hashes,
-                console_log_handler: ConsoleLogHandler::default(),
-                system_contracts: SystemContracts::from_options(system_contracts_options),
-            })),
+        if let Some(f) = &fork {
+            let mut block_hashes = HashMap::<u64, H256>::new();
+            block_hashes.insert(f.l2_block.number.as_u64(), f.l2_block.hash);
+            let mut blocks = HashMap::<H256, Block<TransactionVariant>>::new();
+            blocks.insert(f.l2_block.hash, f.l2_block.clone());
+
+            InMemoryNode {
+                inner: Arc::new(RwLock::new(InMemoryNodeInner {
+                    current_timestamp: f.block_timestamp + 1,
+                    current_batch: f.l1_block.0 + 1,
+                    current_miniblock: f.l2_miniblock + 1,
+                    l1_gas_price: f.l1_gas_price,
+                    tx_results: Default::default(),
+                    blocks,
+                    block_hashes,
+                    fork_storage: ForkStorage::new(fork, system_contracts_options),
+                    show_calls,
+                    show_storage_logs,
+                    show_vm_details,
+                    show_gas_details,
+                    resolve_hashes,
+                    console_log_handler: ConsoleLogHandler::default(),
+                    system_contracts: SystemContracts::from_options(system_contracts_options),
+                })),
+            }
+        } else {
+            let mut block_hashes = HashMap::<u64, H256>::new();
+            block_hashes.insert(0, H256::zero());
+            let mut blocks = HashMap::<H256, Block<TransactionVariant>>::new();
+            blocks.insert(H256::zero(), Default::default());
+
+            InMemoryNode {
+                inner: Arc::new(RwLock::new(InMemoryNodeInner {
+                    current_timestamp: NON_FORK_FIRST_BLOCK_TIMESTAMP,
+                    current_batch: 1,
+                    current_miniblock: 1,
+                    l1_gas_price: L1_GAS_PRICE,
+                    tx_results: Default::default(),
+                    blocks,
+                    block_hashes,
+                    fork_storage: ForkStorage::new(fork, system_contracts_options),
+                    show_calls,
+                    show_storage_logs,
+                    show_vm_details,
+                    show_gas_details,
+                    resolve_hashes,
+                    console_log_handler: ConsoleLogHandler::default(),
+                    system_contracts: SystemContracts::from_options(system_contracts_options),
+                })),
+            }
         }
     }
 
@@ -1926,6 +1938,20 @@ mod tests {
         let result = node.get_block_by_hash(H256::repeat_byte(0x01), false).await;
 
         assert_eq!(expected_err, result.unwrap_err());
+    }
+
+    #[tokio::test]
+    async fn test_node_run_has_genesis_block() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let block = node
+            .get_block_by_number(BlockNumber::Latest, false)
+            .await
+            .expect("failed fetching block by hash")
+            .expect("no block");
+
+        assert_eq!(0, block.number.as_u64());
+        assert_eq!(H256::zero(), block.hash);
     }
 
     #[tokio::test]
