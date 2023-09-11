@@ -81,7 +81,7 @@ impl ForkSource for HttpForkSource {
             .and_then(|hash| {
                 block_number_mapped = true;
                 block_hash = *hash;
-                self.cache.raw_block_transactions.get(hash)
+                self.cache.block_raw_transactions.get(hash)
             })
             .cloned()
             .map(|value| Ok(value))
@@ -97,7 +97,7 @@ impl ForkSource for HttpForkSource {
                         }
 
                         self.cache
-                            .raw_block_transactions
+                            .block_raw_transactions
                             .insert(block_hash, result.clone());
                         Ok(result)
                     })
