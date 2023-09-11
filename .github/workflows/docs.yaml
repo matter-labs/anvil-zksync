@@ -35,6 +35,21 @@ jobs:
         run: |
           echo "Generating docs..."
           cargo doc --no-deps
+      - name: Make index.html
+        run: echo '<!DOCTYPE HTML>
+          <html lang="en-US">
+              <head>
+                  <meta charset="UTF-8">
+                  <meta http-equiv="refresh" content="0; url=./era_test_node/index.html">
+                  <script type="text/javascript">
+                      window.location.href = "./era_test_node/index.html"
+                  </script>
+                  <title>Page Redirection</title>
+              </head>
+              <body>
+                  If you are not redirected automatically, follow this <a href='./era_test_node/index.html'>link to example</a>.
+              </body>
+          </html>' > ./target/doc/index.html
       - name: Fix permissions
         run: |
           chmod -c -R +rX "target/doc/" | while read line; do
