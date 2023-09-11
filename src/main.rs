@@ -41,7 +41,7 @@
 //! ## Contributions
 //!
 //! Contributions to improve `era-test-node` are welcome. Please refer to the contribution guidelines for more details.
-
+use crate::hardhat::{HardhatNamespaceImpl, HardhatNamespaceT};
 use crate::node::{ShowGasDetails, ShowStorageLogs, ShowVMDetails};
 use clap::{Parser, Subcommand};
 use configuration_api::ConfigurationApiNamespaceT;
@@ -55,9 +55,11 @@ mod console_log;
 mod deps;
 mod fork;
 mod formatter;
+mod hardhat;
 mod http_fork_source;
 mod node;
 mod resolver;
+mod system_contracts;
 mod utils;
 mod zks;
 
@@ -138,6 +140,7 @@ async fn build_json_http<
     net: NetNamespace,
     config_api: ConfigurationApiNamespace<S>,
     zks: ZkMockNamespaceImpl<S>,
+    hardhat: HardhatNamespaceImpl<S>,
 ) -> tokio::task::JoinHandle<()> {
     let (sender, recv) = oneshot::channel::<()>();
 
@@ -147,7 +150,7 @@ async fn build_json_http<
         io.extend_with(net.to_delegate());
         io.extend_with(config_api.to_delegate());
         io.extend_with(zks.to_delegate());
-
+        io.extend_with(hardhat.to_delegate());
         io
     };
 
@@ -281,6 +284,11 @@ async fn main() -> anyhow::Result<()> {
     } else {
         vec![]
     };
+    let system_contracts_options = if opt.dev_use_local_contracts {
+        system_contracts::Options::Local
+    } else {
+        system_contracts::Options::BuiltIn
+    };
 
     let node = InMemoryNode::new(
         fork_details,
@@ -289,7 +297,7 @@ async fn main() -> anyhow::Result<()> {
         opt.show_vm_details,
         opt.show_gas_details,
         opt.resolve_hashes,
-        opt.dev_use_local_contracts,
+        &system_contracts_options,
     );
 
     if !transactions_to_replay.is_empty() {
@@ -309,6 +317,7 @@ async fn main() -> anyhow::Result<()> {
     let net = NetNamespace::new(L2ChainId(TEST_NODE_NETWORK_ID));
     let config_api = ConfigurationApiNamespace::new(node.get_inner());
     let zks = ZkMockNamespaceImpl::new(node.get_inner());
+    let hardhat = HardhatNamespaceImpl::new(node.get_inner());
 
     let threads = build_json_http(
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), opt.port),
@@ -316,6 +325,7 @@ async fn main() -> anyhow::Result<()> {
         net,
         config_api,
         zks,
+        hardhat,
     )
     .await;
 
