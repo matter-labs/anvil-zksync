@@ -609,56 +609,62 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         resolve_hashes: bool,
         system_contracts_options: &system_contracts::Options,
     ) -> Self {
-        if let Some(f) = &fork {
+        let inner = if let Some(f) = &fork {
             let mut block_hashes = HashMap::<u64, H256>::new();
             block_hashes.insert(f.l2_block.number.as_u64(), f.l2_block.hash);
             let mut blocks = HashMap::<H256, Block<TransactionVariant>>::new();
             blocks.insert(f.l2_block.hash, f.l2_block.clone());
 
-            InMemoryNode {
-                inner: Arc::new(RwLock::new(InMemoryNodeInner {
-                    current_timestamp: f.block_timestamp + 1,
-                    current_batch: f.l1_block.0 + 1,
-                    current_miniblock: f.l2_miniblock + 1,
-                    l1_gas_price: f.l1_gas_price,
-                    tx_results: Default::default(),
-                    blocks,
-                    block_hashes,
-                    fork_storage: ForkStorage::new(fork, system_contracts_options),
-                    show_calls,
-                    show_storage_logs,
-                    show_vm_details,
-                    show_gas_details,
-                    resolve_hashes,
-                    console_log_handler: ConsoleLogHandler::default(),
-                    system_contracts: SystemContracts::from_options(system_contracts_options),
-                })),
+            InMemoryNodeInner {
+                current_timestamp: f.block_timestamp + 1,
+                current_batch: f.l1_block.0 + 1,
+                current_miniblock: f.l2_miniblock + 1,
+                l1_gas_price: f.l1_gas_price,
+                tx_results: Default::default(),
+                blocks,
+                block_hashes,
+                fork_storage: ForkStorage::new(fork, system_contracts_options),
+                show_calls,
+                show_storage_logs,
+                show_vm_details,
+                show_gas_details,
+                resolve_hashes,
+                console_log_handler: ConsoleLogHandler::default(),
+                system_contracts: SystemContracts::from_options(system_contracts_options),
             }
         } else {
             let mut block_hashes = HashMap::<u64, H256>::new();
             block_hashes.insert(0, H256::zero());
             let mut blocks = HashMap::<H256, Block<TransactionVariant>>::new();
-            blocks.insert(H256::zero(), Default::default());
+            blocks.insert(
+                H256::zero(),
+                Block::<TransactionVariant> {
+                    gas_limit: U256::from(ETH_CALL_GAS_LIMIT),
+                    ..Default::default()
+                },
+            );
 
-            InMemoryNode {
-                inner: Arc::new(RwLock::new(InMemoryNodeInner {
-                    current_timestamp: NON_FORK_FIRST_BLOCK_TIMESTAMP,
-                    current_batch: 1,
-                    current_miniblock: 1,
-                    l1_gas_price: L1_GAS_PRICE,
-                    tx_results: Default::default(),
-                    blocks,
-                    block_hashes,
-                    fork_storage: ForkStorage::new(fork, system_contracts_options),
-                    show_calls,
-                    show_storage_logs,
-                    show_vm_details,
-                    show_gas_details,
-                    resolve_hashes,
-                    console_log_handler: ConsoleLogHandler::default(),
-                    system_contracts: SystemContracts::from_options(system_contracts_options),
-                })),
+            InMemoryNodeInner {
+                current_timestamp: NON_FORK_FIRST_BLOCK_TIMESTAMP,
+                current_batch: 1,
+                current_miniblock: 1,
+                l1_gas_price: L1_GAS_PRICE,
+                tx_results: Default::default(),
+                blocks,
+                block_hashes,
+                fork_storage: ForkStorage::new(fork, system_contracts_options),
+                show_calls,
+                show_storage_logs,
+                show_vm_details,
+                show_gas_details,
+                resolve_hashes,
+                console_log_handler: ConsoleLogHandler::default(),
+                system_contracts: SystemContracts::from_options(system_contracts_options),
             }
+        };
+
+        InMemoryNode {
+            inner: Arc::new(RwLock::new(inner)),
         }
     }
 
