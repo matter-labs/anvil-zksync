@@ -188,7 +188,8 @@ pub fn print_logs(log_query: &StorageLogQuery) {
 }
 
 pub fn print_vm_details(result: &VmPartialExecutionResult) {
-    log::info!("\n┌──────────────────────────┐");
+    log::info!("");
+    log::info!("┌──────────────────────────┐");
     log::info!("│   VM EXECUTION RESULTS   │");
     log::info!("└──────────────────────────┘");
 
@@ -197,9 +198,10 @@ pub fn print_vm_details(result: &VmPartialExecutionResult) {
     log::info!("Contracts Used:       {}", result.contracts_used);
 
     if let Some(revert_reason) = &result.revert_reason {
+        log::info!("");
         log::info!(
             "{}",
-            format!("\n[!] Revert Reason:    {}", revert_reason).on_red()
+            format!("[!] Revert Reason:    {}", revert_reason).on_red()
         );
     }
 

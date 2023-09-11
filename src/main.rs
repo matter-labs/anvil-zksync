@@ -323,7 +323,8 @@ async fn main() -> anyhow::Result<()> {
         let private_key = wallet.1;
         node.set_rich_account(H160::from_str(address).unwrap());
         log::info!("Account #{}: {} (1_000_000_000_000 ETH)", index, address);
-        log::info!("Private Key: {}\n", private_key);
+        log::info!("Private Key: {}", private_key);
+        log::info!("");
     }
 
     let net = NetNamespace::new(L2ChainId(TEST_NODE_NETWORK_ID));

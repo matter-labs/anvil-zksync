@@ -832,8 +832,10 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             to_human_size(gas_spent_on_compute * 100 / gas_used)
         );
 
+        log::info!("");
+        log::info!("");
         log::info!(
-            "\n\n {}",
+            "{}",
             "=== Transaction setup cost breakdown ===".to_owned().bold(),
         );
 
@@ -849,8 +851,9 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             to_human_size(debug.operator_overhead * 100 / intrinsic_gas)
         );
 
+        log::info!("");
         log::info!(
-            "\n  FYI: operator could have charged up to: {}, so you got {}% discount",
+            "  FYI: operator could have charged up to: {}, so you got {}% discount",
             to_human_size(debug.required_overhead),
             to_human_size(
                 (debug.required_overhead - debug.operator_overhead) * 100 / debug.required_overhead
@@ -936,11 +939,8 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             TxExecutionStatus::Failure => log::info!("Transaction: {}", "FAILED".red()),
         }
 
-        log::info!(
-            "Initiator: {:?}\nPayer: {:?}",
-            tx.initiator_account(),
-            tx.payer()
-        );
+        log::info!("Initiator: {:?}", tx.initiator_account());
+        log::info!("Payer: {:?}", tx.payer());
         log::info!(
             "Gas - Limit: {} | Used: {} | Refunded: {}",
             to_human_size(tx.gas_limit()),
@@ -966,7 +966,8 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         }
 
         if inner.show_storage_logs != ShowStorageLogs::None {
-            log::info!("\n┌──────────────────┐");
+            log::info!("");
+            log::info!("┌──────────────────┐");
             log::info!("│   STORAGE LOGS   │");
             log::info!("└──────────────────┘");
         }
@@ -997,13 +998,15 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             formatter::print_vm_details(&tx_result.result);
         }
 
-        log::info!("\n==== Console logs: ");
+        log::info!("");
+        log::info!("==== Console logs: ");
         for call in &tx_result.call_traces {
             inner.console_log_handler.handle_call_recurive(call);
         }
 
+        log::info!("");
         log::info!(
-            "\n==== {} Use --show-calls flag or call config_setShowCalls to display more info.",
+            "==== {} Use --show-calls flag or call config_setShowCalls to display more info.",
             format!("{:?} call traces. ", tx_result.call_traces.len()).bold()
         );
 
@@ -1013,15 +1016,17 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             }
         }
 
+        log::info!("");
         log::info!(
-            "\n==== {}",
+            "==== {}",
             format!("{} events", tx_result.result.logs.events.len()).bold()
         );
         for event in &tx_result.result.logs.events {
             formatter::print_event(event, inner.resolve_hashes);
         }
 
-        log::info!("\n\n");
+        log::info!("");
+        log::info!("");
 
         vm.execute_till_block_end(BootloaderJobType::BlockPostprocessing);
 
@@ -1039,7 +1044,8 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
     /// Runs L2 transaction and commits it to a new block.
     fn run_l2_tx(&self, l2_tx: L2Tx, execution_mode: TxExecutionMode) -> Result<(), String> {
         let tx_hash = l2_tx.hash();
-        log::info!("\nExecuting {}", format!("{:?}", tx_hash).bold());
+        log::info!("");
+        log::info!("Executing {}", format!("{:?}", tx_hash).bold());
         let (keys, result, block, bytecodes) =
             self.run_l2_tx_inner(l2_tx.clone(), execution_mode)?;
         // Write all the mutated keys (storage slots).
