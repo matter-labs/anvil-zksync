@@ -21,6 +21,12 @@ pub struct MockServer {
 impl MockServer {
     /// Start the mock server with pre-defined calls used to fetch the fork's state.
     pub fn run() -> Self {
+        Self::run_with_config(10, H256::repeat_byte(0xab))
+    }
+
+    /// Start the mock server with pre-defined calls used to fetch the fork's state.
+    /// The input can be used to set the initial block's number and hash.
+    pub fn run_with_config(block_number: u64, block_hash: H256) -> Self {
         let server = Server::run();
 
         // setup initial fork calls
@@ -33,7 +39,7 @@ impl MockServer {
             .respond_with(json_encoded(serde_json::json!({
                 "jsonrpc": "2.0",
                 "id": 0,
-                "result": "0xa",
+                "result": format!("{:#x}", block_number),
             }))),
         );
         server.expect(
@@ -41,18 +47,18 @@ impl MockServer {
                 "jsonrpc": "2.0",
                 "id": 1,
                 "method": "zks_getBlockDetails",
-                "params": vec![ 10 ],
+                "params": [ block_number ],
             })))))
             .respond_with(json_encoded(serde_json::json!({
                 "jsonrpc": "2.0",
                 "id": 1,
                 "result": {
-                    "number": 10,
+                    "number": block_number,
                     "l1BatchNumber": 1,
                     "timestamp": 1676461082u64,
                     "l1TxCount": 0,
                     "l2TxCount": 0,
-                    "rootHash": "0x086c9487350539c884510044efce5e3f2aaffca4215c12b9044506375097fecd",
+                    "rootHash": format!("{:#x}", block_hash),
                     "status": "verified",
                     "commitTxHash": "0x9f5b07e968787514667fae74e77ecab766be42acd602c85cfdbda1dc3dd9902f",
                     "committedAt": "2023-02-15T11:40:39.326104Z",
@@ -74,13 +80,51 @@ impl MockServer {
         server.expect(
             Expectation::matching(request::body(json_decoded(eq(serde_json::json!({
                 "jsonrpc": "2.0",
-                "id": 0,
+                "id": 2,
+                "method": "eth_getBlockByHash",
+                "params": [format!("{:#x}", block_hash), true],
+            }))))).times(0..)
+            .respond_with(json_encoded(serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "result": {
+                    "hash": format!("{:#x}", block_hash),
+                    "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                    "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+                    "miner": "0x0000000000000000000000000000000000000000",
+                    "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                    "transactionsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                    "receiptsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                    "number": format!("{:#x}", block_number),
+                    "l1BatchNumber": "0x6",
+                    "gasUsed": "0x0",
+                    "gasLimit": "0xffffffff",
+                    "baseFeePerGas": "0x1dcd6500",
+                    "extraData": "0x",
+                    "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                    "timestamp": "0x63ecc41a",
+                    "l1BatchTimestamp": "0x63ecbd12",
+                    "difficulty": "0x0",
+                    "totalDifficulty": "0x0",
+                    "sealFields": [],
+                    "uncles": [],
+                    "transactions": [],
+                    "size": "0x0",
+                    "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                    "nonce": "0x0000000000000000"
+                }
+            }))),
+        );
+        server.expect(
+            Expectation::matching(request::body(json_decoded(eq(serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 4,
                 "method": "eth_getStorageAt",
                 "params": vec!["0x000000000000000000000000000000000000800a","0xe9472b134a1b5f7b935d5debff2691f95801214eafffdeabbf0e366da383104e","0xa"],
             }))))).times(0..)
             .respond_with(json_encoded(serde_json::json!({
                 "jsonrpc": "2.0",
-                "id": 0,
+                "id": 4,
                 "result": "0x0000000000000000000000000000000000000000000000000000000000000000",
             }))),
         );
