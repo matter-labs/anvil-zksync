@@ -1795,6 +1795,7 @@ dependencies = [
  "once_cell",
  "openssl-sys",
  "reqwest",
+ "rustc-hash",
  "serde",
  "serde_json",
  "simplelog",
