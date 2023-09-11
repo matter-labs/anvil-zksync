@@ -1894,7 +1894,7 @@ mod tests {
     use crate::{http_fork_source::HttpForkSource, node::InMemoryNode, testing};
     use zksync_types::{api::BlockNumber, Address, L2ChainId, Nonce, PackedEthSignature};
     use zksync_web3_decl::types::SyncState;
-    
+
     use super::*;
 
     #[tokio::test]
@@ -1902,6 +1902,16 @@ mod tests {
         let node = InMemoryNode::<HttpForkSource>::default();
         let syncing = node.syncing().await.expect("failed syncing");
         assert!(matches!(syncing, SyncState::NotSyncing));
+    }
+
+    #[tokio::test]
+    async fn test_get_block_by_hash_produces_no_block_error_for_non_existing_block() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let expected_err = into_jsrpc_error(Web3Error::NoBlock);
+        let result = node.get_block_by_hash(H256::repeat_byte(0x01), false).await;
+
+        assert_eq!(expected_err, result.unwrap_err());
     }
 
     #[tokio::test]
@@ -1988,6 +1998,18 @@ mod tests {
         assert_eq!(input_block_hash, actual_block.hash);
         assert_eq!(U64::from(mock_block_number), actual_block.number);
         assert_eq!(Some(U64::from(6)), actual_block.l1_batch_number);
+    }
+
+    #[tokio::test]
+    async fn test_get_block_by_number_produces_no_block_error_for_non_existing_block() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let expected_err = into_jsrpc_error(Web3Error::NoBlock);
+        let result = node
+            .get_block_by_number(BlockNumber::Number(U64::from(42)), false)
+            .await;
+
+        assert_eq!(expected_err, result.unwrap_err());
     }
 
     #[tokio::test]
