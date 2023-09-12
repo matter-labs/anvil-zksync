@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use crate::fork::block_on;
 use zksync_basic_types::H160;
 
-use vm::vm::VmPartialExecutionResult;
+use vm::VmExecutionResultAndLogs;
 use zksync_types::{vm_trace::Call, StorageLogQuery, StorageLogQueryType, VmEvent};
 
 use lazy_static::lazy_static;
@@ -185,20 +185,32 @@ pub fn print_logs(log_query: &StorageLogQuery) {
     println!("{}", separator);
 }
 
-pub fn print_vm_details(result: &VmPartialExecutionResult) {
+pub fn print_vm_details(result: &VmExecutionResultAndLogs) {
     println!("\n┌──────────────────────────┐");
     println!("│   VM EXECUTION RESULTS   │");
     println!("└──────────────────────────┘");
 
-    println!("Cycles Used:          {}", result.cycles_used);
-    println!("Computation Gas Used: {}", result.computational_gas_used);
-    println!("Contracts Used:       {}", result.contracts_used);
-
-    if let Some(revert_reason) = &result.revert_reason {
-        println!(
-            "{}",
-            format!("\n[!] Revert Reason:    {}", revert_reason).on_red()
-        );
+    println!("Cycles Used:          {}", result.statistics.cycles_used);
+    println!(
+        "Computation Gas Used: {}",
+        result.statistics.computational_gas_used
+    );
+    println!("Contracts Used:       {}", result.statistics.contracts_used);
+    match &result.result {
+        vm::ExecutionResult::Success { output } => {}
+        vm::ExecutionResult::Revert { output } => {
+            println!(
+                "{}",
+                format!(
+                    "\n[!] Revert Reason:    {}",
+                    output.to_user_friendly_string()
+                )
+                .on_red()
+            );
+        }
+        vm::ExecutionResult::Halt { reason } => {
+            println!("{}", format!("\n[!] Halt Reason:    {}", reason).on_red());
+        }
     }
 
     println!("════════════════════════════");

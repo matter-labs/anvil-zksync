@@ -1,6 +1,6 @@
-use vm::{HistoryMode, VmInstance};
+use vm::{constants::BOOTLOADER_HEAP_PAGE, HistoryMode, Vm};
 use zksync_basic_types::U256;
-use zksync_types::zk_evm::zkevm_opcode_defs::BOOTLOADER_HEAP_PAGE;
+use zksync_state::WriteStorage;
 
 /// Magic value that we put in bootloader.yul at the beginning of the debug section - to detect that
 /// debugger was enabled.
@@ -67,17 +67,15 @@ pub struct BootloaderDebug {
     pub overhead_for_slot: U256,
 }
 
-fn load_debug_slot<H: HistoryMode>(vm: &VmInstance<H>, slot: usize) -> U256 {
+fn load_debug_slot<S: WriteStorage, H: HistoryMode>(vm: &Vm<S, H>, slot: usize) -> U256 {
     vm.state
         .memory
-        .memory
-        .inner()
         .read_slot(BOOTLOADER_HEAP_PAGE as usize, DEBUG_START_SLOT + slot)
         .value
 }
 
 impl BootloaderDebug {
-    pub fn load_from_memory<H: HistoryMode>(vm: &VmInstance<H>) -> eyre::Result<Self> {
+    pub fn load_from_memory<S: WriteStorage, H: HistoryMode>(vm: &Vm<S, H>) -> eyre::Result<Self> {
         if load_debug_slot(vm, 0) != U256::from(DEBUG_START_SENTINEL) {
             eyre::bail!("Debug slot has wrong value. Probably bootloader slot mapping has changed.")
         } else {

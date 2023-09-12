@@ -14,6 +14,7 @@ use colored::Colorize;
 use core::fmt::Display;
 use futures::FutureExt;
 use jsonrpc_core::BoxFuture;
+use once_cell::sync::OnceCell;
 use std::{
     cmp::{self},
     collections::HashMap,
@@ -22,17 +23,14 @@ use std::{
 };
 
 use vm::{
-    utils::{BLOCK_GAS_LIMIT, ETH_CALL_GAS_LIMIT},
-    vm::VmTxExecutionResult,
-    vm_with_bootloader::{
-        derive_base_fee_and_gas_per_pubdata, init_vm_inner, push_transaction_to_bootloader_memory,
-        BlockContext, BlockContextMode, BootloaderJobType, DerivedBlockContext, TxExecutionMode,
-        BLOCK_OVERHEAD_PUBDATA,
+    constants::{
+        BLOCK_GAS_LIMIT, BLOCK_OVERHEAD_PUBDATA, ETH_CALL_GAS_LIMIT, MAX_PUBDATA_PER_BLOCK,
     },
-    HistoryDisabled, HistoryEnabled, HistoryMode, OracleTools, TxRevertReason, VmBlockResult,
-    VmInstance,
+    utils::fee::derive_base_fee_and_gas_per_pubdata,
+    CallTracer, ExecutionResult, HistoryDisabled, HistoryMode, L1BatchEnv, SystemEnv,
+    TxExecutionMode, TxRevertReason, Vm, VmExecutionResultAndLogs, VmTracer,
 };
-use zksync_basic_types::{AccountTreeId, Bytes, H160, H256, U256, U64};
+use zksync_basic_types::{AccountTreeId, Bytes, L1BatchNumber, H160, H256, U256, U64};
 use zksync_contracts::BaseSystemContracts;
 use zksync_core::api_server::web3::backend_jsonrpc::{
     error::into_jsrpc_error, namespaces::eth::EthNamespaceT,
@@ -41,7 +39,8 @@ use zksync_state::{ReadStorage, StorageView, WriteStorage};
 use zksync_types::{
     api::{Log, TransactionReceipt, TransactionVariant},
     fee::Fee,
-    get_code_key, get_nonce_key,
+    get_code_key,
+    get_nonce_key,
     l2::L2Tx,
     transaction_request::TransactionRequest,
     tx::tx_execution_info::TxExecutionStatus,
@@ -49,12 +48,17 @@ use zksync_types::{
         decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance,
         storage_key_for_standard_token_balance,
     },
-    vm_trace::VmTrace,
-    zk_evm::{
-        block_properties::BlockProperties, zkevm_opcode_defs::system_params::MAX_PUBDATA_PER_BLOCK,
-    },
-    StorageKey, StorageLogQueryType, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
-    L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT,
+    //vm_trace::VmTrace,
+    //zk_evm::{
+    //    block_properties::BlockProperties, zkevm_opcode_defs::system_params::MAX_PUBDATA_PER_BLOCK,
+    //},
+    StorageKey,
+    StorageLogQueryType,
+    Transaction,
+    ACCOUNT_CODE_STORAGE_ADDRESS,
+    L2_ETH_TOKEN_ADDRESS,
+    MAX_GAS_PER_PUBDATA_BYTE,
+    MAX_L2_TX_GAS_LIMIT,
 };
 use zksync_utils::{
     bytecode::{compress_bytecode, hash_bytecode},
@@ -99,7 +103,7 @@ pub struct TxExecutionInfo {
     // Batch number where transaction was executed.
     pub batch_number: u32,
     pub miniblock_number: u64,
-    pub result: VmTxExecutionResult,
+    pub result: VmExecutionResultAndLogs,
 }
 
 #[derive(Debug, clap::Parser, Clone, clap::ValueEnum, PartialEq, Eq)]
@@ -248,13 +252,13 @@ pub struct InMemoryNodeInner<S> {
 
 type L2TxResult = (
     HashMap<StorageKey, H256>,
-    VmTxExecutionResult,
+    VmExecutionResultAndLogs,
     BlockInfo,
     HashMap<U256, Vec<U256>>,
 );
 
 impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
-    fn create_block_context(&self) -> BlockContext {
+    /*fn create_block_context(&self) -> BlockContext {
         BlockContext {
             block_number: self.current_batch,
             block_timestamp: self.current_timestamp,
@@ -262,14 +266,49 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             fair_l2_gas_price: L2_GAS_PRICE,
             operator_address: H160::zero(),
         }
+    }*/
+
+    fn create_l1_batch_env(&self) -> L1BatchEnv {
+        L1BatchEnv {
+            previous_batch_hash: None, // FIXME
+            number: L1BatchNumber::from(self.current_batch),
+            timestamp: self.current_timestamp,
+            l1_gas_price: self.l1_gas_price,
+            fair_l2_gas_price: L2_GAS_PRICE,
+            fee_account: H160::zero(),
+            enforced_base_fee: None,
+            first_l2_block: vm::L2BlockEnv {
+                number: self.current_miniblock as u32,
+                timestamp: self.current_timestamp,
+                prev_block_hash: H256::zero(), // FIXME
+                max_virtual_blocks_to_create: 0,
+            },
+        }
     }
 
+    fn create_system_env(
+        &self,
+        base_system_contracts: BaseSystemContracts,
+        execution_mode: TxExecutionMode,
+    ) -> SystemEnv {
+        SystemEnv {
+            zk_porter_available: false,
+            version: zksync_types::ProtocolVersionId::Version14, // FIXME
+            base_system_smart_contracts: base_system_contracts,
+            gas_limit: BLOCK_GAS_LIMIT, // FIXME (should be different for call)
+            execution_mode,
+            default_validation_computational_gas_limit: BLOCK_GAS_LIMIT, // FIXME
+            chain_id: self.fork_storage.chain_id,
+        }
+    }
+
+    /*
     fn create_block_properties(contracts: &BaseSystemContracts) -> BlockProperties {
         BlockProperties {
             default_aa_code_hash: h256_to_u256(contracts.default_aa.hash),
             zkporter_is_available: false,
         }
-    }
+    }*/
 
     /// Estimates the gas required for a given call request.
     ///
@@ -355,7 +394,15 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         let gas_for_bytecodes_pubdata: u32 =
             pubdata_for_factory_deps * (gas_per_pubdata_byte as u32);
 
-        let block_context = self.create_block_context();
+        let execution_mode = TxExecutionMode::EstimateFee;
+        let mut batch_env = self.create_l1_batch_env();
+        batch_env.l1_gas_price = l1_gas_price;
+        let system_env = self.create_system_env(
+            self.system_contracts.contracts_for_fee_estimate().clone(),
+            execution_mode,
+        );
+
+        //let block_context = self.create_block_context();
 
         // We are using binary search to find the minimal values of gas_limit under which the transaction succeeds
         let mut lower_bound = 0;
@@ -370,13 +417,12 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 gas_per_pubdata_byte,
                 try_gas_limit,
                 l1_gas_price,
-                base_fee,
-                block_context,
+                batch_env.clone(),
+                system_env.clone(),
                 &self.fork_storage,
-                self.system_contracts.contracts_for_fee_estimate(),
             );
 
-            if estimate_gas_result.is_err() {
+            if estimate_gas_result.result.is_failed() {
                 lower_bound = mid + 1;
             } else {
                 upper_bound = mid;
@@ -394,10 +440,9 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             gas_per_pubdata_byte,
             suggested_gas_limit,
             l1_gas_price,
-            base_fee,
-            block_context,
+            batch_env.clone(),
+            system_env.clone(),
             &self.fork_storage,
-            self.system_contracts.contracts_for_fee_estimate(),
         );
 
         let overhead: u32 = derive_gas_estimation_overhead(
@@ -406,8 +451,8 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             tx.encoding_len(),
         );
 
-        match estimate_gas_result {
-            Err(tx_revert_reason) => {
+        match estimate_gas_result.result {
+            ExecutionResult::Revert { output } => {
                 println!("{}", format!("Unable to estimate gas for the request with our suggested gas limit of {}. The transaction is most likely unexecutable. Breakdown of estimation:", suggested_gas_limit + overhead).red());
                 println!(
                     "{}",
@@ -422,24 +467,48 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                     format!("\tGas for pubdata: {}", gas_for_bytecodes_pubdata).red()
                 );
                 println!("{}", format!("\tOverhead: {}", overhead).red());
-                let message = tx_revert_reason.to_string();
+                let message = output.to_string();
                 let pretty_message = format!(
                     "execution reverted{}{}",
                     if message.is_empty() { "" } else { ": " },
                     message
                 );
-                let data = match tx_revert_reason {
-                    TxRevertReason::EthCall(vm_revert_reason) => vm_revert_reason.encoded_data(),
-                    TxRevertReason::TxReverted(vm_revert_reason) => vm_revert_reason.encoded_data(),
-                    _ => vec![],
-                };
+                let data = output.encoded_data();
                 println!("{}", pretty_message.on_red());
                 Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
                     pretty_message,
                     data,
                 )))
             }
-            Ok(_) => {
+            ExecutionResult::Halt { reason } => {
+                println!("{}", format!("Unable to estimate gas for the request with our suggested gas limit of {}. The transaction is most likely unexecutable. Breakdown of estimation:", suggested_gas_limit + overhead).red());
+                println!(
+                    "{}",
+                    format!(
+                        "\tEstimated transaction body gas cost: {}",
+                        tx_body_gas_limit
+                    )
+                    .red()
+                );
+                println!(
+                    "{}",
+                    format!("\tGas for pubdata: {}", gas_for_bytecodes_pubdata).red()
+                );
+                println!("{}", format!("\tOverhead: {}", overhead).red());
+                let message = reason.to_string();
+                let pretty_message = format!(
+                    "execution reverted{}{}",
+                    if message.is_empty() { "" } else { ": " },
+                    message
+                );
+
+                println!("{}", pretty_message.on_red());
+                Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
+                    pretty_message,
+                    vec![],
+                )))
+            }
+            ExecutionResult::Success { .. } => {
                 let full_gas_limit = match tx_body_gas_limit
                     .overflowing_add(gas_for_bytecodes_pubdata + overhead)
                 {
@@ -484,11 +553,10 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         gas_per_pubdata_byte: u64,
         tx_gas_limit: u32,
         l1_gas_price: u64,
-        base_fee: u64,
-        mut block_context: BlockContext,
+        mut batch_env: L1BatchEnv,
+        system_env: SystemEnv,
         fork_storage: &ForkStorage<S>,
-        bootloader_code: &BaseSystemContracts,
-    ) -> Result<VmBlockResult, TxRevertReason> {
+    ) -> VmExecutionResultAndLogs {
         let tx: Transaction = l2_tx.clone().into();
         let l1_gas_price =
             adjust_l1_gas_price_for_tx(l1_gas_price, L2_GAS_PRICE, tx.gas_per_pubdata_byte_limit());
@@ -502,58 +570,37 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             );
         l2_tx.common_data.fee.gas_limit = gas_limit_with_overhead.into();
 
-        let mut storage_view = StorageView::new(fork_storage);
+        //        let mut storage_view = StorageView::new(fork_storage);
+        let mut storage = StorageView::new(fork_storage).to_rc_ptr();
 
         // The nonce needs to be updated
         let nonce = l2_tx.nonce();
         let nonce_key = get_nonce_key(&l2_tx.initiator_account());
-        let full_nonce = storage_view.read_value(&nonce_key);
+        let full_nonce = storage.borrow_mut().read_value(&nonce_key);
         let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
         let enforced_full_nonce = nonces_to_full_nonce(U256::from(nonce.0), deployment_nonce);
-        storage_view.set_value(nonce_key, u256_to_h256(enforced_full_nonce));
+        storage
+            .borrow_mut()
+            .set_value(nonce_key, u256_to_h256(enforced_full_nonce));
 
         // We need to explicitly put enough balance into the account of the users
         let payer = l2_tx.payer();
         let balance_key = storage_key_for_eth_balance(&payer);
-        let mut current_balance = h256_to_u256(storage_view.read_value(&balance_key));
+        let mut current_balance = h256_to_u256(storage.borrow_mut().read_value(&balance_key));
         let added_balance = l2_tx.common_data.fee.gas_limit * l2_tx.common_data.fee.max_fee_per_gas;
         current_balance += added_balance;
-        storage_view.set_value(balance_key, u256_to_h256(current_balance));
+        storage
+            .borrow_mut()
+            .set_value(balance_key, u256_to_h256(current_balance));
 
-        let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryDisabled);
+        batch_env.l1_gas_price = l1_gas_price;
 
-        block_context.l1_gas_price = l1_gas_price;
-        let derived_block_context = DerivedBlockContext {
-            context: block_context,
-            base_fee,
-        };
-
-        let block_properties = InMemoryNodeInner::<S>::create_block_properties(bootloader_code);
-
-        let execution_mode = TxExecutionMode::EstimateFee {
-            missed_storage_invocation_limit: 1000000,
-        };
-
-        // init vm
-        let mut vm = init_vm_inner(
-            &mut oracle_tools,
-            BlockContextMode::OverrideCurrent(derived_block_context),
-            &block_properties,
-            BLOCK_GAS_LIMIT,
-            bootloader_code,
-            execution_mode,
-        );
+        let mut vm = Vm::new(batch_env, system_env, storage, HistoryDisabled);
 
         let tx: Transaction = l2_tx.into();
+        vm.push_transaction(tx);
 
-        push_transaction_to_bootloader_memory(&mut vm, &tx, execution_mode, None);
-
-        let vm_block_result = vm.execute_till_block_end(BootloaderJobType::TransactionExecution);
-
-        match vm_block_result.full_result.revert_reason {
-            None => Ok(vm_block_result),
-            Some(revert) => Err(revert.revert_reason),
-        }
+        vm.execute_next_transaction()
     }
 }
 
@@ -576,8 +623,8 @@ pub struct InMemoryNode<S> {
     inner: Arc<RwLock<InMemoryNodeInner<S>>>,
 }
 
-fn contract_address_from_tx_result(execution_result: &VmTxExecutionResult) -> Option<H160> {
-    for query in execution_result.result.logs.storage_logs.iter().rev() {
+fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) -> Option<H160> {
+    for query in execution_result.logs.storage_logs.iter().rev() {
         if query.log_type == StorageLogQueryType::InitialWrite
             && query.log_query.address == ACCOUNT_CODE_STORAGE_ADDRESS
         {
@@ -645,9 +692,11 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
     pub fn apply_txs(&self, txs: Vec<L2Tx>) -> Result<(), String> {
         println!("Running {:?} transactions (one per batch)", txs.len());
 
-        for tx in txs {
-            self.run_l2_tx(tx, TxExecutionMode::VerifyExecute)?;
-        }
+        self.run_l2_tx(txs.last().unwrap().clone(), TxExecutionMode::VerifyExecute)?;
+
+        //for tx in txs {
+        //    self.run_l2_tx(tx, TxExecutionMode::VerifyExecute)?;
+        //}
 
         Ok(())
     }
@@ -676,65 +725,73 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
     }
 
     /// Runs L2 'eth call' method - that doesn't commit to a block.
-    fn run_l2_call(&self, l2_tx: L2Tx) -> Result<VmBlockResult, String> {
-        let execution_mode = TxExecutionMode::EthCall {
-            missed_storage_invocation_limit: 1000000,
-        };
+    fn run_l2_call(&self, l2_tx: L2Tx) -> Result<ExecutionResult, String> {
+        let execution_mode = TxExecutionMode::EthCall;
 
         let inner = self
             .inner
             .write()
             .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
 
-        let mut storage_view = StorageView::new(&inner.fork_storage);
+        //        let mut storage_view = StorageView::new(&inner.fork_storage);
+        let mut storage = StorageView::new(&inner.fork_storage).to_rc_ptr();
 
-        let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryEnabled);
+        //let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryEnabled);
 
-        let bootloader_code = &inner.system_contracts.contacts_for_l2_call();
+        let bootloader_code = inner.system_contracts.contacts_for_l2_call();
 
-        let block_context = inner.create_block_context();
-        let block_properties = InMemoryNodeInner::<S>::create_block_properties(bootloader_code);
+        //let block_context = inner.create_block_context();
+        //let block_properties = InMemoryNodeInner::<S>::create_block_properties(bootloader_code);
 
         // init vm
-        let mut vm = init_vm_inner(
-            &mut oracle_tools,
-            BlockContextMode::NewBlock(block_context.into(), Default::default()),
-            &block_properties,
-            BLOCK_GAS_LIMIT,
-            bootloader_code,
-            execution_mode,
-        );
+
+        let batch_env = inner.create_l1_batch_env();
+        let system_env = inner.create_system_env(bootloader_code.clone(), execution_mode);
+
+        let mut vm = Vm::new(batch_env, system_env, storage, HistoryDisabled);
 
         let tx: Transaction = l2_tx.into();
+        vm.push_transaction(tx);
 
-        push_transaction_to_bootloader_memory(&mut vm, &tx, execution_mode, None);
+        //push_transaction_to_bootloader_memory(&mut vm, &tx, execution_mode, None);
+        let call_tracer_result = Arc::new(OnceCell::default());
+        let custom_tracers =
+            vec![
+                Box::new(CallTracer::new(call_tracer_result.clone(), HistoryDisabled))
+                    as Box<dyn VmTracer<StorageView<&ForkStorage<S>>, HistoryDisabled>>,
+            ];
 
-        let vm_block_result =
-            vm.execute_till_block_end_with_call_tracer(BootloaderJobType::TransactionExecution);
+        let tx_result = vm.inspect_next_transaction(custom_tracers);
 
-        if let Some(revert_reason) = &vm_block_result.full_result.revert_reason {
-            println!("Call {} {:?}", "FAILED".red(), revert_reason.revert_reason);
-        } else {
-            println!("Call {}", "SUCCESS".green());
-        }
-        if let VmTrace::CallTrace(call_trace) = &vm_block_result.full_result.trace {
-            println!("=== Console Logs: ");
-            for call in call_trace {
-                inner.console_log_handler.handle_call_recurive(call);
+        let call_traces = Arc::try_unwrap(call_tracer_result)
+            .unwrap()
+            .take()
+            .unwrap_or_default();
+
+        match &tx_result.result {
+            ExecutionResult::Success { output } => {
+                println!("Call: {} {:?}", "SUCCESS".green(), output)
             }
+            ExecutionResult::Revert { output } => println!("Call: {}: {}", "FAILED".red(), output),
+            ExecutionResult::Halt { reason } => println!("Call: {} {}", "HALTED".red(), reason),
+        };
 
-            println!("=== Call traces:");
-            for call in call_trace {
-                formatter::print_call(call, 0, &inner.show_calls, inner.resolve_hashes);
-            }
+        println!("=== Console Logs: ");
+        for call in &call_traces {
+            inner.console_log_handler.handle_call_recurive(call);
         }
 
-        Ok(vm_block_result)
+        println!("=== Call traces:");
+        for call in &call_traces {
+            formatter::print_call(call, 0, &inner.show_calls, inner.resolve_hashes);
+        }
+
+        Ok(tx_result.result)
     }
 
-    fn display_detailed_gas_info<H: HistoryMode>(
+    fn display_detailed_gas_info<WS: WriteStorage, H: HistoryMode>(
         &self,
-        vm: &VmInstance<H>,
+        vm: &Vm<WS, H>,
         spent_on_pubdata: u32,
     ) -> eyre::Result<()> {
         let debug = BootloaderDebug::load_from_memory(vm)?;
@@ -893,47 +950,61 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             .write()
             .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
 
-        let mut storage_view = StorageView::new(&inner.fork_storage);
+        let mut storage = StorageView::new(&inner.fork_storage).to_rc_ptr();
 
-        let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryEnabled);
+        //let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryEnabled);
 
         let bootloader_code = inner.system_contracts.contracts(execution_mode);
 
-        let block_context = inner.create_block_context();
-        let block_properties = InMemoryNodeInner::<S>::create_block_properties(bootloader_code);
+        //let block_context = inner.create_block_context();
+        //let block_properties = InMemoryNodeInner::<S>::create_block_properties(bootloader_code);
 
+        let batch_env = inner.create_l1_batch_env();
         let block = BlockInfo {
-            batch_number: block_context.block_number,
-            block_timestamp: block_context.block_timestamp,
+            batch_number: batch_env.number.0,
+            block_timestamp: batch_env.timestamp,
             tx_hash: l2_tx.hash(),
         };
+        let system_env = inner.create_system_env(bootloader_code.clone(), execution_mode);
+
+        let mut vm = Vm::new(batch_env, system_env, storage.clone(), HistoryDisabled);
 
         // init vm
-        let mut vm = init_vm_inner(
-            &mut oracle_tools,
-            BlockContextMode::NewBlock(block_context.into(), Default::default()),
-            &block_properties,
-            BLOCK_GAS_LIMIT,
-            bootloader_code,
-            execution_mode,
-        );
-        let spent_on_pubdata_before = vm.state.local_state.spent_pubdata_counter;
+
+        // FIXME
+        //let spent_on_pubdata_before = vm.state.local_state.spent_pubdata_counter;
 
         let tx: Transaction = l2_tx.into();
-        push_transaction_to_bootloader_memory(&mut vm, &tx, execution_mode, None);
-        let tx_result = vm
-            .execute_next_tx(u32::MAX, true)
-            .map_err(|e| format!("Failed to execute next transaction: {}", e))?;
 
-        let spent_on_pubdata = vm.state.local_state.spent_pubdata_counter - spent_on_pubdata_before;
+        vm.push_transaction(tx.clone());
+
+        let call_tracer_result = Arc::new(OnceCell::default());
+        let custom_tracers =
+            vec![
+                Box::new(CallTracer::new(call_tracer_result.clone(), HistoryDisabled))
+                    as Box<dyn VmTracer<StorageView<&ForkStorage<S>>, HistoryDisabled>>,
+            ];
+
+        let tx_result = vm.inspect_next_transaction(custom_tracers);
+
+        let call_traces = Arc::try_unwrap(call_tracer_result)
+            .unwrap()
+            .take()
+            .unwrap_or_default();
+
+        let vm_state = vm.get_current_execution_state();
+
+        let spent_on_pubdata = 11; // FIXME: vm.state.local_state.spent_pubdata_counter - spent_on_pubdata_before;
 
         println!("┌─────────────────────────┐");
         println!("│   TRANSACTION SUMMARY   │");
         println!("└─────────────────────────┘");
 
-        match tx_result.status {
-            TxExecutionStatus::Success => println!("Transaction: {}", "SUCCESS".green()),
-            TxExecutionStatus::Failure => println!("Transaction: {}", "FAILED".red()),
+        // FIXME: unpack the values.
+        match &tx_result.result {
+            ExecutionResult::Success { output } => println!("Transaction: {}", "SUCCESS".green()),
+            ExecutionResult::Revert { output } => println!("Transaction: {}", "FAILED".red()),
+            ExecutionResult::Halt { reason } => println!("Transaction: {}", "HALTED".red()),
         }
 
         println!(
@@ -944,8 +1015,8 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         println!(
             "Gas - Limit: {} | Used: {} | Refunded: {}",
             to_human_size(tx.gas_limit()),
-            to_human_size(tx.gas_limit() - tx_result.gas_refunded),
-            to_human_size(tx_result.gas_refunded.into())
+            to_human_size(tx.gas_limit() - tx_result.refunds.gas_refunded),
+            to_human_size(tx_result.refunds.gas_refunded.into())
         );
 
         match inner.show_gas_details {
@@ -971,7 +1042,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             println!("└──────────────────┘");
         }
 
-        for log_query in &tx_result.result.logs.storage_logs {
+        for log_query in &tx_result.logs.storage_logs {
             match inner.show_storage_logs {
                 ShowStorageLogs::Write => {
                     if matches!(
@@ -994,36 +1065,36 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         }
 
         if inner.show_vm_details != ShowVMDetails::None {
-            formatter::print_vm_details(&tx_result.result);
+            formatter::print_vm_details(&tx_result);
         }
 
         println!("\n==== Console logs: ");
-        for call in &tx_result.call_traces {
+        for call in &call_traces {
             inner.console_log_handler.handle_call_recurive(call);
         }
 
         println!(
             "\n==== {} Use --show-calls flag or call config_setShowCalls to display more info.",
-            format!("{:?} call traces. ", tx_result.call_traces.len()).bold()
+            format!("{:?} call traces. ", call_traces.len()).bold()
         );
 
         if inner.show_calls != ShowCalls::None {
-            for call in &tx_result.call_traces {
+            for call in &call_traces {
                 formatter::print_call(call, 0, &inner.show_calls, inner.resolve_hashes);
             }
         }
 
         println!(
             "\n==== {}",
-            format!("{} events", tx_result.result.logs.events.len()).bold()
+            format!("{} events", tx_result.logs.events.len()).bold()
         );
-        for event in &tx_result.result.logs.events {
+        for event in &tx_result.logs.events {
             formatter::print_event(event, inner.resolve_hashes);
         }
 
         println!("\n\n");
 
-        vm.execute_till_block_end(BootloaderJobType::BlockPostprocessing);
+        vm.execute_the_rest_of_the_batch();
 
         let bytecodes = vm
             .state
@@ -1032,7 +1103,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             .inner()
             .clone();
 
-        let modified_keys = storage_view.modified_storage_keys().clone();
+        let modified_keys = storage.borrow().modified_storage_keys().clone();
         Ok((modified_keys, tx_result, block, bytecodes))
     }
 
@@ -1115,41 +1186,40 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                 let result = self.run_l2_call(tx);
 
                 match result {
-                    Ok(vm_block_result) => match vm_block_result.full_result.revert_reason {
-                        Some(revert) => {
-                            let message = revert.revert_reason.to_string();
+                    Ok(execution_result) => match execution_result {
+                        ExecutionResult::Success { output } => {
+                            Ok(output.into()).into_boxed_future()
+                        }
+                        ExecutionResult::Revert { output } => {
+                            let message = output.to_user_friendly_string();
                             let pretty_message = format!(
                                 "execution reverted{}{}",
                                 if message.is_empty() { "" } else { ": " },
                                 message
                             );
-                            let data = match revert.revert_reason {
-                                TxRevertReason::EthCall(vm_revert_reason) => {
-                                    vm_revert_reason.encoded_data()
-                                }
-                                TxRevertReason::TxReverted(vm_revert_reason) => {
-                                    vm_revert_reason.encoded_data()
-                                }
-                                _ => vec![],
-                            };
+
                             println!("{}", pretty_message.on_red());
                             Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
                                 pretty_message,
-                                data,
+                                output.encoded_data(),
                             )))
                             .into_boxed_future()
                         }
-                        None => Ok(vm_block_result
-                            .full_result
-                            .return_data
-                            .into_iter()
-                            .flat_map(|val| {
-                                let bytes: [u8; 32] = val.into();
-                                bytes.to_vec()
-                            })
-                            .collect::<Vec<_>>()
-                            .into())
-                        .into_boxed_future(),
+                        ExecutionResult::Halt { reason } => {
+                            let message = reason.to_string();
+                            let pretty_message = format!(
+                                "execution halted {}{}",
+                                if message.is_empty() { "" } else { ": " },
+                                message
+                            );
+
+                            println!("{}", pretty_message.on_red());
+                            Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
+                                pretty_message,
+                                vec![],
+                            )))
+                            .into_boxed_future()
+                        }
                     },
                     Err(e) => {
                         let error = Web3Error::InvalidTransactionData(
@@ -1363,10 +1433,11 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                 from: Default::default(),
                 to: Some(info.tx.execute.contract_address),
                 cumulative_gas_used: Default::default(),
-                gas_used: Some(info.tx.common_data.fee.gas_limit - info.result.gas_refunded),
+                gas_used: Some(
+                    info.tx.common_data.fee.gas_limit - info.result.refunds.gas_refunded,
+                ),
                 contract_address: contract_address_from_tx_result(&info.result),
                 logs: info
-                    .result
                     .result
                     .logs
                     .events
@@ -1387,7 +1458,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                     })
                     .collect(),
                 l2_to_l1_logs: vec![],
-                status: Some(if info.result.status == TxExecutionStatus::Success {
+                status: Some(if !info.result.result.is_failed() {
                     U64::from(1)
                 } else {
                     U64::from(0)
