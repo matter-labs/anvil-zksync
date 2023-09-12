@@ -26,7 +26,7 @@ use vm::{
     constants::{
         BLOCK_GAS_LIMIT, BLOCK_OVERHEAD_PUBDATA, ETH_CALL_GAS_LIMIT, MAX_PUBDATA_PER_BLOCK,
     },
-    utils::fee::derive_base_fee_and_gas_per_pubdata,
+    utils::{fee::derive_base_fee_and_gas_per_pubdata, l2_blocks::load_last_l2_block},
     CallTracer, ExecutionResult, HistoryDisabled, HistoryMode, L1BatchEnv, SystemEnv,
     TxExecutionMode, TxRevertReason, Vm, VmExecutionResultAndLogs, VmTracer,
 };
@@ -35,7 +35,7 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_core::api_server::web3::backend_jsonrpc::{
     error::into_jsrpc_error, namespaces::eth::EthNamespaceT,
 };
-use zksync_state::{ReadStorage, StorageView, WriteStorage};
+use zksync_state::{ReadStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_types::{
     api::{Log, TransactionReceipt, TransactionVariant},
     fee::Fee,
@@ -268,7 +268,8 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         }
     }*/
 
-    fn create_l1_batch_env(&self) -> L1BatchEnv {
+    fn create_l1_batch_env<ST: ReadStorage>(&self, storage: StoragePtr<ST>) -> L1BatchEnv {
+        let last_l2_block = load_last_l2_block(storage);
         L1BatchEnv {
             previous_batch_hash: None, // FIXME
             number: L1BatchNumber::from(self.current_batch),
@@ -280,7 +281,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             first_l2_block: vm::L2BlockEnv {
                 number: self.current_miniblock as u32,
                 timestamp: self.current_timestamp,
-                prev_block_hash: H256::zero(), // FIXME
+                prev_block_hash: last_l2_block.hash,
                 max_virtual_blocks_to_create: 0,
             },
         }
@@ -394,8 +395,10 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         let gas_for_bytecodes_pubdata: u32 =
             pubdata_for_factory_deps * (gas_per_pubdata_byte as u32);
 
+        let mut storage = storage_view.to_rc_ptr();
+
         let execution_mode = TxExecutionMode::EstimateFee;
-        let mut batch_env = self.create_l1_batch_env();
+        let mut batch_env = self.create_l1_batch_env(storage.clone());
         batch_env.l1_gas_price = l1_gas_price;
         let system_env = self.create_system_env(
             self.system_contracts.contracts_for_fee_estimate().clone(),
@@ -745,7 +748,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         // init vm
 
-        let batch_env = inner.create_l1_batch_env();
+        let batch_env = inner.create_l1_batch_env(storage.clone());
         let system_env = inner.create_system_env(bootloader_code.clone(), execution_mode);
 
         let mut vm = Vm::new(batch_env, system_env, storage, HistoryDisabled);
@@ -959,7 +962,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         //let block_context = inner.create_block_context();
         //let block_properties = InMemoryNodeInner::<S>::create_block_properties(bootloader_code);
 
-        let batch_env = inner.create_l1_batch_env();
+        let batch_env = inner.create_l1_batch_env(storage.clone());
         let block = BlockInfo {
             batch_number: batch_env.number.0,
             block_timestamp: batch_env.timestamp,
