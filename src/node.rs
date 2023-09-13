@@ -434,8 +434,8 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
         match estimate_gas_result.result {
             ExecutionResult::Revert { output } => {
-                println!("{}", format!("Unable to estimate gas for the request with our suggested gas limit of {}. The transaction is most likely unexecutable. Breakdown of estimation:", suggested_gas_limit + overhead).red());
-                println!(
+                log::info!("{}", format!("Unable to estimate gas for the request with our suggested gas limit of {}. The transaction is most likely unexecutable. Breakdown of estimation:", suggested_gas_limit + overhead).red());
+                log::info!(
                     "{}",
                     format!(
                         "\tEstimated transaction body gas cost: {}",
@@ -447,7 +447,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                     "{}",
                     format!("\tGas for pubdata: {}", gas_for_bytecodes_pubdata).red()
                 );
-                println!("{}", format!("\tOverhead: {}", overhead).red());
+                log::info!("{}", format!("\tOverhead: {}", overhead).red());
                 let message = output.to_string();
                 let pretty_message = format!(
                     "execution reverted{}{}",
@@ -455,15 +455,15 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                     message
                 );
                 let data = output.encoded_data();
-                println!("{}", pretty_message.on_red());
+                log::info!("{}", pretty_message.on_red());
                 Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
                     pretty_message,
                     data,
                 )))
             }
             ExecutionResult::Halt { reason } => {
-                println!("{}", format!("Unable to estimate gas for the request with our suggested gas limit of {}. The transaction is most likely unexecutable. Breakdown of estimation:", suggested_gas_limit + overhead).red());
-                println!(
+                log::info!("{}", format!("Unable to estimate gas for the request with our suggested gas limit of {}. The transaction is most likely unexecutable. Breakdown of estimation:", suggested_gas_limit + overhead).red());
+                log::info!(
                     "{}",
                     format!(
                         "\tEstimated transaction body gas cost: {}",
@@ -471,11 +471,11 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                     )
                     .red()
                 );
-                println!(
+                log::info!(
                     "{}",
                     format!("\tGas for pubdata: {}", gas_for_bytecodes_pubdata).red()
                 );
-                println!("{}", format!("\tOverhead: {}", overhead).red());
+                log::info!("{}", format!("\tOverhead: {}", overhead).red());
                 let message = reason.to_string();
                 let pretty_message = format!(
                     "execution reverted{}{}",
@@ -483,7 +483,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                     message
                 );
 
-                println!("{}", pretty_message.on_red());
+                log::info!("{}", pretty_message.on_red());
                 Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
                     pretty_message,
                     vec![],
@@ -649,7 +649,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             InMemoryNodeInner {
                 current_timestamp: f.block_timestamp + 1,
                 current_batch: f.l1_block.0 + 1,
-                current_miniblock: f.l2_miniblock,
+                current_miniblock: f.l2_miniblock + 1,
                 l1_gas_price: f.l1_gas_price,
                 tx_results: Default::default(),
                 blocks,
@@ -783,18 +783,20 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         match &tx_result.result {
             ExecutionResult::Success { output } => {
-                println!("Call: {} {:?}", "SUCCESS".green(), output)
+                log::info!("Call: {} {:?}", "SUCCESS".green(), output)
             }
-            ExecutionResult::Revert { output } => println!("Call: {}: {}", "FAILED".red(), output),
-            ExecutionResult::Halt { reason } => println!("Call: {} {}", "HALTED".red(), reason),
+            ExecutionResult::Revert { output } => {
+                log::info!("Call: {}: {}", "FAILED".red(), output)
+            }
+            ExecutionResult::Halt { reason } => log::info!("Call: {} {}", "HALTED".red(), reason),
         };
 
-        println!("=== Console Logs: ");
+        log::info!("=== Console Logs: ");
         for call in &call_traces {
             inner.console_log_handler.handle_call_recurive(call);
         }
 
-        println!("=== Call traces:");
+        log::info!("=== Call traces:");
         for call in &call_traces {
             formatter::print_call(call, 0, &inner.show_calls, inner.resolve_hashes);
         }
@@ -808,9 +810,6 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         spent_on_pubdata: u32,
     ) -> eyre::Result<()> {
         let debug = bootloader_debug_result.get().unwrap().as_ref().unwrap();
-        //let debug = bootloader_debug_result.get().as_ref().unwrap().unwrap();
-
-        //let debug = BootloaderDebug::load_from_memory(vm)?;
 
         log::info!("┌─────────────────────────┐");
         log::info!("│       GAS DETAILS       │");
@@ -972,16 +971,17 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         let storage = StorageView::new(&inner.fork_storage).to_rc_ptr();
         let bootloader_code = inner.system_contracts.contracts(execution_mode);
         let batch_env = inner.create_l1_batch_env(storage.clone());
-        let block = BlockInfo {
-            batch_number: batch_env.number.0,
-            block_timestamp: batch_env.timestamp,
-            tx_hash: l2_tx.hash(),
-        };
+
         let system_env = inner.create_system_env(bootloader_code.clone(), execution_mode);
 
-        let mut vm = Vm::new(batch_env, system_env, storage.clone(), HistoryDisabled);
+        let mut vm = Vm::new(
+            batch_env.clone(),
+            system_env,
+            storage.clone(),
+            HistoryDisabled,
+        );
 
-        let tx: Transaction = l2_tx.into();
+        let tx: Transaction = l2_tx.clone().into();
 
         vm.push_transaction(tx.clone());
 
@@ -1011,9 +1011,9 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         log::info!("└─────────────────────────┘");
 
         match &tx_result.result {
-            ExecutionResult::Success { .. } => println!("Transaction: {}", "SUCCESS".green()),
-            ExecutionResult::Revert { .. } => println!("Transaction: {}", "FAILED".red()),
-            ExecutionResult::Halt { .. } => println!("Transaction: {}", "HALTED".red()),
+            ExecutionResult::Success { .. } => log::info!("Transaction: {}", "SUCCESS".green()),
+            ExecutionResult::Revert { .. } => log::info!("Transaction: {}", "FAILED".red()),
+            ExecutionResult::Halt { .. } => log::info!("Transaction: {}", "HALTED".red()),
         }
 
         log::info!("Initiator: {:?}", tx.initiator_account());
@@ -1075,13 +1075,14 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             formatter::print_vm_details(&tx_result);
         }
 
-        println!("\n==== Console logs: ");
+        log::info!("");
+        log::info!("==== Console logs: ");
         for call in &call_traces {
             inner.console_log_handler.handle_call_recurive(call);
         }
-
-        println!(
-            "\n==== {} Use --show-calls flag or call config_setShowCalls to display more info.",
+        log::info!("");
+        log::info!(
+            "==== {} Use --show-calls flag or call config_setShowCalls to display more info.",
             format!("{:?} call traces. ", call_traces.len()).bold()
         );
 
@@ -1090,16 +1091,31 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 formatter::print_call(call, 0, &inner.show_calls, inner.resolve_hashes);
             }
         }
-
-        println!(
-            "\n==== {}",
+        log::info!("");
+        log::info!(
+            "==== {}",
             format!("{} events", tx_result.logs.events.len()).bold()
         );
         for event in &tx_result.logs.events {
             formatter::print_event(event, inner.resolve_hashes);
         }
 
-        println!("\n\n");
+        // The computed block hash here will be different than that in production.
+        let hash = compute_hash(batch_env.number.0, l2_tx.hash());
+        let block = Block {
+            hash,
+            number: U64::from(inner.current_miniblock.saturating_add(1)),
+            timestamp: U256::from(batch_env.timestamp),
+            l1_batch_number: Some(U64::from(batch_env.number.0)),
+            transactions: vec![TransactionVariant::Full(
+                zksync_types::api::Transaction::from(l2_tx.clone()),
+            )],
+            gas_used: U256::from(tx_result.statistics.gas_used),
+            gas_limit: U256::from(BLOCK_GAS_LIMIT),
+            ..Default::default()
+        };
+
+        log::info!("\n\n");
 
         let bytecodes = vm
             .get_last_tx_compressed_bytecodes()
@@ -1210,7 +1226,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                                 message
                             );
 
-                            println!("{}", pretty_message.on_red());
+                            log::info!("{}", pretty_message.on_red());
                             Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
                                 pretty_message,
                                 output.encoded_data(),
@@ -1225,7 +1241,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                                 message
                             );
 
-                            println!("{}", pretty_message.on_red());
+                            log::info!("{}", pretty_message.on_red());
                             Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
                                 pretty_message,
                                 vec![],
