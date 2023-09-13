@@ -224,13 +224,22 @@ pub struct ForkDetails<S> {
     pub l1_gas_price: u64,
 }
 
+const SUPPORTED_VERSIONS: &[ProtocolVersionId] = &[
+    ProtocolVersionId::Version13,
+    ProtocolVersionId::Version14,
+    ProtocolVersionId::Version15,
+];
+
 pub fn supported_protocol_versions(version: ProtocolVersionId) -> bool {
-    match version {
-        ProtocolVersionId::Version13
-        | ProtocolVersionId::Version14
-        | ProtocolVersionId::Version15 => true,
-        _ => false,
-    }
+    SUPPORTED_VERSIONS.contains(&version)
+}
+
+pub fn supported_versions_to_string() -> String {
+    let versions: Vec<String> = SUPPORTED_VERSIONS
+        .iter()
+        .map(|v| format!("{:?}", v))
+        .collect();
+    versions.join(", ")
 }
 
 impl ForkDetails<HttpForkSource> {
@@ -258,7 +267,11 @@ impl ForkDetails<HttpForkSource> {
             .map(supported_protocol_versions)
             .unwrap_or(false)
         {
-            panic!("This block is using the unsupported protocol version: {:?}. This binary supports versions 13-15.", block_details.protocol_version);
+            panic!(
+                "This block is using the unsupported protocol version: {:?}. This binary supports versions {}.",
+                block_details.protocol_version,
+                supported_versions_to_string()
+            );
         }
 
         ForkDetails {
