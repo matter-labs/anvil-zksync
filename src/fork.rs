@@ -14,7 +14,7 @@ use tokio::runtime::Builder;
 use zksync_basic_types::{Address, L1BatchNumber, L2ChainId, MiniblockNumber, H256, U256, U64};
 
 use zksync_types::{
-    api::{BlockIdVariant, BlockNumber, Transaction},
+    api::{Block, BlockIdVariant, BlockNumber, Transaction, TransactionVariant},
     l2::L2Tx,
     StorageKey,
 };
@@ -208,6 +208,20 @@ pub trait ForkSource {
         &self,
         block_number: MiniblockNumber,
     ) -> eyre::Result<Vec<zksync_types::Transaction>>;
+
+    /// Returns the block for a given hash.
+    fn get_block_by_hash(
+        &self,
+        hash: H256,
+        full_transactions: bool,
+    ) -> eyre::Result<Option<Block<TransactionVariant>>>;
+
+    /// Returns the block for a given number.
+    fn get_block_by_number(
+        &self,
+        block_number: zksync_types::api::BlockNumber,
+        full_transactions: bool,
+    ) -> eyre::Result<Option<zksync_types::api::Block<zksync_types::api::TransactionVariant>>>;
 }
 
 /// Holds the information about the original chain.
@@ -218,7 +232,10 @@ pub struct ForkDetails<S> {
     pub fork_source: S,
     // Block number at which we forked (the next block to create is l1_block + 1)
     pub l1_block: L1BatchNumber,
+    // The actual L2 block
+    pub l2_block: zksync_types::api::Block<zksync_types::api::TransactionVariant>,
     pub l2_miniblock: u64,
+    pub l2_miniblock_hash: H256,
     pub block_timestamp: u64,
     pub overwrite_chain_id: Option<L2ChainId>,
     pub l1_gas_price: u64,
@@ -237,6 +254,21 @@ impl ForkDetails<HttpForkSource> {
             .unwrap()
             .unwrap_or_else(|| panic!("Could not find block {:?} in {:?}", miniblock, url));
 
+        let root_hash = block_details
+            .base
+            .root_hash
+            .unwrap_or_else(|| panic!("fork block #{} missing root hash", miniblock));
+        let block = client
+            .get_block_by_hash(root_hash, true)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| {
+                panic!(
+                    "Could not find block #{:?} ({:#x}) in {:?}",
+                    miniblock, root_hash, url
+                )
+            });
         let l1_batch_number = block_details.l1_batch_number;
 
         log::info!(
@@ -249,8 +281,10 @@ impl ForkDetails<HttpForkSource> {
                 fork_url: url.to_owned(),
             },
             l1_block: l1_batch_number,
+            l2_block: block,
             block_timestamp: block_details.base.timestamp,
             l2_miniblock: miniblock,
+            l2_miniblock_hash: root_hash,
             overwrite_chain_id: chain_id,
             l1_gas_price: block_details.base.l1_gas_price,
         }
