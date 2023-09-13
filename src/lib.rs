@@ -54,5 +54,5 @@ pub mod system_contracts;
 pub mod utils;
 pub mod zks;
 
-mod testing;
 mod cache;
+mod testing;

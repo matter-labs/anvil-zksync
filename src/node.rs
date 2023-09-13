@@ -1930,7 +1930,9 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
 
 #[cfg(test)]
 mod tests {
-    use crate::{http_fork_source::HttpForkSource, node::InMemoryNode, testing};
+    use crate::{
+        cache::CacheConfig, http_fork_source::HttpForkSource, node::InMemoryNode, testing,
+    };
     use zksync_types::{api::BlockNumber, Address, L2ChainId, Nonce, PackedEthSignature};
     use zksync_web3_decl::types::SyncState;
 
@@ -2042,7 +2044,7 @@ mod tests {
     async fn test_get_block_by_hash_uses_fork_source() {
         let input_block_hash = H256::repeat_byte(0x01);
 
-        let mock_server = testing::MockServer::run();
+        let mock_server = testing::MockServer::run_with_config(10, H256::repeat_byte(0xab));
         let mock_block_number = 8;
         let block_response = testing::BlockResponseBuilder::new()
             .set_hash(input_block_hash)
@@ -2061,7 +2063,7 @@ mod tests {
             block_response,
         );
         let node = InMemoryNode::<HttpForkSource>::new(
-            Some(ForkDetails::from_network(&mock_server.url(), None).await),
+            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
             crate::node::ShowCalls::None,
             ShowStorageLogs::None,
             ShowVMDetails::None,
@@ -2135,7 +2137,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_block_by_number_uses_fork_source_if_missing_number() {
-        let mock_server = testing::MockServer::run();
+        let mock_server = testing::MockServer::run_with_config(10, H256::repeat_byte(0xab));
         let mock_block_number = 8;
         let block_response = testing::BlockResponseBuilder::new()
             .set_number(mock_block_number)
@@ -2153,7 +2155,7 @@ mod tests {
             block_response,
         );
         let node = InMemoryNode::<HttpForkSource>::new(
-            Some(ForkDetails::from_network(&mock_server.url(), None).await),
+            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
             crate::node::ShowCalls::None,
             ShowStorageLogs::None,
             ShowVMDetails::None,
@@ -2212,12 +2214,25 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_block_by_number_uses_fork_source_for_latest_block_if_locally_unavailable() {
-        let latest_block_number = 10;
-        let mock_server =
-            testing::MockServer::run_with_config(latest_block_number, H256::repeat_byte(0x01));
-
+        let mock_server = testing::MockServer::run_with_config(10, H256::repeat_byte(0xab));
+        let mock_block_number = 1;
+        let block_response = testing::BlockResponseBuilder::new()
+            .set_number(mock_block_number)
+            .build();
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "eth_getBlockByNumber",
+                "params": [
+                    "latest",
+                    true
+                ],
+            }),
+            block_response,
+        );
         let node = InMemoryNode::<HttpForkSource>::new(
-            Some(ForkDetails::from_network(&mock_server.url(), None).await),
+            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
             crate::node::ShowCalls::None,
             ShowStorageLogs::None,
             ShowVMDetails::None,
@@ -2236,7 +2251,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_block_by_number_uses_fork_source_for_earliest_block() {
-        let mock_server = testing::MockServer::run();
+        let mock_server = testing::MockServer::run_with_config(10, H256::repeat_byte(0xab));
         let mock_block_number = 1;
         let block_response = testing::BlockResponseBuilder::new()
             .set_number(mock_block_number)
@@ -2254,7 +2269,7 @@ mod tests {
             block_response,
         );
         let node = InMemoryNode::<HttpForkSource>::new(
-            Some(ForkDetails::from_network(&mock_server.url(), None).await),
+            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
             crate::node::ShowCalls::None,
             ShowStorageLogs::None,
             ShowVMDetails::None,
@@ -2278,11 +2293,25 @@ mod tests {
             BlockNumber::Committed,
             BlockNumber::Finalized,
         ] {
-            let latest_block_number = 10;
-            let mock_server =
-                testing::MockServer::run_with_config(latest_block_number, H256::repeat_byte(0x01));
+            let mock_server = testing::MockServer::run_with_config(10, H256::repeat_byte(0xab));
+            let mock_block_number = 1;
+            let block_response = testing::BlockResponseBuilder::new()
+                .set_number(mock_block_number)
+                .build();
+            mock_server.expect(
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": 0,
+                    "method": "eth_getBlockByNumber",
+                    "params": [
+                        block_number,
+                        true
+                    ],
+                }),
+                block_response,
+            );
             let node = InMemoryNode::<HttpForkSource>::new(
-                Some(ForkDetails::from_network(&mock_server.url(), None).await),
+                Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
                 crate::node::ShowCalls::None,
                 ShowStorageLogs::None,
                 ShowVMDetails::None,

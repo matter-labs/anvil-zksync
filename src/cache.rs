@@ -1,31 +1,91 @@
-use eyre::Result;
 use rustc_hash::FxHashMap;
 use serde::Serialize;
+use std::fs;
+use std::fs::File;
+use std::io::{BufReader, BufWriter};
+use std::path::Path;
+use std::result::Result;
+use std::str::FromStr;
 use zksync_basic_types::H256;
 use zksync_types::api::{Block, Transaction, TransactionVariant};
 use zksync_types::Transaction as RawTransaction;
 
-const CACHE_DIR: &'static str = ".cache";
+const CACHE_TYPE_BLOCKS_FULL: &'static str = "blocks_full";
+const CACHE_TYPE_BLOCKS_MIN: &'static str = "blocks_min";
+const CACHE_TYPE_BLOCK_RAW_TRANSACTIONS: &'static str = "block_raw_transactions";
+const CACHE_TYPE_TRANSACTIONS: &'static str = "transactions";
 
+/// Cache configuration. Can be one of:
+/// 
+/// None    : Caching is disabled
+/// Memory  : Caching is provided in-memory and not persisted across runs
+/// Disk    : Caching is persisted on disk in the provided directory and can be reset
+#[derive(Debug, Clone)]
+pub enum CacheConfig {
+    None,
+    Memory,
+    Disk { dir: String, reset: bool },
+}
+
+impl std::default::Default for CacheConfig {
+    fn default() -> Self {
+        CacheConfig::None
+    }
+}
+
+/// A general purpose cache.
 #[derive(Default, Debug, Clone)]
 pub(crate) struct Cache {
-    pub(crate) block_hashes: FxHashMap<u64, H256>,
-    pub(crate) blocks_full: FxHashMap<H256, Block<TransactionVariant>>,
-    pub(crate) blocks_min: FxHashMap<H256, Block<TransactionVariant>>,
-    pub(crate) block_raw_transactions: FxHashMap<H256, Vec<RawTransaction>>,
-    pub(crate) transactions: FxHashMap<H256, Transaction>,
+    config: CacheConfig,
+    block_hashes: FxHashMap<u64, H256>,
+    blocks_full: FxHashMap<H256, Block<TransactionVariant>>,
+    blocks_min: FxHashMap<H256, Block<TransactionVariant>>,
+    block_raw_transactions: FxHashMap<u64, Vec<RawTransaction>>,
+    transactions: FxHashMap<H256, Transaction>,
 }
 
 impl Cache {
-    pub(crate) fn new() -> Self {
-        Self::default()
+    /// Creates a new cache with the provided config.
+    pub(crate) fn new(config: CacheConfig) -> Self {
+        let mut cache = Cache {
+            config: config.clone(),
+            ..Default::default()
+        };
+
+        if let CacheConfig::Disk { dir, reset } = &config {
+            if *reset {
+                fs::remove_dir_all(Path::new(dir))
+                    .unwrap_or_else(|err| eprintln!("failed removing cache from disk: {:?}", err));
+            }
+
+            for cache_type in [
+                CACHE_TYPE_BLOCKS_FULL,
+                CACHE_TYPE_BLOCKS_MIN,
+                CACHE_TYPE_BLOCK_RAW_TRANSACTIONS,
+                CACHE_TYPE_TRANSACTIONS,
+            ] {
+                fs::create_dir_all(Path::new(dir).join(cache_type)).unwrap_or_else(|err| {
+                    panic!("failed creating directory {}: {:?}", cache_type, err)
+                });
+            }
+            cache
+                .read_all_from_disk(&dir)
+                .unwrap_or_else(|err| eprintln!("failed reading cache from disk: {:?}", err));
+        }
+
+        cache
     }
 
+    /// Returns the cached full/minimal block for the provided hash.
     pub(crate) fn get_block(
         &self,
         hash: &H256,
         full_transactions: bool,
     ) -> Option<&Block<TransactionVariant>> {
+        if matches!(self.config, CacheConfig::None) {
+            return None;
+        }
+
         if full_transactions {
             self.blocks_full.get(hash)
         } else {
@@ -33,38 +93,415 @@ impl Cache {
         }
     }
 
+    /// Cache a full/minimal block for the provided hash.
     pub(crate) fn insert_block(
-        &self,
+        &mut self,
         hash: H256,
         full_transactions: bool,
         block: Block<TransactionVariant>,
     ) {
+        if matches!(self.config, CacheConfig::None) {
+            return;
+        }
+
+        self.block_hashes.insert(block.number.as_u64(), block.hash);
         if full_transactions {
+            self.write_to_disk(CACHE_TYPE_BLOCKS_FULL, format!("{:#x}", hash), &block);
             self.blocks_full.insert(hash, block);
         } else {
+            self.write_to_disk(CACHE_TYPE_BLOCKS_MIN, format!("{:#x}", hash), &block);
             self.blocks_min.insert(hash, block);
         }
     }
 
-    pub(crate) fn get_block_hash(&self, number: u64) -> Option<&H256> {
+    /// Returns the cached full/minimal block for the provided hash.
+    pub(crate) fn get_block_hash(&self, number: &u64) -> Option<&H256> {
+        if matches!(self.config, CacheConfig::None) {
+            return None;
+        }
+
         self.block_hashes.get(&number)
     }
 
-    pub(crate) fn insert_block_hash(&self, number: u64, hash: H256) {
-        self.block_hashes.insert(number, hash);
-        Self::write(format!("block-hashes/{number}"), serde_json::to_string(&hash).expect("failed encoding value").as_bytes());
+    /// Returns the cached raw transactions for the provided block number.
+    pub(crate) fn get_block_raw_transactions(&self, number: &u64) -> Option<&Vec<RawTransaction>> {
+        if matches!(self.config, CacheConfig::None) {
+            return None;
+        }
+
+        self.block_raw_transactions.get(number)
     }
 
-    pub(crate) fn get_block_raw_transactions(&self, hash: &H256) -> Option<&Vec<RawTransaction>> {
-        self.block_raw_transactions.get(&hash)
+    /// Cache the raw transactions for the provided block number.
+    pub(crate) fn insert_block_raw_transactions(
+        &mut self,
+        number: u64,
+        transactions: Vec<RawTransaction>,
+    ) {
+        if matches!(self.config, CacheConfig::None) {
+            return;
+        }
+
+        self.write_to_disk(
+            CACHE_TYPE_BLOCK_RAW_TRANSACTIONS,
+            format!("{}", number),
+            &transactions,
+        );
+        self.block_raw_transactions.insert(number, transactions);
     }
 
-    pub(crate) fn insert_block_raw_transactions(&self, hash: H256, transactions: Vec<RawTransaction>) {
-        self.block_raw_transactions.insert(hash, transactions);
-        Self::write(format!("block-raw-transactions/{hash}"), transactions.as_bytes());
+    /// Returns the cached transaction for the provided hash.
+    pub(crate) fn get_transaction(&self, hash: &H256) -> Option<&Transaction> {
+        if matches!(self.config, CacheConfig::None) {
+            return None;
+        }
+
+        self.transactions.get(&hash)
     }
 
-    fn write(key: String, data: &[u8]) {
+    /// Cache a transaction for the provided hash.
+    pub(crate) fn insert_transaction(&mut self, hash: H256, transaction: Transaction) {
+        if matches!(self.config, CacheConfig::None) {
+            return;
+        }
 
+        self.write_to_disk(
+            CACHE_TYPE_TRANSACTIONS,
+            format!("{:#x}", hash),
+            &transaction,
+        );
+        self.transactions.insert(hash, transaction);
+    }
+
+    /// Reads the cache contents from the disk, if available.
+    fn read_all_from_disk(&mut self, dir: &str) -> Result<(), String> {
+        for cache_type in [
+            CACHE_TYPE_BLOCKS_FULL,
+            CACHE_TYPE_BLOCKS_MIN,
+            CACHE_TYPE_BLOCK_RAW_TRANSACTIONS,
+            CACHE_TYPE_TRANSACTIONS,
+        ] {
+            let cache_dir = Path::new(dir).join(cache_type);
+            let dir_listing = fs::read_dir(cache_dir.clone())
+                .map_err(|err| format!("failed reading dir '{:?}': {:?}", cache_dir, err))?;
+            for file in dir_listing {
+                if let Ok(file) = file {
+                    let key = file
+                        .file_name()
+                        .to_str()
+                        .ok_or_else(|| String::from("failed converting filename to string"))?
+                        .to_string();
+
+                    let cache_file = File::open(file.path()).map_err(|err| {
+                        format!("failed reading file: '{:?}': {:?}", file.path(), err)
+                    })?;
+                    let reader = BufReader::new(cache_file);
+                    match cache_type {
+                        CACHE_TYPE_BLOCKS_FULL => {
+                            let key = H256::from_str(&key).map_err(|err| {
+                                format!("invalid key for cache file '{:?}': {:?}", key, err)
+                            })?;
+                            let block: Block<TransactionVariant> = serde_json::from_reader(reader)
+                                .map_err(|err| {
+                                    format!(
+                                        "failed parsing json for cache file '{:?}': {:?}",
+                                        key, err
+                                    )
+                                })?;
+                            self.block_hashes.insert(block.number.as_u64(), block.hash);
+                            self.blocks_full.insert(key, block);
+                        }
+                        CACHE_TYPE_BLOCKS_MIN => {
+                            let key = H256::from_str(&key).map_err(|err| {
+                                format!("invalid key for cache file '{:?}': {:?}", key, err)
+                            })?;
+                            let block: Block<TransactionVariant> = serde_json::from_reader(reader)
+                                .map_err(|err| {
+                                    format!(
+                                        "failed parsing json for cache file '{:?}': {:?}",
+                                        key, err
+                                    )
+                                })?;
+                            self.block_hashes.insert(block.number.as_u64(), block.hash);
+                            self.blocks_min.insert(key, block);
+                        }
+                        CACHE_TYPE_BLOCK_RAW_TRANSACTIONS => {
+                            let key = key.parse::<u64>().map_err(|err| {
+                                format!("invalid key for cache file '{:?}': {:?}", key, err)
+                            })?;
+                            let transactions: Vec<RawTransaction> = serde_json::from_reader(reader)
+                                .map_err(|err| {
+                                    format!(
+                                        "failed parsing json for cache file '{:?}': {:?}",
+                                        key, err
+                                    )
+                                })?;
+                            self.block_raw_transactions.insert(key, transactions);
+                        }
+                        CACHE_TYPE_TRANSACTIONS => {
+                            let key = H256::from_str(&key).map_err(|err| {
+                                format!("invalid key for cache file '{:?}': {:?}", key, err)
+                            })?;
+                            let transaction: Transaction = serde_json::from_reader(reader)
+                                .map_err(|err| {
+                                    format!(
+                                        "failed parsing json for cache file '{:?}': {:?}",
+                                        key, err
+                                    )
+                                })?;
+                            self.transactions.insert(key, transaction);
+                        }
+                        _ => return Err(format!("invalid cache_type {}", cache_type)),
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Writes the cache contents to disk, if supported.
+    fn write_to_disk<T: Serialize>(&self, cache_type: &'static str, key: String, data: &T) {
+        if let CacheConfig::Disk { dir, .. } = &self.config {
+            let file = Path::new(&dir).join(cache_type).join(key);
+
+            println!("writing cache {:?}", file);
+            match File::create(file.clone()) {
+                Ok(cache_file) => {
+                    let writer = BufWriter::new(cache_file);
+                    if let Err(err) = serde_json::to_writer(writer, data) {
+                        eprintln!("failed writing to cache '{:?}': {:?}", file, err);
+                    }
+                }
+                Err(err) => eprintln!("failed creating file: '{:?}': {:?}", file, err),
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use tempdir::TempDir;
+    use zksync_basic_types::U64;
+    use zksync_types::{Execute, ExecuteTransactionCommon};
+
+    use super::*;
+
+    #[test]
+    fn test_cache_config_none_disables_cache() {
+        let mut cache = Cache::new(CacheConfig::None);
+
+        cache.insert_block(H256::zero(), true, Default::default());
+        assert_eq!(None, cache.get_block(&H256::zero(), true));
+        assert_eq!(None, cache.get_block_hash(&0));
+
+        cache.insert_block(H256::zero(), false, Default::default());
+        assert_eq!(None, cache.get_block(&H256::zero(), false));
+        assert_eq!(None, cache.get_block_hash(&0));
+
+        cache.insert_block_raw_transactions(0, Default::default());
+        assert_eq!(None, cache.get_block_raw_transactions(&0));
+
+        cache.insert_transaction(H256::zero(), Default::default());
+        assert_eq!(None, cache.get_transaction(&H256::zero()));
+    }
+
+    #[test]
+    fn test_cache_config_memory_enables_cache() {
+        let block_full = Block::<TransactionVariant> {
+            hash: H256::repeat_byte(0x1),
+            number: U64::from(1),
+            ..Default::default()
+        };
+        let block_min = Block::<TransactionVariant> {
+            hash: H256::repeat_byte(0x2),
+            number: U64::from(2),
+            ..Default::default()
+        };
+        let transaction = Transaction::default();
+        let raw_transactions = vec![RawTransaction {
+            common_data: ExecuteTransactionCommon::L1(Default::default()),
+            execute: Execute {
+                calldata: Default::default(),
+                contract_address: Default::default(),
+                factory_deps: None,
+                value: Default::default(),
+            },
+            received_timestamp_ms: 0,
+        }];
+
+        let mut cache = Cache::new(CacheConfig::Memory);
+
+        cache.insert_block(block_full.hash, true, block_full.clone());
+        assert_eq!(
+            Some(&block_full),
+            cache.get_block(&H256::repeat_byte(0x1), true)
+        );
+        assert_eq!(Some(&H256::repeat_byte(0x1)), cache.get_block_hash(&1));
+
+        cache.insert_block(block_min.hash, false, block_min.clone());
+        assert_eq!(
+            Some(&block_min),
+            cache.get_block(&H256::repeat_byte(0x2), false)
+        );
+        assert_eq!(Some(&H256::repeat_byte(0x2)), cache.get_block_hash(&2));
+
+        cache.insert_block_raw_transactions(0, raw_transactions.clone());
+        assert_eq!(
+            Some(&raw_transactions),
+            cache.get_block_raw_transactions(&0)
+        );
+
+        cache.insert_transaction(H256::zero(), transaction.clone());
+        assert_eq!(Some(&transaction), cache.get_transaction(&H256::zero()));
+    }
+
+    #[test]
+    fn test_cache_config_disk_enables_cache_and_preserves_it_to_disk() {
+        let block_full = Block::<TransactionVariant> {
+            hash: H256::repeat_byte(0x1),
+            number: U64::from(1),
+            ..Default::default()
+        };
+        let block_min = Block::<TransactionVariant> {
+            hash: H256::repeat_byte(0x2),
+            number: U64::from(2),
+            ..Default::default()
+        };
+        let transaction = Transaction::default();
+        let raw_transactions = vec![RawTransaction {
+            common_data: ExecuteTransactionCommon::L1(Default::default()),
+            execute: Execute {
+                calldata: Default::default(),
+                contract_address: Default::default(),
+                factory_deps: None,
+                value: Default::default(),
+            },
+            received_timestamp_ms: 0,
+        }];
+
+        let cache_dir = TempDir::new("cache-test").expect("failed creating temporary dir");
+        let cache_dir_path = cache_dir
+            .path()
+            .to_str()
+            .expect("invalid dir name")
+            .to_string();
+        let mut cache = Cache::new(CacheConfig::Disk {
+            dir: cache_dir_path.clone(),
+            reset: true,
+        });
+
+        cache.insert_block(block_full.hash, true, block_full.clone());
+        assert_eq!(
+            Some(&block_full),
+            cache.get_block(&H256::repeat_byte(0x1), true)
+        );
+        assert_eq!(Some(&H256::repeat_byte(0x1)), cache.get_block_hash(&1));
+
+        cache.insert_block(block_min.hash, false, block_min.clone());
+        assert_eq!(
+            Some(&block_min),
+            cache.get_block(&H256::repeat_byte(0x2), false)
+        );
+        assert_eq!(Some(&H256::repeat_byte(0x2)), cache.get_block_hash(&2));
+
+        cache.insert_block_raw_transactions(0, raw_transactions.clone());
+        assert_eq!(
+            Some(&raw_transactions),
+            cache.get_block_raw_transactions(&0)
+        );
+
+        cache.insert_transaction(H256::zero(), transaction.clone());
+        assert_eq!(Some(&transaction), cache.get_transaction(&H256::zero()));
+
+        let new_cache = Cache::new(CacheConfig::Disk {
+            dir: cache_dir_path,
+            reset: false,
+        });
+        assert_eq!(
+            Some(&block_full),
+            new_cache.get_block(&H256::repeat_byte(0x1), true)
+        );
+        assert_eq!(Some(&H256::repeat_byte(0x1)), new_cache.get_block_hash(&1));
+        assert_eq!(
+            Some(&block_min),
+            new_cache.get_block(&H256::repeat_byte(0x2), false)
+        );
+        assert_eq!(Some(&H256::repeat_byte(0x2)), new_cache.get_block_hash(&2));
+        assert_eq!(
+            Some(&raw_transactions),
+            new_cache.get_block_raw_transactions(&0)
+        );
+        assert_eq!(Some(&transaction), new_cache.get_transaction(&H256::zero()));
+    }
+
+    #[test]
+    fn test_cache_config_disk_enables_cache_and_can_reset_data_on_disk() {
+        let block_full = Block::<TransactionVariant> {
+            hash: H256::repeat_byte(0x1),
+            number: U64::from(1),
+            ..Default::default()
+        };
+        let block_min = Block::<TransactionVariant> {
+            hash: H256::repeat_byte(0x2),
+            number: U64::from(2),
+            ..Default::default()
+        };
+        let transaction = Transaction::default();
+        let raw_transactions = vec![RawTransaction {
+            common_data: ExecuteTransactionCommon::L1(Default::default()),
+            execute: Execute {
+                calldata: Default::default(),
+                contract_address: Default::default(),
+                factory_deps: None,
+                value: Default::default(),
+            },
+            received_timestamp_ms: 0,
+        }];
+
+        let cache_dir = TempDir::new("cache-test").expect("failed creating temporary dir");
+        let cache_dir_path = cache_dir
+            .path()
+            .to_str()
+            .expect("invalid dir name")
+            .to_string();
+        let mut cache = Cache::new(CacheConfig::Disk {
+            dir: cache_dir_path.clone(),
+            reset: true,
+        });
+
+        cache.insert_block(block_full.hash, true, block_full.clone());
+        assert_eq!(
+            Some(&block_full),
+            cache.get_block(&H256::repeat_byte(0x1), true)
+        );
+        assert_eq!(Some(&H256::repeat_byte(0x1)), cache.get_block_hash(&1));
+
+        cache.insert_block(block_min.hash, false, block_min.clone());
+        assert_eq!(
+            Some(&block_min),
+            cache.get_block(&H256::repeat_byte(0x2), false)
+        );
+        assert_eq!(Some(&H256::repeat_byte(0x2)), cache.get_block_hash(&2));
+
+        cache.insert_block_raw_transactions(0, raw_transactions.clone());
+        assert_eq!(
+            Some(&raw_transactions),
+            cache.get_block_raw_transactions(&0)
+        );
+
+        cache.insert_transaction(H256::zero(), transaction.clone());
+        assert_eq!(Some(&transaction), cache.get_transaction(&H256::zero()));
+
+        let new_cache = Cache::new(CacheConfig::Disk {
+            dir: cache_dir_path,
+            reset: true,
+        });
+        assert_eq!(None, new_cache.get_block(&H256::zero(), true));
+        assert_eq!(None, new_cache.get_block_hash(&1));
+        assert_eq!(None, new_cache.get_block(&H256::zero(), false));
+        assert_eq!(None, new_cache.get_block_hash(&2));
+        assert_eq!(None, new_cache.get_block_raw_transactions(&0));
+        assert_eq!(None, new_cache.get_transaction(&H256::zero()));
     }
 }
