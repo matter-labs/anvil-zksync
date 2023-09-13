@@ -250,7 +250,8 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
     fn create_l1_batch_env<ST: ReadStorage>(&self, storage: StoragePtr<ST>) -> L1BatchEnv {
         let last_l2_block = load_last_l2_block(storage);
         L1BatchEnv {
-            previous_batch_hash: None, // FIXME
+            // TODO: set the previous batch hash properly (take from fork, when forking, and from local storage, when this is not the first block).
+            previous_batch_hash: None,
             number: L1BatchNumber::from(self.current_batch),
             timestamp: self.current_timestamp,
             l1_gas_price: self.l1_gas_price,
@@ -273,11 +274,12 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
     ) -> SystemEnv {
         SystemEnv {
             zk_porter_available: false,
-            version: zksync_types::ProtocolVersionId::Version14, // FIXME
+            // TODO: when forking, we could consider taking the protocol version id from the fork itself.
+            version: zksync_types::ProtocolVersionId::latest(),
             base_system_smart_contracts: base_system_contracts,
-            gas_limit: BLOCK_GAS_LIMIT, // FIXME (should be different for call)
+            gas_limit: BLOCK_GAS_LIMIT,
             execution_mode,
-            default_validation_computational_gas_limit: BLOCK_GAS_LIMIT, // FIXME
+            default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
             chain_id: self.fork_storage.chain_id,
         }
     }
@@ -960,7 +962,6 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         println!("│   TRANSACTION SUMMARY   │");
         println!("└─────────────────────────┘");
 
-        // FIXME: unpack the values.
         match &tx_result.result {
             ExecutionResult::Success { .. } => println!("Transaction: {}", "SUCCESS".green()),
             ExecutionResult::Revert { .. } => println!("Transaction: {}", "FAILED".red()),
