@@ -197,7 +197,7 @@ pub fn print_vm_details(result: &VmExecutionResultAndLogs) {
     );
     println!("Contracts Used:       {}", result.statistics.contracts_used);
     match &result.result {
-        vm::ExecutionResult::Success { output } => {}
+        vm::ExecutionResult::Success { .. } => {}
         vm::ExecutionResult::Revert { output } => {
             println!(
                 "{}",

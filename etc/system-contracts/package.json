@@ -4,7 +4,7 @@
   "repository": "git@github.com:matter-labs/system-contracts.git",
   "license": "MIT",
   "dependencies": {
-    "@matterlabs/hardhat-zksync-deploy": "^0.5.2",
+    "@matterlabs/hardhat-zksync-deploy": "^0.6.3",
     "@nomiclabs/hardhat-solpp": "^2.0.1",
     "commander": "^9.4.1",
     "ethers": "^5.7.0",
@@ -45,5 +45,6 @@
     "clean": "hardhat clean && rm -rf ./bootloader/build",
     "preprocess": "rm -rf ./bootloader/build && yarn ts-node scripts/process.ts",
     "build-bootloader": "yarn hardhat run ./scripts/compile-yul.ts"
-  }
+  },
+  "packageManager": "yarn@1.22.19"
 }

@@ -111,7 +111,7 @@ fn bsc_load_with_bootloader(
 pub fn playground(options: &Options) -> BaseSystemContracts {
     let bootloader_bytecode = match options {
         Options::BuiltIn | Options::BuiltInWithoutSecurity => {
-            include_bytes!("deps/contracts/playground_block.yul.zbin").to_vec()
+            include_bytes!("deps/contracts/playground_batch.yul.zbin").to_vec()
         }
         Options::Local => read_playground_batch_bootloader_bytecode(),
     };
@@ -145,7 +145,7 @@ pub fn fee_estimate_contracts(options: &Options) -> BaseSystemContracts {
 pub fn baseline_contracts(options: &Options) -> BaseSystemContracts {
     let bootloader_bytecode = match options {
         Options::BuiltIn | Options::BuiltInWithoutSecurity => {
-            include_bytes!("deps/contracts/proved_block.yul.zbin").to_vec()
+            include_bytes!("deps/contracts/proved_batch.yul.zbin").to_vec()
         }
         Options::Local => read_proved_batch_bootloader_bytecode(),
     };

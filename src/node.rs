@@ -28,7 +28,7 @@ use vm::{
     },
     utils::{fee::derive_base_fee_and_gas_per_pubdata, l2_blocks::load_last_l2_block},
     CallTracer, ExecutionResult, HistoryDisabled, HistoryMode, L1BatchEnv, SystemEnv,
-    TxExecutionMode, TxRevertReason, Vm, VmExecutionResultAndLogs, VmTracer,
+    TxExecutionMode, Vm, VmExecutionResultAndLogs, VmTracer,
 };
 use zksync_basic_types::{AccountTreeId, Bytes, L1BatchNumber, H160, H256, U256, U64};
 use zksync_contracts::BaseSystemContracts;
@@ -39,26 +39,15 @@ use zksync_state::{ReadStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_types::{
     api::{Log, TransactionReceipt, TransactionVariant},
     fee::Fee,
-    get_code_key,
-    get_nonce_key,
+    get_code_key, get_nonce_key,
     l2::L2Tx,
     transaction_request::TransactionRequest,
-    tx::tx_execution_info::TxExecutionStatus,
     utils::{
         decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance,
         storage_key_for_standard_token_balance,
     },
-    //vm_trace::VmTrace,
-    //zk_evm::{
-    //    block_properties::BlockProperties, zkevm_opcode_defs::system_params::MAX_PUBDATA_PER_BLOCK,
-    //},
-    StorageKey,
-    StorageLogQueryType,
-    Transaction,
-    ACCOUNT_CODE_STORAGE_ADDRESS,
-    L2_ETH_TOKEN_ADDRESS,
-    MAX_GAS_PER_PUBDATA_BYTE,
-    MAX_L2_TX_GAS_LIMIT,
+    StorageKey, StorageLogQueryType, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
+    L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT,
 };
 use zksync_utils::{
     bytecode::{compress_bytecode, hash_bytecode},
@@ -258,16 +247,6 @@ type L2TxResult = (
 );
 
 impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
-    /*fn create_block_context(&self) -> BlockContext {
-        BlockContext {
-            block_number: self.current_batch,
-            block_timestamp: self.current_timestamp,
-            l1_gas_price: self.l1_gas_price,
-            fair_l2_gas_price: L2_GAS_PRICE,
-            operator_address: H160::zero(),
-        }
-    }*/
-
     fn create_l1_batch_env<ST: ReadStorage>(&self, storage: StoragePtr<ST>) -> L1BatchEnv {
         let last_l2_block = load_last_l2_block(storage);
         L1BatchEnv {
@@ -282,7 +261,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 number: self.current_miniblock as u32,
                 timestamp: self.current_timestamp,
                 prev_block_hash: last_l2_block.hash,
-                max_virtual_blocks_to_create: 0,
+                max_virtual_blocks_to_create: 1,
             },
         }
     }
@@ -302,14 +281,6 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             chain_id: self.fork_storage.chain_id,
         }
     }
-
-    /*
-    fn create_block_properties(contracts: &BaseSystemContracts) -> BlockProperties {
-        BlockProperties {
-            default_aa_code_hash: h256_to_u256(contracts.default_aa.hash),
-            zkporter_is_available: false,
-        }
-    }*/
 
     /// Estimates the gas required for a given call request.
     ///
@@ -395,7 +366,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         let gas_for_bytecodes_pubdata: u32 =
             pubdata_for_factory_deps * (gas_per_pubdata_byte as u32);
 
-        let mut storage = storage_view.to_rc_ptr();
+        let storage = storage_view.to_rc_ptr();
 
         let execution_mode = TxExecutionMode::EstimateFee;
         let mut batch_env = self.create_l1_batch_env(storage.clone());
@@ -573,8 +544,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             );
         l2_tx.common_data.fee.gas_limit = gas_limit_with_overhead.into();
 
-        //        let mut storage_view = StorageView::new(fork_storage);
-        let mut storage = StorageView::new(fork_storage).to_rc_ptr();
+        let storage = StorageView::new(fork_storage).to_rc_ptr();
 
         // The nonce needs to be updated
         let nonce = l2_tx.nonce();
@@ -695,11 +665,9 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
     pub fn apply_txs(&self, txs: Vec<L2Tx>) -> Result<(), String> {
         println!("Running {:?} transactions (one per batch)", txs.len());
 
-        self.run_l2_tx(txs.last().unwrap().clone(), TxExecutionMode::VerifyExecute)?;
-
-        //for tx in txs {
-        //    self.run_l2_tx(tx, TxExecutionMode::VerifyExecute)?;
-        //}
+        for tx in txs {
+            self.run_l2_tx(tx, TxExecutionMode::VerifyExecute)?;
+        }
 
         Ok(())
     }
@@ -736,15 +704,9 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             .write()
             .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
 
-        //        let mut storage_view = StorageView::new(&inner.fork_storage);
-        let mut storage = StorageView::new(&inner.fork_storage).to_rc_ptr();
-
-        //let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryEnabled);
+        let storage = StorageView::new(&inner.fork_storage).to_rc_ptr();
 
         let bootloader_code = inner.system_contracts.contacts_for_l2_call();
-
-        //let block_context = inner.create_block_context();
-        //let block_properties = InMemoryNodeInner::<S>::create_block_properties(bootloader_code);
 
         // init vm
 
@@ -953,7 +915,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             .write()
             .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
 
-        let mut storage = StorageView::new(&inner.fork_storage).to_rc_ptr();
+        let storage = StorageView::new(&inner.fork_storage).to_rc_ptr();
 
         //let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryEnabled);
 
@@ -995,7 +957,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             .take()
             .unwrap_or_default();
 
-        let vm_state = vm.get_current_execution_state();
+        //let vm_state = vm.get_current_execution_state();
 
         let spent_on_pubdata = 11; // FIXME: vm.state.local_state.spent_pubdata_counter - spent_on_pubdata_before;
 
@@ -1005,9 +967,9 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         // FIXME: unpack the values.
         match &tx_result.result {
-            ExecutionResult::Success { output } => println!("Transaction: {}", "SUCCESS".green()),
-            ExecutionResult::Revert { output } => println!("Transaction: {}", "FAILED".red()),
-            ExecutionResult::Halt { reason } => println!("Transaction: {}", "HALTED".red()),
+            ExecutionResult::Success { .. } => println!("Transaction: {}", "SUCCESS".green()),
+            ExecutionResult::Revert { .. } => println!("Transaction: {}", "FAILED".red()),
+            ExecutionResult::Halt { .. } => println!("Transaction: {}", "HALTED".red()),
         }
 
         println!(
