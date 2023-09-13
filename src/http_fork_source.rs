@@ -59,4 +59,28 @@ impl ForkSource for HttpForkSource {
         block_on(async move { client.get_raw_block_transactions(block_number).await })
             .wrap_err("fork http client failed")
     }
+
+    fn get_block_by_hash(
+        &self,
+        hash: zksync_basic_types::H256,
+        full_transactions: bool,
+    ) -> eyre::Result<Option<zksync_types::api::Block<zksync_types::api::TransactionVariant>>> {
+        let client = self.create_client();
+        block_on(async move { client.get_block_by_hash(hash, full_transactions).await })
+            .wrap_err("fork http client failed")
+    }
+
+    fn get_block_by_number(
+        &self,
+        block_number: zksync_types::api::BlockNumber,
+        full_transactions: bool,
+    ) -> eyre::Result<Option<zksync_types::api::Block<zksync_types::api::TransactionVariant>>> {
+        let client = self.create_client();
+        block_on(async move {
+            client
+                .get_block_by_number(block_number, full_transactions)
+                .await
+        })
+        .wrap_err("fork http client failed")
+    }
 }
