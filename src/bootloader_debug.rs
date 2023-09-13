@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use once_cell::sync::OnceCell;
 use vm::{
-    bootloader_state::BootloaderState, constants::BOOTLOADER_HEAP_PAGE,
-    types::internals::ZkSyncVmState, DynTracer, ExecutionEndTracer, ExecutionProcessing,
-    HistoryMode, SimpleMemory, VmExecutionResultAndLogs, VmExecutionStopReason, VmTracer,
+    constants::BOOTLOADER_HEAP_PAGE, BootloaderState, DynTracer, ExecutionEndTracer,
+    ExecutionProcessing, HistoryMode, SimpleMemory, VmExecutionResultAndLogs,
+    VmExecutionStopReason, VmTracer, ZkSyncVmState,
 };
 use zksync_basic_types::U256;
 use zksync_state::WriteStorage;
