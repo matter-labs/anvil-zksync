@@ -5,9 +5,7 @@ use crate::{
     fork::{ForkDetails, ForkSource, ForkStorage},
     formatter,
     system_contracts::{self, SystemContracts},
-    utils::{
-        adjust_l1_gas_price_for_tx, derive_gas_estimation_overhead, to_human_size, IntoBoxedFuture,
-    },
+    utils::{adjust_l1_gas_price_for_tx, to_human_size, IntoBoxedFuture},
 };
 use clap::Parser;
 use colored::Colorize;
@@ -26,7 +24,11 @@ use vm::{
     constants::{
         BLOCK_GAS_LIMIT, BLOCK_OVERHEAD_PUBDATA, ETH_CALL_GAS_LIMIT, MAX_PUBDATA_PER_BLOCK,
     },
-    utils::{fee::derive_base_fee_and_gas_per_pubdata, l2_blocks::load_last_l2_block},
+    utils::{
+        fee::derive_base_fee_and_gas_per_pubdata,
+        l2_blocks::load_last_l2_block,
+        overhead::{derive_overhead, OverheadCoeficients},
+    },
     CallTracer, ExecutionResult, HistoryDisabled, HistoryMode, L1BatchEnv, SystemEnv,
     TxExecutionMode, Vm, VmExecutionResultAndLogs, VmTracer,
 };
@@ -46,7 +48,7 @@ use zksync_types::{
         decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance,
         storage_key_for_standard_token_balance,
     },
-    StorageKey, StorageLogQueryType, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
+    StorageKey, StorageLogQueryType, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS, EIP_712_TX_TYPE,
     L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT,
 };
 use zksync_utils::{
@@ -421,10 +423,12 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             &self.fork_storage,
         );
 
-        let overhead: u32 = derive_gas_estimation_overhead(
+        let coefficients = OverheadCoeficients::from_tx_type(EIP_712_TX_TYPE);
+        let overhead: u32 = derive_overhead(
             suggested_gas_limit,
             gas_per_pubdata_byte as u32,
             tx.encoding_len(),
+            coefficients,
         );
 
         match estimate_gas_result.result {
@@ -537,12 +541,14 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         let l1_gas_price =
             adjust_l1_gas_price_for_tx(l1_gas_price, L2_GAS_PRICE, tx.gas_per_pubdata_byte_limit());
 
+        let coefficients = OverheadCoeficients::from_tx_type(EIP_712_TX_TYPE);
         // Set gas_limit for transaction
         let gas_limit_with_overhead = tx_gas_limit
-            + derive_gas_estimation_overhead(
+            + derive_overhead(
                 tx_gas_limit,
                 gas_per_pubdata_byte as u32,
                 tx.encoding_len(),
+                coefficients,
             );
         l2_tx.common_data.fee.gas_limit = gas_limit_with_overhead.into();
 
