@@ -50,7 +50,9 @@ jobs:
         run: rustup target add ${{ matrix.arch }}
       - uses: Swatinem/rust-cache@v2
         with:
-          cache-on-failure: true
+          cache-on-failure: false
+      - name: Run cargo clean
+        run: cargo clean
 
       # ==============================
       #       Builds
@@ -122,6 +124,13 @@ jobs:
           echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
           echo "$(git log --pretty=format:"- %s" $(git describe --tags --abbrev=0 ${{ env.VERSION }}^)..${{ env.VERSION }})" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: Generate list of contributors
+        id: contributors
+        run: |
+          echo "CONTRIBUTORS<<EOF" >> $GITHUB_OUTPUT
+          echo "$(git log --pretty=format:"- %aN (%aE)" $(git describe --tags --abbrev=0 ${{ env.VERSION }}^)..${{ env.VERSION }} | sort | uniq)" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Create release draft
         env:
@@ -131,17 +140,26 @@ jobs:
         # The formatting here is borrowed from reth which borrowed it from Lighthouse (which is borrowed from OpenEthereum): https://github.com/openethereum/openethereum/blob/main/.github/workflows/build.yml
         run: |
           body=$(cat <<- "ENDBODY"
-          # Release: <Release Name>
+          Release: ${{ env.VERSION }}
           
           ## 📋 Summary
           
-          🐛 **Bug Fixes:** 
-          ✨ **New Features:** 
+          🐛 **Bug Fixes:**
+          - TBD
+          
+          ✨ **New Features:**
+          - TBD
+          
           ⚠️ **Breaking Changes:**
+          - TBD
           
           ## 📜 All Changes
           
           ${{ steps.changelog.outputs.CHANGELOG }}
+          
+          ## ⭐ Contributors
+          
+          ${{ steps.contributors.outputs.CONTRIBUTORS }}
           
           ## 📥 Binaries
           
