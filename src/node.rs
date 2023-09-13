@@ -718,7 +718,6 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         let tx: Transaction = l2_tx.into();
         vm.push_transaction(tx);
 
-        //push_transaction_to_bootloader_memory(&mut vm, &tx, execution_mode, None);
         let call_tracer_result = Arc::new(OnceCell::default());
         let custom_tracers =
             vec![
@@ -935,9 +934,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         let mut vm = Vm::new(batch_env, system_env, storage.clone(), HistoryDisabled);
 
         // init vm
-
-        // FIXME
-        //let spent_on_pubdata_before = vm.state.local_state.spent_pubdata_counter;
+        let spent_on_pubdata_before = vm.state.local_state.spent_pubdata_counter;
 
         let tx: Transaction = l2_tx.into();
 
@@ -957,9 +954,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             .take()
             .unwrap_or_default();
 
-        //let vm_state = vm.get_current_execution_state();
-
-        let spent_on_pubdata = 11; // FIXME: vm.state.local_state.spent_pubdata_counter - spent_on_pubdata_before;
+        let spent_on_pubdata = vm.state.local_state.spent_pubdata_counter - spent_on_pubdata_before;
 
         println!("┌─────────────────────────┐");
         println!("│   TRANSACTION SUMMARY   │");
