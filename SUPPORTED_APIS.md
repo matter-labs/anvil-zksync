@@ -31,8 +31,8 @@ The `status` options are:
 | `ETH` | `eth_feeHistory` | `NOT IMPLEMENTED` | Returns a collection of historical block gas data |
 | [`ETH`](#eth-namespace) | [`eth_gasPrice`](#eth_gasprice) | `SUPPORTED` | Returns the current price per gas in wei <br />_(hardcoded to `250_000_000`)_ |
 | [`ETH`](#eth-namespace) | [`eth_getBalance`](#eth_getbalance) | `SUPPORTED` | Returns the balance of the account of given address |
-| `ETH` | `eth_getBlockByHash` | `NOT IMPLEMENTED`<br />[GitHub Issue #25](https://github.com/matter-labs/era-test-node/issues/25) | Returns information about a block by block hash |
-| [`ETH`](#eth-namespace) | [`eth_getBlockByNumber`](#eth_getblockbynumber) | `PARTIALLY`<br />[GitHub Issue #71](https://github.com/matter-labs/era-test-node/issues/71) | Returns information about a block by block number<br /> ⚠️ _Support not available for `earliest`, `pending`, or block numbers other than the current block number_ |
+| [`ETH`](#eth-namespace) | [`eth_getBlockByHash`](#eth_getblockbyhash) | `SUPPORTED` | Returns information about a block by block hash |
+| [`ETH`](#eth-namespace) | [`eth_getBlockByNumber`](#eth_getblockbynumber) | `SUPPORTED` | Returns information about a block by block number |
 | `ETH` | `eth_getBlockTransactionCountByHash` | `NOT IMPLEMENTED`<br />[GitHub Issue #44](https://github.com/matter-labs/era-test-node/issues/44) | Number of transactions in a block from a block matching the given block hash |
 | `ETH` | `eth_getBlockTransactionCountByNumber` | `NOT IMPLEMENTED`<br />[GitHub Issue #43](https://github.com/matter-labs/era-test-node/issues/43) | Number of transactions in a block from a block matching the given block number |
 | `ETH` | `eth_getCompilers` | `NOT IMPLEMENTED` | Returns a list of available compilers |
@@ -452,6 +452,36 @@ curl --request POST \
 }'
 ```
 
+### `eth_getBlockByHash`
+
+[source](src/node.rs)
+
+Returns information about a block by block hash
+
+#### Arguments
+
++ `hash: H256`
+
++ `full: boolean`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_getBlockByHash",
+    "params": ["0x0000000000000000000000000000000000000000000000000000000000000008", false]
+}'
+```
+
 ### `eth_getBlockByNumber`
 
 [source](src/node.rs)
@@ -466,7 +496,7 @@ Returns information about a block by block number
 
 #### Status
 
-`PARTIALLY`
+`SUPPORTED`
 
 #### Example
 
