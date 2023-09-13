@@ -31,7 +31,7 @@ The `status` options are:
 | `ETH` | `eth_feeHistory` | `NOT IMPLEMENTED` | Returns a collection of historical block gas data |
 | [`ETH`](#eth-namespace) | [`eth_gasPrice`](#eth_gasprice) | `SUPPORTED` | Returns the current price per gas in wei <br />_(hardcoded to `250_000_000`)_ |
 | [`ETH`](#eth-namespace) | [`eth_getBalance`](#eth_getbalance) | `SUPPORTED` | Returns the balance of the account of given address |
-| [`ETH`](#eth-namespace) | `eth_getBlockByHash`(#eth_getblockbyhash) | `SUPPORTED` | Returns information about a block by block hash |
+| [`ETH`](#eth-namespace) | [`eth_getBlockByHash`](#eth_getblockbyhash) | `SUPPORTED` | Returns information about a block by block hash |
 | [`ETH`](#eth-namespace) | [`eth_getBlockByNumber`](#eth_getblockbynumber) | `SUPPORTED` | Returns information about a block by block number |
 | `ETH` | `eth_getBlockTransactionCountByHash` | `NOT IMPLEMENTED`<br />[GitHub Issue #44](https://github.com/matter-labs/era-test-node/issues/44) | Number of transactions in a block from a block matching the given block hash |
 | `ETH` | `eth_getBlockTransactionCountByNumber` | `NOT IMPLEMENTED`<br />[GitHub Issue #43](https://github.com/matter-labs/era-test-node/issues/43) | Number of transactions in a block from a block matching the given block number |
