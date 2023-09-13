@@ -55,6 +55,17 @@ Please note that `era-test-node` is still in its **alpha** stage. Some features 
    ```bash
    era_test_node run
    ```
+## 📃 Logging
+
+The node may be started in either of `debug`, `info`, `warn` or `error` logging levels via the `--log` option:
+```bash
+era_test_node --log=error run
+```
+
+Additionally, the file path can be provided via the `--log-file-path` option (defaults to `./era_test_node.log`):
+```bash
+era_test_node --log=error --log-file-path=run.log run
+```
 
 ## 🌐 Network Details
 

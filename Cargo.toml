@@ -45,6 +45,8 @@ bigdecimal = { version = "0.2.0" }
 hex = "0.4"
 ethabi = "16.0.0"
 itertools = "0.10.5"
+log = "0.4.20"
+simplelog = "0.12.1"
 
 [dev-dependencies]
 httptest = "0.15.4"
