@@ -50,7 +50,9 @@ jobs:
         run: rustup target add ${{ matrix.arch }}
       - uses: Swatinem/rust-cache@v2
         with:
-          cache-on-failure: true
+          cache-on-failure: false
+      - name: Run cargo clean
+        run: cargo clean
 
       # ==============================
       #       Builds
