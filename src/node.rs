@@ -220,6 +220,7 @@ pub struct InMemoryNodeInner<S> {
     /// Timestamp, batch number and miniblock number that will be used by the next block.
     pub current_timestamp: u64,
     pub current_batch: u32,
+    /// The latest miniblock number.
     pub current_miniblock: u64,
     pub l1_gas_price: u64,
     // Map from transaction to details about the exeuction
@@ -618,7 +619,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             InMemoryNodeInner {
                 current_timestamp: f.block_timestamp + 1,
                 current_batch: f.l1_block.0 + 1,
-                current_miniblock: f.l2_miniblock + 1,
+                current_miniblock: f.l2_miniblock,
                 l1_gas_price: f.l1_gas_price,
                 tx_results: Default::default(),
                 blocks,
@@ -647,7 +648,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             InMemoryNodeInner {
                 current_timestamp: NON_FORK_FIRST_BLOCK_TIMESTAMP,
                 current_batch: 1,
-                current_miniblock: 1,
+                current_miniblock: 0,
                 l1_gas_price: L1_GAS_PRICE,
                 tx_results: Default::default(),
                 blocks,
@@ -1069,7 +1070,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         let hash = compute_hash(block_context.block_number, l2_tx.hash());
         let block = Block {
             hash,
-            number: U64::from(inner.current_miniblock),
+            number: U64::from(inner.current_miniblock.saturating_add(1)),
             timestamp: U256::from(block_context.block_timestamp),
             l1_batch_number: Some(U64::from(block_context.block_number)),
             transactions: vec![TransactionVariant::Full(
@@ -1123,7 +1124,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                     .collect(),
             )
         }
-        let current_miniblock = inner.current_miniblock;
+        let current_miniblock = inner.current_miniblock.saturating_add(1);
         inner.tx_results.insert(
             tx_hash,
             TxExecutionInfo {
@@ -1138,7 +1139,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         {
             inner.current_timestamp += 1;
             inner.current_batch += 1;
-            inner.current_miniblock += 1;
+            inner.current_miniblock = current_miniblock;
         }
 
         Ok(())
@@ -1295,7 +1296,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                     | zksync_types::api::BlockNumber::Finalized
                     | zksync_types::api::BlockNumber::Committed => reader
                         .block_hashes
-                        .get(&reader.current_miniblock.saturating_sub(1))
+                        .get(&reader.current_miniblock)
                         .and_then(|hash| reader.blocks.get(hash))
                         .cloned()
                         .or_else(|| {
