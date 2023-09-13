@@ -4,6 +4,7 @@ use futures::Future;
 use vm::utils::fee::derive_base_fee_and_gas_per_pubdata;
 
 use zksync_basic_types::U256;
+use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words};
 
 pub(crate) trait IntoBoxedFuture: Sized + Send + 'static {
     fn into_boxed_future(self) -> Pin<Box<dyn Future<Output = Self> + Send>> {
@@ -67,6 +68,15 @@ pub fn to_human_size(input: U256) -> String {
         })
         .collect();
     tmp.iter().rev().collect()
+}
+
+pub fn bytecode_to_factory_dep(bytecode: Vec<u8>) -> (U256, Vec<U256>) {
+    let bytecode_hash = hash_bytecode(&bytecode);
+    let bytecode_hash = U256::from_big_endian(bytecode_hash.as_bytes());
+
+    let bytecode_words = bytes_to_be_words(bytecode);
+
+    (bytecode_hash, bytecode_words)
 }
 
 #[cfg(test)]

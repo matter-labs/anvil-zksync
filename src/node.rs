@@ -1,11 +1,11 @@
 //! In-memory node, that supports forking other networks.
 use crate::{
-    bootloader_debug::BootloaderDebug,
+    bootloader_debug::{BootloaderDebug, BootloaderDebugTracer},
     console_log::ConsoleLogHandler,
     fork::{ForkDetails, ForkSource, ForkStorage},
     formatter,
     system_contracts::{self, SystemContracts},
-    utils::{adjust_l1_gas_price_for_tx, to_human_size, IntoBoxedFuture},
+    utils::{adjust_l1_gas_price_for_tx, bytecode_to_factory_dep, to_human_size, IntoBoxedFuture},
 };
 use clap::Parser;
 use colored::Colorize;
@@ -29,8 +29,8 @@ use vm::{
         l2_blocks::load_last_l2_block,
         overhead::{derive_overhead, OverheadCoeficients},
     },
-    CallTracer, ExecutionResult, HistoryDisabled, HistoryMode, L1BatchEnv, SystemEnv,
-    TxExecutionMode, Vm, VmExecutionResultAndLogs, VmTracer,
+    CallTracer, ExecutionResult, HistoryDisabled, L1BatchEnv, SystemEnv, TxExecutionMode, Vm,
+    VmExecutionResultAndLogs, VmTracer,
 };
 use zksync_basic_types::{AccountTreeId, Bytes, L1BatchNumber, H160, H256, U256, U64};
 use zksync_contracts::BaseSystemContracts;
@@ -48,8 +48,8 @@ use zksync_types::{
         decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance,
         storage_key_for_standard_token_balance,
     },
-    StorageKey, StorageLogQueryType, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS, EIP_712_TX_TYPE,
-    L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT,
+    PackedEthSignature, StorageKey, StorageLogQueryType, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
+    EIP_712_TX_TYPE, L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT,
 };
 use zksync_utils::{
     bytecode::{compress_bytecode, hash_bytecode},
@@ -264,7 +264,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 number: self.current_miniblock as u32,
                 timestamp: self.current_timestamp,
                 prev_block_hash: last_l2_block.hash,
-                max_virtual_blocks_to_create: 1,
+                max_virtual_blocks_to_create: 10,
             },
         }
     }
@@ -723,10 +723,17 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         let mut vm = Vm::new(batch_env, system_env, storage, HistoryDisabled);
 
+        let mut l2_tx = l2_tx.clone();
+        // We must inject *some* signature (otherwise bootloader code fails to generate hash).
+        if l2_tx.common_data.signature.is_empty() {
+            l2_tx.common_data.signature = PackedEthSignature::default().serialize_packed().into();
+        }
+
         let tx: Transaction = l2_tx.into();
         vm.push_transaction(tx);
 
         let call_tracer_result = Arc::new(OnceCell::default());
+
         let custom_tracers =
             vec![
                 Box::new(CallTracer::new(call_tracer_result.clone(), HistoryDisabled))
@@ -761,12 +768,15 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         Ok(tx_result.result)
     }
 
-    fn display_detailed_gas_info<WS: WriteStorage, H: HistoryMode>(
+    fn display_detailed_gas_info(
         &self,
-        vm: &Vm<WS, H>,
+        bootloader_debug_result: Arc<OnceCell<eyre::Result<BootloaderDebug>>>,
         spent_on_pubdata: u32,
     ) -> eyre::Result<()> {
-        let debug = BootloaderDebug::load_from_memory(vm)?;
+        let debug = bootloader_debug_result.get().unwrap().as_ref().unwrap();
+        //let debug = bootloader_debug_result.get().as_ref().unwrap().unwrap();
+
+        //let debug = BootloaderDebug::load_from_memory(vm)?;
 
         println!("┌─────────────────────────┐");
         println!("│       GAS DETAILS       │");
@@ -933,18 +943,21 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         let system_env = inner.create_system_env(bootloader_code.clone(), execution_mode);
 
         let mut vm = Vm::new(batch_env, system_env, storage.clone(), HistoryDisabled);
-        let spent_on_pubdata_before = vm.state.local_state.spent_pubdata_counter;
 
         let tx: Transaction = l2_tx.into();
 
         vm.push_transaction(tx.clone());
 
         let call_tracer_result = Arc::new(OnceCell::default());
-        let custom_tracers =
-            vec![
-                Box::new(CallTracer::new(call_tracer_result.clone(), HistoryDisabled))
-                    as Box<dyn VmTracer<StorageView<&ForkStorage<S>>, HistoryDisabled>>,
-            ];
+        let bootloader_debug_result = Arc::new(OnceCell::default());
+
+        let custom_tracers = vec![
+            Box::new(CallTracer::new(call_tracer_result.clone(), HistoryDisabled))
+                as Box<dyn VmTracer<StorageView<&ForkStorage<S>>, HistoryDisabled>>,
+            Box::new(BootloaderDebugTracer {
+                result: bootloader_debug_result.clone(),
+            }) as Box<dyn VmTracer<StorageView<&ForkStorage<S>>, HistoryDisabled>>,
+        ];
 
         let tx_result = vm.inspect_next_transaction(custom_tracers);
 
@@ -953,7 +966,8 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             .take()
             .unwrap_or_default();
 
-        let spent_on_pubdata = vm.state.local_state.spent_pubdata_counter - spent_on_pubdata_before;
+        let spent_on_pubdata =
+            tx_result.statistics.gas_used - tx_result.statistics.computational_gas_used;
 
         println!("┌─────────────────────────┐");
         println!("│   TRANSACTION SUMMARY   │");
@@ -983,7 +997,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             ),
             ShowGasDetails::All => {
                 if self
-                    .display_detailed_gas_info(&vm, spent_on_pubdata)
+                    .display_detailed_gas_info(bootloader_debug_result.clone(), spent_on_pubdata)
                     .is_err()
                 {
                     println!(
@@ -1052,14 +1066,13 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         println!("\n\n");
 
-        vm.execute_the_rest_of_the_batch();
-
         let bytecodes = vm
-            .state
-            .decommittment_processor
-            .known_bytecodes
-            .inner()
-            .clone();
+            .get_last_tx_compressed_bytecodes()
+            .iter()
+            .map(|b| bytecode_to_factory_dep(b.original.clone()))
+            .collect();
+
+        vm.execute_the_rest_of_the_batch();
 
         let modified_keys = storage.borrow().modified_storage_keys().clone();
         Ok((modified_keys, tx_result, block, bytecodes))
@@ -1105,9 +1118,13 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         );
         inner.blocks.insert(block.batch_number, block);
         {
-            inner.current_timestamp += 1;
+            // With the introduction of 'l2 blocks' (and virtual blocks),
+            // we are adding one l2 block at the end of each batch (to handle things like remaining events etc).
+            // That's why here, we increase the batch by 1, but miniblock (and timestamp) by 2.
+            // You can look at insert_fictive_l2_block function in VM to see how this fake block is inserted.
             inner.current_batch += 1;
-            inner.current_miniblock += 1;
+            inner.current_miniblock += 2;
+            inner.current_timestamp += 2;
         }
 
         Ok(())

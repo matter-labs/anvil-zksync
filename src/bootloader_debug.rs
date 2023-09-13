@@ -1,4 +1,11 @@
-use vm::{constants::BOOTLOADER_HEAP_PAGE, HistoryMode, Vm};
+use std::sync::Arc;
+
+use once_cell::sync::OnceCell;
+use vm::{
+    bootloader_state::BootloaderState, constants::BOOTLOADER_HEAP_PAGE,
+    types::internals::ZkSyncVmState, DynTracer, ExecutionEndTracer, ExecutionProcessing,
+    HistoryMode, SimpleMemory, VmExecutionResultAndLogs, VmExecutionStopReason, VmTracer,
+};
 use zksync_basic_types::U256;
 use zksync_state::WriteStorage;
 
@@ -22,6 +29,8 @@ const DEBUG_START_SLOT: usize = DEBUG_START_BYTE / 32;
 
 /// Struct that represents the additional debug information that we can get from bootloader.
 /// Bootloader puts them in a special memory region after each transaction, and we can load them with this struct.
+
+#[derive(Debug)]
 pub struct BootloaderDebug {
     /// Amount of gas that user attached to the transaction.
     pub total_gas_limit_from_user: U256,
@@ -67,35 +76,59 @@ pub struct BootloaderDebug {
     pub overhead_for_slot: U256,
 }
 
-fn load_debug_slot<S: WriteStorage, H: HistoryMode>(vm: &Vm<S, H>, slot: usize) -> U256 {
-    vm.state
-        .memory
+pub struct BootloaderDebugTracer {
+    pub result: Arc<OnceCell<eyre::Result<BootloaderDebug>>>,
+}
+
+impl<S, H: HistoryMode> DynTracer<S, H> for BootloaderDebugTracer {}
+
+impl<H: HistoryMode> ExecutionEndTracer<H> for BootloaderDebugTracer {}
+
+impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for BootloaderDebugTracer {
+    fn after_vm_execution(
+        &mut self,
+        state: &mut ZkSyncVmState<S, H>,
+        _bootloader_state: &BootloaderState,
+        _stop_reason: VmExecutionStopReason,
+    ) {
+        self.result
+            .set(BootloaderDebug::load_from_memory(&state.memory))
+            .unwrap();
+    }
+}
+
+fn load_debug_slot<H: HistoryMode>(memory: &SimpleMemory<H>, slot: usize) -> U256 {
+    memory
         .read_slot(BOOTLOADER_HEAP_PAGE as usize, DEBUG_START_SLOT + slot)
         .value
 }
 
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for BootloaderDebugTracer {
+    fn save_results(&mut self, _result: &mut VmExecutionResultAndLogs) {}
+}
+
 impl BootloaderDebug {
-    pub fn load_from_memory<S: WriteStorage, H: HistoryMode>(vm: &Vm<S, H>) -> eyre::Result<Self> {
-        if load_debug_slot(vm, 0) != U256::from(DEBUG_START_SENTINEL) {
+    pub fn load_from_memory<H: HistoryMode>(memory: &SimpleMemory<H>) -> eyre::Result<Self> {
+        if load_debug_slot(memory, 0) != U256::from(DEBUG_START_SENTINEL) {
             eyre::bail!("Debug slot has wrong value. Probably bootloader slot mapping has changed.")
         } else {
             Ok(BootloaderDebug {
-                total_gas_limit_from_user: load_debug_slot(vm, 1),
-                reserved_gas: load_debug_slot(vm, 2),
-                gas_per_pubdata: load_debug_slot(vm, 3),
-                gas_limit_after_intrinsic: load_debug_slot(vm, 4),
-                gas_after_validation: load_debug_slot(vm, 5),
-                gas_spent_on_execution: load_debug_slot(vm, 6),
-                gas_spent_on_bytecode_preparation: load_debug_slot(vm, 7),
-                refund_computed: load_debug_slot(vm, 8),
-                refund_by_operator: load_debug_slot(vm, 9),
-                intrinsic_overhead: load_debug_slot(vm, 10),
-                operator_overhead: load_debug_slot(vm, 11),
-                required_overhead: load_debug_slot(vm, 12),
-                total_overhead_for_block: load_debug_slot(vm, 13),
-                overhead_for_circuits: load_debug_slot(vm, 14),
-                overhead_for_length: load_debug_slot(vm, 15),
-                overhead_for_slot: load_debug_slot(vm, 16),
+                total_gas_limit_from_user: load_debug_slot(memory, 1),
+                reserved_gas: load_debug_slot(memory, 2),
+                gas_per_pubdata: load_debug_slot(memory, 3),
+                gas_limit_after_intrinsic: load_debug_slot(memory, 4),
+                gas_after_validation: load_debug_slot(memory, 5),
+                gas_spent_on_execution: load_debug_slot(memory, 6),
+                gas_spent_on_bytecode_preparation: load_debug_slot(memory, 7),
+                refund_computed: load_debug_slot(memory, 8),
+                refund_by_operator: load_debug_slot(memory, 9),
+                intrinsic_overhead: load_debug_slot(memory, 10),
+                operator_overhead: load_debug_slot(memory, 11),
+                required_overhead: load_debug_slot(memory, 12),
+                total_overhead_for_block: load_debug_slot(memory, 13),
+                overhead_for_circuits: load_debug_slot(memory, 14),
+                overhead_for_length: load_debug_slot(memory, 15),
+                overhead_for_slot: load_debug_slot(memory, 16),
             })
         }
     }
