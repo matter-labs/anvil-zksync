@@ -923,14 +923,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
 
         let storage = StorageView::new(&inner.fork_storage).to_rc_ptr();
-
-        //let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryEnabled);
-
         let bootloader_code = inner.system_contracts.contracts(execution_mode);
-
-        //let block_context = inner.create_block_context();
-        //let block_properties = InMemoryNodeInner::<S>::create_block_properties(bootloader_code);
-
         let batch_env = inner.create_l1_batch_env(storage.clone());
         let block = BlockInfo {
             batch_number: batch_env.number.0,
@@ -940,8 +933,6 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         let system_env = inner.create_system_env(bootloader_code.clone(), execution_mode);
 
         let mut vm = Vm::new(batch_env, system_env, storage.clone(), HistoryDisabled);
-
-        // init vm
         let spent_on_pubdata_before = vm.state.local_state.spent_pubdata_counter;
 
         let tx: Transaction = l2_tx.into();
