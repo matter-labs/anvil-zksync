@@ -1846,11 +1846,33 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
 
     fn get_storage(
         &self,
-        _address: zksync_basic_types::Address,
-        _idx: U256,
-        _block: Option<zksync_types::api::BlockIdVariant>,
+        address: zksync_basic_types::Address,
+        idx: U256,
+        block: Option<zksync_types::api::BlockIdVariant>,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::H256>> {
-        not_implemented("get_storage")
+        let inner = Arc::clone(&self.inner);
+
+        Box::pin(async move {
+            let mut reader = match inner.write() {
+                Ok(r) => r,
+                Err(_) => {
+                    return Err(into_jsrpc_error(Web3Error::InternalError));
+                }
+            };
+
+            let mut idx_bytes = [0u8; 32];
+            idx.to_big_endian(&mut idx_bytes);
+
+            let mut bytes = [0_u8; 64];
+            bytes[..32].copy_from_slice(address.as_bytes());
+            bytes[32..].copy_from_slice(idx_bytes.as_slice());
+            let key = H256(keccak256(&bytes));
+
+            let storage_key =
+                StorageKey::new(AccountTreeId::new(ACCOUNT_CODE_STORAGE_ADDRESS), key);
+
+            Ok(H256(reader.fork_storage.read_value(&storage_key).0))
+        })
     }
 
     fn get_transaction_by_block_hash_and_index(
