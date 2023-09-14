@@ -1,19 +1,9 @@
 use std::sync::{Arc, RwLock};
 
-use crate::{fork::ForkSource, node::InMemoryNodeInner};
+use crate::{fork::ForkSource, node::InMemoryNodeInner, utils::mine_empty_blocks};
 use jsonrpc_core::{BoxFuture, Result};
 use jsonrpc_derive::rpc;
-use vm::{
-    utils::BLOCK_GAS_LIMIT,
-    vm_with_bootloader::{init_vm_inner, BlockContextMode, BootloaderJobType, TxExecutionMode},
-    HistoryEnabled, OracleTools,
-};
-use zksync_basic_types::H256;
 use zksync_core::api_server::web3::backend_jsonrpc::error::into_jsrpc_error;
-use zksync_state::StorageView;
-use zksync_state::WriteStorage;
-use zksync_types::api::Block;
-use zksync_utils::u256_to_h256;
 use zksync_web3_decl::error::Web3Error;
 
 /// Implementation of EvmNamespace
@@ -134,72 +124,8 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EvmNamespaceT
         Box::pin(async move {
             match inner.write() {
                 Ok(mut inner) => {
-                    let (keys, block, bytecodes) = {
-                        let mut storage_view = StorageView::new(&inner.fork_storage);
-                        let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryEnabled);
-
-                        let bootloader_code = &inner.system_contracts.baseline_contracts;
-                        let block_context = inner.create_block_context();
-                        let block_properties =
-                            InMemoryNodeInner::<S>::create_block_properties(bootloader_code);
-
-                        let block = Block {
-                            hash: H256::random(),
-                            number: inner.current_miniblock.saturating_add(1).into(),
-                            timestamp: block_context.block_timestamp.into(),
-                            l1_batch_number: Some(block_context.block_number.into()),
-                            ..Default::default()
-                        };
-
-                        // init vm
-                        let mut vm = init_vm_inner(
-                            &mut oracle_tools,
-                            BlockContextMode::NewBlock(block_context.into(), Default::default()),
-                            &block_properties,
-                            BLOCK_GAS_LIMIT,
-                            bootloader_code,
-                            TxExecutionMode::VerifyExecute,
-                        );
-
-                        vm.execute_till_block_end(BootloaderJobType::BlockPostprocessing);
-
-                        let bytecodes = vm
-                            .state
-                            .decommittment_processor
-                            .known_bytecodes
-                            .inner()
-                            .clone();
-
-                        let modified_keys = storage_view.modified_storage_keys().clone();
-                        (modified_keys, block, bytecodes)
-                    };
-
-                    for (key, value) in keys.iter() {
-                        inner.fork_storage.set_value(*key, *value);
-                    }
-
-                    // Write all the factory deps.
-                    for (hash, code) in bytecodes.iter() {
-                        inner.fork_storage.store_factory_dep(
-                            u256_to_h256(*hash),
-                            code.iter()
-                                .flat_map(|entry| {
-                                    let mut bytes = vec![0u8; 32];
-                                    entry.to_big_endian(&mut bytes);
-                                    bytes.to_vec()
-                                })
-                                .collect(),
-                        )
-                    }
-                    log::info!("👷 Mined block #{}", block.number.as_u64());
-
-                    // update node state
-                    inner.block_hashes.insert(block.number.as_u64(), block.hash);
-                    inner.blocks.insert(block.hash, block);
-                    inner.current_timestamp += 1;
-                    inner.current_batch += 1;
-                    inner.current_miniblock += 1;
-
+                    mine_empty_blocks(&mut inner, 1, 1000);
+                    println!("👷 Mined block #{}", inner.current_miniblock);
                     Ok("0x0".to_string())
                 }
                 Err(_) => Err(into_jsrpc_error(Web3Error::InternalError)),
@@ -526,19 +452,32 @@ mod tests {
         let evm = EvmNamespaceImpl::new(node.get_inner());
 
         let start_block = node
-            .get_block_by_number(zksync_types::api::BlockNumber::Latest, true)
+            .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
             .await
             .unwrap()
             .expect("block exists");
+        let result = evm.evm_mine().await.expect("evm_mine");
+        assert_eq!(&result, "0x0");
+
+        let current_block = node
+            .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
+            .await
+            .unwrap()
+            .expect("block exists");
+
+        assert_eq!(start_block.number + 1, current_block.number);
+        assert_eq!(start_block.timestamp + 1000, current_block.timestamp);
 
         let result = evm.evm_mine().await.expect("evm_mine");
         assert_eq!(&result, "0x0");
 
         let current_block = node
-            .get_block_by_number(zksync_types::api::BlockNumber::Latest, true)
+            .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
             .await
             .unwrap()
             .expect("block exists");
-        assert_eq!(start_block.number + 1, current_block.number);
+
+        assert_eq!(start_block.number + 2, current_block.number);
+        assert_eq!(start_block.timestamp + 2000, current_block.timestamp);
     }
 }
