@@ -141,11 +141,11 @@ pub fn print_call(call: &Call, padding: usize, show_calls: &ShowCalls, resolve_h
             call.revert_reason
                 .as_ref()
                 .map(|s| format!("Revert: {}", s))
-                .unwrap_or_else(|| "".to_string()),
+                .unwrap_or_default(),
             call.error
                 .as_ref()
                 .map(|s| format!("Error: {}", s))
-                .unwrap_or_else(|| "".to_string()),
+                .unwrap_or_default(),
             call.gas
         );
 
