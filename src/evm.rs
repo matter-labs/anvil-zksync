@@ -191,7 +191,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EvmNamespaceT
                                 .collect(),
                         )
                     }
-                    println!("👷 Mined block #{}", block.number.as_u64());
+                    log::info!("👷 Mined block #{}", block.number.as_u64());
 
                     // update node state
                     inner.block_hashes.insert(block.number.as_u64(), block.hash);
