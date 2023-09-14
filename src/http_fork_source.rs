@@ -63,20 +63,18 @@ impl ForkSource for HttpForkSource {
         if let Ok(Some(transaction)) = self
             .cache
             .read()
-            .and_then(|guard| Ok(guard.get_transaction(&hash).cloned()))
+            .map(|guard| guard.get_transaction(&hash).cloned())
         {
             return Ok(Some(transaction));
         }
 
         let client = self.create_client();
         block_on(async move { client.get_transaction_by_hash(hash).await })
-            .and_then(|maybe_transaction| {
+            .map(|maybe_transaction| {
                 if let Some(transaction) = &maybe_transaction {
                     self.cache
                         .write()
-                        .and_then(|mut guard| {
-                            Ok(guard.insert_transaction(hash, transaction.clone()))
-                        })
+                        .map(|mut guard| guard.insert_transaction(hash, transaction.clone()))
                         .unwrap_or_else(|err| {
                             log::warn!(
                                 "failed writing to cache for 'get_transaction_by_hash': {:?}",
@@ -84,7 +82,7 @@ impl ForkSource for HttpForkSource {
                             )
                         });
                 }
-                Ok(maybe_transaction)
+                maybe_transaction
             })
             .wrap_err("fork http client failed")
     }
@@ -97,7 +95,7 @@ impl ForkSource for HttpForkSource {
         if let Ok(Some(transaction)) = self
             .cache
             .read()
-            .and_then(|guard| Ok(guard.get_block_raw_transactions(&number).cloned()))
+            .map(|guard| guard.get_block_raw_transactions(&number).cloned())
         {
             return Ok(transaction);
         }
@@ -105,12 +103,12 @@ impl ForkSource for HttpForkSource {
         let client = self.create_client();
         block_on(async move { client.get_raw_block_transactions(block_number).await })
             .wrap_err("fork http client failed")
-            .and_then(|transactions| {
+            .map(|transactions| {
                 if !transactions.is_empty() {
                     self.cache
                         .write()
-                        .and_then(|mut guard| {
-                            Ok(guard.insert_block_raw_transactions(number, transactions.clone()))
+                        .map(|mut guard| {
+                            guard.insert_block_raw_transactions(number, transactions.clone())
                         })
                         .unwrap_or_else(|err| {
                             log::warn!(
@@ -119,7 +117,7 @@ impl ForkSource for HttpForkSource {
                             )
                         });
                 }
-                Ok(transactions)
+                transactions
             })
     }
 
@@ -131,25 +129,23 @@ impl ForkSource for HttpForkSource {
         if let Ok(Some(block)) = self
             .cache
             .read()
-            .and_then(|guard| Ok(guard.get_block(&hash, full_transactions).cloned()))
+            .map(|guard| guard.get_block(&hash, full_transactions).cloned())
         {
             return Ok(Some(block));
         }
 
         let client = self.create_client();
         block_on(async move { client.get_block_by_hash(hash, full_transactions).await })
-            .and_then(|block| {
+            .map(|block| {
                 if let Some(block) = &block {
                     self.cache
                         .write()
-                        .and_then(|mut guard| {
-                            Ok(guard.insert_block(hash, full_transactions, block.clone()))
-                        })
+                        .map(|mut guard| guard.insert_block(hash, full_transactions, block.clone()))
                         .unwrap_or_else(|err| {
                             log::warn!("failed writing to cache for 'get_block_by_hash': {:?}", err)
                         });
                 }
-                Ok(block)
+                block
             })
             .wrap_err("fork http client failed")
     }
@@ -180,12 +176,12 @@ impl ForkSource for HttpForkSource {
                 .get_block_by_number(block_number, full_transactions)
                 .await
         })
-        .and_then(|block| {
+        .map(|block| {
             if let Some(block) = &block {
                 self.cache
                     .write()
-                    .and_then(|mut guard| {
-                        Ok(guard.insert_block(block.hash, full_transactions, block.clone()))
+                    .map(|mut guard| {
+                        guard.insert_block(block.hash, full_transactions, block.clone())
                     })
                     .unwrap_or_else(|err| {
                         log::warn!(
@@ -194,7 +190,7 @@ impl ForkSource for HttpForkSource {
                         )
                     });
             }
-            Ok(block)
+            block
         })
         .wrap_err("fork http client failed")
     }

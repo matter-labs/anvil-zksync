@@ -10,10 +10,10 @@ use zksync_basic_types::H256;
 use zksync_types::api::{Block, Transaction, TransactionVariant};
 use zksync_types::Transaction as RawTransaction;
 
-const CACHE_TYPE_BLOCKS_FULL: &'static str = "blocks_full";
-const CACHE_TYPE_BLOCKS_MIN: &'static str = "blocks_min";
-const CACHE_TYPE_BLOCK_RAW_TRANSACTIONS: &'static str = "block_raw_transactions";
-const CACHE_TYPE_TRANSACTIONS: &'static str = "transactions";
+const CACHE_TYPE_BLOCKS_FULL: &str = "blocks_full";
+const CACHE_TYPE_BLOCKS_MIN: &str = "blocks_min";
+const CACHE_TYPE_BLOCK_RAW_TRANSACTIONS: &str = "block_raw_transactions";
+const CACHE_TYPE_TRANSACTIONS: &str = "transactions";
 
 /// Cache configuration. Can be one of:
 ///
@@ -70,7 +70,7 @@ impl Cache {
                 });
             }
             cache
-                .read_all_from_disk(&dir)
+                .read_all_from_disk(dir)
                 .unwrap_or_else(|err| log::error!("failed reading cache from disk: {:?}", err));
         }
 
@@ -121,7 +121,7 @@ impl Cache {
             return None;
         }
 
-        self.block_hashes.get(&number)
+        self.block_hashes.get(number)
     }
 
     /// Returns the cached raw transactions for the provided block number.
@@ -157,7 +157,7 @@ impl Cache {
             return None;
         }
 
-        self.transactions.get(&hash)
+        self.transactions.get(hash)
     }
 
     /// Cache a transaction for the provided hash.
@@ -184,76 +184,63 @@ impl Cache {
         ] {
             let cache_dir = Path::new(dir).join(cache_type);
             let dir_listing = fs::read_dir(cache_dir.clone())
-                .map_err(|err| format!("failed reading dir '{:?}': {:?}", cache_dir, err))?;
+                .map_err(|err| format!("failed reading dir '{:?}': {:?}", cache_dir, err))?
+                .flatten();
             for file in dir_listing {
-                if let Ok(file) = file {
-                    let key = file
-                        .file_name()
-                        .to_str()
-                        .ok_or_else(|| String::from("failed converting filename to string"))?
-                        .to_string();
+                let key = file
+                    .file_name()
+                    .to_str()
+                    .ok_or_else(|| String::from("failed converting filename to string"))?
+                    .to_string();
 
-                    let cache_file = File::open(file.path()).map_err(|err| {
-                        format!("failed reading file: '{:?}': {:?}", file.path(), err)
-                    })?;
-                    let reader = BufReader::new(cache_file);
-                    match cache_type {
-                        CACHE_TYPE_BLOCKS_FULL => {
-                            let key = H256::from_str(&key).map_err(|err| {
-                                format!("invalid key for cache file '{:?}': {:?}", key, err)
+                let cache_file = File::open(file.path()).map_err(|err| {
+                    format!("failed reading file: '{:?}': {:?}", file.path(), err)
+                })?;
+                let reader = BufReader::new(cache_file);
+                match cache_type {
+                    CACHE_TYPE_BLOCKS_FULL => {
+                        let key = H256::from_str(&key).map_err(|err| {
+                            format!("invalid key for cache file '{:?}': {:?}", key, err)
+                        })?;
+                        let block: Block<TransactionVariant> = serde_json::from_reader(reader)
+                            .map_err(|err| {
+                                format!("failed parsing json for cache file '{:?}': {:?}", key, err)
                             })?;
-                            let block: Block<TransactionVariant> = serde_json::from_reader(reader)
-                                .map_err(|err| {
-                                    format!(
-                                        "failed parsing json for cache file '{:?}': {:?}",
-                                        key, err
-                                    )
-                                })?;
-                            self.block_hashes.insert(block.number.as_u64(), block.hash);
-                            self.blocks_full.insert(key, block);
-                        }
-                        CACHE_TYPE_BLOCKS_MIN => {
-                            let key = H256::from_str(&key).map_err(|err| {
-                                format!("invalid key for cache file '{:?}': {:?}", key, err)
-                            })?;
-                            let block: Block<TransactionVariant> = serde_json::from_reader(reader)
-                                .map_err(|err| {
-                                    format!(
-                                        "failed parsing json for cache file '{:?}': {:?}",
-                                        key, err
-                                    )
-                                })?;
-                            self.block_hashes.insert(block.number.as_u64(), block.hash);
-                            self.blocks_min.insert(key, block);
-                        }
-                        CACHE_TYPE_BLOCK_RAW_TRANSACTIONS => {
-                            let key = key.parse::<u64>().map_err(|err| {
-                                format!("invalid key for cache file '{:?}': {:?}", key, err)
-                            })?;
-                            let transactions: Vec<RawTransaction> = serde_json::from_reader(reader)
-                                .map_err(|err| {
-                                    format!(
-                                        "failed parsing json for cache file '{:?}': {:?}",
-                                        key, err
-                                    )
-                                })?;
-                            self.block_raw_transactions.insert(key, transactions);
-                        }
-                        CACHE_TYPE_TRANSACTIONS => {
-                            let key = H256::from_str(&key).map_err(|err| {
-                                format!("invalid key for cache file '{:?}': {:?}", key, err)
-                            })?;
-                            let transaction: Transaction = serde_json::from_reader(reader)
-                                .map_err(|err| {
-                                    format!(
-                                        "failed parsing json for cache file '{:?}': {:?}",
-                                        key, err
-                                    )
-                                })?;
-                            self.transactions.insert(key, transaction);
-                        }
-                        _ => return Err(format!("invalid cache_type {}", cache_type)),
+                        self.block_hashes.insert(block.number.as_u64(), block.hash);
+                        self.blocks_full.insert(key, block);
                     }
+                    CACHE_TYPE_BLOCKS_MIN => {
+                        let key = H256::from_str(&key).map_err(|err| {
+                            format!("invalid key for cache file '{:?}': {:?}", key, err)
+                        })?;
+                        let block: Block<TransactionVariant> = serde_json::from_reader(reader)
+                            .map_err(|err| {
+                                format!("failed parsing json for cache file '{:?}': {:?}", key, err)
+                            })?;
+                        self.block_hashes.insert(block.number.as_u64(), block.hash);
+                        self.blocks_min.insert(key, block);
+                    }
+                    CACHE_TYPE_BLOCK_RAW_TRANSACTIONS => {
+                        let key = key.parse::<u64>().map_err(|err| {
+                            format!("invalid key for cache file '{:?}': {:?}", key, err)
+                        })?;
+                        let transactions: Vec<RawTransaction> = serde_json::from_reader(reader)
+                            .map_err(|err| {
+                                format!("failed parsing json for cache file '{:?}': {:?}", key, err)
+                            })?;
+                        self.block_raw_transactions.insert(key, transactions);
+                    }
+                    CACHE_TYPE_TRANSACTIONS => {
+                        let key = H256::from_str(&key).map_err(|err| {
+                            format!("invalid key for cache file '{:?}': {:?}", key, err)
+                        })?;
+                        let transaction: Transaction =
+                            serde_json::from_reader(reader).map_err(|err| {
+                                format!("failed parsing json for cache file '{:?}': {:?}", key, err)
+                            })?;
+                        self.transactions.insert(key, transaction);
+                    }
+                    _ => return Err(format!("invalid cache_type {}", cache_type)),
                 }
             }
         }

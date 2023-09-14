@@ -1078,7 +1078,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             timestamp: U256::from(block_context.block_timestamp),
             l1_batch_number: Some(U64::from(block_context.block_number)),
             transactions: vec![TransactionVariant::Full(
-                zksync_types::api::Transaction::from(l2_tx.clone()),
+                zksync_types::api::Transaction::from(l2_tx),
             )],
             gas_used,
             gas_limit,
