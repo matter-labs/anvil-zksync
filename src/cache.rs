@@ -54,8 +54,9 @@ impl Cache {
 
         if let CacheConfig::Disk { dir, reset } = &config {
             if *reset {
-                fs::remove_dir_all(Path::new(dir))
-                    .unwrap_or_else(|err| eprintln!("failed removing cache from disk: {:?}", err));
+                fs::remove_dir_all(Path::new(dir)).unwrap_or_else(|err| {
+                    log::error!("failed removing cache from disk: {:?}", err)
+                });
             }
 
             for cache_type in [
@@ -70,7 +71,7 @@ impl Cache {
             }
             cache
                 .read_all_from_disk(&dir)
-                .unwrap_or_else(|err| eprintln!("failed reading cache from disk: {:?}", err));
+                .unwrap_or_else(|err| log::error!("failed reading cache from disk: {:?}", err));
         }
 
         cache
@@ -265,15 +266,15 @@ impl Cache {
         if let CacheConfig::Disk { dir, .. } = &self.config {
             let file = Path::new(&dir).join(cache_type).join(key);
 
-            println!("writing cache {:?}", file);
+            log::debug!("writing cache {:?}", file);
             match File::create(file.clone()) {
                 Ok(cache_file) => {
                     let writer = BufWriter::new(cache_file);
                     if let Err(err) = serde_json::to_writer(writer, data) {
-                        eprintln!("failed writing to cache '{:?}': {:?}", file, err);
+                        log::error!("failed writing to cache '{:?}': {:?}", file, err);
                     }
                 }
-                Err(err) => eprintln!("failed creating file: '{:?}': {:?}", file, err),
+                Err(err) => log::error!("failed creating file: '{:?}': {:?}", file, err),
             }
         }
     }

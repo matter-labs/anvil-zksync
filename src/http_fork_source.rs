@@ -78,7 +78,7 @@ impl ForkSource for HttpForkSource {
                             Ok(guard.insert_transaction(hash, transaction.clone()))
                         })
                         .unwrap_or_else(|err| {
-                            println!(
+                            log::warn!(
                                 "failed writing to cache for 'get_transaction_by_hash': {:?}",
                                 err
                             )
@@ -113,7 +113,7 @@ impl ForkSource for HttpForkSource {
                             Ok(guard.insert_block_raw_transactions(number, transactions.clone()))
                         })
                         .unwrap_or_else(|err| {
-                            println!(
+                            log::warn!(
                                 "failed writing to cache for 'get_raw_block_transactions': {:?}",
                                 err
                             )
@@ -146,7 +146,7 @@ impl ForkSource for HttpForkSource {
                             Ok(guard.insert_block(hash, full_transactions, block.clone()))
                         })
                         .unwrap_or_else(|err| {
-                            println!("failed writing to cache for 'get_block_by_hash': {:?}", err)
+                            log::warn!("failed writing to cache for 'get_block_by_hash': {:?}", err)
                         });
                 }
                 Ok(block)
@@ -188,7 +188,7 @@ impl ForkSource for HttpForkSource {
                         Ok(guard.insert_block(block.hash, full_transactions, block.clone()))
                     })
                     .unwrap_or_else(|err| {
-                        println!(
+                        log::warn!(
                             "failed writing to cache for 'get_block_by_number': {:?}",
                             err
                         )
