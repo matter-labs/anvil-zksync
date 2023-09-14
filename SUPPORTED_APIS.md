@@ -93,7 +93,7 @@ The `status` options are:
 | `HARDHAT` | `hardhat_impersonateAccount` | `NOT IMPLEMENTED`<br />[GitHub Issue #73](https://github.com/matter-labs/era-test-node/issues/73) | Impersonate an account |
 | `HARDHAT` | `hardhat_getAutomine` | `NOT IMPLEMENTED` | Returns `true` if automatic mining is enabled, and `false` otherwise |
 | `HARDHAT` | `hardhat_metadata` | `NOT IMPLEMENTED` | Returns the metadata of the current network |
-| `HARDHAT` | `hardhat_mine` | `NOT IMPLEMENTED`<br />[GitHub Issue #75](https://github.com/matter-labs/era-test-node/issues/75) | Mine any number of blocks at once, in constant time |
+| [`HARDHAT`](#hardhat-namespace) | [`hardhat_mine`](#hardhat_mine) | Mine any number of blocks at once, in constant time |
 | `HARDHAT` | `hardhat_reset` | `NOT IMPLEMENTED` | Resets the state of the network |
 | [`HARDHAT`](#hardhat-namespace) | [`hardhat_setBalance`](#hardhat_setbalance) | `SUPPORTED` | Modifies the balance of an account |
 | `HARDHAT` | `hardhat_setCode` | `NOT IMPLEMENTED` | Sets the bytecode of a given account |
@@ -798,6 +798,36 @@ curl --request POST \
         "0x1337"
       ]
   }'
+```
+
+### `hardhat_mine`
+
+[source](src/hardhat.rs)
+
+Sometimes you may want to advance the latest block number of the network by a large number of blocks.
+One way to do this would be to call the evm_mine RPC method multiple times, but this is too slow if you want to mine thousands of blocks.
+The hardhat_mine method can mine any number of blocks at once, in constant time. (It exhibits the same performance no matter how many blocks are mined.)
+
+#### Arguments
+
++ `num_blocks: U64` - The number of blocks to mine. (Optional: defaults to 1)
++ `interval: U646` - The interval between the timestamps of each block, in seconds. (Optional: defaults to 1)
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "2",
+    "method": "hardhat_mine",
+    "params": [
+        "0xaa",
+        "0x100"
+    ]
+}'
 ```
 
 ## `EVM NAMESPACE`
