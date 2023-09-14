@@ -5,12 +5,16 @@
 
 #![cfg(test)]
 
+use crate::fork::ForkSource;
+use crate::node::InMemoryNode;
+
 use httptest::{
     matchers::{eq, json_decoded, request},
     responders::json_encoded,
     Expectation, Server,
 };
-use zksync_basic_types::H256;
+use std::str::FromStr;
+use zksync_types::{fee::Fee, l2::L2Tx, Address, L2ChainId, Nonce, PackedEthSignature, H256, U256};
 
 /// A HTTP server that can be used to mock a fork source.
 pub struct MockServer {
@@ -21,12 +25,12 @@ pub struct MockServer {
 impl MockServer {
     /// Start the mock server with pre-defined calls used to fetch the fork's state.
     pub fn run() -> Self {
-        Self::run_with_config(10, H256::repeat_byte(0xab))
+        Self::run_with_config(10, H256::repeat_byte(0xab), 0)
     }
 
     /// Start the mock server with pre-defined calls used to fetch the fork's state.
     /// The input can be used to set the initial block's number and hash.
-    pub fn run_with_config(block_number: u64, block_hash: H256) -> Self {
+    pub fn run_with_config(block_number: u64, block_hash: H256, transaction_count: u8) -> Self {
         let server = Server::run();
 
         // setup initial fork calls
@@ -77,6 +81,25 @@ impl MockServer {
                   },
             }))),
         );
+        let transactions = (0..transaction_count).into_iter().map(|index| serde_json::json!({
+            "hash": format!("{:#x}", H256::repeat_byte(index)),
+            "nonce": "0x0",
+            "blockHash": format!("{:#x}", block_hash),
+            "blockNumber": format!("{:#x}", block_number),
+            "transactionIndex": format!("{:#x}", index),
+            "from": "0x29df43f75149d0552475a6f9b2ac96e28796ed0b",
+            "to": "0x0000000000000000000000000000000000008006",
+            "value": "0x0",
+            "gasPrice": "0x0",
+            "gas": "0x44aa200",
+            "input": "0x3cda33510000000000000000000000000000000000000000000000000000000000000000010000553109a66f1432eb2286c54694784d1b6993bc24a168be0a49b4d0fd4500000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
+            "type": "0xff",
+            "maxFeePerGas": "0x0",
+            "maxPriorityFeePerGas": "0x0",
+            "chainId": "0x144",
+            "l1BatchNumber": "0x1",
+            "l1BatchTxIndex": "0x0",
+        })).collect::<Vec<_>>();
         server.expect(
             Expectation::matching(request::body(json_decoded(eq(serde_json::json!({
                 "jsonrpc": "2.0",
@@ -108,7 +131,7 @@ impl MockServer {
                     "totalDifficulty": "0x0",
                     "sealFields": [],
                     "uncles": [],
-                    "transactions": [],
+                    "transactions": transactions,
                     "size": "0x0",
                     "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
                     "nonce": "0x0000000000000000"
@@ -204,6 +227,39 @@ impl BlockResponseBuilder {
             },
         })
     }
+}
+
+/// Applies a transaction to the node and returns the block hash.
+pub fn apply_tx<T: ForkSource + std::fmt::Debug>(node: &InMemoryNode<T>) -> H256 {
+    let private_key = H256::random();
+    let from_account = PackedEthSignature::address_from_private_key(&private_key)
+        .expect("failed generating address");
+    node.set_rich_account(from_account);
+    let mut tx = L2Tx::new_signed(
+        Address::random(),
+        vec![],
+        Nonce(0),
+        Fee {
+            gas_limit: U256::from(1_000_000),
+            max_fee_per_gas: U256::from(250_000_000),
+            max_priority_fee_per_gas: U256::from(250_000_000),
+            gas_per_pubdata_limit: U256::from(20000),
+        },
+        U256::from(1),
+        L2ChainId(260),
+        &private_key,
+        None,
+        Default::default(),
+    )
+    .unwrap();
+    tx.set_input(vec![], H256::repeat_byte(0x01));
+    node.apply_txs(vec![tx.into()]).expect("failed applying tx");
+
+    let block_hash =
+        H256::from_str("0x89c0aa770eba1f187235bdad80de9c01fe81bca415d442ca892f087da56fa109")
+            .unwrap();
+
+    block_hash
 }
 
 mod test {

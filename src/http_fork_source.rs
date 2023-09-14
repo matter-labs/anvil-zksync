@@ -1,4 +1,5 @@
 use eyre::Context;
+use zksync_basic_types::{H256, U256};
 use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
@@ -79,6 +80,27 @@ impl ForkSource for HttpForkSource {
         block_on(async move {
             client
                 .get_block_by_number(block_number, full_transactions)
+                .await
+        })
+        .wrap_err("fork http client failed")
+    }
+
+    /// Returns the  transaction count for a given block hash.
+    fn get_block_transaction_count_by_hash(&self, block_hash: H256) -> eyre::Result<Option<U256>> {
+        let client = self.create_client();
+        block_on(async move { client.get_block_transaction_count_by_hash(block_hash).await })
+            .wrap_err("fork http client failed")
+    }
+
+    /// Returns the transaction count for a given block number.
+    fn get_block_transaction_count_by_number(
+        &self,
+        block_number: zksync_types::api::BlockNumber,
+    ) -> eyre::Result<Option<U256>> {
+        let client = self.create_client();
+        block_on(async move {
+            client
+                .get_block_transaction_count_by_number(block_number)
                 .await
         })
         .wrap_err("fork http client failed")
