@@ -253,7 +253,7 @@ type L2TxResult = (
 );
 
 impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
-    fn create_block_context(&self) -> BlockContext {
+    pub fn create_block_context(&self) -> BlockContext {
         BlockContext {
             block_number: self.current_batch,
             block_timestamp: self.current_timestamp,
@@ -263,7 +263,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         }
     }
 
-    fn create_block_properties(contracts: &BaseSystemContracts) -> BlockProperties {
+    pub fn create_block_properties(contracts: &BaseSystemContracts) -> BlockProperties {
         BlockProperties {
             default_aa_code_hash: h256_to_u256(contracts.default_aa.hash),
             zkporter_is_available: false,
