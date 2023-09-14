@@ -25,10 +25,7 @@ use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 use zksync_web3_decl::{jsonrpsee::http_client::HttpClient, namespaces::EthNamespaceClient};
 use zksync_web3_decl::{jsonrpsee::http_client::HttpClientBuilder, namespaces::ZksNamespaceClient};
 
-use crate::{
-    cache::CacheConfig,
-    node::TEST_NODE_NETWORK_ID,
-};
+use crate::{cache::CacheConfig, node::TEST_NODE_NETWORK_ID};
 use crate::{deps::InMemoryStorage, http_fork_source::HttpForkSource};
 use crate::{deps::ReadStorage as RS, system_contracts};
 

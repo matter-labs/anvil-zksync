@@ -2020,7 +2020,7 @@ mod tests {
             testing::MockServer::run_with_config(input_block_number, input_block_hash);
 
         let node = InMemoryNode::<HttpForkSource>::new(
-            Some(ForkDetails::from_network(&mock_server.url(), None).await),
+            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
             crate::node::ShowCalls::None,
             ShowStorageLogs::None,
             ShowVMDetails::None,
@@ -2213,24 +2213,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_block_by_number_uses_fork_source_for_latest_block_if_locally_unavailable() {
-        let mock_server = testing::MockServer::run_with_config(10, H256::repeat_byte(0xab));
-        let mock_block_number = 1;
-        let block_response = testing::BlockResponseBuilder::new()
-            .set_number(mock_block_number)
-            .build();
-        mock_server.expect(
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 0,
-                "method": "eth_getBlockByNumber",
-                "params": [
-                    "latest",
-                    true
-                ],
-            }),
-            block_response,
-        );
+    async fn test_get_block_by_number_uses_locally_available_block_for_latest_block() {
+        let input_block_number = 10;
+        let mock_server =
+            testing::MockServer::run_with_config(input_block_number, H256::repeat_byte(0xab));
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
             crate::node::ShowCalls::None,
@@ -2246,16 +2232,13 @@ mod tests {
             .await
             .expect("failed fetching block by hash")
             .expect("no block");
-        assert_eq!(U64::from(latest_block_number), actual_block.number);
+        assert_eq!(U64::from(input_block_number), actual_block.number);
     }
 
     #[tokio::test]
     async fn test_get_block_by_number_uses_fork_source_for_earliest_block() {
         let mock_server = testing::MockServer::run_with_config(10, H256::repeat_byte(0xab));
-        let mock_block_number = 1;
-        let block_response = testing::BlockResponseBuilder::new()
-            .set_number(mock_block_number)
-            .build();
+        let input_block_number = 1;
         mock_server.expect(
             serde_json::json!({
                 "jsonrpc": "2.0",
@@ -2266,7 +2249,9 @@ mod tests {
                     true
                 ],
             }),
-            block_response,
+            testing::BlockResponseBuilder::new()
+                .set_number(input_block_number)
+                .build(),
         );
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
@@ -2283,33 +2268,19 @@ mod tests {
             .await
             .expect("failed fetching block by hash")
             .expect("no block");
-        assert_eq!(U64::from(mock_block_number), actual_block.number);
+        assert_eq!(U64::from(input_block_number), actual_block.number);
     }
 
     #[tokio::test]
-    async fn test_get_block_by_number_uses_fork_source_for_latest_alike_blocks() {
+    async fn test_get_block_by_number_uses_locally_available_for_latest_alike_blocks() {
         for block_number in [
             BlockNumber::Pending,
             BlockNumber::Committed,
             BlockNumber::Finalized,
         ] {
-            let mock_server = testing::MockServer::run_with_config(10, H256::repeat_byte(0xab));
-            let mock_block_number = 1;
-            let block_response = testing::BlockResponseBuilder::new()
-                .set_number(mock_block_number)
-                .build();
-            mock_server.expect(
-                serde_json::json!({
-                    "jsonrpc": "2.0",
-                    "id": 0,
-                    "method": "eth_getBlockByNumber",
-                    "params": [
-                        block_number,
-                        true
-                    ],
-                }),
-                block_response,
-            );
+            let input_block_number = 10;
+            let mock_server =
+                testing::MockServer::run_with_config(input_block_number, H256::repeat_byte(0xab));
             let node = InMemoryNode::<HttpForkSource>::new(
                 Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
                 crate::node::ShowCalls::None,
@@ -2326,7 +2297,7 @@ mod tests {
                 .expect("failed fetching block by hash")
                 .expect("no block");
             assert_eq!(
-                U64::from(latest_block_number),
+                U64::from(input_block_number),
                 actual_block.number,
                 "case {}",
                 block_number,

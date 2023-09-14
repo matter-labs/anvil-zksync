@@ -16,7 +16,7 @@ const CACHE_TYPE_BLOCK_RAW_TRANSACTIONS: &'static str = "block_raw_transactions"
 const CACHE_TYPE_TRANSACTIONS: &'static str = "transactions";
 
 /// Cache configuration. Can be one of:
-/// 
+///
 /// None    : Caching is disabled
 /// Memory  : Caching is provided in-memory and not persisted across runs
 /// Disk    : Caching is persisted on disk in the provided directory and can be reset
