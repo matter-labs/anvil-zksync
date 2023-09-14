@@ -67,6 +67,25 @@ Additionally, the file path can be provided via the `--log-file-path` option (de
 era_test_node --log=error --log-file-path=run.log run
 ```
 
+## 📃 Caching
+
+The node will cache certain network request by default to disk in the `.cache` directory. Alternatively the caching can be disabled tor set to in-memory only
+via the `--cache=none|memory|disk` parameter. 
+
+```bash
+era_test_node --cache=none run
+```
+
+```bash
+era_test_node --cache=memory run
+```
+
+Additionally when using `--cache=disk`, the cache directory may be specified via `--cache-dir` and the cache may
+be reset on startup via `--reset-cache` parameters.
+```bash
+era_test_node --cache=disk --cache-dir=/tmp/foo --reset-cache run
+```
+
 ## 🌐 Network Details
 
 - L2 RPC: http://localhost:8011
