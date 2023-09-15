@@ -1994,7 +1994,7 @@ mod tests {
         .unwrap();
         tx.set_input(vec![], H256::repeat_byte(0x01));
 
-        node.apply_txs(vec![tx.into()]).expect("failed applying tx");
+        node.apply_txs(vec![tx]).expect("failed applying tx");
 
         let expected_block_hash =
             H256::from_str("0x89c0aa770eba1f187235bdad80de9c01fe81bca415d442ca892f087da56fa109")
@@ -2120,7 +2120,7 @@ mod tests {
         .unwrap();
         tx.set_input(vec![], H256::repeat_byte(0x01));
 
-        node.apply_txs(vec![tx.into()]).expect("failed applying tx");
+        node.apply_txs(vec![tx]).expect("failed applying tx");
 
         let expected_block_number = 1;
         let actual_block = node
@@ -2197,7 +2197,7 @@ mod tests {
         .unwrap();
         tx.set_input(vec![], H256::repeat_byte(0x01));
 
-        node.apply_txs(vec![tx.into()]).expect("failed applying tx");
+        node.apply_txs(vec![tx]).expect("failed applying tx");
 
         let latest_block_number = 1;
         let actual_block = node

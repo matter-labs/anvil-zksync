@@ -1,8 +1,10 @@
 use colored::Colorize;
-use itertools::Itertools;
-use jsonrpc_core::{Middleware, Metadata, Request, Response, middleware, FutureResponse, Call, Params};
 use futures::future::Either;
 use futures::Future;
+use itertools::Itertools;
+use jsonrpc_core::{
+    middleware, Call, FutureResponse, Metadata, Middleware, Params, Request, Response,
+};
 use log::LevelFilter;
 
 #[derive(Clone, Debug, Default)]
@@ -23,14 +25,14 @@ impl LoggingMiddleware {
 /// Logs out incoming requests and their parameters
 /// Useful for debugging applications that are pointed at this service
 impl Middleware<Meta> for LoggingMiddleware {
-	type Future = FutureResponse;
-	type CallFuture = middleware::NoopCallFuture;
+    type Future = FutureResponse;
+    type CallFuture = middleware::NoopCallFuture;
 
-	fn on_request<F, X>(&self, request: Request, meta: Meta, next: F) -> Either<Self::Future, X>
-	where
-		F: FnOnce(Request, Meta) -> X + Send,
-		X: Future<Output = Option<Response>> + Send + 'static,
-	{
+    fn on_request<F, X>(&self, request: Request, meta: Meta, next: F) -> Either<Self::Future, X>
+    where
+        F: FnOnce(Request, Meta) -> X + Send,
+        X: Future<Output = Option<Response>> + Send + 'static,
+    {
         match &request {
             Request::Single(call) => {
                 match call {
@@ -39,29 +41,30 @@ impl Middleware<Meta> for LoggingMiddleware {
                             LevelFilter::Debug => {
                                 let full_params = match &method_call.params {
                                     Params::Array(values) => {
-                                        if values.len() == 0 {
+                                        if values.is_empty() {
                                             String::default()
                                         } else {
                                             format!("with [{}]", values.iter().join(", "))
                                         }
-
-                                    },
-                                    _ => String::default()
+                                    }
+                                    _ => String::default(),
                                 };
 
                                 log::debug!(
                                     "{} was called {}",
                                     method_call.method.cyan(),
-                                    full_params);
-                            },
+                                    full_params
+                                );
+                            }
                             _ => {
                                 // Generate truncated params for requests with massive payloads
                                 let truncated_params = match &method_call.params {
                                     Params::Array(values) => {
-                                        if values.len() == 0 {
+                                        if values.is_empty() {
                                             String::default()
                                         } else {
-                                            format!("with [{}]",
+                                            format!(
+                                                "with [{}]",
                                                 values
                                                     .iter()
                                                     .map(|s| {
@@ -76,24 +79,24 @@ impl Middleware<Meta> for LoggingMiddleware {
                                                     .join(", ")
                                             )
                                         }
-
-                                    },
-                                    _ => String::default()
+                                    }
+                                    _ => String::default(),
                                 };
 
                                 log::info!(
                                     "{} was called {}",
                                     method_call.method.cyan(),
-                                    truncated_params);
+                                    truncated_params
+                                );
                             }
                         }
-                    },
+                    }
                     _ => {}
                 }
-            },
+            }
             _ => {}
         };
 
-		Either::Left(Box::pin(next(request, meta)))
-	}
+        Either::Left(Box::pin(next(request, meta)))
+    }
 }
