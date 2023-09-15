@@ -1,4 +1,4 @@
-name: Testing era_test_node using e2e
+name: run
 on:
   workflow_call:
 
@@ -11,20 +11,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Download artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: era_test_node-ubuntu-latest.tar.gz
-      
-      - name: Start the era_test_node
-        id: start_node
-        run: |
-          echo "Extracting era_test_node binary"
-          tar -xzf era_test_node-ubuntu-latest.tar.gz
-          chmod +x era_test_node
-          echo "Starting node in background"
-          ./era_test_node run 2>&1 | tee era_test_node_ouput.log &
-          echo "PID=$!" >> $GITHUB_ENV
+      - name: Run Era Test Node
+        uses: dutterbutter/era-test-node-action@latest
 
       - name: Launch tests
         id: launch
@@ -32,9 +20,7 @@ jobs:
           echo "Run tests"
           make test-e2e
 
-      - name: Stop the era_test_node and print output logs
-        id: stop_node
+      - name: Print output logs
         if: always()
         run: |
           cat era_test_node_ouput.log
-          kill $PID
