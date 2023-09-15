@@ -33,68 +33,56 @@ impl Middleware<Meta> for LoggingMiddleware {
         F: FnOnce(Request, Meta) -> X + Send,
         X: Future<Output = Option<Response>> + Send + 'static,
     {
-        match &request {
-            Request::Single(call) => {
-                match call {
-                    Call::MethodCall(method_call) => {
-                        match self.log_level_filter {
-                            LevelFilter::Debug => {
-                                let full_params = match &method_call.params {
-                                    Params::Array(values) => {
-                                        if values.is_empty() {
-                                            String::default()
-                                        } else {
-                                            format!("with [{}]", values.iter().join(", "))
-                                        }
-                                    }
-                                    _ => String::default(),
-                                };
-
-                                log::debug!(
-                                    "{} was called {}",
-                                    method_call.method.cyan(),
-                                    full_params
-                                );
-                            }
-                            _ => {
-                                // Generate truncated params for requests with massive payloads
-                                let truncated_params = match &method_call.params {
-                                    Params::Array(values) => {
-                                        if values.is_empty() {
-                                            String::default()
-                                        } else {
-                                            format!(
-                                                "with [{}]",
-                                                values
-                                                    .iter()
-                                                    .map(|s| {
-                                                        let s_str = s.to_string();
-                                                        if s_str.len() > 70 {
-                                                            format!("{:.67}...", s_str)
-                                                        } else {
-                                                            s_str
-                                                        }
-                                                    })
-                                                    .collect::<Vec<String>>()
-                                                    .join(", ")
-                                            )
-                                        }
-                                    }
-                                    _ => String::default(),
-                                };
-
-                                log::info!(
-                                    "{} was called {}",
-                                    method_call.method.cyan(),
-                                    truncated_params
-                                );
+        if let Request::Single(Call::MethodCall(method_call)) = &request {
+            match self.log_level_filter {
+                LevelFilter::Debug => {
+                    let full_params = match &method_call.params {
+                        Params::Array(values) => {
+                            if values.is_empty() {
+                                String::default()
+                            } else {
+                                format!("with [{}]", values.iter().join(", "))
                             }
                         }
-                    }
-                    _ => {}
+                        _ => String::default(),
+                    };
+
+                    log::debug!("{} was called {}", method_call.method.cyan(), full_params);
+                }
+                _ => {
+                    // Generate truncated params for requests with massive payloads
+                    let truncated_params = match &method_call.params {
+                        Params::Array(values) => {
+                            if values.is_empty() {
+                                String::default()
+                            } else {
+                                format!(
+                                    "with [{}]",
+                                    values
+                                        .iter()
+                                        .map(|s| {
+                                            let s_str = s.to_string();
+                                            if s_str.len() > 70 {
+                                                format!("{:.67}...", s_str)
+                                            } else {
+                                                s_str
+                                            }
+                                        })
+                                        .collect::<Vec<String>>()
+                                        .join(", ")
+                                )
+                            }
+                        }
+                        _ => String::default(),
+                    };
+
+                    log::info!(
+                        "{} was called {}",
+                        method_call.method.cyan(),
+                        truncated_params
+                    );
                 }
             }
-            _ => {}
         };
 
         Either::Left(Box::pin(next(request, meta)))

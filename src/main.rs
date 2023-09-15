@@ -98,6 +98,7 @@ pub const RICH_WALLETS: [(&str, &str); 10] = [
     ),
 ];
 
+#[allow(clippy::too_many_arguments)]
 async fn build_json_http<
     S: std::marker::Sync + std::marker::Send + 'static + ForkSource + std::fmt::Debug,
 >(
