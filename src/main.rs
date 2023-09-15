@@ -338,7 +338,7 @@ async fn main() -> anyhow::Result<()> {
     let hardhat = HardhatNamespaceImpl::new(node.get_inner());
 
     let threads = build_json_http(
-        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), opt.port),
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), opt.port),
         log_level_filter,
         node,
         net,
