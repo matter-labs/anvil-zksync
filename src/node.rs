@@ -559,7 +559,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 fn not_implemented<T: Send + 'static>(
     method_name: &str,
 ) -> jsonrpc_core::BoxFuture<Result<T, jsonrpc_core::Error>> {
-    log::info!("Method {} is not implemented", method_name);
+    log::info!("{}", format!("Method {} is not implemented", method_name).yellow());
     Err(jsonrpc_core::Error {
         data: None,
         code: jsonrpc_core::ErrorCode::MethodNotFound,

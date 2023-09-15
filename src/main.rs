@@ -4,6 +4,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use configuration_api::ConfigurationApiNamespaceT;
 use evm::{EvmNamespaceImpl, EvmNamespaceT};
 use fork::{ForkDetails, ForkSource};
+use logging_middleware::LoggingMiddleware;
 use node::ShowCalls;
 use simplelog::{
     ColorChoice, CombinedLogger, ConfigBuilder, LevelFilter, TermLogger, TerminalMode, WriteLogger,
@@ -19,6 +20,7 @@ mod fork;
 mod formatter;
 mod hardhat;
 mod http_fork_source;
+mod logging_middleware;
 mod node;
 mod resolver;
 mod system_contracts;
@@ -44,7 +46,7 @@ use futures::{
     future::{self},
     FutureExt,
 };
-use jsonrpc_core::IoHandler;
+use jsonrpc_core::MetaIoHandler;
 use zksync_basic_types::{L2ChainId, H160, H256};
 
 use crate::{configuration_api::ConfigurationApiNamespace, node::TEST_NODE_NETWORK_ID};
@@ -100,6 +102,7 @@ async fn build_json_http<
     S: std::marker::Sync + std::marker::Send + 'static + ForkSource + std::fmt::Debug,
 >(
     addr: SocketAddr,
+    log_level_filter: LevelFilter,
     node: InMemoryNode<S>,
     net: NetNamespace,
     config_api: ConfigurationApiNamespace<S>,
@@ -110,7 +113,7 @@ async fn build_json_http<
     let (sender, recv) = oneshot::channel::<()>();
 
     let io_handler = {
-        let mut io = IoHandler::new();
+        let mut io = MetaIoHandler::with_middleware(LoggingMiddleware::new(log_level_filter));
         io.extend_with(node.to_delegate());
         io.extend_with(net.to_delegate());
         io.extend_with(config_api.to_delegate());
@@ -335,7 +338,8 @@ async fn main() -> anyhow::Result<()> {
     let hardhat = HardhatNamespaceImpl::new(node.get_inner());
 
     let threads = build_json_http(
-        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), opt.port),
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), opt.port),
+        log_level_filter,
         node,
         net,
         config_api,
