@@ -167,7 +167,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> HardhatNamespaceT
                         ));
                     }
                     mine_empty_blocks(&mut inner, num_blocks.as_u64(), interval_ms.as_u64());
-                    println!("👷 Mined {} blocks", num_blocks);
+                    log::info!("👷 Mined {} blocks", num_blocks);
                     Ok(true)
                 }
                 Err(_) => Err(into_jsrpc_error(Web3Error::InternalError)),
@@ -232,7 +232,6 @@ mod tests {
             .await
             .unwrap()
             .expect("block exists");
-        println!("start_block: {:?}", start_block);
 
         // test with defaults
         let result = hardhat
@@ -241,13 +240,11 @@ mod tests {
             .expect("hardhat_mine");
         assert_eq!(result, true);
 
-        println!("mined default");
         let current_block = node
             .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
             .await
             .unwrap()
             .expect("block exists");
-        println!("current_block: {:?}", current_block);
 
         assert_eq!(start_block.number + 1, current_block.number);
         assert_eq!(start_block.timestamp + 1000, current_block.timestamp);
@@ -257,13 +254,11 @@ mod tests {
             .expect("hardhat_mine");
         assert_eq!(result, true);
 
-        println!("mined default");
         let current_block = node
             .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
             .await
             .unwrap()
             .expect("block exists");
-        println!("current_block: {:?}", current_block);
 
         assert_eq!(start_block.number + 2, current_block.number);
         assert_eq!(start_block.timestamp + 2000, current_block.timestamp);
@@ -279,7 +274,6 @@ mod tests {
             .await
             .unwrap()
             .expect("block exists");
-        println!("start_block: {:?}", start_block);
 
         // test with custom values
         let result = hardhat
@@ -287,6 +281,5 @@ mod tests {
             .await
             .expect("hardhat_mine");
         assert_eq!(result, true);
-        println!("mined twice");
     }
 }

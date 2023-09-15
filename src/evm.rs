@@ -125,7 +125,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EvmNamespaceT
             match inner.write() {
                 Ok(mut inner) => {
                     mine_empty_blocks(&mut inner, 1, 1000);
-                    println!("👷 Mined block #{}", inner.current_miniblock);
+                    log::info!("👷 Mined block #{}", inner.current_miniblock);
                     Ok("0x0".to_string())
                 }
                 Err(_) => Err(into_jsrpc_error(Web3Error::InternalError)),
