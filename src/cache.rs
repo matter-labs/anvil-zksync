@@ -61,7 +61,11 @@ impl Cache {
                     CACHE_TYPE_TRANSACTIONS,
                 ] {
                     fs::remove_dir_all(Path::new(dir).join(cache_type)).unwrap_or_else(|err| {
-                        log::warn!("failed removing directory {:?}: {:?}", Path::new(dir).join(cache_type), err)
+                        log::warn!(
+                            "failed removing directory {:?}: {:?}",
+                            Path::new(dir).join(cache_type),
+                            err
+                        )
                     });
                 }
 
