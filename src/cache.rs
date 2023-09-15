@@ -54,9 +54,19 @@ impl Cache {
 
         if let CacheConfig::Disk { dir, reset } = &config {
             if *reset {
-                fs::remove_dir_all(Path::new(dir)).unwrap_or_else(|err| {
-                    log::error!("failed removing cache from disk: {:?}", err)
-                });
+                for cache_type in [
+                    CACHE_TYPE_BLOCKS_FULL,
+                    CACHE_TYPE_BLOCKS_MIN,
+                    CACHE_TYPE_BLOCK_RAW_TRANSACTIONS,
+                    CACHE_TYPE_TRANSACTIONS,
+                ] {
+                    fs::remove_dir_all(Path::new(dir).join(cache_type)).unwrap_or_else(|err| {
+                        log::warn!("failed removing directory {:?}: {:?}", Path::new(dir).join(cache_type), err)
+                    });
+                }
+
+                fs::remove_dir(Path::new(dir))
+                    .unwrap_or_else(|err| log::warn!("failed removing cache directory: {:?}", err));
             }
 
             for cache_type in [
@@ -491,5 +501,43 @@ mod tests {
         assert_eq!(None, new_cache.get_block_hash(&2));
         assert_eq!(None, new_cache.get_block_raw_transactions(&0));
         assert_eq!(None, new_cache.get_transaction(&H256::zero()));
+    }
+
+    #[test]
+    fn test_cache_config_disk_only_resets_created_data_on_disk() {
+        let cache_dir = TempDir::new("cache-test").expect("failed creating temporary dir");
+        let cache_dir_path = cache_dir
+            .path()
+            .to_str()
+            .expect("invalid dir name")
+            .to_string();
+        let mut cache = Cache::new(CacheConfig::Disk {
+            dir: cache_dir_path.clone(),
+            reset: true,
+        });
+
+        cache.insert_transaction(H256::zero(), Default::default());
+        let cached_tx_file = cache_dir
+            .path()
+            .join(CACHE_TYPE_TRANSACTIONS)
+            .join(format!("{:#x}", H256::zero()));
+        assert!(
+            cached_tx_file.exists(),
+            "cached transaction did not exist on disk"
+        );
+
+        let random_file_path = cache_dir.path().join("foobar.txt");
+        _ = File::create(&random_file_path).expect("failed creating random file");
+
+        Cache::new(CacheConfig::Disk {
+            dir: cache_dir_path,
+            reset: true,
+        });
+
+        assert!(
+            !cached_tx_file.exists(),
+            "cached transaction was not reset on disk"
+        );
+        assert!(random_file_path.exists(), "random file was reset from disk");
     }
 }

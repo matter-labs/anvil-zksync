@@ -69,7 +69,7 @@ era_test_node --log=error --log-file-path=run.log run
 
 ## 📃 Caching
 
-The node will cache certain network request by default to disk in the `.cache` directory. Alternatively the caching can be disabled tor set to in-memory only
+The node will cache certain network request by default to disk in the `.cache` directory. Alternatively the caching can be disabled or set to in-memory only
 via the `--cache=none|memory|disk` parameter. 
 
 ```bash

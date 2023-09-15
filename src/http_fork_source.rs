@@ -65,6 +65,7 @@ impl ForkSource for HttpForkSource {
             .read()
             .map(|guard| guard.get_transaction(&hash).cloned())
         {
+            log::debug!("using cached transaction for {hash}");
             return Ok(Some(transaction));
         }
 
@@ -97,6 +98,7 @@ impl ForkSource for HttpForkSource {
             .read()
             .map(|guard| guard.get_block_raw_transactions(&number).cloned())
         {
+            log::debug!("using cached raw transactions for block {block_number}");
             return Ok(transaction);
         }
 
@@ -131,6 +133,7 @@ impl ForkSource for HttpForkSource {
             .read()
             .map(|guard| guard.get_block(&hash, full_transactions).cloned())
         {
+            log::debug!("using cached block for {hash}");
             return Ok(Some(block));
         }
 
@@ -167,6 +170,7 @@ impl ForkSource for HttpForkSource {
                     .and_then(|hash| guard.get_block(hash, full_transactions).cloned())
             })
         }) {
+            log::debug!("using cached block for {block_number}");
             return Ok(Some(block));
         }
 
