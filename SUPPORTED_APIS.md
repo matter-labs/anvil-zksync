@@ -28,7 +28,7 @@ The `status` options are:
 | [`ETH`](#eth-namespace) | [`eth_chainId`](#eth_chainid) | `SUPPORTED` | Returns the currently configured chain id <br />_(default is `260`)_ |
 | `ETH` | `eth_coinbase` | `NOT IMPLEMENTED` | Returns the client coinbase address |
 | [`ETH`](#eth-namespace) | [`eth_estimateGas`](#eth_estimategas) | `SUPPORTED` | Generates and returns an estimate of how much gas is necessary for the transaction to complete |
-| `ETH` | `eth_feeHistory` | `NOT IMPLEMENTED` | Returns a collection of historical block gas data |
+| [`ETH`](#eth-namespace) | [`eth_feeHistory`](#eth_feehistory) | `SUPPORTED` | Returns a collection of historical block gas data <br />_(hardcoded with gas price of `250_000_000`)_ |
 | [`ETH`](#eth-namespace) | [`eth_gasPrice`](#eth_gasprice) | `SUPPORTED` | Returns the current price per gas in wei <br />_(hardcoded to `250_000_000`)_ |
 | [`ETH`](#eth-namespace) | [`eth_getBalance`](#eth_getbalance) | `SUPPORTED` | Returns the balance of the account of given address |
 | [`ETH`](#eth-namespace) | [`eth_getBlockByHash`](#eth_getblockbyhash) | `SUPPORTED` | Returns information about a block by block hash |
@@ -397,6 +397,31 @@ curl --request POST \
           "nonce": "0x0000"
       }, "latest"]
   }'
+```
+
+### `eth_feeHistory`
+
+[source](src/node.rs)
+
+Returns the fee history for a given range of blocks
+
+#### Arguments
+
++ `block_count: U64`
++ `newest_block: BlockNumber`
++ `reward_percentiles: Vec<f32>`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "eth_feeHistory","params": ["0x1", "latest", [25, 50 , 75]]}'
 ```
 
 ### `eth_gasPrice`

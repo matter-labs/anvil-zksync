@@ -32,7 +32,10 @@ use vm::{
     HistoryDisabled, HistoryEnabled, HistoryMode, OracleTools, TxRevertReason, VmBlockResult,
     VmInstance,
 };
-use zksync_basic_types::{web3::signing::keccak256, AccountTreeId, Bytes, H160, H256, U256, U64};
+use zksync_basic_types::{
+    web3::{self, signing::keccak256},
+    AccountTreeId, Bytes, H160, H256, U256, U64,
+};
 use zksync_contracts::BaseSystemContracts;
 use zksync_core::api_server::web3::backend_jsonrpc::{
     error::into_jsrpc_error, namespaces::eth::EthNamespaceT,
@@ -1918,13 +1921,61 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
         not_implemented("mining")
     }
 
+    /// Returns the fee history for a given range of blocks.
+    ///
+    /// Note: This implementation is limited to using the hard-coded value
+    /// of L2_GAS_PRICE as the history gas price
+    ///
+    /// # Arguments
+    ///
+    /// * `block_count` - The number of blocks in the requested range. Between 1 and 1024 blocks can be requested in a single query. It will return less than the requested range if not all blocks are available.
+    /// * `newest_block` - The highest number block of the requested range. As this implementation is using hard-coded values, this argument is ignored.
+    /// * `reward_percentiles` - A list of percentile values with a monotonic increase in value.
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `Result` with a `FeeHistory` representing the fee history of the specified range of blocks.
     fn fee_history(
         &self,
-        _block_count: U64,
+        block_count: U64,
         _newest_block: zksync_types::api::BlockNumber,
-        _reward_percentiles: Vec<f32>,
+        reward_percentiles: Vec<f32>,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<FeeHistory>> {
-        not_implemented("fee history")
+        let inner = Arc::clone(&self.inner);
+
+        Box::pin(async move {
+            let reader = inner
+                .read()
+                .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
+
+            let block_count = block_count
+                .as_u64()
+                .min(1024)
+                // Can't be more than the total number of blocks
+                .min(reader.current_miniblock + 1)
+                .max(1);
+
+            let mut base_fee_per_gas = vec![U256::from(L2_GAS_PRICE); block_count as usize];
+
+            let oldest_block = reader.current_miniblock + 1 - base_fee_per_gas.len() as u64;
+            // We do not store gas used ratio for blocks, returns array of zeroes as a placeholder.
+            let gas_used_ratio = vec![0.0; base_fee_per_gas.len()];
+            // Effective priority gas price is currently 0.
+            let reward = Some(vec![
+                vec![U256::zero(); reward_percentiles.len()];
+                base_fee_per_gas.len()
+            ]);
+
+            // `base_fee_per_gas` for next miniblock cannot be calculated, appending last fee as a placeholder.
+            base_fee_per_gas.push(*base_fee_per_gas.last().unwrap());
+
+            Ok(FeeHistory {
+                oldest_block: web3::types::BlockNumber::Number(oldest_block.into()),
+                base_fee_per_gas,
+                gas_used_ratio,
+                reward,
+            })
+        })
     }
 }
 
@@ -1941,6 +1992,97 @@ mod tests {
         let node = InMemoryNode::<HttpForkSource>::default();
         let syncing = node.syncing().await.expect("failed syncing");
         assert!(matches!(syncing, SyncState::NotSyncing));
+    }
+
+    #[tokio::test]
+    async fn test_get_fee_history_with_1_block() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let fee_history = node
+            .fee_history(U64::from(1), BlockNumber::Latest, vec![25.0, 50.0, 75.0])
+            .await
+            .expect("fee_history failed");
+
+        assert_eq!(
+            fee_history.oldest_block,
+            web3::types::BlockNumber::Number(U64::from(0))
+        );
+        assert_eq!(
+            fee_history.base_fee_per_gas,
+            vec![U256::from(L2_GAS_PRICE); 2]
+        );
+        assert_eq!(fee_history.gas_used_ratio, vec![0.0]);
+        assert_eq!(fee_history.reward, Some(vec![vec![U256::from(0); 3]]));
+    }
+
+    #[tokio::test]
+    async fn test_get_fee_history_with_no_reward_percentiles() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let fee_history = node
+            .fee_history(U64::from(1), BlockNumber::Latest, vec![])
+            .await
+            .expect("fee_history failed");
+
+        assert_eq!(
+            fee_history.oldest_block,
+            web3::types::BlockNumber::Number(U64::from(0))
+        );
+        assert_eq!(
+            fee_history.base_fee_per_gas,
+            vec![U256::from(L2_GAS_PRICE); 2]
+        );
+        assert_eq!(fee_history.gas_used_ratio, vec![0.0]);
+        assert_eq!(fee_history.reward, Some(vec![vec![]]));
+    }
+
+    #[tokio::test]
+    async fn test_get_fee_history_with_multiple_blocks() {
+        // Arrange
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let private_key = H256::random();
+        let from_account = PackedEthSignature::address_from_private_key(&private_key)
+            .expect("failed generating address");
+        node.set_rich_account(from_account);
+        let mut tx = L2Tx::new_signed(
+            Address::random(),
+            vec![],
+            Nonce(0),
+            Fee {
+                gas_limit: U256::from(1_000_000),
+                max_fee_per_gas: U256::from(250_000_000),
+                max_priority_fee_per_gas: U256::from(250_000_000),
+                gas_per_pubdata_limit: U256::from(20000),
+            },
+            U256::from(1),
+            L2ChainId(260),
+            &private_key,
+            None,
+            Default::default(),
+        )
+        .unwrap();
+        tx.set_input(vec![], H256::repeat_byte(0x01));
+
+        node.apply_txs(vec![tx]).expect("failed applying tx");
+
+        // Act
+        let fee_history = node
+            .fee_history(U64::from(2), BlockNumber::Latest, vec![25.0, 50.0, 75.0])
+            .await
+            .expect("fee_history failed");
+
+        // Assert
+        assert_eq!(
+            fee_history.oldest_block,
+            web3::types::BlockNumber::Number(U64::from(0))
+        );
+        assert_eq!(
+            fee_history.base_fee_per_gas,
+            vec![U256::from(L2_GAS_PRICE); 3]
+        );
+        assert_eq!(fee_history.gas_used_ratio, vec![0.0, 0.0]);
+        assert_eq!(fee_history.reward, Some(vec![vec![U256::from(0); 3]; 2]));
     }
 
     #[tokio::test]

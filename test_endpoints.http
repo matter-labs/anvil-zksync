@@ -388,3 +388,14 @@ content-type: application/json
     "method": "zks_getTokenPrice",
     "params": ["0x0000000000000000000000000000000000000000"]
 }
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_feeHistory",
+    "params": ["0x1", "latest", [25, 50 , 75]]
+}
