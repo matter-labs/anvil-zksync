@@ -1842,74 +1842,35 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                     Ok(r) => r,
                     Err(_) => return Err(into_jsrpc_error(Web3Error::InternalError)),
                 };
-                match block_number {
+                let number = match block_number {
                     zksync_types::api::BlockNumber::Latest
                     | zksync_types::api::BlockNumber::Pending
                     | zksync_types::api::BlockNumber::Finalized
-                    | zksync_types::api::BlockNumber::Committed => reader
-                        .block_hashes
-                        .get(&reader.current_miniblock)
-                        .and_then(|hash| reader.blocks.get(hash))
-                        .map(|block| U256::from(block.transactions.len()))
-                        .or_else(|| {
-                            reader
-                                .fork_storage
-                                .inner
-                                .read()
-                                .expect("failed reading fork storage")
-                                .fork
-                                .as_ref()
-                                .and_then(|fork| {
-                                    fork.fork_source
-                                        .get_block_transaction_count_by_number(block_number)
-                                        .ok()
-                                        .flatten()
-                                })
-                        }),
-                    zksync_types::api::BlockNumber::Number(ask_number) => {
-                        let block = reader
-                            .block_hashes
-                            .get(&ask_number.as_u64())
-                            .and_then(|hash| reader.blocks.get(hash))
-                            .map(|block| U256::from(block.transactions.len()))
-                            .or_else(|| {
-                                reader
-                                    .fork_storage
-                                    .inner
-                                    .read()
-                                    .expect("failed reading fork storage")
-                                    .fork
-                                    .as_ref()
-                                    .and_then(|fork| {
-                                        fork.fork_source
-                                            .get_block_transaction_count_by_number(block_number)
-                                            .ok()
-                                            .flatten()
-                                    })
-                            });
-                        block
-                    }
-                    zksync_types::api::BlockNumber::Earliest => reader
-                        .block_hashes
-                        .get(&0)
-                        .and_then(|hash| reader.blocks.get(hash))
-                        .map(|block| U256::from(block.transactions.len()))
-                        .or_else(|| {
-                            reader
-                                .fork_storage
-                                .inner
-                                .read()
-                                .expect("failed reading fork storage")
-                                .fork
-                                .as_ref()
-                                .and_then(|fork| {
-                                    fork.fork_source
-                                        .get_block_transaction_count_by_number(block_number)
-                                        .ok()
-                                        .flatten()
-                                })
-                        }),
-                }
+                    | zksync_types::api::BlockNumber::Committed => reader.current_miniblock,
+                    zksync_types::api::BlockNumber::Number(ask_number) => ask_number.as_u64(),
+                    zksync_types::api::BlockNumber::Earliest => 0,
+                };
+
+                reader
+                    .block_hashes
+                    .get(&number)
+                    .and_then(|hash| reader.blocks.get(hash))
+                    .map(|block| U256::from(block.transactions.len()))
+                    .or_else(|| {
+                        reader
+                            .fork_storage
+                            .inner
+                            .read()
+                            .expect("failed reading fork storage")
+                            .fork
+                            .as_ref()
+                            .and_then(|fork| {
+                                fork.fork_source
+                                    .get_block_transaction_count_by_number(block_number)
+                                    .ok()
+                                    .flatten()
+                            })
+                    })
             };
 
             match maybe_result {
