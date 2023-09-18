@@ -14,3 +14,4 @@ etc/**/*.zbin
 !.vscode/tasks.json
 
 *.log
+.cache

@@ -47,6 +47,8 @@ ethabi = "16.0.0"
 itertools = "0.10.5"
 log = "0.4.20"
 simplelog = "0.12.1"
+rustc-hash = "1.1.0"
 
 [dev-dependencies]
 httptest = "0.15.4"
+tempdir = "0.3.7"

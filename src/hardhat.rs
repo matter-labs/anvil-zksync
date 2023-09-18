@@ -71,9 +71,10 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> HardhatNamespaceT
                     inner_guard
                         .fork_storage
                         .set_value(balance_key, u256_to_h256(balance));
-                    println!(
+                    log::info!(
                         "👷 Balance for address {:?} has been manually set to {} Wei",
-                        address, balance
+                        address,
+                        balance
                     );
                     Ok(true)
                 }
@@ -113,9 +114,10 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> HardhatNamespaceT
                     }
                     deployment_nonce = nonce;
                     let enforced_full_nonce = nonces_to_full_nonce(account_nonce, deployment_nonce);
-                    println!(
+                    log::info!(
                         "👷 Nonces for address {:?} have been set to {}",
-                        address, nonce
+                        address,
+                        nonce
                     );
                     inner_guard
                         .fork_storage
