@@ -189,9 +189,9 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
         let mut storage_view: StorageView<&ForkStorage<S>> = StorageView::new(&node.fork_storage);
         let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryEnabled);
 
-        let bootloader_code = node
-            .system_contracts
-            .contracts(TxExecutionMode::VerifyExecute);
+        // system_contract.contacts_for_l2_call() will give playground contracts
+        // we need these to use the unsafeOverrideBlock method in SystemContext.sol
+        let bootloader_code = node.system_contracts.contacts_for_l2_call();
         let block_context = BlockContext {
             block_number: node.current_miniblock as u32,
             block_timestamp: node.current_timestamp,

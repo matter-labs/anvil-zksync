@@ -182,6 +182,7 @@ mod tests {
     use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
     use std::str::FromStr;
     use zksync_core::api_server::web3::backend_jsonrpc::namespaces::eth::EthNamespaceT;
+    use zksync_types::api::BlockNumber;
 
     #[tokio::test]
     async fn test_set_balance() {
@@ -275,19 +276,27 @@ mod tests {
             .unwrap()
             .expect("block exists");
 
-        // test with custom values
+        let num_blocks = 5;
+        let interval = 3;
+        let start_timestamp = start_block.timestamp + 1_000;
+
         let result = hardhat
-            .hardhat_mine(Some(U64::from(2)), Some(U64::from(10)))
+            .hardhat_mine(Some(U64::from(num_blocks)), Some(U64::from(interval)))
             .await
             .expect("hardhat_mine");
         assert_eq!(result, true);
 
-        let current_block = node
-            .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
-            .await
-            .unwrap()
-            .expect("block exists");
-        assert_eq!(start_block.number + 5, current_block.number);
-        assert_eq!(start_block.timestamp + 50_000, current_block.timestamp);
+        for i in 0..num_blocks {
+            let current_block = node
+                .get_block_by_number(BlockNumber::Number(start_block.number + i + 1), false)
+                .await
+                .unwrap()
+                .expect("block exists");
+            assert_eq!(start_block.number + i + 1, current_block.number);
+            assert_eq!(
+                start_timestamp + i * interval * 1_000,
+                current_block.timestamp
+            );
+        }
     }
 }
