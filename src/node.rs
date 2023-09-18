@@ -1496,7 +1496,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
             let receipt = tx_result.map(|info| TransactionReceipt {
                 transaction_hash: hash,
                 transaction_index: U64::from(1),
-                block_hash: Some(hash),
+                block_hash: reader.block_hashes.get(&info.miniblock_number).cloned(),
                 block_number: Some(U64::from(info.miniblock_number)),
                 l1_batch_tx_index: None,
                 l1_batch_number: Some(U64::from(info.batch_number as u64)),
@@ -2653,5 +2653,20 @@ mod tests {
                 block_number,
             );
         }
+    }
+
+    #[tokio::test]
+    async fn test_get_transaction_receipt_uses_produced_block_hash() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let tx_hash = H256::repeat_byte(0x01);
+        let expected_block_hash = testing::apply_tx(&node, tx_hash);
+
+        let actual_tx_receipt = node
+            .get_transaction_receipt(tx_hash)
+            .await
+            .expect("failed fetching transaction receipt by hash")
+            .expect("no transaction receipt");
+
+        assert_eq!(Some(expected_block_hash), actual_tx_receipt.block_hash);
     }
 }
