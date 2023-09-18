@@ -10,7 +10,10 @@ use zksync_types::{
     api::{BridgeAddresses, ProtocolVersion},
     fee::Fee,
 };
-use zksync_web3_decl::error::Web3Error;
+use zksync_web3_decl::{
+    error::Web3Error,
+    types::{Filter, Log},
+};
 
 use crate::{fork::ForkSource, node::InMemoryNodeInner, utils::IntoBoxedFuture};
 use colored::Colorize;
@@ -228,6 +231,13 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
         &self,
         _version_id: Option<u16>,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<ProtocolVersion>>> {
+        not_implemented!()
+    }
+
+    fn get_logs_with_virtual_blocks(
+        &self,
+        _filter: Filter,
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Vec<Log>>> {
         not_implemented!()
     }
 }

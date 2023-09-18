@@ -582,7 +582,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         let tx: Transaction = l2_tx.into();
         vm.push_transaction(tx);
 
-        vm.execute_next_transaction()
+        vm.execute(vm::VmExecutionMode::OneTx)
     }
 }
 
@@ -774,7 +774,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                     as Box<dyn VmTracer<StorageView<&ForkStorage<S>>, HistoryDisabled>>,
             ];
 
-        let tx_result = vm.inspect_next_transaction(custom_tracers);
+        let tx_result = vm.inspect(custom_tracers, vm::VmExecutionMode::OneTx);
 
         let call_traces = Arc::try_unwrap(call_tracer_result)
             .unwrap()
@@ -806,155 +806,160 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
     fn display_detailed_gas_info(
         &self,
-        bootloader_debug_result: Arc<OnceCell<eyre::Result<BootloaderDebug>>>,
+        bootloader_debug_result: Option<&eyre::Result<BootloaderDebug, String>>,
         spent_on_pubdata: u32,
-    ) -> eyre::Result<()> {
-        let debug = bootloader_debug_result.get().unwrap().as_ref().unwrap();
+    ) -> eyre::Result<(), String> {
+        if let Some(bootloader_result) = bootloader_debug_result {
+            let debug = bootloader_result.clone()?;
 
-        log::info!("┌─────────────────────────┐");
-        log::info!("│       GAS DETAILS       │");
-        log::info!("└─────────────────────────┘");
+            log::info!("┌─────────────────────────┐");
+            log::info!("│       GAS DETAILS       │");
+            log::info!("└─────────────────────────┘");
 
-        // Total amount of gas (should match tx.gas_limit).
-        let total_gas_limit = debug
-            .total_gas_limit_from_user
-            .saturating_sub(debug.reserved_gas);
+            // Total amount of gas (should match tx.gas_limit).
+            let total_gas_limit = debug
+                .total_gas_limit_from_user
+                .saturating_sub(debug.reserved_gas);
 
-        let intrinsic_gas = total_gas_limit - debug.gas_limit_after_intrinsic;
-        let gas_for_validation = debug.gas_limit_after_intrinsic - debug.gas_after_validation;
+            let intrinsic_gas = total_gas_limit - debug.gas_limit_after_intrinsic;
+            let gas_for_validation = debug.gas_limit_after_intrinsic - debug.gas_after_validation;
 
-        let gas_spent_on_compute =
-            debug.gas_spent_on_execution - debug.gas_spent_on_bytecode_preparation;
+            let gas_spent_on_compute =
+                debug.gas_spent_on_execution - debug.gas_spent_on_bytecode_preparation;
 
-        let gas_used = intrinsic_gas
-            + gas_for_validation
-            + debug.gas_spent_on_bytecode_preparation
-            + gas_spent_on_compute;
+            let gas_used = intrinsic_gas
+                + gas_for_validation
+                + debug.gas_spent_on_bytecode_preparation
+                + gas_spent_on_compute;
 
-        log::info!(
-            "Gas - Limit: {} | Used: {} | Refunded: {}",
-            to_human_size(total_gas_limit),
-            to_human_size(gas_used),
-            to_human_size(debug.refund_by_operator)
-        );
-
-        if debug.total_gas_limit_from_user != total_gas_limit {
             log::info!(
-                "{}",
-                format!(
+                "Gas - Limit: {} | Used: {} | Refunded: {}",
+                to_human_size(total_gas_limit),
+                to_human_size(gas_used),
+                to_human_size(debug.refund_by_operator)
+            );
+
+            if debug.total_gas_limit_from_user != total_gas_limit {
+                log::info!(
+                    "{}",
+                    format!(
                 "  WARNING: user actually provided more gas {}, but system had a lower max limit.",
                 to_human_size(debug.total_gas_limit_from_user)
             )
-                .yellow()
+                    .yellow()
+                );
+            }
+            if debug.refund_computed != debug.refund_by_operator {
+                log::info!(
+                    "{}",
+                    format!(
+                        "  WARNING: Refund by VM: {}, but operator refunded more: {}",
+                        to_human_size(debug.refund_computed),
+                        to_human_size(debug.refund_by_operator)
+                    )
+                    .yellow()
+                );
+            }
+
+            if debug.refund_computed + gas_used != total_gas_limit {
+                log::info!(
+                    "{}",
+                    format!(
+                        "  WARNING: Gas totals don't match. {} != {} , delta: {}",
+                        to_human_size(debug.refund_computed + gas_used),
+                        to_human_size(total_gas_limit),
+                        to_human_size(total_gas_limit.abs_diff(debug.refund_computed + gas_used))
+                    )
+                    .yellow()
+                );
+            }
+
+            let bytes_published = spent_on_pubdata / debug.gas_per_pubdata.as_u32();
+
+            log::info!(
+                "During execution published {} bytes to L1, @{} each - in total {} gas",
+                to_human_size(bytes_published.into()),
+                to_human_size(debug.gas_per_pubdata),
+                to_human_size(spent_on_pubdata.into())
             );
-        }
-        if debug.refund_computed != debug.refund_by_operator {
+
+            log::info!("Out of {} gas used, we spent:", to_human_size(gas_used));
+            log::info!(
+                "  {:>15} gas ({:>2}%) for transaction setup",
+                to_human_size(intrinsic_gas),
+                to_human_size(intrinsic_gas * 100 / gas_used)
+            );
+            log::info!(
+                "  {:>15} gas ({:>2}%) for bytecode preparation (decompression etc)",
+                to_human_size(debug.gas_spent_on_bytecode_preparation),
+                to_human_size(debug.gas_spent_on_bytecode_preparation * 100 / gas_used)
+            );
+            log::info!(
+                "  {:>15} gas ({:>2}%) for account validation",
+                to_human_size(gas_for_validation),
+                to_human_size(gas_for_validation * 100 / gas_used)
+            );
+            log::info!(
+                "  {:>15} gas ({:>2}%) for computations (opcodes)",
+                to_human_size(gas_spent_on_compute),
+                to_human_size(gas_spent_on_compute * 100 / gas_used)
+            );
+
+            log::info!("");
+            log::info!("");
             log::info!(
                 "{}",
-                format!(
-                    "  WARNING: Refund by VM: {}, but operator refunded more: {}",
-                    to_human_size(debug.refund_computed),
-                    to_human_size(debug.refund_by_operator)
-                )
-                .yellow()
+                "=== Transaction setup cost breakdown ===".to_owned().bold(),
             );
-        }
 
-        if debug.refund_computed + gas_used != total_gas_limit {
+            log::info!("Total cost: {}", to_human_size(intrinsic_gas).bold());
             log::info!(
-                "{}",
-                format!(
-                    "  WARNING: Gas totals don't match. {} != {} , delta: {}",
-                    to_human_size(debug.refund_computed + gas_used),
-                    to_human_size(total_gas_limit),
-                    to_human_size(total_gas_limit.abs_diff(debug.refund_computed + gas_used))
-                )
-                .yellow()
+                "  {:>15} gas ({:>2}%) fixed cost",
+                to_human_size(debug.intrinsic_overhead),
+                to_human_size(debug.intrinsic_overhead * 100 / intrinsic_gas)
             );
-        }
+            log::info!(
+                "  {:>15} gas ({:>2}%) operator cost",
+                to_human_size(debug.operator_overhead),
+                to_human_size(debug.operator_overhead * 100 / intrinsic_gas)
+            );
 
-        let bytes_published = spent_on_pubdata / debug.gas_per_pubdata.as_u32();
+            log::info!("");
+            log::info!(
+                "  FYI: operator could have charged up to: {}, so you got {}% discount",
+                to_human_size(debug.required_overhead),
+                to_human_size(
+                    (debug.required_overhead - debug.operator_overhead) * 100
+                        / debug.required_overhead
+                )
+            );
 
-        log::info!(
-            "During execution published {} bytes to L1, @{} each - in total {} gas",
-            to_human_size(bytes_published.into()),
-            to_human_size(debug.gas_per_pubdata),
-            to_human_size(spent_on_pubdata.into())
-        );
-
-        log::info!("Out of {} gas used, we spent:", to_human_size(gas_used));
-        log::info!(
-            "  {:>15} gas ({:>2}%) for transaction setup",
-            to_human_size(intrinsic_gas),
-            to_human_size(intrinsic_gas * 100 / gas_used)
-        );
-        log::info!(
-            "  {:>15} gas ({:>2}%) for bytecode preparation (decompression etc)",
-            to_human_size(debug.gas_spent_on_bytecode_preparation),
-            to_human_size(debug.gas_spent_on_bytecode_preparation * 100 / gas_used)
-        );
-        log::info!(
-            "  {:>15} gas ({:>2}%) for account validation",
-            to_human_size(gas_for_validation),
-            to_human_size(gas_for_validation * 100 / gas_used)
-        );
-        log::info!(
-            "  {:>15} gas ({:>2}%) for computations (opcodes)",
-            to_human_size(gas_spent_on_compute),
-            to_human_size(gas_spent_on_compute * 100 / gas_used)
-        );
-
-        log::info!("");
-        log::info!("");
-        log::info!(
-            "{}",
-            "=== Transaction setup cost breakdown ===".to_owned().bold(),
-        );
-
-        log::info!("Total cost: {}", to_human_size(intrinsic_gas).bold());
-        log::info!(
-            "  {:>15} gas ({:>2}%) fixed cost",
-            to_human_size(debug.intrinsic_overhead),
-            to_human_size(debug.intrinsic_overhead * 100 / intrinsic_gas)
-        );
-        log::info!(
-            "  {:>15} gas ({:>2}%) operator cost",
-            to_human_size(debug.operator_overhead),
-            to_human_size(debug.operator_overhead * 100 / intrinsic_gas)
-        );
-
-        log::info!("");
-        log::info!(
-            "  FYI: operator could have charged up to: {}, so you got {}% discount",
-            to_human_size(debug.required_overhead),
-            to_human_size(
-                (debug.required_overhead - debug.operator_overhead) * 100 / debug.required_overhead
-            )
-        );
-
-        let publish_block_l1_bytes = BLOCK_OVERHEAD_PUBDATA;
-        log::info!(
+            let publish_block_l1_bytes = BLOCK_OVERHEAD_PUBDATA;
+            log::info!(
             "Publishing full block costs the operator up to: {}, where {} is due to {} bytes published to L1",
             to_human_size(debug.total_overhead_for_block),
             to_human_size(debug.gas_per_pubdata * publish_block_l1_bytes),
             to_human_size(publish_block_l1_bytes.into())
         );
-        log::info!("Your transaction has contributed to filling up the block in the following way (we take the max contribution as the cost):");
-        log::info!(
-            "  Circuits overhead:{:>15} ({}% of the full block: {})",
-            to_human_size(debug.overhead_for_circuits),
-            to_human_size(debug.overhead_for_circuits * 100 / debug.total_overhead_for_block),
-            to_human_size(debug.total_overhead_for_block)
-        );
-        log::info!(
-            "  Length overhead:  {:>15}",
-            to_human_size(debug.overhead_for_length)
-        );
-        log::info!(
-            "  Slot overhead:    {:>15}",
-            to_human_size(debug.overhead_for_slot)
-        );
-        Ok(())
+            log::info!("Your transaction has contributed to filling up the block in the following way (we take the max contribution as the cost):");
+            log::info!(
+                "  Circuits overhead:{:>15} ({}% of the full block: {})",
+                to_human_size(debug.overhead_for_circuits),
+                to_human_size(debug.overhead_for_circuits * 100 / debug.total_overhead_for_block),
+                to_human_size(debug.total_overhead_for_block)
+            );
+            log::info!(
+                "  Length overhead:  {:>15}",
+                to_human_size(debug.overhead_for_length)
+            );
+            log::info!(
+                "  Slot overhead:    {:>15}",
+                to_human_size(debug.overhead_for_slot)
+            );
+            Ok(())
+        } else {
+            Err("Booloader tracer didn't finish.".to_owned())
+        }
     }
 
     /// Executes the given L2 transaction and returns all the VM logs.
@@ -996,7 +1001,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             }) as Box<dyn VmTracer<StorageView<&ForkStorage<S>>, HistoryDisabled>>,
         ];
 
-        let tx_result = vm.inspect_next_transaction(custom_tracers);
+        let tx_result = vm.inspect(custom_tracers, vm::VmExecutionMode::OneTx);
 
         let call_traces = Arc::try_unwrap(call_tracer_result)
             .unwrap()
@@ -1031,7 +1036,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             ),
             ShowGasDetails::All => {
                 if self
-                    .display_detailed_gas_info(bootloader_debug_result.clone(), spent_on_pubdata)
+                    .display_detailed_gas_info(bootloader_debug_result.get(), spent_on_pubdata)
                     .is_err()
                 {
                     log::info!(
@@ -1123,7 +1128,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             .map(|b| bytecode_to_factory_dep(b.original.clone()))
             .collect();
 
-        vm.execute_the_rest_of_the_batch();
+        vm.execute(vm::VmExecutionMode::Bootloader);
 
         let modified_keys = storage.borrow().modified_storage_keys().clone();
         Ok((modified_keys, tx_result, block, bytecodes))
@@ -1729,7 +1734,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
             Ok(tx_result.and_then(|info| {
                 let input_data = info.tx.common_data.input.clone().or(None)?;
 
-                let chain_id = info.tx.extract_chain_id().or(None)?;
+                let chain_id = info.tx.common_data.extract_chain_id().or(None)?;
 
                 Some(zksync_types::api::Transaction {
                     hash,

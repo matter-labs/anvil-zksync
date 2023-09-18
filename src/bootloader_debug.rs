@@ -30,7 +30,7 @@ const DEBUG_START_SLOT: usize = DEBUG_START_BYTE / 32;
 /// Struct that represents the additional debug information that we can get from bootloader.
 /// Bootloader puts them in a special memory region after each transaction, and we can load them with this struct.
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BootloaderDebug {
     /// Amount of gas that user attached to the transaction.
     pub total_gas_limit_from_user: U256,
@@ -76,8 +76,10 @@ pub struct BootloaderDebug {
     pub overhead_for_slot: U256,
 }
 
+/// The role of this tracer is to read the memory slots directly from bootloader memory at
+/// the end of VM execution - and put them into BootloaderDebug object.
 pub struct BootloaderDebugTracer {
-    pub result: Arc<OnceCell<eyre::Result<BootloaderDebug>>>,
+    pub result: Arc<OnceCell<eyre::Result<BootloaderDebug, String>>>,
 }
 
 impl<S, H: HistoryMode> DynTracer<S, H> for BootloaderDebugTracer {}
@@ -108,9 +110,14 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for BootloaderDebugTracer {
 }
 
 impl BootloaderDebug {
-    pub fn load_from_memory<H: HistoryMode>(memory: &SimpleMemory<H>) -> eyre::Result<Self> {
+    pub fn load_from_memory<H: HistoryMode>(
+        memory: &SimpleMemory<H>,
+    ) -> eyre::Result<Self, String> {
         if load_debug_slot(memory, 0) != U256::from(DEBUG_START_SENTINEL) {
-            eyre::bail!("Debug slot has wrong value. Probably bootloader slot mapping has changed.")
+            Err(
+                "Debug slot has wrong value. Probably bootloader slot mapping has changed."
+                    .to_owned(),
+            )
         } else {
             Ok(BootloaderDebug {
                 total_gas_limit_from_user: load_debug_slot(memory, 1),
