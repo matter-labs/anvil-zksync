@@ -35,7 +35,7 @@ impl Middleware<Meta> for LoggingMiddleware {
     {
         if let Request::Single(Call::MethodCall(method_call)) = &request {
             match self.log_level_filter {
-                LevelFilter::Debug => {
+                LevelFilter::Trace => {
                     let full_params = match &method_call.params {
                         Params::Array(values) => {
                             if values.is_empty() {
@@ -47,7 +47,7 @@ impl Middleware<Meta> for LoggingMiddleware {
                         _ => String::default(),
                     };
 
-                    log::debug!("{} was called {}", method_call.method.cyan(), full_params);
+                    log::trace!("{} was called {}", method_call.method.cyan(), full_params);
                 }
                 _ => {
                     // Generate truncated params for requests with massive payloads

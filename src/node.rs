@@ -2120,31 +2120,7 @@ mod tests {
     async fn test_get_fee_history_with_multiple_blocks() {
         // Arrange
         let node = InMemoryNode::<HttpForkSource>::default();
-
-        let private_key = H256::random();
-        let from_account = PackedEthSignature::address_from_private_key(&private_key)
-            .expect("failed generating address");
-        node.set_rich_account(from_account);
-        let mut tx = L2Tx::new_signed(
-            Address::random(),
-            vec![],
-            Nonce(0),
-            Fee {
-                gas_limit: U256::from(1_000_000),
-                max_fee_per_gas: U256::from(250_000_000),
-                max_priority_fee_per_gas: U256::from(250_000_000),
-                gas_per_pubdata_limit: U256::from(20000),
-            },
-            U256::from(1),
-            L2ChainId(260),
-            &private_key,
-            None,
-            Default::default(),
-        )
-        .unwrap();
-        tx.set_input(vec![], H256::repeat_byte(0x01));
-
-        node.apply_txs(vec![tx]).expect("failed applying tx");
+        testing::apply_tx(&node, H256::repeat_byte(0x01));
 
         // Act
         let fee_history = node

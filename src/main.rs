@@ -149,6 +149,7 @@ async fn build_json_http<
 /// Log filter level for the node.
 #[derive(Debug, Clone, ValueEnum)]
 enum LogLevel {
+    Trace,
     Debug,
     Info,
     Warn,
@@ -158,6 +159,7 @@ enum LogLevel {
 impl From<LogLevel> for LevelFilter {
     fn from(value: LogLevel) -> Self {
         match value {
+            LogLevel::Trace => LevelFilter::Trace,
             LogLevel::Debug => LevelFilter::Debug,
             LogLevel::Info => LevelFilter::Info,
             LogLevel::Warn => LevelFilter::Warn,
