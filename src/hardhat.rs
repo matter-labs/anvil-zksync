@@ -277,9 +277,17 @@ mod tests {
 
         // test with custom values
         let result = hardhat
-            .hardhat_mine(Some(U64::from(5)), Some(U64::from(10)))
+            .hardhat_mine(Some(U64::from(2)), Some(U64::from(10)))
             .await
             .expect("hardhat_mine");
         assert_eq!(result, true);
+
+        let current_block = node
+            .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
+            .await
+            .unwrap()
+            .expect("block exists");
+        assert_eq!(start_block.number + 5, current_block.number);
+        assert_eq!(start_block.timestamp + 50_000, current_block.timestamp);
     }
 }

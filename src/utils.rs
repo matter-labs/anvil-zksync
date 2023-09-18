@@ -172,7 +172,7 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
 
         let block = Block {
             hash: compute_hash(node.current_miniblock as u32, H256::zero()),
-            number: node.current_batch.into(),
+            number: node.current_miniblock.into(),
             timestamp: node.current_timestamp.into(),
             ..Default::default()
         };
@@ -182,7 +182,6 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
 
         // leave node state ready for next interaction
         node.current_timestamp = node.current_timestamp.saturating_add(interval_ms);
-        node.current_batch = node.current_batch.saturating_add(1);
     }
 
     // roll the vm
@@ -190,14 +189,16 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
         let mut storage_view: StorageView<&ForkStorage<S>> = StorageView::new(&node.fork_storage);
         let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryEnabled);
 
-        let bootloader_code = &node.system_contracts.playground_contracts;
-
+        let bootloader_code = node
+            .system_contracts
+            .contracts(TxExecutionMode::VerifyExecute);
         let block_context = BlockContext {
-            block_number: node.current_batch - 1,
+            block_number: node.current_miniblock as u32,
             block_timestamp: node.current_timestamp,
             ..node.create_block_context()
         };
-        let block_properties = InMemoryNodeInner::<S>::create_block_properties(bootloader_code);
+        let block_properties: zksync_types::zk_evm::block_properties::BlockProperties =
+            InMemoryNodeInner::<S>::create_block_properties(bootloader_code);
 
         // init vm
         let mut vm = init_vm_inner(
@@ -209,7 +210,7 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
             TxExecutionMode::VerifyExecute,
         );
 
-        vm.execute_till_block_end(BootloaderJobType::BlockPostprocessing);
+        vm.execute_till_block_end(BootloaderJobType::TransactionExecution);
 
         let bytecodes = vm
             .state
@@ -239,6 +240,9 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
                 .collect(),
         )
     }
+
+    // increment batch
+    node.current_batch = node.current_batch.saturating_add(1);
 }
 
 #[cfg(test)]
