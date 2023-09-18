@@ -239,7 +239,7 @@ mod tests {
             .hardhat_mine(None, None)
             .await
             .expect("hardhat_mine");
-        assert_eq!(result, true);
+        assert!(result);
 
         let current_block = node
             .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
@@ -253,7 +253,7 @@ mod tests {
             .hardhat_mine(None, None)
             .await
             .expect("hardhat_mine");
-        assert_eq!(result, true);
+        assert!(result);
 
         let current_block = node
             .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
@@ -284,7 +284,7 @@ mod tests {
             .hardhat_mine(Some(U64::from(num_blocks)), Some(U64::from(interval)))
             .await
             .expect("hardhat_mine");
-        assert_eq!(result, true);
+        assert!(result);
 
         for i in 0..num_blocks {
             let current_block = node
