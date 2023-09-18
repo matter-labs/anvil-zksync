@@ -32,7 +32,10 @@ use vm::{
     HistoryDisabled, HistoryEnabled, HistoryMode, OracleTools, TxRevertReason, VmBlockResult,
     VmInstance,
 };
-use zksync_basic_types::{web3::signing::keccak256, AccountTreeId, Bytes, H160, H256, U256, U64};
+use zksync_basic_types::{
+    web3::{self, signing::keccak256},
+    AccountTreeId, Bytes, H160, H256, U256, U64,
+};
 use zksync_contracts::BaseSystemContracts;
 use zksync_core::api_server::web3::backend_jsonrpc::{
     error::into_jsrpc_error, namespaces::eth::EthNamespaceT,
@@ -253,7 +256,7 @@ type L2TxResult = (
 );
 
 impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
-    fn create_block_context(&self) -> BlockContext {
+    pub fn create_block_context(&self) -> BlockContext {
         BlockContext {
             block_number: self.current_batch,
             block_timestamp: self.current_timestamp,
@@ -263,7 +266,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         }
     }
 
-    fn create_block_properties(contracts: &BaseSystemContracts) -> BlockProperties {
+    pub fn create_block_properties(contracts: &BaseSystemContracts) -> BlockProperties {
         BlockProperties {
             default_aa_code_hash: h256_to_u256(contracts.default_aa.hash),
             zkporter_is_available: false,
@@ -1078,7 +1081,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             timestamp: U256::from(block_context.block_timestamp),
             l1_batch_number: Some(U64::from(block_context.block_number)),
             transactions: vec![TransactionVariant::Full(
-                zksync_types::api::Transaction::from(l2_tx.clone()),
+                zksync_types::api::Transaction::from(l2_tx),
             )],
             gas_used,
             gas_limit,
@@ -1832,16 +1835,91 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
 
     fn get_block_transaction_count_by_number(
         &self,
-        _block_number: zksync_types::api::BlockNumber,
+        block_number: zksync_types::api::BlockNumber,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<U256>>> {
-        not_implemented("get_block_transaction_count_by_number")
+        let inner = Arc::clone(&self.inner);
+
+        Box::pin(async move {
+            let maybe_result = {
+                let reader = match inner.read() {
+                    Ok(r) => r,
+                    Err(_) => return Err(into_jsrpc_error(Web3Error::InternalError)),
+                };
+                let number = match block_number {
+                    zksync_types::api::BlockNumber::Latest
+                    | zksync_types::api::BlockNumber::Pending
+                    | zksync_types::api::BlockNumber::Finalized
+                    | zksync_types::api::BlockNumber::Committed => reader.current_miniblock,
+                    zksync_types::api::BlockNumber::Number(ask_number) => ask_number.as_u64(),
+                    zksync_types::api::BlockNumber::Earliest => 0,
+                };
+
+                reader
+                    .block_hashes
+                    .get(&number)
+                    .and_then(|hash| reader.blocks.get(hash))
+                    .map(|block| U256::from(block.transactions.len()))
+                    .or_else(|| {
+                        reader
+                            .fork_storage
+                            .inner
+                            .read()
+                            .expect("failed reading fork storage")
+                            .fork
+                            .as_ref()
+                            .and_then(|fork| {
+                                fork.fork_source
+                                    .get_block_transaction_count_by_number(block_number)
+                                    .ok()
+                                    .flatten()
+                            })
+                    })
+            };
+
+            match maybe_result {
+                Some(value) => Ok(Some(value)),
+                None => Err(into_jsrpc_error(Web3Error::NoBlock)),
+            }
+        })
     }
 
     fn get_block_transaction_count_by_hash(
         &self,
-        _block_hash: zksync_basic_types::H256,
+        block_hash: zksync_basic_types::H256,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<U256>>> {
-        not_implemented("get_block_transaction_count_by_hash")
+        let inner = Arc::clone(&self.inner);
+
+        Box::pin(async move {
+            let reader = inner
+                .read()
+                .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
+
+            // try retrieving block from memory, and if unavailable subsequently from the fork
+            let maybe_result = reader
+                .blocks
+                .get(&block_hash)
+                .map(|block| U256::from(block.transactions.len()))
+                .or_else(|| {
+                    reader
+                        .fork_storage
+                        .inner
+                        .read()
+                        .expect("failed reading fork storage")
+                        .fork
+                        .as_ref()
+                        .and_then(|fork| {
+                            fork.fork_source
+                                .get_block_transaction_count_by_hash(block_hash)
+                                .ok()
+                                .flatten()
+                        })
+                });
+
+            match maybe_result {
+                Some(value) => Ok(Some(value)),
+                None => Err(into_jsrpc_error(Web3Error::NoBlock)),
+            }
+        })
     }
 
     fn get_storage(
@@ -1918,20 +1996,73 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
         not_implemented("mining")
     }
 
+    /// Returns the fee history for a given range of blocks.
+    ///
+    /// Note: This implementation is limited to using the hard-coded value
+    /// of L2_GAS_PRICE as the history gas price
+    ///
+    /// # Arguments
+    ///
+    /// * `block_count` - The number of blocks in the requested range. Between 1 and 1024 blocks can be requested in a single query. It will return less than the requested range if not all blocks are available.
+    /// * `newest_block` - The highest number block of the requested range. As this implementation is using hard-coded values, this argument is ignored.
+    /// * `reward_percentiles` - A list of percentile values with a monotonic increase in value.
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `Result` with a `FeeHistory` representing the fee history of the specified range of blocks.
     fn fee_history(
         &self,
-        _block_count: U64,
+        block_count: U64,
         _newest_block: zksync_types::api::BlockNumber,
-        _reward_percentiles: Vec<f32>,
+        reward_percentiles: Vec<f32>,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<FeeHistory>> {
-        not_implemented("fee history")
+        let inner = Arc::clone(&self.inner);
+
+        Box::pin(async move {
+            let reader = inner
+                .read()
+                .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
+
+            let block_count = block_count
+                .as_u64()
+                .min(1024)
+                // Can't be more than the total number of blocks
+                .min(reader.current_miniblock + 1)
+                .max(1);
+
+            let mut base_fee_per_gas = vec![U256::from(L2_GAS_PRICE); block_count as usize];
+
+            let oldest_block = reader.current_miniblock + 1 - base_fee_per_gas.len() as u64;
+            // We do not store gas used ratio for blocks, returns array of zeroes as a placeholder.
+            let gas_used_ratio = vec![0.0; base_fee_per_gas.len()];
+            // Effective priority gas price is currently 0.
+            let reward = Some(vec![
+                vec![U256::zero(); reward_percentiles.len()];
+                base_fee_per_gas.len()
+            ]);
+
+            // `base_fee_per_gas` for next miniblock cannot be calculated, appending last fee as a placeholder.
+            base_fee_per_gas.push(*base_fee_per_gas.last().unwrap());
+
+            Ok(FeeHistory {
+                oldest_block: web3::types::BlockNumber::Number(oldest_block.into()),
+                base_fee_per_gas,
+                gas_used_ratio,
+                reward,
+            })
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{http_fork_source::HttpForkSource, node::InMemoryNode, testing};
-    use zksync_types::{api::BlockNumber, Address, L2ChainId, Nonce, PackedEthSignature};
+    use crate::{
+        cache::CacheConfig,
+        http_fork_source::HttpForkSource,
+        node::InMemoryNode,
+        testing::{self, ForkBlockConfig, MockServer},
+    };
+    use zksync_types::api::BlockNumber;
     use zksync_web3_decl::types::SyncState;
 
     use super::*;
@@ -1941,6 +2072,97 @@ mod tests {
         let node = InMemoryNode::<HttpForkSource>::default();
         let syncing = node.syncing().await.expect("failed syncing");
         assert!(matches!(syncing, SyncState::NotSyncing));
+    }
+
+    #[tokio::test]
+    async fn test_get_fee_history_with_1_block() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let fee_history = node
+            .fee_history(U64::from(1), BlockNumber::Latest, vec![25.0, 50.0, 75.0])
+            .await
+            .expect("fee_history failed");
+
+        assert_eq!(
+            fee_history.oldest_block,
+            web3::types::BlockNumber::Number(U64::from(0))
+        );
+        assert_eq!(
+            fee_history.base_fee_per_gas,
+            vec![U256::from(L2_GAS_PRICE); 2]
+        );
+        assert_eq!(fee_history.gas_used_ratio, vec![0.0]);
+        assert_eq!(fee_history.reward, Some(vec![vec![U256::from(0); 3]]));
+    }
+
+    #[tokio::test]
+    async fn test_get_fee_history_with_no_reward_percentiles() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let fee_history = node
+            .fee_history(U64::from(1), BlockNumber::Latest, vec![])
+            .await
+            .expect("fee_history failed");
+
+        assert_eq!(
+            fee_history.oldest_block,
+            web3::types::BlockNumber::Number(U64::from(0))
+        );
+        assert_eq!(
+            fee_history.base_fee_per_gas,
+            vec![U256::from(L2_GAS_PRICE); 2]
+        );
+        assert_eq!(fee_history.gas_used_ratio, vec![0.0]);
+        assert_eq!(fee_history.reward, Some(vec![vec![]]));
+    }
+
+    #[tokio::test]
+    async fn test_get_fee_history_with_multiple_blocks() {
+        // Arrange
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let private_key = H256::random();
+        let from_account = PackedEthSignature::address_from_private_key(&private_key)
+            .expect("failed generating address");
+        node.set_rich_account(from_account);
+        let mut tx = L2Tx::new_signed(
+            Address::random(),
+            vec![],
+            Nonce(0),
+            Fee {
+                gas_limit: U256::from(1_000_000),
+                max_fee_per_gas: U256::from(250_000_000),
+                max_priority_fee_per_gas: U256::from(250_000_000),
+                gas_per_pubdata_limit: U256::from(20000),
+            },
+            U256::from(1),
+            L2ChainId(260),
+            &private_key,
+            None,
+            Default::default(),
+        )
+        .unwrap();
+        tx.set_input(vec![], H256::repeat_byte(0x01));
+
+        node.apply_txs(vec![tx]).expect("failed applying tx");
+
+        // Act
+        let fee_history = node
+            .fee_history(U64::from(2), BlockNumber::Latest, vec![25.0, 50.0, 75.0])
+            .await
+            .expect("fee_history failed");
+
+        // Assert
+        assert_eq!(
+            fee_history.oldest_block,
+            web3::types::BlockNumber::Number(U64::from(0))
+        );
+        assert_eq!(
+            fee_history.base_fee_per_gas,
+            vec![U256::from(L2_GAS_PRICE); 3]
+        );
+        assert_eq!(fee_history.gas_used_ratio, vec![0.0, 0.0]);
+        assert_eq!(fee_history.reward, Some(vec![vec![U256::from(0); 3]; 2]));
     }
 
     #[tokio::test]
@@ -1970,35 +2192,8 @@ mod tests {
     #[tokio::test]
     async fn test_get_block_by_hash_for_produced_block() {
         let node = InMemoryNode::<HttpForkSource>::default();
+        let expected_block_hash = testing::apply_tx(&node, H256::repeat_byte(0x01));
 
-        let private_key = H256::random();
-        let from_account = PackedEthSignature::address_from_private_key(&private_key)
-            .expect("failed generating address");
-        node.set_rich_account(from_account);
-        let mut tx = L2Tx::new_signed(
-            Address::random(),
-            vec![],
-            Nonce(0),
-            Fee {
-                gas_limit: U256::from(1_000_000),
-                max_fee_per_gas: U256::from(250_000_000),
-                max_priority_fee_per_gas: U256::from(250_000_000),
-                gas_per_pubdata_limit: U256::from(20000),
-            },
-            U256::from(1),
-            L2ChainId(260),
-            &private_key,
-            None,
-            Default::default(),
-        )
-        .unwrap();
-        tx.set_input(vec![], H256::repeat_byte(0x01));
-
-        node.apply_txs(vec![tx]).expect("failed applying tx");
-
-        let expected_block_hash =
-            H256::from_str("0x89c0aa770eba1f187235bdad80de9c01fe81bca415d442ca892f087da56fa109")
-                .unwrap();
         let actual_block = node
             .get_block_by_hash(expected_block_hash, false)
             .await
@@ -2014,11 +2209,14 @@ mod tests {
     async fn test_node_block_mapping_is_correctly_populated_when_using_fork_source() {
         let input_block_number = 8;
         let input_block_hash = H256::repeat_byte(0x01);
-        let mock_server =
-            testing::MockServer::run_with_config(input_block_number, input_block_hash);
+        let mock_server = MockServer::run_with_config(ForkBlockConfig {
+            number: input_block_number,
+            hash: input_block_hash,
+            transaction_count: 0,
+        });
 
         let node = InMemoryNode::<HttpForkSource>::new(
-            Some(ForkDetails::from_network(&mock_server.url(), None).await),
+            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
             crate::node::ShowCalls::None,
             ShowStorageLogs::None,
             ShowVMDetails::None,
@@ -2042,7 +2240,11 @@ mod tests {
     async fn test_get_block_by_hash_uses_fork_source() {
         let input_block_hash = H256::repeat_byte(0x01);
 
-        let mock_server = testing::MockServer::run();
+        let mock_server = MockServer::run_with_config(ForkBlockConfig {
+            number: 10,
+            hash: H256::repeat_byte(0xab),
+            transaction_count: 0,
+        });
         let mock_block_number = 8;
         let block_response = testing::BlockResponseBuilder::new()
             .set_hash(input_block_hash)
@@ -2061,7 +2263,7 @@ mod tests {
             block_response,
         );
         let node = InMemoryNode::<HttpForkSource>::new(
-            Some(ForkDetails::from_network(&mock_server.url(), None).await),
+            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
             crate::node::ShowCalls::None,
             ShowStorageLogs::None,
             ShowVMDetails::None,
@@ -2096,33 +2298,9 @@ mod tests {
     #[tokio::test]
     async fn test_get_block_by_number_for_produced_block() {
         let node = InMemoryNode::<HttpForkSource>::default();
-
-        let private_key = H256::random();
-        let from_account = PackedEthSignature::address_from_private_key(&private_key)
-            .expect("failed generating address");
-        node.set_rich_account(from_account);
-        let mut tx = L2Tx::new_signed(
-            Address::random(),
-            vec![],
-            Nonce(0),
-            Fee {
-                gas_limit: U256::from(1_000_000),
-                max_fee_per_gas: U256::from(250_000_000),
-                max_priority_fee_per_gas: U256::from(250_000_000),
-                gas_per_pubdata_limit: U256::from(20000),
-            },
-            U256::from(1),
-            L2ChainId(260),
-            &private_key,
-            None,
-            Default::default(),
-        )
-        .unwrap();
-        tx.set_input(vec![], H256::repeat_byte(0x01));
-
-        node.apply_txs(vec![tx]).expect("failed applying tx");
-
+        testing::apply_tx(&node, H256::repeat_byte(0x01));
         let expected_block_number = 1;
+
         let actual_block = node
             .get_block_by_number(BlockNumber::Number(U64::from(expected_block_number)), false)
             .await
@@ -2135,7 +2313,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_block_by_number_uses_fork_source_if_missing_number() {
-        let mock_server = testing::MockServer::run();
+        let mock_server = MockServer::run_with_config(ForkBlockConfig {
+            number: 10,
+            hash: H256::repeat_byte(0xab),
+            transaction_count: 0,
+        });
         let mock_block_number = 8;
         let block_response = testing::BlockResponseBuilder::new()
             .set_number(mock_block_number)
@@ -2153,7 +2335,7 @@ mod tests {
             block_response,
         );
         let node = InMemoryNode::<HttpForkSource>::new(
-            Some(ForkDetails::from_network(&mock_server.url(), None).await),
+            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
             crate::node::ShowCalls::None,
             ShowStorageLogs::None,
             ShowVMDetails::None,
@@ -2173,33 +2355,9 @@ mod tests {
     #[tokio::test]
     async fn test_get_block_by_number_for_latest_block_produced_locally() {
         let node = InMemoryNode::<HttpForkSource>::default();
-
-        let private_key = H256::random();
-        let from_account = PackedEthSignature::address_from_private_key(&private_key)
-            .expect("failed generating address");
-        node.set_rich_account(from_account);
-        let mut tx = L2Tx::new_signed(
-            Address::random(),
-            vec![],
-            Nonce(0),
-            Fee {
-                gas_limit: U256::from(1_000_000),
-                max_fee_per_gas: U256::from(250_000_000),
-                max_priority_fee_per_gas: U256::from(250_000_000),
-                gas_per_pubdata_limit: U256::from(20000),
-            },
-            U256::from(1),
-            L2ChainId(260),
-            &private_key,
-            None,
-            Default::default(),
-        )
-        .unwrap();
-        tx.set_input(vec![], H256::repeat_byte(0x01));
-
-        node.apply_txs(vec![tx]).expect("failed applying tx");
-
+        testing::apply_tx(&node, H256::repeat_byte(0x01));
         let latest_block_number = 1;
+
         let actual_block = node
             .get_block_by_number(BlockNumber::Latest, true)
             .await
@@ -2211,13 +2369,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_block_by_number_uses_fork_source_for_latest_block_if_locally_unavailable() {
-        let latest_block_number = 10;
-        let mock_server =
-            testing::MockServer::run_with_config(latest_block_number, H256::repeat_byte(0x01));
+    async fn test_get_block_by_number_uses_locally_available_block_for_latest_block() {
+        let input_block_number = 10;
+        let mock_server = MockServer::run_with_config(ForkBlockConfig {
+            number: input_block_number,
+            hash: H256::repeat_byte(0x01),
+            transaction_count: 0,
+        });
 
         let node = InMemoryNode::<HttpForkSource>::new(
-            Some(ForkDetails::from_network(&mock_server.url(), None).await),
+            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
             crate::node::ShowCalls::None,
             ShowStorageLogs::None,
             ShowVMDetails::None,
@@ -2231,16 +2392,17 @@ mod tests {
             .await
             .expect("failed fetching block by hash")
             .expect("no block");
-        assert_eq!(U64::from(latest_block_number), actual_block.number);
+        assert_eq!(U64::from(input_block_number), actual_block.number);
     }
 
     #[tokio::test]
     async fn test_get_block_by_number_uses_fork_source_for_earliest_block() {
-        let mock_server = testing::MockServer::run();
-        let mock_block_number = 1;
-        let block_response = testing::BlockResponseBuilder::new()
-            .set_number(mock_block_number)
-            .build();
+        let mock_server = MockServer::run_with_config(ForkBlockConfig {
+            number: 10,
+            hash: H256::repeat_byte(0xab),
+            transaction_count: 0,
+        });
+        let input_block_number = 1;
         mock_server.expect(
             serde_json::json!({
                 "jsonrpc": "2.0",
@@ -2251,10 +2413,12 @@ mod tests {
                     true
                 ],
             }),
-            block_response,
+            testing::BlockResponseBuilder::new()
+                .set_number(input_block_number)
+                .build(),
         );
         let node = InMemoryNode::<HttpForkSource>::new(
-            Some(ForkDetails::from_network(&mock_server.url(), None).await),
+            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
             crate::node::ShowCalls::None,
             ShowStorageLogs::None,
             ShowVMDetails::None,
@@ -2268,21 +2432,24 @@ mod tests {
             .await
             .expect("failed fetching block by hash")
             .expect("no block");
-        assert_eq!(U64::from(mock_block_number), actual_block.number);
+        assert_eq!(U64::from(input_block_number), actual_block.number);
     }
 
     #[tokio::test]
-    async fn test_get_block_by_number_uses_fork_source_for_latest_alike_blocks() {
+    async fn test_get_block_by_number_uses_locally_available_for_latest_alike_blocks() {
         for block_number in [
             BlockNumber::Pending,
             BlockNumber::Committed,
             BlockNumber::Finalized,
         ] {
-            let latest_block_number = 10;
-            let mock_server =
-                testing::MockServer::run_with_config(latest_block_number, H256::repeat_byte(0x01));
+            let input_block_number = 10;
+            let mock_server = MockServer::run_with_config(ForkBlockConfig {
+                number: input_block_number,
+                hash: H256::repeat_byte(0xab),
+                transaction_count: 0,
+            });
             let node = InMemoryNode::<HttpForkSource>::new(
-                Some(ForkDetails::from_network(&mock_server.url(), None).await),
+                Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
                 crate::node::ShowCalls::None,
                 ShowStorageLogs::None,
                 ShowVMDetails::None,
@@ -2297,8 +2464,215 @@ mod tests {
                 .expect("failed fetching block by hash")
                 .expect("no block");
             assert_eq!(
-                U64::from(latest_block_number),
+                U64::from(input_block_number),
                 actual_block.number,
+                "case {}",
+                block_number,
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_block_transaction_count_by_hash_for_produced_block() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let expected_block_hash = testing::apply_tx(&node, H256::repeat_byte(0x01));
+        let actual_transaction_count = node
+            .get_block_transaction_count_by_hash(expected_block_hash)
+            .await
+            .expect("failed fetching block by hash")
+            .expect("no result");
+
+        assert_eq!(U256::from(1), actual_transaction_count);
+    }
+
+    #[tokio::test]
+    async fn test_get_block_transaction_count_by_hash_uses_fork_source() {
+        let mock_server = MockServer::run_with_config(ForkBlockConfig {
+            number: 10,
+            hash: H256::repeat_byte(0xab),
+            transaction_count: 0,
+        });
+        let input_block_hash = H256::repeat_byte(0x01);
+        let input_transaction_count = 1;
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "eth_getBlockTransactionCountByHash",
+                "params": [
+                    format!("{:#x}", input_block_hash),
+                ],
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "result": format!("{:#x}", input_transaction_count),
+            }),
+        );
+        let node = InMemoryNode::<HttpForkSource>::new(
+            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
+            crate::node::ShowCalls::None,
+            ShowStorageLogs::None,
+            ShowVMDetails::None,
+            ShowGasDetails::None,
+            false,
+            &system_contracts::Options::BuiltIn,
+        );
+
+        let actual_transaction_count = node
+            .get_block_transaction_count_by_hash(input_block_hash)
+            .await
+            .expect("failed fetching block by hash")
+            .expect("no result");
+
+        assert_eq!(
+            U256::from(input_transaction_count),
+            actual_transaction_count
+        );
+    }
+
+    #[tokio::test]
+    async fn test_get_block_transaction_count_by_number_for_produced_block() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        testing::apply_tx(&node, H256::repeat_byte(0x01));
+        let actual_transaction_count = node
+            .get_block_transaction_count_by_number(BlockNumber::Number(U64::from(1)))
+            .await
+            .expect("failed fetching block by hash")
+            .expect("no result");
+
+        assert_eq!(U256::from(1), actual_transaction_count);
+    }
+
+    #[tokio::test]
+    async fn test_get_block_transaction_count_by_number_uses_fork_source() {
+        let mock_server = MockServer::run_with_config(ForkBlockConfig {
+            number: 10,
+            hash: H256::repeat_byte(0xab),
+            transaction_count: 0,
+        });
+        let input_block_number = 1;
+        let input_transaction_count = 1;
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "eth_getBlockTransactionCountByNumber",
+                "params": [
+                    format!("{:#x}", input_block_number),
+                ],
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "result": format!("{:#x}", input_transaction_count),
+            }),
+        );
+
+        let node = InMemoryNode::<HttpForkSource>::new(
+            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
+            crate::node::ShowCalls::None,
+            ShowStorageLogs::None,
+            ShowVMDetails::None,
+            ShowGasDetails::None,
+            false,
+            &system_contracts::Options::BuiltIn,
+        );
+
+        let actual_transaction_count = node
+            .get_block_transaction_count_by_number(BlockNumber::Number(U64::from(1)))
+            .await
+            .expect("failed fetching block by hash")
+            .expect("no result");
+
+        assert_eq!(
+            U256::from(input_transaction_count),
+            actual_transaction_count
+        );
+    }
+
+    #[tokio::test]
+    async fn test_get_block_transaction_count_by_number_earliest_uses_fork_source() {
+        let mock_server = MockServer::run_with_config(ForkBlockConfig {
+            number: 10,
+            hash: H256::repeat_byte(0xab),
+            transaction_count: 0,
+        });
+        let input_transaction_count = 1;
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "eth_getBlockTransactionCountByNumber",
+                "params": [
+                    "earliest",
+                ],
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "result": format!("{:#x}", input_transaction_count),
+            }),
+        );
+
+        let node = InMemoryNode::<HttpForkSource>::new(
+            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
+            crate::node::ShowCalls::None,
+            ShowStorageLogs::None,
+            ShowVMDetails::None,
+            ShowGasDetails::None,
+            false,
+            &system_contracts::Options::BuiltIn,
+        );
+
+        let actual_transaction_count = node
+            .get_block_transaction_count_by_number(BlockNumber::Earliest)
+            .await
+            .expect("failed fetching block by hash")
+            .expect("no result");
+
+        assert_eq!(
+            U256::from(input_transaction_count),
+            actual_transaction_count
+        );
+    }
+
+    #[tokio::test]
+    async fn test_get_block_transaction_count_by_number_latest_alike_uses_fork_source() {
+        for block_number in [
+            BlockNumber::Latest,
+            BlockNumber::Pending,
+            BlockNumber::Committed,
+            BlockNumber::Finalized,
+        ] {
+            let input_transaction_count = 1;
+            let mock_server = MockServer::run_with_config(ForkBlockConfig {
+                number: 10,
+                transaction_count: input_transaction_count,
+                hash: H256::repeat_byte(0xab),
+            });
+
+            let node = InMemoryNode::<HttpForkSource>::new(
+                Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
+                crate::node::ShowCalls::None,
+                ShowStorageLogs::None,
+                ShowVMDetails::None,
+                ShowGasDetails::None,
+                false,
+                &system_contracts::Options::BuiltIn,
+            );
+
+            let actual_transaction_count = node
+                .get_block_transaction_count_by_number(block_number)
+                .await
+                .expect("failed fetching block by hash")
+                .expect("no result");
+
+            assert_eq!(
+                U256::from(input_transaction_count),
+                actual_transaction_count,
                 "case {}",
                 block_number,
             );

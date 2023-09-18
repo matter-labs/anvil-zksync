@@ -1,3 +1,4 @@
+use crate::cache::CacheConfig;
 use crate::hardhat::{HardhatNamespaceImpl, HardhatNamespaceT};
 use crate::node::{ShowGasDetails, ShowStorageLogs, ShowVMDetails};
 use clap::{Parser, Subcommand, ValueEnum};
@@ -12,6 +13,7 @@ use simplelog::{
 use zks::ZkMockNamespaceImpl;
 
 mod bootloader_debug;
+mod cache;
 mod configuration_api;
 mod console_log;
 mod deps;
@@ -164,6 +166,14 @@ impl From<LogLevel> for LevelFilter {
     }
 }
 
+/// Cache type config for the node.
+#[derive(ValueEnum, Debug, Clone)]
+enum CacheType {
+    None,
+    Memory,
+    Disk,
+}
+
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version, about = "Test Node", long_about = None)]
 struct Cli {
@@ -202,6 +212,18 @@ struct Cli {
     /// Log file path - default: era_test_node.log
     #[arg(long, default_value = "era_test_node.log")]
     log_file_path: String,
+
+    /// Cache type, can be one of `none`, `memory`, or `disk` - default: "disk"
+    #[arg(long, default_value = "disk")]
+    cache: CacheType,
+
+    /// If true, will reset the local `disk` cache.
+    #[arg(long)]
+    reset_cache: bool,
+
+    /// Cache directory location for `disk` cache - default: ".cache"
+    #[arg(long, default_value = ".cache")]
+    cache_dir: String,
 }
 
 #[derive(Debug, Subcommand)]
@@ -272,6 +294,14 @@ async fn main() -> anyhow::Result<()> {
             log::info!("+++++ Reading local contracts from {:?} +++++", path);
         }
     }
+    let cache_config = match opt.cache {
+        CacheType::None => CacheConfig::None,
+        CacheType::Memory => CacheConfig::Memory,
+        CacheType::Disk => CacheConfig::Disk {
+            dir: opt.cache_dir,
+            reset: opt.reset_cache,
+        },
+    };
 
     let filter = EnvFilter::from_default_env();
     let subscriber = FmtSubscriber::builder()
@@ -284,9 +314,11 @@ async fn main() -> anyhow::Result<()> {
 
     let fork_details = match &opt.command {
         Command::Run => None,
-        Command::Fork(fork) => Some(ForkDetails::from_network(&fork.network, fork.fork_at).await),
+        Command::Fork(fork) => {
+            Some(ForkDetails::from_network(&fork.network, fork.fork_at, cache_config).await)
+        }
         Command::ReplayTx(replay_tx) => {
-            Some(ForkDetails::from_network_tx(&replay_tx.network, replay_tx.tx).await)
+            Some(ForkDetails::from_network_tx(&replay_tx.network, replay_tx.tx, cache_config).await)
         }
     };
 

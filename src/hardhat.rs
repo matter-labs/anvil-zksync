@@ -1,9 +1,9 @@
 use std::sync::{Arc, RwLock};
 
-use crate::{fork::ForkSource, node::InMemoryNodeInner};
+use crate::{fork::ForkSource, node::InMemoryNodeInner, utils::mine_empty_blocks};
 use jsonrpc_core::{BoxFuture, Result};
 use jsonrpc_derive::rpc;
-use zksync_basic_types::{Address, U256};
+use zksync_basic_types::{Address, U256, U64};
 use zksync_core::api_server::web3::backend_jsonrpc::error::into_jsrpc_error;
 use zksync_state::ReadStorage;
 use zksync_types::{
@@ -52,6 +52,25 @@ pub trait HardhatNamespaceT {
     /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
     #[rpc(name = "hardhat_setNonce")]
     fn set_nonce(&self, address: Address, balance: U256) -> BoxFuture<Result<bool>>;
+
+    /// Sometimes you may want to advance the latest block number of the network by a large number of blocks.
+    /// One way to do this would be to call the evm_mine RPC method multiple times, but this is too slow if you want to mine thousands of blocks.
+    /// The hardhat_mine method can mine any number of blocks at once, in constant time. (It exhibits the same performance no matter how many blocks are mined.)
+    ///
+    /// # Arguments
+    ///
+    /// * `num_blocks` - The number of blocks to mine, defaults to 1
+    /// * `interval` - The interval between the timestamps of each block, in seconds, and it also defaults to 1
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
+    #[rpc(name = "hardhat_mine")]
+    fn hardhat_mine(
+        &self,
+        num_blocks: Option<U64>,
+        interval: Option<U64>,
+    ) -> BoxFuture<Result<bool>>;
 }
 
 impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> HardhatNamespaceT
@@ -71,9 +90,10 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> HardhatNamespaceT
                     inner_guard
                         .fork_storage
                         .set_value(balance_key, u256_to_h256(balance));
-                    println!(
+                    log::info!(
                         "👷 Balance for address {:?} has been manually set to {} Wei",
-                        address, balance
+                        address,
+                        balance
                     );
                     Ok(true)
                 }
@@ -113,13 +133,41 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> HardhatNamespaceT
                     }
                     deployment_nonce = nonce;
                     let enforced_full_nonce = nonces_to_full_nonce(account_nonce, deployment_nonce);
-                    println!(
+                    log::info!(
                         "👷 Nonces for address {:?} have been set to {}",
-                        address, nonce
+                        address,
+                        nonce
                     );
                     inner_guard
                         .fork_storage
                         .set_value(nonce_key, u256_to_h256(enforced_full_nonce));
+                    Ok(true)
+                }
+                Err(_) => Err(into_jsrpc_error(Web3Error::InternalError)),
+            }
+        })
+    }
+
+    fn hardhat_mine(
+        &self,
+        num_blocks: Option<U64>,
+        interval: Option<U64>,
+    ) -> BoxFuture<Result<bool>> {
+        let inner = Arc::clone(&self.node);
+        Box::pin(async move {
+            match inner.write() {
+                Ok(mut inner) => {
+                    let num_blocks = num_blocks.unwrap_or(U64::from(1));
+                    let interval_ms = interval
+                        .unwrap_or(U64::from(1))
+                        .saturating_mul(1_000.into());
+                    if num_blocks.is_zero() {
+                        return Err(jsonrpc_core::Error::invalid_params(
+                            "Number of blocks must be greater than 0".to_string(),
+                        ));
+                    }
+                    mine_empty_blocks(&mut inner, num_blocks.as_u64(), interval_ms.as_u64());
+                    log::info!("👷 Mined {} blocks", num_blocks);
                     Ok(true)
                 }
                 Err(_) => Err(into_jsrpc_error(Web3Error::InternalError)),
@@ -134,6 +182,7 @@ mod tests {
     use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
     use std::str::FromStr;
     use zksync_core::api_server::web3::backend_jsonrpc::namespaces::eth::EthNamespaceT;
+    use zksync_types::api::BlockNumber;
 
     #[tokio::test]
     async fn test_set_balance() {
@@ -172,5 +221,82 @@ mod tests {
         // setting nonce lower than the current one should fail
         let result = hardhat.set_nonce(address, U256::from(1336)).await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_hardhat_mine_default() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let hardhat = HardhatNamespaceImpl::new(node.get_inner());
+
+        let start_block = node
+            .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
+            .await
+            .unwrap()
+            .expect("block exists");
+
+        // test with defaults
+        let result = hardhat
+            .hardhat_mine(None, None)
+            .await
+            .expect("hardhat_mine");
+        assert_eq!(result, true);
+
+        let current_block = node
+            .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
+            .await
+            .unwrap()
+            .expect("block exists");
+
+        assert_eq!(start_block.number + 1, current_block.number);
+        assert_eq!(start_block.timestamp + 1000, current_block.timestamp);
+        let result = hardhat
+            .hardhat_mine(None, None)
+            .await
+            .expect("hardhat_mine");
+        assert_eq!(result, true);
+
+        let current_block = node
+            .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
+            .await
+            .unwrap()
+            .expect("block exists");
+
+        assert_eq!(start_block.number + 2, current_block.number);
+        assert_eq!(start_block.timestamp + 2000, current_block.timestamp);
+    }
+
+    #[tokio::test]
+    async fn test_hardhat_mine_custom() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let hardhat = HardhatNamespaceImpl::new(node.get_inner());
+
+        let start_block = node
+            .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
+            .await
+            .unwrap()
+            .expect("block exists");
+
+        let num_blocks = 5;
+        let interval = 3;
+        let start_timestamp = start_block.timestamp + 1_000;
+
+        let result = hardhat
+            .hardhat_mine(Some(U64::from(num_blocks)), Some(U64::from(interval)))
+            .await
+            .expect("hardhat_mine");
+        assert_eq!(result, true);
+
+        for i in 0..num_blocks {
+            let current_block = node
+                .get_block_by_number(BlockNumber::Number(start_block.number + i + 1), false)
+                .await
+                .unwrap()
+                .expect("block exists");
+            assert_eq!(start_block.number + i + 1, current_block.number);
+            assert_eq!(
+                start_timestamp + i * interval * 1_000,
+                current_block.timestamp
+            );
+        }
     }
 }

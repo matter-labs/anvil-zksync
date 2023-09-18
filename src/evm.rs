@@ -1,6 +1,6 @@
 use std::sync::{Arc, RwLock};
 
-use crate::{fork::ForkSource, node::InMemoryNodeInner};
+use crate::{fork::ForkSource, node::InMemoryNodeInner, utils::mine_empty_blocks};
 use jsonrpc_core::{BoxFuture, Result};
 use jsonrpc_derive::rpc;
 use zksync_core::api_server::web3::backend_jsonrpc::error::into_jsrpc_error;
@@ -29,6 +29,15 @@ pub trait EvmNamespaceT {
     /// The applied time delta to `current_timestamp` value for the InMemoryNodeInner.
     #[rpc(name = "evm_increaseTime")]
     fn increase_time(&self, time_delta_seconds: u64) -> BoxFuture<Result<u64>>;
+
+    /// Force a single block to be mined.
+    ///
+    /// Will mine an empty block (containing zero transactions)
+    ///
+    /// # Returns
+    /// The string "0x0".
+    #[rpc(name = "evm_mine")]
+    fn evm_mine(&self) -> BoxFuture<Result<String>>;
 
     /// Set the current timestamp for the node. The timestamp must be in future.
     ///
@@ -109,11 +118,26 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EvmNamespaceT
             }
         })
     }
+
+    fn evm_mine(&self) -> BoxFuture<Result<String>> {
+        let inner = Arc::clone(&self.node);
+        Box::pin(async move {
+            match inner.write() {
+                Ok(mut inner) => {
+                    mine_empty_blocks(&mut inner, 1, 1000);
+                    log::info!("👷 Mined block #{}", inner.current_miniblock);
+                    Ok("0x0".to_string())
+                }
+                Err(_) => Err(into_jsrpc_error(Web3Error::InternalError)),
+            }
+        })
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
+    use zksync_core::api_server::web3::backend_jsonrpc::namespaces::eth::EthNamespaceT;
 
     use super::*;
 
@@ -420,5 +444,40 @@ mod tests {
                 "case {new_time}: timestamp was not set correctly",
             );
         }
+    }
+
+    #[tokio::test]
+    async fn test_evm_mine() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let evm = EvmNamespaceImpl::new(node.get_inner());
+
+        let start_block = node
+            .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
+            .await
+            .unwrap()
+            .expect("block exists");
+        let result = evm.evm_mine().await.expect("evm_mine");
+        assert_eq!(&result, "0x0");
+
+        let current_block = node
+            .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
+            .await
+            .unwrap()
+            .expect("block exists");
+
+        assert_eq!(start_block.number + 1, current_block.number);
+        assert_eq!(start_block.timestamp + 1000, current_block.timestamp);
+
+        let result = evm.evm_mine().await.expect("evm_mine");
+        assert_eq!(&result, "0x0");
+
+        let current_block = node
+            .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
+            .await
+            .unwrap()
+            .expect("block exists");
+
+        assert_eq!(start_block.number + 2, current_block.number);
+        assert_eq!(start_block.timestamp + 2000, current_block.timestamp);
     }
 }
