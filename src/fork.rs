@@ -221,7 +221,16 @@ pub trait ForkSource {
         &self,
         block_number: zksync_types::api::BlockNumber,
         full_transactions: bool,
-    ) -> eyre::Result<Option<zksync_types::api::Block<zksync_types::api::TransactionVariant>>>;
+    ) -> eyre::Result<Option<Block<TransactionVariant>>>;
+
+    /// Returns the  transaction count for a given block hash.
+    fn get_block_transaction_count_by_hash(&self, block_hash: H256) -> eyre::Result<Option<U256>>;
+
+    /// Returns the transaction count for a given block number.
+    fn get_block_transaction_count_by_number(
+        &self,
+        block_number: zksync_types::api::BlockNumber,
+    ) -> eyre::Result<Option<U256>>;
 }
 
 /// Holds the information about the original chain.

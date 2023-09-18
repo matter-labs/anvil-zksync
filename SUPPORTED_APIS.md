@@ -33,8 +33,8 @@ The `status` options are:
 | [`ETH`](#eth-namespace) | [`eth_getBalance`](#eth_getbalance) | `SUPPORTED` | Returns the balance of the account of given address |
 | [`ETH`](#eth-namespace) | [`eth_getBlockByHash`](#eth_getblockbyhash) | `SUPPORTED` | Returns information about a block by block hash |
 | [`ETH`](#eth-namespace) | [`eth_getBlockByNumber`](#eth_getblockbynumber) | `SUPPORTED` | Returns information about a block by block number |
-| `ETH` | `eth_getBlockTransactionCountByHash` | `NOT IMPLEMENTED`<br />[GitHub Issue #44](https://github.com/matter-labs/era-test-node/issues/44) | Number of transactions in a block from a block matching the given block hash |
-| `ETH` | `eth_getBlockTransactionCountByNumber` | `NOT IMPLEMENTED`<br />[GitHub Issue #43](https://github.com/matter-labs/era-test-node/issues/43) | Number of transactions in a block from a block matching the given block number |
+| [`ETH`](#eth-namespace) | [`eth_getBlockTransactionCountByHash`](#eth_getblocktransactioncountbyhash) | `SUPPORTED` | Number of transactions in a block from a block matching the given block hash |
+| [`ETH`](#eth-namespace) | [`eth_getBlockTransactionCountByNumber`](#eth_getblocktransactioncountbynumber) | `SUPPORTED` | Number of transactions in a block from a block matching the given block number |
 | `ETH` | `eth_getCompilers` | `NOT IMPLEMENTED` | Returns a list of available compilers |
 | [`ETH`](#eth-namespace) | [`eth_getTransactionByHash`](#eth_gettransactionbyhash) | `SUPPORTED` | Returns the information about a transaction requested by transaction hash |
 | [`ETH`](#eth-namespace) | [`eth_getTransactionCount`](#eth_gettransactioncount) | `SUPPORTED` | Returns the number of transactions sent from an address |
@@ -509,6 +509,62 @@ curl --request POST \
     "id": "1",
     "method": "eth_getBlockByNumber",
     "params": ["latest", true]
+}'
+```
+
+### `eth_getBlockTransactionCountByHash`
+
+[source](src/node.rs)
+
+Number of transactions in a block from a block matching the given block hash
+
+#### Arguments
+
++ `block_hash: H256`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_getBlockTransactionCountByHash",
+    "params": ["0x0000000000000000000000000000000000000000000000000000000000000008"]
+}'
+```
+
+### `eth_getBlockTransactionCountByNumber`
+
+[source](src/node.rs)
+
+Number of transactions in a block from a block matching the given block number
+
+#### Arguments
+
++ `block_number: BlockNumber`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_getBlockTransactionCountByNumber",
+    "params": ["latest"]
 }'
 ```
 

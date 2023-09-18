@@ -5,13 +5,25 @@
 
 #![cfg(test)]
 
+use crate::node::InMemoryNode;
+use crate::{fork::ForkSource, node::compute_hash};
+
 use httptest::{
     matchers::{eq, json_decoded, request},
     responders::json_encoded,
     Expectation, Server,
 };
 use itertools::Itertools;
-use zksync_basic_types::H256;
+use std::str::FromStr;
+use zksync_types::{fee::Fee, l2::L2Tx, Address, L2ChainId, Nonce, PackedEthSignature, H256, U256};
+
+/// Configuration for the [MockServer]'s initial block.
+#[derive(Default, Debug, Clone)]
+pub struct ForkBlockConfig {
+    pub number: u64,
+    pub hash: H256,
+    pub transaction_count: u8,
+}
 
 /// A HTTP server that can be used to mock a fork source.
 pub struct MockServer {
@@ -28,8 +40,8 @@ impl MockServer {
     }
 
     /// Start the mock server with pre-defined calls used to fetch the fork's state.
-    /// The input can be used to set the initial block's number and hash.
-    pub fn run_with_config(block_number: u64, block_hash: H256) -> Self {
+    /// The input config can be used to set the initial block's number, hash and transactions.
+    pub fn run_with_config(block_config: ForkBlockConfig) -> Self {
         let server = Server::run();
 
         // setup initial fork calls
@@ -42,7 +54,7 @@ impl MockServer {
             .respond_with(json_encoded(serde_json::json!({
                 "jsonrpc": "2.0",
                 "id": 0,
-                "result": format!("{:#x}", block_number),
+                "result": format!("{:#x}", block_config.number),
             }))),
         );
         server.expect(
@@ -50,18 +62,18 @@ impl MockServer {
                 "jsonrpc": "2.0",
                 "id": 1,
                 "method": "zks_getBlockDetails",
-                "params": [ block_number ],
+                "params": [ block_config.number ],
             })))))
             .respond_with(json_encoded(serde_json::json!({
                 "jsonrpc": "2.0",
                 "id": 1,
                 "result": {
-                    "number": block_number,
+                    "number": block_config.number,
                     "l1BatchNumber": 1,
                     "timestamp": 1676461082u64,
                     "l1TxCount": 0,
                     "l2TxCount": 0,
-                    "rootHash": format!("{:#x}", block_hash),
+                    "rootHash": format!("{:#x}", block_config.hash),
                     "status": "verified",
                     "commitTxHash": "0x9f5b07e968787514667fae74e77ecab766be42acd602c85cfdbda1dc3dd9902f",
                     "committedAt": "2023-02-15T11:40:39.326104Z",
@@ -85,20 +97,20 @@ impl MockServer {
                 "jsonrpc": "2.0",
                 "id": 2,
                 "method": "eth_getBlockByHash",
-                "params": [format!("{:#x}", block_hash), true],
+                "params": [format!("{:#x}", block_config.hash), true],
             }))))).times(0..)
             .respond_with(json_encoded(serde_json::json!({
                 "jsonrpc": "2.0",
                 "id": 2,
                 "result": {
-                    "hash": format!("{:#x}", block_hash),
+                    "hash": format!("{:#x}", block_config.hash),
                     "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
                     "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
                     "miner": "0x0000000000000000000000000000000000000000",
                     "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
                     "transactionsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
                     "receiptsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                    "number": format!("{:#x}", block_number),
+                    "number": format!("{:#x}", block_config.number),
                     "l1BatchNumber": "0x6",
                     "gasUsed": "0x0",
                     "gasLimit": "0xffffffff",
@@ -111,7 +123,14 @@ impl MockServer {
                     "totalDifficulty": "0x0",
                     "sealFields": [],
                     "uncles": [],
-                    "transactions": [],
+                    "transactions": (0..block_config.transaction_count)
+                        .into_iter()
+                        .map(|index| {
+                            TransactionResponseBuilder::new()
+                                .set_hash(H256::repeat_byte(index))
+                                .build_result()
+                        })
+                    .collect::<Vec<_>>(),
                     "size": "0x0",
                     "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
                     "nonce": "0x0000000000000000"
@@ -174,37 +193,42 @@ impl BlockResponseBuilder {
         self
     }
 
+    /// Builds the block json result response
+    pub fn build_result(&mut self) -> serde_json::Value {
+        serde_json::json!({
+            "hash": format!("{:#x}", self.hash),
+            "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+            "miner": "0x0000000000000000000000000000000000000000",
+            "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "transactionsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "receiptsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "number": format!("{:#x}", self.number),
+            "l1BatchNumber": "0x6",
+            "gasUsed": "0x0",
+            "gasLimit": "0xffffffff",
+            "baseFeePerGas": "0x1dcd6500",
+            "extraData": "0x",
+            "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+            "timestamp": "0x63ecc41a",
+            "l1BatchTimestamp": "0x63ecbd12",
+            "difficulty": "0x0",
+            "totalDifficulty": "0x0",
+            "sealFields": [],
+            "uncles": [],
+            "transactions": [],
+            "size": "0x0",
+            "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "nonce": "0x0000000000000000"
+        })
+    }
+
     /// Builds the json response
     pub fn build(&mut self) -> serde_json::Value {
         serde_json::json!({
             "jsonrpc": "2.0",
             "id": 0,
-            "result": {
-                "hash": format!("{:#x}", self.hash),
-                "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
-                "miner": "0x0000000000000000000000000000000000000000",
-                "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "transactionsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "receiptsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "number": format!("{:#x}", self.number),
-                "l1BatchNumber": "0x6",
-                "gasUsed": "0x0",
-                "gasLimit": "0xffffffff",
-                "baseFeePerGas": "0x1dcd6500",
-                "extraData": "0x",
-                "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-                "timestamp": "0x63ecc41a",
-                "l1BatchTimestamp": "0x63ecbd12",
-                "difficulty": "0x0",
-                "totalDifficulty": "0x0",
-                "sealFields": [],
-                "uncles": [],
-                "transactions": [],
-                "size": "0x0",
-                "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "nonce": "0x0000000000000000"
-            },
+            "result": self.build_result(),
         })
     }
 }
@@ -227,30 +251,35 @@ impl TransactionResponseBuilder {
         self
     }
 
+    /// Builds the transaction json result
+    pub fn build_result(&mut self) -> serde_json::Value {
+        serde_json::json!({
+            "hash": format!("{:#x}", self.hash),
+            "nonce": "0x0",
+            "blockHash": "0x51f81bcdfc324a0dff2b5bec9d92e21cbebc4d5e29d3a3d30de3e03fbeab8d7f",
+            "blockNumber": "0x1",
+            "transactionIndex": "0x0",
+            "from": "0x29df43f75149d0552475a6f9b2ac96e28796ed0b",
+            "to": "0x0000000000000000000000000000000000008006",
+            "value": "0x0",
+            "gasPrice": "0x0",
+            "gas": "0x44aa200",
+            "input": "0x3cda33510000000000000000000000000000000000000000000000000000000000000000010000553109a66f1432eb2286c54694784d1b6993bc24a168be0a49b4d0fd4500000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
+            "type": "0xff",
+            "maxFeePerGas": "0x0",
+            "maxPriorityFeePerGas": "0x0",
+            "chainId": "0x144",
+            "l1BatchNumber": "0x1",
+            "l1BatchTxIndex": "0x0",
+        })
+    }
+
     /// Builds the json response
     pub fn build(&mut self) -> serde_json::Value {
         serde_json::json!({
             "jsonrpc": "2.0",
             "id": 0,
-            "result": {
-                "hash": format!("{:#x}", self.hash),
-                "nonce": "0x0",
-                "blockHash": "0x51f81bcdfc324a0dff2b5bec9d92e21cbebc4d5e29d3a3d30de3e03fbeab8d7f",
-                "blockNumber": "0x1",
-                "transactionIndex": "0x0",
-                "from": "0x29df43f75149d0552475a6f9b2ac96e28796ed0b",
-                "to": "0x0000000000000000000000000000000000008006",
-                "value": "0x0",
-                "gasPrice": "0x0",
-                "gas": "0x44aa200",
-                "input": "0x3cda33510000000000000000000000000000000000000000000000000000000000000000010000553109a66f1432eb2286c54694784d1b6993bc24a168be0a49b4d0fd4500000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-                "type": "0xff",
-                "maxFeePerGas": "0x0",
-                "maxPriorityFeePerGas": "0x0",
-                "chainId": "0x144",
-                "l1BatchNumber": "0x1",
-                "l1BatchTxIndex": "0x0",
-            },
+            "result": self.build_result(),
         })
     }
 }
@@ -273,46 +302,93 @@ impl RawTransactionsResponseBuilder {
         self
     }
 
+    /// Builds the raw transaction json result
+    pub fn build_result(&mut self) -> serde_json::Value {
+        serde_json::json!(
+            self.serial_ids
+                .iter()
+                .map(|serial_id| serde_json::json!({
+                    "common_data": {
+                        "L1": {
+                            "sender": "0xcca8009f5e09f8c5db63cb0031052f9cb635af62",
+                            "serialId": serial_id,
+                            "deadlineBlock": 0,
+                            "layer2TipFee": "0x0",
+                            "fullFee": "0x0",
+                            "maxFeePerGas": "0x0",
+                            "gasLimit": "0x989680",
+                            "gasPerPubdataLimit": "0x320",
+                            "opProcessingType": "Common",
+                            "priorityQueueType": "Deque",
+                            "ethHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                            "ethBlock": 16631249u64,
+                            "canonicalTxHash": "0xaaf9514a005ba59e29b53e1dc84d234d909c5202b44c5179f9c67d8e3cad0636",
+                            "toMint": "0x470de4df820000",
+                            "refundRecipient": "0xcca8009f5e09f8c5db63cb0031052f9cb635af62"
+                        }
+                    },
+                    "execute": {
+                        "contractAddress": "0xcca8009f5e09f8c5db63cb0031052f9cb635af62",
+                        "calldata": "0x",
+                        "value": "0x470de4df820000",
+                        "factoryDeps": []
+                    },
+                    "received_timestamp_ms": 1676429272816u64,
+                    "raw_bytes": null
+                }))
+                .collect_vec()
+        )
+    }
+
     /// Builds the json response
     pub fn build(&mut self) -> serde_json::Value {
         serde_json::json!({
             "jsonrpc": "2.0",
             "id": 0,
-            "result": self.serial_ids.iter().map(|serial_id| serde_json::json!({
-                "common_data": {
-                    "L1": {
-                    "sender": "0xcca8009f5e09f8c5db63cb0031052f9cb635af62",
-                    "serialId": serial_id,
-                    "deadlineBlock": 0,
-                    "layer2TipFee": "0x0",
-                    "fullFee": "0x0",
-                    "maxFeePerGas": "0x0",
-                    "gasLimit": "0x989680",
-                    "gasPerPubdataLimit": "0x320",
-                    "opProcessingType": "Common",
-                    "priorityQueueType": "Deque",
-                    "ethHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                    "ethBlock": 16631249u64,
-                    "canonicalTxHash": "0xaaf9514a005ba59e29b53e1dc84d234d909c5202b44c5179f9c67d8e3cad0636",
-                    "toMint": "0x470de4df820000",
-                    "refundRecipient": "0xcca8009f5e09f8c5db63cb0031052f9cb635af62"
-                    }
-                },
-                "execute": {
-                    "contractAddress": "0xcca8009f5e09f8c5db63cb0031052f9cb635af62",
-                    "calldata": "0x",
-                    "value": "0x470de4df820000",
-                    "factoryDeps": []
-                },
-                "received_timestamp_ms": 1676429272816u64,
-                "raw_bytes": null
-            })).collect_vec(),
+            "result": self.build_result(),
         })
     }
 }
 
+/// Applies a transaction with a given hash to the node and returns the block hash.
+pub fn apply_tx<T: ForkSource + std::fmt::Debug>(node: &InMemoryNode<T>, tx_hash: H256) -> H256 {
+    let current_batch = node
+        .get_inner()
+        .read()
+        .map(|reader| reader.current_batch)
+        .expect("failed getting current batch number");
+    let produced_block_hash = compute_hash(current_batch, tx_hash);
+
+    let private_key = H256::random();
+    let from_account = PackedEthSignature::address_from_private_key(&private_key)
+        .expect("failed generating address");
+    node.set_rich_account(from_account);
+    let mut tx = L2Tx::new_signed(
+        Address::random(),
+        vec![],
+        Nonce(0),
+        Fee {
+            gas_limit: U256::from(1_000_000),
+            max_fee_per_gas: U256::from(250_000_000),
+            max_priority_fee_per_gas: U256::from(250_000_000),
+            gas_per_pubdata_limit: U256::from(20000),
+        },
+        U256::from(1),
+        L2ChainId(260),
+        &private_key,
+        None,
+        Default::default(),
+    )
+    .unwrap();
+    tx.set_input(vec![], tx_hash);
+    node.apply_txs(vec![tx.into()]).expect("failed applying tx");
+
+    produced_block_hash
+}
+
 mod test {
     use super::*;
+    use crate::http_fork_source::HttpForkSource;
 
     #[test]
     fn test_block_response_builder_set_hash() {
@@ -343,5 +419,78 @@ mod test {
             .expect("failed retrieving value");
 
         assert_eq!("0xff", actual_value);
+    }
+
+    #[test]
+    fn test_transaction_response_builder_set_hash() {
+        let builder = TransactionResponseBuilder::new()
+            .set_hash(H256::repeat_byte(0x01))
+            .build();
+
+        let actual_value = builder
+            .as_object()
+            .and_then(|o| o.get("result").unwrap().as_object())
+            .and_then(|o| o.get("hash").unwrap().as_str())
+            .expect("failed retrieving value");
+
+        assert_eq!(
+            "0x0101010101010101010101010101010101010101010101010101010101010101",
+            actual_value
+        );
+    }
+
+    #[test]
+    fn test_raw_transactions_response_builder_no_items() {
+        let builder = RawTransactionsResponseBuilder::new().build();
+
+        let actual_len = builder
+            .as_object()
+            .and_then(|o| o.get("result").unwrap().as_array())
+            .map(|o| o.len())
+            .expect("failed retrieving value");
+
+        assert_eq!(0, actual_len);
+    }
+
+    #[test]
+    fn test_raw_transactions_response_builder_added_items() {
+        let builder = RawTransactionsResponseBuilder::new()
+            .add(10)
+            .add(11)
+            .build();
+
+        let actual_serial_ids = builder
+            .as_object()
+            .and_then(|o| o.get("result").unwrap().as_array())
+            .map(|o| {
+                o.into_iter()
+                    .map(|o| o.get("common_data").unwrap().as_object().unwrap())
+                    .map(|o| o.get("L1").unwrap().as_object().unwrap())
+                    .map(|entry| entry.get("serialId").unwrap().as_u64().unwrap())
+                    .collect_vec()
+            })
+            .expect("failed retrieving value");
+
+        assert_eq!(vec![10, 11], actual_serial_ids);
+    }
+
+    #[tokio::test]
+    async fn test_apply_tx() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let actual_block_hash = apply_tx(&node, H256::repeat_byte(0x01));
+
+        assert_eq!(
+            H256::from_str("0x89c0aa770eba1f187235bdad80de9c01fe81bca415d442ca892f087da56fa109")
+                .unwrap(),
+            actual_block_hash,
+        );
+
+        assert!(
+            node.get_inner()
+                .read()
+                .map(|inner| inner.blocks.contains_key(&actual_block_hash))
+                .unwrap(),
+            "block was not produced"
+        );
     }
 }
