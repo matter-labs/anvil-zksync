@@ -5,8 +5,8 @@
 
 #![cfg(test)]
 
-use crate::fork::ForkSource;
 use crate::node::InMemoryNode;
+use crate::{fork::ForkSource, node::compute_hash};
 
 use httptest::{
     matchers::{eq, json_decoded, request},
@@ -350,8 +350,15 @@ impl RawTransactionsResponseBuilder {
     }
 }
 
-/// Applies a transaction to the node and returns the block hash.
-pub fn apply_tx<T: ForkSource + std::fmt::Debug>(node: &InMemoryNode<T>) -> H256 {
+/// Applies a transaction with a given hash to the node and returns the block hash.
+pub fn apply_tx<T: ForkSource + std::fmt::Debug>(node: &InMemoryNode<T>, tx_hash: H256) -> H256 {
+    let current_batch = node
+        .get_inner()
+        .read()
+        .map(|reader| reader.current_batch)
+        .expect("failed getting current batch number");
+    let produced_block_hash = compute_hash(current_batch, tx_hash);
+
     let private_key = H256::random();
     let from_account = PackedEthSignature::address_from_private_key(&private_key)
         .expect("failed generating address");
@@ -373,14 +380,10 @@ pub fn apply_tx<T: ForkSource + std::fmt::Debug>(node: &InMemoryNode<T>) -> H256
         Default::default(),
     )
     .unwrap();
-    tx.set_input(vec![], H256::repeat_byte(0x01));
+    tx.set_input(vec![], tx_hash);
     node.apply_txs(vec![tx.into()]).expect("failed applying tx");
 
-    let block_hash =
-        H256::from_str("0x89c0aa770eba1f187235bdad80de9c01fe81bca415d442ca892f087da56fa109")
-            .unwrap();
-
-    block_hash
+    produced_block_hash
 }
 
 mod test {
@@ -474,7 +477,7 @@ mod test {
     #[tokio::test]
     async fn test_apply_tx() {
         let node = InMemoryNode::<HttpForkSource>::default();
-        let actual_block_hash = apply_tx(&node);
+        let actual_block_hash = apply_tx(&node, H256::repeat_byte(0x01));
 
         assert_eq!(
             H256::from_str("0x89c0aa770eba1f187235bdad80de9c01fe81bca415d442ca892f087da56fa109")

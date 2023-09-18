@@ -2050,7 +2050,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_block_by_hash_for_produced_block() {
         let node = InMemoryNode::<HttpForkSource>::default();
-        let expected_block_hash = testing::apply_tx(&node);
+        let expected_block_hash = testing::apply_tx(&node, H256::repeat_byte(0x01));
 
         let actual_block = node
             .get_block_by_hash(expected_block_hash, false)
@@ -2156,7 +2156,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_block_by_number_for_produced_block() {
         let node = InMemoryNode::<HttpForkSource>::default();
-        testing::apply_tx(&node);
+        testing::apply_tx(&node, H256::repeat_byte(0x01));
         let expected_block_number = 1;
 
         let actual_block = node
@@ -2213,7 +2213,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_block_by_number_for_latest_block_produced_locally() {
         let node = InMemoryNode::<HttpForkSource>::default();
-        testing::apply_tx(&node);
+        testing::apply_tx(&node, H256::repeat_byte(0x01));
         let latest_block_number = 1;
 
         let actual_block = node
@@ -2334,7 +2334,7 @@ mod tests {
     async fn test_get_block_transaction_count_by_hash_for_produced_block() {
         let node = InMemoryNode::<HttpForkSource>::default();
 
-        let expected_block_hash = testing::apply_tx(&node);
+        let expected_block_hash = testing::apply_tx(&node, H256::repeat_byte(0x01));
         let actual_transaction_count = node
             .get_block_transaction_count_by_hash(expected_block_hash)
             .await
@@ -2394,7 +2394,7 @@ mod tests {
     async fn test_get_block_transaction_count_by_number_for_produced_block() {
         let node = InMemoryNode::<HttpForkSource>::default();
 
-        testing::apply_tx(&node);
+        testing::apply_tx(&node, H256::repeat_byte(0x01));
         let actual_transaction_count = node
             .get_block_transaction_count_by_number(BlockNumber::Number(U64::from(1)))
             .await
