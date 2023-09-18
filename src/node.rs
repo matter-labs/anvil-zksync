@@ -2006,7 +2006,10 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
 #[cfg(test)]
 mod tests {
     use crate::{
-        cache::CacheConfig, http_fork_source::HttpForkSource, node::InMemoryNode, testing,
+        cache::CacheConfig,
+        http_fork_source::HttpForkSource,
+        node::InMemoryNode,
+        testing::{self, ForkBlockConfig, MockServer},
     };
     use zksync_types::api::BlockNumber;
     use zksync_web3_decl::types::SyncState;
@@ -2064,8 +2067,11 @@ mod tests {
     async fn test_node_block_mapping_is_correctly_populated_when_using_fork_source() {
         let input_block_number = 8;
         let input_block_hash = H256::repeat_byte(0x01);
-        let mock_server =
-            testing::MockServer::run_with_config(input_block_number, input_block_hash, 0);
+        let mock_server = MockServer::run_with_config(ForkBlockConfig {
+            number: input_block_number,
+            hash: input_block_hash,
+            transaction_count: 0,
+        });
 
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
@@ -2092,7 +2098,11 @@ mod tests {
     async fn test_get_block_by_hash_uses_fork_source() {
         let input_block_hash = H256::repeat_byte(0x01);
 
-        let mock_server = testing::MockServer::run_with_config(10, H256::repeat_byte(0xab), 0);
+        let mock_server = MockServer::run_with_config(ForkBlockConfig {
+            number: 10,
+            hash: H256::repeat_byte(0xab),
+            transaction_count: 0,
+        });
         let mock_block_number = 8;
         let block_response = testing::BlockResponseBuilder::new()
             .set_hash(input_block_hash)
@@ -2161,7 +2171,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_block_by_number_uses_fork_source_if_missing_number() {
-        let mock_server = testing::MockServer::run_with_config(10, H256::repeat_byte(0xab), 0);
+        let mock_server = MockServer::run_with_config(ForkBlockConfig {
+            number: 10,
+            hash: H256::repeat_byte(0xab),
+            transaction_count: 0,
+        });
         let mock_block_number = 8;
         let block_response = testing::BlockResponseBuilder::new()
             .set_number(mock_block_number)
@@ -2215,8 +2229,11 @@ mod tests {
     #[tokio::test]
     async fn test_get_block_by_number_uses_locally_available_block_for_latest_block() {
         let input_block_number = 10;
-        let mock_server =
-            testing::MockServer::run_with_config(input_block_number, H256::repeat_byte(0x01), 0);
+        let mock_server = MockServer::run_with_config(ForkBlockConfig {
+            number: input_block_number,
+            hash: H256::repeat_byte(0x01),
+            transaction_count: 0,
+        });
 
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
@@ -2238,7 +2255,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_block_by_number_uses_fork_source_for_earliest_block() {
-        let mock_server = testing::MockServer::run_with_config(10, H256::repeat_byte(0xab), 0);
+        let mock_server = MockServer::run_with_config(ForkBlockConfig {
+            number: 10,
+            hash: H256::repeat_byte(0xab),
+            transaction_count: 0,
+        });
         let input_block_number = 1;
         mock_server.expect(
             serde_json::json!({
@@ -2280,8 +2301,11 @@ mod tests {
             BlockNumber::Finalized,
         ] {
             let input_block_number = 10;
-            let mock_server =
-                testing::MockServer::run_with_config(input_block_number, H256::repeat_byte(0xab), 0);
+            let mock_server = MockServer::run_with_config(ForkBlockConfig {
+                number: input_block_number,
+                hash: H256::repeat_byte(0xab),
+                transaction_count: 0,
+            });
             let node = InMemoryNode::<HttpForkSource>::new(
                 Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
                 crate::node::ShowCalls::None,
@@ -2322,7 +2346,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_block_transaction_count_by_hash_uses_fork_source() {
-        let mock_server = testing::MockServer::run_with_config(10, H256::repeat_byte(0xab), 0);
+        let mock_server = MockServer::run_with_config(ForkBlockConfig {
+            number: 10,
+            hash: H256::repeat_byte(0xab),
+            transaction_count: 0,
+        });
         let input_block_hash = H256::repeat_byte(0x01);
         let input_transaction_count = 1;
         mock_server.expect(
@@ -2378,7 +2406,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_block_transaction_count_by_number_uses_fork_source() {
-        let mock_server = testing::MockServer::run_with_config(10, H256::repeat_byte(0xab), 0);
+        let mock_server = MockServer::run_with_config(ForkBlockConfig {
+            number: 10,
+            hash: H256::repeat_byte(0xab),
+            transaction_count: 0,
+        });
         let input_block_number = 1;
         let input_transaction_count = 1;
         mock_server.expect(
@@ -2421,7 +2453,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_block_transaction_count_by_number_earliest_uses_fork_source() {
-        let mock_server = testing::MockServer::run_with_config(10, H256::repeat_byte(0xab), 0);
+        let mock_server = MockServer::run_with_config(ForkBlockConfig {
+            number: 10,
+            hash: H256::repeat_byte(0xab),
+            transaction_count: 0,
+        });
         let input_transaction_count = 1;
         mock_server.expect(
             serde_json::json!({
@@ -2470,11 +2506,11 @@ mod tests {
             BlockNumber::Finalized,
         ] {
             let input_transaction_count = 1;
-            let mock_server = testing::MockServer::run_with_config(
-                10,
-                H256::repeat_byte(0xab),
-                input_transaction_count,
-            );
+            let mock_server = MockServer::run_with_config(ForkBlockConfig {
+                number: 10,
+                transaction_count: input_transaction_count,
+                hash: H256::repeat_byte(0xab),
+            });
 
             let node = InMemoryNode::<HttpForkSource>::new(
                 Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
