@@ -1,5 +1,5 @@
 use colored::Colorize;
-use futures::future::Either;
+use futures::{future::Either, FutureExt};
 use futures::Future;
 use itertools::Itertools;
 use jsonrpc_core::{
@@ -85,6 +85,9 @@ impl Middleware<Meta> for LoggingMiddleware {
             }
         };
 
-        Either::Left(Box::pin(next(request, meta)))
+        Either::Left(Box::pin(next(request, meta).map(move |res| {
+			log::trace!("API response => {:?}", res);
+			res
+		})))
     }
 }
