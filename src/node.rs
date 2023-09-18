@@ -1493,7 +1493,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
             let receipt = tx_result.map(|info| TransactionReceipt {
                 transaction_hash: hash,
                 transaction_index: U64::from(1),
-                block_hash: Some(hash),
+                block_hash: reader.block_hashes.get(&info.miniblock_number).cloned(),
                 block_number: Some(U64::from(info.miniblock_number)),
                 l1_batch_tx_index: None,
                 l1_batch_number: Some(U64::from(info.batch_number as u64)),
@@ -2303,5 +2303,47 @@ mod tests {
                 block_number,
             );
         }
+    }
+
+    #[tokio::test]
+    async fn test_get_transaction_receipt_uses_produced_block_hash() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let tx_hash = H256::repeat_byte(0x01);
+        let private_key = H256::random();
+        let from_account = PackedEthSignature::address_from_private_key(&private_key)
+            .expect("failed generating address");
+        node.set_rich_account(from_account);
+        let mut tx = L2Tx::new_signed(
+            Address::random(),
+            vec![],
+            Nonce(0),
+            Fee {
+                gas_limit: U256::from(1_000_000),
+                max_fee_per_gas: U256::from(250_000_000),
+                max_priority_fee_per_gas: U256::from(250_000_000),
+                gas_per_pubdata_limit: U256::from(20000),
+            },
+            U256::from(1),
+            L2ChainId(260),
+            &private_key,
+            None,
+            Default::default(),
+        )
+        .unwrap();
+        tx.set_input(vec![], tx_hash);
+
+        node.apply_txs(vec![tx.into()]).expect("failed applying tx");
+
+        let expected_block_hash =
+            H256::from_str("0x89c0aa770eba1f187235bdad80de9c01fe81bca415d442ca892f087da56fa109")
+                .unwrap();
+        let actual_tx_receipt = node
+            .get_transaction_receipt(tx_hash)
+            .await
+            .expect("failed fetching transaction receipt by hash")
+            .expect("no transaction receipt");
+
+        assert_eq!(Some(expected_block_hash), actual_tx_receipt.block_hash);
     }
 }
