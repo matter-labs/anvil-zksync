@@ -2,6 +2,7 @@
 use crate::{
     bootloader_debug::BootloaderDebug,
     console_log::ConsoleLogHandler,
+    filters::EthFilters,
     fork::{ForkDetails, ForkSource, ForkStorage},
     formatter,
     system_contracts::{self, SystemContracts},
@@ -229,6 +230,8 @@ pub struct InMemoryNodeInner<S> {
     pub blocks: HashMap<H256, Block<TransactionVariant>>,
     // Map from block number to a block hash.
     pub block_hashes: HashMap<u64, H256>,
+    // Map from filter_id to the eth filter
+    pub filters: EthFilters,
     // Underlying storage
     pub fork_storage: ForkStorage<S>,
     // Debug level information.
@@ -624,6 +627,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 tx_results: Default::default(),
                 blocks,
                 block_hashes,
+                filters: Default::default(),
                 fork_storage: ForkStorage::new(fork, system_contracts_options),
                 show_calls,
                 show_storage_logs,
@@ -653,6 +657,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 tx_results: Default::default(),
                 blocks,
                 block_hashes,
+                filters: Default::default(),
                 fork_storage: ForkStorage::new(fork, system_contracts_options),
                 show_calls,
                 show_storage_logs,
@@ -923,7 +928,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         l2_tx: L2Tx,
         execution_mode: TxExecutionMode,
     ) -> Result<L2TxResult, String> {
-        let inner = self
+        let mut inner = self
             .inner
             .write()
             .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
@@ -1106,6 +1111,15 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         let tx_hash = l2_tx.hash();
         log::info!("");
         log::info!("Executing {}", format!("{:?}", tx_hash).bold());
+
+        {
+            let mut inner = self
+                .inner
+                .write()
+                .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
+            inner.filters.notify_new_pending_transaction(l2_tx.hash());
+        }
+
         let (keys, result, block, bytecodes) =
             self.run_l2_tx_inner(l2_tx.clone(), execution_mode)?;
         // Write all the mutated keys (storage slots).
@@ -1131,6 +1145,11 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             )
         }
         let current_miniblock = inner.current_miniblock.saturating_add(1);
+        for event in &result.result.logs.events {
+            inner
+                .filters
+                .notify_new_log(event, U64::from(current_miniblock));
+        }
         inner.tx_results.insert(
             tx_hash,
             TxExecutionInfo {
@@ -1140,8 +1159,11 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 result,
             },
         );
+        let block_hash = block.hash;
         inner.block_hashes.insert(current_miniblock, block.hash);
         inner.blocks.insert(block.hash, block);
+        inner.filters.notify_new_block(block_hash);
+
         {
             inner.current_timestamp += 1;
             inner.current_batch += 1;

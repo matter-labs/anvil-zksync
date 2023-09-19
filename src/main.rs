@@ -17,6 +17,7 @@ mod configuration_api;
 mod console_log;
 mod deps;
 mod evm;
+mod filters;
 mod fork;
 mod formatter;
 mod hardhat;
