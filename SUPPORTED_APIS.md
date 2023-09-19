@@ -42,7 +42,7 @@ The `status` options are:
 | [`ETH`](#eth-namespace) | [`eth_call`](#eth_call) | `SUPPORTED` | Executes a new message call immediately without creating a transaction on the block chain |
 | [`ETH`](#eth-namespace) | [`eth_sendRawTransaction`](#eth_sendrawtransaction) | `SUPPORTED` | Creates new message call transaction or a contract creation for signed transactions |
 | [`ETH`](#eth-namespace) | [`eth_getCode`](#eth_getcode) | `SUPPORTED` | Returns code at a given address |
-| `ETH` | `eth_getFilterChanges` | `NOT IMPLEMENTED`<br />[GitHub Issue #42](https://github.com/matter-labs/era-test-node/issues/42) | Polling method for a filter, which returns an array of logs, block hashes, or transaction hashes, depending on the filter type, which occurred since last poll |
+| [`ETH`](#eth-namespace) | [`eth_getFilterChanges`](#`eth_getFilterChanges) | `SUPPORTED` | Polling method for a filter, which returns an array of logs, block hashes, or transaction hashes, depending on the filter type, which occurred since last poll |
 | `ETH` | `eth_getFilterLogs` | `NOT IMPLEMENTED`<br />[GitHub Issue #41](https://github.com/matter-labs/era-test-node/issues/41) | Returns an array of all logs matching filter with given id |
 | `ETH` | `eth_getLogs` | `NOT IMPLEMENTED`<br />[GitHub Issue #40](https://github.com/matter-labs/era-test-node/issues/40) | Returns an array of all logs matching a given filter object |
 | `ETH` | `eth_getProof` | `NOT IMPLEMENTED` | Returns the details for the account at the specified address and block number, the account's Merkle proof, and the storage values for the specified storage keys with their Merkle-proofs |
@@ -58,9 +58,9 @@ The `status` options are:
 | `ETH` | `eth_hashrate` | `NOT IMPLEMENTED` | Returns the number of hashes per second that the node is mining with |
 | `ETH` | `eth_maxPriorityFeePerGas` | `NOT IMPLEMENTED` | Returns a `maxPriorityFeePerGas` value suitable for quick transaction inclusion |
 | `ETH` | `eth_mining` | `NOT IMPLEMENTED` | Returns `true` if client is actively mining new blocks |
-| `ETH` | `eth_newBlockFilter` | `NOT IMPLEMENTED`<br />[GitHub Issue #37](https://github.com/matter-labs/era-test-node/issues/37) | Creates a filter in the node, to notify when a new block arrives |
-| `ETH` | `eth_newFilter` | `NOT IMPLEMENTED`<br />[GitHub Issue #36](https://github.com/matter-labs/era-test-node/issues/36) | Creates a filter object, based on filter options, to notify when the state changes (logs) |
-| `ETH` | `eth_newPendingTransactionFilter` | `NOT IMPLEMENTED`<br />[GitHub Issue #39](https://github.com/matter-labs/era-test-node/issues/39) | Creates a filter in the node, to notify when new pending transactions arrive |
+| [`ETH`](#eth-namespace) | [`eth_newBlockFilter`](#`eth_newblockfilter) | `SUPPORTED` | Creates a filter in the node, to notify when a new block arrives |
+| [`ETH`](#eth-namespace) | [`eth_newFilter`](#`eth_newfilter) | `SUPPORTED` | Creates a filter object, based on filter options, to notify when the state changes (logs) |
+| [`ETH`](#eth-namespace) | [`eth_newPendingTransactionFilter`](#`eth_newpendingtransactionfilter) | `SUPPORTED` | Creates a filter in the node, to notify when new pending transactions arrive |
 | `ETH` | `eth_protocolVersion` | `NOT IMPLEMENTED`<br />[GitHub Issue #48](https://github.com/matter-labs/era-test-node/issues/48) | Returns the current ethereum protocol version |
 | `ETH` | `eth_sendTransaction` | `NOT IMPLEMENTED` | Creates new message call transaction or a contract creation, if the data field contains code |
 | `ETH` | `eth_sign` | `NOT IMPLEMENTED` | The sign method calculates an Ethereum specific signature with: `sign(keccak256("\x19Ethereum Signed Message:\n" + message.length + message)))` |
@@ -71,7 +71,7 @@ The `status` options are:
 | `ETH` | `eth_submitWork` | `NOT IMPLEMENTED` | Used for submitting a proof-of-work solution |
 | `ETH` | `eth_subscribe` | `NOT IMPLEMENTED` | Starts a subscription to a particular event |
 | [`ETH`](#eth-namespace) | [`eth_syncing`](#eth_syncing) | `SUPPORTED` | Returns an object containing data about the sync status or `false` when not syncing |
-| `ETH` | `eth_uninstallFilter` | `NOT IMPLEMENTED`<br />[GitHub Issue #38](https://github.com/matter-labs/era-test-node/issues/38) | Uninstalls a filter with given id |
+| [`ETH`](#eth-namespace) | [`eth_uninstallFilter`](#`eth_uninstallfilter) | `SUPPORTED` | Uninstalls a filter with given id |
 | `ETH` | `eth_unsubscribe` | `NOT IMPLEMENTED` | Cancel a subscription to a particular event |
 | `EVM` | `evm_addAccount` | `NOT IMPLEMENTED` | Adds any arbitrary account |
 | [`EVM`](#evm-namespace) | [`evm_increaseTime`](#evm_increasetime) | `SUPPORTED` | Jump forward in time by the given amount of time, in seconds |
@@ -565,6 +565,150 @@ curl --request POST \
     "id": "1",
     "method": "eth_getBlockTransactionCountByNumber",
     "params": ["latest"]
+}'
+```
+
+
+### `eth_getFilterChanges`
+
+[source](src/node.rs)
+
+Polling method for a filter, which returns an array of logs, block hashes, or transaction hashes, depending on the filter type, which occurred since last poll
+
+#### Arguments
+
++ `id: U256`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_getFilterChanges",
+    "params": ["0x1"]
+}'
+```
+
+### `eth_newBlockFilter`
+
+[source](src/node.rs)
+
+Creates a filter in the node, to notify when a new block arrives
+
+#### Arguments
+
++ _NONE__
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_newBlockFilter"
+}'
+```
+
+### `eth_newFilter`
+
+[source](src/node.rs)
+
+Creates a filter object, based on filter options, to notify when the state changes (logs)
+
+#### Arguments
+
++ `filter: Filter`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_newFilter",
+    "params": [{
+      "fromBlock": "0xa", 
+      "toBlock": "0xff", 
+      "address": "0x6b175474e89094c44da98b954eedeac495271d0f",
+      "topics": []
+    }]
+}'
+```
+
+### `eth_newPendingTransactionFilter`
+
+[source](src/node.rs)
+
+Creates a filter in the node, to notify when new pending transactions arrive
+
+#### Arguments
+
++ _NONE__
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_newPendingTransactionFilter"
+}'
+```
+
+### `eth_uninstallFilter`
+
+[source](src/node.rs)
+
+Uninstalls a filter with given id
+
+#### Arguments
+
++ `id: U256`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_uninstallFilter",
+    "params": ["0x1"]
 }'
 ```
 
