@@ -126,7 +126,6 @@ impl MockServer {
                     "sealFields": [],
                     "uncles": [],
                     "transactions": (0..block_config.transaction_count)
-                        .into_iter()
                         .map(|index| {
                             TransactionResponseBuilder::new()
                                 .set_hash(H256::repeat_byte(index))
@@ -383,7 +382,7 @@ pub fn apply_tx<T: ForkSource + std::fmt::Debug>(node: &InMemoryNode<T>, tx_hash
     )
     .unwrap();
     tx.set_input(vec![], tx_hash);
-    node.apply_txs(vec![tx.into()]).expect("failed applying tx");
+    node.apply_txs(vec![tx]).expect("failed applying tx");
 
     produced_block_hash
 }
@@ -516,7 +515,7 @@ mod test {
             .as_object()
             .and_then(|o| o.get("result").unwrap().as_array())
             .map(|o| {
-                o.into_iter()
+                o.iter()
                     .map(|o| o.get("common_data").unwrap().as_object().unwrap())
                     .map(|o| o.get("L1").unwrap().as_object().unwrap())
                     .map(|entry| entry.get("serialId").unwrap().as_u64().unwrap())

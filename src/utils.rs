@@ -1,13 +1,27 @@
 use std::pin::Pin;
 
 use futures::Future;
-use vm::vm_with_bootloader::{
-    derive_base_fee_and_gas_per_pubdata, BLOCK_OVERHEAD_GAS, BLOCK_OVERHEAD_PUBDATA,
-    BOOTLOADER_TX_ENCODING_SPACE,
+use vm::{
+    utils::BLOCK_GAS_LIMIT,
+    vm_with_bootloader::{
+        derive_base_fee_and_gas_per_pubdata, init_vm_inner, BlockContext, BlockContextMode,
+        BootloaderJobType, TxExecutionMode, BLOCK_OVERHEAD_GAS, BLOCK_OVERHEAD_PUBDATA,
+        BOOTLOADER_TX_ENCODING_SPACE,
+    },
+    HistoryEnabled, OracleTools,
 };
-use zksync_basic_types::U256;
-use zksync_types::{zk_evm::zkevm_opcode_defs::system_params::MAX_TX_ERGS_LIMIT, MAX_TXS_IN_BLOCK};
-use zksync_utils::ceil_div_u256;
+use zksync_basic_types::{H256, U256};
+use zksync_state::StorageView;
+use zksync_state::WriteStorage;
+use zksync_types::{
+    api::Block, zk_evm::zkevm_opcode_defs::system_params::MAX_TX_ERGS_LIMIT, MAX_TXS_IN_BLOCK,
+};
+use zksync_utils::{ceil_div_u256, u256_to_h256};
+
+use crate::{
+    fork::{ForkSource, ForkStorage},
+    node::{compute_hash, InMemoryNodeInner},
+};
 
 pub(crate) trait IntoBoxedFuture: Sized + Send + 'static {
     fn into_boxed_future(self) -> Pin<Box<dyn Future<Output = Self> + Send>> {
@@ -141,6 +155,94 @@ pub fn to_human_size(input: U256) -> String {
         })
         .collect();
     tmp.iter().rev().collect()
+}
+
+/// Creates and inserts a given number of empty blocks into the node, with a given interval between them.
+/// The blocks will be empty (contain no transactions).
+/// The test system contracts will be used to force overwriting the block number and timestamp in VM state,
+/// otherwise the VM will reject subsequent blocks as invalid.
+pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
+    node: &mut InMemoryNodeInner<S>,
+    num_blocks: u64,
+    interval_ms: u64,
+) {
+    // build and insert new blocks
+    for _ in 0..num_blocks {
+        node.current_miniblock = node.current_miniblock.saturating_add(1);
+
+        let block = Block {
+            hash: compute_hash(node.current_miniblock as u32, H256::zero()),
+            number: node.current_miniblock.into(),
+            timestamp: node.current_timestamp.into(),
+            ..Default::default()
+        };
+
+        node.block_hashes.insert(node.current_miniblock, block.hash);
+        node.blocks.insert(block.hash, block);
+
+        // leave node state ready for next interaction
+        node.current_timestamp = node.current_timestamp.saturating_add(interval_ms);
+    }
+
+    // roll the vm
+    let (keys, bytecodes) = {
+        let mut storage_view: StorageView<&ForkStorage<S>> = StorageView::new(&node.fork_storage);
+        let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryEnabled);
+
+        // system_contract.contacts_for_l2_call() will give playground contracts
+        // we need these to use the unsafeOverrideBlock method in SystemContext.sol
+        let bootloader_code = node.system_contracts.contacts_for_l2_call();
+        let block_context = BlockContext {
+            block_number: node.current_miniblock as u32,
+            block_timestamp: node.current_timestamp,
+            ..node.create_block_context()
+        };
+        let block_properties: zksync_types::zk_evm::block_properties::BlockProperties =
+            InMemoryNodeInner::<S>::create_block_properties(bootloader_code);
+
+        // init vm
+        let mut vm = init_vm_inner(
+            &mut oracle_tools,
+            BlockContextMode::OverrideCurrent(block_context.into()),
+            &block_properties,
+            BLOCK_GAS_LIMIT,
+            bootloader_code,
+            TxExecutionMode::VerifyExecute,
+        );
+
+        vm.execute_till_block_end(BootloaderJobType::TransactionExecution);
+
+        let bytecodes = vm
+            .state
+            .decommittment_processor
+            .known_bytecodes
+            .inner()
+            .clone();
+
+        let modified_keys = storage_view.modified_storage_keys().clone();
+        (modified_keys, bytecodes)
+    };
+
+    for (key, value) in keys.iter() {
+        node.fork_storage.set_value(*key, *value);
+    }
+
+    // Write all the factory deps.
+    for (hash, code) in bytecodes.iter() {
+        node.fork_storage.store_factory_dep(
+            u256_to_h256(*hash),
+            code.iter()
+                .flat_map(|entry| {
+                    let mut bytes = vec![0u8; 32];
+                    entry.to_big_endian(&mut bytes);
+                    bytes.to_vec()
+                })
+                .collect(),
+        )
+    }
+
+    // increment batch
+    node.current_batch = node.current_batch.saturating_add(1);
 }
 
 #[cfg(test)]
