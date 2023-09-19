@@ -2717,4 +2717,158 @@ mod tests {
             );
         }
     }
+
+    #[tokio::test]
+    async fn test_new_block_filter_returns_filter_id() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let actual_filter_id = node
+            .new_block_filter()
+            .await
+            .expect("failed creating filter");
+
+        assert_eq!(U256::from(1), actual_filter_id);
+    }
+
+    #[tokio::test]
+    async fn test_new_filter_returns_filter_id() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let actual_filter_id = node
+            .new_filter(Filter::default())
+            .await
+            .expect("failed creating filter");
+
+        assert_eq!(U256::from(1), actual_filter_id);
+    }
+
+    #[tokio::test]
+    async fn test_new_pending_transaction_filter_returns_filter_id() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let actual_filter_id = node
+            .new_pending_transaction_filter()
+            .await
+            .expect("failed creating filter");
+
+        assert_eq!(U256::from(1), actual_filter_id);
+    }
+
+    #[tokio::test]
+    async fn test_uninstall_filter_returns_true_if_filter_exists() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let filter_id = node
+            .new_block_filter()
+            .await
+            .expect("failed creating filter");
+
+        let actual_result = node
+            .uninstall_filter(filter_id)
+            .await
+            .expect("failed creating filter");
+
+        assert!(actual_result);
+    }
+
+    #[tokio::test]
+    async fn test_uninstall_filter_returns_false_if_filter_does_not_exist() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let actual_result = node
+            .uninstall_filter(U256::from(100))
+            .await
+            .expect("failed creating filter");
+
+        assert!(!actual_result);
+    }
+
+    #[tokio::test]
+    async fn test_get_filter_changes_returns_block_hash_updates_only_once() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let filter_id = node
+            .new_block_filter()
+            .await
+            .expect("failed creating filter");
+        let block_hash = testing::apply_tx(&node, H256::repeat_byte(0x1));
+
+        match node
+            .get_filter_changes(filter_id)
+            .await
+            .expect("failed getting filter changes")
+        {
+            FilterChanges::Hashes(result) => assert_eq!(vec![block_hash], result),
+            changes => panic!("unexpected filter changes: {:?}", changes),
+        }
+
+        match node
+            .get_filter_changes(filter_id)
+            .await
+            .expect("failed getting filter changes")
+        {
+            FilterChanges::Empty(_) => (),
+            changes => panic!("expected no changes in the second call, got {:?}", changes),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_filter_changes_returns_log_updates_only_once() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let filter_id = node
+            .new_filter(Filter {
+                from_block: None,
+                to_block: None,
+                address: None,
+                topics: None,
+                block_hash: None,
+            })
+            .await
+            .expect("failed creating filter");
+        testing::apply_tx(&node, H256::repeat_byte(0x1));
+
+        match node
+            .get_filter_changes(filter_id)
+            .await
+            .expect("failed getting filter changes")
+        {
+            FilterChanges::Logs(result) => assert_eq!(3, result.len()),
+            changes => panic!("unexpected filter changes: {:?}", changes),
+        }
+
+        match node
+            .get_filter_changes(filter_id)
+            .await
+            .expect("failed getting filter changes")
+        {
+            FilterChanges::Empty(_) => (),
+            changes => panic!("expected no changes in the second call, got {:?}", changes),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_filter_changes_returns_pending_transaction_updates_only_once() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let filter_id = node
+            .new_pending_transaction_filter()
+            .await
+            .expect("failed creating filter");
+        testing::apply_tx(&node, H256::repeat_byte(0x1));
+
+        match node
+            .get_filter_changes(filter_id)
+            .await
+            .expect("failed getting filter changes")
+        {
+            FilterChanges::Hashes(result) => assert_eq!(vec![H256::repeat_byte(0x1)], result),
+            changes => panic!("unexpected filter changes: {:?}", changes),
+        }
+
+        match node
+            .get_filter_changes(filter_id)
+            .await
+            .expect("failed getting filter changes")
+        {
+            FilterChanges::Empty(_) => (),
+            changes => panic!("expected no changes in the second call, got {:?}", changes),
+        }
+    }
 }

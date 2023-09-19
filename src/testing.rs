@@ -15,6 +15,8 @@ use httptest::{
 };
 use itertools::Itertools;
 use std::str::FromStr;
+use zksync_basic_types::{H160, U64};
+use zksync_types::api::Log;
 use zksync_types::{fee::Fee, l2::L2Tx, Address, L2ChainId, Nonce, PackedEthSignature, H256, U256};
 
 /// Configuration for the [MockServer]'s initial block.
@@ -386,6 +388,57 @@ pub fn apply_tx<T: ForkSource + std::fmt::Debug>(node: &InMemoryNode<T>, tx_hash
     produced_block_hash
 }
 
+/// Builds transaction logs
+#[derive(Debug, Default, Clone)]
+pub struct LogBuilder {
+    block_number: U64,
+    address: Option<H160>,
+    topics: Option<Vec<H256>>,
+}
+
+impl LogBuilder {
+    /// Create a new instance of [LogBuilder]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Sets the log's block number
+    pub fn set_block(&mut self, number: U64) -> &mut Self {
+        self.block_number = number;
+        self
+    }
+
+    /// Sets the log address
+    pub fn set_address(&mut self, address: H160) -> &mut Self {
+        self.address = Some(address);
+        self
+    }
+
+    /// Sets the log topics
+    pub fn set_topics(&mut self, topics: Vec<H256>) -> &mut Self {
+        self.topics = Some(topics);
+        self
+    }
+
+    /// Builds the [Log] object
+    pub fn build(&mut self) -> Log {
+        Log {
+            address: self.address.clone().unwrap_or_default(),
+            topics: self.topics.clone().unwrap_or_default(),
+            data: Default::default(),
+            block_hash: Some(H256::zero()),
+            block_number: Some(self.block_number),
+            l1_batch_number: Default::default(),
+            transaction_hash: Default::default(),
+            transaction_index: Default::default(),
+            log_index: Default::default(),
+            transaction_log_index: Default::default(),
+            log_type: Default::default(),
+            removed: Default::default(),
+        }
+    }
+}
+
 mod test {
     use super::*;
     use crate::http_fork_source::HttpForkSource;
@@ -491,6 +544,44 @@ mod test {
                 .map(|inner| inner.blocks.contains_key(&actual_block_hash))
                 .unwrap(),
             "block was not produced"
+        );
+    }
+
+    #[test]
+    fn test_log_builder_set_block() {
+        let log = LogBuilder::new().set_block(U64::from(2)).build();
+
+        assert_eq!(Some(U64::from(2)), log.block_number);
+    }
+
+    #[test]
+    fn test_log_builder_set_address() {
+        let log = LogBuilder::new()
+            .set_address(H160::repeat_byte(0x1))
+            .build();
+
+        assert_eq!(H160::repeat_byte(0x1), log.address);
+    }
+
+    #[test]
+    fn test_log_builder_set_topics() {
+        let log = LogBuilder::new()
+            .set_topics(vec![
+                H256::repeat_byte(0x1),
+                H256::repeat_byte(0x2),
+                H256::repeat_byte(0x3),
+                H256::repeat_byte(0x4),
+            ])
+            .build();
+
+        assert_eq!(
+            vec![
+                H256::repeat_byte(0x1),
+                H256::repeat_byte(0x2),
+                H256::repeat_byte(0x3),
+                H256::repeat_byte(0x4),
+            ],
+            log.topics
         );
     }
 }
