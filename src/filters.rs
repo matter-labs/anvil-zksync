@@ -9,8 +9,9 @@ use zksync_web3_decl::types::FilterChanges;
 pub enum FilterType {
     /// A filter for block information
     Block(BlockFilter),
-    /// A filter for log information
-    Log(LogFilter),
+    /// A filter for log information.
+    /// This is [Box] to ensure the enum invariants are similar size.
+    Log(Box<LogFilter>),
     /// A filter for pending transaction information
     PendingTransaction(PendingTransactionFilter),
 }
@@ -70,7 +71,7 @@ impl LogFilter {
             }
         }
 
-        matched_topic.iter().all(|m| *m == true)
+        matched_topic.iter().all(|m| *m)
     }
 }
 
@@ -121,13 +122,13 @@ impl EthFilters {
             .ok_or("overflow")?;
         self.filters.insert(
             self.id_counter,
-            FilterType::Log(LogFilter {
+            FilterType::Log(Box::new(LogFilter {
                 from_block,
                 to_block,
                 addresses,
                 topics,
                 updates: Default::default(),
-            }),
+            })),
         );
 
         log::info!("created log filter '{:#x}'", self.id_counter);
@@ -198,36 +199,31 @@ impl EthFilters {
 
     /// Notify available filters of a newly produced block
     pub fn notify_new_block(&mut self, hash: H256) {
-        self.filters
-            .iter_mut()
-            .for_each(|(_, filter)| match filter {
-                FilterType::Block(f) => f.updates.push(hash),
-                _ => (),
-            })
+        self.filters.iter_mut().for_each(|(_, filter)| {
+            if let FilterType::Block(f) = filter {
+                f.updates.push(hash)
+            }
+        })
     }
 
     /// Notify available filters of a new pending transaction
     pub fn notify_new_pending_transaction(&mut self, hash: H256) {
-        self.filters
-            .iter_mut()
-            .for_each(|(_, filter)| match filter {
-                FilterType::PendingTransaction(f) => f.updates.push(hash),
-                _ => (),
-            })
+        self.filters.iter_mut().for_each(|(_, filter)| {
+            if let FilterType::PendingTransaction(f) = filter {
+                f.updates.push(hash)
+            }
+        })
     }
 
     /// Notify available filters of a new transaction log
     pub fn notify_new_log(&mut self, log: &Log, latest_block_number: U64) {
-        self.filters
-            .iter_mut()
-            .for_each(|(_, filter)| match filter {
-                FilterType::Log(f) => {
-                    if f.matches(&log, latest_block_number) {
-                        f.updates.push(log.clone());
-                    }
+        self.filters.iter_mut().for_each(|(_, filter)| {
+            if let FilterType::Log(f) = filter {
+                if f.matches(log, latest_block_number) {
+                    f.updates.push(log.clone());
                 }
-                _ => (),
-            })
+            }
+        })
     }
 }
 

@@ -157,9 +157,9 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> HardhatNamespaceT
         Box::pin(async move {
             match inner.write() {
                 Ok(mut inner) => {
-                    let num_blocks = num_blocks.unwrap_or(U64::from(1));
+                    let num_blocks = num_blocks.unwrap_or_else(|| U64::from(1));
                     let interval_ms = interval
-                        .unwrap_or(U64::from(1))
+                        .unwrap_or_else(|| U64::from(1))
                         .saturating_mul(1_000.into());
                     if num_blocks.is_zero() {
                         return Err(jsonrpc_core::Error::invalid_params(

@@ -2208,8 +2208,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                 .as_u64()
                 .min(1024)
                 // Can't be more than the total number of blocks
-                .min(reader.current_miniblock + 1)
-                .max(1);
+                .clamp(1, reader.current_miniblock + 1);
 
             let mut base_fee_per_gas = vec![U256::from(L2_GAS_PRICE); block_count as usize];
 
