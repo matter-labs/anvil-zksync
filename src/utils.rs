@@ -15,7 +15,7 @@ use zksync_state::StorageView;
 use zksync_state::WriteStorage;
 use zksync_types::{
     api::Block, l2::L2Tx, zk_evm::zkevm_opcode_defs::system_params::MAX_TX_ERGS_LIMIT,
-    ExecuteTransactionCommon, L1TxCommonData, L2TxCommonData, Transaction, MAX_TXS_IN_BLOCK,
+    L2TxCommonData, MAX_TXS_IN_BLOCK,
 };
 use zksync_utils::{ceil_div_u256, u256_to_h256};
 
