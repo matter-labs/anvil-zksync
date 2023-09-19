@@ -6,7 +6,8 @@ use crate::{
     formatter,
     system_contracts::{self, SystemContracts},
     utils::{
-        adjust_l1_gas_price_for_tx, derive_gas_estimation_overhead, to_human_size, IntoBoxedFuture,
+        adjust_l1_gas_price_for_tx, adjust_tx_initiator, derive_gas_estimation_overhead,
+        to_human_size, IntoBoxedFuture,
     },
 };
 use clap::Parser;
@@ -34,7 +35,7 @@ use vm::{
 };
 use zksync_basic_types::{
     web3::{self, signing::keccak256},
-    AccountTreeId, Bytes, H160, H256, U256, U64,
+    AccountTreeId, Address, Bytes, H160, H256, U256, U64,
 };
 use zksync_contracts::BaseSystemContracts;
 use zksync_core::api_server::web3::backend_jsonrpc::{
@@ -246,6 +247,7 @@ pub struct InMemoryNodeInner<S> {
     pub resolve_hashes: bool,
     pub console_log_handler: ConsoleLogHandler,
     pub system_contracts: SystemContracts,
+    pub impersonated_account: Option<Address>,
 }
 
 type L2TxResult = (
@@ -557,6 +559,17 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             Some(revert) => Err(revert.revert_reason),
         }
     }
+
+    /// Sets the `impersonated_account` field of the node.
+    /// This field is used to override the `tx.initiator_account` field of the transaction in the `run_l2_tx` method.
+    pub fn set_impersonated_account(&mut self, address: Address) {
+        self.impersonated_account = Some(address);
+    }
+
+    /// Clears the `impersonated_account` field of the node.
+    pub fn stop_impersonating_account(&mut self) {
+        self.impersonated_account = None;
+    }
 }
 
 fn not_implemented<T: Send + 'static>(
@@ -635,6 +648,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 resolve_hashes,
                 console_log_handler: ConsoleLogHandler::default(),
                 system_contracts: SystemContracts::from_options(system_contracts_options),
+                impersonated_account: None,
             }
         } else {
             let mut block_hashes = HashMap::<u64, H256>::new();
@@ -664,6 +678,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 resolve_hashes,
                 console_log_handler: ConsoleLogHandler::default(),
                 system_contracts: SystemContracts::from_options(system_contracts_options),
+                impersonated_account: None,
             }
         };
 
@@ -740,7 +755,10 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             execution_mode,
         );
 
-        let tx: Transaction = l2_tx.into();
+        let mut tx: Transaction = l2_tx.into();
+        if let Some(impersonated_account) = inner.impersonated_account {
+            tx = adjust_tx_initiator(tx, impersonated_account);
+        }
 
         push_transaction_to_bootloader_memory(&mut vm, &tx, execution_mode, None);
 
@@ -951,7 +969,16 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         );
         let spent_on_pubdata_before = vm.state.local_state.spent_pubdata_counter;
 
-        let tx: Transaction = l2_tx.clone().into();
+        let mut tx: Transaction = l2_tx.clone().into();
+
+        if let Some(impersonated_account) = inner.impersonated_account {
+            tracing::info!(
+                "🕵️ Executing tx from impersonated account {:?}",
+                impersonated_account
+            );
+            tx = adjust_tx_initiator(tx, impersonated_account);
+        }
+
         push_transaction_to_bootloader_memory(&mut vm, &tx, execution_mode, None);
         let tx_result = vm
             .execute_next_tx(u32::MAX, true)

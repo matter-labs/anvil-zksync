@@ -71,6 +71,31 @@ pub trait HardhatNamespaceT {
         num_blocks: Option<U64>,
         interval: Option<U64>,
     ) -> BoxFuture<Result<bool>>;
+
+    /// Hardhat Network allows you to send transactions impersonating specific account and contract addresses.
+    /// To impersonate an account use this method, passing the address to impersonate as its parameter:
+    /// # Arguments
+    ///
+    /// * `address` - The address to impersonate
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
+    #[rpc(name = "hardhat_impersonateAccount")]
+    fn impersonate_account(&self, address: Address) -> BoxFuture<Result<bool>>;
+
+    /// Use this method to stop impersonating an account after having previously used `hardhat_impersonateAccount`
+    /// The address parameter is included for compatibility- since we only support impersonating one account at a time, it is ignored.
+    ///
+    /// # Arguments
+    ///
+    /// * `address` (Optional) - The address to stop impersonating.
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
+    #[rpc(name = "hardhat_stopImpersonatingAccount")]
+    fn stop_impersonating_account(&self, address: Option<Address>) -> BoxFuture<Result<bool>>;
 }
 
 impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> HardhatNamespaceT
@@ -174,13 +199,42 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> HardhatNamespaceT
             }
         })
     }
+
+    fn impersonate_account(&self, address: Address) -> BoxFuture<jsonrpc_core::Result<bool>> {
+        let inner = Arc::clone(&self.node);
+        Box::pin(async move {
+            match inner.write() {
+                Ok(mut inner) => {
+                    inner.set_impersonated_account(address);
+                    log::info!("🕵️ Account {:?} has been impersonated", address);
+                    Ok(true)
+                }
+                Err(_) => Err(into_jsrpc_error(Web3Error::InternalError)),
+            }
+        })
+    }
+
+    fn stop_impersonating_account(&self, _address: Option<Address>) -> BoxFuture<Result<bool>> {
+        let inner = Arc::clone(&self.node);
+        Box::pin(async move {
+            match inner.write() {
+                Ok(mut inner) => {
+                    inner.stop_impersonating_account();
+                    log::info!("🕵️ Stopped impersonating account");
+                    Ok(true)
+                }
+                Err(_) => Err(into_jsrpc_error(Web3Error::InternalError)),
+            }
+        })
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
+    use crate::{http_fork_source::HttpForkSource, node::InMemoryNode, testing};
     use std::str::FromStr;
+    use zksync_basic_types::H256;
     use zksync_core::api_server::web3::backend_jsonrpc::namespaces::eth::EthNamespaceT;
     use zksync_types::api::BlockNumber;
 
@@ -268,7 +322,8 @@ mod tests {
     #[tokio::test]
     async fn test_hardhat_mine_custom() {
         let node = InMemoryNode::<HttpForkSource>::default();
-        let hardhat = HardhatNamespaceImpl::new(node.get_inner());
+        let hardhat: HardhatNamespaceImpl<HttpForkSource> =
+            HardhatNamespaceImpl::new(node.get_inner());
 
         let start_block = node
             .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
@@ -298,5 +353,42 @@ mod tests {
                 current_block.timestamp
             );
         }
+    }
+
+    #[tokio::test]
+    async fn test_send_raw_transaction() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let hardhat: HardhatNamespaceImpl<HttpForkSource> =
+            HardhatNamespaceImpl::new(node.get_inner());
+
+        let to_impersonate =
+            Address::from_str("0xd8da6bf26964af9d7eed9e03e53415d37aa96045").unwrap();
+
+        let result = hardhat
+            .impersonate_account(to_impersonate)
+            .await
+            .expect("impersonate_account");
+        assert!(result);
+
+        let result = hardhat
+            .set_balance(to_impersonate, U256::exp10(18))
+            .await
+            .unwrap();
+        assert!(result);
+        let balance_before = node
+            .get_balance(to_impersonate, None)
+            .await
+            .expect("failed fetching balance");
+        println!("balance before: {}", balance_before);
+
+        // testing::apply_tx() sends 1 wei from a random address to another random address
+        let _hash = testing::apply_tx(&node, H256::repeat_byte(0x01));
+
+        let balance_after = node
+            .get_balance(to_impersonate, None)
+            .await
+            .expect("failed fetching balance");
+
+        assert_eq!(balance_before, balance_after + U256::one());
     }
 }
