@@ -17,7 +17,7 @@ use futures::FutureExt;
 use jsonrpc_core::BoxFuture;
 use std::{
     cmp::{self},
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     str::FromStr,
     sync::{Arc, RwLock},
 };
@@ -215,6 +215,11 @@ impl Display for ShowGasDetails {
     }
 }
 
+pub struct TransactionResult {
+    info: TxExecutionInfo,
+    receipt: TransactionReceipt,
+}
+
 /// Helper struct for InMemoryNode.
 /// S - is the Source of the Fork.
 pub struct InMemoryNodeInner<S> {
@@ -225,7 +230,7 @@ pub struct InMemoryNodeInner<S> {
     pub current_miniblock: u64,
     pub l1_gas_price: u64,
     // Map from transaction to details about the exeuction
-    pub tx_results: HashMap<H256, TxExecutionInfo>,
+    pub tx_results: HashMap<H256, TransactionResult>,
     // Map from block hash to information about the block.
     pub blocks: HashMap<H256, Block<TransactionVariant>>,
     // Map from block number to a block hash.
@@ -928,7 +933,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         l2_tx: L2Tx,
         execution_mode: TxExecutionMode,
     ) -> Result<L2TxResult, String> {
-        let mut inner = self
+        let inner = self
             .inner
             .write()
             .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
@@ -1144,19 +1149,80 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                     .collect(),
             )
         }
+
         let current_miniblock = inner.current_miniblock.saturating_add(1);
-        for event in &result.result.logs.events {
-            inner
-                .filters
-                .notify_new_log(event, U64::from(current_miniblock));
+
+        for (log_idx, event) in result.result.logs.events.iter().enumerate() {
+            inner.filters.notify_new_log(
+                &Log {
+                    address: event.address,
+                    topics: event.indexed_topics.clone(),
+                    data: Bytes(event.value.clone()),
+                    block_hash: Some(block.hash),
+                    block_number: Some(block.number),
+                    l1_batch_number: block.l1_batch_number,
+                    transaction_hash: Some(tx_hash),
+                    transaction_index: Some(U64::zero()),
+                    log_index: Some(U256::from(log_idx)),
+                    transaction_log_index: Some(U256::from(log_idx)),
+                    log_type: None,
+                    removed: None,
+                },
+                U64::from(current_miniblock),
+            );
         }
+        let tx_receipt = TransactionReceipt {
+            transaction_hash: tx_hash,
+            transaction_index: U64::from(0),
+            block_hash: Some(block.hash),
+            block_number: Some(block.number),
+            l1_batch_tx_index: None,
+            l1_batch_number: block.l1_batch_number,
+            from: l2_tx.initiator_account(),
+            to: Some(l2_tx.recipient_account()),
+            cumulative_gas_used: Default::default(),
+            gas_used: Some(l2_tx.common_data.fee.gas_limit - result.gas_refunded),
+            contract_address: contract_address_from_tx_result(&result),
+            logs: result
+                .result
+                .logs
+                .events
+                .iter()
+                .enumerate()
+                .map(|(log_idx, log)| Log {
+                    address: log.address,
+                    topics: log.indexed_topics.clone(),
+                    data: Bytes(log.value.clone()),
+                    block_hash: Some(block.hash),
+                    block_number: Some(block.number),
+                    l1_batch_number: block.l1_batch_number,
+                    transaction_hash: Some(tx_hash),
+                    transaction_index: Some(U64::zero()),
+                    log_index: Some(U256::from(log_idx)),
+                    transaction_log_index: Some(U256::from(log_idx)),
+                    log_type: None,
+                    removed: None,
+                })
+                .collect(),
+            l2_to_l1_logs: vec![],
+            status: Some(if result.status == TxExecutionStatus::Success {
+                U64::from(1)
+            } else {
+                U64::from(0)
+            }),
+            effective_gas_price: Some(L2_GAS_PRICE.into()),
+            ..Default::default()
+        };
         inner.tx_results.insert(
             tx_hash,
-            TxExecutionInfo {
-                tx: l2_tx,
-                batch_number: block.l1_batch_number.unwrap_or_default().as_u32(),
-                miniblock_number: current_miniblock,
-                result,
+            TransactionResult {
+                info: TxExecutionInfo {
+                    tx: l2_tx,
+                    batch_number: block.l1_batch_number.unwrap_or_default().as_u32(),
+                    miniblock_number: current_miniblock,
+                    result,
+                },
+                receipt: tx_receipt,
             },
         );
         let block_hash = block.hash;
@@ -1510,52 +1576,12 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                 Err(_) => return Err(into_jsrpc_error(Web3Error::InternalError)),
             };
 
-            let tx_result = reader.tx_results.get(&hash);
+            let receipt = reader
+                .tx_results
+                .get(&hash)
+                .map(|info| info.receipt.clone());
 
-            let receipt = tx_result.map(|info| TransactionReceipt {
-                transaction_hash: hash,
-                transaction_index: U64::from(1),
-                block_hash: Some(hash),
-                block_number: Some(U64::from(info.miniblock_number)),
-                l1_batch_tx_index: None,
-                l1_batch_number: Some(U64::from(info.batch_number as u64)),
-                from: Default::default(),
-                to: Some(info.tx.execute.contract_address),
-                cumulative_gas_used: Default::default(),
-                gas_used: Some(info.tx.common_data.fee.gas_limit - info.result.gas_refunded),
-                contract_address: contract_address_from_tx_result(&info.result),
-                logs: info
-                    .result
-                    .result
-                    .logs
-                    .events
-                    .iter()
-                    .map(|log| Log {
-                        address: log.address,
-                        topics: log.indexed_topics.clone(),
-                        data: zksync_types::Bytes(log.value.clone()),
-                        block_hash: Some(hash),
-                        block_number: Some(U64::from(info.miniblock_number)),
-                        l1_batch_number: Some(U64::from(info.batch_number as u64)),
-                        transaction_hash: Some(hash),
-                        transaction_index: Some(U64::from(1)),
-                        log_index: Some(U256::default()),
-                        transaction_log_index: Some(U256::default()),
-                        log_type: None,
-                        removed: None,
-                    })
-                    .collect(),
-                l2_to_l1_logs: vec![],
-                status: Some(if info.result.status == TxExecutionStatus::Success {
-                    U64::from(1)
-                } else {
-                    U64::from(0)
-                }),
-                effective_gas_price: Some(L2_GAS_PRICE.into()),
-                ..Default::default()
-            });
-
-            Ok(receipt).map_err(|_: jsonrpc_core::Error| into_jsrpc_error(Web3Error::InternalError))
+            Ok(receipt)
         })
     }
 
@@ -1716,7 +1742,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                 .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
             let tx_result = reader.tx_results.get(&hash);
 
-            Ok(tx_result.and_then(|info| {
+            Ok(tx_result.and_then(|TransactionResult { info, .. }| {
                 let input_data = info.tx.common_data.input.clone().or(None)?;
 
                 let chain_id = info.tx.extract_chain_id().or(None)?;
@@ -1811,24 +1837,131 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
         Ok(U256::from(fair_l2_gas_price)).into_boxed_future()
     }
 
-    // Methods below are not currently implemented.
+    /// Creates a filter object, based on filter options, to notify when the state changes (logs).
+    /// To check if the state has changed, call `eth_getFilterChanges`.
+    ///
+    /// # Arguments
+    ///
+    /// * `filter`: The filter options -
+    ///     fromBlock: - Integer block number, or the string "latest", "earliest" or "pending".
+    ///     toBlock: - Integer block number, or the string "latest", "earliest" or "pending".
+    ///     address: - Contract address or a list of addresses from which the logs should originate.
+    ///     topics: - [H256] topics. Topics are order-dependent. Each topic can also be an array with "or" options.
+    ///
+    /// If the from `fromBlock` or `toBlock` option are equal to "latest" the filter continually appends logs for newly mined blocks.
+    /// Topics are order-dependent. A transaction with a log with topics [A, B] will be matched by the following topic filters:
+    ///     * [] "anything"
+    ///     * [A] "A in first position (and anything after)"
+    ///     * [null, B] "anything in first position AND B in second position (and anything after)"
+    ///     * [A, B] "A in first position AND B in second position (and anything after)"
+    ///     * [[A, B], [A, B]] "(A OR B) in first position AND (A OR B) in second position (and anything after)"
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `jsonrpc_core::Result` that resolves to an `U256` filter id.
+    fn new_filter(&self, filter: Filter) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<U256>> {
+        let inner = Arc::clone(&self.inner);
+        let mut writer = match inner.write() {
+            Ok(r) => r,
+            Err(_) => {
+                return futures::future::err(into_jsrpc_error(Web3Error::InternalError)).boxed()
+            }
+        };
 
-    fn new_filter(&self, _filter: Filter) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<U256>> {
-        not_implemented("new_filter")
+        let from_block = filter
+            .from_block
+            .unwrap_or(zksync_types::api::BlockNumber::Latest);
+        let to_block = filter
+            .to_block
+            .unwrap_or(zksync_types::api::BlockNumber::Latest);
+        let addresses = filter.address.unwrap_or_default().0;
+        let mut topics: [Option<HashSet<H256>>; 4] = Default::default();
+
+        if let Some(filter_topics) = filter.topics {
+            filter_topics
+                .into_iter()
+                .take(4)
+                .enumerate()
+                .for_each(|(i, maybe_topic_set)| {
+                    if let Some(topic_set) = maybe_topic_set {
+                        topics[i] = Some(topic_set.0.into_iter().collect());
+                    }
+                })
+        }
+
+        writer
+            .filters
+            .add_log_filter(from_block, to_block, addresses, topics)
+            .map_err(|_| into_jsrpc_error(Web3Error::InternalError))
+            .into_boxed_future()
     }
 
+    /// Creates a filter in the node, to notify when a new block arrives.
+    /// To check if the state has changed, call `eth_getFilterChanges`.
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `jsonrpc_core::Result` that resolves to an `U256` filter id.
     fn new_block_filter(&self) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<U256>> {
-        not_implemented("new_block_filter")
+        let inner = Arc::clone(&self.inner);
+        let mut writer = match inner.write() {
+            Ok(r) => r,
+            Err(_) => {
+                return futures::future::err(into_jsrpc_error(Web3Error::InternalError)).boxed()
+            }
+        };
+
+        writer
+            .filters
+            .add_block_filter()
+            .map_err(|_| into_jsrpc_error(Web3Error::InternalError))
+            .into_boxed_future()
     }
 
-    fn uninstall_filter(&self, _idx: U256) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<bool>> {
-        not_implemented("uninstall_filter")
-    }
-
+    /// Creates a filter in the node, to notify when new pending transactions arrive.
+    /// To check if the state has changed, call `eth_getFilterChanges`.
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `jsonrpc_core::Result` that resolves to an `U256` filter id.
     fn new_pending_transaction_filter(
         &self,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<U256>> {
-        not_implemented("new_pending_transaction_filter")
+        let inner = Arc::clone(&self.inner);
+        let mut writer = match inner.write() {
+            Ok(r) => r,
+            Err(_) => {
+                return futures::future::err(into_jsrpc_error(Web3Error::InternalError)).boxed()
+            }
+        };
+
+        writer
+            .filters
+            .add_pending_transaction_filter()
+            .map_err(|_| into_jsrpc_error(Web3Error::InternalError))
+            .into_boxed_future()
+    }
+
+    /// Uninstalls a filter with given id. Should always be called when watch is no longer needed.
+    ///
+    /// # Arguments
+    ///
+    /// * `id`: The filter id
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `jsonrpc_core::Result` that resolves to an `U256` filter id.
+    fn uninstall_filter(&self, id: U256) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<bool>> {
+        let inner = Arc::clone(&self.inner);
+        let mut writer = match inner.write() {
+            Ok(r) => r,
+            Err(_) => {
+                return futures::future::err(into_jsrpc_error(Web3Error::InternalError)).boxed()
+            }
+        };
+
+        let result = writer.filters.remove_filter(id);
+        Ok(result).into_boxed_future()
     }
 
     fn get_logs(
@@ -1845,11 +1978,37 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
         not_implemented("get_filter_logs")
     }
 
+    /// Polling method for a filter, which returns an array of logs, block hashes, or transaction hashes,
+    /// depending on the filter type, which occurred since last poll.
+    ///
+    /// # Arguments
+    ///
+    /// * `id`: The filter id
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `jsonrpc_core::Result` that resolves to an array of logs, block hashes, or transaction hashes,
+    /// depending on the filter type, which occurred since last poll.
+    /// * Filters created with `eth_newFilter` return [Log] objects.
+    /// * Filters created with `eth_newBlockFilter` return block hashes.
+    /// * Filters created with `eth_newPendingTransactionFilter` return transaction hashes.
     fn get_filter_changes(
         &self,
-        _filter_index: U256,
+        id: U256,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<FilterChanges>> {
-        not_implemented("get_filter_changes")
+        let inner = Arc::clone(&self.inner);
+        let mut writer = match inner.write() {
+            Ok(r) => r,
+            Err(_) => {
+                return futures::future::err(into_jsrpc_error(Web3Error::InternalError)).boxed()
+            }
+        };
+
+        writer
+            .filters
+            .get_new_changes(id)
+            .map_err(|_| into_jsrpc_error(Web3Error::InternalError))
+            .into_boxed_future()
     }
 
     fn get_block_transaction_count_by_number(
