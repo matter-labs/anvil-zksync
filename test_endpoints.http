@@ -402,6 +402,61 @@ content-type: application/json
 {
     "jsonrpc": "2.0",
     "id": "2",
+    "method": "eth_newBlockFilter",
+    "params": []
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "2",
+    "method": "eth_newFilter",
+    "params": [{"fromBlock": "earliest", "toBlock": "0xa"}]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "2",
+    "method": "eth_newPendingTransactionFilter",
+    "params": []
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "2",
+    "method": "eth_uninstallFilter",
+    "params": ["0x2"]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "2",
+    "method": "eth_getFilterChanges",
+    "params": ["0x1"]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "2",
     "method": "hardhat_setBalance",
     "params": [
         "0x36615Cf349d7F6344891B1e7CA7C72883F5dc049",
