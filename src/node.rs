@@ -4,7 +4,7 @@ use crate::{
     console_log::ConsoleLogHandler,
     fork::{ForkDetails, ForkSource, ForkStorage},
     formatter,
-    system_contracts::{self, SystemContracts},
+    system_contracts::{self, Options, SystemContracts},
     utils::{
         adjust_l1_gas_price_for_tx, adjust_tx_initiator, derive_gas_estimation_overhead,
         to_human_size, IntoBoxedFuture,
@@ -564,11 +564,17 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
     /// This field is used to override the `tx.initiator_account` field of the transaction in the `run_l2_tx` method.
     pub fn set_impersonated_account(&mut self, address: Address) {
         self.impersonated_account = Some(address);
+
+        // Use SystemContracts without signature verification
+        self.system_contracts = SystemContracts::from_options(&Options::BuiltInWithoutSecurity);
     }
 
     /// Clears the `impersonated_account` field of the node.
     pub fn stop_impersonating_account(&mut self) {
         self.impersonated_account = None;
+
+        // Restore previous SystemContracts
+        self.system_contracts = SystemContracts::from_options(&Options::BuiltIn);
     }
 }
 
@@ -755,10 +761,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             execution_mode,
         );
 
-        let mut tx: Transaction = l2_tx.into();
-        if let Some(impersonated_account) = inner.impersonated_account {
-            tx = adjust_tx_initiator(tx, impersonated_account);
-        }
+        let tx: Transaction = l2_tx.into();
 
         push_transaction_to_bootloader_memory(&mut vm, &tx, execution_mode, None);
 
@@ -969,15 +972,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         );
         let spent_on_pubdata_before = vm.state.local_state.spent_pubdata_counter;
 
-        let mut tx: Transaction = l2_tx.clone().into();
-
-        if let Some(impersonated_account) = inner.impersonated_account {
-            tracing::info!(
-                "🕵️ Executing tx from impersonated account {:?}",
-                impersonated_account
-            );
-            tx = adjust_tx_initiator(tx, impersonated_account);
-        }
+        let tx: Transaction = l2_tx.clone().into();
 
         push_transaction_to_bootloader_memory(&mut vm, &tx, execution_mode, None);
         let tx_result = vm
@@ -1132,8 +1127,21 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
     }
 
     /// Runs L2 transaction and commits it to a new block.
-    fn run_l2_tx(&self, l2_tx: L2Tx, execution_mode: TxExecutionMode) -> Result<(), String> {
+    fn run_l2_tx(&self, mut l2_tx: L2Tx, execution_mode: TxExecutionMode) -> Result<(), String> {
         let tx_hash = l2_tx.hash();
+        {
+            let inner = self
+                .inner
+                .read()
+                .map_err(|e| format!("Failed to acquire read lock: {}", e))?;
+            if let Some(impersonated_account) = inner.impersonated_account {
+                tracing::info!(
+                    "🕵️ Executing tx from impersonated account {:?}",
+                    impersonated_account
+                );
+                l2_tx = adjust_tx_initiator(l2_tx, impersonated_account);
+            }
+        }
         log::info!("");
         log::info!("Executing {}", format!("{:?}", tx_hash).bold());
         let (keys, result, block, bytecodes) =

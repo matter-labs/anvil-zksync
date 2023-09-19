@@ -356,7 +356,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_send_raw_transaction() {
+    async fn test_impersonate_account() {
         let node = InMemoryNode::<HttpForkSource>::default();
         let hardhat: HardhatNamespaceImpl<HttpForkSource> =
             HardhatNamespaceImpl::new(node.get_inner());
@@ -364,31 +364,53 @@ mod tests {
         let to_impersonate =
             Address::from_str("0xd8da6bf26964af9d7eed9e03e53415d37aa96045").unwrap();
 
+        // give impersonated account some balance
+        let result = hardhat
+            .set_balance(to_impersonate, U256::exp10(18))
+            .await
+            .unwrap();
+        assert!(result);
+
+        // impersonate the account
         let result = hardhat
             .impersonate_account(to_impersonate)
             .await
             .expect("impersonate_account");
         assert!(result);
 
+        // testing::apply_tx should use the impersonated account as the sender
+        {
+            let _hash = testing::apply_tx(&node, H256::repeat_byte(0x01));
+            let inner = node.get_inner();
+            let lock = inner.read().unwrap();
+            let tx = lock
+                .tx_results
+                .get(&H256::repeat_byte(0x01))
+                .expect("tx exists");
+
+            // check that the tx was sent from the impersonated account
+            assert_eq!(tx.tx.initiator_account(), to_impersonate);
+        }
+
+        // stop impersonating the account
         let result = hardhat
-            .set_balance(to_impersonate, U256::exp10(18))
+            .stop_impersonating_account(None)
             .await
-            .unwrap();
+            .expect("stop_impersonating_account");
         assert!(result);
-        let balance_before = node
-            .get_balance(to_impersonate, None)
-            .await
-            .expect("failed fetching balance");
-        println!("balance before: {}", balance_before);
 
-        // testing::apply_tx() sends 1 wei from a random address to another random address
-        let _hash = testing::apply_tx(&node, H256::repeat_byte(0x01));
+        // testing::apply_tx should use a random account as the sender
+        {
+            let _hash = testing::apply_tx(&node, H256::repeat_byte(0x02));
+            let inner = node.get_inner();
+            let lock = inner.read().unwrap();
+            let tx = lock
+                .tx_results
+                .get(&H256::repeat_byte(0x02))
+                .expect("tx exists");
 
-        let balance_after = node
-            .get_balance(to_impersonate, None)
-            .await
-            .expect("failed fetching balance");
-
-        assert_eq!(balance_before, balance_after + U256::one());
+            // check that the tx was sent from the impersonated account
+            assert_ne!(tx.tx.initiator_account(), to_impersonate);
+        }
     }
 }

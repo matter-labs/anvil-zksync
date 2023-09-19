@@ -14,7 +14,7 @@ use zksync_basic_types::{H256, U256};
 use zksync_state::StorageView;
 use zksync_state::WriteStorage;
 use zksync_types::{
-    api::Block, zk_evm::zkevm_opcode_defs::system_params::MAX_TX_ERGS_LIMIT,
+    api::Block, l2::L2Tx, zk_evm::zkevm_opcode_defs::system_params::MAX_TX_ERGS_LIMIT,
     ExecuteTransactionCommon, L1TxCommonData, L2TxCommonData, Transaction, MAX_TXS_IN_BLOCK,
 };
 use zksync_utils::{ceil_div_u256, u256_to_h256};
@@ -248,23 +248,13 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
 }
 
 /// Adjusts the transaction initiator address.
-pub fn adjust_tx_initiator(tx: Transaction, initiator: Address) -> Transaction {
-    match tx.common_data {
-        ExecuteTransactionCommon::L1(data) => Transaction {
-            common_data: ExecuteTransactionCommon::L1(L1TxCommonData {
-                sender: initiator,
-                ..data
-            }),
-            ..tx
+pub fn adjust_tx_initiator(tx: L2Tx, initiator: Address) -> L2Tx {
+    L2Tx {
+        common_data: L2TxCommonData {
+            initiator_address: initiator,
+            ..tx.common_data
         },
-        ExecuteTransactionCommon::L2(data) => Transaction {
-            common_data: ExecuteTransactionCommon::L2(L2TxCommonData {
-                initiator_address: initiator,
-                ..data
-            }),
-            ..tx
-        },
-        ExecuteTransactionCommon::ProtocolUpgrade(_) => tx,
+        ..tx
     }
 }
 
