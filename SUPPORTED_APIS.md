@@ -90,7 +90,7 @@ The `status` options are:
 | `EVM` | `evm_snapshot` | `NOT IMPLEMENTED`<br />[GitHub Issue #69](https://github.com/matter-labs/era-test-node/issues/69) | Snapshot the state of the blockchain at the current block |
 | `HARDHAT` | `hardhat_addCompilationResult` | `NOT IMPLEMENTED` | Add information about compiled contracts |
 | `HARDHAT` | `hardhat_dropTransaction` | `NOT IMPLEMENTED` | Remove a transaction from the mempool |
-| `HARDHAT` | `hardhat_impersonateAccount` | `NOT IMPLEMENTED`<br />[GitHub Issue #73](https://github.com/matter-labs/era-test-node/issues/73) | Impersonate an account |
+| [`HARDHAT`](#hardhat-namespace) | [`hardhat_impersonateAccount`](#hardhat_impersonateaccount) | `SUPPORTED` | Impersonate an account |
 | `HARDHAT` | `hardhat_getAutomine` | `NOT IMPLEMENTED` | Returns `true` if automatic mining is enabled, and `false` otherwise |
 | `HARDHAT` | `hardhat_metadata` | `NOT IMPLEMENTED` | Returns the metadata of the current network |
 | [`HARDHAT`](#hardhat-namespace) | [`hardhat_mine`](#hardhat_mine) | Mine any number of blocks at once, in constant time |
@@ -104,7 +104,7 @@ The `status` options are:
 | `HARDHAT` | `hardhat_setPrevRandao` | `NOT IMPLEMENTED` | Sets the PREVRANDAO value of the next block |
 | [`HARDHAT`](#hardhat-namespace) | [`hardhat_setNonce`](#hardhat_setnonce) | `SUPPORTED` | Sets the nonce of a given account |
 | `HARDHAT` | `hardhat_setStorageAt` | `NOT IMPLEMENTED` | Sets the storage value at a given key for a given account |
-| `HARDHAT` | `hardhat_stopImpersonatingAccount` | `NOT IMPLEMENTED`<br />[GitHub Issue #74](https://github.com/matter-labs/era-test-node/issues/74) | Stop impersonating an account after having previously used `hardhat_impersonateAccount` |
+| [`HARDHAT`](#hardhat-namespace) | [`hardhat_stopImpersonatingAccount`](#hardhat_stopimpersonatingaccount) | `SUPPORTED` | Stop impersonating an account after having previously used `hardhat_impersonateAccount` |
 | [`NETWORK`](#network-namespace) | [`net_version`](#net_version) | `SUPPORTED` | Returns the current network id <br />_(default is `260`)_ |
 | [`NETWORK`](#network-namespace) | [`net_peerCount`](#net_peercount) | `SUPPORTED` | Returns the number of peers currently connected to the client <br/>_(hard-coded to `0`)_ |
 | [`NETWORK`](#network-namespace) | [`net_listening`](#net_listening) | `SUPPORTED` | Returns `true` if the client is actively listening for network connections <br />_(hard-coded to `false`)_ |
@@ -907,6 +907,60 @@ curl --request POST \
     "params": [
         "0xaa",
         "0x100"
+    ]
+}'
+
+```
+### `hardhat_impersonateAccount`
+
+[source](src/hardhat.rs)
+
+Begin impersonating account- subsequent transactions sent to the node will be committed as if they were initiated by the supplied address.
+
+#### Arguments
+
+- `address: Address` - The address to begin impersonating
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "2",
+    "method": "hardhat_impersonateAccount",
+    "params": [
+        "0x364d6D0333432C3Ac016Ca832fb8594A8cE43Ca6"
+    ]
+}'
+```
+
+### `hardhat_stopImpersonatingAccount`
+
+[source](src/hardhat.rs)
+
+Stop impersonating account, should be used after calling `hardhat_impersonateAccount`.
+Since we only impersonate one account at a time, the `address` argument is ignored and the current
+impersonated account (if any) is cleared.
+
+#### Arguments
+
+- `address: Address` - (Optional) Argument accepted for compatibility and will be ignored
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "2",
+    "method": "hardhat_stopImpersonatingAccount",
+    "params": [
+        "0x364d6D0333432C3Ac016Ca832fb8594A8cE43Ca6"
     ]
 }'
 ```
