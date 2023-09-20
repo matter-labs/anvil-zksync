@@ -249,7 +249,7 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
 mod tests {
     use zksync_basic_types::U256;
 
-    use crate::utils::to_human_size;
+    use super::*;
 
     #[test]
     fn test_human_sizes() {
@@ -259,5 +259,41 @@ mod tests {
         assert_eq!("0", to_human_size(U256::from(0)));
         assert_eq!("1", to_human_size(U256::from(1)));
         assert_eq!("250_000_000", to_human_size(U256::from(250000000u64)));
+    }
+
+    #[test]
+    fn test_to_real_block_number_finalized() {
+        let actual = to_real_block_number(BlockNumber::Finalized, U64::from(10));
+        assert_eq!(U64::from(10), actual);
+    }
+
+    #[test]
+    fn test_to_real_block_number_pending() {
+        let actual = to_real_block_number(BlockNumber::Pending, U64::from(10));
+        assert_eq!(U64::from(10), actual);
+    }
+
+    #[test]
+    fn test_to_real_block_number_committed() {
+        let actual = to_real_block_number(BlockNumber::Committed, U64::from(10));
+        assert_eq!(U64::from(10), actual);
+    }
+
+    #[test]
+    fn test_to_real_block_number_latest() {
+        let actual = to_real_block_number(BlockNumber::Latest, U64::from(10));
+        assert_eq!(U64::from(10), actual);
+    }
+
+    #[test]
+    fn test_to_real_block_number_earliest() {
+        let actual = to_real_block_number(BlockNumber::Earliest, U64::from(10));
+        assert_eq!(U64::zero(), actual);
+    }
+
+    #[test]
+    fn test_to_real_block_number_number() {
+        let actual = to_real_block_number(BlockNumber::Number(U64::from(5)), U64::from(10));
+        assert_eq!(U64::from(5), actual);
     }
 }
