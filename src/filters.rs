@@ -269,7 +269,7 @@ mod tests {
         assert_eq!(U256::from(1), id);
         assert_eq!(
             hashmap! {
-                U256::from(1) => FilterType::Log(LogFilter {
+                U256::from(1) => FilterType::Log(Box::new(LogFilter {
                     from_block: BlockNumber::Latest,
                     to_block: BlockNumber::Number(U64::from(10)),
                     addresses: vec![H160::repeat_byte(0x1)],
@@ -280,7 +280,7 @@ mod tests {
                         Some(hashset! {}),
                     ],
                     updates:vec![],
-                })
+                }))
             },
             filters.filters
         );

@@ -1125,7 +1125,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 .inner
                 .write()
                 .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
-            inner.filters.notify_new_pending_transaction(l2_tx.hash());
+            inner.filters.notify_new_pending_transaction(tx_hash);
         }
 
         let (keys, result, block, bytecodes) =
