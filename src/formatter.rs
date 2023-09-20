@@ -59,15 +59,16 @@ pub fn print_event(event: &VmEvent, resolve_hashes: bool) {
     block_on(async move {
         let mut tt: Vec<String> = vec![];
         if !resolve_hashes {
-            tt = event.indexed_topics.iter().map(|t| format!("{:#x}", t)).collect();
+            tt = event
+                .indexed_topics
+                .iter()
+                .map(|t| format!("{:#x}", t))
+                .collect();
         } else {
             for topic in event.indexed_topics {
-                let selector = resolver::decode_event_selector(&format!(
-                    "{:#x}",
-                    topic
-                ))
-                .await
-                .unwrap();
+                let selector = resolver::decode_event_selector(&format!("{:#x}", topic))
+                    .await
+                    .unwrap();
                 tt.push(selector.unwrap_or(format!("{:#x}", topic)));
             }
         }
