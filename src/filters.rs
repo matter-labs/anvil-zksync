@@ -4,6 +4,8 @@ use zksync_basic_types::{H160, H256, U256, U64};
 use zksync_types::api::{BlockNumber, Log};
 use zksync_web3_decl::types::FilterChanges;
 
+use crate::utils;
+
 /// Specifies a filter type
 #[derive(Debug, Clone, PartialEq)]
 pub enum FilterType {
@@ -34,22 +36,8 @@ pub struct LogFilter {
 
 impl LogFilter {
     fn matches(&self, log: &Log, latest_block_number: U64) -> bool {
-        let from = match self.from_block {
-            BlockNumber::Finalized
-            | BlockNumber::Pending
-            | BlockNumber::Committed
-            | BlockNumber::Latest => latest_block_number,
-            BlockNumber::Earliest => U64::zero(),
-            BlockNumber::Number(n) => n,
-        };
-        let to = match self.to_block {
-            BlockNumber::Finalized
-            | BlockNumber::Pending
-            | BlockNumber::Committed
-            | BlockNumber::Latest => latest_block_number,
-            BlockNumber::Earliest => U64::zero(),
-            BlockNumber::Number(n) => n,
-        };
+        let from = utils::to_real_block_number(self.from_block, latest_block_number);
+        let to = utils::to_real_block_number(self.to_block, latest_block_number);
 
         let n = log.block_number.expect("block number must exist");
         if n < from || n > to {
