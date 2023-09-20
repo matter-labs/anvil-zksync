@@ -11,15 +11,15 @@ categories = ["cryptography"]
 publish = false # We don't want to publish our binaries.
 
 [dependencies]
-zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era.git", rev = "a98e454221da7d6ecad9b317cf44b0786e819659" }
-zksync_core = { git = "https://github.com/matter-labs/zksync-era.git", rev = "a98e454221da7d6ecad9b317cf44b0786e819659" }
-vm = { git = "https://github.com/matter-labs/zksync-era.git", rev = "a98e454221da7d6ecad9b317cf44b0786e819659" }
-vlog = { git = "https://github.com/matter-labs/zksync-era.git", rev = "a98e454221da7d6ecad9b317cf44b0786e819659" }
-zksync_contracts = { git = "https://github.com/matter-labs/zksync-era.git", rev = "a98e454221da7d6ecad9b317cf44b0786e819659" }
-zksync_types = { git = "https://github.com/matter-labs/zksync-era.git", rev = "a98e454221da7d6ecad9b317cf44b0786e819659" }
-zksync_utils = { git = "https://github.com/matter-labs/zksync-era.git", rev = "a98e454221da7d6ecad9b317cf44b0786e819659" }
-zksync_state = { git = "https://github.com/matter-labs/zksync-era.git", rev = "a98e454221da7d6ecad9b317cf44b0786e819659" }
-zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era.git", rev = "a98e454221da7d6ecad9b317cf44b0786e819659" }
+zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v6.0.0-rc1" }
+zksync_core = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v6.0.0-rc1" }
+vm = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v6.0.0-rc1" }
+vlog = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v6.0.0-rc1" }
+zksync_contracts = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v6.0.0-rc1" }
+zksync_types = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v6.0.0-rc1" }
+zksync_utils = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v6.0.0-rc1" }
+zksync_state = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v6.0.0-rc1" }
+zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v6.0.0-rc1" }
 openssl-sys = { version = "0.9", features = ["vendored"] }
 
 anyhow = "1.0"
