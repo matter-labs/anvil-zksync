@@ -5,6 +5,11 @@ import { getRevertSelector, getTransactionUtils } from './constants';
 import * as hre from 'hardhat';
 import { ethers } from 'ethers';
 import { renderFile } from 'template-file';
+import { join } from "path";
+
+function path(...args: string[]): string {
+    return join(__dirname,...args)
+}
 
 const OUTPUT_DIR = 'bootloader/build';
 
@@ -113,11 +118,11 @@ async function main() {
     if(!existsSync(OUTPUT_DIR)) {
         mkdirSync(OUTPUT_DIR);
     }
-
-    writeFileSync(`${OUTPUT_DIR}/proved_block.yul`, provedBlockBootloader);
-    writeFileSync(`${OUTPUT_DIR}/playground_block.yul`, playgroundBlockBootloader);
-    writeFileSync(`${OUTPUT_DIR}/gas_test.yul`, gasTestBootloader);
-    writeFileSync(`${OUTPUT_DIR}/fee_estimate.yul`, feeEstimationBootloader);
+    
+    writeFileSync(path(`../${OUTPUT_DIR}/proved_block.yul`) , provedBlockBootloader);
+    writeFileSync(path(`../${OUTPUT_DIR}/playground_block.yul`), playgroundBlockBootloader);
+    writeFileSync(path(`../${OUTPUT_DIR}/gas_test.yul`), gasTestBootloader);
+    writeFileSync(path(`../${OUTPUT_DIR}/fee_estimate.yul`), feeEstimationBootloader);
 
     console.log('Preprocessing done!');
 }
