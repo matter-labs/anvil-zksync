@@ -562,18 +562,12 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
     /// Sets the `impersonated_account` field of the node.
     /// This field is used to override the `tx.initiator_account` field of the transaction in the `run_l2_tx` method.
     pub fn set_impersonated_account(&mut self, address: Address) -> bool {
-        return self.impersonated_accounts.insert(address);
-
-        // Use SystemContracts without signature verification
-        self.system_contracts = SystemContracts::from_options(&Options::BuiltInWithoutSecurity);
+        self.impersonated_accounts.insert(address)
     }
 
     /// Clears the `impersonated_account` field of the node.
     pub fn stop_impersonating_account(&mut self, address: Address) -> bool {
-        return self.impersonated_accounts.remove(&address);
-
-        // Restore previous SystemContracts
-        self.system_contracts = SystemContracts::from_options(&Options::BuiltIn);
+        self.impersonated_accounts.remove(&address)
     }
 }
 
@@ -955,7 +949,24 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryEnabled);
 
-        let bootloader_code = inner.system_contracts.contracts(execution_mode);
+        // if we are impersonating an account, we need to use non-verifying system contracts
+        let nonverifying_contracts;
+        let bootloader_code = {
+            if inner
+                .impersonated_accounts
+                .contains(&l2_tx.common_data.initiator_address)
+            {
+                tracing::info!(
+                    "🕵️ Executing tx from impersonated account {:?}",
+                    l2_tx.common_data.initiator_address
+                );
+                nonverifying_contracts =
+                    SystemContracts::from_options(&Options::BuiltInWithoutSecurity);
+                nonverifying_contracts.contracts(execution_mode)
+            } else {
+                inner.system_contracts.contracts(execution_mode)
+            }
+        };
 
         let block_context = inner.create_block_context();
         let block_properties = InMemoryNodeInner::<S>::create_block_properties(bootloader_code);
@@ -1128,21 +1139,6 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
     /// Runs L2 transaction and commits it to a new block.
     fn run_l2_tx(&self, l2_tx: L2Tx, execution_mode: TxExecutionMode) -> Result<(), String> {
         let tx_hash = l2_tx.hash();
-        {
-            let inner = self
-                .inner
-                .read()
-                .map_err(|e| format!("Failed to acquire read lock: {}", e))?;
-            if inner
-                .impersonated_accounts
-                .contains(&l2_tx.common_data.initiator_address)
-            {
-                tracing::info!(
-                    "🕵️ Executing tx from impersonated account {:?}",
-                    l2_tx.common_data.initiator_address
-                );
-            }
-        }
         log::info!("");
         log::info!("Executing {}", format!("{:?}", tx_hash).bold());
         let (keys, result, block, bytecodes) =

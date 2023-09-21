@@ -246,11 +246,11 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> HardhatNamespaceT
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{http_fork_source::HttpForkSource, node::InMemoryNode, testing};
+    use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
     use std::str::FromStr;
-    use zksync_basic_types::H256;
+    use zksync_basic_types::{Nonce, H256};
     use zksync_core::api_server::web3::backend_jsonrpc::namespaces::eth::EthNamespaceT;
-    use zksync_types::api::BlockNumber;
+    use zksync_types::{api::BlockNumber, fee::Fee, l2::L2Tx};
 
     #[tokio::test]
     async fn test_set_balance() {
@@ -374,7 +374,6 @@ mod tests {
         let node = InMemoryNode::<HttpForkSource>::default();
         let hardhat: HardhatNamespaceImpl<HttpForkSource> =
             HardhatNamespaceImpl::new(node.get_inner());
-
         let to_impersonate =
             Address::from_str("0xd8da6bf26964af9d7eed9e03e53415d37aa96045").unwrap();
 
@@ -385,46 +384,63 @@ mod tests {
             .unwrap();
         assert!(result);
 
+        // construct a tx
+        let mut tx = L2Tx::new(
+            Address::random(),
+            vec![],
+            Nonce(0),
+            Fee {
+                gas_limit: U256::from(1_000_000),
+                max_fee_per_gas: U256::from(250_000_000),
+                max_priority_fee_per_gas: U256::from(250_000_000),
+                gas_per_pubdata_limit: U256::from(20000),
+            },
+            to_impersonate,
+            U256::one(),
+            None,
+            Default::default(),
+        );
+        tx.set_input(vec![], H256::random());
+
+        // try to execute the tx- should fail without signature
+        assert!(node.apply_txs(vec![tx.clone()]).is_err());
+
         // impersonate the account
         let result = hardhat
             .impersonate_account(to_impersonate)
             .await
             .expect("impersonate_account");
+
+        // result should be true
         assert!(result);
 
-        // testing::apply_tx should use the impersonated account as the sender
-        {
-            let _hash = testing::apply_tx(&node, H256::repeat_byte(0x01));
-            let inner = node.get_inner();
-            let lock = inner.read().unwrap();
-            let tx = lock
-                .tx_results
-                .get(&H256::repeat_byte(0x01))
-                .expect("tx exists");
+        // impersonating the same account again should return false
+        let result = hardhat
+            .impersonate_account(to_impersonate)
+            .await
+            .expect("impersonate_account");
+        assert!(!result);
 
-            // check that the tx was sent from the impersonated account
-            assert_eq!(tx.tx.initiator_account(), to_impersonate);
-        }
+        // execution should now succeed
+        assert!(node.apply_txs(vec![tx.clone()]).is_ok());
 
         // stop impersonating the account
         let result = hardhat
             .stop_impersonating_account(to_impersonate)
             .await
             .expect("stop_impersonating_account");
+
+        // result should be true
         assert!(result);
 
-        // testing::apply_tx should use a random account as the sender
-        {
-            let _hash = testing::apply_tx(&node, H256::repeat_byte(0x02));
-            let inner = node.get_inner();
-            let lock = inner.read().unwrap();
-            let tx = lock
-                .tx_results
-                .get(&H256::repeat_byte(0x02))
-                .expect("tx exists");
+        // stop impersonating the same account again should return false
+        let result = hardhat
+            .stop_impersonating_account(to_impersonate)
+            .await
+            .expect("stop_impersonating_account");
+        assert!(!result);
 
-            // check that the tx was sent from the impersonated account
-            assert_ne!(tx.tx.initiator_account(), to_impersonate);
-        }
+        // execution should now fail again
+        assert!(node.apply_txs(vec![tx]).is_err());
     }
 }
