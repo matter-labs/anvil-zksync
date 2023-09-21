@@ -2,7 +2,7 @@
 <a href="https://era.zksync.io/docs/tools/testing/era-test-node.html">
 
 ![era-test-node](./.github/assets/era_test_node_banner_light.png#gh-light-mode-only)
-![Webb Logo](./.github/assets/era_test_node_banner_dark.png#gh-dark-mode-only)
+![era-test-node](./.github/assets/era_test_node_banner_dark.png#gh-dark-mode-only)
 </a>
 
   </div>
@@ -11,8 +11,7 @@
 
 This crate provides an in-memory node that supports forking the state from other networks.
 
-The goal of this crate is to offer a fast solution for integration testing, bootloader and system contract testing, and
-prototyping.
+The goal of this crate is to offer a fast solution for integration testing, bootloader and system contract testing, and prototyping.
 
 🔗 For a detailed walkthrough, refer to the [official documentation](https://era.zksync.io/docs/tools/testing/era-test-node.html).
 
@@ -65,6 +64,25 @@ era_test_node --log=error run
 Additionally, the file path can be provided via the `--log-file-path` option (defaults to `./era_test_node.log`):
 ```bash
 era_test_node --log=error --log-file-path=run.log run
+```
+
+## 📃 Caching
+
+The node will cache certain network request by default to disk in the `.cache` directory. Alternatively the caching can be disabled or set to in-memory only
+via the `--cache=none|memory|disk` parameter. 
+
+```bash
+era_test_node --cache=none run
+```
+
+```bash
+era_test_node --cache=memory run
+```
+
+Additionally when using `--cache=disk`, the cache directory may be specified via `--cache-dir` and the cache may
+be reset on startup via `--reset-cache` parameters.
+```bash
+era_test_node --cache=disk --cache-dir=/tmp/foo --reset-cache run
 ```
 
 ## 🌐 Network Details
@@ -130,6 +148,26 @@ Call(Normal) 0x55362182242a4de20ea8a0ec055b2134bb24e23d           executeTransac
 
 ```
 
+You can use the following options to get more granular information during transaction processing:
+
+- `--show-storage-logs <SHOW_STORAGE_LOGS>`: Show storage log information.  
+  [default: none]  
+  [possible values: none, read, write, all]
+
+- `--show-vm-details <SHOW_VM_DETAILS>`: Show VM details information.  
+  [default: none]  
+  [possible values: none, all]
+
+- `--show-gas-details <SHOW_GAS_DETAILS>`: Show Gas details information.  
+  [default: none]  
+  [possible values: none, all]
+
+Example:
+
+```bash
+era_test_node --show-storage-logs=all --show-vm-details=all --show-gas-details=all run
+```
+
 ## 💰 Using Rich Wallets
 
 For testing and development purposes, the `era-test-node` comes pre-configured with a set of 'rich' wallets. These wallets are loaded with test funds, allowing you to simulate transactions and interactions without the need for real assets.
@@ -154,6 +192,35 @@ Feel free to use these wallets in your tests, but remember, they are for develop
 ## 🔧 Supported APIs
 
 See our list of [Supported APIs here](SUPPORTED_APIS.md).
+
+## 🤖 CI/CD Testing with GitHub Actions
+
+A GitHub Action is available for integrating `era-test-node` into your CI/CD environments. This action offers high configurability and streamlines the process of testing your applications in an automated way.
+
+You can find this GitHub Action in the marketplace [here](https://github.com/marketplace/actions/era-test-node-action).
+
+### 📝 Example Usage
+
+Below is an example `yaml` configuration to use the `era-test-node` GitHub Action in your workflow:
+
+```yml
+name: Run Era Test Node Action
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Run Era Test Node
+      uses: dutterbutter/era-test-node-action@latest
+```
 
 ## 🤝 Contributing
 

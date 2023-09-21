@@ -59,16 +59,17 @@ pub fn print_event(event: &VmEvent, resolve_hashes: bool) {
     block_on(async move {
         let mut tt: Vec<String> = vec![];
         if !resolve_hashes {
-            tt = event.indexed_topics.iter().map(|t| t.to_string()).collect();
+            tt = event
+                .indexed_topics
+                .iter()
+                .map(|t| format!("{:#x}", t))
+                .collect();
         } else {
             for topic in event.indexed_topics {
-                let selector = resolver::decode_event_selector(&format!(
-                    "0x{}",
-                    hex::encode(topic.as_bytes())
-                ))
-                .await
-                .unwrap();
-                tt.push(selector.unwrap_or(format!("{:?}", topic)));
+                let selector = resolver::decode_event_selector(&format!("{:#x}", topic))
+                    .await
+                    .unwrap();
+                tt.push(selector.unwrap_or(format!("{:#x}", topic)));
             }
         }
 
@@ -141,11 +142,11 @@ pub fn print_call(call: &Call, padding: usize, show_calls: &ShowCalls, resolve_h
             call.revert_reason
                 .as_ref()
                 .map(|s| format!("Revert: {}", s))
-                .unwrap_or("".to_string()),
+                .unwrap_or_default(),
             call.error
                 .as_ref()
                 .map(|s| format!("Error: {}", s))
-                .unwrap_or("".to_string()),
+                .unwrap_or_default(),
             call.gas
         );
 

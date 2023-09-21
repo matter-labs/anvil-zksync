@@ -1,6 +1,6 @@
 [package]
 name = "era_test_node"
-version = "0.1.0"
+version = "0.1.0-alpha.3"
 edition = "2018"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
@@ -11,15 +11,15 @@ categories = ["cryptography"]
 publish = false # We don't want to publish our binaries.
 
 [dependencies]
-zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era.git", rev = "a98e454221da7d6ecad9b317cf44b0786e819659" }
-zksync_core = { git = "https://github.com/matter-labs/zksync-era.git", rev = "a98e454221da7d6ecad9b317cf44b0786e819659" }
-vm = { git = "https://github.com/matter-labs/zksync-era.git", rev = "a98e454221da7d6ecad9b317cf44b0786e819659" }
-vlog = { git = "https://github.com/matter-labs/zksync-era.git", rev = "a98e454221da7d6ecad9b317cf44b0786e819659" }
-zksync_contracts = { git = "https://github.com/matter-labs/zksync-era.git", rev = "a98e454221da7d6ecad9b317cf44b0786e819659" }
-zksync_types = { git = "https://github.com/matter-labs/zksync-era.git", rev = "a98e454221da7d6ecad9b317cf44b0786e819659" }
-zksync_utils = { git = "https://github.com/matter-labs/zksync-era.git", rev = "a98e454221da7d6ecad9b317cf44b0786e819659" }
-zksync_state = { git = "https://github.com/matter-labs/zksync-era.git", rev = "a98e454221da7d6ecad9b317cf44b0786e819659" }
-zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era.git", rev = "a98e454221da7d6ecad9b317cf44b0786e819659" }
+zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v6.0.0-rc1" }
+zksync_core = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v6.0.0-rc1" }
+vm = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v6.0.0-rc1" }
+vlog = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v6.0.0-rc1" }
+zksync_contracts = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v6.0.0-rc1" }
+zksync_types = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v6.0.0-rc1" }
+zksync_utils = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v6.0.0-rc1" }
+zksync_state = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v6.0.0-rc1" }
+zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v6.0.0-rc1" }
 openssl-sys = { version = "0.9", features = ["vendored"] }
 
 anyhow = "1.0"
@@ -47,6 +47,9 @@ ethabi = "16.0.0"
 itertools = "0.10.5"
 log = "0.4.20"
 simplelog = "0.12.1"
+rustc-hash = "1.1.0"
 
 [dev-dependencies]
 httptest = "0.15.4"
+tempdir = "0.3.7"
+maplit = "1.0.2"
