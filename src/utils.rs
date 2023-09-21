@@ -14,8 +14,7 @@ use zksync_basic_types::{H256, U256};
 use zksync_state::StorageView;
 use zksync_state::WriteStorage;
 use zksync_types::{
-    api::Block, l2::L2Tx, zk_evm::zkevm_opcode_defs::system_params::MAX_TX_ERGS_LIMIT,
-    L2TxCommonData, MAX_TXS_IN_BLOCK,
+    api::Block, zk_evm::zkevm_opcode_defs::system_params::MAX_TX_ERGS_LIMIT, MAX_TXS_IN_BLOCK,
 };
 use zksync_utils::{ceil_div_u256, u256_to_h256};
 
@@ -23,7 +22,6 @@ use crate::{
     fork::{ForkSource, ForkStorage},
     node::{compute_hash, InMemoryNodeInner},
 };
-use zksync_basic_types::Address;
 
 pub(crate) trait IntoBoxedFuture: Sized + Send + 'static {
     fn into_boxed_future(self) -> Pin<Box<dyn Future<Output = Self> + Send>> {
@@ -245,17 +243,6 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
 
     // increment batch
     node.current_batch = node.current_batch.saturating_add(1);
-}
-
-/// Adjusts the transaction initiator address.
-pub fn adjust_tx_initiator(tx: L2Tx, initiator: Address) -> L2Tx {
-    L2Tx {
-        common_data: L2TxCommonData {
-            initiator_address: initiator,
-            ..tx.common_data
-        },
-        ..tx
-    }
 }
 
 #[cfg(test)]

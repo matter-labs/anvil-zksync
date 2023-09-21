@@ -6,8 +6,7 @@ use crate::{
     formatter,
     system_contracts::{self, Options, SystemContracts},
     utils::{
-        adjust_l1_gas_price_for_tx, adjust_tx_initiator, derive_gas_estimation_overhead,
-        to_human_size, IntoBoxedFuture,
+        adjust_l1_gas_price_for_tx, derive_gas_estimation_overhead, to_human_size, IntoBoxedFuture,
     },
 };
 use clap::Parser;
@@ -1139,7 +1138,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                     "🕵️ Executing tx from impersonated account {:?}",
                     impersonated_account
                 );
-                l2_tx = adjust_tx_initiator(l2_tx, impersonated_account);
+                l2_tx.common_data.initiator_address = impersonated_account;
             }
         }
         log::info!("");
