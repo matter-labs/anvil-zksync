@@ -2,7 +2,7 @@
 use crate::{
     bootloader_debug::BootloaderDebug,
     console_log::ConsoleLogHandler,
-    filters::EthFilters,
+    filters::{EthFilters, FilterType, LogFilter},
     fork::{ForkDetails, ForkSource, ForkStorage},
     formatter,
     system_contracts::{self, SystemContracts},
@@ -15,6 +15,7 @@ use clap::Parser;
 use colored::Colorize;
 use core::fmt::Display;
 use futures::FutureExt;
+use itertools::Itertools;
 use jsonrpc_core::BoxFuture;
 use std::{
     cmp::{self},
@@ -1924,18 +1925,110 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
         Ok(result).into_boxed_future()
     }
 
+    /// Returns an array of all logs matching a given filter.
+    ///
+    /// # Arguments
+    ///
+    /// * `filter`: The filter options -
+    ///     fromBlock   - Integer block number, or the string "latest", "earliest" or "pending".
+    ///     toBlock     - Integer block number, or the string "latest", "earliest" or "pending".
+    ///     address     - Contract address or a list of addresses from which the logs should originate.
+    ///     topics      - [H256] topics. Topics are order-dependent. Each topic can also be an array with "or" options.
+    ///                   See `new_filter` documention for how to specify topics.
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `jsonrpc_core::Result` that resolves to an array of logs.
     fn get_logs(
         &self,
-        _filter: Filter,
+        filter: Filter,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Vec<zksync_types::api::Log>>> {
-        not_implemented("get_logs")
+        let reader = match self.inner.read() {
+            Ok(r) => r,
+            Err(_) => {
+                return futures::future::err(into_jsrpc_error(Web3Error::InternalError)).boxed()
+            }
+        };
+        let from_block = filter
+            .from_block
+            .unwrap_or(zksync_types::api::BlockNumber::Earliest);
+        let to_block = filter
+            .to_block
+            .unwrap_or(zksync_types::api::BlockNumber::Latest);
+        let addresses = filter.address.unwrap_or_default().0;
+        let mut topics: [Option<HashSet<H256>>; 4] = Default::default();
+
+        if let Some(filter_topics) = filter.topics {
+            filter_topics
+                .into_iter()
+                .take(4)
+                .enumerate()
+                .for_each(|(i, maybe_topic_set)| {
+                    if let Some(topic_set) = maybe_topic_set {
+                        topics[i] = Some(topic_set.0.into_iter().collect());
+                    }
+                })
+        }
+
+        let log_filter = LogFilter::new(from_block, to_block, addresses, topics);
+
+        let latest_block_number = U64::from(reader.current_miniblock);
+        let logs = reader
+            .tx_results
+            .values()
+            .map(|tx_result| {
+                tx_result
+                    .receipt
+                    .logs
+                    .iter()
+                    .filter(|log| log_filter.matches(log, latest_block_number))
+                    .cloned()
+            })
+            .flatten()
+            .collect_vec();
+
+        Ok(logs).into_boxed_future()
     }
 
+    /// Returns an array of all logs matching filter with given id.
+    ///
+    /// # Arguments
+    ///
+    /// * `id`: The filter id
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `jsonrpc_core::Result` that resolves to an array of logs.
     fn get_filter_logs(
         &self,
-        _filter_index: U256,
+        id: U256,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<FilterChanges>> {
-        not_implemented("get_filter_logs")
+        let reader = match self.inner.read() {
+            Ok(r) => r,
+            Err(_) => {
+                return futures::future::err(into_jsrpc_error(Web3Error::InternalError)).boxed()
+            }
+        };
+
+        let latest_block_number = U64::from(reader.current_miniblock);
+        let logs = match reader.filters.get_filter(id) {
+            Some(FilterType::Log(f)) => reader
+                .tx_results
+                .values()
+                .map(|tx_result| {
+                    tx_result
+                        .receipt
+                        .logs
+                        .iter()
+                        .filter(|log| f.matches(log, latest_block_number))
+                        .cloned()
+                })
+                .flatten()
+                .collect_vec(),
+            _ => return futures::future::err(into_jsrpc_error(Web3Error::InternalError)).boxed(),
+        };
+
+        Ok(FilterChanges::Logs(logs)).into_boxed_future()
     }
 
     /// Polling method for a filter, which returns an array of logs, block hashes, or transaction hashes,
@@ -2192,10 +2285,10 @@ mod tests {
         cache::CacheConfig,
         http_fork_source::HttpForkSource,
         node::InMemoryNode,
-        testing::{self, ForkBlockConfig, MockServer},
+        testing::{self, ForkBlockConfig, LogBuilder, MockServer},
     };
     use zksync_types::api::BlockNumber;
-    use zksync_web3_decl::types::SyncState;
+    use zksync_web3_decl::types::{SyncState, ValueOrArray};
 
     use super::*;
 
@@ -2954,5 +3047,154 @@ mod tests {
             FilterChanges::Empty(_) => (),
             changes => panic!("expected no changes in the second call, got {:?}", changes),
         }
+    }
+
+    #[tokio::test]
+    async fn test_get_filter_logs_returns_matching_logs_for_valid_id() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        // populate tx receipts with 2 tx each having logs
+        {
+            let mut writer = node.inner.write().unwrap();
+            writer.tx_results.insert(
+                H256::repeat_byte(0x1),
+                TransactionResult {
+                    info: testing::default_tx_execution_info(),
+                    receipt: TransactionReceipt {
+                        logs: vec![LogBuilder::new()
+                            .set_address(H160::repeat_byte(0xa1))
+                            .build()],
+                        ..Default::default()
+                    },
+                },
+            );
+            writer.tx_results.insert(
+                H256::repeat_byte(0x2),
+                TransactionResult {
+                    info: testing::default_tx_execution_info(),
+                    receipt: TransactionReceipt {
+                        logs: vec![
+                            LogBuilder::new()
+                                .set_address(H160::repeat_byte(0xa1))
+                                .build(),
+                            LogBuilder::new()
+                                .set_address(H160::repeat_byte(0xa2))
+                                .build(),
+                        ],
+                        ..Default::default()
+                    },
+                },
+            );
+        }
+
+        let filter_id = node
+            .new_filter(Filter {
+                address: Some(ValueOrArray(vec![H160::repeat_byte(0xa1)])),
+                ..Default::default()
+            })
+            .await
+            .expect("failed creating filter");
+
+        match node
+            .get_filter_logs(filter_id)
+            .await
+            .expect("failed getting filter changes")
+        {
+            FilterChanges::Logs(result) => assert_eq!(2, result.len()),
+            changes => panic!("unexpected filter changes: {:?}", changes),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_filter_logs_returns_error_for_invalid_id() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        // populate tx receipts with 2 tx each having logs
+        {
+            let mut writer = node.inner.write().unwrap();
+            writer.tx_results.insert(
+                H256::repeat_byte(0x1),
+                TransactionResult {
+                    info: testing::default_tx_execution_info(),
+                    receipt: TransactionReceipt {
+                        logs: vec![LogBuilder::new()
+                            .set_address(H160::repeat_byte(0xa1))
+                            .build()],
+                        ..Default::default()
+                    },
+                },
+            );
+        }
+
+        let invalid_filter_id = U256::from(100);
+        let result = node.get_filter_logs(invalid_filter_id).await;
+
+        assert!(result.is_err(), "expected an error for invalid filter id");
+    }
+
+    #[tokio::test]
+    async fn test_get_logs_returns_matching_logs() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        // populate tx receipts with 2 tx each having logs
+        {
+            let mut writer = node.inner.write().unwrap();
+            writer.tx_results.insert(
+                H256::repeat_byte(0x1),
+                TransactionResult {
+                    info: testing::default_tx_execution_info(),
+                    receipt: TransactionReceipt {
+                        logs: vec![LogBuilder::new()
+                            .set_address(H160::repeat_byte(0xa1))
+                            .build()],
+                        ..Default::default()
+                    },
+                },
+            );
+            writer.tx_results.insert(
+                H256::repeat_byte(0x2),
+                TransactionResult {
+                    info: testing::default_tx_execution_info(),
+                    receipt: TransactionReceipt {
+                        logs: vec![
+                            LogBuilder::new()
+                                .set_address(H160::repeat_byte(0xa1))
+                                .build(),
+                            LogBuilder::new()
+                                .set_address(H160::repeat_byte(0xa2))
+                                .build(),
+                        ],
+                        ..Default::default()
+                    },
+                },
+            );
+        }
+
+        let result = node
+            .get_logs(Filter {
+                address: Some(ValueOrArray(vec![H160::repeat_byte(0xa2)])),
+                ..Default::default()
+            })
+            .await
+            .expect("failed getting filter changes");
+        assert_eq!(1, result.len());
+
+        let result = node
+            .get_logs(Filter {
+                address: Some(ValueOrArray(vec![H160::repeat_byte(0xa1)])),
+                ..Default::default()
+            })
+            .await
+            .expect("failed getting filter changes");
+        assert_eq!(2, result.len());
+
+        let result = node
+            .get_logs(Filter {
+                address: Some(ValueOrArray(vec![H160::repeat_byte(0x11)])),
+                ..Default::default()
+            })
+            .await
+            .expect("failed getting filter changes");
+        assert_eq!(0, result.len());
     }
 }

@@ -35,7 +35,22 @@ pub struct LogFilter {
 }
 
 impl LogFilter {
-    fn matches(&self, log: &Log, latest_block_number: U64) -> bool {
+    pub fn new(
+        from_block: BlockNumber,
+        to_block: BlockNumber,
+        addresses: Vec<H160>,
+        topics: [Option<HashSet<H256>>; 4],
+    ) -> Self {
+        Self {
+            from_block,
+            to_block,
+            addresses,
+            topics,
+            updates: Default::default(),
+        }
+    }
+
+    pub fn matches(&self, log: &Log, latest_block_number: U64) -> bool {
         let from = utils::to_real_block_number(self.from_block, latest_block_number);
         let to = utils::to_real_block_number(self.to_block, latest_block_number);
 
@@ -183,6 +198,10 @@ impl EthFilters {
         };
 
         Ok(changes)
+    }
+
+    pub fn get_filter(&self, id: U256) -> Option<&FilterType> {
+        self.filters.get(&id)
     }
 
     /// Notify available filters of a newly produced block
