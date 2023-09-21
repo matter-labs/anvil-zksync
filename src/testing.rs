@@ -440,6 +440,7 @@ impl LogBuilder {
     }
 }
 
+/// Returns a default instance for a successful [TxExecutionInfo]
 pub fn default_tx_execution_info() -> TxExecutionInfo {
     TxExecutionInfo {
         tx: L2Tx {
