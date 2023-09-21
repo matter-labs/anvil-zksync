@@ -189,7 +189,7 @@ pub fn print_logs(log_query: &StorageLogQuery) {
 
 pub fn print_vm_details(result: &VmExecutionResultAndLogs) {
     log::info!("");
-    log::info!("\n┌──────────────────────────┐");
+    log::info!("┌──────────────────────────┐");
     log::info!("│   VM EXECUTION RESULTS   │");
     log::info!("└──────────────────────────┘");
 
@@ -202,6 +202,7 @@ pub fn print_vm_details(result: &VmExecutionResultAndLogs) {
     match &result.result {
         vm::ExecutionResult::Success { .. } => {}
         vm::ExecutionResult::Revert { output } => {
+            log::info!("");
             log::info!(
                 "{}",
                 format!(
@@ -212,6 +213,7 @@ pub fn print_vm_details(result: &VmExecutionResultAndLogs) {
             );
         }
         vm::ExecutionResult::Halt { reason } => {
+            log::info!("");
             log::info!("{}", format!("\n[!] Halt Reason:    {}", reason).on_red());
         }
     }

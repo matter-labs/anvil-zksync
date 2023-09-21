@@ -381,8 +381,6 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             execution_mode,
         );
 
-        //let block_context = self.create_block_context();
-
         // We are using binary search to find the minimal values of gas_limit under which the transaction succeeds
         let mut lower_bound = 0;
         let mut upper_bound = MAX_L2_TX_GAS_LIMIT as u32;
@@ -678,7 +676,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             InMemoryNodeInner {
                 current_timestamp: NON_FORK_FIRST_BLOCK_TIMESTAMP,
                 current_batch: 1,
-                current_miniblock: 0,
+                current_miniblock: 1,
                 l1_gas_price: L1_GAS_PRICE,
                 tx_results: Default::default(),
                 blocks,
@@ -1120,7 +1118,8 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             ..Default::default()
         };
 
-        log::info!("\n\n");
+        log::info!("");
+        log::info!("");
 
         let bytecodes = vm
             .get_last_tx_compressed_bytecodes()
