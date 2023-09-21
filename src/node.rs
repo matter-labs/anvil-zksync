@@ -16,7 +16,7 @@ use futures::FutureExt;
 use jsonrpc_core::BoxFuture;
 use std::{
     cmp::{self},
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     str::FromStr,
     sync::{Arc, RwLock},
 };
@@ -246,7 +246,7 @@ pub struct InMemoryNodeInner<S> {
     pub resolve_hashes: bool,
     pub console_log_handler: ConsoleLogHandler,
     pub system_contracts: SystemContracts,
-    pub impersonated_account: Option<Address>,
+    pub impersonated_accounts: HashSet<Address>,
 }
 
 type L2TxResult = (
@@ -561,16 +561,16 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
     /// Sets the `impersonated_account` field of the node.
     /// This field is used to override the `tx.initiator_account` field of the transaction in the `run_l2_tx` method.
-    pub fn set_impersonated_account(&mut self, address: Address) {
-        self.impersonated_account = Some(address);
+    pub fn set_impersonated_account(&mut self, address: Address) -> bool {
+        return self.impersonated_accounts.insert(address);
 
         // Use SystemContracts without signature verification
         self.system_contracts = SystemContracts::from_options(&Options::BuiltInWithoutSecurity);
     }
 
     /// Clears the `impersonated_account` field of the node.
-    pub fn stop_impersonating_account(&mut self) {
-        self.impersonated_account = None;
+    pub fn stop_impersonating_account(&mut self, address: Address) -> bool {
+        return self.impersonated_accounts.remove(&address);
 
         // Restore previous SystemContracts
         self.system_contracts = SystemContracts::from_options(&Options::BuiltIn);
@@ -653,7 +653,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 resolve_hashes,
                 console_log_handler: ConsoleLogHandler::default(),
                 system_contracts: SystemContracts::from_options(system_contracts_options),
-                impersonated_account: None,
+                impersonated_accounts: Default::default(),
             }
         } else {
             let mut block_hashes = HashMap::<u64, H256>::new();
@@ -683,7 +683,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 resolve_hashes,
                 console_log_handler: ConsoleLogHandler::default(),
                 system_contracts: SystemContracts::from_options(system_contracts_options),
-                impersonated_account: None,
+                impersonated_accounts: Default::default(),
             }
         };
 
@@ -1126,19 +1126,21 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
     }
 
     /// Runs L2 transaction and commits it to a new block.
-    fn run_l2_tx(&self, mut l2_tx: L2Tx, execution_mode: TxExecutionMode) -> Result<(), String> {
+    fn run_l2_tx(&self, l2_tx: L2Tx, execution_mode: TxExecutionMode) -> Result<(), String> {
         let tx_hash = l2_tx.hash();
         {
             let inner = self
                 .inner
                 .read()
                 .map_err(|e| format!("Failed to acquire read lock: {}", e))?;
-            if let Some(impersonated_account) = inner.impersonated_account {
+            if inner
+                .impersonated_accounts
+                .contains(&l2_tx.common_data.initiator_address)
+            {
                 tracing::info!(
                     "🕵️ Executing tx from impersonated account {:?}",
-                    impersonated_account
+                    l2_tx.common_data.initiator_address
                 );
-                l2_tx.common_data.initiator_address = impersonated_account;
             }
         }
         log::info!("");

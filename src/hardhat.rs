@@ -73,7 +73,10 @@ pub trait HardhatNamespaceT {
     ) -> BoxFuture<Result<bool>>;
 
     /// Hardhat Network allows you to send transactions impersonating specific account and contract addresses.
-    /// To impersonate an account use this method, passing the address to impersonate as its parameter:
+    /// To impersonate an account use this method, passing the address to impersonate as its parameter.
+    /// After calling this method, any transactions with this sender will be executed without verification.
+    /// Multiple addresses can be impersonated at once.
+    ///
     /// # Arguments
     ///
     /// * `address` - The address to impersonate
@@ -85,17 +88,17 @@ pub trait HardhatNamespaceT {
     fn impersonate_account(&self, address: Address) -> BoxFuture<Result<bool>>;
 
     /// Use this method to stop impersonating an account after having previously used `hardhat_impersonateAccount`
-    /// The address parameter is included for compatibility- since we only support impersonating one account at a time, it is ignored.
+    /// The method returns `true` if the account was being impersonated and `false` otherwise.
     ///
     /// # Arguments
     ///
-    /// * `address` (Optional) - The address to stop impersonating.
+    /// * `address` - The address to stop impersonating.
     ///
     /// # Returns
     ///
     /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
     #[rpc(name = "hardhat_stopImpersonatingAccount")]
-    fn stop_impersonating_account(&self, address: Option<Address>) -> BoxFuture<Result<bool>>;
+    fn stop_impersonating_account(&self, address: Address) -> BoxFuture<Result<bool>>;
 }
 
 impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> HardhatNamespaceT
@@ -205,23 +208,34 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> HardhatNamespaceT
         Box::pin(async move {
             match inner.write() {
                 Ok(mut inner) => {
-                    inner.set_impersonated_account(address);
-                    log::info!("🕵️ Account {:?} has been impersonated", address);
-                    Ok(true)
+                    if inner.set_impersonated_account(address) {
+                        log::info!("🕵️ Account {:?} has been impersonated", address);
+                        Ok(true)
+                    } else {
+                        log::info!("🕵️ Account {:?} was already impersonated", address);
+                        Ok(false)
+                    }
                 }
                 Err(_) => Err(into_jsrpc_error(Web3Error::InternalError)),
             }
         })
     }
 
-    fn stop_impersonating_account(&self, _address: Option<Address>) -> BoxFuture<Result<bool>> {
+    fn stop_impersonating_account(&self, address: Address) -> BoxFuture<Result<bool>> {
         let inner = Arc::clone(&self.node);
         Box::pin(async move {
             match inner.write() {
                 Ok(mut inner) => {
-                    inner.stop_impersonating_account();
-                    log::info!("🕵️ Stopped impersonating account");
-                    Ok(true)
+                    if inner.stop_impersonating_account(address) {
+                        log::info!("🕵️ Stopped impersonating account {:?}", address);
+                        Ok(true)
+                    } else {
+                        log::info!(
+                            "🕵️ Account {:?} was not impersonated, nothing to stop",
+                            address
+                        );
+                        Ok(false)
+                    }
                 }
                 Err(_) => Err(into_jsrpc_error(Web3Error::InternalError)),
             }
@@ -394,7 +408,7 @@ mod tests {
 
         // stop impersonating the account
         let result = hardhat
-            .stop_impersonating_account(None)
+            .stop_impersonating_account(to_impersonate)
             .await
             .expect("stop_impersonating_account");
         assert!(result);
