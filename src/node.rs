@@ -1976,7 +1976,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
         let logs = reader
             .tx_results
             .values()
-            .map(|tx_result| {
+            .flat_map(|tx_result| {
                 tx_result
                     .receipt
                     .logs
@@ -1984,7 +1984,6 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                     .filter(|log| log_filter.matches(log, latest_block_number))
                     .cloned()
             })
-            .flatten()
             .collect_vec();
 
         Ok(logs).into_boxed_future()
@@ -2015,7 +2014,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
             Some(FilterType::Log(f)) => reader
                 .tx_results
                 .values()
-                .map(|tx_result| {
+                .flat_map(|tx_result| {
                     tx_result
                         .receipt
                         .logs
@@ -2023,7 +2022,6 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                         .filter(|log| f.matches(log, latest_block_number))
                         .cloned()
                 })
-                .flatten()
                 .collect_vec(),
             _ => return futures::future::err(into_jsrpc_error(Web3Error::InternalError)).boxed(),
         };
