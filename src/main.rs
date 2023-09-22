@@ -1,9 +1,11 @@
+use crate::cache::CacheConfig;
 use crate::hardhat::{HardhatNamespaceImpl, HardhatNamespaceT};
 use crate::node::{ShowGasDetails, ShowStorageLogs, ShowVMDetails};
 use clap::{Parser, Subcommand, ValueEnum};
 use configuration_api::ConfigurationApiNamespaceT;
 use evm::{EvmNamespaceImpl, EvmNamespaceT};
 use fork::{ForkDetails, ForkSource};
+use logging_middleware::LoggingMiddleware;
 use node::ShowCalls;
 use simplelog::{
     ColorChoice, CombinedLogger, ConfigBuilder, LevelFilter, TermLogger, TerminalMode, WriteLogger,
@@ -11,14 +13,17 @@ use simplelog::{
 use zks::ZkMockNamespaceImpl;
 
 mod bootloader_debug;
+mod cache;
 mod configuration_api;
 mod console_log;
 mod deps;
 mod evm;
+mod filters;
 mod fork;
 mod formatter;
 mod hardhat;
 mod http_fork_source;
+mod logging_middleware;
 mod node;
 mod resolver;
 mod system_contracts;
@@ -44,7 +49,7 @@ use futures::{
     future::{self},
     FutureExt,
 };
-use jsonrpc_core::IoHandler;
+use jsonrpc_core::MetaIoHandler;
 use zksync_basic_types::{L2ChainId, H160, H256};
 
 use crate::{configuration_api::ConfigurationApiNamespace, node::TEST_NODE_NETWORK_ID};
@@ -96,10 +101,12 @@ pub const RICH_WALLETS: [(&str, &str); 10] = [
     ),
 ];
 
+#[allow(clippy::too_many_arguments)]
 async fn build_json_http<
     S: std::marker::Sync + std::marker::Send + 'static + ForkSource + std::fmt::Debug,
 >(
     addr: SocketAddr,
+    log_level_filter: LevelFilter,
     node: InMemoryNode<S>,
     net: NetNamespace,
     config_api: ConfigurationApiNamespace<S>,
@@ -110,7 +117,7 @@ async fn build_json_http<
     let (sender, recv) = oneshot::channel::<()>();
 
     let io_handler = {
-        let mut io = IoHandler::new();
+        let mut io = MetaIoHandler::with_middleware(LoggingMiddleware::new(log_level_filter));
         io.extend_with(node.to_delegate());
         io.extend_with(net.to_delegate());
         io.extend_with(config_api.to_delegate());
@@ -143,6 +150,7 @@ async fn build_json_http<
 /// Log filter level for the node.
 #[derive(Debug, Clone, ValueEnum)]
 enum LogLevel {
+    Trace,
     Debug,
     Info,
     Warn,
@@ -152,12 +160,21 @@ enum LogLevel {
 impl From<LogLevel> for LevelFilter {
     fn from(value: LogLevel) -> Self {
         match value {
+            LogLevel::Trace => LevelFilter::Trace,
             LogLevel::Debug => LevelFilter::Debug,
             LogLevel::Info => LevelFilter::Info,
             LogLevel::Warn => LevelFilter::Warn,
             LogLevel::Error => LevelFilter::Error,
         }
     }
+}
+
+/// Cache type config for the node.
+#[derive(ValueEnum, Debug, Clone)]
+enum CacheType {
+    None,
+    Memory,
+    Disk,
 }
 
 #[derive(Debug, Parser)]
@@ -198,6 +215,18 @@ struct Cli {
     /// Log file path - default: era_test_node.log
     #[arg(long, default_value = "era_test_node.log")]
     log_file_path: String,
+
+    /// Cache type, can be one of `none`, `memory`, or `disk` - default: "disk"
+    #[arg(long, default_value = "disk")]
+    cache: CacheType,
+
+    /// If true, will reset the local `disk` cache.
+    #[arg(long)]
+    reset_cache: bool,
+
+    /// Cache directory location for `disk` cache - default: ".cache"
+    #[arg(long, default_value = ".cache")]
+    cache_dir: String,
 }
 
 #[derive(Debug, Subcommand)]
@@ -268,6 +297,14 @@ async fn main() -> anyhow::Result<()> {
             log::info!("+++++ Reading local contracts from {:?} +++++", path);
         }
     }
+    let cache_config = match opt.cache {
+        CacheType::None => CacheConfig::None,
+        CacheType::Memory => CacheConfig::Memory,
+        CacheType::Disk => CacheConfig::Disk {
+            dir: opt.cache_dir,
+            reset: opt.reset_cache,
+        },
+    };
 
     let filter = EnvFilter::from_default_env();
     let subscriber = FmtSubscriber::builder()
@@ -280,9 +317,11 @@ async fn main() -> anyhow::Result<()> {
 
     let fork_details = match &opt.command {
         Command::Run => None,
-        Command::Fork(fork) => Some(ForkDetails::from_network(&fork.network, fork.fork_at).await),
+        Command::Fork(fork) => {
+            Some(ForkDetails::from_network(&fork.network, fork.fork_at, cache_config).await)
+        }
         Command::ReplayTx(replay_tx) => {
-            Some(ForkDetails::from_network_tx(&replay_tx.network, replay_tx.tx).await)
+            Some(ForkDetails::from_network_tx(&replay_tx.network, replay_tx.tx, cache_config).await)
         }
     };
 
@@ -335,7 +374,8 @@ async fn main() -> anyhow::Result<()> {
     let hardhat = HardhatNamespaceImpl::new(node.get_inner());
 
     let threads = build_json_http(
-        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), opt.port),
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), opt.port),
+        log_level_filter,
         node,
         net,
         config_api,

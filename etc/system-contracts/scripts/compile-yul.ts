@@ -2,10 +2,16 @@ import * as hre from 'hardhat';
 import * as fs from 'fs';
 import { exec as _exec, spawn as _spawn } from 'child_process';
 
-import { getZksolcPath, getZksolcUrl, saltFromUrl } from '@matterlabs/hardhat-zksync-solc';
+import { getZksolcUrl, saltFromUrl } from '@matterlabs/hardhat-zksync-solc';
 
-const COMPILER_VERSION = '1.3.11';
+const COMPILER_VERSION = '1.3.14';
 const IS_COMPILER_PRE_RELEASE = false;
+
+import path from "path";
+import { getCompilersDir } from "hardhat/internal/util/global-dir";
+export async function getZksolcPath(version: string, salt: string = ""): Promise<string> {
+    return path.join(await getCompilersDir(), "zksolc", `zksolc-v${version}${salt ? "-" : ""}${salt}`);
+}
 
 async function compilerLocation(): Promise<string> {
     if (IS_COMPILER_PRE_RELEASE) {

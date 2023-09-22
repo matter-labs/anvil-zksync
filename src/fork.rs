@@ -25,7 +25,7 @@ use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 use zksync_web3_decl::{jsonrpsee::http_client::HttpClient, namespaces::EthNamespaceClient};
 use zksync_web3_decl::{jsonrpsee::http_client::HttpClientBuilder, namespaces::ZksNamespaceClient};
 
-use crate::node::TEST_NODE_NETWORK_ID;
+use crate::{cache::CacheConfig, node::TEST_NODE_NETWORK_ID};
 use crate::{deps::InMemoryStorage, http_fork_source::HttpForkSource};
 use crate::{deps::ReadStorage as RS, system_contracts};
 
@@ -221,7 +221,16 @@ pub trait ForkSource {
         &self,
         block_number: zksync_types::api::BlockNumber,
         full_transactions: bool,
-    ) -> eyre::Result<Option<zksync_types::api::Block<zksync_types::api::TransactionVariant>>>;
+    ) -> eyre::Result<Option<Block<TransactionVariant>>>;
+
+    /// Returns the  transaction count for a given block hash.
+    fn get_block_transaction_count_by_hash(&self, block_hash: H256) -> eyre::Result<Option<U256>>;
+
+    /// Returns the transaction count for a given block number.
+    fn get_block_transaction_count_by_number(
+        &self,
+        block_number: zksync_types::api::BlockNumber,
+    ) -> eyre::Result<Option<U256>>;
 }
 
 /// Holds the information about the original chain.
@@ -265,6 +274,7 @@ impl ForkDetails<HttpForkSource> {
         client: HttpClient,
         miniblock: u64,
         chain_id: Option<L2ChainId>,
+        cache_config: CacheConfig,
     ) -> Self {
         let block_details = client
             .get_block_details(MiniblockNumber(miniblock as u32))
@@ -307,9 +317,7 @@ impl ForkDetails<HttpForkSource> {
         }
 
         ForkDetails {
-            fork_source: HttpForkSource {
-                fork_url: url.to_owned(),
-            },
+            fork_source: HttpForkSource::new(url.to_owned(), cache_config),
             l1_block: l1_batch_number,
             l2_block: block,
             block_timestamp: block_details.base.timestamp,
@@ -320,19 +328,19 @@ impl ForkDetails<HttpForkSource> {
         }
     }
     /// Create a fork from a given network at a given height.
-    pub async fn from_network(fork: &str, fork_at: Option<u64>) -> Self {
+    pub async fn from_network(fork: &str, fork_at: Option<u64>, cache_config: CacheConfig) -> Self {
         let (url, client) = Self::fork_to_url_and_client(fork);
         let l2_miniblock = if let Some(fork_at) = fork_at {
             fork_at
         } else {
             client.get_block_number().await.unwrap().as_u64()
         };
-        Self::from_url_and_miniblock_and_chain(url, client, l2_miniblock, None).await
+        Self::from_url_and_miniblock_and_chain(url, client, l2_miniblock, None, cache_config).await
     }
 
     /// Create a fork from a given network, at a height BEFORE a transaction.
     /// This will allow us to apply this transaction locally on top of this fork.
-    pub async fn from_network_tx(fork: &str, tx: H256) -> Self {
+    pub async fn from_network_tx(fork: &str, tx: H256, cache_config: CacheConfig) -> Self {
         let (url, client) = Self::fork_to_url_and_client(fork);
         let tx_details = client.get_transaction_by_hash(tx).await.unwrap().unwrap();
         let overwrite_chain_id = Some(L2ChainId(tx_details.chain_id.as_u32() as u16));
@@ -340,7 +348,14 @@ impl ForkDetails<HttpForkSource> {
         // We have to sync to the one-miniblock before the one where transaction is.
         let l2_miniblock = miniblock_number.saturating_sub(1) as u64;
 
-        Self::from_url_and_miniblock_and_chain(url, client, l2_miniblock, overwrite_chain_id).await
+        Self::from_url_and_miniblock_and_chain(
+            url,
+            client,
+            l2_miniblock,
+            overwrite_chain_id,
+            cache_config,
+        )
+        .await
     }
 }
 

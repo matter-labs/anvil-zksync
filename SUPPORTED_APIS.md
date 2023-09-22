@@ -28,13 +28,13 @@ The `status` options are:
 | [`ETH`](#eth-namespace) | [`eth_chainId`](#eth_chainid) | `SUPPORTED` | Returns the currently configured chain id <br />_(default is `260`)_ |
 | `ETH` | `eth_coinbase` | `NOT IMPLEMENTED` | Returns the client coinbase address |
 | [`ETH`](#eth-namespace) | [`eth_estimateGas`](#eth_estimategas) | `SUPPORTED` | Generates and returns an estimate of how much gas is necessary for the transaction to complete |
-| `ETH` | `eth_feeHistory` | `NOT IMPLEMENTED` | Returns a collection of historical block gas data |
+| [`ETH`](#eth-namespace) | [`eth_feeHistory`](#eth_feehistory) | `SUPPORTED` | Returns a collection of historical block gas data <br />_(hardcoded with gas price of `250_000_000`)_ |
 | [`ETH`](#eth-namespace) | [`eth_gasPrice`](#eth_gasprice) | `SUPPORTED` | Returns the current price per gas in wei <br />_(hardcoded to `250_000_000`)_ |
 | [`ETH`](#eth-namespace) | [`eth_getBalance`](#eth_getbalance) | `SUPPORTED` | Returns the balance of the account of given address |
 | [`ETH`](#eth-namespace) | [`eth_getBlockByHash`](#eth_getblockbyhash) | `SUPPORTED` | Returns information about a block by block hash |
 | [`ETH`](#eth-namespace) | [`eth_getBlockByNumber`](#eth_getblockbynumber) | `SUPPORTED` | Returns information about a block by block number |
-| `ETH` | `eth_getBlockTransactionCountByHash` | `NOT IMPLEMENTED`<br />[GitHub Issue #44](https://github.com/matter-labs/era-test-node/issues/44) | Number of transactions in a block from a block matching the given block hash |
-| `ETH` | `eth_getBlockTransactionCountByNumber` | `NOT IMPLEMENTED`<br />[GitHub Issue #43](https://github.com/matter-labs/era-test-node/issues/43) | Number of transactions in a block from a block matching the given block number |
+| [`ETH`](#eth-namespace) | [`eth_getBlockTransactionCountByHash`](#eth_getblocktransactioncountbyhash) | `SUPPORTED` | Number of transactions in a block from a block matching the given block hash |
+| [`ETH`](#eth-namespace) | [`eth_getBlockTransactionCountByNumber`](#eth_getblocktransactioncountbynumber) | `SUPPORTED` | Number of transactions in a block from a block matching the given block number |
 | `ETH` | `eth_getCompilers` | `NOT IMPLEMENTED` | Returns a list of available compilers |
 | [`ETH`](#eth-namespace) | [`eth_getTransactionByHash`](#eth_gettransactionbyhash) | `SUPPORTED` | Returns the information about a transaction requested by transaction hash |
 | [`ETH`](#eth-namespace) | [`eth_getTransactionCount`](#eth_gettransactioncount) | `SUPPORTED` | Returns the number of transactions sent from an address |
@@ -42,7 +42,7 @@ The `status` options are:
 | [`ETH`](#eth-namespace) | [`eth_call`](#eth_call) | `SUPPORTED` | Executes a new message call immediately without creating a transaction on the block chain |
 | [`ETH`](#eth-namespace) | [`eth_sendRawTransaction`](#eth_sendrawtransaction) | `SUPPORTED` | Creates new message call transaction or a contract creation for signed transactions |
 | [`ETH`](#eth-namespace) | [`eth_getCode`](#eth_getcode) | `SUPPORTED` | Returns code at a given address |
-| `ETH` | `eth_getFilterChanges` | `NOT IMPLEMENTED`<br />[GitHub Issue #42](https://github.com/matter-labs/era-test-node/issues/42) | Polling method for a filter, which returns an array of logs, block hashes, or transaction hashes, depending on the filter type, which occurred since last poll |
+| [`ETH`](#eth-namespace) | [`eth_getFilterChanges`](#`eth_getFilterChanges) | `SUPPORTED` | Polling method for a filter, which returns an array of logs, block hashes, or transaction hashes, depending on the filter type, which occurred since last poll |
 | `ETH` | `eth_getFilterLogs` | `NOT IMPLEMENTED`<br />[GitHub Issue #41](https://github.com/matter-labs/era-test-node/issues/41) | Returns an array of all logs matching filter with given id |
 | `ETH` | `eth_getLogs` | `NOT IMPLEMENTED`<br />[GitHub Issue #40](https://github.com/matter-labs/era-test-node/issues/40) | Returns an array of all logs matching a given filter object |
 | `ETH` | `eth_getProof` | `NOT IMPLEMENTED` | Returns the details for the account at the specified address and block number, the account's Merkle proof, and the storage values for the specified storage keys with their Merkle-proofs |
@@ -58,9 +58,9 @@ The `status` options are:
 | `ETH` | `eth_hashrate` | `NOT IMPLEMENTED` | Returns the number of hashes per second that the node is mining with |
 | `ETH` | `eth_maxPriorityFeePerGas` | `NOT IMPLEMENTED` | Returns a `maxPriorityFeePerGas` value suitable for quick transaction inclusion |
 | `ETH` | `eth_mining` | `NOT IMPLEMENTED` | Returns `true` if client is actively mining new blocks |
-| `ETH` | `eth_newBlockFilter` | `NOT IMPLEMENTED`<br />[GitHub Issue #37](https://github.com/matter-labs/era-test-node/issues/37) | Creates a filter in the node, to notify when a new block arrives |
-| `ETH` | `eth_newFilter` | `NOT IMPLEMENTED`<br />[GitHub Issue #36](https://github.com/matter-labs/era-test-node/issues/36) | Creates a filter object, based on filter options, to notify when the state changes (logs) |
-| `ETH` | `eth_newPendingTransactionFilter` | `NOT IMPLEMENTED`<br />[GitHub Issue #39](https://github.com/matter-labs/era-test-node/issues/39) | Creates a filter in the node, to notify when new pending transactions arrive |
+| [`ETH`](#eth-namespace) | [`eth_newBlockFilter`](#`eth_newblockfilter) | `SUPPORTED` | Creates a filter in the node, to notify when a new block arrives |
+| [`ETH`](#eth-namespace) | [`eth_newFilter`](#`eth_newfilter) | `SUPPORTED` | Creates a filter object, based on filter options, to notify when the state changes (logs) |
+| [`ETH`](#eth-namespace) | [`eth_newPendingTransactionFilter`](#`eth_newpendingtransactionfilter) | `SUPPORTED` | Creates a filter in the node, to notify when new pending transactions arrive |
 | `ETH` | `eth_protocolVersion` | `NOT IMPLEMENTED`<br />[GitHub Issue #48](https://github.com/matter-labs/era-test-node/issues/48) | Returns the current ethereum protocol version |
 | `ETH` | `eth_sendTransaction` | `NOT IMPLEMENTED` | Creates new message call transaction or a contract creation, if the data field contains code |
 | `ETH` | `eth_sign` | `NOT IMPLEMENTED` | The sign method calculates an Ethereum specific signature with: `sign(keccak256("\x19Ethereum Signed Message:\n" + message.length + message)))` |
@@ -71,11 +71,11 @@ The `status` options are:
 | `ETH` | `eth_submitWork` | `NOT IMPLEMENTED` | Used for submitting a proof-of-work solution |
 | `ETH` | `eth_subscribe` | `NOT IMPLEMENTED` | Starts a subscription to a particular event |
 | [`ETH`](#eth-namespace) | [`eth_syncing`](#eth_syncing) | `SUPPORTED` | Returns an object containing data about the sync status or `false` when not syncing |
-| `ETH` | `eth_uninstallFilter` | `NOT IMPLEMENTED`<br />[GitHub Issue #38](https://github.com/matter-labs/era-test-node/issues/38) | Uninstalls a filter with given id |
+| [`ETH`](#eth-namespace) | [`eth_uninstallFilter`](#`eth_uninstallfilter) | `SUPPORTED` | Uninstalls a filter with given id |
 | `ETH` | `eth_unsubscribe` | `NOT IMPLEMENTED` | Cancel a subscription to a particular event |
 | `EVM` | `evm_addAccount` | `NOT IMPLEMENTED` | Adds any arbitrary account |
 | [`EVM`](#evm-namespace) | [`evm_increaseTime`](#evm_increasetime) | `SUPPORTED` | Jump forward in time by the given amount of time, in seconds |
-| `EVM` | `evm_mine` | `NOT IMPLEMENTED`<br />[GitHub Issue #67](https://github.com/matter-labs/era-test-node/issues/67) | Force a single block to be mined |
+| [`EVM`](#evm-namespace) | [`evm_mine`](#evm_mine) | `SUPPORTED` | Force a single block to be mined |
 | `EVM` | `evm_removeAccount` | `NOT IMPLEMENTED` | Removes an account |
 | `EVM` | `evm_revert` | `NOT IMPLEMENTED`<br />[GitHub Issue #70](https://github.com/matter-labs/era-test-node/issues/70) | Revert the state of the blockchain to a previous snapshot |
 | `EVM` | `evm_setAccountBalance` | `NOT IMPLEMENTED` | Sets the given account's balance to the specified WEI value |
@@ -90,10 +90,10 @@ The `status` options are:
 | `EVM` | `evm_snapshot` | `NOT IMPLEMENTED`<br />[GitHub Issue #69](https://github.com/matter-labs/era-test-node/issues/69) | Snapshot the state of the blockchain at the current block |
 | `HARDHAT` | `hardhat_addCompilationResult` | `NOT IMPLEMENTED` | Add information about compiled contracts |
 | `HARDHAT` | `hardhat_dropTransaction` | `NOT IMPLEMENTED` | Remove a transaction from the mempool |
-| `HARDHAT` | `hardhat_impersonateAccount` | `NOT IMPLEMENTED`<br />[GitHub Issue #73](https://github.com/matter-labs/era-test-node/issues/73) | Impersonate an account |
+| [`HARDHAT`](#hardhat-namespace) | [`hardhat_impersonateAccount`](#hardhat_impersonateaccount) | `SUPPORTED` | Impersonate an account |
 | `HARDHAT` | `hardhat_getAutomine` | `NOT IMPLEMENTED` | Returns `true` if automatic mining is enabled, and `false` otherwise |
 | `HARDHAT` | `hardhat_metadata` | `NOT IMPLEMENTED` | Returns the metadata of the current network |
-| `HARDHAT` | `hardhat_mine` | `NOT IMPLEMENTED`<br />[GitHub Issue #75](https://github.com/matter-labs/era-test-node/issues/75) | Mine any number of blocks at once, in constant time |
+| [`HARDHAT`](#hardhat-namespace) | [`hardhat_mine`](#hardhat_mine) | Mine any number of blocks at once, in constant time |
 | `HARDHAT` | `hardhat_reset` | `NOT IMPLEMENTED` | Resets the state of the network |
 | [`HARDHAT`](#hardhat-namespace) | [`hardhat_setBalance`](#hardhat_setbalance) | `SUPPORTED` | Modifies the balance of an account |
 | `HARDHAT` | `hardhat_setCode` | `NOT IMPLEMENTED` | Sets the bytecode of a given account |
@@ -104,7 +104,7 @@ The `status` options are:
 | `HARDHAT` | `hardhat_setPrevRandao` | `NOT IMPLEMENTED` | Sets the PREVRANDAO value of the next block |
 | [`HARDHAT`](#hardhat-namespace) | [`hardhat_setNonce`](#hardhat_setnonce) | `SUPPORTED` | Sets the nonce of a given account |
 | `HARDHAT` | `hardhat_setStorageAt` | `NOT IMPLEMENTED` | Sets the storage value at a given key for a given account |
-| `HARDHAT` | `hardhat_stopImpersonatingAccount` | `NOT IMPLEMENTED`<br />[GitHub Issue #74](https://github.com/matter-labs/era-test-node/issues/74) | Stop impersonating an account after having previously used `hardhat_impersonateAccount` |
+| [`HARDHAT`](#hardhat-namespace) | [`hardhat_stopImpersonatingAccount`](#hardhat_stopimpersonatingaccount) | `SUPPORTED` | Stop impersonating an account after having previously used `hardhat_impersonateAccount` |
 | [`NETWORK`](#network-namespace) | [`net_version`](#net_version) | `SUPPORTED` | Returns the current network id <br />_(default is `260`)_ |
 | [`NETWORK`](#network-namespace) | [`net_peerCount`](#net_peercount) | `SUPPORTED` | Returns the number of peers currently connected to the client <br/>_(hard-coded to `0`)_ |
 | [`NETWORK`](#network-namespace) | [`net_listening`](#net_listening) | `SUPPORTED` | Returns `true` if the client is actively listening for network connections <br />_(hard-coded to `false`)_ |
@@ -399,6 +399,31 @@ curl --request POST \
   }'
 ```
 
+### `eth_feeHistory`
+
+[source](src/node.rs)
+
+Returns the fee history for a given range of blocks
+
+#### Arguments
+
++ `block_count: U64`
++ `newest_block: BlockNumber`
++ `reward_percentiles: Vec<f32>`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "eth_feeHistory","params": ["0x1", "latest", [25, 50 , 75]]}'
+```
+
 ### `eth_gasPrice`
 
 [source](src/node.rs)
@@ -509,6 +534,206 @@ curl --request POST \
     "id": "1",
     "method": "eth_getBlockByNumber",
     "params": ["latest", true]
+}'
+```
+
+### `eth_getBlockTransactionCountByHash`
+
+[source](src/node.rs)
+
+Number of transactions in a block from a block matching the given block hash
+
+#### Arguments
+
++ `block_hash: H256`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_getBlockTransactionCountByHash",
+    "params": ["0x0000000000000000000000000000000000000000000000000000000000000008"]
+}'
+```
+
+### `eth_getBlockTransactionCountByNumber`
+
+[source](src/node.rs)
+
+Number of transactions in a block from a block matching the given block number
+
+#### Arguments
+
++ `block_number: BlockNumber`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_getBlockTransactionCountByNumber",
+    "params": ["latest"]
+}'
+```
+
+
+### `eth_getFilterChanges`
+
+[source](src/node.rs)
+
+Polling method for a filter, which returns an array of logs, block hashes, or transaction hashes, depending on the filter type, which occurred since last poll
+
+#### Arguments
+
++ `id: U256`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_getFilterChanges",
+    "params": ["0x1"]
+}'
+```
+
+### `eth_newBlockFilter`
+
+[source](src/node.rs)
+
+Creates a filter in the node, to notify when a new block arrives
+
+#### Arguments
+
++ _NONE__
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_newBlockFilter"
+}'
+```
+
+### `eth_newFilter`
+
+[source](src/node.rs)
+
+Creates a filter object, based on filter options, to notify when the state changes (logs)
+
+#### Arguments
+
++ `filter: Filter`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_newFilter",
+    "params": [{
+      "fromBlock": "0xa", 
+      "toBlock": "0xff", 
+      "address": "0x6b175474e89094c44da98b954eedeac495271d0f",
+      "topics": []
+    }]
+}'
+```
+
+### `eth_newPendingTransactionFilter`
+
+[source](src/node.rs)
+
+Creates a filter in the node, to notify when new pending transactions arrive
+
+#### Arguments
+
++ _NONE__
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_newPendingTransactionFilter"
+}'
+```
+
+### `eth_uninstallFilter`
+
+[source](src/node.rs)
+
+Uninstalls a filter with given id
+
+#### Arguments
+
++ `id: U256`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_uninstallFilter",
+    "params": ["0x1"]
 }'
 ```
 
@@ -800,7 +1025,111 @@ curl --request POST \
   }'
 ```
 
+### `hardhat_mine`
+
+[source](src/hardhat.rs)
+
+Sometimes you may want to advance the latest block number of the network by a large number of blocks.
+One way to do this would be to call the evm_mine RPC method multiple times, but this is too slow if you want to mine thousands of blocks.
+The hardhat_mine method can mine any number of blocks at once, in constant time. (It exhibits the same performance no matter how many blocks are mined.)
+
+#### Arguments
+
++ `num_blocks: U64` - The number of blocks to mine. (Optional: defaults to 1)
++ `interval: U646` - The interval between the timestamps of each block, in seconds. (Optional: defaults to 1)
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "2",
+    "method": "hardhat_mine",
+    "params": [
+        "0xaa",
+        "0x100"
+    ]
+}'
+
+```
+### `hardhat_impersonateAccount`
+
+[source](src/hardhat.rs)
+
+Begin impersonating account- subsequent transactions sent to the node will be committed as if they were initiated by the supplied address.
+
+#### Arguments
+
+- `address: Address` - The address to begin impersonating
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "2",
+    "method": "hardhat_impersonateAccount",
+    "params": [
+        "0x364d6D0333432C3Ac016Ca832fb8594A8cE43Ca6"
+    ]
+}'
+```
+
+### `hardhat_stopImpersonatingAccount`
+
+[source](src/hardhat.rs)
+
+Stop impersonating account, should be used after calling `hardhat_impersonateAccount`.
+Since we only impersonate one account at a time, the `address` argument is ignored and the current
+impersonated account (if any) is cleared.
+
+#### Arguments
+
+- `address: Address` - (Optional) Argument accepted for compatibility and will be ignored
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "2",
+    "method": "hardhat_stopImpersonatingAccount",
+    "params": [
+        "0x364d6D0333432C3Ac016Ca832fb8594A8cE43Ca6"
+    ]
+}'
+```
+
 ## `EVM NAMESPACE`
+
+### `evm_mine`
+
+[source](src/evm.rs)
+
+Mines an empty block
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "evm_mine","params": []
+}'
+```
 
 ### `evm_increaseTime`
 
