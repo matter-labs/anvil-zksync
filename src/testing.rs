@@ -5,7 +5,7 @@
 
 #![cfg(test)]
 
-use crate::node::InMemoryNode;
+use crate::node::{InMemoryNode, TxExecutionInfo};
 use crate::{fork::ForkSource, node::compute_hash};
 
 use httptest::{
@@ -15,8 +15,10 @@ use httptest::{
 };
 use itertools::Itertools;
 use std::str::FromStr;
+use vm::vm::{VmPartialExecutionResult, VmTxExecutionResult};
 use zksync_basic_types::{H160, U64};
 use zksync_types::api::Log;
+use zksync_types::tx::tx_execution_info::TxExecutionStatus;
 use zksync_types::{
     fee::Fee, l2::L2Tx, Address, L2ChainId, Nonce, PackedEthSignature, ProtocolVersionId, H256,
     U256,
@@ -438,6 +440,37 @@ impl LogBuilder {
             log_type: Default::default(),
             removed: Default::default(),
         }
+    }
+}
+
+/// Returns a default instance for a successful [TxExecutionInfo]
+pub fn default_tx_execution_info() -> TxExecutionInfo {
+    TxExecutionInfo {
+        tx: L2Tx {
+            execute: zksync_types::Execute {
+                contract_address: Default::default(),
+                calldata: Default::default(),
+                value: Default::default(),
+                factory_deps: Default::default(),
+            },
+            common_data: Default::default(),
+            received_timestamp_ms: Default::default(),
+        },
+        batch_number: Default::default(),
+        miniblock_number: Default::default(),
+        result: VmTxExecutionResult {
+            status: TxExecutionStatus::Success,
+            result: VmPartialExecutionResult {
+                logs: Default::default(),
+                revert_reason: Default::default(),
+                contracts_used: Default::default(),
+                cycles_used: Default::default(),
+                computational_gas_used: Default::default(),
+            },
+            call_traces: Default::default(),
+            gas_refunded: Default::default(),
+            operator_suggested_refund: Default::default(),
+        },
     }
 }
 
