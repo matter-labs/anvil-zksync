@@ -6,6 +6,7 @@ import "hardhat/console.sol";
 
 contract Greeter is Ownable {
     string private greeting;
+    event LogString(string value);
 
     constructor(string memory _greeting) {
         greeting = _greeting;
@@ -18,6 +19,8 @@ contract Greeter is Ownable {
     function setGreeting(string memory _greeting) public onlyOwner {
         console.log("setGreeting called");
         console.log(_greeting);
+        emit LogString(string.concat("Greeting is being updated to ", _greeting));
+
         require(
             keccak256(abi.encodePacked((_greeting))) != keccak256(abi.encodePacked(("test"))),
             "Received a test value"

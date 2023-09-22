@@ -51,4 +51,20 @@ describe("Greeter Smart Contract", function () {
 
     await expectThrowsAsync(action, "Ownable: caller is not the owner");
   });
+
+  it("Should produce event logs", async function () {
+    // TODO: Figure out a test for this
+    const wallet = new Wallet(RichAccounts[0].PrivateKey);
+    const deployer = new Deployer(hre, wallet);
+
+    const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
+
+    expect(await greeter.greet()).to.eq("Hi");
+
+    const setGreetingTx = await greeter.setGreeting("Hola, mundo!");
+    // wait until the transaction is mined
+    await setGreetingTx.wait();
+
+    expect(await greeter.greet()).to.equal("Hola, mundo!");
+  });
 });
