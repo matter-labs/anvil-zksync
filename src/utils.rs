@@ -1,32 +1,20 @@
+use std::collections::HashMap;
 use std::pin::Pin;
 
 use futures::Future;
-use vm::{
-    utils::BLOCK_GAS_LIMIT,
-    vm_with_bootloader::{
-        derive_base_fee_and_gas_per_pubdata, init_vm_inner, BlockContext, BlockContextMode,
-        BootloaderJobType, TxExecutionMode, BLOCK_OVERHEAD_GAS, BLOCK_OVERHEAD_PUBDATA,
-        BOOTLOADER_TX_ENCODING_SPACE,
-    },
-    HistoryEnabled, OracleTools,
-};
+use vm::{HistoryDisabled, Vm};
 use zksync_basic_types::{H256, U256, U64};
 use zksync_state::StorageView;
 use zksync_state::WriteStorage;
-use zksync_types::{
-    api::{Block, BlockNumber},
-    zk_evm::zkevm_opcode_defs::system_params::MAX_TX_ERGS_LIMIT,
-    MAX_TXS_IN_BLOCK,
-};
-use zksync_utils::{ceil_div_u256, u256_to_h256};
+use zksync_types::api::{Block, BlockNumber};
+use zksync_utils::u256_to_h256;
 
 use crate::{
-    fork::{ForkSource, ForkStorage},
+    fork::ForkSource,
     node::{compute_hash, InMemoryNodeInner},
 };
 use vm::utils::fee::derive_base_fee_and_gas_per_pubdata;
 
-use zksync_basic_types::U256;
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words};
 
 pub(crate) trait IntoBoxedFuture: Sized + Send + 'static {
@@ -113,6 +101,8 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
 ) {
     // build and insert new blocks
     for _ in 0..num_blocks {
+        // FIXME: this will not work with new bootloader checks..
+        // And can be done with virtual blocks
         node.current_miniblock = node.current_miniblock.saturating_add(1);
 
         let block = Block {
@@ -131,40 +121,27 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
 
     // roll the vm
     let (keys, bytecodes) = {
-        let mut storage_view: StorageView<&ForkStorage<S>> = StorageView::new(&node.fork_storage);
-        let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryEnabled);
+        let storage = StorageView::new(&node.fork_storage).to_rc_ptr();
 
         // system_contract.contacts_for_l2_call() will give playground contracts
         // we need these to use the unsafeOverrideBlock method in SystemContext.sol
         let bootloader_code = node.system_contracts.contacts_for_l2_call();
-        let block_context = BlockContext {
-            block_number: node.current_miniblock as u32,
-            block_timestamp: node.current_timestamp,
-            ..node.create_block_context()
-        };
-        let block_properties: zksync_types::zk_evm::block_properties::BlockProperties =
-            InMemoryNodeInner::<S>::create_block_properties(bootloader_code);
+        let batch_env = node.create_l1_batch_env(storage.clone());
 
         // init vm
-        let mut vm = init_vm_inner(
-            &mut oracle_tools,
-            BlockContextMode::OverrideCurrent(block_context.into()),
-            &block_properties,
-            BLOCK_GAS_LIMIT,
-            bootloader_code,
-            TxExecutionMode::VerifyExecute,
-        );
+        let system_env =
+            node.create_system_env(bootloader_code.clone(), vm::TxExecutionMode::VerifyExecute);
 
-        vm.execute_till_block_end(BootloaderJobType::TransactionExecution);
+        let mut vm = Vm::new(batch_env, system_env, storage.clone(), HistoryDisabled);
 
-        let bytecodes = vm
-            .state
-            .decommittment_processor
-            .known_bytecodes
-            .inner()
-            .clone();
+        vm.execute(vm::VmExecutionMode::Bootloader);
 
-        let modified_keys = storage_view.modified_storage_keys().clone();
+        let bytecodes: HashMap<U256, Vec<U256>> = vm
+            .get_last_tx_compressed_bytecodes()
+            .iter()
+            .map(|b| bytecode_to_factory_dep(b.original.clone()))
+            .collect();
+        let modified_keys = storage.borrow().modified_storage_keys().clone();
         (modified_keys, bytecodes)
     };
 

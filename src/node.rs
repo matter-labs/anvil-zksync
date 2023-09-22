@@ -6,8 +6,9 @@ use crate::{
     fork::{ForkDetails, ForkSource, ForkStorage},
     formatter,
     system_contracts::{self, Options, SystemContracts},
-    utils::{self, adjust_l1_gas_price_for_tx, bytecode_to_factory_dep, to_human_size,
-        IntoBoxedFuture},
+    utils::{
+        self, adjust_l1_gas_price_for_tx, bytecode_to_factory_dep, to_human_size, IntoBoxedFuture,
+    },
 };
 use clap::Parser;
 use colored::Colorize;
@@ -35,10 +36,8 @@ use vm::{
     VmExecutionResultAndLogs, VmTracer,
 };
 use zksync_basic_types::{
-    
     web3::{self, signing::keccak256},
     AccountTreeId, Address, Bytes, L1BatchNumber, H160, H256, U256, U64,
-,
 };
 use zksync_contracts::BaseSystemContracts;
 use zksync_core::api_server::web3::backend_jsonrpc::{
@@ -263,7 +262,7 @@ type L2TxResult = (
 );
 
 impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
-    fn create_l1_batch_env<ST: ReadStorage>(&self, storage: StoragePtr<ST>) -> L1BatchEnv {
+    pub fn create_l1_batch_env<ST: ReadStorage>(&self, storage: StoragePtr<ST>) -> L1BatchEnv {
         let last_l2_block = load_last_l2_block(storage);
         L1BatchEnv {
             // TODO: set the previous batch hash properly (take from fork, when forking, and from local storage, when this is not the first block).
@@ -283,7 +282,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         }
     }
 
-    fn create_system_env(
+    pub fn create_system_env(
         &self,
         base_system_contracts: BaseSystemContracts,
         execution_mode: TxExecutionMode,
@@ -606,8 +605,6 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
     pub fn stop_impersonating_account(&mut self, address: Address) -> bool {
         self.impersonated_accounts.remove(&address)
     }
-
-
 }
 
 fn not_implemented<T: Send + 'static>(
@@ -1001,25 +998,28 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             .write()
             .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
 
+        let storage = StorageView::new(&inner.fork_storage).to_rc_ptr();
 
-                // if we are impersonating an account, we need to use non-verifying system contracts
-                let nonverifying_contracts;
-                let bootloader_code = {
-                    if inner
-                        .impersonated_accounts
-                        .contains(&l2_tx.common_data.initiator_address)
-                    {
-                        tracing::info!(
-                            "🕵️ Executing tx from impersonated account {:?}",
-                            l2_tx.common_data.initiator_address
-                        );
-                        nonverifying_contracts =
-                            SystemContracts::from_options(&Options::BuiltInWithoutSecurity);
-                        nonverifying_contracts.contracts(execution_mode)
-                    } else {
-                        inner.system_contracts.contracts(execution_mode)
-                    }
-                };
+        let batch_env = inner.create_l1_batch_env(storage.clone());
+
+        // if we are impersonating an account, we need to use non-verifying system contracts
+        let nonverifying_contracts;
+        let bootloader_code = {
+            if inner
+                .impersonated_accounts
+                .contains(&l2_tx.common_data.initiator_address)
+            {
+                tracing::info!(
+                    "🕵️ Executing tx from impersonated account {:?}",
+                    l2_tx.common_data.initiator_address
+                );
+                nonverifying_contracts =
+                    SystemContracts::from_options(&Options::BuiltInWithoutSecurity);
+                nonverifying_contracts.contracts(execution_mode)
+            } else {
+                inner.system_contracts.contracts(execution_mode)
+            }
+        };
         let system_env = inner.create_system_env(bootloader_code.clone(), execution_mode);
 
         let mut vm = Vm::new(
@@ -1030,10 +1030,6 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         );
 
         let tx: Transaction = l2_tx.clone().into();
-        push_transaction_to_bootloader_memory(&mut vm, &tx, execution_mode, None);
-        let tx_result = vm
-            .execute_next_tx(u32::MAX, true)
-            .map_err(|e| format!("Failed to execute next transaction: {}", e))?;
 
         vm.push_transaction(tx.clone());
 
@@ -1223,7 +1219,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         let current_miniblock = inner.current_miniblock.saturating_add(1);
 
-        for (log_idx, event) in result.result.logs.events.iter().enumerate() {
+        for (log_idx, event) in result.logs.events.iter().enumerate() {
             inner.filters.notify_new_log(
                 &Log {
                     address: event.address,
@@ -1252,10 +1248,9 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             from: l2_tx.initiator_account(),
             to: Some(l2_tx.recipient_account()),
             cumulative_gas_used: Default::default(),
-            gas_used: Some(l2_tx.common_data.fee.gas_limit - result.gas_refunded),
+            gas_used: Some(l2_tx.common_data.fee.gas_limit - result.refunds.gas_refunded),
             contract_address: contract_address_from_tx_result(&result),
             logs: result
-                .result
                 .logs
                 .events
                 .iter()
@@ -1276,10 +1271,10 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 })
                 .collect(),
             l2_to_l1_logs: vec![],
-            status: Some(if result.status == TxExecutionStatus::Success {
-                U64::from(1)
-            } else {
+            status: Some(if result.result.is_failed() {
                 U64::from(0)
+            } else {
+                U64::from(1)
             }),
             effective_gas_price: Some(L2_GAS_PRICE.into()),
             ..Default::default()
@@ -1610,52 +1605,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                 .tx_results
                 .get(&hash)
                 .map(|info| info.receipt.clone());
-
-            let receipt = tx_result.map(|info| TransactionReceipt {
-                transaction_hash: hash,
-                transaction_index: U64::from(1),
-                block_hash: Some(hash),
-                block_number: Some(U64::from(info.miniblock_number)),
-                l1_batch_tx_index: None,
-                l1_batch_number: Some(U64::from(info.batch_number as u64)),
-                from: Default::default(),
-                to: Some(info.tx.execute.contract_address),
-                cumulative_gas_used: Default::default(),
-                gas_used: Some(
-                    info.tx.common_data.fee.gas_limit - info.result.refunds.gas_refunded,
-                ),
-                contract_address: contract_address_from_tx_result(&info.result),
-                logs: info
-                    .result
-                    .logs
-                    .events
-                    .iter()
-                    .map(|log| Log {
-                        address: log.address,
-                        topics: log.indexed_topics.clone(),
-                        data: zksync_types::Bytes(log.value.clone()),
-                        block_hash: Some(hash),
-                        block_number: Some(U64::from(info.miniblock_number)),
-                        l1_batch_number: Some(U64::from(info.batch_number as u64)),
-                        transaction_hash: Some(hash),
-                        transaction_index: Some(U64::from(1)),
-                        log_index: Some(U256::default()),
-                        transaction_log_index: Some(U256::default()),
-                        log_type: None,
-                        removed: None,
-                    })
-                    .collect(),
-                l2_to_l1_logs: vec![],
-                status: Some(if !info.result.result.is_failed() {
-                    U64::from(1)
-                } else {
-                    U64::from(0)
-                }),
-                effective_gas_price: Some(L2_GAS_PRICE.into()),
-                ..Default::default()
-            });
-
-            Ok(receipt).map_err(|_: jsonrpc_core::Error| into_jsrpc_error(Web3Error::InternalError))
+            Ok(receipt)
         })
     }
 
