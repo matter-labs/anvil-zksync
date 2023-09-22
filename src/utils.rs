@@ -3,16 +3,14 @@ use std::pin::Pin;
 
 use futures::Future;
 use vm::{HistoryDisabled, Vm};
-use zksync_basic_types::{H256, U256, U64};
+use zksync_basic_types::{U256, U64};
 use zksync_state::StorageView;
 use zksync_state::WriteStorage;
-use zksync_types::api::{Block, BlockNumber};
+use zksync_types::api::BlockNumber;
 use zksync_utils::u256_to_h256;
 
-use crate::{
-    fork::ForkSource,
-    node::{compute_hash, InMemoryNodeInner},
-};
+use crate::node::create_empty_block;
+use crate::{fork::ForkSource, node::InMemoryNodeInner};
 use vm::utils::fee::derive_base_fee_and_gas_per_pubdata;
 
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words};
@@ -92,8 +90,8 @@ pub fn bytecode_to_factory_dep(bytecode: Vec<u8>) -> (U256, Vec<U256>) {
 
 /// Creates and inserts a given number of empty blocks into the node, with a given interval between them.
 /// The blocks will be empty (contain no transactions).
-/// The test system contracts will be used to force overwriting the block number and timestamp in VM state,
-/// otherwise the VM will reject subsequent blocks as invalid.
+/// Currently this is quite slow - as we invoke the VM for each operation, in the future we might want to optimise it
+/// by adding a way to set state via some system contract call.
 pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
     node: &mut InMemoryNodeInner<S>,
     num_blocks: u64,
@@ -101,70 +99,66 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
 ) {
     // build and insert new blocks
     for _ in 0..num_blocks {
-        // FIXME: this will not work with new bootloader checks..
-        // And can be done with virtual blocks
+        // roll the vm
+        let (keys, bytecodes) = {
+            let storage = StorageView::new(&node.fork_storage).to_rc_ptr();
+
+            // system_contract.contacts_for_l2_call() will give playground contracts
+            // we need these to use the unsafeOverrideBlock method in SystemContext.sol
+            let bootloader_code = node.system_contracts.contacts_for_l2_call();
+            let batch_env = node.create_l1_batch_env(storage.clone());
+
+            // init vm
+            let system_env =
+                node.create_system_env(bootloader_code.clone(), vm::TxExecutionMode::VerifyExecute);
+
+            let mut vm = Vm::new(batch_env, system_env, storage.clone(), HistoryDisabled);
+
+            vm.execute(vm::VmExecutionMode::Bootloader);
+
+            let bytecodes: HashMap<U256, Vec<U256>> = vm
+                .get_last_tx_compressed_bytecodes()
+                .iter()
+                .map(|b| bytecode_to_factory_dep(b.original.clone()))
+                .collect();
+            let modified_keys = storage.borrow().modified_storage_keys().clone();
+            (modified_keys, bytecodes)
+        };
+
+        for (key, value) in keys.iter() {
+            node.fork_storage.set_value(*key, *value);
+        }
+
+        // Write all the factory deps.
+        for (hash, code) in bytecodes.iter() {
+            node.fork_storage.store_factory_dep(
+                u256_to_h256(*hash),
+                code.iter()
+                    .flat_map(|entry| {
+                        let mut bytes = vec![0u8; 32];
+                        entry.to_big_endian(&mut bytes);
+                        bytes.to_vec()
+                    })
+                    .collect(),
+            )
+        }
         node.current_miniblock = node.current_miniblock.saturating_add(1);
 
-        let block = Block {
-            hash: compute_hash(node.current_miniblock as u32, H256::zero()),
-            number: node.current_miniblock.into(),
-            timestamp: node.current_timestamp.into(),
-            ..Default::default()
-        };
+        let block = create_empty_block(
+            node.current_miniblock as u32,
+            node.current_timestamp.into(),
+            node.current_batch,
+        );
 
         node.block_hashes.insert(node.current_miniblock, block.hash);
         node.blocks.insert(block.hash, block);
 
         // leave node state ready for next interaction
         node.current_timestamp = node.current_timestamp.saturating_add(interval_ms);
+
+        // increment batch
+        node.current_batch = node.current_batch.saturating_add(1);
     }
-
-    // roll the vm
-    let (keys, bytecodes) = {
-        let storage = StorageView::new(&node.fork_storage).to_rc_ptr();
-
-        // system_contract.contacts_for_l2_call() will give playground contracts
-        // we need these to use the unsafeOverrideBlock method in SystemContext.sol
-        let bootloader_code = node.system_contracts.contacts_for_l2_call();
-        let batch_env = node.create_l1_batch_env(storage.clone());
-
-        // init vm
-        let system_env =
-            node.create_system_env(bootloader_code.clone(), vm::TxExecutionMode::VerifyExecute);
-
-        let mut vm = Vm::new(batch_env, system_env, storage.clone(), HistoryDisabled);
-
-        vm.execute(vm::VmExecutionMode::Bootloader);
-
-        let bytecodes: HashMap<U256, Vec<U256>> = vm
-            .get_last_tx_compressed_bytecodes()
-            .iter()
-            .map(|b| bytecode_to_factory_dep(b.original.clone()))
-            .collect();
-        let modified_keys = storage.borrow().modified_storage_keys().clone();
-        (modified_keys, bytecodes)
-    };
-
-    for (key, value) in keys.iter() {
-        node.fork_storage.set_value(*key, *value);
-    }
-
-    // Write all the factory deps.
-    for (hash, code) in bytecodes.iter() {
-        node.fork_storage.store_factory_dep(
-            u256_to_h256(*hash),
-            code.iter()
-                .flat_map(|entry| {
-                    let mut bytes = vec![0u8; 32];
-                    entry.to_big_endian(&mut bytes);
-                    bytes.to_vec()
-                })
-                .collect(),
-        )
-    }
-
-    // increment batch
-    node.current_batch = node.current_batch.saturating_add(1);
 }
 
 /// Returns the actual [U64] block number from [BlockNumber].

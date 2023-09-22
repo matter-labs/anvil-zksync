@@ -1220,6 +1220,13 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         let (keys, result, block, bytecodes) =
             self.run_l2_tx_inner(l2_tx.clone(), execution_mode)?;
+
+        if let ExecutionResult::Halt { reason } = result.result {
+            // Halt means that something went really bad with the transaction execution (in most cases invalid signature,
+            // but it could also be bootloader panic etc).
+            // In such case, we should not persist the VM data, and we should pretend that transaction never existed.
+            return Err(format!("Transaction HALT: {}", reason.to_string()));
+        }
         // Write all the mutated keys (storage slots).
         let mut inner = self
             .inner

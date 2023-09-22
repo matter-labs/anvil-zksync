@@ -11,15 +11,15 @@ categories = ["cryptography"]
 publish = false # We don't want to publish our binaries.
 
 [dependencies]
-zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era.git", rev = "a43bc402a204ac92fb74ad348b68f61e24d7a84a" }
-zksync_core = { git = "https://github.com/matter-labs/zksync-era.git", rev = "a43bc402a204ac92fb74ad348b68f61e24d7a84a" }
-vm = { git = "https://github.com/matter-labs/zksync-era.git", rev = "a43bc402a204ac92fb74ad348b68f61e24d7a84a" }
-vlog = { git = "https://github.com/matter-labs/zksync-era.git", rev = "a43bc402a204ac92fb74ad348b68f61e24d7a84a" }
-zksync_contracts = { git = "https://github.com/matter-labs/zksync-era.git", rev = "a43bc402a204ac92fb74ad348b68f61e24d7a84a" }
-zksync_types = { git = "https://github.com/matter-labs/zksync-era.git", rev = "a43bc402a204ac92fb74ad348b68f61e24d7a84a" }
-zksync_utils = { git = "https://github.com/matter-labs/zksync-era.git", rev = "a43bc402a204ac92fb74ad348b68f61e24d7a84a" }
-zksync_state = { git = "https://github.com/matter-labs/zksync-era.git", rev = "a43bc402a204ac92fb74ad348b68f61e24d7a84a" }
-zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era.git", rev = "a43bc402a204ac92fb74ad348b68f61e24d7a84a" }
+zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v7.0.0-rc0" }
+zksync_core = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v7.0.0-rc0" }
+vm = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v7.0.0-rc0" }
+vlog = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v7.0.0-rc0" }
+zksync_contracts = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v7.0.0-rc0" }
+zksync_types = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v7.0.0-rc0" }
+zksync_utils = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v7.0.0-rc0" }
+zksync_state = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v7.0.0-rc0" }
+zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v7.0.0-rc0" }
 
 
 
