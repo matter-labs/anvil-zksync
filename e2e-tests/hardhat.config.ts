@@ -2,6 +2,7 @@ import { HardhatUserConfig } from "hardhat/config";
 
 import "@matterlabs/hardhat-zksync-deploy";
 import "@matterlabs/hardhat-zksync-solc";
+import "@nomiclabs/hardhat-ethers";
 
 const config: HardhatUserConfig = {
   zksolc: {
