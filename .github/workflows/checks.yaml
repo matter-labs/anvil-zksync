@@ -29,6 +29,7 @@ jobs:
         with:
           node-version: 18.x
           cache: "yarn"
+          cache-dependency-path: 'e2e-tests/yarn.lock'
 
       - name: Run Linters
         run: make lint
