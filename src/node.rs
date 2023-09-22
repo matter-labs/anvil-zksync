@@ -90,6 +90,20 @@ pub fn compute_hash(block_number: u32, tx_hash: H256) -> H256 {
     H256(keccak256(&digest))
 }
 
+pub fn create_empty_block<TX>(block_number: u32, timestamp: u64, batch: u32) -> Block<TX> {
+    let hash = compute_hash(block_number, H256::zero());
+    Block {
+        hash,
+        number: U64::from(block_number),
+        timestamp: U256::from(timestamp),
+        l1_batch_number: Some(U64::from(batch)),
+        transactions: vec![],
+        gas_used: U256::from(0),
+        gas_limit: U256::from(BLOCK_GAS_LIMIT),
+        ..Default::default()
+    }
+}
+
 /// Information about the executed transaction.
 pub struct TxExecutionInfo {
     pub tx: L2Tx,
@@ -223,10 +237,13 @@ pub struct TransactionResult {
 /// Helper struct for InMemoryNode.
 /// S - is the Source of the Fork.
 pub struct InMemoryNodeInner<S> {
-    /// Timestamp, batch number and miniblock number that will be used by the next block.
+    /// Timestamp, batch number that will be used by the next block.
     pub current_timestamp: u64,
+    /// Batch number that will be used by the next block.
     pub current_batch: u32,
-    /// The latest miniblock number.
+    /// The latest miniblock number that was already generated.
+    /// Next transaction will go to the block current_miniblock + 1
+    /// (for now, this is a different behavior than the current_batch)
     pub current_miniblock: u64,
     pub l1_gas_price: u64,
     // Map from transaction to details about the exeuction
@@ -274,10 +291,19 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             fee_account: H160::zero(),
             enforced_base_fee: None,
             first_l2_block: vm::L2BlockEnv {
-                number: self.current_miniblock as u32,
+                // the 'current_miniblock' contains the block that was already produced.
+                // So the next one should be one higher.
+                number: self.current_miniblock.saturating_add(1) as u32,
                 timestamp: self.current_timestamp,
                 prev_block_hash: last_l2_block.hash,
-                max_virtual_blocks_to_create: 10,
+                // This is only used during zksyncEra block timestamp/number transition.
+                // In case of starting a new network, it doesn't matter.
+                // In theory , when forking mainnet, we should match this value
+                // to the value that was set in the node at that time - but AFAIK
+                // we don't have any API for this - so this might result in slightly
+                // incorrect replays of transacions during the migration period, that
+                // depend on block number or timestamp.
+                max_virtual_blocks_to_create: 1,
             },
         }
     }
@@ -670,7 +696,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             InMemoryNodeInner {
                 current_timestamp: f.block_timestamp + 1,
                 current_batch: f.l1_block.0 + 1,
-                current_miniblock: f.l2_miniblock + 1,
+                current_miniblock: f.l2_miniblock,
                 l1_gas_price: f.l1_gas_price,
                 tx_results: Default::default(),
                 blocks,
@@ -701,7 +727,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             InMemoryNodeInner {
                 current_timestamp: NON_FORK_FIRST_BLOCK_TIMESTAMP,
                 current_batch: 1,
-                current_miniblock: 1,
+                current_miniblock: 0,
                 l1_gas_price: L1_GAS_PRICE,
                 tx_results: Default::default(),
                 blocks,
@@ -1296,11 +1322,28 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         inner.blocks.insert(block.hash, block);
         inner.filters.notify_new_block(block_hash);
 
+        // With the introduction of 'l2 blocks' (and virtual blocks),
+        // we are adding one l2 block at the end of each batch (to handle things like remaining events etc).
+
+        let empty_block_at_end_of_batch = create_empty_block(
+            (current_miniblock + 1) as u32,
+            inner.current_timestamp + 1,
+            inner.current_batch,
+        );
+        let empty_block_hash = empty_block_at_end_of_batch.hash;
+        inner
+            .block_hashes
+            .insert(current_miniblock + 1, empty_block_hash);
+        inner.blocks.insert(
+            empty_block_at_end_of_batch.hash,
+            empty_block_at_end_of_batch,
+        );
+        inner.filters.notify_new_block(empty_block_hash);
+
         {
-            // With the introduction of 'l2 blocks' (and virtual blocks),
-            // we are adding one l2 block at the end of each batch (to handle things like remaining events etc).
             // That's why here, we increase the batch by 1, but miniblock (and timestamp) by 2.
             // You can look at insert_fictive_l2_block function in VM to see how this fake block is inserted.
+
             inner.current_batch += 1;
             inner.current_miniblock += 2;
             inner.current_timestamp += 2;
@@ -2319,15 +2362,21 @@ mod tests {
         testing::apply_tx(&node, H256::repeat_byte(0x01));
 
         // Act
+        let latest_block = node
+            .get_block_number()
+            .await
+            .expect("Block number fetch failed");
         let fee_history = node
             .fee_history(U64::from(2), BlockNumber::Latest, vec![25.0, 50.0, 75.0])
             .await
             .expect("fee_history failed");
 
         // Assert
+        // We should receive 2 fees: from block 1 and 2.
+        assert_eq!(latest_block, U64::from(2));
         assert_eq!(
             fee_history.oldest_block,
-            web3::types::BlockNumber::Number(U64::from(0))
+            web3::types::BlockNumber::Number(U64::from(1))
         );
         assert_eq!(
             fee_history.base_fee_per_gas,
@@ -2528,15 +2577,24 @@ mod tests {
     async fn test_get_block_by_number_for_latest_block_produced_locally() {
         let node = InMemoryNode::<HttpForkSource>::default();
         testing::apply_tx(&node, H256::repeat_byte(0x01));
-        let latest_block_number = 1;
 
-        let actual_block = node
+        // The latest block, will be the 'virtual' one with 0 transactions (block 2).
+        let virtual_block = node
             .get_block_by_number(BlockNumber::Latest, true)
             .await
             .expect("failed fetching block by hash")
             .expect("no block");
 
-        assert_eq!(U64::from(latest_block_number), actual_block.number);
+        assert_eq!(U64::from(2), virtual_block.number);
+        assert_eq!(0, virtual_block.transactions.len());
+
+        let actual_block = node
+            .get_block_by_number(BlockNumber::Number(U64::from(1)), true)
+            .await
+            .expect("failed fetching block by hash")
+            .expect("no block");
+
+        assert_eq!(U64::from(1), actual_block.number);
         assert_eq!(1, actual_block.transactions.len());
     }
 
@@ -2944,7 +3002,11 @@ mod tests {
             .await
             .expect("failed getting filter changes")
         {
-            FilterChanges::Hashes(result) => assert_eq!(vec![block_hash], result),
+            FilterChanges::Hashes(result) => {
+                // Get the block hash and the virtual block hash.
+                assert_eq!(2, result.len());
+                assert_eq!(block_hash, result[0]);
+            }
             changes => panic!("unexpected filter changes: {:?}", changes),
         }
 

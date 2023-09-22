@@ -17,7 +17,10 @@ use itertools::Itertools;
 use std::str::FromStr;
 use zksync_basic_types::{H160, U64};
 use zksync_types::api::Log;
-use zksync_types::{fee::Fee, l2::L2Tx, Address, L2ChainId, Nonce, PackedEthSignature, H256, U256};
+use zksync_types::{
+    fee::Fee, l2::L2Tx, Address, L2ChainId, Nonce, PackedEthSignature, ProtocolVersionId, H256,
+    U256,
+};
 
 /// Configuration for the [MockServer]'s initial block.
 #[derive(Default, Debug, Clone)]
@@ -90,7 +93,7 @@ impl MockServer {
                       "default_aa": "0x0100038dc66b69be75ec31653c64cb931678299b9b659472772b2550b703f41c"
                     },
                     "operatorAddress": "0xfeee860e7aae671124e9a4e61139f3a5085dfeee",
-                    "protocolVersion": null
+                    "protocolVersion": ProtocolVersionId::latest(),
                   },
             }))),
         );
