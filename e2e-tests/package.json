@@ -1,5 +1,6 @@
 {
   "name": "era-test-node-e2e-tests",
+  "private": true,
   "version": "1.0.0",
   "main": "index.js",
   "author": "The Matter Labs Team <hello@matterlabs.dev>",
@@ -7,20 +8,32 @@
   "devDependencies": {
     "@matterlabs/hardhat-zksync-deploy": "^0.6.5",
     "@matterlabs/hardhat-zksync-solc": "^0.4.2",
-    "@nomiclabs/hardhat-etherscan": "^3.1.7",
     "@openzeppelin/contracts": "^4.9.3",
     "@types/chai": "^4.3.4",
     "@types/mocha": "^10.0.1",
+    "@types/node": "^18.17.12",
+    "@typescript-eslint/eslint-plugin": "latest",
+    "@typescript-eslint/parser": "latest",
     "chai": "^4.3.7",
+    "eslint": "^8.48.0",
+    "eslint-config-prettier": "^9.0.0",
     "ethers": "^5.7.2",
     "hardhat": "^2.12.4",
     "mocha": "^10.2.0",
     "mocha-multi": "^1.1.7",
+    "prettier": "^3.0.3",
     "ts-node": "^10.9.1",
     "typescript": "^4.9.4",
     "zksync-web3": "^0.14.3"
   },
   "scripts": {
-    "test": "hardhat test --network zkSyncTestnet"
+    "build": "hardhat compile",
+    "clean": "hardhat clean",
+    "fmt": "prettier --check \"**/*.{js,ts,md}\"",
+    "fmt:fix": "prettier --write \"**/*.{js,ts,md}\"",
+    "lint": "eslint . --ext .ts",
+    "lint:fix": "eslint . --fix --ext .ts",
+    "test": "hardhat test --network zkSyncTestnet",
+    "typecheck": "tsc -p . --noEmit"
   }
 }

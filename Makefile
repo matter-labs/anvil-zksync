@@ -17,6 +17,10 @@ rebuild-contracts:
 rust-build:
 	cargo build --release
 
+# Run local
+run: rust-build
+	./target/release/era_test_node run
+
 # Build the Rust project for a specific target. Primarily used for CI.
 build-%:
 	cross build --bin era_test_node --target $* --release
@@ -27,11 +31,13 @@ rust-doc:
 
 # Lint checks for Rust code
 lint:
+	cd e2e-tests && yarn && yarn lint && yarn fmt && yarn typecheck
 	cargo fmt --all -- --check
 	cargo clippy -Zunstable-options -- -D warnings --allow clippy::unwrap_used
 
 # Fix lint errors for Rust code
 lint-fix:
+	cd e2e-tests && yarn && yarn lint:fix && yarn fmt:fix
 	cargo clippy --fix
 	cargo fmt
 

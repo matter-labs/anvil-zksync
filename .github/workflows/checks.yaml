@@ -25,10 +25,13 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
 
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18.x
+          cache: "yarn"
+
       - name: Run Linters
-        run: |
-          cargo fmt --all -- --check &&
-          cargo clippy -Zunstable-options -- -D warnings --allow clippy::unwrap_used
+        run: make lint
 
   # ensures build is successful
   build:
@@ -47,6 +50,8 @@ jobs:
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
 
       - name: Build Code
         run: make all

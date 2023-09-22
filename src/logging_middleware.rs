@@ -76,7 +76,7 @@ impl Middleware<Meta> for LoggingMiddleware {
                         _ => String::default(),
                     };
 
-                    log::info!(
+                    log::debug!(
                         "{} was called {}",
                         method_call.method.cyan(),
                         truncated_params
