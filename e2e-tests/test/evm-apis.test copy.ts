@@ -1,7 +1,5 @@
 import { expect } from "chai";
-import {
-  getTestProvider,
-} from "../helpers/utils";
+import { getTestProvider } from "../helpers/utils";
 
 const provider = getTestProvider();
 
@@ -12,10 +10,7 @@ xdescribe("evm_mine", function () {
     const startingBlock = await provider.getBlock("latest");
 
     // Act
-    await provider.send(
-      "evm_mine",
-      []
-    );
+    await provider.send("evm_mine", []);
 
     // Assert
     const latestBlock = await provider.getBlock("latest");

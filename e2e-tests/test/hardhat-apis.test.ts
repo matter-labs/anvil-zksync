@@ -1,8 +1,6 @@
 import { expect } from "chai";
 import { Wallet } from "zksync-web3";
-import {
-  getTestProvider,
-} from "../helpers/utils";
+import { getTestProvider } from "../helpers/utils";
 import { RichAccounts } from "../helpers/constants";
 import { ethers } from "hardhat";
 
@@ -15,13 +13,10 @@ describe("hardhat_setBalance", function () {
     const newBalance = ethers.utils.parseEther("42");
 
     // Act
-    await provider.send(
-      "hardhat_setBalance",
-      [
-        userWallet.address,
-        newBalance._hex,
-      ]
-    );
+    await provider.send("hardhat_setBalance", [
+      userWallet.address,
+      newBalance._hex,
+    ]);
 
     // Assert
     const balance = await userWallet.getBalance();
@@ -36,13 +31,10 @@ describe("hardhat_setNonce", function () {
     const newNonce = 42;
 
     // Act
-    await provider.send(
-      "hardhat_setNonce",
-      [
-        userWallet.address,
-        ethers.utils.hexlify(newNonce),
-      ]
-    );
+    await provider.send("hardhat_setNonce", [
+      userWallet.address,
+      ethers.utils.hexlify(newNonce),
+    ]);
 
     // Assert
     const nonce = await userWallet.getNonce();
@@ -59,18 +51,21 @@ xdescribe("hardhat_mine", function () {
     const startingBlock = await provider.getBlock("latest");
 
     // Act
-    await provider.send(
-      "hardhat_mine",
-      [
-        ethers.utils.hexlify(numberOfBlocks),
-        ethers.utils.hexlify(intervalInSeconds),
-      ]
-    );
+    await provider.send("hardhat_mine", [
+      ethers.utils.hexlify(numberOfBlocks),
+      ethers.utils.hexlify(intervalInSeconds),
+    ]);
 
     // Assert
     const latestBlock = await provider.getBlock("latest");
-    expect(latestBlock.number).to.equal(startingBlock.number + numberOfBlocks, "Block number mismatch");
-    expect(latestBlock.timestamp).to.equal(startingBlock.timestamp + (numberOfBlocks * intervalInSeconds * 1000), "Timestamp mismatch");
+    expect(latestBlock.number).to.equal(
+      startingBlock.number + numberOfBlocks,
+      "Block number mismatch"
+    );
+    expect(latestBlock.timestamp).to.equal(
+      startingBlock.timestamp + numberOfBlocks * intervalInSeconds * 1000,
+      "Timestamp mismatch"
+    );
   });
 });
 
@@ -81,17 +76,10 @@ xdescribe("hardhat_impersonateAccount & hardhat_stopImpersonatingAccount", funct
     const userWallet = Wallet.createRandom().connect(provider);
     const beforeBalance = await provider.getBalance(RichAccounts[0].Account);
 
-    const actionToTransferWithoutPrivateKey = async () => {
-
-    };
-
     // Act
-    await provider.send(
-      "hardhat_impersonateAccount",
-      [
-        RichAccounts[0].Account,
-      ]
-    );
+    await provider.send("hardhat_impersonateAccount", [
+      RichAccounts[0].Account,
+    ]);
 
     const signer = await ethers.getSigner(RichAccounts[0].Account);
     const tx = {
@@ -103,7 +91,11 @@ xdescribe("hardhat_impersonateAccount & hardhat_stopImpersonatingAccount", funct
     await recieptTx.wait();
 
     // Assert
-    expect(await userWallet.getBalance()).to.equal(ethers.utils.parseEther("0.42"));
-    expect(await provider.getBalance(RichAccounts[0].Account)).to.equal(beforeBalance.sub(0.42));
+    expect(await userWallet.getBalance()).to.equal(
+      ethers.utils.parseEther("0.42")
+    );
+    expect(await provider.getBalance(RichAccounts[0].Account)).to.equal(
+      beforeBalance.sub(0.42)
+    );
   });
 });
