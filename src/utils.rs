@@ -146,7 +146,7 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
 
         let block = create_empty_block(
             node.current_miniblock as u32,
-            node.current_timestamp.into(),
+            node.current_timestamp,
             node.current_batch,
         );
 
