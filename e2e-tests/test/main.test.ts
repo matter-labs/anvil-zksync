@@ -9,6 +9,7 @@ import {
   expectThrowsAsync,
   getTestProvider,
 } from "../helpers/utils";
+import { TransactionReceipt } from "zksync-web3/build/src/types";
 
 const provider = getTestProvider();
 
@@ -53,7 +54,6 @@ describe("Greeter Smart Contract", function () {
   });
 
   it("Should produce event logs", async function () {
-    // TODO: Figure out a test for this
     const wallet = new Wallet(RichAccounts[0].PrivateKey);
     const deployer = new Deployer(hre, wallet);
 
@@ -61,10 +61,16 @@ describe("Greeter Smart Contract", function () {
 
     expect(await greeter.greet()).to.eq("Hi");
 
-    const setGreetingTx = await greeter.setGreeting("Hola, mundo!");
-    // wait until the transaction is mined
-    await setGreetingTx.wait();
+    const setGreetingTx = await greeter.setGreeting("Luke Skywalker");
+    const receipt: TransactionReceipt = await setGreetingTx.wait();
 
-    expect(await greeter.greet()).to.equal("Hola, mundo!");
+    // Validate log is created
+    expect(receipt.logs.length).to.greaterThanOrEqual(1);
+    const setGreetingLog = receipt.logs[1];
+    expect(setGreetingLog.address).to.equal(greeter.address);
+    const normalizedSetGreetingLogData = ethers.utils.toUtf8String(setGreetingLog.data)
+      .replaceAll("\u0000", "")
+      .replace(" +", "");
+    expect(normalizedSetGreetingLogData).to.equal("Greeting is being updated to Luke Skywalker");
   });
 });

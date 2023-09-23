@@ -45,5 +45,16 @@
             "preLaunchTask": "rebuild-contracts",
             "cwd": "${workspaceFolder}"
         },
+        {
+            "name": "E2E Tests",
+            "type": "node",
+            "request": "launch",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/e2e-tests",
+            "runtimeExecutable": "yarn",
+            "runtimeArgs": [
+                "test"
+            ]
+        },
     ]
 }

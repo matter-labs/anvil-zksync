@@ -21,6 +21,7 @@ xdescribe("evm_mine", function () {
   });
 });
 
+// TODO: Investigate why this fails on new node with no transactions
 describe("evm_increaseTime", function () {
   it("Should increase current timestamp of the node", async function () {
     // Arrange
