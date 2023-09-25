@@ -717,11 +717,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             let mut block_hashes = HashMap::<u64, H256>::new();
             block_hashes.insert(0, H256::zero());
             let mut blocks = HashMap::<H256, Block<TransactionVariant>>::new();
-            blocks.insert(
-                H256::zero(),
-                create_empty_block(0, 0, 1),
-            );
-            
+            blocks.insert(H256::zero(), create_empty_block(0, 0, 1));
 
             InMemoryNodeInner {
                 current_timestamp: NON_FORK_FIRST_BLOCK_TIMESTAMP,
