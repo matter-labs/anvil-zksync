@@ -426,7 +426,7 @@ impl LogBuilder {
     /// Builds the [Log] object
     pub fn build(&mut self) -> Log {
         Log {
-            address: self.address.clone().unwrap_or_default(),
+            address: self.address.unwrap_or_default(),
             topics: self.topics.clone().unwrap_or_default(),
             data: Default::default(),
             block_hash: Some(H256::zero()),
