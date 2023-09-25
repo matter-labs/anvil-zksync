@@ -68,9 +68,12 @@ describe("Greeter Smart Contract", function () {
     expect(receipt.logs.length).to.greaterThanOrEqual(1);
     const setGreetingLog = receipt.logs[1];
     expect(setGreetingLog.address).to.equal(greeter.address);
-    const normalizedSetGreetingLogData = ethers.utils.toUtf8String(setGreetingLog.data)
+    const normalizedSetGreetingLogData = ethers.utils
+      .toUtf8String(setGreetingLog.data)
       .replaceAll("\u0000", "")
       .replace(" +", "");
-    expect(normalizedSetGreetingLogData).to.equal("Greeting is being updated to Luke Skywalker");
+    expect(normalizedSetGreetingLogData).to.equal(
+      "Greeting is being updated to Luke Skywalker"
+    );
   });
 });

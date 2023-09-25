@@ -26,8 +26,11 @@ describe("evm_increaseTime", function () {
     const timeIncreaseInSeconds = 13;
     const wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
     const userWallet = Wallet.createRandom().connect(provider);
-    let expectedTimestamp: number = await provider.send("config_getCurrentTimestamp", []);
-    expectedTimestamp += (timeIncreaseInSeconds) * 1000;
+    let expectedTimestamp: number = await provider.send(
+      "config_getCurrentTimestamp",
+      []
+    );
+    expectedTimestamp += timeIncreaseInSeconds * 1000;
 
     // Act
     await provider.send("evm_increaseTime", [timeIncreaseInSeconds]);
@@ -48,7 +51,10 @@ describe("evm_setNextBlockTimestamp", function () {
   it("Should set current timestamp of the node to specific value", async function () {
     // Arrange
     const timeIncreaseInMS = 123;
-    let expectedTimestamp: number = await provider.send("config_getCurrentTimestamp", []);
+    let expectedTimestamp: number = await provider.send(
+      "config_getCurrentTimestamp",
+      []
+    );
     expectedTimestamp += timeIncreaseInMS;
     const wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
     const userWallet = Wallet.createRandom().connect(provider);
@@ -72,7 +78,10 @@ describe("evm_setTime", function () {
   it("Should set current timestamp of the node to specific value", async function () {
     // Arrange
     const timeIncreaseInMS = 123;
-    let expectedTimestamp: number = await provider.send("config_getCurrentTimestamp", []);
+    let expectedTimestamp: number = await provider.send(
+      "config_getCurrentTimestamp",
+      []
+    );
     expectedTimestamp += timeIncreaseInMS;
     const wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
     const userWallet = Wallet.createRandom().connect(provider);

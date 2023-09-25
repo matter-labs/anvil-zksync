@@ -48,7 +48,10 @@ describe("hardhat_mine", function () {
     const numberOfBlocks = 100;
     const intervalInSeconds = 60;
     const startingBlock = await provider.getBlock("latest");
-    const startingTimestamp: number = await provider.send("config_getCurrentTimestamp", []);
+    const startingTimestamp: number = await provider.send(
+      "config_getCurrentTimestamp",
+      []
+    );
 
     // Act
     await provider.send("hardhat_mine", [
@@ -63,7 +66,7 @@ describe("hardhat_mine", function () {
       "Block number mismatch"
     );
     expect(latestBlock.timestamp).to.equal(
-      startingTimestamp + ((numberOfBlocks - 1) * intervalInSeconds * 1000),
+      startingTimestamp + (numberOfBlocks - 1) * intervalInSeconds * 1000,
       "Timestamp mismatch"
     );
   });

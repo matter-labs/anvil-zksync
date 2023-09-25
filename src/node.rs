@@ -719,7 +719,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             let mut blocks = HashMap::<H256, Block<TransactionVariant>>::new();
             blocks.insert(
                 H256::zero(),
-                create_empty_block(0, NON_FORK_FIRST_BLOCK_TIMESTAMP, 1),
+                create_empty_block(0, 0, 1),
             );
             
 
@@ -2503,7 +2503,7 @@ mod tests {
             .expect("no block");
 
         assert_eq!(0, block.number.as_u64());
-        assert_eq!(H256::zero(), block.hash);
+        assert_eq!(compute_hash(0, H256::zero()), block.hash);
     }
 
     #[tokio::test]
