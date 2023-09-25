@@ -46,7 +46,7 @@ The `status` options are:
 | `ETH` | `eth_getFilterLogs` | `NOT IMPLEMENTED`<br />[GitHub Issue #41](https://github.com/matter-labs/era-test-node/issues/41) | Returns an array of all logs matching filter with given id |
 | `ETH` | `eth_getLogs` | `NOT IMPLEMENTED`<br />[GitHub Issue #40](https://github.com/matter-labs/era-test-node/issues/40) | Returns an array of all logs matching a given filter object |
 | `ETH` | `eth_getProof` | `NOT IMPLEMENTED` | Returns the details for the account at the specified address and block number, the account's Merkle proof, and the storage values for the specified storage keys with their Merkle-proofs |
-| `ETH` | `eth_getStorageAt` | `NOT IMPLEMENTED`<br />[GitHub Issue #45](https://github.com/matter-labs/era-test-node/issues/45) | Returns the value from a storage position at a given address |
+| [`ETH`](#eth-namespace) | `eth_getStorageAt`(#`eth_getstorageat) | `SUPPORTED` | Returns the value from a storage position at a given address |
 | `ETH` | `eth_getTransactionByBlockHashAndIndex` | `NOT IMPLEMENTED`<br />[GitHub Issue #46](https://github.com/matter-labs/era-test-node/issues/46) | Returns information about a transaction by block hash and transaction index position |
 | `ETH` | `eth_getTransactionByBlockNumberAndIndex` | `NOT IMPLEMENTED`<br />[GitHub Issue #47](https://github.com/matter-labs/era-test-node/issues/47) | Returns information about a transaction by block number and transaction index position |
 | [`ETH`](#eth-namespace) | [`eth_getTransactionReceipt`](#eth_gettransactionreceipt) | `SUPPORTED` | Returns the receipt of a transaction by transaction hash |
@@ -959,6 +959,36 @@ curl --request POST \
   --url http://localhost:8011/ \
   --header 'content-type: application/json' \
   --data '{"jsonrpc": "2.0","id": "1","method": "eth_syncing","params": []
+}'
+```
+
+### `eth_getStorageAt`
+
+[source](src/node.rs)
+
+Returns the value from a storage position at a given address.
+
+#### Arguments
+
++ `address: H160`
++ `position: U256`
++ `blockNumber: BlockIdVariant`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_getStorageAt",
+    "params": ["0x123456789abcdef123456789abcdef1234567890", "0x0", "latest"]
 }'
 ```
 

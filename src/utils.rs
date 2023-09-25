@@ -171,9 +171,10 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
     // build and insert new blocks
     for _ in 0..num_blocks {
         node.current_miniblock = node.current_miniblock.saturating_add(1);
+        node.current_miniblock_hash = compute_hash(node.current_miniblock as u32, H256::zero());
 
         let block = Block {
-            hash: compute_hash(node.current_miniblock as u32, H256::zero()),
+            hash: node.current_miniblock_hash,
             number: node.current_miniblock.into(),
             timestamp: node.current_timestamp.into(),
             ..Default::default()

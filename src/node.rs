@@ -58,7 +58,7 @@ use zksync_types::{
     zk_evm::{
         block_properties::BlockProperties, zkevm_opcode_defs::system_params::MAX_PUBDATA_PER_BLOCK,
     },
-    StorageKey, StorageLogQueryType, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
+    StorageKey, StorageLogQueryType, StorageValue, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
     L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT,
 };
 use zksync_utils::{
@@ -232,6 +232,8 @@ pub struct InMemoryNodeInner<S> {
     pub current_batch: u32,
     /// The latest miniblock number.
     pub current_miniblock: u64,
+    /// The latest miniblock hash.
+    pub current_miniblock_hash: H256,
     pub l1_gas_price: u64,
     // Map from transaction to details about the exeuction
     pub tx_results: HashMap<H256, TransactionResult>,
@@ -256,6 +258,9 @@ pub struct InMemoryNodeInner<S> {
     pub console_log_handler: ConsoleLogHandler,
     pub system_contracts: SystemContracts,
     pub impersonated_accounts: HashSet<Address>,
+    /// Keeps track of historical states indexed via block hash.
+    /// This is currently unbounded and may change in future to keep only the last N blocks.
+    pub previous_states: HashMap<H256, HashMap<StorageKey, StorageValue>>,
 }
 
 type L2TxResult = (
@@ -578,6 +583,22 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
     pub fn stop_impersonating_account(&mut self, address: Address) -> bool {
         self.impersonated_accounts.remove(&address)
     }
+
+    /// Archives the current state for later queries.
+    pub fn archive_state(&mut self) -> Result<(), String> {
+        self.previous_states.insert(
+            self.current_miniblock_hash,
+            self.fork_storage
+                .inner
+                .read()
+                .map_err(|err| err.to_string())?
+                .raw_storage
+                .state
+                .clone(),
+        );
+
+        Ok(())
+    }
 }
 
 fn not_implemented<T: Send + 'static>(
@@ -644,6 +665,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 current_timestamp: f.block_timestamp + 1,
                 current_batch: f.l1_block.0 + 1,
                 current_miniblock: f.l2_miniblock,
+                current_miniblock_hash: f.l2_miniblock_hash,
                 l1_gas_price: f.l1_gas_price,
                 tx_results: Default::default(),
                 blocks,
@@ -658,6 +680,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 console_log_handler: ConsoleLogHandler::default(),
                 system_contracts: SystemContracts::from_options(system_contracts_options),
                 impersonated_accounts: Default::default(),
+                previous_states: Default::default(),
             }
         } else {
             let mut block_hashes = HashMap::<u64, H256>::new();
@@ -675,6 +698,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 current_timestamp: NON_FORK_FIRST_BLOCK_TIMESTAMP,
                 current_batch: 1,
                 current_miniblock: 0,
+                current_miniblock_hash: H256::zero(),
                 l1_gas_price: L1_GAS_PRICE,
                 tx_results: Default::default(),
                 blocks,
@@ -689,6 +713,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 console_log_handler: ConsoleLogHandler::default(),
                 system_contracts: SystemContracts::from_options(system_contracts_options),
                 impersonated_accounts: Default::default(),
+                previous_states: Default::default(),
             }
         };
 
@@ -1265,11 +1290,19 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         inner.block_hashes.insert(current_miniblock, block.hash);
         inner.blocks.insert(block.hash, block);
         inner.filters.notify_new_block(block_hash);
+        if let Err(err) = inner.archive_state() {
+            log::error!(
+                "failed archiving state for block {}: {}",
+                inner.current_miniblock,
+                err
+            );
+        }
 
         {
             inner.current_timestamp += 1;
             inner.current_batch += 1;
             inner.current_miniblock = current_miniblock;
+            inner.current_miniblock_hash = block_hash;
         }
 
         Ok(())
@@ -2087,6 +2120,17 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
         })
     }
 
+    /// Returns the value from a storage position at a given address.
+    ///
+    /// # Arguments
+    ///
+    /// * `address`: Address of the storage
+    /// * `idx`: Integer of the position in the storage
+    /// * `block`: The block storage to target
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `jsonrpc_core::Result` that resolves to an optional [H256] value in the storage.
     fn get_storage(
         &self,
         address: zksync_basic_types::Address,
@@ -2103,18 +2147,65 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                 }
             };
 
-            let mut idx_bytes = [0u8; 32];
-            idx.to_big_endian(&mut idx_bytes);
+            let storage_key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(idx));
 
-            let mut bytes = [0_u8; 64];
-            bytes[..32].copy_from_slice(address.as_bytes());
-            bytes[32..].copy_from_slice(idx_bytes.as_slice());
-            let key = H256(keccak256(&bytes));
+            let block_number = block
+                .map(|block| match block {
+                    zksync_types::api::BlockIdVariant::BlockNumber(block_number) => {
+                        Ok(utils::to_real_block_number(
+                            block_number,
+                            U64::from(reader.current_miniblock),
+                        ))
+                    }
+                    zksync_types::api::BlockIdVariant::BlockNumberObject(o) => {
+                        Ok(utils::to_real_block_number(
+                            o.block_number,
+                            U64::from(reader.current_miniblock),
+                        ))
+                    }
+                    zksync_types::api::BlockIdVariant::BlockHashObject(o) => reader
+                        .blocks
+                        .get(&o.block_hash)
+                        .map(|block| block.number)
+                        .ok_or_else(|| {
+                            log::error!("unable to map block number to hash #{:#x}", o.block_hash);
+                            return into_jsrpc_error(Web3Error::InternalError);
+                        }),
+                })
+                .unwrap_or(Ok(U64::from(reader.current_miniblock)))?;
 
-            let storage_key =
-                StorageKey::new(AccountTreeId::new(ACCOUNT_CODE_STORAGE_ADDRESS), key);
-
-            Ok(H256(reader.fork_storage.read_value(&storage_key).0))
+            if block_number.as_u64() == reader.current_miniblock {
+                Ok(H256(reader.fork_storage.read_value(&storage_key).0))
+            } else if reader.block_hashes.contains_key(&block_number.as_u64()) {
+                reader
+                    .block_hashes
+                    .get(&block_number.as_u64())
+                    .and_then(|block_hash| reader.previous_states.get(block_hash))
+                    .and_then(|state| state.get(&storage_key))
+                    .cloned()
+                    .ok_or_else(|| {
+                        log::error!("unable to get storage for block number {}", block_number);
+                        return into_jsrpc_error(Web3Error::InternalError);
+                    })
+            } else {
+                reader
+                    .fork_storage
+                    .inner
+                    .read()
+                    .expect("failed reading fork storage")
+                    .fork
+                    .as_ref()
+                    .and_then(|fork| fork.fork_source.get_storage_at(address, idx, block).ok())
+                    .ok_or_else(|| {
+                        log::error!(
+                            "unable to get storage at address {:?}, index {:?} for block {:?}",
+                            address,
+                            idx,
+                            block
+                        );
+                        return into_jsrpc_error(Web3Error::InternalError);
+                    })
+            }
         })
     }
 
@@ -2248,7 +2339,10 @@ mod tests {
         node::InMemoryNode,
         testing::{self, ForkBlockConfig, MockServer},
     };
-    use zksync_types::api::BlockNumber;
+    use zksync_types::{
+        api::{BlockHashObject, BlockNumber},
+        utils::deployed_address_create,
+    };
     use zksync_web3_decl::types::SyncState;
 
     use super::*;
@@ -3008,5 +3102,92 @@ mod tests {
             FilterChanges::Empty(_) => (),
             changes => panic!("expected no changes in the second call, got {:?}", changes),
         }
+    }
+
+    #[tokio::test]
+    async fn test_get_storage_fetches_state_for_deployed_smart_contract_in_current_block() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let private_key = H256::repeat_byte(0xef);
+        let from_account = zksync_types::PackedEthSignature::address_from_private_key(&private_key)
+            .expect("failed generating address");
+        node.set_rich_account(from_account);
+
+        let deployed_address = deployed_address_create(from_account, U256::zero());
+
+        testing::deploy_contract(
+            &node,
+            H256::repeat_byte(0x1),
+            private_key,
+            hex::decode(testing::STORAGE_CONTRACT_BYTECODE).unwrap(),
+        );
+
+        let number1 = node
+            .get_storage(deployed_address, U256::from(0), None)
+            .await
+            .expect("failed retrieving storage at slot 0");
+        assert_eq!(U256::from(1024), h256_to_u256(number1));
+
+        let number2 = node
+            .get_storage(deployed_address, U256::from(1), None)
+            .await
+            .expect("failed retrieving storage at slot 1");
+        assert_eq!(U256::MAX, h256_to_u256(number2));
+    }
+
+    #[tokio::test]
+    async fn test_get_storage_fetches_state_for_deployed_smart_contract_in_old_block() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let private_key = H256::repeat_byte(0xef);
+        let from_account = zksync_types::PackedEthSignature::address_from_private_key(&private_key)
+            .expect("failed generating address");
+        node.set_rich_account(from_account);
+
+        let deployed_address = deployed_address_create(from_account, U256::zero());
+
+        let initial_block_hash = testing::deploy_contract(
+            &node,
+            H256::repeat_byte(0x1),
+            private_key,
+            hex::decode(testing::STORAGE_CONTRACT_BYTECODE).unwrap(),
+        );
+
+        // simulate a tx modifying the storage
+        testing::apply_tx(&node, H256::repeat_byte(0x2));
+        let key = StorageKey::new(
+            AccountTreeId::new(deployed_address),
+            u256_to_h256(U256::from(0)),
+        );
+        node.inner
+            .write()
+            .unwrap()
+            .fork_storage
+            .inner
+            .write()
+            .unwrap()
+            .raw_storage
+            .state
+            .insert(key, u256_to_h256(U256::from(512)));
+
+        let number1_current = node
+            .get_storage(deployed_address, U256::from(0), None)
+            .await
+            .expect("failed retrieving storage at slot 0");
+        assert_eq!(U256::from(512), h256_to_u256(number1_current));
+
+        let number1_old = node
+            .get_storage(
+                deployed_address,
+                U256::from(0),
+                Some(zksync_types::api::BlockIdVariant::BlockHashObject(
+                    BlockHashObject {
+                        block_hash: initial_block_hash,
+                    },
+                )),
+            )
+            .await
+            .expect("failed retrieving storage at slot 0");
+        assert_eq!(U256::from(1024), h256_to_u256(number1_old));
     }
 }
