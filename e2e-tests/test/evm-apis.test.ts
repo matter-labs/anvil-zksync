@@ -6,8 +6,7 @@ import { ethers } from "ethers";
 
 const provider = getTestProvider();
 
-// TODO: Investigate why deploying a smart contract after this crashes the bootloader/VM
-xdescribe("evm_mine", function () {
+describe("evm_mine", function () {
   it("Should mine one block", async function () {
     // Arrange
     const startingBlock = await provider.getBlock("latest");
@@ -21,15 +20,14 @@ xdescribe("evm_mine", function () {
   });
 });
 
-// TODO: Investigate why this fails on new node with no transactions
 describe("evm_increaseTime", function () {
   it("Should increase current timestamp of the node", async function () {
     // Arrange
     const timeIncreaseInSeconds = 13;
-    let expectedTimestamp = (await provider.getBlock("latest")).timestamp;
-    expectedTimestamp += timeIncreaseInSeconds * 1000;
     const wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
     const userWallet = Wallet.createRandom().connect(provider);
+    let expectedTimestamp: number = await provider.send("config_getCurrentTimestamp", []);
+    expectedTimestamp += (timeIncreaseInSeconds) * 1000;
 
     // Act
     await provider.send("evm_increaseTime", [timeIncreaseInSeconds]);
@@ -38,11 +36,11 @@ describe("evm_increaseTime", function () {
       to: userWallet.address,
       value: ethers.utils.parseEther("0.1"),
     });
-    expectedTimestamp += 1; // New transaction will increase timestamp by 1
+    expectedTimestamp += 1; // New transaction will add a second block
 
     // Assert
-    const currentBlockTimestamp = (await provider.getBlock("latest")).timestamp;
-    expect(currentBlockTimestamp).to.equal(expectedTimestamp);
+    const newBlockTimestamp = (await provider.getBlock("latest")).timestamp;
+    expect(newBlockTimestamp).to.equal(expectedTimestamp);
   });
 });
 
@@ -50,22 +48,23 @@ describe("evm_setNextBlockTimestamp", function () {
   it("Should set current timestamp of the node to specific value", async function () {
     // Arrange
     const timeIncreaseInMS = 123;
-    let newTimestamp = (await provider.getBlock("latest")).timestamp;
-    newTimestamp += timeIncreaseInMS;
+    let expectedTimestamp: number = await provider.send("config_getCurrentTimestamp", []);
+    expectedTimestamp += timeIncreaseInMS;
     const wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
     const userWallet = Wallet.createRandom().connect(provider);
 
     // Act
-    await provider.send("evm_setNextBlockTimestamp", [newTimestamp]);
+    await provider.send("evm_setNextBlockTimestamp", [expectedTimestamp]);
 
     await wallet.sendTransaction({
       to: userWallet.address,
       value: ethers.utils.parseEther("0.1"),
     });
+    expectedTimestamp += 1; // New transaction will add a second block
 
     // Assert
-    const currentBlockTimestamp = (await provider.getBlock("latest")).timestamp;
-    expect(currentBlockTimestamp).to.equal(newTimestamp);
+    const newBlockTimestamp = (await provider.getBlock("latest")).timestamp;
+    expect(newBlockTimestamp).to.equal(expectedTimestamp);
   });
 });
 
@@ -73,21 +72,22 @@ describe("evm_setTime", function () {
   it("Should set current timestamp of the node to specific value", async function () {
     // Arrange
     const timeIncreaseInMS = 123;
-    let newTimestamp = (await provider.getBlock("latest")).timestamp;
-    newTimestamp += timeIncreaseInMS;
+    let expectedTimestamp: number = await provider.send("config_getCurrentTimestamp", []);
+    expectedTimestamp += timeIncreaseInMS;
     const wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
     const userWallet = Wallet.createRandom().connect(provider);
 
     // Act
-    await provider.send("evm_setTime", [newTimestamp]);
+    await provider.send("evm_setTime", [expectedTimestamp]);
 
     await wallet.sendTransaction({
       to: userWallet.address,
       value: ethers.utils.parseEther("0.1"),
     });
+    expectedTimestamp += 1; // New transaction will add a second block
 
     // Assert
-    const currentBlockTimestamp = (await provider.getBlock("latest")).timestamp;
-    expect(currentBlockTimestamp).to.equal(newTimestamp);
+    const newBlockTimestamp = (await provider.getBlock("latest")).timestamp;
+    expect(newBlockTimestamp).to.equal(expectedTimestamp);
   });
 });

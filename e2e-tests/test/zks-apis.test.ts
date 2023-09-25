@@ -30,25 +30,29 @@ describe("zks_estimateFee", function () {
 
     // Assert
     expect(
-      ethers.BigNumber.from(response.gas_limit).eq(
-        ethers.BigNumber.from("1228893")
-      )
-    ).to.true;
+      ethers.BigNumber.from(response.gas_limit)
+    ).to.eql(
+      ethers.BigNumber.from("1233024"),
+      "Unexpected gas_limit"
+    );
     expect(
-      ethers.BigNumber.from(response.gas_per_pubdata_limit).eq(
-        ethers.BigNumber.from("4080")
-      )
-    ).to.true;
+      ethers.BigNumber.from(response.gas_per_pubdata_limit)
+    ).to.eql(
+      ethers.BigNumber.from("4080"),
+      "Unexpected gas_per_pubdata_limit"
+    );
     expect(
-      ethers.BigNumber.from(response.max_fee_per_gas).eq(
-        ethers.BigNumber.from("250000000")
-      )
-    ).to.true;
+      ethers.BigNumber.from(response.max_fee_per_gas)
+    ).to.eql(
+      ethers.BigNumber.from("250000000"),
+      "Unexpected max_fee_per_gas"
+    );
     expect(
-      ethers.BigNumber.from(response.max_priority_fee_per_gas).eq(
-        ethers.BigNumber.from("0")
-      )
-    ).to.true;
+      ethers.BigNumber.from(response.max_priority_fee_per_gas)
+    ).to.eql(
+      ethers.BigNumber.from("0"),
+      "Unexpected max_priority_fee_per_gas"
+    );
   });
 });
 

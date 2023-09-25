@@ -719,11 +719,9 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             let mut blocks = HashMap::<H256, Block<TransactionVariant>>::new();
             blocks.insert(
                 H256::zero(),
-                Block::<TransactionVariant> {
-                    gas_limit: U256::from(ETH_CALL_GAS_LIMIT),
-                    ..Default::default()
-                },
+                create_empty_block(0, NON_FORK_FIRST_BLOCK_TIMESTAMP, 1),
             );
+            
 
             InMemoryNodeInner {
                 current_timestamp: NON_FORK_FIRST_BLOCK_TIMESTAMP,

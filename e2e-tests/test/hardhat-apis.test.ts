@@ -42,13 +42,13 @@ describe("hardhat_setNonce", function () {
   });
 });
 
-// TODO: Investigate why deploying a smart contract after this crashes the bootloader/VM
-xdescribe("hardhat_mine", function () {
+describe("hardhat_mine", function () {
   it("Should mine multiple blocks with a given interval", async function () {
     // Arrange
-    const numberOfBlocks = 10;
-    const intervalInSeconds = 1000;
+    const numberOfBlocks = 100;
+    const intervalInSeconds = 60;
     const startingBlock = await provider.getBlock("latest");
+    const startingTimestamp: number = await provider.send("config_getCurrentTimestamp", []);
 
     // Act
     await provider.send("hardhat_mine", [
@@ -63,7 +63,7 @@ xdescribe("hardhat_mine", function () {
       "Block number mismatch"
     );
     expect(latestBlock.timestamp).to.equal(
-      startingBlock.timestamp + numberOfBlocks * intervalInSeconds * 1000,
+      startingTimestamp + ((numberOfBlocks - 1) * intervalInSeconds * 1000),
       "Timestamp mismatch"
     );
   });
