@@ -1,14 +1,13 @@
 //! In-memory node, that supports forking other networks.
 use crate::{
-    bootloader_debug::BootloaderDebug,
+    bootloader_debug::{BootloaderDebug, BootloaderDebugTracer},
     console_log::ConsoleLogHandler,
     filters::{EthFilters, FilterType, LogFilter},
     fork::{ForkDetails, ForkSource, ForkStorage},
     formatter,
     system_contracts::{self, Options, SystemContracts},
     utils::{
-        self, adjust_l1_gas_price_for_tx, derive_gas_estimation_overhead, to_human_size,
-        IntoBoxedFuture,
+        self, adjust_l1_gas_price_for_tx, bytecode_to_factory_dep, to_human_size, IntoBoxedFuture,
     },
 };
 use clap::Parser;
@@ -17,6 +16,7 @@ use core::fmt::Display;
 use futures::FutureExt;
 use itertools::Itertools;
 use jsonrpc_core::BoxFuture;
+use once_cell::sync::OnceCell;
 use std::{
     cmp::{self},
     collections::{HashMap, HashSet},
@@ -25,42 +25,38 @@ use std::{
 };
 
 use vm::{
-    utils::{BLOCK_GAS_LIMIT, ETH_CALL_GAS_LIMIT},
-    vm::VmTxExecutionResult,
-    vm_with_bootloader::{
-        derive_base_fee_and_gas_per_pubdata, init_vm_inner, push_transaction_to_bootloader_memory,
-        BlockContext, BlockContextMode, BootloaderJobType, DerivedBlockContext, TxExecutionMode,
-        BLOCK_OVERHEAD_PUBDATA,
+    constants::{
+        BLOCK_GAS_LIMIT, BLOCK_OVERHEAD_PUBDATA, ETH_CALL_GAS_LIMIT, MAX_PUBDATA_PER_BLOCK,
     },
-    HistoryDisabled, HistoryEnabled, HistoryMode, OracleTools, TxRevertReason, VmBlockResult,
-    VmInstance,
+    utils::{
+        fee::derive_base_fee_and_gas_per_pubdata,
+        l2_blocks::load_last_l2_block,
+        overhead::{derive_overhead, OverheadCoeficients},
+    },
+    CallTracer, ExecutionResult, HistoryDisabled, L1BatchEnv, SystemEnv, TxExecutionMode, Vm,
+    VmExecutionResultAndLogs, VmTracer,
 };
 use zksync_basic_types::{
     web3::{self, signing::keccak256},
-    AccountTreeId, Address, Bytes, H160, H256, U256, U64,
+    AccountTreeId, Address, Bytes, L1BatchNumber, H160, H256, U256, U64,
 };
 use zksync_contracts::BaseSystemContracts;
 use zksync_core::api_server::web3::backend_jsonrpc::{
     error::into_jsrpc_error, namespaces::eth::EthNamespaceT,
 };
-use zksync_state::{ReadStorage, StorageView, WriteStorage};
+use zksync_state::{ReadStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_types::{
     api::{Block, Log, TransactionReceipt, TransactionVariant},
     fee::Fee,
     get_code_key, get_nonce_key,
     l2::L2Tx,
     transaction_request::TransactionRequest,
-    tx::tx_execution_info::TxExecutionStatus,
     utils::{
         decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance,
         storage_key_for_standard_token_balance,
     },
-    vm_trace::VmTrace,
-    zk_evm::{
-        block_properties::BlockProperties, zkevm_opcode_defs::system_params::MAX_PUBDATA_PER_BLOCK,
-    },
-    StorageKey, StorageLogQueryType, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
-    L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT,
+    PackedEthSignature, StorageKey, StorageLogQueryType, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
+    EIP_712_TX_TYPE, L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT,
 };
 use zksync_utils::{
     bytecode::{compress_bytecode, hash_bytecode},
@@ -95,13 +91,27 @@ pub fn compute_hash(block_number: u32, tx_hash: H256) -> H256 {
     H256(keccak256(&digest))
 }
 
+pub fn create_empty_block<TX>(block_number: u32, timestamp: u64, batch: u32) -> Block<TX> {
+    let hash = compute_hash(block_number, H256::zero());
+    Block {
+        hash,
+        number: U64::from(block_number),
+        timestamp: U256::from(timestamp),
+        l1_batch_number: Some(U64::from(batch)),
+        transactions: vec![],
+        gas_used: U256::from(0),
+        gas_limit: U256::from(BLOCK_GAS_LIMIT),
+        ..Default::default()
+    }
+}
+
 /// Information about the executed transaction.
 pub struct TxExecutionInfo {
     pub tx: L2Tx,
     // Batch number where transaction was executed.
     pub batch_number: u32,
     pub miniblock_number: u64,
-    pub result: VmTxExecutionResult,
+    pub result: VmExecutionResultAndLogs,
 }
 
 #[derive(Debug, clap::Parser, Clone, clap::ValueEnum, PartialEq, Eq)]
@@ -228,10 +238,13 @@ pub struct TransactionResult {
 /// Helper struct for InMemoryNode.
 /// S - is the Source of the Fork.
 pub struct InMemoryNodeInner<S> {
-    /// Timestamp, batch number and miniblock number that will be used by the next block.
+    /// Timestamp, batch number that will be used by the next block.
     pub current_timestamp: u64,
+    /// Batch number that will be used by the next block.
     pub current_batch: u32,
-    /// The latest miniblock number.
+    /// The latest miniblock number that was already generated.
+    /// Next transaction will go to the block current_miniblock + 1
+    /// (for now, this is a different behavior than the current_batch)
     pub current_miniblock: u64,
     pub l1_gas_price: u64,
     // Map from transaction to details about the exeuction
@@ -261,26 +274,55 @@ pub struct InMemoryNodeInner<S> {
 
 type L2TxResult = (
     HashMap<StorageKey, H256>,
-    VmTxExecutionResult,
+    VmExecutionResultAndLogs,
     Block<TransactionVariant>,
     HashMap<U256, Vec<U256>>,
 );
 
 impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
-    pub fn create_block_context(&self) -> BlockContext {
-        BlockContext {
-            block_number: self.current_batch,
-            block_timestamp: self.current_timestamp,
+    pub fn create_l1_batch_env<ST: ReadStorage>(&self, storage: StoragePtr<ST>) -> L1BatchEnv {
+        let last_l2_block = load_last_l2_block(storage);
+        L1BatchEnv {
+            // TODO: set the previous batch hash properly (take from fork, when forking, and from local storage, when this is not the first block).
+            previous_batch_hash: None,
+            number: L1BatchNumber::from(self.current_batch),
+            timestamp: self.current_timestamp,
             l1_gas_price: self.l1_gas_price,
             fair_l2_gas_price: L2_GAS_PRICE,
-            operator_address: H160::zero(),
+            fee_account: H160::zero(),
+            enforced_base_fee: None,
+            first_l2_block: vm::L2BlockEnv {
+                // the 'current_miniblock' contains the block that was already produced.
+                // So the next one should be one higher.
+                number: self.current_miniblock.saturating_add(1) as u32,
+                timestamp: self.current_timestamp,
+                prev_block_hash: last_l2_block.hash,
+                // This is only used during zksyncEra block timestamp/number transition.
+                // In case of starting a new network, it doesn't matter.
+                // In theory , when forking mainnet, we should match this value
+                // to the value that was set in the node at that time - but AFAIK
+                // we don't have any API for this - so this might result in slightly
+                // incorrect replays of transacions during the migration period, that
+                // depend on block number or timestamp.
+                max_virtual_blocks_to_create: 1,
+            },
         }
     }
 
-    pub fn create_block_properties(contracts: &BaseSystemContracts) -> BlockProperties {
-        BlockProperties {
-            default_aa_code_hash: h256_to_u256(contracts.default_aa.hash),
-            zkporter_is_available: false,
+    pub fn create_system_env(
+        &self,
+        base_system_contracts: BaseSystemContracts,
+        execution_mode: TxExecutionMode,
+    ) -> SystemEnv {
+        SystemEnv {
+            zk_porter_available: false,
+            // TODO: when forking, we could consider taking the protocol version id from the fork itself.
+            version: zksync_types::ProtocolVersionId::latest(),
+            base_system_smart_contracts: base_system_contracts,
+            gas_limit: BLOCK_GAS_LIMIT,
+            execution_mode,
+            default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+            chain_id: self.fork_storage.chain_id,
         }
     }
 
@@ -368,7 +410,15 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         let gas_for_bytecodes_pubdata: u32 =
             pubdata_for_factory_deps * (gas_per_pubdata_byte as u32);
 
-        let block_context = self.create_block_context();
+        let storage = storage_view.to_rc_ptr();
+
+        let execution_mode = TxExecutionMode::EstimateFee;
+        let mut batch_env = self.create_l1_batch_env(storage.clone());
+        batch_env.l1_gas_price = l1_gas_price;
+        let system_env = self.create_system_env(
+            self.system_contracts.contracts_for_fee_estimate().clone(),
+            execution_mode,
+        );
 
         // We are using binary search to find the minimal values of gas_limit under which the transaction succeeds
         let mut lower_bound = 0;
@@ -383,13 +433,12 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 gas_per_pubdata_byte,
                 try_gas_limit,
                 l1_gas_price,
-                base_fee,
-                block_context,
+                batch_env.clone(),
+                system_env.clone(),
                 &self.fork_storage,
-                self.system_contracts.contracts_for_fee_estimate(),
             );
 
-            if estimate_gas_result.is_err() {
+            if estimate_gas_result.result.is_failed() {
                 lower_bound = mid + 1;
             } else {
                 upper_bound = mid;
@@ -407,20 +456,21 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             gas_per_pubdata_byte,
             suggested_gas_limit,
             l1_gas_price,
-            base_fee,
-            block_context,
+            batch_env.clone(),
+            system_env.clone(),
             &self.fork_storage,
-            self.system_contracts.contracts_for_fee_estimate(),
         );
 
-        let overhead: u32 = derive_gas_estimation_overhead(
+        let coefficients = OverheadCoeficients::from_tx_type(EIP_712_TX_TYPE);
+        let overhead: u32 = derive_overhead(
             suggested_gas_limit,
             gas_per_pubdata_byte as u32,
             tx.encoding_len(),
+            coefficients,
         );
 
-        match estimate_gas_result {
-            Err(tx_revert_reason) => {
+        match estimate_gas_result.result {
+            ExecutionResult::Revert { output } => {
                 log::info!("{}", format!("Unable to estimate gas for the request with our suggested gas limit of {}. The transaction is most likely unexecutable. Breakdown of estimation:", suggested_gas_limit + overhead).red());
                 log::info!(
                     "{}",
@@ -435,24 +485,48 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                     format!("\tGas for pubdata: {}", gas_for_bytecodes_pubdata).red()
                 );
                 log::info!("{}", format!("\tOverhead: {}", overhead).red());
-                let message = tx_revert_reason.to_string();
+                let message = output.to_string();
                 let pretty_message = format!(
                     "execution reverted{}{}",
                     if message.is_empty() { "" } else { ": " },
                     message
                 );
-                let data = match tx_revert_reason {
-                    TxRevertReason::EthCall(vm_revert_reason) => vm_revert_reason.encoded_data(),
-                    TxRevertReason::TxReverted(vm_revert_reason) => vm_revert_reason.encoded_data(),
-                    _ => vec![],
-                };
+                let data = output.encoded_data();
                 log::info!("{}", pretty_message.on_red());
                 Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
                     pretty_message,
                     data,
                 )))
             }
-            Ok(_) => {
+            ExecutionResult::Halt { reason } => {
+                log::info!("{}", format!("Unable to estimate gas for the request with our suggested gas limit of {}. The transaction is most likely unexecutable. Breakdown of estimation:", suggested_gas_limit + overhead).red());
+                log::info!(
+                    "{}",
+                    format!(
+                        "\tEstimated transaction body gas cost: {}",
+                        tx_body_gas_limit
+                    )
+                    .red()
+                );
+                log::info!(
+                    "{}",
+                    format!("\tGas for pubdata: {}", gas_for_bytecodes_pubdata).red()
+                );
+                log::info!("{}", format!("\tOverhead: {}", overhead).red());
+                let message = reason.to_string();
+                let pretty_message = format!(
+                    "execution reverted{}{}",
+                    if message.is_empty() { "" } else { ": " },
+                    message
+                );
+
+                log::info!("{}", pretty_message.on_red());
+                Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
+                    pretty_message,
+                    vec![],
+                )))
+            }
+            ExecutionResult::Success { .. } => {
                 let full_gas_limit = match tx_body_gas_limit
                     .overflowing_add(gas_for_bytecodes_pubdata + overhead)
                 {
@@ -497,76 +571,55 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         gas_per_pubdata_byte: u64,
         tx_gas_limit: u32,
         l1_gas_price: u64,
-        base_fee: u64,
-        mut block_context: BlockContext,
+        mut batch_env: L1BatchEnv,
+        system_env: SystemEnv,
         fork_storage: &ForkStorage<S>,
-        bootloader_code: &BaseSystemContracts,
-    ) -> Result<VmBlockResult, TxRevertReason> {
+    ) -> VmExecutionResultAndLogs {
         let tx: Transaction = l2_tx.clone().into();
         let l1_gas_price =
             adjust_l1_gas_price_for_tx(l1_gas_price, L2_GAS_PRICE, tx.gas_per_pubdata_byte_limit());
 
+        let coefficients = OverheadCoeficients::from_tx_type(EIP_712_TX_TYPE);
         // Set gas_limit for transaction
         let gas_limit_with_overhead = tx_gas_limit
-            + derive_gas_estimation_overhead(
+            + derive_overhead(
                 tx_gas_limit,
                 gas_per_pubdata_byte as u32,
                 tx.encoding_len(),
+                coefficients,
             );
         l2_tx.common_data.fee.gas_limit = gas_limit_with_overhead.into();
 
-        let mut storage_view = StorageView::new(fork_storage);
+        let storage = StorageView::new(fork_storage).to_rc_ptr();
 
         // The nonce needs to be updated
         let nonce = l2_tx.nonce();
         let nonce_key = get_nonce_key(&l2_tx.initiator_account());
-        let full_nonce = storage_view.read_value(&nonce_key);
+        let full_nonce = storage.borrow_mut().read_value(&nonce_key);
         let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
         let enforced_full_nonce = nonces_to_full_nonce(U256::from(nonce.0), deployment_nonce);
-        storage_view.set_value(nonce_key, u256_to_h256(enforced_full_nonce));
+        storage
+            .borrow_mut()
+            .set_value(nonce_key, u256_to_h256(enforced_full_nonce));
 
         // We need to explicitly put enough balance into the account of the users
         let payer = l2_tx.payer();
         let balance_key = storage_key_for_eth_balance(&payer);
-        let mut current_balance = h256_to_u256(storage_view.read_value(&balance_key));
+        let mut current_balance = h256_to_u256(storage.borrow_mut().read_value(&balance_key));
         let added_balance = l2_tx.common_data.fee.gas_limit * l2_tx.common_data.fee.max_fee_per_gas;
         current_balance += added_balance;
-        storage_view.set_value(balance_key, u256_to_h256(current_balance));
+        storage
+            .borrow_mut()
+            .set_value(balance_key, u256_to_h256(current_balance));
 
-        let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryDisabled);
+        batch_env.l1_gas_price = l1_gas_price;
 
-        block_context.l1_gas_price = l1_gas_price;
-        let derived_block_context = DerivedBlockContext {
-            context: block_context,
-            base_fee,
-        };
-
-        let block_properties = InMemoryNodeInner::<S>::create_block_properties(bootloader_code);
-
-        let execution_mode = TxExecutionMode::EstimateFee {
-            missed_storage_invocation_limit: 1000000,
-        };
-
-        // init vm
-        let mut vm = init_vm_inner(
-            &mut oracle_tools,
-            BlockContextMode::OverrideCurrent(derived_block_context),
-            &block_properties,
-            BLOCK_GAS_LIMIT,
-            bootloader_code,
-            execution_mode,
-        );
+        let mut vm = Vm::new(batch_env, system_env, storage, HistoryDisabled);
 
         let tx: Transaction = l2_tx.into();
+        vm.push_transaction(tx);
 
-        push_transaction_to_bootloader_memory(&mut vm, &tx, execution_mode, None);
-
-        let vm_block_result = vm.execute_till_block_end(BootloaderJobType::TransactionExecution);
-
-        match vm_block_result.full_result.revert_reason {
-            None => Ok(vm_block_result),
-            Some(revert) => Err(revert.revert_reason),
-        }
+        vm.execute(vm::VmExecutionMode::OneTx)
     }
 
     /// Sets the `impersonated_account` field of the node.
@@ -600,8 +653,8 @@ pub struct InMemoryNode<S> {
     inner: Arc<RwLock<InMemoryNodeInner<S>>>,
 }
 
-fn contract_address_from_tx_result(execution_result: &VmTxExecutionResult) -> Option<H160> {
-    for query in execution_result.result.logs.storage_logs.iter().rev() {
+fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) -> Option<H160> {
+    for query in execution_result.logs.storage_logs.iter().rev() {
         if query.log_type == StorageLogQueryType::InitialWrite
             && query.log_query.address == ACCOUNT_CODE_STORAGE_ADDRESS
         {
@@ -737,213 +790,228 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
     }
 
     /// Runs L2 'eth call' method - that doesn't commit to a block.
-    fn run_l2_call(&self, l2_tx: L2Tx) -> Result<VmBlockResult, String> {
-        let execution_mode = TxExecutionMode::EthCall {
-            missed_storage_invocation_limit: 1000000,
-        };
+    fn run_l2_call(&self, l2_tx: L2Tx) -> Result<ExecutionResult, String> {
+        let execution_mode = TxExecutionMode::EthCall;
 
         let inner = self
             .inner
             .write()
             .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
 
-        let mut storage_view = StorageView::new(&inner.fork_storage);
+        let storage = StorageView::new(&inner.fork_storage).to_rc_ptr();
 
-        let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryEnabled);
-
-        let bootloader_code = &inner.system_contracts.contacts_for_l2_call();
-
-        let block_context = inner.create_block_context();
-        let block_properties = InMemoryNodeInner::<S>::create_block_properties(bootloader_code);
+        let bootloader_code = inner.system_contracts.contacts_for_l2_call();
 
         // init vm
-        let mut vm = init_vm_inner(
-            &mut oracle_tools,
-            BlockContextMode::NewBlock(block_context.into(), Default::default()),
-            &block_properties,
-            BLOCK_GAS_LIMIT,
-            bootloader_code,
-            execution_mode,
-        );
+
+        let batch_env = inner.create_l1_batch_env(storage.clone());
+        let system_env = inner.create_system_env(bootloader_code.clone(), execution_mode);
+
+        let mut vm = Vm::new(batch_env, system_env, storage, HistoryDisabled);
+
+        let mut l2_tx = l2_tx.clone();
+        // We must inject *some* signature (otherwise bootloader code fails to generate hash).
+        if l2_tx.common_data.signature.is_empty() {
+            l2_tx.common_data.signature = PackedEthSignature::default().serialize_packed().into();
+        }
 
         let tx: Transaction = l2_tx.into();
+        vm.push_transaction(tx);
 
-        push_transaction_to_bootloader_memory(&mut vm, &tx, execution_mode, None);
+        let call_tracer_result = Arc::new(OnceCell::default());
 
-        let vm_block_result =
-            vm.execute_till_block_end_with_call_tracer(BootloaderJobType::TransactionExecution);
+        let custom_tracers =
+            vec![
+                Box::new(CallTracer::new(call_tracer_result.clone(), HistoryDisabled))
+                    as Box<dyn VmTracer<StorageView<&ForkStorage<S>>, HistoryDisabled>>,
+            ];
 
-        if let Some(revert_reason) = &vm_block_result.full_result.revert_reason {
-            log::info!("Call {} {:?}", "FAILED".red(), revert_reason.revert_reason);
-        } else {
-            log::info!("Call {}", "SUCCESS".green());
-        }
-        if let VmTrace::CallTrace(call_trace) = &vm_block_result.full_result.trace {
-            log::info!("=== Console Logs: ");
-            for call in call_trace {
-                inner.console_log_handler.handle_call_recurive(call);
+        let tx_result = vm.inspect(custom_tracers, vm::VmExecutionMode::OneTx);
+
+        let call_traces = Arc::try_unwrap(call_tracer_result)
+            .unwrap()
+            .take()
+            .unwrap_or_default();
+
+        match &tx_result.result {
+            ExecutionResult::Success { output } => {
+                log::info!("Call: {} {:?}", "SUCCESS".green(), output)
             }
-
-            log::info!("=== Call traces:");
-            for call in call_trace {
-                formatter::print_call(call, 0, &inner.show_calls, inner.resolve_hashes);
+            ExecutionResult::Revert { output } => {
+                log::info!("Call: {}: {}", "FAILED".red(), output)
             }
+            ExecutionResult::Halt { reason } => log::info!("Call: {} {}", "HALTED".red(), reason),
+        };
+
+        log::info!("=== Console Logs: ");
+        for call in &call_traces {
+            inner.console_log_handler.handle_call_recurive(call);
         }
 
-        Ok(vm_block_result)
+        log::info!("=== Call traces:");
+        for call in &call_traces {
+            formatter::print_call(call, 0, &inner.show_calls, inner.resolve_hashes);
+        }
+
+        Ok(tx_result.result)
     }
 
-    fn display_detailed_gas_info<H: HistoryMode>(
+    fn display_detailed_gas_info(
         &self,
-        vm: &VmInstance<H>,
+        bootloader_debug_result: Option<&eyre::Result<BootloaderDebug, String>>,
         spent_on_pubdata: u32,
-    ) -> eyre::Result<()> {
-        let debug = BootloaderDebug::load_from_memory(vm)?;
+    ) -> eyre::Result<(), String> {
+        if let Some(bootloader_result) = bootloader_debug_result {
+            let debug = bootloader_result.clone()?;
 
-        log::info!("┌─────────────────────────┐");
-        log::info!("│       GAS DETAILS       │");
-        log::info!("└─────────────────────────┘");
+            log::info!("┌─────────────────────────┐");
+            log::info!("│       GAS DETAILS       │");
+            log::info!("└─────────────────────────┘");
 
-        // Total amount of gas (should match tx.gas_limit).
-        let total_gas_limit = debug
-            .total_gas_limit_from_user
-            .saturating_sub(debug.reserved_gas);
+            // Total amount of gas (should match tx.gas_limit).
+            let total_gas_limit = debug
+                .total_gas_limit_from_user
+                .saturating_sub(debug.reserved_gas);
 
-        let intrinsic_gas = total_gas_limit - debug.gas_limit_after_intrinsic;
-        let gas_for_validation = debug.gas_limit_after_intrinsic - debug.gas_after_validation;
+            let intrinsic_gas = total_gas_limit - debug.gas_limit_after_intrinsic;
+            let gas_for_validation = debug.gas_limit_after_intrinsic - debug.gas_after_validation;
 
-        let gas_spent_on_compute =
-            debug.gas_spent_on_execution - debug.gas_spent_on_bytecode_preparation;
+            let gas_spent_on_compute =
+                debug.gas_spent_on_execution - debug.gas_spent_on_bytecode_preparation;
 
-        let gas_used = intrinsic_gas
-            + gas_for_validation
-            + debug.gas_spent_on_bytecode_preparation
-            + gas_spent_on_compute;
+            let gas_used = intrinsic_gas
+                + gas_for_validation
+                + debug.gas_spent_on_bytecode_preparation
+                + gas_spent_on_compute;
 
-        log::info!(
-            "Gas - Limit: {} | Used: {} | Refunded: {}",
-            to_human_size(total_gas_limit),
-            to_human_size(gas_used),
-            to_human_size(debug.refund_by_operator)
-        );
-
-        if debug.total_gas_limit_from_user != total_gas_limit {
             log::info!(
-                "{}",
-                format!(
+                "Gas - Limit: {} | Used: {} | Refunded: {}",
+                to_human_size(total_gas_limit),
+                to_human_size(gas_used),
+                to_human_size(debug.refund_by_operator)
+            );
+
+            if debug.total_gas_limit_from_user != total_gas_limit {
+                log::info!(
+                    "{}",
+                    format!(
                 "  WARNING: user actually provided more gas {}, but system had a lower max limit.",
                 to_human_size(debug.total_gas_limit_from_user)
             )
-                .yellow()
+                    .yellow()
+                );
+            }
+            if debug.refund_computed != debug.refund_by_operator {
+                log::info!(
+                    "{}",
+                    format!(
+                        "  WARNING: Refund by VM: {}, but operator refunded more: {}",
+                        to_human_size(debug.refund_computed),
+                        to_human_size(debug.refund_by_operator)
+                    )
+                    .yellow()
+                );
+            }
+
+            if debug.refund_computed + gas_used != total_gas_limit {
+                log::info!(
+                    "{}",
+                    format!(
+                        "  WARNING: Gas totals don't match. {} != {} , delta: {}",
+                        to_human_size(debug.refund_computed + gas_used),
+                        to_human_size(total_gas_limit),
+                        to_human_size(total_gas_limit.abs_diff(debug.refund_computed + gas_used))
+                    )
+                    .yellow()
+                );
+            }
+
+            let bytes_published = spent_on_pubdata / debug.gas_per_pubdata.as_u32();
+
+            log::info!(
+                "During execution published {} bytes to L1, @{} each - in total {} gas",
+                to_human_size(bytes_published.into()),
+                to_human_size(debug.gas_per_pubdata),
+                to_human_size(spent_on_pubdata.into())
             );
-        }
-        if debug.refund_computed != debug.refund_by_operator {
+
+            log::info!("Out of {} gas used, we spent:", to_human_size(gas_used));
+            log::info!(
+                "  {:>15} gas ({:>2}%) for transaction setup",
+                to_human_size(intrinsic_gas),
+                to_human_size(intrinsic_gas * 100 / gas_used)
+            );
+            log::info!(
+                "  {:>15} gas ({:>2}%) for bytecode preparation (decompression etc)",
+                to_human_size(debug.gas_spent_on_bytecode_preparation),
+                to_human_size(debug.gas_spent_on_bytecode_preparation * 100 / gas_used)
+            );
+            log::info!(
+                "  {:>15} gas ({:>2}%) for account validation",
+                to_human_size(gas_for_validation),
+                to_human_size(gas_for_validation * 100 / gas_used)
+            );
+            log::info!(
+                "  {:>15} gas ({:>2}%) for computations (opcodes)",
+                to_human_size(gas_spent_on_compute),
+                to_human_size(gas_spent_on_compute * 100 / gas_used)
+            );
+
+            log::info!("");
+            log::info!("");
             log::info!(
                 "{}",
-                format!(
-                    "  WARNING: Refund by VM: {}, but operator refunded more: {}",
-                    to_human_size(debug.refund_computed),
-                    to_human_size(debug.refund_by_operator)
-                )
-                .yellow()
+                "=== Transaction setup cost breakdown ===".to_owned().bold(),
             );
-        }
 
-        if debug.refund_computed + gas_used != total_gas_limit {
+            log::info!("Total cost: {}", to_human_size(intrinsic_gas).bold());
             log::info!(
-                "{}",
-                format!(
-                    "  WARNING: Gas totals don't match. {} != {} , delta: {}",
-                    to_human_size(debug.refund_computed + gas_used),
-                    to_human_size(total_gas_limit),
-                    to_human_size(total_gas_limit.abs_diff(debug.refund_computed + gas_used))
-                )
-                .yellow()
+                "  {:>15} gas ({:>2}%) fixed cost",
+                to_human_size(debug.intrinsic_overhead),
+                to_human_size(debug.intrinsic_overhead * 100 / intrinsic_gas)
             );
-        }
+            log::info!(
+                "  {:>15} gas ({:>2}%) operator cost",
+                to_human_size(debug.operator_overhead),
+                to_human_size(debug.operator_overhead * 100 / intrinsic_gas)
+            );
 
-        let bytes_published = spent_on_pubdata / debug.gas_per_pubdata.as_u32();
+            log::info!("");
+            log::info!(
+                "  FYI: operator could have charged up to: {}, so you got {}% discount",
+                to_human_size(debug.required_overhead),
+                to_human_size(
+                    (debug.required_overhead - debug.operator_overhead) * 100
+                        / debug.required_overhead
+                )
+            );
 
-        log::info!(
-            "During execution published {} bytes to L1, @{} each - in total {} gas",
-            to_human_size(bytes_published.into()),
-            to_human_size(debug.gas_per_pubdata),
-            to_human_size(spent_on_pubdata.into())
-        );
-
-        log::info!("Out of {} gas used, we spent:", to_human_size(gas_used));
-        log::info!(
-            "  {:>15} gas ({:>2}%) for transaction setup",
-            to_human_size(intrinsic_gas),
-            to_human_size(intrinsic_gas * 100 / gas_used)
-        );
-        log::info!(
-            "  {:>15} gas ({:>2}%) for bytecode preparation (decompression etc)",
-            to_human_size(debug.gas_spent_on_bytecode_preparation),
-            to_human_size(debug.gas_spent_on_bytecode_preparation * 100 / gas_used)
-        );
-        log::info!(
-            "  {:>15} gas ({:>2}%) for account validation",
-            to_human_size(gas_for_validation),
-            to_human_size(gas_for_validation * 100 / gas_used)
-        );
-        log::info!(
-            "  {:>15} gas ({:>2}%) for computations (opcodes)",
-            to_human_size(gas_spent_on_compute),
-            to_human_size(gas_spent_on_compute * 100 / gas_used)
-        );
-
-        log::info!("");
-        log::info!("");
-        log::info!(
-            "{}",
-            "=== Transaction setup cost breakdown ===".to_owned().bold(),
-        );
-
-        log::info!("Total cost: {}", to_human_size(intrinsic_gas).bold());
-        log::info!(
-            "  {:>15} gas ({:>2}%) fixed cost",
-            to_human_size(debug.intrinsic_overhead),
-            to_human_size(debug.intrinsic_overhead * 100 / intrinsic_gas)
-        );
-        log::info!(
-            "  {:>15} gas ({:>2}%) operator cost",
-            to_human_size(debug.operator_overhead),
-            to_human_size(debug.operator_overhead * 100 / intrinsic_gas)
-        );
-
-        log::info!("");
-        log::info!(
-            "  FYI: operator could have charged up to: {}, so you got {}% discount",
-            to_human_size(debug.required_overhead),
-            to_human_size(
-                (debug.required_overhead - debug.operator_overhead) * 100 / debug.required_overhead
-            )
-        );
-
-        let publish_block_l1_bytes = BLOCK_OVERHEAD_PUBDATA;
-        log::info!(
+            let publish_block_l1_bytes = BLOCK_OVERHEAD_PUBDATA;
+            log::info!(
             "Publishing full block costs the operator up to: {}, where {} is due to {} bytes published to L1",
             to_human_size(debug.total_overhead_for_block),
             to_human_size(debug.gas_per_pubdata * publish_block_l1_bytes),
             to_human_size(publish_block_l1_bytes.into())
         );
-        log::info!("Your transaction has contributed to filling up the block in the following way (we take the max contribution as the cost):");
-        log::info!(
-            "  Circuits overhead:{:>15} ({}% of the full block: {})",
-            to_human_size(debug.overhead_for_circuits),
-            to_human_size(debug.overhead_for_circuits * 100 / debug.total_overhead_for_block),
-            to_human_size(debug.total_overhead_for_block)
-        );
-        log::info!(
-            "  Length overhead:  {:>15}",
-            to_human_size(debug.overhead_for_length)
-        );
-        log::info!(
-            "  Slot overhead:    {:>15}",
-            to_human_size(debug.overhead_for_slot)
-        );
-        Ok(())
+            log::info!("Your transaction has contributed to filling up the block in the following way (we take the max contribution as the cost):");
+            log::info!(
+                "  Circuits overhead:{:>15} ({}% of the full block: {})",
+                to_human_size(debug.overhead_for_circuits),
+                to_human_size(debug.overhead_for_circuits * 100 / debug.total_overhead_for_block),
+                to_human_size(debug.total_overhead_for_block)
+            );
+            log::info!(
+                "  Length overhead:  {:>15}",
+                to_human_size(debug.overhead_for_length)
+            );
+            log::info!(
+                "  Slot overhead:    {:>15}",
+                to_human_size(debug.overhead_for_slot)
+            );
+            Ok(())
+        } else {
+            Err("Booloader tracer didn't finish.".to_owned())
+        }
     }
 
     /// Executes the given L2 transaction and returns all the VM logs.
@@ -957,9 +1025,9 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             .write()
             .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
 
-        let mut storage_view = StorageView::new(&inner.fork_storage);
+        let storage = StorageView::new(&inner.fork_storage).to_rc_ptr();
 
-        let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryEnabled);
+        let batch_env = inner.create_l1_batch_env(storage.clone());
 
         // if we are impersonating an account, we need to use non-verifying system contracts
         let nonverifying_contracts;
@@ -979,37 +1047,48 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 inner.system_contracts.contracts(execution_mode)
             }
         };
+        let system_env = inner.create_system_env(bootloader_code.clone(), execution_mode);
 
-        let block_context = inner.create_block_context();
-        let block_properties = InMemoryNodeInner::<S>::create_block_properties(bootloader_code);
-
-        // init vm
-        let mut vm = init_vm_inner(
-            &mut oracle_tools,
-            BlockContextMode::NewBlock(block_context.into(), Default::default()),
-            &block_properties,
-            BLOCK_GAS_LIMIT,
-            bootloader_code,
-            execution_mode,
+        let mut vm = Vm::new(
+            batch_env.clone(),
+            system_env,
+            storage.clone(),
+            HistoryDisabled,
         );
-        let spent_on_pubdata_before = vm.state.local_state.spent_pubdata_counter;
 
         let tx: Transaction = l2_tx.clone().into();
 
-        push_transaction_to_bootloader_memory(&mut vm, &tx, execution_mode, None);
-        let tx_result = vm
-            .execute_next_tx(u32::MAX, true)
-            .map_err(|e| format!("Failed to execute next transaction: {}", e))?;
+        vm.push_transaction(tx.clone());
 
-        let spent_on_pubdata = vm.state.local_state.spent_pubdata_counter - spent_on_pubdata_before;
+        let call_tracer_result = Arc::new(OnceCell::default());
+        let bootloader_debug_result = Arc::new(OnceCell::default());
+
+        let custom_tracers = vec![
+            Box::new(CallTracer::new(call_tracer_result.clone(), HistoryDisabled))
+                as Box<dyn VmTracer<StorageView<&ForkStorage<S>>, HistoryDisabled>>,
+            Box::new(BootloaderDebugTracer {
+                result: bootloader_debug_result.clone(),
+            }) as Box<dyn VmTracer<StorageView<&ForkStorage<S>>, HistoryDisabled>>,
+        ];
+
+        let tx_result = vm.inspect(custom_tracers, vm::VmExecutionMode::OneTx);
+
+        let call_traces = Arc::try_unwrap(call_tracer_result)
+            .unwrap()
+            .take()
+            .unwrap_or_default();
+
+        let spent_on_pubdata =
+            tx_result.statistics.gas_used - tx_result.statistics.computational_gas_used;
 
         log::info!("┌─────────────────────────┐");
         log::info!("│   TRANSACTION SUMMARY   │");
         log::info!("└─────────────────────────┘");
 
-        match tx_result.status {
-            TxExecutionStatus::Success => log::info!("Transaction: {}", "SUCCESS".green()),
-            TxExecutionStatus::Failure => log::info!("Transaction: {}", "FAILED".red()),
+        match &tx_result.result {
+            ExecutionResult::Success { .. } => log::info!("Transaction: {}", "SUCCESS".green()),
+            ExecutionResult::Revert { .. } => log::info!("Transaction: {}", "FAILED".red()),
+            ExecutionResult::Halt { .. } => log::info!("Transaction: {}", "HALTED".red()),
         }
 
         log::info!("Initiator: {:?}", tx.initiator_account());
@@ -1017,8 +1096,8 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         log::info!(
             "Gas - Limit: {} | Used: {} | Refunded: {}",
             to_human_size(tx.gas_limit()),
-            to_human_size(tx.gas_limit() - tx_result.gas_refunded),
-            to_human_size(tx_result.gas_refunded.into())
+            to_human_size(tx.gas_limit() - tx_result.refunds.gas_refunded),
+            to_human_size(tx_result.refunds.gas_refunded.into())
         );
 
         match inner.show_gas_details {
@@ -1027,7 +1106,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             ),
             ShowGasDetails::All => {
                 if self
-                    .display_detailed_gas_info(&vm, spent_on_pubdata)
+                    .display_detailed_gas_info(bootloader_debug_result.get(), spent_on_pubdata)
                     .is_err()
                 {
                     log::info!(
@@ -1045,7 +1124,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             log::info!("└──────────────────┘");
         }
 
-        for log_query in &tx_result.result.logs.storage_logs {
+        for log_query in &tx_result.logs.storage_logs {
             match inner.show_storage_logs {
                 ShowStorageLogs::Write => {
                     if matches!(
@@ -1068,83 +1147,61 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         }
 
         if inner.show_vm_details != ShowVMDetails::None {
-            formatter::print_vm_details(&tx_result.result);
+            formatter::print_vm_details(&tx_result);
         }
 
         log::info!("");
         log::info!("==== Console logs: ");
-        for call in &tx_result.call_traces {
+        for call in &call_traces {
             inner.console_log_handler.handle_call_recurive(call);
         }
-
         log::info!("");
         log::info!(
             "==== {} Use --show-calls flag or call config_setShowCalls to display more info.",
-            format!("{:?} call traces. ", tx_result.call_traces.len()).bold()
+            format!("{:?} call traces. ", call_traces.len()).bold()
         );
 
         if inner.show_calls != ShowCalls::None {
-            for call in &tx_result.call_traces {
+            for call in &call_traces {
                 formatter::print_call(call, 0, &inner.show_calls, inner.resolve_hashes);
             }
         }
-
         log::info!("");
         log::info!(
             "==== {}",
-            format!("{} events", tx_result.result.logs.events.len()).bold()
+            format!("{} events", tx_result.logs.events.len()).bold()
         );
-        for event in &tx_result.result.logs.events {
+        for event in &tx_result.logs.events {
             formatter::print_event(event, inner.resolve_hashes);
         }
 
-        // Compute gas details
-        let debug = BootloaderDebug::load_from_memory(&vm).map_err(|err| err.to_string())?;
-
-        // Total amount of gas (should match tx.gas_limit).
-        let gas_limit = debug
-            .total_gas_limit_from_user
-            .saturating_sub(debug.reserved_gas);
-
-        let intrinsic_gas = gas_limit - debug.gas_limit_after_intrinsic;
-        let gas_for_validation = debug.gas_limit_after_intrinsic - debug.gas_after_validation;
-
-        let gas_spent_on_compute =
-            debug.gas_spent_on_execution - debug.gas_spent_on_bytecode_preparation;
-
-        let gas_used = intrinsic_gas
-            + gas_for_validation
-            + debug.gas_spent_on_bytecode_preparation
-            + gas_spent_on_compute;
-
         // The computed block hash here will be different than that in production.
-        let hash = compute_hash(block_context.block_number, l2_tx.hash());
+        let hash = compute_hash(batch_env.number.0, l2_tx.hash());
         let block = Block {
             hash,
             number: U64::from(inner.current_miniblock.saturating_add(1)),
-            timestamp: U256::from(block_context.block_timestamp),
-            l1_batch_number: Some(U64::from(block_context.block_number)),
+            timestamp: U256::from(batch_env.timestamp),
+            l1_batch_number: Some(U64::from(batch_env.number.0)),
             transactions: vec![TransactionVariant::Full(
                 zksync_types::api::Transaction::from(l2_tx),
             )],
-            gas_used,
-            gas_limit,
+            gas_used: U256::from(tx_result.statistics.gas_used),
+            gas_limit: U256::from(BLOCK_GAS_LIMIT),
             ..Default::default()
         };
 
         log::info!("");
         log::info!("");
 
-        vm.execute_till_block_end(BootloaderJobType::BlockPostprocessing);
-
         let bytecodes = vm
-            .state
-            .decommittment_processor
-            .known_bytecodes
-            .inner()
-            .clone();
+            .get_last_tx_compressed_bytecodes()
+            .iter()
+            .map(|b| bytecode_to_factory_dep(b.original.clone()))
+            .collect();
 
-        let modified_keys = storage_view.modified_storage_keys().clone();
+        vm.execute(vm::VmExecutionMode::Bootloader);
+
+        let modified_keys = storage.borrow().modified_storage_keys().clone();
         Ok((modified_keys, tx_result, block, bytecodes))
     }
 
@@ -1164,6 +1221,13 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         let (keys, result, block, bytecodes) =
             self.run_l2_tx_inner(l2_tx.clone(), execution_mode)?;
+
+        if let ExecutionResult::Halt { reason } = result.result {
+            // Halt means that something went really bad with the transaction execution (in most cases invalid signature,
+            // but it could also be bootloader panic etc).
+            // In such case, we should not persist the VM data, and we should pretend that transaction never existed.
+            return Err(format!("Transaction HALT: {}", reason));
+        }
         // Write all the mutated keys (storage slots).
         let mut inner = self
             .inner
@@ -1189,7 +1253,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         let current_miniblock = inner.current_miniblock.saturating_add(1);
 
-        for (log_idx, event) in result.result.logs.events.iter().enumerate() {
+        for (log_idx, event) in result.logs.events.iter().enumerate() {
             inner.filters.notify_new_log(
                 &Log {
                     address: event.address,
@@ -1218,10 +1282,9 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             from: l2_tx.initiator_account(),
             to: Some(l2_tx.recipient_account()),
             cumulative_gas_used: Default::default(),
-            gas_used: Some(l2_tx.common_data.fee.gas_limit - result.gas_refunded),
+            gas_used: Some(l2_tx.common_data.fee.gas_limit - result.refunds.gas_refunded),
             contract_address: contract_address_from_tx_result(&result),
             logs: result
-                .result
                 .logs
                 .events
                 .iter()
@@ -1242,10 +1305,10 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 })
                 .collect(),
             l2_to_l1_logs: vec![],
-            status: Some(if result.status == TxExecutionStatus::Success {
-                U64::from(1)
-            } else {
+            status: Some(if result.result.is_failed() {
                 U64::from(0)
+            } else {
+                U64::from(1)
             }),
             effective_gas_price: Some(L2_GAS_PRICE.into()),
             ..Default::default()
@@ -1267,10 +1330,31 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         inner.blocks.insert(block.hash, block);
         inner.filters.notify_new_block(block_hash);
 
+        // With the introduction of 'l2 blocks' (and virtual blocks),
+        // we are adding one l2 block at the end of each batch (to handle things like remaining events etc).
+
+        let empty_block_at_end_of_batch = create_empty_block(
+            (current_miniblock + 1) as u32,
+            inner.current_timestamp + 1,
+            inner.current_batch,
+        );
+        let empty_block_hash = empty_block_at_end_of_batch.hash;
+        inner
+            .block_hashes
+            .insert(current_miniblock + 1, empty_block_hash);
+        inner.blocks.insert(
+            empty_block_at_end_of_batch.hash,
+            empty_block_at_end_of_batch,
+        );
+        inner.filters.notify_new_block(empty_block_hash);
+
         {
-            inner.current_timestamp += 1;
+            // That's why here, we increase the batch by 1, but miniblock (and timestamp) by 2.
+            // You can look at insert_fictive_l2_block function in VM to see how this fake block is inserted.
+
             inner.current_batch += 1;
-            inner.current_miniblock = current_miniblock;
+            inner.current_miniblock += 2;
+            inner.current_timestamp += 2;
         }
 
         Ok(())
@@ -1307,41 +1391,40 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                 let result = self.run_l2_call(tx);
 
                 match result {
-                    Ok(vm_block_result) => match vm_block_result.full_result.revert_reason {
-                        Some(revert) => {
-                            let message = revert.revert_reason.to_string();
+                    Ok(execution_result) => match execution_result {
+                        ExecutionResult::Success { output } => {
+                            Ok(output.into()).into_boxed_future()
+                        }
+                        ExecutionResult::Revert { output } => {
+                            let message = output.to_user_friendly_string();
                             let pretty_message = format!(
                                 "execution reverted{}{}",
                                 if message.is_empty() { "" } else { ": " },
                                 message
                             );
-                            let data = match revert.revert_reason {
-                                TxRevertReason::EthCall(vm_revert_reason) => {
-                                    vm_revert_reason.encoded_data()
-                                }
-                                TxRevertReason::TxReverted(vm_revert_reason) => {
-                                    vm_revert_reason.encoded_data()
-                                }
-                                _ => vec![],
-                            };
+
                             log::info!("{}", pretty_message.on_red());
                             Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
                                 pretty_message,
-                                data,
+                                output.encoded_data(),
                             )))
                             .into_boxed_future()
                         }
-                        None => Ok(vm_block_result
-                            .full_result
-                            .return_data
-                            .into_iter()
-                            .flat_map(|val| {
-                                let bytes: [u8; 32] = val.into();
-                                bytes.to_vec()
-                            })
-                            .collect::<Vec<_>>()
-                            .into())
-                        .into_boxed_future(),
+                        ExecutionResult::Halt { reason } => {
+                            let message = reason.to_string();
+                            let pretty_message = format!(
+                                "execution halted {}{}",
+                                if message.is_empty() { "" } else { ": " },
+                                message
+                            );
+
+                            log::info!("{}", pretty_message.on_red());
+                            Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
+                                pretty_message,
+                                vec![],
+                            )))
+                            .into_boxed_future()
+                        }
                     },
                     Err(e) => {
                         let error = Web3Error::InvalidTransactionData(
@@ -1573,7 +1656,6 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                 .tx_results
                 .get(&hash)
                 .map(|info| info.receipt.clone());
-
             Ok(receipt)
         })
     }
@@ -1738,7 +1820,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
             Ok(tx_result.and_then(|TransactionResult { info, .. }| {
                 let input_data = info.tx.common_data.input.clone().or(None)?;
 
-                let chain_id = info.tx.extract_chain_id().or(None)?;
+                let chain_id = info.tx.common_data.extract_chain_id().or(None)?;
 
                 Some(zksync_types::api::Transaction {
                     hash,
@@ -2378,15 +2460,21 @@ mod tests {
         testing::apply_tx(&node, H256::repeat_byte(0x01));
 
         // Act
+        let latest_block = node
+            .get_block_number()
+            .await
+            .expect("Block number fetch failed");
         let fee_history = node
             .fee_history(U64::from(2), BlockNumber::Latest, vec![25.0, 50.0, 75.0])
             .await
             .expect("fee_history failed");
 
         // Assert
+        // We should receive 2 fees: from block 1 and 2.
+        assert_eq!(latest_block, U64::from(2));
         assert_eq!(
             fee_history.oldest_block,
-            web3::types::BlockNumber::Number(U64::from(0))
+            web3::types::BlockNumber::Number(U64::from(1))
         );
         assert_eq!(
             fee_history.base_fee_per_gas,
@@ -2587,15 +2675,24 @@ mod tests {
     async fn test_get_block_by_number_for_latest_block_produced_locally() {
         let node = InMemoryNode::<HttpForkSource>::default();
         testing::apply_tx(&node, H256::repeat_byte(0x01));
-        let latest_block_number = 1;
 
-        let actual_block = node
+        // The latest block, will be the 'virtual' one with 0 transactions (block 2).
+        let virtual_block = node
             .get_block_by_number(BlockNumber::Latest, true)
             .await
             .expect("failed fetching block by hash")
             .expect("no block");
 
-        assert_eq!(U64::from(latest_block_number), actual_block.number);
+        assert_eq!(U64::from(2), virtual_block.number);
+        assert_eq!(0, virtual_block.transactions.len());
+
+        let actual_block = node
+            .get_block_by_number(BlockNumber::Number(U64::from(1)), true)
+            .await
+            .expect("failed fetching block by hash")
+            .expect("no block");
+
+        assert_eq!(U64::from(1), actual_block.number);
         assert_eq!(1, actual_block.transactions.len());
     }
 
@@ -3003,7 +3100,11 @@ mod tests {
             .await
             .expect("failed getting filter changes")
         {
-            FilterChanges::Hashes(result) => assert_eq!(vec![block_hash], result),
+            FilterChanges::Hashes(result) => {
+                // Get the block hash and the virtual block hash.
+                assert_eq!(2, result.len());
+                assert_eq!(block_hash, result[0]);
+            }
             changes => panic!("unexpected filter changes: {:?}", changes),
         }
 

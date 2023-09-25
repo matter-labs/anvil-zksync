@@ -328,6 +328,7 @@ mod tests {
                 value: Default::default(),
             },
             received_timestamp_ms: 0,
+            raw_bytes: None,
         }];
 
         let mut cache = Cache::new(CacheConfig::Memory);
@@ -378,6 +379,7 @@ mod tests {
                 value: Default::default(),
             },
             received_timestamp_ms: 0,
+            raw_bytes: None,
         }];
 
         let cache_dir = TempDir::new("cache-test").expect("failed creating temporary dir");
@@ -457,6 +459,7 @@ mod tests {
                 value: Default::default(),
             },
             received_timestamp_ms: 0,
+            raw_bytes: None,
         }];
 
         let cache_dir = TempDir::new("cache-test").expect("failed creating temporary dir");
