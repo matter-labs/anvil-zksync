@@ -55,14 +55,9 @@ use zksync_types::{
         decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance,
         storage_key_for_standard_token_balance,
     },
-    vm_trace::VmTrace,
-    zk_evm::{
-        block_properties::BlockProperties, zkevm_opcode_defs::system_params::MAX_PUBDATA_PER_BLOCK,
-    },
-    StorageKey, StorageLogQueryType, StorageValue, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
-    L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT,
-    PackedEthSignature, StorageKey, StorageLogQueryType, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
-    EIP_712_TX_TYPE, L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT,
+    PackedEthSignature, StorageKey, StorageLogQueryType, StorageValue, Transaction,
+    ACCOUNT_CODE_STORAGE_ADDRESS, EIP_712_TX_TYPE, L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE,
+    MAX_L2_TX_GAS_LIMIT,
 };
 use zksync_utils::{
     bytecode::{compress_bytecode, hash_bytecode},
@@ -3452,7 +3447,7 @@ mod tests {
             .expect("failed retrieving storage at slot 0");
         assert_eq!(U256::from(1024), h256_to_u256(number1_old));
     }
-    
+
     async fn test_get_filter_logs_returns_matching_logs_for_valid_id() {
         let node = InMemoryNode::<HttpForkSource>::default();
 
