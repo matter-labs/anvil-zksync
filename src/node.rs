@@ -2130,7 +2130,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
     ///
     /// # Returns
     ///
-    /// A `BoxFuture` containing a `jsonrpc_core::Result` that resolves to an optional [H256] value in the storage.
+    /// A `BoxFuture` containing a `jsonrpc_core::Result` that resolves to a [H256] value in the storage.
     fn get_storage(
         &self,
         address: zksync_basic_types::Address,
@@ -2188,6 +2188,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                         return into_jsrpc_error(Web3Error::InternalError);
                     })
             } else {
+                println!("read me {block:?}");
                 reader
                     .fork_storage
                     .inner
@@ -2340,7 +2341,7 @@ mod tests {
         testing::{self, ForkBlockConfig, MockServer},
     };
     use zksync_types::{
-        api::{BlockHashObject, BlockNumber},
+        api::{BlockHashObject, BlockNumber, BlockNumberObject},
         utils::deployed_address_create,
     };
     use zksync_web3_decl::types::SyncState;
@@ -3102,6 +3103,69 @@ mod tests {
             FilterChanges::Empty(_) => (),
             changes => panic!("expected no changes in the second call, got {:?}", changes),
         }
+    }
+
+    #[tokio::test]
+    async fn test_get_storage_fetches_zero_value_for_non_existent_key() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let value = node
+            .get_storage(H160::repeat_byte(0xf1), U256::from(1024), None)
+            .await
+            .expect("failed retrieving storage");
+        assert_eq!(H256::zero(), value);
+    }
+
+    #[tokio::test]
+    async fn test_get_storage_uses_fork_to_get_value_for_historical_block() {
+        let mock_server = MockServer::run_with_config(ForkBlockConfig {
+            number: 10,
+            transaction_count: 0,
+            hash: H256::repeat_byte(0xab),
+        });
+        let input_address = H160::repeat_byte(0x1);
+        let input_storage_value = H256::repeat_byte(0xcd);
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "eth_getStorageAt",
+                "params": [
+                    format!("{:#x}", input_address),
+                    "0x0",
+                    { "blockNumber": "0x2" },
+                ],
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "result": format!("{:#x}", input_storage_value),
+            }),
+        );
+
+        let node = InMemoryNode::<HttpForkSource>::new(
+            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
+            crate::node::ShowCalls::None,
+            ShowStorageLogs::None,
+            ShowVMDetails::None,
+            ShowGasDetails::None,
+            false,
+            &system_contracts::Options::BuiltIn,
+        );
+
+        let actual_value = node
+            .get_storage(
+                input_address,
+                U256::zero(),
+                Some(zksync_types::api::BlockIdVariant::BlockNumberObject(
+                    BlockNumberObject {
+                        block_number: BlockNumber::Number(U64::from(2)),
+                    },
+                )),
+            )
+            .await
+            .expect("failed retrieving storage");
+        assert_eq!(input_storage_value, actual_value);
     }
 
     #[tokio::test]
