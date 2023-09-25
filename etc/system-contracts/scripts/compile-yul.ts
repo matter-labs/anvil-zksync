@@ -10,7 +10,7 @@ const IS_COMPILER_PRE_RELEASE = false;
 import path from "path";
 import { getCompilersDir } from "hardhat/internal/util/global-dir";
 export async function getZksolcPath(version: string, salt: string = ""): Promise<string> {
-  return path.join(await getCompilersDir(), "zksolc", `zksolc-v${version}${salt ? "-" : ""}${salt}`);
+    return path.join(await getCompilersDir(), "zksolc", `zksolc-v${version}${salt ? "-" : ""}${salt}`);
 }
 
 async function compilerLocation(): Promise<string> {

@@ -1,6 +1,6 @@
-use vm::vm_with_bootloader::TxExecutionMode;
+use vm::TxExecutionMode;
 use zksync_contracts::{
-    read_playground_block_bootloader_bytecode, read_proved_block_bootloader_bytecode,
+    read_playground_batch_bootloader_bytecode, read_proved_batch_bootloader_bytecode,
     read_sys_contract_bytecode, read_zbin_bytecode, BaseSystemContracts, ContractLanguage,
     SystemContractCode,
 };
@@ -50,15 +50,11 @@ impl SystemContracts {
         }
     }
     pub fn contacts_for_l2_call(&self) -> &BaseSystemContracts {
-        self.contracts(TxExecutionMode::EthCall {
-            missed_storage_invocation_limit: 1,
-        })
+        self.contracts(TxExecutionMode::EthCall)
     }
 
     pub fn contracts_for_fee_estimate(&self) -> &BaseSystemContracts {
-        self.contracts(TxExecutionMode::EstimateFee {
-            missed_storage_invocation_limit: 1,
-        })
+        self.contracts(TxExecutionMode::EstimateFee)
     }
 
     pub fn contracts(&self, execution_mode: TxExecutionMode) -> &BaseSystemContracts {
@@ -67,9 +63,9 @@ impl SystemContracts {
             TxExecutionMode::VerifyExecute => &self.baseline_contracts,
             // Ignore invalid sigatures. These requests are often coming unsigned, and they keep changing the
             // gas limit - so the signatures are often not matching.
-            TxExecutionMode::EstimateFee { .. } => &self.fee_estimate_contracts,
+            TxExecutionMode::EstimateFee => &self.fee_estimate_contracts,
             // Read-only call - don't check signatures, have a lower (fixed) gas limit.
-            TxExecutionMode::EthCall { .. } => &self.playground_contracts,
+            TxExecutionMode::EthCall => &self.playground_contracts,
         }
     }
 }
@@ -115,9 +111,9 @@ fn bsc_load_with_bootloader(
 pub fn playground(options: &Options) -> BaseSystemContracts {
     let bootloader_bytecode = match options {
         Options::BuiltIn | Options::BuiltInWithoutSecurity => {
-            include_bytes!("deps/contracts/playground_block.yul.zbin").to_vec()
+            include_bytes!("deps/contracts/playground_batch.yul.zbin").to_vec()
         }
-        Options::Local => read_playground_block_bootloader_bytecode(),
+        Options::Local => read_playground_batch_bootloader_bytecode(),
     };
 
     bsc_load_with_bootloader(bootloader_bytecode, options)
@@ -149,9 +145,9 @@ pub fn fee_estimate_contracts(options: &Options) -> BaseSystemContracts {
 pub fn baseline_contracts(options: &Options) -> BaseSystemContracts {
     let bootloader_bytecode = match options {
         Options::BuiltIn | Options::BuiltInWithoutSecurity => {
-            include_bytes!("deps/contracts/proved_block.yul.zbin").to_vec()
+            include_bytes!("deps/contracts/proved_batch.yul.zbin").to_vec()
         }
-        Options::Local => read_proved_block_bootloader_bytecode(),
+        Options::Local => read_proved_batch_bootloader_bytecode(),
     };
     bsc_load_with_bootloader(bootloader_bytecode, options)
 }

@@ -10,7 +10,10 @@ use zksync_types::{
     api::{BridgeAddresses, ProtocolVersion},
     fee::Fee,
 };
-use zksync_web3_decl::error::Web3Error;
+use zksync_web3_decl::{
+    error::Web3Error,
+    types::{Filter, Log},
+};
 
 use crate::{fork::ForkSource, node::InMemoryNodeInner, utils::IntoBoxedFuture};
 use colored::Colorize;
@@ -230,6 +233,13 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<ProtocolVersion>>> {
         not_implemented!()
     }
+
+    fn get_logs_with_virtual_blocks(
+        &self,
+        _filter: Filter,
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Vec<Log>>> {
+        not_implemented!()
+    }
 }
 
 #[cfg(test)]
@@ -274,7 +284,7 @@ mod tests {
 
         let result = namespace.estimate_fee(mock_request).await.unwrap();
 
-        assert_eq!(result.gas_limit, U256::from(1083285));
+        assert_eq!(result.gas_limit, U256::from(1087416));
         assert_eq!(result.max_fee_per_gas, U256::from(250000000));
         assert_eq!(result.max_priority_fee_per_gas, U256::from(0));
         assert_eq!(result.gas_per_pubdata_limit, U256::from(4080));

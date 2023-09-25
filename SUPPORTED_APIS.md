@@ -42,9 +42,9 @@ The `status` options are:
 | [`ETH`](#eth-namespace) | [`eth_call`](#eth_call) | `SUPPORTED` | Executes a new message call immediately without creating a transaction on the block chain |
 | [`ETH`](#eth-namespace) | [`eth_sendRawTransaction`](#eth_sendrawtransaction) | `SUPPORTED` | Creates new message call transaction or a contract creation for signed transactions |
 | [`ETH`](#eth-namespace) | [`eth_getCode`](#eth_getcode) | `SUPPORTED` | Returns code at a given address |
-| [`ETH`](#eth-namespace) | [`eth_getFilterChanges`](#`eth_getFilterChanges) | `SUPPORTED` | Polling method for a filter, which returns an array of logs, block hashes, or transaction hashes, depending on the filter type, which occurred since last poll |
-| `ETH` | `eth_getFilterLogs` | `NOT IMPLEMENTED`<br />[GitHub Issue #41](https://github.com/matter-labs/era-test-node/issues/41) | Returns an array of all logs matching filter with given id |
-| `ETH` | `eth_getLogs` | `NOT IMPLEMENTED`<br />[GitHub Issue #40](https://github.com/matter-labs/era-test-node/issues/40) | Returns an array of all logs matching a given filter object |
+| [`ETH`](#eth-namespace) | [`eth_getFilterChanges`](#`eth_getfilterchanges) | `SUPPORTED` | Polling method for a filter, which returns an array of logs, block hashes, or transaction hashes, depending on the filter type, which occurred since last poll |
+| [`ETH`](#eth-namespace) | [`eth_getFilterLogs`](#eth_getfilterlogs) | `SUPPORTED` | Returns an array of all logs matching filter with given id |
+| [`ETH`](#eth-namespace) | [`eth_getLogs`](#eth_getlogs) | `SUPPORTED` | Returns an array of all logs matching a given filter object |
 | `ETH` | `eth_getProof` | `NOT IMPLEMENTED` | Returns the details for the account at the specified address and block number, the account's Merkle proof, and the storage values for the specified storage keys with their Merkle-proofs |
 | [`ETH`](#eth-namespace) | `eth_getStorageAt`(#`eth_getstorageat) | `SUPPORTED` | Returns the value from a storage position at a given address |
 | `ETH` | `eth_getTransactionByBlockHashAndIndex` | `NOT IMPLEMENTED`<br />[GitHub Issue #46](https://github.com/matter-labs/era-test-node/issues/46) | Returns information about a transaction by block hash and transaction index position |
@@ -734,6 +734,68 @@ curl --request POST \
     "id": "1",
     "method": "eth_uninstallFilter",
     "params": ["0x1"]
+}'
+```
+
+
+### `eth_getFilterLogs`
+
+[source](src/node.rs)
+
+Returns an array of all logs matching filter with given id
+
+#### Arguments
+
++ `id: U256`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_getFilterLogs",
+    "params": ["0x1"]
+}'
+```
+
+### `eth_getLogs`
+
+[source](src/node.rs)
+
+Returns an array of all logs matching a filter
+
+#### Arguments
+
++ `filter: Filter`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_getLogs",
+    "params": [{
+      "fromBlock": "0xa",
+      "toBlock": "0xff",
+      "address": "0x6b175474e89094c44da98b954eedeac495271d0f",
+      "topics": []
+    }]
 }'
 ```
 

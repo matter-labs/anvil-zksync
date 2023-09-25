@@ -250,7 +250,7 @@ mod tests {
     use std::str::FromStr;
     use zksync_basic_types::{Nonce, H256};
     use zksync_core::api_server::web3::backend_jsonrpc::namespaces::eth::EthNamespaceT;
-    use zksync_types::{api::BlockNumber, fee::Fee, l2::L2Tx};
+    use zksync_types::{api::BlockNumber, fee::Fee, l2::L2Tx, PackedEthSignature};
 
     #[tokio::test]
     async fn test_set_balance() {
@@ -401,6 +401,9 @@ mod tests {
             Default::default(),
         );
         tx.set_input(vec![], H256::random());
+        if tx.common_data.signature.is_empty() {
+            tx.common_data.signature = PackedEthSignature::default().serialize_packed().into();
+        }
 
         // try to execute the tx- should fail without signature
         assert!(node.apply_txs(vec![tx.clone()]).is_err());

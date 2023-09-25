@@ -16,7 +16,7 @@ use zksync_basic_types::{Address, L1BatchNumber, L2ChainId, MiniblockNumber, H25
 use zksync_types::{
     api::{Block, BlockIdVariant, BlockNumber, Transaction, TransactionVariant},
     l2::L2Tx,
-    StorageKey,
+    ProtocolVersionId, StorageKey,
 };
 
 use zksync_state::ReadStorage;
@@ -250,6 +250,24 @@ pub struct ForkDetails<S> {
     pub l1_gas_price: u64,
 }
 
+const SUPPORTED_VERSIONS: &[ProtocolVersionId] = &[
+    ProtocolVersionId::Version13,
+    ProtocolVersionId::Version14,
+    ProtocolVersionId::Version15,
+];
+
+pub fn supported_protocol_versions(version: ProtocolVersionId) -> bool {
+    SUPPORTED_VERSIONS.contains(&version)
+}
+
+pub fn supported_versions_to_string() -> String {
+    let versions: Vec<String> = SUPPORTED_VERSIONS
+        .iter()
+        .map(|v| format!("{:?}", v))
+        .collect();
+    versions.join(", ")
+}
+
 impl ForkDetails<HttpForkSource> {
     pub async fn from_url_and_miniblock_and_chain(
         url: &str,
@@ -282,9 +300,21 @@ impl ForkDetails<HttpForkSource> {
         let l1_batch_number = block_details.l1_batch_number;
 
         log::info!(
-            "Creating fork from {:?} L1 block: {:?} L2 block: {:?} with timestamp {:?} and L1 gas price {:?}",
-            url, l1_batch_number, miniblock, block_details.base.timestamp, block_details.base.l1_gas_price,
+            "Creating fork from {:?} L1 block: {:?} L2 block: {:?} with timestamp {:?}, L1 gas price {:?} and protocol version: {:?}" ,
+            url, l1_batch_number, miniblock, block_details.base.timestamp, block_details.base.l1_gas_price, block_details.protocol_version
         );
+
+        if !block_details
+            .protocol_version
+            .map(supported_protocol_versions)
+            .unwrap_or(false)
+        {
+            panic!(
+                "This block is using the unsupported protocol version: {:?}. This binary supports versions {}.",
+                block_details.protocol_version,
+                supported_versions_to_string()
+            );
+        }
 
         ForkDetails {
             fork_source: HttpForkSource::new(url.to_owned(), cache_config),
