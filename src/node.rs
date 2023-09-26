@@ -86,12 +86,12 @@ pub const ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION: u32 = 1_000;
 /// The factor by which to scale the gasLimit.
 pub const ESTIMATE_GAS_SCALE_FACTOR: f32 = 1.3;
 
-pub fn compute_hash(block_number: u32, tx_hash: H256) -> H256 {
+pub fn compute_hash(block_number: u64, tx_hash: H256) -> H256 {
     let digest = [&block_number.to_be_bytes()[..], tx_hash.as_bytes()].concat();
     H256(keccak256(&digest))
 }
 
-pub fn create_empty_block<TX>(block_number: u32, timestamp: u64, batch: u32) -> Block<TX> {
+pub fn create_empty_block<TX>(block_number: u64, timestamp: u64, batch: u32) -> Block<TX> {
     let hash = compute_hash(block_number, H256::zero());
     Block {
         hash,
@@ -426,7 +426,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         let storage = storage_view.to_rc_ptr();
 
         let execution_mode = TxExecutionMode::EstimateFee;
-        let (mut batch_env, next_block) = self.create_l1_batch_env(storage.clone());
+        let (mut batch_env, _) = self.create_l1_batch_env(storage.clone());
         batch_env.l1_gas_price = l1_gas_price;
         let system_env = self.create_system_env(
             self.system_contracts.contracts_for_fee_estimate().clone(),
@@ -1190,7 +1190,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         }
 
         // The computed block hash here will be different than that in production.
-        let hash = compute_hash(batch_env.number.0, l2_tx.hash());
+        let hash = compute_hash(next_block.miniblock, l2_tx.hash());
         let block = Block {
             hash,
             number: U64::from(next_block.miniblock),
@@ -1342,11 +1342,8 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         // we are adding one l2 block at the end of each batch (to handle things like remaining events etc).
         //  You can look at insert_fictive_l2_block function in VM to see how this fake block is inserted.
         let next_block = next_block.new_block();
-        let empty_block_at_end_of_batch = create_empty_block(
-            next_block.miniblock as u32,
-            next_block.timestamp,
-            next_block.batch,
-        );
+        let empty_block_at_end_of_batch =
+            create_empty_block(next_block.miniblock, next_block.timestamp, next_block.batch);
 
         let new_batch = inner.current_batch.saturating_add(1);
         let mut current_miniblock = inner.current_miniblock;

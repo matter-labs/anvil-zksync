@@ -147,11 +147,8 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
             )
         }
 
-        let block = create_empty_block(
-            next_block.miniblock as u32,
-            next_block.timestamp,
-            next_block.batch,
-        );
+        let block =
+            create_empty_block(next_block.miniblock, next_block.timestamp, next_block.batch);
 
         node.block_hashes.insert(block.number.as_u64(), block.hash);
         node.blocks.insert(block.hash, block);
