@@ -11,6 +11,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18.x
+          cache: "yarn"
+          cache-dependency-path: 'e2e-tests/yarn.lock'
+
       - name: Download artifacts
         uses: actions/download-artifact@v3
         with:
@@ -23,7 +29,7 @@ jobs:
           tar -xzf era_test_node-ubuntu-latest.tar.gz
           chmod +x era_test_node
           echo "Starting node in background"
-          ./era_test_node run 2>&1 | tee era_test_node_ouput.log &
+          ./era_test_node run 2>&1 | tee era_test_node_output.log &
           echo "PID=$!" >> $GITHUB_ENV
 
       - name: Launch tests
@@ -36,5 +42,5 @@ jobs:
         id: stop_node
         if: always()
         run: |
-          cat era_test_node_ouput.log
+          cat era_test_node_output.log
           kill $PID

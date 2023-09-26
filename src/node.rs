@@ -741,13 +741,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             let mut block_hashes = HashMap::<u64, H256>::new();
             block_hashes.insert(0, H256::zero());
             let mut blocks = HashMap::<H256, Block<TransactionVariant>>::new();
-            blocks.insert(
-                H256::zero(),
-                Block::<TransactionVariant> {
-                    gas_limit: U256::from(ETH_CALL_GAS_LIMIT),
-                    ..Default::default()
-                },
-            );
+            blocks.insert(H256::zero(), create_empty_block(0, 0, 1));
 
             InMemoryNodeInner {
                 current_timestamp: NON_FORK_FIRST_BLOCK_TIMESTAMP,
@@ -2622,7 +2616,7 @@ mod tests {
             .expect("no block");
 
         assert_eq!(0, block.number.as_u64());
-        assert_eq!(H256::zero(), block.hash);
+        assert_eq!(compute_hash(0, H256::zero()), block.hash);
     }
 
     #[tokio::test]
