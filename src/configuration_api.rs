@@ -34,6 +34,13 @@ pub trait ConfigurationApiNamespaceT {
     #[rpc(name = "config_getShowCalls", returns = "String")]
     fn config_get_show_calls(&self) -> Result<String>;
 
+    /// Get the InMemoryNodeInner's current_timestamp property
+    ///
+    /// # Returns
+    /// The current `current_timestamp` value for the InMemoryNodeInner.
+    #[rpc(name = "config_getCurrentTimestamp", returns = "u64")]
+    fn config_get_current_timestamp(&self) -> Result<u64>;
+
     /// Set show_calls for the InMemoryNodeInner
     ///
     /// # Parameters
@@ -91,6 +98,11 @@ impl<S: std::marker::Send + std::marker::Sync + 'static> ConfigurationApiNamespa
     fn config_get_show_calls(&self) -> Result<String> {
         let reader = self.node.read().unwrap();
         Ok(reader.show_calls.to_string())
+    }
+
+    fn config_get_current_timestamp(&self) -> Result<u64> {
+        let reader = self.node.read().unwrap();
+        Ok(reader.current_timestamp)
     }
 
     fn config_set_show_calls(&self, value: String) -> Result<String> {
