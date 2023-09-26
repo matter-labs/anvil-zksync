@@ -9,7 +9,7 @@ import {
   expectThrowsAsync,
   getTestProvider,
 } from "../helpers/utils";
-import { TransactionReceipt } from "zksync-web3/build/src/types";
+import { Log, TransactionReceipt } from "zksync-web3/build/src/types";
 
 const provider = getTestProvider();
 
@@ -74,6 +74,48 @@ describe("Greeter Smart Contract", function () {
       .replace(" +", "");
     expect(normalizedSetGreetingLogData).to.equal(
       "Greeting is being updated to Luke Skywalker"
+    );
+  });
+
+  it("Should filter event logs", async function () {
+    const wallet = new Wallet(RichAccounts[0].PrivateKey);
+    const deployer = new Deployer(hre, wallet);
+    const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
+    expect(await greeter.greet()).to.eq("Hi");
+
+    const setGreetingTx = await greeter.setGreeting("Luke Skywalker");
+    let receipt: TransactionReceipt = await setGreetingTx.wait();
+
+    // Create filter
+    const topic = receipt.logs[1].topics[0];
+    const filterId = await provider.send("eth_newFilter", [
+      {
+        fromBlock: "earliest",
+        toBlock: "latest",
+        topics: [topic],
+      },
+    ]);
+
+    // New filter should be empty
+    let filterChanges: Log[] = await provider.send("eth_getFilterChanges", [
+      filterId,
+    ]);
+    expect(filterChanges).to.empty;
+
+    // Emit logs and filter should not be empty
+    receipt = await (await greeter.setGreeting("Darth Vader")).wait();
+    filterChanges = await provider.send("eth_getFilterChanges", [filterId]);
+
+    expect(filterChanges.length).to.eq(1);
+    expect(filterChanges[0].transactionHash).to.eq(receipt.transactionHash);
+    expect(filterChanges[0].blockHash).to.eq(receipt.blockHash);
+    const normalizedSetGreetingLogData = ethers.utils
+      .toUtf8String(filterChanges[0].data)
+      .replaceAll("\u0000", "")
+      .replace(" +", "")
+      .replace(" (", "");
+    expect(normalizedSetGreetingLogData).to.equal(
+      "Greeting is being updated to Darth Vader"
     );
   });
 });
