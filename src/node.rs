@@ -2362,7 +2362,6 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                         return into_jsrpc_error(Web3Error::InternalError);
                     })
             } else {
-                println!("read me {block:?}");
                 reader
                     .fork_storage
                     .inner
