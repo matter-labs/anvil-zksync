@@ -316,7 +316,7 @@ mod tests {
             .expect("block exists");
 
         assert_eq!(start_block.number + 1, current_block.number);
-        assert_eq!(start_block.timestamp + 1000, current_block.timestamp);
+        assert_eq!(start_block.timestamp + 1, current_block.timestamp);
         let result = hardhat
             .hardhat_mine(None, None)
             .await
@@ -330,7 +330,7 @@ mod tests {
             .expect("block exists");
 
         assert_eq!(start_block.number + 2, current_block.number);
-        assert_eq!(start_block.timestamp + 2000, current_block.timestamp);
+        assert_eq!(start_block.timestamp + 2, current_block.timestamp);
     }
 
     #[tokio::test]
@@ -347,7 +347,7 @@ mod tests {
 
         let num_blocks = 5;
         let interval = 3;
-        let start_timestamp = start_block.timestamp + 1_000;
+        let start_timestamp = start_block.timestamp + 1;
 
         let result = hardhat
             .hardhat_mine(Some(U64::from(num_blocks)), Some(U64::from(interval)))

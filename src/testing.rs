@@ -360,7 +360,7 @@ pub fn apply_tx<T: ForkSource + std::fmt::Debug>(node: &InMemoryNode<T>, tx_hash
     let current_batch = node
         .get_inner()
         .read()
-        .map(|reader| reader.current_batch)
+        .map(|reader| reader.current_batch.saturating_add(1))
         .expect("failed getting current batch number");
     let produced_block_hash = compute_hash(current_batch, tx_hash);
 

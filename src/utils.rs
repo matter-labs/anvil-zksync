@@ -98,15 +98,19 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
     interval_ms: u64,
 ) {
     // build and insert new blocks
-    for _ in 0..num_blocks {
+    for i in 0..num_blocks {
         // roll the vm
-        let (keys, bytecodes) = {
+        let (keys, bytecodes, next_block) = {
             let storage = StorageView::new(&node.fork_storage).to_rc_ptr();
 
             // system_contract.contacts_for_l2_call() will give playground contracts
             // we need these to use the unsafeOverrideBlock method in SystemContext.sol
             let bootloader_code = node.system_contracts.contacts_for_l2_call();
-            let batch_env = node.create_l1_batch_env(storage.clone());
+            let (batch_env, mut next_block) = node.create_l1_batch_env(storage.clone());
+            // override the next block's timestamp to match up with interval for subsequent blocks
+            if i != 0 {
+                next_block.timestamp = node.current_timestamp.saturating_add(interval_ms);
+            }
 
             // init vm
             let system_env =
@@ -122,7 +126,7 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
                 .map(|b| bytecode_to_factory_dep(b.original.clone()))
                 .collect();
             let modified_keys = storage.borrow().modified_storage_keys().clone();
-            (modified_keys, bytecodes)
+            (modified_keys, bytecodes, next_block)
         };
 
         for (key, value) in keys.iter() {
@@ -142,22 +146,20 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
                     .collect(),
             )
         }
-        node.current_miniblock = node.current_miniblock.saturating_add(1);
 
         let block = create_empty_block(
-            node.current_miniblock as u32,
-            node.current_timestamp,
-            node.current_batch,
+            next_block.miniblock as u32,
+            next_block.timestamp,
+            next_block.batch,
         );
 
-        node.block_hashes.insert(node.current_miniblock, block.hash);
+        node.block_hashes.insert(block.number.as_u64(), block.hash);
         node.blocks.insert(block.hash, block);
 
         // leave node state ready for next interaction
-        node.current_timestamp = node.current_timestamp.saturating_add(interval_ms);
-
-        // increment batch
-        node.current_batch = node.current_batch.saturating_add(1);
+        node.current_batch = next_block.batch;
+        node.current_miniblock = next_block.miniblock;
+        node.current_timestamp = next_block.timestamp;
     }
 }
 
