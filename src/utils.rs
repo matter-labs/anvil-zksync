@@ -107,6 +107,7 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
             // we need these to use the unsafeOverrideBlock method in SystemContext.sol
             let bootloader_code = node.system_contracts.contacts_for_l2_call();
             let (batch_env, mut next_block) = node.create_l1_batch_env(storage.clone());
+            println!("timestamp {}", next_block.timestamp);
             // override the next block's timestamp to match up with interval for subsequent blocks
             if i != 0 {
                 next_block.timestamp = node.current_timestamp.saturating_add(interval_ms);
