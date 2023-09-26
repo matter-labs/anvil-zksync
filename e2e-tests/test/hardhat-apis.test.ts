@@ -13,10 +13,7 @@ describe("hardhat_setBalance", function () {
     const newBalance = ethers.utils.parseEther("42");
 
     // Act
-    await provider.send("hardhat_setBalance", [
-      userWallet.address,
-      newBalance._hex,
-    ]);
+    await provider.send("hardhat_setBalance", [userWallet.address, newBalance._hex]);
 
     // Assert
     const balance = await userWallet.getBalance();
@@ -31,10 +28,7 @@ describe("hardhat_setNonce", function () {
     const newNonce = 42;
 
     // Act
-    await provider.send("hardhat_setNonce", [
-      userWallet.address,
-      ethers.utils.hexlify(newNonce),
-    ]);
+    await provider.send("hardhat_setNonce", [userWallet.address, ethers.utils.hexlify(newNonce)]);
 
     // Assert
     const nonce = await userWallet.getNonce();
@@ -48,10 +42,7 @@ describe("hardhat_mine", function () {
     const numberOfBlocks = 100;
     const intervalInSeconds = 60;
     const startingBlock = await provider.getBlock("latest");
-    const startingTimestamp: number = await provider.send(
-      "config_getCurrentTimestamp",
-      []
-    );
+    const startingTimestamp: number = await provider.send("config_getCurrentTimestamp", []);
 
     // Act
     await provider.send("hardhat_mine", [
@@ -61,10 +52,7 @@ describe("hardhat_mine", function () {
 
     // Assert
     const latestBlock = await provider.getBlock("latest");
-    expect(latestBlock.number).to.equal(
-      startingBlock.number + numberOfBlocks,
-      "Block number mismatch"
-    );
+    expect(latestBlock.number).to.equal(startingBlock.number + numberOfBlocks, "Block number mismatch");
     expect(latestBlock.timestamp).to.equal(
       startingTimestamp + (numberOfBlocks - 1) * intervalInSeconds * 1000,
       "Timestamp mismatch"
@@ -80,9 +68,7 @@ xdescribe("hardhat_impersonateAccount & hardhat_stopImpersonatingAccount", funct
     const beforeBalance = await provider.getBalance(RichAccounts[0].Account);
 
     // Act
-    await provider.send("hardhat_impersonateAccount", [
-      RichAccounts[0].Account,
-    ]);
+    await provider.send("hardhat_impersonateAccount", [RichAccounts[0].Account]);
 
     const signer = await ethers.getSigner(RichAccounts[0].Account);
     const tx = {
@@ -94,11 +80,7 @@ xdescribe("hardhat_impersonateAccount & hardhat_stopImpersonatingAccount", funct
     await recieptTx.wait();
 
     // Assert
-    expect(await userWallet.getBalance()).to.equal(
-      ethers.utils.parseEther("0.42")
-    );
-    expect(await provider.getBalance(RichAccounts[0].Account)).to.equal(
-      beforeBalance.sub(0.42)
-    );
+    expect(await userWallet.getBalance()).to.equal(ethers.utils.parseEther("0.42"));
+    expect(await provider.getBalance(RichAccounts[0].Account)).to.equal(beforeBalance.sub(0.42));
   });
 });

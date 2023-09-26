@@ -4,11 +4,7 @@ import * as hre from "hardhat";
 import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
 import { ethers } from "ethers";
 import { RichAccounts } from "../helpers/constants";
-import {
-  deployContract,
-  expectThrowsAsync,
-  getTestProvider,
-} from "../helpers/utils";
+import { deployContract, expectThrowsAsync, getTestProvider } from "../helpers/utils";
 import { Log, TransactionReceipt } from "zksync-web3/build/src/types";
 
 const provider = getTestProvider();
@@ -72,9 +68,7 @@ describe("Greeter Smart Contract", function () {
       .toUtf8String(setGreetingLog.data)
       .replaceAll("\u0000", "")
       .replace(" +", "");
-    expect(normalizedSetGreetingLogData).to.equal(
-      "Greeting is being updated to Luke Skywalker"
-    );
+    expect(normalizedSetGreetingLogData).to.equal("Greeting is being updated to Luke Skywalker");
   });
 
   it("Should filter event logs", async function () {
@@ -97,9 +91,7 @@ describe("Greeter Smart Contract", function () {
     ]);
 
     // New filter should be empty
-    let filterChanges: Log[] = await provider.send("eth_getFilterChanges", [
-      filterId,
-    ]);
+    let filterChanges: Log[] = await provider.send("eth_getFilterChanges", [filterId]);
     expect(filterChanges).to.empty;
 
     // Emit logs and filter should not be empty
@@ -114,8 +106,6 @@ describe("Greeter Smart Contract", function () {
       .replaceAll("\u0000", "")
       .replace(" +", "")
       .replace(" (", "");
-    expect(normalizedSetGreetingLogData).to.equal(
-      "Greeting is being updated to Darth Vader"
-    );
+    expect(normalizedSetGreetingLogData).to.equal("Greeting is being updated to Darth Vader");
   });
 });

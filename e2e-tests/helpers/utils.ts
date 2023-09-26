@@ -16,11 +16,7 @@ import { HttpNetworkUserConfig } from "hardhat/types";
  * @example
  *      const greeter = await deployContract(deployer, 'Greeter', ['Hi']);
  */
-export async function deployContract(
-  deployer: Deployer,
-  contractName: string,
-  args: string[] = []
-): Promise<Contract> {
+export async function deployContract(deployer: Deployer, contractName: string, args: string[] = []): Promise<Contract> {
   const artifact = await deployer.loadArtifact(contractName);
   return await deployer.deploy(artifact, args);
 }

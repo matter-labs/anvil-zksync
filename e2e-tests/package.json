@@ -6,8 +6,10 @@
   "author": "The Matter Labs Team <hello@matterlabs.dev>",
   "license": "MIT",
   "devDependencies": {
+    "@matterlabs/eslint-config-vue": "^1.1.4",
     "@matterlabs/hardhat-zksync-deploy": "^0.6.5",
     "@matterlabs/hardhat-zksync-solc": "^0.4.2",
+    "@matterlabs/prettier-config": "^1.0.3",
     "@nomiclabs/hardhat-ethers": "^2.2.3",
     "@openzeppelin/contracts": "^4.9.3",
     "@types/chai": "^4.3.4",
@@ -27,6 +29,7 @@
     "typescript": "^4.9.4",
     "zksync-web3": "^0.14.3"
   },
+  "prettier": "@matterlabs/prettier-config",
   "scripts": {
     "build": "hardhat compile",
     "clean": "hardhat clean",
