@@ -64,11 +64,9 @@ describe("Greeter Smart Contract", function () {
     expect(receipt.logs.length).to.greaterThanOrEqual(1);
     const setGreetingLog = receipt.logs[1];
     expect(setGreetingLog.address).to.equal(greeter.address);
-    const normalizedSetGreetingLogData = ethers.utils
-      .toUtf8String(setGreetingLog.data)
-      .replaceAll("\u0000", "")
-      .replace(" +", "");
-    expect(normalizedSetGreetingLogData).to.equal("Greeting is being updated to Luke Skywalker");
+
+    const eventInterface = new ethers.utils.Interface(["event LogString(string value)"]);
+    expect(eventInterface.parseLog(setGreetingLog).args[0]).to.equal("Greeting is being updated to Luke Skywalker");
   });
 
   it("Should filter event logs", async function () {
@@ -101,11 +99,7 @@ describe("Greeter Smart Contract", function () {
     expect(filterChanges.length).to.eq(1);
     expect(filterChanges[0].transactionHash).to.eq(receipt.transactionHash);
     expect(filterChanges[0].blockHash).to.eq(receipt.blockHash);
-    const normalizedSetGreetingLogData = ethers.utils
-      .toUtf8String(filterChanges[0].data)
-      .replaceAll("\u0000", "")
-      .replace(" +", "")
-      .replace(" (", "");
-    expect(normalizedSetGreetingLogData).to.equal("Greeting is being updated to Darth Vader");
+    const eventInterface = new ethers.utils.Interface(["event LogString(string value)"]);
+    expect(eventInterface.parseLog(filterChanges[0]).args[0]).to.equal("Greeting is being updated to Darth Vader");
   });
 });
