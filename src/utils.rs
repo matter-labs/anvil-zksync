@@ -183,7 +183,9 @@ pub fn to_real_block_number(block_number: BlockNumber, latest_block_number: U64)
 
 #[cfg(test)]
 mod tests {
-    use zksync_basic_types::U256;
+    use zksync_basic_types::{H256, U256};
+
+    use crate::{http_fork_source::HttpForkSource, node::InMemoryNode, testing};
 
     use super::*;
 
@@ -231,5 +233,140 @@ mod tests {
     fn test_to_real_block_number_number() {
         let actual = to_real_block_number(BlockNumber::Number(U64::from(5)), U64::from(10));
         assert_eq!(U64::from(5), actual);
+    }
+
+    #[test]
+    fn test_mine_empty_blocks_mines_the_first_block_immediately() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let inner = node.get_inner();
+
+        let starting_block = {
+            let reader = inner.read().expect("failed acquiring reader");
+            reader
+                .block_hashes
+                .get(&reader.current_miniblock)
+                .and_then(|hash| reader.blocks.get(hash))
+                .expect("failed finding block")
+                .clone()
+        };
+        assert_eq!(U64::from(0), starting_block.number);
+        assert_eq!(Some(U64::from(0)), starting_block.l1_batch_number);
+        assert_eq!(U256::from(1000), starting_block.timestamp);
+
+        {
+            let mut writer = inner.write().expect("failed acquiring write lock");
+            mine_empty_blocks(&mut writer, 1, 1000);
+        }
+
+        let reader = inner.read().expect("failed acquiring reader");
+        let mined_block = reader
+            .block_hashes
+            .get(&1)
+            .and_then(|hash| reader.blocks.get(hash))
+            .expect("failed finding block");
+        assert_eq!(U64::from(1), mined_block.number);
+        assert_eq!(Some(U64::from(1)), mined_block.l1_batch_number);
+        assert_eq!(U256::from(1001), mined_block.timestamp);
+    }
+
+    #[test]
+    fn test_mine_empty_blocks_mines_2_blocks_with_interval() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let inner = node.get_inner();
+
+        let starting_block = {
+            let reader = inner.read().expect("failed acquiring reader");
+            reader
+                .block_hashes
+                .get(&reader.current_miniblock)
+                .and_then(|hash| reader.blocks.get(hash))
+                .expect("failed finding block")
+                .clone()
+        };
+        assert_eq!(U64::from(0), starting_block.number);
+        assert_eq!(Some(U64::from(0)), starting_block.l1_batch_number);
+        assert_eq!(U256::from(1000), starting_block.timestamp);
+
+        {
+            let mut writer = inner.write().expect("failed acquiring write lock");
+            mine_empty_blocks(&mut writer, 2, 1000);
+        }
+
+        let reader = inner.read().expect("failed acquiring reader");
+        let mined_block_1 = reader
+            .block_hashes
+            .get(&1)
+            .and_then(|hash| reader.blocks.get(hash))
+            .expect("failed finding block 1");
+        assert_eq!(U64::from(1), mined_block_1.number);
+        assert_eq!(Some(U64::from(1)), mined_block_1.l1_batch_number);
+        assert_eq!(U256::from(1001), mined_block_1.timestamp);
+
+        let mined_block_2 = reader
+            .block_hashes
+            .get(&2)
+            .and_then(|hash| reader.blocks.get(hash))
+            .expect("failed finding block 2");
+        assert_eq!(U64::from(2), mined_block_2.number);
+        assert_eq!(Some(U64::from(2)), mined_block_2.l1_batch_number);
+        assert_eq!(U256::from(2001), mined_block_2.timestamp);
+    }
+
+    #[test]
+    fn test_mine_empty_blocks_mines_2_blocks_with_interval_and_next_block_immediately() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let inner = node.get_inner();
+
+        let starting_block = {
+            let reader = inner.read().expect("failed acquiring reader");
+            reader
+                .block_hashes
+                .get(&reader.current_miniblock)
+                .and_then(|hash| reader.blocks.get(hash))
+                .expect("failed finding block")
+                .clone()
+        };
+        assert_eq!(U64::from(0), starting_block.number);
+        assert_eq!(Some(U64::from(0)), starting_block.l1_batch_number);
+        assert_eq!(U256::from(1000), starting_block.timestamp);
+
+        {
+            let mut writer = inner.write().expect("failed acquiring write lock");
+            mine_empty_blocks(&mut writer, 2, 1000);
+        }
+
+        {
+            let reader = inner.read().expect("failed acquiring reader");
+            let mined_block_1 = reader
+                .block_hashes
+                .get(&1)
+                .and_then(|hash| reader.blocks.get(hash))
+                .expect("failed finding block 1");
+            assert_eq!(U64::from(1), mined_block_1.number);
+            assert_eq!(Some(U64::from(1)), mined_block_1.l1_batch_number);
+            assert_eq!(U256::from(1001), mined_block_1.timestamp);
+
+            let mined_block_2 = reader
+                .block_hashes
+                .get(&2)
+                .and_then(|hash| reader.blocks.get(hash))
+                .expect("failed finding block 2");
+            assert_eq!(U64::from(2), mined_block_2.number);
+            assert_eq!(Some(U64::from(2)), mined_block_2.l1_batch_number);
+            assert_eq!(U256::from(2001), mined_block_2.timestamp);
+        }
+
+        {
+            testing::apply_tx(&node, H256::repeat_byte(0x1));
+            let reader = inner.read().expect("failed acquiring reader");
+            let tx_block_3 = reader
+                .block_hashes
+                .get(&3)
+                .and_then(|hash| reader.blocks.get(hash))
+                .expect("failed finding block 2");
+            assert_eq!(U64::from(3), tx_block_3.number);
+            assert_eq!(Some(U64::from(3)), tx_block_3.l1_batch_number);
+            assert_eq!(U256::from(2002), tx_block_3.timestamp);
+        }
     }
 }

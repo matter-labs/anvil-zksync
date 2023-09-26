@@ -735,6 +735,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 Block::<TransactionVariant> {
                     gas_limit: U256::from(ETH_CALL_GAS_LIMIT),
                     timestamp: U256::from(NON_FORK_FIRST_BLOCK_TIMESTAMP),
+                    l1_batch_number: Some(U64::zero()),
                     ..Default::default()
                 },
             );
