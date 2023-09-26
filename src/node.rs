@@ -5,7 +5,7 @@ use crate::{
     filters::{EthFilters, FilterType, LogFilter},
     fork::{ForkDetails, ForkSource, ForkStorage},
     formatter,
-    system_contracts::{self, Options, SystemContracts},
+    system_contracts::{self, SystemContracts},
     utils::{
         self, adjust_l1_gas_price_for_tx, bytecode_to_factory_dep, to_human_size, IntoBoxedFuture,
     },
@@ -760,7 +760,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         log::info!("Running {:?} transactions (one per batch)", txs.len());
 
         for tx in txs {
-            self.run_l2_tx(tx, TxExecutionMode::VerifyExecute)?;
+            self.run_l2_tx(tx)?;
         }
 
         Ok(())
@@ -1029,24 +1029,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         let batch_env = inner.create_l1_batch_env(storage.clone());
 
-        // if we are impersonating an account, we need to use non-verifying system contracts
-        let nonverifying_contracts;
-        let bootloader_code = {
-            if inner
-                .impersonated_accounts
-                .contains(&l2_tx.common_data.initiator_address)
-            {
-                tracing::info!(
-                    "🕵️ Executing tx from impersonated account {:?}",
-                    l2_tx.common_data.initiator_address
-                );
-                nonverifying_contracts =
-                    SystemContracts::from_options(&Options::BuiltInWithoutSecurity);
-                nonverifying_contracts.contracts(execution_mode)
-            } else {
-                inner.system_contracts.contracts(execution_mode)
-            }
-        };
+        let bootloader_code = inner.system_contracts.contracts(execution_mode);
         let system_env = inner.create_system_env(bootloader_code.clone(), execution_mode);
 
         let mut vm = Vm::new(
@@ -1206,7 +1189,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
     }
 
     /// Runs L2 transaction and commits it to a new block.
-    fn run_l2_tx(&self, l2_tx: L2Tx, execution_mode: TxExecutionMode) -> Result<(), String> {
+    fn run_l2_tx(&self, l2_tx: L2Tx) -> Result<(), String> {
         let tx_hash = l2_tx.hash();
         log::info!("");
         log::info!("Executing {}", format!("{:?}", tx_hash).bold());
@@ -1218,6 +1201,24 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
             inner.filters.notify_new_pending_transaction(tx_hash);
         }
+
+        let execution_mode = if self
+            .inner
+            .read()
+            .map_err(|e| format!("Failed to acquire read lock: {}", e))?
+            .impersonated_accounts
+            .contains(&l2_tx.common_data.initiator_address)
+        {
+            tracing::info!(
+                "🕵️ Executing tx from impersonated account {:?}",
+                l2_tx.common_data.initiator_address
+            );
+            // Using the eth call here to avoid all the account checks
+            // TODO: think about fictive blocks in case of impersonating via eth call
+            TxExecutionMode::EthCall
+        } else {
+            TxExecutionMode::VerifyExecute
+        };
 
         let (keys, result, block, bytecodes) =
             self.run_l2_tx_inner(l2_tx.clone(), execution_mode)?;
@@ -1349,12 +1350,16 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         inner.filters.notify_new_block(empty_block_hash);
 
         {
-            // That's why here, we increase the batch by 1, but miniblock (and timestamp) by 2.
-            // You can look at insert_fictive_l2_block function in VM to see how this fake block is inserted.
-
             inner.current_batch += 1;
-            inner.current_miniblock += 2;
-            inner.current_timestamp += 2;
+            inner.current_miniblock += 1;
+            inner.current_timestamp += 1;
+
+            // If it was not eth call, we increase the batch by 1, but miniblock (and timestamp) by 2.
+            // You can look at insert_fictive_l2_block function in VM to see how this fake block is inserted.
+            if let TxExecutionMode::VerifyExecute = execution_mode {
+                inner.current_miniblock += 1;
+                inner.current_timestamp += 1;
+            }
         }
 
         Ok(())
@@ -1704,7 +1709,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
             .boxed();
         };
 
-        match self.run_l2_tx(l2_tx.clone(), TxExecutionMode::VerifyExecute) {
+        match self.run_l2_tx(l2_tx.clone()) {
             Ok(_) => Ok(hash).into_boxed_future(),
             Err(e) => {
                 let error_message = format!("Execution error: {}", e);
