@@ -462,8 +462,8 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             gas_per_pubdata_byte,
             suggested_gas_limit,
             l1_gas_price,
-            batch_env.clone(),
-            system_env.clone(),
+            batch_env,
+            system_env,
             &self.fork_storage,
         );
 
@@ -810,7 +810,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
     }
 
     /// Runs L2 'eth call' method - that doesn't commit to a block.
-    fn run_l2_call(&self, l2_tx: L2Tx) -> Result<ExecutionResult, String> {
+    fn run_l2_call(&self, mut l2_tx: L2Tx) -> Result<ExecutionResult, String> {
         let execution_mode = TxExecutionMode::EthCall;
 
         let inner = self
@@ -829,7 +829,6 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         let mut vm = Vm::new(batch_env, system_env, storage, HistoryDisabled);
 
-        let mut l2_tx = l2_tx.clone();
         // We must inject *some* signature (otherwise bootloader code fails to generate hash).
         if l2_tx.common_data.signature.is_empty() {
             l2_tx.common_data.signature = PackedEthSignature::default().serialize_packed().into();
@@ -2337,10 +2336,10 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                         .map(|block| block.number)
                         .ok_or_else(|| {
                             log::error!("unable to map block number to hash #{:#x}", o.block_hash);
-                            return into_jsrpc_error(Web3Error::InternalError);
+                            into_jsrpc_error(Web3Error::InternalError)
                         }),
                 })
-                .unwrap_or(Ok(U64::from(reader.current_miniblock)))?;
+                .unwrap_or_else(|| Ok(U64::from(reader.current_miniblock)))?;
 
             if block_number.as_u64() == reader.current_miniblock {
                 Ok(H256(reader.fork_storage.read_value(&storage_key).0))
@@ -2353,7 +2352,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                     .cloned()
                     .ok_or_else(|| {
                         log::error!("unable to get storage for block number {}", block_number);
-                        return into_jsrpc_error(Web3Error::InternalError);
+                        into_jsrpc_error(Web3Error::InternalError)
                     })
             } else {
                 reader
@@ -2371,7 +2370,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                             idx,
                             block
                         );
-                        return into_jsrpc_error(Web3Error::InternalError);
+                        into_jsrpc_error(Web3Error::InternalError)
                     })
             }
         })
