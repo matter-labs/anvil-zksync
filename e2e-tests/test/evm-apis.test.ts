@@ -36,7 +36,7 @@ describe("evm_increaseTime", function () {
       to: userWallet.address,
       value: ethers.utils.parseEther("0.1"),
     });
-    expectedTimestamp += 1; // New transaction will add a second block
+    expectedTimestamp += 2; // New transaction will add two block
 
     // Assert
     const newBlockTimestamp = (await provider.getBlock("latest")).timestamp;
