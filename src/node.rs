@@ -2439,7 +2439,7 @@ mod tests {
         cache::CacheConfig,
         http_fork_source::HttpForkSource,
         node::InMemoryNode,
-        testing::{self, ForkBlockConfig, LogBuilder, MockServer, RICH_WALLETS},
+        testing::{self, ForkBlockConfig, LogBuilder, MockServer},
     };
     use zksync_types::api::BlockNumber;
     use zksync_web3_decl::types::{SyncState, ValueOrArray};
