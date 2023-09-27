@@ -45,6 +45,7 @@ pub mod bootloader_debug;
 pub mod configuration_api;
 pub mod console_log;
 pub mod deps;
+pub mod eth_test;
 pub mod filters;
 pub mod fork;
 pub mod formatter;
@@ -54,7 +55,6 @@ pub mod resolver;
 pub mod system_contracts;
 pub mod utils;
 pub mod zks;
-pub mod eth_test;
 
 mod cache;
 mod testing;
