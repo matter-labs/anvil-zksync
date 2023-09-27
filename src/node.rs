@@ -1176,13 +1176,18 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         // The computed block hash here will be different than that in production.
         let hash = compute_hash(batch_env.number.0, l2_tx.hash());
+        
+        let mut transaction = zksync_types::api::Transaction::from(l2_tx);
+        transaction.block_hash = Some(*inner.block_hashes.get(&inner.current_miniblock).unwrap());
+        transaction.block_number = Some(U64::from(inner.current_miniblock));
+
         let block = Block {
             hash,
             number: U64::from(inner.current_miniblock.saturating_add(1)),
             timestamp: U256::from(batch_env.timestamp),
             l1_batch_number: Some(U64::from(batch_env.number.0)),
             transactions: vec![TransactionVariant::Full(
-                zksync_types::api::Transaction::from(l2_tx),
+                transaction,
             )],
             gas_used: U256::from(tx_result.statistics.gas_used),
             gas_limit: U256::from(BLOCK_GAS_LIMIT),
@@ -1814,50 +1819,69 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
             let reader = inner
                 .read()
                 .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
-            let tx_result = reader.tx_results.get(&hash);
 
-            Ok(tx_result.and_then(|TransactionResult { info, .. }| {
-                let input_data = info.tx.common_data.input.clone().or(None)?;
 
-                let chain_id = info.tx.common_data.extract_chain_id().or(None)?;
-
-                Some(zksync_types::api::Transaction {
-                    hash,
-                    nonce: U256::from(info.tx.common_data.nonce.0),
-                    block_hash: Some(hash),
-                    block_number: Some(U64::from(info.miniblock_number)),
-                    transaction_index: Some(U64::from(1)),
-                    from: Some(info.tx.initiator_account()),
-                    to: Some(info.tx.recipient_account()),
-                    value: info.tx.execute.value,
-                    gas_price: Default::default(),
-                    gas: Default::default(),
-                    input: input_data.data.into(),
-                    v: Some(chain_id.into()),
-                    r: Some(U256::zero()),
-                    s: Some(U256::zero()),
-                    raw: None,
-                    transaction_type: {
-                        let tx_type = match info.tx.common_data.transaction_type {
-                            zksync_types::l2::TransactionType::LegacyTransaction => 0,
-                            zksync_types::l2::TransactionType::EIP2930Transaction => 1,
-                            zksync_types::l2::TransactionType::EIP1559Transaction => 2,
-                            zksync_types::l2::TransactionType::EIP712Transaction => 113,
-                            zksync_types::l2::TransactionType::PriorityOpTransaction => 255,
-                            zksync_types::l2::TransactionType::ProtocolUpgradeTransaction => 254,
-                        };
-                        Some(tx_type.into())
-                    },
-                    access_list: None,
-                    max_fee_per_gas: Some(info.tx.common_data.fee.max_fee_per_gas),
-                    max_priority_fee_per_gas: Some(
-                        info.tx.common_data.fee.max_priority_fee_per_gas,
-                    ),
-                    chain_id: chain_id.into(),
-                    l1_batch_number: Some(U64::from(info.batch_number as u64)),
-                    l1_batch_tx_index: None,
+            let maybe_result = {
+                // try retrieving transaction from memory, and if unavailable subsequently from the fork
+                reader.tx_results.get(&hash).and_then(|TransactionResult { info, .. }| {
+                    let input_data = info.tx.common_data.input.clone().or(None)?;
+    
+                    let chain_id = info.tx.common_data.extract_chain_id().or(None)?;
+    
+                    Some(zksync_types::api::Transaction {
+                        hash,
+                        nonce: U256::from(info.tx.common_data.nonce.0),
+                        block_hash: Some(hash),
+                        block_number: Some(U64::from(info.miniblock_number)),
+                        transaction_index: Some(U64::from(1)),
+                        from: Some(info.tx.initiator_account()),
+                        to: Some(info.tx.recipient_account()),
+                        value: info.tx.execute.value,
+                        gas_price: Default::default(),
+                        gas: Default::default(),
+                        input: input_data.data.into(),
+                        v: Some(chain_id.into()),
+                        r: Some(U256::zero()),
+                        s: Some(U256::zero()),
+                        raw: None,
+                        transaction_type: {
+                            let tx_type = match info.tx.common_data.transaction_type {
+                                zksync_types::l2::TransactionType::LegacyTransaction => 0,
+                                zksync_types::l2::TransactionType::EIP2930Transaction => 1,
+                                zksync_types::l2::TransactionType::EIP1559Transaction => 2,
+                                zksync_types::l2::TransactionType::EIP712Transaction => 113,
+                                zksync_types::l2::TransactionType::PriorityOpTransaction => 255,
+                                zksync_types::l2::TransactionType::ProtocolUpgradeTransaction => 254,
+                            };
+                            Some(tx_type.into())
+                        },
+                        access_list: None,
+                        max_fee_per_gas: Some(info.tx.common_data.fee.max_fee_per_gas),
+                        max_priority_fee_per_gas: Some(
+                            info.tx.common_data.fee.max_priority_fee_per_gas,
+                        ),
+                        chain_id: chain_id.into(),
+                        l1_batch_number: Some(U64::from(info.batch_number as u64)),
+                        l1_batch_tx_index: None,
+                    })
+                }).or_else(|| {
+                    reader
+                        .fork_storage
+                        .inner
+                        .read()
+                        .expect("failed reading fork storage")
+                        .fork
+                        .as_ref()
+                        .and_then(|fork| {
+                            fork.fork_source
+                                .get_transaction_by_hash(hash)
+                                .ok()
+                                .flatten()
+                        })
                 })
-            }))
+            };
+
+            Ok(maybe_result)
         })
     }
 
