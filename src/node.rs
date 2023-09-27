@@ -270,7 +270,7 @@ pub struct InMemoryNodeInner<S> {
     pub console_log_handler: ConsoleLogHandler,
     pub system_contracts: SystemContracts,
     pub impersonated_accounts: HashSet<Address>,
-    pub rich_accounts: HashSet<H160>
+    pub rich_accounts: HashSet<H160>,
 }
 
 type L2TxResult = (
@@ -785,7 +785,6 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             inner.fork_storage.set_value(*key, *value);
         }
         inner.rich_accounts.insert(address);
-        
     }
 
     /// Runs L2 'eth call' method - that doesn't commit to a block.
@@ -1176,9 +1175,16 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         // The computed block hash here will be different than that in production.
         let hash = compute_hash(batch_env.number.0, l2_tx.hash());
-        
+
         let mut transaction = zksync_types::api::Transaction::from(l2_tx);
-        transaction.block_hash = Some(*inner.block_hashes.get(&inner.current_miniblock).unwrap());
+        let block_hash = inner
+            .block_hashes
+            .get(&inner.current_miniblock)
+            .ok_or(format!(
+                "Block hash not found for block: {}",
+                inner.current_miniblock
+            ))?;
+        transaction.block_hash = Some(*block_hash);
         transaction.block_number = Some(U64::from(inner.current_miniblock));
 
         let block = Block {
@@ -1186,9 +1192,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             number: U64::from(inner.current_miniblock.saturating_add(1)),
             timestamp: U256::from(batch_env.timestamp),
             l1_batch_number: Some(U64::from(batch_env.number.0)),
-            transactions: vec![TransactionVariant::Full(
-                transaction,
-            )],
+            transactions: vec![TransactionVariant::Full(transaction)],
             gas_used: U256::from(tx_result.statistics.gas_used),
             gas_limit: U256::from(BLOCK_GAS_LIMIT),
             ..Default::default()
@@ -1820,14 +1824,11 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                 .read()
                 .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
 
-
             let maybe_result = {
                 // try retrieving transaction from memory, and if unavailable subsequently from the fork
                 reader.tx_results.get(&hash).and_then(|TransactionResult { info, .. }| {
                     let input_data = info.tx.common_data.input.clone().or(None)?;
-    
                     let chain_id = info.tx.common_data.extract_chain_id().or(None)?;
-    
                     Some(zksync_types::api::Transaction {
                         hash,
                         nonce: U256::from(info.tx.common_data.nonce.0),
@@ -2320,7 +2321,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
     }
     /// Returns a list of available accounts.
     ///
-    /// This function fetches the rich accounts from the inner state, clones them, 
+    /// This function fetches the rich accounts from the inner state, clones them,
     /// and returns them as a list of addresses (`H160`).
     ///
     /// # Errors
@@ -2338,7 +2339,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                 return futures::future::err(into_jsrpc_error(Web3Error::InternalError)).boxed()
             }
         };
-    
+
         let accounts: Vec<H160> = writer.rich_accounts.clone().into_iter().collect();
         futures::future::ok(accounts).boxed()
     }
@@ -2438,7 +2439,7 @@ mod tests {
         cache::CacheConfig,
         http_fork_source::HttpForkSource,
         node::InMemoryNode,
-        testing::{self, ForkBlockConfig, LogBuilder, MockServer},
+        testing::{self, ForkBlockConfig, LogBuilder, MockServer, RICH_WALLETS},
     };
     use zksync_types::api::BlockNumber;
     use zksync_web3_decl::types::{SyncState, ValueOrArray};
@@ -3368,5 +3369,26 @@ mod tests {
             .await
             .expect("failed getting filter changes");
         assert_eq!(0, result.len());
+    }
+
+    #[tokio::test]
+    async fn test_accounts() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let private_key = H256::repeat_byte(0x01);
+        let from_account = PackedEthSignature::address_from_private_key(&private_key).unwrap();
+        node.set_rich_account(from_account);
+
+        let account_result = node.accounts().await;
+        let expected_accounts: Vec<H160> = vec![from_account];
+
+        match account_result {
+            Ok(accounts) => {
+                assert_eq!(expected_accounts, accounts);
+            }
+            Err(e) => {
+                panic!("Failed to fetch accounts: {:?}", e);
+            }
+        }
     }
 }

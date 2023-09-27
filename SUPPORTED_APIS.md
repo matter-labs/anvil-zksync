@@ -25,7 +25,7 @@ The `status` options are:
 | `DEBUG` | `debug_traceBlockByHash` | `NOT IMPLEMENTED`<br />[GitHub Issue #63](https://github.com/matter-labs/era-test-node/issues/63) | Returns structured traces for operations within the block of the specified block hash |
 | `DEBUG` | `debug_traceBlockByNumber` | `NOT IMPLEMENTED`<br />[GitHub Issue #64](https://github.com/matter-labs/era-test-node/issues/64) | Returns structured traces for operations within the block of the specified block number |
 | `DEBUG` | `debug_traceTransaction` | `NOT IMPLEMENTED`<br />[GitHub Issue #65](https://github.com/matter-labs/era-test-node/issues/65) | Returns a structured trace of the execution of the specified transaction |
-| `ETH` | `eth_accounts` | `NOT IMPLEMENTED`<br />[GitHub Issue #50](https://github.com/matter-labs/era-test-node/issues/50) | Returns a list of addresses owned by client |
+| `ETH` | `eth_accounts` | `SUPPORTED` | Returns a list of addresses owned by client |
 | [`ETH`](#eth-namespace) | [`eth_chainId`](#eth_chainid) | `SUPPORTED` | Returns the currently configured chain id <br />_(default is `260`)_ |
 | `ETH` | `eth_coinbase` | `NOT IMPLEMENTED` | Returns the client coinbase address |
 | [`ETH`](#eth-namespace) | [`eth_estimateGas`](#eth_estimategas) | `SUPPORTED` | Generates and returns an estimate of how much gas is necessary for the transaction to complete |
@@ -363,6 +363,29 @@ curl --request POST \
 ```
 
 ## `ETH NAMESPACE`
+
+### `eth_accounts`
+
+[source](src/node.rs)
+
+Returns the current chain id
+
+#### Arguments
+
++ _NONE_
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "eth_accounts","params": []}'
+```
 
 ### `eth_chainId`
 
