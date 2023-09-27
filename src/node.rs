@@ -2321,8 +2321,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
     }
     /// Returns a list of available accounts.
     ///
-    /// This function fetches the rich accounts from the inner state, clones them,
-    /// and returns them as a list of addresses (`H160`).
+    /// This function fetches the accounts from the inner state, and returns them as a list of addresses (`H160`).
     ///
     /// # Errors
     ///
