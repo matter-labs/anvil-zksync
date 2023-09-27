@@ -270,6 +270,7 @@ pub struct InMemoryNodeInner<S> {
     pub console_log_handler: ConsoleLogHandler,
     pub system_contracts: SystemContracts,
     pub impersonated_accounts: HashSet<Address>,
+    pub rich_accounts: HashSet<H160>
 }
 
 type L2TxResult = (
@@ -712,6 +713,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 console_log_handler: ConsoleLogHandler::default(),
                 system_contracts: SystemContracts::from_options(system_contracts_options),
                 impersonated_accounts: Default::default(),
+                rich_accounts: HashSet::new(),
             }
         } else {
             let mut block_hashes = HashMap::<u64, H256>::new();
@@ -737,6 +739,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 console_log_handler: ConsoleLogHandler::default(),
                 system_contracts: SystemContracts::from_options(system_contracts_options),
                 impersonated_accounts: Default::default(),
+                rich_accounts: HashSet::new(),
             }
         };
 
@@ -781,6 +784,8 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         for (key, value) in keys.iter() {
             inner.fork_storage.set_value(*key, *value);
         }
+        inner.rich_accounts.insert(address);
+        
     }
 
     /// Runs L2 'eth call' method - that doesn't commit to a block.
@@ -2289,11 +2294,29 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
     {
         Ok(zksync_basic_types::web3::types::SyncState::NotSyncing).into_boxed_future()
     }
-
-    fn accounts(
-        &self,
-    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Vec<zksync_basic_types::Address>>> {
-        not_implemented("accounts")
+    /// Returns a list of available accounts.
+    ///
+    /// This function fetches the rich accounts from the inner state, clones them, 
+    /// and returns them as a list of addresses (`H160`).
+    ///
+    /// # Errors
+    ///
+    /// Returns a `jsonrpc_core::Result` error if acquiring a write lock on the inner state fails.
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `jsonrpc_core::Result` that resolves to a `Vec<H160>` of addresses.
+    fn accounts(&self) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Vec<H160>>> {
+        let inner = Arc::clone(&self.inner);
+        let writer = match inner.write() {
+            Ok(r) => r,
+            Err(_) => {
+                return futures::future::err(into_jsrpc_error(Web3Error::InternalError)).boxed()
+            }
+        };
+    
+        let accounts: Vec<H160> = writer.rich_accounts.clone().into_iter().collect();
+        futures::future::ok(accounts).boxed()
     }
 
     fn coinbase(
