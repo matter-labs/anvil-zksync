@@ -18,6 +18,7 @@ mod configuration_api;
 mod console_log;
 mod deps;
 mod evm;
+mod eth_test;
 mod filters;
 mod fork;
 mod formatter;
@@ -56,6 +57,7 @@ use crate::{configuration_api::ConfigurationApiNamespace, node::TEST_NODE_NETWOR
 use zksync_core::api_server::web3::backend_jsonrpc::namespaces::{
     eth::EthNamespaceT, net::NetNamespaceT, zks::ZksNamespaceT,
 };
+use crate::eth_test::EthTestNodeNamespaceT;
 
 /// List of wallets (address, private key) that we seed with tokens at start.
 pub const RICH_WALLETS: [(&str, &str); 10] = [
@@ -118,7 +120,8 @@ async fn build_json_http<
 
     let io_handler = {
         let mut io = MetaIoHandler::with_middleware(LoggingMiddleware::new(log_level_filter));
-        io.extend_with(node.to_delegate());
+        io.extend_with(EthNamespaceT::to_delegate(node.clone()));
+        io.extend_with(EthTestNodeNamespaceT::to_delegate(node));
         io.extend_with(net.to_delegate());
         io.extend_with(config_api.to_delegate());
         io.extend_with(evm.to_delegate());

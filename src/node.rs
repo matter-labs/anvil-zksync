@@ -66,6 +66,7 @@ use zksync_web3_decl::{
     error::Web3Error,
     types::{FeeHistory, Filter, FilterChanges},
 };
+use crate::eth_test::EthTestNodeNamespaceT;
 
 /// Max possible size of an ABI encoded tx (in bytes).
 pub const MAX_TX_SIZE: usize = 1_000_000;
@@ -412,7 +413,14 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
         let storage = storage_view.to_rc_ptr();
 
-        let execution_mode = TxExecutionMode::EstimateFee;
+        let execution_mode = if self
+            .impersonated_accounts
+            .contains(&l2_tx.common_data.initiator_address)
+        {
+            TxExecutionMode::EthCall
+        } else {
+            TxExecutionMode::EstimateFee
+        };
         let mut batch_env = self.create_l1_batch_env(storage.clone());
         batch_env.l1_gas_price = l1_gas_price;
         let system_env = self.create_system_env(
@@ -651,6 +659,15 @@ fn not_implemented<T: Send + 'static>(
 /// All contents are removed when object is destroyed.
 pub struct InMemoryNode<S> {
     inner: Arc<RwLock<InMemoryNodeInner<S>>>,
+}
+
+// Derive doesn't work
+impl<S> Clone for InMemoryNode<S> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone()
+        }
+    }
 }
 
 fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) -> Option<H160> {
@@ -2393,6 +2410,86 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                 reward,
             })
         })
+    }
+}
+
+impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthTestNodeNamespaceT for InMemoryNode<S> {
+    /// Sends a transaction to the L2 network. Can be used for the impersonated account.
+    ///
+    /// # Arguments
+    ///
+    /// * `tx` - A `CallRequest` struct representing the transaction.
+    ///
+    /// # Returns
+    ///
+    /// A future that resolves to the hash of the transaction if successful, or an error if the transaction is invalid or execution fails.
+    fn send_transaction(
+        &self,
+        tx: zksync_types::transaction_request::CallRequest,
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::H256>> {
+        let chain_id = match self.inner.read() {
+            Ok(reader) => reader.fork_storage.chain_id,
+            Err(_) => {
+                return futures::future::err(into_jsrpc_error(Web3Error::InternalError)).boxed()
+            }
+        };
+
+        let mut tx_req = TransactionRequest::from(tx);
+        // If the sender is impersonated signature will be ignored.
+        tx_req.r = Some(U256::default());
+        tx_req.s = Some(U256::default());
+        tx_req.v = Some(U64::from(27));
+
+        let hash = match tx_req.get_tx_hash(chain_id) {
+            Ok(result) => result,
+            Err(e) => {
+                return futures::future::err(into_jsrpc_error(Web3Error::SerializationError(e)))
+                    .boxed()
+            }
+        };
+        // v = 27 corresponds to 0
+        let bytes = tx_req.get_signed_bytes(&PackedEthSignature::from_rsv(&H256::default(), &H256::default(), 0), chain_id);
+        let mut l2_tx: L2Tx = match L2Tx::from_request(tx_req, MAX_TX_SIZE) {
+            Ok(tx) => tx,
+            Err(e) => {
+                return futures::future::err(into_jsrpc_error(Web3Error::SerializationError(e)))
+                    .boxed()
+            }
+        };
+
+        l2_tx.set_input(bytes, hash);
+        if hash != l2_tx.hash() {
+            return futures::future::err(into_jsrpc_error(Web3Error::InvalidTransactionData(
+                zksync_types::ethabi::Error::InvalidData,
+            )))
+                .boxed();
+        };
+
+        match self.inner.read() {
+            Ok(reader) => {
+                if !reader.impersonated_accounts.contains(&l2_tx.common_data.initiator_address) {
+                    return futures::future::err(into_jsrpc_error(Web3Error::InvalidTransactionData(
+                        zksync_types::ethabi::Error::InvalidData,
+                    )))
+                        .boxed()
+                }
+            },
+            Err(_) => {
+                return futures::future::err(into_jsrpc_error(Web3Error::InternalError)).boxed()
+            }
+        }
+
+        match self.run_l2_tx(l2_tx.clone()) {
+            Ok(_) => Ok(hash).into_boxed_future(),
+            Err(e) => {
+                let error_message = format!("Execution error: {}", e);
+                futures::future::err(into_jsrpc_error(Web3Error::SubmitTransactionError(
+                    error_message,
+                    l2_tx.hash().as_bytes().to_vec(),
+                )))
+                    .boxed()
+            }
+        }
     }
 }
 

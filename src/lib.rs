@@ -54,6 +54,7 @@ pub mod resolver;
 pub mod system_contracts;
 pub mod utils;
 pub mod zks;
+pub mod eth_test;
 
 mod cache;
 mod testing;
