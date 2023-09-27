@@ -368,7 +368,7 @@ curl --request POST \
 
 [source](src/node.rs)
 
-Returns the current chain id
+Returns a list of addresses owned by client
 
 #### Arguments
 
