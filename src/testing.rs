@@ -526,7 +526,7 @@ impl LogBuilder {
 ///
 /// contract Storage {
 ///     uint256 number1 = 1024;
-///     uint256 number2 = 115792089237316195423570985008687907853269984665640564039457584007913129639935;
+///     uint256 number2 = 115792089237316195423570985008687907853269984665640564039457584007913129639935;   // uint256::max
 ///
 ///     function retrieve1() public view returns (uint256) {
 ///         return number1;
