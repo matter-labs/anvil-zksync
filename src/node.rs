@@ -2332,14 +2332,14 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
     /// A `BoxFuture` containing a `jsonrpc_core::Result` that resolves to a `Vec<H160>` of addresses.
     fn accounts(&self) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Vec<H160>>> {
         let inner = Arc::clone(&self.inner);
-        let writer = match inner.write() {
+        let reader = match inner.read() {
             Ok(r) => r,
             Err(_) => {
                 return futures::future::err(into_jsrpc_error(Web3Error::InternalError)).boxed()
             }
         };
 
-        let accounts: Vec<H160> = writer.rich_accounts.clone().into_iter().collect();
+        let accounts: Vec<H160> = reader.rich_accounts.clone().into_iter().collect();
         futures::future::ok(accounts).boxed()
     }
 
