@@ -865,10 +865,12 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         match &tx_result.result {
             ExecutionResult::Success { output } => {
-                log::info!("Call: {} {:?}", "SUCCESS".green(), output)
+                log::info!("Call: {}", "SUCCESS".green());
+                let output_bytes = zksync_basic_types::Bytes::from(output.clone());
+                log::info!("Output: {}", serde_json::to_string(&output_bytes).unwrap());
             }
             ExecutionResult::Revert { output } => {
-                log::info!("Call: {}: {}", "FAILED".red(), output)
+                log::info!("Call: {}: {}", "FAILED".red(), output);
             }
             ExecutionResult::Halt { reason } => log::info!("Call: {} {}", "HALTED".red(), reason),
         };
