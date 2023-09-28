@@ -644,9 +644,9 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
     /// Archives the current state for later queries.
     pub fn archive_state(&mut self) -> Result<(), String> {
-        if self.previous_states.len() == MAX_PREVIOUS_STATES as usize {
+        if self.previous_states.len() > MAX_PREVIOUS_STATES as usize {
             if let Some(entry) = self.previous_states.shift_remove_index(0) {
-                log::info!("removing archived state for previous block {:#x}", entry.0);
+                log::debug!("removing archived state for previous block {:#x}", entry.0);
             }
         }
         self.previous_states.insert(
