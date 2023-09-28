@@ -142,19 +142,6 @@ impl MockServer {
                 }
             }))),
         );
-        server.expect(
-            Expectation::matching(request::body(json_decoded(eq(serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 4,
-                "method": "eth_getStorageAt",
-                "params": vec!["0x000000000000000000000000000000000000800a","0xe9472b134a1b5f7b935d5debff2691f95801214eafffdeabbf0e366da383104e","0xa"],
-            }))))).times(0..)
-            .respond_with(json_encoded(serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 4,
-                "result": "0x0000000000000000000000000000000000000000000000000000000000000000",
-            }))),
-        );
 
         MockServer { inner: server }
     }
