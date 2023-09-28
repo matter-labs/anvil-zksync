@@ -14,6 +14,7 @@ use clap::Parser;
 use colored::Colorize;
 use core::fmt::Display;
 use futures::FutureExt;
+use indexmap::IndexMap;
 use itertools::Itertools;
 use jsonrpc_core::BoxFuture;
 use once_cell::sync::OnceCell;
@@ -86,6 +87,8 @@ pub const ESTIMATE_GAS_PUBLISH_BYTE_OVERHEAD: u32 = 100;
 pub const ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION: u32 = 1_000;
 /// The factor by which to scale the gasLimit.
 pub const ESTIMATE_GAS_SCALE_FACTOR: f32 = 1.3;
+/// The maximum number of previous blocks to store the state for.
+pub const MAX_PREVIOUS_STATES: u16 = 128;
 
 pub fn compute_hash(block_number: u32, tx_hash: H256) -> H256 {
     let digest = [&block_number.to_be_bytes()[..], tx_hash.as_bytes()].concat();
@@ -274,9 +277,8 @@ pub struct InMemoryNodeInner<S> {
     pub system_contracts: SystemContracts,
     pub impersonated_accounts: HashSet<Address>,
     pub rich_accounts: HashSet<H160>,
-    /// Keeps track of historical states indexed via block hash.
-    /// This is currently unbounded and may change in future to keep only the last N blocks.
-    pub previous_states: HashMap<H256, HashMap<StorageKey, StorageValue>>,
+    /// Keeps track of historical states indexed via block hash. Limited to [MAX_PREVIOUS_STATES].
+    pub previous_states: IndexMap<H256, HashMap<StorageKey, StorageValue>>,
 }
 
 type L2TxResult = (
@@ -642,6 +644,11 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
     /// Archives the current state for later queries.
     pub fn archive_state(&mut self) -> Result<(), String> {
+        if self.previous_states.len() == MAX_PREVIOUS_STATES as usize {
+            if let Some(entry) = self.previous_states.shift_remove_index(0) {
+                log::info!("removing archived state for previous block {:#x}", entry.0);
+            }
+        }
         self.previous_states.insert(
             self.current_miniblock_hash,
             self.fork_storage
