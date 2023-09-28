@@ -46,14 +46,26 @@ Please note that `era-test-node` is still in its **alpha** stage. Some features 
 
 ## 📥 Installation & Setup
 
-1. Install `era-test-node`:
+1. Download `era-test-node` from latest [Release](https://github.com/matter-labs/era-test-node/releases/latest)
+
+2. Extract the binary and mark as executable:
    ```bash
-   cargo install --git https://github.com/matter-labs/era-test-node.git --locked
+   tar xz -f era_test_node.tar.gz -C /usr/local/bin/
+   chmod +x /usr/local/bin/era_test_node
    ```
-2. Start the node:
+
+3. Start the node:
    ```bash
    era_test_node run
    ```
+
+## 🧑‍💻 Running Locally
+
+1. Compile Rust project and start the node:
+   ```bash
+   make run
+   ```
+
 ## 📃 Logging
 
 The node may be started in either of `debug`, `info`, `warn` or `error` logging levels via the `--log` option:

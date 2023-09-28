@@ -271,6 +271,7 @@ pub struct InMemoryNodeInner<S> {
     pub console_log_handler: ConsoleLogHandler,
     pub system_contracts: SystemContracts,
     pub impersonated_accounts: HashSet<Address>,
+    pub rich_accounts: HashSet<H160>,
 }
 
 type L2TxResult = (
@@ -729,18 +730,13 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 console_log_handler: ConsoleLogHandler::default(),
                 system_contracts: SystemContracts::from_options(system_contracts_options),
                 impersonated_accounts: Default::default(),
+                rich_accounts: HashSet::new(),
             }
         } else {
             let mut block_hashes = HashMap::<u64, H256>::new();
             block_hashes.insert(0, H256::zero());
             let mut blocks = HashMap::<H256, Block<TransactionVariant>>::new();
-            blocks.insert(
-                H256::zero(),
-                Block::<TransactionVariant> {
-                    gas_limit: U256::from(ETH_CALL_GAS_LIMIT),
-                    ..Default::default()
-                },
-            );
+            blocks.insert(H256::zero(), create_empty_block(0, 0, 1));
 
             InMemoryNodeInner {
                 current_timestamp: NON_FORK_FIRST_BLOCK_TIMESTAMP,
@@ -760,6 +756,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 console_log_handler: ConsoleLogHandler::default(),
                 system_contracts: SystemContracts::from_options(system_contracts_options),
                 impersonated_accounts: Default::default(),
+                rich_accounts: HashSet::new(),
             }
         };
 
@@ -804,6 +801,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         for (key, value) in keys.iter() {
             inner.fork_storage.set_value(*key, *value);
         }
+        inner.rich_accounts.insert(address);
     }
 
     /// Runs L2 'eth call' method - that doesn't commit to a block.
@@ -852,10 +850,12 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         match &tx_result.result {
             ExecutionResult::Success { output } => {
-                log::info!("Call: {} {:?}", "SUCCESS".green(), output)
+                log::info!("Call: {}", "SUCCESS".green());
+                let output_bytes = zksync_basic_types::Bytes::from(output.clone());
+                log::info!("Output: {}", serde_json::to_string(&output_bytes).unwrap());
             }
             ExecutionResult::Revert { output } => {
-                log::info!("Call: {}: {}", "FAILED".red(), output)
+                log::info!("Call: {}: {}", "FAILED".red(), output);
             }
             ExecutionResult::Halt { reason } => log::info!("Call: {} {}", "HALTED".red(), reason),
         };
@@ -1177,14 +1177,24 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         // The computed block hash here will be different than that in production.
         let hash = compute_hash(batch_env.number.0, l2_tx.hash());
+
+        let mut transaction = zksync_types::api::Transaction::from(l2_tx);
+        let block_hash = inner
+            .block_hashes
+            .get(&inner.current_miniblock)
+            .ok_or(format!(
+                "Block hash not found for block: {}",
+                inner.current_miniblock
+            ))?;
+        transaction.block_hash = Some(*block_hash);
+        transaction.block_number = Some(U64::from(inner.current_miniblock));
+
         let block = Block {
             hash,
             number: U64::from(inner.current_miniblock.saturating_add(1)),
             timestamp: U256::from(batch_env.timestamp),
             l1_batch_number: Some(U64::from(batch_env.number.0)),
-            transactions: vec![TransactionVariant::Full(
-                zksync_types::api::Transaction::from(l2_tx),
-            )],
+            transactions: vec![TransactionVariant::Full(transaction)],
             gas_used: U256::from(tx_result.statistics.gas_used),
             gas_limit: U256::from(BLOCK_GAS_LIMIT),
             ..Default::default()
@@ -1837,50 +1847,66 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
             let reader = inner
                 .read()
                 .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
-            let tx_result = reader.tx_results.get(&hash);
 
-            Ok(tx_result.and_then(|TransactionResult { info, .. }| {
-                let input_data = info.tx.common_data.input.clone().or(None)?;
-
-                let chain_id = info.tx.common_data.extract_chain_id().or(None)?;
-
-                Some(zksync_types::api::Transaction {
-                    hash,
-                    nonce: U256::from(info.tx.common_data.nonce.0),
-                    block_hash: Some(hash),
-                    block_number: Some(U64::from(info.miniblock_number)),
-                    transaction_index: Some(U64::from(1)),
-                    from: Some(info.tx.initiator_account()),
-                    to: Some(info.tx.recipient_account()),
-                    value: info.tx.execute.value,
-                    gas_price: Default::default(),
-                    gas: Default::default(),
-                    input: input_data.data.into(),
-                    v: Some(chain_id.into()),
-                    r: Some(U256::zero()),
-                    s: Some(U256::zero()),
-                    raw: None,
-                    transaction_type: {
-                        let tx_type = match info.tx.common_data.transaction_type {
-                            zksync_types::l2::TransactionType::LegacyTransaction => 0,
-                            zksync_types::l2::TransactionType::EIP2930Transaction => 1,
-                            zksync_types::l2::TransactionType::EIP1559Transaction => 2,
-                            zksync_types::l2::TransactionType::EIP712Transaction => 113,
-                            zksync_types::l2::TransactionType::PriorityOpTransaction => 255,
-                            zksync_types::l2::TransactionType::ProtocolUpgradeTransaction => 254,
-                        };
-                        Some(tx_type.into())
-                    },
-                    access_list: None,
-                    max_fee_per_gas: Some(info.tx.common_data.fee.max_fee_per_gas),
-                    max_priority_fee_per_gas: Some(
-                        info.tx.common_data.fee.max_priority_fee_per_gas,
-                    ),
-                    chain_id: chain_id.into(),
-                    l1_batch_number: Some(U64::from(info.batch_number as u64)),
-                    l1_batch_tx_index: None,
+            let maybe_result = {
+                // try retrieving transaction from memory, and if unavailable subsequently from the fork
+                reader.tx_results.get(&hash).and_then(|TransactionResult { info, .. }| {
+                    let input_data = info.tx.common_data.input.clone().or(None)?;
+                    let chain_id = info.tx.common_data.extract_chain_id().or(None)?;
+                    Some(zksync_types::api::Transaction {
+                        hash,
+                        nonce: U256::from(info.tx.common_data.nonce.0),
+                        block_hash: Some(hash),
+                        block_number: Some(U64::from(info.miniblock_number)),
+                        transaction_index: Some(U64::from(1)),
+                        from: Some(info.tx.initiator_account()),
+                        to: Some(info.tx.recipient_account()),
+                        value: info.tx.execute.value,
+                        gas_price: Default::default(),
+                        gas: Default::default(),
+                        input: input_data.data.into(),
+                        v: Some(chain_id.into()),
+                        r: Some(U256::zero()),
+                        s: Some(U256::zero()),
+                        raw: None,
+                        transaction_type: {
+                            let tx_type = match info.tx.common_data.transaction_type {
+                                zksync_types::l2::TransactionType::LegacyTransaction => 0,
+                                zksync_types::l2::TransactionType::EIP2930Transaction => 1,
+                                zksync_types::l2::TransactionType::EIP1559Transaction => 2,
+                                zksync_types::l2::TransactionType::EIP712Transaction => 113,
+                                zksync_types::l2::TransactionType::PriorityOpTransaction => 255,
+                                zksync_types::l2::TransactionType::ProtocolUpgradeTransaction => 254,
+                            };
+                            Some(tx_type.into())
+                        },
+                        access_list: None,
+                        max_fee_per_gas: Some(info.tx.common_data.fee.max_fee_per_gas),
+                        max_priority_fee_per_gas: Some(
+                            info.tx.common_data.fee.max_priority_fee_per_gas,
+                        ),
+                        chain_id: chain_id.into(),
+                        l1_batch_number: Some(U64::from(info.batch_number as u64)),
+                        l1_batch_tx_index: None,
+                    })
+                }).or_else(|| {
+                    reader
+                        .fork_storage
+                        .inner
+                        .read()
+                        .expect("failed reading fork storage")
+                        .fork
+                        .as_ref()
+                        .and_then(|fork| {
+                            fork.fork_source
+                                .get_transaction_by_hash(hash)
+                                .ok()
+                                .flatten()
+                        })
                 })
-            }))
+            };
+
+            Ok(maybe_result)
         })
     }
 
@@ -2317,11 +2343,28 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
     {
         Ok(zksync_basic_types::web3::types::SyncState::NotSyncing).into_boxed_future()
     }
+    /// Returns a list of available accounts.
+    ///
+    /// This function fetches the accounts from the inner state, and returns them as a list of addresses (`H160`).
+    ///
+    /// # Errors
+    ///
+    /// Returns a `jsonrpc_core::Result` error if acquiring a write lock on the inner state fails.
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `jsonrpc_core::Result` that resolves to a `Vec<H160>` of addresses.
+    fn accounts(&self) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Vec<H160>>> {
+        let inner = Arc::clone(&self.inner);
+        let reader = match inner.read() {
+            Ok(r) => r,
+            Err(_) => {
+                return futures::future::err(into_jsrpc_error(Web3Error::InternalError)).boxed()
+            }
+        };
 
-    fn accounts(
-        &self,
-    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Vec<zksync_basic_types::Address>>> {
-        not_implemented("accounts")
+        let accounts: Vec<H160> = reader.rich_accounts.clone().into_iter().collect();
+        futures::future::ok(accounts).boxed()
     }
 
     fn coinbase(
@@ -2615,7 +2658,7 @@ mod tests {
             .expect("no block");
 
         assert_eq!(0, block.number.as_u64());
-        assert_eq!(H256::zero(), block.hash);
+        assert_eq!(compute_hash(0, H256::zero()), block.hash);
     }
 
     #[tokio::test]
@@ -3437,5 +3480,26 @@ mod tests {
             .await
             .expect("failed getting filter changes");
         assert_eq!(0, result.len());
+    }
+
+    #[tokio::test]
+    async fn test_accounts() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let private_key = H256::repeat_byte(0x01);
+        let from_account = PackedEthSignature::address_from_private_key(&private_key).unwrap();
+        node.set_rich_account(from_account);
+
+        let account_result = node.accounts().await;
+        let expected_accounts: Vec<H160> = vec![from_account];
+
+        match account_result {
+            Ok(accounts) => {
+                assert_eq!(expected_accounts, accounts);
+            }
+            Err(e) => {
+                panic!("Failed to fetch accounts: {:?}", e);
+            }
+        }
     }
 }

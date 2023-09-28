@@ -1,0 +1,21 @@
+{
+    "compilerOptions": {
+      "target": "ESNext",
+      "module": "CommonJS",
+      "baseUrl": ".",
+      "lib": ["ESNext"],
+      "declaration": true,
+      "moduleResolution": "Node",
+      "allowSyntheticDefaultImports": true,
+      "importHelpers": false,
+      "skipLibCheck": true,
+      "preserveSymlinks": true,
+      "skipDefaultLibCheck": true,
+      "preserveConstEnums": true,
+      "sourceMap": false,
+      "esModuleInterop": true,
+      "noEmit": true,
+      "strict": true,
+    },
+    "include": ["./**/*.ts"]
+  }
