@@ -2344,7 +2344,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
         let inner = Arc::clone(&self.inner);
 
         Box::pin(async move {
-            let mut reader = match inner.write() {
+            let mut writer = match inner.write() {
                 Ok(r) => r,
                 Err(_) => {
                     return Err(into_jsrpc_error(Web3Error::InternalError));
@@ -2358,16 +2358,16 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                     zksync_types::api::BlockIdVariant::BlockNumber(block_number) => {
                         Ok(utils::to_real_block_number(
                             block_number,
-                            U64::from(reader.current_miniblock),
+                            U64::from(writer.current_miniblock),
                         ))
                     }
                     zksync_types::api::BlockIdVariant::BlockNumberObject(o) => {
                         Ok(utils::to_real_block_number(
                             o.block_number,
-                            U64::from(reader.current_miniblock),
+                            U64::from(writer.current_miniblock),
                         ))
                     }
-                    zksync_types::api::BlockIdVariant::BlockHashObject(o) => reader
+                    zksync_types::api::BlockIdVariant::BlockHashObject(o) => writer
                         .blocks
                         .get(&o.block_hash)
                         .map(|block| block.number)
@@ -2376,23 +2376,26 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                             into_jsrpc_error(Web3Error::InternalError)
                         }),
                 })
-                .unwrap_or_else(|| Ok(U64::from(reader.current_miniblock)))?;
+                .unwrap_or_else(|| Ok(U64::from(writer.current_miniblock)))?;
 
-            if block_number.as_u64() == reader.current_miniblock {
-                Ok(H256(reader.fork_storage.read_value(&storage_key).0))
-            } else if reader.block_hashes.contains_key(&block_number.as_u64()) {
-                reader
+            if block_number.as_u64() == writer.current_miniblock {
+                Ok(H256(writer.fork_storage.read_value(&storage_key).0))
+            } else if writer.block_hashes.contains_key(&block_number.as_u64()) {
+                let value = writer
                     .block_hashes
                     .get(&block_number.as_u64())
-                    .and_then(|block_hash| reader.previous_states.get(block_hash))
+                    .and_then(|block_hash| writer.previous_states.get(block_hash))
                     .and_then(|state| state.get(&storage_key))
                     .cloned()
-                    .ok_or_else(|| {
-                        log::error!("unable to get storage for block number {}", block_number);
-                        into_jsrpc_error(Web3Error::InternalError)
-                    })
+                    .unwrap_or_default();
+
+                if value.is_zero() {
+                    Ok(H256(writer.fork_storage.read_value(&storage_key).0))
+                } else {
+                    Ok(value)
+                }
             } else {
-                reader
+                writer
                     .fork_storage
                     .inner
                     .read()
@@ -2560,6 +2563,7 @@ mod tests {
         node::InMemoryNode,
         testing::{self, ForkBlockConfig, LogBuilder, MockServer},
     };
+    use maplit::hashmap;
     use zksync_types::{
         api::{BlockHashObject, BlockNumber, BlockNumberObject},
         utils::deployed_address_create,
@@ -3408,6 +3412,126 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_get_storage_uses_archived_storage_to_get_value_for_missing_key() {
+        let input_address = H160::repeat_byte(0x1);
+        let input_storage_key = StorageKey::new(
+            AccountTreeId::new(input_address),
+            u256_to_h256(U256::zero()),
+        );
+        let input_storage_value = H256::repeat_byte(0xcd);
+
+        let node = InMemoryNode::<HttpForkSource>::default();
+        node.inner
+            .write()
+            .and_then(|mut writer| {
+                let historical_block = Block::<TransactionVariant> {
+                    hash: H256::repeat_byte(0x2),
+                    number: U64::from(2),
+                    ..Default::default()
+                };
+                writer.block_hashes.insert(2, historical_block.hash);
+
+                writer.previous_states.insert(
+                    historical_block.hash,
+                    hashmap! {
+                        input_storage_key => input_storage_value,
+                    },
+                );
+                writer
+                    .blocks
+                    .insert(historical_block.hash, historical_block);
+
+                Ok(())
+            })
+            .expect("failed setting storage for historical block");
+
+        let actual_value = node
+            .get_storage(
+                input_address,
+                U256::zero(),
+                Some(zksync_types::api::BlockIdVariant::BlockNumberObject(
+                    BlockNumberObject {
+                        block_number: BlockNumber::Number(U64::from(2)),
+                    },
+                )),
+            )
+            .await
+            .expect("failed retrieving storage");
+        assert_eq!(input_storage_value, actual_value);
+    }
+
+    #[tokio::test]
+    async fn test_get_storage_uses_fork_to_get_value_for_latest_block_for_missing_key() {
+        let mock_server = MockServer::run_with_config(ForkBlockConfig {
+            number: 10,
+            transaction_count: 0,
+            hash: H256::repeat_byte(0xab),
+        });
+        let input_address = H160::repeat_byte(0x1);
+        let input_storage_value = H256::repeat_byte(0xcd);
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "eth_getStorageAt",
+                "params": [
+                    format!("{:#x}", input_address),
+                    "0x0",
+                    "0xa",
+                ],
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "result": format!("{:#x}", input_storage_value),
+            }),
+        );
+
+        let node = InMemoryNode::<HttpForkSource>::new(
+            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
+            crate::node::ShowCalls::None,
+            ShowStorageLogs::None,
+            ShowVMDetails::None,
+            ShowGasDetails::None,
+            false,
+            &system_contracts::Options::BuiltIn,
+        );
+        node.inner
+            .write()
+            .and_then(|mut writer| {
+                let historical_block = Block::<TransactionVariant> {
+                    hash: H256::repeat_byte(0x2),
+                    number: U64::from(2),
+                    ..Default::default()
+                };
+                writer.block_hashes.insert(2, historical_block.hash);
+                writer
+                    .previous_states
+                    .insert(historical_block.hash, Default::default());
+                writer
+                    .blocks
+                    .insert(historical_block.hash, historical_block);
+
+                Ok(())
+            })
+            .expect("failed setting storage for historical block");
+
+        let actual_value = node
+            .get_storage(
+                input_address,
+                U256::zero(),
+                Some(zksync_types::api::BlockIdVariant::BlockNumberObject(
+                    BlockNumberObject {
+                        block_number: BlockNumber::Number(U64::from(2)),
+                    },
+                )),
+            )
+            .await
+            .expect("failed retrieving storage");
+        assert_eq!(input_storage_value, actual_value);
+    }
+
+    #[tokio::test]
     async fn test_get_storage_fetches_state_for_deployed_smart_contract_in_current_block() {
         let node = InMemoryNode::<HttpForkSource>::default();
 
@@ -3494,6 +3618,7 @@ mod tests {
         assert_eq!(U256::from(1024), h256_to_u256(number1_old));
     }
 
+    #[tokio::test]
     async fn test_get_filter_logs_returns_matching_logs_for_valid_id() {
         let node = InMemoryNode::<HttpForkSource>::default();
 
