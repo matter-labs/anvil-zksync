@@ -466,7 +466,7 @@ mod tests {
             .expect("block exists");
 
         assert_eq!(start_block.number + 1, current_block.number);
-        assert_eq!(start_block.timestamp + 1000, current_block.timestamp);
+        assert_eq!(start_block.timestamp + 1, current_block.timestamp);
 
         let result = evm.evm_mine().await.expect("evm_mine");
         assert_eq!(&result, "0x0");
@@ -478,6 +478,6 @@ mod tests {
             .expect("block exists");
 
         assert_eq!(start_block.number + 2, current_block.number);
-        assert_eq!(start_block.timestamp + 2000, current_block.timestamp);
+        assert_eq!(start_block.timestamp + 2, current_block.timestamp);
     }
 }

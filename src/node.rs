@@ -86,12 +86,12 @@ pub const ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION: u32 = 1_000;
 /// The factor by which to scale the gasLimit.
 pub const ESTIMATE_GAS_SCALE_FACTOR: f32 = 1.3;
 
-pub fn compute_hash(block_number: u32, tx_hash: H256) -> H256 {
+pub fn compute_hash(block_number: u64, tx_hash: H256) -> H256 {
     let digest = [&block_number.to_be_bytes()[..], tx_hash.as_bytes()].concat();
     H256(keccak256(&digest))
 }
 
-pub fn create_empty_block<TX>(block_number: u32, timestamp: u64, batch: u32) -> Block<TX> {
+pub fn create_empty_block<TX>(block_number: u64, timestamp: u64, batch: u32) -> Block<TX> {
     let hash = compute_hash(block_number, H256::zero());
     Block {
         hash,
@@ -238,13 +238,14 @@ pub struct TransactionResult {
 /// Helper struct for InMemoryNode.
 /// S - is the Source of the Fork.
 pub struct InMemoryNodeInner<S> {
-    /// Timestamp, batch number that will be used by the next block.
+    /// The latest timestamp that was already generated.
+    /// Next block will be current_timestamp + 1
     pub current_timestamp: u64,
-    /// Batch number that will be used by the next block.
+    /// The latest batch number that was already generated.
+    /// Next block will be current_batch + 1
     pub current_batch: u32,
     /// The latest miniblock number that was already generated.
     /// Next transaction will go to the block current_miniblock + 1
-    /// (for now, this is a different behavior than the current_batch)
     pub current_miniblock: u64,
     pub l1_gas_price: u64,
     // Map from transaction to details about the exeuction
@@ -278,16 +279,26 @@ type L2TxResult = (
     VmExecutionResultAndLogs,
     Block<TransactionVariant>,
     HashMap<U256, Vec<U256>>,
+    BlockContext,
 );
 
 impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
-    pub fn create_l1_batch_env<ST: ReadStorage>(&self, storage: StoragePtr<ST>) -> L1BatchEnv {
+    pub fn create_l1_batch_env<ST: ReadStorage>(
+        &self,
+        storage: StoragePtr<ST>,
+    ) -> (L1BatchEnv, BlockContext) {
         let last_l2_block = load_last_l2_block(storage);
-        L1BatchEnv {
+        let block_ctx = BlockContext::from_current(
+            self.current_batch,
+            self.current_miniblock,
+            self.current_timestamp,
+        );
+        let block_ctx = block_ctx.new_batch();
+        let batch_env = L1BatchEnv {
             // TODO: set the previous batch hash properly (take from fork, when forking, and from local storage, when this is not the first block).
             previous_batch_hash: None,
-            number: L1BatchNumber::from(self.current_batch),
-            timestamp: self.current_timestamp,
+            number: L1BatchNumber::from(block_ctx.batch),
+            timestamp: block_ctx.timestamp,
             l1_gas_price: self.l1_gas_price,
             fair_l2_gas_price: L2_GAS_PRICE,
             fee_account: H160::zero(),
@@ -295,8 +306,8 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             first_l2_block: vm::L2BlockEnv {
                 // the 'current_miniblock' contains the block that was already produced.
                 // So the next one should be one higher.
-                number: self.current_miniblock.saturating_add(1) as u32,
-                timestamp: self.current_timestamp,
+                number: block_ctx.miniblock as u32,
+                timestamp: block_ctx.timestamp,
                 prev_block_hash: last_l2_block.hash,
                 // This is only used during zksyncEra block timestamp/number transition.
                 // In case of starting a new network, it doesn't matter.
@@ -307,7 +318,9 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 // depend on block number or timestamp.
                 max_virtual_blocks_to_create: 1,
             },
-        }
+        };
+
+        (batch_env, block_ctx)
     }
 
     pub fn create_system_env(
@@ -414,7 +427,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         let storage = storage_view.to_rc_ptr();
 
         let execution_mode = TxExecutionMode::EstimateFee;
-        let mut batch_env = self.create_l1_batch_env(storage.clone());
+        let (mut batch_env, _) = self.create_l1_batch_env(storage.clone());
         batch_env.l1_gas_price = l1_gas_price;
         let system_env = self.create_system_env(
             self.system_contracts.contracts_for_fee_estimate().clone(),
@@ -696,8 +709,8 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             blocks.insert(f.l2_block.hash, f.l2_block.clone());
 
             InMemoryNodeInner {
-                current_timestamp: f.block_timestamp + 1,
-                current_batch: f.l1_block.0 + 1,
+                current_timestamp: f.block_timestamp,
+                current_batch: f.l1_block.0,
                 current_miniblock: f.l2_miniblock,
                 l1_gas_price: f.l1_gas_price,
                 tx_results: Default::default(),
@@ -719,11 +732,14 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             let mut block_hashes = HashMap::<u64, H256>::new();
             block_hashes.insert(0, H256::zero());
             let mut blocks = HashMap::<H256, Block<TransactionVariant>>::new();
-            blocks.insert(H256::zero(), create_empty_block(0, 0, 1));
+            blocks.insert(
+                H256::zero(),
+                create_empty_block(0, NON_FORK_FIRST_BLOCK_TIMESTAMP, 0),
+            );
 
             InMemoryNodeInner {
                 current_timestamp: NON_FORK_FIRST_BLOCK_TIMESTAMP,
-                current_batch: 1,
+                current_batch: 0,
                 current_miniblock: 0,
                 l1_gas_price: L1_GAS_PRICE,
                 tx_results: Default::default(),
@@ -802,7 +818,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         // init vm
 
-        let batch_env = inner.create_l1_batch_env(storage.clone());
+        let (batch_env, _) = inner.create_l1_batch_env(storage.clone());
         let system_env = inner.create_system_env(bootloader_code.clone(), execution_mode);
 
         let mut vm = Vm::new(batch_env, system_env, storage, HistoryDisabled);
@@ -833,10 +849,12 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         match &tx_result.result {
             ExecutionResult::Success { output } => {
-                log::info!("Call: {} {:?}", "SUCCESS".green(), output)
+                log::info!("Call: {}", "SUCCESS".green());
+                let output_bytes = zksync_basic_types::Bytes::from(output.clone());
+                log::info!("Output: {}", serde_json::to_string(&output_bytes).unwrap());
             }
             ExecutionResult::Revert { output } => {
-                log::info!("Call: {}: {}", "FAILED".red(), output)
+                log::info!("Call: {}: {}", "FAILED".red(), output);
             }
             ExecutionResult::Halt { reason } => log::info!("Call: {} {}", "HALTED".red(), reason),
         };
@@ -1025,7 +1043,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         let storage = StorageView::new(&inner.fork_storage).to_rc_ptr();
 
-        let batch_env = inner.create_l1_batch_env(storage.clone());
+        let (batch_env, block_ctx) = inner.create_l1_batch_env(storage.clone());
 
         // if we are impersonating an account, we need to use non-verifying system contracts
         let nonverifying_contracts;
@@ -1174,7 +1192,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         }
 
         // The computed block hash here will be different than that in production.
-        let hash = compute_hash(batch_env.number.0, l2_tx.hash());
+        let hash = compute_hash(block_ctx.miniblock, l2_tx.hash());
 
         let mut transaction = zksync_types::api::Transaction::from(l2_tx);
         let block_hash = inner
@@ -1189,7 +1207,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         let block = Block {
             hash,
-            number: U64::from(inner.current_miniblock.saturating_add(1)),
+            number: U64::from(block_ctx.miniblock),
             timestamp: U256::from(batch_env.timestamp),
             l1_batch_number: Some(U64::from(batch_env.number.0)),
             transactions: vec![TransactionVariant::Full(transaction)],
@@ -1210,7 +1228,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         vm.execute(vm::VmExecutionMode::Bootloader);
 
         let modified_keys = storage.borrow().modified_storage_keys().clone();
-        Ok((modified_keys, tx_result, block, bytecodes))
+        Ok((modified_keys, tx_result, block, bytecodes, block_ctx))
     }
 
     /// Runs L2 transaction and commits it to a new block.
@@ -1227,7 +1245,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             inner.filters.notify_new_pending_transaction(tx_hash);
         }
 
-        let (keys, result, block, bytecodes) =
+        let (keys, result, block, bytecodes, block_ctx) =
             self.run_l2_tx_inner(l2_tx.clone(), execution_mode)?;
 
         if let ExecutionResult::Halt { reason } = result.result {
@@ -1259,8 +1277,6 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             )
         }
 
-        let current_miniblock = inner.current_miniblock.saturating_add(1);
-
         for (log_idx, event) in result.logs.events.iter().enumerate() {
             inner.filters.notify_new_log(
                 &Log {
@@ -1277,7 +1293,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                     log_type: None,
                     removed: None,
                 },
-                U64::from(current_miniblock),
+                block.number,
             );
         }
         let tx_receipt = TransactionReceipt {
@@ -1327,45 +1343,103 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 info: TxExecutionInfo {
                     tx: l2_tx,
                     batch_number: block.l1_batch_number.unwrap_or_default().as_u32(),
-                    miniblock_number: current_miniblock,
+                    miniblock_number: block.number.as_u64(),
                     result,
                 },
                 receipt: tx_receipt,
             },
         );
-        let block_hash = block.hash;
-        inner.block_hashes.insert(current_miniblock, block.hash);
-        inner.blocks.insert(block.hash, block);
-        inner.filters.notify_new_block(block_hash);
 
         // With the introduction of 'l2 blocks' (and virtual blocks),
         // we are adding one l2 block at the end of each batch (to handle things like remaining events etc).
+        //  You can look at insert_fictive_l2_block function in VM to see how this fake block is inserted.
+        let block_ctx = block_ctx.new_block();
+        let empty_block_at_end_of_batch =
+            create_empty_block(block_ctx.miniblock, block_ctx.timestamp, block_ctx.batch);
 
-        let empty_block_at_end_of_batch = create_empty_block(
-            (current_miniblock + 1) as u32,
-            inner.current_timestamp + 1,
-            inner.current_batch,
-        );
-        let empty_block_hash = empty_block_at_end_of_batch.hash;
-        inner
-            .block_hashes
-            .insert(current_miniblock + 1, empty_block_hash);
-        inner.blocks.insert(
-            empty_block_at_end_of_batch.hash,
-            empty_block_at_end_of_batch,
-        );
-        inner.filters.notify_new_block(empty_block_hash);
+        let new_batch = inner.current_batch.saturating_add(1);
+        let mut current_miniblock = inner.current_miniblock;
+        let mut current_timestamp = inner.current_timestamp;
 
-        {
-            // That's why here, we increase the batch by 1, but miniblock (and timestamp) by 2.
-            // You can look at insert_fictive_l2_block function in VM to see how this fake block is inserted.
+        for block in vec![block, empty_block_at_end_of_batch] {
+            current_miniblock = current_miniblock.saturating_add(1);
+            current_timestamp = current_timestamp.saturating_add(1);
 
-            inner.current_batch += 1;
-            inner.current_miniblock += 2;
-            inner.current_timestamp += 2;
+            let actual_l1_batch_number = block
+                .l1_batch_number
+                .expect("block must have a l1_batch_number");
+            if actual_l1_batch_number.as_u32() != new_batch {
+                panic!(
+                    "expected next block to have batch_number {}, got {}",
+                    new_batch,
+                    actual_l1_batch_number.as_u32()
+                );
+            }
+
+            if block.number.as_u64() != current_miniblock {
+                panic!(
+                    "expected next block to have miniblock {}, got {}",
+                    current_miniblock,
+                    block.number.as_u64()
+                );
+            }
+
+            if block.timestamp.as_u64() != current_timestamp {
+                panic!(
+                    "expected next block to have timestamp {}, got {}",
+                    current_timestamp,
+                    block.timestamp.as_u64()
+                );
+            }
+
+            let block_hash = block.hash;
+            inner.block_hashes.insert(block.number.as_u64(), block.hash);
+            inner.blocks.insert(block.hash, block);
+            inner.filters.notify_new_block(block_hash);
         }
 
+        inner.current_batch = new_batch;
+        inner.current_miniblock = current_miniblock;
+        inner.current_timestamp = current_timestamp;
+
         Ok(())
+    }
+}
+
+/// Keeps track of a block's batch number, miniblock number and timestamp.
+/// Useful for keeping track of the current context when creating multiple blocks.
+pub struct BlockContext {
+    pub batch: u32,
+    pub miniblock: u64,
+    pub timestamp: u64,
+}
+
+impl BlockContext {
+    /// Create the current instance that represents the latest block.
+    pub fn from_current(batch: u32, miniblock: u64, timestamp: u64) -> Self {
+        Self {
+            batch,
+            miniblock,
+            timestamp,
+        }
+    }
+
+    /// Create the next batch instance that has all parameters incremented by `1`.
+    pub fn new_batch(&self) -> Self {
+        Self {
+            batch: self.batch.saturating_add(1),
+            miniblock: self.miniblock.saturating_add(1),
+            timestamp: self.timestamp.saturating_add(1),
+        }
+    }
+
+    /// Create the next batch instance that uses the same batch number, and has all other parameters incremented by `1`.
+    pub fn new_block(&self) -> BlockContext {
+        Self {
+            batch: self.batch,
+            miniblock: self.miniblock.saturating_add(1),
+            timestamp: self.timestamp.saturating_add(1),
+        }
     }
 }
 

@@ -357,12 +357,12 @@ impl RawTransactionsResponseBuilder {
 
 /// Applies a transaction with a given hash to the node and returns the block hash.
 pub fn apply_tx<T: ForkSource + std::fmt::Debug>(node: &InMemoryNode<T>, tx_hash: H256) -> H256 {
-    let current_batch = node
+    let next_miniblock = node
         .get_inner()
         .read()
-        .map(|reader| reader.current_batch)
+        .map(|reader| reader.current_miniblock.saturating_add(1))
         .expect("failed getting current batch number");
-    let produced_block_hash = compute_hash(current_batch, tx_hash);
+    let produced_block_hash = compute_hash(next_miniblock, tx_hash);
 
     let private_key = H256::random();
     let from_account = PackedEthSignature::address_from_private_key(&private_key)
@@ -561,7 +561,7 @@ mod test {
         let actual_block_hash = apply_tx(&node, H256::repeat_byte(0x01));
 
         assert_eq!(
-            H256::from_str("0x89c0aa770eba1f187235bdad80de9c01fe81bca415d442ca892f087da56fa109")
+            H256::from_str("0xd97ba6a5ab0f2d7fbfc697251321cce20bff3da2b0ddaf12c80f80f0ab270b15")
                 .unwrap(),
             actual_block_hash,
         );
