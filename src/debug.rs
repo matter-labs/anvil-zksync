@@ -15,7 +15,7 @@ use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, DebugCallType, ResultDebugCall, TracerConfig},
     l2::L2Tx,
     transaction_request::CallRequest,
-    PackedEthSignature, Transaction,
+    PackedEthSignature, Transaction, CONTRACT_DEPLOYER_ADDRESS,
 };
 use zksync_web3_decl::error::Web3Error;
 
@@ -109,11 +109,17 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
                     .unwrap_or_default()
             };
 
+            let calltype = if l2_tx.recipient_account() == CONTRACT_DEPLOYER_ADDRESS {
+                DebugCallType::Create
+            } else {
+                DebugCallType::Call
+            };
+
             let result = match &tx_result.result {
                 ExecutionResult::Success { output } => DebugCall {
                     gas_used: tx_result.statistics.gas_used.into(),
                     output: output.clone().into(),
-                    r#type: DebugCallType::Call,
+                    r#type: calltype,
                     from: l2_tx.initiator_account(),
                     to: l2_tx.recipient_account(),
                     gas: l2_tx.common_data.fee.gas_limit,
@@ -126,7 +132,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
                 ExecutionResult::Revert { output } => DebugCall {
                     gas_used: tx_result.statistics.gas_used.into(),
                     output: output.encoded_data().into(),
-                    r#type: DebugCallType::Call,
+                    r#type: calltype,
                     from: l2_tx.initiator_account(),
                     to: l2_tx.recipient_account(),
                     gas: l2_tx.common_data.fee.gas_limit,
@@ -139,7 +145,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
                 ExecutionResult::Halt { reason } => DebugCall {
                     gas_used: tx_result.statistics.gas_used.into(),
                     output: vec![].into(),
-                    r#type: DebugCallType::Call,
+                    r#type: calltype,
                     from: l2_tx.initiator_account(),
                     to: l2_tx.recipient_account(),
                     gas: l2_tx.common_data.fee.gas_limit,
