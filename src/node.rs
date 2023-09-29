@@ -1394,7 +1394,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             create_empty_block(block_ctx.miniblock, block_ctx.timestamp, block_ctx.batch);
 
         inner.current_batch = inner.current_batch.saturating_add(1);
-        
+
         for block in vec![block, empty_block_at_end_of_batch] {
             // archive current state before we produce new batch/blocks
             if let Err(err) = inner.archive_state() {
@@ -3419,6 +3419,49 @@ mod tests {
         {
             FilterChanges::Empty(_) => (),
             changes => panic!("expected no changes in the second call, got {:?}", changes),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_produced_block_archives_previous_blocks() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let input_storage_key = StorageKey::new(
+            AccountTreeId::new(H160::repeat_byte(0x1)),
+            u256_to_h256(U256::zero()),
+        );
+        let input_storage_value = H256::repeat_byte(0xcd);
+        node.inner
+            .write()
+            .unwrap()
+            .fork_storage
+            .set_value(input_storage_key, input_storage_value);
+        let initial_miniblock = node.inner.read().unwrap().current_miniblock;
+
+        testing::apply_tx(&node, H256::repeat_byte(0x1));
+        let current_miniblock = node.inner.read().unwrap().current_miniblock;
+
+        let reader = node.inner.read().unwrap();
+        for miniblock in initial_miniblock..current_miniblock {
+            let actual_cached_value = reader
+                .block_hashes
+                .get(&miniblock)
+                .map(|hash| {
+                    reader
+                        .previous_states
+                        .get(hash)
+                        .unwrap_or_else(|| panic!("state was not cached for block {}", miniblock))
+                })
+                .map(|state| state.get(&input_storage_key))
+                .flatten()
+                .copied();
+
+            assert_eq!(
+                Some(input_storage_value),
+                actual_cached_value,
+                "unexpected cached state value for block {}",
+                miniblock
+            );
         }
     }
 
