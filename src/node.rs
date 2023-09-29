@@ -662,9 +662,10 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 log::debug!("removing archived state for previous block {:#x}", entry.0);
             }
         }
-        println!(
-            "archiving {} {}",
-            self.current_miniblock_hash, self.current_miniblock
+        log::debug!(
+            "archiving state for {:#x} #{}",
+            self.current_miniblock_hash,
+            self.current_miniblock
         );
         self.previous_states.insert(
             self.current_miniblock_hash,
