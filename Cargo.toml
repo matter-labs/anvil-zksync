@@ -58,5 +58,4 @@ httptest = "0.15.4"
 tempdir = "0.3.7"
 maplit = "1.0.2"
 zksync-web3-rs = "0.1.1"
-ethers-contract = "2.0.7"
 ethers = { version = "2.0.4", features = ["rustls"] }

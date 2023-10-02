@@ -22,6 +22,7 @@ use zksync_types::{
     fee::Fee, l2::L2Tx, Address, L2ChainId, Nonce, PackedEthSignature, ProtocolVersionId, H256,
     U256,
 };
+use ethers::contract;
 
 /// Configuration for the [MockServer]'s initial block.
 #[derive(Default, Debug, Clone)]
@@ -432,7 +433,7 @@ pub fn deploy_contract<T: ForkSource + std::fmt::Debug>(
     )
     .unwrap();
 
-    let data = ethers_contract::encode_function_data(&create, (salt, bytecode_hash, call_data))
+    let data = contract::encode_function_data(&create, (salt, bytecode_hash, call_data))
         .expect("failed encoding function data");
 
     let mut tx = L2Tx::new_signed(

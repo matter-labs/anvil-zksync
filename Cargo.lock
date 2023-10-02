@@ -2134,7 +2134,6 @@ dependencies = [
  "colored",
  "ethabi 16.0.0",
  "ethers",
- "ethers-contract",
  "eyre",
  "futures 0.3.28",
  "hex",
