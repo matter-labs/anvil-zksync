@@ -206,12 +206,26 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
         not_implemented!()
     }
 
+    /// Retrieves details for a given L1 batch.
+    ///
+    /// This method is intended to handle queries related to L1 batch details. However, as of the current implementation,
+    /// L1 communication is not supported. Instead of an error or no method found, this method intentionally returns
+    /// `{"jsonrpc":"2.0","result":null,"id":1}` to ensure compatibility with block explorer integration.
+    ///
+    /// # Parameters
+    ///
+    /// * `_batch`: The batch number of type `zksync_basic_types::L1BatchNumber` for which the details are to be fetched.
+    ///
+    /// # Returns
+    ///
+    /// A boxed future resolving to a `jsonrpc_core::Result` containing an `Option` of `zksync_types::api::L1BatchDetails`.
+    /// Given the current implementation, this will always be `None`.
     fn get_l1_batch_details(
         &self,
         _batch: zksync_basic_types::L1BatchNumber,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<zksync_types::api::L1BatchDetails>>>
     {
-        not_implemented!()
+        Box::pin(async { Ok(None) })
     }
 
     fn get_bytecode_by_hash(
