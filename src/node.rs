@@ -111,7 +111,7 @@ pub fn create_empty_block<TX>(block_number: u64, timestamp: u64, batch: u32) -> 
 }
 
 /// Information about the executed transaction.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct TxExecutionInfo {
     pub tx: L2Tx,
     // Batch number where transaction was executed.
@@ -236,7 +236,7 @@ impl Display for ShowGasDetails {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct TransactionResult {
     info: TxExecutionInfo,
     receipt: TransactionReceipt,
@@ -742,7 +742,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
 /// Creates a restorable snapshot for the [InMemoryNodeInner]. The snapshot contains all the necessary
 /// data required to restore the [InMemoryNodeInner] state to a previous point in time.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Snapshot {
     pub(crate) current_timestamp: u64,
     pub(crate) current_batch: u32,
@@ -3987,21 +3987,28 @@ mod tests {
 
     #[tokio::test]
     async fn test_snapshot() {
-        let mut node = InMemoryNode::<HttpForkSource>::default();
-        let inner = node.inner.write().unwrap();
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let mut inner = node.inner.write().unwrap();
 
         inner
             .blocks
             .insert(H256::repeat_byte(0x1), Default::default());
         inner.block_hashes.insert(1, H256::repeat_byte(0x1));
-        inner
-            .tx_results
-            .insert(H256::repeat_byte(0x1), Default::default());
+        inner.tx_results.insert(
+            H256::repeat_byte(0x1),
+            TransactionResult {
+                info: testing::default_tx_execution_info(),
+                receipt: Default::default(),
+            },
+        );
         inner.current_batch = 1;
         inner.current_miniblock = 1;
         inner.current_miniblock_hash = H256::repeat_byte(0x1);
         inner.current_timestamp = 1;
-        inner.filters.add_block_filter();
+        inner
+            .filters
+            .add_block_filter()
+            .expect("failed adding block filter");
         inner.impersonated_accounts.insert(H160::repeat_byte(0x1));
         inner.rich_accounts.insert(H160::repeat_byte(0x1));
         inner
@@ -4012,8 +4019,191 @@ mod tests {
             H256::repeat_byte(0x1),
         );
 
-        inner.snapshot()
+        let storage = inner.fork_storage.inner.read().unwrap();
+        let expected_snapshot = Snapshot {
+            current_timestamp: inner.current_timestamp.clone(),
+            current_batch: inner.current_batch.clone(),
+            current_miniblock: inner.current_miniblock.clone(),
+            current_miniblock_hash: inner.current_miniblock_hash.clone(),
+            l1_gas_price: inner.l1_gas_price.clone(),
+            tx_results: inner.tx_results.clone(),
+            blocks: inner.blocks.clone(),
+            block_hashes: inner.block_hashes.clone(),
+            filters: inner.filters.clone(),
+            impersonated_accounts: inner.impersonated_accounts.clone(),
+            rich_accounts: inner.rich_accounts.clone(),
+            previous_states: inner.previous_states.clone(),
+            raw_storage: storage.raw_storage.clone(),
+            value_read_cache: storage.value_read_cache.clone(),
+            factory_dep_cache: storage.factory_dep_cache.clone(),
+        };
+        let actual_snapshot = inner.snapshot().expect("failed taking snapshot");
 
-        // let actual_snapshot = node.sn
+        assert_eq!(
+            expected_snapshot.current_timestamp,
+            actual_snapshot.current_timestamp
+        );
+        assert_eq!(
+            expected_snapshot.current_batch,
+            actual_snapshot.current_batch
+        );
+        assert_eq!(
+            expected_snapshot.current_miniblock,
+            actual_snapshot.current_miniblock
+        );
+        assert_eq!(
+            expected_snapshot.current_miniblock_hash,
+            actual_snapshot.current_miniblock_hash
+        );
+        assert_eq!(expected_snapshot.l1_gas_price, actual_snapshot.l1_gas_price);
+        assert_eq!(
+            expected_snapshot.tx_results.keys().collect_vec(),
+            actual_snapshot.tx_results.keys().collect_vec()
+        );
+        assert_eq!(expected_snapshot.blocks, actual_snapshot.blocks);
+        assert_eq!(expected_snapshot.block_hashes, actual_snapshot.block_hashes);
+        assert_eq!(expected_snapshot.filters, actual_snapshot.filters);
+        assert_eq!(
+            expected_snapshot.impersonated_accounts,
+            actual_snapshot.impersonated_accounts
+        );
+        assert_eq!(
+            expected_snapshot.rich_accounts,
+            actual_snapshot.rich_accounts
+        );
+        assert_eq!(
+            expected_snapshot.previous_states,
+            actual_snapshot.previous_states
+        );
+        assert_eq!(expected_snapshot.raw_storage, actual_snapshot.raw_storage);
+        assert_eq!(
+            expected_snapshot.value_read_cache,
+            actual_snapshot.value_read_cache
+        );
+        assert_eq!(
+            expected_snapshot.factory_dep_cache,
+            actual_snapshot.factory_dep_cache
+        );
+    }
+
+    #[tokio::test]
+    async fn test_snapshot_restore() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let mut inner = node.inner.write().unwrap();
+
+        inner
+            .blocks
+            .insert(H256::repeat_byte(0x1), Default::default());
+        inner.block_hashes.insert(1, H256::repeat_byte(0x1));
+        inner.tx_results.insert(
+            H256::repeat_byte(0x1),
+            TransactionResult {
+                info: testing::default_tx_execution_info(),
+                receipt: Default::default(),
+            },
+        );
+        inner.current_batch = 1;
+        inner.current_miniblock = 1;
+        inner.current_miniblock_hash = H256::repeat_byte(0x1);
+        inner.current_timestamp = 1;
+        inner
+            .filters
+            .add_block_filter()
+            .expect("failed adding block filter");
+        inner.impersonated_accounts.insert(H160::repeat_byte(0x1));
+        inner.rich_accounts.insert(H160::repeat_byte(0x1));
+        inner
+            .previous_states
+            .insert(H256::repeat_byte(0x1), Default::default());
+        inner.fork_storage.set_value(
+            StorageKey::new(AccountTreeId::new(H160::repeat_byte(0x1)), H256::zero()),
+            H256::repeat_byte(0x1),
+        );
+
+        let expected_snapshot = {
+            let storage = inner.fork_storage.inner.read().unwrap();
+            Snapshot {
+                current_timestamp: inner.current_timestamp.clone(),
+                current_batch: inner.current_batch.clone(),
+                current_miniblock: inner.current_miniblock.clone(),
+                current_miniblock_hash: inner.current_miniblock_hash.clone(),
+                l1_gas_price: inner.l1_gas_price.clone(),
+                tx_results: inner.tx_results.clone(),
+                blocks: inner.blocks.clone(),
+                block_hashes: inner.block_hashes.clone(),
+                filters: inner.filters.clone(),
+                impersonated_accounts: inner.impersonated_accounts.clone(),
+                rich_accounts: inner.rich_accounts.clone(),
+                previous_states: inner.previous_states.clone(),
+                raw_storage: storage.raw_storage.clone(),
+                value_read_cache: storage.value_read_cache.clone(),
+                factory_dep_cache: storage.factory_dep_cache.clone(),
+            }
+        };
+
+        // snapshot and modify node state
+        let snapshot = inner.snapshot().expect("failed taking snapshot");
+        inner
+            .blocks
+            .insert(H256::repeat_byte(0x2), Default::default());
+        inner.block_hashes.insert(2, H256::repeat_byte(0x2));
+        inner.tx_results.insert(
+            H256::repeat_byte(0x2),
+            TransactionResult {
+                info: testing::default_tx_execution_info(),
+                receipt: Default::default(),
+            },
+        );
+        inner.current_batch = 2;
+        inner.current_miniblock = 2;
+        inner.current_miniblock_hash = H256::repeat_byte(0x2);
+        inner.current_timestamp = 2;
+        inner
+            .filters
+            .add_pending_transaction_filter()
+            .expect("failed adding pending transaction filter");
+        inner.impersonated_accounts.insert(H160::repeat_byte(0x2));
+        inner.rich_accounts.insert(H160::repeat_byte(0x2));
+        inner
+            .previous_states
+            .insert(H256::repeat_byte(0x2), Default::default());
+        inner.fork_storage.set_value(
+            StorageKey::new(AccountTreeId::new(H160::repeat_byte(0x2)), H256::zero()),
+            H256::repeat_byte(0x2),
+        );
+
+        // restore
+        inner
+            .restore_snapshot(snapshot)
+            .expect("failed restoring snapshot");
+
+        let storage = inner.fork_storage.inner.read().unwrap();
+        assert_eq!(expected_snapshot.current_timestamp, inner.current_timestamp);
+        assert_eq!(expected_snapshot.current_batch, inner.current_batch);
+        assert_eq!(expected_snapshot.current_miniblock, inner.current_miniblock);
+        assert_eq!(
+            expected_snapshot.current_miniblock_hash,
+            inner.current_miniblock_hash
+        );
+        assert_eq!(expected_snapshot.l1_gas_price, inner.l1_gas_price);
+        assert_eq!(
+            expected_snapshot.tx_results.keys().collect_vec(),
+            inner.tx_results.keys().collect_vec()
+        );
+        assert_eq!(expected_snapshot.blocks, inner.blocks);
+        assert_eq!(expected_snapshot.block_hashes, inner.block_hashes);
+        assert_eq!(expected_snapshot.filters, inner.filters);
+        assert_eq!(
+            expected_snapshot.impersonated_accounts,
+            inner.impersonated_accounts
+        );
+        assert_eq!(expected_snapshot.rich_accounts, inner.rich_accounts);
+        assert_eq!(expected_snapshot.previous_states, inner.previous_states);
+        assert_eq!(expected_snapshot.raw_storage, storage.raw_storage);
+        assert_eq!(expected_snapshot.value_read_cache, storage.value_read_cache);
+        assert_eq!(
+            expected_snapshot.factory_dep_cache,
+            storage.factory_dep_cache
+        );
     }
 }

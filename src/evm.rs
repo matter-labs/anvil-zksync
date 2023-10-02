@@ -224,15 +224,15 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EvmNamespaceT
                 log::error!("failed acquiring read lock for snapshots: {:?}", err);
                 into_jsrpc_error(Web3Error::InternalError)
             })?;
-            let snapshot_id = snapshot_id.as_usize();
-            if snapshot_id >= snapshots.len() {
+            let snapshot_id_index = snapshot_id.as_usize().saturating_sub(1);
+            if snapshot_id_index >= snapshots.len() {
                 log::error!("no snapshot exists for the id '{}'", snapshot_id);
                 return Err(into_jsrpc_error(Web3Error::InternalError));
             }
 
             // remove all snapshots following the index and use the first snapshot for restore
             let selected_snapshot = snapshots
-                .drain(snapshot_id..)
+                .drain(snapshot_id_index..)
                 .next()
                 .expect("unexpected failure, value must exist");
 
@@ -597,5 +597,75 @@ mod tests {
 
         assert_eq!(start_block.number + 2, current_block.number);
         assert_eq!(start_block.timestamp + 2, current_block.timestamp);
+    }
+
+    #[tokio::test]
+    async fn test_evm_snapshot_creates_incrementing_ids() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let evm = EvmNamespaceImpl::new(node.get_inner());
+
+        let snapshot_id_1 = evm.snapshot().await.expect("failed creating snapshot 1");
+        let snapshot_id_2 = evm.snapshot().await.expect("failed creating snapshot 2");
+
+        assert_eq!(snapshot_id_1, U64::from(1));
+        assert_eq!(snapshot_id_2, U64::from(2));
+    }
+
+    #[tokio::test]
+    async fn test_evm_revert_snapshot_restores_state() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let evm = EvmNamespaceImpl::new(node.get_inner());
+
+        let initial_block = node
+            .get_block_number()
+            .await
+            .expect("failed fetching block number");
+        let snapshot_id = evm.snapshot().await.expect("failed creating snapshot");
+        evm.evm_mine().await.expect("evm_mine");
+        let current_block = node
+            .get_block_number()
+            .await
+            .expect("failed fetching block number");
+        assert_eq!(current_block, initial_block + 1);
+
+        let reverted = evm
+            .revert_snapshot(snapshot_id)
+            .await
+            .expect("failed reverting snapshot");
+        assert!(reverted);
+
+        let restored_block = node
+            .get_block_number()
+            .await
+            .expect("failed fetching block number");
+        assert_eq!(restored_block, initial_block);
+    }
+
+    #[tokio::test]
+    async fn test_evm_revert_snapshot_removes_all_snapshots_following_the_reverted_one() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let evm = EvmNamespaceImpl::new(node.get_inner());
+
+        let _snapshot_id_1 = evm.snapshot().await.expect("failed creating snapshot");
+        let snapshot_id_2 = evm.snapshot().await.expect("failed creating snapshot");
+        let _snapshot_id_3 = evm.snapshot().await.expect("failed creating snapshot");
+        assert_eq!(3, evm.snapshots.read().unwrap().len());
+
+        let reverted = evm
+            .revert_snapshot(snapshot_id_2)
+            .await
+            .expect("failed reverting snapshot");
+        assert!(reverted);
+
+        assert_eq!(1, evm.snapshots.read().unwrap().len());
+    }
+
+    #[tokio::test]
+    async fn test_evm_revert_snapshot_fails_for_invalid_snapshot_id() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let evm = EvmNamespaceImpl::new(node.get_inner());
+
+        let result = evm.revert_snapshot(U64::from(100)).await;
+        assert!(result.is_err());
     }
 }
