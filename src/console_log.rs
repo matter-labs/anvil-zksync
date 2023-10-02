@@ -11,7 +11,7 @@ use zksync_types::H160;
 /// This is a popular debugging method used by hardhat and foundry.
 /// When user wants to log something, these tools are doing a call to a contract at a given (fake) address.
 /// The ConsoleLogHandler is catching this call, and printing it out -- but only if TRACE level log is enabled for 'console' target.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ConsoleLogHandler {
     /// Map from the 4-byte function signature to function itself.
     // This contract has many 'log' methods (depending on argument type) - so we have a map here, to be able to parse the arguments.

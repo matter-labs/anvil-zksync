@@ -2,6 +2,7 @@
 use crate::{
     bootloader_debug::{BootloaderDebug, BootloaderDebugTracer},
     console_log::ConsoleLogHandler,
+    deps::InMemoryStorage,
     filters::{EthFilters, FilterType, LogFilter},
     fork::{ForkDetails, ForkSource, ForkStorage},
     formatter,
@@ -110,6 +111,7 @@ pub fn create_empty_block<TX>(block_number: u64, timestamp: u64, batch: u32) -> 
 }
 
 /// Information about the executed transaction.
+#[derive(Clone)]
 pub struct TxExecutionInfo {
     pub tx: L2Tx,
     // Batch number where transaction was executed.
@@ -234,6 +236,7 @@ impl Display for ShowGasDetails {
     }
 }
 
+#[derive(Clone)]
 pub struct TransactionResult {
     info: TxExecutionInfo,
     receipt: TransactionReceipt,
@@ -241,6 +244,7 @@ pub struct TransactionResult {
 
 /// Helper struct for InMemoryNode.
 /// S - is the Source of the Fork.
+#[derive(Clone)]
 pub struct InMemoryNodeInner<S> {
     /// The latest timestamp that was already generated.
     /// Next block will be current_timestamp + 1
@@ -680,6 +684,81 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
         Ok(())
     }
+
+    /// Creates a [Snapshot] of the current state of the node.
+    pub fn snapshot(&self) -> Result<Snapshot, String> {
+        let storage = self
+            .fork_storage
+            .inner
+            .read()
+            .map_err(|err| format!("failed acquiring read lock on storage: {:?}", err))?;
+
+        Ok(Snapshot {
+            current_timestamp: self.current_timestamp.clone(),
+            current_batch: self.current_batch.clone(),
+            current_miniblock: self.current_miniblock.clone(),
+            current_miniblock_hash: self.current_miniblock_hash.clone(),
+            l1_gas_price: self.l1_gas_price.clone(),
+            tx_results: self.tx_results.clone(),
+            blocks: self.blocks.clone(),
+            block_hashes: self.block_hashes.clone(),
+            filters: self.filters.clone(),
+            impersonated_accounts: self.impersonated_accounts.clone(),
+            rich_accounts: self.rich_accounts.clone(),
+            previous_states: self.previous_states.clone(),
+            raw_storage: storage.raw_storage.clone(),
+            value_read_cache: storage.value_read_cache.clone(),
+            factory_dep_cache: storage.factory_dep_cache.clone(),
+        })
+    }
+
+    /// Restores a previously created [Snapshot] of the node.
+    pub fn restore_snapshot(&mut self, snapshot: Snapshot) -> Result<(), String> {
+        let mut storage = self
+            .fork_storage
+            .inner
+            .write()
+            .map_err(|err| format!("failed acquiring write lock on storage: {:?}", err))?;
+
+        self.current_timestamp = snapshot.current_timestamp;
+        self.current_batch = snapshot.current_batch;
+        self.current_miniblock = snapshot.current_miniblock;
+        self.current_miniblock_hash = snapshot.current_miniblock_hash;
+        self.l1_gas_price = snapshot.l1_gas_price;
+        self.tx_results = snapshot.tx_results;
+        self.blocks = snapshot.blocks;
+        self.block_hashes = snapshot.block_hashes;
+        self.filters = snapshot.filters;
+        self.impersonated_accounts = snapshot.impersonated_accounts;
+        self.rich_accounts = snapshot.rich_accounts;
+        self.previous_states = snapshot.previous_states;
+        storage.raw_storage = snapshot.raw_storage;
+        storage.value_read_cache = snapshot.value_read_cache;
+        storage.factory_dep_cache = snapshot.factory_dep_cache;
+
+        Ok(())
+    }
+}
+
+/// Creates a restorable snapshot for the [InMemoryNodeInner]. The snapshot contains all the necessary
+/// data required to restore the [InMemoryNodeInner] state to a previous point in time.
+#[derive(Clone)]
+pub struct Snapshot {
+    pub(crate) current_timestamp: u64,
+    pub(crate) current_batch: u32,
+    pub(crate) current_miniblock: u64,
+    pub(crate) current_miniblock_hash: H256,
+    pub(crate) l1_gas_price: u64,
+    pub(crate) tx_results: HashMap<H256, TransactionResult>,
+    pub(crate) blocks: HashMap<H256, Block<TransactionVariant>>,
+    pub(crate) block_hashes: HashMap<u64, H256>,
+    pub(crate) filters: EthFilters,
+    pub(crate) impersonated_accounts: HashSet<Address>,
+    pub(crate) rich_accounts: HashSet<H160>,
+    pub(crate) previous_states: IndexMap<H256, HashMap<StorageKey, StorageValue>>,
+    pub(crate) raw_storage: InMemoryStorage,
+    pub(crate) value_read_cache: HashMap<StorageKey, H256>,
+    pub(crate) factory_dep_cache: HashMap<H256, Option<Vec<u8>>>,
 }
 
 fn not_implemented<T: Send + 'static>(
@@ -3904,5 +3983,37 @@ mod tests {
                 panic!("Failed to fetch accounts: {:?}", e);
             }
         }
+    }
+
+    #[tokio::test]
+    async fn test_snapshot() {
+        let mut node = InMemoryNode::<HttpForkSource>::default();
+        let inner = node.inner.write().unwrap();
+
+        inner
+            .blocks
+            .insert(H256::repeat_byte(0x1), Default::default());
+        inner.block_hashes.insert(1, H256::repeat_byte(0x1));
+        inner
+            .tx_results
+            .insert(H256::repeat_byte(0x1), Default::default());
+        inner.current_batch = 1;
+        inner.current_miniblock = 1;
+        inner.current_miniblock_hash = H256::repeat_byte(0x1);
+        inner.current_timestamp = 1;
+        inner.filters.add_block_filter();
+        inner.impersonated_accounts.insert(H160::repeat_byte(0x1));
+        inner.rich_accounts.insert(H160::repeat_byte(0x1));
+        inner
+            .previous_states
+            .insert(H256::repeat_byte(0x1), Default::default());
+        inner.fork_storage.set_value(
+            StorageKey::new(AccountTreeId::new(H160::repeat_byte(0x1)), H256::zero()),
+            H256::repeat_byte(0x1),
+        );
+
+        inner.snapshot()
+
+        // let actual_snapshot = node.sn
     }
 }

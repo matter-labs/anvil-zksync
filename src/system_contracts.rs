@@ -19,6 +19,7 @@ pub enum Options {
 }
 
 /// Holds the system contracts (and bootloader) that are used by the in-memory node.
+#[derive(Debug, Clone)]
 pub struct SystemContracts {
     pub baseline_contracts: BaseSystemContracts,
     pub playground_contracts: BaseSystemContracts,
