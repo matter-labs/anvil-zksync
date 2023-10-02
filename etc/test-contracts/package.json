@@ -42,9 +42,7 @@
   },
   "scripts": {
     "build": "hardhat compile",
-    "clean": "hardhat clean && rm -rf ./bootloader/build",
-    "preprocess": "rm -rf ./bootloader/build && yarn ts-node scripts/process.ts",
-    "build-bootloader": "yarn hardhat run ./scripts/compile-yul.ts"
+    "clean": "hardhat clean"
   },
   "packageManager": "yarn@1.22.19"
 }
