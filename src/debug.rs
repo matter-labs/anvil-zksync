@@ -59,7 +59,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
         let only_top = options.is_some_and(|o| o.tracer_config.only_top_call);
         let inner = Arc::clone(&self.node);
         Box::pin(async move {
-            if !matches!(block, Some(BlockId::Number(BlockNumber::Latest))) {
+            if !block.is_none() && !matches!(block, Some(BlockId::Number(BlockNumber::Latest))) {
                 return Err(jsonrpc_core::Error::invalid_params(
                     "tracing only supported at `latest` block",
                 ));
@@ -83,9 +83,9 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
             let bootloader_code = inner.system_contracts.contacts_for_l2_call();
 
             // init vm
-            let batch_env = inner.create_l1_batch_env(storage.clone());
+            let (l1_batch_env, block_context) = inner.create_l1_batch_env(storage.clone());
             let system_env = inner.create_system_env(bootloader_code.clone(), execution_mode);
-            let mut vm = Vm::new(batch_env, system_env, storage, HistoryDisabled);
+            let mut vm = Vm::new(l1_batch_env, system_env, storage, HistoryDisabled);
 
             // We must inject *some* signature (otherwise bootloader code fails to generate hash).
             if l2_tx.common_data.signature.is_empty() {
@@ -210,6 +210,7 @@ mod tests {
 
         assert!(trace.error.is_none());
         assert!(trace.revert_reason.is_none());
+        assert_eq!(trace.calls.len(), 1);
 
         // passing block number is not supported
         let resp = debug
