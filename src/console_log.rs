@@ -44,10 +44,10 @@ impl Default for ConsoleLogHandler {
 }
 
 impl ConsoleLogHandler {
-    pub fn handle_call_recurive(&self, current_call: &Call) {
+    pub fn handle_call_recursive(&self, current_call: &Call) {
         self.handle_call(current_call);
         for call in &current_call.calls {
-            self.handle_call_recurive(call);
+            self.handle_call_recursive(call);
         }
     }
     pub fn handle_call(&self, current_call: &Call) {
