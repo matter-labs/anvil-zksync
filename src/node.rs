@@ -290,6 +290,8 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         let last_l2_block_hash = if let Some(last_l2_block) = load_last_l2_block(storage.clone()) {
             last_l2_block.hash
         } else {
+            // This is the scenario of either the first L2 block ever or
+            // the first block after the upgrade for support of L2 blocks.
             legacy_miniblock_hash(MiniblockNumber(self.current_miniblock as u32))
         };
         let block_ctx = BlockContext::from_current(
@@ -865,7 +867,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         log::info!("=== Console Logs: ");
         for call in &call_traces {
-            inner.console_log_handler.handle_call_recurive(call);
+            inner.console_log_handler.handle_call_recursive(call);
         }
 
         log::info!("=== Call traces:");
@@ -1170,10 +1172,11 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         log::info!("");
         log::info!("==== Console logs: ");
         for call in call_traces {
-            inner.console_log_handler.handle_call_recurive(call);
+            inner.console_log_handler.handle_call_recursive(call);
         }
         log::info!("");
         let call_traces_count = if call_traces.len() > 0 {
+            // All calls/sub-calls are stored within the first call trace
             call_traces[0].calls.len()
         } else {
             0
