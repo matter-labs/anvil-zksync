@@ -8,6 +8,7 @@
 use crate::node::{InMemoryNode, TxExecutionInfo};
 use crate::{fork::ForkSource, node::compute_hash};
 
+use ethers::contract;
 use httptest::{
     matchers::{eq, json_decoded, request},
     responders::json_encoded,
@@ -22,7 +23,6 @@ use zksync_types::{
     fee::Fee, l2::L2Tx, Address, L2ChainId, Nonce, PackedEthSignature, ProtocolVersionId, H256,
     U256,
 };
-use ethers::contract;
 
 /// Configuration for the [MockServer]'s initial block.
 #[derive(Default, Debug, Clone)]
