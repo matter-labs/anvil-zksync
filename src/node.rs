@@ -38,7 +38,7 @@ use vm::{
 };
 use zksync_basic_types::{
     web3::{self, signing::keccak256},
-    AccountTreeId, Address, Bytes, L1BatchNumber, H160, H256, U256, U64, MiniblockNumber,
+    AccountTreeId, Address, Bytes, L1BatchNumber, MiniblockNumber, H160, H256, U256, U64,
 };
 use zksync_contracts::BaseSystemContracts;
 use zksync_core::api_server::web3::backend_jsonrpc::{
@@ -47,6 +47,7 @@ use zksync_core::api_server::web3::backend_jsonrpc::{
 use zksync_state::{ReadStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_types::{
     api::{Block, Log, TransactionReceipt, TransactionVariant},
+    block::legacy_miniblock_hash,
     fee::Fee,
     get_code_key, get_nonce_key,
     l2::L2Tx,
@@ -56,7 +57,7 @@ use zksync_types::{
         storage_key_for_standard_token_balance,
     },
     PackedEthSignature, StorageKey, StorageLogQueryType, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
-    EIP_712_TX_TYPE, L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT, block::legacy_miniblock_hash,
+    EIP_712_TX_TYPE, L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT,
 };
 use zksync_utils::{
     bytecode::{compress_bytecode, hash_bytecode},
@@ -1175,7 +1176,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             inner.console_log_handler.handle_call_recursive(call);
         }
         log::info!("");
-        let call_traces_count = if call_traces.len() > 0 {
+        let call_traces_count = if !call_traces.is_empty() {
             // All calls/sub-calls are stored within the first call trace
             call_traces[0].calls.len()
         } else {
