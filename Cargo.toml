@@ -11,15 +11,15 @@ categories = ["cryptography"]
 publish = false # We don't want to publish our binaries.
 
 [dependencies]
-zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v7.0.0-rc0" }
-zksync_core = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v7.0.0-rc0" }
-vm = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v7.0.0-rc0" }
-vlog = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v7.0.0-rc0" }
-zksync_contracts = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v7.0.0-rc0" }
-zksync_types = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v7.0.0-rc0" }
-zksync_utils = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v7.0.0-rc0" }
-zksync_state = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v7.0.0-rc0" }
-zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era.git", tag = "v7.0.0-rc0" }
+zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era.git", rev = "8df11278ca76000d842fc0f73f5233dfc85ef77e" }
+zksync_core = { git = "https://github.com/matter-labs/zksync-era.git", rev = "8df11278ca76000d842fc0f73f5233dfc85ef77e" }
+vm = { git = "https://github.com/matter-labs/zksync-era.git", rev = "8df11278ca76000d842fc0f73f5233dfc85ef77e" }
+vlog = { git = "https://github.com/matter-labs/zksync-era.git", rev = "8df11278ca76000d842fc0f73f5233dfc85ef77e" }
+zksync_contracts = { git = "https://github.com/matter-labs/zksync-era.git", rev = "8df11278ca76000d842fc0f73f5233dfc85ef77e" }
+zksync_types = { git = "https://github.com/matter-labs/zksync-era.git", rev = "8df11278ca76000d842fc0f73f5233dfc85ef77e" }
+zksync_utils = { git = "https://github.com/matter-labs/zksync-era.git", rev = "8df11278ca76000d842fc0f73f5233dfc85ef77e" }
+zksync_state = { git = "https://github.com/matter-labs/zksync-era.git", rev = "8df11278ca76000d842fc0f73f5233dfc85ef77e" }
+zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era.git", rev = "8df11278ca76000d842fc0f73f5233dfc85ef77e" }
 
 
 
@@ -51,6 +51,7 @@ itertools = "0.10.5"
 log = "0.4.20"
 simplelog = "0.12.1"
 rustc-hash = "1.1.0"
+chrono = "0.4.31"
 
 [dev-dependencies]
 httptest = "0.15.4"
