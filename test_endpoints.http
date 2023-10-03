@@ -479,16 +479,8 @@ content-type: application/json
 {
     "jsonrpc": "2.0",
     "id": "2",
-    "method": "debug_traceCall",
-    "params": [{
-        "to": "0x5AEa5775959fBC2557Cc8789bC1bf90A239D9a91",
-        "data": "0x06fdde03",
-        "from": "0xa61464658AfeAf65CccaaFD3a512b69A83B77618",
-        "gas": "0xff000",
-        "gasPrice": "0x0000",
-        "value": "0x0000",
-        "nonce": "0x0000"
-    }, "latest"]
+    "method": "eth_getStorageAt",
+    "params": ["0x123456789abcdef123456789abcdef1234567890", "0x0", "latest"]
 }
 
 ###
