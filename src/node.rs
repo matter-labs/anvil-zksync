@@ -452,8 +452,11 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         // We are using binary search to find the minimal values of gas_limit under which the transaction succeeds
         let mut lower_bound = 0;
         let mut upper_bound = MAX_L2_TX_GAS_LIMIT as u32;
+        let mut attempt_count = 1;
 
+        log::trace!("Starting gas estimation loop");
         while lower_bound + ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION < upper_bound {
+            log::trace!("Attempt {} (lower_bound: {}, upper_bound: {})", attempt_count, lower_bound, upper_bound);
             let mid = (lower_bound + upper_bound) / 2;
             let try_gas_limit = gas_for_bytecodes_pubdata + mid;
 
@@ -472,6 +475,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             } else {
                 upper_bound = mid;
             }
+            attempt_count += 1;
         }
 
         let tx_body_gas_limit = cmp::min(
@@ -582,6 +586,11 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                     }
                 };
 
+                log::trace!("Final gas estimation");
+                log::trace!("tx_body_gas_limit: {}", tx_body_gas_limit);
+                log::trace!("gas_for_bytecodes_pubdata: {}", gas_for_bytecodes_pubdata);
+                log::trace!("ovearhead: {}", overhead);
+                log::trace!("full_gas_limit: {}", full_gas_limit);
                 let fee = Fee {
                     max_fee_per_gas: base_fee.into(),
                     max_priority_fee_per_gas: 0u32.into(),

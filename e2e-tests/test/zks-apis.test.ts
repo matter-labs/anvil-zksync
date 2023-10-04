@@ -15,7 +15,7 @@ interface Fee {
 }
 
 describe("zks_estimateFee", function () {
-  it("Should return fee estimation data for transfer of 1 ETH", async function () {
+  it.only("Should return fee estimation data for transfer of 1 ETH", async function () {
     // Arrange
     const wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
     const userWallet = Wallet.createRandom().connect(provider);

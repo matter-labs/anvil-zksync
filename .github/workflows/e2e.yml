@@ -33,7 +33,7 @@ jobs:
           tar -xzf era_test_node-${{ matrix.os }}.tar.gz
           chmod +x era_test_node
           echo "Starting node in background"
-          ./era_test_node --show-gas-details=all run 2>&1 | tee era_test_node_output.log &
+          ./era_test_node --log=trace run 2>&1 | tee era_test_node_output.log &
           echo "PID=$!" >> $GITHUB_ENV
 
       - name: Launch tests
