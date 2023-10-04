@@ -478,6 +478,9 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             attempt_count += 1;
         }
 
+        log::trace!("Final upper_bound: {}", upper_bound);
+        log::trace!("ESTIMATE_GAS_SCALE_FACTOR: {}", ESTIMATE_GAS_SCALE_FACTOR);
+        log::trace!("MAX_L2_TX_GAS_LIMIT: {}", MAX_L2_TX_GAS_LIMIT);
         let tx_body_gas_limit = cmp::min(
             MAX_L2_TX_GAS_LIMIT as u32,
             (upper_bound as f32 * ESTIMATE_GAS_SCALE_FACTOR) as u32,
@@ -589,7 +592,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 log::trace!("Final gas estimation");
                 log::trace!("tx_body_gas_limit: {}", tx_body_gas_limit);
                 log::trace!("gas_for_bytecodes_pubdata: {}", gas_for_bytecodes_pubdata);
-                log::trace!("ovearhead: {}", overhead);
+                log::trace!("overhead: {}", overhead);
                 log::trace!("full_gas_limit: {}", full_gas_limit);
                 let fee = Fee {
                     max_fee_per_gas: base_fee.into(),
