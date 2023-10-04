@@ -456,8 +456,8 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
         log::trace!("Starting gas estimation loop");
         while lower_bound + ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION < upper_bound {
-            log::trace!("Attempt {} (lower_bound: {}, upper_bound: {})", attempt_count, lower_bound, upper_bound);
             let mid = (lower_bound + upper_bound) / 2;
+            log::trace!("Attempt {} (lower_bound: {}, upper_bound: {}, mid: {})", attempt_count, lower_bound, upper_bound, mid);
             let try_gas_limit = gas_for_bytecodes_pubdata + mid;
 
             let estimate_gas_result = InMemoryNodeInner::estimate_gas_step(
@@ -471,8 +471,10 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             );
 
             if estimate_gas_result.result.is_failed() {
+                log::trace!("Attempt {} FAILED", attempt_count);
                 lower_bound = mid + 1;
             } else {
+                log::trace!("Attempt {} SUCCEEDED", attempt_count);
                 upper_bound = mid;
             }
             attempt_count += 1;
