@@ -591,7 +591,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                     }
                 };
 
-                log::trace!("Final gas estimation");
+                log::trace!("Final gas estimation values");
                 log::trace!("tx_body_gas_limit: {}", tx_body_gas_limit);
                 log::trace!("gas_for_bytecodes_pubdata: {}", gas_for_bytecodes_pubdata);
                 log::trace!("overhead: {}", overhead);

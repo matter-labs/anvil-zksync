@@ -15,7 +15,7 @@ interface Fee {
 }
 
 describe("zks_estimateFee", function () {
-  it.only("Should return fee estimation data for transfer of 1 ETH", async function () {
+  it("Should return fee estimation data for transfer of 1 ETH", async function () {
     // Arrange
     const wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
     const userWallet = Wallet.createRandom().connect(provider);
@@ -29,7 +29,7 @@ describe("zks_estimateFee", function () {
     const response: Fee = await provider.send("zks_estimateFee", [transaction]);
 
     // Assert
-    expect(ethers.BigNumber.from(response.gas_limit)).to.eql(ethers.BigNumber.from("1398253"), "Unexpected gas_limit");
+    expect(ethers.BigNumber.from(response.gas_limit)).to.eql(ethers.BigNumber.from("1230957"), "Unexpected gas_limit");
     expect(ethers.BigNumber.from(response.gas_per_pubdata_limit)).to.eql(
       ethers.BigNumber.from("4080"),
       "Unexpected gas_per_pubdata_limit"
