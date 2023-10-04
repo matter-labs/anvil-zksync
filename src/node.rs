@@ -300,7 +300,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         &self,
         storage: StoragePtr<ST>,
     ) -> (L1BatchEnv, BlockContext) {
-        let last_l2_block_hash = if let Some(last_l2_block) = load_last_l2_block(storage.clone()) {
+        let last_l2_block_hash = if let Some(last_l2_block) = load_last_l2_block(storage) {
             last_l2_block.hash
         } else {
             // This is the scenario of either the first L2 block ever or
@@ -701,11 +701,11 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             .map_err(|err| format!("failed acquiring read lock on storage: {:?}", err))?;
 
         Ok(Snapshot {
-            current_timestamp: self.current_timestamp.clone(),
-            current_batch: self.current_batch.clone(),
-            current_miniblock: self.current_miniblock.clone(),
-            current_miniblock_hash: self.current_miniblock_hash.clone(),
-            l1_gas_price: self.l1_gas_price.clone(),
+            current_timestamp: self.current_timestamp,
+            current_batch: self.current_batch,
+            current_miniblock: self.current_miniblock,
+            current_miniblock_hash: self.current_miniblock_hash,
+            l1_gas_price: self.l1_gas_price,
             tx_results: self.tx_results.clone(),
             blocks: self.blocks.clone(),
             block_hashes: self.block_hashes.clone(),

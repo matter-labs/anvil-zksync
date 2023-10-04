@@ -1,8 +1,10 @@
 import { expect } from "chai";
-import { getTestProvider } from "../helpers/utils";
+import * as hre from "hardhat";
+import { deployContract, getTestProvider } from "../helpers/utils";
 import { Wallet } from "zksync-web3";
 import { RichAccounts } from "../helpers/constants";
-import { ethers } from "ethers";
+import { BigNumber, ethers } from "ethers";
+import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
 
 const provider = getTestProvider();
 
@@ -89,5 +91,43 @@ describe("evm_setTime", function () {
     // Assert
     const newBlockTimestamp = (await provider.getBlock("latest")).timestamp;
     expect(newBlockTimestamp).to.equal(expectedTimestamp);
+  });
+});
+
+describe("evm_snapshot", function () {
+  it("Should return incrementing snapshot ids", async function () {
+    const wallet = new Wallet(RichAccounts[0].PrivateKey);
+    const deployer = new Deployer(hre, wallet);
+    const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
+    expect(await greeter.greet()).to.eq("Hi");
+
+    // Act
+    const snapshotId1 = await provider.send("evm_snapshot", []);
+    const snapshotId2 = await provider.send("evm_snapshot", []);
+
+    // Assert
+    expect(await greeter.greet()).to.eq("Hi");
+    expect(BigNumber.from(snapshotId1).toString()).to.eq("1");
+    expect(BigNumber.from(snapshotId2).toString()).to.eq("2");
+  });
+});
+
+describe("evm_revert", function () {
+  it.only("Should revert with correct snapshot id", async function () {
+    const wallet = new Wallet(RichAccounts[0].PrivateKey);
+    const deployer = new Deployer(hre, wallet);
+    const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
+    expect(await greeter.greet()).to.eq("Hi");
+    const snapshotId = await provider.send("evm_snapshot", []);
+    const setGreetingTx = await greeter.setGreeting("Hola, mundo!");
+    await setGreetingTx.wait();
+    expect(await greeter.greet()).to.equal("Hola, mundo!");
+
+    // Act
+    const reverted: boolean = await provider.send("evm_revert", [snapshotId]);
+
+    // Assert
+    expect(await greeter.greet()).to.eq("Hi");
+    expect(reverted).to.be.true;
   });
 });
