@@ -113,7 +113,7 @@ describe("evm_snapshot", function () {
 });
 
 describe("evm_revert", function () {
-  it.only("Should revert with correct snapshot id", async function () {
+  it("Should revert with correct snapshot id", async function () {
     const wallet = new Wallet(RichAccounts[0].PrivateKey);
     const deployer = new Deployer(hre, wallet);
     const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
