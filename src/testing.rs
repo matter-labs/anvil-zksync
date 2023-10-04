@@ -385,6 +385,8 @@ pub fn deploy_contract<T: ForkSource + std::fmt::Debug>(
     tx_hash: H256,
     private_key: H256,
     bytecode: Vec<u8>,
+    calldata: Option<Vec<u8>>,
+    nonce: Nonce,
 ) -> H256 {
     use ethers::abi::Function;
     use ethers::types::Bytes;
@@ -399,7 +401,7 @@ pub fn deploy_contract<T: ForkSource + std::fmt::Debug>(
 
     let salt = [0u8; 32];
     let bytecode_hash = eip712::hash_bytecode(&bytecode).expect("invalid bytecode");
-    let call_data: Bytes = Default::default();
+    let call_data: Bytes = calldata.unwrap_or_default().into();
     let create: Function = serde_json::from_str(
         r#"{
             "inputs": [
@@ -439,7 +441,7 @@ pub fn deploy_contract<T: ForkSource + std::fmt::Debug>(
     let mut tx = L2Tx::new_signed(
         zksync_types::CONTRACT_DEPLOYER_ADDRESS,
         data.to_vec(),
-        zksync_basic_types::Nonce(0),
+        nonce,
         Fee {
             gas_limit: U256::from(8251129),
             max_fee_per_gas: U256::from(250_000_000),

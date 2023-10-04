@@ -2649,6 +2649,7 @@ mod tests {
         testing::{self, ForkBlockConfig, LogBuilder, MockServer},
     };
     use maplit::hashmap;
+    use zksync_basic_types::Nonce;
     use zksync_types::{
         api::{BlockHashObject, BlockNumber, BlockNumberObject},
         utils::deployed_address_create,
@@ -3675,6 +3676,8 @@ mod tests {
             H256::repeat_byte(0x1),
             private_key,
             hex::decode(testing::STORAGE_CONTRACT_BYTECODE).unwrap(),
+            None,
+            Nonce(0),
         );
 
         let number1 = node
@@ -3706,6 +3709,8 @@ mod tests {
             H256::repeat_byte(0x1),
             private_key,
             hex::decode(testing::STORAGE_CONTRACT_BYTECODE).unwrap(),
+            None,
+            Nonce(0),
         );
 
         // simulate a tx modifying the storage
