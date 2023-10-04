@@ -78,7 +78,7 @@ The `status` options are:
 | [`EVM`](#evm-namespace) | [`evm_increaseTime`](#evm_increasetime) | `SUPPORTED` | Jump forward in time by the given amount of time, in seconds |
 | [`EVM`](#evm-namespace) | [`evm_mine`](#evm_mine) | `SUPPORTED` | Force a single block to be mined |
 | `EVM` | `evm_removeAccount` | `NOT IMPLEMENTED` | Removes an account |
-| `EVM` | `evm_revert` | `NOT IMPLEMENTED`<br />[GitHub Issue #70](https://github.com/matter-labs/era-test-node/issues/70) | Revert the state of the blockchain to a previous snapshot |
+| [`EVM`](#evm-namespace) | [`evm_revert`](#evm_revert) | `SUPPORTED` | Revert the state of the blockchain to a previous snapshot |
 | `EVM` | `evm_setAccountBalance` | `NOT IMPLEMENTED` | Sets the given account's balance to the specified WEI value |
 | `EVM` | `evm_setAccountCode` | `NOT IMPLEMENTED` | Sets the given account's code to the specified data |
 | `EVM` | `evm_setAccountNonce` | `NOT IMPLEMENTED` | Sets the given account's nonce to the specified value |
@@ -88,7 +88,7 @@ The `status` options are:
 | `EVM` | `evm_setIntervalMining` | `NOT IMPLEMENTED` | Enables (with a numeric argument greater than 0) or disables (with a numeric argument equal to 0), the automatic mining of blocks at a regular interval of milliseconds, each of which will include all pending transactions |
 | [`EVM`](#evm-namespace) | [`evm_setNextBlockTimestamp`](#evm_setnextblocktimestamp) | `SUPPORTED` | Works like `evm_increaseTime`, but takes the exact timestamp that you want in the next block, and increases the time accordingly |
 | [`EVM`](#evm-namespace) | [`evm_setTime`](#evm_settime) | `SUPPORTED` | Sets the internal clock time to the given timestamp |
-| `EVM` | `evm_snapshot` | `NOT IMPLEMENTED`<br />[GitHub Issue #69](https://github.com/matter-labs/era-test-node/issues/69) | Snapshot the state of the blockchain at the current block |
+| [`EVM`](#evm-namespace) | [`evm_snapshot`](#evm_snapshot) | `SUPPORTED` | Snapshot the state of the blockchain at the current block |
 | `HARDHAT` | `hardhat_addCompilationResult` | `NOT IMPLEMENTED` | Add information about compiled contracts |
 | `HARDHAT` | `hardhat_dropTransaction` | `NOT IMPLEMENTED` | Remove a transaction from the mempool |
 | [`HARDHAT`](#hardhat-namespace) | [`hardhat_impersonateAccount`](#hardhat_impersonateaccount) | `SUPPORTED` | Impersonate an account |
@@ -1338,6 +1338,52 @@ curl --request POST \
   --url http://localhost:8011/ \
   --header 'content-type: application/json' \
   --data '{"jsonrpc": "2.0","id": "1","method": "evm_setTime","params": [1672527600]}'
+```
+
+### `evm_snapshot`
+
+[source](src/evm.rs)
+
+Snapshot the state of the blockchain at the current block.
+
+#### Arguments
+
++ _NONE_
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "evm_snapshot"}'
+```
+
+### `evm_revert`
+
+[source](src/evm.rs)
+
+Revert the state of the blockchain to a previous snapshot
+
+#### Arguments
+
++ `snapshot_id: U64`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "evm_revert","params": [0x1]}'
 ```
 
 ## `ZKS NAMESPACE`
