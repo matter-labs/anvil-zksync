@@ -205,6 +205,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EvmNamespaceT
                 .write()
                 .map(|mut snapshots| {
                     snapshots.push(snapshot);
+                    log::info!("Created snapshot '{}'", snapshots.len());
                     snapshots.len()
                 })
                 .map_err(|err| {
@@ -239,7 +240,10 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EvmNamespaceT
             inner
                 .write()
                 .map_err(|err| format!("failed acquiring read lock for snapshots: {:?}", err))
-                .and_then(|mut writer| writer.restore_snapshot(selected_snapshot).map(|_| true))
+                .and_then(|mut writer| {
+                    log::info!("Reverting node to snapshot '{snapshot_id:?}'");
+                    writer.restore_snapshot(selected_snapshot).map(|_| true)
+                })
                 .or_else(|err| {
                     log::error!(
                         "failed restoring snapshot for id '{}': {}",
