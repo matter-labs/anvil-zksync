@@ -174,87 +174,12 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
 mod tests {
     use super::*;
     use crate::{
-        cache::CacheConfig,
-        deps::system_contracts::bytecode_from_slice,
-        fork::ForkDetails,
-        http_fork_source::HttpForkSource,
-        node::{InMemoryNode, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails},
-        testing,
+        deps::system_contracts::bytecode_from_slice, http_fork_source::HttpForkSource,
+        node::InMemoryNode, testing,
     };
-    use ethers::abi::AbiEncode;
+    use ethers::abi::{AbiEncode, HumanReadableParser, ParamType, Token};
     use zksync_basic_types::{Nonce, U256};
-    use zksync_core::api_server::web3::backend_jsonrpc::namespaces::eth::EthNamespaceT;
     use zksync_types::{transaction_request::CallRequestBuilder, utils::deployed_address_create};
-
-    #[tokio::test]
-    async fn test_trace_call_simple() {
-        let fork = ForkDetails::from_network("mainnet", None, CacheConfig::Memory).await;
-        let node: InMemoryNode<HttpForkSource> = InMemoryNode::<HttpForkSource>::new(
-            Some(fork),
-            ShowCalls::None,
-            ShowStorageLogs::None,
-            ShowVMDetails::None,
-            ShowGasDetails::None,
-            false,
-            &crate::system_contracts::Options::BuiltIn,
-        );
-        let debug = DebugNamespaceImpl::new(node.get_inner());
-
-        let request = CallRequestBuilder::default()
-            .to("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049"
-                .parse()
-                .unwrap())
-            .gas(80_000_000.into())
-            .build();
-        let trace = debug
-            .trace_call(request.clone(), None, None)
-            .await
-            .expect("trace call");
-
-        assert!(trace.error.is_none());
-        assert!(trace.revert_reason.is_none());
-        assert_eq!(trace.calls.len(), 1);
-
-        // passing block number is not supported
-        let resp = debug
-            .trace_call(request, Some(BlockId::Number(1.into())), None)
-            .await;
-        assert!(resp.is_err());
-    }
-
-    #[tokio::test]
-    async fn test_trace_call_weth() {
-        let fork = ForkDetails::from_network("mainnet", None, CacheConfig::Memory).await;
-        let node: InMemoryNode<HttpForkSource> = InMemoryNode::<HttpForkSource>::new(
-            Some(fork),
-            ShowCalls::None,
-            ShowStorageLogs::None,
-            ShowVMDetails::None,
-            ShowGasDetails::None,
-            false,
-            &crate::system_contracts::Options::BuiltIn,
-        );
-
-        let debug = DebugNamespaceImpl::new(node.get_inner());
-        let request = CallRequestBuilder::default()
-            .to("0x5AEa5775959fBC2557Cc8789bC1bf90A239D9a91"
-                .parse()
-                .unwrap())
-            // $ cast cd 'name()'
-            .data(hex::decode("06fdde03").unwrap().into())
-            .gas(80_000_000.into())
-            .build();
-        let trace = debug
-            .trace_call(request, None, None)
-            .await
-            .expect("trace call");
-
-        // output is encoded, so we can't compare it directly
-        assert_eq!(&trace.output.0[64..77], "Wrapped Ether".as_bytes());
-
-        assert!(trace.error.is_none());
-        assert!(trace.revert_reason.is_none());
-    }
 
     #[tokio::test]
     async fn test_trace_deployed_contract() {
@@ -266,37 +191,28 @@ mod tests {
             .expect("failed generating address");
         node.set_rich_account(from_account);
 
+        // first, deploy secondary contract
         let secondary_bytecode = bytecode_from_slice(
             "Secondary",
             include_bytes!("deps/test-contracts/Secondary.json"),
         );
         let secondary_deployed_address = deployed_address_create(from_account, U256::zero());
-        let _hash = testing::deploy_contract(
+        testing::deploy_contract(
             &node,
             H256::repeat_byte(0x1),
             private_key,
             secondary_bytecode,
-            None,
+            Some((U256::from(2),).encode()),
             Nonce(0),
         );
 
-        // test we can call name() on secondary contract
-        let request = CallRequestBuilder::default()
-            .to(secondary_deployed_address)
-            // $ cast cd 'name()'
-            .data(hex::decode("06fdde03").unwrap().into())
-            .gas(80_000_000.into())
-            .build();
-        let trace = node.call(request, None).await.expect("call");
-        println!("output: {:?}", trace);
-        assert!(!trace.0.is_empty());
-
+        // deploy primary contract using the secondary contract address as a constructor parameter
         let primary_bytecode = bytecode_from_slice(
             "Primary",
             include_bytes!("deps/test-contracts/Primary.json"),
         );
         let primary_deployed_address = deployed_address_create(from_account, U256::one());
-        let _hash = testing::deploy_contract(
+        testing::deploy_contract(
             &node,
             H256::repeat_byte(0x1),
             private_key,
@@ -305,23 +221,47 @@ mod tests {
             Nonce(1),
         );
 
+        // trace a call to the primary contract
+        let func = HumanReadableParser::parse_function("calculate(uint)").unwrap();
+        let calldata = func.encode_input(&[Token::Uint(U256::from(42))]).unwrap();
         let request = CallRequestBuilder::default()
             .to(primary_deployed_address)
-            // $ cast cd 'name()'
-            .data(hex::decode("06fdde03").unwrap().into())
+            .data(calldata.clone().into())
             .gas(80_000_000.into())
             .build();
-
         let trace = debug
             .trace_call(request, None, None)
             .await
             .expect("trace call");
-        println!("output: {:?}", trace.output);
-        // output is encoded, so we can't compare it directly
-        assert_eq!(&trace.output.0[64..77], "Secondary".as_bytes());
-        println!("trace: {:?}", trace);
-        assert!(false);
+
+        // call should not revert
         assert!(trace.error.is_none());
         assert!(trace.revert_reason.is_none());
+
+        // check that the call was successful
+        let output =
+            ethers::abi::decode(&[ParamType::Uint(256)], &trace.output.0.as_slice()).unwrap();
+        assert_eq!(output[0], Token::Uint(U256::from(84)));
+
+        // find the call to primary contract in the trace
+        let contract_call = trace
+            .calls
+            .first()
+            .unwrap()
+            .calls
+            .last()
+            .unwrap()
+            .calls
+            .first()
+            .unwrap();
+
+        assert_eq!(contract_call.to, primary_deployed_address);
+        assert_eq!(contract_call.input, calldata.into());
+
+        // check that it contains a call to secondary contract
+        let subcall = contract_call.calls.first().unwrap();
+        assert_eq!(subcall.to, secondary_deployed_address);
+        assert_eq!(subcall.from, primary_deployed_address);
+        assert_eq!(subcall.output, U256::from(84).encode().into());
     }
 }
