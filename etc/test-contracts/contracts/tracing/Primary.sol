@@ -11,6 +11,10 @@ contract Primary {
         secondary = Secondary(_secondary);
     }
 
+    function name() public pure returns (string memory) {
+        return "Primary";
+    }
+
     function calculate(uint256 value) public returns (uint) {
         return secondary.multiply(value);
     }

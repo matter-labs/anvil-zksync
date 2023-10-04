@@ -172,16 +172,18 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::transaction_request::CallRequestBuilder;
+    use zksync_basic_types::{Nonce, U256};
+    use zksync_types::{transaction_request::CallRequestBuilder, utils::deployed_address_create};
 
+    use super::*;
     use crate::{
         cache::CacheConfig,
         fork::ForkDetails,
         http_fork_source::HttpForkSource,
         node::{InMemoryNode, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails},
+        testing,
     };
-
-    use super::*;
+    use ethers::abi::AbiEncode;
 
     #[tokio::test]
     async fn test_trace_call_simple() {
@@ -249,6 +251,56 @@ mod tests {
         // output is encoded, so we can't compare it directly
         assert_eq!(&trace.output.0[64..77], "Wrapped Ether".as_bytes());
 
+        assert!(trace.error.is_none());
+        assert!(trace.revert_reason.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_trace_deployed_contract() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let debug = DebugNamespaceImpl::new(node.get_inner());
+
+        let private_key = H256::repeat_byte(0xee);
+        let from_account = zksync_types::PackedEthSignature::address_from_private_key(&private_key)
+            .expect("failed generating address");
+        node.set_rich_account(from_account);
+
+        let secondary_deployed_address = deployed_address_create(from_account, U256::zero());
+        let _hash = testing::deploy_contract(
+            &node,
+            H256::repeat_byte(0x1),
+            private_key,
+            hex::decode(testing::STORAGE_TRACE_SECONDARY_BYTECODE).unwrap(),
+            None,
+            Nonce(0),
+        );
+
+        let primary_deployed_address = deployed_address_create(from_account, U256::one());
+        let _hash = testing::deploy_contract(
+            &node,
+            H256::repeat_byte(0x1),
+            private_key,
+            hex::decode(testing::STORAGE_TRACE_PRIMARY_BYTECODE).unwrap(),
+            Some((secondary_deployed_address).encode()),
+            Nonce(1),
+        );
+
+        let request = CallRequestBuilder::default()
+            .to(primary_deployed_address)
+            // $ cast cd 'name()'
+            .data(hex::decode("06fdde03").unwrap().into())
+            .gas(80_000_000.into())
+            .build();
+
+        let trace = debug
+            .trace_call(request, None, None)
+            .await
+            .expect("trace call");
+        println!("output: {:?}", trace.output);
+        // output is encoded, so we can't compare it directly
+        assert_eq!(&trace.output.0[64..77], "Secondary".as_bytes());
+        println!("trace: {:?}", trace);
+        assert!(false);
         assert!(trace.error.is_none());
         assert!(trace.revert_reason.is_none());
     }
