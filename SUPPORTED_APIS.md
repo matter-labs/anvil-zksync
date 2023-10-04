@@ -1383,7 +1383,7 @@ Revert the state of the blockchain to a previous snapshot
 curl --request POST \
   --url http://localhost:8011/ \
   --header 'content-type: application/json' \
-  --data '{"jsonrpc": "2.0","id": "1","method": "evm_revert","params": [0x1]}'
+  --data '{"jsonrpc": "2.0","id": "1","method": "evm_revert","params": ["0x1"]}'
 ```
 
 ## `ZKS NAMESPACE`
