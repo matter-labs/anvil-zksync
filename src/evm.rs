@@ -1,20 +1,34 @@
 use std::sync::{Arc, RwLock};
 
-use crate::{fork::ForkSource, node::InMemoryNodeInner, utils::mine_empty_blocks};
+use crate::{
+    fork::ForkSource,
+    node::{InMemoryNodeInner, Snapshot},
+    utils::mine_empty_blocks,
+};
 use jsonrpc_core::{BoxFuture, Result};
 use jsonrpc_derive::rpc;
+use zksync_basic_types::U64;
 use zksync_core::api_server::web3::backend_jsonrpc::error::into_jsrpc_error;
 use zksync_web3_decl::error::Web3Error;
+
+/// The maximum number of [Snapshot]s to store. Each snapshot represents the node state
+/// and can be used to revert the node to an earlier point in time.
+const MAX_SNAPSHOTS: u8 = 100;
 
 /// Implementation of EvmNamespace
 pub struct EvmNamespaceImpl<S> {
     node: Arc<RwLock<InMemoryNodeInner<S>>>,
+    /// List of snapshots of the [InMemoryNodeInner]. This is bounded at runtime by [MAX_SNAPSHOTS].
+    snapshots: Arc<RwLock<Vec<Snapshot>>>,
 }
 
 impl<S> EvmNamespaceImpl<S> {
     /// Creates a new `Evm` instance with the given `node`.
     pub fn new(node: Arc<RwLock<InMemoryNodeInner<S>>>) -> Self {
-        Self { node }
+        Self {
+            node,
+            snapshots: Default::default(),
+        }
     }
 }
 
@@ -60,6 +74,28 @@ pub trait EvmNamespaceT {
     /// The difference between the `current_timestamp` and the new timestamp for the InMemoryNodeInner.
     #[rpc(name = "evm_setTime")]
     fn set_time(&self, time: u64) -> BoxFuture<Result<i128>>;
+
+    /// Snapshot the state of the blockchain at the current block. Takes no parameters. Returns the id of the snapshot
+    /// that was created. A snapshot can only be reverted once. After a successful evm_revert, the same snapshot id cannot
+    /// be used again. Consider creating a new snapshot after each evm_revert if you need to revert to the same
+    /// point multiple times.
+    ///
+    /// # Returns
+    /// The `U64` identifier for this snapshot.
+    #[rpc(name = "evm_snapshot")]
+    fn snapshot(&self) -> BoxFuture<Result<U64>>;
+
+    /// Revert the state of the blockchain to a previous snapshot. Takes a single parameter,
+    /// which is the snapshot id to revert to. This deletes the given snapshot, as well as any snapshots
+    /// taken after (e.g.: reverting to id 0x1 will delete snapshots with ids 0x1, 0x2, etc.)
+    ///
+    /// # Parameters
+    /// - `snapshot_id`: The snapshot id to revert.
+    ///
+    /// # Returns
+    /// `true` if a snapshot was reverted, otherwise `false`.
+    #[rpc(name = "evm_revert")]
+    fn revert_snapshot(&self, snapshot_id: U64) -> BoxFuture<Result<bool>>;
 }
 
 impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EvmNamespaceT
@@ -130,6 +166,92 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EvmNamespaceT
                 }
                 Err(_) => Err(into_jsrpc_error(Web3Error::InternalError)),
             }
+        })
+    }
+
+    fn snapshot(&self) -> BoxFuture<Result<U64>> {
+        let inner = Arc::clone(&self.node);
+        let snapshots = Arc::clone(&self.snapshots);
+
+        Box::pin(async move {
+            // validate max snapshots
+            snapshots
+                .read()
+                .map_err(|err| {
+                    log::error!("failed acquiring read lock for snapshot: {:?}", err);
+                    into_jsrpc_error(Web3Error::InternalError)
+                })
+                .and_then(|snapshots| {
+                    if snapshots.len() >= MAX_SNAPSHOTS as usize {
+                        log::error!("maximum number of '{}' snapshots exceeded", MAX_SNAPSHOTS);
+                        Err(into_jsrpc_error(Web3Error::InternalError))
+                    } else {
+                        Ok(())
+                    }
+                })?;
+
+            // snapshot the node
+            let snapshot = inner
+                .read()
+                .map_err(|err| {
+                    format!("failed acquiring read lock to node for snapshot: {:?}", err)
+                })
+                .and_then(|reader| reader.snapshot())
+                .map_err(|err| {
+                    log::error!("failed creating snapshot: {:?}", err);
+                    into_jsrpc_error(Web3Error::InternalError)
+                })?;
+            snapshots
+                .write()
+                .map(|mut snapshots| {
+                    snapshots.push(snapshot);
+                    log::info!("Created snapshot '{}'", snapshots.len());
+                    snapshots.len()
+                })
+                .map_err(|err| {
+                    log::error!("failed storing snapshot: {:?}", err);
+                    into_jsrpc_error(Web3Error::InternalError)
+                })
+                .map(U64::from)
+        })
+    }
+
+    fn revert_snapshot(&self, snapshot_id: U64) -> BoxFuture<Result<bool>> {
+        let inner = Arc::clone(&self.node);
+        let snapshots = Arc::clone(&self.snapshots);
+
+        Box::pin(async move {
+            let mut snapshots = snapshots.write().map_err(|err| {
+                log::error!("failed acquiring read lock for snapshots: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError)
+            })?;
+            let snapshot_id_index = snapshot_id.as_usize().saturating_sub(1);
+            if snapshot_id_index >= snapshots.len() {
+                log::error!("no snapshot exists for the id '{}'", snapshot_id);
+                return Err(into_jsrpc_error(Web3Error::InternalError));
+            }
+
+            // remove all snapshots following the index and use the first snapshot for restore
+            let selected_snapshot = snapshots
+                .drain(snapshot_id_index..)
+                .next()
+                .expect("unexpected failure, value must exist");
+
+            inner
+                .write()
+                .map_err(|err| format!("failed acquiring read lock for snapshots: {:?}", err))
+                .and_then(|mut writer| {
+                    log::info!("Reverting node to snapshot '{snapshot_id:?}'");
+                    writer.restore_snapshot(selected_snapshot).map(|_| true)
+                })
+                .or_else(|err| {
+                    log::error!(
+                        "failed restoring snapshot for id '{}': {}",
+                        snapshot_id,
+                        err
+                    );
+                    Ok(false)
+                })
         })
     }
 }
@@ -479,5 +601,75 @@ mod tests {
 
         assert_eq!(start_block.number + 2, current_block.number);
         assert_eq!(start_block.timestamp + 2, current_block.timestamp);
+    }
+
+    #[tokio::test]
+    async fn test_evm_snapshot_creates_incrementing_ids() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let evm = EvmNamespaceImpl::new(node.get_inner());
+
+        let snapshot_id_1 = evm.snapshot().await.expect("failed creating snapshot 1");
+        let snapshot_id_2 = evm.snapshot().await.expect("failed creating snapshot 2");
+
+        assert_eq!(snapshot_id_1, U64::from(1));
+        assert_eq!(snapshot_id_2, U64::from(2));
+    }
+
+    #[tokio::test]
+    async fn test_evm_revert_snapshot_restores_state() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let evm = EvmNamespaceImpl::new(node.get_inner());
+
+        let initial_block = node
+            .get_block_number()
+            .await
+            .expect("failed fetching block number");
+        let snapshot_id = evm.snapshot().await.expect("failed creating snapshot");
+        evm.evm_mine().await.expect("evm_mine");
+        let current_block = node
+            .get_block_number()
+            .await
+            .expect("failed fetching block number");
+        assert_eq!(current_block, initial_block + 1);
+
+        let reverted = evm
+            .revert_snapshot(snapshot_id)
+            .await
+            .expect("failed reverting snapshot");
+        assert!(reverted);
+
+        let restored_block = node
+            .get_block_number()
+            .await
+            .expect("failed fetching block number");
+        assert_eq!(restored_block, initial_block);
+    }
+
+    #[tokio::test]
+    async fn test_evm_revert_snapshot_removes_all_snapshots_following_the_reverted_one() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let evm = EvmNamespaceImpl::new(node.get_inner());
+
+        let _snapshot_id_1 = evm.snapshot().await.expect("failed creating snapshot");
+        let snapshot_id_2 = evm.snapshot().await.expect("failed creating snapshot");
+        let _snapshot_id_3 = evm.snapshot().await.expect("failed creating snapshot");
+        assert_eq!(3, evm.snapshots.read().unwrap().len());
+
+        let reverted = evm
+            .revert_snapshot(snapshot_id_2)
+            .await
+            .expect("failed reverting snapshot");
+        assert!(reverted);
+
+        assert_eq!(1, evm.snapshots.read().unwrap().len());
+    }
+
+    #[tokio::test]
+    async fn test_evm_revert_snapshot_fails_for_invalid_snapshot_id() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let evm = EvmNamespaceImpl::new(node.get_inner());
+
+        let result = evm.revert_snapshot(U64::from(100)).await;
+        assert!(result.is_err());
     }
 }

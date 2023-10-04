@@ -2,6 +2,7 @@
 use crate::{
     bootloader_debug::{BootloaderDebug, BootloaderDebugTracer},
     console_log::ConsoleLogHandler,
+    deps::InMemoryStorage,
     filters::{EthFilters, FilterType, LogFilter},
     fork::{ForkDetails, ForkSource, ForkStorage},
     formatter,
@@ -111,6 +112,7 @@ pub fn create_empty_block<TX>(block_number: u64, timestamp: u64, batch: u32) -> 
 }
 
 /// Information about the executed transaction.
+#[derive(Debug, Clone)]
 pub struct TxExecutionInfo {
     pub tx: L2Tx,
     // Batch number where transaction was executed.
@@ -235,6 +237,7 @@ impl Display for ShowGasDetails {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct TransactionResult {
     info: TxExecutionInfo,
     receipt: TransactionReceipt,
@@ -242,6 +245,7 @@ pub struct TransactionResult {
 
 /// Helper struct for InMemoryNode.
 /// S - is the Source of the Fork.
+#[derive(Clone)]
 pub struct InMemoryNodeInner<S> {
     /// The latest timestamp that was already generated.
     /// Next block will be current_timestamp + 1
@@ -296,7 +300,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         &self,
         storage: StoragePtr<ST>,
     ) -> (L1BatchEnv, BlockContext) {
-        let last_l2_block_hash = if let Some(last_l2_block) = load_last_l2_block(storage.clone()) {
+        let last_l2_block_hash = if let Some(last_l2_block) = load_last_l2_block(storage) {
             last_l2_block.hash
         } else {
             // This is the scenario of either the first L2 block ever or
@@ -452,9 +456,18 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         // We are using binary search to find the minimal values of gas_limit under which the transaction succeeds
         let mut lower_bound = 0;
         let mut upper_bound = MAX_L2_TX_GAS_LIMIT as u32;
+        let mut attempt_count = 1;
 
+        log::trace!("Starting gas estimation loop");
         while lower_bound + ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION < upper_bound {
             let mid = (lower_bound + upper_bound) / 2;
+            log::trace!(
+                "Attempt {} (lower_bound: {}, upper_bound: {}, mid: {})",
+                attempt_count,
+                lower_bound,
+                upper_bound,
+                mid
+            );
             let try_gas_limit = gas_for_bytecodes_pubdata + mid;
 
             let estimate_gas_result = InMemoryNodeInner::estimate_gas_step(
@@ -468,12 +481,19 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             );
 
             if estimate_gas_result.result.is_failed() {
+                log::trace!("Attempt {} FAILED", attempt_count);
                 lower_bound = mid + 1;
             } else {
+                log::trace!("Attempt {} SUCCEEDED", attempt_count);
                 upper_bound = mid;
             }
+            attempt_count += 1;
         }
 
+        log::trace!("Gas Estimation Values:");
+        log::trace!("  Final upper_bound: {}", upper_bound);
+        log::trace!("  ESTIMATE_GAS_SCALE_FACTOR: {}", ESTIMATE_GAS_SCALE_FACTOR);
+        log::trace!("  MAX_L2_TX_GAS_LIMIT: {}", MAX_L2_TX_GAS_LIMIT);
         let tx_body_gas_limit = cmp::min(
             MAX_L2_TX_GAS_LIMIT as u32,
             (upper_bound as f32 * ESTIMATE_GAS_SCALE_FACTOR) as u32,
@@ -582,6 +602,11 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                     }
                 };
 
+                log::trace!("Gas Estimation Results");
+                log::trace!("  tx_body_gas_limit: {}", tx_body_gas_limit);
+                log::trace!("  gas_for_bytecodes_pubdata: {}", gas_for_bytecodes_pubdata);
+                log::trace!("  overhead: {}", overhead);
+                log::trace!("  full_gas_limit: {}", full_gas_limit);
                 let fee = Fee {
                     max_fee_per_gas: base_fee.into(),
                     max_priority_fee_per_gas: 0u32.into(),
@@ -687,6 +712,81 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
         Ok(())
     }
+
+    /// Creates a [Snapshot] of the current state of the node.
+    pub fn snapshot(&self) -> Result<Snapshot, String> {
+        let storage = self
+            .fork_storage
+            .inner
+            .read()
+            .map_err(|err| format!("failed acquiring read lock on storage: {:?}", err))?;
+
+        Ok(Snapshot {
+            current_timestamp: self.current_timestamp,
+            current_batch: self.current_batch,
+            current_miniblock: self.current_miniblock,
+            current_miniblock_hash: self.current_miniblock_hash,
+            l1_gas_price: self.l1_gas_price,
+            tx_results: self.tx_results.clone(),
+            blocks: self.blocks.clone(),
+            block_hashes: self.block_hashes.clone(),
+            filters: self.filters.clone(),
+            impersonated_accounts: self.impersonated_accounts.clone(),
+            rich_accounts: self.rich_accounts.clone(),
+            previous_states: self.previous_states.clone(),
+            raw_storage: storage.raw_storage.clone(),
+            value_read_cache: storage.value_read_cache.clone(),
+            factory_dep_cache: storage.factory_dep_cache.clone(),
+        })
+    }
+
+    /// Restores a previously created [Snapshot] of the node.
+    pub fn restore_snapshot(&mut self, snapshot: Snapshot) -> Result<(), String> {
+        let mut storage = self
+            .fork_storage
+            .inner
+            .write()
+            .map_err(|err| format!("failed acquiring write lock on storage: {:?}", err))?;
+
+        self.current_timestamp = snapshot.current_timestamp;
+        self.current_batch = snapshot.current_batch;
+        self.current_miniblock = snapshot.current_miniblock;
+        self.current_miniblock_hash = snapshot.current_miniblock_hash;
+        self.l1_gas_price = snapshot.l1_gas_price;
+        self.tx_results = snapshot.tx_results;
+        self.blocks = snapshot.blocks;
+        self.block_hashes = snapshot.block_hashes;
+        self.filters = snapshot.filters;
+        self.impersonated_accounts = snapshot.impersonated_accounts;
+        self.rich_accounts = snapshot.rich_accounts;
+        self.previous_states = snapshot.previous_states;
+        storage.raw_storage = snapshot.raw_storage;
+        storage.value_read_cache = snapshot.value_read_cache;
+        storage.factory_dep_cache = snapshot.factory_dep_cache;
+
+        Ok(())
+    }
+}
+
+/// Creates a restorable snapshot for the [InMemoryNodeInner]. The snapshot contains all the necessary
+/// data required to restore the [InMemoryNodeInner] state to a previous point in time.
+#[derive(Debug, Clone)]
+pub struct Snapshot {
+    pub(crate) current_timestamp: u64,
+    pub(crate) current_batch: u32,
+    pub(crate) current_miniblock: u64,
+    pub(crate) current_miniblock_hash: H256,
+    pub(crate) l1_gas_price: u64,
+    pub(crate) tx_results: HashMap<H256, TransactionResult>,
+    pub(crate) blocks: HashMap<H256, Block<TransactionVariant>>,
+    pub(crate) block_hashes: HashMap<u64, H256>,
+    pub(crate) filters: EthFilters,
+    pub(crate) impersonated_accounts: HashSet<Address>,
+    pub(crate) rich_accounts: HashSet<H160>,
+    pub(crate) previous_states: IndexMap<H256, HashMap<StorageKey, StorageValue>>,
+    pub(crate) raw_storage: InMemoryStorage,
+    pub(crate) value_read_cache: HashMap<StorageKey, H256>,
+    pub(crate) factory_dep_cache: HashMap<H256, Option<Vec<u8>>>,
 }
 
 fn not_implemented<T: Send + 'static>(
@@ -3582,8 +3682,7 @@ mod tests {
                         .get(hash)
                         .unwrap_or_else(|| panic!("state was not cached for block {}", miniblock))
                 })
-                .map(|state| state.get(&input_storage_key))
-                .flatten()
+                .and_then(|state| state.get(&input_storage_key))
                 .copied();
 
             assert_eq!(
@@ -3670,7 +3769,7 @@ mod tests {
         let node = InMemoryNode::<HttpForkSource>::default();
         node.inner
             .write()
-            .and_then(|mut writer| {
+            .map(|mut writer| {
                 let historical_block = Block::<TransactionVariant> {
                     hash: H256::repeat_byte(0x2),
                     number: U64::from(2),
@@ -3687,8 +3786,6 @@ mod tests {
                 writer
                     .blocks
                     .insert(historical_block.hash, historical_block);
-
-                Ok(())
             })
             .expect("failed setting storage for historical block");
 
@@ -3745,7 +3842,7 @@ mod tests {
         );
         node.inner
             .write()
-            .and_then(|mut writer| {
+            .map(|mut writer| {
                 let historical_block = Block::<TransactionVariant> {
                     hash: H256::repeat_byte(0x2),
                     number: U64::from(2),
@@ -3758,8 +3855,6 @@ mod tests {
                 writer
                     .blocks
                     .insert(historical_block.hash, historical_block);
-
-                Ok(())
             })
             .expect("failed setting storage for historical block");
 
@@ -4035,6 +4130,227 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn test_snapshot() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let mut inner = node.inner.write().unwrap();
+
+        inner
+            .blocks
+            .insert(H256::repeat_byte(0x1), Default::default());
+        inner.block_hashes.insert(1, H256::repeat_byte(0x1));
+        inner.tx_results.insert(
+            H256::repeat_byte(0x1),
+            TransactionResult {
+                info: testing::default_tx_execution_info(),
+                receipt: Default::default(),
+            },
+        );
+        inner.current_batch = 1;
+        inner.current_miniblock = 1;
+        inner.current_miniblock_hash = H256::repeat_byte(0x1);
+        inner.current_timestamp = 1;
+        inner
+            .filters
+            .add_block_filter()
+            .expect("failed adding block filter");
+        inner.impersonated_accounts.insert(H160::repeat_byte(0x1));
+        inner.rich_accounts.insert(H160::repeat_byte(0x1));
+        inner
+            .previous_states
+            .insert(H256::repeat_byte(0x1), Default::default());
+        inner.fork_storage.set_value(
+            StorageKey::new(AccountTreeId::new(H160::repeat_byte(0x1)), H256::zero()),
+            H256::repeat_byte(0x1),
+        );
+
+        let storage = inner.fork_storage.inner.read().unwrap();
+        let expected_snapshot = Snapshot {
+            current_timestamp: inner.current_timestamp.clone(),
+            current_batch: inner.current_batch.clone(),
+            current_miniblock: inner.current_miniblock.clone(),
+            current_miniblock_hash: inner.current_miniblock_hash.clone(),
+            l1_gas_price: inner.l1_gas_price.clone(),
+            tx_results: inner.tx_results.clone(),
+            blocks: inner.blocks.clone(),
+            block_hashes: inner.block_hashes.clone(),
+            filters: inner.filters.clone(),
+            impersonated_accounts: inner.impersonated_accounts.clone(),
+            rich_accounts: inner.rich_accounts.clone(),
+            previous_states: inner.previous_states.clone(),
+            raw_storage: storage.raw_storage.clone(),
+            value_read_cache: storage.value_read_cache.clone(),
+            factory_dep_cache: storage.factory_dep_cache.clone(),
+        };
+        let actual_snapshot = inner.snapshot().expect("failed taking snapshot");
+
+        assert_eq!(
+            expected_snapshot.current_timestamp,
+            actual_snapshot.current_timestamp
+        );
+        assert_eq!(
+            expected_snapshot.current_batch,
+            actual_snapshot.current_batch
+        );
+        assert_eq!(
+            expected_snapshot.current_miniblock,
+            actual_snapshot.current_miniblock
+        );
+        assert_eq!(
+            expected_snapshot.current_miniblock_hash,
+            actual_snapshot.current_miniblock_hash
+        );
+        assert_eq!(expected_snapshot.l1_gas_price, actual_snapshot.l1_gas_price);
+        assert_eq!(
+            expected_snapshot.tx_results.keys().collect_vec(),
+            actual_snapshot.tx_results.keys().collect_vec()
+        );
+        assert_eq!(expected_snapshot.blocks, actual_snapshot.blocks);
+        assert_eq!(expected_snapshot.block_hashes, actual_snapshot.block_hashes);
+        assert_eq!(expected_snapshot.filters, actual_snapshot.filters);
+        assert_eq!(
+            expected_snapshot.impersonated_accounts,
+            actual_snapshot.impersonated_accounts
+        );
+        assert_eq!(
+            expected_snapshot.rich_accounts,
+            actual_snapshot.rich_accounts
+        );
+        assert_eq!(
+            expected_snapshot.previous_states,
+            actual_snapshot.previous_states
+        );
+        assert_eq!(expected_snapshot.raw_storage, actual_snapshot.raw_storage);
+        assert_eq!(
+            expected_snapshot.value_read_cache,
+            actual_snapshot.value_read_cache
+        );
+        assert_eq!(
+            expected_snapshot.factory_dep_cache,
+            actual_snapshot.factory_dep_cache
+        );
+    }
+
+    #[tokio::test]
+    async fn test_snapshot_restore() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let mut inner = node.inner.write().unwrap();
+
+        inner
+            .blocks
+            .insert(H256::repeat_byte(0x1), Default::default());
+        inner.block_hashes.insert(1, H256::repeat_byte(0x1));
+        inner.tx_results.insert(
+            H256::repeat_byte(0x1),
+            TransactionResult {
+                info: testing::default_tx_execution_info(),
+                receipt: Default::default(),
+            },
+        );
+        inner.current_batch = 1;
+        inner.current_miniblock = 1;
+        inner.current_miniblock_hash = H256::repeat_byte(0x1);
+        inner.current_timestamp = 1;
+        inner
+            .filters
+            .add_block_filter()
+            .expect("failed adding block filter");
+        inner.impersonated_accounts.insert(H160::repeat_byte(0x1));
+        inner.rich_accounts.insert(H160::repeat_byte(0x1));
+        inner
+            .previous_states
+            .insert(H256::repeat_byte(0x1), Default::default());
+        inner.fork_storage.set_value(
+            StorageKey::new(AccountTreeId::new(H160::repeat_byte(0x1)), H256::zero()),
+            H256::repeat_byte(0x1),
+        );
+
+        let expected_snapshot = {
+            let storage = inner.fork_storage.inner.read().unwrap();
+            Snapshot {
+                current_timestamp: inner.current_timestamp.clone(),
+                current_batch: inner.current_batch.clone(),
+                current_miniblock: inner.current_miniblock.clone(),
+                current_miniblock_hash: inner.current_miniblock_hash.clone(),
+                l1_gas_price: inner.l1_gas_price.clone(),
+                tx_results: inner.tx_results.clone(),
+                blocks: inner.blocks.clone(),
+                block_hashes: inner.block_hashes.clone(),
+                filters: inner.filters.clone(),
+                impersonated_accounts: inner.impersonated_accounts.clone(),
+                rich_accounts: inner.rich_accounts.clone(),
+                previous_states: inner.previous_states.clone(),
+                raw_storage: storage.raw_storage.clone(),
+                value_read_cache: storage.value_read_cache.clone(),
+                factory_dep_cache: storage.factory_dep_cache.clone(),
+            }
+        };
+
+        // snapshot and modify node state
+        let snapshot = inner.snapshot().expect("failed taking snapshot");
+        inner
+            .blocks
+            .insert(H256::repeat_byte(0x2), Default::default());
+        inner.block_hashes.insert(2, H256::repeat_byte(0x2));
+        inner.tx_results.insert(
+            H256::repeat_byte(0x2),
+            TransactionResult {
+                info: testing::default_tx_execution_info(),
+                receipt: Default::default(),
+            },
+        );
+        inner.current_batch = 2;
+        inner.current_miniblock = 2;
+        inner.current_miniblock_hash = H256::repeat_byte(0x2);
+        inner.current_timestamp = 2;
+        inner
+            .filters
+            .add_pending_transaction_filter()
+            .expect("failed adding pending transaction filter");
+        inner.impersonated_accounts.insert(H160::repeat_byte(0x2));
+        inner.rich_accounts.insert(H160::repeat_byte(0x2));
+        inner
+            .previous_states
+            .insert(H256::repeat_byte(0x2), Default::default());
+        inner.fork_storage.set_value(
+            StorageKey::new(AccountTreeId::new(H160::repeat_byte(0x2)), H256::zero()),
+            H256::repeat_byte(0x2),
+        );
+
+        // restore
+        inner
+            .restore_snapshot(snapshot)
+            .expect("failed restoring snapshot");
+
+        let storage = inner.fork_storage.inner.read().unwrap();
+        assert_eq!(expected_snapshot.current_timestamp, inner.current_timestamp);
+        assert_eq!(expected_snapshot.current_batch, inner.current_batch);
+        assert_eq!(expected_snapshot.current_miniblock, inner.current_miniblock);
+        assert_eq!(
+            expected_snapshot.current_miniblock_hash,
+            inner.current_miniblock_hash
+        );
+        assert_eq!(expected_snapshot.l1_gas_price, inner.l1_gas_price);
+        assert_eq!(
+            expected_snapshot.tx_results.keys().collect_vec(),
+            inner.tx_results.keys().collect_vec()
+        );
+        assert_eq!(expected_snapshot.blocks, inner.blocks);
+        assert_eq!(expected_snapshot.block_hashes, inner.block_hashes);
+        assert_eq!(expected_snapshot.filters, inner.filters);
+        assert_eq!(
+            expected_snapshot.impersonated_accounts,
+            inner.impersonated_accounts
+        );
+        assert_eq!(expected_snapshot.rich_accounts, inner.rich_accounts);
+        assert_eq!(expected_snapshot.previous_states, inner.previous_states);
+        assert_eq!(expected_snapshot.raw_storage, storage.raw_storage);
+        assert_eq!(expected_snapshot.value_read_cache, storage.value_read_cache);
+        assert_eq!(
+            expected_snapshot.factory_dep_cache,
+            storage.factory_dep_cache
+        );
+    }
     #[tokio::test]
     async fn test_get_transaction_by_block_hash_and_index_returns_none_for_invalid_block_hash() {
         let node = InMemoryNode::<HttpForkSource>::default();

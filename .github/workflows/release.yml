@@ -142,6 +142,9 @@ jobs:
           body=$(cat <<- "ENDBODY"
           Release: ${{ env.VERSION }}
           
+          <!--Watch Release Notes video below 👇 
+          [![YouTube Release Notes](https://img.youtube.com/vi/FZefCZW7JJk/0.jpg)](https://www.youtube.com/watch?v=FZefCZW7JJk)-->
+
           ## 📋 Summary
           
           🐛 **Bug Fixes:**
