@@ -457,7 +457,13 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         log::trace!("Starting gas estimation loop");
         while lower_bound + ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION < upper_bound {
             let mid = (lower_bound + upper_bound) / 2;
-            log::trace!("Attempt {} (lower_bound: {}, upper_bound: {}, mid: {})", attempt_count, lower_bound, upper_bound, mid);
+            log::trace!(
+                "Attempt {} (lower_bound: {}, upper_bound: {}, mid: {})",
+                attempt_count,
+                lower_bound,
+                upper_bound,
+                mid
+            );
             let try_gas_limit = gas_for_bytecodes_pubdata + mid;
 
             let estimate_gas_result = InMemoryNodeInner::estimate_gas_step(
@@ -3477,8 +3483,7 @@ mod tests {
                         .get(hash)
                         .unwrap_or_else(|| panic!("state was not cached for block {}", miniblock))
                 })
-                .map(|state| state.get(&input_storage_key))
-                .flatten()
+                .and_then(|state| state.get(&input_storage_key))
                 .copied();
 
             assert_eq!(
@@ -3565,7 +3570,7 @@ mod tests {
         let node = InMemoryNode::<HttpForkSource>::default();
         node.inner
             .write()
-            .and_then(|mut writer| {
+            .map(|mut writer| {
                 let historical_block = Block::<TransactionVariant> {
                     hash: H256::repeat_byte(0x2),
                     number: U64::from(2),
@@ -3582,8 +3587,6 @@ mod tests {
                 writer
                     .blocks
                     .insert(historical_block.hash, historical_block);
-
-                Ok(())
             })
             .expect("failed setting storage for historical block");
 
@@ -3640,7 +3643,7 @@ mod tests {
         );
         node.inner
             .write()
-            .and_then(|mut writer| {
+            .map(|mut writer| {
                 let historical_block = Block::<TransactionVariant> {
                     hash: H256::repeat_byte(0x2),
                     number: U64::from(2),
@@ -3653,8 +3656,6 @@ mod tests {
                 writer
                     .blocks
                     .insert(historical_block.hash, historical_block);
-
-                Ok(())
             })
             .expect("failed setting storage for historical block");
 
