@@ -14,8 +14,7 @@ interface Fee {
   max_priority_fee_per_gas: ethers.BigNumber;
 }
 
-// TODO: Investigate why this test is failing for CI vs local development
-xdescribe("zks_estimateFee", function () {
+describe("zks_estimateFee", function () {
   it("Should return fee estimation data for transfer of 1 ETH", async function () {
     // Arrange
     const wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
