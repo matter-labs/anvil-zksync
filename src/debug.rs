@@ -172,18 +172,19 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
 
 #[cfg(test)]
 mod tests {
-    use zksync_basic_types::{Nonce, U256};
-    use zksync_types::{transaction_request::CallRequestBuilder, utils::deployed_address_create};
-
     use super::*;
     use crate::{
         cache::CacheConfig,
+        deps::system_contracts::bytecode_from_slice,
         fork::ForkDetails,
         http_fork_source::HttpForkSource,
         node::{InMemoryNode, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails},
         testing,
     };
     use ethers::abi::AbiEncode;
+    use zksync_basic_types::{Nonce, U256};
+    use zksync_core::api_server::web3::backend_jsonrpc::namespaces::eth::EthNamespaceT;
+    use zksync_types::{transaction_request::CallRequestBuilder, utils::deployed_address_create};
 
     #[tokio::test]
     async fn test_trace_call_simple() {
@@ -265,22 +266,41 @@ mod tests {
             .expect("failed generating address");
         node.set_rich_account(from_account);
 
+        let secondary_bytecode = bytecode_from_slice(
+            "Secondary",
+            include_bytes!("deps/test-contracts/Secondary.json"),
+        );
         let secondary_deployed_address = deployed_address_create(from_account, U256::zero());
         let _hash = testing::deploy_contract(
             &node,
             H256::repeat_byte(0x1),
             private_key,
-            hex::decode(testing::STORAGE_TRACE_SECONDARY_BYTECODE).unwrap(),
+            secondary_bytecode,
             None,
             Nonce(0),
         );
 
+        // test we can call name() on secondary contract
+        let request = CallRequestBuilder::default()
+            .to(secondary_deployed_address)
+            // $ cast cd 'name()'
+            .data(hex::decode("06fdde03").unwrap().into())
+            .gas(80_000_000.into())
+            .build();
+        let trace = node.call(request, None).await.expect("call");
+        println!("output: {:?}", trace);
+        assert!(!trace.0.is_empty());
+
+        let primary_bytecode = bytecode_from_slice(
+            "Primary",
+            include_bytes!("deps/test-contracts/Primary.json"),
+        );
         let primary_deployed_address = deployed_address_create(from_account, U256::one());
         let _hash = testing::deploy_contract(
             &node,
             H256::repeat_byte(0x1),
             private_key,
-            hex::decode(testing::STORAGE_TRACE_PRIMARY_BYTECODE).unwrap(),
+            primary_bytecode,
             Some((secondary_deployed_address).encode()),
             Nonce(1),
         );
