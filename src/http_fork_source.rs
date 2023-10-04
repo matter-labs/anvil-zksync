@@ -2,9 +2,11 @@ use std::sync::RwLock;
 
 use eyre::Context;
 use zksync_basic_types::{H256, U256};
+use zksync_types::api::Transaction;
 use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
+    types::Index,
 };
 
 use crate::{
@@ -216,6 +218,36 @@ impl ForkSource for HttpForkSource {
         block_on(async move {
             client
                 .get_block_transaction_count_by_number(block_number)
+                .await
+        })
+        .wrap_err("fork http client failed")
+    }
+
+    /// Returns information about a transaction by block hash and transaction index position.
+    fn get_transaction_by_block_hash_and_index(
+        &self,
+        block_hash: H256,
+        index: Index,
+    ) -> eyre::Result<Option<Transaction>> {
+        let client = self.create_client();
+        block_on(async move {
+            client
+                .get_transaction_by_block_hash_and_index(block_hash, index)
+                .await
+        })
+        .wrap_err("fork http client failed")
+    }
+
+    /// Returns information about a transaction by block number and transaction index position.
+    fn get_transaction_by_block_number_and_index(
+        &self,
+        block_number: zksync_types::api::BlockNumber,
+        index: Index,
+    ) -> eyre::Result<Option<Transaction>> {
+        let client = self.create_client();
+        block_on(async move {
+            client
+                .get_transaction_by_block_number_and_index(block_number, index)
                 .await
         })
         .wrap_err("fork http client failed")
