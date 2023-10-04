@@ -4,7 +4,10 @@ on:
 
 jobs:
   e2e:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
     name: e2e
     steps:
       - uses: actions/checkout@v3
@@ -20,16 +23,16 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v3
         with:
-          name: era_test_node-ubuntu-latest.tar.gz
+          name: era_test_node-${{ matrix.os }}.tar.gz
       
       - name: Start the era_test_node
         id: start_node
         run: |
           echo "Extracting era_test_node binary"
-          tar -xzf era_test_node-ubuntu-latest.tar.gz
+          tar -xzf era_test_node-${{ matrix.os }}.tar.gz
           chmod +x era_test_node
           echo "Starting node in background"
-          ./era_test_node run 2>&1 | tee era_test_node_output.log &
+          ./era_test_node --show-gas-details=all run 2>&1 | tee era_test_node_output.log &
           echo "PID=$!" >> $GITHUB_ENV
 
       - name: Launch tests
