@@ -40,7 +40,7 @@ use vm::{
 };
 use zksync_basic_types::{
     web3::{self, signing::keccak256},
-    AccountTreeId, Address, Bytes, L1BatchNumber, H160, H256, U256, U64,
+    AccountTreeId, Address, Bytes, L1BatchNumber, MiniblockNumber, H160, H256, U256, U64,
 };
 use zksync_contracts::BaseSystemContracts;
 use zksync_core::api_server::web3::backend_jsonrpc::{
@@ -49,6 +49,7 @@ use zksync_core::api_server::web3::backend_jsonrpc::{
 use zksync_state::{ReadStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_types::{
     api::{Block, Log, TransactionReceipt, TransactionVariant},
+    block::legacy_miniblock_hash,
     fee::Fee,
     get_code_key, get_nonce_key,
     l2::L2Tx,
@@ -299,7 +300,13 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         &self,
         storage: StoragePtr<ST>,
     ) -> (L1BatchEnv, BlockContext) {
-        let last_l2_block = load_last_l2_block(storage);
+        let last_l2_block_hash = if let Some(last_l2_block) = load_last_l2_block(storage.clone()) {
+            last_l2_block.hash
+        } else {
+            // This is the scenario of either the first L2 block ever or
+            // the first block after the upgrade for support of L2 blocks.
+            legacy_miniblock_hash(MiniblockNumber(self.current_miniblock as u32))
+        };
         let block_ctx = BlockContext::from_current(
             self.current_batch,
             self.current_miniblock,
@@ -320,7 +327,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 // So the next one should be one higher.
                 number: block_ctx.miniblock as u32,
                 timestamp: block_ctx.timestamp,
-                prev_block_hash: last_l2_block.hash,
+                prev_block_hash: last_l2_block_hash,
                 // This is only used during zksyncEra block timestamp/number transition.
                 // In case of starting a new network, it doesn't matter.
                 // In theory , when forking mainnet, we should match this value
@@ -977,7 +984,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         log::info!("=== Console Logs: ");
         for call in &call_traces {
-            inner.console_log_handler.handle_call_recurive(call);
+            inner.console_log_handler.handle_call_recursive(call);
         }
 
         log::info!("=== Call traces:");
@@ -1205,10 +1212,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         let tx_result = vm.inspect(custom_tracers, vm::VmExecutionMode::OneTx);
 
-        let call_traces = Arc::try_unwrap(call_tracer_result)
-            .unwrap()
-            .take()
-            .unwrap_or_default();
+        let call_traces = call_tracer_result.get().unwrap();
 
         let spent_on_pubdata =
             tx_result.statistics.gas_used - tx_result.statistics.computational_gas_used;
@@ -1284,17 +1288,23 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         log::info!("");
         log::info!("==== Console logs: ");
-        for call in &call_traces {
-            inner.console_log_handler.handle_call_recurive(call);
+        for call in call_traces {
+            inner.console_log_handler.handle_call_recursive(call);
         }
         log::info!("");
+        let call_traces_count = if !call_traces.is_empty() {
+            // All calls/sub-calls are stored within the first call trace
+            call_traces[0].calls.len()
+        } else {
+            0
+        };
         log::info!(
             "==== {} Use --show-calls flag or call config_setShowCalls to display more info.",
-            format!("{:?} call traces. ", call_traces.len()).bold()
+            format!("{:?} call traces. ", call_traces_count).bold()
         );
 
         if inner.show_calls != ShowCalls::None {
-            for call in &call_traces {
+            for call in call_traces {
                 formatter::print_call(call, 0, &inner.show_calls, inner.resolve_hashes);
             }
         }

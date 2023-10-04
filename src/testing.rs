@@ -8,6 +8,7 @@
 use crate::node::{InMemoryNode, TxExecutionInfo};
 use crate::{fork::ForkSource, node::compute_hash};
 
+use ethers::contract;
 use httptest::{
     matchers::{eq, json_decoded, request},
     responders::json_encoded,
@@ -432,7 +433,7 @@ pub fn deploy_contract<T: ForkSource + std::fmt::Debug>(
     )
     .unwrap();
 
-    let data = ethers_contract::encode_function_data(&create, (salt, bytecode_hash, call_data))
+    let data = contract::encode_function_data(&create, (salt, bytecode_hash, call_data))
         .expect("failed encoding function data");
 
     let mut tx = L2Tx::new_signed(
