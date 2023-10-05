@@ -179,7 +179,11 @@ mod tests {
     };
     use ethers::abi::{short_signature, AbiEncode, HumanReadableParser, ParamType, Token};
     use zksync_basic_types::{Address, Nonce, U256};
-    use zksync_types::{transaction_request::CallRequestBuilder, utils::deployed_address_create};
+    use zksync_types::{
+        api::{CallTracerConfig, SupportedTracers},
+        transaction_request::CallRequestBuilder,
+        utils::deployed_address_create,
+    };
 
     fn deploy_test_contracts(node: &InMemoryNode<HttpForkSource>) -> (Address, Address) {
         let private_key = H256::repeat_byte(0xee);
@@ -235,7 +239,7 @@ mod tests {
             .gas(80_000_000.into())
             .build();
         let trace = debug
-            .trace_call(request, None, None)
+            .trace_call(request.clone(), None, None)
             .await
             .expect("trace call");
 
@@ -268,6 +272,44 @@ mod tests {
         assert_eq!(subcall.to, secondary_deployed_address);
         assert_eq!(subcall.from, primary_deployed_address);
         assert_eq!(subcall.output, U256::from(84).encode().into());
+    }
+
+    #[tokio::test]
+    async fn test_trace_only_top() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let debug = DebugNamespaceImpl::new(node.get_inner());
+
+        let (primary_deployed_address, _) = deploy_test_contracts(&node);
+
+        // trace a call to the primary contract
+        let func = HumanReadableParser::parse_function("calculate(uint)").unwrap();
+        let calldata = func.encode_input(&[Token::Uint(U256::from(42))]).unwrap();
+        let request = CallRequestBuilder::default()
+            .to(primary_deployed_address)
+            .data(calldata.into())
+            .gas(80_000_000.into())
+            .build();
+
+        // if we trace with onlyTopCall=true, we should get only the top-level call
+        let trace = debug
+            .trace_call(
+                request,
+                None,
+                Some(TracerConfig {
+                    tracer: SupportedTracers::CallTracer,
+                    tracer_config: CallTracerConfig {
+                        only_top_call: true,
+                    },
+                }),
+            )
+            .await
+            .expect("trace call");
+        // call should not revert
+        assert!(trace.error.is_none());
+        assert!(trace.revert_reason.is_none());
+
+        // call should not contain any subcalls
+        assert!(trace.calls.is_empty());
     }
 
     #[tokio::test]
