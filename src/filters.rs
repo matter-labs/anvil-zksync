@@ -87,7 +87,7 @@ pub struct PendingTransactionFilter {
 type Result<T> = std::result::Result<T, &'static str>;
 
 /// Keeps track of installed filters and their respective updates.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct EthFilters {
     id_counter: U256,
     filters: HashMap<U256, FilterType>,

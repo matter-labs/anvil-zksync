@@ -352,6 +352,28 @@ content-type: application/json
 
 {
     "jsonrpc": "2.0",
+    "id": "1",
+    "method": "evm_snapshot",
+    "params": []
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "evm_revert",
+    "params": ["0x1"]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
     "id": "2",
     "method": "eth_getBlockByHash",
     "params": ["0x371c9871792d89fea30e6b947ca45e9798e4f577dcdddb79269a93450f52b459", true]

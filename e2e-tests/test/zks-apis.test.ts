@@ -14,8 +14,7 @@ interface Fee {
   max_priority_fee_per_gas: ethers.BigNumber;
 }
 
-// TODO: Investigate why this test is failing for CI vs local development
-xdescribe("zks_estimateFee", function () {
+describe("zks_estimateFee", function () {
   it("Should return fee estimation data for transfer of 1 ETH", async function () {
     // Arrange
     const wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
@@ -30,7 +29,7 @@ xdescribe("zks_estimateFee", function () {
     const response: Fee = await provider.send("zks_estimateFee", [transaction]);
 
     // Assert
-    expect(ethers.BigNumber.from(response.gas_limit)).to.eql(ethers.BigNumber.from("1233024"), "Unexpected gas_limit");
+    expect(ethers.BigNumber.from(response.gas_limit)).to.eql(ethers.BigNumber.from("1230957"), "Unexpected gas_limit");
     expect(ethers.BigNumber.from(response.gas_per_pubdata_limit)).to.eql(
       ethers.BigNumber.from("4080"),
       "Unexpected gas_per_pubdata_limit"

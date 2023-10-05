@@ -11,7 +11,7 @@
 # Evidence :camera:
 Include screenshots, screen recordings, or `console` output here demonstrating that your changes work as intended
 
-<!-- All sections below are optional. You can erase any section not applicable to your Pull Request. -->
+<!-- All sections below are optional. You can uncomment any section applicable to your Pull Request. -->
 
-# Notes :memo:
-* Any notes/thoughts that the reviewers should know prior to reviewing the code?
+<!-- # Notes :memo:
+* Any notes/thoughts that the reviewers should know prior to reviewing the code? -->
