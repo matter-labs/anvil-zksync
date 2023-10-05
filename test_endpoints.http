@@ -512,9 +512,30 @@ content-type: application/json
 {
     "jsonrpc": "2.0",
     "id": "2",
-    "method": "eth_protocolVersion"
+    "method": "eth_getTransactionByBlockHashAndIndex",
+    "params": ["0x123456789abcdef123456789abcdef1234567890", "0x1"]
 }
 
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "2",
+    "method": "eth_getTransactionByBlockNumberAndIndex",
+    "params": ["latest", "0x1"]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "2",
+    "method": "eth_protocolVersion"
+}
 
 ###
 POST http://localhost:8011

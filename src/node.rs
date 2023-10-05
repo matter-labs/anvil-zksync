@@ -2603,20 +2603,137 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
         })
     }
 
+    /// Returns information about a transaction by block hash and transaction index position.
+    ///
+    /// # Arguments
+    ///
+    /// * `block_hash`: Hash of a block
+    /// * `index`: Integer of the transaction index position
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `jsonrpc_core::Result` that maybe resolves to a [zksync_types::api::Transaction], if found.
     fn get_transaction_by_block_hash_and_index(
         &self,
-        _block_hash: zksync_basic_types::H256,
-        _index: zksync_basic_types::web3::types::Index,
+        block_hash: zksync_basic_types::H256,
+        index: zksync_basic_types::web3::types::Index,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<zksync_types::api::Transaction>>> {
-        not_implemented("get_transaction_by_block_hash_and_index")
+        let inner = Arc::clone(&self.inner);
+
+        Box::pin(async move {
+            let reader = match inner.read() {
+                Ok(r) => r,
+                Err(_) => {
+                    return Err(into_jsrpc_error(Web3Error::InternalError));
+                }
+            };
+
+            let maybe_tx = reader
+                .blocks
+                .get(&block_hash)
+                .and_then(|block| block.transactions.get(index.as_usize()))
+                .and_then(|tx| match tx {
+                    TransactionVariant::Full(tx) => Some(tx.clone()),
+                    TransactionVariant::Hash(tx_hash) => reader
+                        .fork_storage
+                        .inner
+                        .read()
+                        .expect("failed reading fork storage")
+                        .fork
+                        .as_ref()
+                        .and_then(|fork| {
+                            fork.fork_source
+                                .get_transaction_by_hash(*tx_hash)
+                                .ok()
+                                .flatten()
+                        }),
+                })
+                .or_else(|| {
+                    reader
+                        .fork_storage
+                        .inner
+                        .read()
+                        .expect("failed reading fork storage")
+                        .fork
+                        .as_ref()
+                        .and_then(|fork| {
+                            fork.fork_source
+                                .get_transaction_by_block_hash_and_index(block_hash, index)
+                                .ok()
+                        })
+                        .flatten()
+                });
+
+            Ok(maybe_tx)
+        })
     }
 
+    /// Returns information about a transaction by block number and transaction index position.
+    ///
+    /// # Arguments
+    ///
+    /// * `block_number`: A block number, or the string "earliest", "latest" or "pending".
+    /// * `index`: Integer of the transaction index position
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `jsonrpc_core::Result` that maybe resolves to a [zksync_types::api::Transaction], if found.
     fn get_transaction_by_block_number_and_index(
         &self,
-        _block_number: zksync_types::api::BlockNumber,
-        _index: zksync_basic_types::web3::types::Index,
+        block_number: zksync_types::api::BlockNumber,
+        index: zksync_basic_types::web3::types::Index,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<zksync_types::api::Transaction>>> {
-        not_implemented("get_transaction_by_block_number_and_index")
+        let inner = Arc::clone(&self.inner);
+
+        Box::pin(async move {
+            let reader = match inner.read() {
+                Ok(r) => r,
+                Err(_) => {
+                    return Err(into_jsrpc_error(Web3Error::InternalError));
+                }
+            };
+
+            let real_block_number =
+                utils::to_real_block_number(block_number, U64::from(reader.current_miniblock));
+            let maybe_tx = reader
+                .block_hashes
+                .get(&real_block_number.as_u64())
+                .and_then(|block_hash| reader.blocks.get(block_hash))
+                .and_then(|block| block.transactions.get(index.as_usize()))
+                .and_then(|tx| match tx {
+                    TransactionVariant::Full(tx) => Some(tx.clone()),
+                    TransactionVariant::Hash(tx_hash) => reader
+                        .fork_storage
+                        .inner
+                        .read()
+                        .expect("failed reading fork storage")
+                        .fork
+                        .as_ref()
+                        .and_then(|fork| {
+                            fork.fork_source
+                                .get_transaction_by_hash(*tx_hash)
+                                .ok()
+                                .flatten()
+                        }),
+                })
+                .or_else(|| {
+                    reader
+                        .fork_storage
+                        .inner
+                        .read()
+                        .expect("failed reading fork storage")
+                        .fork
+                        .as_ref()
+                        .and_then(|fork| {
+                            fork.fork_source
+                                .get_transaction_by_block_number_and_index(block_number, index)
+                                .ok()
+                        })
+                        .flatten()
+                });
+
+            Ok(maybe_tx)
+        })
     }
 
     /// Returns the current ethereum protocol version.
@@ -2754,7 +2871,7 @@ mod tests {
         cache::CacheConfig,
         http_fork_source::HttpForkSource,
         node::InMemoryNode,
-        testing::{self, ForkBlockConfig, LogBuilder, MockServer},
+        testing::{self, ForkBlockConfig, LogBuilder, MockServer, TransactionResponseBuilder},
     };
     use maplit::hashmap;
     use zksync_types::{
@@ -2872,7 +2989,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_block_by_hash_for_produced_block() {
         let node = InMemoryNode::<HttpForkSource>::default();
-        let expected_block_hash = testing::apply_tx(&node, H256::repeat_byte(0x01));
+        let (expected_block_hash, _) = testing::apply_tx(&node, H256::repeat_byte(0x01));
 
         let actual_block = node
             .get_block_by_hash(expected_block_hash, false)
@@ -3165,7 +3282,7 @@ mod tests {
     async fn test_get_block_transaction_count_by_hash_for_produced_block() {
         let node = InMemoryNode::<HttpForkSource>::default();
 
-        let expected_block_hash = testing::apply_tx(&node, H256::repeat_byte(0x01));
+        let (expected_block_hash, _) = testing::apply_tx(&node, H256::repeat_byte(0x01));
         let actual_transaction_count = node
             .get_block_transaction_count_by_hash(expected_block_hash)
             .await
@@ -3372,7 +3489,7 @@ mod tests {
     async fn test_get_transaction_receipt_uses_produced_block_hash() {
         let node = InMemoryNode::<HttpForkSource>::default();
         let tx_hash = H256::repeat_byte(0x01);
-        let expected_block_hash = testing::apply_tx(&node, tx_hash);
+        let (expected_block_hash, _) = testing::apply_tx(&node, tx_hash);
 
         let actual_tx_receipt = node
             .get_transaction_receipt(tx_hash)
@@ -3454,7 +3571,7 @@ mod tests {
             .new_block_filter()
             .await
             .expect("failed creating filter");
-        let block_hash = testing::apply_tx(&node, H256::repeat_byte(0x1));
+        let (block_hash, _) = testing::apply_tx(&node, H256::repeat_byte(0x1));
 
         match node
             .get_filter_changes(filter_id)
@@ -4239,6 +4356,322 @@ mod tests {
             expected_snapshot.factory_dep_cache,
             storage.factory_dep_cache
         );
+    }
+
+    #[tokio::test]
+    async fn test_get_transaction_by_block_hash_and_index_returns_none_for_invalid_block_hash() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let input_tx_hash = H256::repeat_byte(0x01);
+        let (input_block_hash, _) = testing::apply_tx(&node, input_tx_hash);
+        let invalid_block_hash = H256::repeat_byte(0xab);
+        assert_ne!(input_block_hash, invalid_block_hash);
+
+        let result = node
+            .get_transaction_by_block_hash_and_index(invalid_block_hash, U64::from(0))
+            .await
+            .expect("failed fetching transaction");
+
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_get_transaction_by_block_hash_and_index_returns_none_for_invalid_index() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let input_tx_hash = H256::repeat_byte(0x01);
+        let (input_block_hash, _) = testing::apply_tx(&node, input_tx_hash);
+
+        let result = node
+            .get_transaction_by_block_hash_and_index(input_block_hash, U64::from(10))
+            .await
+            .expect("failed fetching transaction");
+
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_get_transaction_by_block_hash_and_index_returns_transaction_for_valid_input() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let input_tx_hash = H256::repeat_byte(0x01);
+        let (input_block_hash, _) = testing::apply_tx(&node, input_tx_hash);
+
+        let actual_tx = node
+            .get_transaction_by_block_hash_and_index(input_block_hash, U64::from(0))
+            .await
+            .expect("failed fetching transaction")
+            .expect("no transaction");
+
+        assert_eq!(input_tx_hash, actual_tx.hash);
+    }
+
+    #[tokio::test]
+    async fn test_get_transaction_by_block_hash_and_index_fetches_full_transaction_for_hash_from_fork(
+    ) {
+        let mock_server = MockServer::run_with_config(ForkBlockConfig {
+            number: 10,
+            transaction_count: 0,
+            hash: H256::repeat_byte(0xab),
+        });
+        let input_block_hash = H256::repeat_byte(0x01);
+        let input_tx_hash = H256::repeat_byte(0x02);
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "eth_getTransactionByHash",
+                "params": [
+                    format!("{:#x}", input_tx_hash),
+                ],
+            }),
+            TransactionResponseBuilder::new()
+                .set_hash(input_tx_hash)
+                .set_block_hash(input_block_hash)
+                .set_block_number(U64::from(1))
+                .build(),
+        );
+
+        let node = InMemoryNode::<HttpForkSource>::new(
+            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
+            crate::node::ShowCalls::None,
+            ShowStorageLogs::None,
+            ShowVMDetails::None,
+            ShowGasDetails::None,
+            false,
+            &system_contracts::Options::BuiltIn,
+        );
+
+        // store the block info with just the tx hash invariant
+        {
+            let mut writer = node.inner.write().unwrap();
+            writer.blocks.insert(
+                input_block_hash,
+                Block {
+                    transactions: vec![TransactionVariant::Hash(input_tx_hash)],
+                    ..Default::default()
+                },
+            );
+        }
+
+        let actual_tx = node
+            .get_transaction_by_block_hash_and_index(input_block_hash, U64::from(0))
+            .await
+            .expect("failed fetching transaction")
+            .expect("no transaction");
+
+        assert_eq!(input_tx_hash, actual_tx.hash);
+        assert_eq!(Some(U64::from(1)), actual_tx.block_number);
+    }
+
+    #[tokio::test]
+    async fn test_get_transaction_by_block_hash_and_index_fetches_from_fork_if_block_missing() {
+        let mock_server = MockServer::run_with_config(ForkBlockConfig {
+            number: 10,
+            transaction_count: 0,
+            hash: H256::repeat_byte(0xab),
+        });
+        let input_block_hash = H256::repeat_byte(0x01);
+        let input_tx_hash = H256::repeat_byte(0x02);
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "eth_getTransactionByBlockHashAndIndex",
+                "params": [
+                    format!("{:#x}", input_block_hash),
+                    "0x1"
+                ],
+            }),
+            TransactionResponseBuilder::new()
+                .set_hash(input_tx_hash)
+                .set_block_hash(input_block_hash)
+                .set_block_number(U64::from(100))
+                .build(),
+        );
+
+        let node = InMemoryNode::<HttpForkSource>::new(
+            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
+            crate::node::ShowCalls::None,
+            ShowStorageLogs::None,
+            ShowVMDetails::None,
+            ShowGasDetails::None,
+            false,
+            &system_contracts::Options::BuiltIn,
+        );
+
+        let actual_tx = node
+            .get_transaction_by_block_hash_and_index(input_block_hash, U64::from(1))
+            .await
+            .expect("failed fetching transaction")
+            .expect("no transaction");
+
+        assert_eq!(input_tx_hash, actual_tx.hash);
+        assert_eq!(Some(U64::from(100)), actual_tx.block_number);
+    }
+
+    #[tokio::test]
+    async fn test_get_transaction_by_block_number_and_index_returns_none_for_invalid_block_number()
+    {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let input_tx_hash = H256::repeat_byte(0x01);
+        let (input_block_hash, _) = testing::apply_tx(&node, input_tx_hash);
+        let invalid_block_hash = H256::repeat_byte(0xab);
+        assert_ne!(input_block_hash, invalid_block_hash);
+
+        let result = node
+            .get_transaction_by_block_number_and_index(
+                BlockNumber::Number(U64::from(100)),
+                U64::from(0),
+            )
+            .await
+            .expect("failed fetching transaction");
+
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_get_transaction_by_block_number_and_index_returns_none_for_invalid_index() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let input_tx_hash = H256::repeat_byte(0x01);
+        testing::apply_tx(&node, input_tx_hash);
+
+        let result = node
+            .get_transaction_by_block_number_and_index(BlockNumber::Latest, U64::from(10))
+            .await
+            .expect("failed fetching transaction");
+
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_get_transaction_by_block_number_and_index_returns_transaction_for_valid_input() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let input_tx_hash = H256::repeat_byte(0x01);
+        let (_, input_block_number) = testing::apply_tx(&node, input_tx_hash);
+
+        let actual_tx = node
+            .get_transaction_by_block_number_and_index(
+                BlockNumber::Number(input_block_number),
+                U64::from(0),
+            )
+            .await
+            .expect("failed fetching transaction")
+            .expect("no transaction");
+
+        assert_eq!(input_tx_hash, actual_tx.hash);
+    }
+
+    #[tokio::test]
+    async fn test_get_transaction_by_block_number_and_index_fetches_full_transaction_for_hash_from_fork(
+    ) {
+        let mock_server = MockServer::run_with_config(ForkBlockConfig {
+            number: 10,
+            transaction_count: 0,
+            hash: H256::repeat_byte(0xab),
+        });
+        let input_block_hash = H256::repeat_byte(0x01);
+        let input_block_number = U64::from(100);
+        let input_tx_hash = H256::repeat_byte(0x02);
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "eth_getTransactionByHash",
+                "params": [
+                    format!("{:#x}", input_tx_hash),
+                ],
+            }),
+            TransactionResponseBuilder::new()
+                .set_hash(input_tx_hash)
+                .set_block_hash(input_block_hash)
+                .set_block_number(input_block_number)
+                .build(),
+        );
+
+        let node = InMemoryNode::<HttpForkSource>::new(
+            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
+            crate::node::ShowCalls::None,
+            ShowStorageLogs::None,
+            ShowVMDetails::None,
+            ShowGasDetails::None,
+            false,
+            &system_contracts::Options::BuiltIn,
+        );
+
+        // store the block info with just the tx hash invariant
+        {
+            let mut writer = node.inner.write().unwrap();
+            writer
+                .block_hashes
+                .insert(input_block_number.as_u64(), input_block_hash);
+            writer.blocks.insert(
+                input_block_hash,
+                Block {
+                    transactions: vec![TransactionVariant::Hash(input_tx_hash)],
+                    ..Default::default()
+                },
+            );
+        }
+
+        let actual_tx = node
+            .get_transaction_by_block_number_and_index(
+                BlockNumber::Number(input_block_number),
+                U64::from(0),
+            )
+            .await
+            .expect("failed fetching transaction")
+            .expect("no transaction");
+
+        assert_eq!(input_tx_hash, actual_tx.hash);
+        assert_eq!(Some(U64::from(input_block_number)), actual_tx.block_number);
+    }
+
+    #[tokio::test]
+    async fn test_get_transaction_by_block_number_and_index_fetches_from_fork_if_block_missing() {
+        let mock_server = MockServer::run_with_config(ForkBlockConfig {
+            number: 10,
+            transaction_count: 0,
+            hash: H256::repeat_byte(0xab),
+        });
+        let input_block_hash = H256::repeat_byte(0x01);
+        let input_block_number = U64::from(100);
+        let input_tx_hash = H256::repeat_byte(0x02);
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "eth_getTransactionByBlockNumberAndIndex",
+                "params": [
+                    format!("{:#x}", input_block_number),
+                    "0x1"
+                ],
+            }),
+            TransactionResponseBuilder::new()
+                .set_hash(input_tx_hash)
+                .set_block_hash(input_block_hash)
+                .set_block_number(U64::from(input_block_number))
+                .build(),
+        );
+
+        let node = InMemoryNode::<HttpForkSource>::new(
+            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
+            crate::node::ShowCalls::None,
+            ShowStorageLogs::None,
+            ShowVMDetails::None,
+            ShowGasDetails::None,
+            false,
+            &system_contracts::Options::BuiltIn,
+        );
+
+        let actual_tx = node
+            .get_transaction_by_block_number_and_index(
+                BlockNumber::Number(input_block_number),
+                U64::from(1),
+            )
+            .await
+            .expect("failed fetching transaction")
+            .expect("no transaction");
+
+        assert_eq!(input_tx_hash, actual_tx.hash);
+        assert_eq!(Some(input_block_number), actual_tx.block_number);
     }
 
     #[tokio::test]
