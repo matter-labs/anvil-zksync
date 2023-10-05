@@ -50,6 +50,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
         todo!()
     }
 
+    /// Trace execution of a transaction.
     fn trace_call(
         &self,
         request: CallRequest,
