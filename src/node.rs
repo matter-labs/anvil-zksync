@@ -91,6 +91,8 @@ pub const ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION: u32 = 1_000;
 pub const ESTIMATE_GAS_SCALE_FACTOR: f32 = 1.3;
 /// The maximum number of previous blocks to store the state for.
 pub const MAX_PREVIOUS_STATES: u16 = 128;
+/// The currently supported ethereum protocol version - https://github.com/ethereum/devp2p/blob/master/caps/eth.md#eth63-2016
+pub const SUPPORTED_ETH_PROTOCOL_VERSION: u16 = 63;
 
 pub fn compute_hash(block_number: u64, tx_hash: H256) -> H256 {
     let digest = [&block_number.to_be_bytes()[..], tx_hash.as_bytes()].concat();
@@ -2617,8 +2619,14 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
         not_implemented("get_transaction_by_block_number_and_index")
     }
 
+    /// Returns the current ethereum protocol version.
+    /// See https://github.com/ethereum/devp2p/blob/master/caps/eth.md#change-log for a list of versions
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `jsonrpc_core::Result` that resolves to a hex `String` of the version number.
     fn protocol_version(&self) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<String>> {
-        not_implemented("protocol_version")
+        Ok(format!("{:#x}", SUPPORTED_ETH_PROTOCOL_VERSION)).into_boxed_future()
     }
 
     fn syncing(
@@ -4231,5 +4239,18 @@ mod tests {
             expected_snapshot.factory_dep_cache,
             storage.factory_dep_cache
         );
+    }
+
+    #[tokio::test]
+    async fn test_protocol_version_returns_currently_supported_version() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let expected_version = format!("{:#x}", SUPPORTED_ETH_PROTOCOL_VERSION);
+        let actual_version = node
+            .protocol_version()
+            .await
+            .expect("failed creating filter");
+
+        assert_eq!(expected_version, actual_version);
     }
 }
