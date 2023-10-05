@@ -91,8 +91,8 @@ pub const ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION: u32 = 1_000;
 pub const ESTIMATE_GAS_SCALE_FACTOR: f32 = 1.3;
 /// The maximum number of previous blocks to store the state for.
 pub const MAX_PREVIOUS_STATES: u16 = 128;
-/// The currently supported ethereum protocol version - https://github.com/ethereum/devp2p/blob/master/caps/eth.md#eth63-2016
-pub const SUPPORTED_ETH_PROTOCOL_VERSION: u16 = 63;
+/// The zks protocol version.
+pub const PROTOCOL_VERSION: &str = "zks/1";
 
 pub fn compute_hash(block_number: u64, tx_hash: H256) -> H256 {
     let digest = [&block_number.to_be_bytes()[..], tx_hash.as_bytes()].concat();
@@ -2626,7 +2626,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
     ///
     /// A `BoxFuture` containing a `jsonrpc_core::Result` that resolves to a hex `String` of the version number.
     fn protocol_version(&self) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<String>> {
-        Ok(format!("{:#x}", SUPPORTED_ETH_PROTOCOL_VERSION)).into_boxed_future()
+        Ok(String::from(PROTOCOL_VERSION)).into_boxed_future()
     }
 
     fn syncing(
@@ -4245,7 +4245,7 @@ mod tests {
     async fn test_protocol_version_returns_currently_supported_version() {
         let node = InMemoryNode::<HttpForkSource>::default();
 
-        let expected_version = format!("{:#x}", SUPPORTED_ETH_PROTOCOL_VERSION);
+        let expected_version = String::from(PROTOCOL_VERSION);
         let actual_version = node
             .protocol_version()
             .await
