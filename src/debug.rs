@@ -60,7 +60,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
         let only_top = options.is_some_and(|o| o.tracer_config.only_top_call);
         let inner = Arc::clone(&self.node);
         Box::pin(async move {
-            if !block.is_none() && !matches!(block, Some(BlockId::Number(BlockNumber::Latest))) {
+            if block.is_some() && !matches!(block, Some(BlockId::Number(BlockNumber::Latest))) {
                 return Err(jsonrpc_core::Error::invalid_params(
                     "tracing only supported at `latest` block",
                 ));
@@ -124,7 +124,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
                     from: l2_tx.initiator_account(),
                     to: l2_tx.recipient_account(),
                     gas: l2_tx.common_data.fee.gas_limit,
-                    value: l2_tx.execute.value.clone(),
+                    value: l2_tx.execute.value,
                     input: l2_tx.execute.calldata().into(),
                     error: None,
                     revert_reason: None,
@@ -137,7 +137,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
                     from: l2_tx.initiator_account(),
                     to: l2_tx.recipient_account(),
                     gas: l2_tx.common_data.fee.gas_limit,
-                    value: l2_tx.execute.value.clone(),
+                    value: l2_tx.execute.value,
                     input: l2_tx.execute.calldata().into(),
                     error: Some(output.to_string()),
                     revert_reason: Some(output.to_string()),
@@ -150,7 +150,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
                     from: l2_tx.initiator_account(),
                     to: l2_tx.recipient_account(),
                     gas: l2_tx.common_data.fee.gas_limit,
-                    value: l2_tx.execute.value.clone(),
+                    value: l2_tx.execute.value,
                     input: l2_tx.execute.calldata().into(),
                     error: Some(reason.to_string()),
                     revert_reason: Some(reason.to_string()),
