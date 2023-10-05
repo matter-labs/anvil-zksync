@@ -83,7 +83,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
             let bootloader_code = inner.system_contracts.contacts_for_l2_call();
 
             // init vm
-            let (l1_batch_env, block_context) = inner.create_l1_batch_env(storage.clone());
+            let (l1_batch_env, _block_context) = inner.create_l1_batch_env(storage.clone());
             let system_env = inner.create_system_env(bootloader_code.clone(), execution_mode);
             let mut vm = Vm::new(l1_batch_env, system_env, storage, HistoryDisabled);
 
@@ -163,8 +163,8 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
 
     fn trace_transaction(
         &self,
-        tx_hash: H256,
-        options: Option<TracerConfig>,
+        _tx_hash: H256,
+        _options: Option<TracerConfig>,
     ) -> BoxFuture<Result<Option<DebugCall>>> {
         todo!()
     }
