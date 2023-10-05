@@ -28,7 +28,7 @@ describe("debug namespace", function () {
 
         const deployer = new Deployer(hre, wallet);
         const secondary = await deployContract(deployer, "Secondary", ["3"]);
-        const _primary = await deployContract(deployer, "Primary", [secondary.address]);
+        await deployContract(deployer, "Primary", [secondary.address]);
 
         const result = await provider.send("debug_traceCall", [
             {
@@ -72,7 +72,7 @@ describe("debug namespace", function () {
         expect(contract_call.from.toLowerCase()).to.equal(primary.address.toLowerCase());
         expect(contract_call.to.toLowerCase()).to.equal(secondary.address.toLowerCase());
 
-        let [output_number] = primary.interface.decodeFunctionResult("calculate", output);
+        const [output_number] = primary.interface.decodeFunctionResult("calculate", output);
         expect(output_number.toNumber()).to.equal(12);
     });
 });
