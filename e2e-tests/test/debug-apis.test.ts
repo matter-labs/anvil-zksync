@@ -23,8 +23,7 @@ describe("debug namespace", function () {
         }, "block parameter should be 'latest' or unspecified");
     });
 
-
-    it("Should trace top-level calls", async function () {
+    it("Should only trace top-level calls with onlyTopCall", async function () {
         const wallet = new Wallet(RichAccounts[0].PrivateKey);
 
         const deployer = new Deployer(hre, wallet);
@@ -38,14 +37,18 @@ describe("debug namespace", function () {
         const result = await provider.send("debug_traceCall", [
             {
                 to: secondary.address,
-                data: data
-            }, "latest"
+                data: data,
+                gas: "0x5f5e100",
+            }, "latest", { tracer: "callTracer", tracerConfig: { onlyTopCall: true } }
         ]);
 
-        const { calls, output, revertReason } = result;
+        const { calls, revertReason } = result;
 
         // call should be successful
         expect(revertReason).to.equal(null);
+
+        // should have no subcalls
+        expect(calls.length).to.equal(0);
     });
 
     it("Should trace contract calls", async function () {
@@ -59,14 +62,21 @@ describe("debug namespace", function () {
             {
                 to: primary.address,
                 data: primary.interface.encodeFunctionData("calculate", ["4"]),
+                gas: "0x5f5e100",
             }
         ]);
 
         const { calls, output, revertReason } = result;
+
         // call should be successful
         expect(revertReason).to.equal(null);
 
-        let outputNumber = primary.interface.decodeFunctionResult("calculate", output);
-        console.log("outputNumber", outputNumber);
+        // subcall from primary to secondary contract should be present
+        const contract_call = calls[0].calls.at(-1).calls[0].calls[0];
+        expect(contract_call.from.toLowerCase()).to.equal(primary.address.toLowerCase());
+        expect(contract_call.to.toLowerCase()).to.equal(secondary.address.toLowerCase());
+
+        let [output_number] = primary.interface.decodeFunctionResult("calculate", output);
+        expect(output_number.toNumber()).to.equal(12);
     });
 });
