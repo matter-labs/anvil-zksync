@@ -2630,7 +2630,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                 .blocks
                 .get(&block_hash)
                 .and_then(|block| block.transactions.get(index.as_usize()))
-                .map(|tx| match tx {
+                .and_then(|tx| match tx {
                     TransactionVariant::Full(tx) => Some(tx.clone()),
                     TransactionVariant::Hash(tx_hash) => reader
                         .fork_storage
@@ -2646,7 +2646,6 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                                 .flatten()
                         }),
                 })
-                .flatten()
                 .or_else(|| {
                     reader
                         .fork_storage
@@ -2699,7 +2698,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                 .get(&real_block_number.as_u64())
                 .and_then(|block_hash| reader.blocks.get(block_hash))
                 .and_then(|block| block.transactions.get(index.as_usize()))
-                .map(|tx| match tx {
+                .and_then(|tx| match tx {
                     TransactionVariant::Full(tx) => Some(tx.clone()),
                     TransactionVariant::Hash(tx_hash) => reader
                         .fork_storage
@@ -2715,7 +2714,6 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                                 .flatten()
                         }),
                 })
-                .flatten()
                 .or_else(|| {
                     reader
                         .fork_storage
