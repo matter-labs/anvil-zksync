@@ -177,15 +177,11 @@ mod tests {
         deps::system_contracts::bytecode_from_slice, http_fork_source::HttpForkSource,
         node::InMemoryNode, testing,
     };
-    use ethers::abi::{AbiEncode, HumanReadableParser, ParamType, Token};
-    use zksync_basic_types::{Nonce, U256};
+    use ethers::abi::{short_signature, AbiEncode, HumanReadableParser, ParamType, Token};
+    use zksync_basic_types::{Address, Nonce, U256};
     use zksync_types::{transaction_request::CallRequestBuilder, utils::deployed_address_create};
 
-    #[tokio::test]
-    async fn test_trace_deployed_contract() {
-        let node = InMemoryNode::<HttpForkSource>::default();
-        let debug = DebugNamespaceImpl::new(node.get_inner());
-
+    fn deploy_test_contracts(node: &InMemoryNode<HttpForkSource>) -> (Address, Address) {
         let private_key = H256::repeat_byte(0xee);
         let from_account = zksync_types::PackedEthSignature::address_from_private_key(&private_key)
             .expect("failed generating address");
@@ -220,6 +216,15 @@ mod tests {
             Some((secondary_deployed_address).encode()),
             Nonce(1),
         );
+        (primary_deployed_address, secondary_deployed_address)
+    }
+
+    #[tokio::test]
+    async fn test_trace_deployed_contract() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let debug = DebugNamespaceImpl::new(node.get_inner());
+
+        let (primary_deployed_address, secondary_deployed_address) = deploy_test_contracts(&node);
 
         // trace a call to the primary contract
         let func = HumanReadableParser::parse_function("calculate(uint)").unwrap();
@@ -263,5 +268,42 @@ mod tests {
         assert_eq!(subcall.to, secondary_deployed_address);
         assert_eq!(subcall.from, primary_deployed_address);
         assert_eq!(subcall.output, U256::from(84).encode().into());
+    }
+
+    #[tokio::test]
+    async fn test_trace_reverts() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let debug = DebugNamespaceImpl::new(node.get_inner());
+
+        let (primary_deployed_address, _) = deploy_test_contracts(&node);
+
+        // trace a call to the primary contract
+        let request = CallRequestBuilder::default()
+            .to(primary_deployed_address)
+            .data(short_signature("shouldRevert()", &[]).into())
+            .gas(80_000_000.into())
+            .build();
+        let trace = debug
+            .trace_call(request, None, None)
+            .await
+            .expect("trace call");
+
+        // call should revert
+        assert!(trace.revert_reason.is_some());
+
+        // find the call to primary contract in the trace
+        let contract_call = trace
+            .calls
+            .first()
+            .unwrap()
+            .calls
+            .last()
+            .unwrap()
+            .calls
+            .first()
+            .unwrap();
+
+        // the contract subcall should have reverted
+        assert!(contract_call.revert_reason.is_some());
     }
 }

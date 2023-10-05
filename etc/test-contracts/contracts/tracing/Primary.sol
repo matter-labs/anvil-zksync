@@ -18,4 +18,8 @@ contract Primary {
     function calculate(uint256 value) public returns (uint) {
         return secondary.multiply(value);
     }
+
+    function shouldRevert() public view returns (uint) {
+        return secondary.shouldRevert();
+    }
 }

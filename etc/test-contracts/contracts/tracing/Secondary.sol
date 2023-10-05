@@ -13,8 +13,12 @@ contract Secondary {
         return "Secondary";
     }
 
-    function multiply(uint256 value) public returns (uint) {
-        data = data * value;
-        return data;
+    function multiply(uint256 value) public view returns (uint) {
+        return data * value;
+    }
+
+    function shouldRevert() public pure returns (uint) {
+        require(false, "This should revert");
+        return 1;
     }
 }
