@@ -47,7 +47,7 @@ The `status` options are:
 | [`ETH`](#eth-namespace) | [`eth_getFilterLogs`](#eth_getfilterlogs) | `SUPPORTED` | Returns an array of all logs matching filter with given id |
 | [`ETH`](#eth-namespace) | [`eth_getLogs`](#eth_getlogs) | `SUPPORTED` | Returns an array of all logs matching a given filter object |
 | `ETH` | `eth_getProof` | `NOT IMPLEMENTED` | Returns the details for the account at the specified address and block number, the account's Merkle proof, and the storage values for the specified storage keys with their Merkle-proofs |
-| [`ETH`](#eth-namespace) | `eth_getStorageAt`(#`eth_getstorageat) | `SUPPORTED` | Returns the value from a storage position at a given address |
+| [`ETH`](#eth-namespace) | [`eth_getStorageAt`](#eth_getstorageat) | `SUPPORTED` | Returns the value from a storage position at a given address |
 | [`ETH`](#eth-namespace) | [`eth_getTransactionByBlockHashAndIndex`](#eth_gettransactionbyblockhashandindex) | `SUPPORTED` | Returns information about a transaction by block hash and transaction index position |
 | [`ETH`](#eth-namespace) | [`eth_getTransactionByBlockNumberAndIndex`](#eth_gettransactionbyblocknumberandindex) | `SUPPORTED` | Returns information about a transaction by block number and transaction index position |
 | [`ETH`](#eth-namespace) | [`eth_getTransactionReceipt`](#eth_gettransactionreceipt) | `SUPPORTED` | Returns the receipt of a transaction by transaction hash |
@@ -1154,7 +1154,7 @@ curl --request POST \
     "jsonrpc": "2.0",
     "id": "1",
     "method": "eth_getTransactionByBlockNumberAndIndex",
-    "params": ["atest", "0x1"]
+    "params": ["latest", "0x1"]
 }'
 ```
 

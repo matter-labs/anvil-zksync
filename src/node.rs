@@ -4662,6 +4662,6 @@ mod tests {
             .expect("no transaction");
 
         assert_eq!(input_tx_hash, actual_tx.hash);
-        assert_eq!(Some(U64::from(100)), actual_tx.block_number);
+        assert_eq!(Some(input_block_number), actual_tx.block_number);
     }
 }
