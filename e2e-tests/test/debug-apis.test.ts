@@ -28,16 +28,12 @@ describe("debug namespace", function () {
 
         const deployer = new Deployer(hre, wallet);
         const secondary = await deployContract(deployer, "Secondary", ["3"]);
-        const primary = await deployContract(deployer, "Primary", [secondary.address]);
-
-        const data = secondary.interface.encodeFunctionData("multiply", ["4"]);
-
-        console.log("address", primary.address, "data", data);
+        const _primary = await deployContract(deployer, "Primary", [secondary.address]);
 
         const result = await provider.send("debug_traceCall", [
             {
                 to: secondary.address,
-                data: data,
+                data: secondary.interface.encodeFunctionData("multiply", ["4"]),
                 gas: "0x5f5e100",
             }, "latest", { tracer: "callTracer", tracerConfig: { onlyTopCall: true } }
         ]);
