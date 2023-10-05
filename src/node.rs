@@ -2736,8 +2736,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
         })
     }
 
-    /// Returns the current ethereum protocol version.
-    /// See https://github.com/ethereum/devp2p/blob/master/caps/eth.md#change-log for a list of versions
+    /// Returns the protocol version.
     ///
     /// # Returns
     ///
