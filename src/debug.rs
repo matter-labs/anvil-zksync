@@ -143,7 +143,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
                 },
                 ExecutionResult::Revert { output } => DebugCall {
                     gas_used: tx_result.statistics.gas_used.into(),
-                    output: vec![],
+                    output: Default::default(),
                     r#type: calltype,
                     from: l2_tx.initiator_account(),
                     to: l2_tx.recipient_account(),
