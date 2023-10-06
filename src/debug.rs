@@ -84,7 +84,10 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
             let bootloader_code = inner.system_contracts.contracts_for_l2_call();
 
             // init vm
-            let (l1_batch_env, _block_context) = inner.create_l1_batch_env(storage.clone());
+            let (mut l1_batch_env, _block_context) = inner.create_l1_batch_env(storage.clone());
+
+            // update the enforced_base_fee within l1_batch_env to match the logic in zksync_core
+            l1_batch_env.enforced_base_fee = Some(l2_tx.common_data.fee.max_fee_per_gas.as_u64());
             let system_env = inner.create_system_env(bootloader_code.clone(), execution_mode);
             let mut vm = Vm::new(l1_batch_env, system_env, storage, HistoryDisabled);
 
