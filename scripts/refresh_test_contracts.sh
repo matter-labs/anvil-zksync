@@ -10,6 +10,6 @@ echo "Building test contracts"
 
 echo "Copying test contracts"
 mkdir -p $TEST_CONTRACT_TARGET
-find $TEST_CONTRACT_ARTIFACTS -name "*.json" -exec cp {} $TEST_CONTRACT_TARGET \;
+find $TEST_CONTRACT_ARTIFACTS -name "*.json" ! -iname "*.dbg.json" -exec cp {} $TEST_CONTRACT_TARGET \;
 
 echo "Done"
