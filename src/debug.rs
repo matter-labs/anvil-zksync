@@ -81,7 +81,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
             let execution_mode = TxExecutionMode::EthCall;
             let storage = StorageView::new(&inner.fork_storage).to_rc_ptr();
 
-            let bootloader_code = inner.system_contracts.contacts_for_l2_call();
+            let bootloader_code = inner.system_contracts.contracts_for_l2_call();
 
             // init vm
             let (l1_batch_env, _block_context) = inner.create_l1_batch_env(storage.clone());

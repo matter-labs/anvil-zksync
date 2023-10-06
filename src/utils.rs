@@ -103,9 +103,9 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
         let (keys, bytecodes, block_ctx) = {
             let storage = StorageView::new(&node.fork_storage).to_rc_ptr();
 
-            // system_contract.contacts_for_l2_call() will give playground contracts
+            // system_contract.contracts_for_l2_call() will give playground contracts
             // we need these to use the unsafeOverrideBlock method in SystemContext.sol
-            let bootloader_code = node.system_contracts.contacts_for_l2_call();
+            let bootloader_code = node.system_contracts.contracts_for_l2_call();
             let (batch_env, mut block_ctx) = node.create_l1_batch_env(storage.clone());
             // override the next block's timestamp to match up with interval for subsequent blocks
             if i != 0 {

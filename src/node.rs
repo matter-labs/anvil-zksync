@@ -959,7 +959,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         let storage = StorageView::new(&inner.fork_storage).to_rc_ptr();
 
-        let bootloader_code = inner.system_contracts.contacts_for_l2_call();
+        let bootloader_code = inner.system_contracts.contracts_for_l2_call();
 
         // init vm
 
