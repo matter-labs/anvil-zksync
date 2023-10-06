@@ -143,19 +143,12 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
                     revert_reason: Some(output.to_string()),
                     calls: call_traces.into_iter().map(Into::into).collect(),
                 },
-                ExecutionResult::Halt { reason } => DebugCall {
-                    gas_used: tx_result.statistics.gas_used.into(),
-                    output: vec![].into(),
-                    r#type: calltype,
-                    from: l2_tx.initiator_account(),
-                    to: l2_tx.recipient_account(),
-                    gas: l2_tx.common_data.fee.gas_limit,
-                    value: l2_tx.execute.value,
-                    input: l2_tx.execute.calldata().into(),
-                    error: Some(reason.to_string()),
-                    revert_reason: Some(reason.to_string()),
-                    calls: call_traces.into_iter().map(Into::into).collect(),
-                },
+                ExecutionResult::Halt { reason } => {
+                    return Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
+                        reason.to_string(),
+                        vec![],
+                    )))
+                }
             };
 
             Ok(result)
