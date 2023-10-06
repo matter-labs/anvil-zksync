@@ -5,7 +5,10 @@ use crate::{
 use jsonrpc_core::{BoxFuture, Result};
 use once_cell::sync::OnceCell;
 use std::sync::{Arc, RwLock};
-use vm::{CallTracer, ExecutionResult, HistoryDisabled, TxExecutionMode, Vm};
+use vm::{
+    constants::ETH_CALL_GAS_LIMIT, CallTracer, ExecutionResult, HistoryDisabled, TxExecutionMode,
+    Vm,
+};
 use zksync_basic_types::H256;
 use zksync_core::api_server::web3::backend_jsonrpc::{
     error::into_jsrpc_error, namespaces::debug::DebugNamespaceT,
@@ -96,6 +99,11 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
                 l2_tx.common_data.signature =
                     PackedEthSignature::default().serialize_packed().into();
             }
+
+            // Match behavior of zksync_core:
+            // Protection against infinite-loop eth_calls and alike:
+            // limiting the amount of gas the call can use.
+            l2_tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
 
             let tx: Transaction = l2_tx.clone().into();
             vm.push_transaction(tx);
