@@ -47,9 +47,9 @@ The `status` options are:
 | [`ETH`](#eth-namespace) | [`eth_getFilterLogs`](#eth_getfilterlogs) | `SUPPORTED` | Returns an array of all logs matching filter with given id |
 | [`ETH`](#eth-namespace) | [`eth_getLogs`](#eth_getlogs) | `SUPPORTED` | Returns an array of all logs matching a given filter object |
 | `ETH` | `eth_getProof` | `NOT IMPLEMENTED` | Returns the details for the account at the specified address and block number, the account's Merkle proof, and the storage values for the specified storage keys with their Merkle-proofs |
-| [`ETH`](#eth-namespace) | `eth_getStorageAt`(#`eth_getstorageat) | `SUPPORTED` | Returns the value from a storage position at a given address |
-| `ETH` | `eth_getTransactionByBlockHashAndIndex` | `NOT IMPLEMENTED`<br />[GitHub Issue #46](https://github.com/matter-labs/era-test-node/issues/46) | Returns information about a transaction by block hash and transaction index position |
-| `ETH` | `eth_getTransactionByBlockNumberAndIndex` | `NOT IMPLEMENTED`<br />[GitHub Issue #47](https://github.com/matter-labs/era-test-node/issues/47) | Returns information about a transaction by block number and transaction index position |
+| [`ETH`](#eth-namespace) | [`eth_getStorageAt`](#eth_getstorageat) | `SUPPORTED` | Returns the value from a storage position at a given address |
+| [`ETH`](#eth-namespace) | [`eth_getTransactionByBlockHashAndIndex`](#eth_gettransactionbyblockhashandindex) | `SUPPORTED` | Returns information about a transaction by block hash and transaction index position |
+| [`ETH`](#eth-namespace) | [`eth_getTransactionByBlockNumberAndIndex`](#eth_gettransactionbyblocknumberandindex) | `SUPPORTED` | Returns information about a transaction by block number and transaction index position |
 | [`ETH`](#eth-namespace) | [`eth_getTransactionReceipt`](#eth_gettransactionreceipt) | `SUPPORTED` | Returns the receipt of a transaction by transaction hash |
 | `ETH` | `eth_getUncleByBlockHashAndIndex` | `NOT IMPLEMENTED` | Returns information about a uncle of a block by hash and uncle index position |
 | `ETH` | `eth_getUncleByBlockNumberAndIndex` | `NOT IMPLEMENTED` | Returns information about a uncle of a block by hash and uncle index position |
@@ -62,7 +62,7 @@ The `status` options are:
 | [`ETH`](#eth-namespace) | [`eth_newBlockFilter`](#`eth_newblockfilter) | `SUPPORTED` | Creates a filter in the node, to notify when a new block arrives |
 | [`ETH`](#eth-namespace) | [`eth_newFilter`](#`eth_newfilter) | `SUPPORTED` | Creates a filter object, based on filter options, to notify when the state changes (logs) |
 | [`ETH`](#eth-namespace) | [`eth_newPendingTransactionFilter`](#`eth_newpendingtransactionfilter) | `SUPPORTED` | Creates a filter in the node, to notify when new pending transactions arrive |
-| `ETH` | `eth_protocolVersion` | `NOT IMPLEMENTED`<br />[GitHub Issue #48](https://github.com/matter-labs/era-test-node/issues/48) | Returns the current ethereum protocol version |
+| [`ETH`](#eth-namespace)` | [`eth_protocolVersion`](#eth_protocolversion) | `SUPPORTED` | Returns the current ethereum protocol version |
 | `ETH` | `eth_sendTransaction` | `NOT IMPLEMENTED` | Creates new message call transaction or a contract creation, if the data field contains code |
 | `ETH` | `eth_sign` | `NOT IMPLEMENTED` | The sign method calculates an Ethereum specific signature with: `sign(keccak256("\x19Ethereum Signed Message:\n" + message.length + message)))` |
 | `ETH` | `eth_signTransaction` | `NOT IMPLEMENTED` | Signs a transaction that can be submitted to the network at a later time using `eth_sendRawTransaction` |
@@ -830,7 +830,6 @@ curl --request POST \
 }'
 ```
 
-
 ### `eth_getFilterLogs`
 
 [source](src/node.rs)
@@ -1144,6 +1143,91 @@ curl --request POST \
     "id": "1",
     "method": "eth_getStorageAt",
     "params": ["0x123456789abcdef123456789abcdef1234567890", "0x0", "latest"]
+}'
+```
+
+### `eth_getTransactionByBlockHashAndIndex`
+
+[source](src/node.rs)
+
+Returns information about a transaction by block hash and transaction index position
+
+#### Arguments
+
++ `block_hash: H256`
++ `index: U64`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_getTransactionByBlockHashAndIndex",
+    "params": ["0x0000000000000000000000000000000000000000000000000000000000000008", "0x1"]
+}'
+```
+
+### `eth_getTransactionByBlockNumberAndIndex`
+
+[source](src/node.rs)
+
+Returns information about a transaction by block number and transaction index position
+
+#### Arguments
+
++ `block_number: BlockNumber`
++ `index: U64`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_getTransactionByBlockNumberAndIndex",
+    "params": ["latest", "0x1"]
+}'
+```
+
+### `eth_protocolVersion`
+
+[source](src/node.rs)
+
+Returns the current ethereum protocol version.
+
+#### Arguments
+
++ _NONE_
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_protocolVersion"
 }'
 ```
 

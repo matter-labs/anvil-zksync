@@ -230,6 +230,8 @@ impl BlockResponseBuilder {
 #[derive(Default, Debug, Clone)]
 pub struct TransactionResponseBuilder {
     hash: H256,
+    block_hash: H256,
+    block_number: U64,
 }
 
 impl TransactionResponseBuilder {
@@ -238,9 +240,21 @@ impl TransactionResponseBuilder {
         Self::default()
     }
 
-    /// Sets the block hash
+    /// Sets the transaction hash
     pub fn set_hash(&mut self, hash: H256) -> &mut Self {
         self.hash = hash;
+        self
+    }
+
+    /// Sets the block hash
+    pub fn set_block_hash(&mut self, hash: H256) -> &mut Self {
+        self.block_hash = hash;
+        self
+    }
+
+    /// Sets the block number
+    pub fn set_block_number(&mut self, number: U64) -> &mut Self {
+        self.block_number = number;
         self
     }
 
@@ -249,8 +263,8 @@ impl TransactionResponseBuilder {
         serde_json::json!({
             "hash": format!("{:#x}", self.hash),
             "nonce": "0x0",
-            "blockHash": "0x51f81bcdfc324a0dff2b5bec9d92e21cbebc4d5e29d3a3d30de3e03fbeab8d7f",
-            "blockNumber": "0x1",
+            "blockHash": format!("{:#x}", self.block_hash),
+            "blockNumber": format!("{:#x}", self.block_number),
             "transactionIndex": "0x0",
             "from": "0x29df43f75149d0552475a6f9b2ac96e28796ed0b",
             "to": "0x0000000000000000000000000000000000008006",
@@ -344,7 +358,10 @@ impl RawTransactionsResponseBuilder {
 }
 
 /// Applies a transaction with a given hash to the node and returns the block hash.
-pub fn apply_tx<T: ForkSource + std::fmt::Debug>(node: &InMemoryNode<T>, tx_hash: H256) -> H256 {
+pub fn apply_tx<T: ForkSource + std::fmt::Debug>(
+    node: &InMemoryNode<T>,
+    tx_hash: H256,
+) -> (H256, U64) {
     let next_miniblock = node
         .get_inner()
         .read()
@@ -376,7 +393,7 @@ pub fn apply_tx<T: ForkSource + std::fmt::Debug>(node: &InMemoryNode<T>, tx_hash
     tx.set_input(vec![], tx_hash);
     node.apply_txs(vec![tx]).expect("failed applying tx");
 
-    produced_block_hash
+    (produced_block_hash, U64::from(next_miniblock))
 }
 
 /// Deploys a contract with the given bytecode.
@@ -644,13 +661,14 @@ mod test {
     #[tokio::test]
     async fn test_apply_tx() {
         let node = InMemoryNode::<HttpForkSource>::default();
-        let actual_block_hash = apply_tx(&node, H256::repeat_byte(0x01));
+        let (actual_block_hash, actual_block_number) = apply_tx(&node, H256::repeat_byte(0x01));
 
         assert_eq!(
             H256::from_str("0xd97ba6a5ab0f2d7fbfc697251321cce20bff3da2b0ddaf12c80f80f0ab270b15")
                 .unwrap(),
             actual_block_hash,
         );
+        assert_eq!(U64::from(1), actual_block_number);
 
         assert!(
             node.get_inner()

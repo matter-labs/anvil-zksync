@@ -22,7 +22,9 @@ use zksync_types::{
 use zksync_state::ReadStorage;
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 
-use zksync_web3_decl::{jsonrpsee::http_client::HttpClient, namespaces::EthNamespaceClient};
+use zksync_web3_decl::{
+    jsonrpsee::http_client::HttpClient, namespaces::EthNamespaceClient, types::Index,
+};
 use zksync_web3_decl::{jsonrpsee::http_client::HttpClientBuilder, namespaces::ZksNamespaceClient};
 
 use crate::{cache::CacheConfig, node::TEST_NODE_NETWORK_ID};
@@ -231,6 +233,20 @@ pub trait ForkSource {
         &self,
         block_number: zksync_types::api::BlockNumber,
     ) -> eyre::Result<Option<U256>>;
+
+    /// Returns information about a transaction by block hash and transaction index position.
+    fn get_transaction_by_block_hash_and_index(
+        &self,
+        block_hash: H256,
+        index: Index,
+    ) -> eyre::Result<Option<Transaction>>;
+
+    /// Returns information about a transaction by block number and transaction index position.
+    fn get_transaction_by_block_number_and_index(
+        &self,
+        block_number: BlockNumber,
+        index: Index,
+    ) -> eyre::Result<Option<Transaction>>;
 }
 
 /// Holds the information about the original chain.
