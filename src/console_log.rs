@@ -69,20 +69,19 @@ fn get_log_functions() -> Vec<Function> {
         .iter()
         .map(|func_decl| {
             let (name, params) = func_decl
-                .trim_end_matches(")")
-                .split_once("(")
+                .trim_end_matches(')')
+                .split_once('(')
                 .unwrap_or_else(|| panic!("unable to obtain function name for '{}'", func_decl));
 
             #[allow(deprecated)] // for deprecated field `constant`
             Function {
                 name: String::from(name),
                 inputs: params
-                    .split(",")
-                    .into_iter()
+                    .split(',')
                     .enumerate()
                     .map(|(index, param)| Param {
                         name: format!("p{index}"),
-                        kind: Reader::read(param.clone()).unwrap_or_else(|err| {
+                        kind: Reader::read(param).unwrap_or_else(|err| {
                             panic!(
                                 "failed deserializing type '{}' for '{}' : {:?}",
                                 param, func_decl, err
