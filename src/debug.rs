@@ -150,7 +150,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
                     gas: l2_tx.common_data.fee.gas_limit,
                     value: l2_tx.execute.value,
                     input: l2_tx.execute.calldata().into(),
-                    error: Some(output.to_string()),
+                    error: None,
                     revert_reason: Some(output.to_string()),
                     calls: call_traces.into_iter().map(Into::into).collect(),
                 },
