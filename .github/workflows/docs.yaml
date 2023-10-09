@@ -50,6 +50,10 @@ jobs:
                   If you are not redirected automatically, follow this <a href='./era_test_node/index.html'>link to example</a>.
               </body>
           </html>' > ./target/doc/index.html
+      - name: Generate rustbook
+        run: |
+          make book
+          cp -r docs/rustbook/book target/doc
       - name: Fix permissions
         run: |
           chmod -c -R +rX "target/doc/" | while read line; do
