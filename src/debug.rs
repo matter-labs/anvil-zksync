@@ -1,6 +1,7 @@
 use crate::{
     fork::ForkSource,
     node::{InMemoryNodeInner, MAX_TX_SIZE},
+    utils::not_implemented,
 };
 use jsonrpc_core::{BoxFuture, Result};
 use once_cell::sync::OnceCell;
@@ -42,7 +43,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
         _block: BlockNumber,
         _options: Option<TracerConfig>,
     ) -> BoxFuture<Result<Vec<ResultDebugCall>>> {
-        todo!()
+        not_implemented("debug_traceBlockByNumber")
     }
 
     fn trace_block_by_hash(
@@ -50,7 +51,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
         _hash: H256,
         _options: Option<TracerConfig>,
     ) -> BoxFuture<Result<Vec<ResultDebugCall>>> {
-        todo!()
+        not_implemented("debug_traceBlockByHash")
     }
 
     /// Trace execution of a transaction.
@@ -171,7 +172,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
         _tx_hash: H256,
         _options: Option<TracerConfig>,
     ) -> BoxFuture<Result<Option<DebugCall>>> {
-        todo!()
+        not_implemented("debug_traceTransaction")
     }
 }
 
