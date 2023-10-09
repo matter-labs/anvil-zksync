@@ -8,7 +8,8 @@ use crate::{
     formatter,
     system_contracts::{self, Options, SystemContracts},
     utils::{
-        self, adjust_l1_gas_price_for_tx, bytecode_to_factory_dep, to_human_size, IntoBoxedFuture,
+        self, adjust_l1_gas_price_for_tx, bytecode_to_factory_dep, not_implemented, to_human_size,
+        IntoBoxedFuture,
     },
 };
 use clap::Parser;
@@ -791,18 +792,6 @@ pub struct Snapshot {
     pub(crate) factory_dep_cache: HashMap<H256, Option<Vec<u8>>>,
 }
 
-fn not_implemented<T: Send + 'static>(
-    method_name: &str,
-) -> jsonrpc_core::BoxFuture<Result<T, jsonrpc_core::Error>> {
-    log::warn!("Method {} is not implemented", method_name);
-    Err(jsonrpc_core::Error {
-        data: None,
-        code: jsonrpc_core::ErrorCode::MethodNotFound,
-        message: format!("Method {} is not implemented", method_name),
-    })
-    .into_boxed_future()
-}
-
 /// In-memory node, that can be used for local & unit testing.
 /// It also supports the option of forking testnet/mainnet.
 /// All contents are removed when object is destroyed.
@@ -961,7 +950,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
 
         let storage = StorageView::new(&inner.fork_storage).to_rc_ptr();
 
-        let bootloader_code = inner.system_contracts.contacts_for_l2_call();
+        let bootloader_code = inner.system_contracts.contracts_for_l2_call();
 
         // init vm
 
@@ -2778,33 +2767,33 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
     fn coinbase(
         &self,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::Address>> {
-        not_implemented("coinbase")
+        not_implemented("eth_coinbase")
     }
 
     fn compilers(&self) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Vec<String>>> {
-        not_implemented("compilers")
+        not_implemented("eth_getCompilers")
     }
 
     fn hashrate(&self) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<U256>> {
-        not_implemented("hashrate")
+        not_implemented("eth_hashrate")
     }
 
     fn get_uncle_count_by_block_hash(
         &self,
         _hash: zksync_basic_types::H256,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<U256>>> {
-        not_implemented("get_uncle_count_by_block_hash")
+        not_implemented("eth_getUncleCountByBlockHash")
     }
 
     fn get_uncle_count_by_block_number(
         &self,
         _number: zksync_types::api::BlockNumber,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<U256>>> {
-        not_implemented("get_uncle_count_by_block_number")
+        not_implemented("eth_getUncleCountByBlockNumber")
     }
 
     fn mining(&self) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<bool>> {
-        not_implemented("mining")
+        not_implemented("eth_mining")
     }
 
     /// Returns the fee history for a given range of blocks.
@@ -2873,6 +2862,7 @@ mod tests {
         testing::{self, ForkBlockConfig, LogBuilder, MockServer, TransactionResponseBuilder},
     };
     use maplit::hashmap;
+    use zksync_basic_types::Nonce;
     use zksync_types::{
         api::{BlockHashObject, BlockNumber, BlockNumberObject},
         utils::deployed_address_create,
@@ -3894,6 +3884,8 @@ mod tests {
             H256::repeat_byte(0x1),
             private_key,
             hex::decode(testing::STORAGE_CONTRACT_BYTECODE).unwrap(),
+            None,
+            Nonce(0),
         );
 
         let number1 = node
@@ -3925,6 +3917,8 @@ mod tests {
             H256::repeat_byte(0x1),
             private_key,
             hex::decode(testing::STORAGE_CONTRACT_BYTECODE).unwrap(),
+            None,
+            Nonce(0),
         );
 
         // simulate a tx modifying the storage

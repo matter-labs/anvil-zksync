@@ -21,7 +21,7 @@ The `status` options are:
 | [`CONFIG`](#config-namespace) | [`config_setShowStorageLogs`](#config_setshowstoragelogs) | `SUPPORTED` | Updates `show_storage_logs` to print storage log reads/writes |
 | [`CONFIG`](#config-namespace) | [`config_setShowVmDetails`](#config_setshowvmdetails) | `SUPPORTED` | Updates `show_vm_details` to print more detailed results from vm execution |
 | [`CONFIG`](#config-namespace) | [`config_setShowGasDetails`](#config_setshowgasdetails) | `SUPPORTED` | Updates `show_gas_details` to print more details about gas estimation and usage |
-| `DEBUG` | `debug_traceCall` | `NOT IMPLEMENTED`<br />[GitHub Issue #61](https://github.com/matter-labs/era-test-node/issues/61) | Performs a call and returns structured traces of the execution |
+| [`DEBUG`](#debug-namespace) | [`debug_traceCall`](#debug_tracecall) | `SUPPORTED` | Performs a call and returns structured traces of the execution |
 | `DEBUG` | `debug_traceBlockByHash` | `NOT IMPLEMENTED`<br />[GitHub Issue #63](https://github.com/matter-labs/era-test-node/issues/63) | Returns structured traces for operations within the block of the specified block hash |
 | `DEBUG` | `debug_traceBlockByNumber` | `NOT IMPLEMENTED`<br />[GitHub Issue #64](https://github.com/matter-labs/era-test-node/issues/64) | Returns structured traces for operations within the block of the specified block number |
 | `DEBUG` | `debug_traceTransaction` | `NOT IMPLEMENTED`<br />[GitHub Issue #65](https://github.com/matter-labs/era-test-node/issues/65) | Returns a structured trace of the execution of the specified transaction |
@@ -289,6 +289,52 @@ curl --request POST \
   --url http://localhost:8011/ \
   --header 'content-type: application/json' \
   --data '{"jsonrpc": "2.0","id": "1","method": "config_setResolveHashes","params": [true]}'
+```
+
+## `DEBUG NAMESPACE`
+
+### `debug_traceCall`
+
+[source](src/debug.rs)
+
+The `debug_traceCall` is similar to `eth_call` but returns call traces for each call.
+
+Currently calls can only be traced on the latest block. This is the default and hence the block argument can be omitted.
+
+The third argument mirrors the [`TraceConfig` of go-ethereum](https://geth.ethereum.org/docs/interacting-with-geth/rpc/ns-debug#traceconfig), but with the restriction that the only supported tracer is `CallTracer`. Memory, Stack and Storage traces are not supported.
+
+#### Arguments
+
++ `transaction: Transaction`
+
++ `block: BlockNumber`
+
++ `tracer: TracerConfig`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+      "id": "2",
+      "method": "debug_traceCall",
+      "params": [{
+          "to": "0x36615Cf349d7F6344891B1e7CA7C72883F5dc049",
+          "data": "0x0000",
+          "from": "0xa61464658AfeAf65CccaaFD3a512b69A83B77618",
+          "gas": "0x0000",
+          "gasPrice": "0x0000",
+          "value": "0x0000",
+          "nonce": "0x0000"
+      }, "latest"]
+  }'
 ```
 
 ## `NETWORK NAMESPACE`

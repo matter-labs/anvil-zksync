@@ -1,0 +1,5 @@
+node_modules
+typechain-types
+cache-zk
+artifacts-zk
+build-info

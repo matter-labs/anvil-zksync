@@ -3,6 +3,7 @@ use crate::hardhat::{HardhatNamespaceImpl, HardhatNamespaceT};
 use crate::node::{ShowGasDetails, ShowStorageLogs, ShowVMDetails};
 use clap::{Parser, Subcommand, ValueEnum};
 use configuration_api::ConfigurationApiNamespaceT;
+use debug::DebugNamespaceImpl;
 use evm::{EvmNamespaceImpl, EvmNamespaceT};
 use fork::{ForkDetails, ForkSource};
 use logging_middleware::LoggingMiddleware;
@@ -16,6 +17,7 @@ mod bootloader_debug;
 mod cache;
 mod configuration_api;
 mod console_log;
+mod debug;
 mod deps;
 mod evm;
 mod filters;
@@ -54,7 +56,7 @@ use zksync_basic_types::{L2ChainId, H160, H256};
 
 use crate::{configuration_api::ConfigurationApiNamespace, node::TEST_NODE_NETWORK_ID};
 use zksync_core::api_server::web3::backend_jsonrpc::namespaces::{
-    eth::EthNamespaceT, net::NetNamespaceT, zks::ZksNamespaceT,
+    debug::DebugNamespaceT, eth::EthNamespaceT, net::NetNamespaceT, zks::ZksNamespaceT,
 };
 
 /// List of wallets (address, private key) that we seed with tokens at start.
@@ -113,6 +115,7 @@ async fn build_json_http<
     evm: EvmNamespaceImpl<S>,
     zks: ZkMockNamespaceImpl<S>,
     hardhat: HardhatNamespaceImpl<S>,
+    debug: DebugNamespaceImpl<S>,
 ) -> tokio::task::JoinHandle<()> {
     let (sender, recv) = oneshot::channel::<()>();
 
@@ -124,6 +127,7 @@ async fn build_json_http<
         io.extend_with(evm.to_delegate());
         io.extend_with(zks.to_delegate());
         io.extend_with(hardhat.to_delegate());
+        io.extend_with(debug.to_delegate());
         io
     };
 
@@ -372,6 +376,7 @@ async fn main() -> anyhow::Result<()> {
     let evm = EvmNamespaceImpl::new(node.get_inner());
     let zks = ZkMockNamespaceImpl::new(node.get_inner());
     let hardhat = HardhatNamespaceImpl::new(node.get_inner());
+    let debug = DebugNamespaceImpl::new(node.get_inner());
 
     let threads = build_json_http(
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), opt.port),
@@ -382,6 +387,7 @@ async fn main() -> anyhow::Result<()> {
         evm,
         zks,
         hardhat,
+        debug,
     )
     .await;
 

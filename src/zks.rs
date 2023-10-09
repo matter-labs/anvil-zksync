@@ -15,7 +15,11 @@ use zksync_web3_decl::{
     types::{Filter, Log},
 };
 
-use crate::{fork::ForkSource, node::InMemoryNodeInner, utils::IntoBoxedFuture};
+use crate::{
+    fork::ForkSource,
+    node::InMemoryNodeInner,
+    utils::{not_implemented, IntoBoxedFuture},
+};
 use colored::Colorize;
 
 /// Mock implementation of ZksNamespace - used only in the test node.
@@ -30,11 +34,6 @@ impl<S> ZkMockNamespaceImpl<S> {
     }
 }
 
-macro_rules! not_implemented {
-    () => {
-        Box::pin(async move { Err(jsonrpc_core::Error::method_not_found()) })
-    };
-}
 impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
     for ZkMockNamespaceImpl<S>
 {
@@ -69,38 +68,38 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
         &self,
         _block_number: MiniblockNumber,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Vec<zksync_types::Transaction>>> {
-        not_implemented!()
+        not_implemented("zks_getRawBlockTransactions")
     }
 
     fn estimate_gas_l1_to_l2(
         &self,
         _req: zksync_types::transaction_request::CallRequest,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<U256>> {
-        not_implemented!()
+        not_implemented("zks_estimateGasL1ToL2")
     }
 
     fn get_main_contract(
         &self,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::Address>> {
-        not_implemented!()
+        not_implemented("zks_getMainContract")
     }
 
     fn get_testnet_paymaster(
         &self,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<zksync_basic_types::Address>>> {
-        not_implemented!()
+        not_implemented("zks_getTestnetPaymaster")
     }
 
     fn get_bridge_contracts(
         &self,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<BridgeAddresses>> {
-        not_implemented!()
+        not_implemented("zks_getBridgeContracts")
     }
 
     fn l1_chain_id(
         &self,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::U64>> {
-        not_implemented!()
+        not_implemented("zks_L1ChainId")
     }
 
     fn get_confirmed_tokens(
@@ -108,7 +107,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
         _from: u32,
         _limit: u8,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Vec<zksync_web3_decl::types::Token>>> {
-        not_implemented!()
+        not_implemented("zks_getConfirmedTokens")
     }
 
     fn get_token_price(
@@ -152,7 +151,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
     ) -> jsonrpc_core::BoxFuture<
         jsonrpc_core::Result<std::collections::HashMap<zksync_basic_types::Address, U256>>,
     > {
-        not_implemented!()
+        not_implemented("zks_getAllAccountBalances")
     }
 
     fn get_l2_to_l1_msg_proof(
@@ -163,7 +162,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
         _l2_log_position: Option<usize>,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<zksync_types::api::L2ToL1LogProof>>>
     {
-        not_implemented!()
+        not_implemented("zks_getL2ToL1MsgProof")
     }
 
     fn get_l2_to_l1_log_proof(
@@ -172,13 +171,13 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
         _index: Option<usize>,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<zksync_types::api::L2ToL1LogProof>>>
     {
-        not_implemented!()
+        not_implemented("zks_getL2ToL1LogProof")
     }
 
     fn get_l1_batch_number(
         &self,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::U64>> {
-        not_implemented!()
+        not_implemented("zks_L1BatchNumber")
     }
 
     fn get_block_details(
@@ -186,7 +185,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
         _block_number: zksync_basic_types::MiniblockNumber,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<zksync_types::api::BlockDetails>>>
     {
-        not_implemented!()
+        not_implemented("zks_getBlockDetails")
     }
 
     fn get_miniblock_range(
@@ -195,7 +194,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
     ) -> jsonrpc_core::BoxFuture<
         jsonrpc_core::Result<Option<(zksync_basic_types::U64, zksync_basic_types::U64)>>,
     > {
-        not_implemented!()
+        not_implemented("zks_getL1BatchBlockRange")
     }
 
     fn get_transaction_details(
@@ -203,7 +202,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
         _hash: zksync_basic_types::H256,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<zksync_types::api::TransactionDetails>>>
     {
-        not_implemented!()
+        not_implemented("zks_getTransactionDetails")
     }
 
     /// Retrieves details for a given L1 batch.
@@ -232,27 +231,27 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
         &self,
         _hash: zksync_basic_types::H256,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<Vec<u8>>>> {
-        not_implemented!()
+        not_implemented("zks_getBytecodeByHash")
     }
 
     fn get_l1_gas_price(
         &self,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::U64>> {
-        not_implemented!()
+        not_implemented("zks_getL1GasPrice")
     }
 
     fn get_protocol_version(
         &self,
         _version_id: Option<u16>,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<ProtocolVersion>>> {
-        not_implemented!()
+        not_implemented("zks_getProtocolVersion")
     }
 
     fn get_logs_with_virtual_blocks(
         &self,
         _filter: Filter,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Vec<Log>>> {
-        not_implemented!()
+        not_implemented("zks_getLogs")
     }
 }
 

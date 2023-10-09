@@ -103,9 +103,9 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
         let (keys, bytecodes, block_ctx) = {
             let storage = StorageView::new(&node.fork_storage).to_rc_ptr();
 
-            // system_contract.contacts_for_l2_call() will give playground contracts
+            // system_contract.contracts_for_l2_call() will give playground contracts
             // we need these to use the unsafeOverrideBlock method in SystemContext.sol
-            let bootloader_code = node.system_contracts.contacts_for_l2_call();
+            let bootloader_code = node.system_contracts.contracts_for_l2_call();
             let (batch_env, mut block_ctx) = node.create_l1_batch_env(storage.clone());
             // override the next block's timestamp to match up with interval for subsequent blocks
             if i != 0 {
@@ -178,6 +178,19 @@ pub fn to_real_block_number(block_number: BlockNumber, latest_block_number: U64)
         BlockNumber::Earliest => U64::zero(),
         BlockNumber::Number(n) => n,
     }
+}
+
+/// Returns a [jsonrpc_core::Error] indicating that the method is not implemented.
+pub fn not_implemented<T: Send + 'static>(
+    method_name: &str,
+) -> jsonrpc_core::BoxFuture<Result<T, jsonrpc_core::Error>> {
+    log::warn!("Method {} is not implemented", method_name);
+    Err(jsonrpc_core::Error {
+        data: None,
+        code: jsonrpc_core::ErrorCode::MethodNotFound,
+        message: format!("Method {} is not implemented", method_name),
+    })
+    .into_boxed_future()
 }
 
 #[cfg(test)]

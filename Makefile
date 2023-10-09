@@ -12,6 +12,7 @@ clean-contracts:
 rebuild-contracts:
 	cd etc/system-contracts && yarn build; yarn preprocess; yarn build-bootloader
 	./scripts/refresh_contracts.sh
+	./scripts/refresh_test_contracts.sh
 
 # Build the Rust project
 rust-build:
