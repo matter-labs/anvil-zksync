@@ -332,7 +332,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_trace_transactiom() {
+    async fn test_trace_transaction() {
         let node = InMemoryNode::<HttpForkSource>::default();
         let inner = node.get_inner();
         {
@@ -360,7 +360,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_trace_transactiom_only_top() {
+    async fn test_trace_transaction_only_top() {
         let node = InMemoryNode::<HttpForkSource>::default();
         let inner = node.get_inner();
         {
