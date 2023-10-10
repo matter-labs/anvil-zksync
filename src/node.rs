@@ -8,8 +8,8 @@ use crate::{
     formatter,
     system_contracts::{self, Options, SystemContracts},
     utils::{
-        self, adjust_l1_gas_price_for_tx, bytecode_to_factory_dep, not_implemented, to_human_size,
-        IntoBoxedFuture,
+        self, adjust_l1_gas_price_for_tx, bytecode_to_factory_dep, create_debug_output,
+        not_implemented, to_human_size, IntoBoxedFuture,
     },
 };
 use clap::Parser;
@@ -48,8 +48,9 @@ use zksync_core::api_server::web3::backend_jsonrpc::{
     error::into_jsrpc_error, namespaces::eth::EthNamespaceT,
 };
 use zksync_state::{ReadStorage, StoragePtr, StorageView, WriteStorage};
+use zksync_types::vm_trace::Call;
 use zksync_types::{
-    api::{Block, Log, TransactionReceipt, TransactionVariant},
+    api::{Block, DebugCall, Log, TransactionReceipt, TransactionVariant},
     block::legacy_miniblock_hash,
     fee::Fee,
     get_code_key, get_nonce_key,
@@ -242,8 +243,25 @@ impl Display for ShowGasDetails {
 
 #[derive(Debug, Clone)]
 pub struct TransactionResult {
-    info: TxExecutionInfo,
-    receipt: TransactionReceipt,
+    pub info: TxExecutionInfo,
+    pub receipt: TransactionReceipt,
+    pub debug: DebugCall,
+}
+
+impl TransactionResult {
+    /// Returns the debug information for the transaction.
+    /// If `only_top` is true - will only return the top level call.
+    pub fn debug_info(&self, only_top: bool) -> DebugCall {
+        let calls = if only_top {
+            vec![]
+        } else {
+            self.debug.calls.clone()
+        };
+        DebugCall {
+            calls,
+            ..self.debug.clone()
+        }
+    }
 }
 
 /// Helper struct for InMemoryNode.
@@ -293,6 +311,7 @@ pub struct InMemoryNodeInner<S> {
 type L2TxResult = (
     HashMap<StorageKey, H256>,
     VmExecutionResultAndLogs,
+    Vec<Call>,
     Block<TransactionVariant>,
     HashMap<U256, Vec<U256>>,
     BlockContext,
@@ -1366,7 +1385,14 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         vm.execute(vm::VmExecutionMode::Bootloader);
 
         let modified_keys = storage.borrow().modified_storage_keys().clone();
-        Ok((modified_keys, tx_result, block, bytecodes, block_ctx))
+        Ok((
+            modified_keys,
+            tx_result,
+            call_traces.clone(),
+            block,
+            bytecodes,
+            block_ctx,
+        ))
     }
 
     /// Runs L2 transaction and commits it to a new block.
@@ -1383,7 +1409,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             inner.filters.notify_new_pending_transaction(tx_hash);
         }
 
-        let (keys, result, block, bytecodes, block_ctx) =
+        let (keys, result, call_traces, block, bytecodes, block_ctx) =
             self.run_l2_tx_inner(l2_tx.clone(), execution_mode)?;
 
         if let ExecutionResult::Halt { reason } = result.result {
@@ -1475,6 +1501,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             effective_gas_price: Some(L2_GAS_PRICE.into()),
             ..Default::default()
         };
+        let debug = create_debug_output(&l2_tx, &result, call_traces).expect("create debug output"); // OK to unwrap here as Halt is handled above
         inner.tx_results.insert(
             tx_hash,
             TransactionResult {
@@ -1485,6 +1512,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                     result,
                 },
                 receipt: tx_receipt,
+                debug,
             },
         );
 
@@ -2859,7 +2887,10 @@ mod tests {
         cache::CacheConfig,
         http_fork_source::HttpForkSource,
         node::InMemoryNode,
-        testing::{self, ForkBlockConfig, LogBuilder, MockServer, TransactionResponseBuilder},
+        testing::{
+            self, default_tx_debug_info, ForkBlockConfig, LogBuilder, MockServer,
+            TransactionResponseBuilder,
+        },
     };
     use maplit::hashmap;
     use zksync_basic_types::Nonce;
@@ -3976,6 +4007,7 @@ mod tests {
                             .build()],
                         ..Default::default()
                     },
+                    debug: default_tx_debug_info(),
                 },
             );
             writer.tx_results.insert(
@@ -3993,6 +4025,7 @@ mod tests {
                         ],
                         ..Default::default()
                     },
+                    debug: default_tx_debug_info(),
                 },
             );
         }
@@ -4032,6 +4065,7 @@ mod tests {
                             .build()],
                         ..Default::default()
                     },
+                    debug: default_tx_debug_info(),
                 },
             );
         }
@@ -4059,6 +4093,7 @@ mod tests {
                             .build()],
                         ..Default::default()
                     },
+                    debug: testing::default_tx_debug_info(),
                 },
             );
             writer.tx_results.insert(
@@ -4076,6 +4111,7 @@ mod tests {
                         ],
                         ..Default::default()
                     },
+                    debug: testing::default_tx_debug_info(),
                 },
             );
         }
@@ -4143,6 +4179,7 @@ mod tests {
             TransactionResult {
                 info: testing::default_tx_execution_info(),
                 receipt: Default::default(),
+                debug: testing::default_tx_debug_info(),
             },
         );
         inner.current_batch = 1;
@@ -4244,6 +4281,7 @@ mod tests {
             TransactionResult {
                 info: testing::default_tx_execution_info(),
                 receipt: Default::default(),
+                debug: testing::default_tx_debug_info(),
             },
         );
         inner.current_batch = 1;
@@ -4296,6 +4334,7 @@ mod tests {
             TransactionResult {
                 info: testing::default_tx_execution_info(),
                 receipt: Default::default(),
+                debug: default_tx_debug_info(),
             },
         );
         inner.current_batch = 2;

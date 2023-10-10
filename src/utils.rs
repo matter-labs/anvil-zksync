@@ -2,12 +2,17 @@ use std::collections::HashMap;
 use std::pin::Pin;
 
 use futures::Future;
+use vm::{ExecutionResult, VmExecutionResultAndLogs};
 use vm::{HistoryDisabled, Vm};
 use zksync_basic_types::{U256, U64};
 use zksync_state::StorageView;
 use zksync_state::WriteStorage;
-use zksync_types::api::BlockNumber;
+use zksync_types::api::{BlockNumber, DebugCall, DebugCallType};
+use zksync_types::l2::L2Tx;
+use zksync_types::vm_trace::Call;
+use zksync_types::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_utils::u256_to_h256;
+use zksync_web3_decl::error::Web3Error;
 
 use crate::node::create_empty_block;
 use crate::{fork::ForkSource, node::InMemoryNodeInner};
@@ -191,6 +196,51 @@ pub fn not_implemented<T: Send + 'static>(
         message: format!("Method {} is not implemented", method_name),
     })
     .into_boxed_future()
+}
+
+/// Creates a [DebugCall] from a [L2Tx], [VmExecutionResultAndLogs] and a list of [Call]s.
+pub fn create_debug_output(
+    l2_tx: &L2Tx,
+    result: &VmExecutionResultAndLogs,
+    traces: Vec<Call>,
+) -> Result<DebugCall, Web3Error> {
+    let calltype = if l2_tx.recipient_account() == CONTRACT_DEPLOYER_ADDRESS {
+        DebugCallType::Create
+    } else {
+        DebugCallType::Call
+    };
+    match &result.result {
+        ExecutionResult::Success { output } => Ok(DebugCall {
+            gas_used: result.statistics.gas_used.into(),
+            output: output.clone().into(),
+            r#type: calltype,
+            from: l2_tx.initiator_account(),
+            to: l2_tx.recipient_account(),
+            gas: l2_tx.common_data.fee.gas_limit,
+            value: l2_tx.execute.value,
+            input: l2_tx.execute.calldata().into(),
+            error: None,
+            revert_reason: None,
+            calls: traces.into_iter().map(Into::into).collect(),
+        }),
+        ExecutionResult::Revert { output } => Ok(DebugCall {
+            gas_used: result.statistics.gas_used.into(),
+            output: Default::default(),
+            r#type: calltype,
+            from: l2_tx.initiator_account(),
+            to: l2_tx.recipient_account(),
+            gas: l2_tx.common_data.fee.gas_limit,
+            value: l2_tx.execute.value,
+            input: l2_tx.execute.calldata().into(),
+            error: None,
+            revert_reason: Some(output.to_string()),
+            calls: traces.into_iter().map(Into::into).collect(),
+        }),
+        ExecutionResult::Halt { reason } => Err(Web3Error::SubmitTransactionError(
+            reason.to_string(),
+            vec![],
+        )),
+    }
 }
 
 #[cfg(test)]

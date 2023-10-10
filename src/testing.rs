@@ -18,7 +18,7 @@ use itertools::Itertools;
 use std::str::FromStr;
 use vm::VmExecutionResultAndLogs;
 use zksync_basic_types::{H160, U64};
-use zksync_types::api::Log;
+use zksync_types::api::{DebugCall, DebugCallType, Log};
 use zksync_types::{
     fee::Fee, l2::L2Tx, Address, L2ChainId, Nonce, PackedEthSignature, ProtocolVersionId, H256,
     U256,
@@ -567,6 +567,35 @@ pub fn default_tx_execution_info() -> TxExecutionInfo {
             statistics: Default::default(),
             refunds: Default::default(),
         },
+    }
+}
+
+/// Returns a default instance for a successful [DebugCall]
+pub fn default_tx_debug_info() -> DebugCall {
+    DebugCall {
+        r#type: DebugCallType::Call,
+        from: Address::zero(),
+        to: Address::zero(),
+        gas: U256::zero(),
+        gas_used: U256::zero(),
+        value: U256::zero(),
+        output: Default::default(),
+        input: Default::default(),
+        error: None,
+        revert_reason: None,
+        calls: vec![DebugCall {
+            r#type: DebugCallType::Call,
+            from: Address::zero(),
+            to: Address::zero(),
+            gas: U256::zero(),
+            gas_used: U256::zero(),
+            value: U256::zero(),
+            output: Default::default(),
+            input: Default::default(),
+            error: None,
+            revert_reason: None,
+            calls: vec![],
+        }],
     }
 }
 
