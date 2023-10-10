@@ -23,7 +23,7 @@ The `status` options are:
 | [`CONFIG`](#config-namespace) | [`config_setShowGasDetails`](#config_setshowgasdetails) | `SUPPORTED` | Updates `show_gas_details` to print more details about gas estimation and usage |
 | [`DEBUG`](#debug-namespace) | [`debug_traceCall`](#debug_tracecall) | `SUPPORTED` | Performs a call and returns structured traces of the execution |
 | [`DEBUG`](#debug-namespace) | [`debug_traceBlockByHash`](#debug_traceblockbyhash) | `SUPPORTED` | Returns structured traces for operations within the block of the specified block hash |
-| `DEBUG` | `debug_traceBlockByNumber` | `NOT IMPLEMENTED`<br />[GitHub Issue #64](https://github.com/matter-labs/era-test-node/issues/64) | Returns structured traces for operations within the block of the specified block number |
+| [`DEBUG`](#debug-namespace) | [`debug_traceBlockByNumber`](#debug_traceblockbynumber) | `SUPPORTED` | Returns structured traces for operations within the block of the specified block number |
 | [`DEBUG`](#debug-namespace) | [`debug_traceTransaction`](#debug_tracetransaction) | `SUPPORTED` | Returns a structured trace of the execution of the specified transaction |
 | `ETH` | `eth_accounts` | `SUPPORTED` | Returns a list of addresses owned by client |
 | [`ETH`](#eth-namespace) | [`eth_chainId`](#eth_chainid) | `SUPPORTED` | Returns the currently configured chain id <br />_(default is `260`)_ |
@@ -406,6 +406,43 @@ curl --request POST \
       "method": "debug_traceBlockByHash",
       "params": [
         "0xd3a94ff697a573cb174ecce05126e952ecea6dee051526a3e389747ff86b0d99",
+        { "tracer": "callTracer", "tracerConfig": { "onlyTopCall": true } }
+      ]
+  }'
+```
+
+### `debug_traceBlockByNumber`
+
+[source](src/debug.rs)
+
+Returns call traces for each transaction within a given block.
+
+Currently only transactions from blocks mined on the dev node itself (ie, not from upstream when using fork mode) can be traced.
+
+The third argument mirrors the [`TraceConfig` of go-ethereum](https://geth.ethereum.org/docs/interacting-with-geth/rpc/ns-debug#traceconfig), but with the restriction that the only supported tracer is `CallTracer`. Memory, Stack and Storage traces are not supported.
+
+#### Arguments
+
+- `blockNumber: BlockNumber`
+
+- `options: TracerConfig` (optional)
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+      "id": "2",
+      "method": "debug_traceBlockByNumber",
+      "params": [
+        "latest",
         { "tracer": "callTracer", "tracerConfig": { "onlyTopCall": true } }
       ]
   }'
