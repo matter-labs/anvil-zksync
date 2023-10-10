@@ -3,6 +3,7 @@ use crate::{
     node::{InMemoryNodeInner, MAX_TX_SIZE},
     utils::{create_debug_output, not_implemented},
 };
+use itertools::Itertools;
 use jsonrpc_core::{BoxFuture, Result};
 use once_cell::sync::OnceCell;
 use std::sync::{Arc, RwLock};
@@ -13,7 +14,7 @@ use zksync_core::api_server::web3::backend_jsonrpc::{
 };
 use zksync_state::StorageView;
 use zksync_types::{
-    api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
+    api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig, TransactionVariant},
     l2::L2Tx,
     transaction_request::CallRequest,
     PackedEthSignature, Transaction,
@@ -45,10 +46,50 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
 
     fn trace_block_by_hash(
         &self,
-        _hash: H256,
-        _options: Option<TracerConfig>,
+        hash: H256,
+        options: Option<TracerConfig>,
     ) -> BoxFuture<Result<Vec<ResultDebugCall>>> {
-        not_implemented("debug_traceBlockByHash")
+        let only_top = options.is_some_and(|o| o.tracer_config.only_top_call);
+        let inner = Arc::clone(&self.node);
+        Box::pin(async move {
+            let inner = inner
+                .read()
+                .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
+
+            let block = inner.blocks.get(&hash).ok_or_else(|| {
+                into_jsrpc_error(Web3Error::SubmitTransactionError(
+                    "Block not found".to_string(),
+                    vec![],
+                ))
+            })?;
+
+            let tx_hashes = block
+                .transactions
+                .iter()
+                .map(|tx| match tx {
+                    TransactionVariant::Full(tx) => tx.hash,
+                    TransactionVariant::Hash(hash) => *hash,
+                })
+                .collect_vec();
+
+            let debug_calls = tx_hashes
+                .into_iter()
+                .map(|tx_hash| {
+                    let tx = inner.tx_results.get(&tx_hash).ok_or_else(|| {
+                        into_jsrpc_error(Web3Error::SubmitTransactionError(
+                            "Transaction not found".to_string(),
+                            vec![],
+                        ))
+                    })?;
+                    Ok(tx.debug_info(only_top))
+                })
+                .collect::<Result<Vec<_>>>()?
+                .into_iter()
+                .map(|result| ResultDebugCall { result })
+                .collect_vec();
+
+            Ok(debug_calls)
+        })
     }
 
     /// Trace execution of a transaction.
@@ -158,7 +199,7 @@ mod tests {
     use ethers::abi::{short_signature, AbiEncode, HumanReadableParser, ParamType, Token};
     use zksync_basic_types::{Address, Nonce, H160, U256};
     use zksync_types::{
-        api::{CallTracerConfig, SupportedTracers, TransactionReceipt},
+        api::{Block, CallTracerConfig, SupportedTracers, TransactionReceipt},
         transaction_request::CallRequestBuilder,
         utils::deployed_address_create,
     };
@@ -400,5 +441,50 @@ mod tests {
             .await
             .unwrap();
         assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_trace_block_by_hash_empty() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let inner = node.get_inner();
+        {
+            let mut writer = inner.write().unwrap();
+            // let mut blocks = HashMap::new();
+            let block = Block::<TransactionVariant>::default();
+            writer.blocks.insert(H256::repeat_byte(0x1), block);
+        }
+        let result = DebugNamespaceImpl::new(inner)
+            .trace_block_by_hash(H256::repeat_byte(0x1), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_trace_block_by_hash() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let inner = node.get_inner();
+        {
+            let mut writer = inner.write().unwrap();
+            let tx = zksync_types::api::Transaction::default();
+            let tx_hash = tx.hash;
+            let mut block = Block::<TransactionVariant>::default();
+            block.transactions.push(TransactionVariant::Full(tx));
+            writer.blocks.insert(H256::repeat_byte(0x1), block);
+            writer.tx_results.insert(
+                tx_hash,
+                TransactionResult {
+                    info: testing::default_tx_execution_info(),
+                    receipt: TransactionReceipt::default(),
+                    debug: testing::default_tx_debug_info(),
+                },
+            );
+        }
+        let result = DebugNamespaceImpl::new(inner)
+            .trace_block_by_hash(H256::repeat_byte(0x1), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].result.calls.len(), 1);
     }
 }
