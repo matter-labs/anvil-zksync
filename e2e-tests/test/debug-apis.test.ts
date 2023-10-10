@@ -4,6 +4,7 @@ import * as hre from "hardhat";
 import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
 import { RichAccounts } from "../helpers/constants";
 import { deployContract, expectThrowsAsync, getTestProvider } from "../helpers/utils";
+import { BigNumber } from "ethers";
 
 const provider = getTestProvider();
 
@@ -71,5 +72,47 @@ describe("debug namespace", function () {
 
     const [output_number] = primary.interface.decodeFunctionResult("calculate", output);
     expect(output_number.toNumber()).to.equal(12);
+  });
+
+  it("Should return NotFound if txn hash is invalid", async function () {
+    expectThrowsAsync(async () => {
+      await await provider.send("debug_traceTransaction", [
+        "0xd3a94ff697a573cb174ecce05126e952ecea6dee051526a3e389747ff86b0d99",
+      ]);
+    }, "Transaction not found");
+  });
+
+  it("Should trace prior transactions", async function () {
+    const wallet = new Wallet(RichAccounts[0].PrivateKey);
+    const deployer = new Deployer(hre, wallet);
+
+    const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
+
+    const txReceipt = await greeter.setGreeting("Luke Skywalker");
+    const trace = await provider.send("debug_traceTransaction", [txReceipt.hash]);
+
+    // call should be successful
+    expect(trace.error).to.equal(null);
+    expect(trace.calls.length).to.equal(1);
+
+    // gas limit should match
+    expect(BigNumber.from(trace.gas).toNumber()).to.equal(txReceipt.gasLimit.toNumber());
+  });
+
+  it("Should respect only_top_calls option", async function () {
+    const wallet = new Wallet(RichAccounts[0].PrivateKey);
+    const deployer = new Deployer(hre, wallet);
+
+    const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
+
+    const txReceipt = await greeter.setGreeting("Luke Skywalker");
+    const trace = await provider.send("debug_traceTransaction", [
+      txReceipt.hash,
+      { tracer: "callTracer", tracerConfig: { onlyTopCall: true } },
+    ]);
+
+    // call should be successful
+    expect(trace.error).to.equal(null);
+    expect(trace.calls.length).to.equal(0);
   });
 });
