@@ -1,7 +1,7 @@
 use crate::{
     fork::ForkSource,
     node::{InMemoryNodeInner, MAX_TX_SIZE},
-    utils::{create_debug_output, not_implemented},
+    utils::{create_debug_output, to_real_block_number},
 };
 use itertools::Itertools;
 use jsonrpc_core::{BoxFuture, Result};
@@ -17,7 +17,7 @@ use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig, TransactionVariant},
     l2::L2Tx,
     transaction_request::CallRequest,
-    PackedEthSignature, Transaction,
+    PackedEthSignature, Transaction, U64,
 };
 use zksync_web3_decl::error::Web3Error;
 
@@ -38,10 +38,59 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
 {
     fn trace_block_by_number(
         &self,
-        _block: BlockNumber,
-        _options: Option<TracerConfig>,
+        block: BlockNumber,
+        options: Option<TracerConfig>,
     ) -> BoxFuture<Result<Vec<ResultDebugCall>>> {
-        not_implemented("debug_traceBlockByNumber")
+        let only_top = options.is_some_and(|o| o.tracer_config.only_top_call);
+        let inner = Arc::clone(&self.node);
+        Box::pin(async move {
+            let inner = inner
+                .read()
+                .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
+
+            let block = {
+                let number =
+                    to_real_block_number(block, U64::from(inner.current_miniblock)).as_u64();
+
+                inner
+                    .block_hashes
+                    .get(&number)
+                    .and_then(|hash| inner.blocks.get(hash))
+                    .ok_or_else(|| {
+                        into_jsrpc_error(Web3Error::SubmitTransactionError(
+                            "Block not found".to_string(),
+                            vec![],
+                        ))
+                    })?
+            };
+
+            let tx_hashes = block
+                .transactions
+                .iter()
+                .map(|tx| match tx {
+                    TransactionVariant::Full(tx) => tx.hash,
+                    TransactionVariant::Hash(hash) => *hash,
+                })
+                .collect_vec();
+
+            let debug_calls = tx_hashes
+                .into_iter()
+                .map(|tx_hash| {
+                    let tx = inner.tx_results.get(&tx_hash).ok_or_else(|| {
+                        into_jsrpc_error(Web3Error::SubmitTransactionError(
+                            "Transaction not found".to_string(),
+                            vec![],
+                        ))
+                    })?;
+                    Ok(tx.debug_info(only_top))
+                })
+                .collect::<Result<Vec<_>>>()?
+                .into_iter()
+                .map(|result| ResultDebugCall { result })
+                .collect_vec();
+
+            Ok(debug_calls)
+        })
     }
 
     fn trace_block_by_hash(
@@ -482,6 +531,44 @@ mod tests {
         }
         let result = DebugNamespaceImpl::new(inner)
             .trace_block_by_hash(H256::repeat_byte(0x1), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].result.calls.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_trace_block_by_number() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let inner = node.get_inner();
+        {
+            let mut writer = inner.write().unwrap();
+            let tx = zksync_types::api::Transaction::default();
+            let tx_hash = tx.hash;
+            let mut block = Block::<TransactionVariant>::default();
+            block.transactions.push(TransactionVariant::Full(tx));
+            writer.blocks.insert(H256::repeat_byte(0x1), block);
+            writer.block_hashes.insert(0, H256::repeat_byte(0x1));
+            writer.tx_results.insert(
+                tx_hash,
+                TransactionResult {
+                    info: testing::default_tx_execution_info(),
+                    receipt: TransactionReceipt::default(),
+                    debug: testing::default_tx_debug_info(),
+                },
+            );
+        }
+        // check `latest` alias
+        let result = DebugNamespaceImpl::new(node.get_inner())
+            .trace_block_by_number(BlockNumber::Latest, None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].result.calls.len(), 1);
+
+        // check block number
+        let result = DebugNamespaceImpl::new(node.get_inner())
+            .trace_block_by_number(BlockNumber::Number(0.into()), None)
             .await
             .unwrap();
         assert_eq!(result.len(), 1);
