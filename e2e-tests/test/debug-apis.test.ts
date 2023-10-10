@@ -74,12 +74,11 @@ describe("debug namespace", function () {
     expect(output_number.toNumber()).to.equal(12);
   });
 
-  it("Should return NotFound if txn hash is invalid", async function () {
-    expectThrowsAsync(async () => {
-      await await provider.send("debug_traceTransaction", [
-        "0xd3a94ff697a573cb174ecce05126e952ecea6dee051526a3e389747ff86b0d99",
-      ]);
-    }, "Transaction not found");
+  it("Should return null if txn hash is unknown", async function () {
+    const result = await provider.send("debug_traceTransaction", [
+      "0xd3a94ff697a573cb174ecce05126e952ecea6dee051526a3e389747ff86b0d99",
+    ]);
+    expect(result).to.equal(null);
   });
 
   it("Should trace prior transactions", async function () {

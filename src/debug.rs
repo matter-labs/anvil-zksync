@@ -138,14 +138,10 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
                 .read()
                 .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
 
-            let tx = inner.tx_results.get(&tx_hash).ok_or_else(|| {
-                into_jsrpc_error(Web3Error::SubmitTransactionError(
-                    "Transaction not found".to_string(),
-                    vec![],
-                ))
-            })?;
-
-            Ok(Some(tx.debug_info(only_top)))
+            Ok(inner
+                .tx_results
+                .get(&tx_hash)
+                .map(|tx| tx.debug_info(only_top)))
         })
     }
 }
@@ -393,5 +389,16 @@ mod tests {
             .unwrap()
             .unwrap();
         assert!(result.calls.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_trace_transaction_not_found() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let inner = node.get_inner();
+        let result = DebugNamespaceImpl::new(inner)
+            .trace_transaction(H256::repeat_byte(0x1), None)
+            .await
+            .unwrap();
+        assert!(result.is_none());
     }
 }
