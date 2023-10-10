@@ -117,3 +117,25 @@ describe("debug_traceTransaction", function () {
     expect(trace.calls.length).to.equal(0);
   });
 });
+
+describe("debug_traceBlockByHash", function () {
+  it("Should trace prior blocks", async function () {
+    const wallet = new Wallet(RichAccounts[0].PrivateKey);
+    const deployer = new Deployer(hre, wallet);
+
+    const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
+
+    const txReceipt = await greeter.setGreeting("Luke Skywalker");
+    const latestBlock = await provider.getBlock("latest");
+    const block = await provider.getBlock(latestBlock.number - 1);
+
+    const traces = await provider.send("debug_traceBlockByHash", [block.hash]);
+
+    // block should have 1 traces
+    expect(traces.length).to.equal(1);
+
+    // should contain trace for our tx
+    const trace = traces[0].result;
+    expect(trace.input).to.equal(txReceipt.data);
+  });
+});
