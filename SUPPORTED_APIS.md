@@ -24,7 +24,7 @@ The `status` options are:
 | [`DEBUG`](#debug-namespace) | [`debug_traceCall`](#debug_tracecall) | `SUPPORTED` | Performs a call and returns structured traces of the execution |
 | `DEBUG` | `debug_traceBlockByHash` | `NOT IMPLEMENTED`<br />[GitHub Issue #63](https://github.com/matter-labs/era-test-node/issues/63) | Returns structured traces for operations within the block of the specified block hash |
 | `DEBUG` | `debug_traceBlockByNumber` | `NOT IMPLEMENTED`<br />[GitHub Issue #64](https://github.com/matter-labs/era-test-node/issues/64) | Returns structured traces for operations within the block of the specified block number |
-| `DEBUG` | `debug_traceTransaction` | `NOT IMPLEMENTED`<br />[GitHub Issue #65](https://github.com/matter-labs/era-test-node/issues/65) | Returns a structured trace of the execution of the specified transaction |
+| [`DEBUG`](#debug-namespace) | [`debug_traceTransaction`](#debug_tracetransaction) | `SUPPORTED` | Returns a structured trace of the execution of the specified transaction |
 | `ETH` | `eth_accounts` | `SUPPORTED` | Returns a list of addresses owned by client |
 | [`ETH`](#eth-namespace) | [`eth_chainId`](#eth_chainid) | `SUPPORTED` | Returns the currently configured chain id <br />_(default is `260`)_ |
 | `ETH` | `eth_coinbase` | `NOT IMPLEMENTED` | Returns the client coinbase address |
@@ -334,6 +334,43 @@ curl --request POST \
           "value": "0x0000",
           "nonce": "0x0000"
       }, "latest"]
+  }'
+```
+
+### `debug_traceTransaction`
+
+[source](src/debug.rs)
+
+Returns call traces for the transaction with given hash.
+
+Currently only transactions executed on the dev node itself (ie, not from upstream when using fork mode) can be traced.
+
+The third argument mirrors the [`TraceConfig` of go-ethereum](https://geth.ethereum.org/docs/interacting-with-geth/rpc/ns-debug#traceconfig), but with the restriction that the only supported tracer is `CallTracer`. Memory, Stack and Storage traces are not supported.
+
+#### Arguments
+
+- `tx_hash: H256`
+
+- `options: TracerConfig` (optional)
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+      "id": "2",
+      "method": "debug_traceTransaction",
+      "params": [
+        "0xd3a94ff697a573cb174ecce05126e952ecea6dee051526a3e389747ff86b0d99",
+        { "tracer": "callTracer", "tracerConfig": { "onlyTopCall": true } }
+      ]
   }'
 ```
 
