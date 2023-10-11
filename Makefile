@@ -63,4 +63,8 @@ new-release-tag:
 	echo "\n\033[0;32mGit tag creation SUCCESSFUL! Use the following command to push the tag:\033[0m" && \
 	echo "git push origin v$$VERSION_NUMBER"
 
-.PHONY: build-contracts clean-contracts rebuild-contracts rust-build lint test test-e2e all clean build-% new-release-tag
+# Create the rust book
+book:
+	mdbook build docs/rustbook
+
+.PHONY: build-contracts clean-contracts rebuild-contracts rust-build lint test test-e2e all clean build-% new-release-tag book
