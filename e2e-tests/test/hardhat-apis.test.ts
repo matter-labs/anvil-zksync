@@ -90,6 +90,36 @@ xdescribe("hardhat_impersonateAccount & hardhat_stopImpersonatingAccount", funct
 });
 
 describe("hardhat_setCode", function () {
+  it.only("Should set code at an address", async function () {
+    // Arrange
+    const wallet = new Wallet(RichAccounts[0].PrivateKey);
+    const deployer = new Deployer(hre, wallet);
+
+    const address = "0x1000000000000000000000000000000000001111";
+    const artifact = await deployer.loadArtifact("Return5");
+    const contractCode = [...ethers.utils.arrayify(artifact.deployedBytecode)];
+
+    // Act
+    await provider.send("hardhat_setCode", [address, contractCode]);
+
+    // Assert
+    const result = await provider.send("eth_call", [
+      {
+        to: address,
+        data: keccak256(ethers.utils.toUtf8Bytes("value()")).substring(0, 10),
+        from: wallet.address,
+        gas: "0x1000",
+        gasPrice: "0x0ee6b280",
+        value: "0x0",
+        nonce: "0x1",
+      },
+      "latest",
+    ]);
+    expect(BigNumber.from(result).toNumber()).to.eq(5);
+  });
+});
+
+describe("hardhat_setCode", function () {
   it("Should update code with a different smart contract", async function () {
     // Arrange
     const wallet = new Wallet(RichAccounts[0].PrivateKey);
@@ -97,10 +127,10 @@ describe("hardhat_setCode", function () {
 
     const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
     expect(await greeter.greet()).to.eq("Hi");
-
-    // Act
     const artifact = await deployer.loadArtifact("Return5");
     const newContractCode = [...ethers.utils.arrayify(artifact.deployedBytecode)];
+
+    // Act
     await provider.send("hardhat_setCode", [greeter.address, newContractCode]);
 
     // Assert
