@@ -498,7 +498,6 @@ mod tests {
         let inner = node.get_inner();
         {
             let mut writer = inner.write().unwrap();
-            // let mut blocks = HashMap::new();
             let block = Block::<TransactionVariant>::default();
             writer.blocks.insert(H256::repeat_byte(0x1), block);
         }
