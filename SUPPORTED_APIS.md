@@ -374,7 +374,6 @@ curl --request POST \
   }'
 ```
 
-<<<<<<< HEAD
 ### `debug_traceBlockByHash`
 
 [source](src/debug.rs)
@@ -449,8 +448,6 @@ curl --request POST \
   }'
 ```
 
-=======
->>>>>>> ml/main
 ## `NETWORK NAMESPACE`
 
 ### `net_version`
