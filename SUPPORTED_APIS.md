@@ -97,7 +97,7 @@ The `status` options are:
 | [`HARDHAT`](#hardhat-namespace) | [`hardhat_mine`](#hardhat_mine) | Mine any number of blocks at once, in constant time |
 | `HARDHAT` | `hardhat_reset` | `NOT IMPLEMENTED` | Resets the state of the network |
 | [`HARDHAT`](#hardhat-namespace) | [`hardhat_setBalance`](#hardhat_setbalance) | `SUPPORTED` | Modifies the balance of an account |
-| `HARDHAT` | `hardhat_setCode` | `NOT IMPLEMENTED` | Sets the bytecode of a given account |
+| [`HARDHAT`](#hardhat-namespace) | [`hardhat_setCode`](#hardhat_setcode) | `SUPPORTED` | Sets the bytecode of a given account |
 | `HARDHAT` | `hardhat_setCoinbase` | `NOT IMPLEMENTED` | Sets the coinbase address |
 | `HARDHAT` | `hardhat_setLoggingEnabled` | `NOT IMPLEMENTED` | Enables or disables logging in Hardhat Network |
 | `HARDHAT` | `hardhat_setMinGasPrice` | `NOT IMPLEMENTED` | Sets the minimum gas price |
@@ -1376,6 +1376,38 @@ curl --request POST \
         "0x364d6D0333432C3Ac016Ca832fb8594A8cE43Ca6"
     ]
 }'
+```
+
+### `hardhat_setCode`
+
+[source](src/hardhat.rs)
+
+Sets the code for a given address.
+
+#### Arguments
+
++ `address: Address` - The `Address` whose code will be updated
++ `code: Bytes` - The code to set to
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+      "id": "1",
+      "method": "hardhat_setCode",
+      "params": [
+        "0x36615Cf349d7F6344891B1e7CA7C72883F5dc049",
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+      ]
+  }'
 ```
 
 ## `EVM NAMESPACE`
