@@ -8,7 +8,7 @@ import { BigNumber } from "ethers";
 
 const provider = getTestProvider();
 
-describe("debug namespace", function () {
+describe("debug_traceCall", function () {
   it("Should return error if block is not 'latest' or unspecified", async function () {
     expectThrowsAsync(async () => {
       await provider.send("debug_traceCall", [{ to: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" }, "earliest"]);
@@ -73,7 +73,9 @@ describe("debug namespace", function () {
     const [output_number] = primary.interface.decodeFunctionResult("calculate", output);
     expect(output_number.toNumber()).to.equal(12);
   });
+});
 
+describe("debug_traceTransaction", function () {
   it("Should return null if txn hash is unknown", async function () {
     const result = await provider.send("debug_traceTransaction", [
       "0xd3a94ff697a573cb174ecce05126e952ecea6dee051526a3e389747ff86b0d99",
