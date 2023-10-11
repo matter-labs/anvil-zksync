@@ -1,0 +1,6 @@
+[book]
+authors = ["matter-labs"]
+language = "en"
+multilingual = false
+src = "src"
+title = "Era Test Node"
