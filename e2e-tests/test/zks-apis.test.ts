@@ -1,9 +1,11 @@
 import { expect } from "chai";
-import { getTestProvider } from "../helpers/utils";
+import { deployContract, getTestProvider } from "../helpers/utils";
+import * as hre from "hardhat";
 import { Wallet } from "zksync-web3";
 import { RichAccounts } from "../helpers/constants";
 import { ethers } from "ethers";
 import { TransactionRequest } from "zksync-web3/build/src/types";
+import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
 
 const provider = getTestProvider();
 
@@ -55,5 +57,20 @@ describe("zks_getTokenPrice", function () {
 
     // Assert
     expect(response).to.equal("1500");
+  });
+});
+
+describe("zks_getTransactionDetails", function () {
+  it.only("Should return fake token Price for ETH", async function () {
+    const wallet = new Wallet(RichAccounts[0].PrivateKey);
+    const deployer = new Deployer(hre, wallet);
+
+    const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
+
+    const txReceipt = await greeter.setGreeting("Luke Skywalker");
+    const details = await provider.send("zks_getTransactionDetails", [txReceipt.hash]);
+
+    expect(details["status"]).to.equal("included");
+    expect(details["initiatorAddress"].toLowerCase()).to.equal(wallet.address.toLowerCase());
   });
 });
