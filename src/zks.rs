@@ -7,7 +7,7 @@ use zksync_core::api_server::web3::backend_jsonrpc::{
     error::into_jsrpc_error, namespaces::zks::ZksNamespaceT,
 };
 use zksync_types::{
-    api::{BridgeAddresses, ProtocolVersion},
+    api::{BridgeAddresses, ProtocolVersion, TransactionDetails, TransactionStatus},
     fee::Fee,
 };
 use zksync_web3_decl::{
@@ -17,8 +17,8 @@ use zksync_web3_decl::{
 
 use crate::{
     fork::ForkSource,
-    node::InMemoryNodeInner,
-    utils::{not_implemented, IntoBoxedFuture},
+    node::{InMemoryNodeInner, TransactionResult},
+    utils::{not_implemented, utc_datetime_from_epoch_ms, IntoBoxedFuture},
 };
 use colored::Colorize;
 
@@ -197,12 +197,67 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
         not_implemented("zks_getL1BatchBlockRange")
     }
 
+    /// Get transaction details.
+    ///
+    /// # Arguments
+    ///
+    /// * `transactionHash` - `H256` hash of the transaction
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `Result` with an `Option<TransactionDetails>` representing details of the transaction (if found).
     fn get_transaction_details(
         &self,
-        _hash: zksync_basic_types::H256,
+        hash: zksync_basic_types::H256,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<zksync_types::api::TransactionDetails>>>
     {
-        not_implemented("zks_getTransactionDetails")
+        let inner = self.node.clone();
+        Box::pin(async move {
+            let reader = match inner.read() {
+                Ok(r) => r,
+                Err(_) => {
+                    return Err(into_jsrpc_error(Web3Error::InternalError));
+                }
+            };
+
+            let maybe_result = {
+                reader
+                    .tx_results
+                    .get(&hash)
+                    .and_then(|TransactionResult { info, receipt, .. }| {
+                        Some(TransactionDetails {
+                            is_l1_originated: false,
+                            status: TransactionStatus::Included,
+                            // if these are not set, fee is effectively 0
+                            fee: receipt.effective_gas_price.unwrap_or_default()
+                                * receipt.gas_used.unwrap_or_default(),
+                            gas_per_pubdata: info.tx.common_data.fee.gas_per_pubdata_limit,
+                            initiator_address: info.tx.initiator_account(),
+                            received_at: utc_datetime_from_epoch_ms(info.tx.received_timestamp_ms),
+                            eth_commit_tx_hash: None,
+                            eth_prove_tx_hash: None,
+                            eth_execute_tx_hash: None,
+                        })
+                    })
+                    .or_else(|| {
+                        reader
+                            .fork_storage
+                            .inner
+                            .read()
+                            .expect("failed reading fork storage")
+                            .fork
+                            .as_ref()
+                            .and_then(|fork| {
+                                fork.fork_source
+                                    .get_transaction_details(hash)
+                                    .ok()
+                                    .flatten()
+                            })
+                    })
+            };
+
+            Ok(maybe_result)
+        })
     }
 
     /// Retrieves details for a given L1 batch.
@@ -259,12 +314,16 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
 mod tests {
     use std::str::FromStr;
 
-    use crate::node::ShowCalls;
-    use crate::system_contracts;
+    use crate::cache::CacheConfig;
+    use crate::fork::ForkDetails;
+    use crate::node::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
+    use crate::testing::{ForkBlockConfig, MockServer};
     use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
+    use crate::{system_contracts, testing};
 
     use super::*;
-    use zksync_basic_types::Address;
+    use zksync_basic_types::{Address, H256};
+    use zksync_types::api::TransactionReceipt;
     use zksync_types::transaction_request::CallRequest;
 
     #[tokio::test]
@@ -357,5 +416,94 @@ mod tests {
 
         // Assert
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_get_transaction_details_local() {
+        // Arrange
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let namespace = ZkMockNamespaceImpl::new(node.get_inner());
+        let inner = node.get_inner();
+        {
+            let mut writer = inner.write().unwrap();
+            writer.tx_results.insert(
+                H256::repeat_byte(0x1),
+                TransactionResult {
+                    info: testing::default_tx_execution_info(),
+                    receipt: TransactionReceipt {
+                        logs: vec![],
+                        gas_used: Some(U256::from(10_000)),
+                        effective_gas_price: Some(U256::from(1_000_000_000)),
+                        ..Default::default()
+                    },
+                    debug: testing::default_tx_debug_info(),
+                },
+            );
+        }
+        // Act
+        let result = namespace
+            .get_transaction_details(H256::repeat_byte(0x1))
+            .await
+            .expect("get transaction details")
+            .expect("transaction details");
+
+        // Assert
+        assert!(matches!(result.status, TransactionStatus::Included));
+        assert_eq!(result.fee, U256::from(10_000_000_000_000u64));
+    }
+
+    #[tokio::test]
+    async fn test_get_transaction_details_fork() {
+        let mock_server = MockServer::run_with_config(ForkBlockConfig {
+            number: 10,
+            transaction_count: 0,
+            hash: H256::repeat_byte(0xab),
+        });
+        let input_tx_hash = H256::repeat_byte(0x02);
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "zks_getTransactionDetails",
+                "params": [
+                    format!("{:#x}", input_tx_hash),
+                ],
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "result": {
+                    "isL1Originated": false,
+                    "status": "included",
+                    "fee": "0x74293f087500",
+                    "gasPerPubdata": "0x4e20",
+                    "initiatorAddress": "0x63ab285cd87a189f345fed7dd4e33780393e01f0",
+                    "receivedAt": "2023-10-12T15:45:53.094Z",
+                    "ethCommitTxHash": null,
+                    "ethProveTxHash": null,
+                    "ethExecuteTxHash": null
+                },
+                "id": 0
+            }),
+        );
+
+        let node = InMemoryNode::<HttpForkSource>::new(
+            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
+            crate::node::ShowCalls::None,
+            ShowStorageLogs::None,
+            ShowVMDetails::None,
+            ShowGasDetails::None,
+            false,
+            &system_contracts::Options::BuiltIn,
+        );
+
+        let namespace = ZkMockNamespaceImpl::new(node.get_inner());
+        let result = namespace
+            .get_transaction_details(input_tx_hash)
+            .await
+            .expect("get transaction details")
+            .expect("transaction details");
+
+        assert!(matches!(result.status, TransactionStatus::Included));
+        assert_eq!(result.fee, U256::from(127_720_500_000_000u64));
     }
 }

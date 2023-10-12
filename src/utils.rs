@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::pin::Pin;
 
+use chrono::{DateTime, Utc};
 use futures::Future;
 use vm::{ExecutionResult, VmExecutionResultAndLogs};
 use vm::{HistoryDisabled, Vm};
@@ -243,6 +244,14 @@ pub fn create_debug_output(
     }
 }
 
+/// Converts a timestamp in milliseconds since epoch to a [DateTime] in UTC.
+pub fn utc_datetime_from_epoch_ms(millis: u64) -> DateTime<Utc> {
+    let secs = millis / 1000;
+    let nanos = (millis % 1000) * 1_000_000;
+    // expect() is ok- nanos can't be >2M
+    DateTime::<Utc>::from_timestamp(secs as i64, nanos as u32).expect("valid timestamp")
+}
+
 #[cfg(test)]
 mod tests {
     use zksync_basic_types::{H256, U256};
@@ -250,6 +259,18 @@ mod tests {
     use crate::{http_fork_source::HttpForkSource, node::InMemoryNode, testing};
 
     use super::*;
+
+    #[test]
+    fn test_utc_datetime_from_epoch_ms() {
+        let actual = utc_datetime_from_epoch_ms(1623931200000);
+        assert_eq!(
+            DateTime::<Utc>::from_naive_utc_and_offset(
+                chrono::NaiveDateTime::from_timestamp_opt(1623931200, 0).unwrap(),
+                Utc
+            ),
+            actual
+        );
+    }
 
     #[test]
     fn test_human_sizes() {

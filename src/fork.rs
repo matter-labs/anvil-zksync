@@ -14,7 +14,9 @@ use tokio::runtime::Builder;
 use zksync_basic_types::{Address, L1BatchNumber, L2ChainId, MiniblockNumber, H256, U256, U64};
 
 use zksync_types::{
-    api::{Block, BlockIdVariant, BlockNumber, Transaction, TransactionVariant},
+    api::{
+        Block, BlockIdVariant, BlockNumber, Transaction, TransactionDetails, TransactionVariant,
+    },
     l2::L2Tx,
     ProtocolVersionId, StorageKey,
 };
@@ -202,8 +204,12 @@ pub trait ForkSource {
 
     /// Returns the bytecode stored under this hash (if available).
     fn get_bytecode_by_hash(&self, hash: H256) -> eyre::Result<Option<Vec<u8>>>;
+
     /// Returns the transaction for a given hash.
     fn get_transaction_by_hash(&self, hash: H256) -> eyre::Result<Option<Transaction>>;
+
+    /// Returns the transaction details for a given hash.
+    fn get_transaction_details(&self, hash: H256) -> eyre::Result<Option<TransactionDetails>>;
 
     /// Gets all transactions that belong to a given miniblock.
     fn get_raw_block_transactions(
