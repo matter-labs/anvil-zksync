@@ -61,7 +61,7 @@ describe("zks_getTokenPrice", function () {
 });
 
 describe("zks_getTransactionDetails", function () {
-  it.only("Should return fake token Price for ETH", async function () {
+  it.only("Should return transaction details for locally-executed transactions", async function () {
     const wallet = new Wallet(RichAccounts[0].PrivateKey);
     const deployer = new Deployer(hre, wallet);
 
