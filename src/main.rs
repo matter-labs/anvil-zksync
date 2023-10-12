@@ -371,7 +371,7 @@ async fn main() -> anyhow::Result<()> {
         log::info!("");
     }
 
-    let net = NetNamespace::new(L2ChainId(TEST_NODE_NETWORK_ID));
+    let net = NetNamespace::new(L2ChainId::from(TEST_NODE_NETWORK_ID));
     let config_api = ConfigurationApiNamespace::new(node.get_inner());
     let evm = EvmNamespaceImpl::new(node.get_inner());
     let zks = ZkMockNamespaceImpl::new(node.get_inner());

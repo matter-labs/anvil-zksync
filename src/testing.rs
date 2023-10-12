@@ -95,7 +95,7 @@ impl MockServer {
                       "default_aa": "0x0100038dc66b69be75ec31653c64cb931678299b9b659472772b2550b703f41c"
                     },
                     "operatorAddress": "0xfeee860e7aae671124e9a4e61139f3a5085dfeee",
-                    "protocolVersion": ProtocolVersionId::latest(),
+                    "protocolVersion": ProtocolVersionId::Version15,
                   },
             }))),
         );
@@ -275,7 +275,7 @@ impl TransactionResponseBuilder {
             "type": "0xff",
             "maxFeePerGas": "0x0",
             "maxPriorityFeePerGas": "0x0",
-            "chainId": "0x144",
+            "chainId": 260,
             "l1BatchNumber": "0x1",
             "l1BatchTxIndex": "0x0",
         })
@@ -384,7 +384,7 @@ pub fn apply_tx<T: ForkSource + std::fmt::Debug>(
             gas_per_pubdata_limit: U256::from(20000),
         },
         U256::from(1),
-        L2ChainId(260),
+        L2ChainId::from(260),
         &private_key,
         None,
         Default::default(),
@@ -466,7 +466,7 @@ pub fn deploy_contract<T: ForkSource + std::fmt::Debug>(
             gas_per_pubdata_limit: U256::from(50000),
         },
         U256::from(0),
-        zksync_basic_types::L2ChainId(260),
+        zksync_basic_types::L2ChainId::from(260),
         &private_key,
         Some(vec![bytecode]),
         Default::default(),
