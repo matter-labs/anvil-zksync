@@ -131,7 +131,11 @@ jobs:
           echo "CONTRIBUTORS<<EOF" >> $GITHUB_OUTPUT
           echo "$(git log --pretty=format:"- %aN (%aE)" $(git describe --tags --abbrev=0 ${{ env.VERSION }}^)..${{ env.VERSION }} | sort | uniq)" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-
+      
+      # TODO: switch to gh cli. See https://github.com/actions/runner-images/issues/8362
+      - name: Install hub
+        run: sudo apt-get update && sudo apt-get install -y hub
+        
       - name: Create release draft
         env:
           GITHUB_USER: ${{ github.repository_owner }}
