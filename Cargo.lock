@@ -2128,6 +2128,7 @@ version = "0.1.0-alpha.5"
 dependencies = [
  "anyhow",
  "bigdecimal",
+ "chrono",
  "clap 4.3.23",
  "colored",
  "ethabi 16.0.0",
