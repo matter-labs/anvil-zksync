@@ -131,10 +131,6 @@ jobs:
           echo "CONTRIBUTORS<<EOF" >> $GITHUB_OUTPUT
           echo "$(git log --pretty=format:"- %aN (%aE)" $(git describe --tags --abbrev=0 ${{ env.VERSION }}^)..${{ env.VERSION }} | sort | uniq)" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-      
-      # TODO: switch to gh cli. See https://github.com/actions/runner-images/issues/8362
-      - name: Install hub
-        run: sudo apt-get update && sudo apt-get install -y hub
         
       - name: Create release draft
         env:
@@ -183,4 +179,4 @@ jobs:
               assets+=("-a" "$asset/$asset")
           done
           tag_name="${{ env.VERSION }}"
-          echo "$body" | hub release create --draft "${assets[@]}" -F "-" "$tag_name"
+          echo "$body" | gh release create --draft "${assets[@]}" -F "-" "$tag_name"
