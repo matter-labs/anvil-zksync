@@ -90,7 +90,7 @@ xdescribe("hardhat_impersonateAccount & hardhat_stopImpersonatingAccount", funct
 });
 
 describe("hardhat_setCode", function () {
-  it.only("Should set code at an address", async function () {
+  it("Should set code at an address", async function () {
     // Arrange
     const wallet = new Wallet(RichAccounts[0].PrivateKey);
     const deployer = new Deployer(hre, wallet);
@@ -117,9 +117,7 @@ describe("hardhat_setCode", function () {
     ]);
     expect(BigNumber.from(result).toNumber()).to.eq(5);
   });
-});
 
-describe("hardhat_setCode", function () {
   it("Should update code with a different smart contract", async function () {
     // Arrange
     const wallet = new Wallet(RichAccounts[0].PrivateKey);
