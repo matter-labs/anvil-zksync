@@ -96,6 +96,9 @@ impl ForkSource for HttpForkSource {
         hash: H256,
     ) -> eyre::Result<Option<zksync_types::api::TransactionDetails>> {
         let client = self.create_client();
+        // n.b- We don't cache these responses as they will change through the lifecycle of the transaction
+        // and caching could be error-prone. in theory we could cache responses once the txn status
+        // is `final` or `failed` but currently this does not warrant the additional complexity.
         block_on(async move { client.get_transaction_details(hash).await })
             .wrap_err("fork http client failed")
     }
