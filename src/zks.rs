@@ -213,7 +213,9 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
     {
         let inner = self.node.clone();
         Box::pin(async move {
-            let reader = match inner.read().map_err(|err| into_jsrpc_error(Web3Error::InternalError))?;
+            let reader = inner
+                .read()
+                .map_err(|_err| into_jsrpc_error(Web3Error::InternalError))?;
 
             let maybe_result = {
                 reader
