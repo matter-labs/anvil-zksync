@@ -435,14 +435,9 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         let execution_mode = TxExecutionMode::EstimateFee;
         let (mut batch_env, _) = self.create_l1_batch_env(storage.clone());
         batch_env.l1_gas_price = l1_gas_price;
-        let impersonating = if self
+        let impersonating = self
             .impersonated_accounts
-            .contains(&l2_tx.common_data.initiator_address)
-        {
-            true
-        } else {
-            false
-        };
+            .contains(&l2_tx.common_data.initiator_address);
         let system_env = self.create_system_env(
             self.system_contracts
                 .contracts_for_fee_estimate(impersonating)
