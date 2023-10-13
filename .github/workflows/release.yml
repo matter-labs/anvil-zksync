@@ -44,15 +44,15 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
-      - name: Get latest version of stable Rust
-        run: rustup update stable
+      - name: Get latest version of nightly Rust
+        run: rustup update nightly
       - name: Install target
         run: rustup target add ${{ matrix.arch }}
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: false
-      - name: Run cargo clean
-        run: cargo clean
+      - name: Run cargo +nightly clean
+        run: cargo +nightly clean
 
       # ==============================
       #       Builds
@@ -60,7 +60,7 @@ jobs:
 
       - name: Install cross from source
         run: |
-          cargo install --git https://github.com/cross-rs/cross cross --branch main
+          cargo +nightly install --git https://github.com/cross-rs/cross cross --branch main
 
       - name: Build era-test-node for ${{ matrix.arch }}
         run: |

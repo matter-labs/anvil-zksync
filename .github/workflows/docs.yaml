@@ -34,7 +34,7 @@ jobs:
       - name: Generate rust docs
         run: |
           echo "Generating docs..."
-          cargo doc --no-deps
+          cargo +nightly doc --no-deps
       - name: Make index.html
         run: echo '<!DOCTYPE HTML>
           <html lang="en-US">
