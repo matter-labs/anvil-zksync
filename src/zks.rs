@@ -391,7 +391,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_byte_code_by_hash_returns_local_value_if_available() {
+    async fn test_get_bytecode_by_hash_returns_local_value_if_available() {
         // Arrange
         let node = InMemoryNode::<HttpForkSource>::default();
         let namespace = ZkMockNamespaceImpl::new(node.get_inner());
@@ -415,7 +415,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_byte_code_by_hash_uses_fork_if_value_unavailable() {
+    async fn test_get_bytecode_by_hash_uses_fork_if_value_unavailable() {
         // Arrange
         let mock_server = MockServer::run_with_config(ForkBlockConfig {
             number: 10,
