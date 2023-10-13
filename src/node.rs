@@ -306,6 +306,8 @@ pub struct InMemoryNodeInner<S> {
     pub rich_accounts: HashSet<H160>,
     /// Keeps track of historical states indexed via block hash. Limited to [MAX_PREVIOUS_STATES].
     pub previous_states: IndexMap<H256, HashMap<StorageKey, StorageValue>>,
+    /// Custom enforced base fee for the next block
+    pub enforced_base_fee: Option<U256>,
 }
 
 type L2TxResult = (
@@ -343,7 +345,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             l1_gas_price: self.l1_gas_price,
             fair_l2_gas_price: L2_GAS_PRICE,
             fee_account: H160::zero(),
-            enforced_base_fee: None,
+            enforced_base_fee: self.enforced_base_fee.map(|value| value.as_u64()),
             first_l2_block: vm::L2BlockEnv {
                 // the 'current_miniblock' contains the block that was already produced.
                 // So the next one should be one higher.
@@ -880,6 +882,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 impersonated_accounts: Default::default(),
                 rich_accounts: HashSet::new(),
                 previous_states: Default::default(),
+                enforced_base_fee: Default::default(),
             }
         } else {
             let mut block_hashes = HashMap::<u64, H256>::new();
@@ -911,6 +914,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 impersonated_accounts: Default::default(),
                 rich_accounts: HashSet::new(),
                 previous_states: Default::default(),
+                enforced_base_fee: Default::default(),
             }
         };
 
@@ -976,7 +980,8 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         let (batch_env, _) = inner.create_l1_batch_env(storage.clone());
         let system_env = inner.create_system_env(bootloader_code.clone(), execution_mode);
 
-        let mut vm = Vm::new(batch_env, system_env, storage, HistoryDisabled);
+        let mut vm: Vm<StorageView<&ForkStorage<S>>, HistoryDisabled> =
+            Vm::new(batch_env, system_env, storage, HistoryDisabled);
 
         // We must inject *some* signature (otherwise bootloader code fails to generate hash).
         if l2_tx.common_data.signature.is_empty() {
@@ -1370,6 +1375,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             transactions: vec![TransactionVariant::Full(transaction)],
             gas_used: U256::from(tx_result.statistics.gas_used),
             gas_limit: U256::from(BLOCK_GAS_LIMIT),
+            base_fee_per_gas: U256::from(batch_env.base_fee()),
             ..Default::default()
         };
 
@@ -1515,6 +1521,9 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 debug,
             },
         );
+
+        // Reset base fee for next block
+        inner.enforced_base_fee.take();
 
         // With the introduction of 'l2 blocks' (and virtual blocks),
         // we are adding one l2 block at the end of each batch (to handle things like remaining events etc).

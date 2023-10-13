@@ -9,6 +9,7 @@ use crate::node::{InMemoryNode, TxExecutionInfo};
 use crate::{fork::ForkSource, node::compute_hash};
 
 use ethers::contract;
+use ethers::utils::rlp::RlpStream;
 use httptest::{
     matchers::{eq, json_decoded, request},
     responders::json_encoded,
@@ -19,6 +20,7 @@ use std::str::FromStr;
 use vm::VmExecutionResultAndLogs;
 use zksync_basic_types::{H160, U64};
 use zksync_types::api::{DebugCall, DebugCallType, Log};
+use zksync_types::EIP_712_TX_TYPE;
 use zksync_types::{
     fee::Fee, l2::L2Tx, Address, L2ChainId, Nonce, PackedEthSignature, ProtocolVersionId, H256,
     U256,
@@ -390,7 +392,17 @@ pub fn apply_tx<T: ForkSource + std::fmt::Debug>(
         Default::default(),
     )
     .unwrap();
-    tx.set_input(vec![], tx_hash);
+    let mut rlp = RlpStream::new();
+    rlp.begin_unbounded_list();
+    for _ in 0..=9 {
+        rlp.append_empty_data();
+    }
+    rlp.append(&260u64);
+    rlp.finalize_unbounded_list();
+
+    let mut data = vec![EIP_712_TX_TYPE];
+    data.extend(rlp.out());
+    tx.set_input(data, tx_hash);
     node.apply_txs(vec![tx]).expect("failed applying tx");
 
     (produced_block_hash, U64::from(next_miniblock))

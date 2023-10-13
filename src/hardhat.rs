@@ -116,6 +116,18 @@ pub trait HardhatNamespaceT {
     /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
     #[rpc(name = "hardhat_setCode")]
     fn set_code(&self, address: Address, code: Vec<u8>) -> BoxFuture<Result<()>>;
+
+    /// Sets the base fee of the next block. The fee is applied only to the next block.
+    ///
+    /// # Arguments
+    ///
+    /// * `base_fee_per_gas` - The base fee to apply for next block.
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
+    #[rpc(name = "hardhat_setNextBlockBaseFeePerGas")]
+    fn set_next_block_base_fee_per_gas(&self, base_fee_per_gas: U256) -> BoxFuture<Result<bool>>;
 }
 
 impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> HardhatNamespaceT
@@ -283,12 +295,24 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> HardhatNamespaceT
             .map_err(|_| into_jsrpc_error(Web3Error::InternalError))
             .into_boxed_future()
     }
+
+    fn set_next_block_base_fee_per_gas(&self, base_fee_per_gas: U256) -> BoxFuture<Result<bool>> {
+        let inner = Arc::clone(&self.node);
+        inner
+            .write()
+            .map(|mut writer| {
+                writer.enforced_base_fee = Some(base_fee_per_gas);
+                true
+            })
+            .map_err(|_| into_jsrpc_error(Web3Error::InternalError))
+            .into_boxed_future()
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
+    use crate::{http_fork_source::HttpForkSource, node::InMemoryNode, testing};
     use std::str::FromStr;
     use zksync_basic_types::{Nonce, H256};
     use zksync_core::api_server::web3::backend_jsonrpc::namespaces::eth::EthNamespaceT;
@@ -514,5 +538,50 @@ mod tests {
             .expect("failed getting code")
             .0;
         assert_eq!(new_code, code_after);
+    }
+
+    #[tokio::test]
+    async fn test_set_next_block_base_fee_per_gas_assigns_value() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let hardhat = HardhatNamespaceImpl::new(node.get_inner());
+        let old_enforced_base_fee = node.get_inner().read().unwrap().enforced_base_fee;
+        let input_next_base_fee = U256::from(1000);
+        assert_eq!(None, old_enforced_base_fee);
+
+        let result = hardhat
+            .set_next_block_base_fee_per_gas(input_next_base_fee)
+            .await
+            .expect("failed setting base fee for next block");
+        assert!(result);
+
+        let new_enforced_base_fee = node.get_inner().read().unwrap().enforced_base_fee;
+        assert_eq!(Some(input_next_base_fee), new_enforced_base_fee);
+    }
+
+    #[tokio::test]
+    async fn test_set_next_block_base_fee_per_gas_applies_only_for_next_block() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let hardhat = HardhatNamespaceImpl::new(node.get_inner());
+        let old_enforced_base_fee = node.get_inner().read().unwrap().enforced_base_fee;
+        let input_next_base_fee = U256::from(250_000_001);
+        assert_eq!(None, old_enforced_base_fee);
+        let result = hardhat
+            .set_next_block_base_fee_per_gas(input_next_base_fee)
+            .await
+            .expect("failed setting base fee for next block");
+        assert!(result);
+
+        let (block_hash, _) = testing::apply_tx(&node, H256::repeat_byte(0x1));
+        let block = node
+            .get_block_by_hash(block_hash, false)
+            .await
+            .ok()
+            .flatten()
+            .expect("failed retrieving block");
+
+        println!("{:?}", block.base_fee_per_gas);
+        assert_eq!(input_next_base_fee, block.base_fee_per_gas);
+        let new_enforced_base_fee = node.get_inner().read().unwrap().enforced_base_fee;
+        assert_eq!(None, new_enforced_base_fee);
     }
 }
