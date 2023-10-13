@@ -15,7 +15,7 @@ rebuild-contracts:
 
 # Build the Rust project
 rust-build:
-	cargo build --release
+	cargo +nightly build --release
 
 # Run local
 run: rust-build
@@ -27,23 +27,23 @@ build-%:
 
 # Build the Rust documentation
 rust-doc:
-	cargo doc --no-deps --open
+	cargo +nightly doc --no-deps --open
 
 # Lint checks for Rust code
 lint:
 	cd e2e-tests && yarn && yarn lint && yarn fmt && yarn typecheck
-	cargo fmt --all -- --check
-	cargo clippy -Zunstable-options -- -D warnings --allow clippy::unwrap_used
+	cargo +nightly fmt --all -- --check
+	cargo +nightly clippy -Zunstable-options -- -D warnings --allow clippy::unwrap_used
 
 # Fix lint errors for Rust code
 lint-fix:
 	cd e2e-tests && yarn && yarn lint:fix && yarn fmt:fix
-	cargo clippy --fix
-	cargo fmt
+	cargo +nightly clippy --fix
+	cargo +nightly fmt
 
 # Run unit tests for Rust code
 test:
-	cargo test
+	cargo +nightly test
 
 # Run e2e tests against running era_test_node
 test-e2e:
