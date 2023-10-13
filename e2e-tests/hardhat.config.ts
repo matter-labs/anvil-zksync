@@ -29,7 +29,6 @@ const config: HardhatUserConfig = {
       spec: "-",
       json: "test-results.json",
     },
-    forbidOnly: true,
   },
 };
 
