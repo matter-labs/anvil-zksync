@@ -1,9 +1,11 @@
 import { expect } from "chai";
-import { getTestProvider } from "../helpers/utils";
+import { deployContract, getTestProvider } from "../helpers/utils";
 import { Wallet } from "zksync-web3";
 import { RichAccounts } from "../helpers/constants";
 import { ethers } from "ethers";
+import * as hre from "hardhat";
 import { TransactionRequest } from "zksync-web3/build/src/types";
+import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
 
 const provider = getTestProvider();
 
@@ -55,5 +57,27 @@ describe("zks_getTokenPrice", function () {
 
     // Assert
     expect(response).to.equal("1500");
+  });
+});
+
+describe("zks_getBytecodeByHash", function () {
+  it("Should stored bytecode at address", async function () {
+    // Arrange
+    const wallet = new Wallet(RichAccounts[0].PrivateKey);
+    const deployer = new Deployer(hre, wallet);
+    const artifact = await deployer.loadArtifact("Greeter");
+    const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
+    expect(await greeter.greet()).to.eq("Hi");
+    // get the bytecode hash from the KnownCodesStorage event
+    const logs = await provider.send("eth_getLogs", [{ address: "0x0000000000000000000000000000000000008004" }]);
+    expect(logs).to.have.lengthOf(1);
+    expect(logs[0].topics).to.have.lengthOf(3);
+    const bytecodeHash = logs[0].topics[1];
+
+    // Act
+    const bytecode = await provider.send("zks_getBytecodeByHash", [bytecodeHash]);
+
+    // Assert
+    expect(ethers.utils.hexlify(bytecode)).to.equal(artifact.deployedBytecode);
   });
 });

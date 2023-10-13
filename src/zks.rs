@@ -6,6 +6,7 @@ use zksync_basic_types::{MiniblockNumber, U256};
 use zksync_core::api_server::web3::backend_jsonrpc::{
     error::into_jsrpc_error, namespaces::zks::ZksNamespaceT,
 };
+use zksync_state::ReadStorage;
 use zksync_types::{
     api::{BridgeAddresses, ProtocolVersion},
     fee::Fee,
@@ -227,11 +228,38 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
         Box::pin(async { Ok(None) })
     }
 
+    /// Returns bytecode of a transaction given by its hash.
+    ///
+    /// # Parameters
+    ///
+    /// * `hash`: Hash address.
+    ///
+    /// # Returns
+    ///
+    /// A boxed future resolving to a `jsonrpc_core::Result` containing an `Option` of bytes.
     fn get_bytecode_by_hash(
         &self,
-        _hash: zksync_basic_types::H256,
+        hash: zksync_basic_types::H256,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<Vec<u8>>>> {
-        not_implemented("zks_getBytecodeByHash")
+        let inner = self.node.clone();
+        Box::pin(async move {
+            let mut writer = inner
+                .write()
+                .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
+
+            let maybe_bytecode = writer.fork_storage.load_factory_dep(hash).or_else(|| {
+                writer
+                    .fork_storage
+                    .inner
+                    .read()
+                    .expect("failed reading fork storage")
+                    .fork
+                    .as_ref()
+                    .and_then(|fork| fork.fork_source.get_bytecode_by_hash(hash).ok().flatten())
+            });
+
+            Ok(maybe_bytecode)
+        })
     }
 
     fn get_l1_gas_price(
@@ -259,12 +287,15 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
 mod tests {
     use std::str::FromStr;
 
-    use crate::node::ShowCalls;
+    use crate::cache::CacheConfig;
+    use crate::fork::ForkDetails;
+    use crate::node::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
     use crate::system_contracts;
+    use crate::testing::{ForkBlockConfig, MockServer};
     use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
 
     use super::*;
-    use zksync_basic_types::Address;
+    use zksync_basic_types::{Address, H256};
     use zksync_types::transaction_request::CallRequest;
 
     #[tokio::test]
@@ -357,5 +388,77 @@ mod tests {
 
         // Assert
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_get_byte_code_by_hash_returns_local_value_if_available() {
+        // Arrange
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let namespace = ZkMockNamespaceImpl::new(node.get_inner());
+        let input_hash = H256::repeat_byte(0x1);
+        let input_bytecode = vec![0x1];
+        node.get_inner()
+            .write()
+            .unwrap()
+            .fork_storage
+            .store_factory_dep(input_hash, input_bytecode.clone());
+
+        // Act
+        let actual = namespace
+            .get_bytecode_by_hash(input_hash)
+            .await
+            .expect("failed fetching bytecode")
+            .expect("no bytecode was found");
+
+        // Assert
+        assert_eq!(input_bytecode, actual);
+    }
+
+    #[tokio::test]
+    async fn test_get_byte_code_by_hash_uses_fork_if_value_unavailable() {
+        // Arrange
+        let mock_server = MockServer::run_with_config(ForkBlockConfig {
+            number: 10,
+            transaction_count: 0,
+            hash: H256::repeat_byte(0xab),
+        });
+        let input_hash = H256::repeat_byte(0x1);
+        let input_bytecode = vec![0x1];
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "zks_getBytecodeByHash",
+                "params": [
+                    format!("{:#x}", input_hash)
+                ],
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "result": input_bytecode,
+            }),
+        );
+
+        let node = InMemoryNode::<HttpForkSource>::new(
+            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
+            crate::node::ShowCalls::None,
+            ShowStorageLogs::None,
+            ShowVMDetails::None,
+            ShowGasDetails::None,
+            false,
+            &system_contracts::Options::BuiltIn,
+        );
+        let namespace = ZkMockNamespaceImpl::new(node.get_inner());
+
+        // Act
+        let actual = namespace
+            .get_bytecode_by_hash(input_hash)
+            .await
+            .expect("failed fetching bytecode")
+            .expect("no bytecode was found");
+
+        // Assert
+        assert_eq!(input_bytecode, actual);
     }
 }

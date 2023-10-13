@@ -127,7 +127,7 @@ impl<S: ForkSource> ForkStorage<S> {
         }
     }
 
-    pub fn load_factory_dep_internal(&self, hash: H256) -> Option<Vec<u8>> {
+    fn load_factory_dep_internal(&self, hash: H256) -> Option<Vec<u8>> {
         let mut mutator = self.inner.write().unwrap();
         let local_storage = mutator.raw_storage.load_factory_dep(hash);
         if let Some(fork) = &mutator.fork {
