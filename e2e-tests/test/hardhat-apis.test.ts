@@ -147,3 +147,36 @@ describe("hardhat_setCode", function () {
     expect(BigNumber.from(result).toNumber()).to.eq(5);
   });
 });
+
+describe.only("hardhat_setNextBlockBaseFeePerGas", function () {
+  it("Should mine multiple blocks with a given interval", async function () {
+    // Arrange
+
+    // Act
+    // await provider.send("hardhat_setNextBlockBaseFeePerGas", [
+    //   ethers.utils.hexlify(10000),
+    // ]);
+
+    // await provider.send("hardhat_mine", [
+    //   ethers.utils.hexlify(1),
+    //   ethers.utils.hexlify(100),
+    // ]);
+
+    // Assert
+    const wallet = new Wallet(RichAccounts[0].PrivateKey);
+    const deployer = new Deployer(hre, wallet);
+
+    const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
+
+    expect(await greeter.greet()).to.eq("Hi");
+
+    await provider.send("hardhat_setNextBlockBaseFeePerGas", [
+      ethers.utils.hexlify(250_000_000),
+    ]);
+    const setGreetingTx = await greeter.setGreeting("Hola, mundo!");
+    // wait until the transaction is mined
+    await setGreetingTx.wait();
+
+    expect(await greeter.greet()).to.equal("Hola, mundo!");
+  });
+});
