@@ -1,13 +1,17 @@
 use std::sync::{Arc, RwLock};
 
-use crate::{fork::ForkSource, node::InMemoryNodeInner, utils::mine_empty_blocks};
+use crate::{
+    fork::ForkSource,
+    node::InMemoryNodeInner,
+    utils::{bytecode_to_factory_dep, mine_empty_blocks, IntoBoxedFuture},
+};
 use jsonrpc_core::{BoxFuture, Result};
 use jsonrpc_derive::rpc;
 use zksync_basic_types::{Address, U256, U64};
 use zksync_core::api_server::web3::backend_jsonrpc::error::into_jsrpc_error;
 use zksync_state::ReadStorage;
 use zksync_types::{
-    get_nonce_key,
+    get_code_key, get_nonce_key,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
@@ -99,6 +103,19 @@ pub trait HardhatNamespaceT {
     /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
     #[rpc(name = "hardhat_stopImpersonatingAccount")]
     fn stop_impersonating_account(&self, address: Address) -> BoxFuture<Result<bool>>;
+
+    /// Modifies the bytecode stored at an account's address.
+    ///
+    /// # Arguments
+    ///
+    /// * `address` - The address where the given code should be stored.
+    /// * `code` - The code to be stored.
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
+    #[rpc(name = "hardhat_setCode")]
+    fn set_code(&self, address: Address, code: Vec<u8>) -> BoxFuture<Result<()>>;
 }
 
 impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> HardhatNamespaceT
@@ -240,6 +257,31 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> HardhatNamespaceT
                 Err(_) => Err(into_jsrpc_error(Web3Error::InternalError)),
             }
         })
+    }
+
+    fn set_code(&self, address: Address, code: Vec<u8>) -> BoxFuture<Result<()>> {
+        let inner = Arc::clone(&self.node);
+        inner
+            .write()
+            .map(|mut writer| {
+                let code_key = get_code_key(&address);
+                log::info!("set code for address {address:#x}");
+                let (hash, code) = bytecode_to_factory_dep(code);
+                let hash = u256_to_h256(hash);
+                writer.fork_storage.store_factory_dep(
+                    hash,
+                    code.iter()
+                        .flat_map(|entry| {
+                            let mut bytes = vec![0u8; 32];
+                            entry.to_big_endian(&mut bytes);
+                            bytes.to_vec()
+                        })
+                        .collect(),
+                );
+                writer.fork_storage.set_value(code_key, hash);
+            })
+            .map_err(|_| into_jsrpc_error(Web3Error::InternalError))
+            .into_boxed_future()
     }
 }
 
@@ -445,5 +487,32 @@ mod tests {
 
         // execution should now fail again
         assert!(node.apply_txs(vec![tx]).is_err());
+    }
+
+    #[tokio::test]
+    async fn test_set_code() {
+        let address = Address::repeat_byte(0x1);
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let hardhat = HardhatNamespaceImpl::new(node.get_inner());
+        let new_code = vec![0x1u8; 32];
+
+        let code_before = node
+            .get_code(address, None)
+            .await
+            .expect("failed getting code")
+            .0;
+        assert_eq!(Vec::<u8>::default(), code_before);
+
+        hardhat
+            .set_code(address, new_code.clone())
+            .await
+            .expect("failed setting code");
+
+        let code_after = node
+            .get_code(address, None)
+            .await
+            .expect("failed getting code")
+            .0;
+        assert_eq!(new_code, code_after);
     }
 }
