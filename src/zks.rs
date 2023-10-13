@@ -224,8 +224,8 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
                 reader
                     .tx_results
                     .get(&hash)
-                    .and_then(|TransactionResult { info, receipt, .. }| {
-                        Some(TransactionDetails {
+                    .map(|TransactionResult { info, receipt, .. }| {
+                        TransactionDetails {
                             is_l1_originated: false,
                             status: TransactionStatus::Included,
                             // if these are not set, fee is effectively 0
@@ -237,7 +237,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
                             eth_commit_tx_hash: None,
                             eth_prove_tx_hash: None,
                             eth_execute_tx_hash: None,
-                        })
+                        }
                     })
                     .or_else(|| {
                         reader
