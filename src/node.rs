@@ -73,7 +73,7 @@ pub const MAX_TX_SIZE: usize = 1_000_000;
 /// Timestamp of the first block (if not running in fork mode).
 pub const NON_FORK_FIRST_BLOCK_TIMESTAMP: u64 = 1_000;
 /// Network ID we use for the test node.
-pub const TEST_NODE_NETWORK_ID: u16 = 260;
+pub const TEST_NODE_NETWORK_ID: u32 = 260;
 /// L1 Gas Price.
 pub const L1_GAS_PRICE: u64 = 50_000_000_000;
 /// L2 Gas Price (0.25 gwei).
@@ -1463,7 +1463,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
     /// Returns the chain ID of the node.
     fn chain_id(&self) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::U64>> {
         match self.inner.read() {
-            Ok(inner) => Ok(U64::from(inner.fork_storage.chain_id.0 as u64)).into_boxed_future(),
+            Ok(inner) => Ok(U64::from(inner.fork_storage.chain_id.as_u64())).into_boxed_future(),
             Err(_) => Err(into_jsrpc_error(Web3Error::InternalError)).into_boxed_future(),
         }
     }
@@ -1778,7 +1778,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
             }
         };
 
-        let (tx_req, hash) = match TransactionRequest::from_bytes(&tx_bytes.0, chain_id.0) {
+        let (tx_req, hash) = match TransactionRequest::from_bytes(&tx_bytes.0, chain_id) {
             Ok(result) => result,
             Err(e) => {
                 return futures::future::err(into_jsrpc_error(Web3Error::SerializationError(e)))
@@ -1951,7 +1951,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                         max_priority_fee_per_gas: Some(
                             info.tx.common_data.fee.max_priority_fee_per_gas,
                         ),
-                        chain_id: chain_id.into(),
+                        chain_id,
                         l1_batch_number: Some(U64::from(info.batch_number as u64)),
                         l1_batch_tx_index: None,
                     })

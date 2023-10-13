@@ -5,7 +5,7 @@
 
 use std::{
     collections::HashMap,
-    convert::TryInto,
+    convert::{TryFrom, TryInto},
     future::Future,
     sync::{Arc, RwLock},
 };
@@ -74,7 +74,7 @@ impl<S: ForkSource> ForkStorage<S> {
         let chain_id = fork
             .as_ref()
             .and_then(|d| d.overwrite_chain_id)
-            .unwrap_or(L2ChainId(TEST_NODE_NETWORK_ID));
+            .unwrap_or(L2ChainId::from(TEST_NODE_NETWORK_ID));
         log::info!("Starting network with chain id: {:?}", chain_id);
 
         ForkStorage {
@@ -353,7 +353,9 @@ impl ForkDetails<HttpForkSource> {
     pub async fn from_network_tx(fork: &str, tx: H256, cache_config: CacheConfig) -> Self {
         let (url, client) = Self::fork_to_url_and_client(fork);
         let tx_details = client.get_transaction_by_hash(tx).await.unwrap().unwrap();
-        let overwrite_chain_id = Some(L2ChainId(tx_details.chain_id.as_u32() as u16));
+        let overwrite_chain_id = Some(L2ChainId::try_from(tx_details.chain_id).unwrap_or_else(
+            |err| panic!("erroneous chain id {}: {:?}", tx_details.chain_id, err,),
+        ));
         let miniblock_number = MiniblockNumber(tx_details.block_number.unwrap().as_u32());
         // We have to sync to the one-miniblock before the one where transaction is.
         let l2_miniblock = miniblock_number.saturating_sub(1) as u64;
