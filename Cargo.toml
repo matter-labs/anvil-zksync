@@ -52,6 +52,7 @@ log = "0.4.20"
 simplelog = "0.12.1"
 rustc-hash = "1.1.0"
 indexmap = "2.0.1"
+chrono = { version = "0.4.31", default-features = false }
 
 [dev-dependencies]
 httptest = "0.15.4"

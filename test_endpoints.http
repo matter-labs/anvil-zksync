@@ -689,6 +689,17 @@ content-type: application/json
 {
     "jsonrpc": "2.0",
     "id": "1",
+    "method": "zks_getTransactionDetails",
+    "params": ["0xa5d62a85561295ed58f8daad4e9442691e6da4301a859f364d28a02917d6e04d"]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
     "method": "eth_feeHistory",
     "params": ["0x1", "latest", [25, 50 , 75]]
 }

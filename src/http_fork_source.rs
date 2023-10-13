@@ -91,6 +91,18 @@ impl ForkSource for HttpForkSource {
             .wrap_err("fork http client failed")
     }
 
+    fn get_transaction_details(
+        &self,
+        hash: H256,
+    ) -> eyre::Result<Option<zksync_types::api::TransactionDetails>> {
+        let client = self.create_client();
+        // n.b- We don't cache these responses as they will change through the lifecycle of the transaction
+        // and caching could be error-prone. in theory we could cache responses once the txn status
+        // is `final` or `failed` but currently this does not warrant the additional complexity.
+        block_on(async move { client.get_transaction_details(hash).await })
+            .wrap_err("fork http client failed")
+    }
+
     fn get_raw_block_transactions(
         &self,
         block_number: zksync_basic_types::MiniblockNumber,
@@ -256,7 +268,9 @@ impl ForkSource for HttpForkSource {
 
 #[cfg(test)]
 mod tests {
-    use zksync_basic_types::{MiniblockNumber, H256, U64};
+    use std::str::FromStr;
+
+    use zksync_basic_types::{Address, MiniblockNumber, H256, U64};
     use zksync_types::api::BlockNumber;
 
     use crate::testing;
@@ -497,5 +511,46 @@ mod tests {
             .expect("failed fetching cached transaction")
             .expect("no transaction");
         assert_eq!(input_tx_hash, actual_transaction.hash);
+    }
+
+    #[test]
+    fn test_get_transaction_details() {
+        let input_tx_hash = H256::repeat_byte(0x01);
+        let mock_server = testing::MockServer::run();
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "zks_getTransactionDetails",
+                "params": [
+                    input_tx_hash,
+                ],
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "result": {
+                    "isL1Originated": false,
+                    "status": "included",
+                    "fee": "0x74293f087500",
+                    "gasPerPubdata": "0x4e20",
+                    "initiatorAddress": "0x63ab285cd87a189f345fed7dd4e33780393e01f0",
+                    "receivedAt": "2023-10-12T15:45:53.094Z",
+                    "ethCommitTxHash": null,
+                    "ethProveTxHash": null,
+                    "ethExecuteTxHash": null
+                },
+                "id": 0
+            }),
+        );
+
+        let fork_source = HttpForkSource::new(mock_server.url(), CacheConfig::Memory);
+        let transaction_details = fork_source
+            .get_transaction_details(input_tx_hash)
+            .expect("failed fetching transaction")
+            .expect("no transaction");
+        assert_eq!(
+            transaction_details.initiator_address,
+            Address::from_str("0x63ab285cd87a189f345fed7dd4e33780393e01f0").unwrap()
+        );
     }
 }

@@ -60,6 +60,21 @@ describe("zks_getTokenPrice", function () {
   });
 });
 
+describe("zks_getTransactionDetails", function () {
+  it("Should return transaction details for locally-executed transactions", async function () {
+    const wallet = new Wallet(RichAccounts[0].PrivateKey);
+    const deployer = new Deployer(hre, wallet);
+
+    const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
+
+    const txReceipt = await greeter.setGreeting("Luke Skywalker");
+    const details = await provider.send("zks_getTransactionDetails", [txReceipt.hash]);
+
+    expect(details["status"]).to.equal("included");
+    expect(details["initiatorAddress"].toLowerCase()).to.equal(wallet.address.toLowerCase());
+  });
+});
+
 describe("zks_getBytecodeByHash", function () {
   it("Should stored bytecode at address", async function () {
     // Arrange
@@ -68,7 +83,7 @@ describe("zks_getBytecodeByHash", function () {
     const artifact = await deployer.loadArtifact("Greeter");
     const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
     expect(await greeter.greet()).to.eq("Hi");
-    // get the bytecode hash from the KnownCodesStorage event
+    // get the bytecode hash from the KnownCodesStorage log
     const logs = await provider.send("eth_getLogs", [{ address: "0x0000000000000000000000000000000000008004" }]);
     expect(logs).to.have.lengthOf(1);
     expect(logs[0].topics).to.have.lengthOf(3);

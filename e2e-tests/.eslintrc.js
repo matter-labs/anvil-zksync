@@ -20,10 +20,11 @@ module.exports = {
     ecmaVersion: "latest",
     sourceType: "module",
   },
-  plugins: ["@typescript-eslint"],
+  plugins: ["@typescript-eslint", "mocha"],
 
   // Add rule exceptions here if they are too onerous to comply with
   rules: {
     "@typescript-eslint/ban-ts-comment": "off",
+    "mocha/no-exclusive-tests": "error",
   },
 };

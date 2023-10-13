@@ -124,7 +124,7 @@ The `status` options are:
 | `ZKS` | `zks_getRawBlockTransactions` | `NOT IMPLEMENTED` | Returns data of transactions in a block |
 | `ZKS` | `zks_getTestnetPaymaster` | `NOT IMPLEMENTED` | Returns the address of the testnet paymaster |
 | [`ZKS`](#zks-namespace) | [`zks_getTokenPrice`](#zks_getTokenPrice) | `SUPPORTED` | Gets the USD price of a token <br />_(`ETH` is hard-coded to `1_500`, while some others are `1`)_ |
-| `ZKS` | `zks_getTransactionDetails` | `NOT IMPLEMENTED` | Returns data from a specific transaction given by the transaction hash |
+| [`ZKS`](#zks-namespace) | [`zks_getTransactionDetails`](#zks_gettransactiondetails) | `SUPPORTED` | Returns data from a specific transaction given by the transaction hash |
 | `ZKS` | `zks_L1BatchNumber` | `NOT IMPLEMENTED` | Returns the latest L1 batch number |
 | `ZKS` | `zks_L1ChainId` | `NOT IMPLEMENTED` | Returns the chain id of the underlying L1 |
 
@@ -1718,4 +1718,27 @@ curl --request POST \
   --url http://localhost:8011/ \
   --header 'content-type: application/json' \
   --data '{"jsonrpc": "2.0","id": "1","method": "zks_getTokenPrice","params": ["0x0000000000000000000000000000000000000000"]}'
+```
+
+### `zks_getTransactionDetails`
+
+[source](src/zks.rs)
+
+Returns data from a specific transaction given by the transaction hash.
+
+#### Arguments
+
++ `transactionHash: H256`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "zks_getTransactionDetails","params": ["0xa5d62a85561295ed58f8daad4e9442691e6da4301a859f364d28a02917d6e04d"]}'
 ```
