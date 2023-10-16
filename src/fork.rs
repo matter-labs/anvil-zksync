@@ -15,7 +15,8 @@ use zksync_basic_types::{Address, L1BatchNumber, L2ChainId, MiniblockNumber, H25
 
 use zksync_types::{
     api::{
-        Block, BlockIdVariant, BlockNumber, Transaction, TransactionDetails, TransactionVariant,
+        Block, BlockIdVariant, BlockNumber, BridgeAddresses, Transaction, TransactionDetails,
+        TransactionVariant,
     },
     l2::L2Tx,
     ProtocolVersionId, StorageKey,
@@ -253,6 +254,9 @@ pub trait ForkSource {
         block_number: BlockNumber,
         index: Index,
     ) -> eyre::Result<Option<Transaction>>;
+
+    /// Returns addresses of the default bridge contracts.
+    fn get_bridge_contracts(&self) -> eyre::Result<BridgeAddresses>;
 }
 
 /// Holds the information about the original chain.

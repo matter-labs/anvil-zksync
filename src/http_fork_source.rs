@@ -2,7 +2,7 @@ use std::sync::RwLock;
 
 use eyre::Context;
 use zksync_basic_types::{H256, U256};
-use zksync_types::api::Transaction;
+use zksync_types::api::{BridgeAddresses, Transaction};
 use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
@@ -264,13 +264,42 @@ impl ForkSource for HttpForkSource {
         })
         .wrap_err("fork http client failed")
     }
+
+    /// Returns addresses of the default bridge contracts.
+    fn get_bridge_contracts(&self) -> eyre::Result<BridgeAddresses> {
+        if let Some(bridge_addresses) = self
+            .cache
+            .read()
+            .ok()
+            .and_then(|guard| guard.get_bridge_addresses().cloned())
+        {
+            log::debug!("using cached bridge contracts");
+            return Ok(bridge_addresses);
+        };
+
+        let client = self.create_client();
+        block_on(async move { client.get_bridge_contracts().await })
+            .map(|bridge_addresses| {
+                self.cache
+                    .write()
+                    .map(|mut guard| guard.set_bridge_addresses(bridge_addresses.clone()))
+                    .unwrap_or_else(|err| {
+                        log::warn!(
+                            "failed writing to cache for 'get_bridge_contracts': {:?}",
+                            err
+                        )
+                    });
+                bridge_addresses
+            })
+            .wrap_err("fork http client failed")
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
 
-    use zksync_basic_types::{Address, MiniblockNumber, H256, U64};
+    use zksync_basic_types::{Address, MiniblockNumber, H160, H256, U64};
     use zksync_types::api::BlockNumber;
 
     use crate::testing;
@@ -552,5 +581,45 @@ mod tests {
             transaction_details.initiator_address,
             Address::from_str("0x63ab285cd87a189f345fed7dd4e33780393e01f0").unwrap()
         );
+    }
+
+    #[test]
+    fn test_get_bridge_contracts_is_cached() {
+        let input_bridge_addresses = BridgeAddresses {
+            l1_erc20_default_bridge: H160::repeat_byte(0x1),
+            l2_erc20_default_bridge: H160::repeat_byte(0x2),
+            l1_weth_bridge: Some(H160::repeat_byte(0x3)),
+            l2_weth_bridge: Some(H160::repeat_byte(0x4)),
+        };
+        let mock_server = testing::MockServer::run();
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "zks_getBridgeContracts",
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "result": {
+                    "l1Erc20DefaultBridge": format!("{:#x}", input_bridge_addresses.l1_erc20_default_bridge),
+                    "l2Erc20DefaultBridge": format!("{:#x}", input_bridge_addresses.l2_erc20_default_bridge),
+                    "l1WethBridge": format!("{:#x}", input_bridge_addresses.l1_weth_bridge.clone().unwrap()),
+                    "l2WethBridge": format!("{:#x}", input_bridge_addresses.l2_weth_bridge.clone().unwrap())
+                },
+                "id": 0
+            }),
+        );
+
+        let fork_source = HttpForkSource::new(mock_server.url(), CacheConfig::Memory);
+
+        let actual_bridge_addresses = fork_source
+            .get_bridge_contracts()
+            .expect("failed fetching bridge addresses");
+        testing::assert_bridge_addresses_eq(&input_bridge_addresses, &actual_bridge_addresses);
+
+        let actual_bridge_addresses = fork_source
+            .get_bridge_contracts()
+            .expect("failed fetching bridge addresses");
+        testing::assert_bridge_addresses_eq(&input_bridge_addresses, &actual_bridge_addresses);
     }
 }

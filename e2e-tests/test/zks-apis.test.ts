@@ -74,3 +74,16 @@ describe("zks_getTransactionDetails", function () {
     expect(details["initiatorAddress"].toLowerCase()).to.equal(wallet.address.toLowerCase());
   });
 });
+
+describe("zks_getBridgeContracts", function () {
+  it("Should return default values", async function () {
+    const bridgeAddresses = await provider.send("zks_getBridgeContracts", []);
+
+    expect(bridgeAddresses).to.deep.equal({
+      l1Erc20DefaultBridge: "0x0000000000000000000000000000000000000000",
+      l2Erc20DefaultBridge: "0x0000000000000000000000000000000000000000",
+      l1WethBridge: null,
+      l2WethBridge: null,
+    });
+  });
+});

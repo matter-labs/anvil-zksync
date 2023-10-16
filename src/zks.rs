@@ -93,7 +93,29 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
     fn get_bridge_contracts(
         &self,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<BridgeAddresses>> {
-        not_implemented("zks_getBridgeContracts")
+        let inner = self.node.clone();
+        Box::pin(async move {
+            let reader = inner
+                .read()
+                .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
+
+            let result = reader
+                .fork_storage
+                .inner
+                .read()
+                .expect("failed reading fork storage")
+                .fork
+                .as_ref()
+                .and_then(|fork| fork.fork_source.get_bridge_contracts().ok())
+                .unwrap_or_else(|| BridgeAddresses {
+                    l1_erc20_default_bridge: Default::default(),
+                    l2_erc20_default_bridge: Default::default(),
+                    l1_weth_bridge: Default::default(),
+                    l2_weth_bridge: Default::default(),
+                });
+
+            Ok(result)
+        })
     }
 
     fn l1_chain_id(
@@ -319,7 +341,7 @@ mod tests {
     use crate::{system_contracts, testing};
 
     use super::*;
-    use zksync_basic_types::{Address, H256};
+    use zksync_basic_types::{Address, H160, H256};
     use zksync_types::api::TransactionReceipt;
     use zksync_types::transaction_request::CallRequest;
 
@@ -502,5 +524,80 @@ mod tests {
 
         assert!(matches!(result.status, TransactionStatus::Included));
         assert_eq!(result.fee, U256::from(127_720_500_000_000u64));
+    }
+
+    #[tokio::test]
+    async fn test_get_bridge_contracts_uses_default_values_if_local() {
+        // Arrange
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let namespace = ZkMockNamespaceImpl::new(node.get_inner());
+        let expected_bridge_addresses = BridgeAddresses {
+            l1_erc20_default_bridge: Default::default(),
+            l2_erc20_default_bridge: Default::default(),
+            l1_weth_bridge: Default::default(),
+            l2_weth_bridge: Default::default(),
+        };
+
+        // Act
+        let actual_bridge_addresses = namespace
+            .get_bridge_contracts()
+            .await
+            .expect("get bridge addresses");
+
+        // Assert
+        testing::assert_bridge_addresses_eq(&expected_bridge_addresses, &actual_bridge_addresses)
+    }
+
+    #[tokio::test]
+    async fn test_get_bridge_contracts_uses_fork() {
+        // Arrange
+        let mock_server = MockServer::run_with_config(ForkBlockConfig {
+            number: 10,
+            transaction_count: 0,
+            hash: H256::repeat_byte(0xab),
+        });
+        let input_bridge_addresses = BridgeAddresses {
+            l1_erc20_default_bridge: H160::repeat_byte(0x1),
+            l2_erc20_default_bridge: H160::repeat_byte(0x2),
+            l1_weth_bridge: Some(H160::repeat_byte(0x3)),
+            l2_weth_bridge: Some(H160::repeat_byte(0x4)),
+        };
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "zks_getBridgeContracts",
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "result": {
+                    "l1Erc20DefaultBridge": format!("{:#x}", input_bridge_addresses.l1_erc20_default_bridge),
+                    "l2Erc20DefaultBridge": format!("{:#x}", input_bridge_addresses.l2_erc20_default_bridge),
+                    "l1WethBridge": format!("{:#x}", input_bridge_addresses.l1_weth_bridge.clone().unwrap()),
+                    "l2WethBridge": format!("{:#x}", input_bridge_addresses.l2_weth_bridge.clone().unwrap())
+                },
+                "id": 0
+            }),
+        );
+
+        let node = InMemoryNode::<HttpForkSource>::new(
+            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
+            crate::node::ShowCalls::None,
+            ShowStorageLogs::None,
+            ShowVMDetails::None,
+            ShowGasDetails::None,
+            false,
+            &system_contracts::Options::BuiltIn,
+        );
+        let namespace = ZkMockNamespaceImpl::new(node.get_inner());
+
+        // Act
+        let actual_bridge_addresses = namespace
+            .get_bridge_contracts()
+            .await
+            .expect("get bridge addresses");
+
+        // Assert
+        testing::assert_bridge_addresses_eq(&input_bridge_addresses, &actual_bridge_addresses)
     }
 }
