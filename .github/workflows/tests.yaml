@@ -23,9 +23,12 @@ jobs:
       uses: dtolnay/rust-toolchain@stable
       with: 
         toolchain: nightly
-    
+
+    - name: Cache Rust Dependencies
+      uses: Swatinem/rust-cache@v2
+
     - name: Install cargo-nextest
       run: cargo +nightly install cargo-nextest
-        
+
     - name: Run tests
       run: cargo +nightly nextest run
