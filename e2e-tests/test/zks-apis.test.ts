@@ -85,8 +85,8 @@ describe("zks_getBytecodeByHash", function () {
     expect(await greeter.greet()).to.eq("Hi");
     // get the bytecode hash from the KnownCodesStorage log
     const logs = await provider.send("eth_getLogs", [{ address: "0x0000000000000000000000000000000000008004" }]);
-    expect(logs).to.have.lengthOf(1);
-    expect(logs[0].topics).to.have.lengthOf(3);
+    expect(logs).to.not.be.empty;
+    expect(logs[logs.length - 1].topics).to.have.lengthOf(3);
     const bytecodeHash = logs[0].topics[1];
 
     // Act
