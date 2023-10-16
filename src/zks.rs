@@ -216,8 +216,8 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
                     base: BlockDetailsBase {
                         timestamp: block.timestamp.as_u64(),
                         l1_tx_count: 1,
-                        l2_tx_count: 1,
-                        root_hash: None,
+                        l2_tx_count: block.transactions.len(),
+                        root_hash: Some(block.hash),
                         status: BlockStatus::Verified,
                         commit_tx_hash: None,
                         committed_at: None,
