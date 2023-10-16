@@ -99,20 +99,25 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
                 .read()
                 .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
 
-            let result = reader
+            let result = match reader
                 .fork_storage
                 .inner
                 .read()
                 .expect("failed reading fork storage")
                 .fork
                 .as_ref()
-                .and_then(|fork| fork.fork_source.get_bridge_contracts().ok())
-                .unwrap_or_else(|| BridgeAddresses {
+            {
+                Some(fork) => fork.fork_source.get_bridge_contracts().map_err(|err| {
+                    log::error!("failed fetching bridge contracts from the fork: {:?}", err);
+                    into_jsrpc_error(Web3Error::InternalError)
+                })?,
+                None => BridgeAddresses {
                     l1_erc20_default_bridge: Default::default(),
                     l2_erc20_default_bridge: Default::default(),
                     l1_weth_bridge: Default::default(),
                     l2_weth_bridge: Default::default(),
-                });
+                },
+            };
 
             Ok(result)
         })
