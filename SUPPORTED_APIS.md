@@ -121,7 +121,7 @@ The `status` options are:
 | `ZKS` | `zks_getL2ToL1LogProof` | `NOT IMPLEMENTED` | Given a transaction hash, and an index of the L2 to L1 log produced within the transaction, it returns the proof for the corresponding L2 to L1 log |
 | `ZKS` | `zks_getL2ToL1MsgProof` | `NOT IMPLEMENTED` | Given a block, a sender, a message, and an optional message log index in the block containing the L1->L2 message, it returns the proof for the message sent via the L1Messenger system contract |
 | `ZKS` | `zks_getMainContract` | `NOT IMPLEMENTED` | Returns the address of the zkSync Era contract |
-| `ZKS` | `zks_getRawBlockTransactions` | `NOT IMPLEMENTED` | Returns data of transactions in a block |
+| [`ZKS`](#zks-namespace) | [`zks_getRawBlockTransactions`](#zks_getrawblocktransactions) | `SUPPORTED` | Returns data of transactions in a block |
 | `ZKS` | `zks_getTestnetPaymaster` | `NOT IMPLEMENTED` | Returns the address of the testnet paymaster |
 | [`ZKS`](#zks-namespace) | [`zks_getTokenPrice`](#zks_getTokenPrice) | `SUPPORTED` | Gets the USD price of a token <br />_(`ETH` is hard-coded to `1_500`, while some others are `1`)_ |
 | [`ZKS`](#zks-namespace) | [`zks_getTransactionDetails`](#zks_gettransactiondetails) | `SUPPORTED` | Returns data from a specific transaction given by the transaction hash |
@@ -1764,4 +1764,28 @@ curl --request POST \
   --url http://localhost:8011/ \
   --header 'content-type: application/json' \
   --data '{"jsonrpc": "2.0", "id": 1, "method": "zks_getBlockDetails", "params": [ 140599 ]}'
+```
+
+
+### `zks_getRawBlockTransactions`
+
+[source](src/zks.rs)
+
+Returns data of transactions in a block.
+
+#### Arguments
+
++ `block: u32` - The number of the block
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0", "id": 1, "method": "zks_getRawBlockTransactions", "params": [ 140599 ]}'
 ```

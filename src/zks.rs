@@ -4,15 +4,16 @@ use bigdecimal::BigDecimal;
 use futures::FutureExt;
 use zksync_basic_types::{Address, L1BatchNumber, MiniblockNumber, U256};
 use zksync_core::api_server::web3::backend_jsonrpc::{
-    error::into_jsrpc_error, namespaces::zks::ZksNamespaceT,
+    error::{internal_error, into_jsrpc_error},
+    namespaces::zks::ZksNamespaceT,
 };
 use zksync_types::{
     api::{
         BlockDetails, BlockDetailsBase, BlockStatus, BridgeAddresses, ProtocolVersion,
-        TransactionDetails, TransactionStatus,
+        TransactionDetails, TransactionStatus, TransactionVariant,
     },
     fee::Fee,
-    ProtocolVersionId,
+    ExecuteTransactionCommon, ProtocolVersionId, Transaction,
 };
 use zksync_web3_decl::{
     error::Web3Error,
@@ -68,11 +69,74 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
         }
     }
 
+    /// Returns data of transactions in a block.
+    ///
+    /// # Arguments
+    ///
+    /// * `block` - Block number
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `Result` with a `Vec` of `Transaction`s representing the transactions in the block.
     fn get_raw_block_transactions(
         &self,
-        _block_number: MiniblockNumber,
+        block_number: MiniblockNumber,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Vec<zksync_types::Transaction>>> {
-        not_implemented("zks_getRawBlockTransactions")
+        let inner = self.node.clone();
+        Box::pin(async move {
+            let reader = inner
+                .read()
+                .map_err(|_err| into_jsrpc_error(Web3Error::InternalError))?;
+
+            let maybe_transactions = reader
+                .block_hashes
+                .get(&(block_number.0 as u64))
+                .and_then(|hash| reader.blocks.get(hash))
+                .map(|block| {
+                    block
+                        .transactions
+                        .iter()
+                        .map(|tx| match tx {
+                            TransactionVariant::Full(tx) => &tx.hash,
+                            TransactionVariant::Hash(hash) => hash,
+                        })
+                        .flat_map(|tx_hash| {
+                            reader.tx_results.get(tx_hash).map(
+                                |TransactionResult { info, .. }| Transaction {
+                                    common_data: ExecuteTransactionCommon::L2(
+                                        info.tx.common_data.clone(),
+                                    ),
+                                    execute: info.tx.execute.clone(),
+                                    received_timestamp_ms: info.tx.received_timestamp_ms,
+                                    raw_bytes: info.tx.raw_bytes.clone(),
+                                },
+                            )
+                        })
+                        .collect()
+                });
+
+            let transactions = match maybe_transactions {
+                Some(txns) => Ok(txns),
+                None => {
+                    let fork_storage_read = reader
+                        .fork_storage
+                        .inner
+                        .read()
+                        .expect("failed reading fork storage");
+
+                    match fork_storage_read.fork.as_ref() {
+                        Some(fork) => fork
+                            .fork_source
+                            .get_raw_block_transactions(block_number)
+                            .map_err(|e| internal_error("get_raw_block_transactions", e)),
+                        None => Ok(vec![]),
+                    }
+                }
+            }
+            .map_err(into_jsrpc_error)?;
+
+            Ok(transactions)
+        })
     }
 
     fn estimate_gas_l1_to_l2(
@@ -387,7 +451,7 @@ mod tests {
 
     use super::*;
     use zksync_basic_types::{Address, H256};
-    use zksync_types::api::{Block, TransactionReceipt, TransactionVariant};
+    use zksync_types::api::{self, Block, TransactionReceipt, TransactionVariant};
     use zksync_types::transaction_request::CallRequest;
 
     #[tokio::test]
@@ -662,5 +726,130 @@ mod tests {
         assert!(matches!(result.number, MiniblockNumber(16474138)));
         assert_eq!(result.l1_batch_number, L1BatchNumber(270435));
         assert_eq!(result.base.timestamp, 1697405098);
+    }
+
+    #[tokio::test]
+    async fn test_get_raw_block_transactions_local() {
+        // Arrange
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let namespace = ZkMockNamespaceImpl::new(node.get_inner());
+        let inner = node.get_inner();
+        {
+            let mut writer = inner.write().unwrap();
+            let mut block = Block::<TransactionVariant>::default();
+            let txn = api::Transaction::default();
+            writer.tx_results.insert(
+                txn.hash,
+                TransactionResult {
+                    info: testing::default_tx_execution_info(),
+                    receipt: TransactionReceipt {
+                        logs: vec![],
+                        gas_used: Some(U256::from(10_000)),
+                        effective_gas_price: Some(U256::from(1_000_000_000)),
+                        ..Default::default()
+                    },
+                    debug: testing::default_tx_debug_info(),
+                },
+            );
+            block.transactions.push(TransactionVariant::Full(txn));
+            writer.blocks.insert(H256::repeat_byte(0x1), block);
+            writer.block_hashes.insert(0, H256::repeat_byte(0x1));
+        }
+
+        // Act
+        let txns = namespace
+            .get_raw_block_transactions(MiniblockNumber(0))
+            .await
+            .expect("get transaction details");
+
+        // Assert
+        assert_eq!(txns.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_get_raw_block_transactions_fork() {
+        let mock_server = MockServer::run_with_config(ForkBlockConfig {
+            number: 10,
+            transaction_count: 0,
+            hash: H256::repeat_byte(0xab),
+        });
+        let miniblock = MiniblockNumber::from(16474138);
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "zks_getRawBlockTransactions",
+                "params": [miniblock.0]
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "result": [
+                  {
+                    "common_data": {
+                      "L2": {
+                        "nonce": 86,
+                        "fee": {
+                          "gas_limit": "0xcc626",
+                          "max_fee_per_gas": "0x141dd760",
+                          "max_priority_fee_per_gas": "0x0",
+                          "gas_per_pubdata_limit": "0x4e20"
+                        },
+                        "initiatorAddress": "0x840bd73f903ba7dbb501be8326fe521dadcae1a5",
+                        "signature": [
+                          135,
+                          163,
+                          2,
+                          78,
+                          118,
+                          14,
+                          209
+                        ],
+                        "transactionType": "EIP1559Transaction",
+                        "input": {
+                          "hash": "0xc1f625f55d186ad0b439054adfe3317ae703c5f588f4fa1896215e8810a141e0",
+                          "data": [
+                            2,
+                            249,
+                            1,
+                            110,
+                            130
+                          ]
+                        },
+                        "paymasterParams": {
+                          "paymaster": "0x0000000000000000000000000000000000000000",
+                          "paymasterInput": []
+                        }
+                      }
+                    },
+                    "execute": {
+                      "contractAddress": "0xbe7d1fd1f6748bbdefc4fbacafbb11c6fc506d1d",
+                      "calldata": "0x38ed173900000000000000000000000000000000000000000000000000000000002c34cc00000000000000000000000000000000000000000000000000000000002c9a2500000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000840bd73f903ba7dbb501be8326fe521dadcae1a500000000000000000000000000000000000000000000000000000000652c5d1900000000000000000000000000000000000000000000000000000000000000020000000000000000000000008e86e46278518efc1c5ced245cba2c7e3ef115570000000000000000000000003355df6d4c9c3035724fd0e3914de96a5a83aaf4",
+                      "value": "0x0",
+                      "factoryDeps": null
+                    },
+                    "received_timestamp_ms": 1697405097873u64,
+                    "raw_bytes": "0x02f9016e820144568084141dd760830cc62694be7d1fd1f6748bbdefc4fbacafbb11c6fc506d1d80b9010438ed173900000000000000000000000000000000000000000000000000000000002c34cc00000000000000000000000000000000000000000000000000000000002c9a2500000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000840bd73f903ba7dbb501be8326fe521dadcae1a500000000000000000000000000000000000000000000000000000000652c5d1900000000000000000000000000000000000000000000000000000000000000020000000000000000000000008e86e46278518efc1c5ced245cba2c7e3ef115570000000000000000000000003355df6d4c9c3035724fd0e3914de96a5a83aaf4c080a087a3024e760ed14134ef541608bf308e083c899a89dba3c02bf3040f07c8b91b9fc3a7eeb6b3b8b36bb03ea4352415e7815dda4954f4898d255bd7660736285e"
+                  }
+                ],
+                "id": 0
+              }),
+        );
+
+        let node = InMemoryNode::<HttpForkSource>::new(
+            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
+            crate::node::ShowCalls::None,
+            ShowStorageLogs::None,
+            ShowVMDetails::None,
+            ShowGasDetails::None,
+            false,
+            &system_contracts::Options::BuiltIn,
+        );
+
+        let namespace = ZkMockNamespaceImpl::new(node.get_inner());
+        let txns = namespace
+            .get_raw_block_transactions(miniblock)
+            .await
+            .expect("get transaction details");
+        assert_eq!(txns.len(), 1);
     }
 }

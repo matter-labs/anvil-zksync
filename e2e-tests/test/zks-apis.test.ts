@@ -89,3 +89,19 @@ describe("zks_getBlockDetails", function () {
     expect(details['timestamp']).to.equal(latestBlock.timestamp);
   });
 });
+
+describe("zks_getRawBlockTransactions", function () {
+  it("Should return transactions for locally-produced blocks", async function () {
+    const wallet = new Wallet(RichAccounts[0].PrivateKey);
+    const deployer = new Deployer(hre, wallet);
+
+    const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
+    const receipt = await greeter.setGreeting("Luke Skywalker");
+
+    const latestBlock = await provider.getBlock("latest");
+    const txns = await provider.send("zks_getRawBlockTransactions", [latestBlock.number - 1]);
+
+    expect(txns.length).to.equal(1);
+    expect(txns[0]['execute']['calldata']).to.equal(receipt.data);
+  });
+});
