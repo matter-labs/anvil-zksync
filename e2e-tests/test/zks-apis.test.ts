@@ -90,7 +90,6 @@ describe("zks_getBlockDetails", function () {
   });
 });
 
-
 describe("zks_getBytecodeByHash", function () {
   it("Should stored bytecode at address", async function () {
     // Arrange
@@ -99,11 +98,22 @@ describe("zks_getBytecodeByHash", function () {
     const artifact = await deployer.loadArtifact("Greeter");
     const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
     expect(await greeter.greet()).to.eq("Hi");
-    // get the bytecode hash from the KnownCodesStorage log
-    const logs = await provider.send("eth_getLogs", [{ address: "0x0000000000000000000000000000000000008004" }]);
+
+    // get the bytecode hash from the event
+    const contractDeployedHash = ethers.utils
+      .keccak256(ethers.utils.toUtf8Bytes("ContractDeployed(address,bytes32,address)"))
+      .substring(2);
+    const deployedBlockNumber = (await provider.getBlockNumber()) - 1; // 2 blocks are mined per L1 block, last is empty
+    const logs = await provider.send("eth_getLogs", [
+      {
+        fromBlock: ethers.utils.hexlify(deployedBlockNumber),
+        address: "0x0000000000000000000000000000000000008006", // L2 Deployer address
+        topics: [contractDeployedHash],
+      },
+    ]);
     expect(logs).to.not.be.empty;
-    expect(logs[logs.length - 1].topics).to.have.lengthOf(3);
-    const bytecodeHash = logs[0].topics[1];
+    expect(logs[0].topics).to.have.lengthOf(4);
+    const bytecodeHash = logs[0].topics[2];
 
     // Act
     const bytecode = await provider.send("zks_getBytecodeByHash", [bytecodeHash]);
