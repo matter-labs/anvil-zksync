@@ -66,6 +66,14 @@ Please note that `era-test-node` is still in its **alpha** stage. Some features 
    make run
    ```
 
+## 📄 System Contracts
+
+The system contract within the node can be specified via the `--dev-system-contracts` option. 
+It can take one of the following options:
+   * `built-in`: Use the compiled built-in contracts
+   * `built-in-no-verify`: Use the compiled built-in contracts, but without signature verification
+   * `local`: Load contracts from `ZKSYNC_HOME`
+
 ## 📃 Logging
 
 The node may be started in either of `debug`, `info`, `warn` or `error` logging levels via the `--log` option:
