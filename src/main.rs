@@ -277,21 +277,7 @@ async fn main() -> anyhow::Result<()> {
     let log_level_filter = LevelFilter::from(opt.log);
     let log_file = File::create(opt.log_file_path)?;
 
-    if opt.dev_use_local_contracts {
-        if let Some(path) = env::var_os("ZKSYNC_HOME") {
-            tracing::info!("+++++ Reading local contracts from {:?} +++++", path);
-        }
-    }
-    let cache_config = match opt.cache {
-        CacheType::None => CacheConfig::None,
-        CacheType::Memory => CacheConfig::Memory,
-        CacheType::Disk => CacheConfig::Disk {
-            dir: opt.cache_dir,
-            reset: opt.reset_cache,
-        },
-    };
-
-    // Initialize the subscriber
+    // Initialize the tracing subscriber
     tracing_subscriber::registry()
         .with(
             EnvFilter::from_default_env()
@@ -310,6 +296,20 @@ async fn main() -> anyhow::Result<()> {
                 ),
         )
         .init();
+
+    if opt.dev_use_local_contracts {
+        if let Some(path) = env::var_os("ZKSYNC_HOME") {
+            tracing::info!("+++++ Reading local contracts from {:?} +++++", path);
+        }
+    }
+    let cache_config = match opt.cache {
+        CacheType::None => CacheConfig::None,
+        CacheType::Memory => CacheConfig::Memory,
+        CacheType::Disk => CacheConfig::Disk {
+            dir: opt.cache_dir,
+            reset: opt.reset_cache,
+        },
+    };
 
     let fork_details = match &opt.command {
         Command::Run => None,
