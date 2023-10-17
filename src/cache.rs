@@ -10,12 +10,18 @@ use zksync_basic_types::H256;
 use zksync_types::api::{Block, BridgeAddresses, Transaction, TransactionVariant};
 use zksync_types::Transaction as RawTransaction;
 
+/// Caches full blocks by their hashes
 const CACHE_TYPE_BLOCKS_FULL: &str = "blocks_full";
+/// Caches minimal blocks by their hashes
 const CACHE_TYPE_BLOCKS_MIN: &str = "blocks_min";
+/// Caches raw transactions by their hashes
 const CACHE_TYPE_BLOCK_RAW_TRANSACTIONS: &str = "block_raw_transactions";
+/// Caches transactions by their hashes
 const CACHE_TYPE_TRANSACTIONS: &str = "transactions";
+/// Caches arbitrary values by their keys
 const CACHE_TYPE_KEY_VALUE: &str = "key_value";
 
+/// Caching key for bridge addresses
 const CACHE_KEY_BRIDGE_ADDRESSES: &str = "bridge_addresses";
 
 /// Cache configuration. Can be one of:
