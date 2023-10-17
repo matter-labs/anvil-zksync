@@ -264,6 +264,16 @@ impl ForkSource for HttpForkSource {
         })
         .wrap_err("fork http client failed")
     }
+
+    /// Returns details of a block, given miniblock number
+    fn get_block_details(
+        &self,
+        miniblock: zksync_basic_types::MiniblockNumber,
+    ) -> eyre::Result<Option<zksync_types::api::BlockDetails>> {
+        let client = self.create_client();
+        block_on(async move { client.get_block_details(miniblock).await })
+            .wrap_err("fork http client failed")
+    }
 }
 
 #[cfg(test)]
@@ -551,6 +561,59 @@ mod tests {
         assert_eq!(
             transaction_details.initiator_address,
             Address::from_str("0x63ab285cd87a189f345fed7dd4e33780393e01f0").unwrap()
+        );
+    }
+
+    #[test]
+    fn test_get_block_details() {
+        let miniblock = MiniblockNumber::from(16474138);
+        let mock_server = testing::MockServer::run();
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "zks_getBlockDetails",
+                "params": [
+                    miniblock.0,
+                ],
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "result": {
+                  "number": 16474138,
+                  "l1BatchNumber": 270435,
+                  "timestamp": 1697405098,
+                  "l1TxCount": 0,
+                  "l2TxCount": 1,
+                  "rootHash": "0xd9e60f9a684fd7fc16e87ae923341a6e4af24f286e76612efdfc2d55f3f4d064",
+                  "status": "sealed",
+                  "commitTxHash": null,
+                  "committedAt": null,
+                  "proveTxHash": null,
+                  "provenAt": null,
+                  "executeTxHash": null,
+                  "executedAt": null,
+                  "l1GasPrice": 6156252068u64,
+                  "l2FairGasPrice": 250000000u64,
+                  "baseSystemContractsHashes": {
+                    "bootloader": "0x0100089b8a2f2e6a20ba28f02c9e0ed0c13d702932364561a0ea61621f65f0a8",
+                    "default_aa": "0x0100067d16a5485875b4249040bf421f53e869337fe118ec747cf40a4c777e5f"
+                  },
+                  "operatorAddress": "0xa9232040bf0e0aea2578a5b2243f2916dbfc0a69",
+                  "protocolVersion": "Version15"
+                },
+                "id": 0
+              }),
+        );
+
+        let fork_source = HttpForkSource::new(mock_server.url(), CacheConfig::Memory);
+        let block_details = fork_source
+            .get_block_details(miniblock)
+            .expect("failed fetching transaction")
+            .expect("no transaction");
+        assert_eq!(
+            block_details.operator_address,
+            Address::from_str("0xa9232040bf0e0aea2578a5b2243f2916dbfc0a69").unwrap()
         );
     }
 }

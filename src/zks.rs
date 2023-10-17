@@ -2,14 +2,18 @@ use std::sync::{Arc, RwLock};
 
 use bigdecimal::BigDecimal;
 use futures::FutureExt;
-use zksync_basic_types::{MiniblockNumber, U256};
+use zksync_basic_types::{Address, L1BatchNumber, MiniblockNumber, U256};
 use zksync_core::api_server::web3::backend_jsonrpc::{
     error::into_jsrpc_error, namespaces::zks::ZksNamespaceT,
 };
 use zksync_state::ReadStorage;
 use zksync_types::{
-    api::{BridgeAddresses, ProtocolVersion, TransactionDetails, TransactionStatus},
+    api::{
+        BlockDetails, BlockDetailsBase, BlockStatus, BridgeAddresses, ProtocolVersion,
+        TransactionDetails, TransactionStatus,
+    },
     fee::Fee,
+    ProtocolVersionId,
 };
 use zksync_web3_decl::{
     error::Web3Error,
@@ -18,7 +22,7 @@ use zksync_web3_decl::{
 
 use crate::{
     fork::ForkSource,
-    node::{InMemoryNodeInner, TransactionResult},
+    node::{InMemoryNodeInner, TransactionResult, L2_GAS_PRICE},
     utils::{not_implemented, utc_datetime_from_epoch_ms, IntoBoxedFuture},
 };
 use colored::Colorize;
@@ -181,12 +185,75 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
         not_implemented("zks_L1BatchNumber")
     }
 
+    /// Get block details.
+    ///
+    /// # Arguments
+    ///
+    /// * `blockNumber` - `u32` miniblock number
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `Result` with an `Option<BlockDetails>` representing details of the block (if found).
     fn get_block_details(
         &self,
-        _block_number: zksync_basic_types::MiniblockNumber,
+        block_number: zksync_basic_types::MiniblockNumber,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<zksync_types::api::BlockDetails>>>
     {
-        not_implemented("zks_getBlockDetails")
+        let inner = self.node.clone();
+        Box::pin(async move {
+            let reader = inner
+                .read()
+                .map_err(|_err| into_jsrpc_error(Web3Error::InternalError))?;
+
+            let maybe_block = reader
+                .block_hashes
+                .get(&(block_number.0 as u64))
+                .and_then(|hash| reader.blocks.get(hash))
+                .map(|block| BlockDetails {
+                    number: MiniblockNumber(block.number.as_u32()),
+                    l1_batch_number: L1BatchNumber(
+                        block.l1_batch_number.unwrap_or_default().as_u32(),
+                    ),
+                    base: BlockDetailsBase {
+                        timestamp: block.timestamp.as_u64(),
+                        l1_tx_count: 1,
+                        l2_tx_count: block.transactions.len(),
+                        root_hash: Some(block.hash),
+                        status: BlockStatus::Verified,
+                        commit_tx_hash: None,
+                        committed_at: None,
+                        prove_tx_hash: None,
+                        proven_at: None,
+                        execute_tx_hash: None,
+                        executed_at: None,
+                        l1_gas_price: 0,
+                        l2_fair_gas_price: L2_GAS_PRICE,
+                        base_system_contracts_hashes: reader
+                            .system_contracts
+                            .baseline_contracts
+                            .hashes(),
+                    },
+                    operator_address: Address::zero(),
+                    protocol_version: Some(ProtocolVersionId::latest()),
+                })
+                .or_else(|| {
+                    reader
+                        .fork_storage
+                        .inner
+                        .read()
+                        .expect("failed reading fork storage")
+                        .fork
+                        .as_ref()
+                        .and_then(|fork| {
+                            fork.fork_source
+                                .get_block_details(block_number)
+                                .ok()
+                                .flatten()
+                        })
+                });
+
+            Ok(maybe_block)
+        })
     }
 
     fn get_miniblock_range(
@@ -348,7 +415,7 @@ mod tests {
 
     use super::*;
     use zksync_basic_types::{Address, H256};
-    use zksync_types::api::TransactionReceipt;
+    use zksync_types::api::{Block, TransactionReceipt, TransactionVariant};
     use zksync_types::transaction_request::CallRequest;
 
     #[tokio::test]
@@ -530,6 +597,99 @@ mod tests {
 
         assert!(matches!(result.status, TransactionStatus::Included));
         assert_eq!(result.fee, U256::from(127_720_500_000_000u64));
+    }
+
+    #[tokio::test]
+    async fn test_get_block_details_local() {
+        // Arrange
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let namespace = ZkMockNamespaceImpl::new(node.get_inner());
+        let inner = node.get_inner();
+        {
+            let mut writer = inner.write().unwrap();
+            let block = Block::<TransactionVariant>::default();
+            writer.blocks.insert(H256::repeat_byte(0x1), block);
+            writer.block_hashes.insert(0, H256::repeat_byte(0x1));
+        }
+        // Act
+        let result = namespace
+            .get_block_details(MiniblockNumber(0))
+            .await
+            .expect("get block details")
+            .expect("block details");
+
+        // Assert
+        assert!(matches!(result.number, MiniblockNumber(0)));
+        assert_eq!(result.l1_batch_number, L1BatchNumber(0));
+        assert_eq!(result.base.timestamp, 0);
+    }
+
+    #[tokio::test]
+    async fn test_get_block_details_fork() {
+        let mock_server = MockServer::run_with_config(ForkBlockConfig {
+            number: 10,
+            transaction_count: 0,
+            hash: H256::repeat_byte(0xab),
+        });
+        let miniblock = MiniblockNumber::from(16474138);
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "zks_getBlockDetails",
+                "params": [
+                    miniblock.0,
+                ],
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "result": {
+                  "number": 16474138,
+                  "l1BatchNumber": 270435,
+                  "timestamp": 1697405098,
+                  "l1TxCount": 0,
+                  "l2TxCount": 1,
+                  "rootHash": "0xd9e60f9a684fd7fc16e87ae923341a6e4af24f286e76612efdfc2d55f3f4d064",
+                  "status": "sealed",
+                  "commitTxHash": null,
+                  "committedAt": null,
+                  "proveTxHash": null,
+                  "provenAt": null,
+                  "executeTxHash": null,
+                  "executedAt": null,
+                  "l1GasPrice": 6156252068u64,
+                  "l2FairGasPrice": 250000000u64,
+                  "baseSystemContractsHashes": {
+                    "bootloader": "0x0100089b8a2f2e6a20ba28f02c9e0ed0c13d702932364561a0ea61621f65f0a8",
+                    "default_aa": "0x0100067d16a5485875b4249040bf421f53e869337fe118ec747cf40a4c777e5f"
+                  },
+                  "operatorAddress": "0xa9232040bf0e0aea2578a5b2243f2916dbfc0a69",
+                  "protocolVersion": "Version15"
+                },
+                "id": 0
+              }),
+        );
+
+        let node = InMemoryNode::<HttpForkSource>::new(
+            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
+            crate::node::ShowCalls::None,
+            ShowStorageLogs::None,
+            ShowVMDetails::None,
+            ShowGasDetails::None,
+            false,
+            &system_contracts::Options::BuiltIn,
+        );
+
+        let namespace = ZkMockNamespaceImpl::new(node.get_inner());
+        let result = namespace
+            .get_block_details(miniblock)
+            .await
+            .expect("get block details")
+            .expect("block details");
+
+        assert!(matches!(result.number, MiniblockNumber(16474138)));
+        assert_eq!(result.l1_batch_number, L1BatchNumber(270435));
+        assert_eq!(result.base.timestamp, 1697405098);
     }
 
     #[tokio::test]
