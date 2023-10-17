@@ -161,7 +161,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EvmNamespaceT
             match inner.write() {
                 Ok(mut inner) => {
                     mine_empty_blocks(&mut inner, 1, 1000);
-                    log::info!("👷 Mined block #{}", inner.current_miniblock);
+                    tracing::info!("👷 Mined block #{}", inner.current_miniblock);
                     Ok("0x0".to_string())
                 }
                 Err(_) => Err(into_jsrpc_error(Web3Error::InternalError)),
@@ -178,12 +178,12 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EvmNamespaceT
             snapshots
                 .read()
                 .map_err(|err| {
-                    log::error!("failed acquiring read lock for snapshot: {:?}", err);
+                    tracing::error!("failed acquiring read lock for snapshot: {:?}", err);
                     into_jsrpc_error(Web3Error::InternalError)
                 })
                 .and_then(|snapshots| {
                     if snapshots.len() >= MAX_SNAPSHOTS as usize {
-                        log::error!("maximum number of '{}' snapshots exceeded", MAX_SNAPSHOTS);
+                        tracing::error!("maximum number of '{}' snapshots exceeded", MAX_SNAPSHOTS);
                         Err(into_jsrpc_error(Web3Error::InternalError))
                     } else {
                         Ok(())
@@ -198,18 +198,18 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EvmNamespaceT
                 })
                 .and_then(|reader| reader.snapshot())
                 .map_err(|err| {
-                    log::error!("failed creating snapshot: {:?}", err);
+                    tracing::error!("failed creating snapshot: {:?}", err);
                     into_jsrpc_error(Web3Error::InternalError)
                 })?;
             snapshots
                 .write()
                 .map(|mut snapshots| {
                     snapshots.push(snapshot);
-                    log::info!("Created snapshot '{}'", snapshots.len());
+                    tracing::info!("Created snapshot '{}'", snapshots.len());
                     snapshots.len()
                 })
                 .map_err(|err| {
-                    log::error!("failed storing snapshot: {:?}", err);
+                    tracing::error!("failed storing snapshot: {:?}", err);
                     into_jsrpc_error(Web3Error::InternalError)
                 })
                 .map(U64::from)
@@ -222,12 +222,12 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EvmNamespaceT
 
         Box::pin(async move {
             let mut snapshots = snapshots.write().map_err(|err| {
-                log::error!("failed acquiring read lock for snapshots: {:?}", err);
+                tracing::error!("failed acquiring read lock for snapshots: {:?}", err);
                 into_jsrpc_error(Web3Error::InternalError)
             })?;
             let snapshot_id_index = snapshot_id.as_usize().saturating_sub(1);
             if snapshot_id_index >= snapshots.len() {
-                log::error!("no snapshot exists for the id '{}'", snapshot_id);
+                tracing::error!("no snapshot exists for the id '{}'", snapshot_id);
                 return Err(into_jsrpc_error(Web3Error::InternalError));
             }
 
@@ -241,11 +241,11 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EvmNamespaceT
                 .write()
                 .map_err(|err| format!("failed acquiring read lock for snapshots: {:?}", err))
                 .and_then(|mut writer| {
-                    log::info!("Reverting node to snapshot '{snapshot_id:?}'");
+                    tracing::info!("Reverting node to snapshot '{snapshot_id:?}'");
                     writer.restore_snapshot(selected_snapshot).map(|_| true)
                 })
                 .or_else(|err| {
-                    log::error!(
+                    tracing::error!(
                         "failed restoring snapshot for id '{}': {}",
                         snapshot_id,
                         err

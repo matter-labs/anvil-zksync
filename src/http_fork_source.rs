@@ -68,7 +68,7 @@ impl ForkSource for HttpForkSource {
             .read()
             .map(|guard| guard.get_transaction(&hash).cloned())
         {
-            log::debug!("using cached transaction for {hash}");
+            tracing::debug!("using cached transaction for {hash}");
             return Ok(Some(transaction));
         }
 
@@ -80,7 +80,7 @@ impl ForkSource for HttpForkSource {
                         .write()
                         .map(|mut guard| guard.insert_transaction(hash, transaction.clone()))
                         .unwrap_or_else(|err| {
-                            log::warn!(
+                            tracing::warn!(
                                 "failed writing to cache for 'get_transaction_by_hash': {:?}",
                                 err
                             )
@@ -113,7 +113,7 @@ impl ForkSource for HttpForkSource {
             .read()
             .map(|guard| guard.get_block_raw_transactions(&number).cloned())
         {
-            log::debug!("using cached raw transactions for block {block_number}");
+            tracing::debug!("using cached raw transactions for block {block_number}");
             return Ok(transaction);
         }
 
@@ -128,7 +128,7 @@ impl ForkSource for HttpForkSource {
                             guard.insert_block_raw_transactions(number, transactions.clone())
                         })
                         .unwrap_or_else(|err| {
-                            log::warn!(
+                            tracing::warn!(
                                 "failed writing to cache for 'get_raw_block_transactions': {:?}",
                                 err
                             )
@@ -148,7 +148,7 @@ impl ForkSource for HttpForkSource {
             .read()
             .map(|guard| guard.get_block(&hash, full_transactions).cloned())
         {
-            log::debug!("using cached block for {hash}");
+            tracing::debug!("using cached block for {hash}");
             return Ok(Some(block));
         }
 
@@ -160,7 +160,10 @@ impl ForkSource for HttpForkSource {
                         .write()
                         .map(|mut guard| guard.insert_block(hash, full_transactions, block.clone()))
                         .unwrap_or_else(|err| {
-                            log::warn!("failed writing to cache for 'get_block_by_hash': {:?}", err)
+                            tracing::warn!(
+                                "failed writing to cache for 'get_block_by_hash': {:?}",
+                                err
+                            )
                         });
                 }
                 block
@@ -185,7 +188,7 @@ impl ForkSource for HttpForkSource {
                     .and_then(|hash| guard.get_block(hash, full_transactions).cloned())
             })
         }) {
-            log::debug!("using cached block for {block_number}");
+            tracing::debug!("using cached block for {block_number}");
             return Ok(Some(block));
         }
 
@@ -203,7 +206,7 @@ impl ForkSource for HttpForkSource {
                         guard.insert_block(block.hash, full_transactions, block.clone())
                     })
                     .unwrap_or_else(|err| {
-                        log::warn!(
+                        tracing::warn!(
                             "failed writing to cache for 'get_block_by_number': {:?}",
                             err
                         )

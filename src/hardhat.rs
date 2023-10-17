@@ -135,7 +135,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> HardhatNamespaceT
                     inner_guard
                         .fork_storage
                         .set_value(balance_key, u256_to_h256(balance));
-                    log::info!(
+                    tracing::info!(
                         "👷 Balance for address {:?} has been manually set to {} Wei",
                         address,
                         balance
@@ -178,7 +178,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> HardhatNamespaceT
                     }
                     deployment_nonce = nonce;
                     let enforced_full_nonce = nonces_to_full_nonce(account_nonce, deployment_nonce);
-                    log::info!(
+                    tracing::info!(
                         "👷 Nonces for address {:?} have been set to {}",
                         address,
                         nonce
@@ -212,7 +212,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> HardhatNamespaceT
                         ));
                     }
                     mine_empty_blocks(&mut inner, num_blocks.as_u64(), interval_ms.as_u64());
-                    log::info!("👷 Mined {} blocks", num_blocks);
+                    tracing::info!("👷 Mined {} blocks", num_blocks);
                     Ok(true)
                 }
                 Err(_) => Err(into_jsrpc_error(Web3Error::InternalError)),
@@ -226,10 +226,10 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> HardhatNamespaceT
             match inner.write() {
                 Ok(mut inner) => {
                     if inner.set_impersonated_account(address) {
-                        log::info!("🕵️ Account {:?} has been impersonated", address);
+                        tracing::info!("🕵️ Account {:?} has been impersonated", address);
                         Ok(true)
                     } else {
-                        log::info!("🕵️ Account {:?} was already impersonated", address);
+                        tracing::info!("🕵️ Account {:?} was already impersonated", address);
                         Ok(false)
                     }
                 }
@@ -244,10 +244,10 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> HardhatNamespaceT
             match inner.write() {
                 Ok(mut inner) => {
                     if inner.stop_impersonating_account(address) {
-                        log::info!("🕵️ Stopped impersonating account {:?}", address);
+                        tracing::info!("🕵️ Stopped impersonating account {:?}", address);
                         Ok(true)
                     } else {
-                        log::info!(
+                        tracing::info!(
                             "🕵️ Account {:?} was not impersonated, nothing to stop",
                             address
                         );
@@ -265,7 +265,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> HardhatNamespaceT
             .write()
             .map(|mut writer| {
                 let code_key = get_code_key(&address);
-                log::info!("set code for address {address:#x}");
+                tracing::info!("set code for address {address:#x}");
                 let (hash, code) = bytecode_to_factory_dep(code);
                 let hash = u256_to_h256(hash);
                 writer.fork_storage.store_factory_dep(

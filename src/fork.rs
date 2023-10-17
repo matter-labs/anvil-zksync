@@ -79,7 +79,7 @@ impl<S: ForkSource> ForkStorage<S> {
             .as_ref()
             .and_then(|d| d.overwrite_chain_id)
             .unwrap_or(L2ChainId::from(TEST_NODE_NETWORK_ID));
-        log::info!("Starting network with chain id: {:?}", chain_id);
+        tracing::info!("Starting network with chain id: {:?}", chain_id);
 
         ForkStorage {
             inner: Arc::new(RwLock::new(ForkStorageInner {
@@ -321,7 +321,7 @@ impl ForkDetails<HttpForkSource> {
             });
         let l1_batch_number = block_details.l1_batch_number;
 
-        log::info!(
+        tracing::info!(
             "Creating fork from {:?} L1 block: {:?} L2 block: {:?} with timestamp {:?}, L1 gas price {:?} and protocol version: {:?}" ,
             url, l1_batch_number, miniblock, block_details.base.timestamp, block_details.base.l1_gas_price, block_details.protocol_version
         );

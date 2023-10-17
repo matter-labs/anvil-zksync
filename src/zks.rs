@@ -136,7 +136,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
                 Ok(1.into()).into_boxed_future()
             }
             address => {
-                log::error!(
+                tracing::error!(
                     "{}",
                     format!("Token price requested for unknown address {:?}", address).red()
                 );

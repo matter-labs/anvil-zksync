@@ -190,7 +190,7 @@ pub fn to_real_block_number(block_number: BlockNumber, latest_block_number: U64)
 pub fn not_implemented<T: Send + 'static>(
     method_name: &str,
 ) -> jsonrpc_core::BoxFuture<Result<T, jsonrpc_core::Error>> {
-    log::warn!("Method {} is not implemented", method_name);
+    tracing::warn!("Method {} is not implemented", method_name);
     Err(jsonrpc_core::Error {
         data: None,
         code: jsonrpc_core::ErrorCode::MethodNotFound,

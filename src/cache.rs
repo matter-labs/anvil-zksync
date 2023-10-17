@@ -59,7 +59,7 @@ impl Cache {
                     CACHE_TYPE_TRANSACTIONS,
                 ] {
                     fs::remove_dir_all(Path::new(dir).join(cache_type)).unwrap_or_else(|err| {
-                        log::warn!(
+                        tracing::warn!(
                             "failed removing directory {:?}: {:?}",
                             Path::new(dir).join(cache_type),
                             err
@@ -67,8 +67,9 @@ impl Cache {
                     });
                 }
 
-                fs::remove_dir(Path::new(dir))
-                    .unwrap_or_else(|err| log::warn!("failed removing cache directory: {:?}", err));
+                fs::remove_dir(Path::new(dir)).unwrap_or_else(|err| {
+                    tracing::warn!("failed removing cache directory: {:?}", err)
+                });
             }
 
             for cache_type in [
@@ -83,7 +84,7 @@ impl Cache {
             }
             cache
                 .read_all_from_disk(dir)
-                .unwrap_or_else(|err| log::error!("failed reading cache from disk: {:?}", err));
+                .unwrap_or_else(|err| tracing::error!("failed reading cache from disk: {:?}", err));
         }
 
         cache
@@ -265,15 +266,15 @@ impl Cache {
         if let CacheConfig::Disk { dir, .. } = &self.config {
             let file = Path::new(&dir).join(cache_type).join(key);
 
-            log::debug!("writing cache {:?}", file);
+            tracing::debug!("writing cache {:?}", file);
             match File::create(file.clone()) {
                 Ok(cache_file) => {
                     let writer = BufWriter::new(cache_file);
                     if let Err(err) = serde_json::to_writer(writer, data) {
-                        log::error!("failed writing to cache '{:?}': {:?}", file, err);
+                        tracing::error!("failed writing to cache '{:?}': {:?}", file, err);
                     }
                 }
-                Err(err) => log::error!("failed creating file: '{:?}': {:?}", file, err),
+                Err(err) => tracing::error!("failed creating file: '{:?}': {:?}", file, err),
             }
         }
     }

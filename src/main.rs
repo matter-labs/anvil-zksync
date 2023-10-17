@@ -8,9 +8,8 @@ use evm::{EvmNamespaceImpl, EvmNamespaceT};
 use fork::{ForkDetails, ForkSource};
 use logging_middleware::LoggingMiddleware;
 use node::ShowCalls;
-use simplelog::{
-    ColorChoice, CombinedLogger, ConfigBuilder, LevelFilter, TermLogger, TerminalMode, WriteLogger,
-};
+use tracing_subscriber::filter::LevelFilter;
+use tracing_subscriber::util::SubscriberInitExt;
 use zks::ZkMockNamespaceImpl;
 
 mod bootloader_debug;
@@ -36,15 +35,14 @@ mod zks;
 use node::InMemoryNode;
 use zksync_core::api_server::web3::namespaces::NetNamespace;
 
+use std::fs::File;
+use std::sync::Mutex;
 use std::{
     env,
-    fs::File,
     net::{IpAddr, Ipv4Addr, SocketAddr},
     str::FromStr,
 };
-
-use tracing::Level;
-use tracing_subscriber::{EnvFilter, FmtSubscriber};
+use tracing_subscriber::{layer::SubscriberExt, EnvFilter, Layer};
 
 use futures::{
     channel::oneshot,
@@ -164,11 +162,11 @@ enum LogLevel {
 impl From<LogLevel> for LevelFilter {
     fn from(value: LogLevel) -> Self {
         match value {
-            LogLevel::Trace => LevelFilter::Trace,
-            LogLevel::Debug => LevelFilter::Debug,
-            LogLevel::Info => LevelFilter::Info,
-            LogLevel::Warn => LevelFilter::Warn,
-            LogLevel::Error => LevelFilter::Error,
+            LogLevel::Trace => LevelFilter::TRACE,
+            LogLevel::Debug => LevelFilter::DEBUG,
+            LogLevel::Info => LevelFilter::INFO,
+            LogLevel::Warn => LevelFilter::WARN,
+            LogLevel::Error => LevelFilter::ERROR,
         }
     }
 }
@@ -276,29 +274,12 @@ struct ReplayArgs {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
-
     let log_level_filter = LevelFilter::from(opt.log);
-    let log_config = ConfigBuilder::new()
-        .add_filter_allow_str("era_test_node")
-        .build();
-    CombinedLogger::init(vec![
-        TermLogger::new(
-            log_level_filter,
-            log_config.clone(),
-            TerminalMode::Mixed,
-            ColorChoice::Auto,
-        ),
-        WriteLogger::new(
-            log_level_filter,
-            log_config,
-            File::create(opt.log_file_path).unwrap(),
-        ),
-    ])
-    .expect("failed instantiating logger");
+    let log_file = File::create(opt.log_file_path)?;
 
     if opt.dev_use_local_contracts {
         if let Some(path) = env::var_os("ZKSYNC_HOME") {
-            log::info!("+++++ Reading local contracts from {:?} +++++", path);
+            tracing::info!("+++++ Reading local contracts from {:?} +++++", path);
         }
     }
     let cache_config = match opt.cache {
@@ -310,14 +291,25 @@ async fn main() -> anyhow::Result<()> {
         },
     };
 
-    let filter = EnvFilter::from_default_env();
-    let subscriber = FmtSubscriber::builder()
-        .with_max_level(Level::TRACE)
-        .with_env_filter(filter)
-        .finish();
-
     // Initialize the subscriber
-    tracing::subscriber::set_global_default(subscriber).expect("failed to set tracing subscriber");
+    tracing_subscriber::registry()
+        .with(
+            EnvFilter::from_default_env()
+                .add_directive(
+                    format!(
+                        "era_test_node={}",
+                        format!("{log_level_filter}").to_lowercase()
+                    )
+                    .parse()?,
+                )
+                .and_then(tracing_subscriber::fmt::layer())
+                .and_then(
+                    tracing_subscriber::fmt::layer()
+                        .with_writer(Mutex::new(log_file))
+                        .with_ansi(false),
+                ),
+        )
+        .init();
 
     let fork_details = match &opt.command {
         Command::Run => None,
@@ -360,15 +352,15 @@ async fn main() -> anyhow::Result<()> {
         let _ = node.apply_txs(transactions_to_replay);
     }
 
-    log::info!("Rich Accounts");
-    log::info!("=============");
+    tracing::info!("Rich Accounts");
+    tracing::info!("=============");
     for (index, wallet) in RICH_WALLETS.iter().enumerate() {
         let address = wallet.0;
         let private_key = wallet.1;
         node.set_rich_account(H160::from_str(address).unwrap());
-        log::info!("Account #{}: {} (1_000_000_000_000 ETH)", index, address);
-        log::info!("Private Key: {}", private_key);
-        log::info!("");
+        tracing::info!("Account #{}: {} (1_000_000_000_000 ETH)", index, address);
+        tracing::info!("Private Key: {}", private_key);
+        tracing::info!("");
     }
 
     let net = NetNamespace::new(L2ChainId::from(TEST_NODE_NETWORK_ID));
@@ -391,9 +383,9 @@ async fn main() -> anyhow::Result<()> {
     )
     .await;
 
-    log::info!("========================================");
-    log::info!("  Node is ready at 127.0.0.1:{}", opt.port);
-    log::info!("========================================");
+    tracing::info!("========================================");
+    tracing::info!("  Node is ready at 127.0.0.1:{}", opt.port);
+    tracing::info!("========================================");
 
     future::select_all(vec![threads]).await.0.unwrap();
 
