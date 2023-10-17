@@ -21,7 +21,7 @@ use zksync_web3_decl::{
 
 use crate::{
     fork::ForkSource,
-    node::{InMemoryNodeInner, TransactionResult},
+    node::{InMemoryNodeInner, TransactionResult, L2_GAS_PRICE},
     utils::{not_implemented, utc_datetime_from_epoch_ms, IntoBoxedFuture},
 };
 use colored::Colorize;
@@ -226,7 +226,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
                         execute_tx_hash: None,
                         executed_at: None,
                         l1_gas_price: 0,
-                        l2_fair_gas_price: 0,
+                        l2_fair_gas_price: L2_GAS_PRICE,
                         base_system_contracts_hashes: reader
                             .system_contracts
                             .baseline_contracts
