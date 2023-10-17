@@ -181,6 +181,14 @@ enum CacheType {
     Disk,
 }
 
+/// System contract options.
+#[derive(ValueEnum, Debug, Clone)]
+enum DevSystemContracts {
+    BuiltIn,
+    BuiltInNoVerify,
+    Local,
+}
+
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version, about = "Test Node", long_about = None)]
 struct Cli {
@@ -208,9 +216,10 @@ struct Cli {
     /// It will make debug log more readable, but will decrease the performance.
     resolve_hashes: bool,
 
-    #[arg(long)]
-    /// If true, will load the locally compiled system contracts (useful when doing changes to system contracts or bootloader)
-    dev_use_local_contracts: bool,
+    /// Specifies the option for the system contracts (use compiled built-in with or without signature verification, or load locally).
+    /// Default: built-in
+    #[arg(long, default_value = "built-in")]
+    dev_system_contracts: DevSystemContracts,
 
     /// Log filter level - default: info
     #[arg(long, default_value = "info")]
@@ -296,7 +305,7 @@ async fn main() -> anyhow::Result<()> {
     ])
     .expect("failed instantiating logger");
 
-    if opt.dev_use_local_contracts {
+    if matches!(opt.dev_system_contracts, DevSystemContracts::Local) {
         if let Some(path) = env::var_os("ZKSYNC_HOME") {
             log::info!("+++++ Reading local contracts from {:?} +++++", path);
         }
@@ -340,10 +349,10 @@ async fn main() -> anyhow::Result<()> {
     } else {
         vec![]
     };
-    let system_contracts_options = if opt.dev_use_local_contracts {
-        system_contracts::Options::Local
-    } else {
-        system_contracts::Options::BuiltIn
+    let system_contracts_options = match opt.dev_system_contracts {
+        DevSystemContracts::BuiltIn => system_contracts::Options::BuiltIn,
+        DevSystemContracts::BuiltInNoVerify => system_contracts::Options::BuiltInWithoutSecurity,
+        DevSystemContracts::Local => system_contracts::Options::Local,
     };
 
     let node = InMemoryNode::new(
