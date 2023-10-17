@@ -91,7 +91,7 @@ describe("zks_getBlockDetails", function () {
 });
 
 describe("zks_getBytecodeByHash", function () {
-  it("Should stored bytecode at address", async function () {
+  it("Should fetch the stored bytecode at address", async function () {
     // Arrange
     const wallet = new Wallet(RichAccounts[0].PrivateKey);
     const deployer = new Deployer(hre, wallet);
