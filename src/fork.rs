@@ -15,8 +15,8 @@ use zksync_basic_types::{Address, L1BatchNumber, L2ChainId, MiniblockNumber, H25
 
 use zksync_types::{
     api::{
-        Block, BlockIdVariant, BlockNumber, BridgeAddresses, Transaction, TransactionDetails,
-        TransactionVariant,
+        Block, BlockDetails, BlockIdVariant, BlockNumber, BridgeAddresses, Transaction,
+        TransactionDetails, TransactionVariant,
     },
     l2::L2Tx,
     ProtocolVersionId, StorageKey,
@@ -231,6 +231,9 @@ pub trait ForkSource {
         block_number: zksync_types::api::BlockNumber,
         full_transactions: bool,
     ) -> eyre::Result<Option<Block<TransactionVariant>>>;
+
+    /// Returns the block details for a given miniblock number.
+    fn get_block_details(&self, miniblock: MiniblockNumber) -> eyre::Result<Option<BlockDetails>>;
 
     /// Returns the  transaction count for a given block hash.
     fn get_block_transaction_count_by_hash(&self, block_hash: H256) -> eyre::Result<Option<U256>>;

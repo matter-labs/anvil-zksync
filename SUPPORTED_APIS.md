@@ -112,8 +112,8 @@ The `status` options are:
 | [`ZKS`](#zks-namespace) | [`zks_estimateFee`](#zks_estimateFee) | `SUPPORTED` | Gets the Fee estimation data for a given Request |
 | `ZKS` | `zks_estimateGasL1ToL2` | `NOT IMPLEMENTED` | Estimate of the gas required for a L1 to L2 transaction |
 | `ZKS` | `zks_getAllAccountBalances` | `NOT IMPLEMENTED` | Returns all balances for confirmed tokens given by an account address |
-| `ZKS` | `zks_getBlockDetails` | `NOT IMPLEMENTED` | Returns additional zkSync-specific information about the L2 block |
 | [`ZKS`](#zks-namespace) | [`zks_getBridgeContracts`](#zks_getbridgecontracts) | `SUPPORTED` | Returns L1/L2 addresses of default bridges |
+| [`ZKS`](#zks-namespace) | [`zks_getBlockDetails`](#zks_getblockdetails) | `SUPPORTED` | Returns additional zkSync-specific information about the L2 block |
 | `ZKS` | `zks_getBytecodeByHash` | `NOT IMPLEMENTED` | Returns bytecode of a transaction given by its hash |
 | `ZKS` | `zks_getConfirmedTokens` | `NOT IMPLEMENTED` | Returns [address, symbol, name, and decimal] information of all tokens within a range of ids given by parameters `from` and `limit` |
 | `ZKS` | `zks_getL1BatchBlockRange` | `NOT IMPLEMENTED` | Returns the range of blocks contained within a batch given by batch number |
@@ -1741,6 +1741,29 @@ curl --request POST \
   --url http://localhost:8011/ \
   --header 'content-type: application/json' \
   --data '{"jsonrpc": "2.0","id": "1","method": "zks_getTransactionDetails","params": ["0xa5d62a85561295ed58f8daad4e9442691e6da4301a859f364d28a02917d6e04d"]}'
+```
+
+### `zks_getBlockDetails`
+
+[source](src/zks.rs)
+
+Returns additional zkSync-specific information about the L2 block.
+
+#### Arguments
+
++ `block: u32` - The number of the block
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0", "id": 1, "method": "zks_getBlockDetails", "params": [ 140599 ]}'
 ```
 
 ### `zks_getBridgeContracts`
