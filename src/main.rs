@@ -216,8 +216,9 @@ struct Cli {
     /// It will make debug log more readable, but will decrease the performance.
     resolve_hashes: bool,
 
-    /// Specifies the option for the system contracts (load locally or use compiled built-in with or without signature verification).
-    #[arg(long)]
+    /// Specifies the option for the system contracts (use compiled built-in with or without signature verification, or load locally).
+    /// Default: built-in
+    #[arg(long, default_value = "built-in")]
     dev_system_contracts: DevSystemContracts,
 
     /// Log filter level - default: info
