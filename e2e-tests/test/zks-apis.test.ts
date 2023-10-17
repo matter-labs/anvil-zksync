@@ -97,16 +97,17 @@ describe("zks_getBytecodeByHash", function () {
     const deployer = new Deployer(hre, wallet);
     const artifact = await deployer.loadArtifact("Greeter");
     const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
+    const deployedContract = await greeter.deployTransaction.wait();
     expect(await greeter.greet()).to.eq("Hi");
 
     // get the bytecode hash from the event
     const contractDeployedHash = ethers.utils
       .keccak256(ethers.utils.toUtf8Bytes("ContractDeployed(address,bytes32,address)"))
       .substring(2);
-    const deployedBlockNumber = (await provider.getBlockNumber()) - 1; // 2 blocks are mined per L1 block, last is empty
     const logs = await provider.send("eth_getLogs", [
       {
-        fromBlock: ethers.utils.hexlify(deployedBlockNumber),
+        fromBlock: ethers.utils.hexlify(deployedContract.blockNumber),
+        toBlock: ethers.utils.hexlify(deployedContract.blockNumber),
         address: "0x0000000000000000000000000000000000008006", // L2 Deployer address
         topics: [contractDeployedHash],
       },
