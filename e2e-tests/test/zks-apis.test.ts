@@ -86,7 +86,7 @@ describe("zks_getBlockDetails", function () {
     const latestBlock = await provider.getBlock("latest");
     const details = await provider.send("zks_getBlockDetails", [latestBlock.number]);
 
-    expect(details['timestamp']).to.equal(latestBlock.timestamp);
+    expect(details["timestamp"]).to.equal(latestBlock.timestamp);
   });
 });
 
@@ -102,6 +102,6 @@ describe("zks_getRawBlockTransactions", function () {
     const txns = await provider.send("zks_getRawBlockTransactions", [latestBlock.number - 1]);
 
     expect(txns.length).to.equal(1);
-    expect(txns[0]['execute']['calldata']).to.equal(receipt.data);
+    expect(txns[0]["execute"]["calldata"]).to.equal(receipt.data);
   });
 });
