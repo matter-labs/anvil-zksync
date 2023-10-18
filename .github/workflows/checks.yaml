@@ -6,6 +6,7 @@ on:
     tags:
       - 'v*'
   pull_request:
+    branches: [boojum-integration]
   workflow_dispatch:
 
 jobs:
@@ -18,7 +19,7 @@ jobs:
       - name: Install latest nightly
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: nightly
+          toolchain: nightly-2023-07-21
           components: rustfmt, clippy
 
       - name: Rust Cache

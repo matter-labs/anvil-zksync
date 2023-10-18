@@ -2,10 +2,11 @@ name: run
 
 on:
   push:
-    branches: [ main ]
+    branches: [boojum-integration]
     tags:
       - 'v*'
   pull_request:
+    branches: [boojum-integration]
   workflow_dispatch:
 jobs:
   test:
@@ -19,10 +20,10 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v3
 
-    - name: Install rust
-      uses: actions-rust-lang/setup-rust-toolchain@v1
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
       with:
-        toolchain: nightly-2023-04-17
+        toolchain: nightly-2023-07-21
 
     - name: Cache Rust Dependencies
       uses: Swatinem/rust-cache@v2
