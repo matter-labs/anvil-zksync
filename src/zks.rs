@@ -505,13 +505,8 @@ mod tests {
     use crate::{system_contracts, testing};
 
     use super::*;
-<<<<<<< HEAD
-    use zksync_basic_types::{Address, H256};
-    use zksync_types::api::{self, Block, TransactionReceipt, TransactionVariant};
-=======
     use zksync_basic_types::{Address, H160, H256};
-    use zksync_types::api::{Block, TransactionReceipt, TransactionVariant};
->>>>>>> ml/main
+    use zksync_types::api::{self, Block, TransactionReceipt, TransactionVariant};
     use zksync_types::transaction_request::CallRequest;
 
     #[tokio::test]
