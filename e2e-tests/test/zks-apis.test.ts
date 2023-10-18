@@ -75,6 +75,19 @@ describe("zks_getTransactionDetails", function () {
   });
 });
 
+describe("zks_getBridgeContracts", function () {
+  it("Should return default values", async function () {
+    const bridgeAddresses = await provider.send("zks_getBridgeContracts", []);
+
+    expect(bridgeAddresses).to.deep.equal({
+      l1Erc20DefaultBridge: "0x0000000000000000000000000000000000000000",
+      l2Erc20DefaultBridge: "0x0000000000000000000000000000000000000000",
+      l1WethBridge: null,
+      l2WethBridge: null,
+    });
+  });
+});
+
 describe("zks_getBlockDetails", function () {
   it("Should return block details for locally-produced blocks", async function () {
     const wallet = new Wallet(RichAccounts[0].PrivateKey);
