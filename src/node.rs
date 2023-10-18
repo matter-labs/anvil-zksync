@@ -2557,7 +2557,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthTestNodeNamespa
                 return futures::future::err(into_jsrpc_error(Web3Error::InvalidTransactionData(
                     zksync_types::ethabi::Error::InvalidData,
                 )))
-                    .boxed();
+                .boxed();
             }
         } else {
             tx_req.gas_price = tx.max_fee_per_gas.unwrap_or_default();
