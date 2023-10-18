@@ -113,7 +113,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
                 .as_ref()
             {
                 Some(fork) => fork.fork_source.get_bridge_contracts().map_err(|err| {
-                    log::error!("failed fetching bridge contracts from the fork: {:?}", err);
+                    tracing::error!("failed fetching bridge contracts from the fork: {:?}", err);
                     into_jsrpc_error(Web3Error::InternalError)
                 })?,
                 None => BridgeAddresses {
@@ -435,10 +435,9 @@ mod tests {
 
     use crate::cache::CacheConfig;
     use crate::fork::ForkDetails;
-    use crate::node::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
+    use crate::testing;
     use crate::testing::{ForkBlockConfig, MockServer};
     use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
-    use crate::{system_contracts, testing};
 
     use super::*;
     use zksync_basic_types::{Address, H160, H256};
@@ -500,15 +499,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_token_price_given_capitalized_link_address_should_return_price() {
         // Arrange
-        let node = InMemoryNode::<HttpForkSource>::new(
-            None,
-            ShowCalls::None,
-            crate::node::ShowStorageLogs::None,
-            crate::node::ShowVMDetails::None,
-            crate::node::ShowGasDetails::None,
-            false,
-            &system_contracts::Options::BuiltIn,
-        );
+        let node = InMemoryNode::<HttpForkSource>::default();
         let namespace = ZkMockNamespaceImpl::new(node.get_inner());
 
         let mock_address = Address::from_str("0x40609141Db628BeEE3BfAB8034Fc2D8278D0Cc78")
@@ -607,12 +598,8 @@ mod tests {
 
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            crate::node::ShowCalls::None,
-            ShowStorageLogs::None,
-            ShowVMDetails::None,
-            ShowGasDetails::None,
-            false,
-            &system_contracts::Options::BuiltIn,
+            None,
+            Default::default(),
         );
 
         let namespace = ZkMockNamespaceImpl::new(node.get_inner());
@@ -699,12 +686,8 @@ mod tests {
 
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            crate::node::ShowCalls::None,
-            ShowStorageLogs::None,
-            ShowVMDetails::None,
-            ShowGasDetails::None,
-            false,
-            &system_contracts::Options::BuiltIn,
+            None,
+            Default::default(),
         );
 
         let namespace = ZkMockNamespaceImpl::new(node.get_inner());
@@ -775,12 +758,8 @@ mod tests {
 
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            crate::node::ShowCalls::None,
-            ShowStorageLogs::None,
-            ShowVMDetails::None,
-            ShowGasDetails::None,
-            false,
-            &system_contracts::Options::BuiltIn,
+            None,
+            Default::default(),
         );
         let namespace = ZkMockNamespaceImpl::new(node.get_inner());
 
@@ -846,12 +825,8 @@ mod tests {
 
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            crate::node::ShowCalls::None,
-            ShowStorageLogs::None,
-            ShowVMDetails::None,
-            ShowGasDetails::None,
-            false,
-            &system_contracts::Options::BuiltIn,
+            None,
+            Default::default(),
         );
         let namespace = ZkMockNamespaceImpl::new(node.get_inner());
 

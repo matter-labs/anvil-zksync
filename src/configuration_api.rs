@@ -4,6 +4,8 @@ use std::sync::{Arc, RwLock};
 // External uses
 use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;
+use zksync_core::api_server::web3::backend_jsonrpc::error::into_jsrpc_error;
+use zksync_web3_decl::error::Web3Error;
 
 // Workspace uses
 
@@ -13,6 +15,7 @@ use crate::{
     node::ShowCalls,
     node::ShowVMDetails,
     node::{ShowGasDetails, ShowStorageLogs},
+    observability::LogLevel,
 };
 
 pub struct ConfigurationApiNamespace<S> {
@@ -90,6 +93,29 @@ pub trait ConfigurationApiNamespaceT {
     /// The updated `resolve_hashes` value for the InMemoryNodeInner.
     #[rpc(name = "config_setResolveHashes", returns = "bool")]
     fn config_set_resolve_hashes(&self, value: bool) -> Result<bool>;
+
+    /// Set the logging for the InMemoryNodeInner
+    ///
+    /// # Parameters
+    /// - `level`: The log level to set. One of: ["trace", "debug", "info", "warn", "error"]
+    ///
+    /// # Returns
+    /// `true` if the operation succeeded, `false` otherwise.
+    #[rpc(name = "config_setLogLevel", returns = "bool")]
+    fn config_set_log_level(&self, level: LogLevel) -> Result<bool>;
+
+    /// Set the logging for the InMemoryNodeInner
+    ///
+    /// # Parameters
+    /// - `level`: The logging directive to set. Example:
+    ///     * "my_crate=debug"
+    ///     * "my_crate::module=trace"
+    ///     * "my_crate=debug,other_crate=warn"
+    ///
+    /// # Returns
+    /// `true` if the operation succeeded, `false` otherwise.
+    #[rpc(name = "config_setLogging", returns = "bool")]
+    fn config_set_logging(&self, directive: String) -> Result<bool>;
 }
 
 impl<S: std::marker::Send + std::marker::Sync + 'static> ConfigurationApiNamespaceT
@@ -165,5 +191,41 @@ impl<S: std::marker::Send + std::marker::Sync + 'static> ConfigurationApiNamespa
         let mut inner = self.node.write().unwrap();
         inner.resolve_hashes = value;
         Ok(inner.resolve_hashes)
+    }
+
+    fn config_set_log_level(&self, level: LogLevel) -> Result<bool> {
+        if let Some(observability) = &self
+            .node
+            .read()
+            .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?
+            .observability
+        {
+            match observability.set_log_level(level.clone()) {
+                Ok(_) => tracing::info!("set log level to '{}'", level),
+                Err(err) => {
+                    tracing::error!("failed setting log level {:?}", err);
+                    return Ok(false);
+                }
+            }
+        }
+        Ok(true)
+    }
+
+    fn config_set_logging(&self, directive: String) -> Result<bool> {
+        if let Some(observability) = &self
+            .node
+            .read()
+            .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?
+            .observability
+        {
+            match observability.set_logging(&directive) {
+                Ok(_) => tracing::info!("set logging to '{}'", directive),
+                Err(err) => {
+                    tracing::error!("failed setting logging to '{}': {:?}", directive, err);
+                    return Ok(false);
+                }
+            }
+        }
+        Ok(true)
     }
 }

@@ -86,6 +86,8 @@ Additionally, the file path can be provided via the `--log-file-path` option (de
 era_test_node --log=error --log-file-path=run.log run
 ```
 
+The logging can be configured during runtime via the [`config_setLogLevel`](./SUPPORTED_APIS.md#config_setloglevel) and [`config_setLogging`](./SUPPORTED_APIS.md#config_setlogging) methods.
+
 ## 📃 Caching
 
 The node will cache certain network request by default to disk in the `.cache` directory. Alternatively the caching can be disabled or set to in-memory only

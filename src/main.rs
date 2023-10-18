@@ -1,6 +1,7 @@
 use crate::cache::CacheConfig;
 use crate::hardhat::{HardhatNamespaceImpl, HardhatNamespaceT};
-use crate::node::{ShowGasDetails, ShowStorageLogs, ShowVMDetails};
+use crate::node::{InMemoryNodeConfig, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
+use crate::observability::Observability;
 use clap::{Parser, Subcommand, ValueEnum};
 use configuration_api::ConfigurationApiNamespaceT;
 use debug::DebugNamespaceImpl;
@@ -8,8 +9,8 @@ use evm::{EvmNamespaceImpl, EvmNamespaceT};
 use fork::{ForkDetails, ForkSource};
 use logging_middleware::LoggingMiddleware;
 use node::ShowCalls;
+use observability::LogLevel;
 use tracing_subscriber::filter::LevelFilter;
-use tracing_subscriber::util::SubscriberInitExt;
 use zks::ZkMockNamespaceImpl;
 
 mod bootloader_debug;
@@ -26,6 +27,7 @@ mod hardhat;
 mod http_fork_source;
 mod logging_middleware;
 mod node;
+pub mod observability;
 mod resolver;
 mod system_contracts;
 mod testing;
@@ -36,13 +38,11 @@ use node::InMemoryNode;
 use zksync_core::api_server::web3::namespaces::NetNamespace;
 
 use std::fs::File;
-use std::sync::Mutex;
 use std::{
     env,
     net::{IpAddr, Ipv4Addr, SocketAddr},
     str::FromStr,
 };
-use tracing_subscriber::{layer::SubscriberExt, EnvFilter, Layer};
 
 use futures::{
     channel::oneshot,
@@ -147,28 +147,6 @@ async fn build_json_http<
     });
 
     tokio::spawn(recv.map(drop))
-}
-
-/// Log filter level for the node.
-#[derive(Debug, Clone, ValueEnum)]
-enum LogLevel {
-    Trace,
-    Debug,
-    Info,
-    Warn,
-    Error,
-}
-
-impl From<LogLevel> for LevelFilter {
-    fn from(value: LogLevel) -> Self {
-        match value {
-            LogLevel::Trace => LevelFilter::TRACE,
-            LogLevel::Debug => LevelFilter::DEBUG,
-            LogLevel::Info => LevelFilter::INFO,
-            LogLevel::Warn => LevelFilter::WARN,
-            LogLevel::Error => LevelFilter::ERROR,
-        }
-    }
 }
 
 /// Cache type config for the node.
@@ -287,24 +265,8 @@ async fn main() -> anyhow::Result<()> {
     let log_file = File::create(opt.log_file_path)?;
 
     // Initialize the tracing subscriber
-    tracing_subscriber::registry()
-        .with(
-            EnvFilter::from_default_env()
-                .add_directive(
-                    format!(
-                        "era_test_node={}",
-                        format!("{log_level_filter}").to_lowercase()
-                    )
-                    .parse()?,
-                )
-                .and_then(tracing_subscriber::fmt::layer())
-                .and_then(
-                    tracing_subscriber::fmt::layer()
-                        .with_writer(Mutex::new(log_file))
-                        .with_ansi(false),
-                ),
-        )
-        .init();
+    let observability =
+        Observability::init(String::from("era_test_node"), log_level_filter, log_file)?;
 
     if matches!(opt.dev_system_contracts, DevSystemContracts::Local) {
         if let Some(path) = env::var_os("ZKSYNC_HOME") {
@@ -349,12 +311,15 @@ async fn main() -> anyhow::Result<()> {
 
     let node = InMemoryNode::new(
         fork_details,
-        opt.show_calls,
-        opt.show_storage_logs,
-        opt.show_vm_details,
-        opt.show_gas_details,
-        opt.resolve_hashes,
-        &system_contracts_options,
+        Some(observability),
+        InMemoryNodeConfig {
+            show_calls: opt.show_calls,
+            show_storage_logs: opt.show_storage_logs,
+            show_vm_details: opt.show_vm_details,
+            show_gas_details: opt.show_gas_details,
+            resolve_hashes: opt.resolve_hashes,
+            system_contracts_options,
+        },
     );
 
     if !transactions_to_replay.is_empty() {

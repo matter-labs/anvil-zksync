@@ -286,7 +286,7 @@ impl ForkSource for HttpForkSource {
             .ok()
             .and_then(|guard| guard.get_bridge_addresses().cloned())
         {
-            log::debug!("using cached bridge contracts");
+            tracing::debug!("using cached bridge contracts");
             return Ok(bridge_addresses);
         };
 
@@ -297,7 +297,7 @@ impl ForkSource for HttpForkSource {
                     .write()
                     .map(|mut guard| guard.set_bridge_addresses(bridge_addresses.clone()))
                     .unwrap_or_else(|err| {
-                        log::warn!(
+                        tracing::warn!(
                             "failed writing to cache for 'get_bridge_contracts': {:?}",
                             err
                         )

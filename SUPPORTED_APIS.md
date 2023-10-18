@@ -21,6 +21,8 @@ The `status` options are:
 | [`CONFIG`](#config-namespace) | [`config_setShowStorageLogs`](#config_setshowstoragelogs) | `SUPPORTED` | Updates `show_storage_logs` to print storage log reads/writes |
 | [`CONFIG`](#config-namespace) | [`config_setShowVmDetails`](#config_setshowvmdetails) | `SUPPORTED` | Updates `show_vm_details` to print more detailed results from vm execution |
 | [`CONFIG`](#config-namespace) | [`config_setShowGasDetails`](#config_setshowgasdetails) | `SUPPORTED` | Updates `show_gas_details` to print more details about gas estimation and usage |
+| [`CONFIG`](#config-namespace) | [`config_setLogLevel`](#config_setloglevel) | `SUPPORTED` | Sets the logging level for the node and only displays the node logs. |
+| [`CONFIG`](#config-namespace) | [`config_setLogging`](#config_setlogging) | `SUPPORTED` | Sets the fine-tuned logging levels for the node and any of its dependencies |
 | [`DEBUG`](#debug-namespace) | [`debug_traceCall`](#debug_tracecall) | `SUPPORTED` | Performs a call and returns structured traces of the execution |
 | [`DEBUG`](#debug-namespace) | [`debug_traceBlockByHash`](#debug_traceblockbyhash) | `SUPPORTED` | Returns structured traces for operations within the block of the specified block hash |
 | [`DEBUG`](#debug-namespace) | [`debug_traceBlockByNumber`](#debug_traceblockbynumber) | `SUPPORTED` | Returns structured traces for operations within the block of the specified block number |
@@ -289,6 +291,53 @@ curl --request POST \
   --url http://localhost:8011/ \
   --header 'content-type: application/json' \
   --data '{"jsonrpc": "2.0","id": "1","method": "config_setResolveHashes","params": [true]}'
+```
+
+### `config_setLogLevel`
+
+[source](src/configuration_api.rs)
+
+Sets the logging level for the node and only displays the node logs.
+
+#### Arguments
+
++ `level: LogLevel ('trace', 'debug', 'info', 'warn', 'error')`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "config_setLogLevel","params": ["trace"]}'
+```
+
+### `config_setLogging`
+
+[source](src/configuration_api.rs)
+
+Sets the fine-tuned logging levels for the node and any of its dependencies. 
+The directive format is comma-separated `module=level` for any number of modules.
+
+#### Arguments
+
++ `directive: String (module=level,other_module=level)`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "config_setLogging","params": ["era_test_node=trace,hyper=debug"]}'
 ```
 
 ## `DEBUG NAMESPACE`

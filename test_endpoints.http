@@ -735,3 +735,25 @@ content-type: application/json
     "method": "eth_accounts",
     "params": []
 }
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "config_setLogLevel",
+    "params": ["trace"]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "config_setLogging",
+    "params": ["era_test_node=info,hyper=debug"]
+}

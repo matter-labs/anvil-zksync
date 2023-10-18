@@ -6,6 +6,7 @@ use crate::{
     filters::{EthFilters, FilterType, LogFilter},
     fork::{ForkDetails, ForkSource, ForkStorage},
     formatter,
+    observability::Observability,
     system_contracts::{self, Options, SystemContracts},
     utils::{
         self, adjust_l1_gas_price_for_tx, bytecode_to_factory_dep, create_debug_output,
@@ -125,8 +126,9 @@ pub struct TxExecutionInfo {
     pub result: VmExecutionResultAndLogs,
 }
 
-#[derive(Debug, clap::Parser, Clone, clap::ValueEnum, PartialEq, Eq)]
+#[derive(Debug, Default, clap::Parser, Clone, clap::ValueEnum, PartialEq, Eq)]
 pub enum ShowCalls {
+    #[default]
     None,
     User,
     System,
@@ -156,8 +158,9 @@ impl Display for ShowCalls {
     }
 }
 
-#[derive(Debug, Parser, Clone, clap::ValueEnum, PartialEq, Eq)]
+#[derive(Debug, Default, Parser, Clone, clap::ValueEnum, PartialEq, Eq)]
 pub enum ShowStorageLogs {
+    #[default]
     None,
     Read,
     Write,
@@ -187,8 +190,9 @@ impl Display for ShowStorageLogs {
     }
 }
 
-#[derive(Debug, Parser, Clone, clap::ValueEnum, PartialEq, Eq)]
+#[derive(Debug, Default, Parser, Clone, clap::ValueEnum, PartialEq, Eq)]
 pub enum ShowVMDetails {
+    #[default]
     None,
     All,
 }
@@ -214,8 +218,9 @@ impl Display for ShowVMDetails {
     }
 }
 
-#[derive(Debug, Parser, Clone, clap::ValueEnum, PartialEq, Eq)]
+#[derive(Debug, Default, Parser, Clone, clap::ValueEnum, PartialEq, Eq)]
 pub enum ShowGasDetails {
+    #[default]
     None,
     All,
 }
@@ -306,6 +311,8 @@ pub struct InMemoryNodeInner<S> {
     pub rich_accounts: HashSet<H160>,
     /// Keeps track of historical states indexed via block hash. Limited to [MAX_PREVIOUS_STATES].
     pub previous_states: IndexMap<H256, HashMap<StorageKey, StorageValue>>,
+    /// An optional handle to the observability stack
+    pub observability: Option<Observability>,
 }
 
 type L2TxResult = (
@@ -811,6 +818,17 @@ pub struct Snapshot {
     pub(crate) factory_dep_cache: HashMap<H256, Option<Vec<u8>>>,
 }
 
+/// Defines the configuration parameters for the [InMemoryNode].
+#[derive(Default, Debug, Clone)]
+pub struct InMemoryNodeConfig {
+    pub show_calls: ShowCalls,
+    pub show_storage_logs: ShowStorageLogs,
+    pub show_vm_details: ShowVMDetails,
+    pub show_gas_details: ShowGasDetails,
+    pub resolve_hashes: bool,
+    pub system_contracts_options: system_contracts::Options,
+}
+
 /// In-memory node, that can be used for local & unit testing.
 /// It also supports the option of forking testnet/mainnet.
 /// All contents are removed when object is destroyed.
@@ -831,27 +849,15 @@ fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) 
 
 impl<S: ForkSource + std::fmt::Debug> Default for InMemoryNode<S> {
     fn default() -> Self {
-        InMemoryNode::new(
-            None,
-            crate::node::ShowCalls::None,
-            ShowStorageLogs::None,
-            ShowVMDetails::None,
-            ShowGasDetails::None,
-            false,
-            &system_contracts::Options::BuiltIn,
-        )
+        InMemoryNode::new(None, None, InMemoryNodeConfig::default())
     }
 }
 
 impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
     pub fn new(
         fork: Option<ForkDetails<S>>,
-        show_calls: ShowCalls,
-        show_storage_logs: ShowStorageLogs,
-        show_vm_details: ShowVMDetails,
-        show_gas_details: ShowGasDetails,
-        resolve_hashes: bool,
-        system_contracts_options: &system_contracts::Options,
+        observability: Option<Observability>,
+        config: InMemoryNodeConfig,
     ) -> Self {
         let inner = if let Some(f) = &fork {
             let mut block_hashes = HashMap::<u64, H256>::new();
@@ -869,17 +875,18 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 blocks,
                 block_hashes,
                 filters: Default::default(),
-                fork_storage: ForkStorage::new(fork, system_contracts_options),
-                show_calls,
-                show_storage_logs,
-                show_vm_details,
-                show_gas_details,
-                resolve_hashes,
+                fork_storage: ForkStorage::new(fork, &config.system_contracts_options),
+                show_calls: config.show_calls,
+                show_storage_logs: config.show_storage_logs,
+                show_vm_details: config.show_vm_details,
+                show_gas_details: config.show_gas_details,
+                resolve_hashes: config.resolve_hashes,
                 console_log_handler: ConsoleLogHandler::default(),
-                system_contracts: SystemContracts::from_options(system_contracts_options),
+                system_contracts: SystemContracts::from_options(&config.system_contracts_options),
                 impersonated_accounts: Default::default(),
                 rich_accounts: HashSet::new(),
                 previous_states: Default::default(),
+                observability,
             }
         } else {
             let mut block_hashes = HashMap::<u64, H256>::new();
@@ -900,17 +907,18 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                 blocks,
                 block_hashes,
                 filters: Default::default(),
-                fork_storage: ForkStorage::new(fork, system_contracts_options),
-                show_calls,
-                show_storage_logs,
-                show_vm_details,
-                show_gas_details,
-                resolve_hashes,
+                fork_storage: ForkStorage::new(fork, &config.system_contracts_options),
+                show_calls: config.show_calls,
+                show_storage_logs: config.show_storage_logs,
+                show_vm_details: config.show_vm_details,
+                show_gas_details: config.show_gas_details,
+                resolve_hashes: config.resolve_hashes,
                 console_log_handler: ConsoleLogHandler::default(),
-                system_contracts: SystemContracts::from_options(system_contracts_options),
+                system_contracts: SystemContracts::from_options(&config.system_contracts_options),
                 impersonated_accounts: Default::default(),
                 rich_accounts: HashSet::new(),
                 previous_states: Default::default(),
+                observability,
             }
         };
 
@@ -3045,12 +3053,8 @@ mod tests {
 
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            crate::node::ShowCalls::None,
-            ShowStorageLogs::None,
-            ShowVMDetails::None,
-            ShowGasDetails::None,
-            false,
-            &system_contracts::Options::BuiltIn,
+            None,
+            Default::default(),
         );
 
         let inner = node.inner.read().unwrap();
@@ -3092,12 +3096,8 @@ mod tests {
         );
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            crate::node::ShowCalls::None,
-            ShowStorageLogs::None,
-            ShowVMDetails::None,
-            ShowGasDetails::None,
-            false,
-            &system_contracts::Options::BuiltIn,
+            None,
+            Default::default(),
         );
 
         let actual_block = node
@@ -3164,12 +3164,8 @@ mod tests {
         );
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            crate::node::ShowCalls::None,
-            ShowStorageLogs::None,
-            ShowVMDetails::None,
-            ShowGasDetails::None,
-            false,
-            &system_contracts::Options::BuiltIn,
+            None,
+            Default::default(),
         );
 
         let actual_block = node
@@ -3216,12 +3212,8 @@ mod tests {
 
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            crate::node::ShowCalls::None,
-            ShowStorageLogs::None,
-            ShowVMDetails::None,
-            ShowGasDetails::None,
-            false,
-            &system_contracts::Options::BuiltIn,
+            None,
+            Default::default(),
         );
 
         let actual_block = node
@@ -3256,12 +3248,8 @@ mod tests {
         );
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            crate::node::ShowCalls::None,
-            ShowStorageLogs::None,
-            ShowVMDetails::None,
-            ShowGasDetails::None,
-            false,
-            &system_contracts::Options::BuiltIn,
+            None,
+            Default::default(),
         );
 
         let actual_block = node
@@ -3287,12 +3275,8 @@ mod tests {
             });
             let node = InMemoryNode::<HttpForkSource>::new(
                 Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-                crate::node::ShowCalls::None,
-                ShowStorageLogs::None,
-                ShowVMDetails::None,
-                ShowGasDetails::None,
-                false,
-                &system_contracts::Options::BuiltIn,
+                None,
+                Default::default(),
             );
 
             let actual_block = node
@@ -3349,12 +3333,8 @@ mod tests {
         );
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            crate::node::ShowCalls::None,
-            ShowStorageLogs::None,
-            ShowVMDetails::None,
-            ShowGasDetails::None,
-            false,
-            &system_contracts::Options::BuiltIn,
+            None,
+            Default::default(),
         );
 
         let actual_transaction_count = node
@@ -3410,12 +3390,8 @@ mod tests {
 
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            crate::node::ShowCalls::None,
-            ShowStorageLogs::None,
-            ShowVMDetails::None,
-            ShowGasDetails::None,
-            false,
-            &system_contracts::Options::BuiltIn,
+            None,
+            Default::default(),
         );
 
         let actual_transaction_count = node
@@ -3456,12 +3432,8 @@ mod tests {
 
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            crate::node::ShowCalls::None,
-            ShowStorageLogs::None,
-            ShowVMDetails::None,
-            ShowGasDetails::None,
-            false,
-            &system_contracts::Options::BuiltIn,
+            None,
+            Default::default(),
         );
 
         let actual_transaction_count = node
@@ -3493,12 +3465,8 @@ mod tests {
 
             let node = InMemoryNode::<HttpForkSource>::new(
                 Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-                crate::node::ShowCalls::None,
-                ShowStorageLogs::None,
-                ShowVMDetails::None,
-                ShowGasDetails::None,
-                false,
-                &system_contracts::Options::BuiltIn,
+                None,
+                Default::default(),
             );
 
             let actual_transaction_count = node
@@ -3771,12 +3739,8 @@ mod tests {
 
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            crate::node::ShowCalls::None,
-            ShowStorageLogs::None,
-            ShowVMDetails::None,
-            ShowGasDetails::None,
-            false,
-            &system_contracts::Options::BuiltIn,
+            None,
+            Default::default(),
         );
 
         let actual_value = node
@@ -3870,12 +3834,8 @@ mod tests {
 
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            crate::node::ShowCalls::None,
-            ShowStorageLogs::None,
-            ShowVMDetails::None,
-            ShowGasDetails::None,
-            false,
-            &system_contracts::Options::BuiltIn,
+            None,
+            Default::default(),
         );
         node.inner
             .write()
@@ -4474,12 +4434,8 @@ mod tests {
 
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            crate::node::ShowCalls::None,
-            ShowStorageLogs::None,
-            ShowVMDetails::None,
-            ShowGasDetails::None,
-            false,
-            &system_contracts::Options::BuiltIn,
+            None,
+            Default::default(),
         );
 
         // store the block info with just the tx hash invariant
@@ -4532,12 +4488,8 @@ mod tests {
 
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            crate::node::ShowCalls::None,
-            ShowStorageLogs::None,
-            ShowVMDetails::None,
-            ShowGasDetails::None,
-            false,
-            &system_contracts::Options::BuiltIn,
+            None,
+            Default::default(),
         );
 
         let actual_tx = node
@@ -4631,12 +4583,8 @@ mod tests {
 
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            crate::node::ShowCalls::None,
-            ShowStorageLogs::None,
-            ShowVMDetails::None,
-            ShowGasDetails::None,
-            false,
-            &system_contracts::Options::BuiltIn,
+            None,
+            Default::default(),
         );
 
         // store the block info with just the tx hash invariant
@@ -4696,12 +4644,8 @@ mod tests {
 
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            crate::node::ShowCalls::None,
-            ShowStorageLogs::None,
-            ShowVMDetails::None,
-            ShowGasDetails::None,
-            false,
-            &system_contracts::Options::BuiltIn,
+            None,
+            Default::default(),
         );
 
         let actual_tx = node
