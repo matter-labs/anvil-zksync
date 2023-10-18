@@ -7,13 +7,22 @@ use std::path::Path;
 use std::result::Result;
 use std::str::FromStr;
 use zksync_basic_types::H256;
-use zksync_types::api::{Block, Transaction, TransactionVariant};
+use zksync_types::api::{Block, BridgeAddresses, Transaction, TransactionVariant};
 use zksync_types::Transaction as RawTransaction;
 
+/// Caches full blocks by their hashes
 const CACHE_TYPE_BLOCKS_FULL: &str = "blocks_full";
+/// Caches minimal blocks by their hashes
 const CACHE_TYPE_BLOCKS_MIN: &str = "blocks_min";
+/// Caches raw transactions by their hashes
 const CACHE_TYPE_BLOCK_RAW_TRANSACTIONS: &str = "block_raw_transactions";
+/// Caches transactions by their hashes
 const CACHE_TYPE_TRANSACTIONS: &str = "transactions";
+/// Caches arbitrary values by their keys
+const CACHE_TYPE_KEY_VALUE: &str = "key_value";
+
+/// Caching key for bridge addresses
+const CACHE_KEY_BRIDGE_ADDRESSES: &str = "bridge_addresses";
 
 /// Cache configuration. Can be one of:
 ///
@@ -40,6 +49,7 @@ pub(crate) struct Cache {
     blocks_min: FxHashMap<H256, Block<TransactionVariant>>,
     block_raw_transactions: FxHashMap<u64, Vec<RawTransaction>>,
     transactions: FxHashMap<H256, Transaction>,
+    bridge_addresses: Option<BridgeAddresses>,
 }
 
 impl Cache {
@@ -57,6 +67,7 @@ impl Cache {
                     CACHE_TYPE_BLOCKS_MIN,
                     CACHE_TYPE_BLOCK_RAW_TRANSACTIONS,
                     CACHE_TYPE_TRANSACTIONS,
+                    CACHE_TYPE_KEY_VALUE,
                 ] {
                     fs::remove_dir_all(Path::new(dir).join(cache_type)).unwrap_or_else(|err| {
                         log::warn!(
@@ -76,6 +87,7 @@ impl Cache {
                 CACHE_TYPE_BLOCKS_MIN,
                 CACHE_TYPE_BLOCK_RAW_TRANSACTIONS,
                 CACHE_TYPE_TRANSACTIONS,
+                CACHE_TYPE_KEY_VALUE,
             ] {
                 fs::create_dir_all(Path::new(dir).join(cache_type)).unwrap_or_else(|err| {
                     panic!("failed creating directory {}: {:?}", cache_type, err)
@@ -186,6 +198,29 @@ impl Cache {
         self.transactions.insert(hash, transaction);
     }
 
+    /// Returns the cached bridge addresses for the provided hash.
+    pub(crate) fn get_bridge_addresses(&self) -> Option<&BridgeAddresses> {
+        if matches!(self.config, CacheConfig::None) {
+            return None;
+        }
+
+        self.bridge_addresses.as_ref()
+    }
+
+    /// Cache default bridge addresses.
+    pub(crate) fn set_bridge_addresses(&mut self, bridge_addresses: BridgeAddresses) {
+        if matches!(self.config, CacheConfig::None) {
+            return;
+        }
+
+        self.write_to_disk(
+            CACHE_TYPE_KEY_VALUE,
+            String::from(CACHE_KEY_BRIDGE_ADDRESSES),
+            &bridge_addresses,
+        );
+        self.bridge_addresses = Some(bridge_addresses);
+    }
+
     /// Reads the cache contents from the disk, if available.
     fn read_all_from_disk(&mut self, dir: &str) -> Result<(), String> {
         for cache_type in [
@@ -193,6 +228,7 @@ impl Cache {
             CACHE_TYPE_BLOCKS_MIN,
             CACHE_TYPE_BLOCK_RAW_TRANSACTIONS,
             CACHE_TYPE_TRANSACTIONS,
+            CACHE_TYPE_KEY_VALUE,
         ] {
             let cache_dir = Path::new(dir).join(cache_type);
             let dir_listing = fs::read_dir(cache_dir.clone())
@@ -252,6 +288,18 @@ impl Cache {
                             })?;
                         self.transactions.insert(key, transaction);
                     }
+                    CACHE_TYPE_KEY_VALUE => match key.as_str() {
+                        CACHE_KEY_BRIDGE_ADDRESSES => {
+                            self.bridge_addresses =
+                                Some(serde_json::from_reader(reader).map_err(|err| {
+                                    format!(
+                                        "failed parsing json for cache file '{:?}': {:?}",
+                                        key, err
+                                    )
+                                })?);
+                        }
+                        _ => return Err(format!("invalid cache_type_value key {}", cache_type)),
+                    },
                     _ => return Err(format!("invalid cache_type {}", cache_type)),
                 }
             }
@@ -282,8 +330,10 @@ impl Cache {
 #[cfg(test)]
 mod tests {
     use tempdir::TempDir;
-    use zksync_basic_types::U64;
+    use zksync_basic_types::{H160, U64};
     use zksync_types::{Execute, ExecuteTransactionCommon};
+
+    use crate::testing;
 
     use super::*;
 
@@ -330,6 +380,12 @@ mod tests {
             received_timestamp_ms: 0,
             raw_bytes: None,
         }];
+        let bridge_addresses = BridgeAddresses {
+            l1_erc20_default_bridge: H160::repeat_byte(0x1),
+            l2_erc20_default_bridge: H160::repeat_byte(0x2),
+            l1_weth_bridge: Some(H160::repeat_byte(0x3)),
+            l2_weth_bridge: Some(H160::repeat_byte(0x4)),
+        };
 
         let mut cache = Cache::new(CacheConfig::Memory);
 
@@ -355,6 +411,12 @@ mod tests {
 
         cache.insert_transaction(H256::zero(), transaction.clone());
         assert_eq!(Some(&transaction), cache.get_transaction(&H256::zero()));
+
+        cache.set_bridge_addresses(bridge_addresses.clone());
+        testing::assert_bridge_addresses_eq(
+            &bridge_addresses,
+            cache.get_bridge_addresses().expect("expected addresses"),
+        );
     }
 
     #[test]
@@ -381,6 +443,12 @@ mod tests {
             received_timestamp_ms: 0,
             raw_bytes: None,
         }];
+        let bridge_addresses = BridgeAddresses {
+            l1_erc20_default_bridge: H160::repeat_byte(0x1),
+            l2_erc20_default_bridge: H160::repeat_byte(0x2),
+            l1_weth_bridge: Some(H160::repeat_byte(0x3)),
+            l2_weth_bridge: Some(H160::repeat_byte(0x4)),
+        };
 
         let cache_dir = TempDir::new("cache-test").expect("failed creating temporary dir");
         let cache_dir_path = cache_dir
@@ -416,6 +484,12 @@ mod tests {
         cache.insert_transaction(H256::zero(), transaction.clone());
         assert_eq!(Some(&transaction), cache.get_transaction(&H256::zero()));
 
+        cache.set_bridge_addresses(bridge_addresses.clone());
+        testing::assert_bridge_addresses_eq(
+            &bridge_addresses,
+            cache.get_bridge_addresses().expect("expected addresses"),
+        );
+
         let new_cache = Cache::new(CacheConfig::Disk {
             dir: cache_dir_path,
             reset: false,
@@ -435,6 +509,12 @@ mod tests {
             new_cache.get_block_raw_transactions(&0)
         );
         assert_eq!(Some(&transaction), new_cache.get_transaction(&H256::zero()));
+        testing::assert_bridge_addresses_eq(
+            &bridge_addresses,
+            new_cache
+                .get_bridge_addresses()
+                .expect("expected addresses"),
+        );
     }
 
     #[test]
@@ -461,6 +541,12 @@ mod tests {
             received_timestamp_ms: 0,
             raw_bytes: None,
         }];
+        let bridge_addresses = BridgeAddresses {
+            l1_erc20_default_bridge: H160::repeat_byte(0x1),
+            l2_erc20_default_bridge: H160::repeat_byte(0x2),
+            l1_weth_bridge: Some(H160::repeat_byte(0x3)),
+            l2_weth_bridge: Some(H160::repeat_byte(0x4)),
+        };
 
         let cache_dir = TempDir::new("cache-test").expect("failed creating temporary dir");
         let cache_dir_path = cache_dir
@@ -496,6 +582,12 @@ mod tests {
         cache.insert_transaction(H256::zero(), transaction.clone());
         assert_eq!(Some(&transaction), cache.get_transaction(&H256::zero()));
 
+        cache.set_bridge_addresses(bridge_addresses.clone());
+        testing::assert_bridge_addresses_eq(
+            &bridge_addresses,
+            cache.get_bridge_addresses().expect("expected addresses"),
+        );
+
         let new_cache = Cache::new(CacheConfig::Disk {
             dir: cache_dir_path,
             reset: true,
@@ -506,6 +598,7 @@ mod tests {
         assert_eq!(None, new_cache.get_block_hash(&2));
         assert_eq!(None, new_cache.get_block_raw_transactions(&0));
         assert_eq!(None, new_cache.get_transaction(&H256::zero()));
+        assert!(new_cache.get_bridge_addresses().is_none());
     }
 
     #[test]

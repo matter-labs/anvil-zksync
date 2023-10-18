@@ -18,7 +18,7 @@ use itertools::Itertools;
 use std::str::FromStr;
 use vm::VmExecutionResultAndLogs;
 use zksync_basic_types::{H160, U64};
-use zksync_types::api::{DebugCall, DebugCallType, Log};
+use zksync_types::api::{BridgeAddresses, DebugCall, DebugCallType, Log};
 use zksync_types::{
     fee::Fee, l2::L2Tx, Address, L2ChainId, Nonce, PackedEthSignature, ProtocolVersionId, H256,
     U256,
@@ -597,6 +597,29 @@ pub fn default_tx_debug_info() -> DebugCall {
             calls: vec![],
         }],
     }
+}
+
+/// Asserts that two instances of [BridgeAddresses] are equal
+pub fn assert_bridge_addresses_eq(
+    expected_bridge_addresses: &BridgeAddresses,
+    actual_bridge_addresses: &BridgeAddresses,
+) {
+    assert_eq!(
+        expected_bridge_addresses.l1_erc20_default_bridge,
+        actual_bridge_addresses.l1_erc20_default_bridge
+    );
+    assert_eq!(
+        expected_bridge_addresses.l2_erc20_default_bridge,
+        actual_bridge_addresses.l2_erc20_default_bridge
+    );
+    assert_eq!(
+        expected_bridge_addresses.l1_weth_bridge,
+        actual_bridge_addresses.l1_weth_bridge
+    );
+    assert_eq!(
+        expected_bridge_addresses.l2_weth_bridge,
+        actual_bridge_addresses.l2_weth_bridge
+    );
 }
 
 mod test {

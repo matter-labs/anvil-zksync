@@ -7,6 +7,7 @@ use zksync_core::api_server::web3::backend_jsonrpc::{
     error::{internal_error, into_jsrpc_error},
     namespaces::zks::ZksNamespaceT,
 };
+use zksync_state::ReadStorage;
 use zksync_types::{
     api::{
         BlockDetails, BlockDetailsBase, BlockStatus, BridgeAddresses, ProtocolVersion,
@@ -161,7 +162,34 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
     fn get_bridge_contracts(
         &self,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<BridgeAddresses>> {
-        not_implemented("zks_getBridgeContracts")
+        let inner = self.node.clone();
+        Box::pin(async move {
+            let reader = inner
+                .read()
+                .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
+
+            let result = match reader
+                .fork_storage
+                .inner
+                .read()
+                .expect("failed reading fork storage")
+                .fork
+                .as_ref()
+            {
+                Some(fork) => fork.fork_source.get_bridge_contracts().map_err(|err| {
+                    log::error!("failed fetching bridge contracts from the fork: {:?}", err);
+                    into_jsrpc_error(Web3Error::InternalError)
+                })?,
+                None => BridgeAddresses {
+                    l1_erc20_default_bridge: Default::default(),
+                    l2_erc20_default_bridge: Default::default(),
+                    l1_weth_bridge: Default::default(),
+                    l2_weth_bridge: Default::default(),
+                },
+            };
+
+            Ok(result)
+        })
     }
 
     fn l1_chain_id(
@@ -410,11 +438,38 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
         Box::pin(async { Ok(None) })
     }
 
+    /// Returns bytecode of a transaction given by its hash.
+    ///
+    /// # Parameters
+    ///
+    /// * `hash`: Hash address.
+    ///
+    /// # Returns
+    ///
+    /// A boxed future resolving to a `jsonrpc_core::Result` containing an `Option` of bytes.
     fn get_bytecode_by_hash(
         &self,
-        _hash: zksync_basic_types::H256,
+        hash: zksync_basic_types::H256,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<Vec<u8>>>> {
-        not_implemented("zks_getBytecodeByHash")
+        let inner = self.node.clone();
+        Box::pin(async move {
+            let mut writer = inner
+                .write()
+                .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
+
+            let maybe_bytecode = writer.fork_storage.load_factory_dep(hash).or_else(|| {
+                writer
+                    .fork_storage
+                    .inner
+                    .read()
+                    .expect("failed reading fork storage")
+                    .fork
+                    .as_ref()
+                    .and_then(|fork| fork.fork_source.get_bytecode_by_hash(hash).ok().flatten())
+            });
+
+            Ok(maybe_bytecode)
+        })
     }
 
     fn get_l1_gas_price(
@@ -450,8 +505,13 @@ mod tests {
     use crate::{system_contracts, testing};
 
     use super::*;
+<<<<<<< HEAD
     use zksync_basic_types::{Address, H256};
     use zksync_types::api::{self, Block, TransactionReceipt, TransactionVariant};
+=======
+    use zksync_basic_types::{Address, H160, H256};
+    use zksync_types::api::{Block, TransactionReceipt, TransactionVariant};
+>>>>>>> ml/main
     use zksync_types::transaction_request::CallRequest;
 
     #[tokio::test]
@@ -726,6 +786,153 @@ mod tests {
         assert!(matches!(result.number, MiniblockNumber(16474138)));
         assert_eq!(result.l1_batch_number, L1BatchNumber(270435));
         assert_eq!(result.base.timestamp, 1697405098);
+    }
+
+    #[tokio::test]
+    async fn test_get_bridge_contracts_uses_default_values_if_local() {
+        // Arrange
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let namespace = ZkMockNamespaceImpl::new(node.get_inner());
+        let expected_bridge_addresses = BridgeAddresses {
+            l1_erc20_default_bridge: Default::default(),
+            l2_erc20_default_bridge: Default::default(),
+            l1_weth_bridge: Default::default(),
+            l2_weth_bridge: Default::default(),
+        };
+
+        // Act
+        let actual_bridge_addresses = namespace
+            .get_bridge_contracts()
+            .await
+            .expect("get bridge addresses");
+
+        // Assert
+        testing::assert_bridge_addresses_eq(&expected_bridge_addresses, &actual_bridge_addresses)
+    }
+
+    #[tokio::test]
+    async fn test_get_bridge_contracts_uses_fork() {
+        // Arrange
+        let mock_server = MockServer::run_with_config(ForkBlockConfig {
+            number: 10,
+            transaction_count: 0,
+            hash: H256::repeat_byte(0xab),
+        });
+        let input_bridge_addresses = BridgeAddresses {
+            l1_erc20_default_bridge: H160::repeat_byte(0x1),
+            l2_erc20_default_bridge: H160::repeat_byte(0x2),
+            l1_weth_bridge: Some(H160::repeat_byte(0x3)),
+            l2_weth_bridge: Some(H160::repeat_byte(0x4)),
+        };
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "zks_getBridgeContracts",
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "result": {
+                    "l1Erc20DefaultBridge": format!("{:#x}", input_bridge_addresses.l1_erc20_default_bridge),
+                    "l2Erc20DefaultBridge": format!("{:#x}", input_bridge_addresses.l2_erc20_default_bridge),
+                    "l1WethBridge": format!("{:#x}", input_bridge_addresses.l1_weth_bridge.clone().unwrap()),
+                    "l2WethBridge": format!("{:#x}", input_bridge_addresses.l2_weth_bridge.clone().unwrap())
+                },
+                "id": 0
+            }),
+        );
+
+        let node = InMemoryNode::<HttpForkSource>::new(
+            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
+            crate::node::ShowCalls::None,
+            ShowStorageLogs::None,
+            ShowVMDetails::None,
+            ShowGasDetails::None,
+            false,
+            &system_contracts::Options::BuiltIn,
+        );
+        let namespace = ZkMockNamespaceImpl::new(node.get_inner());
+
+        // Act
+        let actual_bridge_addresses = namespace
+            .get_bridge_contracts()
+            .await
+            .expect("get bridge addresses");
+
+        // Assert
+        testing::assert_bridge_addresses_eq(&input_bridge_addresses, &actual_bridge_addresses)
+    }
+
+    #[tokio::test]
+    async fn test_get_bytecode_by_hash_returns_local_value_if_available() {
+        // Arrange
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let namespace = ZkMockNamespaceImpl::new(node.get_inner());
+        let input_hash = H256::repeat_byte(0x1);
+        let input_bytecode = vec![0x1];
+        node.get_inner()
+            .write()
+            .unwrap()
+            .fork_storage
+            .store_factory_dep(input_hash, input_bytecode.clone());
+
+        // Act
+        let actual = namespace
+            .get_bytecode_by_hash(input_hash)
+            .await
+            .expect("failed fetching bytecode")
+            .expect("no bytecode was found");
+
+        // Assert
+        assert_eq!(input_bytecode, actual);
+    }
+
+    #[tokio::test]
+    async fn test_get_bytecode_by_hash_uses_fork_if_value_unavailable() {
+        // Arrange
+        let mock_server = MockServer::run_with_config(ForkBlockConfig {
+            number: 10,
+            transaction_count: 0,
+            hash: H256::repeat_byte(0xab),
+        });
+        let input_hash = H256::repeat_byte(0x1);
+        let input_bytecode = vec![0x1];
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "zks_getBytecodeByHash",
+                "params": [
+                    format!("{:#x}", input_hash)
+                ],
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "result": input_bytecode,
+            }),
+        );
+
+        let node = InMemoryNode::<HttpForkSource>::new(
+            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
+            crate::node::ShowCalls::None,
+            ShowStorageLogs::None,
+            ShowVMDetails::None,
+            ShowGasDetails::None,
+            false,
+            &system_contracts::Options::BuiltIn,
+        );
+        let namespace = ZkMockNamespaceImpl::new(node.get_inner());
+
+        // Act
+        let actual = namespace
+            .get_bytecode_by_hash(input_hash)
+            .await
+            .expect("failed fetching bytecode")
+            .expect("no bytecode was found");
+
+        // Assert
+        assert_eq!(input_bytecode, actual);
     }
 
     #[tokio::test]
