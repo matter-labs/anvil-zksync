@@ -19,7 +19,7 @@ jobs:
       - name: Install latest nightly
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: nightly-2023-07-21
+          toolchain: nightly-2023-04-17
           components: rustfmt, clippy
 
       - name: Rust Cache
@@ -47,7 +47,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: nightly-2023-07-21
+          toolchain: nightly-2023-04-17
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
