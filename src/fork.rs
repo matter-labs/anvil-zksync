@@ -15,8 +15,8 @@ use zksync_basic_types::{Address, L1BatchNumber, L2ChainId, MiniblockNumber, H25
 
 use zksync_types::{
     api::{
-        Block, BlockDetails, BlockIdVariant, BlockNumber, Transaction, TransactionDetails,
-        TransactionVariant,
+        Block, BlockDetails, BlockIdVariant, BlockNumber, BridgeAddresses, Transaction,
+        TransactionDetails, TransactionVariant,
     },
     l2::L2Tx,
     ProtocolVersionId, StorageKey,
@@ -130,7 +130,7 @@ impl<S: ForkSource> ForkStorage<S> {
         }
     }
 
-    pub fn load_factory_dep_internal(&self, hash: H256) -> Option<Vec<u8>> {
+    fn load_factory_dep_internal(&self, hash: H256) -> Option<Vec<u8>> {
         let mut mutator = self.inner.write().unwrap();
         let local_storage = mutator.raw_storage.load_factory_dep(hash);
         if let Some(fork) = &mutator.fork {
@@ -257,6 +257,9 @@ pub trait ForkSource {
         block_number: BlockNumber,
         index: Index,
     ) -> eyre::Result<Option<Transaction>>;
+
+    /// Returns addresses of the default bridge contracts.
+    fn get_bridge_contracts(&self) -> eyre::Result<BridgeAddresses>;
 }
 
 /// Holds the information about the original chain.

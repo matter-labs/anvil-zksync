@@ -112,8 +112,8 @@ The `status` options are:
 | [`ZKS`](#zks-namespace) | [`zks_estimateFee`](#zks_estimateFee) | `SUPPORTED` | Gets the Fee estimation data for a given Request |
 | `ZKS` | `zks_estimateGasL1ToL2` | `NOT IMPLEMENTED` | Estimate of the gas required for a L1 to L2 transaction |
 | `ZKS` | `zks_getAllAccountBalances` | `NOT IMPLEMENTED` | Returns all balances for confirmed tokens given by an account address |
+| [`ZKS`](#zks-namespace) | [`zks_getBridgeContracts`](#zks_getbridgecontracts) | `SUPPORTED` | Returns L1/L2 addresses of default bridges |
 | [`ZKS`](#zks-namespace) | [`zks_getBlockDetails`](#zks_getblockdetails) | `SUPPORTED` | Returns additional zkSync-specific information about the L2 block |
-| `ZKS` | `zks_getBridgeContracts` | `NOT IMPLEMENTED` | Returns L1/L2 addresses of default bridges |
 | `ZKS` | `zks_getBytecodeByHash` | `NOT IMPLEMENTED` | Returns bytecode of a transaction given by its hash |
 | `ZKS` | `zks_getConfirmedTokens` | `NOT IMPLEMENTED` | Returns [address, symbol, name, and decimal] information of all tokens within a range of ids given by parameters `from` and `limit` |
 | `ZKS` | `zks_getL1BatchBlockRange` | `NOT IMPLEMENTED` | Returns the range of blocks contained within a batch given by batch number |
@@ -1764,4 +1764,31 @@ curl --request POST \
   --url http://localhost:8011/ \
   --header 'content-type: application/json' \
   --data '{"jsonrpc": "2.0", "id": 1, "method": "zks_getBlockDetails", "params": [ 140599 ]}'
+```
+
+### `zks_getBridgeContracts`
+
+[source](src/zks.rs)
+
+Returns L1/L2 addresses of default bridges.
+
+#### Arguments
+
++ _NONE_
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+      "id": "2",
+      "method": "zks_getBridgeContracts"
+  }'
 ```

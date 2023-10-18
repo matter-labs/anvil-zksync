@@ -1851,7 +1851,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
 
                     let code = guard
                         .fork_storage
-                        .load_factory_dep_internal(code_hash)
+                        .load_factory_dep(code_hash)
                         .unwrap_or_default();
 
                     Ok(Bytes::from(code))
