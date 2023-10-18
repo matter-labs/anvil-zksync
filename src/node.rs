@@ -2550,8 +2550,23 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthTestNodeNamespa
             }
         };
 
-        let mut tx_req = TransactionRequest::from(tx);
-        // If the sender is impersonated signature will be ignored.
+        let mut tx_req = TransactionRequest::from(tx.clone());
+        // EIP-1559 gas fields should be processed separately
+        if tx.gas_price.is_some() {
+            if tx.max_fee_per_gas.is_some() || tx.max_priority_fee_per_gas.is_some() {
+                return futures::future::err(into_jsrpc_error(Web3Error::InvalidTransactionData(
+                    zksync_types::ethabi::Error::InvalidData,
+                )))
+                    .boxed();
+            }
+        } else {
+            tx_req.gas_price = tx.max_fee_per_gas.unwrap_or_default();
+            tx_req.max_priority_fee_per_gas = tx.max_priority_fee_per_gas;
+            if tx_req.transaction_type.is_none() {
+                tx_req.transaction_type = Some(zksync_types::EIP_1559_TX_TYPE.into());
+            }
+        }
+        // To be successfully converted into l2 tx
         tx_req.r = Some(U256::default());
         tx_req.s = Some(U256::default());
         tx_req.v = Some(U64::from(27));
@@ -2563,9 +2578,8 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthTestNodeNamespa
                     .boxed()
             }
         };
-        // v = 27 corresponds to 0
         let bytes = tx_req.get_signed_bytes(
-            &PackedEthSignature::from_rsv(&H256::default(), &H256::default(), 0),
+            &PackedEthSignature::from_rsv(&H256::default(), &H256::default(), 27),
             chain_id,
         );
         let mut l2_tx: L2Tx = match L2Tx::from_request(tx_req, MAX_TX_SIZE) {
@@ -2575,6 +2589,10 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthTestNodeNamespa
                     .boxed()
             }
         };
+        // For non-legacy txs v was overwritten with 0 while converting into l2 tx
+        let mut signature = vec![0u8; 65];
+        signature[64] = 27;
+        l2_tx.common_data.signature = signature;
 
         l2_tx.set_input(bytes, hash);
         if hash != l2_tx.hash() {
