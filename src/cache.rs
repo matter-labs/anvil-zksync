@@ -50,6 +50,7 @@ pub(crate) struct Cache {
     block_raw_transactions: FxHashMap<u64, Vec<RawTransaction>>,
     transactions: FxHashMap<H256, Transaction>,
     bridge_addresses: Option<BridgeAddresses>,
+    confirmed_tokens: FxHashMap<(u32, u8), Vec<zksync_web3_decl::types::Token>>,
 }
 
 impl Cache {
@@ -156,6 +157,32 @@ impl Cache {
         }
 
         self.block_raw_transactions.get(number)
+    }
+
+    /// Returns the cached confirmed tokens.
+    pub(crate) fn get_confirmed_tokens(
+        &self,
+        from: u32,
+        limit: u8,
+    ) -> Option<&Vec<zksync_web3_decl::types::Token>> {
+        if matches!(self.config, CacheConfig::None) {
+            return None;
+        }
+        self.confirmed_tokens.get(&(from, limit))
+    }
+
+    /// Cache confirmed tokens
+    pub(crate) fn set_confirmed_tokens(
+        &mut self,
+        from: u32,
+        limit: u8,
+        confirmed_tokens: Vec<zksync_web3_decl::types::Token>,
+    ) {
+        if matches!(self.config, CacheConfig::None) {
+            return;
+        }
+        self.confirmed_tokens
+            .insert((from, limit), confirmed_tokens);
     }
 
     /// Cache the raw transactions for the provided block number.

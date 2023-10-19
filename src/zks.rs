@@ -1,8 +1,11 @@
-use std::sync::{Arc, RwLock};
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
 
 use bigdecimal::BigDecimal;
 use futures::FutureExt;
-use zksync_basic_types::{Address, L1BatchNumber, MiniblockNumber, U256};
+use zksync_basic_types::{AccountTreeId, Address, L1BatchNumber, MiniblockNumber, U256};
 use zksync_core::api_server::web3::backend_jsonrpc::{
     error::{internal_error, into_jsrpc_error},
     namespaces::zks::ZksNamespaceT,
@@ -14,8 +17,10 @@ use zksync_types::{
         TransactionDetails, TransactionStatus, TransactionVariant,
     },
     fee::Fee,
+    utils::storage_key_for_standard_token_balance,
     ExecuteTransactionCommon, ProtocolVersionId, Transaction,
 };
+use zksync_utils::h256_to_u256;
 use zksync_web3_decl::{
     error::Web3Error,
     types::{Filter, Log},
@@ -200,10 +205,29 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
 
     fn get_confirmed_tokens(
         &self,
-        _from: u32,
-        _limit: u8,
+        from: u32,
+        limit: u8,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Vec<zksync_web3_decl::types::Token>>> {
-        not_implemented("zks_getConfirmedTokens")
+        let inner = self.node.clone();
+        Box::pin(async move {
+            let reader = inner
+                .read()
+                .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
+
+            let fork_storage_read = reader
+                .fork_storage
+                .inner
+                .read()
+                .expect("failed reading fork storage");
+
+            match fork_storage_read.fork.as_ref() {
+                Some(fork) => Ok(fork
+                    .fork_source
+                    .get_confirmed_tokens(from, limit)
+                    .map_err(|_e| into_jsrpc_error(Web3Error::InternalError))?),
+                None => Ok(vec![]),
+            }
+        })
     }
 
     fn get_token_price(
@@ -241,13 +265,49 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
         }
     }
 
+    /// Get all known balances for a given account.
+    ///
+    /// # Arguments
+    ///
+    /// * `address` - The user address with balances to check.
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `Result` with a (Token, Balance) map where account has non-zero value.
     fn get_all_account_balances(
         &self,
-        _address: zksync_basic_types::Address,
+        address: zksync_basic_types::Address,
     ) -> jsonrpc_core::BoxFuture<
         jsonrpc_core::Result<std::collections::HashMap<zksync_basic_types::Address, U256>>,
     > {
-        not_implemented("zks_getAllAccountBalances")
+        let inner = self.node.clone();
+        Box::pin({
+            let address = address.clone();
+            self.get_confirmed_tokens(0, 100)
+                .then(move |tokens| async move {
+                    let tokens =
+                        tokens.map_err(|_err| into_jsrpc_error(Web3Error::InternalError))?;
+
+                    let mut writer = inner
+                        .write()
+                        .map_err(|_err| into_jsrpc_error(Web3Error::InternalError))?;
+
+                    let mut balances = HashMap::new();
+                    for token in tokens {
+                        let balance_key = storage_key_for_standard_token_balance(
+                            AccountTreeId::new(token.l2_address),
+                            &address,
+                        );
+
+                        let balance = writer.fork_storage.read_value(&balance_key);
+                        if !balance.is_zero() {
+                            balances.insert(token.l2_address, h256_to_u256(balance));
+                        }
+                    }
+
+                    Ok(balances)
+                })
+        })
     }
 
     fn get_l2_to_l1_msg_proof(
@@ -1014,12 +1074,8 @@ mod tests {
 
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            crate::node::ShowCalls::None,
-            ShowStorageLogs::None,
-            ShowVMDetails::None,
-            ShowGasDetails::None,
-            false,
-            &system_contracts::Options::BuiltIn,
+            None,
+            Default::default(),
         );
 
         let namespace = ZkMockNamespaceImpl::new(node.get_inner());

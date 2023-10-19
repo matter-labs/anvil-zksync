@@ -1,17 +1,17 @@
 use std::sync::RwLock;
 
+use crate::{
+    cache::{Cache, CacheConfig},
+    fork::{block_on, ForkSource},
+};
 use eyre::Context;
 use zksync_basic_types::{H256, U256};
 use zksync_types::api::{BridgeAddresses, Transaction};
+use zksync_web3_decl::types::Token;
 use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
     types::Index,
-};
-
-use crate::{
-    cache::{Cache, CacheConfig},
-    fork::{block_on, ForkSource},
 };
 
 #[derive(Debug)]
@@ -303,6 +303,37 @@ impl ForkSource for HttpForkSource {
                         )
                     });
                 bridge_addresses
+            })
+            .wrap_err("fork http client failed")
+    }
+
+    /// Returns known token addresses
+    fn get_confirmed_tokens(&self, from: u32, limit: u8) -> eyre::Result<Vec<Token>> {
+        if let Some(confirmed_tokens) = self
+            .cache
+            .read()
+            .ok()
+            .and_then(|guard| guard.get_confirmed_tokens(from, limit).cloned())
+        {
+            tracing::debug!("using cached confirmed_tokens");
+            return Ok(confirmed_tokens);
+        };
+
+        let client = self.create_client();
+        block_on(async move { client.get_confirmed_tokens(from, limit).await })
+            .map(|confirmed_tokens| {
+                self.cache
+                    .write()
+                    .map(|mut guard| {
+                        guard.set_confirmed_tokens(from, limit, confirmed_tokens.clone())
+                    })
+                    .unwrap_or_else(|err| {
+                        tracing::warn!(
+                            "failed writing to cache for 'set_confirmed_tokens': {:?}",
+                            err
+                        )
+                    });
+                confirmed_tokens
             })
             .wrap_err("fork http client failed")
     }

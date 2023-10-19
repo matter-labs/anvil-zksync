@@ -732,6 +732,28 @@ content-type: application/json
 {
     "jsonrpc": "2.0",
     "id": "1",
+    "method": "zks_getConfirmedTokens",
+    "params": [0, 100]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "zks_getAllAccountBalances",
+    "params": ["0x364d6D0333432C3Ac016Ca832fb8594A8cE43Ca6"]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
     "method": "eth_feeHistory",
     "params": ["0x1", "latest", [25, 50 , 75]]
 }
