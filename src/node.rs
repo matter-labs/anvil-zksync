@@ -49,18 +49,19 @@ use zksync_core::api_server::web3::backend_jsonrpc::{
     error::into_jsrpc_error, namespaces::eth::EthNamespaceT,
 };
 use zksync_state::{ReadStorage, StoragePtr, StorageView, WriteStorage};
-use zksync_types::vm_trace::Call;
 use zksync_types::{
     api::{Block, DebugCall, Log, TransactionReceipt, TransactionVariant},
     block::legacy_miniblock_hash,
     fee::Fee,
     get_code_key, get_nonce_key,
     l2::L2Tx,
+    l2::TransactionType,
     transaction_request::TransactionRequest,
     utils::{
         decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance,
         storage_key_for_standard_token_balance,
     },
+    vm_trace::Call,
     PackedEthSignature, StorageKey, StorageLogQueryType, StorageValue, Transaction,
     ACCOUNT_CODE_STORAGE_ADDRESS, EIP_712_TX_TYPE, L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE,
     MAX_L2_TX_GAS_LIMIT,
@@ -401,13 +402,26 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         &self,
         req: zksync_types::transaction_request::CallRequest,
     ) -> jsonrpc_core::Result<Fee> {
-        let mut l2_tx = match L2Tx::from_request(req.into(), MAX_TX_SIZE) {
-            Ok(tx) => tx,
-            Err(e) => {
-                let error = Web3Error::SerializationError(e);
-                return Err(into_jsrpc_error(error));
+        let mut request_with_gas_per_pubdata_overridden = req;
+
+        if let Some(ref mut eip712_meta) = request_with_gas_per_pubdata_overridden.eip712_meta {
+            if eip712_meta.gas_per_pubdata == U256::zero() {
+                eip712_meta.gas_per_pubdata = MAX_GAS_PER_PUBDATA_BYTE.into();
             }
-        };
+        }
+
+        let is_eip712 = request_with_gas_per_pubdata_overridden
+            .eip712_meta
+            .is_some();
+
+        let mut l2_tx =
+            match L2Tx::from_request(request_with_gas_per_pubdata_overridden.into(), MAX_TX_SIZE) {
+                Ok(tx) => tx,
+                Err(e) => {
+                    let error = Web3Error::SerializationError(e);
+                    return Err(into_jsrpc_error(error));
+                }
+            };
 
         let tx: Transaction = l2_tx.clone().into();
         let fair_l2_gas_price = L2_GAS_PRICE;
@@ -433,6 +447,12 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         if l2_tx.common_data.signature.is_empty() {
             l2_tx.common_data.signature = vec![0u8; 65];
             l2_tx.common_data.signature[64] = 27;
+        }
+
+        // The user may not include the proper transaction type during the estimation of
+        // the gas fee. However, it is needed for the bootloader checks to pass properly.
+        if is_eip712 {
+            l2_tx.common_data.transaction_type = TransactionType::EIP712Transaction;
         }
 
         l2_tx.common_data.fee.gas_per_pubdata_limit = MAX_GAS_PER_PUBDATA_BYTE.into();
