@@ -11,14 +11,14 @@ categories = ["cryptography"]
 publish = false # We don't want to publish our binaries.
 
 [dependencies]
-zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era.git", rev = "691a7008f6d1f88fb9a5b6b8d92592e1199f37ea" }
-zksync_core = { git = "https://github.com/matter-labs/zksync-era.git", rev = "691a7008f6d1f88fb9a5b6b8d92592e1199f37ea" }
-vm = { git = "https://github.com/matter-labs/zksync-era.git", rev = "691a7008f6d1f88fb9a5b6b8d92592e1199f37ea" }
-zksync_contracts = { git = "https://github.com/matter-labs/zksync-era.git", rev = "691a7008f6d1f88fb9a5b6b8d92592e1199f37ea" }
-zksync_types = { git = "https://github.com/matter-labs/zksync-era.git", rev = "691a7008f6d1f88fb9a5b6b8d92592e1199f37ea" }
-zksync_utils = { git = "https://github.com/matter-labs/zksync-era.git", rev = "691a7008f6d1f88fb9a5b6b8d92592e1199f37ea" }
-zksync_state = { git = "https://github.com/matter-labs/zksync-era.git", rev = "691a7008f6d1f88fb9a5b6b8d92592e1199f37ea" }
-zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era.git", rev = "691a7008f6d1f88fb9a5b6b8d92592e1199f37ea" }
+zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era.git", rev = "e1deecd697e488831de3133e7507cc1cdb06a141" }
+zksync_core = { git = "https://github.com/matter-labs/zksync-era.git", rev = "e1deecd697e488831de3133e7507cc1cdb06a141" }
+vm = { git = "https://github.com/matter-labs/zksync-era.git", rev = "e1deecd697e488831de3133e7507cc1cdb06a141" }
+zksync_contracts = { git = "https://github.com/matter-labs/zksync-era.git", rev = "e1deecd697e488831de3133e7507cc1cdb06a141" }
+zksync_types = { git = "https://github.com/matter-labs/zksync-era.git", rev = "e1deecd697e488831de3133e7507cc1cdb06a141" }
+zksync_utils = { git = "https://github.com/matter-labs/zksync-era.git", rev = "e1deecd697e488831de3133e7507cc1cdb06a141" }
+zksync_state = { git = "https://github.com/matter-labs/zksync-era.git", rev = "e1deecd697e488831de3133e7507cc1cdb06a141" }
+zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era.git", rev = "e1deecd697e488831de3133e7507cc1cdb06a141" }
 
 
 
