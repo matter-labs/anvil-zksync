@@ -719,4 +719,43 @@ mod tests {
             .expect("failed fetching bridge addresses");
         testing::assert_bridge_addresses_eq(&input_bridge_addresses, &actual_bridge_addresses);
     }
+
+    #[test]
+    fn test_get_confirmed_tokens_is_cached() {
+        let mock_server = testing::MockServer::run();
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "zks_getConfirmedTokens",
+                "params": [0, 100]
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "result": [
+                    {
+                        "decimals": 18,
+                        "l1Address": "0xbe9895146f7af43049ca1c1ae358b0541ea49704",
+                        "l2Address": "0x75af292c1c9a37b3ea2e6041168b4e48875b9ed5",
+                        "name": "Coinbase Wrapped Staked ETH",
+                        "symbol": "cbETH"
+                      }
+                ],
+                "id": 0
+            }),
+        );
+
+        let fork_source = HttpForkSource::new(mock_server.url(), CacheConfig::Memory);
+
+        let tokens = fork_source
+            .get_confirmed_tokens(0, 100)
+            .expect("failed fetching tokens");
+        assert_eq!(tokens.len(), 1);
+        assert_eq!(tokens[0].symbol, "cbETH");
+
+        let tokens = fork_source
+            .get_confirmed_tokens(0, 100)
+            .expect("failed fetching tokens");
+        assert_eq!(tokens.len(), 1);
+    }
 }
