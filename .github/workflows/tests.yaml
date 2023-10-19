@@ -25,9 +25,6 @@ jobs:
       with:
         toolchain: nightly-2023-04-17
 
-    - name: Cache Rust Dependencies
-      uses: Swatinem/rust-cache@v2
-
     - name: Install cargo-nextest
       run: cargo install cargo-nextest
 

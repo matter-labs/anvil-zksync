@@ -16,14 +16,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Install latest nightly
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: nightly-2023-04-17
           components: rustfmt, clippy
-
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
 
       - uses: actions/setup-node@v3
         with:
@@ -43,14 +40,11 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: nightly-2023-04-17
-
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
 
       - name: Build Code
         run: make all
