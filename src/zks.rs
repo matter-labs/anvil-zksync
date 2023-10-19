@@ -1014,12 +1014,8 @@ mod tests {
 
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            crate::node::ShowCalls::None,
-            ShowStorageLogs::None,
-            ShowVMDetails::None,
-            ShowGasDetails::None,
-            false,
-            &system_contracts::Options::BuiltIn,
+            None,
+            Default::default(),
         );
 
         let namespace = ZkMockNamespaceImpl::new(node.get_inner());
