@@ -2550,6 +2550,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthTestNodeNamespa
             }
         };
 
+        // TODO: refactor the way the transaction is converted
         let mut tx_req = TransactionRequest::from(tx.clone());
         // EIP-1559 gas fields should be processed separately
         if tx.gas_price.is_some() {
