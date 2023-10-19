@@ -2121,7 +2121,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                         max_priority_fee_per_gas: Some(
                             info.tx.common_data.fee.max_priority_fee_per_gas,
                         ),
-                        chain_id,
+                        chain_id: U256::from(chain_id),
                         l1_batch_number: Some(U64::from(info.batch_number as u64)),
                         l1_batch_tx_index: None,
                     })

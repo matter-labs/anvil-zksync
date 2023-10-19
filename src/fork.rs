@@ -290,6 +290,7 @@ const SUPPORTED_VERSIONS: &[ProtocolVersionId] = &[
     ProtocolVersionId::Version13,
     ProtocolVersionId::Version14,
     ProtocolVersionId::Version15,
+    ProtocolVersionId::Version16,
 ];
 
 pub fn supported_protocol_versions(version: ProtocolVersionId) -> bool {
@@ -325,8 +326,7 @@ impl ForkDetails<HttpForkSource> {
         let block = client
             .get_block_by_hash(root_hash, true)
             .await
-            .ok()
-            .flatten()
+            .expect("failed retrieving block")
             .unwrap_or_else(|| {
                 panic!(
                     "Could not find block #{:?} ({:#x}) in {:?}",
@@ -379,9 +379,11 @@ impl ForkDetails<HttpForkSource> {
     pub async fn from_network_tx(fork: &str, tx: H256, cache_config: CacheConfig) -> Self {
         let (url, client) = Self::fork_to_url_and_client(fork);
         let tx_details = client.get_transaction_by_hash(tx).await.unwrap().unwrap();
-        let overwrite_chain_id = Some(L2ChainId::try_from(tx_details.chain_id).unwrap_or_else(
-            |err| panic!("erroneous chain id {}: {:?}", tx_details.chain_id, err,),
-        ));
+        let overwrite_chain_id = Some(
+            L2ChainId::try_from(tx_details.chain_id.as_u64()).unwrap_or_else(|err| {
+                panic!("erroneous chain id {}: {:?}", tx_details.chain_id, err,)
+            }),
+        );
         let miniblock_number = MiniblockNumber(tx_details.block_number.unwrap().as_u32());
         // We have to sync to the one-miniblock before the one where transaction is.
         let l2_miniblock = miniblock_number.saturating_sub(1) as u64;
