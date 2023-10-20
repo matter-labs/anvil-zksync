@@ -152,3 +152,17 @@ describe("zks_getRawBlockTransactions", function () {
     expect(txns[0]["execute"]["calldata"]).to.equal(receipt.data);
   });
 });
+
+describe("zks_getConfirmedTokens", function () {
+  it("Should return empty list", async function () {
+    const tokens = await provider.send("zks_getConfirmedTokens", [0, 100]);
+    expect(tokens.length).to.equal(0);
+  });
+});
+
+describe("zks_getAllAccountBalances", function () {
+  it("Should return empty list", async function () {
+    const tokens = await provider.send("zks_getAllAccountBalances", ["0x0000000000000000000000000000000000008006"]);
+    expect(tokens.length).to.equal(0);
+  });
+});
