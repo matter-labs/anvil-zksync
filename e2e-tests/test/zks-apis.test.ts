@@ -162,7 +162,8 @@ describe("zks_getConfirmedTokens", function () {
 
 describe("zks_getAllAccountBalances", function () {
   it("Should return empty list", async function () {
-    const tokens = await provider.send("zks_getAllAccountBalances", ["0x0000000000000000000000000000000000008006"]);
-    expect(tokens.length).to.equal(0);
+    const balances = await provider.send("zks_getAllAccountBalances", ["0x0000000000000000000000000000000000008006"]);
+    // should be empty object
+    expect(balances).to.deep.equal({});
   });
 });
