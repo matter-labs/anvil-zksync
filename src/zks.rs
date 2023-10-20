@@ -567,6 +567,7 @@ mod tests {
     use zksync_basic_types::{Address, H160, H256};
     use zksync_types::api::{self, Block, TransactionReceipt, TransactionVariant};
     use zksync_types::transaction_request::CallRequest;
+    use zksync_utils::u256_to_h256;
 
     #[tokio::test]
     async fn test_estimate_fee() {
@@ -1084,5 +1085,142 @@ mod tests {
             .await
             .expect("get transaction details");
         assert_eq!(txns.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_get_all_account_balances_empty() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let namespace = ZkMockNamespaceImpl::new(node.get_inner());
+        let balances = namespace
+            .get_all_account_balances(Address::zero())
+            .await
+            .expect("get balances");
+        assert!(balances.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_get_all_account_balances_forked() {
+        let cbeth_address = Address::from_str("0x75af292c1c9a37b3ea2e6041168b4e48875b9ed5")
+            .expect("failed to parse address");
+        let mock_server = testing::MockServer::run();
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "zks_getBlockDetails",
+                "params": [1]
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "result": {
+                    "baseSystemContractsHashes": {
+                        "bootloader": "0x010008a5c30072f79f8e04f90b31f34e554279957e7e2bf85d3e9c7c1e0f834d",
+                        "default_aa": "0x01000663d7941c097ba2631096508cf9ec7769ddd40e081fd81b0d04dc07ea0e"
+                    },
+                    "commitTxHash": null,
+                    "committedAt": null,
+                    "executeTxHash": null,
+                    "executedAt": null,
+                    "l1BatchNumber": 0,
+                    "l1GasPrice": 0,
+                    "l1TxCount": 1,
+                    "l2FairGasPrice": 250000000,
+                    "l2TxCount": 0,
+                    "number": 0,
+                    "operatorAddress": "0x0000000000000000000000000000000000000000",
+                    "protocolVersion": "Version16",
+                    "proveTxHash": null,
+                    "provenAt": null,
+                    "rootHash": "0xdaa77426c30c02a43d9fba4e841a6556c524d47030762eb14dc4af897e605d9b",
+                    "status": "verified",
+                    "timestamp": 1000
+                },
+                "id": 0
+            }),
+        );
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "eth_getBlockByHash",
+                "params": ["0xdaa77426c30c02a43d9fba4e841a6556c524d47030762eb14dc4af897e605d9b", true]
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "result": {
+                    "baseFeePerGas": "0x0",
+                    "difficulty": "0x0",
+                    "extraData": "0x",
+                    "gasLimit": "0xffffffff",
+                    "gasUsed": "0x0",
+                    "hash": "0xdaa77426c30c02a43d9fba4e841a6556c524d47030762eb14dc4af897e605d9b",
+                    "l1BatchNumber": "0x0",
+                    "l1BatchTimestamp": null,
+                    "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                    "miner": "0x0000000000000000000000000000000000000000",
+                    "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                    "nonce": "0x0000000000000000",
+                    "number": "0x0",
+                    "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                    "receiptsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                    "sealFields": [],
+                    "sha3Uncles": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                    "size": "0x0",
+                    "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                    "timestamp": "0x3e8",
+                    "totalDifficulty": "0x0",
+                    "transactions": [],
+                    "transactionsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                    "uncles": []
+                },
+                "id": 1
+            }),
+        );
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "zks_getConfirmedTokens",
+                "params": [0, 100]
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "result": [
+                    {
+                        "decimals": 18,
+                        "l1Address": "0xbe9895146f7af43049ca1c1ae358b0541ea49704",
+                        "l2Address": "0x75af292c1c9a37b3ea2e6041168b4e48875b9ed5",
+                        "name": "Coinbase Wrapped Staked ETH",
+                        "symbol": "cbETH"
+                      }
+                ],
+                "id": 0
+            }),
+        );
+
+        let node = InMemoryNode::<HttpForkSource>::new(
+            Some(ForkDetails::from_network(&mock_server.url(), Some(1), CacheConfig::None).await),
+            None,
+            Default::default(),
+        );
+        let namespace = ZkMockNamespaceImpl::new(node.get_inner());
+        {
+            let inner = node.get_inner();
+            let writer = inner.write().unwrap();
+            let mut fork = writer.fork_storage.inner.write().unwrap();
+            fork.raw_storage.set_value(
+                storage_key_for_standard_token_balance(
+                    AccountTreeId::new(cbeth_address),
+                    &Address::repeat_byte(0x1),
+                ),
+                u256_to_h256(U256::from(1337)),
+            );
+        }
+
+        let balances = namespace
+            .get_all_account_balances(Address::repeat_byte(0x1))
+            .await
+            .expect("get balances");
+        assert_eq!(balances.get(&cbeth_address).unwrap(), &U256::from(1337));
     }
 }
