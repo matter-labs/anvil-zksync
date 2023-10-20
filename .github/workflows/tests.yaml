@@ -24,7 +24,7 @@ jobs:
       uses: runforesight/workflow-telemetry-action@v1
 
     - name: Install Rust
-      uses: actions-rust-lang/setup-rust-toolchain@v1
+      uses: dtolnay/rust-toolchain@stable
       with:
         toolchain: nightly-2023-07-20
 
