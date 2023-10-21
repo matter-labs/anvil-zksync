@@ -28,17 +28,24 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use vm::{
-    constants::{
-        BLOCK_GAS_LIMIT, BLOCK_OVERHEAD_PUBDATA, ETH_CALL_GAS_LIMIT, MAX_PUBDATA_PER_BLOCK,
-    },
-    utils::{
-        fee::derive_base_fee_and_gas_per_pubdata,
-        l2_blocks::load_last_l2_block,
-        overhead::{derive_overhead, OverheadCoeficients},
-    },
-    CallTracer, ExecutionResult, HistoryDisabled, L1BatchEnv, SystemEnv, TxExecutionMode, Vm,
-    VmExecutionResultAndLogs, VmTracer,
+use multivm::vm_virtual_blocks::{
+    constants::{ 
+    BLOCK_GAS_LIMIT, BLOCK_OVERHEAD_PUBDATA, ETH_CALL_GAS_LIMIT, MAX_PUBDATA_PER_BLOCK
+},
+utils::{
+    fee::derive_base_fee_and_gas_per_pubdata,
+    l2_blocks::load_last_l2_block,
+    overhead::{derive_overhead, OverheadCoeficients},
+},
+    CallTracer, HistoryDisabled, Vm, VmTracer,
+};
+use multivm::interface::{
+    TxExecutionMode,
+    L1BatchEnv, SystemEnv,
+    ExecutionResult,
+    VmExecutionResultAndLogs,
+    L2BlockEnv,
+    VmExecutionMode
 };
 use zksync_basic_types::{
     web3::{self, signing::keccak256},
@@ -351,7 +358,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             fair_l2_gas_price: L2_GAS_PRICE,
             fee_account: H160::zero(),
             enforced_base_fee: None,
-            first_l2_block: vm::L2BlockEnv {
+            first_l2_block: L2BlockEnv {
                 // the 'current_miniblock' contains the block that was already produced.
                 // So the next one should be one higher.
                 number: block_ctx.miniblock as u32,
@@ -702,7 +709,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         let tx: Transaction = l2_tx.into();
         vm.push_transaction(tx);
 
-        vm.execute(vm::VmExecutionMode::OneTx)
+        vm.execute(VmExecutionMode::OneTx)
     }
 
     /// Sets the `impersonated_account` field of the node.
@@ -1002,7 +1009,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
                     as Box<dyn VmTracer<StorageView<&ForkStorage<S>>, HistoryDisabled>>,
             ];
 
-        let tx_result = vm.inspect(custom_tracers, vm::VmExecutionMode::OneTx);
+        let tx_result = vm.inspect(custom_tracers, VmExecutionMode::OneTx);
 
         let call_traces = Arc::try_unwrap(call_tracer_result)
             .unwrap()
@@ -1257,7 +1264,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             }) as Box<dyn VmTracer<StorageView<&ForkStorage<S>>, HistoryDisabled>>,
         ];
 
-        let tx_result = vm.inspect(custom_tracers, vm::VmExecutionMode::OneTx);
+        let tx_result = vm.inspect(custom_tracers, VmExecutionMode::OneTx);
 
         let call_traces = call_tracer_result.get().unwrap();
 
@@ -1398,7 +1405,7 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             .map(|b| bytecode_to_factory_dep(b.original.clone()))
             .collect();
 
-        vm.execute(vm::VmExecutionMode::Bootloader);
+        vm.execute(VmExecutionMode::Bootloader);
 
         let modified_keys = storage.borrow().modified_storage_keys().clone();
         Ok((

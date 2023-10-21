@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use crate::fork::block_on;
 use zksync_basic_types::H160;
 
-use vm::VmExecutionResultAndLogs;
+use multivm::interface::VmExecutionResultAndLogs;
 use zksync_types::{vm_trace::Call, StorageLogQuery, StorageLogQueryType, VmEvent};
 
 use lazy_static::lazy_static;
@@ -201,8 +201,8 @@ pub fn print_vm_details(result: &VmExecutionResultAndLogs) {
     );
     tracing::info!("Contracts Used:       {}", result.statistics.contracts_used);
     match &result.result {
-        vm::ExecutionResult::Success { .. } => {}
-        vm::ExecutionResult::Revert { output } => {
+        multivm::interface::ExecutionResult::Success { .. } => {}
+        multivm::interface::ExecutionResult::Revert { output } => {
             tracing::info!("");
             tracing::info!(
                 "{}",
@@ -213,7 +213,7 @@ pub fn print_vm_details(result: &VmExecutionResultAndLogs) {
                 .on_red()
             );
         }
-        vm::ExecutionResult::Halt { reason } => {
+        multivm::interface::ExecutionResult::Halt { reason } => {
             tracing::info!("");
             tracing::info!("{}", format!("\n[!] Halt Reason:    {}", reason).on_red());
         }

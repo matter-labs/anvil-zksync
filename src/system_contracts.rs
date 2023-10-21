@@ -1,4 +1,4 @@
-use vm::TxExecutionMode;
+use multivm::interface::TxExecutionMode;
 use zksync_contracts::{
     read_playground_batch_bootloader_bytecode, read_proved_batch_bootloader_bytecode,
     read_sys_contract_bytecode, read_zbin_bytecode, BaseSystemContracts, ContractLanguage,
