@@ -45,7 +45,7 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v3
       - name: Set version of nightly Rust
-        run: rustup default nightly-2023-04-17
+        run: rustup default nightly-2023-07-21
       - name: Install target
         run: rustup target add ${{ matrix.arch }}
       - uses: Swatinem/rust-cache@v2
