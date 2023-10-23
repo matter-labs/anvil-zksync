@@ -4,10 +4,7 @@ use std::pin::Pin;
 use chrono::{DateTime, Utc};
 use futures::Future;
 use multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
-use multivm::vm_latest::{
-    HistoryDisabled, Vm,
-    utils::fee::derive_base_fee_and_gas_per_pubdata
-};
+use multivm::vm_latest::{utils::fee::derive_base_fee_and_gas_per_pubdata, HistoryDisabled, Vm};
 use zksync_basic_types::{U256, U64};
 use zksync_state::StorageView;
 use zksync_state::WriteStorage;
@@ -120,8 +117,10 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
             }
 
             // init vm
-            let system_env =
-                node.create_system_env(bootloader_code.clone(), multivm::interface::TxExecutionMode::VerifyExecute);
+            let system_env = node.create_system_env(
+                bootloader_code.clone(),
+                multivm::interface::TxExecutionMode::VerifyExecute,
+            );
 
             let mut vm = Vm::new(batch_env, system_env, storage.clone(), HistoryDisabled);
 

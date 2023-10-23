@@ -28,24 +28,20 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use multivm::vm_virtual_blocks::{
-    constants::{ 
-    BLOCK_GAS_LIMIT, BLOCK_OVERHEAD_PUBDATA, ETH_CALL_GAS_LIMIT, MAX_PUBDATA_PER_BLOCK
-},
-utils::{
-    fee::derive_base_fee_and_gas_per_pubdata,
-    l2_blocks::load_last_l2_block,
-    overhead::{derive_overhead, OverheadCoeficients},
-},
-    CallTracer, HistoryDisabled, Vm, VmTracer,
-};
 use multivm::interface::{
-    TxExecutionMode,
-    L1BatchEnv, SystemEnv,
-    ExecutionResult,
+    ExecutionResult, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
     VmExecutionResultAndLogs,
-    L2BlockEnv,
-    VmExecutionMode
+};
+use multivm::vm_virtual_blocks::{
+    constants::{
+        BLOCK_GAS_LIMIT, BLOCK_OVERHEAD_PUBDATA, ETH_CALL_GAS_LIMIT, MAX_PUBDATA_PER_BLOCK,
+    },
+    utils::{
+        fee::derive_base_fee_and_gas_per_pubdata,
+        l2_blocks::load_last_l2_block,
+        overhead::{derive_overhead, OverheadCoeficients},
+    },
+    CallTracer, HistoryDisabled, Vm, VmTracer,
 };
 use zksync_basic_types::{
     web3::{self, signing::keccak256},

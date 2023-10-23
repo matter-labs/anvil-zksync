@@ -15,11 +15,8 @@ use httptest::{
     Expectation, Server,
 };
 use itertools::Itertools;
+use multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
 use std::str::FromStr;
-use multivm::interface::{
-    VmExecutionResultAndLogs,
-    ExecutionResult
-};
 use zksync_basic_types::{H160, U64};
 use zksync_types::api::{BridgeAddresses, DebugCall, DebugCallType, Log};
 use zksync_types::{
