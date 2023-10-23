@@ -56,7 +56,7 @@ impl SystemContracts {
             fee_estimate_impersonating_contracts: fee_estimate_impersonating_contracts(options),
         }
     }
-    pub fn contacts_for_l2_call(&self) -> &BaseSystemContracts {
+    pub fn contracts_for_l2_call(&self) -> &BaseSystemContracts {
         self.contracts(TxExecutionMode::EthCall, false)
     }
 
