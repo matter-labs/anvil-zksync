@@ -1,8 +1,12 @@
 import { expect } from "chai";
 import { Wallet } from "zksync-web3";
-import { getTestProvider } from "../helpers/utils";
+import { deployContract, getTestProvider } from "../helpers/utils";
 import { RichAccounts } from "../helpers/constants";
 import { ethers } from "hardhat";
+import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
+import * as hre from "hardhat";
+import { keccak256 } from "ethers/lib/utils";
+import { BigNumber } from "ethers";
 
 const provider = getTestProvider();
 
@@ -82,5 +86,64 @@ xdescribe("hardhat_impersonateAccount & hardhat_stopImpersonatingAccount", funct
     // Assert
     expect(await userWallet.getBalance()).to.equal(ethers.utils.parseEther("0.42"));
     expect(await provider.getBalance(RichAccounts[0].Account)).to.equal(beforeBalance.sub(0.42));
+  });
+});
+
+describe("hardhat_setCode", function () {
+  it("Should set code at an address", async function () {
+    // Arrange
+    const wallet = new Wallet(RichAccounts[0].PrivateKey);
+    const deployer = new Deployer(hre, wallet);
+
+    const address = "0x1000000000000000000000000000000000001111";
+    const artifact = await deployer.loadArtifact("Return5");
+    const contractCode = [...ethers.utils.arrayify(artifact.deployedBytecode)];
+
+    // Act
+    await provider.send("hardhat_setCode", [address, contractCode]);
+
+    // Assert
+    const result = await provider.send("eth_call", [
+      {
+        to: address,
+        data: keccak256(ethers.utils.toUtf8Bytes("value()")).substring(0, 10),
+        from: wallet.address,
+        gas: "0x1000",
+        gasPrice: "0x0ee6b280",
+        value: "0x0",
+        nonce: "0x1",
+      },
+      "latest",
+    ]);
+    expect(BigNumber.from(result).toNumber()).to.eq(5);
+  });
+
+  it("Should update code with a different smart contract", async function () {
+    // Arrange
+    const wallet = new Wallet(RichAccounts[0].PrivateKey);
+    const deployer = new Deployer(hre, wallet);
+
+    const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
+    expect(await greeter.greet()).to.eq("Hi");
+    const artifact = await deployer.loadArtifact("Return5");
+    const newContractCode = [...ethers.utils.arrayify(artifact.deployedBytecode)];
+
+    // Act
+    await provider.send("hardhat_setCode", [greeter.address, newContractCode]);
+
+    // Assert
+    const result = await provider.send("eth_call", [
+      {
+        to: greeter.address,
+        data: keccak256(ethers.utils.toUtf8Bytes("value()")).substring(0, 10),
+        from: wallet.address,
+        gas: "0x1000",
+        gasPrice: "0x0ee6b280",
+        value: "0x0",
+        nonce: "0x1",
+      },
+      "latest",
+    ]);
+    expect(BigNumber.from(result).toNumber()).to.eq(5);
   });
 });

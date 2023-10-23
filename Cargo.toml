@@ -14,7 +14,6 @@ publish = false # We don't want to publish our binaries.
 zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era.git", rev = "9557e3e3f6505c6e2ccbcd98242948e844baaf59" }
 zksync_core = { git = "https://github.com/matter-labs/zksync-era.git", rev = "9557e3e3f6505c6e2ccbcd98242948e844baaf59" }
 vm = { git = "https://github.com/matter-labs/zksync-era.git", rev = "9557e3e3f6505c6e2ccbcd98242948e844baaf59" }
-vlog = { git = "https://github.com/matter-labs/zksync-era.git", rev = "9557e3e3f6505c6e2ccbcd98242948e844baaf59" }
 zksync_contracts = { git = "https://github.com/matter-labs/zksync-era.git", rev = "9557e3e3f6505c6e2ccbcd98242948e844baaf59" }
 zksync_types = { git = "https://github.com/matter-labs/zksync-era.git", rev = "9557e3e3f6505c6e2ccbcd98242948e844baaf59" }
 zksync_utils = { git = "https://github.com/matter-labs/zksync-era.git", rev = "9557e3e3f6505c6e2ccbcd98242948e844baaf59" }
@@ -48,11 +47,13 @@ bigdecimal = { version = "0.2.0" }
 hex = "0.4"
 ethabi = "16.0.0"
 itertools = "0.10.5"
-log = "0.4.20"
-simplelog = "0.12.1"
 rustc-hash = "1.1.0"
+indexmap = "2.0.1"
+chrono = { version = "0.4.31", default-features = false }
 
 [dev-dependencies]
 httptest = "0.15.4"
 tempdir = "0.3.7"
 maplit = "1.0.2"
+zksync-web3-rs = "0.1.1"
+ethers = { version = "2.0.4", features = ["rustls"] }

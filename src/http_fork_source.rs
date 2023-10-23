@@ -2,9 +2,11 @@ use std::sync::RwLock;
 
 use eyre::Context;
 use zksync_basic_types::{H256, U256};
+use zksync_types::api::{BridgeAddresses, Transaction};
 use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
+    types::Index,
 };
 
 use crate::{
@@ -66,7 +68,7 @@ impl ForkSource for HttpForkSource {
             .read()
             .map(|guard| guard.get_transaction(&hash).cloned())
         {
-            log::debug!("using cached transaction for {hash}");
+            tracing::debug!("using cached transaction for {hash}");
             return Ok(Some(transaction));
         }
 
@@ -78,7 +80,7 @@ impl ForkSource for HttpForkSource {
                         .write()
                         .map(|mut guard| guard.insert_transaction(hash, transaction.clone()))
                         .unwrap_or_else(|err| {
-                            log::warn!(
+                            tracing::warn!(
                                 "failed writing to cache for 'get_transaction_by_hash': {:?}",
                                 err
                             )
@@ -86,6 +88,18 @@ impl ForkSource for HttpForkSource {
                 }
                 maybe_transaction
             })
+            .wrap_err("fork http client failed")
+    }
+
+    fn get_transaction_details(
+        &self,
+        hash: H256,
+    ) -> eyre::Result<Option<zksync_types::api::TransactionDetails>> {
+        let client = self.create_client();
+        // n.b- We don't cache these responses as they will change through the lifecycle of the transaction
+        // and caching could be error-prone. in theory we could cache responses once the txn status
+        // is `final` or `failed` but currently this does not warrant the additional complexity.
+        block_on(async move { client.get_transaction_details(hash).await })
             .wrap_err("fork http client failed")
     }
 
@@ -99,7 +113,7 @@ impl ForkSource for HttpForkSource {
             .read()
             .map(|guard| guard.get_block_raw_transactions(&number).cloned())
         {
-            log::debug!("using cached raw transactions for block {block_number}");
+            tracing::debug!("using cached raw transactions for block {block_number}");
             return Ok(transaction);
         }
 
@@ -114,7 +128,7 @@ impl ForkSource for HttpForkSource {
                             guard.insert_block_raw_transactions(number, transactions.clone())
                         })
                         .unwrap_or_else(|err| {
-                            log::warn!(
+                            tracing::warn!(
                                 "failed writing to cache for 'get_raw_block_transactions': {:?}",
                                 err
                             )
@@ -134,7 +148,7 @@ impl ForkSource for HttpForkSource {
             .read()
             .map(|guard| guard.get_block(&hash, full_transactions).cloned())
         {
-            log::debug!("using cached block for {hash}");
+            tracing::debug!("using cached block for {hash}");
             return Ok(Some(block));
         }
 
@@ -146,7 +160,10 @@ impl ForkSource for HttpForkSource {
                         .write()
                         .map(|mut guard| guard.insert_block(hash, full_transactions, block.clone()))
                         .unwrap_or_else(|err| {
-                            log::warn!("failed writing to cache for 'get_block_by_hash': {:?}", err)
+                            tracing::warn!(
+                                "failed writing to cache for 'get_block_by_hash': {:?}",
+                                err
+                            )
                         });
                 }
                 block
@@ -171,7 +188,7 @@ impl ForkSource for HttpForkSource {
                     .and_then(|hash| guard.get_block(hash, full_transactions).cloned())
             })
         }) {
-            log::debug!("using cached block for {block_number}");
+            tracing::debug!("using cached block for {block_number}");
             return Ok(Some(block));
         }
 
@@ -189,7 +206,7 @@ impl ForkSource for HttpForkSource {
                         guard.insert_block(block.hash, full_transactions, block.clone())
                     })
                     .unwrap_or_else(|err| {
-                        log::warn!(
+                        tracing::warn!(
                             "failed writing to cache for 'get_block_by_number': {:?}",
                             err
                         )
@@ -220,11 +237,82 @@ impl ForkSource for HttpForkSource {
         })
         .wrap_err("fork http client failed")
     }
+
+    /// Returns information about a transaction by block hash and transaction index position.
+    fn get_transaction_by_block_hash_and_index(
+        &self,
+        block_hash: H256,
+        index: Index,
+    ) -> eyre::Result<Option<Transaction>> {
+        let client = self.create_client();
+        block_on(async move {
+            client
+                .get_transaction_by_block_hash_and_index(block_hash, index)
+                .await
+        })
+        .wrap_err("fork http client failed")
+    }
+
+    /// Returns information about a transaction by block number and transaction index position.
+    fn get_transaction_by_block_number_and_index(
+        &self,
+        block_number: zksync_types::api::BlockNumber,
+        index: Index,
+    ) -> eyre::Result<Option<Transaction>> {
+        let client = self.create_client();
+        block_on(async move {
+            client
+                .get_transaction_by_block_number_and_index(block_number, index)
+                .await
+        })
+        .wrap_err("fork http client failed")
+    }
+
+    /// Returns details of a block, given miniblock number
+    fn get_block_details(
+        &self,
+        miniblock: zksync_basic_types::MiniblockNumber,
+    ) -> eyre::Result<Option<zksync_types::api::BlockDetails>> {
+        let client = self.create_client();
+        block_on(async move { client.get_block_details(miniblock).await })
+            .wrap_err("fork http client failed")
+    }
+
+    /// Returns addresses of the default bridge contracts.
+    fn get_bridge_contracts(&self) -> eyre::Result<BridgeAddresses> {
+        if let Some(bridge_addresses) = self
+            .cache
+            .read()
+            .ok()
+            .and_then(|guard| guard.get_bridge_addresses().cloned())
+        {
+            tracing::debug!("using cached bridge contracts");
+            return Ok(bridge_addresses);
+        };
+
+        let client = self.create_client();
+        block_on(async move { client.get_bridge_contracts().await })
+            .map(|bridge_addresses| {
+                self.cache
+                    .write()
+                    .map(|mut guard| guard.set_bridge_addresses(bridge_addresses.clone()))
+                    .unwrap_or_else(|err| {
+                        tracing::warn!(
+                            "failed writing to cache for 'get_bridge_contracts': {:?}",
+                            err
+                        )
+                    });
+                bridge_addresses
+            })
+            .wrap_err("fork http client failed")
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use zksync_basic_types::{MiniblockNumber, H256, U64};
+    use std::str::FromStr;
+
+    use zksync_basic_types::{Address, MiniblockNumber, H160, H256, U64};
     use zksync_types::api::BlockNumber;
 
     use crate::testing;
@@ -465,5 +553,139 @@ mod tests {
             .expect("failed fetching cached transaction")
             .expect("no transaction");
         assert_eq!(input_tx_hash, actual_transaction.hash);
+    }
+
+    #[test]
+    fn test_get_transaction_details() {
+        let input_tx_hash = H256::repeat_byte(0x01);
+        let mock_server = testing::MockServer::run();
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "zks_getTransactionDetails",
+                "params": [
+                    input_tx_hash,
+                ],
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "result": {
+                    "isL1Originated": false,
+                    "status": "included",
+                    "fee": "0x74293f087500",
+                    "gasPerPubdata": "0x4e20",
+                    "initiatorAddress": "0x63ab285cd87a189f345fed7dd4e33780393e01f0",
+                    "receivedAt": "2023-10-12T15:45:53.094Z",
+                    "ethCommitTxHash": null,
+                    "ethProveTxHash": null,
+                    "ethExecuteTxHash": null
+                },
+                "id": 0
+            }),
+        );
+
+        let fork_source = HttpForkSource::new(mock_server.url(), CacheConfig::Memory);
+        let transaction_details = fork_source
+            .get_transaction_details(input_tx_hash)
+            .expect("failed fetching transaction")
+            .expect("no transaction");
+        assert_eq!(
+            transaction_details.initiator_address,
+            Address::from_str("0x63ab285cd87a189f345fed7dd4e33780393e01f0").unwrap()
+        );
+    }
+
+    #[test]
+    fn test_get_block_details() {
+        let miniblock = MiniblockNumber::from(16474138);
+        let mock_server = testing::MockServer::run();
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "zks_getBlockDetails",
+                "params": [
+                    miniblock.0,
+                ],
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "result": {
+                  "number": 16474138,
+                  "l1BatchNumber": 270435,
+                  "timestamp": 1697405098,
+                  "l1TxCount": 0,
+                  "l2TxCount": 1,
+                  "rootHash": "0xd9e60f9a684fd7fc16e87ae923341a6e4af24f286e76612efdfc2d55f3f4d064",
+                  "status": "sealed",
+                  "commitTxHash": null,
+                  "committedAt": null,
+                  "proveTxHash": null,
+                  "provenAt": null,
+                  "executeTxHash": null,
+                  "executedAt": null,
+                  "l1GasPrice": 6156252068u64,
+                  "l2FairGasPrice": 250000000u64,
+                  "baseSystemContractsHashes": {
+                    "bootloader": "0x0100089b8a2f2e6a20ba28f02c9e0ed0c13d702932364561a0ea61621f65f0a8",
+                    "default_aa": "0x0100067d16a5485875b4249040bf421f53e869337fe118ec747cf40a4c777e5f"
+                  },
+                  "operatorAddress": "0xa9232040bf0e0aea2578a5b2243f2916dbfc0a69",
+                  "protocolVersion": "Version15"
+                },
+                "id": 0
+              }),
+        );
+
+        let fork_source = HttpForkSource::new(mock_server.url(), CacheConfig::Memory);
+        let block_details = fork_source
+            .get_block_details(miniblock)
+            .expect("failed fetching transaction")
+            .expect("no transaction");
+        assert_eq!(
+            block_details.operator_address,
+            Address::from_str("0xa9232040bf0e0aea2578a5b2243f2916dbfc0a69").unwrap()
+        );
+    }
+
+    #[test]
+    fn test_get_bridge_contracts_is_cached() {
+        let input_bridge_addresses = BridgeAddresses {
+            l1_erc20_default_bridge: H160::repeat_byte(0x1),
+            l2_erc20_default_bridge: H160::repeat_byte(0x2),
+            l1_weth_bridge: Some(H160::repeat_byte(0x3)),
+            l2_weth_bridge: Some(H160::repeat_byte(0x4)),
+        };
+        let mock_server = testing::MockServer::run();
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "zks_getBridgeContracts",
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "result": {
+                    "l1Erc20DefaultBridge": format!("{:#x}", input_bridge_addresses.l1_erc20_default_bridge),
+                    "l2Erc20DefaultBridge": format!("{:#x}", input_bridge_addresses.l2_erc20_default_bridge),
+                    "l1WethBridge": format!("{:#x}", input_bridge_addresses.l1_weth_bridge.clone().unwrap()),
+                    "l2WethBridge": format!("{:#x}", input_bridge_addresses.l2_weth_bridge.clone().unwrap())
+                },
+                "id": 0
+            }),
+        );
+
+        let fork_source = HttpForkSource::new(mock_server.url(), CacheConfig::Memory);
+
+        let actual_bridge_addresses = fork_source
+            .get_bridge_contracts()
+            .expect("failed fetching bridge addresses");
+        testing::assert_bridge_addresses_eq(&input_bridge_addresses, &actual_bridge_addresses);
+
+        let actual_bridge_addresses = fork_source
+            .get_bridge_contracts()
+            .expect("failed fetching bridge addresses");
+        testing::assert_bridge_addresses_eq(&input_bridge_addresses, &actual_bridge_addresses);
     }
 }

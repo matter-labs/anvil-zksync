@@ -8,7 +8,7 @@ use zksync_types::{
 use std::fmt;
 
 /// In-memory storage.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct InMemoryStorage {
     pub(crate) state: HashMap<StorageKey, StorageValue>,
     pub(crate) factory_deps: HashMap<H256, Vec<u8>>,

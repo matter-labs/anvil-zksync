@@ -9,8 +9,10 @@ use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words};
 
 use crate::deps::system_contracts::{bytecode_from_slice, COMPILED_IN_SYSTEM_CONTRACTS};
 
+#[derive(Default, Debug, Clone)]
 pub enum Options {
     // Use the compiled-in contracts
+    #[default]
     BuiltIn,
     // Load the contracts bytecode at runtime from ZKSYNC_HOME
     Local,
@@ -19,6 +21,7 @@ pub enum Options {
 }
 
 /// Holds the system contracts (and bootloader) that are used by the in-memory node.
+#[derive(Debug, Clone)]
 pub struct SystemContracts {
     pub baseline_contracts: BaseSystemContracts,
     pub playground_contracts: BaseSystemContracts,
