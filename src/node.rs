@@ -7,7 +7,7 @@ use crate::{
     fork::{ForkDetails, ForkSource, ForkStorage},
     formatter,
     observability::Observability,
-    system_contracts::{self, Options, SystemContracts},
+    system_contracts::{self, SystemContracts},
     utils::{
         self, adjust_l1_gas_price_for_tx, bytecode_to_factory_dep, create_debug_output,
         not_implemented, to_human_size, IntoBoxedFuture,
@@ -2137,7 +2137,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                         max_priority_fee_per_gas: Some(
                             info.tx.common_data.fee.max_priority_fee_per_gas,
                         ),
-                        chain_id: U256::from(chain_id),
+                        chain_id,
                         l1_batch_number: Some(U64::from(info.batch_number as u64)),
                         l1_batch_tx_index: None,
                     })
