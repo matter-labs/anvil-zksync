@@ -744,7 +744,7 @@ content-type: application/json
     "jsonrpc": "2.0",
     "id": "1",
     "method": "zks_getAllAccountBalances",
-    "params": ["0x364d6D0333432C3Ac016Ca832fb8594A8cE43Ca6"]
+    "params": ["0x36615Cf349d7F6344891B1e7CA7C72883F5dc049"]
 }
 
 ###

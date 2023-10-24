@@ -162,9 +162,9 @@ describe("zks_getConfirmedTokens", function () {
 });
 
 describe("zks_getAllAccountBalances", function () {
-  it("Should return empty list", async function () {
-    const balances = await provider.send("zks_getAllAccountBalances", ["0x0000000000000000000000000000000000008006"]);
-    // should be empty object
-    expect(balances).to.deep.equal({});
+  it("Should return balance of a rich account", async function () {
+    const balances = await provider.send("zks_getAllAccountBalances", ["0x36615Cf349d7F6344891B1e7CA7C72883F5dc049"]);
+    // should contain 1_000_000_000_000 ETH
+    expect(balances).to.deep.equal({ "0x000000000000000000000000000000000000800a": "0xc9f2c9cd01851ee205de19900" });
   });
 });
