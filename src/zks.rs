@@ -18,7 +18,7 @@ use zksync_types::{
     },
     fee::Fee,
     utils::storage_key_for_standard_token_balance,
-    ExecuteTransactionCommon, ProtocolVersionId, Transaction,
+    ExecuteTransactionCommon, ProtocolVersionId, Transaction, L2_ETH_TOKEN_ADDRESS,
 };
 use zksync_utils::h256_to_u256;
 use zksync_web3_decl::{
@@ -225,7 +225,13 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
                     .fork_source
                     .get_confirmed_tokens(from, limit)
                     .map_err(|_e| into_jsrpc_error(Web3Error::InternalError))?),
-                None => Ok(vec![]),
+                None => Ok(vec![zksync_web3_decl::types::Token {
+                    l1_address: Address::zero(),
+                    l2_address: L2_ETH_TOKEN_ADDRESS,
+                    name: "Ether".to_string(),
+                    symbol: "ETH".to_string(),
+                    decimals: 18,
+                }]),
             }
         })
     }
@@ -1096,6 +1102,18 @@ mod tests {
             .await
             .expect("get balances");
         assert!(balances.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_get_confirmed_tokens_eth() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let namespace = ZkMockNamespaceImpl::new(node.get_inner());
+        let balances = namespace
+            .get_confirmed_tokens(0, 100)
+            .await
+            .expect("get balances");
+        assert_eq!(balances.len(), 1);
+        assert_eq!(&balances[0].name, "Ether");
     }
 
     #[tokio::test]

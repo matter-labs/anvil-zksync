@@ -154,9 +154,10 @@ describe("zks_getRawBlockTransactions", function () {
 });
 
 describe("zks_getConfirmedTokens", function () {
-  it("Should return empty list", async function () {
+  it("Should return only Ether", async function () {
     const tokens = await provider.send("zks_getConfirmedTokens", [0, 100]);
-    expect(tokens.length).to.equal(0);
+    expect(tokens.length).to.equal(1);
+    expect(tokens[0].name).to.equal("Ether");
   });
 });
 
