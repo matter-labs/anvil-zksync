@@ -288,7 +288,6 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
     > {
         let inner = self.node.clone();
         Box::pin({
-            let address = address.clone();
             self.get_confirmed_tokens(0, 100)
                 .then(move |tokens| async move {
                     let tokens =
