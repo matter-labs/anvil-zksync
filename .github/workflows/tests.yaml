@@ -8,6 +8,7 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+
 jobs:
   test:
     name: unit-tests
@@ -30,3 +31,21 @@ jobs:
         
     - name: Run tests
       run: cargo nextest run
+
+    - name: System Info (Ubuntu)
+      if: always() && startsWith(runner.os, 'Linux')
+      run: |
+        echo "Memory Usage:"
+        free -h
+        echo "CPU Info:"
+        lscpu
+        echo "Disk Space:"
+        df -h
+
+    - name: System Info (macOS)
+      if: always() && startsWith(runner.os, 'macOS')
+      run: |
+        echo "Memory Usage:"
+        vm_stat
+        echo "Disk Space:"
+        df -h
