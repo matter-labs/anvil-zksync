@@ -14,7 +14,7 @@ jobs:
     name: unit-tests
     strategy:
       matrix:
-        platform: [ubuntu-latest, macos-latest, ubuntu-22.04-github-hosted-16core]
+        platform: [macos-latest, ubuntu-22.04-github-hosted-16core]
     runs-on: ${{ matrix.platform }}
 
     steps:
@@ -31,21 +31,3 @@ jobs:
         
     - name: Run tests
       run: cargo nextest run
-
-    - name: System Info (Ubuntu)
-      if: always() && startsWith(runner.os, 'Linux')
-      run: |
-        echo "Memory Usage:"
-        free -h
-        echo "CPU Info:"
-        lscpu
-        echo "Disk Space:"
-        df -h
-
-    - name: System Info (macOS)
-      if: always() && startsWith(runner.os, 'macOS')
-      run: |
-        echo "Memory Usage:"
-        vm_stat
-        echo "Disk Space:"
-        df -h
