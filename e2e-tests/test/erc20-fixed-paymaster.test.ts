@@ -27,11 +27,7 @@ describe("ERC20FixedPaymaster", function () {
 
     // Deploy ERC20 token, Paymaster, and Greeter
     let artifact = await deployer.loadArtifact("MyERC20");
-    token = await deployer.deploy(artifact, [
-        "MyToken",
-        "MyToken",
-        18,
-      ]);
+    token = await deployer.deploy(artifact, ["MyToken", "MyToken", 18]);
     artifact = await deployer.loadArtifact("ERC20FixedPaymaster");
     paymaster = await deployer.deploy(artifact, [token.address]);
     artifact = await deployer.loadArtifact("Greeter");
@@ -55,23 +51,21 @@ describe("ERC20FixedPaymaster", function () {
 
     // Estimate gasLimit via paymaster
     const gasLimit = await greeter.connect(user).estimateGas.setGreeting(greeting, {
-        customData: {
-          gasPerPubdata: utils.DEFAULT_GAS_PER_PUBDATA_LIMIT,
-          paymasterParams,
-        },
-      });
+      customData: {
+        gasPerPubdata: utils.DEFAULT_GAS_PER_PUBDATA_LIMIT,
+        paymasterParams,
+      },
+    });
 
-    const setGreetingTx = await greeter
-      .connect(user)
-      .setGreeting(greeting, {
-        maxPriorityFeePerGas: ethers.BigNumber.from(0),
-        maxFeePerGas: gasPrice,
-        gasLimit,
-        customData: {
-          gasPerPubdata: utils.DEFAULT_GAS_PER_PUBDATA_LIMIT,
-          paymasterParams,
-        },
-      });
+    const setGreetingTx = await greeter.connect(user).setGreeting(greeting, {
+      maxPriorityFeePerGas: ethers.BigNumber.from(0),
+      maxFeePerGas: gasPrice,
+      gasLimit,
+      customData: {
+        gasPerPubdata: utils.DEFAULT_GAS_PER_PUBDATA_LIMIT,
+        paymasterParams,
+      },
+    });
 
     await setGreetingTx.wait();
   }
@@ -84,9 +78,7 @@ describe("ERC20FixedPaymaster", function () {
 
     const userInitialTokenBalance = await token.balanceOf(userWallet.address);
     const userInitialETHBalance = await userWallet.getBalance();
-    const initialPaymasterBalance = await provider.getBalance(
-      paymaster.address,
-    );
+    const initialPaymasterBalance = await provider.getBalance(paymaster.address);
 
     // Act
     await executeGreetingTransaction(userWallet, "Hola, mundo!");
@@ -107,7 +99,7 @@ describe("ERC20FixedPaymaster", function () {
     // Act
     const tx = await paymaster.connect(richWallet).withdraw(userWallet.address);
     await tx.wait();
-    
+
     // Assert
     const finalContractBalance = await provider.getBalance(paymaster.address);
     expect(finalContractBalance).to.eql(ethers.BigNumber.from(0));
@@ -115,9 +107,9 @@ describe("ERC20FixedPaymaster", function () {
 
   it("should prevent non-owners from withdrawing funds", async function () {
     const action = async () => {
-        await paymaster.connect(userWallet).withdraw(userWallet.address);
-      };
-  
+      await paymaster.connect(userWallet).withdraw(userWallet.address);
+    };
+
     await expectThrowsAsync(action, "Ownable: caller is not the owner");
   });
 });
