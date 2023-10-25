@@ -260,6 +260,13 @@ pub trait ForkSource {
 
     /// Returns addresses of the default bridge contracts.
     fn get_bridge_contracts(&self) -> eyre::Result<BridgeAddresses>;
+
+    /// Returns confirmed tokens
+    fn get_confirmed_tokens(
+        &self,
+        from: u32,
+        limit: u8,
+    ) -> eyre::Result<Vec<zksync_web3_decl::types::Token>>;
 }
 
 /// Holds the information about the original chain.
