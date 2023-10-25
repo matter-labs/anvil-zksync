@@ -13,7 +13,7 @@ jobs:
     name: unit-tests
     strategy:
       matrix:
-        platform: [ubuntu-latest, macos-latest]
+        platform: [ubuntu-latest, macos-latest, ubuntu-22.04-github-hosted-16core]
     runs-on: ${{ matrix.platform }}
 
     steps:
