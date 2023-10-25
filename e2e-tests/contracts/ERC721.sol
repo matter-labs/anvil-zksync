@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @dev This contract is for basic demonstration purposes only. It should not be used in production.
- * It is for the convenience of the ERC721gatedPaymaster.sol contract and its corresponding test file. 
+ * It is for the convenience of the ERC721GatedPaymaster.sol contract and its corresponding test file. 
  */
 contract MyNFT is ERC721, Ownable {
     // Maintains a counter of token IDs for uniqueness
