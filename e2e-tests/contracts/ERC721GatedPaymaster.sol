@@ -83,7 +83,6 @@ contract ERC721GatedPaymaster is IPaymaster, Ownable {
         ExecutionResult _txResult,
         uint256 _maxRefundedGas
     ) external payable override onlyBootloader {
-        // Refunds are not supported yet.
     }
 
     function withdraw(address payable _to) external onlyOwner {

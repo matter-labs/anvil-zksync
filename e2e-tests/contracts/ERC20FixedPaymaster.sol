@@ -116,7 +116,6 @@ contract ERC20FixedPaymaster is IPaymaster, Ownable {
         ExecutionResult _txResult,
         uint256 _maxRefundedGas
     ) external payable override onlyBootloader {
-        // Refunds are not supported yet.
     }
 
     function withdraw(address _to) external onlyOwner {
