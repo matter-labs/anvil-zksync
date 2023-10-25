@@ -20,11 +20,11 @@ describe("ERC721GatedPaymaster", function () {
     provider = getTestProvider();
     wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
     deployer = new Deployer(hre, wallet);
-    
+
     // Setup new wallets
     nftUserWallet = Wallet.createRandom();
     nftUserWallet = new Wallet(nftUserWallet.privateKey, provider);
-    
+
     // Deploy NFT and Paymaster
     let artifact = await deployer.loadArtifact("MyNFT");
     erc721 = await deployer.deploy(artifact, []);
@@ -32,15 +32,12 @@ describe("ERC721GatedPaymaster", function () {
     paymaster = await deployer.deploy(artifact, [erc721.address]);
     artifact = await deployer.loadArtifact("Greeter");
     greeter = await deployer.deploy(artifact, ["Hi"]);
-    
+
     // Fund Paymaster
-    await provider.send("hardhat_setBalance", [
-        paymaster.address,
-        ethers.utils.parseEther("10")._hex
-    ]);
+    await provider.send("hardhat_setBalance", [paymaster.address, ethers.utils.parseEther("10")._hex]);
 
     // Assign NFT to nftUserWallet
-    let tx = await erc721.mint(nftUserWallet.address);
+    const tx = await erc721.mint(nftUserWallet.address);
     await tx.wait();
   });
 
@@ -53,30 +50,22 @@ describe("ERC721GatedPaymaster", function () {
     });
 
     // estimate gasLimit via paymaster
-    const gasLimit = await greeter
-        .connect(user)
-        .estimateGas
-        .setGreeting(
-            greeting,
-            {
-                customData: {
-                    gasPerPubdata: utils.DEFAULT_GAS_PER_PUBDATA_LIMIT,
-                    paymasterParams: paymasterParams,
-                },
-            });
+    const gasLimit = await greeter.connect(user).estimateGas.setGreeting(greeting, {
+      customData: {
+        gasPerPubdata: utils.DEFAULT_GAS_PER_PUBDATA_LIMIT,
+        paymasterParams: paymasterParams,
+      },
+    });
 
-
-    const setGreetingTx = await greeter
-      .connect(user)
-      .setGreeting(greeting, {
-        maxPriorityFeePerGas: ethers.BigNumber.from(0),
-        maxFeePerGas: gasPrice,
-        gasLimit,
-        customData: {
-          gasPerPubdata: utils.DEFAULT_GAS_PER_PUBDATA_LIMIT,
-          paymasterParams,
-        },
-      });
+    const setGreetingTx = await greeter.connect(user).setGreeting(greeting, {
+      maxPriorityFeePerGas: ethers.BigNumber.from(0),
+      maxFeePerGas: gasPrice,
+      gasLimit,
+      customData: {
+        gasPerPubdata: utils.DEFAULT_GAS_PER_PUBDATA_LIMIT,
+        paymasterParams,
+      },
+    });
 
     await setGreetingTx.wait();
   }
@@ -101,7 +90,7 @@ describe("ERC721GatedPaymaster", function () {
 
     // Act
     const action = async () => {
-        await executeGreetingTransaction(normalUserWallet, "Hello World");
+      await executeGreetingTransaction(normalUserWallet, "Hello World");
     };
 
     // Assert
@@ -113,7 +102,7 @@ describe("ERC721GatedPaymaster", function () {
     // Act
     const tx = await paymaster.connect(wallet).withdraw(nftUserWallet.address);
     await tx.wait();
-    
+
     // Assert
     const finalContractBalance = await provider.getBalance(paymaster.address);
     expect(finalContractBalance).to.eql(ethers.BigNumber.from(0));
@@ -121,7 +110,7 @@ describe("ERC721GatedPaymaster", function () {
 
   it("should prevent non-owners from withdrawing funds", async function () {
     const action = async () => {
-        await paymaster.connect(nftUserWallet).withdraw(nftUserWallet.address);
+      await paymaster.connect(nftUserWallet).withdraw(nftUserWallet.address);
     };
 
     await expectThrowsAsync(action, "Ownable: caller is not the owner");
