@@ -275,7 +275,8 @@ impl TransactionResponseBuilder {
             "type": "0xff",
             "maxFeePerGas": "0x0",
             "maxPriorityFeePerGas": "0x0",
-            "chainId": "0x104",
+            // TODO: can be changed back to "0x104" after zksync-era update
+            "chainId": 260,
             "l1BatchNumber": "0x1",
             "l1BatchTxIndex": "0x0",
         })
