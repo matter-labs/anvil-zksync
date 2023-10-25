@@ -2,7 +2,7 @@ import { expect } from "chai";
 import { deployContract, getTestProvider } from "../helpers/utils";
 import { Wallet } from "zksync-web3";
 import { RichAccounts } from "../helpers/constants";
-import { ethers } from "ethers";
+import { BigNumber, ethers } from "ethers";
 import * as hre from "hardhat";
 import { TransactionRequest } from "zksync-web3/build/src/types";
 import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
@@ -163,8 +163,17 @@ describe("zks_getConfirmedTokens", function () {
 
 describe("zks_getAllAccountBalances", function () {
   it("Should return balance of a rich account", async function () {
-    const balances = await provider.send("zks_getAllAccountBalances", ["0x36615Cf349d7F6344891B1e7CA7C72883F5dc049"]);
-    // should contain 1_000_000_000_000 ETH
-    expect(balances).to.deep.equal({ "0x000000000000000000000000000000000000800a": "0xc9f2c9cd01851ee205de19900" });
+    // Arrange
+    const account = RichAccounts[0].Account;
+    const expectedBalance = ethers.utils.parseEther("1000000000000"); // 1_000_000_000_000 ETH
+    const ethAddress = "0x000000000000000000000000000000000000800a";
+    await provider.send("hardhat_setBalance", [account, expectedBalance._hex]);
+
+    // Act
+    const balances = await provider.send("zks_getAllAccountBalances", [account]);
+    const ethBalance = BigNumber.from(balances[ethAddress]);
+
+    // Assert
+    expect(ethBalance.eq(expectedBalance)).to.be.true;
   });
 });
