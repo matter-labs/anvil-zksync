@@ -603,8 +603,10 @@ mod tests {
         };
 
         let result = namespace.estimate_fee(mock_request).await.unwrap();
-
-        assert_eq!(result.gas_limit, U256::from(730662));
+        // Important: The gas value expectation is tied to a specific zksync-era dependency version.
+        // For the zksync-era commit hash `73a1e8ff564025d06e02c2689da238ae47bb10c3`, the anticipated gas value is 1086383.
+        // If the zksync-era dependency is updated, this expected gas value may need adjustment.
+        assert_eq!(result.gas_limit, U256::from(1086383));
         assert_eq!(result.max_fee_per_gas, U256::from(250000000));
         assert_eq!(result.max_priority_fee_per_gas, U256::from(0));
         assert_eq!(result.gas_per_pubdata_limit, U256::from(4080));
