@@ -44,13 +44,10 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
-      - name: Get latest version of stable Rust
-        run: rustup update stable
-      - name: Install target
-        run: rustup target add ${{ matrix.arch }}
-      - uses: Swatinem/rust-cache@v2
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          cache-on-failure: false
+          toolchain: nightly-2023-07-21
       - name: Run cargo clean
         run: cargo clean
 
