@@ -1,21 +1,23 @@
 use crate::cache::CacheConfig;
 use crate::hardhat::{HardhatNamespaceImpl, HardhatNamespaceT};
-use crate::node::{ShowGasDetails, ShowStorageLogs, ShowVMDetails};
+use crate::node::{InMemoryNodeConfig, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
+use crate::observability::Observability;
 use clap::{Parser, Subcommand, ValueEnum};
 use configuration_api::ConfigurationApiNamespaceT;
+use debug::DebugNamespaceImpl;
 use evm::{EvmNamespaceImpl, EvmNamespaceT};
 use fork::{ForkDetails, ForkSource};
 use logging_middleware::LoggingMiddleware;
 use node::ShowCalls;
-use simplelog::{
-    ColorChoice, CombinedLogger, ConfigBuilder, LevelFilter, TermLogger, TerminalMode, WriteLogger,
-};
+use observability::LogLevel;
+use tracing_subscriber::filter::LevelFilter;
 use zks::ZkMockNamespaceImpl;
 
 mod bootloader_debug;
 mod cache;
 mod configuration_api;
 mod console_log;
+mod debug;
 mod deps;
 mod eth_test;
 mod evm;
@@ -26,6 +28,7 @@ mod hardhat;
 mod http_fork_source;
 mod logging_middleware;
 mod node;
+pub mod observability;
 mod resolver;
 mod system_contracts;
 mod testing;
@@ -35,15 +38,12 @@ mod zks;
 use node::InMemoryNode;
 use zksync_core::api_server::web3::namespaces::NetNamespace;
 
+use std::fs::File;
 use std::{
     env,
-    fs::File,
     net::{IpAddr, Ipv4Addr, SocketAddr},
     str::FromStr,
 };
-
-use tracing::Level;
-use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 use futures::{
     channel::oneshot,
@@ -56,7 +56,7 @@ use zksync_basic_types::{L2ChainId, H160, H256};
 use crate::eth_test::EthTestNodeNamespaceT;
 use crate::{configuration_api::ConfigurationApiNamespace, node::TEST_NODE_NETWORK_ID};
 use zksync_core::api_server::web3::backend_jsonrpc::namespaces::{
-    eth::EthNamespaceT, net::NetNamespaceT, zks::ZksNamespaceT,
+    debug::DebugNamespaceT, eth::EthNamespaceT, net::NetNamespaceT, zks::ZksNamespaceT,
 };
 
 /// List of wallets (address, private key) that we seed with tokens at start.
@@ -115,6 +115,7 @@ async fn build_json_http<
     evm: EvmNamespaceImpl<S>,
     zks: ZkMockNamespaceImpl<S>,
     hardhat: HardhatNamespaceImpl<S>,
+    debug: DebugNamespaceImpl<S>,
 ) -> tokio::task::JoinHandle<()> {
     let (sender, recv) = oneshot::channel::<()>();
 
@@ -127,6 +128,7 @@ async fn build_json_http<
         io.extend_with(evm.to_delegate());
         io.extend_with(zks.to_delegate());
         io.extend_with(hardhat.to_delegate());
+        io.extend_with(debug.to_delegate());
         io
     };
 
@@ -150,34 +152,20 @@ async fn build_json_http<
     tokio::spawn(recv.map(drop))
 }
 
-/// Log filter level for the node.
-#[derive(Debug, Clone, ValueEnum)]
-enum LogLevel {
-    Trace,
-    Debug,
-    Info,
-    Warn,
-    Error,
-}
-
-impl From<LogLevel> for LevelFilter {
-    fn from(value: LogLevel) -> Self {
-        match value {
-            LogLevel::Trace => LevelFilter::Trace,
-            LogLevel::Debug => LevelFilter::Debug,
-            LogLevel::Info => LevelFilter::Info,
-            LogLevel::Warn => LevelFilter::Warn,
-            LogLevel::Error => LevelFilter::Error,
-        }
-    }
-}
-
 /// Cache type config for the node.
 #[derive(ValueEnum, Debug, Clone)]
 enum CacheType {
     None,
     Memory,
     Disk,
+}
+
+/// System contract options.
+#[derive(ValueEnum, Debug, Clone)]
+enum DevSystemContracts {
+    BuiltIn,
+    BuiltInNoVerify,
+    Local,
 }
 
 #[derive(Debug, Parser)]
@@ -207,9 +195,10 @@ struct Cli {
     /// It will make debug log more readable, but will decrease the performance.
     resolve_hashes: bool,
 
-    #[arg(long)]
-    /// If true, will load the locally compiled system contracts (useful when doing changes to system contracts or bootloader)
-    dev_use_local_contracts: bool,
+    /// Specifies the option for the system contracts (use compiled built-in with or without signature verification, or load locally).
+    /// Default: built-in
+    #[arg(long, default_value = "built-in")]
+    dev_system_contracts: DevSystemContracts,
 
     /// Log filter level - default: info
     #[arg(long, default_value = "info")]
@@ -275,29 +264,16 @@ struct ReplayArgs {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
-
     let log_level_filter = LevelFilter::from(opt.log);
-    let log_config = ConfigBuilder::new()
-        .add_filter_allow_str("era_test_node")
-        .build();
-    CombinedLogger::init(vec![
-        TermLogger::new(
-            log_level_filter,
-            log_config.clone(),
-            TerminalMode::Mixed,
-            ColorChoice::Auto,
-        ),
-        WriteLogger::new(
-            log_level_filter,
-            log_config,
-            File::create(opt.log_file_path).unwrap(),
-        ),
-    ])
-    .expect("failed instantiating logger");
+    let log_file = File::create(opt.log_file_path)?;
 
-    if opt.dev_use_local_contracts {
+    // Initialize the tracing subscriber
+    let observability =
+        Observability::init(String::from("era_test_node"), log_level_filter, log_file)?;
+
+    if matches!(opt.dev_system_contracts, DevSystemContracts::Local) {
         if let Some(path) = env::var_os("ZKSYNC_HOME") {
-            log::info!("+++++ Reading local contracts from {:?} +++++", path);
+            tracing::info!("+++++ Reading local contracts from {:?} +++++", path);
         }
     }
     let cache_config = match opt.cache {
@@ -308,15 +284,6 @@ async fn main() -> anyhow::Result<()> {
             reset: opt.reset_cache,
         },
     };
-
-    let filter = EnvFilter::from_default_env();
-    let subscriber = FmtSubscriber::builder()
-        .with_max_level(Level::TRACE)
-        .with_env_filter(filter)
-        .finish();
-
-    // Initialize the subscriber
-    tracing::subscriber::set_global_default(subscriber).expect("failed to set tracing subscriber");
 
     let fork_details = match &opt.command {
         Command::Run => None,
@@ -339,35 +306,38 @@ async fn main() -> anyhow::Result<()> {
     } else {
         vec![]
     };
-    let system_contracts_options = if opt.dev_use_local_contracts {
-        system_contracts::Options::Local
-    } else {
-        system_contracts::Options::BuiltIn
+    let system_contracts_options = match opt.dev_system_contracts {
+        DevSystemContracts::BuiltIn => system_contracts::Options::BuiltIn,
+        DevSystemContracts::BuiltInNoVerify => system_contracts::Options::BuiltInWithoutSecurity,
+        DevSystemContracts::Local => system_contracts::Options::Local,
     };
 
     let node = InMemoryNode::new(
         fork_details,
-        opt.show_calls,
-        opt.show_storage_logs,
-        opt.show_vm_details,
-        opt.show_gas_details,
-        opt.resolve_hashes,
-        &system_contracts_options,
+        Some(observability),
+        InMemoryNodeConfig {
+            show_calls: opt.show_calls,
+            show_storage_logs: opt.show_storage_logs,
+            show_vm_details: opt.show_vm_details,
+            show_gas_details: opt.show_gas_details,
+            resolve_hashes: opt.resolve_hashes,
+            system_contracts_options,
+        },
     );
 
     if !transactions_to_replay.is_empty() {
         let _ = node.apply_txs(transactions_to_replay);
     }
 
-    log::info!("Rich Accounts");
-    log::info!("=============");
+    tracing::info!("Rich Accounts");
+    tracing::info!("=============");
     for (index, wallet) in RICH_WALLETS.iter().enumerate() {
         let address = wallet.0;
         let private_key = wallet.1;
         node.set_rich_account(H160::from_str(address).unwrap());
-        log::info!("Account #{}: {} (1_000_000_000_000 ETH)", index, address);
-        log::info!("Private Key: {}", private_key);
-        log::info!("");
+        tracing::info!("Account #{}: {} (1_000_000_000_000 ETH)", index, address);
+        tracing::info!("Private Key: {}", private_key);
+        tracing::info!("");
     }
 
     let net = NetNamespace::new(L2ChainId::from(TEST_NODE_NETWORK_ID));
@@ -375,6 +345,7 @@ async fn main() -> anyhow::Result<()> {
     let evm = EvmNamespaceImpl::new(node.get_inner());
     let zks = ZkMockNamespaceImpl::new(node.get_inner());
     let hardhat = HardhatNamespaceImpl::new(node.get_inner());
+    let debug = DebugNamespaceImpl::new(node.get_inner());
 
     let threads = build_json_http(
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), opt.port),
@@ -385,12 +356,13 @@ async fn main() -> anyhow::Result<()> {
         evm,
         zks,
         hardhat,
+        debug,
     )
     .await;
 
-    log::info!("========================================");
-    log::info!("  Node is ready at 127.0.0.1:{}", opt.port);
-    log::info!("========================================");
+    tracing::info!("========================================");
+    tracing::info!("  Node is ready at 127.0.0.1:{}", opt.port);
+    tracing::info!("========================================");
 
     future::select_all(vec![threads]).await.0.unwrap();
 

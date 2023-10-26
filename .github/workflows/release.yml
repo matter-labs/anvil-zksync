@@ -28,11 +28,11 @@ jobs:
     name: build release
     strategy:
       matrix:
-        # TODO: fix and add aarch64-unknown-linux-gnu target
-        # See: https://github.com/matter-labs/era-test-node/issues/56
-        arch: [x86_64-unknown-linux-gnu, x86_64-apple-darwin, aarch64-apple-darwin]
+        arch: [x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu, x86_64-apple-darwin, aarch64-apple-darwin]
         include:
           -   arch: x86_64-unknown-linux-gnu
+              platform: ubuntu-20.04
+          -   arch: aarch64-unknown-linux-gnu
               platform: ubuntu-20.04
           -   arch: x86_64-apple-darwin
               platform: macos-latest
@@ -131,7 +131,7 @@ jobs:
           echo "CONTRIBUTORS<<EOF" >> $GITHUB_OUTPUT
           echo "$(git log --pretty=format:"- %aN (%aE)" $(git describe --tags --abbrev=0 ${{ env.VERSION }}^)..${{ env.VERSION }} | sort | uniq)" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-
+        
       - name: Create release draft
         env:
           GITHUB_USER: ${{ github.repository_owner }}
@@ -140,17 +140,18 @@ jobs:
         # The formatting here is borrowed from reth which borrowed it from Lighthouse (which is borrowed from OpenEthereum): https://github.com/openethereum/openethereum/blob/main/.github/workflows/build.yml
         run: |
           body=$(cat <<- "ENDBODY"
-          Release: ${{ env.VERSION }}
-          
+          <!--Watch Release Notes video below 👇 
+          [![YouTube Release Notes](https://img.youtube.com/vi/FZefCZW7JJk/0.jpg)](https://www.youtube.com/watch?v=FZefCZW7JJk)-->
+
           ## 📋 Summary
           
-          🐛 **Bug Fixes:**
+          ### 🐛 Bug Fixes:
           - TBD
           
-          ✨ **New Features:**
+          ### ✨ New Features:
           - TBD
           
-          ⚠️ **Breaking Changes:**
+          ### ⚠️ Breaking Changes:
           - TBD
           
           ## 📜 All Changes
@@ -166,6 +167,7 @@ jobs:
           | System | Architecture | Binary |
           |:---:|:---:|:---:|
           | <img src="https://simpleicons.org/icons/linux.svg" style="width: 32px;"/> | x86_64 | [era-test-node-${{ env.VERSION }}-x86_64-unknown-linux-gnu.tar.gz](https://github.com/${{ env.REPO_NAME }}/releases/download/${{ env.VERSION }}/era_test_node-${{ env.VERSION }}-x86_64-unknown-linux-gnu.tar.gz) | 
+          | <img src="https://simpleicons.org/icons/linux.svg" style="width: 32px;"/> | aarch64 | [era-test-node-${{ env.VERSION }}-aarch64-unknown-linux-gnu.tar.gz](https://github.com/${{ env.REPO_NAME }}/releases/download/${{ env.VERSION }}/era_test_node-${{ env.VERSION }}-aarch64-unknown-linux-gnu.tar.gz) | 
           | <img src="https://simpleicons.org/icons/apple.svg" style="width: 32px;"/> | x86_64 | [era-test-node-${{ env.VERSION }}-x86_64-apple-darwin.tar.gz](https://github.com/${{ env.REPO_NAME }}/releases/download/${{ env.VERSION }}/era_test_node-${{ env.VERSION }}-x86_64-apple-darwin.tar.gz) | 
           | <img src="https://simpleicons.org/icons/apple.svg" style="width: 32px;"/> | aarch64 | [era-test-node-${{ env.VERSION }}-aarch64-apple-darwin.tar.gz](https://github.com/${{ env.REPO_NAME }}/releases/download/${{ env.VERSION }}/era_test_node-${{ env.VERSION }}-aarch64-apple-darwin.tar.gz) |
           | | | | 
@@ -173,7 +175,7 @@ jobs:
           )
           assets=()
           for asset in ./era_test_node-*.tar.gz*; do
-              assets+=("-a" "$asset/$asset")
+              assets+=("$asset/$asset")
           done
           tag_name="${{ env.VERSION }}"
-          echo "$body" | hub release create --draft "${assets[@]}" -F "-" "$tag_name"
+          echo "$body" | gh release create "$tag_name" "${assets[@]}" --draft -F "-" -t "Release: $tag_name"

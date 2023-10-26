@@ -8,6 +8,7 @@
 use crate::node::{InMemoryNode, TxExecutionInfo};
 use crate::{fork::ForkSource, node::compute_hash};
 
+use ethers::contract;
 use httptest::{
     matchers::{eq, json_decoded, request},
     responders::json_encoded,
@@ -17,7 +18,7 @@ use itertools::Itertools;
 use std::str::FromStr;
 use vm::VmExecutionResultAndLogs;
 use zksync_basic_types::{H160, U64};
-use zksync_types::api::Log;
+use zksync_types::api::{BridgeAddresses, DebugCall, DebugCallType, Log};
 use zksync_types::{
     fee::Fee, l2::L2Tx, Address, L2ChainId, Nonce, PackedEthSignature, ProtocolVersionId, H256,
     U256,
@@ -142,19 +143,6 @@ impl MockServer {
                 }
             }))),
         );
-        server.expect(
-            Expectation::matching(request::body(json_decoded(eq(serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 4,
-                "method": "eth_getStorageAt",
-                "params": vec!["0x000000000000000000000000000000000000800a","0xe9472b134a1b5f7b935d5debff2691f95801214eafffdeabbf0e366da383104e","0xa"],
-            }))))).times(0..)
-            .respond_with(json_encoded(serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 4,
-                "result": "0x0000000000000000000000000000000000000000000000000000000000000000",
-            }))),
-        );
 
         MockServer { inner: server }
     }
@@ -242,6 +230,8 @@ impl BlockResponseBuilder {
 #[derive(Default, Debug, Clone)]
 pub struct TransactionResponseBuilder {
     hash: H256,
+    block_hash: H256,
+    block_number: U64,
 }
 
 impl TransactionResponseBuilder {
@@ -250,9 +240,21 @@ impl TransactionResponseBuilder {
         Self::default()
     }
 
-    /// Sets the block hash
+    /// Sets the transaction hash
     pub fn set_hash(&mut self, hash: H256) -> &mut Self {
         self.hash = hash;
+        self
+    }
+
+    /// Sets the block hash
+    pub fn set_block_hash(&mut self, hash: H256) -> &mut Self {
+        self.block_hash = hash;
+        self
+    }
+
+    /// Sets the block number
+    pub fn set_block_number(&mut self, number: U64) -> &mut Self {
+        self.block_number = number;
         self
     }
 
@@ -261,8 +263,8 @@ impl TransactionResponseBuilder {
         serde_json::json!({
             "hash": format!("{:#x}", self.hash),
             "nonce": "0x0",
-            "blockHash": "0x51f81bcdfc324a0dff2b5bec9d92e21cbebc4d5e29d3a3d30de3e03fbeab8d7f",
-            "blockNumber": "0x1",
+            "blockHash": format!("{:#x}", self.block_hash),
+            "blockNumber": format!("{:#x}", self.block_number),
             "transactionIndex": "0x0",
             "from": "0x29df43f75149d0552475a6f9b2ac96e28796ed0b",
             "to": "0x0000000000000000000000000000000000008006",
@@ -273,6 +275,7 @@ impl TransactionResponseBuilder {
             "type": "0xff",
             "maxFeePerGas": "0x0",
             "maxPriorityFeePerGas": "0x0",
+            // TODO: can be changed back to "0x104" after zksync-era update
             "chainId": 260,
             "l1BatchNumber": "0x1",
             "l1BatchTxIndex": "0x0",
@@ -356,7 +359,10 @@ impl RawTransactionsResponseBuilder {
 }
 
 /// Applies a transaction with a given hash to the node and returns the block hash.
-pub fn apply_tx<T: ForkSource + std::fmt::Debug>(node: &InMemoryNode<T>, tx_hash: H256) -> H256 {
+pub fn apply_tx<T: ForkSource + std::fmt::Debug>(
+    node: &InMemoryNode<T>,
+    tx_hash: H256,
+) -> (H256, U64) {
     let next_miniblock = node
         .get_inner()
         .read()
@@ -387,6 +393,88 @@ pub fn apply_tx<T: ForkSource + std::fmt::Debug>(node: &InMemoryNode<T>, tx_hash
     .unwrap();
     tx.set_input(vec![], tx_hash);
     node.apply_txs(vec![tx]).expect("failed applying tx");
+
+    (produced_block_hash, U64::from(next_miniblock))
+}
+
+/// Deploys a contract with the given bytecode.
+pub fn deploy_contract<T: ForkSource + std::fmt::Debug>(
+    node: &InMemoryNode<T>,
+    tx_hash: H256,
+    private_key: H256,
+    bytecode: Vec<u8>,
+    calldata: Option<Vec<u8>>,
+    nonce: Nonce,
+) -> H256 {
+    use ethers::abi::Function;
+    use ethers::types::Bytes;
+    use zksync_web3_rs::eip712;
+
+    let next_miniblock = node
+        .get_inner()
+        .read()
+        .map(|reader| reader.current_miniblock.saturating_add(1))
+        .expect("failed getting current batch number");
+    let produced_block_hash = compute_hash(next_miniblock, tx_hash);
+
+    let salt = [0u8; 32];
+    let bytecode_hash = eip712::hash_bytecode(&bytecode).expect("invalid bytecode");
+    let call_data: Bytes = calldata.unwrap_or_default().into();
+    let create: Function = serde_json::from_str(
+        r#"{
+            "inputs": [
+              {
+                "internalType": "bytes32",
+                "name": "_salt",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "_bytecodeHash",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "bytes",
+                "name": "_input",
+                "type": "bytes"
+              }
+            ],
+            "name": "create",
+            "outputs": [
+              {
+                "internalType": "address",
+                "name": "",
+                "type": "address"
+              }
+            ],
+            "stateMutability": "payable",
+            "type": "function"
+          }"#,
+    )
+    .unwrap();
+
+    let data = contract::encode_function_data(&create, (salt, bytecode_hash, call_data))
+        .expect("failed encoding function data");
+
+    let mut tx = L2Tx::new_signed(
+        zksync_types::CONTRACT_DEPLOYER_ADDRESS,
+        data.to_vec(),
+        nonce,
+        Fee {
+            gas_limit: U256::from(82511299),
+            max_fee_per_gas: U256::from(250_000_000),
+            max_priority_fee_per_gas: U256::from(250_000_000),
+            gas_per_pubdata_limit: U256::from(50000),
+        },
+        U256::from(0),
+        zksync_basic_types::L2ChainId::from(260),
+        &private_key,
+        Some(vec![bytecode]),
+        Default::default(),
+    )
+    .expect("failed signing tx");
+    tx.set_input(vec![], tx_hash);
+    node.apply_txs(vec![tx]).expect("failed deploying contract");
 
     produced_block_hash
 }
@@ -442,6 +530,22 @@ impl LogBuilder {
     }
 }
 
+/// Simple storage solidity contract that stores and retrieves two numbers
+///
+/// contract Storage {
+///     uint256 number1 = 1024;
+///     uint256 number2 = 115792089237316195423570985008687907853269984665640564039457584007913129639935;   // uint256::max
+///
+///     function retrieve1() public view returns (uint256) {
+///         return number1;
+///     }
+///
+///     function retrieve2() public view returns (uint256) {
+///         return number2;
+///     }
+/// }
+pub const STORAGE_CONTRACT_BYTECODE: &str = "000200000000000200010000000103550000006001100270000000160010019d0000008001000039000000400010043f0000000101200190000000280000c13d0000000001000031000000040110008c000000460000413d0000000101000367000000000101043b000000e001100270000000180210009c000000350000613d000000190110009c000000460000c13d0000000001000416000000000101004b000000460000c13d000000040100008a00000000011000310000001a02000041000000000301004b000000000300001900000000030240190000001a01100197000000000401004b000000000200a0190000001a0110009c00000000010300190000000001026019000000000101004b000000460000c13d0000000101000039000000000101041a000000800010043f0000001c01000041000000520001042e0000000001000416000000000101004b000000460000c13d0000040001000039000000000010041b000000010100008a0000000102000039000000000012041b0000002001000039000001000010044300000120000004430000001701000041000000520001042e0000000001000416000000000101004b000000460000c13d000000040100008a00000000011000310000001a02000041000000000301004b000000000300001900000000030240190000001a01100197000000000401004b000000000200a0190000001a0110009c00000000010300190000000001026019000000000101004b000000480000613d00000000010000190000005300010430000000400100043d000000000200041a00000000002104350000001602000041000000160310009c000000000102801900000040011002100000001b011001c7000000520001042e0000005100000432000000520001042e0000005300010430000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ffffffff000000020000000000000000000000000000004000000100000000000000000000000000000000000000000000000000000000000000000000000000ae2e2cce000000000000000000000000000000000000000000000000000000002711432d80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000080000000000000000000000000000000000000000000000000000000000000000000000000000000000dec5bcecb8ee3456d9f70206a2d3c7fe5879354667a3a4b473afaff3d289dc8";
+
 /// Returns a default instance for a successful [TxExecutionInfo]
 pub fn default_tx_execution_info() -> TxExecutionInfo {
     TxExecutionInfo {
@@ -465,6 +569,58 @@ pub fn default_tx_execution_info() -> TxExecutionInfo {
             refunds: Default::default(),
         },
     }
+}
+
+/// Returns a default instance for a successful [DebugCall]
+pub fn default_tx_debug_info() -> DebugCall {
+    DebugCall {
+        r#type: DebugCallType::Call,
+        from: Address::zero(),
+        to: Address::zero(),
+        gas: U256::zero(),
+        gas_used: U256::zero(),
+        value: U256::zero(),
+        output: Default::default(),
+        input: Default::default(),
+        error: None,
+        revert_reason: None,
+        calls: vec![DebugCall {
+            r#type: DebugCallType::Call,
+            from: Address::zero(),
+            to: Address::zero(),
+            gas: U256::zero(),
+            gas_used: U256::zero(),
+            value: U256::zero(),
+            output: Default::default(),
+            input: Default::default(),
+            error: None,
+            revert_reason: None,
+            calls: vec![],
+        }],
+    }
+}
+
+/// Asserts that two instances of [BridgeAddresses] are equal
+pub fn assert_bridge_addresses_eq(
+    expected_bridge_addresses: &BridgeAddresses,
+    actual_bridge_addresses: &BridgeAddresses,
+) {
+    assert_eq!(
+        expected_bridge_addresses.l1_erc20_default_bridge,
+        actual_bridge_addresses.l1_erc20_default_bridge
+    );
+    assert_eq!(
+        expected_bridge_addresses.l2_erc20_default_bridge,
+        actual_bridge_addresses.l2_erc20_default_bridge
+    );
+    assert_eq!(
+        expected_bridge_addresses.l1_weth_bridge,
+        actual_bridge_addresses.l1_weth_bridge
+    );
+    assert_eq!(
+        expected_bridge_addresses.l2_weth_bridge,
+        actual_bridge_addresses.l2_weth_bridge
+    );
 }
 
 mod test {
@@ -558,13 +714,14 @@ mod test {
     #[tokio::test]
     async fn test_apply_tx() {
         let node = InMemoryNode::<HttpForkSource>::default();
-        let actual_block_hash = apply_tx(&node, H256::repeat_byte(0x01));
+        let (actual_block_hash, actual_block_number) = apply_tx(&node, H256::repeat_byte(0x01));
 
         assert_eq!(
             H256::from_str("0xd97ba6a5ab0f2d7fbfc697251321cce20bff3da2b0ddaf12c80f80f0ab270b15")
                 .unwrap(),
             actual_block_hash,
         );
+        assert_eq!(U64::from(1), actual_block_number);
 
         assert!(
             node.get_inner()

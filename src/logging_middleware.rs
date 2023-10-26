@@ -5,7 +5,7 @@ use itertools::Itertools;
 use jsonrpc_core::{
     middleware, Call, FutureResponse, Metadata, Middleware, Params, Request, Response,
 };
-use log::LevelFilter;
+use tracing_subscriber::filter::LevelFilter;
 
 #[derive(Clone, Debug, Default)]
 pub struct Meta();
@@ -35,7 +35,7 @@ impl Middleware<Meta> for LoggingMiddleware {
     {
         if let Request::Single(Call::MethodCall(method_call)) = &request {
             match self.log_level_filter {
-                LevelFilter::Trace => {
+                LevelFilter::TRACE => {
                     let full_params = match &method_call.params {
                         Params::Array(values) => {
                             if values.is_empty() {
@@ -47,7 +47,7 @@ impl Middleware<Meta> for LoggingMiddleware {
                         _ => String::default(),
                     };
 
-                    log::trace!("{} was called {}", method_call.method.cyan(), full_params);
+                    tracing::trace!("{} was called {}", method_call.method.cyan(), full_params);
                 }
                 _ => {
                     // Generate truncated params for requests with massive payloads
@@ -76,7 +76,7 @@ impl Middleware<Meta> for LoggingMiddleware {
                         _ => String::default(),
                     };
 
-                    log::debug!(
+                    tracing::debug!(
                         "{} was called {}",
                         method_call.method.cyan(),
                         truncated_params
@@ -86,7 +86,7 @@ impl Middleware<Meta> for LoggingMiddleware {
         };
 
         Either::Left(Box::pin(next(request, meta).map(move |res| {
-            log::trace!("API response => {:?}", res);
+            tracing::trace!("API response => {:?}", res);
             res
         })))
     }

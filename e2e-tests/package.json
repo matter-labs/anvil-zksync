@@ -20,6 +20,7 @@
     "chai": "^4.3.7",
     "eslint": "^8.48.0",
     "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-mocha": "^10.2.0",
     "ethers": "^5.7.2",
     "hardhat": "^2.12.4",
     "mocha": "^10.2.0",

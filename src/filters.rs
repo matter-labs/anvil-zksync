@@ -87,7 +87,7 @@ pub struct PendingTransactionFilter {
 type Result<T> = std::result::Result<T, &'static str>;
 
 /// Keeps track of installed filters and their respective updates.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct EthFilters {
     id_counter: U256,
     filters: HashMap<U256, FilterType>,
@@ -107,7 +107,7 @@ impl EthFilters {
             }),
         );
 
-        log::info!("created block filter '{:#x}'", self.id_counter);
+        tracing::info!("created block filter '{:#x}'", self.id_counter);
         Ok(self.id_counter)
     }
 
@@ -134,7 +134,7 @@ impl EthFilters {
             })),
         );
 
-        log::info!("created log filter '{:#x}'", self.id_counter);
+        tracing::info!("created log filter '{:#x}'", self.id_counter);
         Ok(self.id_counter)
     }
 
@@ -151,7 +151,7 @@ impl EthFilters {
             }),
         );
 
-        log::info!(
+        tracing::info!(
             "created pending transaction filter '{:#x}'",
             self.id_counter
         );
@@ -160,7 +160,7 @@ impl EthFilters {
 
     /// Removes the filter with the given id. Returns true if the filter existed, false otherwise.
     pub fn remove_filter(&mut self, id: U256) -> bool {
-        log::info!("removing filter '{id:#x}'");
+        tracing::info!("removing filter '{id:#x}'");
         self.filters.remove(&id).is_some()
     }
 

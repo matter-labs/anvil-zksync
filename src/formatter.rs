@@ -73,7 +73,7 @@ pub fn print_event(event: &VmEvent, resolve_hashes: bool) {
             }
         }
 
-        log::info!(
+        tracing::info!(
             "{} {}",
             address_to_human_readable(event.address)
                 .map(|x| format!("{:42}", x.blue()))
@@ -151,9 +151,9 @@ pub fn print_call(call: &Call, padding: usize, show_calls: &ShowCalls, resolve_h
         );
 
         if call.revert_reason.as_ref().is_some() || call.error.as_ref().is_some() {
-            log::info!("{}", pretty_print.on_red());
+            tracing::info!("{}", pretty_print.on_red());
         } else {
-            log::info!("{}", pretty_print);
+            tracing::info!("{}", pretty_print);
         }
     }
     for subcall in &call.calls {
@@ -163,48 +163,48 @@ pub fn print_call(call: &Call, padding: usize, show_calls: &ShowCalls, resolve_h
 
 pub fn print_logs(log_query: &StorageLogQuery) {
     let separator = "─".repeat(82);
-    log::info!("{:<15} {:?}", "Type:", log_query.log_type);
-    log::info!(
+    tracing::info!("{:<15} {:?}", "Type:", log_query.log_type);
+    tracing::info!(
         "{:<15} {}",
         "Address:",
         address_to_human_readable(log_query.log_query.address)
             .unwrap_or(format!("{}", log_query.log_query.address))
     );
-    log::info!("{:<15} {:#066x}", "Key:", log_query.log_query.key);
+    tracing::info!("{:<15} {:#066x}", "Key:", log_query.log_query.key);
 
-    log::info!(
+    tracing::info!(
         "{:<15} {:#066x}",
         "Read Value:",
         log_query.log_query.read_value
     );
 
     if log_query.log_type != StorageLogQueryType::Read {
-        log::info!(
+        tracing::info!(
             "{:<15} {:#066x}",
             "Written Value:",
             log_query.log_query.written_value
         );
     }
-    log::info!("{}", separator);
+    tracing::info!("{}", separator);
 }
 
 pub fn print_vm_details(result: &VmExecutionResultAndLogs) {
-    log::info!("");
-    log::info!("┌──────────────────────────┐");
-    log::info!("│   VM EXECUTION RESULTS   │");
-    log::info!("└──────────────────────────┘");
+    tracing::info!("");
+    tracing::info!("┌──────────────────────────┐");
+    tracing::info!("│   VM EXECUTION RESULTS   │");
+    tracing::info!("└──────────────────────────┘");
 
-    log::info!("Cycles Used:          {}", result.statistics.cycles_used);
-    log::info!(
+    tracing::info!("Cycles Used:          {}", result.statistics.cycles_used);
+    tracing::info!(
         "Computation Gas Used: {}",
         result.statistics.computational_gas_used
     );
-    log::info!("Contracts Used:       {}", result.statistics.contracts_used);
+    tracing::info!("Contracts Used:       {}", result.statistics.contracts_used);
     match &result.result {
         vm::ExecutionResult::Success { .. } => {}
         vm::ExecutionResult::Revert { output } => {
-            log::info!("");
-            log::info!(
+            tracing::info!("");
+            tracing::info!(
                 "{}",
                 format!(
                     "\n[!] Revert Reason:    {}",
@@ -214,10 +214,10 @@ pub fn print_vm_details(result: &VmExecutionResultAndLogs) {
             );
         }
         vm::ExecutionResult::Halt { reason } => {
-            log::info!("");
-            log::info!("{}", format!("\n[!] Halt Reason:    {}", reason).on_red());
+            tracing::info!("");
+            tracing::info!("{}", format!("\n[!] Halt Reason:    {}", reason).on_red());
         }
     }
 
-    log::info!("════════════════════════════");
+    tracing::info!("════════════════════════════");
 }

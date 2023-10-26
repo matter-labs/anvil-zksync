@@ -137,6 +137,58 @@ content-type: application/json
 {
     "jsonrpc": "2.0",
     "id": "1",
+    "method": "debug_traceCall",
+    "params": [{
+        "to": "0x36615Cf349d7F6344891B1e7CA7C72883F5dc049",
+        "data": "0x0000",
+        "from": "0xa61464658AfeAf65CccaaFD3a512b69A83B77618",
+        "gas": "0x0000",
+        "gasPrice": "0x0000",
+        "value": "0x0000",
+        "nonce": "0x0000"
+    }, "latest"]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "debug_traceTransaction",
+    "params": ["0xd3a94ff697a573cb174ecce05126e952ecea6dee051526a3e389747ff86b0d99", { "tracer": "callTracer", "tracerConfig": { "onlyTopCall": true } }]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "debug_traceBlockByHash",
+    "params": ["0xd3a94ff697a573cb174ecce05126e952ecea6dee051526a3e389747ff86b0d99", { "tracer": "callTracer", "tracerConfig": { "onlyTopCall": true } }]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "debug_traceBlockByNumber",
+    "params": ["0xddd", { "tracer": "callTracer", "tracerConfig": { "onlyTopCall": true } }]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
     "method": "eth_chainId",
     "params": []
 }
@@ -333,6 +385,28 @@ content-type: application/json
 
 {
     "jsonrpc": "2.0",
+    "id": "1",
+    "method": "evm_snapshot",
+    "params": []
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "evm_revert",
+    "params": ["0x1"]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
     "id": "2",
     "method": "eth_getBlockByHash",
     "params": ["0x371c9871792d89fea30e6b947ca45e9798e4f577dcdddb79269a93450f52b459", true]
@@ -479,6 +553,49 @@ content-type: application/json
 {
     "jsonrpc": "2.0",
     "id": "2",
+    "method": "eth_getStorageAt",
+    "params": ["0x123456789abcdef123456789abcdef1234567890", "0x0", "latest"]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "2",
+    "method": "eth_getTransactionByBlockHashAndIndex",
+    "params": ["0x123456789abcdef123456789abcdef1234567890", "0x1"]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "2",
+    "method": "eth_getTransactionByBlockNumberAndIndex",
+    "params": ["latest", "0x1"]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "2",
+    "method": "eth_protocolVersion"
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "2",
     "method": "hardhat_setBalance",
     "params": [
         "0x36615Cf349d7F6344891B1e7CA7C72883F5dc049",
@@ -546,9 +663,66 @@ content-type: application/json
 
 {
     "jsonrpc": "2.0",
+    "id": "2",
+    "method": "hardhat_setCode",
+    "params": [
+        "0x36615Cf349d7F6344891B1e7CA7C72883F5dc049",
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    ]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
     "id": "1",
     "method": "zks_getTokenPrice",
     "params": ["0x0000000000000000000000000000000000000000"]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "zks_getTransactionDetails",
+    "params": ["0xa5d62a85561295ed58f8daad4e9442691e6da4301a859f364d28a02917d6e04d"]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "zks_getBlockDetails",
+    "params": [16474138]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "zks_getBridgeContracts",
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "zks_getRawBlockTransactions",
+    "params": [16474138]
 }
 
 ###
@@ -571,4 +745,26 @@ content-type: application/json
     "id": "1",
     "method": "eth_accounts",
     "params": []
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "config_setLogLevel",
+    "params": ["trace"]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "config_setLogging",
+    "params": ["era_test_node=info,hyper=debug"]
 }

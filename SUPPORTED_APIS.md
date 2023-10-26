@@ -21,10 +21,12 @@ The `status` options are:
 | [`CONFIG`](#config-namespace) | [`config_setShowStorageLogs`](#config_setshowstoragelogs) | `SUPPORTED` | Updates `show_storage_logs` to print storage log reads/writes |
 | [`CONFIG`](#config-namespace) | [`config_setShowVmDetails`](#config_setshowvmdetails) | `SUPPORTED` | Updates `show_vm_details` to print more detailed results from vm execution |
 | [`CONFIG`](#config-namespace) | [`config_setShowGasDetails`](#config_setshowgasdetails) | `SUPPORTED` | Updates `show_gas_details` to print more details about gas estimation and usage |
-| `DEBUG` | `debug_traceCall` | `NOT IMPLEMENTED`<br />[GitHub Issue #61](https://github.com/matter-labs/era-test-node/issues/61) | Performs a call and returns structured traces of the execution |
-| `DEBUG` | `debug_traceBlockByHash` | `NOT IMPLEMENTED`<br />[GitHub Issue #63](https://github.com/matter-labs/era-test-node/issues/63) | Returns structured traces for operations within the block of the specified block hash |
-| `DEBUG` | `debug_traceBlockByNumber` | `NOT IMPLEMENTED`<br />[GitHub Issue #64](https://github.com/matter-labs/era-test-node/issues/64) | Returns structured traces for operations within the block of the specified block number |
-| `DEBUG` | `debug_traceTransaction` | `NOT IMPLEMENTED`<br />[GitHub Issue #65](https://github.com/matter-labs/era-test-node/issues/65) | Returns a structured trace of the execution of the specified transaction |
+| [`CONFIG`](#config-namespace) | [`config_setLogLevel`](#config_setloglevel) | `SUPPORTED` | Sets the logging level for the node and only displays the node logs. |
+| [`CONFIG`](#config-namespace) | [`config_setLogging`](#config_setlogging) | `SUPPORTED` | Sets the fine-tuned logging levels for the node and any of its dependencies |
+| [`DEBUG`](#debug-namespace) | [`debug_traceCall`](#debug_tracecall) | `SUPPORTED` | Performs a call and returns structured traces of the execution |
+| [`DEBUG`](#debug-namespace) | [`debug_traceBlockByHash`](#debug_traceblockbyhash) | `SUPPORTED` | Returns structured traces for operations within the block of the specified block hash |
+| [`DEBUG`](#debug-namespace) | [`debug_traceBlockByNumber`](#debug_traceblockbynumber) | `SUPPORTED` | Returns structured traces for operations within the block of the specified block number |
+| [`DEBUG`](#debug-namespace) | [`debug_traceTransaction`](#debug_tracetransaction) | `SUPPORTED` | Returns a structured trace of the execution of the specified transaction |
 | `ETH` | `eth_accounts` | `SUPPORTED` | Returns a list of addresses owned by client |
 | [`ETH`](#eth-namespace) | [`eth_chainId`](#eth_chainid) | `SUPPORTED` | Returns the currently configured chain id <br />_(default is `260`)_ |
 | `ETH` | `eth_coinbase` | `NOT IMPLEMENTED` | Returns the client coinbase address |
@@ -47,9 +49,9 @@ The `status` options are:
 | [`ETH`](#eth-namespace) | [`eth_getFilterLogs`](#eth_getfilterlogs) | `SUPPORTED` | Returns an array of all logs matching filter with given id |
 | [`ETH`](#eth-namespace) | [`eth_getLogs`](#eth_getlogs) | `SUPPORTED` | Returns an array of all logs matching a given filter object |
 | `ETH` | `eth_getProof` | `NOT IMPLEMENTED` | Returns the details for the account at the specified address and block number, the account's Merkle proof, and the storage values for the specified storage keys with their Merkle-proofs |
-| `ETH` | `eth_getStorageAt` | `NOT IMPLEMENTED`<br />[GitHub Issue #45](https://github.com/matter-labs/era-test-node/issues/45) | Returns the value from a storage position at a given address |
-| `ETH` | `eth_getTransactionByBlockHashAndIndex` | `NOT IMPLEMENTED`<br />[GitHub Issue #46](https://github.com/matter-labs/era-test-node/issues/46) | Returns information about a transaction by block hash and transaction index position |
-| `ETH` | `eth_getTransactionByBlockNumberAndIndex` | `NOT IMPLEMENTED`<br />[GitHub Issue #47](https://github.com/matter-labs/era-test-node/issues/47) | Returns information about a transaction by block number and transaction index position |
+| [`ETH`](#eth-namespace) | [`eth_getStorageAt`](#eth_getstorageat) | `SUPPORTED` | Returns the value from a storage position at a given address |
+| [`ETH`](#eth-namespace) | [`eth_getTransactionByBlockHashAndIndex`](#eth_gettransactionbyblockhashandindex) | `SUPPORTED` | Returns information about a transaction by block hash and transaction index position |
+| [`ETH`](#eth-namespace) | [`eth_getTransactionByBlockNumberAndIndex`](#eth_gettransactionbyblocknumberandindex) | `SUPPORTED` | Returns information about a transaction by block number and transaction index position |
 | [`ETH`](#eth-namespace) | [`eth_getTransactionReceipt`](#eth_gettransactionreceipt) | `SUPPORTED` | Returns the receipt of a transaction by transaction hash |
 | `ETH` | `eth_getUncleByBlockHashAndIndex` | `NOT IMPLEMENTED` | Returns information about a uncle of a block by hash and uncle index position |
 | `ETH` | `eth_getUncleByBlockNumberAndIndex` | `NOT IMPLEMENTED` | Returns information about a uncle of a block by hash and uncle index position |
@@ -62,7 +64,7 @@ The `status` options are:
 | [`ETH`](#eth-namespace) | [`eth_newBlockFilter`](#`eth_newblockfilter) | `SUPPORTED` | Creates a filter in the node, to notify when a new block arrives |
 | [`ETH`](#eth-namespace) | [`eth_newFilter`](#`eth_newfilter) | `SUPPORTED` | Creates a filter object, based on filter options, to notify when the state changes (logs) |
 | [`ETH`](#eth-namespace) | [`eth_newPendingTransactionFilter`](#`eth_newpendingtransactionfilter) | `SUPPORTED` | Creates a filter in the node, to notify when new pending transactions arrive |
-| `ETH` | `eth_protocolVersion` | `NOT IMPLEMENTED`<br />[GitHub Issue #48](https://github.com/matter-labs/era-test-node/issues/48) | Returns the current ethereum protocol version |
+| [`ETH`](#eth-namespace)` | [`eth_protocolVersion`](#eth_protocolversion) | `SUPPORTED` | Returns the current ethereum protocol version |
 | `ETH` | `eth_sendTransaction` | `NOT IMPLEMENTED` | Creates new message call transaction or a contract creation, if the data field contains code |
 | `ETH` | `eth_sign` | `NOT IMPLEMENTED` | The sign method calculates an Ethereum specific signature with: `sign(keccak256("\x19Ethereum Signed Message:\n" + message.length + message)))` |
 | `ETH` | `eth_signTransaction` | `NOT IMPLEMENTED` | Signs a transaction that can be submitted to the network at a later time using `eth_sendRawTransaction` |
@@ -78,7 +80,7 @@ The `status` options are:
 | [`EVM`](#evm-namespace) | [`evm_increaseTime`](#evm_increasetime) | `SUPPORTED` | Jump forward in time by the given amount of time, in seconds |
 | [`EVM`](#evm-namespace) | [`evm_mine`](#evm_mine) | `SUPPORTED` | Force a single block to be mined |
 | `EVM` | `evm_removeAccount` | `NOT IMPLEMENTED` | Removes an account |
-| `EVM` | `evm_revert` | `NOT IMPLEMENTED`<br />[GitHub Issue #70](https://github.com/matter-labs/era-test-node/issues/70) | Revert the state of the blockchain to a previous snapshot |
+| [`EVM`](#evm-namespace) | [`evm_revert`](#evm_revert) | `SUPPORTED` | Revert the state of the blockchain to a previous snapshot |
 | `EVM` | `evm_setAccountBalance` | `NOT IMPLEMENTED` | Sets the given account's balance to the specified WEI value |
 | `EVM` | `evm_setAccountCode` | `NOT IMPLEMENTED` | Sets the given account's code to the specified data |
 | `EVM` | `evm_setAccountNonce` | `NOT IMPLEMENTED` | Sets the given account's nonce to the specified value |
@@ -88,7 +90,7 @@ The `status` options are:
 | `EVM` | `evm_setIntervalMining` | `NOT IMPLEMENTED` | Enables (with a numeric argument greater than 0) or disables (with a numeric argument equal to 0), the automatic mining of blocks at a regular interval of milliseconds, each of which will include all pending transactions |
 | [`EVM`](#evm-namespace) | [`evm_setNextBlockTimestamp`](#evm_setnextblocktimestamp) | `SUPPORTED` | Works like `evm_increaseTime`, but takes the exact timestamp that you want in the next block, and increases the time accordingly |
 | [`EVM`](#evm-namespace) | [`evm_setTime`](#evm_settime) | `SUPPORTED` | Sets the internal clock time to the given timestamp |
-| `EVM` | `evm_snapshot` | `NOT IMPLEMENTED`<br />[GitHub Issue #69](https://github.com/matter-labs/era-test-node/issues/69) | Snapshot the state of the blockchain at the current block |
+| [`EVM`](#evm-namespace) | [`evm_snapshot`](#evm_snapshot) | `SUPPORTED` | Snapshot the state of the blockchain at the current block |
 | `HARDHAT` | `hardhat_addCompilationResult` | `NOT IMPLEMENTED` | Add information about compiled contracts |
 | `HARDHAT` | `hardhat_dropTransaction` | `NOT IMPLEMENTED` | Remove a transaction from the mempool |
 | [`HARDHAT`](#hardhat-namespace) | [`hardhat_impersonateAccount`](#hardhat_impersonateaccount) | `SUPPORTED` | Impersonate an account |
@@ -97,7 +99,7 @@ The `status` options are:
 | [`HARDHAT`](#hardhat-namespace) | [`hardhat_mine`](#hardhat_mine) | Mine any number of blocks at once, in constant time |
 | `HARDHAT` | `hardhat_reset` | `NOT IMPLEMENTED` | Resets the state of the network |
 | [`HARDHAT`](#hardhat-namespace) | [`hardhat_setBalance`](#hardhat_setbalance) | `SUPPORTED` | Modifies the balance of an account |
-| `HARDHAT` | `hardhat_setCode` | `NOT IMPLEMENTED` | Sets the bytecode of a given account |
+| [`HARDHAT`](#hardhat-namespace) | [`hardhat_setCode`](#hardhat_setcode) | `SUPPORTED` | Sets the bytecode of a given account |
 | `HARDHAT` | `hardhat_setCoinbase` | `NOT IMPLEMENTED` | Sets the coinbase address |
 | `HARDHAT` | `hardhat_setLoggingEnabled` | `NOT IMPLEMENTED` | Enables or disables logging in Hardhat Network |
 | `HARDHAT` | `hardhat_setMinGasPrice` | `NOT IMPLEMENTED` | Sets the minimum gas price |
@@ -112,8 +114,8 @@ The `status` options are:
 | [`ZKS`](#zks-namespace) | [`zks_estimateFee`](#zks_estimateFee) | `SUPPORTED` | Gets the Fee estimation data for a given Request |
 | `ZKS` | `zks_estimateGasL1ToL2` | `NOT IMPLEMENTED` | Estimate of the gas required for a L1 to L2 transaction |
 | `ZKS` | `zks_getAllAccountBalances` | `NOT IMPLEMENTED` | Returns all balances for confirmed tokens given by an account address |
-| `ZKS` | `zks_getBlockDetails` | `NOT IMPLEMENTED` | Returns additional zkSync-specific information about the L2 block |
-| `ZKS` | `zks_getBridgeContracts` | `NOT IMPLEMENTED` | Returns L1/L2 addresses of default bridges |
+| [`ZKS`](#zks-namespace) | [`zks_getBridgeContracts`](#zks_getbridgecontracts) | `SUPPORTED` | Returns L1/L2 addresses of default bridges |
+| [`ZKS`](#zks-namespace) | [`zks_getBlockDetails`](#zks_getblockdetails) | `SUPPORTED` | Returns additional zkSync-specific information about the L2 block |
 | `ZKS` | `zks_getBytecodeByHash` | `NOT IMPLEMENTED` | Returns bytecode of a transaction given by its hash |
 | `ZKS` | `zks_getConfirmedTokens` | `NOT IMPLEMENTED` | Returns [address, symbol, name, and decimal] information of all tokens within a range of ids given by parameters `from` and `limit` |
 | `ZKS` | `zks_getL1BatchBlockRange` | `NOT IMPLEMENTED` | Returns the range of blocks contained within a batch given by batch number |
@@ -121,10 +123,10 @@ The `status` options are:
 | `ZKS` | `zks_getL2ToL1LogProof` | `NOT IMPLEMENTED` | Given a transaction hash, and an index of the L2 to L1 log produced within the transaction, it returns the proof for the corresponding L2 to L1 log |
 | `ZKS` | `zks_getL2ToL1MsgProof` | `NOT IMPLEMENTED` | Given a block, a sender, a message, and an optional message log index in the block containing the L1->L2 message, it returns the proof for the message sent via the L1Messenger system contract |
 | `ZKS` | `zks_getMainContract` | `NOT IMPLEMENTED` | Returns the address of the zkSync Era contract |
-| `ZKS` | `zks_getRawBlockTransactions` | `NOT IMPLEMENTED` | Returns data of transactions in a block |
+| [`ZKS`](#zks-namespace) | [`zks_getRawBlockTransactions`](#zks_getrawblocktransactions) | `SUPPORTED` | Returns data of transactions in a block |
 | `ZKS` | `zks_getTestnetPaymaster` | `NOT IMPLEMENTED` | Returns the address of the testnet paymaster |
 | [`ZKS`](#zks-namespace) | [`zks_getTokenPrice`](#zks_getTokenPrice) | `SUPPORTED` | Gets the USD price of a token <br />_(`ETH` is hard-coded to `1_500`, while some others are `1`)_ |
-| `ZKS` | `zks_getTransactionDetails` | `NOT IMPLEMENTED` | Returns data from a specific transaction given by the transaction hash |
+| [`ZKS`](#zks-namespace) | [`zks_getTransactionDetails`](#zks_gettransactiondetails) | `SUPPORTED` | Returns data from a specific transaction given by the transaction hash |
 | `ZKS` | `zks_L1BatchNumber` | `NOT IMPLEMENTED` | Returns the latest L1 batch number |
 | `ZKS` | `zks_L1ChainId` | `NOT IMPLEMENTED` | Returns the chain id of the underlying L1 |
 
@@ -289,6 +291,210 @@ curl --request POST \
   --url http://localhost:8011/ \
   --header 'content-type: application/json' \
   --data '{"jsonrpc": "2.0","id": "1","method": "config_setResolveHashes","params": [true]}'
+```
+
+### `config_setLogLevel`
+
+[source](src/configuration_api.rs)
+
+Sets the logging level for the node and only displays the node logs.
+
+#### Arguments
+
++ `level: LogLevel ('trace', 'debug', 'info', 'warn', 'error')`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "config_setLogLevel","params": ["trace"]}'
+```
+
+### `config_setLogging`
+
+[source](src/configuration_api.rs)
+
+Sets the fine-tuned logging levels for the node and any of its dependencies. 
+The directive format is comma-separated `module=level` for any number of modules.
+
+#### Arguments
+
++ `directive: String (module=level,other_module=level)`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "config_setLogging","params": ["era_test_node=trace,hyper=debug"]}'
+```
+
+## `DEBUG NAMESPACE`
+
+### `debug_traceCall`
+
+[source](src/debug.rs)
+
+The `debug_traceCall` is similar to `eth_call` but returns call traces for each call.
+
+Currently calls can only be traced on the latest block. This is the default and hence the block argument can be omitted.
+
+The third argument mirrors the [`TraceConfig` of go-ethereum](https://geth.ethereum.org/docs/interacting-with-geth/rpc/ns-debug#traceconfig), but with the restriction that the only supported tracer is `CallTracer`. Memory, Stack and Storage traces are not supported.
+
+#### Arguments
+
++ `transaction: Transaction`
+
++ `block: BlockNumber`
+
++ `tracer: TracerConfig`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+      "id": "2",
+      "method": "debug_traceCall",
+      "params": [{
+          "to": "0x36615Cf349d7F6344891B1e7CA7C72883F5dc049",
+          "data": "0x0000",
+          "from": "0xa61464658AfeAf65CccaaFD3a512b69A83B77618",
+          "gas": "0x0000",
+          "gasPrice": "0x0000",
+          "value": "0x0000",
+          "nonce": "0x0000"
+      }, "latest"]
+  }'
+```
+
+### `debug_traceTransaction`
+
+[source](src/debug.rs)
+
+Returns call traces for the transaction with given hash.
+
+Currently only transactions executed on the dev node itself (ie, not from upstream when using fork mode) can be traced.
+
+The third argument mirrors the [`TraceConfig` of go-ethereum](https://geth.ethereum.org/docs/interacting-with-geth/rpc/ns-debug#traceconfig), but with the restriction that the only supported tracer is `CallTracer`. Memory, Stack and Storage traces are not supported.
+
+#### Arguments
+
+- `tx_hash: H256`
+
+- `options: TracerConfig` (optional)
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+      "id": "2",
+      "method": "debug_traceTransaction",
+      "params": [
+        "0xd3a94ff697a573cb174ecce05126e952ecea6dee051526a3e389747ff86b0d99",
+        { "tracer": "callTracer", "tracerConfig": { "onlyTopCall": true } }
+      ]
+  }'
+```
+
+### `debug_traceBlockByHash`
+
+[source](src/debug.rs)
+
+Returns call traces for each transaction within a given block.
+
+Currently only transactions from blocks mined on the dev node itself (ie, not from upstream when using fork mode) can be traced.
+
+The third argument mirrors the [`TraceConfig` of go-ethereum](https://geth.ethereum.org/docs/interacting-with-geth/rpc/ns-debug#traceconfig), but with the restriction that the only supported tracer is `CallTracer`. Memory, Stack and Storage traces are not supported.
+
+#### Arguments
+
+- `blockHash: H256`
+
+- `options: TracerConfig` (optional)
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+      "id": "2",
+      "method": "debug_traceBlockByHash",
+      "params": [
+        "0xd3a94ff697a573cb174ecce05126e952ecea6dee051526a3e389747ff86b0d99",
+        { "tracer": "callTracer", "tracerConfig": { "onlyTopCall": true } }
+      ]
+  }'
+```
+
+### `debug_traceBlockByNumber`
+
+[source](src/debug.rs)
+
+Returns call traces for each transaction within a given block.
+
+Currently only transactions from blocks mined on the dev node itself (ie, not from upstream when using fork mode) can be traced.
+
+The third argument mirrors the [`TraceConfig` of go-ethereum](https://geth.ethereum.org/docs/interacting-with-geth/rpc/ns-debug#traceconfig), but with the restriction that the only supported tracer is `CallTracer`. Memory, Stack and Storage traces are not supported.
+
+#### Arguments
+
+- `blockNumber: BlockNumber`
+
+- `options: TracerConfig` (optional)
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+      "id": "2",
+      "method": "debug_traceBlockByNumber",
+      "params": [
+        "latest",
+        { "tracer": "callTracer", "tracerConfig": { "onlyTopCall": true } }
+      ]
+  }'
 ```
 
 ## `NETWORK NAMESPACE`
@@ -784,7 +990,6 @@ curl --request POST \
 }'
 ```
 
-
 ### `eth_getFilterLogs`
 
 [source](src/node.rs)
@@ -1071,6 +1276,121 @@ curl --request POST \
 }'
 ```
 
+### `eth_getStorageAt`
+
+[source](src/node.rs)
+
+Returns the value from a storage position at a given address.
+
+#### Arguments
+
++ `address: H160`
++ `position: U256`
++ `blockNumber: BlockIdVariant`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_getStorageAt",
+    "params": ["0x123456789abcdef123456789abcdef1234567890", "0x0", "latest"]
+}'
+```
+
+### `eth_getTransactionByBlockHashAndIndex`
+
+[source](src/node.rs)
+
+Returns information about a transaction by block hash and transaction index position
+
+#### Arguments
+
++ `block_hash: H256`
++ `index: U64`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_getTransactionByBlockHashAndIndex",
+    "params": ["0x0000000000000000000000000000000000000000000000000000000000000008", "0x1"]
+}'
+```
+
+### `eth_getTransactionByBlockNumberAndIndex`
+
+[source](src/node.rs)
+
+Returns information about a transaction by block number and transaction index position
+
+#### Arguments
+
++ `block_number: BlockNumber`
++ `index: U64`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_getTransactionByBlockNumberAndIndex",
+    "params": ["latest", "0x1"]
+}'
+```
+
+### `eth_protocolVersion`
+
+[source](src/node.rs)
+
+Returns the current ethereum protocol version.
+
+#### Arguments
+
++ _NONE_
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_protocolVersion"
+}'
+```
+
 ## `HARDHAT NAMESPACE`
 
 ### `hardhat_setBalance`
@@ -1218,6 +1538,38 @@ curl --request POST \
 }'
 ```
 
+### `hardhat_setCode`
+
+[source](src/hardhat.rs)
+
+Sets the code for a given address.
+
+#### Arguments
+
++ `address: Address` - The `Address` whose code will be updated
++ `code: Bytes` - The code to set to
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+      "id": "1",
+      "method": "hardhat_setCode",
+      "params": [
+        "0x36615Cf349d7F6344891B1e7CA7C72883F5dc049",
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+      ]
+  }'
+```
+
 ## `EVM NAMESPACE`
 
 ### `evm_mine`
@@ -1310,6 +1662,52 @@ curl --request POST \
   --data '{"jsonrpc": "2.0","id": "1","method": "evm_setTime","params": [1672527600]}'
 ```
 
+### `evm_snapshot`
+
+[source](src/evm.rs)
+
+Snapshot the state of the blockchain at the current block.
+
+#### Arguments
+
++ _NONE_
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "evm_snapshot"}'
+```
+
+### `evm_revert`
+
+[source](src/evm.rs)
+
+Revert the state of the blockchain to a previous snapshot
+
+#### Arguments
+
++ `snapshot_id: U64`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "evm_revert","params": ["0x1"]}'
+```
+
 ## `ZKS NAMESPACE`
 
 ### `zks_estimateFee`
@@ -1369,4 +1767,100 @@ curl --request POST \
   --url http://localhost:8011/ \
   --header 'content-type: application/json' \
   --data '{"jsonrpc": "2.0","id": "1","method": "zks_getTokenPrice","params": ["0x0000000000000000000000000000000000000000"]}'
+```
+
+### `zks_getTransactionDetails`
+
+[source](src/zks.rs)
+
+Returns data from a specific transaction given by the transaction hash.
+
+#### Arguments
+
++ `transactionHash: H256`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "zks_getTransactionDetails","params": ["0xa5d62a85561295ed58f8daad4e9442691e6da4301a859f364d28a02917d6e04d"]}'
+```
+
+### `zks_getBlockDetails`
+
+[source](src/zks.rs)
+
+Returns additional zkSync-specific information about the L2 block.
+
+#### Arguments
+
++ `block: u32` - The number of the block
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0", "id": 1, "method": "zks_getBlockDetails", "params": [ 140599 ]}'
+```
+
+### `zks_getBridgeContracts`
+
+[source](src/zks.rs)
+
+Returns L1/L2 addresses of default bridges.
+
+#### Arguments
+
++ _NONE_
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+      "id": "2",
+      "method": "zks_getBridgeContracts"
+  }'
+```
+
+### `zks_getRawBlockTransactions`
+
+[source](src/zks.rs)
+
+Returns data of transactions in a block.
+
+#### Arguments
+
++ `block: u32` - The number of the block
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0", "id": 1, "method": "zks_getRawBlockTransactions", "params": [ 140599 ]}'
 ```
