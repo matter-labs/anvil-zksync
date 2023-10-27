@@ -1223,6 +1223,25 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
         }
     }
 
+    fn validate_tx(&self, tx: &L2Tx) -> Result<(), String> {
+        let max_gas = U256::from(u32::MAX);
+        if tx.common_data.fee.gas_limit > max_gas
+            || tx.common_data.fee.gas_per_pubdata_limit > max_gas
+        {
+            return Err("exceeds block gas limit".into());
+        }
+
+        if tx.common_data.fee.max_fee_per_gas < tx.common_data.fee.max_priority_fee_per_gas {
+            tracing::info!(
+                "Submitted Tx is Unexecutable {:?} because of MaxPriorityFeeGreaterThanMaxFee {}",
+                tx.hash(),
+                tx.common_data.fee.max_fee_per_gas
+            );
+            return Err("max priority fee per gas higher than max fee per gas".into());
+        }
+        Ok(())
+    }
+
     /// Executes the given L2 transaction and returns all the VM logs.
     pub fn run_l2_tx_inner(
         &self,
@@ -1993,6 +2012,17 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> EthNamespaceT for 
                 zksync_types::ethabi::Error::InvalidData,
             )))
             .boxed();
+        };
+
+        match self.validate_tx(&l2_tx) {
+            Ok(_) => (),
+            Err(e) => {
+                return futures::future::err(into_jsrpc_error(Web3Error::SubmitTransactionError(
+                    e,
+                    l2_tx.hash().as_bytes().to_vec(),
+                )))
+                .boxed()
+            }
         };
 
         match self.run_l2_tx(l2_tx.clone(), TxExecutionMode::VerifyExecute) {
