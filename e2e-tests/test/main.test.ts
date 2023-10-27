@@ -42,7 +42,7 @@ describe("Greeter Smart Contract", function () {
       const greeter = await deployer.deploy(artifact, ["Hello, world!"]);
 
       // should revert
-      const tx = await greeter.connect(userWallet).setGreeting("Hola, mundo!");
+      const tx = await greeter.connect(userWallet).setGreetingByOwner("Hola, mundo!");
       await tx.wait();
     };
 

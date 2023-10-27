@@ -8,12 +8,13 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+
 jobs:
   test:
     name: unit-tests
     strategy:
       matrix:
-        platform: [ubuntu-latest, macos-latest]
+        platform: [macos-latest, ubuntu-22.04-github-hosted-16core]
     runs-on: ${{ matrix.platform }}
 
     steps:
@@ -21,15 +22,12 @@ jobs:
       uses: actions/checkout@v3
 
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-      with: 
-        toolchain: stable
-
-    - name: Cache Rust Dependencies
-      uses: Swatinem/rust-cache@v2
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: nightly-2023-07-21
     
     - name: Install cargo-nextest
-      run: cargo +stable install cargo-nextest
+      run: cargo install cargo-nextest
         
     - name: Run tests
       run: cargo nextest run

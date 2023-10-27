@@ -44,7 +44,7 @@
                 "ZKSYNC_HOME": "${workspaceFolder}"
             },
             "args": [
-                "--dev-use-local-contracts",
+                "--dev-system-contracts=local",
                 "run"
             ],
             "preLaunchTask": "rebuild-contracts",

@@ -1,8 +1,11 @@
-use std::sync::{Arc, RwLock};
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
 
 use bigdecimal::BigDecimal;
 use futures::FutureExt;
-use zksync_basic_types::{Address, L1BatchNumber, MiniblockNumber, U256};
+use zksync_basic_types::{AccountTreeId, Address, L1BatchNumber, MiniblockNumber, U256};
 use zksync_core::api_server::web3::backend_jsonrpc::{
     error::{internal_error, into_jsrpc_error},
     namespaces::zks::ZksNamespaceT,
@@ -14,8 +17,10 @@ use zksync_types::{
         TransactionDetails, TransactionStatus, TransactionVariant,
     },
     fee::Fee,
-    ExecuteTransactionCommon, ProtocolVersionId, Transaction,
+    utils::storage_key_for_standard_token_balance,
+    ExecuteTransactionCommon, ProtocolVersionId, Transaction, L2_ETH_TOKEN_ADDRESS,
 };
+use zksync_utils::h256_to_u256;
 use zksync_web3_decl::{
     error::Web3Error,
     types::{Filter, Log},
@@ -200,10 +205,35 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
 
     fn get_confirmed_tokens(
         &self,
-        _from: u32,
-        _limit: u8,
+        from: u32,
+        limit: u8,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Vec<zksync_web3_decl::types::Token>>> {
-        not_implemented("zks_getConfirmedTokens")
+        let inner = self.node.clone();
+        Box::pin(async move {
+            let reader = inner
+                .read()
+                .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
+
+            let fork_storage_read = reader
+                .fork_storage
+                .inner
+                .read()
+                .expect("failed reading fork storage");
+
+            match fork_storage_read.fork.as_ref() {
+                Some(fork) => Ok(fork
+                    .fork_source
+                    .get_confirmed_tokens(from, limit)
+                    .map_err(|_e| into_jsrpc_error(Web3Error::InternalError))?),
+                None => Ok(vec![zksync_web3_decl::types::Token {
+                    l1_address: Address::zero(),
+                    l2_address: L2_ETH_TOKEN_ADDRESS,
+                    name: "Ether".to_string(),
+                    symbol: "ETH".to_string(),
+                    decimals: 18,
+                }]),
+            }
+        })
     }
 
     fn get_token_price(
@@ -241,13 +271,48 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> ZksNamespaceT
         }
     }
 
+    /// Get all known balances for a given account.
+    ///
+    /// # Arguments
+    ///
+    /// * `address` - The user address with balances to check.
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `Result` with a (Token, Balance) map where account has non-zero value.
     fn get_all_account_balances(
         &self,
-        _address: zksync_basic_types::Address,
+        address: zksync_basic_types::Address,
     ) -> jsonrpc_core::BoxFuture<
         jsonrpc_core::Result<std::collections::HashMap<zksync_basic_types::Address, U256>>,
     > {
-        not_implemented("zks_getAllAccountBalances")
+        let inner = self.node.clone();
+        Box::pin({
+            self.get_confirmed_tokens(0, 100)
+                .then(move |tokens| async move {
+                    let tokens =
+                        tokens.map_err(|_err| into_jsrpc_error(Web3Error::InternalError))?;
+
+                    let mut writer = inner
+                        .write()
+                        .map_err(|_err| into_jsrpc_error(Web3Error::InternalError))?;
+
+                    let mut balances = HashMap::new();
+                    for token in tokens {
+                        let balance_key = storage_key_for_standard_token_balance(
+                            AccountTreeId::new(token.l2_address),
+                            &address,
+                        );
+
+                        let balance = writer.fork_storage.read_value(&balance_key);
+                        if !balance.is_zero() {
+                            balances.insert(token.l2_address, h256_to_u256(balance));
+                        }
+                    }
+
+                    Ok(balances)
+                })
+        })
     }
 
     fn get_l2_to_l1_msg_proof(
@@ -507,6 +572,7 @@ mod tests {
     use zksync_basic_types::{Address, H160, H256};
     use zksync_types::api::{self, Block, TransactionReceipt, TransactionVariant};
     use zksync_types::transaction_request::CallRequest;
+    use zksync_utils::u256_to_h256;
 
     #[tokio::test]
     async fn test_estimate_fee() {
@@ -537,8 +603,10 @@ mod tests {
         };
 
         let result = namespace.estimate_fee(mock_request).await.unwrap();
-
-        assert_eq!(result.gas_limit, U256::from(730662));
+        // Important: The gas value expectation is tied to a specific zksync-era dependency version.
+        // For the zksync-era commit hash `73a1e8ff564025d06e02c2689da238ae47bb10c3`, the anticipated gas value is 1086383.
+        // If the zksync-era dependency is updated, this expected gas value may need adjustment.
+        assert_eq!(result.gas_limit, U256::from(1086383));
         assert_eq!(result.max_fee_per_gas, U256::from(250000000));
         assert_eq!(result.max_priority_fee_per_gas, U256::from(0));
         assert_eq!(result.gas_per_pubdata_limit, U256::from(4080));
@@ -1024,5 +1092,154 @@ mod tests {
             .await
             .expect("get transaction details");
         assert_eq!(txns.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_get_all_account_balances_empty() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let namespace = ZkMockNamespaceImpl::new(node.get_inner());
+        let balances = namespace
+            .get_all_account_balances(Address::zero())
+            .await
+            .expect("get balances");
+        assert!(balances.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_get_confirmed_tokens_eth() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let namespace = ZkMockNamespaceImpl::new(node.get_inner());
+        let balances = namespace
+            .get_confirmed_tokens(0, 100)
+            .await
+            .expect("get balances");
+        assert_eq!(balances.len(), 1);
+        assert_eq!(&balances[0].name, "Ether");
+    }
+
+    #[tokio::test]
+    async fn test_get_all_account_balances_forked() {
+        let cbeth_address = Address::from_str("0x75af292c1c9a37b3ea2e6041168b4e48875b9ed5")
+            .expect("failed to parse address");
+        let mock_server = testing::MockServer::run();
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "zks_getBlockDetails",
+                "params": [1]
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "result": {
+                    "baseSystemContractsHashes": {
+                        "bootloader": "0x010008a5c30072f79f8e04f90b31f34e554279957e7e2bf85d3e9c7c1e0f834d",
+                        "default_aa": "0x01000663d7941c097ba2631096508cf9ec7769ddd40e081fd81b0d04dc07ea0e"
+                    },
+                    "commitTxHash": null,
+                    "committedAt": null,
+                    "executeTxHash": null,
+                    "executedAt": null,
+                    "l1BatchNumber": 0,
+                    "l1GasPrice": 0,
+                    "l1TxCount": 1,
+                    "l2FairGasPrice": 250000000,
+                    "l2TxCount": 0,
+                    "number": 0,
+                    "operatorAddress": "0x0000000000000000000000000000000000000000",
+                    "protocolVersion": "Version16",
+                    "proveTxHash": null,
+                    "provenAt": null,
+                    "rootHash": "0xdaa77426c30c02a43d9fba4e841a6556c524d47030762eb14dc4af897e605d9b",
+                    "status": "verified",
+                    "timestamp": 1000
+                },
+                "id": 0
+            }),
+        );
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "eth_getBlockByHash",
+                "params": ["0xdaa77426c30c02a43d9fba4e841a6556c524d47030762eb14dc4af897e605d9b", true]
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "result": {
+                    "baseFeePerGas": "0x0",
+                    "difficulty": "0x0",
+                    "extraData": "0x",
+                    "gasLimit": "0xffffffff",
+                    "gasUsed": "0x0",
+                    "hash": "0xdaa77426c30c02a43d9fba4e841a6556c524d47030762eb14dc4af897e605d9b",
+                    "l1BatchNumber": "0x0",
+                    "l1BatchTimestamp": null,
+                    "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                    "miner": "0x0000000000000000000000000000000000000000",
+                    "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                    "nonce": "0x0000000000000000",
+                    "number": "0x0",
+                    "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                    "receiptsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                    "sealFields": [],
+                    "sha3Uncles": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                    "size": "0x0",
+                    "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                    "timestamp": "0x3e8",
+                    "totalDifficulty": "0x0",
+                    "transactions": [],
+                    "transactionsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                    "uncles": []
+                },
+                "id": 1
+            }),
+        );
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "zks_getConfirmedTokens",
+                "params": [0, 100]
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "result": [
+                    {
+                        "decimals": 18,
+                        "l1Address": "0xbe9895146f7af43049ca1c1ae358b0541ea49704",
+                        "l2Address": "0x75af292c1c9a37b3ea2e6041168b4e48875b9ed5",
+                        "name": "Coinbase Wrapped Staked ETH",
+                        "symbol": "cbETH"
+                      }
+                ],
+                "id": 0
+            }),
+        );
+
+        let node = InMemoryNode::<HttpForkSource>::new(
+            Some(ForkDetails::from_network(&mock_server.url(), Some(1), CacheConfig::None).await),
+            None,
+            Default::default(),
+        );
+        let namespace = ZkMockNamespaceImpl::new(node.get_inner());
+        {
+            let inner = node.get_inner();
+            let writer = inner.write().unwrap();
+            let mut fork = writer.fork_storage.inner.write().unwrap();
+            fork.raw_storage.set_value(
+                storage_key_for_standard_token_balance(
+                    AccountTreeId::new(cbeth_address),
+                    &Address::repeat_byte(0x1),
+                ),
+                u256_to_h256(U256::from(1337)),
+            );
+        }
+
+        let balances = namespace
+            .get_all_account_balances(Address::repeat_byte(0x1))
+            .await
+            .expect("get balances");
+        assert_eq!(balances.get(&cbeth_address).unwrap(), &U256::from(1337));
     }
 }

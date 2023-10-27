@@ -1,7 +1,7 @@
 use itertools::Itertools;
 use once_cell::sync::OnceCell;
 use std::sync::Arc;
-use vm::{constants::ETH_CALL_GAS_LIMIT, CallTracer, HistoryDisabled, TxExecutionMode, Vm};
+use multivm::vm_virtual_blocks::{constants::ETH_CALL_GAS_LIMIT, CallTracer, HistoryDisabled, Vm};
 use zksync_basic_types::H256;
 use zksync_core::api_server::web3::backend_jsonrpc::error::into_jsrpc_error;
 use zksync_state::StorageView;
@@ -156,7 +156,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> DebugNames
                 }
             };
 
-            let execution_mode = TxExecutionMode::EthCall;
+            let execution_mode = multivm::interface::TxExecutionMode::EthCall;
             let storage = StorageView::new(&inner.fork_storage).to_rc_ptr();
 
             let bootloader_code = inner.system_contracts.contracts_for_l2_call();
@@ -185,7 +185,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> DebugNames
 
             let call_tracer_result = Arc::new(OnceCell::default());
             let tracer = CallTracer::new(call_tracer_result.clone(), HistoryDisabled);
-            let tx_result = vm.inspect(vec![Box::new(tracer)], vm::VmExecutionMode::OneTx);
+            let tx_result = vm.inspect(
+                vec![Box::new(tracer)],
+                multivm::interface::VmExecutionMode::OneTx,
+            );
 
             let call_traces = if only_top {
                 vec![]

@@ -15,8 +15,8 @@ use httptest::{
     Expectation, Server,
 };
 use itertools::Itertools;
+use multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
 use std::str::FromStr;
-use vm::VmExecutionResultAndLogs;
 use zksync_basic_types::{H160, U64};
 use zksync_types::api::{BridgeAddresses, DebugCall, DebugCallType, Log};
 use zksync_types::{
@@ -562,7 +562,7 @@ pub fn default_tx_execution_info() -> TxExecutionInfo {
         batch_number: Default::default(),
         miniblock_number: Default::default(),
         result: VmExecutionResultAndLogs {
-            result: vm::ExecutionResult::Success { output: vec![] },
+            result: ExecutionResult::Success { output: vec![] },
             logs: Default::default(),
             statistics: Default::default(),
             refunds: Default::default(),

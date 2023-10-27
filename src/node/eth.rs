@@ -3,7 +3,10 @@ use std::collections::HashSet;
 use colored::Colorize;
 use futures::FutureExt;
 use itertools::Itertools;
-use vm::{constants::ETH_CALL_GAS_LIMIT, ExecutionResult, TxExecutionMode};
+use multivm::vm_virtual_blocks::{constants::ETH_CALL_GAS_LIMIT};
+use multivm::interface::{
+    ExecutionResult, TxExecutionMode,
+};
 use zksync_basic_types::{web3, AccountTreeId, Address, Bytes, H160, H256, U256, U64};
 use zksync_core::api_server::web3::backend_jsonrpc::error::into_jsrpc_error;
 use zksync_state::ReadStorage;

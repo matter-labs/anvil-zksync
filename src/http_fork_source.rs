@@ -1,17 +1,17 @@
 use std::sync::{Arc, RwLock};
 
+use crate::{
+    cache::{Cache, CacheConfig},
+    fork::{block_on, ForkSource},
+};
 use eyre::Context;
 use zksync_basic_types::{H256, U256};
 use zksync_types::api::{BridgeAddresses, Transaction};
+use zksync_web3_decl::types::Token;
 use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
     types::Index,
-};
-
-use crate::{
-    cache::{Cache, CacheConfig},
-    fork::{block_on, ForkSource},
 };
 
 #[derive(Debug, Clone)]
@@ -303,6 +303,37 @@ impl ForkSource for HttpForkSource {
                         )
                     });
                 bridge_addresses
+            })
+            .wrap_err("fork http client failed")
+    }
+
+    /// Returns known token addresses
+    fn get_confirmed_tokens(&self, from: u32, limit: u8) -> eyre::Result<Vec<Token>> {
+        if let Some(confirmed_tokens) = self
+            .cache
+            .read()
+            .ok()
+            .and_then(|guard| guard.get_confirmed_tokens(from, limit).cloned())
+        {
+            tracing::debug!("using cached confirmed_tokens");
+            return Ok(confirmed_tokens);
+        };
+
+        let client = self.create_client();
+        block_on(async move { client.get_confirmed_tokens(from, limit).await })
+            .map(|confirmed_tokens| {
+                self.cache
+                    .write()
+                    .map(|mut guard| {
+                        guard.set_confirmed_tokens(from, limit, confirmed_tokens.clone())
+                    })
+                    .unwrap_or_else(|err| {
+                        tracing::warn!(
+                            "failed writing to cache for 'set_confirmed_tokens': {:?}",
+                            err
+                        )
+                    });
+                confirmed_tokens
             })
             .wrap_err("fork http client failed")
     }
@@ -687,5 +718,44 @@ mod tests {
             .get_bridge_contracts()
             .expect("failed fetching bridge addresses");
         testing::assert_bridge_addresses_eq(&input_bridge_addresses, &actual_bridge_addresses);
+    }
+
+    #[test]
+    fn test_get_confirmed_tokens_is_cached() {
+        let mock_server = testing::MockServer::run();
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "zks_getConfirmedTokens",
+                "params": [0, 100]
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "result": [
+                    {
+                        "decimals": 18,
+                        "l1Address": "0xbe9895146f7af43049ca1c1ae358b0541ea49704",
+                        "l2Address": "0x75af292c1c9a37b3ea2e6041168b4e48875b9ed5",
+                        "name": "Coinbase Wrapped Staked ETH",
+                        "symbol": "cbETH"
+                      }
+                ],
+                "id": 0
+            }),
+        );
+
+        let fork_source = HttpForkSource::new(mock_server.url(), CacheConfig::Memory);
+
+        let tokens = fork_source
+            .get_confirmed_tokens(0, 100)
+            .expect("failed fetching tokens");
+        assert_eq!(tokens.len(), 1);
+        assert_eq!(tokens[0].symbol, "cbETH");
+
+        let tokens = fork_source
+            .get_confirmed_tokens(0, 100)
+            .expect("failed fetching tokens");
+        assert_eq!(tokens.len(), 1);
     }
 }

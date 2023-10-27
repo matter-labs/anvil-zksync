@@ -3,8 +3,8 @@ use std::pin::Pin;
 
 use chrono::{DateTime, Utc};
 use futures::Future;
-use vm::{ExecutionResult, VmExecutionResultAndLogs};
-use vm::{HistoryDisabled, Vm};
+use multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
+use multivm::vm_latest::{utils::fee::derive_base_fee_and_gas_per_pubdata, HistoryDisabled, Vm};
 use zksync_basic_types::{U256, U64};
 use zksync_state::StorageView;
 use zksync_state::WriteStorage;
@@ -17,8 +17,6 @@ use zksync_web3_decl::error::Web3Error;
 
 use crate::node::create_empty_block;
 use crate::{fork::ForkSource, node::InMemoryNodeInner};
-use vm::utils::fee::derive_base_fee_and_gas_per_pubdata;
-
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words};
 
 pub(crate) trait IntoBoxedFuture: Sized + Send + 'static {
@@ -119,12 +117,14 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
             }
 
             // init vm
-            let system_env =
-                node.create_system_env(bootloader_code.clone(), vm::TxExecutionMode::VerifyExecute);
+            let system_env = node.create_system_env(
+                bootloader_code.clone(),
+                multivm::interface::TxExecutionMode::VerifyExecute,
+            );
 
             let mut vm = Vm::new(batch_env, system_env, storage.clone(), HistoryDisabled);
 
-            vm.execute(vm::VmExecutionMode::Bootloader);
+            vm.execute(multivm::interface::VmExecutionMode::Bootloader);
 
             let bytecodes: HashMap<U256, Vec<U256>> = vm
                 .get_last_tx_compressed_bytecodes()
