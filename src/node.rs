@@ -1231,6 +1231,15 @@ impl<S: ForkSource + std::fmt::Debug> InMemoryNode<S> {
             return Err("exceeds block gas limit".into());
         }
 
+        if tx.common_data.fee.max_fee_per_gas < L2_GAS_PRICE.into() {
+            tracing::info!(
+                "Submitted Tx is Unexecutable {:?} because of MaxFeePerGasTooLow {}",
+                tx.hash(),
+                tx.common_data.fee.max_fee_per_gas
+            );
+            return Err("block base fee higher than max fee per gas".into());
+        }
+
         if tx.common_data.fee.max_fee_per_gas < tx.common_data.fee.max_priority_fee_per_gas {
             tracing::info!(
                 "Submitted Tx is Unexecutable {:?} because of MaxPriorityFeeGreaterThanMaxFee {}",
