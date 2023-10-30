@@ -1,4 +1,4 @@
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 
 use crate::{
     cache::{Cache, CacheConfig},
@@ -14,20 +14,20 @@ use zksync_web3_decl::{
     types::Index,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// Fork source that gets the data via HTTP requests.
 pub struct HttpForkSource {
     /// URL for the network to fork.
     pub fork_url: String,
     /// Cache for network data.
-    pub(crate) cache: RwLock<Cache>,
+    pub(crate) cache: Arc<RwLock<Cache>>,
 }
 
 impl HttpForkSource {
     pub fn new(fork_url: String, cache_config: CacheConfig) -> Self {
         Self {
             fork_url,
-            cache: RwLock::new(Cache::new(cache_config)),
+            cache: Arc::new(RwLock::new(Cache::new(cache_config))),
         }
     }
 

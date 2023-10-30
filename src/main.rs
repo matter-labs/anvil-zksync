@@ -1,41 +1,31 @@
 use crate::cache::CacheConfig;
-use crate::hardhat::{HardhatNamespaceImpl, HardhatNamespaceT};
 use crate::node::{InMemoryNodeConfig, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
 use crate::observability::Observability;
 use clap::{Parser, Subcommand, ValueEnum};
-use configuration_api::ConfigurationApiNamespaceT;
-use debug::DebugNamespaceImpl;
-use evm::{EvmNamespaceImpl, EvmNamespaceT};
 use fork::{ForkDetails, ForkSource};
 use logging_middleware::LoggingMiddleware;
 use node::ShowCalls;
 use observability::LogLevel;
 use tracing_subscriber::filter::LevelFilter;
-use zks::ZkMockNamespaceImpl;
 
 mod bootloader_debug;
 mod cache;
-mod configuration_api;
 mod console_log;
-mod debug;
 mod deps;
-mod evm;
 mod filters;
 mod fork;
 mod formatter;
-mod hardhat;
 mod http_fork_source;
 mod logging_middleware;
+mod namespaces;
 mod node;
 pub mod observability;
 mod resolver;
 mod system_contracts;
 mod testing;
 mod utils;
-mod zks;
 
 use node::InMemoryNode;
-use zksync_core::api_server::web3::namespaces::NetNamespace;
 
 use std::fs::File;
 use std::{
@@ -50,11 +40,11 @@ use futures::{
     FutureExt,
 };
 use jsonrpc_core::MetaIoHandler;
-use zksync_basic_types::{L2ChainId, H160, H256};
+use zksync_basic_types::{H160, H256};
 
-use crate::{configuration_api::ConfigurationApiNamespace, node::TEST_NODE_NETWORK_ID};
-use zksync_core::api_server::web3::backend_jsonrpc::namespaces::{
-    debug::DebugNamespaceT, eth::EthNamespaceT, net::NetNamespaceT, zks::ZksNamespaceT,
+use crate::namespaces::{
+    ConfigurationApiNamespaceT, DebugNamespaceT, EthNamespaceT, EvmNamespaceT, HardhatNamespaceT,
+    NetNamespaceT, ZksNamespaceT,
 };
 
 /// List of wallets (address, private key) that we seed with tokens at start.
@@ -103,29 +93,24 @@ pub const RICH_WALLETS: [(&str, &str); 10] = [
 
 #[allow(clippy::too_many_arguments)]
 async fn build_json_http<
-    S: std::marker::Sync + std::marker::Send + 'static + ForkSource + std::fmt::Debug,
+    S: std::marker::Sync + std::marker::Send + 'static + ForkSource + std::fmt::Debug + Clone,
 >(
     addr: SocketAddr,
     log_level_filter: LevelFilter,
     node: InMemoryNode<S>,
-    net: NetNamespace,
-    config_api: ConfigurationApiNamespace<S>,
-    evm: EvmNamespaceImpl<S>,
-    zks: ZkMockNamespaceImpl<S>,
-    hardhat: HardhatNamespaceImpl<S>,
-    debug: DebugNamespaceImpl<S>,
 ) -> tokio::task::JoinHandle<()> {
     let (sender, recv) = oneshot::channel::<()>();
 
     let io_handler = {
         let mut io = MetaIoHandler::with_middleware(LoggingMiddleware::new(log_level_filter));
-        io.extend_with(node.to_delegate());
-        io.extend_with(net.to_delegate());
-        io.extend_with(config_api.to_delegate());
-        io.extend_with(evm.to_delegate());
-        io.extend_with(zks.to_delegate());
-        io.extend_with(hardhat.to_delegate());
-        io.extend_with(debug.to_delegate());
+
+        io.extend_with(NetNamespaceT::to_delegate(node.clone()));
+        io.extend_with(ConfigurationApiNamespaceT::to_delegate(node.clone()));
+        io.extend_with(DebugNamespaceT::to_delegate(node.clone()));
+        io.extend_with(EthNamespaceT::to_delegate(node.clone()));
+        io.extend_with(EvmNamespaceT::to_delegate(node.clone()));
+        io.extend_with(HardhatNamespaceT::to_delegate(node.clone()));
+        io.extend_with(ZksNamespaceT::to_delegate(node));
         io
     };
 
@@ -337,23 +322,10 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("");
     }
 
-    let net = NetNamespace::new(L2ChainId::from(TEST_NODE_NETWORK_ID));
-    let config_api = ConfigurationApiNamespace::new(node.get_inner());
-    let evm = EvmNamespaceImpl::new(node.get_inner());
-    let zks = ZkMockNamespaceImpl::new(node.get_inner());
-    let hardhat = HardhatNamespaceImpl::new(node.get_inner());
-    let debug = DebugNamespaceImpl::new(node.get_inner());
-
     let threads = build_json_http(
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), opt.port),
         log_level_filter,
         node,
-        net,
-        config_api,
-        evm,
-        zks,
-        hardhat,
-        debug,
     )
     .await;
 

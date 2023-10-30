@@ -134,7 +134,7 @@ The `status` options are:
 
 ### `config_getShowCalls`
 
-[source](src/configuration_api.rs)
+[source](src/node/config.rs)
 
 Gets the current value of `show_calls` that's originally set with `--show-calls` option
 
@@ -157,7 +157,7 @@ curl --request POST \
 
 ### `config_getCurrentTimestamp`
 
-[source](src/configuration_api.rs)
+[source](src/node/config.rs)
 
 Gets the value of `current_timestamp` for the node
 
@@ -180,7 +180,7 @@ curl --request POST \
 
 ### `config_setShowCalls`
 
-[source](src/configuration_api.rs)
+[source](src/node/config.rs)
 
 Updates `show_calls` to print more detailed call traces
 
@@ -203,7 +203,7 @@ curl --request POST \
 
 ### `config_setShowStorageLogs`
 
-[source](src/configuration_api.rs)
+[source](src/node/config.rs)
 
 Updates `show_storage_logs` to print storage log reads/writes
 
@@ -226,7 +226,7 @@ curl --request POST \
 
 ### `config_setShowVmDetails`
 
-[source](src/configuration_api.rs)
+[source](src/node/config.rs)
 
 Updates `show_vm_details` to print more detailed results from vm execution
 
@@ -249,7 +249,7 @@ curl --request POST \
 
 ### `config_setShowGasDetails`
 
-[source](src/configuration_api.rs)
+[source](src/node/config.rs)
 
 Updates `show_gas_details` to print more details about gas estimation and usage
 
@@ -272,7 +272,7 @@ curl --request POST \
 
 ### `config_setResolveHashes`
 
-[source](src/configuration_api.rs)
+[source](src/node/config.rs)
 
 Updates `resolve-hashes` to call OpenChain for human-readable ABI names in call traces
 
@@ -295,7 +295,7 @@ curl --request POST \
 
 ### `config_setLogLevel`
 
-[source](src/configuration_api.rs)
+[source](src/node/config.rs)
 
 Sets the logging level for the node and only displays the node logs.
 
@@ -318,7 +318,7 @@ curl --request POST \
 
 ### `config_setLogging`
 
-[source](src/configuration_api.rs)
+[source](src/node/config.rs)
 
 Sets the fine-tuned logging levels for the node and any of its dependencies. 
 The directive format is comma-separated `module=level` for any number of modules.
@@ -344,7 +344,7 @@ curl --request POST \
 
 ### `debug_traceCall`
 
-[source](src/debug.rs)
+[source](src/node/debug.rs)
 
 The `debug_traceCall` is similar to `eth_call` but returns call traces for each call.
 
@@ -388,7 +388,7 @@ curl --request POST \
 
 ### `debug_traceTransaction`
 
-[source](src/debug.rs)
+[source](src/node/debug.rs)
 
 Returns call traces for the transaction with given hash.
 
@@ -425,7 +425,7 @@ curl --request POST \
 
 ### `debug_traceBlockByHash`
 
-[source](src/debug.rs)
+[source](src/node/debug.rs)
 
 Returns call traces for each transaction within a given block.
 
@@ -462,7 +462,7 @@ curl --request POST \
 
 ### `debug_traceBlockByNumber`
 
-[source](src/debug.rs)
+[source](src/node/debug.rs)
 
 Returns call traces for each transaction within a given block.
 
@@ -501,7 +501,7 @@ curl --request POST \
 
 ### `net_version`
 
-[source](src/net.rs)
+[source](src/node/net.rs)
 
 Returns the current network id
 
@@ -524,7 +524,7 @@ curl --request POST \
 
 ### `net_peerCount`
 
-[source](src/net.rs)
+[source](src/node/net.rs)
 
 Returns the number of connected peers
 
@@ -547,7 +547,7 @@ curl --request POST \
 
 ### `net_listening`
 
-[source](src/net.rs)
+[source](src/node/net.rs)
 
 Returns `true` if the node is listening for connections
 
@@ -572,7 +572,7 @@ curl --request POST \
 
 ### `eth_accounts`
 
-[source](src/node.rs)
+[source](src/node/eth.rs)
 
 Returns a list of addresses owned by client
 
@@ -595,7 +595,7 @@ curl --request POST \
 
 ### `eth_chainId`
 
-[source](src/node.rs)
+[source](src/node/eth.rs)
 
 Returns the current chain id
 
@@ -618,7 +618,7 @@ curl --request POST \
 
 ### `eth_estimateGas`
 
-[source](src/node.rs)
+[source](src/node/eth.rs)
 
 Generates and returns an estimate of how much gas is necessary to allow the transaction to complete
 
@@ -654,7 +654,7 @@ curl --request POST \
 
 ### `eth_feeHistory`
 
-[source](src/node.rs)
+[source](src/node/eth.rs)
 
 Returns the fee history for a given range of blocks
 
@@ -679,7 +679,7 @@ curl --request POST \
 
 ### `eth_gasPrice`
 
-[source](src/node.rs)
+[source](src/node/eth.rs)
 
 Returns the current price per gas in wei
 
@@ -702,7 +702,7 @@ curl --request POST \
 
 ### `eth_getBalance`
 
-[source](src/node.rs)
+[source](src/node/eth.rs)
 
 Returns the balance of the account of given address
 
@@ -732,7 +732,7 @@ curl --request POST \
 
 ### `eth_getBlockByHash`
 
-[source](src/node.rs)
+[source](src/node/eth.rs)
 
 Returns information about a block by block hash
 
@@ -762,7 +762,7 @@ curl --request POST \
 
 ### `eth_getBlockByNumber`
 
-[source](src/node.rs)
+[source](src/node/eth.rs)
 
 Returns information about a block by block number
 
@@ -792,7 +792,7 @@ curl --request POST \
 
 ### `eth_getBlockTransactionCountByHash`
 
-[source](src/node.rs)
+[source](src/node/eth.rs)
 
 Number of transactions in a block from a block matching the given block hash
 
@@ -820,7 +820,7 @@ curl --request POST \
 
 ### `eth_getBlockTransactionCountByNumber`
 
-[source](src/node.rs)
+[source](src/node/eth.rs)
 
 Number of transactions in a block from a block matching the given block number
 
@@ -849,7 +849,7 @@ curl --request POST \
 
 ### `eth_getFilterChanges`
 
-[source](src/node.rs)
+[source](src/node/eth.rs)
 
 Polling method for a filter, which returns an array of logs, block hashes, or transaction hashes, depending on the filter type, which occurred since last poll
 
@@ -877,7 +877,7 @@ curl --request POST \
 
 ### `eth_newBlockFilter`
 
-[source](src/node.rs)
+[source](src/node/eth.rs)
 
 Creates a filter in the node, to notify when a new block arrives
 
@@ -904,7 +904,7 @@ curl --request POST \
 
 ### `eth_newFilter`
 
-[source](src/node.rs)
+[source](src/node/eth.rs)
 
 Creates a filter object, based on filter options, to notify when the state changes (logs)
 
@@ -937,7 +937,7 @@ curl --request POST \
 
 ### `eth_newPendingTransactionFilter`
 
-[source](src/node.rs)
+[source](src/node/eth.rs)
 
 Creates a filter in the node, to notify when new pending transactions arrive
 
@@ -964,7 +964,7 @@ curl --request POST \
 
 ### `eth_uninstallFilter`
 
-[source](src/node.rs)
+[source](src/node/eth.rs)
 
 Uninstalls a filter with given id
 
@@ -992,7 +992,7 @@ curl --request POST \
 
 ### `eth_getFilterLogs`
 
-[source](src/node.rs)
+[source](src/node/eth.rs)
 
 Returns an array of all logs matching filter with given id
 
@@ -1020,7 +1020,7 @@ curl --request POST \
 
 ### `eth_getLogs`
 
-[source](src/node.rs)
+[source](src/node/eth.rs)
 
 Returns an array of all logs matching a filter
 
@@ -1053,7 +1053,7 @@ curl --request POST \
 
 ### `eth_getCode`
 
-[source](src/node.rs)
+[source](src/node/eth.rs)
 
 Returns code at a given address
 
@@ -1083,7 +1083,7 @@ curl --request POST \
 
 ### `eth_getTransactionByHash`
 
-[source](src/node.rs)
+[source](src/node/eth.rs)
 
 Returns the information about a transaction requested by transaction hash
 
@@ -1111,7 +1111,7 @@ curl --request POST \
 
 ### `eth_getTransactionCount`
 
-[source](src/node.rs)
+[source](src/node/eth.rs)
 
 Returns the number of transactions sent from an address
 
@@ -1141,7 +1141,7 @@ curl --request POST \
 
 ### `eth_getTransactionReceipt`
 
-[source](src/node.rs)
+[source](src/node/eth.rs)
 
 Returns the transaction receipt for a given transaction hash
 
@@ -1169,7 +1169,7 @@ curl --request POST \
 
 ### `eth_blockNumber`
 
-[source](src/node.rs)
+[source](src/node/eth.rs)
 
 Returns the number of most recent block
 
@@ -1192,7 +1192,7 @@ curl --request POST \
 
 ### `eth_call`
 
-[source](src/node.rs)
+[source](src/node/eth.rs)
 
 Executes a new message call immediately without creating a transaction on the block chain
 
@@ -1230,7 +1230,7 @@ curl --request POST \
 
 ### `eth_sendRawTransaction`
 
-[source](src/node.rs)
+[source](src/node/eth.rs)
 
 Creates new message call transaction or a contract creation for signed transactions
 
@@ -1254,7 +1254,7 @@ curl --request POST \
 
 ### `eth_syncing`
 
-[source](src/node.rs)
+[source](src/node/eth.rs)
 
 Returns syncing status of the node. This will always return `false`.
 
@@ -1278,7 +1278,7 @@ curl --request POST \
 
 ### `eth_getStorageAt`
 
-[source](src/node.rs)
+[source](src/node/eth.rs)
 
 Returns the value from a storage position at a given address.
 
@@ -1308,7 +1308,7 @@ curl --request POST \
 
 ### `eth_getTransactionByBlockHashAndIndex`
 
-[source](src/node.rs)
+[source](src/node/eth.rs)
 
 Returns information about a transaction by block hash and transaction index position
 
@@ -1337,7 +1337,7 @@ curl --request POST \
 
 ### `eth_getTransactionByBlockNumberAndIndex`
 
-[source](src/node.rs)
+[source](src/node/eth.rs)
 
 Returns information about a transaction by block number and transaction index position
 
@@ -1366,7 +1366,7 @@ curl --request POST \
 
 ### `eth_protocolVersion`
 
-[source](src/node.rs)
+[source](src/node/eth.rs)
 
 Returns the current ethereum protocol version.
 
@@ -1395,7 +1395,7 @@ curl --request POST \
 
 ### `hardhat_setBalance`
 
-[source](src/hardhat.rs)
+[source](src/node/hardhat.rs)
 
 Sets the balance of the given address to the given balance.
 
@@ -1427,7 +1427,7 @@ curl --request POST \
 
 ### `hardhat_setNonce`
 
-[source](src/hardhat.rs)
+[source](src/node/hardhat.rs)
 
 Modifies an account's nonce by overwriting it.
 The new nonce must be greater than the existing nonce.
@@ -1456,7 +1456,7 @@ curl --request POST \
 
 ### `hardhat_mine`
 
-[source](src/hardhat.rs)
+[source](src/node/hardhat.rs)
 
 Sometimes you may want to advance the latest block number of the network by a large number of blocks.
 One way to do this would be to call the evm_mine RPC method multiple times, but this is too slow if you want to mine thousands of blocks.
@@ -1486,7 +1486,7 @@ curl --request POST \
 ```
 ### `hardhat_impersonateAccount`
 
-[source](src/hardhat.rs)
+[source](src/node/hardhat.rs)
 
 Begin impersonating account- subsequent transactions sent to the node will be committed as if they were initiated by the supplied address.
 
@@ -1512,7 +1512,7 @@ curl --request POST \
 
 ### `hardhat_stopImpersonatingAccount`
 
-[source](src/hardhat.rs)
+[source](src/node/hardhat.rs)
 
 Stop impersonating account, should be used after calling `hardhat_impersonateAccount`.
 Since we only impersonate one account at a time, the `address` argument is ignored and the current
@@ -1540,7 +1540,7 @@ curl --request POST \
 
 ### `hardhat_setCode`
 
-[source](src/hardhat.rs)
+[source](src/node/hardhat.rs)
 
 Sets the code for a given address.
 
@@ -1574,7 +1574,7 @@ curl --request POST \
 
 ### `evm_mine`
 
-[source](src/evm.rs)
+[source](src/node/evm.rs)
 
 Mines an empty block
 
@@ -1594,7 +1594,7 @@ curl --request POST \
 
 ### `evm_increaseTime`
 
-[source](src/evm.rs)
+[source](src/node/evm.rs)
 
 Increase the current timestamp for the node
 
@@ -1617,7 +1617,7 @@ curl --request POST \
 
 ### `evm_setNextBlockTimestamp`
 
-[source](src/evm.rs)
+[source](src/node/evm.rs)
 
 Sets the timestamp of the next block but doesn't mine one..
 
@@ -1640,7 +1640,7 @@ curl --request POST \
 
 ### `evm_setTime`
 
-[source](src/evm.rs)
+[source](src/node/evm.rs)
 
 Set the current timestamp for the node. Warning: This will allow you to move _backwards_ in time, which 
 may cause new blocks to appear to be mined before old blocks. This will result in an invalid state.
@@ -1664,7 +1664,7 @@ curl --request POST \
 
 ### `evm_snapshot`
 
-[source](src/evm.rs)
+[source](src/node/evm.rs)
 
 Snapshot the state of the blockchain at the current block.
 
@@ -1687,7 +1687,7 @@ curl --request POST \
 
 ### `evm_revert`
 
-[source](src/evm.rs)
+[source](src/node/evm.rs)
 
 Revert the state of the blockchain to a previous snapshot
 
@@ -1712,7 +1712,7 @@ curl --request POST \
 
 ### `zks_estimateFee`
 
-[source](src/zks.rs)
+[source](src/node/zks.rs)
 
 Generates and returns an estimate of how much gas is necessary to allow the transaction to complete
 
@@ -1748,7 +1748,7 @@ curl --request POST \
 
 ### `zks_getTokenPrice`
 
-[source](src/zks.rs)
+[source](src/node/zks.rs)
 
 Returns the token price given an Address
 
@@ -1771,7 +1771,7 @@ curl --request POST \
 
 ### `zks_getTransactionDetails`
 
-[source](src/zks.rs)
+[source](src/node/zks.rs)
 
 Returns data from a specific transaction given by the transaction hash.
 
@@ -1794,7 +1794,7 @@ curl --request POST \
 
 ### `zks_getBlockDetails`
 
-[source](src/zks.rs)
+[source](src/node/zks.rs)
 
 Returns additional zkSync-specific information about the L2 block.
 
@@ -1817,7 +1817,7 @@ curl --request POST \
 
 ### `zks_getBridgeContracts`
 
-[source](src/zks.rs)
+[source](src/node/zks.rs)
 
 Returns L1/L2 addresses of default bridges.
 
@@ -1844,7 +1844,7 @@ curl --request POST \
 
 ### `zks_getRawBlockTransactions`
 
-[source](src/zks.rs)
+[source](src/node/zks.rs)
 
 Returns data of transactions in a block.
 

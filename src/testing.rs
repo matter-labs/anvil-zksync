@@ -358,7 +358,7 @@ impl RawTransactionsResponseBuilder {
 }
 
 /// Applies a transaction with a given hash to the node and returns the block hash.
-pub fn apply_tx<T: ForkSource + std::fmt::Debug>(
+pub fn apply_tx<T: ForkSource + std::fmt::Debug + Clone>(
     node: &InMemoryNode<T>,
     tx_hash: H256,
 ) -> (H256, U64) {
@@ -397,7 +397,7 @@ pub fn apply_tx<T: ForkSource + std::fmt::Debug>(
 }
 
 /// Deploys a contract with the given bytecode.
-pub fn deploy_contract<T: ForkSource + std::fmt::Debug>(
+pub fn deploy_contract<T: ForkSource + std::fmt::Debug + Clone>(
     node: &InMemoryNode<T>,
     tx_hash: H256,
     private_key: H256,
