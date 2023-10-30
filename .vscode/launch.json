@@ -10,7 +10,6 @@
             "name": "Debug era_test_node",
             "cargo": {
                 "args": [
-                    "+nightly",
                     "build",
                     "--bin=era_test_node",
                     "--package=era_test_node"
