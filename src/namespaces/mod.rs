@@ -1,11 +1,11 @@
-mod configuration_api;
+mod config;
 mod evm;
 mod hardhat;
 mod net;
 
 use zksync_core::api_server::web3::backend_jsonrpc::namespaces::{debug, eth, zks};
 
-pub use configuration_api::ConfigurationApiNamespaceT;
+pub use config::ConfigurationApiNamespaceT;
 pub use debug::DebugNamespaceT;
 pub use eth::EthNamespaceT;
 pub use evm::EvmNamespaceT;
