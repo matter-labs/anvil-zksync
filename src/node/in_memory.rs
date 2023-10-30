@@ -1679,3 +1679,52 @@ impl BlockContext {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        testing,
+        http_fork_source::HttpForkSource,
+        node::InMemoryNode,
+    };
+
+    #[tokio::test]
+    async fn test_run_l2_tx_validates_tx_gas_limit_too_high() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let tx = testing::TransactionBuilder::new()
+            .set_gas_limit(U256::from(u32::MAX) + 1)
+            .build();
+        node.set_rich_account(tx.common_data.initiator_address);
+
+        let result = node.run_l2_tx(tx, TxExecutionMode::VerifyExecute);
+    
+        assert_eq!(result.err(), Some("exceeds block gas limit".into()));
+    }
+
+    #[tokio::test]
+    async fn test_run_l2_tx_validates_tx_max_fee_per_gas_too_low() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let tx = testing::TransactionBuilder::new()
+            .set_max_fee_per_gas(U256::from(250_000_000 - 1))
+            .build();
+        node.set_rich_account(tx.common_data.initiator_address);
+
+        let result = node.run_l2_tx(tx, TxExecutionMode::VerifyExecute);
+    
+        assert_eq!(result.err(), Some("block base fee higher than max fee per gas".into()));
+    }
+
+    #[tokio::test]
+    async fn test_run_l2_tx_validates_tx_max_priority_fee_per_gas_higher_than_max_fee_per_gas() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let tx = testing::TransactionBuilder::new()
+            .set_max_priority_fee_per_gas(U256::from(250_000_000 + 1))
+            .build();
+        node.set_rich_account(tx.common_data.initiator_address);
+
+        let result = node.run_l2_tx(tx, TxExecutionMode::VerifyExecute);
+
+        assert_eq!(result.err(), Some("max priority fee per gas higher than max fee per gas".into()));
+    }
+}

@@ -20,7 +20,7 @@ use std::str::FromStr;
 use zksync_basic_types::{H160, U64};
 use zksync_types::api::{BridgeAddresses, DebugCall, DebugCallType, Log};
 use zksync_types::{
-    fee::Fee, l2::L2Tx, Address, L2ChainId, Nonce, PackedEthSignature, ProtocolVersionId, H256,
+    fee::Fee, l2::L2Tx, Address, L2ChainId, Nonce, ProtocolVersionId, H256,
     U256,
 };
 
@@ -357,6 +357,75 @@ impl RawTransactionsResponseBuilder {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct TransactionBuilder {
+    tx_hash: H256,
+    from_account_private_key: H256,
+    gas_limit: U256,
+    max_fee_per_gas: U256,
+    max_priority_fee_per_gas: U256
+}
+
+impl Default for TransactionBuilder {
+    fn default() -> Self {
+        Self {
+            tx_hash: H256::repeat_byte(0x01),
+            from_account_private_key: H256::random(),
+            gas_limit: U256::from(1_000_000),
+            max_fee_per_gas: U256::from(250_000_000),
+            max_priority_fee_per_gas: U256::from(250_000_000),
+        }
+    }
+}
+
+impl TransactionBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn set_hash(&mut self, hash: H256) -> &mut Self {
+        self.tx_hash = hash;
+        self
+    }
+
+    pub fn set_gas_limit(&mut self, gas_limit: U256) -> &mut Self {
+        self.gas_limit = gas_limit;
+        self
+    }
+
+    pub fn set_max_fee_per_gas(&mut self, max_fee_per_gas: U256) -> &mut Self {
+        self.max_fee_per_gas = max_fee_per_gas;
+        self
+    }
+
+    pub fn set_max_priority_fee_per_gas(&mut self, max_priority_fee_per_gas: U256) -> &mut Self {
+        self.max_priority_fee_per_gas = max_priority_fee_per_gas;
+        self
+    }
+
+    pub fn build(&mut self) -> L2Tx {
+        let mut tx = L2Tx::new_signed(
+            Address::random(),
+            vec![],
+            Nonce(0),
+            Fee {
+                gas_limit: self.gas_limit,
+                max_fee_per_gas: self.max_fee_per_gas,
+                max_priority_fee_per_gas: self.max_priority_fee_per_gas,
+                gas_per_pubdata_limit: U256::from(20000),
+            },
+            U256::from(1),
+            L2ChainId::from(260),
+            &self.from_account_private_key,
+            None,
+            Default::default(),
+        )
+        .unwrap();
+        tx.set_input(vec![], self.tx_hash);
+        return tx;
+    }
+}
+
 /// Applies a transaction with a given hash to the node and returns the block hash.
 pub fn apply_tx<T: ForkSource + std::fmt::Debug + Clone>(
     node: &InMemoryNode<T>,
@@ -369,28 +438,10 @@ pub fn apply_tx<T: ForkSource + std::fmt::Debug + Clone>(
         .expect("failed getting current batch number");
     let produced_block_hash = compute_hash(next_miniblock, tx_hash);
 
-    let private_key = H256::random();
-    let from_account = PackedEthSignature::address_from_private_key(&private_key)
-        .expect("failed generating address");
-    node.set_rich_account(from_account);
-    let mut tx = L2Tx::new_signed(
-        Address::random(),
-        vec![],
-        Nonce(0),
-        Fee {
-            gas_limit: U256::from(1_000_000),
-            max_fee_per_gas: U256::from(250_000_000),
-            max_priority_fee_per_gas: U256::from(250_000_000),
-            gas_per_pubdata_limit: U256::from(20000),
-        },
-        U256::from(1),
-        L2ChainId::from(260),
-        &private_key,
-        None,
-        Default::default(),
-    )
-    .unwrap();
-    tx.set_input(vec![], tx_hash);
+    let tx = TransactionBuilder::new()
+        .set_hash(tx_hash)
+        .build();
+    node.set_rich_account(tx.common_data.initiator_address);
     node.apply_txs(vec![tx]).expect("failed applying tx");
 
     (produced_block_hash, U64::from(next_miniblock))
