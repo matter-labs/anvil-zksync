@@ -29,14 +29,20 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: nightly-2023-07-21
       - name: Setup Pages
         uses: actions/configure-pages@v3
+
       - name: Install mdbook
-        run: cargo install mdbook
+        run: cargo +nightly install mdbook
       - name: Generate rust docs
         run: |
           echo "Generating docs..."
-          cargo doc --no-deps
+          cargo +nightly doc --no-deps
       - name: Make index.html
         run: echo '<!DOCTYPE HTML>
           <html lang="en-US">
