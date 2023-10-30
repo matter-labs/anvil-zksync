@@ -1,7 +1,7 @@
 use itertools::Itertools;
+use multivm::vm_virtual_blocks::{constants::ETH_CALL_GAS_LIMIT, CallTracer, HistoryDisabled, Vm};
 use once_cell::sync::OnceCell;
 use std::sync::Arc;
-use multivm::vm_virtual_blocks::{constants::ETH_CALL_GAS_LIMIT, CallTracer, HistoryDisabled, Vm};
 use zksync_basic_types::H256;
 use zksync_core::api_server::web3::backend_jsonrpc::error::into_jsrpc_error;
 use zksync_state::StorageView;
