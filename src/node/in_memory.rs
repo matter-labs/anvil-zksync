@@ -1601,6 +1601,33 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
         Ok(())
     }
+
+    // Validates L2 transaction
+    pub fn validate_tx(&self, tx: &L2Tx) -> Result<(), String> {
+        let max_gas = U256::from(u32::MAX);
+        if tx.common_data.fee.gas_limit > max_gas || tx.common_data.fee.gas_per_pubdata_limit > max_gas {
+            return Err("exceeds block gas limit".into());
+        }
+
+        if tx.common_data.fee.max_fee_per_gas < L2_GAS_PRICE.into() {
+            tracing::info!(
+                "Submitted Tx is Unexecutable {:?} because of MaxFeePerGasTooLow {}",
+                tx.hash(),
+                tx.common_data.fee.max_fee_per_gas
+            );
+            return Err("block base fee higher than max fee per gas".into());
+        }
+
+        if tx.common_data.fee.max_fee_per_gas < tx.common_data.fee.max_priority_fee_per_gas {
+            tracing::info!(
+                "Submitted Tx is Unexecutable {:?} because of MaxPriorityFeeGreaterThanMaxFee {}",
+                tx.hash(),
+                tx.common_data.fee.max_fee_per_gas
+            );
+            return Err("max priority fee per gas higher than max fee per gas".into());
+        }
+        Ok(())
+    }
 }
 
 /// Keeps track of a block's batch number, miniblock number and timestamp.
