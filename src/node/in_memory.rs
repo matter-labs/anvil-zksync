@@ -1464,7 +1464,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 return Err(e);
             }
         };
-        
+
         tracing::info!("");
         tracing::info!("Executing {}", format!("{:?}", tx_hash).bold());
 
@@ -1683,11 +1683,7 @@ impl BlockContext {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        testing,
-        http_fork_source::HttpForkSource,
-        node::InMemoryNode,
-    };
+    use crate::{http_fork_source::HttpForkSource, node::InMemoryNode, testing};
 
     #[tokio::test]
     async fn test_run_l2_tx_validates_tx_gas_limit_too_high() {
@@ -1698,7 +1694,7 @@ mod tests {
         node.set_rich_account(tx.common_data.initiator_address);
 
         let result = node.run_l2_tx(tx, TxExecutionMode::VerifyExecute);
-    
+
         assert_eq!(result.err(), Some("exceeds block gas limit".into()));
     }
 
@@ -1711,8 +1707,11 @@ mod tests {
         node.set_rich_account(tx.common_data.initiator_address);
 
         let result = node.run_l2_tx(tx, TxExecutionMode::VerifyExecute);
-    
-        assert_eq!(result.err(), Some("block base fee higher than max fee per gas".into()));
+
+        assert_eq!(
+            result.err(),
+            Some("block base fee higher than max fee per gas".into())
+        );
     }
 
     #[tokio::test]
@@ -1725,6 +1724,9 @@ mod tests {
 
         let result = node.run_l2_tx(tx, TxExecutionMode::VerifyExecute);
 
-        assert_eq!(result.err(), Some("max priority fee per gas higher than max fee per gas".into()));
+        assert_eq!(
+            result.err(),
+            Some("max priority fee per gas higher than max fee per gas".into())
+        );
     }
 }

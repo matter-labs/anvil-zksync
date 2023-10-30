@@ -19,10 +19,7 @@ use multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
 use std::str::FromStr;
 use zksync_basic_types::{H160, U64};
 use zksync_types::api::{BridgeAddresses, DebugCall, DebugCallType, Log};
-use zksync_types::{
-    fee::Fee, l2::L2Tx, Address, L2ChainId, Nonce, ProtocolVersionId, H256,
-    U256,
-};
+use zksync_types::{fee::Fee, l2::L2Tx, Address, L2ChainId, Nonce, ProtocolVersionId, H256, U256};
 
 /// Configuration for the [MockServer]'s initial block.
 #[derive(Default, Debug, Clone)]
@@ -363,7 +360,7 @@ pub struct TransactionBuilder {
     from_account_private_key: H256,
     gas_limit: U256,
     max_fee_per_gas: U256,
-    max_priority_fee_per_gas: U256
+    max_priority_fee_per_gas: U256,
 }
 
 impl Default for TransactionBuilder {
@@ -422,7 +419,7 @@ impl TransactionBuilder {
         )
         .unwrap();
         tx.set_input(vec![], self.tx_hash);
-        return tx;
+        tx
     }
 }
 
@@ -438,9 +435,7 @@ pub fn apply_tx<T: ForkSource + std::fmt::Debug + Clone>(
         .expect("failed getting current batch number");
     let produced_block_hash = compute_hash(next_miniblock, tx_hash);
 
-    let tx = TransactionBuilder::new()
-        .set_hash(tx_hash)
-        .build();
+    let tx = TransactionBuilder::new().set_hash(tx_hash).build();
     node.set_rich_account(tx.common_data.initiator_address);
     node.apply_txs(vec![tx]).expect("failed applying tx");
 
