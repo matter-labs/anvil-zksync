@@ -368,17 +368,6 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
             .boxed();
         };
 
-        match self.validate_tx(&l2_tx) {
-            Ok(_) => (),
-            Err(e) => {
-                return futures::future::err(into_jsrpc_error(Web3Error::SubmitTransactionError(
-                    e,
-                    l2_tx.hash().as_bytes().to_vec(),
-                )))
-                .boxed()
-            }
-        };
-
         match self.run_l2_tx(l2_tx.clone(), TxExecutionMode::VerifyExecute) {
             Ok(_) => Ok(hash).into_boxed_future(),
             Err(e) => {
