@@ -1,6 +1,6 @@
 //! In-memory node, that supports forking other networks.
 
-mod configuration_api;
+mod config;
 mod debug;
 mod eth;
 mod evm;

@@ -319,3 +319,583 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
             })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
+    use std::str::FromStr;
+    use zksync_basic_types::{Nonce, H256};
+    use zksync_core::api_server::web3::backend_jsonrpc::namespaces::eth::EthNamespaceT;
+    use zksync_types::{api::BlockNumber, fee::Fee, l2::L2Tx, PackedEthSignature};
+
+    #[tokio::test]
+    async fn test_set_balance() {
+        let address = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap();
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let balance_before = node.get_balance(address, None).await.unwrap();
+
+        let result = node.set_balance(address, U256::from(1337)).unwrap();
+        assert!(result);
+
+        let balance_after = node.get_balance(address, None).await.unwrap();
+        assert_eq!(balance_after, U256::from(1337));
+        assert_ne!(balance_before, balance_after);
+    }
+
+    #[tokio::test]
+    async fn test_set_nonce() {
+        let address = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap();
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let nonce_before = node.get_transaction_count(address, None).await.unwrap();
+
+        let result = node.set_nonce(address, U256::from(1337)).unwrap();
+        assert!(result);
+
+        let nonce_after = node.get_transaction_count(address, None).await.unwrap();
+        assert_eq!(nonce_after, U256::from(1337));
+        assert_ne!(nonce_before, nonce_after);
+
+        // setting nonce lower than the current one should fail
+        let result = node.set_nonce(address, U256::from(1336));
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_mine_blocks_default() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let start_block = node
+            .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
+            .await
+            .unwrap()
+            .expect("block exists");
+
+        // test with defaults
+        let result = node.mine_blocks(None, None).expect("mine_blocks");
+        assert!(result);
+
+        let current_block = node
+            .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
+            .await
+            .unwrap()
+            .expect("block exists");
+
+        assert_eq!(start_block.number + 1, current_block.number);
+        assert_eq!(start_block.timestamp + 1, current_block.timestamp);
+        let result = node.mine_blocks(None, None).expect("mine_blocks");
+        assert!(result);
+
+        let current_block = node
+            .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
+            .await
+            .unwrap()
+            .expect("block exists");
+
+        assert_eq!(start_block.number + 2, current_block.number);
+        assert_eq!(start_block.timestamp + 2, current_block.timestamp);
+    }
+
+    #[tokio::test]
+    async fn test_mine_blocks() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let start_block = node
+            .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
+            .await
+            .unwrap()
+            .expect("block exists");
+
+        let num_blocks = 5;
+        let interval = 3;
+        let start_timestamp = start_block.timestamp + 1;
+
+        let result = node
+            .mine_blocks(Some(U64::from(num_blocks)), Some(U64::from(interval)))
+            .expect("mine blocks");
+        assert!(result);
+
+        for i in 0..num_blocks {
+            let current_block = node
+                .get_block_by_number(BlockNumber::Number(start_block.number + i + 1), false)
+                .await
+                .unwrap()
+                .expect("block exists");
+            assert_eq!(start_block.number + i + 1, current_block.number);
+            assert_eq!(
+                start_timestamp + i * interval * 1_000,
+                current_block.timestamp
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_impersonate_account() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let to_impersonate =
+            Address::from_str("0xd8da6bf26964af9d7eed9e03e53415d37aa96045").unwrap();
+
+        // give impersonated account some balance
+        let result = node.set_balance(to_impersonate, U256::exp10(18)).unwrap();
+        assert!(result);
+
+        // construct a tx
+        let mut tx = L2Tx::new(
+            Address::random(),
+            vec![],
+            Nonce(0),
+            Fee {
+                gas_limit: U256::from(1_000_000),
+                max_fee_per_gas: U256::from(250_000_000),
+                max_priority_fee_per_gas: U256::from(250_000_000),
+                gas_per_pubdata_limit: U256::from(20000),
+            },
+            to_impersonate,
+            U256::one(),
+            None,
+            Default::default(),
+        );
+        tx.set_input(vec![], H256::random());
+        if tx.common_data.signature.is_empty() {
+            tx.common_data.signature = PackedEthSignature::default().serialize_packed().into();
+        }
+
+        // try to execute the tx- should fail without signature
+        assert!(node.apply_txs(vec![tx.clone()]).is_err());
+
+        // impersonate the account
+        let result = node
+            .impersonate_account(to_impersonate)
+            .expect("impersonate_account");
+
+        // result should be true
+        assert!(result);
+
+        // impersonating the same account again should return false
+        let result = node
+            .impersonate_account(to_impersonate)
+            .expect("impersonate_account");
+        assert!(!result);
+
+        // execution should now succeed
+        assert!(node.apply_txs(vec![tx.clone()]).is_ok());
+
+        // stop impersonating the account
+        let result = node
+            .stop_impersonating_account(to_impersonate)
+            .expect("stop_impersonating_account");
+
+        // result should be true
+        assert!(result);
+
+        // stop impersonating the same account again should return false
+        let result = node
+            .stop_impersonating_account(to_impersonate)
+            .expect("stop_impersonating_account");
+        assert!(!result);
+
+        // execution should now fail again
+        assert!(node.apply_txs(vec![tx]).is_err());
+    }
+
+    #[tokio::test]
+    async fn test_set_code() {
+        let address = Address::repeat_byte(0x1);
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let new_code = vec![0x1u8; 32];
+
+        let code_before = node
+            .get_code(address, None)
+            .await
+            .expect("failed getting code")
+            .0;
+        assert_eq!(Vec::<u8>::default(), code_before);
+
+        node.set_code(address, new_code.clone())
+            .expect("failed setting code");
+
+        let code_after = node
+            .get_code(address, None)
+            .await
+            .expect("failed getting code")
+            .0;
+        assert_eq!(new_code, code_after);
+    }
+
+    #[tokio::test]
+    async fn test_increase_time_zero_value() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let increase_value_seconds = 0u64;
+        let timestamp_before = node
+            .get_inner()
+            .read()
+            .map(|inner| inner.current_timestamp)
+            .expect("failed reading timestamp");
+        let expected_response = increase_value_seconds;
+
+        let actual_response = node
+            .increase_time(increase_value_seconds)
+            .expect("failed increasing timestamp");
+        let timestamp_after = node
+            .get_inner()
+            .read()
+            .map(|inner| inner.current_timestamp)
+            .expect("failed reading timestamp");
+
+        assert_eq!(expected_response, actual_response, "erroneous response");
+        assert_eq!(
+            increase_value_seconds.saturating_mul(1000u64),
+            timestamp_after.saturating_sub(timestamp_before),
+            "timestamp did not increase by the specified amount",
+        );
+    }
+
+    #[tokio::test]
+    async fn test_increase_time_max_value() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let increase_value_seconds = u64::MAX;
+        let timestamp_before = node
+            .get_inner()
+            .read()
+            .map(|inner| inner.current_timestamp)
+            .expect("failed reading timestamp");
+        assert_ne!(0, timestamp_before, "initial timestamp must be non zero",);
+        let expected_response = increase_value_seconds;
+
+        let actual_response = node
+            .increase_time(increase_value_seconds)
+            .expect("failed increasing timestamp");
+        let timestamp_after = node
+            .get_inner()
+            .read()
+            .map(|inner| inner.current_timestamp)
+            .expect("failed reading timestamp");
+
+        assert_eq!(expected_response, actual_response, "erroneous response");
+        assert_eq!(
+            u64::MAX,
+            timestamp_after,
+            "timestamp did not saturate upon increase",
+        );
+    }
+
+    #[tokio::test]
+    async fn test_increase_time() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let increase_value_seconds = 100u64;
+        let timestamp_before = node
+            .get_inner()
+            .read()
+            .map(|inner| inner.current_timestamp)
+            .expect("failed reading timestamp");
+        let expected_response = increase_value_seconds;
+
+        let actual_response = node
+            .increase_time(increase_value_seconds)
+            .expect("failed increasing timestamp");
+        let timestamp_after = node
+            .get_inner()
+            .read()
+            .map(|inner| inner.current_timestamp)
+            .expect("failed reading timestamp");
+
+        assert_eq!(expected_response, actual_response, "erroneous response");
+        assert_eq!(
+            increase_value_seconds.saturating_mul(1000u64),
+            timestamp_after.saturating_sub(timestamp_before),
+            "timestamp did not increase by the specified amount",
+        );
+    }
+
+    #[tokio::test]
+    async fn test_set_next_block_timestamp_future() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let new_timestamp = 10_000u64;
+        let timestamp_before = node
+            .get_inner()
+            .read()
+            .map(|inner| inner.current_timestamp)
+            .expect("failed reading timestamp");
+        assert_ne!(
+            timestamp_before, new_timestamp,
+            "timestamps must be different"
+        );
+        let expected_response = new_timestamp;
+
+        let actual_response = node
+            .set_next_block_timestamp(new_timestamp)
+            .expect("failed setting timestamp");
+        let timestamp_after = node
+            .get_inner()
+            .read()
+            .map(|inner| inner.current_timestamp)
+            .expect("failed reading timestamp");
+
+        assert_eq!(expected_response, actual_response, "erroneous response");
+        assert_eq!(
+            new_timestamp, timestamp_after,
+            "timestamp was not set correctly",
+        );
+    }
+
+    #[tokio::test]
+    async fn test_set_next_block_timestamp_past_fails() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let timestamp_before = node
+            .get_inner()
+            .read()
+            .map(|inner| inner.current_timestamp)
+            .expect("failed reading timestamp");
+
+        let new_timestamp = timestamp_before + 500;
+        node.set_next_block_timestamp(new_timestamp)
+            .expect("failed setting timestamp");
+
+        let result = node.set_next_block_timestamp(timestamp_before);
+
+        assert!(result.is_err(), "expected an error for timestamp in past");
+    }
+
+    #[tokio::test]
+    async fn test_set_next_block_timestamp_same_value() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let new_timestamp = 1000u64;
+        let timestamp_before = node
+            .get_inner()
+            .read()
+            .map(|inner| inner.current_timestamp)
+            .expect("failed reading timestamp");
+        assert_eq!(timestamp_before, new_timestamp, "timestamps must be same");
+        let expected_response = new_timestamp;
+
+        let actual_response = node
+            .set_next_block_timestamp(new_timestamp)
+            .expect("failed setting timestamp");
+        let timestamp_after = node
+            .get_inner()
+            .read()
+            .map(|inner| inner.current_timestamp)
+            .expect("failed reading timestamp");
+
+        assert_eq!(expected_response, actual_response, "erroneous response");
+        assert_eq!(
+            timestamp_before, timestamp_after,
+            "timestamp must not change",
+        );
+    }
+
+    #[tokio::test]
+    async fn test_set_time_future() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let new_time = 10_000u64;
+        let timestamp_before = node
+            .get_inner()
+            .read()
+            .map(|inner| inner.current_timestamp)
+            .expect("failed reading timestamp");
+        assert_ne!(timestamp_before, new_time, "timestamps must be different");
+        let expected_response = 9000;
+
+        let actual_response = node.set_time(new_time).expect("failed setting timestamp");
+        let timestamp_after = node
+            .get_inner()
+            .read()
+            .map(|inner| inner.current_timestamp)
+            .expect("failed reading timestamp");
+
+        assert_eq!(expected_response, actual_response, "erroneous response");
+        assert_eq!(new_time, timestamp_after, "timestamp was not set correctly",);
+    }
+
+    #[tokio::test]
+    async fn test_set_time_past() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let new_time = 10u64;
+        let timestamp_before = node
+            .get_inner()
+            .read()
+            .map(|inner| inner.current_timestamp)
+            .expect("failed reading timestamp");
+        assert_ne!(timestamp_before, new_time, "timestamps must be different");
+        let expected_response = -990;
+
+        let actual_response = node.set_time(new_time).expect("failed setting timestamp");
+        let timestamp_after = node
+            .get_inner()
+            .read()
+            .map(|inner| inner.current_timestamp)
+            .expect("failed reading timestamp");
+
+        assert_eq!(expected_response, actual_response, "erroneous response");
+        assert_eq!(new_time, timestamp_after, "timestamp was not set correctly",);
+    }
+
+    #[tokio::test]
+    async fn test_set_time_same_value() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let new_time = 1000u64;
+        let timestamp_before = node
+            .get_inner()
+            .read()
+            .map(|inner| inner.current_timestamp)
+            .expect("failed reading timestamp");
+        assert_eq!(timestamp_before, new_time, "timestamps must be same");
+        let expected_response = 0;
+
+        let actual_response = node.set_time(new_time).expect("failed setting timestamp");
+        let timestamp_after = node
+            .get_inner()
+            .read()
+            .map(|inner| inner.current_timestamp)
+            .expect("failed reading timestamp");
+
+        assert_eq!(expected_response, actual_response, "erroneous response");
+        assert_eq!(
+            timestamp_before, timestamp_after,
+            "timestamp must not change",
+        );
+    }
+
+    #[tokio::test]
+    async fn test_set_time_edges() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        for new_time in [0, u64::MAX] {
+            let timestamp_before = node
+                .get_inner()
+                .read()
+                .map(|inner| inner.current_timestamp)
+                .unwrap_or_else(|_| panic!("case {}: failed reading timestamp", new_time));
+            assert_ne!(
+                timestamp_before, new_time,
+                "case {new_time}: timestamps must be different"
+            );
+            let expected_response = (new_time as i128).saturating_sub(timestamp_before as i128);
+
+            let actual_response = node.set_time(new_time).expect("failed setting timestamp");
+            let timestamp_after = node
+                .get_inner()
+                .read()
+                .map(|inner| inner.current_timestamp)
+                .unwrap_or_else(|_| panic!("case {}: failed reading timestamp", new_time));
+
+            assert_eq!(
+                expected_response, actual_response,
+                "case {new_time}: erroneous response"
+            );
+            assert_eq!(
+                new_time, timestamp_after,
+                "case {new_time}: timestamp was not set correctly",
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_mine_block() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let start_block = node
+            .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
+            .await
+            .unwrap()
+            .expect("block exists");
+        let result = node.mine_block().expect("mine_block");
+        assert_eq!(&result, "0x0");
+
+        let current_block = node
+            .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
+            .await
+            .unwrap()
+            .expect("block exists");
+
+        assert_eq!(start_block.number + 1, current_block.number);
+        assert_eq!(start_block.timestamp + 1, current_block.timestamp);
+
+        let result = node.mine_block().expect("mine_block");
+        assert_eq!(&result, "0x0");
+
+        let current_block = node
+            .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
+            .await
+            .unwrap()
+            .expect("block exists");
+
+        assert_eq!(start_block.number + 2, current_block.number);
+        assert_eq!(start_block.timestamp + 2, current_block.timestamp);
+    }
+
+    #[tokio::test]
+    async fn test_evm_snapshot_creates_incrementing_ids() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let snapshot_id_1 = node.snapshot().expect("failed creating snapshot 1");
+        let snapshot_id_2 = node.snapshot().expect("failed creating snapshot 2");
+
+        assert_eq!(snapshot_id_1, U64::from(1));
+        assert_eq!(snapshot_id_2, U64::from(2));
+    }
+
+    #[tokio::test]
+    async fn test_evm_revert_snapshot_restores_state() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let initial_block = node
+            .get_block_number()
+            .await
+            .expect("failed fetching block number");
+        let snapshot_id = node.snapshot().expect("failed creating snapshot");
+        node.mine_block().expect("mine_block");
+        let current_block = node
+            .get_block_number()
+            .await
+            .expect("failed fetching block number");
+        assert_eq!(current_block, initial_block + 1);
+
+        let reverted = node
+            .revert_snapshot(snapshot_id)
+            .expect("failed reverting snapshot");
+        assert!(reverted);
+
+        let restored_block = node
+            .get_block_number()
+            .await
+            .expect("failed fetching block number");
+        assert_eq!(restored_block, initial_block);
+    }
+
+    #[tokio::test]
+    async fn test_evm_revert_snapshot_removes_all_snapshots_following_the_reverted_one() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let _snapshot_id_1 = node.snapshot().expect("failed creating snapshot");
+        let snapshot_id_2 = node.snapshot().expect("failed creating snapshot");
+        let _snapshot_id_3 = node.snapshot().expect("failed creating snapshot");
+        assert_eq!(3, node.snapshots.read().unwrap().len());
+
+        let reverted = node
+            .revert_snapshot(snapshot_id_2)
+            .expect("failed reverting snapshot");
+        assert!(reverted);
+
+        assert_eq!(1, node.snapshots.read().unwrap().len());
+    }
+
+    #[tokio::test]
+    async fn test_evm_revert_snapshot_fails_for_invalid_snapshot_id() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let result = node.revert_snapshot(U64::from(100));
+        assert!(result.is_err());
+    }
+}
