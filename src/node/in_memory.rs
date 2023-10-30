@@ -1605,7 +1605,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     // Validates L2 transaction
     pub fn validate_tx(&self, tx: &L2Tx) -> Result<(), String> {
         let max_gas = U256::from(u32::MAX);
-        if tx.common_data.fee.gas_limit > max_gas || tx.common_data.fee.gas_per_pubdata_limit > max_gas {
+        if tx.common_data.fee.gas_limit > max_gas
+            || tx.common_data.fee.gas_per_pubdata_limit > max_gas
+        {
             return Err("exceeds block gas limit".into());
         }
 
