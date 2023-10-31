@@ -1375,17 +1375,52 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_node_run_has_genesis_block() {
+    async fn test_node_has_genesis_block() {
         let node = InMemoryNode::<HttpForkSource>::default();
 
         let block = node
             .get_block_by_number(BlockNumber::Latest, false)
             .await
-            .expect("failed fetching block by hash")
+            .expect("failed fetching block by number")
             .expect("no block");
 
         assert_eq!(0, block.number.as_u64());
         assert_eq!(compute_hash(0, H256::zero()), block.hash);
+    }
+
+    #[tokio::test]
+    async fn test_node_creates_genesis_block_with_hash_and_zero_parent_hash() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+
+        let block = node
+            .get_block_by_hash(compute_hash(0, H256::zero()), false)
+            .await
+            .expect("failed fetching block by hash")
+            .expect("no block");
+
+        assert_eq!(block.parent_hash, H256::zero());
+    }
+
+    #[tokio::test]
+    async fn test_node_produces_blocks_with_parent_hash_links() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        testing::apply_tx(&node, H256::repeat_byte(0x01));
+
+        let genesis_block = node.get_block_by_number(BlockNumber::from(0), false)
+            .await
+            .expect("failed fetching block by number")
+            .expect("no block");
+        let first_block = node.get_block_by_number(BlockNumber::from(1), false)
+            .await
+            .expect("failed fetching block by number")
+            .expect("no block");
+        let second_block = node.get_block_by_number(BlockNumber::from(2), false)
+            .await
+            .expect("failed fetching block by number")
+            .expect("no block");
+
+        assert_eq!(genesis_block.hash, first_block.parent_hash);
+        assert_eq!(first_block.hash, second_block.parent_hash);
     }
 
     #[tokio::test]

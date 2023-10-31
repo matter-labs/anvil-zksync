@@ -1248,7 +1248,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     }
 
     /// Executes the given L2 transaction and returns all the VM logs.
-    pub fn run_l2_tx_inner(
+    fn run_l2_tx_inner(
         &self,
         l2_tx: L2Tx,
         execution_mode: TxExecutionMode,
@@ -1741,6 +1741,46 @@ mod tests {
         assert_eq!(
             result.err(),
             Some("max priority fee per gas higher than max fee per gas".into())
+        );
+    }
+
+    #[tokio::test]
+    async fn test_create_empty_block_creates_genesis_block_with_hash_and_zero_parent_hash() {
+        let first_block = create_empty_block::<TransactionVariant>(0, 1000, 1, None);
+
+        assert_eq!(
+            first_block.hash,
+            compute_hash(0, H256::zero())
+        );
+        assert_eq!(
+            first_block.parent_hash,
+            H256::zero()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_create_empty_block_creates_block_with_parent_hash_link_to_prev_block() {
+        let first_block = create_empty_block::<TransactionVariant>(0, 1000, 1, None);
+        let second_block = create_empty_block::<TransactionVariant>(1, 1000, 1, None);
+
+        assert_eq!(
+            second_block.parent_hash,
+            first_block.hash
+        );
+    }
+
+    #[tokio::test]
+    async fn test_create_empty_block_creates_block_with_parent_hash_link_to_provided_parent_hash() {
+        let first_block = create_empty_block::<TransactionVariant>(0, 1000, 1, Some(compute_hash(123, H256::zero())));
+        let second_block = create_empty_block::<TransactionVariant>(1, 1000, 1, Some(first_block.hash));
+
+        assert_eq!(
+            first_block.parent_hash,
+            compute_hash(123, H256::zero())
+        );
+        assert_eq!(
+            second_block.parent_hash,
+            first_block.hash
         );
     }
 }
