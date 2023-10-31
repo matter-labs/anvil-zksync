@@ -1465,7 +1465,6 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             }
         };
 
-        tracing::info!("");
         tracing::info!("Executing {}", format!("{:?}", tx_hash).bold());
 
         {
