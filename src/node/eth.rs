@@ -490,7 +490,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
                         from: Some(info.tx.initiator_account()),
                         to: Some(info.tx.recipient_account()),
                         value: info.tx.execute.value,
-                        gas_price: Default::default(),
+                        gas_price: Some(U256::from(0)),
                         gas: Default::default(),
                         input: input_data.data.into(),
                         v: Some(chain_id.into()),

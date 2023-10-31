@@ -89,10 +89,16 @@ pub fn compute_hash(block_number: u64, tx_hash: H256) -> H256 {
     H256(keccak256(&digest))
 }
 
-pub fn create_empty_block<TX>(block_number: u64, timestamp: u64, batch: u32) -> Block<TX> {
+pub fn create_empty_block<TX>(block_number: u64, timestamp: u64, batch: u32, parent_block_hash: Option<H256>) -> Block<TX> {
     let hash = compute_hash(block_number, H256::zero());
+    let parent_hash = parent_block_hash.unwrap_or(if block_number == 0 {
+        H256::zero()
+    } else {
+        compute_hash(block_number - 1, H256::zero())
+    });
     Block {
         hash,
+        parent_hash,
         number: U64::from(block_number),
         timestamp: U256::from(timestamp),
         l1_batch_number: Some(U64::from(batch)),
@@ -900,11 +906,12 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             }
         } else {
             let mut block_hashes = HashMap::<u64, H256>::new();
-            block_hashes.insert(0, H256::zero());
+            let block_hash = compute_hash(0, H256::zero());
+            block_hashes.insert(0, block_hash);
             let mut blocks = HashMap::<H256, Block<TransactionVariant>>::new();
             blocks.insert(
-                H256::zero(),
-                create_empty_block(0, NON_FORK_FIRST_BLOCK_TIMESTAMP, 0),
+                block_hash,
+                create_empty_block(0, NON_FORK_FIRST_BLOCK_TIMESTAMP, 0, None),
             );
 
             InMemoryNodeInner {
@@ -1418,8 +1425,14 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         transaction.block_hash = Some(*block_hash);
         transaction.block_number = Some(U64::from(inner.current_miniblock));
 
+        let parent_block_hash = inner
+            .block_hashes
+            .get(&(block_ctx.miniblock -1))
+            .unwrap().clone();
+
         let block = Block {
             hash,
+            parent_hash: parent_block_hash,
             number: U64::from(block_ctx.miniblock),
             timestamp: U256::from(batch_env.timestamp),
             l1_batch_number: Some(U64::from(batch_env.number.0)),
@@ -1535,6 +1548,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             l1_batch_number: block.l1_batch_number,
             from: l2_tx.initiator_account(),
             to: Some(l2_tx.recipient_account()),
+            root: Some(H256::zero()),
             cumulative_gas_used: Default::default(),
             gas_used: Some(l2_tx.common_data.fee.gas_limit - result.refunds.gas_refunded),
             contract_address: contract_address_from_tx_result(&result),
@@ -1586,8 +1600,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         // we are adding one l2 block at the end of each batch (to handle things like remaining events etc).
         //  You can look at insert_fictive_l2_block function in VM to see how this fake block is inserted.
         let block_ctx = block_ctx.new_block();
+        let parent_block_hash = block.hash;
         let empty_block_at_end_of_batch =
-            create_empty_block(block_ctx.miniblock, block_ctx.timestamp, block_ctx.batch);
+            create_empty_block(block_ctx.miniblock, block_ctx.timestamp, block_ctx.batch, Some(parent_block_hash));
 
         inner.current_batch = inner.current_batch.saturating_add(1);
 
