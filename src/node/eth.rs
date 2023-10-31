@@ -1406,15 +1406,18 @@ mod tests {
         let node = InMemoryNode::<HttpForkSource>::default();
         testing::apply_tx(&node, H256::repeat_byte(0x01));
 
-        let genesis_block = node.get_block_by_number(BlockNumber::from(0), false)
+        let genesis_block = node
+            .get_block_by_number(BlockNumber::from(0), false)
             .await
             .expect("failed fetching block by number")
             .expect("no block");
-        let first_block = node.get_block_by_number(BlockNumber::from(1), false)
+        let first_block = node
+            .get_block_by_number(BlockNumber::from(1), false)
             .await
             .expect("failed fetching block by number")
             .expect("no block");
-        let second_block = node.get_block_by_number(BlockNumber::from(2), false)
+        let second_block = node
+            .get_block_by_number(BlockNumber::from(2), false)
             .await
             .expect("failed fetching block by number")
             .expect("no block");
@@ -2577,11 +2580,11 @@ mod tests {
 
         let storage = inner.fork_storage.inner.read().unwrap();
         let expected_snapshot = Snapshot {
-            current_timestamp: inner.current_timestamp.clone(),
-            current_batch: inner.current_batch.clone(),
-            current_miniblock: inner.current_miniblock.clone(),
-            current_miniblock_hash: inner.current_miniblock_hash.clone(),
-            l1_gas_price: inner.l1_gas_price.clone(),
+            current_timestamp: inner.current_timestamp,
+            current_batch: inner.current_batch,
+            current_miniblock: inner.current_miniblock,
+            current_miniblock_hash: inner.current_miniblock_hash,
+            l1_gas_price: inner.l1_gas_price,
             tx_results: inner.tx_results.clone(),
             blocks: inner.blocks.clone(),
             block_hashes: inner.block_hashes.clone(),
@@ -2681,11 +2684,11 @@ mod tests {
         let expected_snapshot = {
             let storage = inner.fork_storage.inner.read().unwrap();
             Snapshot {
-                current_timestamp: inner.current_timestamp.clone(),
-                current_batch: inner.current_batch.clone(),
-                current_miniblock: inner.current_miniblock.clone(),
-                current_miniblock_hash: inner.current_miniblock_hash.clone(),
-                l1_gas_price: inner.l1_gas_price.clone(),
+                current_timestamp: inner.current_timestamp,
+                current_batch: inner.current_batch,
+                current_miniblock: inner.current_miniblock,
+                current_miniblock_hash: inner.current_miniblock_hash,
+                l1_gas_price: inner.l1_gas_price,
                 tx_results: inner.tx_results.clone(),
                 blocks: inner.blocks.clone(),
                 block_hashes: inner.block_hashes.clone(),
@@ -3019,7 +3022,7 @@ mod tests {
             .expect("no transaction");
 
         assert_eq!(input_tx_hash, actual_tx.hash);
-        assert_eq!(Some(U64::from(input_block_number)), actual_tx.block_number);
+        assert_eq!(Some(input_block_number), actual_tx.block_number);
     }
 
     #[tokio::test]
@@ -3045,7 +3048,7 @@ mod tests {
             TransactionResponseBuilder::new()
                 .set_hash(input_tx_hash)
                 .set_block_hash(input_block_hash)
-                .set_block_number(U64::from(input_block_number))
+                .set_block_number(input_block_number)
                 .build(),
         );
 

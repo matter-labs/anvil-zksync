@@ -89,7 +89,12 @@ pub fn compute_hash(block_number: u64, tx_hash: H256) -> H256 {
     H256(keccak256(&digest))
 }
 
-pub fn create_empty_block<TX>(block_number: u64, timestamp: u64, batch: u32, parent_block_hash: Option<H256>) -> Block<TX> {
+pub fn create_empty_block<TX>(
+    block_number: u64,
+    timestamp: u64,
+    batch: u32,
+    parent_block_hash: Option<H256>,
+) -> Block<TX> {
     let hash = compute_hash(block_number, H256::zero());
     let parent_hash = parent_block_hash.unwrap_or(if block_number == 0 {
         H256::zero()
@@ -1425,10 +1430,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         transaction.block_hash = Some(*block_hash);
         transaction.block_number = Some(U64::from(inner.current_miniblock));
 
-        let parent_block_hash = inner
-            .block_hashes
-            .get(&(block_ctx.miniblock -1))
-            .unwrap().clone();
+        let parent_block_hash = *inner.block_hashes.get(&(block_ctx.miniblock - 1)).unwrap();
 
         let block = Block {
             hash,
@@ -1601,8 +1603,12 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         //  You can look at insert_fictive_l2_block function in VM to see how this fake block is inserted.
         let block_ctx = block_ctx.new_block();
         let parent_block_hash = block.hash;
-        let empty_block_at_end_of_batch =
-            create_empty_block(block_ctx.miniblock, block_ctx.timestamp, block_ctx.batch, Some(parent_block_hash));
+        let empty_block_at_end_of_batch = create_empty_block(
+            block_ctx.miniblock,
+            block_ctx.timestamp,
+            block_ctx.batch,
+            Some(parent_block_hash),
+        );
 
         inner.current_batch = inner.current_batch.saturating_add(1);
 
@@ -1748,14 +1754,8 @@ mod tests {
     async fn test_create_empty_block_creates_genesis_block_with_hash_and_zero_parent_hash() {
         let first_block = create_empty_block::<TransactionVariant>(0, 1000, 1, None);
 
-        assert_eq!(
-            first_block.hash,
-            compute_hash(0, H256::zero())
-        );
-        assert_eq!(
-            first_block.parent_hash,
-            H256::zero()
-        );
+        assert_eq!(first_block.hash, compute_hash(0, H256::zero()));
+        assert_eq!(first_block.parent_hash, H256::zero());
     }
 
     #[tokio::test]
@@ -1763,24 +1763,21 @@ mod tests {
         let first_block = create_empty_block::<TransactionVariant>(0, 1000, 1, None);
         let second_block = create_empty_block::<TransactionVariant>(1, 1000, 1, None);
 
-        assert_eq!(
-            second_block.parent_hash,
-            first_block.hash
-        );
+        assert_eq!(second_block.parent_hash, first_block.hash);
     }
 
     #[tokio::test]
     async fn test_create_empty_block_creates_block_with_parent_hash_link_to_provided_parent_hash() {
-        let first_block = create_empty_block::<TransactionVariant>(0, 1000, 1, Some(compute_hash(123, H256::zero())));
-        let second_block = create_empty_block::<TransactionVariant>(1, 1000, 1, Some(first_block.hash));
+        let first_block = create_empty_block::<TransactionVariant>(
+            0,
+            1000,
+            1,
+            Some(compute_hash(123, H256::zero())),
+        );
+        let second_block =
+            create_empty_block::<TransactionVariant>(1, 1000, 1, Some(first_block.hash));
 
-        assert_eq!(
-            first_block.parent_hash,
-            compute_hash(123, H256::zero())
-        );
-        assert_eq!(
-            second_block.parent_hash,
-            first_block.hash
-        );
+        assert_eq!(first_block.parent_hash, compute_hash(123, H256::zero()));
+        assert_eq!(second_block.parent_hash, first_block.hash);
     }
 }
