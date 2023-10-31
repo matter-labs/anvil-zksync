@@ -923,7 +923,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 current_timestamp: NON_FORK_FIRST_BLOCK_TIMESTAMP,
                 current_batch: 0,
                 current_miniblock: 0,
-                current_miniblock_hash: H256::zero(),
+                current_miniblock_hash: block_hash,
                 l1_gas_price: L1_GAS_PRICE,
                 tx_results: Default::default(),
                 blocks,
