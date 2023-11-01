@@ -148,6 +148,12 @@ impl<S: ForkSource> ForkStorage<S> {
             local_storage
         }
     }
+
+    /// Retrieves the enumeration index for a given `key`.
+    fn get_enumeration_index_internal(&self, _key: &StorageKey) -> Option<u64> {
+        // TODO: Update this file to use proper enumeration index value once it's exposed for forks via API
+        Some(0_u64)
+    }
 }
 
 impl<S: std::fmt::Debug + ForkSource> ReadStorage for ForkStorage<S> {
@@ -163,6 +169,10 @@ impl<S: std::fmt::Debug + ForkSource> ReadStorage for ForkStorage<S> {
     fn read_value(&mut self, key: &StorageKey) -> zksync_types::StorageValue {
         self.read_value_internal(key)
     }
+
+    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
+        self.get_enumeration_index_internal(key)
+    }
 }
 
 impl<S: std::fmt::Debug + ForkSource> ReadStorage for &ForkStorage<S> {
@@ -177,6 +187,10 @@ impl<S: std::fmt::Debug + ForkSource> ReadStorage for &ForkStorage<S> {
 
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
         self.load_factory_dep_internal(hash)
+    }
+
+    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
+        self.get_enumeration_index_internal(key)
     }
 }
 
