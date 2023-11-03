@@ -50,13 +50,13 @@ itertools = "0.10.5"
 rustc-hash = "1.1.0"
 indexmap = "2.0.1"
 chrono = { version = "0.4.31", default-features = false }
+ethers = { version = "2.0.4", features = ["rustls", "abigen"] }
 
 [dev-dependencies]
 httptest = "0.15.4"
 tempdir = "0.3.7"
 maplit = "1.0.2"
 zksync-web3-rs = "0.1.1"
-ethers = { version = "2.0.4", features = ["rustls"] }
 
 [patch.crates-io]
 sha3 = { git = "https://github.com/RustCrypto/hashes", tag = "sha3-v0.10.6" }

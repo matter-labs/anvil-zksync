@@ -10,6 +10,7 @@ use tracing_subscriber::filter::LevelFilter;
 
 mod bootloader_debug;
 mod cache;
+mod cheatcodes;
 mod console_log;
 mod deps;
 mod filters;

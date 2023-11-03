@@ -1,6 +1,7 @@
 //! In-memory node, that supports forking other networks.
 use crate::{
     bootloader_debug::{BootloaderDebug, BootloaderDebugTracer},
+    cheatcodes::CheatcodeTracer,
     console_log::ConsoleLogHandler,
     deps::InMemoryStorage,
     filters::EthFilters,
@@ -1019,11 +1020,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
         let call_tracer_result = Arc::new(OnceCell::default());
 
-        let custom_tracers =
-            vec![
-                Box::new(CallTracer::new(call_tracer_result.clone(), HistoryDisabled))
-                    as Box<dyn VmTracer<StorageView<&ForkStorage<S>>, HistoryDisabled>>,
-            ];
+        let cheatcode_tracer = CheatcodeTracer::default();
+        let custom_tracers = vec![
+            Box::new(cheatcode_tracer)
+                as Box<dyn VmTracer<StorageView<&ForkStorage<S>>, HistoryDisabled>>,
+            Box::new(CallTracer::new(call_tracer_result.clone(), HistoryDisabled))
+                as Box<dyn VmTracer<StorageView<&ForkStorage<S>>, HistoryDisabled>>,
+        ];
 
         let tx_result = vm.inspect(custom_tracers, VmExecutionMode::OneTx);
 
