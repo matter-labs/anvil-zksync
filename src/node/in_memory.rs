@@ -1253,7 +1253,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     }
 
     /// Executes the given L2 transaction and returns all the VM logs.
-    fn run_l2_tx_inner(
+    pub fn run_l2_tx_inner(
         &self,
         l2_tx: L2Tx,
         execution_mode: TxExecutionMode,
