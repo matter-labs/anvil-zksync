@@ -980,7 +980,7 @@ mod test {
                 None,
             )
             .map(|value| unpack_block_info(h256_to_u256(value)))
-            .expect("failed getting batch number");
+            .expect("failed getting l2 block info");
         assert_eq!(input_l2_block, actual_l2_block);
         assert_eq!(input_timestamp, actual_timestamp);
 
@@ -991,7 +991,7 @@ mod test {
                 None,
             )
             .map(|value| h256_to_u256(value).as_u64())
-            .expect("failed getting batch number");
+            .expect("failed missing value");
         assert_eq!(0, zero_missing_value);
 
         let actual_bytecode = storage
