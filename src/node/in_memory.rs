@@ -1806,7 +1806,7 @@ mod tests {
         node.run_l2_tx(tx, TxExecutionMode::VerifyExecute).unwrap();
         let external_storage = node.inner.read().unwrap().fork_storage.clone();
 
-        // Execute next transaction using a fresh in-memory node and the external storage
+        // Execute next transaction using a fresh in-memory node and the external fork storage
         let current_batch = 1;
         let current_l2_block = 2;
         let current_timestamp = 1002;
@@ -1815,19 +1815,22 @@ mod tests {
             current_l2_block,
             current_timestamp,
         };
-        let fork_details = ForkDetails {
-            fork_source: &mock_db,
-            l1_block: L1BatchNumber(current_batch as u32),
-            l2_block: Block::default(),
-            l2_miniblock: current_l2_block,
-            l2_miniblock_hash: Default::default(),
-            block_timestamp: current_timestamp,
-            overwrite_chain_id: None,
-            l1_gas_price: 1000,
-        };
-        let node = InMemoryNode::new(Some(fork_details), None, Default::default());
+        let node = InMemoryNode::new(
+            Some(ForkDetails {
+                fork_source: &mock_db,
+                l1_block: L1BatchNumber(current_batch as u32),
+                l2_block: Block::default(),
+                l2_miniblock: current_l2_block,
+                l2_miniblock_hash: Default::default(),
+                block_timestamp: current_timestamp,
+                overwrite_chain_id: None,
+                l1_gas_price: 1000,
+            }),
+            None,
+            Default::default(),
+        );
         {
-            // Apply external storage to new node
+            // Apply external storage data directly to new node's fork storage
             let ext_storage = external_storage.inner.read().unwrap();
             let writer = node.inner.write().unwrap();
             let mut storage = writer.fork_storage.inner.write().unwrap();
