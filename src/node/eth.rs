@@ -814,7 +814,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
     ///
     /// A `BoxFuture` containing a `jsonrpc_core::Result` that resolves to an array of logs, block hashes, or transaction hashes,
     /// depending on the filter type, which occurred since last poll.
-    /// * Filters created with `eth_newFilter` return [Log] objects.
+    /// * Filters created with `eth_newFilter` return [zksync_types::api::Log] objects.
     /// * Filters created with `eth_newBlockFilter` return block hashes.
     /// * Filters created with `eth_newPendingTransactionFilter` return transaction hashes.
     fn get_filter_changes(&self, id: U256) -> RpcResult<FilterChanges> {
