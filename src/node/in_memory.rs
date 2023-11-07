@@ -1796,4 +1796,60 @@ mod tests {
         assert_eq!(first_block.parent_hash, compute_hash(123, H256::zero()));
         assert_eq!(second_block.parent_hash, first_block.hash);
     }
+
+    #[tokio::test]
+    async fn test_run_l2_tx_raw_does_not_panic_on_external_storage_call() {
+        // Perform a transaction to get storage to an intermediate state
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let tx = testing::TransactionBuilder::new().build();
+        node.set_rich_account(tx.common_data.initiator_address);
+        node.run_l2_tx(tx, TxExecutionMode::VerifyExecute).unwrap();
+        let external_storage = node.inner.read().unwrap().fork_storage.clone();
+
+        let current_batch = 1;
+        let current_l2_block = 2;
+        let current_timestamp = 1002;
+        let mock_db = testing::ExternalStorage {
+            current_batch,
+            current_l2_block,
+            current_timestamp,
+        };
+        let fork_details = ForkDetails {
+            fork_source: &mock_db,
+            l1_block: L1BatchNumber(current_batch as u32),
+            l2_block: Block::default(),
+            l2_miniblock: current_l2_block,
+            l2_miniblock_hash: Default::default(),
+            block_timestamp: current_timestamp,
+            overwrite_chain_id: None,
+            l1_gas_price: 1000,
+        };
+        let node = InMemoryNode::new(
+            Some(fork_details),
+            None,
+            InMemoryNodeConfig {
+                show_calls: ShowCalls::None,
+                // show_storage_logs: ShowStorageLogs,
+                show_vm_details: ShowVMDetails::None,
+                // show_gas_details: ShowGasDetails,
+                resolve_hashes: false,
+                // system_contracts_options: system_contracts::Options,
+                ..Default::default()
+            },
+        );
+        {
+            let ext_storage = external_storage.inner.read().unwrap();
+            let writer = node.inner.write().unwrap();
+            let mut storage = writer.fork_storage.inner.write().unwrap();
+            storage.factory_dep_cache = ext_storage.factory_dep_cache.clone();
+            storage.raw_storage = ext_storage.raw_storage.clone();
+            storage.value_read_cache = ext_storage.value_read_cache.clone();
+        }
+
+        node.run_l2_tx_raw(
+            testing::TransactionBuilder::new().build(),
+            TxExecutionMode::VerifyExecute,
+        )
+        .unwrap();
+    }
 }
