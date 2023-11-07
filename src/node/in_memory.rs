@@ -1806,6 +1806,7 @@ mod tests {
         node.run_l2_tx(tx, TxExecutionMode::VerifyExecute).unwrap();
         let external_storage = node.inner.read().unwrap().fork_storage.clone();
 
+        // Execute next transaction using a fresh in-memory node and the external storage
         let current_batch = 1;
         let current_l2_block = 2;
         let current_timestamp = 1002;
@@ -1824,20 +1825,9 @@ mod tests {
             overwrite_chain_id: None,
             l1_gas_price: 1000,
         };
-        let node = InMemoryNode::new(
-            Some(fork_details),
-            None,
-            InMemoryNodeConfig {
-                show_calls: ShowCalls::None,
-                // show_storage_logs: ShowStorageLogs,
-                show_vm_details: ShowVMDetails::None,
-                // show_gas_details: ShowGasDetails,
-                resolve_hashes: false,
-                // system_contracts_options: system_contracts::Options,
-                ..Default::default()
-            },
-        );
+        let node = InMemoryNode::new(Some(fork_details), None, Default::default());
         {
+            // Apply external storage to new node
             let ext_storage = external_storage.inner.read().unwrap();
             let writer = node.inner.write().unwrap();
             let mut storage = writer.fork_storage.inner.write().unwrap();
@@ -1850,6 +1840,6 @@ mod tests {
             testing::TransactionBuilder::new().build(),
             TxExecutionMode::VerifyExecute,
         )
-        .unwrap();
+        .expect("transaction must pass with external storage");
     }
 }
