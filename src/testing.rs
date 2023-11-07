@@ -5,6 +5,7 @@
 
 #![cfg(test)]
 
+use crate::deps::InMemoryStorage;
 use crate::node::{InMemoryNode, TxExecutionInfo};
 use crate::{fork::ForkSource, node::compute_hash};
 
@@ -671,12 +672,10 @@ pub fn assert_bridge_addresses_eq(
     );
 }
 
-/// Represents a fork source that returns the input batch number, l2 block number and timestamp.
+/// Represents a read-only fork source that is backed by the provided [InMemoryStorage].
 #[derive(Debug, Clone)]
 pub struct ExternalStorage {
-    pub current_batch: u64,
-    pub current_l2_block: u64,
-    pub current_timestamp: u64,
+    pub raw_storage: InMemoryStorage,
 }
 
 impl ForkSource for &ExternalStorage {
@@ -687,27 +686,12 @@ impl ForkSource for &ExternalStorage {
         _block: Option<BlockIdVariant>,
     ) -> eyre::Result<H256> {
         let key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(idx));
-
-        if key
-            == StorageKey::new(
-                AccountTreeId::new(zksync_types::SYSTEM_CONTEXT_ADDRESS),
-                zksync_types::SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
-            )
-        {
-            Ok(u256_to_h256(U256::from(self.current_batch)))
-        } else if key
-            == StorageKey::new(
-                AccountTreeId::new(zksync_types::SYSTEM_CONTEXT_ADDRESS),
-                zksync_types::SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
-            )
-        {
-            Ok(u256_to_h256(pack_block_info(
-                self.current_l2_block,
-                self.current_timestamp,
-            )))
-        } else {
-            Ok(H256::zero())
-        }
+        Ok(self
+            .raw_storage
+            .state
+            .get(&key)
+            .cloned()
+            .unwrap_or_default())
     }
 
     fn get_raw_block_transactions(
@@ -717,9 +701,8 @@ impl ForkSource for &ExternalStorage {
         todo!()
     }
 
-    fn get_bytecode_by_hash(&self, _hash: H256) -> eyre::Result<Option<Vec<u8>>> {
-        println!("BYT {}", hex::encode(&_hash));
-        Ok(Some(Default::default()))
+    fn get_bytecode_by_hash(&self, hash: H256) -> eyre::Result<Option<Vec<u8>>> {
+        Ok(self.raw_storage.factory_deps.get(&hash).cloned())
     }
 
     fn get_transaction_by_hash(
@@ -800,6 +783,7 @@ impl ForkSource for &ExternalStorage {
 }
 
 mod test {
+    use maplit::hashmap;
     use zksync_types::block::unpack_block_info;
     use zksync_utils::h256_to_u256;
 
@@ -954,10 +938,29 @@ mod test {
         let input_batch = 1;
         let input_l2_block = 2;
         let input_timestamp = 3;
+        let input_bytecode = vec![0x4];
+        let batch_key = StorageKey::new(
+            AccountTreeId::new(zksync_types::SYSTEM_CONTEXT_ADDRESS),
+            zksync_types::SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
+        );
+        let l2_block_key = StorageKey::new(
+            AccountTreeId::new(zksync_types::SYSTEM_CONTEXT_ADDRESS),
+            zksync_types::SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+        );
+
         let storage = &ExternalStorage {
-            current_batch: input_batch,
-            current_l2_block: input_l2_block,
-            current_timestamp: input_timestamp,
+            raw_storage: InMemoryStorage {
+                state: hashmap! {
+                    batch_key => u256_to_h256(U256::from(input_batch)),
+                    l2_block_key => u256_to_h256(pack_block_info(
+                        input_l2_block,
+                        input_timestamp,
+                    ))
+                },
+                factory_deps: hashmap! {
+                    H256::repeat_byte(0x1) => input_bytecode.clone(),
+                },
+            },
         };
 
         let actual_batch = storage
@@ -980,5 +983,22 @@ mod test {
             .expect("failed getting batch number");
         assert_eq!(input_l2_block, actual_l2_block);
         assert_eq!(input_timestamp, actual_timestamp);
+
+        let zero_missing_value = storage
+            .get_storage_at(
+                zksync_types::SYSTEM_CONTEXT_ADDRESS,
+                h256_to_u256(H256::repeat_byte(0x1e)),
+                None,
+            )
+            .map(|value| h256_to_u256(value).as_u64())
+            .expect("failed getting batch number");
+        assert_eq!(0, zero_missing_value);
+
+        let actual_bytecode = storage
+            .get_bytecode_by_hash(H256::repeat_byte(0x1))
+            .ok()
+            .expect("failed getting bytecode")
+            .expect("missing bytecode");
+        assert_eq!(input_bytecode, actual_bytecode);
     }
 }
