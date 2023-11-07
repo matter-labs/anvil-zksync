@@ -17,13 +17,17 @@ use zksync_types::{
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
+use crate::{fork::ForkSource, http_fork_source::HttpForkSource, node::InMemoryNode};
+
 // address(uint160(uint256(keccak256('hevm cheat code'))))
 const CHEATCODE_ADDRESS: H160 = H160([
     113, 9, 112, 158, 207, 169, 26, 128, 98, 111, 243, 152, 157, 104, 246, 127, 91, 29, 209, 45,
 ]);
 
-#[derive(Default)]
-pub struct CheatcodeTracer;
+#[derive(Clone, Debug, Default)]
+pub struct CheatcodeTracer {
+    // node: &'a InMemoryNode<S>,
+}
 
 abigen!(
     CheatcodeContract,
@@ -129,11 +133,27 @@ impl CheatcodeTracer {
         };
     }
 }
-
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::str::FromStr;
+
+    use super::*;
+    use crate::{
+        deps::system_contracts::bytecode_from_slice,
+        http_fork_source::HttpForkSource,
+        node::{InMemoryNode, TransactionResult},
+        testing::{self, LogBuilder, TransactionBuilder},
+    };
+    use ethers::abi::{short_signature, AbiEncode, HumanReadableParser, ParamType, Token};
+    use zksync_basic_types::{Address, L2ChainId, Nonce, H160, H256, U256};
+    use zksync_core::api_server::web3::backend_jsonrpc::namespaces::eth::EthNamespaceT;
+    use zksync_types::{
+        api::{Block, CallTracerConfig, SupportedTracers, TransactionReceipt},
+        fee::Fee,
+        l2::L2Tx,
+        transaction_request::CallRequestBuilder,
+        utils::deployed_address_create,
+    };
 
     #[test]
     fn test_cheatcode_address() {
@@ -141,5 +161,71 @@ mod tests {
             CHEATCODE_ADDRESS,
             H160::from_str("0x7109709ECfa91a80626fF3989D68f67F5b1DD12D").unwrap()
         );
+    }
+
+    fn deploy_test_contract(node: &InMemoryNode<HttpForkSource>) -> Address {
+        let private_key = H256::repeat_byte(0xee);
+        let from_account = zksync_types::PackedEthSignature::address_from_private_key(&private_key)
+            .expect("failed generating address");
+        node.set_rich_account(from_account);
+
+        let bytecode = bytecode_from_slice(
+            "Secondary",
+            include_bytes!("deps/test-contracts/TestCheatcodes.json"),
+        );
+        let deployed_address = deployed_address_create(from_account, U256::zero());
+        testing::deploy_contract(
+            &node,
+            H256::repeat_byte(0x1),
+            private_key,
+            bytecode,
+            None,
+            Nonce(0),
+        );
+        deployed_address
+    }
+
+    #[tokio::test]
+    async fn test_cheatcode_contract() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let test_contract_address = deploy_test_contract(&node);
+        println!("test contract address: {:?}", test_contract_address);
+        let recipient_address = Address::random();
+
+        let private_key = H256::repeat_byte(0xee);
+        // let func = HumanReadableParser::parse_function("testDeal(address)").unwrap();
+        // let calldata = func
+        //     .encode_input(&[Token::Address(recipient_address)])
+        //     .unwrap();
+
+        let calldata = short_signature("deal()", &[]);
+        let mut l2tx = L2Tx::new_signed(
+            test_contract_address,
+            calldata.into(),
+            Nonce(1),
+            Fee {
+                gas_limit: U256::from(1_000_000),
+                max_fee_per_gas: U256::from(250_000_000),
+                max_priority_fee_per_gas: U256::from(250_000_000),
+                gas_per_pubdata_limit: U256::from(20000),
+            },
+            U256::from(1),
+            L2ChainId::from(260),
+            &private_key,
+            None,
+            Default::default(),
+        )
+        .unwrap();
+        l2tx.set_input(vec![], H256::repeat_byte(0x1));
+        node.apply_txs(vec![l2tx]).unwrap();
+
+        let receipt = node
+            .get_transaction_receipt(H256::repeat_byte(0x1))
+            .await
+            .unwrap()
+            .unwrap();
+
+        // check that the transaction was successful
+        assert_eq!(receipt.status.unwrap(), 1.into());
     }
 }

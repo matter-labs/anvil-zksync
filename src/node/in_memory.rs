@@ -1303,8 +1303,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
         let call_tracer_result = Arc::new(OnceCell::default());
         let bootloader_debug_result = Arc::new(OnceCell::default());
+        let cheatcode_tracer = CheatcodeTracer::default();
 
         let custom_tracers = vec![
+            Box::new(cheatcode_tracer)
+                as Box<dyn VmTracer<StorageView<&ForkStorage<S>>, HistoryDisabled>>,
             Box::new(CallTracer::new(call_tracer_result.clone(), HistoryDisabled))
                 as Box<dyn VmTracer<StorageView<&ForkStorage<S>>, HistoryDisabled>>,
             Box::new(BootloaderDebugTracer {
