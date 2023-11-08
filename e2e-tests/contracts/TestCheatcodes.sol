@@ -8,11 +8,7 @@ contract TestCheatcodes {
 
     function deal() external {
         (bool success, ) = CHEATCODE_ADDRESS.call(
-            abi.encodeWithSignature(
-                "deal(address,uint256)",
-                msg.sender,
-                1_000_000
-            )
+            abi.encodeWithSignature("deal(address,uint)", msg.sender, 1_000_000)
         );
         require(success, "deal failed");
     }

@@ -1,10 +1,14 @@
+use std::sync::Arc;
+
 use ethers::{abi::AbiDecode, prelude::abigen};
 use multivm::{
     vm_1_3_2::zk_evm_1_3_3::{
         tracing::{BeforeExecutionData, VmLocalStateData},
         zkevm_opcode_defs::all::Opcode,
     },
-    vm_m6::zk_evm_1_3_1::zkevm_opcode_defs::{FarCallABI, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER},
+    vm_m6::zk_evm_1_3_1::zkevm_opcode_defs::{
+        FarCallABI, FatPointer, NearCallABI, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER,
+    },
     vm_virtual_blocks::{
         DynTracer, ExecutionEndTracer, ExecutionProcessing, HistoryMode, SimpleMemory, VmTracer,
     },
@@ -16,8 +20,6 @@ use zksync_types::{
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
-
-use crate::{fork::ForkSource, http_fork_source::HttpForkSource, node::InMemoryNode};
 
 // address(uint160(uint256(keccak256('hevm cheat code'))))
 const CHEATCODE_ADDRESS: H160 = H160([
@@ -45,33 +47,45 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, H> for CheatcodeTracer {
         memory: &SimpleMemory<H>,
         storage: StoragePtr<S>,
     ) {
-        if let Opcode::FarCall(_call) = data.opcode.variant.opcode {
+        if let Opcode::NearCall(_call) = data.opcode.variant.opcode {
             let current = state.vm_local_state.callstack.current;
             if current.this_address != CHEATCODE_ADDRESS {
                 return;
             }
-
-            tracing::info!("Cheatcode triggered");
+            tracing::info!("near call: cheatcode triggered");
             let calldata = if current.code_page.0 == 0 || current.ergs_remaining == 0 {
                 vec![]
             } else {
-                let packed_abi = state.vm_local_state.registers
+                let ptr = state.vm_local_state.registers
                     [CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER as usize];
-                assert!(packed_abi.is_pointer);
-                let far_call_abi = FarCallABI::from_u256(packed_abi.value);
+                assert!(ptr.is_pointer);
+                let fat_data_pointer = FatPointer::from_u256(ptr.value);
+                println!("fat data pointer: {:#?}", fat_data_pointer);
                 memory.read_unaligned_bytes(
-                    far_call_abi.memory_quasi_fat_pointer.memory_page as usize,
-                    far_call_abi.memory_quasi_fat_pointer.start as usize,
-                    far_call_abi.memory_quasi_fat_pointer.length as usize,
+                    fat_data_pointer.memory_page as usize,
+                    fat_data_pointer.start as usize,
+                    fat_data_pointer.length as usize,
                 )
             };
 
             // try to dispatch the cheatcode
-            if let Ok(call) = CheatcodeContractCalls::decode(calldata) {
+            if let Ok(call) = CheatcodeContractCalls::decode(calldata.clone()) {
                 self.dispatch_cheatcode(state, data, memory, storage, call)
             } else {
-                tracing::error!("Failed to decode cheatcode calldata");
+                tracing::error!(
+                    "Failed to decode cheatcode calldata (near call): {}",
+                    hex::encode(calldata),
+                );
             }
+        }
+        if let Opcode::FarCall(_call) = data.opcode.variant.opcode {
+            println!("far call");
+            let current = state.vm_local_state.callstack.current;
+            println!("address: {:?}", current.this_address);
+            if current.this_address != CHEATCODE_ADDRESS {
+                return;
+            }
+            panic!("far call: cheatcode address");
         }
     }
 }
@@ -184,15 +198,20 @@ mod tests {
         );
         deployed_address
     }
+    use crate::namespaces::ConfigurationApiNamespaceT;
 
     #[tokio::test]
     async fn test_cheatcode_contract() {
         let node = InMemoryNode::<HttpForkSource>::default();
+        node.config_set_show_calls("all".to_string()).unwrap();
+
         let test_contract_address = deploy_test_contract(&node);
         println!("test contract address: {:?}", test_contract_address);
-        let recipient_address = Address::random();
-
         let private_key = H256::repeat_byte(0xee);
+        let from_account = zksync_types::PackedEthSignature::address_from_private_key(&private_key)
+            .expect("failed generating address");
+        node.set_rich_account(from_account);
+        // let recipient_address = Address::random();
         // let func = HumanReadableParser::parse_function("testDeal(address)").unwrap();
         // let calldata = func
         //     .encode_input(&[Token::Address(recipient_address)])
