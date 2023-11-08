@@ -38,11 +38,13 @@ jobs:
         uses: actions/configure-pages@v3
 
       - name: Install mdbook
-        run: cargo +nightly install mdbook
+        run: cargo install mdbook
+
       - name: Generate rust docs
         run: |
           echo "Generating docs..."
-          cargo +nightly doc --no-deps
+          cargo doc --no-deps
+
       - name: Make index.html
         run: echo '<!DOCTYPE HTML>
           <html lang="en-US">
