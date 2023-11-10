@@ -223,7 +223,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
 
                     Ok(Some(block))
                 }
-                None => Err(into_jsrpc_error(Web3Error::NoBlock)),
+                None => Ok(None),
             }
         })
     }
@@ -451,7 +451,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
 
                     Ok(Some(block))
                 }
-                None => Err(into_jsrpc_error(Web3Error::NoBlock)),
+                None => Ok(None),
             }
         })
     }
@@ -1365,13 +1365,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_block_by_hash_produces_no_block_error_for_non_existing_block() {
+    async fn test_get_block_by_hash_returns_none_for_non_existing_block() {
         let node = InMemoryNode::<HttpForkSource>::default();
 
-        let expected_err = into_jsrpc_error(Web3Error::NoBlock);
-        let result = node.get_block_by_hash(H256::repeat_byte(0x01), false).await;
+        let result = node
+            .get_block_by_hash(H256::repeat_byte(0x01), false)
+            .await
+            .expect("failed fetching block by hash");
 
-        assert_eq!(expected_err, result.unwrap_err());
+        assert!(result.is_none());
     }
 
     #[tokio::test]
@@ -1514,15 +1516,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_block_by_number_produces_no_block_error_for_non_existing_block() {
+    async fn test_get_block_by_number_returns_none_for_non_existing_block() {
         let node = InMemoryNode::<HttpForkSource>::default();
 
-        let expected_err = into_jsrpc_error(Web3Error::NoBlock);
         let result = node
             .get_block_by_number(BlockNumber::Number(U64::from(42)), false)
-            .await;
+            .await
+            .expect("failed fetching block by number");
 
-        assert_eq!(expected_err, result.unwrap_err());
+        assert!(result.is_none());
     }
 
     #[tokio::test]
