@@ -1,4 +1,5 @@
-use crate::{fork::ForkStorage, utils::bytecode_to_factory_dep};
+use crate::{node::InMemoryNodeInner, utils::bytecode_to_factory_dep};
+use anyhow::{anyhow, Result};
 use ethers::{abi::AbiDecode, prelude::abigen};
 use multivm::{
     vm_1_3_2::zk_evm_1_3_3::{
@@ -10,6 +11,7 @@ use multivm::{
         DynTracer, ExecutionEndTracer, ExecutionProcessing, HistoryMode, SimpleMemory, VmTracer,
     },
 };
+use std::sync::{Arc, RwLock};
 use zksync_basic_types::{H160, H256};
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
@@ -24,12 +26,12 @@ const CHEATCODE_ADDRESS: H160 = H160([
 ]);
 
 #[derive(Clone, Debug, Default)]
-pub struct CheatcodeTracer<F: Send + Sync> {
+pub struct CheatcodeTracer<F> {
     factory_deps: F,
 }
 
 pub trait FactoryDeps {
-    fn store_factory_dep(&mut self, hash: H256, bytecode: Vec<u8>);
+    fn store_factory_dep(&mut self, hash: H256, bytecode: Vec<u8>) -> Result<()>;
 }
 
 abigen!(
@@ -41,9 +43,7 @@ abigen!(
     ]"#
 );
 
-impl<F: FactoryDeps + Send + Sync, S: WriteStorage, H: HistoryMode> DynTracer<S, H>
-    for CheatcodeTracer<F>
-{
+impl<F: FactoryDeps, S: WriteStorage, H: HistoryMode> DynTracer<S, H> for CheatcodeTracer<F> {
     fn before_execution(
         &mut self,
         state: VmLocalStateData<'_>,
@@ -94,17 +94,14 @@ impl<F: FactoryDeps + Send + Sync, S: WriteStorage, H: HistoryMode> DynTracer<S,
     }
 }
 
-impl<F: FactoryDeps + Send + Sync, S: WriteStorage, H: HistoryMode> VmTracer<S, H>
-    for CheatcodeTracer<F>
-{
-}
-impl<F: FactoryDeps + Send + Sync, H: HistoryMode> ExecutionEndTracer<H> for CheatcodeTracer<F> {}
-impl<F: FactoryDeps + Send + Sync, S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H>
+impl<F: FactoryDeps + Send, S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CheatcodeTracer<F> {}
+impl<F: FactoryDeps, H: HistoryMode> ExecutionEndTracer<H> for CheatcodeTracer<F> {}
+impl<F: FactoryDeps, S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H>
     for CheatcodeTracer<F>
 {
 }
 
-impl<F: FactoryDeps + Send + Sync> CheatcodeTracer<F> {
+impl<F: FactoryDeps> CheatcodeTracer<F> {
     pub fn new(factory_deps: F) -> Self {
         Self { factory_deps }
     }
@@ -130,7 +127,7 @@ impl<F: FactoryDeps + Send + Sync> CheatcodeTracer<F> {
                 let code_key = get_code_key(&who);
                 let (hash, code) = bytecode_to_factory_dep(code.0.into());
                 let hash = u256_to_h256(hash);
-                self.factory_deps.store_factory_dep(
+                if let Err(err) = self.factory_deps.store_factory_dep(
                     hash,
                     code.iter()
                         .flat_map(|entry| {
@@ -139,7 +136,13 @@ impl<F: FactoryDeps + Send + Sync> CheatcodeTracer<F> {
                             bytes.to_vec()
                         })
                         .collect(),
+                ) {
+                    tracing::error!(
+                        "Etch cheatcode failed, failed to store factory dep: {:?}",
+                        err
                 );
+                    return;
+                }
                 storage.borrow_mut().set_value(code_key, hash);
             }
             SetNonce(SetNonceCall { account, nonce }) => {
@@ -179,9 +182,13 @@ impl<F: FactoryDeps + Send + Sync> CheatcodeTracer<F> {
     }
 }
 
-impl<T> FactoryDeps for ForkStorage<T> {
-    fn store_factory_dep(&mut self, hash: H256, bytecode: Vec<u8>) {
-        self.store_factory_dep(hash, bytecode)
+impl<T> FactoryDeps for Arc<RwLock<InMemoryNodeInner<T>>> {
+    fn store_factory_dep(&mut self, hash: H256, bytecode: Vec<u8>) -> Result<()> {
+        self.try_write()
+            .map_err(|e| anyhow!(format!("Failed to grab write lock: {e}")))?
+            .fork_storage
+            .store_factory_dep(hash, bytecode);
+        Ok(())
     }
 }
 
