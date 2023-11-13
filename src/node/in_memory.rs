@@ -869,13 +869,13 @@ fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) 
     None
 }
 
-impl<S: ForkSource + std::fmt::Debug + Clone> Default for InMemoryNode<S> {
+impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Default for InMemoryNode<S> {
     fn default() -> Self {
         InMemoryNode::new(None, None, InMemoryNodeConfig::default())
     }
 }
 
-impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
+impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNode<S> {
     pub fn new(
         fork: Option<ForkDetails<S>>,
         observability: Option<Observability>,
@@ -1020,7 +1020,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
         let call_tracer_result = Arc::new(OnceCell::default());
 
-        let cheatcode_tracer = CheatcodeTracer::default();
+        let cheatcode_tracer = CheatcodeTracer::new(inner.fork_storage.clone());
         let custom_tracers = vec![
             Box::new(cheatcode_tracer)
                 as Box<dyn VmTracer<StorageView<&ForkStorage<S>>, HistoryDisabled>>,
@@ -1303,7 +1303,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
         let call_tracer_result = Arc::new(OnceCell::default());
         let bootloader_debug_result = Arc::new(OnceCell::default());
-        let cheatcode_tracer = CheatcodeTracer::default();
+        let cheatcode_tracer = CheatcodeTracer::new(inner.fork_storage.clone());
 
         let custom_tracers = vec![
             Box::new(cheatcode_tracer)
