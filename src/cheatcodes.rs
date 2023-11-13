@@ -1,14 +1,10 @@
-use std::sync::Arc;
-
 use ethers::{abi::AbiDecode, prelude::abigen};
 use multivm::{
     vm_1_3_2::zk_evm_1_3_3::{
         tracing::{BeforeExecutionData, VmLocalStateData},
         zkevm_opcode_defs::all::Opcode,
     },
-    vm_m6::zk_evm_1_3_1::zkevm_opcode_defs::{
-        FarCallABI, FatPointer, NearCallABI, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER,
-    },
+    vm_m6::zk_evm_1_3_1::zkevm_opcode_defs::{FatPointer, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER},
     vm_virtual_blocks::{
         DynTracer, ExecutionEndTracer, ExecutionProcessing, HistoryMode, SimpleMemory, VmTracer,
     },
@@ -27,15 +23,14 @@ const CHEATCODE_ADDRESS: H160 = H160([
 ]);
 
 #[derive(Clone, Debug, Default)]
-pub struct CheatcodeTracer {
-    // node: &'a InMemoryNode<S>,
-}
+pub struct CheatcodeTracer;
 
 abigen!(
     CheatcodeContract,
     r#"[
-        function deal(address who, uint256 newBalance) external
-        function setNonce(address account, uint64 nonce) external
+        function deal(address who, uint256 newBalance)
+        function setNonce(address account, uint64 nonce)
+        function getNonce(address account) returns (uint256)
     ]"#
 );
 
@@ -52,15 +47,16 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, H> for CheatcodeTracer {
             if current.this_address != CHEATCODE_ADDRESS {
                 return;
             }
+            if current.code_page.0 == 0 || current.ergs_remaining == 0 {
+                tracing::error!("cheatcode triggered, but no calldata or ergs available");
+                return;
+            }
             tracing::info!("near call: cheatcode triggered");
-            let calldata = if current.code_page.0 == 0 || current.ergs_remaining == 0 {
-                vec![]
-            } else {
+            let calldata = {
                 let ptr = state.vm_local_state.registers
                     [CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER as usize];
                 assert!(ptr.is_pointer);
                 let fat_data_pointer = FatPointer::from_u256(ptr.value);
-                println!("fat data pointer: {:#?}", fat_data_pointer);
                 memory.read_unaligned_bytes(
                     fat_data_pointer.memory_page as usize,
                     fat_data_pointer.start as usize,
@@ -77,15 +73,6 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, H> for CheatcodeTracer {
                     hex::encode(calldata),
                 );
             }
-        }
-        if let Opcode::FarCall(_call) = data.opcode.variant.opcode {
-            println!("far call");
-            let current = state.vm_local_state.callstack.current;
-            println!("address: {:?}", current.this_address);
-            if current.this_address != CHEATCODE_ADDRESS {
-                return;
-            }
-            panic!("far call: cheatcode address");
         }
     }
 }
@@ -110,6 +97,19 @@ impl CheatcodeTracer {
                 storage
                     .borrow_mut()
                     .set_value(storage_key_for_eth_balance(&who), u256_to_h256(new_balance));
+            }
+            GetNonce(GetNonceCall { account }) => {
+                tracing::info!("Getting nonce for {account:?}");
+                let nonce_key = get_nonce_key(&account);
+                let full_nonce = storage.borrow_mut().read_value(&nonce_key);
+                let (account_nonce, deployment_nonce) =
+                    decompose_full_nonce(h256_to_u256(full_nonce));
+                tracing::info!(
+                    "👷 Nonces for account {:?} are {} (account) and {} (deployment)",
+                    account,
+                    account_nonce,
+                    deployment_nonce
+                );
             }
             SetNonce(SetNonceCall { account, nonce }) => {
                 tracing::info!("Setting nonce for {account:?} to {nonce}");
