@@ -1,22 +1,21 @@
-use std::sync::Arc;
-
+use crate::{node::InMemoryNodeInner, utils::bytecode_to_factory_dep};
+use anyhow::{anyhow, Result};
 use ethers::{abi::AbiDecode, prelude::abigen};
 use multivm::{
     vm_1_3_2::zk_evm_1_3_3::{
         tracing::{BeforeExecutionData, VmLocalStateData},
         zkevm_opcode_defs::all::Opcode,
     },
-    vm_m6::zk_evm_1_3_1::zkevm_opcode_defs::{
-        FarCallABI, FatPointer, NearCallABI, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER,
-    },
+    vm_m6::zk_evm_1_3_1::zkevm_opcode_defs::{FatPointer, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER},
     vm_virtual_blocks::{
         DynTracer, ExecutionEndTracer, ExecutionProcessing, HistoryMode, SimpleMemory, VmTracer,
     },
 };
-use zksync_basic_types::H160;
+use std::sync::{Arc, RwLock};
+use zksync_basic_types::{H160, H256};
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
-    get_nonce_key,
+    get_code_key, get_nonce_key,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
@@ -27,19 +26,24 @@ const CHEATCODE_ADDRESS: H160 = H160([
 ]);
 
 #[derive(Clone, Debug, Default)]
-pub struct CheatcodeTracer {
-    // node: &'a InMemoryNode<S>,
+pub struct CheatcodeTracer<F> {
+    factory_deps: F,
+}
+
+pub trait FactoryDeps {
+    fn store_factory_dep(&mut self, hash: H256, bytecode: Vec<u8>) -> Result<()>;
 }
 
 abigen!(
     CheatcodeContract,
     r#"[
         function deal(address who, uint256 newBalance) external
+        function etch(address who, bytes calldata code) external
         function setNonce(address account, uint64 nonce) external
     ]"#
 );
 
-impl<S: WriteStorage, H: HistoryMode> DynTracer<S, H> for CheatcodeTracer {
+impl<F: FactoryDeps, S: WriteStorage, H: HistoryMode> DynTracer<S, H> for CheatcodeTracer<F> {
     fn before_execution(
         &mut self,
         state: VmLocalStateData<'_>,
@@ -90,11 +94,18 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, H> for CheatcodeTracer {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CheatcodeTracer {}
-impl<H: HistoryMode> ExecutionEndTracer<H> for CheatcodeTracer {}
-impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for CheatcodeTracer {}
+impl<F: FactoryDeps + Send, S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CheatcodeTracer<F> {}
+impl<F: FactoryDeps, H: HistoryMode> ExecutionEndTracer<H> for CheatcodeTracer<F> {}
+impl<F: FactoryDeps, S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H>
+    for CheatcodeTracer<F>
+{
+}
 
-impl CheatcodeTracer {
+impl<F: FactoryDeps> CheatcodeTracer<F> {
+    pub fn new(factory_deps: F) -> Self {
+        Self { factory_deps }
+    }
+
     fn dispatch_cheatcode<S: WriteStorage, H: HistoryMode>(
         &mut self,
         _state: VmLocalStateData<'_>,
@@ -110,6 +121,29 @@ impl CheatcodeTracer {
                 storage
                     .borrow_mut()
                     .set_value(storage_key_for_eth_balance(&who), u256_to_h256(new_balance));
+            }
+            Etch(EtchCall { who, code }) => {
+                tracing::info!("Setting address code for {who:?}");
+                let code_key = get_code_key(&who);
+                let (hash, code) = bytecode_to_factory_dep(code.0.into());
+                let hash = u256_to_h256(hash);
+                if let Err(err) = self.factory_deps.store_factory_dep(
+                    hash,
+                    code.iter()
+                        .flat_map(|entry| {
+                            let mut bytes = vec![0u8; 32];
+                            entry.to_big_endian(&mut bytes);
+                            bytes.to_vec()
+                        })
+                        .collect(),
+                ) {
+                    tracing::error!(
+                        "Etch cheatcode failed, failed to store factory dep: {:?}",
+                        err
+                );
+                    return;
+                }
+                storage.borrow_mut().set_value(code_key, hash);
             }
             SetNonce(SetNonceCall { account, nonce }) => {
                 tracing::info!("Setting nonce for {account:?} to {nonce}");
@@ -147,6 +181,17 @@ impl CheatcodeTracer {
         };
     }
 }
+
+impl<T> FactoryDeps for Arc<RwLock<InMemoryNodeInner<T>>> {
+    fn store_factory_dep(&mut self, hash: H256, bytecode: Vec<u8>) -> Result<()> {
+        self.try_write()
+            .map_err(|e| anyhow!(format!("Failed to grab write lock: {e}")))?
+            .fork_storage
+            .store_factory_dep(hash, bytecode);
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
