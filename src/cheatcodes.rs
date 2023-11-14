@@ -40,7 +40,6 @@ abigen!(
         function deal(address who, uint256 newBalance)
         function etch(address who, bytes calldata code)
         function setNonce(address account, uint64 nonce)
-        function getNonce(address account) returns (uint256)
     ]"#
 );
 
@@ -114,19 +113,6 @@ impl<F: FactoryDeps> CheatcodeTracer<F> {
                 storage
                     .borrow_mut()
                     .set_value(storage_key_for_eth_balance(&who), u256_to_h256(new_balance));
-            }
-            GetNonce(GetNonceCall { account }) => {
-                tracing::info!("Getting nonce for {account:?}");
-                let nonce_key = get_nonce_key(&account);
-                let full_nonce = storage.borrow_mut().read_value(&nonce_key);
-                let (account_nonce, deployment_nonce) =
-                    decompose_full_nonce(h256_to_u256(full_nonce));
-                tracing::info!(
-                    "👷 Nonces for account {:?} are {} (account) and {} (deployment)",
-                    account,
-                    account_nonce,
-                    deployment_nonce
-                );
             }
             Etch(EtchCall { who, code }) => {
                 tracing::info!("Setting address code for {who:?}");

@@ -46,4 +46,21 @@ describe("Cheatcodes", function () {
     expect(finalRandomWalletCode).to.eq(greeterCode);
     expect(finalRandomWalletCode).to.not.eq(initialRandomWalletCode);
   });
+
+  it("Should test vm.setNonce", async function () {
+    // Arrange
+    const wallet = new Wallet(RichAccounts[0].PrivateKey);
+    const deployer = new Deployer(hre, wallet);
+    const randomWallet = Wallet.createRandom().connect(provider);
+
+    // Act
+    const cheatcodes = await deployContract(deployer, "TestCheatcodes", []);
+    const initialNonce = await provider.getTransactionCount(randomWallet.address);
+    await cheatcodes.setNonce(randomWallet.address, 1234);
+
+    // Assert
+    expect(initialNonce).to.eq(0);
+    const finalNonce = await provider.getTransactionCount(randomWallet.address);
+    expect(finalNonce).to.eq(1234);
+  });
 });
