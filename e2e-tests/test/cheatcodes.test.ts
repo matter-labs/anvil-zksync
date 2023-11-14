@@ -2,31 +2,48 @@ import { expect } from "chai";
 import { Wallet } from "zksync-web3";
 import * as hre from "hardhat";
 import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
-import { ethers } from "ethers";
 import { RichAccounts } from "../helpers/constants";
-import { deployContract, expectThrowsAsync, getTestProvider } from "../helpers/utils";
-import { Log, TransactionReceipt } from "zksync-web3/build/src/types";
+import { deployContract, getTestProvider } from "../helpers/utils";
 
 const provider = getTestProvider();
 
-describe.only("Cheatcodes test", function () {
-  it.only("should pass testDeal", async function () {
+describe("Cheatcodes", function () {
+  it("Should test vm.deal", async function () {
+    // Arrange
     const wallet = new Wallet(RichAccounts[0].PrivateKey);
     const deployer = new Deployer(hre, wallet);
+    const randomWallet = Wallet.createRandom().connect(provider);
+    const initialBalance = await provider.getBalance(randomWallet.address);
 
+    // Act
     const greeter = await deployContract(deployer, "TestCheatcodes", []);
-    const testWallet = new Wallet(RichAccounts[1].PrivateKey);
+    await greeter.deal(randomWallet.address, 123456, {
+      gasLimit: 1000000,
+    });
 
-    expect(await greeter.testDeal(testWallet.address, { gasLimit: 1_000_000 })).to.eq(true);
+    // Assert
+    const finalBalance = await provider.getBalance(randomWallet.address);
+    expect(finalBalance.toNumber()).to.eq(123456);
+    expect(finalBalance).to.not.eq(initialBalance);
   });
 
-  it.only("should pass testGetSetNonce", async function () {
+  it("Should test vm.etch", async function () {
+    // Arrange
     const wallet = new Wallet(RichAccounts[0].PrivateKey);
     const deployer = new Deployer(hre, wallet);
+    const randomWallet = Wallet.createRandom().connect(provider);
+    const initialRandomWalletCode = await provider.getCode(randomWallet.address);
 
-    const greeter = await deployContract(deployer, "TestCheatcodes", []);
-    const testWallet = new Wallet(RichAccounts[1].PrivateKey);
+    // Act
+    const cheatcodes = await deployContract(deployer, "TestCheatcodes", []);
+    const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
+    const greeterCode = await provider.getCode(greeter.address);
+    await cheatcodes.etch(randomWallet.address, greeterCode);
 
-    expect(await greeter.testGetSetNonce(testWallet.address, { gasLimit: 1_000_000 })).to.eq(true);
+    // Assert
+    expect(initialRandomWalletCode).to.eq("0x");
+    const finalRandomWalletCode = await provider.getCode(randomWallet.address);
+    expect(finalRandomWalletCode).to.eq(greeterCode);
+    expect(finalRandomWalletCode).to.not.eq(initialRandomWalletCode);
   });
 });
