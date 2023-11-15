@@ -3,10 +3,10 @@ use anyhow::{anyhow, Result};
 use ethers::{abi::AbiDecode, prelude::abigen};
 use multivm::{
     vm_1_3_2::zk_evm_1_3_3::{
-        tracing::{BeforeExecutionData, VmLocalStateData},
+        tracing::{AfterExecutionData, BeforeExecutionData, VmLocalStateData},
         zkevm_opcode_defs::all::Opcode,
+        zkevm_opcode_defs::{FatPointer, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER},
     },
-    vm_m6::zk_evm_1_3_1::zkevm_opcode_defs::{FatPointer, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER},
     vm_virtual_blocks::{
         DynTracer, ExecutionEndTracer, ExecutionProcessing, HistoryMode, SimpleMemory, VmTracer,
     },
@@ -37,9 +37,9 @@ pub trait FactoryDeps {
 abigen!(
     CheatcodeContract,
     r#"[
-        function deal(address who, uint256 newBalance) external
-        function etch(address who, bytes calldata code) external
-        function setNonce(address account, uint64 nonce) external
+        function deal(address who, uint256 newBalance)
+        function etch(address who, bytes calldata code)
+        function setNonce(address account, uint64 nonce)
     ]"#
 );
 
@@ -56,15 +56,16 @@ impl<F: FactoryDeps, S: WriteStorage, H: HistoryMode> DynTracer<S, H> for Cheatc
             if current.this_address != CHEATCODE_ADDRESS {
                 return;
             }
+            if current.code_page.0 == 0 || current.ergs_remaining == 0 {
+                tracing::error!("cheatcode triggered, but no calldata or ergs available");
+                return;
+            }
             tracing::info!("near call: cheatcode triggered");
-            let calldata = if current.code_page.0 == 0 || current.ergs_remaining == 0 {
-                vec![]
-            } else {
+            let calldata = {
                 let ptr = state.vm_local_state.registers
                     [CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER as usize];
                 assert!(ptr.is_pointer);
                 let fat_data_pointer = FatPointer::from_u256(ptr.value);
-                println!("fat data pointer: {:#?}", fat_data_pointer);
                 memory.read_unaligned_bytes(
                     fat_data_pointer.memory_page as usize,
                     fat_data_pointer.start as usize,
@@ -81,15 +82,6 @@ impl<F: FactoryDeps, S: WriteStorage, H: HistoryMode> DynTracer<S, H> for Cheatc
                     hex::encode(calldata),
                 );
             }
-        }
-        if let Opcode::FarCall(_call) = data.opcode.variant.opcode {
-            println!("far call");
-            let current = state.vm_local_state.callstack.current;
-            println!("address: {:?}", current.this_address);
-            if current.this_address != CHEATCODE_ADDRESS {
-                return;
-            }
-            panic!("far call: cheatcode address");
         }
     }
 }
@@ -140,7 +132,7 @@ impl<F: FactoryDeps> CheatcodeTracer<F> {
                     tracing::error!(
                         "Etch cheatcode failed, failed to store factory dep: {:?}",
                         err
-                );
+                    );
                     return;
                 }
                 storage.borrow_mut().set_value(code_key, hash);
