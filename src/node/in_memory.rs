@@ -1,7 +1,7 @@
 //! In-memory node, that supports forking other networks.
 use crate::{
     bootloader_debug::{BootloaderDebug, BootloaderDebugTracer},
-    cheatcodes::CheatcodeTracer,
+    cheatcodes::{CheatcodeNodeContext, CheatcodeTracer},
     console_log::ConsoleLogHandler,
     deps::InMemoryStorage,
     filters::EthFilters,
@@ -22,7 +22,7 @@ use std::{
     cmp::{self},
     collections::{HashMap, HashSet},
     str::FromStr,
-    sync::{Arc, RwLock},
+    sync::{Arc, Mutex, RwLock},
 };
 
 use multivm::interface::{
@@ -1006,10 +1006,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
 
         // init vm
 
-        let (batch_env, _) = inner.create_l1_batch_env(storage.clone());
+        let (batch_env, block_ctx) = inner.create_l1_batch_env(storage.clone());
         let system_env = inner.create_system_env(bootloader_code.clone(), execution_mode);
 
-        let mut vm = Vm::new(batch_env, system_env, storage, HistoryDisabled);
+        let mut vm = Vm::new(batch_env.clone(), system_env, storage, HistoryDisabled);
 
         // We must inject *some* signature (otherwise bootloader code fails to generate hash).
         if l2_tx.common_data.signature.is_empty() {
@@ -1021,7 +1021,12 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
 
         let call_tracer_result = Arc::new(OnceCell::default());
 
-        let cheatcode_tracer = CheatcodeTracer::new(self.get_inner());
+        let batch_env = Arc::new(Mutex::new(batch_env));
+        let block_ctx = Arc::new(Mutex::new(block_ctx));
+        let cheatcode_node_context =
+            CheatcodeNodeContext::new(self.get_inner(), batch_env.clone(), block_ctx.clone());
+        let cheatcode_tracer = CheatcodeTracer::new(cheatcode_node_context);
+
         let custom_tracers = vec![
             Box::new(cheatcode_tracer)
                 as Box<dyn VmTracer<StorageView<&ForkStorage<S>>, HistoryDisabled>>,
@@ -1034,6 +1039,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
 
         let tx_result = vm.inspect(custom_tracers, VmExecutionMode::OneTx);
 
+        // Re-acquire inner and context variables locks after `CheatcodeTracer` has finished
         let inner = self
             .inner
             .write()
@@ -1313,7 +1319,12 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
 
         let call_tracer_result = Arc::new(OnceCell::default());
         let bootloader_debug_result = Arc::new(OnceCell::default());
-        let cheatcode_tracer = CheatcodeTracer::new(self.get_inner());
+
+        let batch_env = Arc::new(Mutex::new(batch_env));
+        let block_ctx = Arc::new(Mutex::new(block_ctx));
+        let cheatcode_node_context =
+            CheatcodeNodeContext::new(self.get_inner(), batch_env.clone(), block_ctx.clone());
+        let cheatcode_tracer = CheatcodeTracer::new(cheatcode_node_context);
 
         let custom_tracers = vec![
             Box::new(cheatcode_tracer)
@@ -1330,6 +1341,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
 
         let tx_result = vm.inspect(custom_tracers, VmExecutionMode::OneTx);
 
+        // Re-acquire inner and context variables locks after `CheatcodeTracer` has finished
+        let batch_env = batch_env.lock().unwrap().clone();
+        let block_ctx = block_ctx.lock().unwrap().clone();
         let inner = self
             .inner
             .write()
@@ -1689,6 +1703,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
 
 /// Keeps track of a block's batch number, miniblock number and timestamp.
 /// Useful for keeping track of the current context when creating multiple blocks.
+#[derive(Debug, Clone)]
 pub struct BlockContext {
     pub batch: u32,
     pub miniblock: u64,

@@ -1,9 +1,12 @@
-use crate::{node::InMemoryNodeInner, utils::bytecode_to_factory_dep};
-use anyhow::{anyhow, Result};
+use crate::{
+    node::{BlockContext, InMemoryNodeInner},
+    utils::bytecode_to_factory_dep,
+};
 use ethers::{abi::AbiDecode, prelude::abigen};
 use multivm::{
+    interface::L1BatchEnv,
     vm_1_3_2::zk_evm_1_3_3::{
-        tracing::{AfterExecutionData, BeforeExecutionData, VmLocalStateData},
+        tracing::{BeforeExecutionData, VmLocalStateData},
         zkevm_opcode_defs::all::Opcode,
         zkevm_opcode_defs::{FatPointer, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER},
     },
@@ -11,7 +14,7 @@ use multivm::{
         DynTracer, ExecutionEndTracer, ExecutionProcessing, HistoryMode, SimpleMemory, VmTracer,
     },
 };
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use zksync_basic_types::{H160, H256};
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
@@ -27,11 +30,12 @@ const CHEATCODE_ADDRESS: H160 = H160([
 
 #[derive(Clone, Debug, Default)]
 pub struct CheatcodeTracer<F> {
-    factory_deps: F,
+    node_ctx: F,
 }
 
-pub trait FactoryDeps {
-    fn store_factory_dep(&mut self, hash: H256, bytecode: Vec<u8>) -> Result<()>;
+pub trait NodeCtx {
+    fn set_time(&mut self, time: u64);
+    fn store_factory_dep(&mut self, hash: H256, bytecode: Vec<u8>);
 }
 
 abigen!(
@@ -40,10 +44,11 @@ abigen!(
         function deal(address who, uint256 newBalance)
         function etch(address who, bytes calldata code)
         function setNonce(address account, uint64 nonce)
+        function warp(uint256 timestamp)
     ]"#
 );
 
-impl<F: FactoryDeps, S: WriteStorage, H: HistoryMode> DynTracer<S, H> for CheatcodeTracer<F> {
+impl<F: NodeCtx, S: WriteStorage, H: HistoryMode> DynTracer<S, H> for CheatcodeTracer<F> {
     fn before_execution(
         &mut self,
         state: VmLocalStateData<'_>,
@@ -86,16 +91,13 @@ impl<F: FactoryDeps, S: WriteStorage, H: HistoryMode> DynTracer<S, H> for Cheatc
     }
 }
 
-impl<F: FactoryDeps + Send, S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CheatcodeTracer<F> {}
-impl<F: FactoryDeps, H: HistoryMode> ExecutionEndTracer<H> for CheatcodeTracer<F> {}
-impl<F: FactoryDeps, S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H>
-    for CheatcodeTracer<F>
-{
-}
+impl<F: NodeCtx + Send, S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CheatcodeTracer<F> {}
+impl<F: NodeCtx, H: HistoryMode> ExecutionEndTracer<H> for CheatcodeTracer<F> {}
+impl<F: NodeCtx, S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for CheatcodeTracer<F> {}
 
-impl<F: FactoryDeps> CheatcodeTracer<F> {
-    pub fn new(factory_deps: F) -> Self {
-        Self { factory_deps }
+impl<F: NodeCtx> CheatcodeTracer<F> {
+    pub fn new(node_ctx: F) -> Self {
+        Self { node_ctx }
     }
 
     fn dispatch_cheatcode<S: WriteStorage, H: HistoryMode>(
@@ -119,7 +121,7 @@ impl<F: FactoryDeps> CheatcodeTracer<F> {
                 let code_key = get_code_key(&who);
                 let (hash, code) = bytecode_to_factory_dep(code.0.into());
                 let hash = u256_to_h256(hash);
-                if let Err(err) = self.factory_deps.store_factory_dep(
+                self.node_ctx.store_factory_dep(
                     hash,
                     code.iter()
                         .flat_map(|entry| {
@@ -128,13 +130,7 @@ impl<F: FactoryDeps> CheatcodeTracer<F> {
                             bytes.to_vec()
                         })
                         .collect(),
-                ) {
-                    tracing::error!(
-                        "Etch cheatcode failed, failed to store factory dep: {:?}",
-                        err
-                    );
-                    return;
-                }
+                );
                 storage.borrow_mut().set_value(code_key, hash);
             }
             SetNonce(SetNonceCall { account, nonce }) => {
@@ -170,17 +166,47 @@ impl<F: FactoryDeps> CheatcodeTracer<F> {
                 );
                 storage.set_value(nonce_key, u256_to_h256(enforced_full_nonce));
             }
+            Warp(WarpCall { timestamp }) => {
+                tracing::info!("Setting block timestamp {}", timestamp);
+                self.node_ctx.set_time(timestamp.as_u64());
+            }
         };
     }
 }
 
-impl<T> FactoryDeps for Arc<RwLock<InMemoryNodeInner<T>>> {
-    fn store_factory_dep(&mut self, hash: H256, bytecode: Vec<u8>) -> Result<()> {
-        self.try_write()
-            .map_err(|e| anyhow!(format!("Failed to grab write lock: {e}")))?
+pub struct CheatcodeNodeContext<T> {
+    pub in_memory_node_inner: Arc<RwLock<InMemoryNodeInner<T>>>,
+    pub batch_env: Arc<Mutex<L1BatchEnv>>,
+    pub block_ctx: Arc<Mutex<BlockContext>>,
+}
+
+impl<T> CheatcodeNodeContext<T> {
+    pub fn new(
+        in_memory_node_inner: Arc<RwLock<InMemoryNodeInner<T>>>,
+        batch_env: Arc<Mutex<L1BatchEnv>>,
+        block_ctx: Arc<Mutex<BlockContext>>,
+    ) -> Self {
+        Self {
+            in_memory_node_inner,
+            batch_env,
+            block_ctx,
+        }
+    }
+}
+
+impl<T> NodeCtx for CheatcodeNodeContext<T> {
+    fn set_time(&mut self, time: u64) {
+        self.in_memory_node_inner.write().unwrap().current_timestamp = time;
+        self.batch_env.lock().unwrap().timestamp = time + 1;
+        self.block_ctx.lock().unwrap().timestamp = time + 1;
+    }
+
+    fn store_factory_dep(&mut self, hash: H256, bytecode: Vec<u8>) {
+        self.in_memory_node_inner
+            .write()
+            .unwrap()
             .fork_storage
-            .store_factory_dep(hash, bytecode);
-        Ok(())
+            .store_factory_dep(hash, bytecode)
     }
 }
 

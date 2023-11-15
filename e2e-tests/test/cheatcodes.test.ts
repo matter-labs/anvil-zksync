@@ -80,4 +80,27 @@ describe("Cheatcodes", function () {
     // Assert
     expect(receipt.status).to.eq(1);
   });
+
+  it("Should test vm.warp", async function () {
+    // Arrange
+    const wallet = new Wallet(RichAccounts[0].PrivateKey);
+    const deployer = new Deployer(hre, wallet);
+
+    const timeIncreaseInMS = 123;
+    let expectedTimestamp: number = await provider.send("config_getCurrentTimestamp", []);
+    expectedTimestamp += timeIncreaseInMS;
+
+    // Act
+    const cheatcodes = await deployContract(deployer, "TestCheatcodes", []);
+    const tx = await cheatcodes.warp(expectedTimestamp, {
+      gasLimit: 1000000,
+    });
+    expectedTimestamp += 2; // New transaction will add two blocks
+    const receipt = await tx.wait();
+
+    // Assert
+    expect(receipt.status).to.eq(1);
+    const newBlockTimestamp = (await provider.getBlock("latest")).timestamp;
+    expect(newBlockTimestamp).to.equal(expectedTimestamp);
+  });
 });
