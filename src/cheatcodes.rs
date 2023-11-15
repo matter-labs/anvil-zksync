@@ -3,10 +3,10 @@ use anyhow::{anyhow, Result};
 use ethers::{abi::AbiDecode, prelude::abigen};
 use multivm::{
     vm_1_3_2::zk_evm_1_3_3::{
-        tracing::{BeforeExecutionData, VmLocalStateData},
+        tracing::{AfterExecutionData, BeforeExecutionData, VmLocalStateData},
         zkevm_opcode_defs::all::Opcode,
+        zkevm_opcode_defs::{FatPointer, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER},
     },
-    vm_m6::zk_evm_1_3_1::zkevm_opcode_defs::{FatPointer, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER},
     vm_virtual_blocks::{
         DynTracer, ExecutionEndTracer, ExecutionProcessing, HistoryMode, SimpleMemory, VmTracer,
     },

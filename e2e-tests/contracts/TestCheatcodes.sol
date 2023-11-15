@@ -17,7 +17,7 @@ contract TestCheatcodes {
   function testEtch(address target, bytes calldata code) external {
     (bool success, ) = CHEATCODE_ADDRESS.call(abi.encodeWithSignature("etch(address,bytes)", target, code));
     require(success, "etch failed");
-    (success, ) = target.call(abi.encodeWithSignature("setGreeting(bytes)", bytes("hello world")));
+    (success, ) = target.call(abi.encodeWithSignature("setGreeting(string)", "hello world"));
     require(success, "setGreeting failed");
   }
 
