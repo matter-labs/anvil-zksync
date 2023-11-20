@@ -10,16 +10,19 @@ use multivm::{
         zkevm_opcode_defs::all::Opcode,
         zkevm_opcode_defs::{FatPointer, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER},
     },
-    vm_virtual_blocks::{
-        DynTracer, ExecutionEndTracer, ExecutionProcessing, HistoryMode, SimpleMemory, VmTracer,
-    },
+    vm_latest::{DynTracer, HistoryMode, SimpleMemory, VmTracer},
 };
-use std::sync::{Arc, Mutex, RwLock};
-use zksync_basic_types::{H160, H256};
+use std::{
+    fmt::Debug,
+    sync::{Arc, Mutex, RwLock},
+};
+use zksync_basic_types::{AccountTreeId, H160, H256};
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
+    block::{pack_block_info, unpack_block_info},
     get_code_key, get_nonce_key,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
+    StorageKey,
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
@@ -92,8 +95,6 @@ impl<F: NodeCtx, S: WriteStorage, H: HistoryMode> DynTracer<S, H> for CheatcodeT
 }
 
 impl<F: NodeCtx + Send, S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CheatcodeTracer<F> {}
-impl<F: NodeCtx, H: HistoryMode> ExecutionEndTracer<H> for CheatcodeTracer<F> {}
-impl<F: NodeCtx, S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for CheatcodeTracer<F> {}
 
 impl<F: NodeCtx> CheatcodeTracer<F> {
     pub fn new(node_ctx: F) -> Self {
@@ -169,6 +170,17 @@ impl<F: NodeCtx> CheatcodeTracer<F> {
             Warp(WarpCall { timestamp }) => {
                 tracing::info!("Setting block timestamp {}", timestamp);
                 self.node_ctx.set_time(timestamp.as_u64());
+
+                let key = StorageKey::new(
+                    AccountTreeId::new(zksync_types::SYSTEM_CONTEXT_ADDRESS),
+                    zksync_types::CURRENT_VIRTUAL_BLOCK_INFO_POSITION,
+                );
+                let mut storage = storage.borrow_mut();
+                let (block_number, _) = unpack_block_info(h256_to_u256(storage.read_value(&key)));
+                storage.set_value(
+                    key,
+                    u256_to_h256(pack_block_info(block_number, timestamp.as_u64())),
+                );
             }
         };
     }
