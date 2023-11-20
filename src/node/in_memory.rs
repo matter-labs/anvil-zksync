@@ -28,7 +28,7 @@ use multivm::interface::{
     ExecutionResult, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
     VmExecutionResultAndLogs,
 };
-use multivm::vm_virtual_blocks::{
+use multivm::vm_latest::{
     constants::{BLOCK_GAS_LIMIT, BLOCK_OVERHEAD_PUBDATA, MAX_PUBDATA_PER_BLOCK},
     utils::{
         fee::derive_base_fee_and_gas_per_pubdata,
