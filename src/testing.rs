@@ -5,6 +5,7 @@
 
 #![cfg(test)]
 
+use crate::deps::InMemoryStorage;
 use crate::node::{InMemoryNode, TxExecutionInfo};
 use crate::{fork::ForkSource, node::compute_hash};
 
@@ -17,9 +18,12 @@ use httptest::{
 use itertools::Itertools;
 use multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
 use std::str::FromStr;
-use zksync_basic_types::{H160, U64};
-use zksync_types::api::{BridgeAddresses, DebugCall, DebugCallType, Log};
+use zksync_basic_types::{AccountTreeId, MiniblockNumber, H160, U64};
+use zksync_types::api::{BlockIdVariant, BridgeAddresses, DebugCall, DebugCallType, Log};
+use zksync_types::block::pack_block_info;
+use zksync_types::StorageKey;
 use zksync_types::{fee::Fee, l2::L2Tx, Address, L2ChainId, Nonce, ProtocolVersionId, H256, U256};
+use zksync_utils::u256_to_h256;
 
 /// Configuration for the [MockServer]'s initial block.
 #[derive(Default, Debug, Clone)]
@@ -668,7 +672,121 @@ pub fn assert_bridge_addresses_eq(
     );
 }
 
+/// Represents a read-only fork source that is backed by the provided [InMemoryStorage].
+#[derive(Debug, Clone)]
+pub struct ExternalStorage {
+    pub raw_storage: InMemoryStorage,
+}
+
+impl ForkSource for &ExternalStorage {
+    fn get_storage_at(
+        &self,
+        address: H160,
+        idx: U256,
+        _block: Option<BlockIdVariant>,
+    ) -> eyre::Result<H256> {
+        let key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(idx));
+        Ok(self
+            .raw_storage
+            .state
+            .get(&key)
+            .cloned()
+            .unwrap_or_default())
+    }
+
+    fn get_raw_block_transactions(
+        &self,
+        _block_number: MiniblockNumber,
+    ) -> eyre::Result<Vec<zksync_types::Transaction>> {
+        todo!()
+    }
+
+    fn get_bytecode_by_hash(&self, hash: H256) -> eyre::Result<Option<Vec<u8>>> {
+        Ok(self.raw_storage.factory_deps.get(&hash).cloned())
+    }
+
+    fn get_transaction_by_hash(
+        &self,
+        _hash: H256,
+    ) -> eyre::Result<Option<zksync_types::api::Transaction>> {
+        todo!()
+    }
+
+    fn get_transaction_details(
+        &self,
+        _hash: H256,
+    ) -> eyre::Result<std::option::Option<zksync_types::api::TransactionDetails>> {
+        todo!()
+    }
+
+    fn get_block_by_hash(
+        &self,
+        _hash: H256,
+        _full_transactions: bool,
+    ) -> eyre::Result<Option<zksync_types::api::Block<zksync_types::api::TransactionVariant>>> {
+        todo!()
+    }
+
+    fn get_block_by_number(
+        &self,
+        _block_number: zksync_types::api::BlockNumber,
+        _full_transactions: bool,
+    ) -> eyre::Result<Option<zksync_types::api::Block<zksync_types::api::TransactionVariant>>> {
+        todo!()
+    }
+
+    fn get_block_details(
+        &self,
+        _miniblock: MiniblockNumber,
+    ) -> eyre::Result<Option<zksync_types::api::BlockDetails>> {
+        todo!()
+    }
+
+    fn get_block_transaction_count_by_hash(&self, _block_hash: H256) -> eyre::Result<Option<U256>> {
+        todo!()
+    }
+
+    fn get_block_transaction_count_by_number(
+        &self,
+        _block_number: zksync_types::api::BlockNumber,
+    ) -> eyre::Result<Option<U256>> {
+        todo!()
+    }
+
+    fn get_transaction_by_block_hash_and_index(
+        &self,
+        _block_hash: H256,
+        _index: zksync_basic_types::web3::types::Index,
+    ) -> eyre::Result<Option<zksync_types::api::Transaction>> {
+        todo!()
+    }
+
+    fn get_transaction_by_block_number_and_index(
+        &self,
+        _block_number: zksync_types::api::BlockNumber,
+        _index: zksync_basic_types::web3::types::Index,
+    ) -> eyre::Result<Option<zksync_types::api::Transaction>> {
+        todo!()
+    }
+
+    fn get_bridge_contracts(&self) -> eyre::Result<zksync_types::api::BridgeAddresses> {
+        todo!()
+    }
+
+    fn get_confirmed_tokens(
+        &self,
+        _from: u32,
+        _limit: u8,
+    ) -> eyre::Result<Vec<zksync_web3_decl::types::Token>> {
+        todo!()
+    }
+}
+
 mod test {
+    use maplit::hashmap;
+    use zksync_types::block::unpack_block_info;
+    use zksync_utils::h256_to_u256;
+
     use super::*;
     use crate::http_fork_source::HttpForkSource;
 
@@ -813,5 +931,74 @@ mod test {
             ],
             log.topics
         );
+    }
+
+    #[test]
+    fn test_external_storage() {
+        let input_batch = 1;
+        let input_l2_block = 2;
+        let input_timestamp = 3;
+        let input_bytecode = vec![0x4];
+        let batch_key = StorageKey::new(
+            AccountTreeId::new(zksync_types::SYSTEM_CONTEXT_ADDRESS),
+            zksync_types::SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
+        );
+        let l2_block_key = StorageKey::new(
+            AccountTreeId::new(zksync_types::SYSTEM_CONTEXT_ADDRESS),
+            zksync_types::SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+        );
+
+        let storage = &ExternalStorage {
+            raw_storage: InMemoryStorage {
+                state: hashmap! {
+                    batch_key => u256_to_h256(U256::from(input_batch)),
+                    l2_block_key => u256_to_h256(pack_block_info(
+                        input_l2_block,
+                        input_timestamp,
+                    ))
+                },
+                factory_deps: hashmap! {
+                    H256::repeat_byte(0x1) => input_bytecode.clone(),
+                },
+            },
+        };
+
+        let actual_batch = storage
+            .get_storage_at(
+                zksync_types::SYSTEM_CONTEXT_ADDRESS,
+                h256_to_u256(zksync_types::SYSTEM_CONTEXT_BLOCK_INFO_POSITION),
+                None,
+            )
+            .map(|value| h256_to_u256(value).as_u64())
+            .expect("failed getting batch number");
+        assert_eq!(input_batch, actual_batch);
+
+        let (actual_l2_block, actual_timestamp) = storage
+            .get_storage_at(
+                zksync_types::SYSTEM_CONTEXT_ADDRESS,
+                h256_to_u256(zksync_types::SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION),
+                None,
+            )
+            .map(|value| unpack_block_info(h256_to_u256(value)))
+            .expect("failed getting l2 block info");
+        assert_eq!(input_l2_block, actual_l2_block);
+        assert_eq!(input_timestamp, actual_timestamp);
+
+        let zero_missing_value = storage
+            .get_storage_at(
+                zksync_types::SYSTEM_CONTEXT_ADDRESS,
+                h256_to_u256(H256::repeat_byte(0x1e)),
+                None,
+            )
+            .map(|value| h256_to_u256(value).as_u64())
+            .expect("failed missing value");
+        assert_eq!(0, zero_missing_value);
+
+        let actual_bytecode = storage
+            .get_bytecode_by_hash(H256::repeat_byte(0x1))
+            .ok()
+            .expect("failed getting bytecode")
+            .expect("missing bytecode");
+        assert_eq!(input_bytecode, actual_bytecode);
     }
 }

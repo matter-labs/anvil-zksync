@@ -29,7 +29,7 @@ use multivm::interface::{
     ExecutionResult, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
     VmExecutionResultAndLogs,
 };
-use multivm::vm_virtual_blocks::{
+use multivm::vm_latest::{
     constants::{BLOCK_GAS_LIMIT, BLOCK_OVERHEAD_PUBDATA, MAX_PUBDATA_PER_BLOCK},
     utils::{
         fee::derive_base_fee_and_gas_per_pubdata,
@@ -1271,7 +1271,26 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
     }
 
     /// Executes the given L2 transaction and returns all the VM logs.
-    fn run_l2_tx_inner(
+    ///
+    /// **NOTE**
+    ///
+    /// This function must only rely on data populated initially via [ForkDetails]:
+    ///     * [InMemoryNodeInner::current_timestamp]
+    ///     * [InMemoryNodeInner::current_batch]
+    ///     * [InMemoryNodeInner::current_miniblock]
+    ///     * [InMemoryNodeInner::current_miniblock_hash]
+    ///     * [InMemoryNodeInner::l1_gas_price]
+    ///
+    /// And must _NEVER_ rely on data updated in [InMemoryNodeInner] during previous runs:
+    /// (if used, they must never panic and/or have meaningful defaults)
+    ///     * [InMemoryNodeInner::block_hashes]
+    ///     * [InMemoryNodeInner::blocks]
+    ///     * [InMemoryNodeInner::tx_results]
+    ///
+    /// This is because external users of the library may call this function to perform an isolated
+    /// VM operation with an external storage and get the results back.
+    /// So any data populated in [Self::run_l2_tx] will not be available for the next invocation.
+    pub fn run_l2_tx_raw(
         &self,
         l2_tx: L2Tx,
         execution_mode: TxExecutionMode,
@@ -1458,17 +1477,14 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
         let hash = compute_hash(block_ctx.miniblock, l2_tx.hash());
 
         let mut transaction = zksync_types::api::Transaction::from(l2_tx);
-        let block_hash = inner
-            .block_hashes
-            .get(&inner.current_miniblock)
-            .ok_or(format!(
-                "Block hash not found for block: {}",
-                inner.current_miniblock
-            ))?;
-        transaction.block_hash = Some(*block_hash);
+        transaction.block_hash = Some(inner.current_miniblock_hash);
         transaction.block_number = Some(U64::from(inner.current_miniblock));
 
-        let parent_block_hash = *inner.block_hashes.get(&(block_ctx.miniblock - 1)).unwrap();
+        let parent_block_hash = inner
+            .block_hashes
+            .get(&(block_ctx.miniblock - 1))
+            .cloned()
+            .unwrap_or_default();
 
         let block = Block {
             hash,
@@ -1529,7 +1545,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
         }
 
         let (keys, result, call_traces, block, bytecodes, block_ctx) =
-            self.run_l2_tx_inner(l2_tx.clone(), execution_mode)?;
+            self.run_l2_tx_raw(l2_tx.clone(), execution_mode)?;
 
         if let ExecutionResult::Halt { reason } = result.result {
             // Halt means that something went really bad with the transaction execution (in most cases invalid signature,
@@ -1818,5 +1834,40 @@ mod tests {
 
         assert_eq!(first_block.parent_hash, compute_hash(123, H256::zero()));
         assert_eq!(second_block.parent_hash, first_block.hash);
+    }
+
+    #[tokio::test]
+    async fn test_run_l2_tx_raw_does_not_panic_on_external_storage_call() {
+        // Perform a transaction to get storage to an intermediate state
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let tx = testing::TransactionBuilder::new().build();
+        node.set_rich_account(tx.common_data.initiator_address);
+        node.run_l2_tx(tx, TxExecutionMode::VerifyExecute).unwrap();
+        let external_storage = node.inner.read().unwrap().fork_storage.clone();
+
+        // Execute next transaction using a fresh in-memory node and the external fork storage
+        let mock_db = testing::ExternalStorage {
+            raw_storage: external_storage.inner.read().unwrap().raw_storage.clone(),
+        };
+        let node = InMemoryNode::new(
+            Some(ForkDetails {
+                fork_source: &mock_db,
+                l1_block: L1BatchNumber(1),
+                l2_block: Block::default(),
+                l2_miniblock: 2,
+                l2_miniblock_hash: Default::default(),
+                block_timestamp: 1002,
+                overwrite_chain_id: None,
+                l1_gas_price: 1000,
+            }),
+            None,
+            Default::default(),
+        );
+
+        node.run_l2_tx_raw(
+            testing::TransactionBuilder::new().build(),
+            TxExecutionMode::VerifyExecute,
+        )
+        .expect("transaction must pass with external storage");
     }
 }
