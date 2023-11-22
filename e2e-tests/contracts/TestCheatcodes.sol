@@ -25,4 +25,15 @@ contract TestCheatcodes {
     (bool success, ) = CHEATCODE_ADDRESS.call(abi.encodeWithSignature("setNonce(address,uint64)", account, nonce));
     require(success, "setNonce failed");
   }
+
+  function warp(uint256 timestamp) external {
+    uint256 initialTimestamp = block.timestamp;
+    require(timestamp != initialTimestamp, "timestamp must be different than current block timestamp");
+
+    (bool success, ) = CHEATCODE_ADDRESS.call(abi.encodeWithSignature("warp(uint256)", timestamp));
+    require(success, "warp failed");
+
+    uint256 finalTimestamp = block.timestamp;
+    require(finalTimestamp == timestamp, "timestamp was not changed");
+  }
 }
