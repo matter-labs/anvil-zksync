@@ -47,6 +47,23 @@ describe("Cheatcodes", function () {
     expect(finalRandomWalletCode).to.not.eq(initialRandomWalletCode);
   });
 
+  it("Should test vm.roll", async function () {
+    // Arrange
+    const wallet = new Wallet(RichAccounts[0].PrivateKey);
+    const deployer = new Deployer(hre, wallet);
+    const contract = await deployContract(deployer, "TestCheatcodes", []);
+
+    const blockNumber = await provider.getBlockNumber();
+    const newBlockNumber = blockNumber + 345;
+
+    // Act
+    const tx = await contract.testRoll(newBlockNumber, { gasLimit: 1000000 });
+    const receipt = await tx.wait();
+
+    // Assert
+    expect(receipt.status).to.eq(1);
+  });
+
   it("Should test vm.setNonce", async function () {
     // Arrange
     const wallet = new Wallet(RichAccounts[0].PrivateKey);
@@ -64,23 +81,6 @@ describe("Cheatcodes", function () {
     expect(initialNonce).to.eq(0);
     const finalNonce = await provider.getTransactionCount(randomWallet.address);
     expect(finalNonce).to.eq(1234);
-  });
-
-  it("Should test vm.roll", async function () {
-    // Arrange
-    const wallet = new Wallet(RichAccounts[0].PrivateKey);
-    const deployer = new Deployer(hre, wallet);
-    const contract = await deployContract(deployer, "TestCheatcodes", []);
-
-    const blockNumber = await provider.getBlockNumber();
-    const newBlockNumber = blockNumber + 345;
-
-    // Act
-    const tx = await contract.testRoll(newBlockNumber, { gasLimit: 1000000 });
-    const receipt = await tx.wait();
-
-    // Assert
-    expect(receipt.status).to.eq(1);
   });
 
   it("Should test vm.warp", async function () {
