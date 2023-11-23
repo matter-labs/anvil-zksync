@@ -7,7 +7,7 @@ import { deployContract, getTestProvider } from "../helpers/utils";
 
 const provider = getTestProvider();
 
-describe("Cheatcodes", function () {
+describe.only("Cheatcodes", function () {
   it("Should test vm.deal", async function () {
     // Arrange
     const wallet = new Wallet(RichAccounts[0].PrivateKey);
@@ -47,7 +47,7 @@ describe("Cheatcodes", function () {
     expect(finalRandomWalletCode).to.not.eq(initialRandomWalletCode);
   });
 
-  it("Should test vm.setNonce", async function () {
+  it.only("Should test vm.setNonce and vm.getNonce", async function () {
     // Arrange
     const wallet = new Wallet(RichAccounts[0].PrivateKey);
     const deployer = new Deployer(hre, wallet);
@@ -56,7 +56,7 @@ describe("Cheatcodes", function () {
     // Act
     const cheatcodes = await deployContract(deployer, "TestCheatcodes", []);
     const initialNonce = await provider.getTransactionCount(randomWallet.address);
-    const tx = await cheatcodes.setNonce(randomWallet.address, 1234);
+    const tx = await cheatcodes.testGetSetNonce(randomWallet.address, 1234, { gasLimit: 1000000 });
     const receipt = await tx.wait();
 
     // Assert
