@@ -574,7 +574,7 @@ impl LogBuilder {
             log_index: Default::default(),
             transaction_log_index: Default::default(),
             log_type: Default::default(),
-            removed: Default::default(),
+            removed: Some(false),
         }
     }
 }

@@ -1552,7 +1552,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                     log_index: Some(U256::from(log_idx)),
                     transaction_log_index: Some(U256::from(log_idx)),
                     log_type: None,
-                    removed: None,
+                    removed: Some(false),
                 },
                 block.number,
             );
@@ -1587,7 +1587,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                     log_index: Some(U256::from(log_idx)),
                     transaction_log_index: Some(U256::from(log_idx)),
                     log_type: None,
-                    removed: None,
+                    removed: Some(false),
                 })
                 .collect(),
             l2_to_l1_logs: vec![],
