@@ -9,5 +9,6 @@ mod in_memory;
 mod in_memory_ext;
 mod net;
 mod zks;
+mod web3;
 
 pub use in_memory::*;

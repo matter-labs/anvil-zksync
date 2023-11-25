@@ -44,7 +44,7 @@ use zksync_basic_types::{H160, H256};
 
 use crate::namespaces::{
     ConfigurationApiNamespaceT, DebugNamespaceT, EthNamespaceT, EvmNamespaceT, HardhatNamespaceT,
-    NetNamespaceT, ZksNamespaceT,
+    NetNamespaceT, ZksNamespaceT, Web3NamespaceT
 };
 
 /// List of wallets (address, private key) that we seed with tokens at start.
@@ -105,6 +105,7 @@ async fn build_json_http<
         let mut io = MetaIoHandler::with_middleware(LoggingMiddleware::new(log_level_filter));
 
         io.extend_with(NetNamespaceT::to_delegate(node.clone()));
+        io.extend_with(Web3NamespaceT::to_delegate(node.clone()));
         io.extend_with(ConfigurationApiNamespaceT::to_delegate(node.clone()));
         io.extend_with(DebugNamespaceT::to_delegate(node.clone()));
         io.extend_with(EthNamespaceT::to_delegate(node.clone()));

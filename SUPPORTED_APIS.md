@@ -111,6 +111,7 @@ The `status` options are:
 | [`NETWORK`](#network-namespace) | [`net_version`](#net_version) | `SUPPORTED` | Returns the current network id <br />_(default is `260`)_ |
 | [`NETWORK`](#network-namespace) | [`net_peerCount`](#net_peercount) | `SUPPORTED` | Returns the number of peers currently connected to the client <br/>_(hard-coded to `0`)_ |
 | [`NETWORK`](#network-namespace) | [`net_listening`](#net_listening) | `SUPPORTED` | Returns `true` if the client is actively listening for network connections <br />_(hard-coded to `false`)_ |
+| [`WEB3`](#web3-namespace) | [`web3_clientVersion`](#web3_clientversion) | `SUPPORTED` | Returns `zkSync/v2.0` |
 | [`ZKS`](#zks-namespace) | [`zks_estimateFee`](#zks_estimateFee) | `SUPPORTED` | Gets the Fee estimation data for a given Request |
 | `ZKS` | `zks_estimateGasL1ToL2` | `NOT IMPLEMENTED` | Estimate of the gas required for a L1 to L2 transaction |
 | [`ZKS`](#zks-namespace) | [`zks_getAllAccountBalances`](#zks_getallaccountbalances) | `SUPPORTED` | Returns all balances for confirmed tokens given by an account address |
@@ -1706,6 +1707,35 @@ curl --request POST \
   --url http://localhost:8011/ \
   --header 'content-type: application/json' \
   --data '{"jsonrpc": "2.0","id": "1","method": "evm_revert","params": ["0x1"]}'
+```
+
+## `WEB3 NAMESPACE`
+
+### `web3_clientVersion`
+
+[source](src/node/web3.rs)
+
+Returns the client version
+
+#### Arguments
+
++ _NONE_
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "web3_clientVersion"
+  }'
 ```
 
 ## `ZKS NAMESPACE`

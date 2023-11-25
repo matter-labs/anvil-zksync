@@ -301,6 +301,10 @@ pub struct ForkDetails<S> {
 }
 
 const SUPPORTED_VERSIONS: &[ProtocolVersionId] = &[
+    ProtocolVersionId::Version9,
+    ProtocolVersionId::Version10,
+    ProtocolVersionId::Version11,
+    ProtocolVersionId::Version12,
     ProtocolVersionId::Version13,
     ProtocolVersionId::Version14,
     ProtocolVersionId::Version15,
