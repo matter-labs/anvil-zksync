@@ -44,7 +44,7 @@ use zksync_basic_types::{H160, H256};
 
 use crate::namespaces::{
     ConfigurationApiNamespaceT, DebugNamespaceT, EthNamespaceT, EvmNamespaceT, HardhatNamespaceT,
-    NetNamespaceT, ZksNamespaceT, Web3NamespaceT
+    NetNamespaceT, Web3NamespaceT, ZksNamespaceT,
 };
 
 /// List of wallets (address, private key) that we seed with tokens at start.

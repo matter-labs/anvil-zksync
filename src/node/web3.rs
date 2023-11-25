@@ -1,6 +1,6 @@
 use crate::{
     fork::ForkSource,
-    namespaces::{Web3NamespaceT, Result},
+    namespaces::{Result, Web3NamespaceT},
     node::InMemoryNode,
 };
 

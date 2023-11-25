@@ -256,7 +256,7 @@ mod tests {
         );
         let secondary_deployed_address = deployed_address_create(from_account, U256::zero());
         testing::deploy_contract(
-            &node,
+            node,
             H256::repeat_byte(0x1),
             private_key,
             secondary_bytecode,
@@ -271,7 +271,7 @@ mod tests {
         );
         let primary_deployed_address = deployed_address_create(from_account, U256::one());
         testing::deploy_contract(
-            &node,
+            node,
             H256::repeat_byte(0x1),
             private_key,
             primary_bytecode,
@@ -306,7 +306,7 @@ mod tests {
 
         // check that the call was successful
         let output =
-            ethers::abi::decode(&[ParamType::Uint(256)], &trace.output.0.as_slice()).unwrap();
+            ethers::abi::decode(&[ParamType::Uint(256)], trace.output.0.as_slice()).unwrap();
         assert_eq!(output[0], Token::Uint(U256::from(84)));
 
         // find the call to primary contract in the trace
