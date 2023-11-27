@@ -55,9 +55,12 @@ describe.only("Cheatcodes", function () {
 
     // Act
     const cheatcodes = await deployContract(deployer, "TestCheatcodes", []);
+    console.log("cheatcodes", cheatcodes.address);
+
     const initialNonce = await provider.getTransactionCount(randomWallet.address);
     const tx = await cheatcodes.testGetSetNonce(randomWallet.address, 1234, { gasLimit: 1000000 });
     const receipt = await tx.wait();
+    console.log(receipt);
 
     // Assert
     expect(receipt.status).to.eq(1);

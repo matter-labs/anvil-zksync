@@ -3,7 +3,7 @@
 pragma solidity ^0.8.0;
 
 contract TestCheatcodes {
-  event LogNonce(uint64 nonce);
+  event LogNonce(bytes data);
   address constant CHEATCODE_ADDRESS = 0x7109709ECfa91a80626fF3989D68f67F5b1DD12D;
 
   function testDeal(address account, uint256 amount) external {
@@ -29,8 +29,9 @@ contract TestCheatcodes {
     require(success, "setNonce failed");
     (success, data) = CHEATCODE_ADDRESS.call(abi.encodeWithSignature("getNonce(address)", account));
     require(success, "getNonce failed");
-    uint64 finalNonce = abi.decode(data, (uint64));
-    // emit LogNonce(0);
+    emit LogNonce(data);
+    // uint64 finalNonce = abi.decode(data, (uint64));
+    // emit LogNonce();
     // emit LogNonce(finalNonce);
     // Console.log("nonce: %s", finalNonce);
     // require(finalNonce == nonce, "nonce mismatch");
