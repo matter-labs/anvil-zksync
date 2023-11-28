@@ -2,7 +2,7 @@
 use crate::{node::ShowCalls, resolver};
 
 use colored::Colorize;
-use hex;
+
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::str;
@@ -97,7 +97,7 @@ pub fn print_event(event: &VmEvent, resolve_hashes: bool) {
                         "  Data (String):".truecolor(128, 128, 128),
                         v.to_string()
                     );
-                },
+                }
                 Err(_) => {
                     let hex_str = hex::encode(&event.value);
                     let display_str = if hex_str.len() > 200 {
