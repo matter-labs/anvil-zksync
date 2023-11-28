@@ -4,7 +4,7 @@ use std::{fs::File, sync::Mutex};
 use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
 use tracing_subscriber::{
-    filter::LevelFilter, layer::SubscriberExt, reload, util::SubscriberInitExt, EnvFilter, Layer,
+    filter::LevelFilter, layer::SubscriberExt, reload, util::SubscriberInitExt, EnvFilter,
     Registry,
 };
 
@@ -63,13 +63,31 @@ impl Observability {
             format!("{log_level_filter}").to_lowercase()
         ))?;
         let (filter, reload_handle) = reload::Layer::new(filter);
+
+        let timer_format = time::format_description::parse(
+            "[hour]:[minute]:[second]",
+        )
+        .expect("Cataplum");
+        let time_offset =
+            time::UtcOffset::current_local_offset().unwrap_or_else(|_| time::UtcOffset::UTC);
+        let timer = tracing_subscriber::fmt::time::OffsetTime::new(time_offset, timer_format);
+
         tracing_subscriber::registry()
+            .with(filter)
+            .with(tracing_subscriber::fmt::layer().event_format(tracing_subscriber::fmt::format()
+                .compact()
+                .with_timer(timer.clone())
+                .with_target(false)
+            ))
             .with(
-                filter.and_then(tracing_subscriber::fmt::layer()).and_then(
-                    tracing_subscriber::fmt::layer()
-                        .with_writer(Mutex::new(log_file))
-                        .with_ansi(false),
-                ),
+                tracing_subscriber::fmt::layer()
+                    .event_format(tracing_subscriber::fmt::format()
+                        .compact()
+                        .with_timer(timer.clone())
+                        .with_target(false)
+                    )
+                    .with_writer(Mutex::new(log_file))
+                    .with_ansi(false)
             )
             .init();
 

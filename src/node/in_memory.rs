@@ -1461,7 +1461,6 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         };
 
         tracing::info!("");
-        tracing::info!("");
 
         let bytecodes = vm
             .get_last_tx_compressed_bytecodes()

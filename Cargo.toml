@@ -1,6 +1,6 @@
 [package]
 name = "era_test_node"
-version = "0.1.0-alpha.10"
+version = "0.1.0-alpha.11"
 edition = "2018"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
@@ -38,7 +38,7 @@ clap = { version = "4.2.4", features = ["derive"] }
 reqwest = { version = "0.11", features = ["blocking"] }
 serde = { version = "1.0", features = ["derive"] }
 tracing = { version = "0.1.26", features = ["log"] }
-tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter", "time", "json"] }
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter", "time", "json", "local-time"] }
 colored = "2.0"
 lazy_static = "1.4"
 eyre = "0.6"
@@ -50,6 +50,7 @@ itertools = "0.10.5"
 rustc-hash = "1.1.0"
 indexmap = "2.0.1"
 chrono = { version = "0.4.31", default-features = false }
+time = "0.3.30"
 
 [dev-dependencies]
 httptest = "0.15.4"
