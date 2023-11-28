@@ -103,7 +103,7 @@ pub fn print_event(event: &VmEvent, resolve_hashes: bool) {
                     let display_str = if hex_str.len() > 200 {
                         format!("{}...", &hex_str[..200])
                     } else {
-                        format!("{}", &hex_str)
+                        (&hex_str).to_string()
                     };
 
                     tracing::info!(
