@@ -37,6 +37,81 @@ contract TestCheatcodes {
     require(success, "setNonce failed");
   }
 
+  function testStartPrank(address account) external {
+    address original_msg_sender = msg.sender;
+    address original_tx_origin = tx.origin;
+
+    PrankVictim victim = new PrankVictim();
+
+    victim.assertCallerAndOrigin(
+      address(this),
+      "startPrank failed: victim.assertCallerAndOrigin failed",
+      original_tx_origin,
+      "startPrank failed: victim.assertCallerAndOrigin failed"
+    );
+
+    (bool success1, ) = CHEATCODE_ADDRESS.call(abi.encodeWithSignature("startPrank(address)", account));
+    require(success1, "startPrank failed");
+
+    require(msg.sender == account, "startPrank failed: msg.sender unchanged");
+    require(tx.origin == original_tx_origin, "startPrank failed tx.origin changed");
+    victim.assertCallerAndOrigin(
+      account,
+      "startPrank failed: victim.assertCallerAndOrigin failed",
+      original_tx_origin,
+      "startPrank failed: victim.assertCallerAndOrigin failed"
+    );
+
+    (bool success2, ) = CHEATCODE_ADDRESS.call(abi.encodeWithSignature("stopPrank()"));
+    require(success2, "stopPrank failed");
+
+    require(msg.sender == original_msg_sender, "stopPrank failed: msg.sender didn't return to original");
+    require(tx.origin == original_tx_origin, "stopPrank failed tx.origin changed");
+    victim.assertCallerAndOrigin(
+      address(this),
+      "startPrank failed: victim.assertCallerAndOrigin failed",
+      original_tx_origin,
+      "startPrank failed: victim.assertCallerAndOrigin failed"
+    );
+  }
+
+  function testStartPrankWithOrigin(address account, address origin) external {
+    address original_msg_sender = msg.sender;
+    address original_tx_origin = tx.origin;
+
+    PrankVictim victim = new PrankVictim();
+
+    victim.assertCallerAndOrigin(
+      address(this),
+      "startPrank failed: victim.assertCallerAndOrigin failed",
+      original_tx_origin,
+      "startPrank failed: victim.assertCallerAndOrigin failed"
+    );
+
+    (bool success1, ) = CHEATCODE_ADDRESS.call(abi.encodeWithSignature("startPrank(address,address)", account, origin));
+    require(success1, "startPrank failed");
+
+    require(msg.sender == account, "startPrank failed: msg.sender unchanged");
+    require(tx.origin == origin, "startPrank failed: tx.origin unchanged");
+    victim.assertCallerAndOrigin(
+      account,
+      "startPrank failed: victim.assertCallerAndOrigin failed",
+      origin,
+      "startPrank failed: victim.assertCallerAndOrigin failed"
+    );
+
+    (bool success2, ) = CHEATCODE_ADDRESS.call(abi.encodeWithSignature("stopPrank()"));
+    require(success2, "stopPrank failed");
+
+    require(msg.sender == original_msg_sender, "stopPrank failed: msg.sender didn't return to original");
+    require(tx.origin == original_tx_origin, "stopPrank failed: tx.origin didn't return to original");
+    victim.assertCallerAndOrigin(
+      address(this),
+      "startPrank failed: victim.assertCallerAndOrigin failed",
+      original_tx_origin,
+      "startPrank failed: victim.assertCallerAndOrigin failed"
+    );
+  }
 
   function testWarp(uint256 timestamp) external {
     uint256 initialTimestamp = block.timestamp;
@@ -47,5 +122,17 @@ contract TestCheatcodes {
 
     uint256 finalTimestamp = block.timestamp;
     require(finalTimestamp == timestamp, "timestamp was not changed");
+  }
+}
+
+contract PrankVictim {
+  function assertCallerAndOrigin(
+    address expectedSender,
+    string memory senderMessage,
+    address expectedOrigin,
+    string memory originMessage
+  ) public view {
+    require(msg.sender == expectedSender, senderMessage);
+    require(tx.origin == expectedOrigin, originMessage);
   }
 }
