@@ -1,12 +1,9 @@
+use multivm::interface::{dyn_tracers::vm_1_3_3::DynTracer, tracer::VmExecutionStopReason};
 use std::sync::Arc;
-use multivm::interface::{
-    dyn_tracers::vm_1_4_0::DynTracer,
-    tracer::VmExecutionStopReason
-};
 
-use multivm::vm_latest::{
-    constants::BOOTLOADER_HEAP_PAGE, BootloaderState, HistoryMode, SimpleMemory,
-    VmTracer, ZkSyncVmState,
+use multivm::vm_refunds_enhancement::{
+    constants::BOOTLOADER_HEAP_PAGE, BootloaderState, HistoryMode, SimpleMemory, VmTracer,
+    ZkSyncVmState,
 };
 use once_cell::sync::OnceCell;
 use zksync_basic_types::U256;
@@ -85,7 +82,7 @@ pub struct BootloaderDebugTracer {
     pub result: Arc<OnceCell<eyre::Result<BootloaderDebug, String>>>,
 }
 
-impl<S, H: HistoryMode> DynTracer<S,  SimpleMemory<H>> for BootloaderDebugTracer {}
+impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for BootloaderDebugTracer {}
 
 fn load_debug_slot<H: HistoryMode>(memory: &SimpleMemory<H>, slot: usize) -> U256 {
     memory

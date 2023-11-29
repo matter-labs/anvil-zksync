@@ -1,7 +1,8 @@
 use itertools::Itertools;
 use multivm::interface::VmInterface;
 use multivm::tracers::CallTracer;
-use multivm::vm_latest::{constants::ETH_CALL_GAS_LIMIT, HistoryDisabled, ToTracerPointer, Vm};
+use multivm::vm_latest::HistoryDisabled;
+use multivm::vm_refunds_enhancement::{constants::ETH_CALL_GAS_LIMIT, ToTracerPointer, Vm};
 use once_cell::sync::OnceCell;
 use std::sync::Arc;
 use zksync_basic_types::H256;

@@ -4,7 +4,7 @@ use colored::Colorize;
 use futures::FutureExt;
 use itertools::Itertools;
 use multivm::interface::{ExecutionResult, TxExecutionMode};
-use multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
+use multivm::vm_refunds_enhancement::constants::ETH_CALL_GAS_LIMIT;
 use zksync_basic_types::{web3, AccountTreeId, Address, Bytes, H160, H256, U256, U64};
 use zksync_core::api_server::web3::backend_jsonrpc::error::into_jsrpc_error;
 use zksync_state::ReadStorage;

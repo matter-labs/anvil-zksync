@@ -6,7 +6,8 @@ use crate::{
 use itertools::Itertools;
 use jsonrpc_core::{BoxFuture, Result};
 use multivm::interface::VmInterface;
-use multivm::vm_latest::{constants::ETH_CALL_GAS_LIMIT, CallTracer, HistoryDisabled, Vm};
+use multivm::vm_latest::HistoryDisabled;
+use multivm::vm_refunds_enhancement::{constants::ETH_CALL_GAS_LIMIT, CallTracer, Vm};
 use once_cell::sync::OnceCell;
 use std::sync::{Arc, RwLock};
 use zksync_basic_types::H256;
