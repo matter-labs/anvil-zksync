@@ -4,15 +4,16 @@ use crate::{
 };
 use ethers::{abi::AbiDecode, prelude::abigen};
 use itertools::Itertools;
+use multivm::zk_evm_1_4_0::zkevm_opcode_defs::RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER;
 use multivm::{
-    interface::L1BatchEnv,
-    vm_1_3_2::zk_evm_1_3_3::{
+    interface::dyn_tracers::vm_1_4_0::DynTracer,
+    interface::{tracer::TracerExecutionStatus, L1BatchEnv},
+    vm_latest::{HistoryMode, SimpleMemory, VmTracer},
+    zk_evm_1_4_0::{
         tracing::{BeforeExecutionData, VmLocalStateData},
         zkevm_opcode_defs::all::Opcode,
         zkevm_opcode_defs::{FatPointer, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER},
     },
-    vm_latest::{DynTracer, HistoryMode, SimpleMemory, VmTracer},
-    vm_m6::zk_evm_1_3_1::zkevm_opcode_defs::RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
 };
 use std::{
     fmt::Debug,
@@ -56,7 +57,9 @@ abigen!(
     ]"#
 );
 
-impl<F: NodeCtx, S: WriteStorage, H: HistoryMode> DynTracer<S, H> for CheatcodeTracer<F> {
+impl<F: NodeCtx, S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>>
+    for CheatcodeTracer<F>
+{
     fn before_execution(
         &mut self,
         state: VmLocalStateData<'_>,
@@ -130,7 +133,7 @@ impl<F: NodeCtx + Send, S: WriteStorage, H: HistoryMode> VmTracer<S, H> for Chea
         &mut self,
         state: &mut multivm::vm_latest::ZkSyncVmState<S, H>,
         _bootloader_state: &mut multivm::vm_latest::BootloaderState,
-    ) -> multivm::vm_latest::TracerExecutionStatus {
+    ) -> TracerExecutionStatus {
         if let Some(ptr) = self.return_ptr.take() {
             for (i, reg) in state.local_state.registers.iter().enumerate() {
                 println!("reg {i} is ptr: {:?}", reg.is_pointer);
@@ -146,7 +149,7 @@ impl<F: NodeCtx + Send, S: WriteStorage, H: HistoryMode> VmTracer<S, H> for Chea
             //     Timestamp(u32::MAX),
             // );
         }
-        multivm::vm_latest::TracerExecutionStatus::Continue
+        TracerExecutionStatus::Continue
     }
 }
 

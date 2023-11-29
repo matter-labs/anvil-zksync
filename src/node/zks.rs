@@ -2,7 +2,9 @@ use std::collections::HashMap;
 
 use bigdecimal::BigDecimal;
 use colored::Colorize;
+use ethers::prelude::H256;
 use futures::FutureExt;
+use jsonrpc_core::BoxFuture;
 use zksync_basic_types::{AccountTreeId, Address, L1BatchNumber, MiniblockNumber, U256};
 use zksync_core::api_server::web3::backend_jsonrpc::error::{internal_error, into_jsrpc_error};
 use zksync_state::ReadStorage;
@@ -15,6 +17,7 @@ use zksync_types::{
     utils::storage_key_for_standard_token_balance,
     ExecuteTransactionCommon, ProtocolVersionId, Transaction, L2_ETH_TOKEN_ADDRESS,
 };
+use zksync_types::api::Proof;
 use zksync_utils::h256_to_u256;
 use zksync_web3_decl::{
     error::Web3Error,
@@ -31,6 +34,9 @@ use crate::{
 impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespaceT
     for InMemoryNode<S>
 {
+    fn get_proof(&self, address: Address, keys: Vec<H256>, l1_batch_number: L1BatchNumber) -> BoxFuture<jsonrpc_core::Result<Proof>> {
+        todo!()
+    }
     /// Estimates the gas fee data required for a given call request.
     ///
     /// # Arguments

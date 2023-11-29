@@ -1,9 +1,10 @@
 use std::collections::HashMap;
+use std::convert::TryInto;
 use std::pin::Pin;
 
 use chrono::{DateTime, Utc};
 use futures::Future;
-use multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
+use multivm::interface::{ExecutionResult, VmExecutionResultAndLogs, VmInterface};
 use multivm::vm_latest::{utils::fee::derive_base_fee_and_gas_per_pubdata, HistoryDisabled, Vm};
 use zksync_basic_types::{U256, U64};
 use zksync_state::StorageView;
@@ -11,7 +12,8 @@ use zksync_state::WriteStorage;
 use zksync_types::api::{BlockNumber, DebugCall, DebugCallType};
 use zksync_types::l2::L2Tx;
 use zksync_types::vm_trace::Call;
-use zksync_types::CONTRACT_DEPLOYER_ADDRESS;
+use zksync_types::{CONTRACT_DEPLOYER_ADDRESS, H256};
+
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::error::Web3Error;
 
@@ -122,7 +124,7 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
                 multivm::interface::TxExecutionMode::VerifyExecute,
             );
 
-            let mut vm = Vm::new(batch_env, system_env, storage.clone(), HistoryDisabled);
+            let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage.clone());
 
             vm.execute(multivm::interface::VmExecutionMode::Bootloader);
 
@@ -457,4 +459,10 @@ mod tests {
             assert_eq!(U256::from(2002), tx_block_3.timestamp);
         }
     }
+}
+
+/// Converts `h256` value as BE into the u64
+pub fn h256_to_u64(value: H256) -> u64 {
+    let be_u64_bytes: [u8; 8] = value[24..].try_into().unwrap();
+    u64::from_be_bytes(be_u64_bytes)
 }

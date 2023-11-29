@@ -3,11 +3,11 @@ use serde_json::Value;
 use zksync_basic_types::{AccountTreeId, Address};
 use zksync_types::{
     block::DeployedContract, ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS,
-    BOOTLOADER_UTILITIES_ADDRESS, BYTECODE_COMPRESSOR_ADDRESS, CONTRACT_DEPLOYER_ADDRESS,
-    ECRECOVER_PRECOMPILE_ADDRESS, EVENT_WRITER_ADDRESS, IMMUTABLE_SIMULATOR_STORAGE_ADDRESS,
-    KECCAK256_PRECOMPILE_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
-    L2_ETH_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS, NONCE_HOLDER_ADDRESS,
-    SHA256_PRECOMPILE_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
+    BOOTLOADER_UTILITIES_ADDRESS, CONTRACT_DEPLOYER_ADDRESS, ECRECOVER_PRECOMPILE_ADDRESS,
+    EVENT_WRITER_ADDRESS, IMMUTABLE_SIMULATOR_STORAGE_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS,
+    KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS, L2_ETH_TOKEN_ADDRESS,
+    MSG_VALUE_SIMULATOR_ADDRESS, NONCE_HOLDER_ADDRESS, SHA256_PRECOMPILE_ADDRESS,
+    SYSTEM_CONTEXT_ADDRESS,
 };
 
 pub fn bytecode_from_slice(artifact_name: &str, contents: &[u8]) -> Vec<u8> {
@@ -73,11 +73,6 @@ pub static COMPILED_IN_SYSTEM_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new
             "BootloaderUtilities",
             BOOTLOADER_UTILITIES_ADDRESS,
             include_bytes!("contracts/BootloaderUtilities.json").to_vec(),
-        ),
-        (
-            "BytecodeCompressor",
-            BYTECODE_COMPRESSOR_ADDRESS,
-            include_bytes!("contracts/BytecodeCompressor.json").to_vec(),
         ),
     ]
     .map(|(pname, address, contents)| DeployedContract {
