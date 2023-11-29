@@ -4,6 +4,7 @@ use crate::{
 };
 use ethers::{abi::AbiDecode, prelude::abigen};
 use itertools::Itertools;
+use multivm::zk_evm_1_3_3::tracing::AfterExecutionData;
 use multivm::zk_evm_1_3_3::zkevm_opcode_defs::RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER;
 use multivm::{
     interface::dyn_tracers::vm_1_3_3::DynTracer,
@@ -60,10 +61,10 @@ abigen!(
 impl<F: NodeCtx, S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>>
     for CheatcodeTracer<F>
 {
-    fn before_execution(
+    fn after_execution(
         &mut self,
         state: VmLocalStateData<'_>,
-        data: BeforeExecutionData,
+        data: AfterExecutionData,
         memory: &SimpleMemory<H>,
         storage: StoragePtr<S>,
     ) {
@@ -82,16 +83,16 @@ impl<F: NodeCtx, S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>>
             }
         }
 
-        if let Opcode::FarCall(_call) = data.opcode.variant.opcode {
-            let current = state.vm_local_state.callstack.current;
-            if current.this_address == CHEATCODE_ADDRESS
-                || current.code_address == CHEATCODE_ADDRESS
-            {
-                panic!("cheatcode far call");
-            };
-        }
+        // if let Opcode::FarCall(_call) = data.opcode.variant.opcode {
+        //     let current = state.vm_local_state.callstack.current;
+        //     if current.this_address == CHEATCODE_ADDRESS
+        //         || current.code_address == CHEATCODE_ADDRESS
+        //     {
+        //         panic!("cheatcode far call");
+        //     };
+        // }
 
-        if let Opcode::NearCall(_call) = data.opcode.variant.opcode {
+        if let Opcode::FarCall(_call) = data.opcode.variant.opcode {
             let current = state.vm_local_state.callstack.current;
             println!("code address: {:?}", hex::encode(current.code_address));
             // println!("this address: {:?}", hex::encode(current.this_address));
@@ -165,7 +166,7 @@ impl<F: NodeCtx> CheatcodeTracer<F> {
     fn dispatch_cheatcode<S: WriteStorage, H: HistoryMode>(
         &mut self,
         state: VmLocalStateData<'_>,
-        _data: BeforeExecutionData,
+        _data: AfterExecutionData,
         _memory: &SimpleMemory<H>,
         storage: StoragePtr<S>,
         call: CheatcodeContractCalls,
