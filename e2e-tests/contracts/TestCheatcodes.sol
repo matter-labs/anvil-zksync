@@ -47,4 +47,11 @@ contract TestCheatcodes {
     uint256 finalTimestamp = block.timestamp;
     require(finalTimestamp == timestamp, "timestamp was not changed");
   }
+
+  function testStore(address account, bytes32 slot, bytes32 value) external {
+    (bool success, ) = CHEATCODE_ADDRESS.call(
+      abi.encodeWithSignature("store(address,bytes32,bytes32)", account, slot, value)
+    );
+    require(success, "store failed");
+  }
 }

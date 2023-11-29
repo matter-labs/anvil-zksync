@@ -4,6 +4,7 @@ import * as hre from "hardhat";
 import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
 import { RichAccounts } from "../helpers/constants";
 import { deployContract, getTestProvider } from "../helpers/utils";
+import { hexValue, randomBytes } from "ethers/lib/utils";
 
 const provider = getTestProvider();
 
@@ -105,4 +106,26 @@ describe("Cheatcodes", function () {
     const newBlockTimestamp = (await provider.getBlock("latest")).timestamp;
     expect(newBlockTimestamp).to.equal(expectedTimestamp);
   });
+
+  it("Should test vm.store", async function () {
+    // Arrange
+    const wallet = new Wallet(RichAccounts[0].PrivateKey);
+    const deployer = new Deployer(hre, wallet);
+    const randomWallet = Wallet.createRandom().connect(provider);
+
+    // Act
+    const cheatcodes = await deployContract(deployer, "TestCheatcodes", []);
+    const randomSlot = randomBytes(32);
+    const randomValue = randomBytes(32);
+    const tx = await cheatcodes.testStore(randomWallet.address, randomSlot, randomValue, {
+      gasLimit: 1000000,
+    });
+    const receipt = await tx.wait();
+
+    // Assert
+    expect(receipt.status).to.eq(1);
+    const slotValue = (await provider.getStorageAt(randomWallet.address, hexValue(randomSlot)));
+    expect(slotValue).to.eq(hexValue(randomValue));
+  });
+
 });
