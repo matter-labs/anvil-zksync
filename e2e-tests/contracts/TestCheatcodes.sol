@@ -5,6 +5,13 @@ pragma solidity ^0.8.0;
 contract TestCheatcodes {
   address constant CHEATCODE_ADDRESS = 0x7109709ECfa91a80626fF3989D68f67F5b1DD12D;
 
+  function testAddr(uint256 privateKey, address addr) external {
+    (bool success, bytes memory data) = CHEATCODE_ADDRESS.call(abi.encodeWithSignature("addr(uint256)", privateKey));
+    require(success, "addr failed");
+    address recovered = abi.decode(data, (address));
+    require(recovered == addr, "address mismatch");
+  }
+
   function testDeal(address account, uint256 amount) external {
     uint balanceBefore = address(account).balance;
     (bool success, ) = CHEATCODE_ADDRESS.call(abi.encodeWithSignature("deal(address,uint256)", account, amount));

@@ -8,6 +8,23 @@ import { deployContract, getTestProvider } from "../helpers/utils";
 const provider = getTestProvider();
 
 describe("Cheatcodes", function () {
+  it("Should test vm.addr", async function () {
+    // Arrange
+    const wallet = new Wallet(RichAccounts[0].PrivateKey);
+    const deployer = new Deployer(hre, wallet);
+    const randomWallet = Wallet.createRandom().connect(provider);
+
+    // Act
+    const greeter = await deployContract(deployer, "TestCheatcodes", []);
+    const tx = await greeter.testAddr(randomWallet.privateKey, randomWallet.address, {
+      gasLimit: 1000000,
+    });
+    const receipt = await tx.wait();
+
+    // Assert
+    expect(receipt.status).to.eq(1);
+  });
+
   it("Should test vm.deal", async function () {
     // Arrange
     const wallet = new Wallet(RichAccounts[0].PrivateKey);
