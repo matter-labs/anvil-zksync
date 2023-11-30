@@ -7,7 +7,7 @@ import { deployContract, getTestProvider } from "../helpers/utils";
 
 const provider = getTestProvider();
 
-describe.only("Cheatcodes", function () {
+describe("Cheatcodes", function () {
   it("Should test vm.deal", async function () {
     // Arrange
     const wallet = new Wallet(RichAccounts[0].PrivateKey);
@@ -47,7 +47,7 @@ describe.only("Cheatcodes", function () {
     expect(finalRandomWalletCode).to.not.eq(initialRandomWalletCode);
   });
 
-  it.only("Should test vm.setNonce and vm.getNonce", async function () {
+  it("Should test vm.setNonce and vm.getNonce", async function () {
     // Arrange
     const wallet = new Wallet(RichAccounts[0].PrivateKey);
     const deployer = new Deployer(hre, wallet);
@@ -55,12 +55,9 @@ describe.only("Cheatcodes", function () {
 
     // Act
     const cheatcodes = await deployContract(deployer, "TestCheatcodes", []);
-    console.log("cheatcodes", cheatcodes.address);
-
     const initialNonce = await provider.getTransactionCount(randomWallet.address);
     const tx = await cheatcodes.testGetSetNonce(randomWallet.address, 1234, { gasLimit: 1000000 });
     const receipt = await tx.wait();
-    console.log(receipt);
 
     // Assert
     expect(receipt.status).to.eq(1);
@@ -74,7 +71,6 @@ describe.only("Cheatcodes", function () {
     const wallet = new Wallet(RichAccounts[0].PrivateKey);
     const deployer = new Deployer(hre, wallet);
     const contract = await deployContract(deployer, "TestCheatcodes", []);
-    const randomWallet = Wallet.createRandom().connect(provider);
 
     // Act
     const tx = await contract.testRoll({ gasLimit: 1000000 });

@@ -6,14 +6,13 @@ use ethers::{abi::AbiDecode, prelude::abigen};
 use itertools::Itertools;
 use multivm::zk_evm_1_3_3::tracing::AfterExecutionData;
 use multivm::zk_evm_1_3_3::vm_state::PrimitiveValue;
-use multivm::zk_evm_1_3_3::zkevm_opcode_defs::UMAOpcode;
 use multivm::zk_evm_1_3_3::zkevm_opcode_defs::RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER;
 use multivm::{
     interface::dyn_tracers::vm_1_3_3::DynTracer,
     interface::{tracer::TracerExecutionStatus, L1BatchEnv},
     vm_refunds_enhancement::{HistoryMode, SimpleMemory, VmTracer},
     zk_evm_1_3_3::{
-        tracing::{BeforeExecutionData, VmLocalStateData},
+        tracing::VmLocalStateData,
         zkevm_opcode_defs::all::Opcode,
         zkevm_opcode_defs::{FatPointer, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER},
     },
@@ -64,22 +63,6 @@ abigen!(
 impl<F: NodeCtx, S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>>
     for CheatcodeTracer<F>
 {
-    fn before_execution(
-        &mut self,
-        _state: VmLocalStateData<'_>,
-        _data: BeforeExecutionData,
-        _memory: &SimpleMemory<H>,
-        _storage: StoragePtr<S>,
-    ) {
-        // if self.returndata.is_some() {
-        // if let Opcode::UMA(a) = _data.opcode.variant.opcode {
-        //     if let UMAOpcode::HeapRead = a {
-        //         dbg!(_data);
-        //     }
-        // }
-        // }
-    }
-
     fn after_execution(
         &mut self,
         state: VmLocalStateData<'_>,
@@ -89,32 +72,16 @@ impl<F: NodeCtx, S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>>
     ) {
         if self.returndata.is_some() {
             if let Opcode::Ret(_call) = data.opcode.variant.opcode {
-                // for (i, reg) in state.vm_local_state.registers.iter().enumerate() {
-                //     println!("reg {i} is ptr: {:?}", reg.is_pointer);
-                // }
                 if self.near_calls == 0 {
                     let ptr = state.vm_local_state.registers
                         [RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER as usize];
-                    println!("return ptr: {:?}", ptr);
-
-                    // assert!(ptr.is_pointer);
                     let fat_data_pointer = FatPointer::from_u256(ptr.value);
                     self.return_ptr = Some(fat_data_pointer);
                 } else {
-                    dbg!(self.near_calls);
                     self.near_calls = self.near_calls.saturating_sub(1);
                 }
             }
         }
-
-        // if let Opcode::FarCall(_call) = data.opcode.variant.opcode {
-        //     let current = state.vm_local_state.callstack.current;
-        //     if current.this_address == CHEATCODE_ADDRESS
-        //         || current.code_address == CHEATCODE_ADDRESS
-        //     {
-        //         panic!("cheatcode far call");
-        //     };
-        // }
 
         if let Opcode::NearCall(_call) = data.opcode.variant.opcode {
             if self.returndata.is_some() {
@@ -123,8 +90,6 @@ impl<F: NodeCtx, S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>>
         }
         if let Opcode::FarCall(_call) = data.opcode.variant.opcode {
             let current = state.vm_local_state.callstack.current;
-            println!("code address: {:?}", hex::encode(current.code_address));
-            // println!("this address: {:?}", hex::encode(current.this_address));
             if current.code_address != CHEATCODE_ADDRESS {
                 return;
             }
@@ -165,15 +130,10 @@ impl<F: NodeCtx + Send, S: WriteStorage, H: HistoryMode> VmTracer<S, H> for Chea
         _bootloader_state: &mut multivm::vm_refunds_enhancement::BootloaderState,
     ) -> TracerExecutionStatus {
         if let Some(mut fat_pointer) = self.return_ptr.take() {
-            // for (i, reg) in state.local_state.registers.iter().enumerate() {
-            //     println!("reg {i} is ptr: {:?}", reg.is_pointer);
-            // }
-            // let ptr = state.local_state.registers[RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER as usize];
             let timestamp = Timestamp(state.local_state.timestamp);
 
             let elements = self.returndata.take().unwrap();
             fat_pointer.length = (elements.len() as u32) * 32;
-            println!("return ptr: {:?}", fat_pointer);
             state.local_state.registers[RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER as usize] =
                 PrimitiveValue {
                     value: fat_pointer.to_u256(),
@@ -201,7 +161,7 @@ impl<F: NodeCtx> CheatcodeTracer<F> {
 
     fn dispatch_cheatcode<S: WriteStorage, H: HistoryMode>(
         &mut self,
-        state: VmLocalStateData<'_>,
+        _state: VmLocalStateData<'_>,
         _data: AfterExecutionData,
         _memory: &SimpleMemory<H>,
         storage: StoragePtr<S>,
@@ -237,9 +197,7 @@ impl<F: NodeCtx> CheatcodeTracer<F> {
                 let mut storage = storage.borrow_mut();
                 let nonce_key = get_nonce_key(&account);
                 let full_nonce = storage.read_value(&nonce_key);
-                let (account_nonce, deployment_nonce) =
-                    decompose_full_nonce(h256_to_u256(full_nonce));
-                // let nonce_u64_encoded = U64::from(account_nonce.as_u64()).encode();
+                let (account_nonce, _) = decompose_full_nonce(h256_to_u256(full_nonce));
                 tracing::info!(
                     "👷 Nonces for account {:?} are {}",
                     account,

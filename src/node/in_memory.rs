@@ -39,7 +39,7 @@ use multivm::{
             l2_blocks::load_last_l2_block,
             overhead::{derive_overhead, OverheadCoeficients},
         },
-        ToTracerPointer, Vm, VmTracer,
+        ToTracerPointer, Vm,
     },
 };
 use zksync_basic_types::{
