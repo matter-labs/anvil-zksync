@@ -3,12 +3,12 @@ use std::collections::HashMap;
 use bigdecimal::BigDecimal;
 use colored::Colorize;
 use futures::FutureExt;
-use zksync_basic_types::{AccountTreeId, Address, L1BatchNumber, MiniblockNumber, U256};
+use zksync_basic_types::{AccountTreeId, Address, L1BatchNumber, MiniblockNumber, H256, U256};
 use zksync_core::api_server::web3::backend_jsonrpc::error::{internal_error, into_jsrpc_error};
 use zksync_state::ReadStorage;
 use zksync_types::{
     api::{
-        BlockDetails, BlockDetailsBase, BlockStatus, BridgeAddresses, ProtocolVersion,
+        BlockDetails, BlockDetailsBase, BlockStatus, BridgeAddresses, Proof, ProtocolVersion,
         TransactionDetails, TransactionStatus, TransactionVariant,
     },
     fee::Fee,
@@ -119,6 +119,15 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
 
             Ok(transactions)
         })
+    }
+
+    fn get_proof(
+        &self,
+        _address: Address,
+        _keys: Vec<H256>,
+        _l1_batch_number: L1BatchNumber,
+    ) -> RpcResult<Proof> {
+        not_implemented("zks_getProof")
     }
 
     fn estimate_gas_l1_to_l2(

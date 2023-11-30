@@ -5,7 +5,9 @@ use crate::{
 };
 use itertools::Itertools;
 use jsonrpc_core::{BoxFuture, Result};
-use multivm::vm_virtual_blocks::{constants::ETH_CALL_GAS_LIMIT, CallTracer, HistoryDisabled, Vm};
+use multivm::vm_latest::HistoryDisabled;
+use multivm::interface::VmInterface;
+use multivm::vm_refunds_enhancement::{constants::ETH_CALL_GAS_LIMIT, CallTracer, Vm};
 use once_cell::sync::OnceCell;
 use std::sync::{Arc, RwLock};
 use zksync_basic_types::H256;
@@ -180,7 +182,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
             // update the enforced_base_fee within l1_batch_env to match the logic in zksync_core
             l1_batch_env.enforced_base_fee = Some(l2_tx.common_data.fee.max_fee_per_gas.as_u64());
             let system_env = inner.create_system_env(bootloader_code.clone(), execution_mode);
-            let mut vm = Vm::new(l1_batch_env, system_env, storage, HistoryDisabled);
+            let mut vm: Vm<_, HistoryDisabled> = Vm::new(l1_batch_env, system_env, storage);
 
             // We must inject *some* signature (otherwise bootloader code fails to generate hash).
             if l2_tx.common_data.signature.is_empty() {
@@ -197,9 +199,9 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
             vm.push_transaction(tx);
 
             let call_tracer_result = Arc::new(OnceCell::default());
-            let tracer = CallTracer::new(call_tracer_result.clone(), HistoryDisabled);
+            let tracer = CallTracer::new(call_tracer_result.clone()).into_tracer_pointer();
             let tx_result = vm.inspect(
-                vec![Box::new(tracer)],
+                tracer.into(),
                 multivm::interface::VmExecutionMode::OneTx,
             );
 
