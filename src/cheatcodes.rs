@@ -3,26 +3,31 @@ use crate::{
     utils::bytecode_to_factory_dep,
 };
 use ethers::{abi::AbiDecode, prelude::abigen};
+use itertools::Itertools;
+use multivm::zk_evm_1_3_3::tracing::AfterExecutionData;
+use multivm::zk_evm_1_3_3::vm_state::PrimitiveValue;
+use multivm::zk_evm_1_3_3::zkevm_opcode_defs::RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER;
 use multivm::{
-    interface::L1BatchEnv,
-    vm_1_3_2::zk_evm_1_3_3::{
-        tracing::{BeforeExecutionData, VmLocalStateData},
+    interface::dyn_tracers::vm_1_3_3::DynTracer,
+    interface::{tracer::TracerExecutionStatus, L1BatchEnv},
+    vm_refunds_enhancement::{HistoryMode, SimpleMemory, VmTracer},
+    zk_evm_1_3_3::{
+        tracing::VmLocalStateData,
         zkevm_opcode_defs::all::Opcode,
         zkevm_opcode_defs::{FatPointer, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER},
     },
-    vm_latest::{DynTracer, HistoryMode, SimpleMemory, VmTracer},
 };
 use std::{
     fmt::Debug,
     sync::{Arc, Mutex, RwLock},
 };
-use zksync_basic_types::{AccountTreeId, H160, H256};
+use zksync_basic_types::{AccountTreeId, H160, H256, U256};
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
     block::{pack_block_info, unpack_block_info},
     get_code_key, get_nonce_key,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
-    StorageKey,
+    StorageKey, Timestamp,
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
@@ -34,6 +39,9 @@ const CHEATCODE_ADDRESS: H160 = H160([
 #[derive(Clone, Debug, Default)]
 pub struct CheatcodeTracer<F> {
     node_ctx: F,
+    returndata: Option<Vec<U256>>,
+    return_ptr: Option<FatPointer>,
+    near_calls: usize,
 }
 
 pub trait NodeCtx {
@@ -47,22 +55,43 @@ abigen!(
         function deal(address who, uint256 newBalance)
         function etch(address who, bytes calldata code)
         function setNonce(address account, uint64 nonce)
+        function getNonce(address account)
         function roll(uint256 blockNumber)
         function warp(uint256 timestamp)
     ]"#
 );
 
-impl<F: NodeCtx, S: WriteStorage, H: HistoryMode> DynTracer<S, H> for CheatcodeTracer<F> {
-    fn before_execution(
+impl<F: NodeCtx, S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>>
+    for CheatcodeTracer<F>
+{
+    fn after_execution(
         &mut self,
         state: VmLocalStateData<'_>,
-        data: BeforeExecutionData,
+        data: AfterExecutionData,
         memory: &SimpleMemory<H>,
         storage: StoragePtr<S>,
     ) {
+        if self.returndata.is_some() {
+            if let Opcode::Ret(_call) = data.opcode.variant.opcode {
+                if self.near_calls == 0 {
+                    let ptr = state.vm_local_state.registers
+                        [RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER as usize];
+                    let fat_data_pointer = FatPointer::from_u256(ptr.value);
+                    self.return_ptr = Some(fat_data_pointer);
+                } else {
+                    self.near_calls = self.near_calls.saturating_sub(1);
+                }
+            }
+        }
+
         if let Opcode::NearCall(_call) = data.opcode.variant.opcode {
+            if self.returndata.is_some() {
+                self.near_calls += 1;
+            }
+        }
+        if let Opcode::FarCall(_call) = data.opcode.variant.opcode {
             let current = state.vm_local_state.callstack.current;
-            if current.this_address != CHEATCODE_ADDRESS {
+            if current.code_address != CHEATCODE_ADDRESS {
                 return;
             }
             if current.code_page.0 == 0 || current.ergs_remaining == 0 {
@@ -84,7 +113,7 @@ impl<F: NodeCtx, S: WriteStorage, H: HistoryMode> DynTracer<S, H> for CheatcodeT
 
             // try to dispatch the cheatcode
             if let Ok(call) = CheatcodeContractCalls::decode(calldata.clone()) {
-                self.dispatch_cheatcode(state, data, memory, storage, call)
+                self.dispatch_cheatcode(state, data, memory, storage, call);
             } else {
                 tracing::error!(
                     "Failed to decode cheatcode calldata (near call): {}",
@@ -95,17 +124,46 @@ impl<F: NodeCtx, S: WriteStorage, H: HistoryMode> DynTracer<S, H> for CheatcodeT
     }
 }
 
-impl<F: NodeCtx + Send, S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CheatcodeTracer<F> {}
+impl<F: NodeCtx + Send, S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CheatcodeTracer<F> {
+    fn finish_cycle(
+        &mut self,
+        state: &mut multivm::vm_refunds_enhancement::ZkSyncVmState<S, H>,
+        _bootloader_state: &mut multivm::vm_refunds_enhancement::BootloaderState,
+    ) -> TracerExecutionStatus {
+        if let Some(mut fat_pointer) = self.return_ptr.take() {
+            let timestamp = Timestamp(state.local_state.timestamp);
+
+            let elements = self.returndata.take().unwrap();
+            fat_pointer.length = (elements.len() as u32) * 32;
+            state.local_state.registers[RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER as usize] =
+                PrimitiveValue {
+                    value: fat_pointer.to_u256(),
+                    is_pointer: true,
+                };
+            state.memory.populate_page(
+                fat_pointer.memory_page as usize,
+                elements.into_iter().enumerate().collect_vec(),
+                timestamp,
+            );
+        }
+        TracerExecutionStatus::Continue
+    }
+}
 
 impl<F: NodeCtx> CheatcodeTracer<F> {
     pub fn new(node_ctx: F) -> Self {
-        Self { node_ctx }
+        Self {
+            node_ctx,
+            returndata: None,
+            return_ptr: None,
+            near_calls: 0,
+        }
     }
 
     fn dispatch_cheatcode<S: WriteStorage, H: HistoryMode>(
         &mut self,
         _state: VmLocalStateData<'_>,
-        _data: BeforeExecutionData,
+        _data: AfterExecutionData,
         _memory: &SimpleMemory<H>,
         storage: StoragePtr<S>,
         call: CheatcodeContractCalls,
@@ -134,6 +192,20 @@ impl<F: NodeCtx> CheatcodeTracer<F> {
                         .collect(),
                 );
                 storage.borrow_mut().set_value(code_key, hash);
+            }
+            GetNonce(GetNonceCall { account }) => {
+                tracing::info!("Getting nonce for {account:?}");
+                let mut storage = storage.borrow_mut();
+                let nonce_key = get_nonce_key(&account);
+                let full_nonce = storage.read_value(&nonce_key);
+                let (account_nonce, _) = decompose_full_nonce(h256_to_u256(full_nonce));
+                tracing::info!(
+                    "👷 Nonces for account {:?} are {}",
+                    account,
+                    account_nonce.as_u64()
+                );
+                tracing::info!("👷 Setting returndata",);
+                self.returndata = Some(vec![account_nonce.into()]);
             }
             SetNonce(SetNonceCall { account, nonce }) => {
                 tracing::info!("Setting nonce for {account:?} to {nonce}");

@@ -27,16 +27,20 @@ use std::{
 
 use multivm::interface::{
     ExecutionResult, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
-    VmExecutionResultAndLogs,
+    VmExecutionResultAndLogs, VmInterface,
 };
-use multivm::vm_latest::{
-    constants::{BLOCK_GAS_LIMIT, BLOCK_OVERHEAD_PUBDATA, MAX_PUBDATA_PER_BLOCK},
-    utils::{
-        fee::derive_base_fee_and_gas_per_pubdata,
-        l2_blocks::load_last_l2_block,
-        overhead::{derive_overhead, OverheadCoeficients},
+use multivm::{
+    tracers::CallTracer,
+    vm_latest::HistoryDisabled,
+    vm_refunds_enhancement::{
+        constants::{BLOCK_GAS_LIMIT, BLOCK_OVERHEAD_PUBDATA, MAX_PUBDATA_PER_BLOCK},
+        utils::{
+            fee::derive_base_fee_and_gas_per_pubdata,
+            l2_blocks::load_last_l2_block,
+            overhead::{derive_overhead, OverheadCoeficients},
+        },
+        ToTracerPointer, Vm,
     },
-    CallTracer, HistoryDisabled, Vm, VmTracer,
 };
 use zksync_basic_types::{
     web3::signing::keccak256, Address, Bytes, L1BatchNumber, MiniblockNumber, H160, H256, U256, U64,
@@ -715,7 +719,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
         batch_env.l1_gas_price = l1_gas_price;
 
-        let mut vm = Vm::new(batch_env, system_env, storage, HistoryDisabled);
+        let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage);
 
         let tx: Transaction = l2_tx.into();
         vm.push_transaction(tx);
@@ -1009,7 +1013,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
         let (batch_env, block_ctx) = inner.create_l1_batch_env(storage.clone());
         let system_env = inner.create_system_env(bootloader_code.clone(), execution_mode);
 
-        let mut vm = Vm::new(batch_env.clone(), system_env, storage, HistoryDisabled);
+        let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env.clone(), system_env, storage);
 
         // We must inject *some* signature (otherwise bootloader code fails to generate hash).
         if l2_tx.common_data.signature.is_empty() {
@@ -1028,16 +1032,14 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
         let cheatcode_tracer = CheatcodeTracer::new(cheatcode_node_context);
 
         let custom_tracers = vec![
-            Box::new(cheatcode_tracer)
-                as Box<dyn VmTracer<StorageView<&ForkStorage<S>>, HistoryDisabled>>,
-            Box::new(CallTracer::new(call_tracer_result.clone(), HistoryDisabled))
-                as Box<dyn VmTracer<StorageView<&ForkStorage<S>>, HistoryDisabled>>,
+            cheatcode_tracer.into_tracer_pointer(),
+            CallTracer::new(call_tracer_result.clone()).into_tracer_pointer(),
         ];
 
         // Drop inner to allow `CheatcodeTracer` to write to `InMemoryNode`
         drop(inner);
 
-        let tx_result = vm.inspect(custom_tracers, VmExecutionMode::OneTx);
+        let tx_result = vm.inspect(custom_tracers.into(), VmExecutionMode::OneTx);
 
         // Re-acquire inner and context variables locks after `CheatcodeTracer` has finished
         let inner = self
@@ -1325,12 +1327,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
         };
         let system_env = inner.create_system_env(bootloader_code.clone(), execution_mode);
 
-        let mut vm = Vm::new(
-            batch_env.clone(),
-            system_env,
-            storage.clone(),
-            HistoryDisabled,
-        );
+        let mut vm: Vm<_, HistoryDisabled> =
+            Vm::new(batch_env.clone(), system_env, storage.clone());
 
         let tx: Transaction = l2_tx.clone().into();
 
@@ -1346,19 +1344,18 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
         let cheatcode_tracer = CheatcodeTracer::new(cheatcode_node_context);
 
         let custom_tracers = vec![
-            Box::new(cheatcode_tracer)
-                as Box<dyn VmTracer<StorageView<&ForkStorage<S>>, HistoryDisabled>>,
-            Box::new(CallTracer::new(call_tracer_result.clone(), HistoryDisabled))
-                as Box<dyn VmTracer<StorageView<&ForkStorage<S>>, HistoryDisabled>>,
-            Box::new(BootloaderDebugTracer {
+            cheatcode_tracer.into_tracer_pointer(),
+            CallTracer::new(call_tracer_result.clone()).into_tracer_pointer(),
+            BootloaderDebugTracer {
                 result: bootloader_debug_result.clone(),
-            }) as Box<dyn VmTracer<StorageView<&ForkStorage<S>>, HistoryDisabled>>,
+            }
+            .into_tracer_pointer(),
         ];
 
         // Drop inner to allow `CheatcodeTracer` to write to `InMemoryNode`
         drop(inner);
 
-        let tx_result = vm.inspect(custom_tracers, VmExecutionMode::OneTx);
+        let tx_result = vm.inspect(custom_tracers.into(), VmExecutionMode::OneTx);
 
         // Re-acquire inner and context variables locks after `CheatcodeTracer` has finished
         let batch_env = batch_env.lock().unwrap().clone();

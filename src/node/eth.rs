@@ -4,7 +4,7 @@ use colored::Colorize;
 use futures::FutureExt;
 use itertools::Itertools;
 use multivm::interface::{ExecutionResult, TxExecutionMode};
-use multivm::vm_virtual_blocks::constants::ETH_CALL_GAS_LIMIT;
+use multivm::vm_refunds_enhancement::constants::ETH_CALL_GAS_LIMIT;
 use zksync_basic_types::{web3, AccountTreeId, Address, Bytes, H160, H256, U256, U64};
 use zksync_core::api_server::web3::backend_jsonrpc::error::into_jsrpc_error;
 use zksync_state::ReadStorage;
@@ -17,7 +17,7 @@ use zksync_types::{
     utils::storage_key_for_standard_token_balance,
     StorageKey, L2_ETH_TOKEN_ADDRESS,
 };
-use zksync_utils::{h256_to_u256, h256_to_u64, u256_to_h256};
+use zksync_utils::{h256_to_u256, u256_to_h256};
 use zksync_web3_decl::{
     error::Web3Error,
     types::{FeeHistory, Filter, FilterChanges, SyncState},
@@ -28,7 +28,7 @@ use crate::{
     fork::ForkSource,
     namespaces::{EthNamespaceT, RpcResult},
     node::{InMemoryNode, TransactionResult, L2_GAS_PRICE, MAX_TX_SIZE, PROTOCOL_VERSION},
-    utils::{self, not_implemented, IntoBoxedFuture},
+    utils::{self, h256_to_u64, not_implemented, IntoBoxedFuture},
 };
 
 impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespaceT
