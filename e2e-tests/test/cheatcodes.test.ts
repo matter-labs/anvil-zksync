@@ -56,7 +56,7 @@ describe("Cheatcodes", function () {
     // Act
     const cheatcodes = await deployContract(deployer, "TestCheatcodes", []);
     const initialNonce = await provider.getTransactionCount(randomWallet.address);
-    const tx = await cheatcodes.testGetSetNonce(randomWallet.address, 1234, { gasLimit: 1000000 });
+    const tx = await cheatcodes.testSetNonce(randomWallet.address, 1234, { gasLimit: 1000000 });
     const receipt = await tx.wait();
 
     // Assert
@@ -72,8 +72,11 @@ describe("Cheatcodes", function () {
     const deployer = new Deployer(hre, wallet);
     const contract = await deployContract(deployer, "TestCheatcodes", []);
 
+    const blockNumber = await provider.getBlockNumber();
+    const newBlockNumber = blockNumber + 345;
+
     // Act
-    const tx = await contract.testRoll({ gasLimit: 1000000 });
+    const tx = await contract.testRoll(newBlockNumber, { gasLimit: 1000000 });
     const receipt = await tx.wait();
 
     // Assert
@@ -91,7 +94,7 @@ describe("Cheatcodes", function () {
 
     // Act
     const cheatcodes = await deployContract(deployer, "TestCheatcodes", []);
-    const tx = await cheatcodes.warp(expectedTimestamp, {
+    const tx = await cheatcodes.testWarp(expectedTimestamp, {
       gasLimit: 1000000,
     });
     expectedTimestamp += 2; // New transaction will add two blocks

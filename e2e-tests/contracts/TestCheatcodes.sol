@@ -21,7 +21,7 @@ contract TestCheatcodes {
     require(success, "setGreeting failed");
   }
 
-  function testGetSetNonce(address account, uint64 nonce) external {
+  function testSetNonce(address account, uint64 nonce) external {
     (bool success, bytes memory data) = CHEATCODE_ADDRESS.call(
       abi.encodeWithSignature("setNonce(address,uint64)", account, nonce)
     );
@@ -32,7 +32,18 @@ contract TestCheatcodes {
     require(finalNonce == nonce, "nonce mismatch");
   }
 
-  function warp(uint256 timestamp) external {
+  function testRoll(uint256 blockNumber) external {
+    uint256 initialBlockNumber = block.number;
+    require(blockNumber != initialBlockNumber, "block number must be different than current block number");
+
+    (bool success, ) = CHEATCODE_ADDRESS.call(abi.encodeWithSignature("roll(uint256)", blockNumber));
+    require(success, "roll failed");
+
+    uint256 finalBlockNumber = block.number;
+    require(finalBlockNumber == blockNumber, "block number was not changed");
+  }
+
+  function testWarp(uint256 timestamp) external {
     uint256 initialTimestamp = block.timestamp;
     require(timestamp != initialTimestamp, "timestamp must be different than current block timestamp");
 
