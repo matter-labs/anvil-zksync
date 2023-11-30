@@ -4,8 +4,6 @@ import * as hre from "hardhat";
 import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
 import { RichAccounts } from "../helpers/constants";
 import { deployContract, getTestProvider } from "../helpers/utils";
-import { formatBytes32String, hexValue, parseBytes32String, randomBytes } from "ethers/lib/utils";
-import { constants } from "buffer";
 
 const provider = getTestProvider();
 
@@ -125,5 +123,4 @@ describe("Cheatcodes", function () {
     // Assert
     expect(receipt.status).to.eq(1);
   });
-
 });
