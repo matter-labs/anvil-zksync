@@ -262,7 +262,7 @@ impl<F: NodeCtx> CheatcodeTracer<F> {
                     account_nonce.as_u64()
                 );
                 tracing::info!("👷 Setting returndata",);
-                self.returndata = Some(vec![account_nonce.into()]);
+                self.returndata = Some(vec![account_nonce]);
             }
             SetNonce(SetNonceCall { account, nonce }) => {
                 tracing::info!("Setting nonce for {account:?} to {nonce}");
@@ -323,7 +323,7 @@ impl<F: NodeCtx> CheatcodeTracer<F> {
             StopPrank(StopPrankCall) => {
                 tracing::info!("Stopping prank");
 
-                if let Some(origin) = self.start_prank_opts.as_ref().map(|v| v.origin).flatten() {
+                if let Some(origin) = self.start_prank_opts.as_ref().and_then(|v| v.origin) {
                     let key = StorageKey::new(
                         AccountTreeId::new(zksync_types::SYSTEM_CONTEXT_ADDRESS),
                         zksync_types::SYSTEM_CONTEXT_TX_ORIGIN_POSITION,
