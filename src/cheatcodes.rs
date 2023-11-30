@@ -170,12 +170,10 @@ impl<F: NodeCtx + Send, S: WriteStorage, H: HistoryMode> VmTracer<S, H> for Chea
             // }
             // let ptr = state.local_state.registers[RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER as usize];
             let timestamp = Timestamp(state.local_state.timestamp);
-            dbg!(timestamp);
 
             let elements = self.returndata.take().unwrap();
-            fat_pointer.length = elements.len() as u32;
+            fat_pointer.length = (elements.len() as u32) * 32;
             println!("return ptr: {:?}", fat_pointer);
-            dbg!(elements.len());
             state.local_state.registers[RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER as usize] =
                 PrimitiveValue {
                     value: fat_pointer.to_u256(),
@@ -235,20 +233,20 @@ impl<F: NodeCtx> CheatcodeTracer<F> {
                 storage.borrow_mut().set_value(code_key, hash);
             }
             GetNonce(GetNonceCall { account }) => {
-                // tracing::info!("Getting nonce for {account:?}");
-                // let mut storage = storage.borrow_mut();
-                // let nonce_key = get_nonce_key(&account);
-                // let full_nonce = storage.read_value(&nonce_key);
-                // let (account_nonce, deployment_nonce) =
-                //     decompose_full_nonce(h256_to_u256(full_nonce));
-                // // let nonce_u64_encoded = U64::from(account_nonce.as_u64()).encode();
-                // tracing::info!(
-                //     "👷 Nonces for account {:?} are {}",
-                //     account,
-                //     account_nonce.as_u64()
-                // );
+                tracing::info!("Getting nonce for {account:?}");
+                let mut storage = storage.borrow_mut();
+                let nonce_key = get_nonce_key(&account);
+                let full_nonce = storage.read_value(&nonce_key);
+                let (account_nonce, deployment_nonce) =
+                    decompose_full_nonce(h256_to_u256(full_nonce));
+                // let nonce_u64_encoded = U64::from(account_nonce.as_u64()).encode();
+                tracing::info!(
+                    "👷 Nonces for account {:?} are {}",
+                    account,
+                    account_nonce.as_u64()
+                );
                 tracing::info!("👷 Setting returndata",);
-                self.returndata = Some(vec![U256::from(1000)]);
+                self.returndata = Some(vec![account_nonce.into()]);
             }
             SetNonce(SetNonceCall { account, nonce }) => {
                 tracing::info!("Setting nonce for {account:?} to {nonce}");
