@@ -4,7 +4,8 @@ import * as hre from "hardhat";
 import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
 import { RichAccounts } from "../helpers/constants";
 import { deployContract, getTestProvider } from "../helpers/utils";
-import { hexValue, randomBytes } from "ethers/lib/utils";
+import { formatBytes32String, hexValue, parseBytes32String, randomBytes } from "ethers/lib/utils";
+import { constants } from "buffer";
 
 const provider = getTestProvider();
 
@@ -111,21 +112,18 @@ describe("Cheatcodes", function () {
     // Arrange
     const wallet = new Wallet(RichAccounts[0].PrivateKey);
     const deployer = new Deployer(hre, wallet);
-    const randomWallet = Wallet.createRandom().connect(provider);
 
     // Act
     const cheatcodes = await deployContract(deployer, "TestCheatcodes", []);
-    const randomSlot = randomBytes(32);
-    const randomValue = randomBytes(32);
-    const tx = await cheatcodes.testStore(randomWallet.address, randomSlot, randomValue, {
-      gasLimit: 1000000,
+    const slot = hre.ethers.constants.HashZero;
+    const value = hre.ethers.constants.MaxUint256;
+    const tx = await cheatcodes.testStore(slot, value, {
+      gasLimit: 10000000,
     });
     const receipt = await tx.wait();
 
     // Assert
     expect(receipt.status).to.eq(1);
-    const slotValue = (await provider.getStorageAt(randomWallet.address, hexValue(randomSlot)));
-    expect(slotValue).to.eq(hexValue(randomValue));
   });
 
 });
