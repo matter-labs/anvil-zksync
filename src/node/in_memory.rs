@@ -1374,6 +1374,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
         tracing::info!("│   TRANSACTION SUMMARY   │");
         tracing::info!("└─────────────────────────┘");
 
+        dbg!(&tx_result.result);
         match &tx_result.result {
             ExecutionResult::Success { .. } => tracing::info!("Transaction: {}", "SUCCESS".green()),
             ExecutionResult::Revert { .. } => tracing::info!("Transaction: {}", "FAILED".red()),

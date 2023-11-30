@@ -74,11 +74,12 @@ pub fn print_event(event: &VmEvent, resolve_hashes: bool) {
         }
 
         tracing::info!(
-            "{} {}",
+            "{} {} {}",
             address_to_human_readable(event.address)
                 .map(|x| format!("{:42}", x.blue()))
                 .unwrap_or(format!("{:42}", format!("{:?}", event.address).blue())),
-            tt.join(", ")
+            tt.join(", "),
+            hex::encode(&event.value)
         );
     });
 }

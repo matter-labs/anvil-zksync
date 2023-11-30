@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.0;
+import "hardhat/console.sol";
 
 contract TestCheatcodes {
   event LogNonce(bytes data);
@@ -30,11 +31,11 @@ contract TestCheatcodes {
     (success, data) = CHEATCODE_ADDRESS.call(abi.encodeWithSignature("getNonce(address)", account));
     require(success, "getNonce failed");
     emit LogNonce(data);
-    // uint64 finalNonce = abi.decode(data, (uint64));
-    // emit LogNonce();
-    // emit LogNonce(finalNonce);
-    // Console.log("nonce: %s", finalNonce);
-    // require(finalNonce == nonce, "nonce mismatch");
+//     uint64 finalNonce = abi.decode(data, (uint64));
+//     emit LogNonce();
+//     emit LogNonce(finalNonce);
+    console.log(string(data));
+//     require(finalNonce == nonce, "nonce mismatch");
   }
 
   function warp(uint256 timestamp) external {
