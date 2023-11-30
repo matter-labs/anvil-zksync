@@ -2,11 +2,11 @@ name: run
 
 on:
   push:
-    branches: [main]
+    branches: [main, grw/feat-cheatcode-tracer]
     tags:
       - 'v*'
   pull_request:
-    branches: [main]
+    branches: [main, grw/feat-cheatcode-tracer]
   workflow_dispatch:
 
 jobs:
@@ -25,13 +25,13 @@ jobs:
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
         toolchain: nightly-2023-07-21
-    
+
     - name: Install cargo-nextest
       run: cargo install cargo-nextest
-        
+
     - name: Run tests
       run: cargo nextest run
-  
+
   smoke-test:
     name: smoke-test
     runs-on: ubuntu-22.04-github-hosted-16core
@@ -40,16 +40,16 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4 
+      uses: actions/checkout@v4
       with:
         path: ${{ env.TEST_REPO_DIR }}
         ref: ${{ github.event.pull_request.head.sha }}
-    
+
     - name: Install Rust
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
         toolchain: nightly-2023-07-23
-    
+
     - name: Run smoke-test
       env:
         TEST_REPO: ${{ github.event.repository.name }}

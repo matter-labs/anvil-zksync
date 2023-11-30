@@ -21,9 +21,15 @@ contract TestCheatcodes {
     require(success, "setGreeting failed");
   }
 
-  function testSetNonce(address account, uint256 nonce) external {
-    (bool success, ) = CHEATCODE_ADDRESS.call(abi.encodeWithSignature("setNonce(address,uint64)", account, nonce));
+  function testSetNonce(address account, uint64 nonce) external {
+    (bool success, bytes memory data) = CHEATCODE_ADDRESS.call(
+      abi.encodeWithSignature("setNonce(address,uint64)", account, nonce)
+    );
     require(success, "setNonce failed");
+    (success, data) = CHEATCODE_ADDRESS.call(abi.encodeWithSignature("getNonce(address)", account));
+    require(success, "getNonce failed");
+    uint64 finalNonce = abi.decode(data, (uint64));
+    require(finalNonce == nonce, "nonce mismatch");
   }
 
   function testRoll(uint256 blockNumber) external {

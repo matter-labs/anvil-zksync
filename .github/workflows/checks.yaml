@@ -2,11 +2,11 @@ name: checks
 
 on:
   push:
-    branches: [main]
+    branches: [main, grw/feat-cheatcode-tracer]
     tags:
       - 'v*'
   pull_request:
-    branches: [main]
+    branches: [main, grw/feat-cheatcode-tracer]
   workflow_dispatch:
 
 jobs:
@@ -40,7 +40,7 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
