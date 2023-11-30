@@ -38,7 +38,7 @@ use multivm::{
             l2_blocks::load_last_l2_block,
             overhead::{derive_overhead, OverheadCoefficients},
         },
-        ToTracerPointer, Vm,
+        ToTracerPointer, TracerPointer, Vm,
     },
 };
 use zksync_basic_types::{
@@ -1276,13 +1276,19 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         &self,
         l2_tx: L2Tx,
         execution_mode: TxExecutionMode,
+        mut tracers: Vec<
+            TracerPointer<
+                StorageView<ForkStorage<S>>,
+                multivm::vm_refunds_enhancement::HistoryDisabled,
+            >,
+        >,
     ) -> Result<L2TxResult, String> {
         let inner = self
             .inner
             .write()
             .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
 
-        let storage = StorageView::new(&inner.fork_storage).to_rc_ptr();
+        let storage = StorageView::new(inner.fork_storage.clone()).to_rc_ptr();
 
         let (batch_env, block_ctx) = inner.create_l1_batch_env(storage.clone());
 
@@ -1316,15 +1322,15 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         let call_tracer_result = Arc::new(OnceCell::default());
         let bootloader_debug_result = Arc::new(OnceCell::default());
 
-        let custom_tracers = vec![
-            CallTracer::new(call_tracer_result.clone()).into_tracer_pointer(),
+        tracers.push(CallTracer::new(call_tracer_result.clone()).into_tracer_pointer());
+        tracers.push(
             BootloaderDebugTracer {
                 result: bootloader_debug_result.clone(),
             }
             .into_tracer_pointer(),
-        ];
+        );
 
-        let tx_result = vm.inspect(custom_tracers.into(), VmExecutionMode::OneTx);
+        let tx_result = vm.inspect(tracers.into(), VmExecutionMode::OneTx);
 
         let call_traces = call_tracer_result.get().unwrap();
 
@@ -1502,7 +1508,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         }
 
         let (keys, result, call_traces, block, bytecodes, block_ctx) =
-            self.run_l2_tx_raw(l2_tx.clone(), execution_mode)?;
+            self.run_l2_tx_raw(l2_tx.clone(), execution_mode, vec![])?;
 
         if let ExecutionResult::Halt { reason } = result.result {
             // Halt means that something went really bad with the transaction execution (in most cases invalid signature,
@@ -1823,6 +1829,7 @@ mod tests {
         node.run_l2_tx_raw(
             testing::TransactionBuilder::new().build(),
             TxExecutionMode::VerifyExecute,
+            vec![],
         )
         .expect("transaction must pass with external storage");
     }
