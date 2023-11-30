@@ -63,7 +63,6 @@ contract TestCheatcodes {
 
     testStoreInstance.testStoredValue();
     require(success, "store failed");
-      
   }
 }
 
@@ -71,9 +70,6 @@ contract testStoreTarget {
   bytes32 public testValue = bytes32(uint256(0)); //slot 0
 
   function testStoredValue() public view {
-    require(
-      testValue == bytes32(uint256(0)),
-      "testValue was not stored correctly"
-    );
-  } 
+    require(testValue == bytes32(uint256(115792089237316195423570985008687907853269984665640564039457584007913129639935)), "testValue was not stored correctly");
+  }
 }
