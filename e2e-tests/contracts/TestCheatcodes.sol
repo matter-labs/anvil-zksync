@@ -139,13 +139,14 @@ contract TestCheatcodes {
 
   function testStore(bytes32 slot, bytes32 value) external {
     testStoreTarget testStoreInstance = new testStoreTarget();
+    testStoreInstance.testStoredValue(0);
 
     (bool success, ) = CHEATCODE_ADDRESS.call(
       abi.encodeWithSignature("store(address,bytes32,bytes32)", address(testStoreInstance), slot, value)
     );
+    require(success, "store failed");
 
     testStoreInstance.testStoredValue(value);
-    require(success, "store failed");
   }
 
   function testLoad(bytes32 slot) external {
