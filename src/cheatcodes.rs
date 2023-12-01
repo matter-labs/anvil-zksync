@@ -2,7 +2,7 @@ use crate::{
     node::{BlockContext, InMemoryNodeInner},
     utils::bytecode_to_factory_dep,
 };
-use ethers::{abi::AbiDecode, prelude::abigen, providers::LogQuery};
+use ethers::{abi::AbiDecode, prelude::abigen};
 use itertools::Itertools;
 use multivm::zk_evm_1_3_3::tracing::AfterExecutionData;
 use multivm::zk_evm_1_3_3::vm_state::PrimitiveValue;
@@ -181,12 +181,14 @@ impl<F: NodeCtx + Send, S: WriteStorage, H: HistoryMode> VmTracer<S, H> for Chea
                 timestamp,
             );
         }
+
         if let Some(start_prank_call) = &self.start_prank_opts {
             let this_address = state.local_state.callstack.current.this_address;
             if !INTERNAL_CONTRACT_ADDRESSES.contains(&this_address) {
                 state.local_state.callstack.current.msg_sender = start_prank_call.sender;
             }
         }
+
         TracerExecutionStatus::Continue
     }
 }
