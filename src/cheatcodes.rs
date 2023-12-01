@@ -92,6 +92,7 @@ abigen!(
         function startPrank(address sender, address origin)
         function stopPrank()
         function warp(uint256 timestamp)
+        function store(address account, bytes32 slot, bytes32 value)
     ]"#
 );
 
@@ -359,6 +360,21 @@ impl<F: NodeCtx> CheatcodeTracer<F> {
                     key,
                     u256_to_h256(pack_block_info(block_number, timestamp.as_u64())),
                 );
+            }
+            Store(StoreCall {
+                account,
+                slot,
+                value,
+            }) => {
+                tracing::info!(
+                    "👷 Setting storage slot {:?} for account {:?} to {:?}",
+                    slot,
+                    account,
+                    value
+                );
+                let key = StorageKey::new(AccountTreeId::new(account), H256(slot));
+                let mut storage = storage.borrow_mut();
+                storage.set_value(key, H256(value));
             }
         };
     }

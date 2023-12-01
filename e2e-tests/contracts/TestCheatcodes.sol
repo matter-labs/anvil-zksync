@@ -136,6 +136,25 @@ contract TestCheatcodes {
     uint256 finalTimestamp = block.timestamp;
     require(finalTimestamp == timestamp, "timestamp was not changed");
   }
+
+  function testStore(bytes32 slot, bytes32 value) external {
+    testStoreTarget testStoreInstance = new testStoreTarget();
+
+    (bool success, ) = CHEATCODE_ADDRESS.call(
+      abi.encodeWithSignature("store(address,bytes32,bytes32)", address(testStoreInstance), slot, value)
+    );
+
+    testStoreInstance.testStoredValue(value);
+    require(success, "store failed");
+  }
+}
+
+contract testStoreTarget {
+  bytes32 public testValue = bytes32(uint256(0)); //slot 0
+
+  function testStoredValue(bytes32 value) public view {
+    require(testValue == value, "testValue was not stored correctly");
+  }
 }
 
 contract PrankVictim {
