@@ -21,7 +21,7 @@ use std::{
     fmt::Debug,
     sync::{Arc, Mutex, RwLock},
 };
-use zksync_basic_types::{AccountTreeId, H160, H256, U256};
+use zksync_basic_types::{AccountTreeId, Address, H160, H256, U256};
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
     block::{pack_block_info, unpack_block_info},
@@ -36,12 +36,42 @@ const CHEATCODE_ADDRESS: H160 = H160([
     113, 9, 112, 158, 207, 169, 26, 128, 98, 111, 243, 152, 157, 104, 246, 127, 91, 29, 209, 45,
 ]);
 
+const INTERNAL_CONTRACT_ADDRESSES: [H160; 20] = [
+    zksync_types::BOOTLOADER_ADDRESS,
+    zksync_types::ACCOUNT_CODE_STORAGE_ADDRESS,
+    zksync_types::NONCE_HOLDER_ADDRESS,
+    zksync_types::KNOWN_CODES_STORAGE_ADDRESS,
+    zksync_types::IMMUTABLE_SIMULATOR_STORAGE_ADDRESS,
+    zksync_types::CONTRACT_DEPLOYER_ADDRESS,
+    zksync_types::CONTRACT_FORCE_DEPLOYER_ADDRESS,
+    zksync_types::L1_MESSENGER_ADDRESS,
+    zksync_types::MSG_VALUE_SIMULATOR_ADDRESS,
+    zksync_types::KECCAK256_PRECOMPILE_ADDRESS,
+    zksync_types::L2_ETH_TOKEN_ADDRESS,
+    zksync_types::SYSTEM_CONTEXT_ADDRESS,
+    zksync_types::BOOTLOADER_UTILITIES_ADDRESS,
+    zksync_types::EVENT_WRITER_ADDRESS,
+    zksync_types::COMPRESSOR_ADDRESS,
+    zksync_types::COMPLEX_UPGRADER_ADDRESS,
+    zksync_types::ECRECOVER_PRECOMPILE_ADDRESS,
+    zksync_types::SHA256_PRECOMPILE_ADDRESS,
+    zksync_types::MINT_AND_BURN_ADDRESS,
+    H160::zero(),
+];
+
 #[derive(Clone, Debug, Default)]
 pub struct CheatcodeTracer<F> {
     node_ctx: F,
     returndata: Option<Vec<U256>>,
     return_ptr: Option<FatPointer>,
     near_calls: usize,
+    start_prank_opts: Option<StartPrankOpts>,
+}
+
+#[derive(Clone, Debug)]
+pub struct StartPrankOpts {
+    sender: Address,
+    origin: Option<Address>,
 }
 
 pub trait NodeCtx {
@@ -52,11 +82,15 @@ pub trait NodeCtx {
 abigen!(
     CheatcodeContract,
     r#"[
+        function addr(uint256 privateKey)
         function deal(address who, uint256 newBalance)
         function etch(address who, bytes calldata code)
-        function setNonce(address account, uint64 nonce)
         function getNonce(address account)
         function roll(uint256 blockNumber)
+        function setNonce(address account, uint64 nonce)
+        function startPrank(address sender)
+        function startPrank(address sender, address origin)
+        function stopPrank()
         function warp(uint256 timestamp)
         function store(address account, bytes32 slot, bytes32 value)
     ]"#
@@ -147,7 +181,12 @@ impl<F: NodeCtx + Send, S: WriteStorage, H: HistoryMode> VmTracer<S, H> for Chea
                 timestamp,
             );
         }
-
+        if let Some(start_prank_call) = &self.start_prank_opts {
+            let this_address = state.local_state.callstack.current.this_address;
+            if !INTERNAL_CONTRACT_ADDRESSES.contains(&this_address) {
+                state.local_state.callstack.current.msg_sender = start_prank_call.sender;
+            }
+        }
         TracerExecutionStatus::Continue
     }
 }
@@ -156,6 +195,7 @@ impl<F: NodeCtx> CheatcodeTracer<F> {
     pub fn new(node_ctx: F) -> Self {
         Self {
             node_ctx,
+            start_prank_opts: None,
             returndata: None,
             return_ptr: None,
             near_calls: 0,
@@ -172,6 +212,16 @@ impl<F: NodeCtx> CheatcodeTracer<F> {
     ) {
         use CheatcodeContractCalls::*;
         match call {
+            Addr(AddrCall { private_key }) => {
+                tracing::info!("Getting address for private key");
+                let Ok(address) = zksync_types::PackedEthSignature::address_from_private_key(
+                    &u256_to_h256(private_key),
+                ) else {
+                    tracing::error!("Failed generating address for private key");
+                    return;
+                };
+                self.returndata = Some(vec![h256_to_u256(address.into())]);
+            }
             Deal(DealCall { who, new_balance }) => {
                 tracing::info!("Setting balance for {who:?} to {new_balance}");
                 storage
@@ -195,6 +245,21 @@ impl<F: NodeCtx> CheatcodeTracer<F> {
                 );
                 storage.borrow_mut().set_value(code_key, hash);
             }
+            Roll(RollCall { block_number }) => {
+                tracing::info!("Setting block number to {}", block_number);
+
+                let key = StorageKey::new(
+                    AccountTreeId::new(zksync_types::SYSTEM_CONTEXT_ADDRESS),
+                    zksync_types::CURRENT_VIRTUAL_BLOCK_INFO_POSITION,
+                );
+                let mut storage = storage.borrow_mut();
+                let (_, block_timestamp) =
+                    unpack_block_info(h256_to_u256(storage.read_value(&key)));
+                storage.set_value(
+                    key,
+                    u256_to_h256(pack_block_info(block_number.as_u64(), block_timestamp)),
+                );
+            }
             GetNonce(GetNonceCall { account }) => {
                 tracing::info!("Getting nonce for {account:?}");
                 let mut storage = storage.borrow_mut();
@@ -207,7 +272,7 @@ impl<F: NodeCtx> CheatcodeTracer<F> {
                     account_nonce.as_u64()
                 );
                 tracing::info!("👷 Setting returndata",);
-                self.returndata = Some(vec![account_nonce.into()]);
+                self.returndata = Some(vec![account_nonce]);
             }
             SetNonce(SetNonceCall { account, nonce }) => {
                 tracing::info!("Setting nonce for {account:?} to {nonce}");
@@ -242,20 +307,42 @@ impl<F: NodeCtx> CheatcodeTracer<F> {
                 );
                 storage.set_value(nonce_key, u256_to_h256(enforced_full_nonce));
             }
-            Roll(RollCall { block_number }) => {
-                tracing::info!("Setting block number to {}", block_number);
+            StartPrank(StartPrankCall { sender }) => {
+                tracing::info!("Starting prank to {sender:?}");
+                self.start_prank_opts = Some(StartPrankOpts {
+                    sender,
+                    origin: None,
+                });
+            }
+            StartPrankWithOrigin(StartPrankWithOriginCall { sender, origin }) => {
+                tracing::info!("Starting prank to {sender:?} with origin {origin:?}");
 
                 let key = StorageKey::new(
                     AccountTreeId::new(zksync_types::SYSTEM_CONTEXT_ADDRESS),
-                    zksync_types::CURRENT_VIRTUAL_BLOCK_INFO_POSITION,
+                    zksync_types::SYSTEM_CONTEXT_TX_ORIGIN_POSITION,
                 );
                 let mut storage = storage.borrow_mut();
-                let (_, block_timestamp) =
-                    unpack_block_info(h256_to_u256(storage.read_value(&key)));
-                storage.set_value(
-                    key,
-                    u256_to_h256(pack_block_info(block_number.as_u64(), block_timestamp)),
-                );
+                let original_tx_origin = storage.read_value(&key);
+                storage.set_value(key, origin.into());
+
+                self.start_prank_opts = Some(StartPrankOpts {
+                    sender,
+                    origin: Some(original_tx_origin.into()),
+                });
+            }
+            StopPrank(StopPrankCall) => {
+                tracing::info!("Stopping prank");
+
+                if let Some(origin) = self.start_prank_opts.as_ref().and_then(|v| v.origin) {
+                    let key = StorageKey::new(
+                        AccountTreeId::new(zksync_types::SYSTEM_CONTEXT_ADDRESS),
+                        zksync_types::SYSTEM_CONTEXT_TX_ORIGIN_POSITION,
+                    );
+                    let mut storage = storage.borrow_mut();
+                    storage.set_value(key, origin.into());
+                }
+
+                self.start_prank_opts = None;
             }
             Warp(WarpCall { timestamp }) => {
                 tracing::info!("Setting block timestamp {}", timestamp);
