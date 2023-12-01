@@ -171,7 +171,7 @@ describe("Cheatcodes", function () {
     // Act
     const cheatcodes = await deployContract(deployer, "TestCheatcodes", []);
     const slot = hre.ethers.constants.HashZero;
-    const value = hre.ethers.constants.MaxUint256;
+    const value = hre.ethers.BigNumber.from(hre.ethers.utils.randomBytes(32));
     const tx = await cheatcodes.testStore(slot, value, {
       gasLimit: 10000000,
     });

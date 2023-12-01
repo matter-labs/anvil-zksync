@@ -27,7 +27,7 @@ use zksync_types::{
     block::{pack_block_info, unpack_block_info},
     get_code_key, get_nonce_key,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
-    StorageKey, Timestamp,
+    LogQuery, StorageKey, Timestamp,
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
@@ -65,7 +65,15 @@ pub struct CheatcodeTracer<F> {
     returndata: Option<Vec<U256>>,
     return_ptr: Option<FatPointer>,
     near_calls: usize,
+    storage_write_queue: Vec<StorageWrite>,
     start_prank_opts: Option<StartPrankOpts>,
+}
+
+#[derive(Clone, Debug)]
+pub struct StorageWrite {
+    key: StorageKey,
+    read_value: H256,
+    write_value: H256,
 }
 
 #[derive(Clone, Debug)]
@@ -165,6 +173,7 @@ impl<F: NodeCtx + Send, S: WriteStorage, H: HistoryMode> VmTracer<S, H> for Chea
         state: &mut multivm::vm_refunds_enhancement::ZkSyncVmState<S, H>,
         _bootloader_state: &mut multivm::vm_refunds_enhancement::BootloaderState,
     ) -> TracerExecutionStatus {
+        // Set return data, if any
         if let Some(mut fat_pointer) = self.return_ptr.take() {
             let timestamp = Timestamp(state.local_state.timestamp);
 
@@ -182,11 +191,29 @@ impl<F: NodeCtx + Send, S: WriteStorage, H: HistoryMode> VmTracer<S, H> for Chea
             );
         }
 
+        // Sets the sender address for startPrank cheatcode
         if let Some(start_prank_call) = &self.start_prank_opts {
             let this_address = state.local_state.callstack.current.this_address;
             if !INTERNAL_CONTRACT_ADDRESSES.contains(&this_address) {
                 state.local_state.callstack.current.msg_sender = start_prank_call.sender;
             }
+        }
+
+        // Writes into storage thorugh storage oracle
+        for write in self.storage_write_queue.drain(..) {
+            state.storage.write_value(LogQuery {
+                timestamp: Timestamp(state.local_state.timestamp),
+                tx_number_in_block: state.local_state.tx_number_in_block,
+                aux_byte: Default::default(),
+                shard_id: Default::default(),
+                address: *write.key.address(),
+                key: h256_to_u256(*write.key.key()),
+                read_value: h256_to_u256(write.read_value),
+                written_value: h256_to_u256(write.write_value),
+                rw_flag: true,
+                rollback: false,
+                is_service: false,
+            });
         }
 
         TracerExecutionStatus::Continue
@@ -201,6 +228,7 @@ impl<F: NodeCtx> CheatcodeTracer<F> {
             returndata: None,
             return_ptr: None,
             near_calls: 0,
+            storage_write_queue: Vec::new(),
         }
     }
 
@@ -226,9 +254,11 @@ impl<F: NodeCtx> CheatcodeTracer<F> {
             }
             Deal(DealCall { who, new_balance }) => {
                 tracing::info!("Setting balance for {who:?} to {new_balance}");
-                storage
-                    .borrow_mut()
-                    .set_value(storage_key_for_eth_balance(&who), u256_to_h256(new_balance));
+                self.write_storage(
+                    storage_key_for_eth_balance(&who),
+                    u256_to_h256(new_balance),
+                    storage,
+                );
             }
             Etch(EtchCall { who, code }) => {
                 tracing::info!("Setting address code for {who:?}");
@@ -245,7 +275,7 @@ impl<F: NodeCtx> CheatcodeTracer<F> {
                         })
                         .collect(),
                 );
-                storage.borrow_mut().set_value(code_key, hash);
+                self.write_storage(code_key, hash, storage);
             }
             Roll(RollCall { block_number }) => {
                 tracing::info!("Setting block number to {}", block_number);
@@ -254,13 +284,10 @@ impl<F: NodeCtx> CheatcodeTracer<F> {
                     AccountTreeId::new(zksync_types::SYSTEM_CONTEXT_ADDRESS),
                     zksync_types::CURRENT_VIRTUAL_BLOCK_INFO_POSITION,
                 );
-                let mut storage = storage.borrow_mut();
                 let (_, block_timestamp) =
-                    unpack_block_info(h256_to_u256(storage.read_value(&key)));
-                storage.set_value(
-                    key,
-                    u256_to_h256(pack_block_info(block_number.as_u64(), block_timestamp)),
-                );
+                    unpack_block_info(h256_to_u256(storage.borrow_mut().read_value(&key)));
+                let value = u256_to_h256(pack_block_info(block_number.as_u64(), block_timestamp));
+                self.write_storage(key, value, storage);
             }
             GetNonce(GetNonceCall { account }) => {
                 tracing::info!("Getting nonce for {account:?}");
@@ -278,9 +305,8 @@ impl<F: NodeCtx> CheatcodeTracer<F> {
             }
             SetNonce(SetNonceCall { account, nonce }) => {
                 tracing::info!("Setting nonce for {account:?} to {nonce}");
-                let mut storage = storage.borrow_mut();
                 let nonce_key = get_nonce_key(&account);
-                let full_nonce = storage.read_value(&nonce_key);
+                let full_nonce = storage.borrow_mut().read_value(&nonce_key);
                 let (mut account_nonce, mut deployment_nonce) =
                     decompose_full_nonce(h256_to_u256(full_nonce));
                 if account_nonce.as_u64() >= nonce {
@@ -307,7 +333,7 @@ impl<F: NodeCtx> CheatcodeTracer<F> {
                     account,
                     nonce
                 );
-                storage.set_value(nonce_key, u256_to_h256(enforced_full_nonce));
+                self.write_storage(nonce_key, u256_to_h256(enforced_full_nonce), storage);
             }
             StartPrank(StartPrankCall { sender }) => {
                 tracing::info!("Starting prank to {sender:?}");
@@ -323,9 +349,8 @@ impl<F: NodeCtx> CheatcodeTracer<F> {
                     AccountTreeId::new(zksync_types::SYSTEM_CONTEXT_ADDRESS),
                     zksync_types::SYSTEM_CONTEXT_TX_ORIGIN_POSITION,
                 );
-                let mut storage = storage.borrow_mut();
-                let original_tx_origin = storage.read_value(&key);
-                storage.set_value(key, origin.into());
+                let original_tx_origin = storage.borrow_mut().read_value(&key);
+                self.write_storage(key, origin.into(), storage);
 
                 self.start_prank_opts = Some(StartPrankOpts {
                     sender,
@@ -340,8 +365,7 @@ impl<F: NodeCtx> CheatcodeTracer<F> {
                         AccountTreeId::new(zksync_types::SYSTEM_CONTEXT_ADDRESS),
                         zksync_types::SYSTEM_CONTEXT_TX_ORIGIN_POSITION,
                     );
-                    let mut storage = storage.borrow_mut();
-                    storage.set_value(key, origin.into());
+                    self.write_storage(key, origin.into(), storage);
                 }
 
                 self.start_prank_opts = None;
@@ -354,12 +378,10 @@ impl<F: NodeCtx> CheatcodeTracer<F> {
                     AccountTreeId::new(zksync_types::SYSTEM_CONTEXT_ADDRESS),
                     zksync_types::CURRENT_VIRTUAL_BLOCK_INFO_POSITION,
                 );
-                let mut storage = storage.borrow_mut();
-                let (block_number, _) = unpack_block_info(h256_to_u256(storage.read_value(&key)));
-                storage.set_value(
-                    key,
-                    u256_to_h256(pack_block_info(block_number, timestamp.as_u64())),
-                );
+                let (block_number, _) =
+                    unpack_block_info(h256_to_u256(storage.borrow_mut().read_value(&key)));
+                let value = u256_to_h256(pack_block_info(block_number, timestamp.as_u64()));
+                self.write_storage(key, value, storage);
             }
             Store(StoreCall {
                 account,
@@ -373,10 +395,22 @@ impl<F: NodeCtx> CheatcodeTracer<F> {
                     value
                 );
                 let key = StorageKey::new(AccountTreeId::new(account), H256(slot));
-                let mut storage = storage.borrow_mut();
-                storage.set_value(key, H256(value));
+                self.write_storage(key, H256(value), storage);
             }
         };
+    }
+
+    fn write_storage<S: WriteStorage>(
+        &mut self,
+        key: StorageKey,
+        value: H256,
+        storage: StoragePtr<S>,
+    ) {
+        self.storage_write_queue.push(StorageWrite {
+            key,
+            read_value: storage.borrow_mut().read_value(&key),
+            write_value: value,
+        });
     }
 }
 
