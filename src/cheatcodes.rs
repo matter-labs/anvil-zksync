@@ -86,6 +86,7 @@ abigen!(
         function deal(address who, uint256 newBalance)
         function etch(address who, bytes calldata code)
         function getNonce(address account)
+        function load(address account, bytes32 slot)
         function roll(uint256 blockNumber)
         function setNonce(address account, uint64 nonce)
         function startPrank(address sender)
@@ -276,6 +277,13 @@ impl<F: NodeCtx> CheatcodeTracer<F> {
                 tracing::info!("👷 Setting returndata",);
                 self.returndata = Some(vec![account_nonce]);
             }
+            Load(LoadCall { account, slot }) => {
+                tracing::info!("Getting storage slot {:?} for account {:?}", slot, account);
+                let key = StorageKey::new(AccountTreeId::new(account), H256(slot));
+                let mut storage = storage.borrow_mut();
+                let value = storage.read_value(&key);
+                self.returndata = Some(vec![h256_to_u256(value)]);
+            }
             SetNonce(SetNonceCall { account, nonce }) => {
                 tracing::info!("Setting nonce for {account:?} to {nonce}");
                 let mut storage = storage.borrow_mut();
@@ -346,21 +354,6 @@ impl<F: NodeCtx> CheatcodeTracer<F> {
 
                 self.start_prank_opts = None;
             }
-            Warp(WarpCall { timestamp }) => {
-                tracing::info!("Setting block timestamp {}", timestamp);
-                self.node_ctx.set_time(timestamp.as_u64());
-
-                let key = StorageKey::new(
-                    AccountTreeId::new(zksync_types::SYSTEM_CONTEXT_ADDRESS),
-                    zksync_types::CURRENT_VIRTUAL_BLOCK_INFO_POSITION,
-                );
-                let mut storage = storage.borrow_mut();
-                let (block_number, _) = unpack_block_info(h256_to_u256(storage.read_value(&key)));
-                storage.set_value(
-                    key,
-                    u256_to_h256(pack_block_info(block_number, timestamp.as_u64())),
-                );
-            }
             Store(StoreCall {
                 account,
                 slot,
@@ -375,6 +368,21 @@ impl<F: NodeCtx> CheatcodeTracer<F> {
                 let key = StorageKey::new(AccountTreeId::new(account), H256(slot));
                 let mut storage = storage.borrow_mut();
                 storage.set_value(key, H256(value));
+            }
+            Warp(WarpCall { timestamp }) => {
+                tracing::info!("Setting block timestamp {}", timestamp);
+                self.node_ctx.set_time(timestamp.as_u64());
+
+                let key = StorageKey::new(
+                    AccountTreeId::new(zksync_types::SYSTEM_CONTEXT_ADDRESS),
+                    zksync_types::CURRENT_VIRTUAL_BLOCK_INFO_POSITION,
+                );
+                let mut storage = storage.borrow_mut();
+                let (block_number, _) = unpack_block_info(h256_to_u256(storage.read_value(&key)));
+                storage.set_value(
+                    key,
+                    u256_to_h256(pack_block_info(block_number, timestamp.as_u64())),
+                );
             }
         };
     }

@@ -64,6 +64,23 @@ describe("Cheatcodes", function () {
     expect(finalRandomWalletCode).to.not.eq(initialRandomWalletCode);
   });
 
+  it("Should test vm.load", async function () {
+    // Arrange
+    const wallet = new Wallet(RichAccounts[0].PrivateKey);
+    const deployer = new Deployer(hre, wallet);
+
+    // Act
+    const cheatcodes = await deployContract(deployer, "TestCheatcodes", []);
+    const slot = hre.ethers.constants.HashZero;
+    const tx = await cheatcodes.testLoad(slot, {
+      gasLimit: 10000000,
+    });
+    const receipt = await tx.wait();
+
+    // Assert
+    expect(receipt.status).to.eq(1);
+  });
+
   it("Should test vm.roll", async function () {
     // Arrange
     const wallet = new Wallet(RichAccounts[0].PrivateKey);
@@ -140,6 +157,24 @@ describe("Cheatcodes", function () {
     expect(receipt2.status).to.eq(1);
   });
 
+  it("Should test vm.store", async function () {
+    // Arrange
+    const wallet = new Wallet(RichAccounts[0].PrivateKey);
+    const deployer = new Deployer(hre, wallet);
+
+    // Act
+    const cheatcodes = await deployContract(deployer, "TestCheatcodes", []);
+    const slot = hre.ethers.constants.HashZero;
+    const value = hre.ethers.constants.MaxUint256;
+    const tx = await cheatcodes.testStore(slot, value, {
+      gasLimit: 10000000,
+    });
+    const receipt = await tx.wait();
+
+    // Assert
+    expect(receipt.status).to.eq(1);
+  });
+
   it("Should test vm.warp", async function () {
     // Arrange
     const wallet = new Wallet(RichAccounts[0].PrivateKey);
@@ -161,23 +196,5 @@ describe("Cheatcodes", function () {
     expect(receipt.status).to.eq(1);
     const newBlockTimestamp = (await provider.getBlock("latest")).timestamp;
     expect(newBlockTimestamp).to.equal(expectedTimestamp);
-  });
-
-  it("Should test vm.store", async function () {
-    // Arrange
-    const wallet = new Wallet(RichAccounts[0].PrivateKey);
-    const deployer = new Deployer(hre, wallet);
-
-    // Act
-    const cheatcodes = await deployContract(deployer, "TestCheatcodes", []);
-    const slot = hre.ethers.constants.HashZero;
-    const value = hre.ethers.constants.MaxUint256;
-    const tx = await cheatcodes.testStore(slot, value, {
-      gasLimit: 10000000,
-    });
-    const receipt = await tx.wait();
-
-    // Assert
-    expect(receipt.status).to.eq(1);
   });
 });
