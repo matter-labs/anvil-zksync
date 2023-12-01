@@ -2,7 +2,7 @@ use crate::{
     node::{BlockContext, InMemoryNodeInner},
     utils::bytecode_to_factory_dep,
 };
-use ethers::{abi::AbiDecode, prelude::abigen};
+use ethers::{abi::AbiDecode, prelude::abigen, providers::LogQuery};
 use itertools::Itertools;
 use multivm::zk_evm_1_3_3::tracing::AfterExecutionData;
 use multivm::zk_evm_1_3_3::vm_state::PrimitiveValue;
@@ -147,6 +147,7 @@ impl<F: NodeCtx + Send, S: WriteStorage, H: HistoryMode> VmTracer<S, H> for Chea
                 timestamp,
             );
         }
+
         TracerExecutionStatus::Continue
     }
 }
@@ -277,7 +278,7 @@ impl<F: NodeCtx> CheatcodeTracer<F> {
                 value,
             }) => {
                 tracing::info!(
-                    "Setting storage slot {:?} for account {:?} to {:?}",
+                    "👷 Setting storage slot {:?} for account {:?} to {:?}",
                     slot,
                     account,
                     value

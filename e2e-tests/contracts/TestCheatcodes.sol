@@ -61,7 +61,7 @@ contract TestCheatcodes {
       abi.encodeWithSignature("store(address,bytes32,bytes32)", address(testStoreInstance), slot, value)
     );
 
-    testStoreInstance.testStoredValue();
+    testStoreInstance.testStoredValue(value);
     require(success, "store failed");
   }
 }
@@ -69,7 +69,7 @@ contract TestCheatcodes {
 contract testStoreTarget {
   bytes32 public testValue = bytes32(uint256(0)); //slot 0
 
-  function testStoredValue() public view {
-    require(testValue == bytes32(uint256(115792089237316195423570985008687907853269984665640564039457584007913129639935)), "testValue was not stored correctly");
+  function testStoredValue(bytes32 value) public view {
+    require(testValue == value, "testValue was not stored correctly");
   }
 }
