@@ -148,6 +148,18 @@ contract TestCheatcodes {
 
     testStoreInstance.testStoredValue(value);
   }
+
+  function testLoad(bytes32 slot) external {
+    TestLoadTarget testLoadTarget = new TestLoadTarget();
+    (bool success, bytes memory data) = CHEATCODE_ADDRESS.call(abi.encodeWithSignature("load(address,bytes32)", address(testLoadTarget), slot));
+    require(success, "load failed");
+    bytes32 loadedValue = abi.decode(data, (bytes32));
+    require(loadedValue == bytes32(uint256(1337)), "address mismatch");
+  }
+}
+
+contract TestLoadTarget {
+  bytes32 public testValue = bytes32(uint256(1337)); //slot 0
 }
 
 contract testStoreTarget {
