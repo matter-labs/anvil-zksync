@@ -5,7 +5,6 @@
 // ONLY FOR Hardhat / Forge testing.
 pragma solidity ^0.8.0;
 
-import "hardhat/console.sol";
 import "./interfaces/IAccount.sol";
 import "./libraries/TransactionHelper.sol";
 import "./libraries/SystemContractHelper.sol";
@@ -119,10 +118,7 @@ contract DefaultAccountTxResult is IAccount {
         bytes32, // _suggestedSignedHash
         Transaction calldata _transaction
     ) external payable override ignoreNonBootloader ignoreInDelegateCall returns (bytes memory returnData) {
-        console.logString("data IN");
         returnData = _execute(_transaction);
-        console.logString("data");
-        console.logBytes(returnData);
     }
 
     /// @notice Method that should be used to initiate a transaction from this account by an external call.
@@ -154,10 +150,7 @@ contract DefaultAccountTxResult is IAccount {
                 selector == DEPLOYER_SYSTEM_CONTRACT.createAccount.selector ||
                 selector == DEPLOYER_SYSTEM_CONTRACT.create2Account.selector;
         }
-        console.log("do");
         returnData = EfficientCall.call(gas, to, value, data, isSystemCall);
-        console.logBytes(returnData);
-        console.log("done");
     }
 
     /// @notice TEST ONLY CODE - No validation is happening !
