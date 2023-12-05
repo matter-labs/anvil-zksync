@@ -117,8 +117,9 @@ contract DefaultAccountNoSecurity is IAccount {
         bytes32, // _txHash
         bytes32, // _suggestedSignedHash
         Transaction calldata _transaction
-    ) external payable override ignoreNonBootloader ignoreInDelegateCall {
+    ) external payable override ignoreNonBootloader ignoreInDelegateCall returns (bytes memory returnData) {
         _execute(_transaction);
+        returnData = bytes("");
     }
 
     /// @notice Method that should be used to initiate a transaction from this account by an external call.

@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: MIT
 
+// TEST ONLY CODE
+// DO NOT USE IN PRODUCTION
+// ONLY FOR Hardhat / Forge testing.
 pragma solidity ^0.8.0;
 
+import "hardhat/console.sol";
 import "./interfaces/IAccount.sol";
 import "./libraries/TransactionHelper.sol";
 import "./libraries/SystemContractHelper.sol";
@@ -10,12 +14,12 @@ import {BOOTLOADER_FORMAL_ADDRESS, NONCE_HOLDER_SYSTEM_CONTRACT, DEPLOYER_SYSTEM
 
 /**
  * @author Matter Labs
- * @notice The default implementation of account.
+ * @notice Account implementation for TESTS ONLY
  * @dev The bytecode of the contract is set by default for all addresses for which no other bytecodes are deployed.
  * @notice If the caller is not a bootloader always returns empty data on call, just like EOA does.
  * @notice If it is delegate called always returns empty data, just like EOA does.
  */
-contract DefaultAccount is IAccount {
+contract DefaultAccountTxResult is IAccount {
     using TransactionHelper for *;
 
     /**
@@ -115,8 +119,10 @@ contract DefaultAccount is IAccount {
         bytes32, // _suggestedSignedHash
         Transaction calldata _transaction
     ) external payable override ignoreNonBootloader ignoreInDelegateCall returns (bytes memory returnData) {
-        _execute(_transaction);
-        returnData = bytes("");
+        console.logString("data IN");
+        returnData = _execute(_transaction);
+        console.logString("data");
+        console.logBytes(returnData);
     }
 
     /// @notice Method that should be used to initiate a transaction from this account by an external call.
@@ -130,7 +136,7 @@ contract DefaultAccount is IAccount {
 
     /// @notice Inner method for executing a transaction.
     /// @param _transaction The transaction to execute.
-    function _execute(Transaction calldata _transaction) internal {
+    function _execute(Transaction calldata _transaction) internal returns (bytes memory returnData)  {
         address to = address(uint160(_transaction.to));
         uint128 value = Utils.safeCastToU128(_transaction.value);
         bytes calldata data = _transaction.data;
@@ -148,46 +154,22 @@ contract DefaultAccount is IAccount {
                 selector == DEPLOYER_SYSTEM_CONTRACT.createAccount.selector ||
                 selector == DEPLOYER_SYSTEM_CONTRACT.create2Account.selector;
         }
-        bool success = EfficientCall.rawCall(gas, to, value, data, isSystemCall);
-        if (!success) {
-            EfficientCall.propagateRevert();
-        }
+        console.log("do");
+        returnData = EfficientCall.call(gas, to, value, data, isSystemCall);
+        console.logBytes(returnData);
+        console.log("done");
     }
 
-    /// @notice Validation that the ECDSA signature of the transaction is correct.
+    /// @notice TEST ONLY CODE - No validation is happening !
     /// @param _hash The hash of the transaction to be signed.
     /// @param _signature The signature of the transaction.
-    /// @return EIP1271_SUCCESS_RETURN_VALUE if the signaure is correct. It reverts otherwise.
+    /// @return EIP1271_SUCCESS_RETURN_VALUE Always - as this is TEST only code..
     function _isValidSignature(bytes32 _hash, bytes memory _signature) internal view returns (bool) {
-        require(_signature.length == 65, "Signature length is incorrect");
-        uint8 v;
-        bytes32 r;
-        bytes32 s;
-        // Signature loading code
-        // we jump 32 (0x20) as the first slot of bytes contains the length
-        // we jump 65 (0x41) per signature
-        // for v we load 32 bytes ending with v (the first 31 come from s) then apply a mask
-        assembly {
-            r := mload(add(_signature, 0x20))
-            s := mload(add(_signature, 0x40))
-            v := and(mload(add(_signature, 0x41)), 0xff)
-        }
-        require(v == 27 || v == 28, "v is neither 27 nor 28");
 
-        // EIP-2 still allows signature malleability for ecrecover(). Remove this possibility and make the signature
-        // unique. Appendix F in the Ethereum Yellow paper (https://ethereum.github.io/yellowpaper/paper.pdf), defines
-        // the valid range for s in (301): 0 < s < secp256k1n ÷ 2 + 1, and for v in (302): v ∈ {27, 28}. Most
-        // signatures from current libraries generate a unique signature with an s-value in the lower half order.
-        //
-        // If your library generates malleable signatures, such as s-values in the upper range, calculate a new s-value
-        // with 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141 - s1 and flip v from 27 to 28 or
-        // vice versa. If your library also generates signatures with 0/1 for v instead 27/28, add 27 to v to accept
-        // these malleable signatures as well.
-        require(uint256(s) <= 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0, "Invalid s");
-
-        address recoveredAddress = ecrecover(_hash, v, r, s);
-
-        return recoveredAddress == address(this) && recoveredAddress != address(0);
+        // WARNING - THIS IS TEST ONLY CODE
+        // IT ACCEPTS ANY SIGNATURE AS A 'VALID' one.
+        // SHOULD BE USED ONLY FOR TESTING.
+        return true;
     }
 
     /// @notice Method for paying the bootloader for the transaction.

@@ -148,6 +148,7 @@ enum CacheType {
 enum DevSystemContracts {
     BuiltIn,
     BuiltInNoVerify,
+    BuiltInTxResult,
     Local,
 }
 
@@ -292,6 +293,7 @@ async fn main() -> anyhow::Result<()> {
     let system_contracts_options = match opt.dev_system_contracts {
         DevSystemContracts::BuiltIn => system_contracts::Options::BuiltIn,
         DevSystemContracts::BuiltInNoVerify => system_contracts::Options::BuiltInWithoutSecurity,
+        DevSystemContracts::BuiltInTxResult => system_contracts::Options::BuiltInTxResult,
         DevSystemContracts::Local => system_contracts::Options::Local,
     };
 

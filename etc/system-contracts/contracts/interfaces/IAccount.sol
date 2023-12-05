@@ -27,7 +27,7 @@ interface IAccount {
         bytes32 _txHash,
         bytes32 _suggestedSignedHash,
         Transaction calldata _transaction
-    ) external payable;
+    ) external payable returns (bytes memory returnData);
 
     // There is no point in providing possible signed hash in the `executeTransactionFromOutside` method,
     // since it typically should not be trusted.
