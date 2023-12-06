@@ -17,6 +17,7 @@ import {BOOTLOADER_FORMAL_ADDRESS, NONCE_HOLDER_SYSTEM_CONTRACT, DEPLOYER_SYSTEM
  * @dev The bytecode of the contract is set by default for all addresses for which no other bytecodes are deployed.
  * @notice If the caller is not a bootloader always returns empty data on call, just like EOA does.
  * @notice If it is delegate called always returns empty data, just like EOA does.
+ * @notice This account implementation returns the transaction result.
  */
 contract DefaultAccountTxResult is IAccount {
     using TransactionHelper for *;
@@ -132,6 +133,7 @@ contract DefaultAccountTxResult is IAccount {
 
     /// @notice Inner method for executing a transaction.
     /// @param _transaction The transaction to execute.
+    /// @return returnData The result bytes, if execution succeeds.
     function _execute(Transaction calldata _transaction) internal returns (bytes memory returnData)  {
         address to = address(uint160(_transaction.to));
         uint128 value = Utils.safeCastToU128(_transaction.value);

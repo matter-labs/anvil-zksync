@@ -6,6 +6,7 @@ import "../libraries/TransactionHelper.sol";
 
 bytes4 constant ACCOUNT_VALIDATION_SUCCESS_MAGIC = IAccount.validateTransaction.selector;
 
+/// @notice This interface has been update from upstream: `executeTransaction` now returns the result bytes
 interface IAccount {
     /// @notice Called by the bootloader to validate that an account agrees to process the transaction
     /// (and potentially pay for it).
