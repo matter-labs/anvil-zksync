@@ -6,7 +6,7 @@ DST_DIR=src/deps/contracts/
 
 mkdir -p $DST_DIR
 
-contracts=("AccountCodeStorage" "BootloaderUtilities" "BytecodeCompressor" "ComplexUpgrader" "ContractDeployer" "DefaultAccount" "DefaultAccountNoSecurity" "DefaultAccountTxResult" "EmptyContract" "ImmutableSimulator" "KnownCodesStorage" "L1Messenger" "L2EthToken" "MsgValueSimulator" "NonceHolder" "SystemContext" )
+contracts=("AccountCodeStorage" "BootloaderUtilities" "BytecodeCompressor" "ComplexUpgrader" "ContractDeployer" "DefaultAccount" "DefaultAccountNoSecurity" "EmptyContract" "ImmutableSimulator" "KnownCodesStorage" "L1Messenger" "L2EthToken" "MsgValueSimulator" "NonceHolder" "SystemContext" )
 
 for contract in "${contracts[@]}"; do
     cp $SRC_DIR/$contract.sol/$contract.json $DST_DIR

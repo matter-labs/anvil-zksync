@@ -26,14 +26,20 @@ interface IAccount {
         Transaction calldata _transaction
     ) external payable returns (bytes4 magic);
 
-    ///
-    /// DEBUG SUPPORT START
-    ///
     function executeTransaction(
         bytes32 _txHash,
         bytes32 _suggestedSignedHash,
         Transaction calldata _transaction
-    ) external payable returns (bytes memory returnData);
+    )
+        external
+        payable
+        returns (
+            ///
+            /// DEBUG SUPPORT START
+            ///
+            bytes memory returnData
+        );
+
     ///
     /// DEBUG SUPPORT END
     ///
