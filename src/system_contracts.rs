@@ -16,10 +16,8 @@ pub enum Options {
     BuiltIn,
     // Load the contracts bytecode at runtime from ZKSYNC_HOME
     Local,
-    // Don't verify the signatures (used only for testing - for example Forge).
+    // Don't verify the signatures and retun transaction result on calls (used only for testing - for example Forge).
     BuiltInWithoutSecurity,
-    // Retun transaction result on calls (used only for testing - for example Forge).
-    BuiltInTxResult,
 }
 
 /// Holds the system contracts (and bootloader) that are used by the in-memory node.
@@ -32,9 +30,7 @@ pub struct SystemContracts {
 
 pub fn get_deployed_contracts(options: &Options) -> Vec<zksync_types::block::DeployedContract> {
     match options {
-        Options::BuiltIn | Options::BuiltInWithoutSecurity | Options::BuiltInTxResult => {
-            COMPILED_IN_SYSTEM_CONTRACTS.clone()
-        }
+        Options::BuiltIn | Options::BuiltInWithoutSecurity => COMPILED_IN_SYSTEM_CONTRACTS.clone(),
         Options::Local => get_system_smart_contracts(),
     }
 }
@@ -99,10 +95,6 @@ fn bsc_load_with_bootloader(
             "DefaultAccountNoSecurity",
             include_bytes!("deps/contracts/DefaultAccountNoSecurity.json"),
         ),
-        Options::BuiltInTxResult => bytecode_from_slice(
-            "DefaultAccountTxResult",
-            include_bytes!("deps/contracts/DefaultAccountTxResult.json"),
-        ),
     };
 
     let hash = hash_bytecode(&bytecode);
@@ -121,7 +113,7 @@ fn bsc_load_with_bootloader(
 /// BaseSystemContracts with playground bootloader -  used for handling 'eth_calls'.
 pub fn playground(options: &Options) -> BaseSystemContracts {
     let bootloader_bytecode = match options {
-        Options::BuiltIn | Options::BuiltInWithoutSecurity | Options::BuiltInTxResult => {
+        Options::BuiltIn | Options::BuiltInWithoutSecurity => {
             include_bytes!("deps/contracts/playground_batch.yul.zbin").to_vec()
         }
         Options::Local => read_playground_batch_bootloader_bytecode(),
@@ -143,7 +135,7 @@ pub fn playground(options: &Options) -> BaseSystemContracts {
 pub fn fee_estimate_contracts(options: &Options) -> BaseSystemContracts {
     let bootloader_bytecode = match options {
         Options::BuiltIn |
-        Options::BuiltInWithoutSecurity | Options::BuiltInTxResult => {
+        Options::BuiltInWithoutSecurity => {
             include_bytes!("deps/contracts/fee_estimate.yul.zbin").to_vec()
         }
         Options::Local =>
@@ -155,7 +147,7 @@ pub fn fee_estimate_contracts(options: &Options) -> BaseSystemContracts {
 
 pub fn baseline_contracts(options: &Options) -> BaseSystemContracts {
     let bootloader_bytecode = match options {
-        Options::BuiltIn | Options::BuiltInWithoutSecurity | Options::BuiltInTxResult => {
+        Options::BuiltIn | Options::BuiltInWithoutSecurity => {
             include_bytes!("deps/contracts/proved_batch.yul.zbin").to_vec()
         }
         Options::Local => read_proved_batch_bootloader_bytecode(),

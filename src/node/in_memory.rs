@@ -1839,12 +1839,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_transact_returns_data_in_built_in_tx_result_mode() {
+    async fn test_transact_returns_data_in_built_in_without_security_mode() {
         let node = InMemoryNode::<HttpForkSource>::new(
             None,
             None,
             InMemoryNodeConfig {
-                system_contracts_options: Options::BuiltInTxResult,
+                system_contracts_options: Options::BuiltInWithoutSecurity,
                 ..Default::default()
             },
         );
