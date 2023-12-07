@@ -43,6 +43,7 @@
                 }
             },
             "env": {
+                "CARGO_PROFILE_DEV": "true",
                 "RUST_LOG": "vm=trace",
                 "ZKSYNC_HOME": "${workspaceFolder}"
             },
