@@ -68,6 +68,12 @@ impl ReadStorage for &InMemoryStorage {
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
         self.factory_deps.get(&hash).cloned()
     }
+
+    fn get_enumeration_index(&mut self, _key: &StorageKey) -> Option<u64> {
+        // TODO: Update this file to use proper enumeration index value once it's exposed for forks via API
+        //       This should happen as the migration of Boojum completes
+        Some(0_u64)
+    }
 }
 
 impl ReadStorage for InMemoryStorage {
@@ -81,6 +87,10 @@ impl ReadStorage for InMemoryStorage {
 
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
         (&*self).load_factory_dep(hash)
+    }
+
+    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
+        (&*self).get_enumeration_index(key)
     }
 }
 
@@ -103,6 +113,9 @@ pub trait ReadStorage: fmt::Debug {
         let code_key = get_known_code_key(bytecode_hash);
         self.read_value(&code_key) != H256::zero()
     }
+
+    /// Retrieves the enumeration index for a given `key`.
+    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64>;
 }
 
 /// Functionality to write to the VM storage in a batch.

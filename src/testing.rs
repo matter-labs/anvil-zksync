@@ -5,9 +5,11 @@
 
 #![cfg(test)]
 
+use crate::deps::InMemoryStorage;
 use crate::node::{InMemoryNode, TxExecutionInfo};
 use crate::{fork::ForkSource, node::compute_hash};
 
+use ethabi::{ParamType, Token};
 use ethers::contract;
 use httptest::{
     matchers::{eq, json_decoded, request},
@@ -17,12 +19,12 @@ use httptest::{
 use itertools::Itertools;
 use multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
 use std::str::FromStr;
-use zksync_basic_types::{H160, U64};
-use zksync_types::api::{BridgeAddresses, DebugCall, DebugCallType, Log};
-use zksync_types::{
-    fee::Fee, l2::L2Tx, Address, L2ChainId, Nonce, PackedEthSignature, ProtocolVersionId, H256,
-    U256,
-};
+use zksync_basic_types::{AccountTreeId, MiniblockNumber, H160, U64};
+use zksync_types::api::{BlockIdVariant, BridgeAddresses, DebugCall, DebugCallType, Log};
+use zksync_types::block::pack_block_info;
+use zksync_types::StorageKey;
+use zksync_types::{fee::Fee, l2::L2Tx, Address, L2ChainId, Nonce, ProtocolVersionId, H256, U256};
+use zksync_utils::u256_to_h256;
 
 /// Configuration for the [MockServer]'s initial block.
 #[derive(Default, Debug, Clone)]
@@ -357,8 +359,77 @@ impl RawTransactionsResponseBuilder {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct TransactionBuilder {
+    tx_hash: H256,
+    from_account_private_key: H256,
+    gas_limit: U256,
+    max_fee_per_gas: U256,
+    max_priority_fee_per_gas: U256,
+}
+
+impl Default for TransactionBuilder {
+    fn default() -> Self {
+        Self {
+            tx_hash: H256::repeat_byte(0x01),
+            from_account_private_key: H256::random(),
+            gas_limit: U256::from(1_000_000),
+            max_fee_per_gas: U256::from(250_000_000),
+            max_priority_fee_per_gas: U256::from(250_000_000),
+        }
+    }
+}
+
+impl TransactionBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn set_hash(&mut self, hash: H256) -> &mut Self {
+        self.tx_hash = hash;
+        self
+    }
+
+    pub fn set_gas_limit(&mut self, gas_limit: U256) -> &mut Self {
+        self.gas_limit = gas_limit;
+        self
+    }
+
+    pub fn set_max_fee_per_gas(&mut self, max_fee_per_gas: U256) -> &mut Self {
+        self.max_fee_per_gas = max_fee_per_gas;
+        self
+    }
+
+    pub fn set_max_priority_fee_per_gas(&mut self, max_priority_fee_per_gas: U256) -> &mut Self {
+        self.max_priority_fee_per_gas = max_priority_fee_per_gas;
+        self
+    }
+
+    pub fn build(&mut self) -> L2Tx {
+        let mut tx = L2Tx::new_signed(
+            Address::random(),
+            vec![],
+            Nonce(0),
+            Fee {
+                gas_limit: self.gas_limit,
+                max_fee_per_gas: self.max_fee_per_gas,
+                max_priority_fee_per_gas: self.max_priority_fee_per_gas,
+                gas_per_pubdata_limit: U256::from(20000),
+            },
+            U256::from(1),
+            L2ChainId::from(260),
+            &self.from_account_private_key,
+            None,
+            Default::default(),
+        )
+        .unwrap();
+        tx.set_input(vec![], self.tx_hash);
+        tx
+    }
+}
+
 /// Applies a transaction with a given hash to the node and returns the block hash.
-pub fn apply_tx<T: ForkSource + std::fmt::Debug>(
+pub fn apply_tx<T: ForkSource + std::fmt::Debug + Clone>(
     node: &InMemoryNode<T>,
     tx_hash: H256,
 ) -> (H256, U64) {
@@ -369,35 +440,15 @@ pub fn apply_tx<T: ForkSource + std::fmt::Debug>(
         .expect("failed getting current batch number");
     let produced_block_hash = compute_hash(next_miniblock, tx_hash);
 
-    let private_key = H256::random();
-    let from_account = PackedEthSignature::address_from_private_key(&private_key)
-        .expect("failed generating address");
-    node.set_rich_account(from_account);
-    let mut tx = L2Tx::new_signed(
-        Address::random(),
-        vec![],
-        Nonce(0),
-        Fee {
-            gas_limit: U256::from(1_000_000),
-            max_fee_per_gas: U256::from(250_000_000),
-            max_priority_fee_per_gas: U256::from(250_000_000),
-            gas_per_pubdata_limit: U256::from(20000),
-        },
-        U256::from(1),
-        L2ChainId::from(260),
-        &private_key,
-        None,
-        Default::default(),
-    )
-    .unwrap();
-    tx.set_input(vec![], tx_hash);
+    let tx = TransactionBuilder::new().set_hash(tx_hash).build();
+    node.set_rich_account(tx.common_data.initiator_address);
     node.apply_txs(vec![tx]).expect("failed applying tx");
 
     (produced_block_hash, U64::from(next_miniblock))
 }
 
 /// Deploys a contract with the given bytecode.
-pub fn deploy_contract<T: ForkSource + std::fmt::Debug>(
+pub fn deploy_contract<T: ForkSource + std::fmt::Debug + Clone>(
     node: &InMemoryNode<T>,
     tx_hash: H256,
     private_key: H256,
@@ -524,7 +575,7 @@ impl LogBuilder {
             log_index: Default::default(),
             transaction_log_index: Default::default(),
             log_type: Default::default(),
-            removed: Default::default(),
+            removed: Some(false),
         }
     }
 }
@@ -532,18 +583,22 @@ impl LogBuilder {
 /// Simple storage solidity contract that stores and retrieves two numbers
 ///
 /// contract Storage {
-///     uint256 number1 = 1024;
-///     uint256 number2 = 115792089237316195423570985008687907853269984665640564039457584007913129639935;   // uint256::max
+///   uint256 number1 = 1024;
+///   uint256 number2 = 115792089237316195423570985008687907853269984665640564039457584007913129639935; // uint256::max
 ///
-///     function retrieve1() public view returns (uint256) {
-///         return number1;
-///     }
+///   function retrieve1() public view returns (uint256) {
+///     return number1;
+///   }
 ///
-///     function retrieve2() public view returns (uint256) {
-///         return number2;
-///     }
+///   function retrieve2() public view returns (uint256) {
+///     return number2;
+///   }
+///
+///   function transact_retrieve1() public returns (uint256) {
+///     return number1;
+///   }
 /// }
-pub const STORAGE_CONTRACT_BYTECODE: &str = "000200000000000200010000000103550000006001100270000000160010019d0000008001000039000000400010043f0000000101200190000000280000c13d0000000001000031000000040110008c000000460000413d0000000101000367000000000101043b000000e001100270000000180210009c000000350000613d000000190110009c000000460000c13d0000000001000416000000000101004b000000460000c13d000000040100008a00000000011000310000001a02000041000000000301004b000000000300001900000000030240190000001a01100197000000000401004b000000000200a0190000001a0110009c00000000010300190000000001026019000000000101004b000000460000c13d0000000101000039000000000101041a000000800010043f0000001c01000041000000520001042e0000000001000416000000000101004b000000460000c13d0000040001000039000000000010041b000000010100008a0000000102000039000000000012041b0000002001000039000001000010044300000120000004430000001701000041000000520001042e0000000001000416000000000101004b000000460000c13d000000040100008a00000000011000310000001a02000041000000000301004b000000000300001900000000030240190000001a01100197000000000401004b000000000200a0190000001a0110009c00000000010300190000000001026019000000000101004b000000480000613d00000000010000190000005300010430000000400100043d000000000200041a00000000002104350000001602000041000000160310009c000000000102801900000040011002100000001b011001c7000000520001042e0000005100000432000000520001042e0000005300010430000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ffffffff000000020000000000000000000000000000004000000100000000000000000000000000000000000000000000000000000000000000000000000000ae2e2cce000000000000000000000000000000000000000000000000000000002711432d80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000080000000000000000000000000000000000000000000000000000000000000000000000000000000000dec5bcecb8ee3456d9f70206a2d3c7fe5879354667a3a4b473afaff3d289dc8";
+pub const STORAGE_CONTRACT_BYTECODE: &str    = "0000008003000039000000400030043f0000000102200190000000150000c13d00000000020100190000000d02200198000000290000613d000000000101043b000000e0011002700000000e0210009c000000220000613d0000000f0210009c000000220000613d000000100110009c000000290000c13d0000000001000416000000000101004b000000290000c13d0000000101000039000000000101041a000000260000013d0000000001000416000000000101004b000000290000c13d0000040001000039000000000010041b000000010100008a0000000102000039000000000012041b0000002001000039000001000010044300000120000004430000000c010000410000002c0001042e0000000001000416000000000101004b000000290000c13d000000000100041a000000800010043f00000011010000410000002c0001042e00000000010000190000002d000104300000002b000004320000002c0001042e0000002d0001043000000000000000000000000000000000000000020000000000000000000000000000004000000100000000000000000000000000000000000000000000000000fffffffc00000000000000000000000000000000000000000000000000000000000000000000000000000000bbf5533500000000000000000000000000000000000000000000000000000000ae2e2cce000000000000000000000000000000000000000000000000000000002711432d0000000000000000000000000000000000000020000000800000000000000000ccac83652a1e8701e76052e8662f8e7889170c68883ae295c1c984f22be3560f";
 
 /// Returns a default instance for a successful [TxExecutionInfo]
 pub fn default_tx_execution_info() -> TxExecutionInfo {
@@ -599,6 +654,26 @@ pub fn default_tx_debug_info() -> DebugCall {
     }
 }
 
+/// Decodes a `bytes` tx result to its concrete parameter type.
+pub fn decode_tx_result(output: &[u8], param_type: ParamType) -> Token {
+    let result = ethabi::decode(&vec![ParamType::Bytes], &output).expect("failed decoding output");
+    if result.is_empty() {
+        panic!("result was empty");
+    }
+
+    let result_bytes = result[0]
+        .clone()
+        .into_bytes()
+        .expect("failed converting result to bytes");
+    let result =
+        ethabi::decode(&vec![param_type], &result_bytes).expect("failed converting output");
+    if result.is_empty() {
+        panic!("decoded result was empty");
+    }
+
+    result[0].clone()
+}
+
 /// Asserts that two instances of [BridgeAddresses] are equal
 pub fn assert_bridge_addresses_eq(
     expected_bridge_addresses: &BridgeAddresses,
@@ -622,7 +697,121 @@ pub fn assert_bridge_addresses_eq(
     );
 }
 
+/// Represents a read-only fork source that is backed by the provided [InMemoryStorage].
+#[derive(Debug, Clone)]
+pub struct ExternalStorage {
+    pub raw_storage: InMemoryStorage,
+}
+
+impl ForkSource for &ExternalStorage {
+    fn get_storage_at(
+        &self,
+        address: H160,
+        idx: U256,
+        _block: Option<BlockIdVariant>,
+    ) -> eyre::Result<H256> {
+        let key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(idx));
+        Ok(self
+            .raw_storage
+            .state
+            .get(&key)
+            .cloned()
+            .unwrap_or_default())
+    }
+
+    fn get_raw_block_transactions(
+        &self,
+        _block_number: MiniblockNumber,
+    ) -> eyre::Result<Vec<zksync_types::Transaction>> {
+        todo!()
+    }
+
+    fn get_bytecode_by_hash(&self, hash: H256) -> eyre::Result<Option<Vec<u8>>> {
+        Ok(self.raw_storage.factory_deps.get(&hash).cloned())
+    }
+
+    fn get_transaction_by_hash(
+        &self,
+        _hash: H256,
+    ) -> eyre::Result<Option<zksync_types::api::Transaction>> {
+        todo!()
+    }
+
+    fn get_transaction_details(
+        &self,
+        _hash: H256,
+    ) -> eyre::Result<std::option::Option<zksync_types::api::TransactionDetails>> {
+        todo!()
+    }
+
+    fn get_block_by_hash(
+        &self,
+        _hash: H256,
+        _full_transactions: bool,
+    ) -> eyre::Result<Option<zksync_types::api::Block<zksync_types::api::TransactionVariant>>> {
+        todo!()
+    }
+
+    fn get_block_by_number(
+        &self,
+        _block_number: zksync_types::api::BlockNumber,
+        _full_transactions: bool,
+    ) -> eyre::Result<Option<zksync_types::api::Block<zksync_types::api::TransactionVariant>>> {
+        todo!()
+    }
+
+    fn get_block_details(
+        &self,
+        _miniblock: MiniblockNumber,
+    ) -> eyre::Result<Option<zksync_types::api::BlockDetails>> {
+        todo!()
+    }
+
+    fn get_block_transaction_count_by_hash(&self, _block_hash: H256) -> eyre::Result<Option<U256>> {
+        todo!()
+    }
+
+    fn get_block_transaction_count_by_number(
+        &self,
+        _block_number: zksync_types::api::BlockNumber,
+    ) -> eyre::Result<Option<U256>> {
+        todo!()
+    }
+
+    fn get_transaction_by_block_hash_and_index(
+        &self,
+        _block_hash: H256,
+        _index: zksync_basic_types::web3::types::Index,
+    ) -> eyre::Result<Option<zksync_types::api::Transaction>> {
+        todo!()
+    }
+
+    fn get_transaction_by_block_number_and_index(
+        &self,
+        _block_number: zksync_types::api::BlockNumber,
+        _index: zksync_basic_types::web3::types::Index,
+    ) -> eyre::Result<Option<zksync_types::api::Transaction>> {
+        todo!()
+    }
+
+    fn get_bridge_contracts(&self) -> eyre::Result<zksync_types::api::BridgeAddresses> {
+        todo!()
+    }
+
+    fn get_confirmed_tokens(
+        &self,
+        _from: u32,
+        _limit: u8,
+    ) -> eyre::Result<Vec<zksync_web3_decl::types::Token>> {
+        todo!()
+    }
+}
+
 mod test {
+    use maplit::hashmap;
+    use zksync_types::block::unpack_block_info;
+    use zksync_utils::h256_to_u256;
+
     use super::*;
     use crate::http_fork_source::HttpForkSource;
 
@@ -767,5 +956,74 @@ mod test {
             ],
             log.topics
         );
+    }
+
+    #[test]
+    fn test_external_storage() {
+        let input_batch = 1;
+        let input_l2_block = 2;
+        let input_timestamp = 3;
+        let input_bytecode = vec![0x4];
+        let batch_key = StorageKey::new(
+            AccountTreeId::new(zksync_types::SYSTEM_CONTEXT_ADDRESS),
+            zksync_types::SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
+        );
+        let l2_block_key = StorageKey::new(
+            AccountTreeId::new(zksync_types::SYSTEM_CONTEXT_ADDRESS),
+            zksync_types::SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+        );
+
+        let storage = &ExternalStorage {
+            raw_storage: InMemoryStorage {
+                state: hashmap! {
+                    batch_key => u256_to_h256(U256::from(input_batch)),
+                    l2_block_key => u256_to_h256(pack_block_info(
+                        input_l2_block,
+                        input_timestamp,
+                    ))
+                },
+                factory_deps: hashmap! {
+                    H256::repeat_byte(0x1) => input_bytecode.clone(),
+                },
+            },
+        };
+
+        let actual_batch = storage
+            .get_storage_at(
+                zksync_types::SYSTEM_CONTEXT_ADDRESS,
+                h256_to_u256(zksync_types::SYSTEM_CONTEXT_BLOCK_INFO_POSITION),
+                None,
+            )
+            .map(|value| h256_to_u256(value).as_u64())
+            .expect("failed getting batch number");
+        assert_eq!(input_batch, actual_batch);
+
+        let (actual_l2_block, actual_timestamp) = storage
+            .get_storage_at(
+                zksync_types::SYSTEM_CONTEXT_ADDRESS,
+                h256_to_u256(zksync_types::SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION),
+                None,
+            )
+            .map(|value| unpack_block_info(h256_to_u256(value)))
+            .expect("failed getting l2 block info");
+        assert_eq!(input_l2_block, actual_l2_block);
+        assert_eq!(input_timestamp, actual_timestamp);
+
+        let zero_missing_value = storage
+            .get_storage_at(
+                zksync_types::SYSTEM_CONTEXT_ADDRESS,
+                h256_to_u256(H256::repeat_byte(0x1e)),
+                None,
+            )
+            .map(|value| h256_to_u256(value).as_u64())
+            .expect("failed missing value");
+        assert_eq!(0, zero_missing_value);
+
+        let actual_bytecode = storage
+            .get_bytecode_by_hash(H256::repeat_byte(0x1))
+            .ok()
+            .expect("failed getting bytecode")
+            .expect("missing bytecode");
+        assert_eq!(input_bytecode, actual_bytecode);
     }
 }

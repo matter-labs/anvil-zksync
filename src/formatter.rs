@@ -2,8 +2,10 @@
 use crate::{node::ShowCalls, resolver};
 
 use colored::Colorize;
+
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::str;
 
 use crate::fork::block_on;
 use zksync_basic_types::H160;
@@ -74,12 +76,46 @@ pub fn print_event(event: &VmEvent, resolve_hashes: bool) {
         }
 
         tracing::info!(
-            "{} {}",
+            "{}",
             address_to_human_readable(event.address)
                 .map(|x| format!("{:42}", x.blue()))
-                .unwrap_or(format!("{:42}", format!("{:?}", event.address).blue())),
-            tt.join(", ")
+                .unwrap_or(format!("{:42}", format!("{:?}", event.address).blue()))
         );
+
+        tracing::info!("{}", "  Topics:".truecolor(128, 128, 128));
+        for indexed_topic in &tt {
+            tracing::info!("    {}", indexed_topic);
+        }
+
+        if event.value.is_empty() {
+            tracing::info!("{}", "  Data: EMPTY".truecolor(128, 128, 128));
+        } else {
+            match str::from_utf8(&event.value) {
+                Ok(v) => {
+                    tracing::info!(
+                        "{} {}",
+                        "  Data (String):".truecolor(128, 128, 128),
+                        v.to_string()
+                    );
+                }
+                Err(_) => {
+                    let hex_str = hex::encode(&event.value);
+                    let display_str = if hex_str.len() > 200 {
+                        format!("{}...", &hex_str[..200])
+                    } else {
+                        hex_str.to_string()
+                    };
+
+                    tracing::info!(
+                        "{} 0x{}",
+                        "  Data (Hex):".truecolor(128, 128, 128),
+                        display_str
+                    );
+                }
+            };
+        }
+
+        tracing::info!("");
     });
 }
 

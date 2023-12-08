@@ -42,19 +42,18 @@
 //! Contributions to improve `era-test-node` are welcome. Please refer to the [contribution guidelines](https://github.com/matter-labs/era-test-node/blob/main/.github/CONTRIBUTING.md) for more details.
 
 pub mod bootloader_debug;
-pub mod configuration_api;
 pub mod console_log;
 pub mod deps;
 pub mod filters;
 pub mod fork;
 pub mod formatter;
 pub mod http_fork_source;
+pub mod namespaces;
 pub mod node;
 pub mod observability;
 pub mod resolver;
 pub mod system_contracts;
 pub mod utils;
-pub mod zks;
 
 mod cache;
 mod testing;

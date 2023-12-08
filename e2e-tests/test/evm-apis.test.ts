@@ -102,13 +102,12 @@ describe("evm_snapshot", function () {
     expect(await greeter.greet()).to.eq("Hi");
 
     // Act
-    const snapshotId1 = await provider.send("evm_snapshot", []);
-    const snapshotId2 = await provider.send("evm_snapshot", []);
+    const snapshotId1: string = await provider.send("evm_snapshot", []);
+    const snapshotId2: string = await provider.send("evm_snapshot", []);
 
     // Assert
     expect(await greeter.greet()).to.eq("Hi");
-    expect(BigNumber.from(snapshotId1).toString()).to.eq("1");
-    expect(BigNumber.from(snapshotId2).toString()).to.eq("2");
+    expect(BigNumber.from(snapshotId2).toString()).to.eq(BigNumber.from(snapshotId1).add(1).toString());
   });
 });
 

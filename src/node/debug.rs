@@ -1,17 +1,14 @@
-use crate::{
-    fork::ForkSource,
-    node::{InMemoryNodeInner, MAX_TX_SIZE},
-    utils::{create_debug_output, to_real_block_number},
-};
 use itertools::Itertools;
-use jsonrpc_core::{BoxFuture, Result};
-use multivm::vm_virtual_blocks::{constants::ETH_CALL_GAS_LIMIT, CallTracer, HistoryDisabled, Vm};
 use once_cell::sync::OnceCell;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
+
+use multivm::interface::VmInterface;
+use multivm::tracers::CallTracer;
+use multivm::vm_latest::HistoryDisabled;
+use multivm::vm_refunds_enhancement::{constants::ETH_CALL_GAS_LIMIT, ToTracerPointer, Vm};
+
 use zksync_basic_types::H256;
-use zksync_core::api_server::web3::backend_jsonrpc::{
-    error::into_jsrpc_error, namespaces::debug::DebugNamespaceT,
-};
+use zksync_core::api_server::web3::backend_jsonrpc::error::into_jsrpc_error;
 use zksync_state::StorageView;
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig, TransactionVariant},
@@ -21,28 +18,23 @@ use zksync_types::{
 };
 use zksync_web3_decl::error::Web3Error;
 
-/// Implementation of DebugNamespaceImpl
-pub struct DebugNamespaceImpl<S> {
-    node: Arc<RwLock<InMemoryNodeInner<S>>>,
-}
+use crate::{
+    fork::ForkSource,
+    namespaces::{DebugNamespaceT, Result, RpcResult},
+    node::{InMemoryNode, MAX_TX_SIZE},
+    utils::{create_debug_output, to_real_block_number},
+};
 
-impl<S> DebugNamespaceImpl<S> {
-    /// Creates a new `Debug` instance with the given `node`.
-    pub fn new(node: Arc<RwLock<InMemoryNodeInner<S>>>) -> Self {
-        Self { node }
-    }
-}
-
-impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
-    for DebugNamespaceImpl<S>
+impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> DebugNamespaceT
+    for InMemoryNode<S>
 {
     fn trace_block_by_number(
         &self,
         block: BlockNumber,
         options: Option<TracerConfig>,
-    ) -> BoxFuture<Result<Vec<ResultDebugCall>>> {
+    ) -> RpcResult<Vec<ResultDebugCall>> {
         let only_top = options.is_some_and(|o| o.tracer_config.only_top_call);
-        let inner = Arc::clone(&self.node);
+        let inner = self.get_inner().clone();
         Box::pin(async move {
             let inner = inner
                 .read()
@@ -97,9 +89,9 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
         &self,
         hash: H256,
         options: Option<TracerConfig>,
-    ) -> BoxFuture<Result<Vec<ResultDebugCall>>> {
+    ) -> RpcResult<Vec<ResultDebugCall>> {
         let only_top = options.is_some_and(|o| o.tracer_config.only_top_call);
-        let inner = Arc::clone(&self.node);
+        let inner = self.get_inner().clone();
         Box::pin(async move {
             let inner = inner
                 .read()
@@ -147,9 +139,9 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
         request: CallRequest,
         block: Option<BlockId>,
         options: Option<TracerConfig>,
-    ) -> BoxFuture<Result<DebugCall>> {
+    ) -> RpcResult<DebugCall> {
         let only_top = options.is_some_and(|o| o.tracer_config.only_top_call);
-        let inner = Arc::clone(&self.node);
+        let inner = self.get_inner().clone();
         Box::pin(async move {
             if block.is_some() && !matches!(block, Some(BlockId::Number(BlockNumber::Latest))) {
                 return Err(jsonrpc_core::Error::invalid_params(
@@ -180,7 +172,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
             // update the enforced_base_fee within l1_batch_env to match the logic in zksync_core
             l1_batch_env.enforced_base_fee = Some(l2_tx.common_data.fee.max_fee_per_gas.as_u64());
             let system_env = inner.create_system_env(bootloader_code.clone(), execution_mode);
-            let mut vm = Vm::new(l1_batch_env, system_env, storage, HistoryDisabled);
+            let mut vm: Vm<_, HistoryDisabled> = Vm::new(l1_batch_env, system_env, storage);
 
             // We must inject *some* signature (otherwise bootloader code fails to generate hash).
             if l2_tx.common_data.signature.is_empty() {
@@ -197,11 +189,8 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
             vm.push_transaction(tx);
 
             let call_tracer_result = Arc::new(OnceCell::default());
-            let tracer = CallTracer::new(call_tracer_result.clone(), HistoryDisabled);
-            let tx_result = vm.inspect(
-                vec![Box::new(tracer)],
-                multivm::interface::VmExecutionMode::OneTx,
-            );
+            let tracer = CallTracer::new(call_tracer_result.clone()).into_tracer_pointer();
+            let tx_result = vm.inspect(tracer.into(), multivm::interface::VmExecutionMode::OneTx);
 
             let call_traces = if only_top {
                 vec![]
@@ -223,9 +212,9 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
         &self,
         tx_hash: H256,
         options: Option<TracerConfig>,
-    ) -> BoxFuture<Result<Option<DebugCall>>> {
+    ) -> RpcResult<Option<DebugCall>> {
         let only_top = options.is_some_and(|o| o.tracer_config.only_top_call);
-        let inner = Arc::clone(&self.node);
+        let inner = self.get_inner().clone();
         Box::pin(async move {
             let inner = inner
                 .read()
@@ -265,11 +254,11 @@ mod tests {
         // first, deploy secondary contract
         let secondary_bytecode = bytecode_from_slice(
             "Secondary",
-            include_bytes!("deps/test-contracts/Secondary.json"),
+            include_bytes!("../deps/test-contracts/Secondary.json"),
         );
         let secondary_deployed_address = deployed_address_create(from_account, U256::zero());
         testing::deploy_contract(
-            &node,
+            node,
             H256::repeat_byte(0x1),
             private_key,
             secondary_bytecode,
@@ -280,11 +269,11 @@ mod tests {
         // deploy primary contract using the secondary contract address as a constructor parameter
         let primary_bytecode = bytecode_from_slice(
             "Primary",
-            include_bytes!("deps/test-contracts/Primary.json"),
+            include_bytes!("../deps/test-contracts/Primary.json"),
         );
         let primary_deployed_address = deployed_address_create(from_account, U256::one());
         testing::deploy_contract(
-            &node,
+            node,
             H256::repeat_byte(0x1),
             private_key,
             primary_bytecode,
@@ -297,7 +286,6 @@ mod tests {
     #[tokio::test]
     async fn test_trace_deployed_contract() {
         let node = InMemoryNode::<HttpForkSource>::default();
-        let debug = DebugNamespaceImpl::new(node.get_inner());
 
         let (primary_deployed_address, secondary_deployed_address) = deploy_test_contracts(&node);
 
@@ -309,7 +297,7 @@ mod tests {
             .data(calldata.clone().into())
             .gas(80_000_000.into())
             .build();
-        let trace = debug
+        let trace = node
             .trace_call(request.clone(), None, None)
             .await
             .expect("trace call");
@@ -320,7 +308,7 @@ mod tests {
 
         // check that the call was successful
         let output =
-            ethers::abi::decode(&[ParamType::Uint(256)], &trace.output.0.as_slice()).unwrap();
+            ethers::abi::decode(&[ParamType::Uint(256)], trace.output.0.as_slice()).unwrap();
         assert_eq!(output[0], Token::Uint(U256::from(84)));
 
         // find the call to primary contract in the trace
@@ -348,7 +336,6 @@ mod tests {
     #[tokio::test]
     async fn test_trace_only_top() {
         let node = InMemoryNode::<HttpForkSource>::default();
-        let debug = DebugNamespaceImpl::new(node.get_inner());
 
         let (primary_deployed_address, _) = deploy_test_contracts(&node);
 
@@ -362,7 +349,7 @@ mod tests {
             .build();
 
         // if we trace with onlyTopCall=true, we should get only the top-level call
-        let trace = debug
+        let trace = node
             .trace_call(
                 request,
                 None,
@@ -386,7 +373,6 @@ mod tests {
     #[tokio::test]
     async fn test_trace_reverts() {
         let node = InMemoryNode::<HttpForkSource>::default();
-        let debug = DebugNamespaceImpl::new(node.get_inner());
 
         let (primary_deployed_address, _) = deploy_test_contracts(&node);
 
@@ -396,7 +382,7 @@ mod tests {
             .data(short_signature("shouldRevert()", &[]).into())
             .gas(80_000_000.into())
             .build();
-        let trace = debug
+        let trace = node
             .trace_call(request, None, None)
             .await
             .expect("trace call");
@@ -440,7 +426,7 @@ mod tests {
                 },
             );
         }
-        let result = DebugNamespaceImpl::new(inner)
+        let result = node
             .trace_transaction(H256::repeat_byte(0x1), None)
             .await
             .unwrap()
@@ -468,7 +454,7 @@ mod tests {
                 },
             );
         }
-        let result = DebugNamespaceImpl::new(inner)
+        let result = node
             .trace_transaction(
                 H256::repeat_byte(0x1),
                 Some(TracerConfig {
@@ -487,8 +473,7 @@ mod tests {
     #[tokio::test]
     async fn test_trace_transaction_not_found() {
         let node = InMemoryNode::<HttpForkSource>::default();
-        let inner = node.get_inner();
-        let result = DebugNamespaceImpl::new(inner)
+        let result = node
             .trace_transaction(H256::repeat_byte(0x1), None)
             .await
             .unwrap();
@@ -504,7 +489,7 @@ mod tests {
             let block = Block::<TransactionVariant>::default();
             writer.blocks.insert(H256::repeat_byte(0x1), block);
         }
-        let result = DebugNamespaceImpl::new(inner)
+        let result = node
             .trace_block_by_hash(H256::repeat_byte(0x1), None)
             .await
             .unwrap();
@@ -531,7 +516,7 @@ mod tests {
                 },
             );
         }
-        let result = DebugNamespaceImpl::new(inner)
+        let result = node
             .trace_block_by_hash(H256::repeat_byte(0x1), None)
             .await
             .unwrap();
@@ -561,7 +546,7 @@ mod tests {
             );
         }
         // check `latest` alias
-        let result = DebugNamespaceImpl::new(node.get_inner())
+        let result = node
             .trace_block_by_number(BlockNumber::Latest, None)
             .await
             .unwrap();
@@ -569,7 +554,7 @@ mod tests {
         assert_eq!(result[0].result.calls.len(), 1);
 
         // check block number
-        let result = DebugNamespaceImpl::new(node.get_inner())
+        let result = node
             .trace_block_by_number(BlockNumber::Number(0.into()), None)
             .await
             .unwrap();

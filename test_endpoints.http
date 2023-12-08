@@ -790,3 +790,14 @@ content-type: application/json
     "method": "config_setLogging",
     "params": ["era_test_node=info,hyper=debug"]
 }
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "web3_clientVersion",
+    "params": []
+}

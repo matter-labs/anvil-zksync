@@ -1,4 +1,4 @@
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 
 use crate::{
     cache::{Cache, CacheConfig},
@@ -14,20 +14,20 @@ use zksync_web3_decl::{
     types::Index,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// Fork source that gets the data via HTTP requests.
 pub struct HttpForkSource {
     /// URL for the network to fork.
     pub fork_url: String,
     /// Cache for network data.
-    pub(crate) cache: RwLock<Cache>,
+    pub(crate) cache: Arc<RwLock<Cache>>,
 }
 
 impl HttpForkSource {
     pub fn new(fork_url: String, cache_config: CacheConfig) -> Self {
         Self {
             fork_url,
-            cache: RwLock::new(Cache::new(cache_config)),
+            cache: Arc::new(RwLock::new(Cache::new(cache_config))),
         }
     }
 
@@ -700,8 +700,8 @@ mod tests {
                 "result": {
                     "l1Erc20DefaultBridge": format!("{:#x}", input_bridge_addresses.l1_erc20_default_bridge),
                     "l2Erc20DefaultBridge": format!("{:#x}", input_bridge_addresses.l2_erc20_default_bridge),
-                    "l1WethBridge": format!("{:#x}", input_bridge_addresses.l1_weth_bridge.clone().unwrap()),
-                    "l2WethBridge": format!("{:#x}", input_bridge_addresses.l2_weth_bridge.clone().unwrap())
+                    "l1WethBridge": format!("{:#x}", input_bridge_addresses.l1_weth_bridge.unwrap()),
+                    "l2WethBridge": format!("{:#x}", input_bridge_addresses.l2_weth_bridge.unwrap())
                 },
                 "id": 0
             }),

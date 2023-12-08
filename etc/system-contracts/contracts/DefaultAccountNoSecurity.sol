@@ -17,6 +17,7 @@ import {BOOTLOADER_FORMAL_ADDRESS, NONCE_HOLDER_SYSTEM_CONTRACT, DEPLOYER_SYSTEM
  * @dev The bytecode of the contract is set by default for all addresses for which no other bytecodes are deployed.
  * @notice If the caller is not a bootloader always returns empty data on call, just like EOA does.
  * @notice If it is delegate called always returns empty data, just like EOA does.
+ * @notice This account implementation returns the transaction result.
  */
 contract DefaultAccountNoSecurity is IAccount {
     using TransactionHelper for *;
@@ -70,7 +71,14 @@ contract DefaultAccountNoSecurity is IAccount {
         bytes32, // _txHash
         bytes32 _suggestedSignedHash,
         Transaction calldata _transaction
-    ) external payable override ignoreNonBootloader ignoreInDelegateCall returns (bytes4 magic) {
+    )
+        external
+        payable
+        override
+        ignoreNonBootloader
+        ignoreInDelegateCall
+        returns (bytes4 magic)
+    {
         magic = _validateTransaction(_suggestedSignedHash, _transaction);
     }
 
@@ -86,20 +94,28 @@ contract DefaultAccountNoSecurity is IAccount {
             uint32(gasleft()),
             address(NONCE_HOLDER_SYSTEM_CONTRACT),
             0,
-            abi.encodeCall(INonceHolder.incrementMinNonceIfEquals, (_transaction.nonce))
+            abi.encodeCall(
+                INonceHolder.incrementMinNonceIfEquals,
+                (_transaction.nonce)
+            )
         );
 
         // Even though for the transaction types present in the system right now,
         // we always provide the suggested signed hash, this should not be
         // always expected. In case the bootloader has no clue what the default hash
         // is, the bytes32(0) will be supplied.
-        bytes32 txHash = _suggestedSignedHash != bytes32(0) ? _suggestedSignedHash : _transaction.encodeHash();
+        bytes32 txHash = _suggestedSignedHash != bytes32(0)
+            ? _suggestedSignedHash
+            : _transaction.encodeHash();
 
-        // The fact there is are enough balance for the account
+        // The fact there is enough balance for the account
         // should be checked explicitly to prevent user paying for fee for a
         // transaction that wouldn't be included on Ethereum.
         uint256 totalRequiredBalance = _transaction.totalRequiredBalance();
-        require(totalRequiredBalance <= address(this).balance, "Not enough balance for fee + value");
+        require(
+            totalRequiredBalance <= address(this).balance,
+            "Not enough balance for fee + value"
+        );
 
         if (_isValidSignature(txHash, _transaction.signature)) {
             magic = ACCOUNT_VALIDATION_SUCCESS_MAGIC;
@@ -117,8 +133,15 @@ contract DefaultAccountNoSecurity is IAccount {
         bytes32, // _txHash
         bytes32, // _suggestedSignedHash
         Transaction calldata _transaction
-    ) external payable override ignoreNonBootloader ignoreInDelegateCall {
-        _execute(_transaction);
+    )
+        external
+        payable
+        override
+        ignoreNonBootloader
+        ignoreInDelegateCall
+        returns (bytes memory returnData)
+    {
+        returnData = _execute(_transaction);
     }
 
     /// @notice Method that should be used to initiate a transaction from this account by an external call.
@@ -126,13 +149,29 @@ contract DefaultAccountNoSecurity is IAccount {
     /// of the account via L1 -> L2 communication. However, the default account can initiate a transaction
     /// from L1, so we formally implement the interface method, but it doesn't execute any logic.
     /// @param _transaction The transaction to execute.
-    function executeTransactionFromOutside(Transaction calldata _transaction) external payable override {
+    function executeTransactionFromOutside(
+        Transaction calldata _transaction
+    ) external payable override {
         // Behave the same as for fallback/receive, just execute nothing, returns nothing
     }
 
     /// @notice Inner method for executing a transaction.
     /// @param _transaction The transaction to execute.
-    function _execute(Transaction calldata _transaction) internal {
+    /// @return returnData The result bytes, if execution succeeds.
+    function _execute(
+        Transaction calldata _transaction
+    )
+        internal
+        returns (
+            ///
+            /// DEBUG SUPPORT START
+            ///
+            bytes memory returnData
+        )
+    {
+        ///
+        /// DEBUG SUPPORT END
+        ///
         address to = address(uint160(_transaction.to));
         uint128 value = Utils.safeCastToU128(_transaction.value);
         bytes calldata data = _transaction.data;
@@ -150,18 +189,24 @@ contract DefaultAccountNoSecurity is IAccount {
                 selector == DEPLOYER_SYSTEM_CONTRACT.createAccount.selector ||
                 selector == DEPLOYER_SYSTEM_CONTRACT.create2Account.selector;
         }
-        bool success = EfficientCall.rawCall(gas, to, value, data, isSystemCall);
-        if (!success) {
-            EfficientCall.propagateRevert();
-        }
+
+        ///
+        /// DEBUG SUPPORT START
+        ///
+        returnData = EfficientCall.call(gas, to, value, data, isSystemCall);
+        ///
+        /// DEBUG SUPPORT END
+        ///
     }
 
     /// @notice TEST ONLY CODE - No validation is happening !
     /// @param _hash The hash of the transaction to be signed.
     /// @param _signature The signature of the transaction.
     /// @return EIP1271_SUCCESS_RETURN_VALUE Always - as this is TEST only code..
-    function _isValidSignature(bytes32 _hash, bytes memory _signature) internal view returns (bool) {
-
+    function _isValidSignature(
+        bytes32 _hash,
+        bytes memory _signature
+    ) internal view returns (bool) {
         // WARNING - THIS IS TEST ONLY CODE
         // IT ACCEPTS ANY SIGNATURE AS A 'VALID' one.
         // SHOULD BE USED ONLY FOR TESTING.
