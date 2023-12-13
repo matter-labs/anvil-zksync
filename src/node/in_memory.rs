@@ -2,7 +2,7 @@
 use crate::{
     bootloader_debug::{BootloaderDebug, BootloaderDebugTracer},
     console_log::ConsoleLogHandler,
-    deps::InMemoryStorage,
+    deps::{storage_view::StorageView, InMemoryStorage},
     filters::EthFilters,
     fork::{ForkDetails, ForkSource, ForkStorage},
     formatter,
@@ -46,7 +46,7 @@ use zksync_basic_types::{
 };
 use zksync_contracts::BaseSystemContracts;
 use zksync_core::api_server::web3::backend_jsonrpc::error::into_jsrpc_error;
-use zksync_state::{ReadStorage, StoragePtr, StorageView, WriteStorage};
+use zksync_state::{ReadStorage, StoragePtr, WriteStorage};
 use zksync_types::{
     api::{Block, DebugCall, Log, TransactionReceipt, TransactionVariant},
     block::legacy_miniblock_hash,

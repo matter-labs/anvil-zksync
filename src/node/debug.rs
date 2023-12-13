@@ -9,7 +9,6 @@ use multivm::vm_refunds_enhancement::{constants::ETH_CALL_GAS_LIMIT, ToTracerPoi
 
 use zksync_basic_types::H256;
 use zksync_core::api_server::web3::backend_jsonrpc::error::into_jsrpc_error;
-use zksync_state::StorageView;
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig, TransactionVariant},
     l2::L2Tx,
@@ -18,6 +17,7 @@ use zksync_types::{
 };
 use zksync_web3_decl::error::Web3Error;
 
+use crate::deps::storage_view::StorageView;
 use crate::{
     fork::ForkSource,
     namespaces::{DebugNamespaceT, Result, RpcResult},

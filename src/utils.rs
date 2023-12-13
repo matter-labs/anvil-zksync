@@ -8,18 +8,18 @@ use multivm::interface::{ExecutionResult, VmExecutionResultAndLogs, VmInterface}
 use multivm::vm_latest::HistoryDisabled;
 use multivm::vm_refunds_enhancement::{utils::fee::derive_base_fee_and_gas_per_pubdata, Vm};
 use zksync_basic_types::{H256, U256, U64};
-use zksync_state::StorageView;
 use zksync_state::WriteStorage;
 use zksync_types::api::{BlockNumber, DebugCall, DebugCallType};
 use zksync_types::l2::L2Tx;
 use zksync_types::vm_trace::Call;
 use zksync_types::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_utils::u256_to_h256;
+use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words};
 use zksync_web3_decl::error::Web3Error;
 
+use crate::deps::storage_view::StorageView;
 use crate::node::create_empty_block;
 use crate::{fork::ForkSource, node::InMemoryNodeInner};
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words};
 
 pub(crate) trait IntoBoxedFuture: Sized + Send + 'static {
     fn into_boxed_future(self) -> Pin<Box<dyn Future<Output = Self> + Send>> {

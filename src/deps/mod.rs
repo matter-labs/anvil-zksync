@@ -4,7 +4,7 @@ use zksync_types::{
     get_code_key, get_known_code_key, get_system_context_init_logs, L2ChainId, StorageKey,
     StorageLog, StorageLogKind, StorageValue, H256,
 };
-
+pub mod storage_view;
 use std::fmt;
 
 /// In-memory storage.
