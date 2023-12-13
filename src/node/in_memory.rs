@@ -1858,7 +1858,7 @@ mod tests {
         testing::deploy_contract(
             &node,
             H256::repeat_byte(0x1),
-            private_key.clone(),
+            private_key,
             hex::decode(testing::STORAGE_CONTRACT_BYTECODE).unwrap(),
             None,
             Nonce(0),
