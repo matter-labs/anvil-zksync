@@ -12,8 +12,14 @@ The following directories/files were copied:
 - [yarn.lock](yarn.lock)
 
 The next changes were introduced:
-- [bootloader.yul](bootloader%2Fbootloader.yul)
+- [bootloader.yul](bootloader/bootloader.yul)
   - Debug data, marked as `DEBUG SUPPORT` blocks.
   - Impersonating preprocessing mode, blocks `<!-- @ifdef ACCOUNT_IMPERSONATING -->` and at some places added `<!-- @ifndef ACCOUNT_IMPERSONATING -->` condition.
-- [process.ts](scripts%2Fprocess.ts)
+- [process.ts](scripts/process.ts)
   - Impersonating preprocessing mode, "For impersonating" blocks.
+- [DefaultAccount.sol](contracts/DefaultAccount.sol)
+  - Return transaction data (empty), marked as `FOUNDRY SUPPORT` blocks.
+- [DefaultAccountNoSecurity.sol](contracts/DefaultAccountNoSecurity.sol)
+  - NEW smart contract, only for Hardhat/Forge testing.
+- [IAccount.sol](contracts/interfaces/IAccount.sol)
+  - Return transaction data (empty), marked as `FOUNDRY SUPPORT` blocks.
