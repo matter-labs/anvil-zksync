@@ -84,7 +84,8 @@ describe("hardhat_impersonateAccount & hardhat_stopImpersonatingAccount", functi
 
     // Assert
     expect((await userWallet.getBalance()).eq(ethers.utils.parseEther("0.42"))).to.true;
-    expect((await provider.getBalance(RichAccounts[0].Account)).eq(beforeBalance.sub(ethers.utils.parseEther("0.42")))).to.true;
+    expect((await provider.getBalance(RichAccounts[0].Account)).eq(beforeBalance.sub(ethers.utils.parseEther("0.42"))))
+      .to.true;
   });
 });
 
