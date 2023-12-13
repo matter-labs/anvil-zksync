@@ -61,3 +61,6 @@ ethers = { version = "2.0.4", features = ["rustls"] }
 
 [patch.crates-io]
 sha3 = { git = "https://github.com/RustCrypto/hashes", tag = "sha3-v0.10.6" }
+
+[profile.dev]
+debug = 0

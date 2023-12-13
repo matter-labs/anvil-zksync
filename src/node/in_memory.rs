@@ -1717,6 +1717,10 @@ impl BlockContext {
 
 #[cfg(test)]
 mod tests {
+    use ethabi::{Token, Uint};
+    use zksync_basic_types::Nonce;
+    use zksync_types::utils::deployed_address_create;
+
     use super::*;
     use crate::{http_fork_source::HttpForkSource, node::InMemoryNode, testing};
 
@@ -1830,5 +1834,64 @@ mod tests {
             vec![],
         )
         .expect("transaction must pass with external storage");
+    }
+
+    #[tokio::test]
+    async fn test_transact_returns_data_in_built_in_without_security_mode() {
+        let node = InMemoryNode::<HttpForkSource>::new(
+            None,
+            None,
+            InMemoryNodeConfig {
+                system_contracts_options: Options::BuiltInWithoutSecurity,
+                ..Default::default()
+            },
+        );
+
+        let private_key = H256::repeat_byte(0xef);
+        let from_account = zksync_types::PackedEthSignature::address_from_private_key(&private_key)
+            .expect("failed generating address");
+        node.set_rich_account(from_account);
+
+        let deployed_address = deployed_address_create(from_account, U256::zero());
+        testing::deploy_contract(
+            &node,
+            H256::repeat_byte(0x1),
+            private_key.clone(),
+            hex::decode(testing::STORAGE_CONTRACT_BYTECODE).unwrap(),
+            None,
+            Nonce(0),
+        );
+
+        let mut tx = L2Tx::new_signed(
+            deployed_address,
+            hex::decode("bbf55335").unwrap(), // keccak selector for "transact_retrieve1()"
+            Nonce(1),
+            Fee {
+                gas_limit: U256::from(815563),
+                max_fee_per_gas: U256::from(250_000_000),
+                max_priority_fee_per_gas: U256::from(250_000_000),
+                gas_per_pubdata_limit: U256::from(20000),
+            },
+            U256::from(0),
+            zksync_basic_types::L2ChainId::from(260),
+            &private_key,
+            None,
+            Default::default(),
+        )
+        .expect("failed signing tx");
+        tx.common_data.transaction_type = TransactionType::LegacyTransaction;
+        tx.set_input(vec![], H256::repeat_byte(0x2));
+        let (_, result, ..) = node
+            .run_l2_tx_raw(tx, TxExecutionMode::VerifyExecute, vec![])
+            .expect("failed tx");
+
+        match result.result {
+            ExecutionResult::Success { output } => {
+                let actual = testing::decode_tx_result(&output, ethabi::ParamType::Uint(256));
+                let expected = Token::Uint(Uint::from(1024u64));
+                assert_eq!(expected, actual, "invalid result");
+            }
+            _ => panic!("invalid result {:?}", result.result),
+        }
     }
 }

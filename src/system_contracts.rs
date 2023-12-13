@@ -16,7 +16,7 @@ pub enum Options {
     BuiltIn,
     // Load the contracts bytecode at runtime from ZKSYNC_HOME
     Local,
-    // Don't verify the signatures (used only for testing - for example Forge).
+    // Don't verify the signatures and return transaction result on calls (used only for testing - for example Forge).
     BuiltInWithoutSecurity,
 }
 
