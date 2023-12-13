@@ -1722,7 +1722,9 @@ mod tests {
     use zksync_types::utils::deployed_address_create;
 
     use super::*;
-    use crate::{http_fork_source::HttpForkSource, node::InMemoryNode, testing};
+    use crate::{
+        http_fork_source::HttpForkSource, node::InMemoryNode, system_contracts::Options, testing,
+    };
 
     #[tokio::test]
     async fn test_run_l2_tx_validates_tx_gas_limit_too_high() {
@@ -1842,7 +1844,7 @@ mod tests {
             None,
             None,
             InMemoryNodeConfig {
-                system_contracts_options: Option::BuiltInWithoutSecurity,
+                system_contracts_options: Options::BuiltInWithoutSecurity,
                 ..Default::default()
             },
         );

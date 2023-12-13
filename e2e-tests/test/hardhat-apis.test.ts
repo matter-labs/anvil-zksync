@@ -64,8 +64,7 @@ describe("hardhat_mine", function () {
   });
 });
 
-// TODO: Run this test once eth_sendTransaction has been implemented or when different tests have been added
-xdescribe("hardhat_impersonateAccount & hardhat_stopImpersonatingAccount", function () {
+describe("hardhat_impersonateAccount & hardhat_stopImpersonatingAccount", function () {
   it("Should allow transfers of funds without knowing the Private Key", async function () {
     // Arrange
     const userWallet = Wallet.createRandom().connect(provider);
@@ -84,8 +83,8 @@ xdescribe("hardhat_impersonateAccount & hardhat_stopImpersonatingAccount", funct
     await recieptTx.wait();
 
     // Assert
-    expect(await userWallet.getBalance()).to.equal(ethers.utils.parseEther("0.42"));
-    expect(await provider.getBalance(RichAccounts[0].Account)).to.equal(beforeBalance.sub(0.42));
+    expect((await userWallet.getBalance()).eq(ethers.utils.parseEther("0.42"))).to.true;
+    expect((await provider.getBalance(RichAccounts[0].Account)).eq(beforeBalance.sub(ethers.utils.parseEther("0.42")))).to.true;
   });
 });
 

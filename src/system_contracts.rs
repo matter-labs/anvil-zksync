@@ -105,11 +105,9 @@ fn bsc_load_with_bootloader(
             include_bytes!("deps/contracts/DefaultAccount.json"),
         ),
         Options::Local => read_sys_contract_bytecode("", "DefaultAccount", ContractLanguage::Sol),
-        // TODO: restore
         Options::BuiltInWithoutSecurity => bytecode_from_slice(
             "DefaultAccountNoSecurity",
-            // include_bytes!("deps/contracts/DefaultAccountNoSecurity.json"),
-            include_bytes!("deps/contracts/DefaultAccount.json"),
+            include_bytes!("deps/contracts/DefaultAccountNoSecurity.json"),
         ),
     };
 
