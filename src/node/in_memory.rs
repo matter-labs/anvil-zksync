@@ -1842,7 +1842,7 @@ mod tests {
             None,
             None,
             InMemoryNodeConfig {
-                system_contracts_options: Options::BuiltInWithoutSecurity,
+                system_contracts_options: Option::BuiltInWithoutSecurity,
                 ..Default::default()
             },
         );
