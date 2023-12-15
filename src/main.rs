@@ -380,7 +380,12 @@ async fn main() -> anyhow::Result<()> {
         let private_key = wallet.1;
         let mnemonic_phrase = wallet.2;
         node.set_rich_account(H160::from_str(address).unwrap());
-        tracing::info!("Account #{}: {} ({})", index, address, "1_000_000_000_000 ETH".cyan());
+        tracing::info!(
+            "Account #{}: {} ({})",
+            index,
+            address,
+            "1_000_000_000_000 ETH".cyan()
+        );
         tracing::info!("Private Key: {}", private_key);
         tracing::info!("Mnemonic: {}", &mnemonic_phrase.truecolor(128, 128, 128));
         tracing::info!("");
