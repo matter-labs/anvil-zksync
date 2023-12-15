@@ -18,7 +18,7 @@ use zksync_types::{StorageKey, StorageValue, H256};
 pub struct StorageView<S> {
     pub storage_handle: S,
     // Used for caching and to get the list/count of modified keys
-    modified_storage_keys: HashMap<StorageKey, StorageValue>,
+    pub modified_storage_keys: HashMap<StorageKey, StorageValue>,
     // Used purely for caching
     read_storage_keys: HashMap<StorageKey, StorageValue>,
     // Cache for `contains_key()` checks. The cache is only valid within one L1 batch execution.
@@ -34,6 +34,12 @@ impl<S: ReadStorage + fmt::Debug> StorageView<S> {
             read_storage_keys: HashMap::new(),
             initial_writes_cache: HashMap::new(),
         }
+    }
+
+    pub fn clean_cache(&mut self) {
+        self.modified_storage_keys = Default::default();
+        self.read_storage_keys = Default::default();
+        self.initial_writes_cache = Default::default();
     }
 
     fn get_value_no_log(&mut self, key: &StorageKey) -> StorageValue {

@@ -58,6 +58,7 @@ use zksync_types::{
     vm_trace::Call,
     PackedEthSignature, StorageKey, StorageLogQueryType, StorageValue, Transaction,
     ACCOUNT_CODE_STORAGE_ADDRESS, EIP_712_TX_TYPE, MAX_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT,
+    SYSTEM_CONTEXT_ADDRESS,
 };
 use zksync_utils::{
     bytecode::{compress_bytecode, hash_bytecode},
@@ -1282,6 +1283,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 multivm::vm_refunds_enhancement::HistoryDisabled,
             >,
         >,
+        modified_storage_keys: HashMap<StorageKey, StorageValue>,
     ) -> Result<L2TxResult, String> {
         let inner = self
             .inner
@@ -1289,6 +1291,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
 
         let storage = StorageView::new(inner.fork_storage.clone()).to_rc_ptr();
+        storage.borrow_mut().modified_storage_keys = modified_storage_keys;
 
         let (batch_env, block_ctx) = inner.create_l1_batch_env(storage.clone());
 
@@ -1464,15 +1467,16 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
         tracing::info!("");
 
-        let bytecodes = vm
+        let bytecodes: HashMap<U256, Vec<U256>> = vm
             .get_last_tx_compressed_bytecodes()
             .iter()
             .map(|b| bytecode_to_factory_dep(b.original.clone()))
             .collect();
 
-        vm.execute(VmExecutionMode::Bootloader);
+        // vm.execute(VmExecutionMode::Bootloader);
 
         let modified_keys = storage.borrow().modified_storage_keys().clone();
+
         Ok((
             modified_keys,
             tx_result,
@@ -1508,7 +1512,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         }
 
         let (keys, result, call_traces, block, bytecodes, block_ctx) =
-            self.run_l2_tx_raw(l2_tx.clone(), execution_mode, vec![])?;
+            self.run_l2_tx_raw(l2_tx.clone(), execution_mode, vec![], Default::default())?;
 
         if let ExecutionResult::Halt { reason } = result.result {
             // Halt means that something went really bad with the transaction execution (in most cases invalid signature,
@@ -1834,6 +1838,7 @@ mod tests {
             testing::TransactionBuilder::new().build(),
             TxExecutionMode::VerifyExecute,
             vec![],
+            Default::default(),
         )
         .expect("transaction must pass with external storage");
     }
@@ -1884,7 +1889,12 @@ mod tests {
         tx.common_data.transaction_type = TransactionType::LegacyTransaction;
         tx.set_input(vec![], H256::repeat_byte(0x2));
         let (_, result, ..) = node
-            .run_l2_tx_raw(tx, TxExecutionMode::VerifyExecute, vec![])
+            .run_l2_tx_raw(
+                tx,
+                TxExecutionMode::VerifyExecute,
+                vec![],
+                Default::default(),
+            )
             .expect("failed tx");
 
         match result.result {
