@@ -64,8 +64,8 @@ The `status` options are:
 | [`ETH`](#eth-namespace) | [`eth_newBlockFilter`](#`eth_newblockfilter) | `SUPPORTED` | Creates a filter in the node, to notify when a new block arrives |
 | [`ETH`](#eth-namespace) | [`eth_newFilter`](#`eth_newfilter) | `SUPPORTED` | Creates a filter object, based on filter options, to notify when the state changes (logs) |
 | [`ETH`](#eth-namespace) | [`eth_newPendingTransactionFilter`](#`eth_newpendingtransactionfilter) | `SUPPORTED` | Creates a filter in the node, to notify when new pending transactions arrive |
-| [`ETH`](#eth-namespace)` | [`eth_protocolVersion`](#eth_protocolversion) | `SUPPORTED` | Returns the current ethereum protocol version |
-| `ETH` | `eth_sendTransaction` | `NOT IMPLEMENTED` | Creates new message call transaction or a contract creation, if the data field contains code |
+| [`ETH`](#eth-namespace) | [`eth_protocolVersion`](#eth_protocolversion) | `SUPPORTED` | Returns the current ethereum protocol version |
+| [`ETH`](#eth-namespace) | [`eth_sendTransaction`](#eth_sendtransaction) | `SUPPORTED` | Creates new message call transaction or a contract creation, if the data field contains code |
 | `ETH` | `eth_sign` | `NOT IMPLEMENTED` | The sign method calculates an Ethereum specific signature with: `sign(keccak256("\x19Ethereum Signed Message:\n" + message.length + message)))` |
 | `ETH` | `eth_signTransaction` | `NOT IMPLEMENTED` | Signs a transaction that can be submitted to the network at a later time using `eth_sendRawTransaction` |
 | `ETH` | `eth_signTypedData` | `NOT IMPLEMENTED` | Identical to `eth_signTypedData_v4` |
@@ -1389,6 +1389,34 @@ curl --request POST \
     "jsonrpc": "2.0",
     "id": "1",
     "method": "eth_protocolVersion"
+}'
+```
+
+### `eth_sendTransaction`
+
+[source](src/node/eth.rs)
+
+Creates new message call transaction or a contract creation, if the data field contains code.
+
+#### Arguments
+
++ `transaction: TransactionRequest`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "eth_sendTransaction",
+    "params": ["..."]
 }'
 ```
 
