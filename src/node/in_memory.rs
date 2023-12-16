@@ -42,14 +42,15 @@ use multivm::{
     },
 };
 use zksync_basic_types::{
-    web3::signing::keccak256, Address, Bytes, L1BatchNumber, MiniblockNumber, H160, H256, U256, U64,
+    web3::signing::keccak256, AccountTreeId, Address, Bytes, L1BatchNumber, MiniblockNumber, H160,
+    H256, U256, U64,
 };
 use zksync_contracts::BaseSystemContracts;
 use zksync_core::api_server::web3::backend_jsonrpc::error::into_jsrpc_error;
 use zksync_state::{ReadStorage, StoragePtr, WriteStorage};
 use zksync_types::{
     api::{Block, DebugCall, Log, TransactionReceipt, TransactionVariant},
-    block::legacy_miniblock_hash,
+    block::{legacy_miniblock_hash, unpack_block_info},
     fee::Fee,
     get_nonce_key,
     l2::L2Tx,
@@ -58,7 +59,7 @@ use zksync_types::{
     vm_trace::Call,
     PackedEthSignature, StorageKey, StorageLogQueryType, StorageValue, Transaction,
     ACCOUNT_CODE_STORAGE_ADDRESS, EIP_712_TX_TYPE, MAX_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT,
-    SYSTEM_CONTEXT_ADDRESS,
+    SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
 };
 use zksync_utils::{
     bytecode::{compress_bytecode, hash_bytecode},
@@ -332,19 +333,40 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         &self,
         storage: StoragePtr<ST>,
     ) -> (L1BatchEnv, BlockContext) {
-        let last_l2_block_hash = if let Some(last_l2_block) = load_last_l2_block(storage) {
-            last_l2_block.hash
+        let mut first_l2_block = if let Some(last_l2_block) = load_last_l2_block(storage.clone()) {
+            L2BlockEnv {
+                number: last_l2_block.number + 1,
+                timestamp: last_l2_block.timestamp + 1,
+                prev_block_hash: last_l2_block.hash,
+                max_virtual_blocks_to_create: 1,
+            }
         } else {
+            L2BlockEnv {
+                number: 1,
+                timestamp: 1,
+                prev_block_hash: legacy_miniblock_hash(MiniblockNumber(0)),
+                max_virtual_blocks_to_create: 1,
+            }
             // This is the scenario of either the first L2 block ever or
             // the first block after the upgrade for support of L2 blocks.
-            legacy_miniblock_hash(MiniblockNumber(self.current_miniblock as u32))
+            // legacy_miniblock_hash(MiniblockNumber(self.current_miniblock as u32))
         };
-        let block_ctx = BlockContext::from_current(
-            self.current_batch,
-            self.current_miniblock,
-            self.current_timestamp,
-        );
-        let block_ctx = block_ctx.new_batch();
+        let block_ctx = if let Some((batch_number, batch_timestamp)) = load_last_l1_batch(storage) {
+            BlockContext::from_current(
+                batch_number as u32,
+                first_l2_block.number as u64,
+                batch_timestamp,
+            )
+        } else {
+            BlockContext::from_current(
+                self.current_batch,
+                self.current_miniblock,
+                self.current_timestamp,
+            )
+        };
+        let mut block_ctx = block_ctx.new_batch();
+        first_l2_block.timestamp = std::cmp::max(block_ctx.timestamp, first_l2_block.timestamp);
+        block_ctx.timestamp = first_l2_block.timestamp;
         let batch_env = L1BatchEnv {
             // TODO: set the previous batch hash properly (take from fork, when forking, and from local storage, when this is not the first block).
             previous_batch_hash: None,
@@ -354,21 +376,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             fair_l2_gas_price: L2_GAS_PRICE,
             fee_account: H160::zero(),
             enforced_base_fee: None,
-            first_l2_block: L2BlockEnv {
-                // the 'current_miniblock' contains the block that was already produced.
-                // So the next one should be one higher.
-                number: block_ctx.miniblock as u32,
-                timestamp: block_ctx.timestamp,
-                prev_block_hash: last_l2_block_hash,
-                // This is only used during zksyncEra block timestamp/number transition.
-                // In case of starting a new network, it doesn't matter.
-                // In theory , when forking mainnet, we should match this value
-                // to the value that was set in the node at that time - but AFAIK
-                // we don't have any API for this - so this might result in slightly
-                // incorrect replays of transacions during the migration period, that
-                // depend on block number or timestamp.
-                max_virtual_blocks_to_create: 1,
-            },
+            first_l2_block,
         };
 
         (batch_env, block_ctx)
@@ -1294,6 +1302,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         storage.borrow_mut().modified_storage_keys = modified_storage_keys;
 
         let (batch_env, block_ctx) = inner.create_l1_batch_env(storage.clone());
+        dbg!(&batch_env);
 
         // if we are impersonating an account, we need to use non-verifying system contracts
         let nonverifying_contracts;
@@ -1906,4 +1915,21 @@ mod tests {
             _ => panic!("invalid result {:?}", result.result),
         }
     }
+}
+
+pub fn load_last_l1_batch<S: ReadStorage>(storage: StoragePtr<S>) -> Option<(u64, u64)> {
+    // Get block number and timestamp
+    let current_l1_batch_info_key = StorageKey::new(
+        AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
+        SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
+    );
+    let mut storage_ptr = storage.borrow_mut();
+    let current_l1_batch_info = storage_ptr.read_value(&current_l1_batch_info_key);
+    let (batch_number, batch_timestamp) = unpack_block_info(h256_to_u256(current_l1_batch_info));
+    let block_number = batch_number as u32;
+    if block_number == 0 {
+        // The block does not exist yet
+        return None;
+    }
+    Some((batch_number, batch_timestamp))
 }
