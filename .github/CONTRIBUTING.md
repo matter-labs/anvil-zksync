@@ -59,7 +59,7 @@ This ensures consistent code style throughout the project and helps identify pot
 
 ## Need Assistance?
 
-If you're unsure about something or have questions, don't hesitate to open an issue or initiate a discussion in our [zkSync Community Hub](https://github.com/zkSync-Community-Hub/zkSync-developers/discussions). We're here to assist!
+If you're unsure about something or have questions, don't hesitate to open an issue or initiate a discussion in our [zkSync Community Hub](https://github.com/zkSync-Community-Hub/zkync-developers/discussions). We're here to assist!
 
 ## What's Next?
 
