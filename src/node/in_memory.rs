@@ -1292,6 +1292,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             TracerPointer<StorageView<ForkStorage<S>>, multivm::vm_latest::HistoryDisabled>,
         >,
         modified_storage_keys: HashMap<StorageKey, StorageValue>,
+        execute_bootloader: bool,
     ) -> Result<L2TxResult, String> {
         let inner = self
             .inner
@@ -1474,6 +1475,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             .iter()
             .map(|b| bytecode_to_factory_dep(b.original.clone()))
             .collect();
+        if execute_bootloader {
+            vm.execute(VmExecutionMode::Bootloader);
+        }
 
         let modified_keys = storage.borrow().modified_storage_keys().clone();
 
@@ -1511,8 +1515,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             inner.filters.notify_new_pending_transaction(tx_hash);
         }
 
-        let (keys, result, call_traces, block, bytecodes, block_ctx) =
-            self.run_l2_tx_raw(l2_tx.clone(), execution_mode, vec![], Default::default())?;
+        let (keys, result, call_traces, block, bytecodes, block_ctx) = self.run_l2_tx_raw(
+            l2_tx.clone(),
+            execution_mode,
+            vec![],
+            Default::default(),
+            true,
+        )?;
 
         if let ExecutionResult::Halt { reason } = result.result {
             // Halt means that something went really bad with the transaction execution (in most cases invalid signature,
@@ -1841,6 +1850,7 @@ mod tests {
             TxExecutionMode::VerifyExecute,
             vec![],
             Default::default(),
+            true,
         )
         .expect("transaction must pass with external storage");
     }
@@ -1896,6 +1906,7 @@ mod tests {
                 TxExecutionMode::VerifyExecute,
                 vec![],
                 Default::default(),
+                true,
             )
             .expect("failed tx");
 
