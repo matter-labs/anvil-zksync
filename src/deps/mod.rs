@@ -6,6 +6,7 @@ use zksync_types::{
 };
 pub mod storage_view;
 use std::fmt;
+pub use storage_view::StorageView;
 
 /// In-memory storage.
 #[derive(Debug, Default, Clone, PartialEq)]

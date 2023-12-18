@@ -1,14 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.0;
+pragma solidity 0.8.20;
 
 import "../libraries/TransactionHelper.sol";
 
-bytes4 constant ACCOUNT_VALIDATION_SUCCESS_MAGIC = IAccount
-    .validateTransaction
-    .selector;
+bytes4 constant ACCOUNT_VALIDATION_SUCCESS_MAGIC = IAccount.validateTransaction.selector;
 
-/// @notice This interface has been update from upstream: `executeTransaction` now returns the result bytes
 interface IAccount {
     /// @notice Called by the bootloader to validate that an account agrees to process the transaction
     /// (and potentially pay for it).
@@ -26,29 +23,21 @@ interface IAccount {
         Transaction calldata _transaction
     ) external payable returns (bytes4 magic);
 
+    ///
+    /// FOUNDRY SUPPORT START
+    ///
     function executeTransaction(
         bytes32 _txHash,
         bytes32 _suggestedSignedHash,
         Transaction calldata _transaction
-    )
-        external
-        payable
-        returns (
-            ///
-            /// DEBUG SUPPORT START
-            ///
-            bytes memory returnData
-        );
-
+    ) external payable returns ( bytes memory returnData );
     ///
-    /// DEBUG SUPPORT END
+    /// FOUNDRY SUPPORT END
     ///
 
     // There is no point in providing possible signed hash in the `executeTransactionFromOutside` method,
     // since it typically should not be trusted.
-    function executeTransactionFromOutside(
-        Transaction calldata _transaction
-    ) external payable;
+    function executeTransactionFromOutside(Transaction calldata _transaction) external payable;
 
     function payForTransaction(
         bytes32 _txHash,

@@ -26,6 +26,8 @@ pub struct SystemContracts {
     pub baseline_contracts: BaseSystemContracts,
     pub playground_contracts: BaseSystemContracts,
     pub fee_estimate_contracts: BaseSystemContracts,
+    pub baseline_impersonating_contracts: BaseSystemContracts,
+    pub fee_estimate_impersonating_contracts: BaseSystemContracts,
 }
 
 pub fn get_deployed_contracts(options: &Options) -> Vec<zksync_types::block::DeployedContract> {
@@ -50,25 +52,37 @@ impl SystemContracts {
             baseline_contracts: baseline_contracts(options),
             playground_contracts: playground(options),
             fee_estimate_contracts: fee_estimate_contracts(options),
+            baseline_impersonating_contracts: baseline_impersonating_contracts(options),
+            fee_estimate_impersonating_contracts: fee_estimate_impersonating_contracts(options),
         }
     }
     pub fn contracts_for_l2_call(&self) -> &BaseSystemContracts {
-        self.contracts(TxExecutionMode::EthCall)
+        self.contracts(TxExecutionMode::EthCall, false)
     }
 
-    pub fn contracts_for_fee_estimate(&self) -> &BaseSystemContracts {
-        self.contracts(TxExecutionMode::EstimateFee)
+    pub fn contracts_for_fee_estimate(&self, impersonating: bool) -> &BaseSystemContracts {
+        self.contracts(TxExecutionMode::EstimateFee, impersonating)
     }
 
-    pub fn contracts(&self, execution_mode: TxExecutionMode) -> &BaseSystemContracts {
-        match execution_mode {
+    pub fn contracts(
+        &self,
+        execution_mode: TxExecutionMode,
+        impersonating: bool,
+    ) -> &BaseSystemContracts {
+        match (execution_mode, impersonating) {
             // 'real' contracts, that do all the checks.
-            TxExecutionMode::VerifyExecute => &self.baseline_contracts,
-            // Ignore invalid sigatures. These requests are often coming unsigned, and they keep changing the
+            (TxExecutionMode::VerifyExecute, false) => &self.baseline_contracts,
+            // Ignore invalid signatures. These requests are often coming unsigned, and they keep changing the
             // gas limit - so the signatures are often not matching.
-            TxExecutionMode::EstimateFee => &self.fee_estimate_contracts,
+            (TxExecutionMode::EstimateFee, false) => &self.fee_estimate_contracts,
             // Read-only call - don't check signatures, have a lower (fixed) gas limit.
-            TxExecutionMode::EthCall => &self.playground_contracts,
+            (TxExecutionMode::EthCall, false) => &self.playground_contracts,
+            // Without account validation and sender related checks.
+            (TxExecutionMode::VerifyExecute, true) => &self.baseline_impersonating_contracts,
+            (TxExecutionMode::EstimateFee, true) => &self.fee_estimate_impersonating_contracts,
+            (TxExecutionMode::EthCall, true) => {
+                panic!("Account impersonating with eth_call is not supported")
+            }
         }
     }
 }
@@ -134,11 +148,23 @@ pub fn playground(options: &Options) -> BaseSystemContracts {
 /// It sets ENSURE_RETURNED_MAGIC to 0 and BOOTLOADER_TYPE to 'playground_block'
 pub fn fee_estimate_contracts(options: &Options) -> BaseSystemContracts {
     let bootloader_bytecode = match options {
-        Options::BuiltIn |
-        Options::BuiltInWithoutSecurity => {
+        Options::BuiltIn | Options::BuiltInWithoutSecurity => {
             include_bytes!("deps/contracts/fee_estimate.yul.zbin").to_vec()
         }
         Options::Local =>
+            read_zbin_bytecode("etc/system-contracts/bootloader/build/artifacts/fee_estimate.yul/fee_estimate.yul.zbin")
+    };
+
+    bsc_load_with_bootloader(bootloader_bytecode, options)
+}
+
+pub fn fee_estimate_impersonating_contracts(options: &Options) -> BaseSystemContracts {
+    let bootloader_bytecode = match options {
+        Options::BuiltIn | Options::BuiltInWithoutSecurity => {
+            include_bytes!("deps/contracts/fee_estimate_impersonating.yul.zbin").to_vec()
+        }
+        Options::Local =>
+            // Account impersonating is not supported with the local contracts
             read_zbin_bytecode("etc/system-contracts/bootloader/build/artifacts/fee_estimate.yul/fee_estimate.yul.zbin")
     };
 
@@ -150,6 +176,17 @@ pub fn baseline_contracts(options: &Options) -> BaseSystemContracts {
         Options::BuiltIn | Options::BuiltInWithoutSecurity => {
             include_bytes!("deps/contracts/proved_batch.yul.zbin").to_vec()
         }
+        Options::Local => read_proved_batch_bootloader_bytecode(),
+    };
+    bsc_load_with_bootloader(bootloader_bytecode, options)
+}
+
+pub fn baseline_impersonating_contracts(options: &Options) -> BaseSystemContracts {
+    let bootloader_bytecode = match options {
+        Options::BuiltIn | Options::BuiltInWithoutSecurity => {
+            include_bytes!("deps/contracts/proved_batch_impersonating.yul.zbin").to_vec()
+        }
+        // Account impersonating is not supported with the local contracts
         Options::Local => read_proved_batch_bootloader_bytecode(),
     };
     bsc_load_with_bootloader(bootloader_bytecode, options)

@@ -4,7 +4,7 @@ use colored::Colorize;
 use futures::FutureExt;
 use itertools::Itertools;
 use multivm::interface::{ExecutionResult, TxExecutionMode};
-use multivm::vm_refunds_enhancement::constants::ETH_CALL_GAS_LIMIT;
+use multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use zksync_basic_types::{web3, AccountTreeId, Address, Bytes, H160, H256, U256, U64};
 use zksync_core::api_server::web3::backend_jsonrpc::error::into_jsrpc_error;
 use zksync_state::ReadStorage;
@@ -15,7 +15,7 @@ use zksync_types::{
     l2::L2Tx,
     transaction_request::TransactionRequest,
     utils::storage_key_for_standard_token_balance,
-    StorageKey, L2_ETH_TOKEN_ADDRESS,
+    PackedEthSignature, StorageKey, L2_ETH_TOKEN_ADDRESS,
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
 use zksync_web3_decl::{
@@ -26,7 +26,7 @@ use zksync_web3_decl::{
 use crate::{
     filters::{FilterType, LogFilter},
     fork::ForkSource,
-    namespaces::{EthNamespaceT, RpcResult},
+    namespaces::{EthNamespaceT, EthTestNodeNamespaceT, RpcResult},
     node::{InMemoryNode, TransactionResult, L2_GAS_PRICE, MAX_TX_SIZE, PROTOCOL_VERSION},
     utils::{self, h256_to_u64, not_implemented, IntoBoxedFuture},
 };
@@ -1258,6 +1258,107 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
                 reward,
             })
         })
+    }
+}
+
+impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthTestNodeNamespaceT
+    for InMemoryNode<S>
+{
+    /// Sends a transaction to the L2 network. Can be used for the impersonated account.
+    ///
+    /// # Arguments
+    ///
+    /// * `tx` - A `CallRequest` struct representing the transaction.
+    ///
+    /// # Returns
+    ///
+    /// A future that resolves to the hash of the transaction if successful, or an error if the transaction is invalid or execution fails.
+    fn send_transaction(
+        &self,
+        tx: zksync_types::transaction_request::CallRequest,
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::H256>> {
+        let chain_id = match self.get_inner().read() {
+            Ok(reader) => reader.fork_storage.chain_id,
+            Err(_) => {
+                return futures::future::err(into_jsrpc_error(Web3Error::InternalError)).boxed()
+            }
+        };
+
+        let mut tx_req = TransactionRequest::from(tx.clone());
+        // EIP-1559 gas fields should be processed separately
+        if tx.gas_price.is_some() {
+            if tx.max_fee_per_gas.is_some() || tx.max_priority_fee_per_gas.is_some() {
+                return futures::future::err(into_jsrpc_error(Web3Error::InvalidTransactionData(
+                    zksync_types::ethabi::Error::InvalidData,
+                )))
+                .boxed();
+            }
+        } else {
+            tx_req.gas_price = tx.max_fee_per_gas.unwrap_or_default();
+            tx_req.max_priority_fee_per_gas = tx.max_priority_fee_per_gas;
+            if tx_req.transaction_type.is_none() {
+                tx_req.transaction_type = Some(zksync_types::EIP_1559_TX_TYPE.into());
+            }
+        }
+        // Needed to calculate hash
+        tx_req.r = Some(U256::default());
+        tx_req.s = Some(U256::default());
+        tx_req.v = Some(U64::from(27));
+
+        let hash = match tx_req.get_tx_hash(chain_id) {
+            Ok(result) => result,
+            Err(e) => {
+                return futures::future::err(into_jsrpc_error(Web3Error::SerializationError(e)))
+                    .boxed()
+            }
+        };
+        let bytes = tx_req.get_signed_bytes(
+            &PackedEthSignature::from_rsv(&H256::default(), &H256::default(), 27),
+            chain_id,
+        );
+        let mut l2_tx: L2Tx = match L2Tx::from_request(tx_req, MAX_TX_SIZE) {
+            Ok(tx) => tx,
+            Err(e) => {
+                return futures::future::err(into_jsrpc_error(Web3Error::SerializationError(e)))
+                    .boxed()
+            }
+        };
+
+        // `v` was overwritten with 0 during converting into l2 tx
+        let mut signature = vec![0u8; 65];
+        signature[64] = 27;
+        l2_tx.common_data.signature = signature;
+
+        l2_tx.set_input(bytes, hash);
+
+        match self.get_inner().read() {
+            Ok(reader) => {
+                if !reader
+                    .impersonated_accounts
+                    .contains(&l2_tx.common_data.initiator_address)
+                {
+                    return futures::future::err(into_jsrpc_error(
+                        Web3Error::InvalidTransactionData(zksync_types::ethabi::Error::InvalidData),
+                    ))
+                    .boxed();
+                }
+            }
+            Err(_) => {
+                return futures::future::err(into_jsrpc_error(Web3Error::InternalError)).boxed()
+            }
+        }
+
+        match self.run_l2_tx(l2_tx.clone(), TxExecutionMode::VerifyExecute) {
+            Ok(_) => Ok(l2_tx.hash()).into_boxed_future(),
+            Err(e) => {
+                let error_message = format!("Execution error: {}", e);
+                futures::future::err(into_jsrpc_error(Web3Error::SubmitTransactionError(
+                    error_message,
+                    l2_tx.hash().as_bytes().to_vec(),
+                )))
+                .boxed()
+            }
+        }
     }
 }
 

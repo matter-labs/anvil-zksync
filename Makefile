@@ -1,6 +1,6 @@
 # Build the system contracts
 build-contracts:
-	cd etc/system-contracts && yarn; yarn install; yarn build; yarn preprocess; yarn build-bootloader
+	cd etc/system-contracts && yarn; yarn install; yarn build
 	./scripts/refresh_contracts.sh
 
 # Clean the system contracts
@@ -10,7 +10,7 @@ clean-contracts:
 
 # Rebuild the system contracts
 rebuild-contracts:
-	cd etc/system-contracts && yarn build; yarn preprocess; yarn build-bootloader
+	cd etc/system-contracts && yarn build
 	./scripts/refresh_contracts.sh
 	./scripts/refresh_test_contracts.sh
 

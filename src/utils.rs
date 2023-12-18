@@ -6,7 +6,7 @@ use chrono::{DateTime, Utc};
 use futures::Future;
 use multivm::interface::{ExecutionResult, VmExecutionResultAndLogs, VmInterface};
 use multivm::vm_latest::HistoryDisabled;
-use multivm::vm_refunds_enhancement::{utils::fee::derive_base_fee_and_gas_per_pubdata, Vm};
+use multivm::vm_latest::{utils::fee::derive_base_fee_and_gas_per_pubdata, Vm};
 use zksync_basic_types::{H256, U256, U64};
 use zksync_state::WriteStorage;
 use zksync_types::api::{BlockNumber, DebugCall, DebugCallType};

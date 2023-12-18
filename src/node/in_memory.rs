@@ -7,7 +7,7 @@ use crate::{
     fork::{ForkDetails, ForkSource, ForkStorage},
     formatter,
     observability::Observability,
-    system_contracts::{self, Options, SystemContracts},
+    system_contracts::{self, SystemContracts},
     utils::{
         adjust_l1_gas_price_for_tx, bytecode_to_factory_dep, create_debug_output, to_human_size,
     },
@@ -31,7 +31,7 @@ use multivm::interface::{
 use multivm::{
     tracers::CallTracer,
     vm_latest::HistoryDisabled,
-    vm_refunds_enhancement::{
+    vm_latest::{
         constants::{BLOCK_GAS_LIMIT, BLOCK_OVERHEAD_PUBDATA, MAX_PUBDATA_PER_BLOCK},
         utils::{
             fee::derive_base_fee_and_gas_per_pubdata,
@@ -50,7 +50,7 @@ use zksync_core::api_server::web3::backend_jsonrpc::error::into_jsrpc_error;
 use zksync_state::{ReadStorage, StoragePtr, WriteStorage};
 use zksync_types::{
     api::{Block, DebugCall, Log, TransactionReceipt, TransactionVariant},
-    block::{legacy_miniblock_hash, unpack_block_info},
+    block::{unpack_block_info, MiniblockHasher},
     fee::Fee,
     get_nonce_key,
     l2::L2Tx,
@@ -344,7 +344,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             L2BlockEnv {
                 number: 1,
                 timestamp: 1,
-                prev_block_hash: legacy_miniblock_hash(MiniblockNumber(0)),
+                prev_block_hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
                 max_virtual_blocks_to_create: 1,
             }
             // This is the scenario of either the first L2 block ever or
@@ -507,8 +507,13 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         let execution_mode = TxExecutionMode::EstimateFee;
         let (mut batch_env, _) = self.create_l1_batch_env(storage.clone());
         batch_env.l1_gas_price = l1_gas_price;
+        let impersonating = self
+            .impersonated_accounts
+            .contains(&l2_tx.common_data.initiator_address);
         let system_env = self.create_system_env(
-            self.system_contracts.contracts_for_fee_estimate().clone(),
+            self.system_contracts
+                .contracts_for_fee_estimate(impersonating)
+                .clone(),
             execution_mode,
         );
 
@@ -1286,10 +1291,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         l2_tx: L2Tx,
         execution_mode: TxExecutionMode,
         mut tracers: Vec<
-            TracerPointer<
-                StorageView<ForkStorage<S>>,
-                multivm::vm_refunds_enhancement::HistoryDisabled,
-            >,
+            TracerPointer<StorageView<ForkStorage<S>>, multivm::vm_latest::HistoryDisabled>,
         >,
         modified_storage_keys: HashMap<StorageKey, StorageValue>,
     ) -> Result<L2TxResult, String> {
@@ -1304,8 +1306,6 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         let (batch_env, block_ctx) = inner.create_l1_batch_env(storage.clone());
         dbg!(&batch_env);
 
-        // if we are impersonating an account, we need to use non-verifying system contracts
-        let nonverifying_contracts;
         let bootloader_code = {
             if inner
                 .impersonated_accounts
@@ -1315,11 +1315,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                     "🕵️ Executing tx from impersonated account {:?}",
                     l2_tx.common_data.initiator_address
                 );
-                nonverifying_contracts =
-                    SystemContracts::from_options(&Options::BuiltInWithoutSecurity);
-                nonverifying_contracts.contracts(execution_mode)
+                inner.system_contracts.contracts(execution_mode, true)
             } else {
-                inner.system_contracts.contracts(execution_mode)
+                inner.system_contracts.contracts(execution_mode, false)
             }
         };
         let system_env = inner.create_system_env(bootloader_code.clone(), execution_mode);
@@ -1737,7 +1735,9 @@ mod tests {
     use zksync_types::utils::deployed_address_create;
 
     use super::*;
-    use crate::{http_fork_source::HttpForkSource, node::InMemoryNode, testing};
+    use crate::{
+        http_fork_source::HttpForkSource, node::InMemoryNode, system_contracts::Options, testing,
+    };
 
     #[tokio::test]
     async fn test_run_l2_tx_validates_tx_gas_limit_too_high() {
@@ -1872,7 +1872,7 @@ mod tests {
         testing::deploy_contract(
             &node,
             H256::repeat_byte(0x1),
-            private_key.clone(),
+            private_key,
             hex::decode(testing::STORAGE_CONTRACT_BYTECODE).unwrap(),
             None,
             Nonce(0),
