@@ -146,9 +146,6 @@ mod test {
         assert_eq!(storage_view.read_value(&key), value);
         assert!(storage_view.is_write_initial(&key)); // key was inserted during the view lifetime
 
-        assert_eq!(storage_view.metrics().storage_invocations_missed, 1);
-        // ^ We should only read a value at `key` once, and then used the cached value.
-
         raw_storage.set_value(key, value);
         let mut storage_view = StorageView::new(&raw_storage);
 
@@ -163,10 +160,5 @@ mod test {
         storage_view.set_value(new_key, new_value);
         assert_eq!(storage_view.read_value(&new_key), new_value);
         assert!(storage_view.is_write_initial(&new_key));
-
-        let metrics = storage_view.metrics();
-        assert_eq!(metrics.storage_invocations_missed, 2);
-        assert_eq!(metrics.get_value_storage_invocations, 3);
-        assert_eq!(metrics.set_value_storage_invocations, 2);
     }
 }

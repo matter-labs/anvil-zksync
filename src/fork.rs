@@ -30,9 +30,9 @@ use zksync_web3_decl::{
 };
 use zksync_web3_decl::{jsonrpsee::http_client::HttpClientBuilder, namespaces::ZksNamespaceClient};
 
+use crate::system_contracts;
 use crate::{cache::CacheConfig, node::TEST_NODE_NETWORK_ID};
 use crate::{deps::InMemoryStorage, http_fork_source::HttpForkSource};
-use crate::{deps::ReadStorage as RS, system_contracts};
 
 pub fn block_on<F: Future + Send + 'static>(future: F) -> F::Output
 where
