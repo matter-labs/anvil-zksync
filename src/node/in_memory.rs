@@ -341,15 +341,13 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 max_virtual_blocks_to_create: 1,
             }
         } else {
+            // This is the scenario of either the first L2 block ever
             L2BlockEnv {
                 number: 1,
                 timestamp: 1,
                 prev_block_hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
                 max_virtual_blocks_to_create: 1,
             }
-            // This is the scenario of either the first L2 block ever or
-            // the first block after the upgrade for support of L2 blocks.
-            // legacy_miniblock_hash(MiniblockNumber(self.current_miniblock as u32))
         };
         let block_ctx = if let Some((batch_number, batch_timestamp)) = load_last_l1_batch(storage) {
             BlockContext::from_current(
@@ -502,7 +500,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         let gas_for_bytecodes_pubdata: u32 =
             pubdata_for_factory_deps * (gas_per_pubdata_byte as u32);
 
-        let storage = storage_view.to_rc_ptr();
+        let storage = storage_view.into_rc_ptr();
 
         let execution_mode = TxExecutionMode::EstimateFee;
         let (mut batch_env, _) = self.create_l1_batch_env(storage.clone());
@@ -708,7 +706,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             );
         l2_tx.common_data.fee.gas_limit = gas_limit_with_overhead.into();
 
-        let storage = StorageView::new(fork_storage).to_rc_ptr();
+        let storage = StorageView::new(fork_storage).into_rc_ptr();
 
         // The nonce needs to be updated
         let nonce = l2_tx.nonce();
@@ -1016,7 +1014,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             .write()
             .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
 
-        let storage = StorageView::new(&inner.fork_storage).to_rc_ptr();
+        let storage = StorageView::new(&inner.fork_storage).into_rc_ptr();
 
         let bootloader_code = inner.system_contracts.contracts_for_l2_call();
 
@@ -1300,11 +1298,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             .write()
             .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
 
-        let storage = StorageView::new(inner.fork_storage.clone()).to_rc_ptr();
+        let storage = StorageView::new(inner.fork_storage.clone()).into_rc_ptr();
         storage.borrow_mut().modified_storage_keys = modified_storage_keys;
 
         let (batch_env, block_ctx) = inner.create_l1_batch_env(storage.clone());
-        dbg!(&batch_env);
 
         let bootloader_code = {
             if inner
@@ -1472,15 +1469,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             ..Default::default()
         };
 
-        tracing::info!("");
-
         let bytecodes: HashMap<U256, Vec<U256>> = vm
             .get_last_tx_compressed_bytecodes()
             .iter()
             .map(|b| bytecode_to_factory_dep(b.original.clone()))
             .collect();
-
-        // vm.execute(VmExecutionMode::Bootloader);
 
         let modified_keys = storage.borrow().modified_storage_keys().clone();
 

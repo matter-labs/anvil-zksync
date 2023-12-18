@@ -170,7 +170,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
             };
 
             let execution_mode = multivm::interface::TxExecutionMode::EthCall;
-            let storage = StorageView::new(&inner.fork_storage).to_rc_ptr();
+            let storage = StorageView::new(&inner.fork_storage).into_rc_ptr();
 
             let bootloader_code = inner.system_contracts.contracts_for_l2_call();
 

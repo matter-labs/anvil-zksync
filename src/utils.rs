@@ -107,7 +107,7 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
     for i in 0..num_blocks {
         // roll the vm
         let (keys, bytecodes, block_ctx) = {
-            let storage = StorageView::new(&node.fork_storage).to_rc_ptr();
+            let storage = StorageView::new(&node.fork_storage).into_rc_ptr();
 
             // system_contract.contracts_for_l2_call() will give playground contracts
             // we need these to use the unsafeOverrideBlock method in SystemContext.sol

@@ -91,7 +91,7 @@ fn execute_internal_bootloader_test() {
                 hash_bytecode,
                 get_system_smart_contracts_from_dir(env::current_dir().unwrap().join("../../")),
             ))
-            .to_rc_ptr();
+            .into_rc_ptr();
 
         let mut vm = Vm::new(
             l1_batch_env.clone(),
@@ -124,7 +124,7 @@ fn execute_internal_bootloader_test() {
                 hash_bytecode,
                 get_system_smart_contracts_from_dir(env::current_dir().unwrap().join("../../")),
             ))
-            .to_rc_ptr();
+            .into_rc_ptr();
 
         // We are passing id of the test in location (0) where we normally put the operator.
         // This is then picked up by the testing framework.

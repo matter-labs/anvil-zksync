@@ -36,6 +36,7 @@ impl<S: ReadStorage + fmt::Debug> StorageView<S> {
         }
     }
 
+    #[allow(dead_code)]
     pub fn clean_cache(&mut self) {
         self.modified_storage_keys = Default::default();
         self.read_storage_keys = Default::default();
@@ -54,7 +55,7 @@ impl<S: ReadStorage + fmt::Debug> StorageView<S> {
         })
     }
     /// Make a Rc RefCell ptr to the storage
-    pub fn to_rc_ptr(self) -> Rc<RefCell<Self>> {
+    pub fn into_rc_ptr(self) -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(self))
     }
 }
@@ -121,51 +122,51 @@ impl<S: ReadStorage + fmt::Debug> WriteStorage for StorageView<S> {
     }
 }
 
-// #[cfg(test)]
-// mod test {
-//     use super::*;
-//     use zksync_types::{AccountTreeId, Address, H256};
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::deps::InMemoryStorage;
+    use zksync_types::{AccountTreeId, Address, H256};
 
-//     #[test]
-//     fn test_storage_access() {
-//         let account: AccountTreeId = AccountTreeId::new(Address::from([0xfe; 20]));
-//         let key = H256::from_low_u64_be(61);
-//         let value = H256::from_low_u64_be(73);
-//         let key = StorageKey::new(account, key);
+    #[test]
+    fn test_storage_access() {
+        let account: AccountTreeId = AccountTreeId::new(Address::from([0xfe; 20]));
+        let key = H256::from_low_u64_be(61);
+        let value = H256::from_low_u64_be(73);
+        let key = StorageKey::new(account, key);
 
-//         let mut raw_storage = InMemoryStorage::default();
-//         let mut storage_view = StorageView::new(&raw_storage);
+        let mut raw_storage = InMemoryStorage::default();
+        let mut storage_view = StorageView::new(&raw_storage);
 
-//         let default_value = storage_view.read_value(&key);
-//         assert_eq!(default_value, H256::zero());
+        let default_value = storage_view.read_value(&key);
+        assert_eq!(default_value, H256::zero());
 
-//         let prev_value = storage_view.set_value(key, value);
-//         assert_eq!(prev_value, H256::zero());
-//         assert_eq!(storage_view.read_value(&key), value);
-//         assert!(storage_view.is_write_initial(&key)); // key was inserted during the view
-// lifetime
+        let prev_value = storage_view.set_value(key, value);
+        assert_eq!(prev_value, H256::zero());
+        assert_eq!(storage_view.read_value(&key), value);
+        assert!(storage_view.is_write_initial(&key)); // key was inserted during the view lifetime
 
-//         assert_eq!(storage_view.metrics().storage_invocations_missed, 1);
-//         // ^ We should only read a value at `key` once, and then used the cached value.
+        assert_eq!(storage_view.metrics().storage_invocations_missed, 1);
+        // ^ We should only read a value at `key` once, and then used the cached value.
 
-//         raw_storage.set_value(key, value);
-//         let mut storage_view = StorageView::new(&raw_storage);
+        raw_storage.set_value(key, value);
+        let mut storage_view = StorageView::new(&raw_storage);
 
-//         assert_eq!(storage_view.read_value(&key), value);
-//         assert!(!storage_view.is_write_initial(&key)); // `key` is present in `raw_storage`
+        assert_eq!(storage_view.read_value(&key), value);
+        assert!(!storage_view.is_write_initial(&key)); // `key` is present in `raw_storage`
 
-//         let new_value = H256::from_low_u64_be(74);
-//         storage_view.set_value(key, new_value);
-//         assert_eq!(storage_view.read_value(&key), new_value);
+        let new_value = H256::from_low_u64_be(74);
+        storage_view.set_value(key, new_value);
+        assert_eq!(storage_view.read_value(&key), new_value);
 
-//         let new_key = StorageKey::new(account, H256::from_low_u64_be(62));
-//         storage_view.set_value(new_key, new_value);
-//         assert_eq!(storage_view.read_value(&new_key), new_value);
-//         assert!(storage_view.is_write_initial(&new_key));
+        let new_key = StorageKey::new(account, H256::from_low_u64_be(62));
+        storage_view.set_value(new_key, new_value);
+        assert_eq!(storage_view.read_value(&new_key), new_value);
+        assert!(storage_view.is_write_initial(&new_key));
 
-//         let metrics = storage_view.metrics();
-//         assert_eq!(metrics.storage_invocations_missed, 2);
-//         assert_eq!(metrics.get_value_storage_invocations, 3);
-//         assert_eq!(metrics.set_value_storage_invocations, 2);
-//     }
-// }
+        let metrics = storage_view.metrics();
+        assert_eq!(metrics.storage_invocations_missed, 2);
+        assert_eq!(metrics.get_value_storage_invocations, 3);
+        assert_eq!(metrics.set_value_storage_invocations, 2);
+    }
+}
