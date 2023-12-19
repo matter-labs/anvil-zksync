@@ -6,6 +6,7 @@ use crate::{
     filters::EthFilters,
     fork::{ForkDetails, ForkSource, ForkStorage},
     formatter,
+    node::storage_logs::print_storage_logs_details,
     observability::Observability,
     system_contracts::{self, SystemContracts},
     utils::{
@@ -74,7 +75,7 @@ pub const TEST_NODE_NETWORK_ID: u32 = 260;
 /// L1 Gas Price.
 pub const L1_GAS_PRICE: u64 = 50_000_000_000;
 /// L2 Gas Price (0.25 gwei).
-pub const L2_GAS_PRICE: u64 = 250_000_000;
+pub const L2_GAS_PRICE: u64 = 190_000_000;
 /// L1 Gas Price Scale Factor for gas estimation.
 pub const ESTIMATE_GAS_L1_GAS_PRICE_SCALE_FACTOR: f64 = 1.2;
 /// The max possible number of gas that `eth_estimateGas` is allowed to overestimate.
@@ -1372,32 +1373,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         }
 
         if inner.show_storage_logs != ShowStorageLogs::None {
-            tracing::info!("");
-            tracing::info!("┌──────────────────┐");
-            tracing::info!("│   STORAGE LOGS   │");
-            tracing::info!("└──────────────────┘");
-        }
-
-        for log_query in &tx_result.logs.storage_logs {
-            match inner.show_storage_logs {
-                ShowStorageLogs::Write => {
-                    if matches!(
-                        log_query.log_type,
-                        StorageLogQueryType::RepeatedWrite | StorageLogQueryType::InitialWrite
-                    ) {
-                        formatter::print_logs(log_query);
-                    }
-                }
-                ShowStorageLogs::Read => {
-                    if log_query.log_type == StorageLogQueryType::Read {
-                        formatter::print_logs(log_query);
-                    }
-                }
-                ShowStorageLogs::All => {
-                    formatter::print_logs(log_query);
-                }
-                _ => {}
-            }
+            print_storage_logs_details(&inner.show_storage_logs, &tx_result);
         }
 
         if inner.show_vm_details != ShowVMDetails::None {
