@@ -167,6 +167,7 @@ pub enum ShowStorageLogs {
     None,
     Read,
     Write,
+    Paid,
     All,
 }
 
@@ -178,9 +179,10 @@ impl FromStr for ShowStorageLogs {
             "none" => Ok(ShowStorageLogs::None),
             "read" => Ok(ShowStorageLogs::Read),
             "write" => Ok(ShowStorageLogs::Write),
+            "paid" => Ok(ShowStorageLogs::Paid),
             "all" => Ok(ShowStorageLogs::All),
             _ => Err(format!(
-                "Unknown ShowStorageLogs value {} - expected one of none|read|write|all.",
+                "Unknown ShowStorageLogs value {} - expected one of none|read|write|paid|all.",
                 s
             )),
         }
