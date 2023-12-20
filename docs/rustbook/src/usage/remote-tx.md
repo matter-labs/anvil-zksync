@@ -4,14 +4,14 @@ If you wish to replay a remote transaction locally for deep debugging, use the f
 
 ```sh
 # Usage: era_test_node replay_tx <NETWORK> <TX>
-era_test_node replay_tx testnet 0x7f039bcbb1490b855be37e74cf2400503ad57f51c84856362f99b0cbf1ef478a
+era_test_node replay_tx sepolia-testnet 0x7119045573862797257e4441ff48bf5a3bc4d133a00d167c18dc955eda12cfac
 ```
 
 For more detailed transaction information, such as call traces, add the `--show-calls` flag. If you want to see ABI names, add the `--resolve-hashes` flag. Here's an example:
 
 ```sh
 # Usage: era_test_node replay_tx <NETWORK> <TX>
-era_test_node --show-calls=user --resolve-hashes replay_tx testnet 0x7f039bcbb1490b855be37e74cf2400503ad57f51c84856362f99b0cbf1ef478a
+era_test_node --show-calls=user --resolve-hashes replay_tx sepolia-testnet 0x7119045573862797257e4441ff48bf5a3bc4d133a00d167c18dc955eda12cfac
 ```
 
 Alternatively (if your node is already running) you can use `config_setShowCalls` and `config_setResolveHashes` RPC endpoints to configure these values. Here's an example:
@@ -32,7 +32,7 @@ curl --request POST \
   --data '{"jsonrpc": "2.0","id": "1","method": "config_setResolveHashes","params": [true]}'
 ```
 
-Here's an example of what you should expect to see when `--show-calls` and `--resolve-hashes` are configured:
+Here's an example of what you could see when `--show-calls` and `--resolve-hashes` are configured:
 
 ```log
 Creating fork from "https://testnet.era.zksync.dev:443" L1 block: L1BatchNumber(94420) L2 block: 8072359 with timestamp 1687337488 and L1 gas price 2500011172

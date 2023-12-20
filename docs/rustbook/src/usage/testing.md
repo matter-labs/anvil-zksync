@@ -25,7 +25,7 @@ yarn preprocess && yarn hardhat run ./scripts/compile-yul.ts
 
 To use the locally compiled bootloader and system contracts, run:
 ```sh
-RUST_LOG=vm=trace era_test_node --dev-use-local-contracts fork testnet
+RUST_LOG=vm=trace era_test_node --dev-use-local-contracts fork sepolia-testnet
 ```
 
 ## Writing and running tests locally

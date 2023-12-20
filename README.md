@@ -122,14 +122,14 @@ To fork the mainnet:
 era_test_node fork mainnet
 ```
 
-> Tip: You can also fork the testnet with `era_test_node fork testnet`.
+> Tip: You can also fork the Sepolia testnet with `era_test_node fork sepolia-testnet`.
 
 ## 🔄 Replay Remote Transactions Locally
 
 If you wish to replay a remote transaction locally for deep debugging, use the following command:
 
 ```bash
-era_test_node replay_tx testnet 0x7f039bcbb1490b855be37e74cf2400503ad57f51c84856362f99b0cbf1ef478a
+era_test_node replay_tx <network> <transaction_hash>
 ```
 
 ## 📞 Sending Network Calls
@@ -147,34 +147,33 @@ By default, the tool is just printing the basic information about the executed t
 But with --show-calls flag, it can print more detailed call traces, and with --resolve-hashes, it will ask openchain for ABI names.
 
 ```bash
-era_test_node --show-calls=user --resolve-hashes replay_tx testnet 0x7f039bcbb1490b855be37e74cf2400503ad57f51c84856362f99b0cbf1ef478a
+era_test_node --show-calls=user --resolve-hashes replay_tx sepolia-testnet 0x7119045573862797257e4441ff48bf5a3bc4d133a00d167c18dc955eda12cfac
 
-Executing 0x7f039bcbb1490b855be37e74cf2400503ad57f51c84856362f99b0cbf1ef478a
+Executing 0x7119045573862797257e4441ff48bf5a3bc4d133a00d167c18dc955eda12cfac
 ┌─────────────────────────┐
 │   TRANSACTION SUMMARY   │
 └─────────────────────────┘
 Transaction: SUCCESS
-Initiator: 0x55362182242a4de20ea8a0ec055b2134bb24e23d
-Payer: 0x55362182242a4de20ea8a0ec055b2134bb24e23d
-Gas - Limit: 797128 | Used: 351250 | Refunded: 445878
+Initiator: 0x4eaf936c172b5e5511959167e8ab4f7031113ca3
+Payer: 0x4eaf936c172b5e5511959167e8ab4f7031113ca3
+Gas - Limit: 2_487_330 | Used: 969_330 | Refunded: 1_518_000
+Use --show-gas-details flag or call config_setShowGasDetails to display more info
 
 ==== Console logs: 
 
-==== 18 call traces.  Use --show-calls flag or call config_setShowCalls to display more info.
-Call(Normal) 0x55362182242a4de20ea8a0ec055b2134bb24e23d           validateTransaction(bytes32, bytes32, tuple)   730485
-  Call(Normal) 0x0000000000000000000000000000000000000001                 0xbb1e83e6   698040
-Call(Normal) 0x55362182242a4de20ea8a0ec055b2134bb24e23d           payForTransaction(bytes32, bytes32, tuple)   703647
-Call(Normal) 0x55362182242a4de20ea8a0ec055b2134bb24e23d           executeTransaction(bytes32, bytes32, tuple)   647199
-    Call(Mimic) 0x6eef3310e09df3aa819cc2aa364d4f3ad2e6ffe3           swapExactETHForTokens(uint256,address[],address,uint256)   596358
-      Call(Normal) 0x053f26a020de152a947b8ba7d8974c85c5fc5b81           getPair(address,address)   577647
-
+==== 22 call traces.  Use --show-calls flag or call config_setShowCalls to display more info.
+  Call(Normal) 0x4eaf936c172b5e5511959167e8ab4f7031113ca3           validateTransaction(bytes32, bytes32, tuple)   1830339
+    Call(Normal) 0x0000000000000000000000000000000000000001                 0x89c19e9b   1766835
+  Call(Normal) 0x4eaf936c172b5e5511959167e8ab4f7031113ca3           payForTransaction(bytes32, bytes32, tuple)   1789767
+  Call(Normal) 0x4eaf936c172b5e5511959167e8ab4f7031113ca3           executeTransaction(bytes32, bytes32, tuple)   1671012
+      Call(Mimic) 0x5d4fb5385ed95b65d1cd6a10ed9549613481ab2f           0x   1443393
 ```
 
 You can use the following options to get more granular information during transaction processing:
 
 - `--show-storage-logs <SHOW_STORAGE_LOGS>`: Show storage log information.  
   [default: none]  
-  [possible values: none, read, write, all]
+  [possible values: none, read, paid, write, all]
 
 - `--show-vm-details <SHOW_VM_DETAILS>`: Show VM details information.  
   [default: none]  

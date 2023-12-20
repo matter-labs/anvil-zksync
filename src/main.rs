@@ -293,7 +293,8 @@ struct ReplayArgs {
     /// If not set - will start a new network from genesis.
     /// If set - will try to fork a remote network. Possible values:
     ///  - mainnet
-    ///  - testnet
+    ///  - sepolia-testnet
+    ///  - goerli-testnet
     ///  - http://XXX:YY
     network: String,
     /// Transaction hash to replay.
