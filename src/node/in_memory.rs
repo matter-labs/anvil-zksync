@@ -6,6 +6,7 @@ use crate::{
     filters::EthFilters,
     fork::{ForkDetails, ForkSource, ForkStorage},
     formatter,
+    node::storage_logs::print_storage_logs_details,
     observability::Observability,
     system_contracts::{self, SystemContracts},
     utils::{
@@ -168,6 +169,7 @@ pub enum ShowStorageLogs {
     None,
     Read,
     Write,
+    Paid,
     All,
 }
 
@@ -179,9 +181,10 @@ impl FromStr for ShowStorageLogs {
             "none" => Ok(ShowStorageLogs::None),
             "read" => Ok(ShowStorageLogs::Read),
             "write" => Ok(ShowStorageLogs::Write),
+            "paid" => Ok(ShowStorageLogs::Paid),
             "all" => Ok(ShowStorageLogs::All),
             _ => Err(format!(
-                "Unknown ShowStorageLogs value {} - expected one of none|read|write|all.",
+                "Unknown ShowStorageLogs value {} - expected one of none|read|write|paid|all.",
                 s
             )),
         }
@@ -1382,32 +1385,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         }
 
         if inner.show_storage_logs != ShowStorageLogs::None {
-            tracing::info!("");
-            tracing::info!("┌──────────────────┐");
-            tracing::info!("│   STORAGE LOGS   │");
-            tracing::info!("└──────────────────┘");
-        }
-
-        for log_query in &tx_result.logs.storage_logs {
-            match inner.show_storage_logs {
-                ShowStorageLogs::Write => {
-                    if matches!(
-                        log_query.log_type,
-                        StorageLogQueryType::RepeatedWrite | StorageLogQueryType::InitialWrite
-                    ) {
-                        formatter::print_logs(log_query);
-                    }
-                }
-                ShowStorageLogs::Read => {
-                    if log_query.log_type == StorageLogQueryType::Read {
-                        formatter::print_logs(log_query);
-                    }
-                }
-                ShowStorageLogs::All => {
-                    formatter::print_logs(log_query);
-                }
-                _ => {}
-            }
+            print_storage_logs_details(&inner.show_storage_logs, &tx_result);
         }
 
         if inner.show_vm_details != ShowVMDetails::None {
