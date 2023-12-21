@@ -197,7 +197,47 @@ pub fn print_call(call: &Call, padding: usize, show_calls: &ShowCalls, resolve_h
     }
 }
 
-pub fn print_logs(log_query: &StorageLogQuery) {
+/// Amount of pubdata that given write has cost.
+pub enum PubdataBytesInfo {
+    // This slot is free
+    FreeSlot,
+    // This slot costs this much.
+    Paid(u32),
+    // This happens when we already paid a litte for this slot in the past.
+    // This slots costs additional X, the total cost is Y.
+    AdditionalPayment(u32, u32),
+    // We already paid for this slot in this transaction.
+    PaidAlready,
+}
+
+impl std::fmt::Display for PubdataBytesInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PubdataBytesInfo::FreeSlot => write!(f, "free slot"),
+            PubdataBytesInfo::Paid(cost) => write!(f, "{:?} bytes", cost),
+            PubdataBytesInfo::AdditionalPayment(additional_cost, total_cost) => write!(
+                f,
+                "{:?} addditional bytes, {:?} total cost",
+                additional_cost, total_cost
+            ),
+            PubdataBytesInfo::PaidAlready => write!(f, "already paid"),
+        }
+    }
+}
+
+impl PubdataBytesInfo {
+    // Whether the slot incurs any cost
+    pub fn does_cost(&self) -> bool {
+        match self {
+            PubdataBytesInfo::FreeSlot => false,
+            PubdataBytesInfo::Paid(_) => true,
+            PubdataBytesInfo::AdditionalPayment(_, _) => true,
+            PubdataBytesInfo::PaidAlready => false,
+        }
+    }
+}
+
+pub fn print_logs(log_query: &StorageLogQuery, pubdata_bytes: Option<PubdataBytesInfo>) {
     let separator = "─".repeat(82);
     tracing::info!("{:<15} {:?}", "Type:", log_query.log_type);
     tracing::info!(
@@ -220,6 +260,9 @@ pub fn print_logs(log_query: &StorageLogQuery) {
             "Written Value:",
             log_query.log_query.written_value
         );
+    }
+    if let Some(pubdata_bytes) = pubdata_bytes {
+        tracing::info!("{:<15} {:}", "Pubdata bytes:", pubdata_bytes);
     }
     tracing::info!("{}", separator);
 }
