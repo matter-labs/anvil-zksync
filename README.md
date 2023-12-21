@@ -122,7 +122,7 @@ To fork the mainnet:
 era_test_node fork mainnet
 ```
 
-> Tip: You can also fork the Sepolia testnet with `era_test_node fork sepolia-testnet`.
+> Tip: You can also fork the zkSync Sepolia testnet with `era_test_node fork sepolia-testnet`.
 
 ## 🔄 Replay Remote Transactions Locally
 

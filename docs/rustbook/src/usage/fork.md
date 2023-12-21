@@ -37,7 +37,7 @@ The expected output will be similar to the following:
 14:50:19  INFO ========================================
 ```
 
-This command starts the node, forked at the current head of the Sepolia testnet.
+This command starts the node, forking it from the latest block on the zkSync Sepolia testnet.
 
 You also have the option to specify a custom http endpoint and a custom forking height, like so:
 
