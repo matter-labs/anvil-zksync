@@ -25,9 +25,12 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use multivm::interface::{
-    ExecutionResult, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
-    VmExecutionResultAndLogs, VmInterface,
+use multivm::{
+    interface::{
+        ExecutionResult, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
+        VmExecutionResultAndLogs, VmInterface,
+    },
+    vm_latest::L2Block,
 };
 use multivm::{
     tracers::CallTracer,
@@ -332,42 +335,35 @@ type L2TxResult = (
 );
 
 impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
+    /// Create [L1BatchEnv] to be used in the VM.
+    ///
+    /// We compute l1/l2 block details from storage to support fork testing, where the storage
+    /// can be updated mid execution and no longer matches with the initial node's state.
+    /// The L1 & L2 timestamps are also compared with node's timestamp to ensure it always increases monotonically.
     pub fn create_l1_batch_env<ST: ReadStorage>(
         &self,
         storage: StoragePtr<ST>,
     ) -> (L1BatchEnv, BlockContext) {
-        let mut first_l2_block = if let Some(last_l2_block) = load_last_l2_block(storage.clone()) {
-            L2BlockEnv {
-                number: last_l2_block.number + 1,
-                timestamp: last_l2_block.timestamp + 1,
-                prev_block_hash: last_l2_block.hash,
-                max_virtual_blocks_to_create: 1,
-            }
-        } else {
-            // This is the scenario of either the first L2 block ever
-            L2BlockEnv {
-                number: 1,
-                timestamp: 1,
-                prev_block_hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
-                max_virtual_blocks_to_create: 1,
-            }
-        };
-        let block_ctx = if let Some((batch_number, batch_timestamp)) = load_last_l1_batch(storage) {
-            BlockContext::from_current(
-                batch_number as u32,
-                first_l2_block.number as u64,
-                batch_timestamp,
-            )
-        } else {
-            BlockContext::from_current(
-                self.current_batch,
-                self.current_miniblock,
-                self.current_timestamp,
-            )
-        };
-        let mut block_ctx = block_ctx.new_batch();
-        first_l2_block.timestamp = std::cmp::max(block_ctx.timestamp, first_l2_block.timestamp);
-        block_ctx.timestamp = first_l2_block.timestamp;
+        let (last_l1_block_num, last_l1_block_ts) = load_last_l1_batch(storage.clone())
+            .map(|(num, ts)| (num as u32, ts))
+            .unwrap_or_else(|| (self.current_batch, self.current_timestamp));
+        let last_l2_block = load_last_l2_block(storage.clone()).unwrap_or_else(|| L2Block {
+            number: self.current_miniblock as u32,
+            hash: MiniblockHasher::legacy_hash(MiniblockNumber(self.current_miniblock as u32)),
+            timestamp: self.current_timestamp,
+        });
+        let latest_timestamp = std::cmp::max(
+            std::cmp::max(last_l1_block_ts, last_l2_block.timestamp),
+            self.current_timestamp,
+        );
+
+        let block_ctx = BlockContext::from_current(
+            last_l1_block_num,
+            last_l2_block.number as u64,
+            latest_timestamp,
+        )
+        .new_batch();
+
         let batch_env = L1BatchEnv {
             // TODO: set the previous batch hash properly (take from fork, when forking, and from local storage, when this is not the first block).
             previous_batch_hash: None,
@@ -377,7 +373,21 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             fair_l2_gas_price: L2_GAS_PRICE,
             fee_account: H160::zero(),
             enforced_base_fee: None,
-            first_l2_block,
+            first_l2_block: L2BlockEnv {
+                // the 'current_miniblock' contains the block that was already produced.
+                // So the next one should be one higher.
+                number: block_ctx.miniblock as u32,
+                timestamp: block_ctx.timestamp,
+                prev_block_hash: last_l2_block.hash,
+                // This is only used during zksyncEra block timestamp/number transition.
+                // In case of starting a new network, it doesn't matter.
+                // In theory , when forking mainnet, we should match this value
+                // to the value that was set in the node at that time - but AFAIK
+                // we don't have any API for this - so this might result in slightly
+                // incorrect replays of transacions during the migration period, that
+                // depend on block number or timestamp.
+                max_virtual_blocks_to_create: 1,
+            },
         };
 
         (batch_env, block_ctx)
@@ -1615,7 +1625,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
         inner.current_batch = inner.current_batch.saturating_add(1);
 
-        for block in vec![block, empty_block_at_end_of_batch] {
+        for (i, block) in vec![block, empty_block_at_end_of_batch]
+            .into_iter()
+            .enumerate()
+        {
             // archive current state before we produce new batch/blocks
             if let Err(err) = inner.archive_state() {
                 tracing::error!(
@@ -1641,7 +1654,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
             if block.number.as_u64() != inner.current_miniblock {
                 panic!(
-                    "expected next block to have miniblock {}, got {}",
+                    "expected next block to have miniblock {}, got {} | {i}",
                     inner.current_miniblock,
                     block.number.as_u64()
                 );
@@ -1649,7 +1662,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
             if block.timestamp.as_u64() != inner.current_timestamp {
                 panic!(
-                    "expected next block to have timestamp {}, got {}",
+                    "expected next block to have timestamp {}, got {} | {i}",
                     inner.current_timestamp,
                     block.timestamp.as_u64()
                 );
@@ -1668,6 +1681,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
 /// Keeps track of a block's batch number, miniblock number and timestamp.
 /// Useful for keeping track of the current context when creating multiple blocks.
+#[derive(Debug, Clone, Default)]
 pub struct BlockContext {
     pub batch: u32,
     pub miniblock: u64,
