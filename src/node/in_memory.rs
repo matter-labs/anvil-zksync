@@ -1873,13 +1873,7 @@ mod tests {
         tx.common_data.transaction_type = TransactionType::LegacyTransaction;
         tx.set_input(vec![], H256::repeat_byte(0x2));
         let (_, result, ..) = node
-            .run_l2_tx_raw(
-                tx,
-                TxExecutionMode::VerifyExecute,
-                vec![],
-                Default::default(),
-                true,
-            )
+            .run_l2_tx_raw(tx, TxExecutionMode::VerifyExecute, vec![], true)
             .expect("failed tx");
 
         match result.result {
