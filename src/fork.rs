@@ -444,7 +444,8 @@ impl<S: ForkSource> ForkDetails<S> {
     pub fn fork_to_url_and_client(fork: &str) -> (&str, HttpClient) {
         let url = match fork {
             "mainnet" => "https://mainnet.era.zksync.io:443",
-            "testnet" => "https://testnet.era.zksync.dev:443",
+            "sepolia-testnet" => "https://sepolia.era.zksync.dev:443",
+            "goerli-testnet" => "https://testnet.era.zksync.dev:443",
             _ => fork,
         };
 
