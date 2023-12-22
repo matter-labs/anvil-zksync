@@ -1268,6 +1268,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     }
 
     /// Executes the given L2 transaction and returns all the VM logs.
+    /// The bootloader can be omitted via specifying the `execute_bootloader` boolean.
+    /// This causes the VM to produce 1 L2 block per L1 block, instead of the usual 2 blocks per L1 block.
     ///
     /// **NOTE**
     ///
@@ -1285,7 +1287,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     ///     * [InMemoryNodeInner::tx_results]
     ///
     /// This is because external users of the library may call this function to perform an isolated
-    /// VM operation with an external storage and get the results back.
+    /// VM operation (optionally without bootloader execution) with an external storage and get the results back.
     /// So any data populated in [Self::run_l2_tx] will not be available for the next invocation.
     pub fn run_l2_tx_raw(
         &self,
@@ -1294,7 +1296,6 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         mut tracers: Vec<
             TracerPointer<StorageView<ForkStorage<S>>, multivm::vm_latest::HistoryDisabled>,
         >,
-        modified_storage_keys: HashMap<StorageKey, StorageValue>,
         execute_bootloader: bool,
     ) -> Result<L2TxResult, String> {
         let inner = self
@@ -1303,7 +1304,6 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
 
         let storage = StorageView::new(inner.fork_storage.clone()).into_rc_ptr();
-        storage.borrow_mut().modified_storage_keys = modified_storage_keys;
 
         let (batch_env, block_ctx) = inner.create_l1_batch_env(storage.clone());
 
@@ -1493,13 +1493,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             inner.filters.notify_new_pending_transaction(tx_hash);
         }
 
-        let (keys, result, call_traces, block, bytecodes, block_ctx) = self.run_l2_tx_raw(
-            l2_tx.clone(),
-            execution_mode,
-            vec![],
-            Default::default(),
-            true,
-        )?;
+        let (keys, result, call_traces, block, bytecodes, block_ctx) =
+            self.run_l2_tx_raw(l2_tx.clone(), execution_mode, vec![], true)?;
 
         if let ExecutionResult::Halt { reason } = result.result {
             // Halt means that something went really bad with the transaction execution (in most cases invalid signature,
@@ -1827,7 +1822,6 @@ mod tests {
             testing::TransactionBuilder::new().build(),
             TxExecutionMode::VerifyExecute,
             vec![],
-            Default::default(),
             true,
         )
         .expect("transaction must pass with external storage");
