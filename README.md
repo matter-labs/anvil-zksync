@@ -37,7 +37,10 @@ Please note that `era-test-node` is still in its **alpha** stage. Some features 
 
 ## 🛠 Prerequisites
 
-1. **Rust**: `era-test-node` is written in Rust. Ensure you have Rust installed on your machine. [Download Rust here](https://www.rust-lang.org/tools/install).
+1. **Rust**: `era-test-node` is written in Rust. Ensure you have Rust installed on your machine. [Download Rust here](https://www.rust-lang.org/tools/install) or you can install `cargo` with `curl`.
+   ```bash
+   curl https://sh.rustup.rs -sSf | sh
+   ```
 
 2. **Other Dependencies**: This crate relies on rocksDB. If you face any compile errors due to rocksDB, install the necessary dependencies with:
    ```bash
