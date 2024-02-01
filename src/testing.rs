@@ -656,7 +656,7 @@ pub fn default_tx_debug_info() -> DebugCall {
 
 /// Decodes a `bytes` tx result to its concrete parameter type.
 pub fn decode_tx_result(output: &[u8], param_type: ParamType) -> Token {
-    let result = ethabi::decode(&vec![ParamType::Bytes], &output).expect("failed decoding output");
+    let result = ethabi::decode(&[ParamType::Bytes], output).expect("failed decoding output");
     if result.is_empty() {
         panic!("result was empty");
     }
@@ -665,8 +665,7 @@ pub fn decode_tx_result(output: &[u8], param_type: ParamType) -> Token {
         .clone()
         .into_bytes()
         .expect("failed converting result to bytes");
-    let result =
-        ethabi::decode(&vec![param_type], &result_bytes).expect("failed converting output");
+    let result = ethabi::decode(&[param_type], &result_bytes).expect("failed converting output");
     if result.is_empty() {
         panic!("decoded result was empty");
     }

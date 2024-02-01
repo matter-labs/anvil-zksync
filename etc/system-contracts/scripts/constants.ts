@@ -1,11 +1,12 @@
-import { BigNumberish, BytesLike, constants, ethers } from 'ethers';
+import type { BigNumberish, BytesLike } from "ethers";
+import { constants, ethers } from "ethers";
 
-export const BOOTLOADER_FORMAL_ADDRESS = '0x0000000000000000000000000000000000008001';
+export const BOOTLOADER_FORMAL_ADDRESS = "0x0000000000000000000000000000000000008001";
 export const ETH_ADDRESS = constants.AddressZero;
 
 export enum Language {
-    Solidity = 'solidity',
-    Yul = 'yul'
+    Solidity = "solidity",
+    Yul = "yul",
 }
 
 export interface SystemContractDescription {
@@ -29,110 +30,122 @@ interface ISystemContracts {
 export const SYSTEM_CONTRACTS: ISystemContracts = {
     zeroAddress: {
         // zero address has EmptyContract code
-        address: '0x0000000000000000000000000000000000000000',
-        codeName: 'EmptyContract',
-        lang: Language.Solidity
+        address: "0x0000000000000000000000000000000000000000",
+        codeName: "EmptyContract",
+        lang: Language.Solidity,
     },
     ecrecover: {
-        address: '0x0000000000000000000000000000000000000001',
-        codeName: 'Ecrecover',
+        address: "0x0000000000000000000000000000000000000001",
+        codeName: "Ecrecover",
         lang: Language.Yul,
-        path: 'precompiles'
+        path: "precompiles",
     },
     sha256: {
-        address: '0x0000000000000000000000000000000000000002',
-        codeName: 'SHA256',
+        address: "0x0000000000000000000000000000000000000002",
+        codeName: "SHA256",
         lang: Language.Yul,
-        path: 'precompiles'
+        path: "precompiles",
+    },
+    ecAdd: {
+        address: "0x0000000000000000000000000000000000000006",
+        codeName: "EcAdd",
+        lang: Language.Yul,
+        path: "precompiles",
+    },
+    ecMul: {
+        address: "0x0000000000000000000000000000000000000007",
+        codeName: "EcMul",
+        lang: Language.Yul,
+        path: "precompiles",
     },
     bootloader: {
         // Bootloader has EmptyContract code
-        address: '0x0000000000000000000000000000000000008001',
-        codeName: 'EmptyContract',
-        lang: Language.Solidity
+        address: "0x0000000000000000000000000000000000008001",
+        codeName: "EmptyContract",
+        lang: Language.Solidity,
     },
     accountCodeStorage: {
-        address: '0x0000000000000000000000000000000000008002',
-        codeName: 'AccountCodeStorage',
-        lang: Language.Solidity
+        address: "0x0000000000000000000000000000000000008002",
+        codeName: "AccountCodeStorage",
+        lang: Language.Solidity,
     },
     nonceHolder: {
-        address: '0x0000000000000000000000000000000000008003',
-        codeName: 'NonceHolder',
-        lang: Language.Solidity
+        address: "0x0000000000000000000000000000000000008003",
+        codeName: "NonceHolder",
+        lang: Language.Solidity,
     },
     knownCodesStorage: {
-        address: '0x0000000000000000000000000000000000008004',
-        codeName: 'KnownCodesStorage',
-        lang: Language.Solidity
+        address: "0x0000000000000000000000000000000000008004",
+        codeName: "KnownCodesStorage",
+        lang: Language.Solidity,
     },
     immutableSimulator: {
-        address: '0x0000000000000000000000000000000000008005',
-        codeName: 'ImmutableSimulator',
-        lang: Language.Solidity
+        address: "0x0000000000000000000000000000000000008005",
+        codeName: "ImmutableSimulator",
+        lang: Language.Solidity,
     },
     contractDeployer: {
-        address: '0x0000000000000000000000000000000000008006',
-        codeName: 'ContractDeployer',
-        lang: Language.Solidity
+        address: "0x0000000000000000000000000000000000008006",
+        codeName: "ContractDeployer",
+        lang: Language.Solidity,
     },
     l1Messenger: {
-        address: '0x0000000000000000000000000000000000008008',
-        codeName: 'L1Messenger',
-        lang: Language.Solidity
+        address: "0x0000000000000000000000000000000000008008",
+        codeName: "L1Messenger",
+        lang: Language.Solidity,
     },
     msgValueSimulator: {
-        address: '0x0000000000000000000000000000000000008009',
-        codeName: 'MsgValueSimulator',
-        lang: Language.Solidity
+        address: "0x0000000000000000000000000000000000008009",
+        codeName: "MsgValueSimulator",
+        lang: Language.Solidity,
     },
     l2EthToken: {
-        address: '0x000000000000000000000000000000000000800a',
-        codeName: 'L2EthToken',
-        lang: Language.Solidity
+        address: "0x000000000000000000000000000000000000800a",
+        codeName: "L2EthToken",
+        lang: Language.Solidity,
     },
     systemContext: {
-        address: '0x000000000000000000000000000000000000800b',
-        codeName: 'SystemContext',
-        lang: Language.Solidity
+        address: "0x000000000000000000000000000000000000800b",
+        codeName: "SystemContext",
+        lang: Language.Solidity,
     },
     bootloaderUtilities: {
-        address: '0x000000000000000000000000000000000000800c',
-        codeName: 'BootloaderUtilities',
-        lang: Language.Solidity
+        address: "0x000000000000000000000000000000000000800c",
+        codeName: "BootloaderUtilities",
+        lang: Language.Solidity,
     },
     eventWriter: {
-        address: '0x000000000000000000000000000000000000800d',
-        codeName: 'EventWriter',
+        address: "0x000000000000000000000000000000000000800d",
+        codeName: "EventWriter",
         lang: Language.Yul,
-        path: ''
+        path: "",
     },
-    bytecodeCompressor: {
-        address: '0x000000000000000000000000000000000000800e',
-        codeName: 'BytecodeCompressor',
+    compressor: {
+        address: "0x000000000000000000000000000000000000800e",
+        codeName: "Compressor",
         lang: Language.Solidity,
     },
     complexUpgrader: {
-        address: '0x000000000000000000000000000000000000800f',
-        codeName: 'ComplexUpgrader',
+        address: "0x000000000000000000000000000000000000800f",
+        codeName: "ComplexUpgrader",
         lang: Language.Solidity,
     },
     keccak256: {
-        address: '0x0000000000000000000000000000000000008010',
-        codeName: 'Keccak256',
+        address: "0x0000000000000000000000000000000000008010",
+        codeName: "Keccak256",
         lang: Language.Yul,
-        path: 'precompiles'
-    }
+        path: "precompiles",
+    },
 } as const;
 
 export const EIP712_TX_ID = 113;
-export const CHAIN_ID = 260;
+export const CHAIN_ID = 270;
 
 // For now, these types are hardcoded, but maybe it will make sense
 export const EIP712_DOMAIN = {
-    name: 'zkSync',
-    version: '2',
-    chainId: CHAIN_ID
+    name: "zkSync",
+    version: "2",
+    chainId: CHAIN_ID,
     // zkSync contract doesn't verify EIP712 signatures.
 };
 
@@ -176,38 +189,38 @@ export type Address = string;
 
 export const EIP712_TX_TYPE = {
     Transaction: [
-        { name: 'txType', type: 'uint8' },
-        { name: 'to', type: 'uint256' },
-        { name: 'value', type: 'uint256' },
-        { name: 'data', type: 'bytes' },
-        { name: 'gasLimit', type: 'uint256' },
-        { name: 'gasPerPubdataByteLimit', type: 'uint256' },
-        { name: 'gasPrice', type: 'uint256' },
-        { name: 'nonce', type: 'uint256' }
-    ]
+        { name: "txType", type: "uint8" },
+        { name: "to", type: "uint256" },
+        { name: "value", type: "uint256" },
+        { name: "data", type: "bytes" },
+        { name: "gasLimit", type: "uint256" },
+        { name: "gasPerPubdataByteLimit", type: "uint256" },
+        { name: "gasPrice", type: "uint256" },
+        { name: "nonce", type: "uint256" },
+    ],
 };
 
-export type DynamicType = 'bytes' | 'bytes32[]';
-export type FixedType = 'address' | 'uint256' | 'uint128' | 'uint32';
+export type DynamicType = "bytes" | "bytes32[]";
+export type FixedType = "address" | "uint256" | "uint128" | "uint32";
 export type FieldType = FixedType | DynamicType;
 
 function isDynamicType(x: FieldType): x is DynamicType {
-    return x == 'bytes' || x == 'bytes32[]';
+    return x == "bytes" || x == "bytes32[]";
 }
 
 function isFixedType(x: FieldType): x is FixedType {
     return !isDynamicType(x);
 }
 
-export const TransactionFields: Record<string, FieldType|FixedType[]> = {
-    txType: 'uint256',
-    from: 'address',
-    to: 'address',
-    gasLimit: 'uint32',
-    gasPerPubdataByteLimit: 'uint32',
-    maxFeePerGas: 'uint256',
-    maxPriorityFeePerGas: 'uint256',
-    paymaster: 'address',
+export const TransactionFields: Record<string, FieldType | FixedType[]> = {
+    txType: "uint256",
+    from: "address",
+    to: "address",
+    gasLimit: "uint32",
+    gasPerPubdataByteLimit: "uint32",
+    maxFeePerGas: "uint256",
+    maxPriorityFeePerGas: "uint256",
+    paymaster: "address",
     // In the future, we might want to add some
     // new fields to the struct. The `txData` struct
     // is to be passed to account and any changes to its structure
@@ -216,25 +229,25 @@ export const TransactionFields: Record<string, FieldType|FixedType[]> = {
     // It is also recommended that their length is fixed, since
     // it would allow easier proof integration (in case we will need
     // some special circuit for preprocessing transactions).
-    reserved: Array(6).fill('uint256'),
-    data: 'bytes',
-    signature: 'bytes',
-    factoryDeps: 'bytes32[]',
-    paymasterInput: 'bytes',
+    reserved: Array(6).fill("uint256"),
+    data: "bytes",
+    signature: "bytes",
+    factoryDeps: "bytes32[]",
+    paymasterInput: "bytes",
     // Reserved dynamic type for the future use-case. Using it should be avoided,
     // But it is still here, just in case we want to enable some additional functionality.
-    reservedDynamic: 'bytes'
-}
+    reservedDynamic: "bytes",
+};
 
 function capitalize(s: string) {
-    if(!s.length) {
+    if (!s.length) {
         return s;
     }
     return `${s[0].toUpperCase()}${s.substring(1)}`;
 }
 
 function memPosFromOffset(offset: number) {
-    return offset === 0 ? 'innerTxDataOffset' : `add(innerTxDataOffset, ${offset})`;
+    return offset === 0 ? "innerTxDataOffset" : `add(innerTxDataOffset, ${offset})`;
 }
 
 function getGetterName(fieldName: string) {
@@ -242,7 +255,7 @@ function getGetterName(fieldName: string) {
 }
 
 function getPtrGetterName(fieldName: string) {
-    return `get${capitalize(fieldName)}Ptr`;     
+    return `get${capitalize(fieldName)}Ptr`;
 }
 
 function getGetter(fieldName: string, offset: number) {
@@ -252,7 +265,7 @@ function getGetter(fieldName: string, offset: number) {
             function ${getterName}(innerTxDataOffset) -> ret {
                 ret := mload(${memPos})
             }
-    `
+    `;
 }
 
 function getPtrGetter(fieldName: string, offset: number) {
@@ -263,12 +276,12 @@ function getPtrGetter(fieldName: string, offset: number) {
                 ret := mload(${memPos})
                 ret := add(innerTxDataOffset, ret)
             }
-    `
+    `;
 }
 
 function getTypeValidationMethodName(type: FieldType) {
-    if(type == 'bytes32[]'){
-        return 'validateBytes32Array'
+    if (type == "bytes32[]") {
+        return "validateBytes32Array";
     } else {
         return `validate${capitalize(type)}`;
     }
@@ -280,12 +293,12 @@ function getBytesLengthGetterName(fieldName: string): string {
 
 function getBytesLengthGetter(fieldName: string, type: DynamicType) {
     let lengthToBytes: string;
-    if(type == 'bytes') {
-        lengthToBytes = `lengthToWords(mload(ptr))`;
-    } else if(type == 'bytes32[]') {
-        lengthToBytes = `mul(mload(ptr),32)`;
+    if (type == "bytes") {
+        lengthToBytes = "lengthToWords(mload(ptr))";
+    } else if (type == "bytes32[]") {
+        lengthToBytes = "mul(mload(ptr),32)";
     } else {
-        throw new Error(`Type ${type} is not supported`)
+        throw new Error(`Type ${type} is not supported`);
     }
 
     const getterName = getBytesLengthGetterName(fieldName);
@@ -294,14 +307,16 @@ function getBytesLengthGetter(fieldName: string, type: DynamicType) {
                 let ptr := ${getPtrGetterName(fieldName)}(innerTxDataOffset)
                 ret := ${lengthToBytes}
             }
-    `
+    `;
 }
 
 function getDataLength(baseLength: number, dynamicFields: [string, DynamicType][]) {
-    const ptrAdders = dynamicFields.map(([fieldName,]) => {
-        return `
-                ret := add(ret, ${getBytesLengthGetterName(fieldName)}(innerTxDataOffset))`
-    }).join('');
+    const ptrAdders = dynamicFields
+        .map(([fieldName]) => {
+            return `
+                ret := add(ret, ${getBytesLengthGetterName(fieldName)}(innerTxDataOffset))`;
+        })
+        .join("");
 
     return `
             function getDataLength(innerTxDataOffset) -> ret {
@@ -312,16 +327,16 @@ function getDataLength(baseLength: number, dynamicFields: [string, DynamicType][
 
                 ${ptrAdders}
             }
-    `
+    `;
 }
 
 function validateFixedSizeField(fieldName: string, type: FixedType): string {
-    if(type == 'uint256') {
+    if (type == "uint256") {
         // There is no validation for uint256
-        return ``;
+        return "";
     }
     const assertionErrorStr = getEncodingError(fieldName);
-    const fieldValue = `${fieldName}Value`
+    const fieldValue = `${fieldName}Value`;
     return `
                 let ${fieldValue} := ${getGetterName(fieldName)}(innerTxDataOffset)
                 if iszero(${getTypeValidationMethodName(type)}(${fieldValue})) {
@@ -335,31 +350,33 @@ function getEncodingError(fieldName: string) {
     // because the maximum length is 32.
     const assertionError = `Encoding ${fieldName}`;
 
-    if(assertionError.length > 32) {
-        throw new Error(`Assertion str too long: ${assertionError}`)
+    if (assertionError.length > 32) {
+        throw new Error(`Assertion str too long: ${assertionError}`);
     }
 
     return assertionError;
 }
 
 function getValidateTxStructure(
-    fixedFieldsChecks: string, 
+    fixedFieldsChecks: string,
     fixedLenPart: number,
     dynamicFields: [string, DynamicType][]
 ): string {
-    const dynamicChecks = dynamicFields.map(([fieldName, type]) => {
-        const lengthPos = `${fieldName}LengthPos`;
-        const assertionError = getEncodingError(fieldName);
-        const validationMethod = getTypeValidationMethodName(type);
+    const dynamicChecks = dynamicFields
+        .map(([fieldName, type]) => {
+            const lengthPos = `${fieldName}LengthPos`;
+            const assertionError = getEncodingError(fieldName);
+            const validationMethod = getTypeValidationMethodName(type);
 
-        return `
+            return `
                 let ${lengthPos} := ${getPtrGetterName(fieldName)}(innerTxDataOffset)
                 if iszero(eq(${lengthPos}, expectedDynamicLenPtr)) {
                     assertionError("${assertionError}")
                 }
                 expectedDynamicLenPtr := ${validationMethod}(${lengthPos})
-        `
-    }).join('\n');
+        `;
+        })
+        .join("\n");
 
     return `
             /// This method checks that the transaction's structure is correct
@@ -378,13 +395,13 @@ export function getTransactionUtils(): string {
             ///\n`;
 
     let innerOffsetBytes = 0;
-    let checksStr = ``;
+    let checksStr = "";
 
     const dynamicFields: [string, DynamicType][] = [];
-    for(const [key, value] of Object.entries(TransactionFields)) {
+    for (const [key, value] of Object.entries(TransactionFields)) {
         if (Array.isArray(value)) {
-            // We assume that the 
-            for(let i = 0; i < value.length; i++) {
+            // We assume that the
+            for (let i = 0; i < value.length; i++) {
                 const keyName = `${key}${i}`;
                 result += getGetter(keyName, innerOffsetBytes);
                 checksStr += validateFixedSizeField(keyName, value[i]);
@@ -402,11 +419,7 @@ export function getTransactionUtils(): string {
         }
     }
 
-    result += getValidateTxStructure(
-        checksStr,
-        innerOffsetBytes,
-        dynamicFields
-    );
+    result += getValidateTxStructure(checksStr, innerOffsetBytes, dynamicFields);
 
     result += getDataLength(innerOffsetBytes, dynamicFields);
 
@@ -414,5 +427,5 @@ export function getTransactionUtils(): string {
 }
 
 export function getRevertSelector(): string {
-    return ethers.utils.keccak256(ethers.utils.toUtf8Bytes('Error(string)')).substring(0, 10);
+    return ethers.utils.keccak256(ethers.utils.toUtf8Bytes("Error(string)")).substring(0, 10);
 }

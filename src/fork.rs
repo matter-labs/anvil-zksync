@@ -30,9 +30,9 @@ use zksync_web3_decl::{
 };
 use zksync_web3_decl::{jsonrpsee::http_client::HttpClientBuilder, namespaces::ZksNamespaceClient};
 
+use crate::system_contracts;
 use crate::{cache::CacheConfig, node::TEST_NODE_NETWORK_ID};
 use crate::{deps::InMemoryStorage, http_fork_source::HttpForkSource};
-use crate::{deps::ReadStorage as RS, system_contracts};
 
 pub fn block_on<F: Future + Send + 'static>(future: F) -> F::Output
 where
@@ -149,6 +149,27 @@ impl<S: ForkSource> ForkStorage<S> {
         }
     }
 
+    /// Check if this is the first time when we're ever writing to this key.
+    /// This has impact on amount of pubdata that we have to spend for the write.
+    fn is_write_initial_internal(&self, key: &StorageKey) -> bool {
+        // Currently we don't have the zks API to return us the information on whether a given
+        // key was written to before a given block.
+        // This means, we have to depend on the following heuristic: we'll read the value of the slot.
+        //  - if value != 0 -> this means that the slot was written to in the past (so we can return intitial_write = false)
+        //  - but if the value = 0 - there is a chance, that slot was written to in the past - and later was reset.
+        //                            but unfortunately we cannot detect that with the current zks api, so we'll attempt to do it
+        //                           only on local storage.
+        let value = self.read_value_internal(key);
+        if value != H256::zero() {
+            return false;
+        }
+
+        // If value was 0, there is still a chance, that the slot was written to in the past - and only now set to 0.
+        // We unfortunately don't have the API to check it on the fork, but we can at least try to check it on local storage.
+        let mut mutator = self.inner.write().unwrap();
+        mutator.raw_storage.is_write_initial(key)
+    }
+
     /// Retrieves the enumeration index for a given `key`.
     fn get_enumeration_index_internal(&self, _key: &StorageKey) -> Option<u64> {
         // TODO: Update this file to use proper enumeration index value once it's exposed for forks via API
@@ -158,8 +179,7 @@ impl<S: ForkSource> ForkStorage<S> {
 
 impl<S: std::fmt::Debug + ForkSource> ReadStorage for ForkStorage<S> {
     fn is_write_initial(&mut self, key: &StorageKey) -> bool {
-        let mut mutator = self.inner.write().unwrap();
-        mutator.raw_storage.is_write_initial(key)
+        self.is_write_initial_internal(key)
     }
 
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
@@ -181,8 +201,7 @@ impl<S: std::fmt::Debug + ForkSource> ReadStorage for &ForkStorage<S> {
     }
 
     fn is_write_initial(&mut self, key: &StorageKey) -> bool {
-        let mut mutator = self.inner.write().unwrap();
-        mutator.raw_storage.is_write_initial(key)
+        self.is_write_initial_internal(key)
     }
 
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
@@ -310,6 +329,8 @@ const SUPPORTED_VERSIONS: &[ProtocolVersionId] = &[
     ProtocolVersionId::Version15,
     ProtocolVersionId::Version16,
     ProtocolVersionId::Version17,
+    ProtocolVersionId::Version18,
+    ProtocolVersionId::Version19,
 ];
 
 pub fn supported_protocol_versions(version: ProtocolVersionId) -> bool {
@@ -423,7 +444,8 @@ impl<S: ForkSource> ForkDetails<S> {
     pub fn fork_to_url_and_client(fork: &str) -> (&str, HttpClient) {
         let url = match fork {
             "mainnet" => "https://mainnet.era.zksync.io:443",
-            "testnet" => "https://testnet.era.zksync.dev:443",
+            "sepolia-testnet" => "https://sepolia.era.zksync.dev:443",
+            "goerli-testnet" => "https://testnet.era.zksync.dev:443",
             _ => fork,
         };
 
@@ -464,5 +486,56 @@ impl<S: ForkSource> ForkDetails<S> {
             "Cound not find tx {:?} in miniblock: {:?}",
             replay_tx, miniblock
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use zksync_basic_types::{AccountTreeId, L1BatchNumber, H256};
+    use zksync_state::ReadStorage;
+    use zksync_types::{api::TransactionVariant, StorageKey};
+
+    use crate::{deps::InMemoryStorage, system_contracts, testing};
+
+    use super::{ForkDetails, ForkStorage};
+
+    #[test]
+    fn test_initial_writes() {
+        let account = AccountTreeId::default();
+        let never_written_key = StorageKey::new(account, H256::from_low_u64_be(1));
+        let key_with_some_value = StorageKey::new(account, H256::from_low_u64_be(2));
+        let key_with_value_0 = StorageKey::new(account, H256::from_low_u64_be(3));
+        let mut in_memory_storage = InMemoryStorage::default();
+        in_memory_storage.set_value(key_with_some_value, H256::from_low_u64_be(13));
+        in_memory_storage.set_value(key_with_value_0, H256::from_low_u64_be(0));
+
+        let external_storage = testing::ExternalStorage {
+            raw_storage: in_memory_storage,
+        };
+
+        let options = system_contracts::Options::default();
+
+        let fork_details = ForkDetails {
+            fork_source: &external_storage,
+            l1_block: L1BatchNumber(1),
+            l2_block: zksync_types::api::Block::<TransactionVariant>::default(),
+            l2_miniblock: 1,
+            l2_miniblock_hash: H256::zero(),
+            block_timestamp: 0,
+            overwrite_chain_id: None,
+            l1_gas_price: 100,
+        };
+
+        let mut fork_storage = ForkStorage::new(Some(fork_details), &options);
+
+        assert_eq!(fork_storage.is_write_initial(&never_written_key), true);
+        assert_eq!(fork_storage.is_write_initial(&key_with_some_value), false);
+        // This is the current limitation of the sytem. In theory, this should return false - as the value was written, but we don't have the API to the
+        // backend to get this information.
+        assert_eq!(fork_storage.is_write_initial(&key_with_value_0), true);
+
+        // But writing any value there in the local storage (even 0) - should make it non-initial write immediately.
+        fork_storage.set_value(key_with_value_0, H256::zero());
+        assert_eq!(fork_storage.is_write_initial(&key_with_value_0), false);
     }
 }

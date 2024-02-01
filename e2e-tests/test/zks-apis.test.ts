@@ -31,7 +31,7 @@ describe("zks_estimateFee", function () {
     const response: Fee = await provider.send("zks_estimateFee", [transaction]);
 
     // Assert
-    expect(ethers.BigNumber.from(response.gas_limit)).to.eql(ethers.BigNumber.from("1230957"), "Unexpected gas_limit");
+    expect(ethers.BigNumber.from(response.gas_limit)).to.eql(ethers.BigNumber.from("621166"), "Unexpected gas_limit");
     expect(ethers.BigNumber.from(response.gas_per_pubdata_limit)).to.eql(
       ethers.BigNumber.from("4080"),
       "Unexpected gas_per_pubdata_limit"

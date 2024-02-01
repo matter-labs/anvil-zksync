@@ -5,11 +5,10 @@ use std::sync::Arc;
 use multivm::interface::VmInterface;
 use multivm::tracers::CallTracer;
 use multivm::vm_latest::HistoryDisabled;
-use multivm::vm_refunds_enhancement::{constants::ETH_CALL_GAS_LIMIT, ToTracerPointer, Vm};
+use multivm::vm_latest::{constants::ETH_CALL_GAS_LIMIT, ToTracerPointer, Vm};
 
 use zksync_basic_types::H256;
 use zksync_core::api_server::web3::backend_jsonrpc::error::into_jsrpc_error;
-use zksync_state::StorageView;
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig, TransactionVariant},
     l2::L2Tx,
@@ -18,6 +17,7 @@ use zksync_types::{
 };
 use zksync_web3_decl::error::Web3Error;
 
+use crate::deps::storage_view::StorageView;
 use crate::{
     fork::ForkSource,
     namespaces::{DebugNamespaceT, Result, RpcResult},
@@ -162,7 +162,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> DebugNames
             };
 
             let execution_mode = multivm::interface::TxExecutionMode::EthCall;
-            let storage = StorageView::new(&inner.fork_storage).to_rc_ptr();
+            let storage = StorageView::new(&inner.fork_storage).into_rc_ptr();
 
             let bootloader_code = inner.system_contracts.contracts_for_l2_call();
 

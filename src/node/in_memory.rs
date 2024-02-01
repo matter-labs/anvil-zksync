@@ -2,12 +2,13 @@
 use crate::{
     bootloader_debug::{BootloaderDebug, BootloaderDebugTracer},
     console_log::ConsoleLogHandler,
-    deps::InMemoryStorage,
+    deps::{storage_view::StorageView, InMemoryStorage},
     filters::EthFilters,
     fork::{ForkDetails, ForkSource, ForkStorage},
     formatter,
+    node::storage_logs::print_storage_logs_details,
     observability::Observability,
-    system_contracts::{self, Options, SystemContracts},
+    system_contracts::{self, SystemContracts},
     utils::{
         adjust_l1_gas_price_for_tx, bytecode_to_factory_dep, create_debug_output, to_human_size,
     },
@@ -24,14 +25,17 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use multivm::interface::{
-    ExecutionResult, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
-    VmExecutionResultAndLogs, VmInterface,
+use multivm::{
+    interface::{
+        ExecutionResult, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
+        VmExecutionResultAndLogs, VmInterface,
+    },
+    vm_latest::L2Block,
 };
 use multivm::{
     tracers::CallTracer,
     vm_latest::HistoryDisabled,
-    vm_refunds_enhancement::{
+    vm_latest::{
         constants::{BLOCK_GAS_LIMIT, BLOCK_OVERHEAD_PUBDATA, MAX_PUBDATA_PER_BLOCK},
         utils::{
             fee::derive_base_fee_and_gas_per_pubdata,
@@ -42,14 +46,15 @@ use multivm::{
     },
 };
 use zksync_basic_types::{
-    web3::signing::keccak256, Address, Bytes, L1BatchNumber, MiniblockNumber, H160, H256, U256, U64,
+    web3::signing::keccak256, AccountTreeId, Address, Bytes, L1BatchNumber, MiniblockNumber, H160,
+    H256, U256, U64,
 };
 use zksync_contracts::BaseSystemContracts;
 use zksync_core::api_server::web3::backend_jsonrpc::error::into_jsrpc_error;
-use zksync_state::{ReadStorage, StoragePtr, StorageView, WriteStorage};
+use zksync_state::{ReadStorage, StoragePtr, WriteStorage};
 use zksync_types::{
     api::{Block, DebugCall, Log, TransactionReceipt, TransactionVariant},
-    block::legacy_miniblock_hash,
+    block::{unpack_block_info, MiniblockHasher},
     fee::Fee,
     get_nonce_key,
     l2::L2Tx,
@@ -58,6 +63,7 @@ use zksync_types::{
     vm_trace::Call,
     PackedEthSignature, StorageKey, StorageLogQueryType, StorageValue, Transaction,
     ACCOUNT_CODE_STORAGE_ADDRESS, EIP_712_TX_TYPE, MAX_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT,
+    SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
 };
 use zksync_utils::{
     bytecode::{compress_bytecode, hash_bytecode},
@@ -166,6 +172,7 @@ pub enum ShowStorageLogs {
     None,
     Read,
     Write,
+    Paid,
     All,
 }
 
@@ -177,9 +184,10 @@ impl FromStr for ShowStorageLogs {
             "none" => Ok(ShowStorageLogs::None),
             "read" => Ok(ShowStorageLogs::Read),
             "write" => Ok(ShowStorageLogs::Write),
+            "paid" => Ok(ShowStorageLogs::Paid),
             "all" => Ok(ShowStorageLogs::All),
             _ => Err(format!(
-                "Unknown ShowStorageLogs value {} - expected one of none|read|write|all.",
+                "Unknown ShowStorageLogs value {} - expected one of none|read|write|paid|all.",
                 s
             )),
         }
@@ -327,23 +335,35 @@ type L2TxResult = (
 );
 
 impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
+    /// Create [L1BatchEnv] to be used in the VM.
+    ///
+    /// We compute l1/l2 block details from storage to support fork testing, where the storage
+    /// can be updated mid execution and no longer matches with the initial node's state.
+    /// The L1 & L2 timestamps are also compared with node's timestamp to ensure it always increases monotonically.
     pub fn create_l1_batch_env<ST: ReadStorage>(
         &self,
         storage: StoragePtr<ST>,
     ) -> (L1BatchEnv, BlockContext) {
-        let last_l2_block_hash = if let Some(last_l2_block) = load_last_l2_block(storage) {
-            last_l2_block.hash
-        } else {
-            // This is the scenario of either the first L2 block ever or
-            // the first block after the upgrade for support of L2 blocks.
-            legacy_miniblock_hash(MiniblockNumber(self.current_miniblock as u32))
-        };
-        let block_ctx = BlockContext::from_current(
-            self.current_batch,
-            self.current_miniblock,
+        let (last_l1_block_num, last_l1_block_ts) = load_last_l1_batch(storage.clone())
+            .map(|(num, ts)| (num as u32, ts))
+            .unwrap_or_else(|| (self.current_batch, self.current_timestamp));
+        let last_l2_block = load_last_l2_block(storage.clone()).unwrap_or_else(|| L2Block {
+            number: self.current_miniblock as u32,
+            hash: MiniblockHasher::legacy_hash(MiniblockNumber(self.current_miniblock as u32)),
+            timestamp: self.current_timestamp,
+        });
+        let latest_timestamp = std::cmp::max(
+            std::cmp::max(last_l1_block_ts, last_l2_block.timestamp),
             self.current_timestamp,
         );
-        let block_ctx = block_ctx.new_batch();
+
+        let block_ctx = BlockContext::from_current(
+            last_l1_block_num,
+            last_l2_block.number as u64,
+            latest_timestamp,
+        )
+        .new_batch();
+
         let batch_env = L1BatchEnv {
             // TODO: set the previous batch hash properly (take from fork, when forking, and from local storage, when this is not the first block).
             previous_batch_hash: None,
@@ -358,7 +378,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 // So the next one should be one higher.
                 number: block_ctx.miniblock as u32,
                 timestamp: block_ctx.timestamp,
-                prev_block_hash: last_l2_block_hash,
+                prev_block_hash: last_l2_block.hash,
                 // This is only used during zksyncEra block timestamp/number transition.
                 // In case of starting a new network, it doesn't matter.
                 // In theory , when forking mainnet, we should match this value
@@ -493,13 +513,18 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         let gas_for_bytecodes_pubdata: u32 =
             pubdata_for_factory_deps * (gas_per_pubdata_byte as u32);
 
-        let storage = storage_view.to_rc_ptr();
+        let storage = storage_view.into_rc_ptr();
 
         let execution_mode = TxExecutionMode::EstimateFee;
         let (mut batch_env, _) = self.create_l1_batch_env(storage.clone());
         batch_env.l1_gas_price = l1_gas_price;
+        let impersonating = self
+            .impersonated_accounts
+            .contains(&l2_tx.common_data.initiator_address);
         let system_env = self.create_system_env(
-            self.system_contracts.contracts_for_fee_estimate().clone(),
+            self.system_contracts
+                .contracts_for_fee_estimate(impersonating)
+                .clone(),
             execution_mode,
         );
 
@@ -694,7 +719,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             );
         l2_tx.common_data.fee.gas_limit = gas_limit_with_overhead.into();
 
-        let storage = StorageView::new(fork_storage).to_rc_ptr();
+        let storage = StorageView::new(fork_storage).into_rc_ptr();
 
         // The nonce needs to be updated
         let nonce = l2_tx.nonce();
@@ -1002,7 +1027,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             .write()
             .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
 
-        let storage = StorageView::new(&inner.fork_storage).to_rc_ptr();
+        let storage = StorageView::new(&inner.fork_storage).into_rc_ptr();
 
         let bootloader_code = inner.system_contracts.contracts_for_l2_call();
 
@@ -1253,6 +1278,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     }
 
     /// Executes the given L2 transaction and returns all the VM logs.
+    /// The bootloader can be omitted via specifying the `execute_bootloader` boolean.
+    /// This causes the VM to produce 1 L2 block per L1 block, instead of the usual 2 blocks per L1 block.
     ///
     /// **NOTE**
     ///
@@ -1270,30 +1297,26 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     ///     * [InMemoryNodeInner::tx_results]
     ///
     /// This is because external users of the library may call this function to perform an isolated
-    /// VM operation with an external storage and get the results back.
+    /// VM operation (optionally without bootloader execution) with an external storage and get the results back.
     /// So any data populated in [Self::run_l2_tx] will not be available for the next invocation.
     pub fn run_l2_tx_raw(
         &self,
         l2_tx: L2Tx,
         execution_mode: TxExecutionMode,
         mut tracers: Vec<
-            TracerPointer<
-                StorageView<ForkStorage<S>>,
-                multivm::vm_refunds_enhancement::HistoryDisabled,
-            >,
+            TracerPointer<StorageView<ForkStorage<S>>, multivm::vm_latest::HistoryDisabled>,
         >,
+        execute_bootloader: bool,
     ) -> Result<L2TxResult, String> {
         let inner = self
             .inner
             .write()
             .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
 
-        let storage = StorageView::new(inner.fork_storage.clone()).to_rc_ptr();
+        let storage = StorageView::new(inner.fork_storage.clone()).into_rc_ptr();
 
         let (batch_env, block_ctx) = inner.create_l1_batch_env(storage.clone());
 
-        // if we are impersonating an account, we need to use non-verifying system contracts
-        let nonverifying_contracts;
         let bootloader_code = {
             if inner
                 .impersonated_accounts
@@ -1303,11 +1326,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                     "🕵️ Executing tx from impersonated account {:?}",
                     l2_tx.common_data.initiator_address
                 );
-                nonverifying_contracts =
-                    SystemContracts::from_options(&Options::BuiltInWithoutSecurity);
-                nonverifying_contracts.contracts(execution_mode)
+                inner.system_contracts.contracts(execution_mode, true)
             } else {
-                inner.system_contracts.contracts(execution_mode)
+                inner.system_contracts.contracts(execution_mode, false)
             }
         };
         let system_env = inner.create_system_env(bootloader_code.clone(), execution_mode);
@@ -1374,32 +1395,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         }
 
         if inner.show_storage_logs != ShowStorageLogs::None {
-            tracing::info!("");
-            tracing::info!("┌──────────────────┐");
-            tracing::info!("│   STORAGE LOGS   │");
-            tracing::info!("└──────────────────┘");
-        }
-
-        for log_query in &tx_result.logs.storage_logs {
-            match inner.show_storage_logs {
-                ShowStorageLogs::Write => {
-                    if matches!(
-                        log_query.log_type,
-                        StorageLogQueryType::RepeatedWrite | StorageLogQueryType::InitialWrite
-                    ) {
-                        formatter::print_logs(log_query);
-                    }
-                }
-                ShowStorageLogs::Read => {
-                    if log_query.log_type == StorageLogQueryType::Read {
-                        formatter::print_logs(log_query);
-                    }
-                }
-                ShowStorageLogs::All => {
-                    formatter::print_logs(log_query);
-                }
-                _ => {}
-            }
+            print_storage_logs_details(&inner.show_storage_logs, &tx_result);
         }
 
         if inner.show_vm_details != ShowVMDetails::None {
@@ -1462,17 +1458,17 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             ..Default::default()
         };
 
-        tracing::info!("");
-
-        let bytecodes = vm
+        let bytecodes: HashMap<U256, Vec<U256>> = vm
             .get_last_tx_compressed_bytecodes()
             .iter()
             .map(|b| bytecode_to_factory_dep(b.original.clone()))
             .collect();
-
-        vm.execute(VmExecutionMode::Bootloader);
+        if execute_bootloader {
+            vm.execute(VmExecutionMode::Bootloader);
+        }
 
         let modified_keys = storage.borrow().modified_storage_keys().clone();
+
         Ok((
             modified_keys,
             tx_result,
@@ -1508,7 +1504,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         }
 
         let (keys, result, call_traces, block, bytecodes, block_ctx) =
-            self.run_l2_tx_raw(l2_tx.clone(), execution_mode, vec![])?;
+            self.run_l2_tx_raw(l2_tx.clone(), execution_mode, vec![], true)?;
 
         if let ExecutionResult::Halt { reason } = result.result {
             // Halt means that something went really bad with the transaction execution (in most cases invalid signature,
@@ -1629,7 +1625,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
         inner.current_batch = inner.current_batch.saturating_add(1);
 
-        for block in vec![block, empty_block_at_end_of_batch] {
+        for (i, block) in vec![block, empty_block_at_end_of_batch]
+            .into_iter()
+            .enumerate()
+        {
             // archive current state before we produce new batch/blocks
             if let Err(err) = inner.archive_state() {
                 tracing::error!(
@@ -1655,7 +1654,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
             if block.number.as_u64() != inner.current_miniblock {
                 panic!(
-                    "expected next block to have miniblock {}, got {}",
+                    "expected next block to have miniblock {}, got {} | {i}",
                     inner.current_miniblock,
                     block.number.as_u64()
                 );
@@ -1663,7 +1662,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
             if block.timestamp.as_u64() != inner.current_timestamp {
                 panic!(
-                    "expected next block to have timestamp {}, got {}",
+                    "expected next block to have timestamp {}, got {} | {i}",
                     inner.current_timestamp,
                     block.timestamp.as_u64()
                 );
@@ -1682,6 +1681,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
 /// Keeps track of a block's batch number, miniblock number and timestamp.
 /// Useful for keeping track of the current context when creating multiple blocks.
+#[derive(Debug, Clone, Default)]
 pub struct BlockContext {
     pub batch: u32,
     pub miniblock: u64,
@@ -1724,7 +1724,9 @@ mod tests {
     use zksync_types::utils::deployed_address_create;
 
     use super::*;
-    use crate::{http_fork_source::HttpForkSource, node::InMemoryNode, testing};
+    use crate::{
+        http_fork_source::HttpForkSource, node::InMemoryNode, system_contracts::Options, testing,
+    };
 
     #[tokio::test]
     async fn test_run_l2_tx_validates_tx_gas_limit_too_high() {
@@ -1834,6 +1836,7 @@ mod tests {
             testing::TransactionBuilder::new().build(),
             TxExecutionMode::VerifyExecute,
             vec![],
+            true,
         )
         .expect("transaction must pass with external storage");
     }
@@ -1858,7 +1861,7 @@ mod tests {
         testing::deploy_contract(
             &node,
             H256::repeat_byte(0x1),
-            private_key.clone(),
+            private_key,
             hex::decode(testing::STORAGE_CONTRACT_BYTECODE).unwrap(),
             None,
             Nonce(0),
@@ -1884,7 +1887,7 @@ mod tests {
         tx.common_data.transaction_type = TransactionType::LegacyTransaction;
         tx.set_input(vec![], H256::repeat_byte(0x2));
         let (_, result, ..) = node
-            .run_l2_tx_raw(tx, TxExecutionMode::VerifyExecute, vec![])
+            .run_l2_tx_raw(tx, TxExecutionMode::VerifyExecute, vec![], true)
             .expect("failed tx");
 
         match result.result {
@@ -1896,4 +1899,21 @@ mod tests {
             _ => panic!("invalid result {:?}", result.result),
         }
     }
+}
+
+pub fn load_last_l1_batch<S: ReadStorage>(storage: StoragePtr<S>) -> Option<(u64, u64)> {
+    // Get block number and timestamp
+    let current_l1_batch_info_key = StorageKey::new(
+        AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
+        SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
+    );
+    let mut storage_ptr = storage.borrow_mut();
+    let current_l1_batch_info = storage_ptr.read_value(&current_l1_batch_info_key);
+    let (batch_number, batch_timestamp) = unpack_block_info(h256_to_u256(current_l1_batch_info));
+    let block_number = batch_number as u32;
+    if block_number == 0 {
+        // The block does not exist yet
+        return None;
+    }
+    Some((batch_number, batch_timestamp))
 }

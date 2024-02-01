@@ -1,7 +1,7 @@
-use multivm::interface::{dyn_tracers::vm_1_3_3::DynTracer, tracer::VmExecutionStopReason};
+use multivm::interface::{dyn_tracers::vm_1_4_0::DynTracer, tracer::VmExecutionStopReason};
 use std::sync::Arc;
 
-use multivm::vm_refunds_enhancement::{
+use multivm::vm_latest::{
     constants::BOOTLOADER_HEAP_PAGE, BootloaderState, HistoryMode, SimpleMemory, VmTracer,
     ZkSyncVmState,
 };

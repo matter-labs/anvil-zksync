@@ -16,10 +16,7 @@ use zksync_types::{
     ExecuteTransactionCommon, ProtocolVersionId, Transaction, L2_ETH_TOKEN_ADDRESS,
 };
 use zksync_utils::h256_to_u256;
-use zksync_web3_decl::{
-    error::Web3Error,
-    types::{Filter, Log},
-};
+use zksync_web3_decl::error::Web3Error;
 
 use crate::{
     fork::ForkSource,
@@ -508,10 +505,6 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
     fn get_protocol_version(&self, _version_id: Option<u16>) -> RpcResult<Option<ProtocolVersion>> {
         not_implemented("zks_getProtocolVersion")
     }
-
-    fn get_logs_with_virtual_blocks(&self, _filter: Filter) -> RpcResult<Vec<Log>> {
-        not_implemented("zks_getLogs")
-    }
 }
 
 #[cfg(test)]
@@ -559,7 +552,7 @@ mod tests {
 
         let result = node.estimate_fee(mock_request).await.unwrap();
 
-        assert_eq!(result.gas_limit, U256::from(730662));
+        assert_eq!(result.gas_limit, U256::from(746532));
         assert_eq!(result.max_fee_per_gas, U256::from(250000000));
         assert_eq!(result.max_priority_fee_per_gas, U256::from(0));
         assert_eq!(result.gas_per_pubdata_limit, U256::from(4080));
