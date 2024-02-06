@@ -1721,7 +1721,7 @@ mod tests {
     async fn test_run_l2_tx_validates_tx_max_fee_per_gas_too_low() {
         let node = InMemoryNode::<HttpForkSource>::default();
         let tx = testing::TransactionBuilder::new()
-            .set_max_fee_per_gas(U256::from(250_000_000 - 1))
+            .set_max_fee_per_gas(U256::from(100_000_000 - 1))
             .build();
         node.set_rich_account(tx.common_data.initiator_address);
 

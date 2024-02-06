@@ -552,10 +552,10 @@ mod tests {
 
         let result = node.estimate_fee(mock_request).await.unwrap();
 
-        assert_eq!(result.gas_limit, U256::from(746532));
-        assert_eq!(result.max_fee_per_gas, U256::from(250000000));
+        assert_eq!(result.gas_limit, U256::from(1784965));
+        assert_eq!(result.max_fee_per_gas, U256::from(100000000));
         assert_eq!(result.max_priority_fee_per_gas, U256::from(0));
-        assert_eq!(result.gas_per_pubdata_limit, U256::from(4080));
+        assert_eq!(result.gas_per_pubdata_limit, U256::from(18750));
     }
 
     #[tokio::test]
