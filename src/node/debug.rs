@@ -7,8 +7,8 @@ use multivm::tracers::CallTracer;
 use multivm::vm_latest::HistoryDisabled;
 use multivm::vm_latest::{constants::ETH_CALL_GAS_LIMIT, ToTracerPointer, Vm};
 
-use zksync_basic_types::H256;
 use crate::jsonrpc_error::into_jsrpc_error;
+use zksync_basic_types::H256;
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig, TransactionVariant},
     l2::L2Tx,

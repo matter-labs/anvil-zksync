@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
+use crate::jsonrpc_error::{internal_error, into_jsrpc_error};
 use bigdecimal::BigDecimal;
 use colored::Colorize;
 use futures::FutureExt;
 use zksync_basic_types::{AccountTreeId, Address, L1BatchNumber, MiniblockNumber, H256, U256};
-use crate::jsonrpc_error::{internal_error, into_jsrpc_error};
 use zksync_state::ReadStorage;
 use zksync_types::{
     api::{

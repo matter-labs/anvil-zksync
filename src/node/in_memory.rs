@@ -9,9 +9,7 @@ use crate::{
     node::storage_logs::print_storage_logs_details,
     observability::Observability,
     system_contracts::{self, SystemContracts},
-    utils::{
-        bytecode_to_factory_dep, create_debug_output, to_human_size,
-    },
+    utils::{bytecode_to_factory_dep, create_debug_output, to_human_size},
 };
 use clap::Parser;
 use colored::Colorize;
@@ -25,32 +23,34 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use crate::jsonrpc_error::into_jsrpc_error;
+use crate::node::fee_model::compute_batch_fee_model_input;
 use multivm::{
     interface::{
         ExecutionResult, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
         VmExecutionResultAndLogs, VmInterface,
     },
     vm_latest::L2Block,
-    VmVersion
+    VmVersion,
 };
 use multivm::{
     tracers::CallTracer,
+    utils::{
+        adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
+        get_max_gas_per_pubdata_byte,
+    },
     vm_latest::HistoryDisabled,
     vm_latest::{
         constants::{BLOCK_GAS_LIMIT, MAX_PUBDATA_PER_BLOCK},
-        utils::{
-            l2_blocks::load_last_l2_block,
-        },
+        utils::l2_blocks::load_last_l2_block,
         ToTracerPointer, TracerPointer, Vm,
     },
-    utils::{get_max_gas_per_pubdata_byte, derive_overhead, derive_base_fee_and_gas_per_pubdata, adjust_pubdata_price_for_tx},
 };
 use zksync_basic_types::{
     web3::signing::keccak256, AccountTreeId, Address, Bytes, L1BatchNumber, MiniblockNumber, H160,
     H256, U256, U64,
 };
 use zksync_contracts::BaseSystemContracts;
-use crate::jsonrpc_error::into_jsrpc_error;
 use zksync_state::{ReadStorage, StoragePtr, WriteStorage};
 use zksync_types::{
     api::{Block, DebugCall, Log, TransactionReceipt, TransactionVariant},
@@ -62,15 +62,14 @@ use zksync_types::{
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
     vm_trace::Call,
     PackedEthSignature, StorageKey, StorageLogQueryType, StorageValue, Transaction,
-    ACCOUNT_CODE_STORAGE_ADDRESS, EIP_712_TX_TYPE, MAX_L2_TX_GAS_LIMIT,
-    SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
+    ACCOUNT_CODE_STORAGE_ADDRESS, EIP_712_TX_TYPE, MAX_L2_TX_GAS_LIMIT, SYSTEM_CONTEXT_ADDRESS,
+    SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
 };
 use zksync_utils::{
     bytecode::{compress_bytecode, hash_bytecode},
     h256_to_account_address, h256_to_u256, u256_to_h256,
 };
 use zksync_web3_decl::error::Web3Error;
-use crate::node::fee_model::compute_batch_fee_model_input;
 
 /// Max possible size of an ABI encoded tx (in bytes).
 pub const MAX_TX_SIZE: usize = 1_000_000;
@@ -428,7 +427,8 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
         if let Some(ref mut eip712_meta) = request_with_gas_per_pubdata_overridden.eip712_meta {
             if eip712_meta.gas_per_pubdata == U256::zero() {
-                eip712_meta.gas_per_pubdata = get_max_gas_per_pubdata_byte(VmVersion::latest()).into();
+                eip712_meta.gas_per_pubdata =
+                    get_max_gas_per_pubdata_byte(VmVersion::latest()).into();
             }
         }
 
@@ -448,14 +448,18 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         let tx: Transaction = l2_tx.clone().into();
 
         let fee_input = {
-            let fee_input = compute_batch_fee_model_input(self.l1_gas_price, ESTIMATE_GAS_PRICE_SCALE_FACTOR, ESTIMATE_GAS_PRICE_SCALE_FACTOR);
+            let fee_input = compute_batch_fee_model_input(
+                self.l1_gas_price,
+                ESTIMATE_GAS_PRICE_SCALE_FACTOR,
+                ESTIMATE_GAS_PRICE_SCALE_FACTOR,
+            );
 
             // In order for execution to pass smoothly, we need to ensure that block's required gasPerPubdata will be
             // <= to the one in the transaction itself.
             adjust_pubdata_price_for_tx(
                 fee_input,
                 tx.gas_per_pubdata_byte_limit(),
-                VmVersion::latest()
+                VmVersion::latest(),
             )
         };
 
@@ -474,7 +478,8 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             l2_tx.common_data.transaction_type = TransactionType::EIP712Transaction;
         }
 
-        l2_tx.common_data.fee.gas_per_pubdata_limit = get_max_gas_per_pubdata_byte(VmVersion::latest()).into();
+        l2_tx.common_data.fee.gas_per_pubdata_limit =
+            get_max_gas_per_pubdata_byte(VmVersion::latest()).into();
         l2_tx.common_data.fee.max_fee_per_gas = base_fee.into();
         l2_tx.common_data.fee.max_priority_fee_per_gas = base_fee.into();
 

@@ -7,7 +7,7 @@ mod web3;
 
 mod debug;
 mod eth;
-mod  zks;
+mod zks;
 
 pub use config::ConfigurationApiNamespaceT;
 pub use debug::DebugNamespaceT;

@@ -1,6 +1,8 @@
-use zksync_types::L1_GAS_PER_PUBDATA_BYTE;
-use zksync_types::fee_model::{BatchFeeInput, FeeModelConfigV2, PubdataIndependentBatchFeeModelInput};
 use zksync_basic_types::U256;
+use zksync_types::fee_model::{
+    BatchFeeInput, FeeModelConfigV2, PubdataIndependentBatchFeeModelInput,
+};
+use zksync_types::L1_GAS_PER_PUBDATA_BYTE;
 use zksync_utils::ceil_div_u256;
 
 const CONFIG: FeeModelConfigV2 = FeeModelConfigV2 {

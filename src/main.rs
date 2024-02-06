@@ -17,6 +17,7 @@ mod filters;
 mod fork;
 mod formatter;
 mod http_fork_source;
+mod jsonrpc_error;
 mod logging_middleware;
 mod namespaces;
 mod node;
@@ -25,7 +26,6 @@ mod resolver;
 mod system_contracts;
 mod testing;
 mod utils;
-mod jsonrpc_error;
 
 use node::InMemoryNode;
 

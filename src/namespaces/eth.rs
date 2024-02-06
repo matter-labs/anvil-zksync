@@ -1,10 +1,7 @@
 use jsonrpc_core::{BoxFuture, Result};
 use jsonrpc_derive::rpc;
 use zksync_types::{
-    api::{
-        BlockIdVariant, BlockNumber, Transaction, TransactionReceipt,
-        TransactionVariant,
-    },
+    api::{BlockIdVariant, BlockNumber, Transaction, TransactionReceipt, TransactionVariant},
     transaction_request::CallRequest,
     web3::types::{FeeHistory, Index, SyncState},
     Address, Bytes, H256, U256, U64,
@@ -88,7 +85,7 @@ pub trait EthNamespaceT {
 
     #[rpc(name = "eth_getCode")]
     fn get_code(&self, address: Address, block: Option<BlockIdVariant>)
-                -> BoxFuture<Result<Bytes>>;
+        -> BoxFuture<Result<Bytes>>;
 
     #[rpc(name = "eth_getStorageAt")]
     fn get_storage(
