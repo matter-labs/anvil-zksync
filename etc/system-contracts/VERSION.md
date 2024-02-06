@@ -1,6 +1,6 @@
 This directory was copied from https://github.com/matter-labs/era-contracts/tree/release-v20-1.4.1-short-term-fee-model/system-contracts.
 
-The current commit: `2dfbc6bac84ecada93cab4a0dea113bc2aceba1c`.
+The current repository commit: `2dfbc6bac84ecada93cab4a0dea113bc2aceba1c`.
 
 The following directories/files were copied:
 - [bootloader](bootloader)

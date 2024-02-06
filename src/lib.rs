@@ -57,3 +57,5 @@ pub mod utils;
 
 mod cache;
 mod testing;
+
+mod jsonrpc_error;

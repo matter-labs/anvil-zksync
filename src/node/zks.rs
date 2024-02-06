@@ -4,7 +4,7 @@ use bigdecimal::BigDecimal;
 use colored::Colorize;
 use futures::FutureExt;
 use zksync_basic_types::{AccountTreeId, Address, L1BatchNumber, MiniblockNumber, H256, U256};
-use zksync_core::api_server::web3::backend_jsonrpc::error::{internal_error, into_jsrpc_error};
+use crate::jsonrpc_error::{internal_error, into_jsrpc_error};
 use zksync_state::ReadStorage;
 use zksync_types::{
     api::{

@@ -6,7 +6,7 @@ use itertools::Itertools;
 use multivm::interface::{ExecutionResult, TxExecutionMode};
 use multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use zksync_basic_types::{web3, AccountTreeId, Address, Bytes, H160, H256, U256, U64};
-use zksync_core::api_server::web3::backend_jsonrpc::error::into_jsrpc_error;
+use crate::jsonrpc_error::into_jsrpc_error;
 use zksync_state::ReadStorage;
 use zksync_types::{
     api::{Block, BlockIdVariant, BlockNumber, TransactionVariant},
@@ -2001,7 +2001,7 @@ mod tests {
             .expect("failed fetching transaction receipt by hash")
             .expect("no transaction receipt");
 
-        assert_eq!(Some(expected_block_hash), actual_tx_receipt.block_hash);
+        assert_eq!(expected_block_hash, actual_tx_receipt.block_hash);
     }
 
     #[tokio::test]

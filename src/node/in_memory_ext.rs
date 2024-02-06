@@ -326,7 +326,7 @@ mod tests {
     use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
     use std::str::FromStr;
     use zksync_basic_types::{Nonce, H256};
-    use zksync_core::api_server::web3::backend_jsonrpc::namespaces::eth::EthNamespaceT;
+    use crate::namespaces::EthNamespaceT;
     use zksync_types::{api::BlockNumber, fee::Fee, l2::L2Tx, PackedEthSignature};
 
     #[tokio::test]

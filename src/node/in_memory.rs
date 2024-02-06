@@ -10,7 +10,7 @@ use crate::{
     observability::Observability,
     system_contracts::{self, SystemContracts},
     utils::{
-        adjust_l1_gas_price_for_tx, bytecode_to_factory_dep, create_debug_output, to_human_size,
+        bytecode_to_factory_dep, create_debug_output, to_human_size,
     },
 };
 use clap::Parser;
@@ -31,26 +31,26 @@ use multivm::{
         VmExecutionResultAndLogs, VmInterface,
     },
     vm_latest::L2Block,
+    VmVersion
 };
 use multivm::{
     tracers::CallTracer,
     vm_latest::HistoryDisabled,
     vm_latest::{
-        constants::{BLOCK_GAS_LIMIT, BLOCK_OVERHEAD_PUBDATA, MAX_PUBDATA_PER_BLOCK},
+        constants::{BLOCK_GAS_LIMIT, MAX_PUBDATA_PER_BLOCK},
         utils::{
-            fee::derive_base_fee_and_gas_per_pubdata,
             l2_blocks::load_last_l2_block,
-            overhead::{derive_overhead, OverheadCoefficients},
         },
         ToTracerPointer, TracerPointer, Vm,
     },
+    utils::{get_max_gas_per_pubdata_byte, derive_overhead, derive_base_fee_and_gas_per_pubdata, adjust_pubdata_price_for_tx},
 };
 use zksync_basic_types::{
     web3::signing::keccak256, AccountTreeId, Address, Bytes, L1BatchNumber, MiniblockNumber, H160,
     H256, U256, U64,
 };
 use zksync_contracts::BaseSystemContracts;
-use zksync_core::api_server::web3::backend_jsonrpc::error::into_jsrpc_error;
+use crate::jsonrpc_error::into_jsrpc_error;
 use zksync_state::{ReadStorage, StoragePtr, WriteStorage};
 use zksync_types::{
     api::{Block, DebugCall, Log, TransactionReceipt, TransactionVariant},
@@ -62,7 +62,7 @@ use zksync_types::{
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
     vm_trace::Call,
     PackedEthSignature, StorageKey, StorageLogQueryType, StorageValue, Transaction,
-    ACCOUNT_CODE_STORAGE_ADDRESS, EIP_712_TX_TYPE, MAX_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT,
+    ACCOUNT_CODE_STORAGE_ADDRESS, EIP_712_TX_TYPE, MAX_L2_TX_GAS_LIMIT,
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
 };
 use zksync_utils::{
@@ -70,6 +70,7 @@ use zksync_utils::{
     h256_to_account_address, h256_to_u256, u256_to_h256,
 };
 use zksync_web3_decl::error::Web3Error;
+use crate::node::fee_model::compute_batch_fee_model_input;
 
 /// Max possible size of an ABI encoded tx (in bytes).
 pub const MAX_TX_SIZE: usize = 1_000_000;
@@ -79,10 +80,11 @@ pub const NON_FORK_FIRST_BLOCK_TIMESTAMP: u64 = 1_000;
 pub const TEST_NODE_NETWORK_ID: u32 = 260;
 /// L1 Gas Price.
 pub const L1_GAS_PRICE: u64 = 50_000_000_000;
-/// L2 Gas Price (0.25 gwei).
-pub const L2_GAS_PRICE: u64 = 250_000_000;
+// TODO: for now, that's fine, as computation overhead is set to zero, but we may consider using calculated fee input everywhere.
+/// L2 Gas Price (0.1 gwei).
+pub const L2_GAS_PRICE: u64 = 100_000_000;
 /// L1 Gas Price Scale Factor for gas estimation.
-pub const ESTIMATE_GAS_L1_GAS_PRICE_SCALE_FACTOR: f64 = 1.2;
+pub const ESTIMATE_GAS_PRICE_SCALE_FACTOR: f64 = 1.5;
 /// The max possible number of gas that `eth_estimateGas` is allowed to overestimate.
 pub const ESTIMATE_GAS_PUBLISH_BYTE_OVERHEAD: u32 = 100;
 /// Acceptable gas overestimation limit.
@@ -369,8 +371,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             previous_batch_hash: None,
             number: L1BatchNumber::from(block_ctx.batch),
             timestamp: block_ctx.timestamp,
-            l1_gas_price: self.l1_gas_price,
-            fair_l2_gas_price: L2_GAS_PRICE,
+            fee_input: compute_batch_fee_model_input(self.l1_gas_price, 1.0, 1.0),
             fee_account: H160::zero(),
             enforced_base_fee: None,
             first_l2_block: L2BlockEnv {
@@ -427,7 +428,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
         if let Some(ref mut eip712_meta) = request_with_gas_per_pubdata_overridden.eip712_meta {
             if eip712_meta.gas_per_pubdata == U256::zero() {
-                eip712_meta.gas_per_pubdata = MAX_GAS_PER_PUBDATA_BYTE.into();
+                eip712_meta.gas_per_pubdata = get_max_gas_per_pubdata_byte(VmVersion::latest()).into();
             }
         }
 
@@ -445,24 +446,21 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             };
 
         let tx: Transaction = l2_tx.clone().into();
-        let fair_l2_gas_price = L2_GAS_PRICE;
 
-        // Calculate Adjusted L1 Price
-        let l1_gas_price = {
-            let current_l1_gas_price =
-                ((self.l1_gas_price as f64) * ESTIMATE_GAS_L1_GAS_PRICE_SCALE_FACTOR) as u64;
+        let fee_input = {
+            let fee_input = compute_batch_fee_model_input(self.l1_gas_price, ESTIMATE_GAS_PRICE_SCALE_FACTOR, ESTIMATE_GAS_PRICE_SCALE_FACTOR);
 
             // In order for execution to pass smoothly, we need to ensure that block's required gasPerPubdata will be
             // <= to the one in the transaction itself.
-            adjust_l1_gas_price_for_tx(
-                current_l1_gas_price,
-                L2_GAS_PRICE,
+            adjust_pubdata_price_for_tx(
+                fee_input,
                 tx.gas_per_pubdata_byte_limit(),
+                VmVersion::latest()
             )
         };
 
         let (base_fee, gas_per_pubdata_byte) =
-            derive_base_fee_and_gas_per_pubdata(l1_gas_price, fair_l2_gas_price);
+            derive_base_fee_and_gas_per_pubdata(fee_input, VmVersion::latest());
 
         // Properly format signature
         if l2_tx.common_data.signature.is_empty() {
@@ -476,7 +474,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             l2_tx.common_data.transaction_type = TransactionType::EIP712Transaction;
         }
 
-        l2_tx.common_data.fee.gas_per_pubdata_limit = MAX_GAS_PER_PUBDATA_BYTE.into();
+        l2_tx.common_data.fee.gas_per_pubdata_limit = get_max_gas_per_pubdata_byte(VmVersion::latest()).into();
         l2_tx.common_data.fee.max_fee_per_gas = base_fee.into();
         l2_tx.common_data.fee.max_priority_fee_per_gas = base_fee.into();
 
@@ -517,7 +515,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
         let execution_mode = TxExecutionMode::EstimateFee;
         let (mut batch_env, _) = self.create_l1_batch_env(storage.clone());
-        batch_env.l1_gas_price = l1_gas_price;
+        batch_env.fee_input = fee_input;
         let impersonating = self
             .impersonated_accounts
             .contains(&l2_tx.common_data.initiator_address);
@@ -549,7 +547,6 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 l2_tx.clone(),
                 gas_per_pubdata_byte,
                 try_gas_limit,
-                l1_gas_price,
                 batch_env.clone(),
                 system_env.clone(),
                 &self.fork_storage,
@@ -579,18 +576,17 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             l2_tx.clone(),
             gas_per_pubdata_byte,
             suggested_gas_limit,
-            l1_gas_price,
             batch_env,
             system_env,
             &self.fork_storage,
         );
 
-        let coefficients = OverheadCoefficients::from_tx_type(EIP_712_TX_TYPE);
         let overhead: u32 = derive_overhead(
             suggested_gas_limit,
             gas_per_pubdata_byte as u32,
             tx.encoding_len(),
-            coefficients,
+            EIP_712_TX_TYPE,
+            VmVersion::latest(),
         );
 
         match estimate_gas_result.result {
@@ -699,23 +695,20 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         mut l2_tx: L2Tx,
         gas_per_pubdata_byte: u64,
         tx_gas_limit: u32,
-        l1_gas_price: u64,
-        mut batch_env: L1BatchEnv,
+        batch_env: L1BatchEnv,
         system_env: SystemEnv,
         fork_storage: &ForkStorage<S>,
     ) -> VmExecutionResultAndLogs {
         let tx: Transaction = l2_tx.clone().into();
-        let l1_gas_price =
-            adjust_l1_gas_price_for_tx(l1_gas_price, L2_GAS_PRICE, tx.gas_per_pubdata_byte_limit());
 
-        let coefficients = OverheadCoefficients::from_tx_type(EIP_712_TX_TYPE);
         // Set gas_limit for transaction
         let gas_limit_with_overhead = tx_gas_limit
             + derive_overhead(
                 tx_gas_limit,
                 gas_per_pubdata_byte as u32,
                 tx.encoding_len(),
-                coefficients,
+                EIP_712_TX_TYPE,
+                VmVersion::latest(),
             );
         l2_tx.common_data.fee.gas_limit = gas_limit_with_overhead.into();
 
@@ -740,8 +733,6 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         storage
             .borrow_mut()
             .set_value(balance_key, u256_to_h256(current_balance));
-
-        batch_env.l1_gas_price = l1_gas_price;
 
         let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage.clone());
 
@@ -1217,13 +1208,6 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 )
             );
 
-            let publish_block_l1_bytes = BLOCK_OVERHEAD_PUBDATA;
-            tracing::info!(
-            "Publishing full block costs the operator up to: {}, where {} is due to {} bytes published to L1",
-            to_human_size(bootloader_debug.total_overhead_for_block),
-            to_human_size(bootloader_debug.gas_per_pubdata * publish_block_l1_bytes),
-            to_human_size(publish_block_l1_bytes.into())
-        );
             tracing::info!("Your transaction has contributed to filling up the block in the following way (we take the max contribution as the cost):");
             tracing::info!(
                 "  Circuits overhead:{:>15} ({}% of the full block: {})",
@@ -1557,13 +1541,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         let tx_receipt = TransactionReceipt {
             transaction_hash: tx_hash,
             transaction_index: U64::from(0),
-            block_hash: Some(block.hash),
-            block_number: Some(block.number),
+            block_hash: block.hash,
+            block_number: block.number,
             l1_batch_tx_index: None,
             l1_batch_number: block.l1_batch_number,
             from: l2_tx.initiator_account(),
             to: Some(l2_tx.recipient_account()),
-            root: Some(H256::zero()),
+            root: H256::zero(),
             cumulative_gas_used: Default::default(),
             gas_used: Some(l2_tx.common_data.fee.gas_limit - result.refunds.gas_refunded),
             contract_address: contract_address_from_tx_result(&result),
@@ -1588,11 +1572,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 })
                 .collect(),
             l2_to_l1_logs: vec![],
-            status: Some(if result.result.is_failed() {
+            status: if result.result.is_failed() {
                 U64::from(0)
             } else {
                 U64::from(1)
-            }),
+            },
             effective_gas_price: Some(L2_GAS_PRICE.into()),
             ..Default::default()
         };

@@ -25,6 +25,7 @@ mod resolver;
 mod system_contracts;
 mod testing;
 mod utils;
+mod jsonrpc_error;
 
 use node::InMemoryNode;
 

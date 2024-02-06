@@ -6,7 +6,7 @@ use chrono::{DateTime, Utc};
 use futures::Future;
 use multivm::interface::{ExecutionResult, VmExecutionResultAndLogs, VmInterface};
 use multivm::vm_latest::HistoryDisabled;
-use multivm::vm_latest::{utils::fee::derive_base_fee_and_gas_per_pubdata, Vm};
+use multivm::vm_latest::Vm;
 use zksync_basic_types::{H256, U256, U64};
 use zksync_state::WriteStorage;
 use zksync_types::api::{BlockNumber, DebugCall, DebugCallType};
@@ -32,38 +32,6 @@ where
     T: Send + 'static,
     U: Send + 'static,
 {
-}
-
-/// Adjusts the L1 gas price for a transaction based on the current pubdata price and the fair L2 gas price.
-/// If the current pubdata price is small enough, returns the original L1 gas price.
-/// Otherwise, calculates a new L1 gas price based on the fair L2 gas price and the transaction gas per pubdata limit.
-///
-/// # Arguments
-///
-/// * `l1_gas_price` - The original L1 gas price.
-/// * `fair_l2_gas_price` - The fair L2 gas price.
-/// * `tx_gas_per_pubdata_limit` - The transaction gas per pubdata limit.
-///
-/// # Returns
-///
-/// The adjusted L1 gas price.
-pub fn adjust_l1_gas_price_for_tx(
-    l1_gas_price: u64,
-    fair_l2_gas_price: u64,
-    tx_gas_per_pubdata_limit: U256,
-) -> u64 {
-    let (_, current_pubdata_price) =
-        derive_base_fee_and_gas_per_pubdata(l1_gas_price, fair_l2_gas_price);
-    if U256::from(current_pubdata_price) <= tx_gas_per_pubdata_limit {
-        // The current pubdata price is small enough
-        l1_gas_price
-    } else {
-        let l1_gas_price = U256::from(fair_l2_gas_price)
-            * (tx_gas_per_pubdata_limit - U256::from(1u32))
-            / U256::from(17);
-
-        l1_gas_price.as_u64()
-    }
 }
 
 /// Takes long integers and returns them in human friendly format with "_".

@@ -1,4 +1,4 @@
-use multivm::interface::{dyn_tracers::vm_1_4_0::DynTracer, tracer::VmExecutionStopReason};
+use multivm::interface::{dyn_tracers::vm_1_4_1::DynTracer, tracer::VmExecutionStopReason};
 use std::sync::Arc;
 
 use multivm::vm_latest::{

@@ -1,4 +1,4 @@
-use zksync_core::api_server::web3::backend_jsonrpc::error::into_jsrpc_error;
+use crate::jsonrpc_error::into_jsrpc_error;
 use zksync_web3_decl::error::Web3Error;
 
 use crate::{
