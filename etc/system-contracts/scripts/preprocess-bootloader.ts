@@ -8,7 +8,9 @@ import { getRevertSelector, getTransactionUtils } from "./constants";
 
 /* eslint-disable @typescript-eslint/no-var-requires */
 const preprocess = require("preprocess");
-const SYSTEM_PARAMS = require("../../SystemConfig.json");
+// TEST NODE CHANGE BEGIN: path changed from "../../SystemConfig.json"
+const SYSTEM_PARAMS = require("../SystemConfig.json");
+// TEST NODE CHANGE END
 /* eslint-enable@typescript-eslint/no-var-requires */
 
 const OUTPUT_DIR = "bootloader/build";
@@ -231,8 +233,8 @@ async function main() {
   writeFileSync(`${OUTPUT_DIR}/fee_estimate.yul`, feeEstimationBootloader);
 
   // For impersonating block start
-  writeFileSync(path(`${OUTPUT_DIR}/proved_batch_impersonating.yul`), provedBatchImpersonatingBootloader);
-  writeFileSync(path(`${OUTPUT_DIR}/fee_estimate_impersonating.yul`), feeEstimationImpersonatingBootloader);
+  writeFileSync(`${OUTPUT_DIR}/proved_batch_impersonating.yul`, provedBatchImpersonatingBootloader);
+  writeFileSync(`${OUTPUT_DIR}/fee_estimate_impersonating.yul`, feeEstimationImpersonatingBootloader);
   // For impersonating block end
 
   console.log("Bootloader preprocessing done!");

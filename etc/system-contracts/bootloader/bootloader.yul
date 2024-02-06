@@ -2082,10 +2082,8 @@ object "Bootloader" {
                 /// DEBUG SUPPORT START
                 ///
 
-                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 13)), totalBatchOverhead)
-                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 14)), overheadForCircuits)
-                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 15)), overheadForLength)
-                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 16)), overheadForSlot)
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 13)), safeMul(txEncodeLen, MEMORY_OVERHEAD_GAS(), "iot"))
+                mstore(add(DEBUG_BEGIN_BYTE(), mul(32, 14)), TX_SLOT_OVERHEAD_GAS())
 
                 ///
                 /// DEBUG SUPPORT END

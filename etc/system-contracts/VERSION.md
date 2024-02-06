@@ -16,6 +16,7 @@ The next changes were introduced:
   - Impersonating preprocessing mode, blocks `<!-- @ifdef ACCOUNT_IMPERSONATING -->` and at some places added `<!-- @ifndef ACCOUNT_IMPERSONATING -->` condition.
 - [preprocess-bootloader.ts](scripts/preprocess-bootloader.ts)
   - Impersonating preprocessing mode, "For impersonating" blocks.
+  - System config path, "TEST NODE CHANGE" block.
 - [DefaultAccount.sol](contracts/DefaultAccount.sol)
   - Return transaction data (empty), marked as `FOUNDRY SUPPORT` blocks.
 - [DefaultAccountNoSecurity.sol](contracts/DefaultAccountNoSecurity.sol)

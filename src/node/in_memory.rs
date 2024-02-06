@@ -1080,6 +1080,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         bootloader_debug_result: Option<&eyre::Result<BootloaderDebug, String>>,
         spent_on_pubdata: u32,
     ) -> eyre::Result<(), String> {
+        // TODO: review the details for the new fee model
         if let Some(bootloader_result) = bootloader_debug_result {
             let bootloader_debug = bootloader_result.clone()?;
 
@@ -1209,15 +1210,6 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             );
 
             tracing::info!("Your transaction has contributed to filling up the block in the following way (we take the max contribution as the cost):");
-            tracing::info!(
-                "  Circuits overhead:{:>15} ({}% of the full block: {})",
-                to_human_size(bootloader_debug.overhead_for_circuits),
-                to_human_size(
-                    bootloader_debug.overhead_for_circuits * 100
-                        / bootloader_debug.total_overhead_for_block
-                ),
-                to_human_size(bootloader_debug.total_overhead_for_block)
-            );
             tracing::info!(
                 "  Length overhead:  {:>15}",
                 to_human_size(bootloader_debug.overhead_for_length)
