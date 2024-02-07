@@ -6,7 +6,10 @@ use crate::{
     filters::EthFilters,
     fork::{block_on, ForkDetails, ForkSource, ForkStorage},
     formatter,
-    node::{fee_model::TestNodeFeeInputProvider, storage_logs::print_storage_logs_details},
+    node::{
+        fee_model::{TestNodeFeeInputProvider, CONFIG},
+        storage_logs::print_storage_logs_details,
+    },
     observability::Observability,
     system_contracts::{self, SystemContracts},
     utils::{bytecode_to_factory_dep, create_debug_output, into_jsrpc_error, to_human_size},
@@ -1220,6 +1223,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 )
             );
 
+            tracing::info!(
+                "Publishing full block costs the operator around {} l2 gas",
+                to_human_size(bootloader_debug.gas_per_pubdata * CONFIG.batch_overhead_l1_gas),
+            );
             tracing::info!("Your transaction has contributed to filling up the block in the following way (we take the max contribution as the cost):");
             tracing::info!(
                 "  Length overhead:  {:>15}",
@@ -1229,7 +1236,12 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 "  Slot overhead:    {:>15}",
                 to_human_size(bootloader_debug.overhead_for_slot)
             );
-            tracing::info!("Also, your transaction has contributed by execution and pubdata, but it's included in the gas and pubdata price");
+            tracing::info!("Also, with every spent gas unit you potentially can pay some additional amount of gas for filling up the block by execution limits");
+            tracing::info!(
+                "This overhead is included in the gas price, although now it's set to zero"
+            );
+            tracing::info!("And with every pubdata byte, you potentially can pay an additional amount of gas for filling up the block by pubdata limit");
+            tracing::info!("This overhead is included in the `gas_per_pubdata` price");
             Ok(())
         } else {
             Err("Booloader tracer didn't finish.".to_owned())

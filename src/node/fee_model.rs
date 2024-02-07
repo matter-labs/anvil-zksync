@@ -3,7 +3,7 @@ use zksync_core::fee_model::BatchFeeModelInputProvider;
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams, FeeParamsV2};
 use zksync_types::L1_GAS_PER_PUBDATA_BYTE;
 
-const CONFIG: FeeModelConfigV2 = FeeModelConfigV2 {
+pub const CONFIG: FeeModelConfigV2 = FeeModelConfigV2 {
     minimal_l2_gas_price: 100000000,
     compute_overhead_part: 0.0,
     pubdata_overhead_part: 1.0,
