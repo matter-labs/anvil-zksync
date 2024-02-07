@@ -2686,7 +2686,7 @@ mod tests {
             current_batch: inner.current_batch,
             current_miniblock: inner.current_miniblock,
             current_miniblock_hash: inner.current_miniblock_hash,
-            l1_gas_price: inner.l1_gas_price,
+            fee_input_provider: inner.fee_input_provider.clone(),
             tx_results: inner.tx_results.clone(),
             blocks: inner.blocks.clone(),
             block_hashes: inner.block_hashes.clone(),
@@ -2716,7 +2716,10 @@ mod tests {
             expected_snapshot.current_miniblock_hash,
             actual_snapshot.current_miniblock_hash
         );
-        assert_eq!(expected_snapshot.l1_gas_price, actual_snapshot.l1_gas_price);
+        assert_eq!(
+            expected_snapshot.fee_input_provider,
+            actual_snapshot.fee_input_provider
+        );
         assert_eq!(
             expected_snapshot.tx_results.keys().collect_vec(),
             actual_snapshot.tx_results.keys().collect_vec()
@@ -2790,7 +2793,7 @@ mod tests {
                 current_batch: inner.current_batch,
                 current_miniblock: inner.current_miniblock,
                 current_miniblock_hash: inner.current_miniblock_hash,
-                l1_gas_price: inner.l1_gas_price,
+                fee_input_provider: inner.fee_input_provider.clone(),
                 tx_results: inner.tx_results.clone(),
                 blocks: inner.blocks.clone(),
                 block_hashes: inner.block_hashes.clone(),
@@ -2849,7 +2852,10 @@ mod tests {
             expected_snapshot.current_miniblock_hash,
             inner.current_miniblock_hash
         );
-        assert_eq!(expected_snapshot.l1_gas_price, inner.l1_gas_price);
+        assert_eq!(
+            expected_snapshot.fee_input_provider,
+            inner.fee_input_provider
+        );
         assert_eq!(
             expected_snapshot.tx_results.keys().collect_vec(),
             inner.tx_results.keys().collect_vec()

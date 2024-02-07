@@ -4,9 +4,9 @@ use crate::{
     console_log::ConsoleLogHandler,
     deps::{storage_view::StorageView, InMemoryStorage},
     filters::EthFilters,
-    fork::{ForkDetails, ForkSource, ForkStorage},
+    fork::{block_on, ForkDetails, ForkSource, ForkStorage},
     formatter,
-    node::{fee_model::compute_batch_fee_model_input, storage_logs::print_storage_logs_details},
+    node::{fee_model::TestNodeFeeInputProvider, storage_logs::print_storage_logs_details},
     observability::Observability,
     system_contracts::{self, SystemContracts},
     utils::{bytecode_to_factory_dep, create_debug_output, into_jsrpc_error, to_human_size},
@@ -49,6 +49,7 @@ use zksync_basic_types::{
     H256, U256, U64,
 };
 use zksync_contracts::BaseSystemContracts;
+use zksync_core::fee_model::BatchFeeModelInputProvider;
 use zksync_state::{ReadStorage, StoragePtr, WriteStorage};
 use zksync_types::{
     api::{Block, DebugCall, Log, TransactionReceipt, TransactionVariant},
@@ -60,7 +61,7 @@ use zksync_types::{
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
     vm_trace::Call,
     PackedEthSignature, StorageKey, StorageLogQueryType, StorageValue, Transaction,
-    ACCOUNT_CODE_STORAGE_ADDRESS, EIP_712_TX_TYPE, MAX_L2_TX_GAS_LIMIT, SYSTEM_CONTEXT_ADDRESS,
+    ACCOUNT_CODE_STORAGE_ADDRESS, MAX_L2_TX_GAS_LIMIT, SYSTEM_CONTEXT_ADDRESS,
     SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
 };
 use zksync_utils::{
@@ -80,10 +81,6 @@ pub const L1_GAS_PRICE: u64 = 50_000_000_000;
 // TODO: for now, that's fine, as computation overhead is set to zero, but we may consider using calculated fee input everywhere.
 /// L2 Gas Price (0.1 gwei).
 pub const L2_GAS_PRICE: u64 = 100_000_000;
-/// L1 Gas Price Scale Factor.
-pub const L1_GAS_PRICE_SCALE_FACTOR: f64 = 0.1;
-/// L1 Pubdata Price Scale Factor.
-pub const L1_PUBDATA_PRICE_SCALE_FACTOR: f64 = 0.1;
 /// L1 Gas Price Scale Factor for gas estimation.
 pub const ESTIMATE_GAS_PRICE_SCALE_FACTOR: f64 = 1.5;
 /// The max possible number of gas that `eth_estimateGas` is allowed to overestimate.
@@ -297,7 +294,8 @@ pub struct InMemoryNodeInner<S> {
     pub current_miniblock: u64,
     /// The latest miniblock hash.
     pub current_miniblock_hash: H256,
-    pub l1_gas_price: u64,
+    /// The fee input provider.
+    pub fee_input_provider: TestNodeFeeInputProvider,
     // Map from transaction to details about the exeuction
     pub tx_results: HashMap<H256, TransactionResult>,
     // Map from block hash to information about the block.
@@ -367,16 +365,13 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         )
         .new_batch();
 
+        let fee_input_provider = self.fee_input_provider.clone();
         let batch_env = L1BatchEnv {
             // TODO: set the previous batch hash properly (take from fork, when forking, and from local storage, when this is not the first block).
             previous_batch_hash: None,
             number: L1BatchNumber::from(block_ctx.batch),
             timestamp: block_ctx.timestamp,
-            fee_input: compute_batch_fee_model_input(
-                self.l1_gas_price,
-                L1_GAS_PRICE_SCALE_FACTOR,
-                L1_PUBDATA_PRICE_SCALE_FACTOR,
-            ),
+            fee_input: block_on(async move { fee_input_provider.get_batch_fee_input().await }),
             fee_account: H160::zero(),
             enforced_base_fee: None,
             first_l2_block: L2BlockEnv {
@@ -453,12 +448,16 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
         let tx: Transaction = l2_tx.clone().into();
 
+        let fee_input_provider = self.fee_input_provider.clone();
         let fee_input = {
-            let fee_input = compute_batch_fee_model_input(
-                self.l1_gas_price,
-                ESTIMATE_GAS_PRICE_SCALE_FACTOR,
-                ESTIMATE_GAS_PRICE_SCALE_FACTOR,
-            );
+            let fee_input = block_on(async move {
+                fee_input_provider
+                    .get_batch_fee_input_scaled(
+                        ESTIMATE_GAS_PRICE_SCALE_FACTOR,
+                        ESTIMATE_GAS_PRICE_SCALE_FACTOR,
+                    )
+                    .await
+            });
 
             // In order for execution to pass smoothly, we need to ensure that block's required gasPerPubdata will be
             // <= to the one in the transaction itself.
@@ -596,7 +595,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             suggested_gas_limit,
             gas_per_pubdata_byte as u32,
             tx.encoding_len(),
-            EIP_712_TX_TYPE,
+            l2_tx.common_data.transaction_type as u8,
             VmVersion::latest(),
         );
 
@@ -718,7 +717,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 tx_gas_limit,
                 gas_per_pubdata_byte as u32,
                 tx.encoding_len(),
-                EIP_712_TX_TYPE,
+                l2_tx.common_data.transaction_type as u8,
                 VmVersion::latest(),
             );
         l2_tx.common_data.fee.gas_limit = gas_limit_with_overhead.into();
@@ -803,7 +802,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             current_batch: self.current_batch,
             current_miniblock: self.current_miniblock,
             current_miniblock_hash: self.current_miniblock_hash,
-            l1_gas_price: self.l1_gas_price,
+            fee_input_provider: self.fee_input_provider.clone(),
             tx_results: self.tx_results.clone(),
             blocks: self.blocks.clone(),
             block_hashes: self.block_hashes.clone(),
@@ -829,7 +828,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         self.current_batch = snapshot.current_batch;
         self.current_miniblock = snapshot.current_miniblock;
         self.current_miniblock_hash = snapshot.current_miniblock_hash;
-        self.l1_gas_price = snapshot.l1_gas_price;
+        self.fee_input_provider = snapshot.fee_input_provider;
         self.tx_results = snapshot.tx_results;
         self.blocks = snapshot.blocks;
         self.block_hashes = snapshot.block_hashes;
@@ -853,7 +852,9 @@ pub struct Snapshot {
     pub(crate) current_batch: u32,
     pub(crate) current_miniblock: u64,
     pub(crate) current_miniblock_hash: H256,
-    pub(crate) l1_gas_price: u64,
+    // Currently, the fee is static during the test node life cycle,
+    // but in the future fee input providers can have some mutable state.
+    pub(crate) fee_input_provider: TestNodeFeeInputProvider,
     pub(crate) tx_results: HashMap<H256, TransactionResult>,
     pub(crate) blocks: HashMap<H256, Block<TransactionVariant>>,
     pub(crate) block_hashes: HashMap<u64, H256>,
@@ -922,7 +923,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 current_batch: f.l1_block.0,
                 current_miniblock: f.l2_miniblock,
                 current_miniblock_hash: f.l2_miniblock_hash,
-                l1_gas_price: f.l1_gas_price,
+                fee_input_provider: TestNodeFeeInputProvider::new(f.l1_gas_price),
                 tx_results: Default::default(),
                 blocks,
                 block_hashes,
@@ -955,7 +956,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 current_batch: 0,
                 current_miniblock: 0,
                 current_miniblock_hash: block_hash,
-                l1_gas_price: L1_GAS_PRICE,
+                fee_input_provider: TestNodeFeeInputProvider::new(L1_GAS_PRICE),
                 tx_results: Default::default(),
                 blocks,
                 block_hashes,
@@ -1275,7 +1276,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     ///     * [InMemoryNodeInner::current_batch]
     ///     * [InMemoryNodeInner::current_miniblock]
     ///     * [InMemoryNodeInner::current_miniblock_hash]
-    ///     * [InMemoryNodeInner::l1_gas_price]
+    ///     * [InMemoryNodeInner::fee_input_provider]
     ///
     /// And must _NEVER_ rely on data updated in [InMemoryNodeInner] during previous runs:
     /// (if used, they must never panic and/or have meaningful defaults)
