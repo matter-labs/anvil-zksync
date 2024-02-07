@@ -33,11 +33,11 @@ describe("zks_estimateFee", function () {
     // Assert
     expect(ethers.BigNumber.from(response.gas_limit)).to.eql(ethers.BigNumber.from("1447745"), "Unexpected gas_limit");
     expect(ethers.BigNumber.from(response.gas_per_pubdata_limit)).to.eql(
-      ethers.BigNumber.from("4080"),
+      ethers.BigNumber.from("18750"),
       "Unexpected gas_per_pubdata_limit"
     );
     expect(ethers.BigNumber.from(response.max_fee_per_gas)).to.eql(
-      ethers.BigNumber.from("250000000"),
+      ethers.BigNumber.from("100000000"),
       "Unexpected max_fee_per_gas"
     );
     expect(ethers.BigNumber.from(response.max_priority_fee_per_gas)).to.eql(
