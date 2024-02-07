@@ -855,8 +855,8 @@ pub struct Snapshot {
     pub(crate) current_batch: u32,
     pub(crate) current_miniblock: u64,
     pub(crate) current_miniblock_hash: H256,
-    // Currently, the fee is static during the test node life cycle,
-    // but in the future fee input providers can have some mutable state.
+    // Currently, the fee is static and the fee input provider is immutable during the test node life cycle,
+    // but in the future, it may contain some mutable state.
     pub(crate) fee_input_provider: TestNodeFeeInputProvider,
     pub(crate) tx_results: HashMap<H256, TransactionResult>,
     pub(crate) blocks: HashMap<H256, Block<TransactionVariant>>,
