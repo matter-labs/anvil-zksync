@@ -7,7 +7,6 @@ use multivm::tracers::CallTracer;
 use multivm::vm_latest::HistoryDisabled;
 use multivm::vm_latest::{constants::ETH_CALL_GAS_LIMIT, ToTracerPointer, Vm};
 
-use crate::jsonrpc_error::into_jsrpc_error;
 use zksync_basic_types::H256;
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig, TransactionVariant},
@@ -22,7 +21,7 @@ use crate::{
     fork::ForkSource,
     namespaces::{DebugNamespaceT, Result, RpcResult},
     node::{InMemoryNode, MAX_TX_SIZE},
-    utils::{create_debug_output, to_real_block_number},
+    utils::{create_debug_output, into_jsrpc_error, to_real_block_number},
 };
 
 impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> DebugNamespaceT

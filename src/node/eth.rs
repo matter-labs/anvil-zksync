@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 
-use crate::jsonrpc_error::into_jsrpc_error;
 use colored::Colorize;
 use futures::FutureExt;
 use itertools::Itertools;
@@ -28,7 +27,7 @@ use crate::{
     fork::ForkSource,
     namespaces::{EthNamespaceT, EthTestNodeNamespaceT, RpcResult},
     node::{InMemoryNode, TransactionResult, L2_GAS_PRICE, MAX_TX_SIZE, PROTOCOL_VERSION},
-    utils::{self, h256_to_u64, not_implemented, IntoBoxedFuture},
+    utils::{self, h256_to_u64, into_jsrpc_error, not_implemented, IntoBoxedFuture},
 };
 
 impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespaceT

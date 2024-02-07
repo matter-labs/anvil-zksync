@@ -6,10 +6,10 @@ use crate::{
     filters::EthFilters,
     fork::{ForkDetails, ForkSource, ForkStorage},
     formatter,
-    node::storage_logs::print_storage_logs_details,
+    node::{fee_model::compute_batch_fee_model_input, storage_logs::print_storage_logs_details},
     observability::Observability,
     system_contracts::{self, SystemContracts},
-    utils::{bytecode_to_factory_dep, create_debug_output, to_human_size},
+    utils::{bytecode_to_factory_dep, create_debug_output, into_jsrpc_error, to_human_size},
 };
 use clap::Parser;
 use colored::Colorize;
@@ -23,8 +23,6 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::jsonrpc_error::into_jsrpc_error;
-use crate::node::fee_model::compute_batch_fee_model_input;
 use multivm::{
     interface::{
         ExecutionResult, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
@@ -1085,7 +1083,6 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         bootloader_debug_result: Option<&eyre::Result<BootloaderDebug, String>>,
         spent_on_pubdata: u32,
     ) -> eyre::Result<(), String> {
-        // TODO: review the details for the new fee model
         if let Some(bootloader_result) = bootloader_debug_result {
             let bootloader_debug = bootloader_result.clone()?;
 
@@ -1223,6 +1220,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 "  Slot overhead:    {:>15}",
                 to_human_size(bootloader_debug.overhead_for_slot)
             );
+            tracing::info!("Also, your transaction has contributed by execution and pubdata, but it's included in the gas and pubdata price");
             Ok(())
         } else {
             Err("Booloader tracer didn't finish.".to_owned())

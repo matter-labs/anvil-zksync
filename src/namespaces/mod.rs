@@ -1,12 +1,11 @@
 mod config;
+mod debug;
+mod eth;
 mod eth_test;
 mod evm;
 mod hardhat;
 mod net;
 mod web3;
-
-mod debug;
-mod eth;
 mod zks;
 
 pub use config::ConfigurationApiNamespaceT;

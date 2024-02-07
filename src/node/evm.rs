@@ -1,4 +1,3 @@
-use crate::jsonrpc_error::into_jsrpc_error;
 use zksync_basic_types::U64;
 use zksync_web3_decl::error::Web3Error;
 
@@ -6,7 +5,7 @@ use crate::{
     fork::ForkSource,
     namespaces::{EvmNamespaceT, RpcResult},
     node::InMemoryNode,
-    utils::IntoBoxedFuture,
+    utils::{into_jsrpc_error, IntoBoxedFuture},
 };
 
 impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EvmNamespaceT

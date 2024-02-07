@@ -14,6 +14,7 @@ const CONFIG: FeeModelConfigV2 = FeeModelConfigV2 {
     max_pubdata_per_batch: 100000,
 };
 
+// TODO: consider using old fee model for the olds blocks, when forking
 pub fn compute_batch_fee_model_input(
     l1_gas_price: u64,
     l1_gas_price_scale_factor: f64,

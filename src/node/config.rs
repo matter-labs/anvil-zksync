@@ -1,4 +1,3 @@
-use crate::jsonrpc_error::into_jsrpc_error;
 use zksync_web3_decl::error::Web3Error;
 
 use crate::{
@@ -6,6 +5,7 @@ use crate::{
     namespaces::{ConfigurationApiNamespaceT, Result},
     node::InMemoryNode,
     observability::LogLevel,
+    utils::into_jsrpc_error,
 };
 
 use super::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};

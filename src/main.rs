@@ -17,7 +17,6 @@ mod filters;
 mod fork;
 mod formatter;
 mod http_fork_source;
-mod jsonrpc_error;
 mod logging_middleware;
 mod namespaces;
 mod node;

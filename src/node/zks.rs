@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use crate::jsonrpc_error::{internal_error, into_jsrpc_error};
 use bigdecimal::BigDecimal;
 use colored::Colorize;
 use futures::FutureExt;
@@ -22,7 +21,10 @@ use crate::{
     fork::ForkSource,
     namespaces::{RpcResult, ZksNamespaceT},
     node::{InMemoryNode, TransactionResult, L2_GAS_PRICE},
-    utils::{not_implemented, utc_datetime_from_epoch_ms, IntoBoxedFuture},
+    utils::{
+        internal_error, into_jsrpc_error, not_implemented, utc_datetime_from_epoch_ms,
+        IntoBoxedFuture,
+    },
 };
 
 impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespaceT
