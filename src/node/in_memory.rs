@@ -80,6 +80,10 @@ pub const L1_GAS_PRICE: u64 = 50_000_000_000;
 // TODO: for now, that's fine, as computation overhead is set to zero, but we may consider using calculated fee input everywhere.
 /// L2 Gas Price (0.1 gwei).
 pub const L2_GAS_PRICE: u64 = 100_000_000;
+/// L1 Gas Price Scale Factor.
+pub const L1_GAS_PRICE_SCALE_FACTOR: f64 = 0.1;
+/// L1 Pubdata Price Scale Factor.
+pub const L1_PUBDATA_PRICE_SCALE_FACTOR: f64 = 0.1;
 /// L1 Gas Price Scale Factor for gas estimation.
 pub const ESTIMATE_GAS_PRICE_SCALE_FACTOR: f64 = 1.5;
 /// The max possible number of gas that `eth_estimateGas` is allowed to overestimate.
@@ -368,7 +372,11 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             previous_batch_hash: None,
             number: L1BatchNumber::from(block_ctx.batch),
             timestamp: block_ctx.timestamp,
-            fee_input: compute_batch_fee_model_input(self.l1_gas_price, 1.0, 1.0),
+            fee_input: compute_batch_fee_model_input(
+                self.l1_gas_price,
+                L1_GAS_PRICE_SCALE_FACTOR,
+                L1_PUBDATA_PRICE_SCALE_FACTOR,
+            ),
             fee_account: H160::zero(),
             enforced_base_fee: None,
             first_l2_block: L2BlockEnv {
@@ -1724,7 +1732,7 @@ mod tests {
     async fn test_run_l2_tx_validates_tx_max_fee_per_gas_too_low() {
         let node = InMemoryNode::<HttpForkSource>::default();
         let tx = testing::TransactionBuilder::new()
-            .set_max_fee_per_gas(U256::from(100_000_000 - 1))
+            .set_max_fee_per_gas(U256::from(L2_GAS_PRICE - 1))
             .build();
         node.set_rich_account(tx.common_data.initiator_address);
 
