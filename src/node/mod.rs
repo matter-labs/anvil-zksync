@@ -4,6 +4,7 @@ mod config;
 mod debug;
 mod eth;
 mod evm;
+mod fee_model;
 mod hardhat;
 mod in_memory;
 mod in_memory_ext;

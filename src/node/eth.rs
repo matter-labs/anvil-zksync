@@ -6,7 +6,6 @@ use itertools::Itertools;
 use multivm::interface::{ExecutionResult, TxExecutionMode};
 use multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use zksync_basic_types::{web3, AccountTreeId, Address, Bytes, H160, H256, U256, U64};
-use zksync_core::api_server::web3::backend_jsonrpc::error::into_jsrpc_error;
 use zksync_state::ReadStorage;
 use zksync_types::{
     api::{Block, BlockIdVariant, BlockNumber, TransactionVariant},
@@ -28,7 +27,7 @@ use crate::{
     fork::ForkSource,
     namespaces::{EthNamespaceT, EthTestNodeNamespaceT, RpcResult},
     node::{InMemoryNode, TransactionResult, L2_GAS_PRICE, MAX_TX_SIZE, PROTOCOL_VERSION},
-    utils::{self, h256_to_u64, not_implemented, IntoBoxedFuture},
+    utils::{self, h256_to_u64, into_jsrpc_error, not_implemented, IntoBoxedFuture},
 };
 
 impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespaceT
@@ -2001,7 +2000,7 @@ mod tests {
             .expect("failed fetching transaction receipt by hash")
             .expect("no transaction receipt");
 
-        assert_eq!(Some(expected_block_hash), actual_tx_receipt.block_hash);
+        assert_eq!(expected_block_hash, actual_tx_receipt.block_hash);
     }
 
     #[tokio::test]
@@ -2687,7 +2686,7 @@ mod tests {
             current_batch: inner.current_batch,
             current_miniblock: inner.current_miniblock,
             current_miniblock_hash: inner.current_miniblock_hash,
-            l1_gas_price: inner.l1_gas_price,
+            fee_input_provider: inner.fee_input_provider.clone(),
             tx_results: inner.tx_results.clone(),
             blocks: inner.blocks.clone(),
             block_hashes: inner.block_hashes.clone(),
@@ -2717,7 +2716,10 @@ mod tests {
             expected_snapshot.current_miniblock_hash,
             actual_snapshot.current_miniblock_hash
         );
-        assert_eq!(expected_snapshot.l1_gas_price, actual_snapshot.l1_gas_price);
+        assert_eq!(
+            expected_snapshot.fee_input_provider,
+            actual_snapshot.fee_input_provider
+        );
         assert_eq!(
             expected_snapshot.tx_results.keys().collect_vec(),
             actual_snapshot.tx_results.keys().collect_vec()
@@ -2791,7 +2793,7 @@ mod tests {
                 current_batch: inner.current_batch,
                 current_miniblock: inner.current_miniblock,
                 current_miniblock_hash: inner.current_miniblock_hash,
-                l1_gas_price: inner.l1_gas_price,
+                fee_input_provider: inner.fee_input_provider.clone(),
                 tx_results: inner.tx_results.clone(),
                 blocks: inner.blocks.clone(),
                 block_hashes: inner.block_hashes.clone(),
@@ -2850,7 +2852,10 @@ mod tests {
             expected_snapshot.current_miniblock_hash,
             inner.current_miniblock_hash
         );
-        assert_eq!(expected_snapshot.l1_gas_price, inner.l1_gas_price);
+        assert_eq!(
+            expected_snapshot.fee_input_provider,
+            inner.fee_input_provider
+        );
         assert_eq!(
             expected_snapshot.tx_results.keys().collect_vec(),
             inner.tx_results.keys().collect_vec()

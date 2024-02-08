@@ -1,9 +1,10 @@
 /target
 etc/system-contracts/.yarn
 etc/system-contracts/node_modules
+etc/system-contracts/contracts-preprocessed
 etc/system-contracts/cache-zk
 etc/system-contracts/artifacts-zk
-etc/system-contracts/typechain-types
+etc/system-contracts/typechain
 etc/system-contracts/.yarnrc.yml
 etc/system-contracts/bootloader/build
 

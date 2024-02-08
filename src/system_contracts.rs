@@ -1,6 +1,5 @@
 use multivm::interface::TxExecutionMode;
 use zksync_contracts::{
-    read_playground_batch_bootloader_bytecode, read_proved_batch_bootloader_bytecode,
     read_sys_contract_bytecode, read_zbin_bytecode, BaseSystemContracts, ContractLanguage,
     SystemContractCode,
 };
@@ -130,7 +129,9 @@ pub fn playground(options: &Options) -> BaseSystemContracts {
         Options::BuiltIn | Options::BuiltInWithoutSecurity => {
             include_bytes!("deps/contracts/playground_batch.yul.zbin").to_vec()
         }
-        Options::Local => read_playground_batch_bootloader_bytecode(),
+        Options::Local => read_zbin_bytecode(
+            "etc/system-contracts/bootloader/build/artifacts/playground_batch.yul.zbin",
+        ),
     };
 
     bsc_load_with_bootloader(bootloader_bytecode, options)
@@ -151,8 +152,9 @@ pub fn fee_estimate_contracts(options: &Options) -> BaseSystemContracts {
         Options::BuiltIn | Options::BuiltInWithoutSecurity => {
             include_bytes!("deps/contracts/fee_estimate.yul.zbin").to_vec()
         }
-        Options::Local =>
-            read_zbin_bytecode("etc/system-contracts/bootloader/build/artifacts/fee_estimate.yul/fee_estimate.yul.zbin")
+        Options::Local => read_zbin_bytecode(
+            "etc/system-contracts/bootloader/build/artifacts/fee_estimate.yul.zbin",
+        ),
     };
 
     bsc_load_with_bootloader(bootloader_bytecode, options)
@@ -176,7 +178,9 @@ pub fn baseline_contracts(options: &Options) -> BaseSystemContracts {
         Options::BuiltIn | Options::BuiltInWithoutSecurity => {
             include_bytes!("deps/contracts/proved_batch.yul.zbin").to_vec()
         }
-        Options::Local => read_proved_batch_bootloader_bytecode(),
+        Options::Local => read_zbin_bytecode(
+            "contracts/system-contracts/bootloader/build/artifacts/proved_batch.yul.zbin",
+        ),
     };
     bsc_load_with_bootloader(bootloader_bytecode, options)
 }
@@ -187,7 +191,9 @@ pub fn baseline_impersonating_contracts(options: &Options) -> BaseSystemContract
             include_bytes!("deps/contracts/proved_batch_impersonating.yul.zbin").to_vec()
         }
         // Account impersonating is not supported with the local contracts
-        Options::Local => read_proved_batch_bootloader_bytecode(),
+        Options::Local => read_zbin_bytecode(
+            "contracts/system-contracts/bootloader/build/artifacts/proved_batch.yul.zbin",
+        ),
     };
     bsc_load_with_bootloader(bootloader_bytecode, options)
 }

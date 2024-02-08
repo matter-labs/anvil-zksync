@@ -1,4 +1,4 @@
-use multivm::interface::{dyn_tracers::vm_1_4_0::DynTracer, tracer::VmExecutionStopReason};
+use multivm::interface::{dyn_tracers::vm_1_4_1::DynTracer, tracer::VmExecutionStopReason};
 use std::sync::Arc;
 
 use multivm::vm_latest::{
@@ -59,17 +59,12 @@ pub struct BootloaderDebug {
     /// Closing a block has a non-trivial cost for the operator (they have to run the prover, and commit results to L1).
     /// That's why we have to judge how much a given transaction is contributing the operator closer to sealing the block.
 
-    /// Cost of the whole block for the operator.
-    pub total_overhead_for_block: U256,
-
     /// The maximum amount that operator could have requested.
     pub required_overhead: U256,
 
     /// How much did operator request for the block.
     pub operator_overhead: U256,
 
-    /// The amount of the overhead that circuits / gas are responsible for.
-    pub overhead_for_circuits: U256,
     /// The amount of the overhead that transaction length it responsible for.
     pub overhead_for_length: U256,
     /// The amount of the overhead that simply using a slot of the block is responsible for.
@@ -126,10 +121,8 @@ impl BootloaderDebug {
                 intrinsic_overhead: load_debug_slot(memory, 10),
                 operator_overhead: load_debug_slot(memory, 11),
                 required_overhead: load_debug_slot(memory, 12),
-                total_overhead_for_block: load_debug_slot(memory, 13),
-                overhead_for_circuits: load_debug_slot(memory, 14),
-                overhead_for_length: load_debug_slot(memory, 15),
-                overhead_for_slot: load_debug_slot(memory, 16),
+                overhead_for_length: load_debug_slot(memory, 13),
+                overhead_for_slot: load_debug_slot(memory, 14),
             })
         }
     }

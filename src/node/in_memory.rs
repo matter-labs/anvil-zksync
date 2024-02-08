@@ -4,14 +4,15 @@ use crate::{
     console_log::ConsoleLogHandler,
     deps::{storage_view::StorageView, InMemoryStorage},
     filters::EthFilters,
-    fork::{ForkDetails, ForkSource, ForkStorage},
+    fork::{block_on, ForkDetails, ForkSource, ForkStorage},
     formatter,
-    node::storage_logs::print_storage_logs_details,
+    node::{
+        fee_model::{TestNodeFeeInputProvider, CONFIG},
+        storage_logs::print_storage_logs_details,
+    },
     observability::Observability,
     system_contracts::{self, SystemContracts},
-    utils::{
-        adjust_l1_gas_price_for_tx, bytecode_to_factory_dep, create_debug_output, to_human_size,
-    },
+    utils::{bytecode_to_factory_dep, create_debug_output, into_jsrpc_error, to_human_size},
 };
 use clap::Parser;
 use colored::Colorize;
@@ -31,17 +32,18 @@ use multivm::{
         VmExecutionResultAndLogs, VmInterface,
     },
     vm_latest::L2Block,
+    VmVersion,
 };
 use multivm::{
     tracers::CallTracer,
+    utils::{
+        adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
+        get_max_gas_per_pubdata_byte,
+    },
     vm_latest::HistoryDisabled,
     vm_latest::{
-        constants::{BLOCK_GAS_LIMIT, BLOCK_OVERHEAD_PUBDATA, MAX_PUBDATA_PER_BLOCK},
-        utils::{
-            fee::derive_base_fee_and_gas_per_pubdata,
-            l2_blocks::load_last_l2_block,
-            overhead::{derive_overhead, OverheadCoefficients},
-        },
+        constants::{BLOCK_GAS_LIMIT, MAX_PUBDATA_PER_BLOCK},
+        utils::l2_blocks::load_last_l2_block,
         ToTracerPointer, TracerPointer, Vm,
     },
 };
@@ -50,7 +52,7 @@ use zksync_basic_types::{
     H256, U256, U64,
 };
 use zksync_contracts::BaseSystemContracts;
-use zksync_core::api_server::web3::backend_jsonrpc::error::into_jsrpc_error;
+use zksync_core::fee_model::BatchFeeModelInputProvider;
 use zksync_state::{ReadStorage, StoragePtr, WriteStorage};
 use zksync_types::{
     api::{Block, DebugCall, Log, TransactionReceipt, TransactionVariant},
@@ -62,8 +64,8 @@ use zksync_types::{
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
     vm_trace::Call,
     PackedEthSignature, StorageKey, StorageLogQueryType, StorageValue, Transaction,
-    ACCOUNT_CODE_STORAGE_ADDRESS, EIP_712_TX_TYPE, MAX_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT,
-    SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
+    ACCOUNT_CODE_STORAGE_ADDRESS, MAX_L2_TX_GAS_LIMIT, SYSTEM_CONTEXT_ADDRESS,
+    SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
 };
 use zksync_utils::{
     bytecode::{compress_bytecode, hash_bytecode},
@@ -79,10 +81,11 @@ pub const NON_FORK_FIRST_BLOCK_TIMESTAMP: u64 = 1_000;
 pub const TEST_NODE_NETWORK_ID: u32 = 260;
 /// L1 Gas Price.
 pub const L1_GAS_PRICE: u64 = 50_000_000_000;
-/// L2 Gas Price (0.25 gwei).
-pub const L2_GAS_PRICE: u64 = 250_000_000;
+// TODO: for now, that's fine, as computation overhead is set to zero, but we may consider using calculated fee input everywhere.
+/// L2 Gas Price (0.1 gwei).
+pub const L2_GAS_PRICE: u64 = 100_000_000;
 /// L1 Gas Price Scale Factor for gas estimation.
-pub const ESTIMATE_GAS_L1_GAS_PRICE_SCALE_FACTOR: f64 = 1.2;
+pub const ESTIMATE_GAS_PRICE_SCALE_FACTOR: f64 = 1.5;
 /// The max possible number of gas that `eth_estimateGas` is allowed to overestimate.
 pub const ESTIMATE_GAS_PUBLISH_BYTE_OVERHEAD: u32 = 100;
 /// Acceptable gas overestimation limit.
@@ -294,7 +297,8 @@ pub struct InMemoryNodeInner<S> {
     pub current_miniblock: u64,
     /// The latest miniblock hash.
     pub current_miniblock_hash: H256,
-    pub l1_gas_price: u64,
+    /// The fee input provider.
+    pub fee_input_provider: TestNodeFeeInputProvider,
     // Map from transaction to details about the exeuction
     pub tx_results: HashMap<H256, TransactionResult>,
     // Map from block hash to information about the block.
@@ -364,13 +368,13 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         )
         .new_batch();
 
+        let fee_input_provider = self.fee_input_provider.clone();
         let batch_env = L1BatchEnv {
             // TODO: set the previous batch hash properly (take from fork, when forking, and from local storage, when this is not the first block).
             previous_batch_hash: None,
             number: L1BatchNumber::from(block_ctx.batch),
             timestamp: block_ctx.timestamp,
-            l1_gas_price: self.l1_gas_price,
-            fair_l2_gas_price: L2_GAS_PRICE,
+            fee_input: block_on(async move { fee_input_provider.get_batch_fee_input().await }),
             fee_account: H160::zero(),
             enforced_base_fee: None,
             first_l2_block: L2BlockEnv {
@@ -427,7 +431,8 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
         if let Some(ref mut eip712_meta) = request_with_gas_per_pubdata_overridden.eip712_meta {
             if eip712_meta.gas_per_pubdata == U256::zero() {
-                eip712_meta.gas_per_pubdata = MAX_GAS_PER_PUBDATA_BYTE.into();
+                eip712_meta.gas_per_pubdata =
+                    get_max_gas_per_pubdata_byte(VmVersion::latest()).into();
             }
         }
 
@@ -445,24 +450,29 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             };
 
         let tx: Transaction = l2_tx.clone().into();
-        let fair_l2_gas_price = L2_GAS_PRICE;
 
-        // Calculate Adjusted L1 Price
-        let l1_gas_price = {
-            let current_l1_gas_price =
-                ((self.l1_gas_price as f64) * ESTIMATE_GAS_L1_GAS_PRICE_SCALE_FACTOR) as u64;
+        let fee_input_provider = self.fee_input_provider.clone();
+        let fee_input = {
+            let fee_input = block_on(async move {
+                fee_input_provider
+                    .get_batch_fee_input_scaled(
+                        ESTIMATE_GAS_PRICE_SCALE_FACTOR,
+                        ESTIMATE_GAS_PRICE_SCALE_FACTOR,
+                    )
+                    .await
+            });
 
             // In order for execution to pass smoothly, we need to ensure that block's required gasPerPubdata will be
             // <= to the one in the transaction itself.
-            adjust_l1_gas_price_for_tx(
-                current_l1_gas_price,
-                L2_GAS_PRICE,
+            adjust_pubdata_price_for_tx(
+                fee_input,
                 tx.gas_per_pubdata_byte_limit(),
+                VmVersion::latest(),
             )
         };
 
         let (base_fee, gas_per_pubdata_byte) =
-            derive_base_fee_and_gas_per_pubdata(l1_gas_price, fair_l2_gas_price);
+            derive_base_fee_and_gas_per_pubdata(fee_input, VmVersion::latest());
 
         // Properly format signature
         if l2_tx.common_data.signature.is_empty() {
@@ -476,7 +486,8 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             l2_tx.common_data.transaction_type = TransactionType::EIP712Transaction;
         }
 
-        l2_tx.common_data.fee.gas_per_pubdata_limit = MAX_GAS_PER_PUBDATA_BYTE.into();
+        l2_tx.common_data.fee.gas_per_pubdata_limit =
+            get_max_gas_per_pubdata_byte(VmVersion::latest()).into();
         l2_tx.common_data.fee.max_fee_per_gas = base_fee.into();
         l2_tx.common_data.fee.max_priority_fee_per_gas = base_fee.into();
 
@@ -517,7 +528,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
         let execution_mode = TxExecutionMode::EstimateFee;
         let (mut batch_env, _) = self.create_l1_batch_env(storage.clone());
-        batch_env.l1_gas_price = l1_gas_price;
+        batch_env.fee_input = fee_input;
         let impersonating = self
             .impersonated_accounts
             .contains(&l2_tx.common_data.initiator_address);
@@ -549,7 +560,6 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 l2_tx.clone(),
                 gas_per_pubdata_byte,
                 try_gas_limit,
-                l1_gas_price,
                 batch_env.clone(),
                 system_env.clone(),
                 &self.fork_storage,
@@ -579,18 +589,17 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             l2_tx.clone(),
             gas_per_pubdata_byte,
             suggested_gas_limit,
-            l1_gas_price,
             batch_env,
             system_env,
             &self.fork_storage,
         );
 
-        let coefficients = OverheadCoefficients::from_tx_type(EIP_712_TX_TYPE);
         let overhead: u32 = derive_overhead(
             suggested_gas_limit,
             gas_per_pubdata_byte as u32,
             tx.encoding_len(),
-            coefficients,
+            l2_tx.common_data.transaction_type as u8,
+            VmVersion::latest(),
         );
 
         match estimate_gas_result.result {
@@ -699,23 +708,20 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         mut l2_tx: L2Tx,
         gas_per_pubdata_byte: u64,
         tx_gas_limit: u32,
-        l1_gas_price: u64,
-        mut batch_env: L1BatchEnv,
+        batch_env: L1BatchEnv,
         system_env: SystemEnv,
         fork_storage: &ForkStorage<S>,
     ) -> VmExecutionResultAndLogs {
         let tx: Transaction = l2_tx.clone().into();
-        let l1_gas_price =
-            adjust_l1_gas_price_for_tx(l1_gas_price, L2_GAS_PRICE, tx.gas_per_pubdata_byte_limit());
 
-        let coefficients = OverheadCoefficients::from_tx_type(EIP_712_TX_TYPE);
         // Set gas_limit for transaction
         let gas_limit_with_overhead = tx_gas_limit
             + derive_overhead(
                 tx_gas_limit,
                 gas_per_pubdata_byte as u32,
                 tx.encoding_len(),
-                coefficients,
+                l2_tx.common_data.transaction_type as u8,
+                VmVersion::latest(),
             );
         l2_tx.common_data.fee.gas_limit = gas_limit_with_overhead.into();
 
@@ -740,8 +746,6 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         storage
             .borrow_mut()
             .set_value(balance_key, u256_to_h256(current_balance));
-
-        batch_env.l1_gas_price = l1_gas_price;
 
         let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage.clone());
 
@@ -801,7 +805,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             current_batch: self.current_batch,
             current_miniblock: self.current_miniblock,
             current_miniblock_hash: self.current_miniblock_hash,
-            l1_gas_price: self.l1_gas_price,
+            fee_input_provider: self.fee_input_provider.clone(),
             tx_results: self.tx_results.clone(),
             blocks: self.blocks.clone(),
             block_hashes: self.block_hashes.clone(),
@@ -827,7 +831,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         self.current_batch = snapshot.current_batch;
         self.current_miniblock = snapshot.current_miniblock;
         self.current_miniblock_hash = snapshot.current_miniblock_hash;
-        self.l1_gas_price = snapshot.l1_gas_price;
+        self.fee_input_provider = snapshot.fee_input_provider;
         self.tx_results = snapshot.tx_results;
         self.blocks = snapshot.blocks;
         self.block_hashes = snapshot.block_hashes;
@@ -851,7 +855,9 @@ pub struct Snapshot {
     pub(crate) current_batch: u32,
     pub(crate) current_miniblock: u64,
     pub(crate) current_miniblock_hash: H256,
-    pub(crate) l1_gas_price: u64,
+    // Currently, the fee is static and the fee input provider is immutable during the test node life cycle,
+    // but in the future, it may contain some mutable state.
+    pub(crate) fee_input_provider: TestNodeFeeInputProvider,
     pub(crate) tx_results: HashMap<H256, TransactionResult>,
     pub(crate) blocks: HashMap<H256, Block<TransactionVariant>>,
     pub(crate) block_hashes: HashMap<u64, H256>,
@@ -920,7 +926,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 current_batch: f.l1_block.0,
                 current_miniblock: f.l2_miniblock,
                 current_miniblock_hash: f.l2_miniblock_hash,
-                l1_gas_price: f.l1_gas_price,
+                fee_input_provider: TestNodeFeeInputProvider::new(f.l1_gas_price),
                 tx_results: Default::default(),
                 blocks,
                 block_hashes,
@@ -953,7 +959,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 current_batch: 0,
                 current_miniblock: 0,
                 current_miniblock_hash: block_hash,
-                l1_gas_price: L1_GAS_PRICE,
+                fee_input_provider: TestNodeFeeInputProvider::new(L1_GAS_PRICE),
                 tx_results: Default::default(),
                 blocks,
                 block_hashes,
@@ -1217,23 +1223,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 )
             );
 
-            let publish_block_l1_bytes = BLOCK_OVERHEAD_PUBDATA;
             tracing::info!(
-            "Publishing full block costs the operator up to: {}, where {} is due to {} bytes published to L1",
-            to_human_size(bootloader_debug.total_overhead_for_block),
-            to_human_size(bootloader_debug.gas_per_pubdata * publish_block_l1_bytes),
-            to_human_size(publish_block_l1_bytes.into())
-        );
-            tracing::info!("Your transaction has contributed to filling up the block in the following way (we take the max contribution as the cost):");
-            tracing::info!(
-                "  Circuits overhead:{:>15} ({}% of the full block: {})",
-                to_human_size(bootloader_debug.overhead_for_circuits),
-                to_human_size(
-                    bootloader_debug.overhead_for_circuits * 100
-                        / bootloader_debug.total_overhead_for_block
-                ),
-                to_human_size(bootloader_debug.total_overhead_for_block)
+                "Publishing full block costs the operator around {} l2 gas",
+                to_human_size(bootloader_debug.gas_per_pubdata * CONFIG.batch_overhead_l1_gas),
             );
+            tracing::info!("Your transaction has contributed to filling up the block in the following way (we take the max contribution as the cost):");
             tracing::info!(
                 "  Length overhead:  {:>15}",
                 to_human_size(bootloader_debug.overhead_for_length)
@@ -1242,6 +1236,12 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 "  Slot overhead:    {:>15}",
                 to_human_size(bootloader_debug.overhead_for_slot)
             );
+            tracing::info!("Also, with every spent gas unit you potentially can pay some additional amount of gas for filling up the block by execution limits");
+            tracing::info!(
+                "This overhead is included in the gas price, although now it's set to zero"
+            );
+            tracing::info!("And with every pubdata byte, you potentially can pay an additional amount of gas for filling up the block by pubdata limit");
+            tracing::info!("This overhead is included in the `gas_per_pubdata` price");
             Ok(())
         } else {
             Err("Booloader tracer didn't finish.".to_owned())
@@ -1288,7 +1288,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     ///     * [InMemoryNodeInner::current_batch]
     ///     * [InMemoryNodeInner::current_miniblock]
     ///     * [InMemoryNodeInner::current_miniblock_hash]
-    ///     * [InMemoryNodeInner::l1_gas_price]
+    ///     * [InMemoryNodeInner::fee_input_provider]
     ///
     /// And must _NEVER_ rely on data updated in [InMemoryNodeInner] during previous runs:
     /// (if used, they must never panic and/or have meaningful defaults)
@@ -1557,13 +1557,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         let tx_receipt = TransactionReceipt {
             transaction_hash: tx_hash,
             transaction_index: U64::from(0),
-            block_hash: Some(block.hash),
-            block_number: Some(block.number),
+            block_hash: block.hash,
+            block_number: block.number,
             l1_batch_tx_index: None,
             l1_batch_number: block.l1_batch_number,
             from: l2_tx.initiator_account(),
             to: Some(l2_tx.recipient_account()),
-            root: Some(H256::zero()),
+            root: H256::zero(),
             cumulative_gas_used: Default::default(),
             gas_used: Some(l2_tx.common_data.fee.gas_limit - result.refunds.gas_refunded),
             contract_address: contract_address_from_tx_result(&result),
@@ -1588,11 +1588,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 })
                 .collect(),
             l2_to_l1_logs: vec![],
-            status: Some(if result.result.is_failed() {
+            status: if result.result.is_failed() {
                 U64::from(0)
             } else {
                 U64::from(1)
-            }),
+            },
             effective_gas_price: Some(L2_GAS_PRICE.into()),
             ..Default::default()
         };
@@ -1745,7 +1745,7 @@ mod tests {
     async fn test_run_l2_tx_validates_tx_max_fee_per_gas_too_low() {
         let node = InMemoryNode::<HttpForkSource>::default();
         let tx = testing::TransactionBuilder::new()
-            .set_max_fee_per_gas(U256::from(250_000_000 - 1))
+            .set_max_fee_per_gas(U256::from(L2_GAS_PRICE - 1))
             .build();
         node.set_rich_account(tx.common_data.initiator_address);
 

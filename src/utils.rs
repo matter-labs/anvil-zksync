@@ -1,12 +1,14 @@
 use std::collections::HashMap;
 use std::convert::TryInto;
+use std::fmt;
 use std::pin::Pin;
 
 use chrono::{DateTime, Utc};
 use futures::Future;
+use jsonrpc_core::{Error, ErrorCode};
 use multivm::interface::{ExecutionResult, VmExecutionResultAndLogs, VmInterface};
 use multivm::vm_latest::HistoryDisabled;
-use multivm::vm_latest::{utils::fee::derive_base_fee_and_gas_per_pubdata, Vm};
+use multivm::vm_latest::Vm;
 use zksync_basic_types::{H256, U256, U64};
 use zksync_state::WriteStorage;
 use zksync_types::api::{BlockNumber, DebugCall, DebugCallType};
@@ -32,38 +34,6 @@ where
     T: Send + 'static,
     U: Send + 'static,
 {
-}
-
-/// Adjusts the L1 gas price for a transaction based on the current pubdata price and the fair L2 gas price.
-/// If the current pubdata price is small enough, returns the original L1 gas price.
-/// Otherwise, calculates a new L1 gas price based on the fair L2 gas price and the transaction gas per pubdata limit.
-///
-/// # Arguments
-///
-/// * `l1_gas_price` - The original L1 gas price.
-/// * `fair_l2_gas_price` - The fair L2 gas price.
-/// * `tx_gas_per_pubdata_limit` - The transaction gas per pubdata limit.
-///
-/// # Returns
-///
-/// The adjusted L1 gas price.
-pub fn adjust_l1_gas_price_for_tx(
-    l1_gas_price: u64,
-    fair_l2_gas_price: u64,
-    tx_gas_per_pubdata_limit: U256,
-) -> u64 {
-    let (_, current_pubdata_price) =
-        derive_base_fee_and_gas_per_pubdata(l1_gas_price, fair_l2_gas_price);
-    if U256::from(current_pubdata_price) <= tx_gas_per_pubdata_limit {
-        // The current pubdata price is small enough
-        l1_gas_price
-    } else {
-        let l1_gas_price = U256::from(fair_l2_gas_price)
-            * (tx_gas_per_pubdata_limit - U256::from(1u32))
-            / U256::from(17);
-
-        l1_gas_price.as_u64()
-    }
 }
 
 /// Takes long integers and returns them in human friendly format with "_".
@@ -257,6 +227,44 @@ pub fn utc_datetime_from_epoch_ms(millis: u64) -> DateTime<Utc> {
     let nanos = (millis % 1000) * 1_000_000;
     // expect() is ok- nanos can't be >2M
     DateTime::<Utc>::from_timestamp(secs as i64, nanos as u32).expect("valid timestamp")
+}
+
+pub fn into_jsrpc_error(err: Web3Error) -> Error {
+    Error {
+        code: match err {
+            Web3Error::InternalError | Web3Error::NotImplemented => ErrorCode::InternalError,
+            Web3Error::NoBlock
+            | Web3Error::PrunedBlock(_)
+            | Web3Error::PrunedL1Batch(_)
+            | Web3Error::NoSuchFunction
+            | Web3Error::RLPError(_)
+            | Web3Error::InvalidTransactionData(_)
+            | Web3Error::TooManyTopics
+            | Web3Error::FilterNotFound
+            | Web3Error::InvalidFeeParams(_)
+            | Web3Error::LogsLimitExceeded(_, _, _)
+            | Web3Error::InvalidFilterBlockHash => ErrorCode::InvalidParams,
+            Web3Error::SubmitTransactionError(_, _) | Web3Error::SerializationError(_) => 3.into(),
+            Web3Error::PubSubTimeout => 4.into(),
+            Web3Error::RequestTimeout => 5.into(),
+            Web3Error::TreeApiUnavailable => 6.into(),
+        },
+        message: match err {
+            Web3Error::SubmitTransactionError(_, _) => err.to_string(),
+            _ => err.to_string(),
+        },
+        data: match err {
+            Web3Error::SubmitTransactionError(_, data) => {
+                Some(format!("0x{}", hex::encode(data)).into())
+            }
+            _ => None,
+        },
+    }
+}
+
+pub fn internal_error(method_name: &'static str, error: impl fmt::Display) -> Web3Error {
+    tracing::error!("Internal error in method {method_name}: {error}");
+    Web3Error::InternalError
 }
 
 #[cfg(test)]
