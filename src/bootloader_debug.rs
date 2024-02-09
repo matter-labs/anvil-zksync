@@ -13,9 +13,12 @@ use zksync_state::WriteStorage;
 /// debugger was enabled.
 const DEBUG_START_SENTINEL: u64 = 1337;
 
-const MAX_MEMORY_BYTES: usize = usize::pow(2, 24);
+// Taken from bootloader.yul (MAX_MEM_SIZE)
+const MAX_MEMORY_BYTES: usize = 24_000_000;
 
-const MAX_TRANSACTIONS: usize = 1024;
+// Taken from Systemconfig.json
+const MAX_TRANSACTIONS: usize = 10000;
+
 const RESULTS_BYTES_OFFSET: usize = MAX_MEMORY_BYTES - MAX_TRANSACTIONS * 32;
 
 const VM_HOOKS_PARAMS: usize = 2;
