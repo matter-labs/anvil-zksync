@@ -129,7 +129,7 @@ The `status` options are:
 | [`ZKS`](#zks-namespace) | [`zks_getTokenPrice`](#zks_getTokenPrice) | `SUPPORTED` | Gets the USD price of a token <br />_(`ETH` is hard-coded to `1_500`, while some others are `1`)_ |
 | [`ZKS`](#zks-namespace) | [`zks_getTransactionDetails`](#zks_gettransactiondetails) | `SUPPORTED` | Returns data from a specific transaction given by the transaction hash |
 | `ZKS` | `zks_L1BatchNumber` | `NOT IMPLEMENTED` | Returns the latest L1 batch number |
-| `ZKS` | `zks_L1ChainId` | `NOT IMPLEMENTED` | Returns the chain id of the underlying L1 |
+| [`ZKS`](#zks-namespace) | [`zks_L1ChainId`](#zks_l1chainid) | `IMPLEMENTED` | Returns the chain id of the underlying L1 |
 
 ## `CONFIG NAMESPACE`
 
@@ -1978,4 +1978,27 @@ curl --request POST \
     "method": "zks_getAllAccountBalances",
     "params": ["0x364d6D0333432C3Ac016Ca832fb8594A8cE43Ca6"]
 }'
+```
+
+### `zks_L1ChainId`
+
+[source](src/node/zks.rs)
+
+Returns the chain id of the underlying L1.
+
+#### Arguments
+
++ _NONE_
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "zks_L1ChainId","params": []}'
 ```

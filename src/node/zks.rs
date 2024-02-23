@@ -176,7 +176,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
     }
 
     fn l1_chain_id(&self) -> RpcResult<zksync_basic_types::U64> {
-        not_implemented("zks_L1ChainId")
+        use crate::namespaces::EthNamespaceT;
+        self.chain_id()
     }
 
     fn get_confirmed_tokens(
@@ -515,6 +516,7 @@ mod tests {
 
     use crate::cache::CacheConfig;
     use crate::fork::ForkDetails;
+    use crate::node::TEST_NODE_NETWORK_ID;
     use crate::testing;
     use crate::testing::{ForkBlockConfig, MockServer};
     use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
@@ -1041,6 +1043,13 @@ mod tests {
             .expect("get balances");
         assert_eq!(balances.len(), 1);
         assert_eq!(&balances[0].name, "Ether");
+    }
+
+    #[tokio::test]
+    async fn test_get_l1_chain_id() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let chain_id = node.l1_chain_id().await.expect("get chain id").as_u32();
+        assert_eq!(TEST_NODE_NETWORK_ID, chain_id);
     }
 
     #[tokio::test]
