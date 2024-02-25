@@ -372,7 +372,7 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("");
     tracing::info!("Rich Accounts");
     tracing::info!("=============");
-    for (_, wallet) in LEGACY_RICH_WALLETS.iter().enumerate() {
+    for wallet in LEGACY_RICH_WALLETS.iter() {
         let address = wallet.0;
         node.set_rich_account(H160::from_str(address).unwrap());
     }
