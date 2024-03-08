@@ -15,7 +15,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> HardhatNam
         self.set_balance(address, balance)
             .map_err(|err| {
                 tracing::error!("failed setting balance : {:?}", err);
-                into_jsrpc_error(Web3Error::InternalError)
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::from(err)))
             })
             .into_boxed_future()
     }
@@ -24,7 +24,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> HardhatNam
         self.set_nonce(address, balance)
             .map_err(|err| {
                 tracing::error!("failed setting nonce: {:?}", err);
-                into_jsrpc_error(Web3Error::InternalError)
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::from(err)))
             })
             .into_boxed_future()
     }
@@ -33,7 +33,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> HardhatNam
         self.mine_blocks(num_blocks, interval)
             .map_err(|err| {
                 tracing::error!("failed mining blocks: {:?}", err);
-                into_jsrpc_error(Web3Error::InternalError)
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::from(err)))
             })
             .into_boxed_future()
     }
@@ -42,7 +42,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> HardhatNam
         self.impersonate_account(address)
             .map_err(|err| {
                 tracing::error!("failed impersonating account: {:?}", err);
-                into_jsrpc_error(Web3Error::InternalError)
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::from(err)))
             })
             .into_boxed_future()
     }
@@ -51,7 +51,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> HardhatNam
         InMemoryNode::<S>::stop_impersonating_account(self, address)
             .map_err(|err| {
                 tracing::error!("failed stopping to impersonate account: {:?}", err);
-                into_jsrpc_error(Web3Error::InternalError)
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::from(err)))
             })
             .into_boxed_future()
     }
@@ -60,7 +60,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> HardhatNam
         self.set_code(address, code)
             .map_err(|err| {
                 tracing::error!("failed setting code: {:?}", err);
-                into_jsrpc_error(Web3Error::InternalError)
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::from(err)))
             })
             .into_boxed_future()
     }

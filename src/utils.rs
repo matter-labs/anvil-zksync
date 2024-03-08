@@ -232,22 +232,17 @@ pub fn utc_datetime_from_epoch_ms(millis: u64) -> DateTime<Utc> {
 pub fn into_jsrpc_error(err: Web3Error) -> Error {
     Error {
         code: match err {
-            Web3Error::InternalError | Web3Error::NotImplemented => ErrorCode::InternalError,
+            Web3Error::InternalError(_) | Web3Error::NotImplemented => ErrorCode::InternalError,
             Web3Error::NoBlock
             | Web3Error::PrunedBlock(_)
             | Web3Error::PrunedL1Batch(_)
-            | Web3Error::NoSuchFunction
-            | Web3Error::RLPError(_)
-            | Web3Error::InvalidTransactionData(_)
+            | Web3Error::ProxyError(_)
             | Web3Error::TooManyTopics
             | Web3Error::FilterNotFound
-            | Web3Error::InvalidFeeParams(_)
             | Web3Error::LogsLimitExceeded(_, _, _)
-            | Web3Error::InvalidFilterBlockHash => ErrorCode::InvalidParams,
-            Web3Error::SubmitTransactionError(_, _) | Web3Error::SerializationError(_) => 3.into(),
-            Web3Error::PubSubTimeout => 4.into(),
-            Web3Error::RequestTimeout => 5.into(),
-            Web3Error::TreeApiUnavailable => 6.into(),
+            | Web3Error::InvalidFilterBlockHash
+            | Web3Error::TreeApiUnavailable => ErrorCode::InvalidParams,
+            Web3Error::SubmitTransactionError(_, _) | Web3Error::SerializationError(_) => ErrorCode::ServerError(3),
         },
         message: match err {
             Web3Error::SubmitTransactionError(_, _) => err.to_string(),
@@ -264,7 +259,7 @@ pub fn into_jsrpc_error(err: Web3Error) -> Error {
 
 pub fn internal_error(method_name: &'static str, error: impl fmt::Display) -> Web3Error {
     tracing::error!("Internal error in method {method_name}: {error}");
-    Web3Error::InternalError
+    Web3Error::InternalError(anyhow::Error::msg(error.to_string()))
 }
 
 #[cfg(test)]
