@@ -16,7 +16,6 @@ use zksync_types::{
 };
 use zksync_utils::h256_to_u256;
 use zksync_web3_decl::error::Web3Error;
-use anyhow::Error as AnyhowError;
 
 use crate::{
     fork::ForkSource,
@@ -479,7 +478,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
         Box::pin(async move {
             let mut writer = inner
                 .write()
-                .map_err(|e| into_jsrpc_error(Web3Error::InternalError(AnyhowError::new(e))))?;
+                .map_err(|_e| into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire write lock for bytecode retrieval."))))?;
 
             let maybe_bytecode = writer.fork_storage.load_factory_dep(hash).or_else(|| {
                 writer
@@ -547,6 +546,7 @@ mod tests {
             transaction_type: None,
             access_list: None,
             eip712_meta: None,
+            input: None,
         };
 
         let result = node.estimate_fee(mock_request).await.unwrap();

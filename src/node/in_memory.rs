@@ -42,7 +42,7 @@ use multivm::{
     },
     vm_latest::HistoryDisabled,
     vm_latest::{
-        constants::{BLOCK_GAS_LIMIT, MAX_PUBDATA_PER_BLOCK},
+        constants::{BLOCK_GAS_LIMIT, MAX_VM_PUBDATA_PER_BATCH},
         utils::l2_blocks::load_last_l2_block,
         ToTracerPointer, TracerPointer, Vm,
     },
@@ -72,6 +72,7 @@ use zksync_utils::{
     h256_to_account_address, h256_to_u256, u256_to_h256,
 };
 use zksync_web3_decl::error::Web3Error;
+use std::convert::TryInto;
 
 /// Max possible size of an ABI encoded tx (in bytes).
 pub const MAX_TX_SIZE: usize = 1_000_000;
@@ -467,6 +468,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             adjust_pubdata_price_for_tx(
                 fee_input,
                 tx.gas_per_pubdata_byte_limit(),
+                None,
                 VmVersion::latest(),
             )
         };
@@ -514,7 +516,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             })
             .sum::<u32>();
 
-        if pubdata_for_factory_deps > MAX_PUBDATA_PER_BLOCK {
+        if pubdata_for_factory_deps > MAX_VM_PUBDATA_PER_BATCH.try_into().unwrap() {
             return Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
                 "exceeds limit for published pubdata".into(),
                 Default::default(),
