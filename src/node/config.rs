@@ -18,7 +18,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
             .read()
             .map_err(|err| {
                 tracing::error!("failed acquiring lock: {:?}", err);
-                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for inner node state.")))
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire read lock for inner node state.",
+                )))
             })
             .map(|reader| reader.show_calls.to_string())
     }
@@ -28,7 +30,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
             .read()
             .map_err(|err| {
                 tracing::error!("failed acquiring lock: {:?}", err);
-                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for inner node state.")))
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire read lock for inner node state.",
+                )))
             })
             .map(|reader| reader.current_timestamp)
     }
@@ -43,7 +47,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
             .write()
             .map_err(|err| {
                 tracing::error!("failed acquiring lock: {:?}", err);
-                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for inner node state.")))
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire read lock for inner node state.",
+                )))
             })
             .map(|mut writer| {
                 writer.show_calls = show_calls;
@@ -60,7 +66,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
                     .read()
                     .map_err(|err| {
                         tracing::error!("failed acquiring lock: {:?}", err);
-                        into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for inner node state.")))
+                        into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                            "Failed to acquire read lock for inner node state.",
+                        )))
                     })
                     .map(|reader| reader.show_storage_logs.to_string())
             }
@@ -70,7 +78,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
             .write()
             .map_err(|err| {
                 tracing::error!("failed acquiring lock: {:?}", err);
-                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for inner node state.")))
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire read lock for inner node state.",
+                )))
             })
             .map(|mut writer| {
                 writer.show_storage_logs = show_storage_logs;
@@ -87,7 +97,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
                     .read()
                     .map_err(|err| {
                         tracing::error!("failed acquiring lock: {:?}", err);
-                        into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for inner node state.")))
+                        into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                            "Failed to acquire read lock for inner node state.",
+                        )))
                     })
                     .map(|reader| reader.show_vm_details.to_string())
             }
@@ -97,7 +109,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
             .write()
             .map_err(|err| {
                 tracing::error!("failed acquiring lock: {:?}", err);
-                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for inner node state.")))
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire read lock for inner node state.",
+                )))
             })
             .map(|mut writer| {
                 writer.show_vm_details = show_vm_details;
@@ -114,7 +128,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
                     .read()
                     .map_err(|err| {
                         tracing::error!("failed acquiring lock: {:?}", err);
-                        into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for inner node state.")))
+                        into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                            "Failed to acquire read lock for inner node state.",
+                        )))
                     })
                     .map(|reader| reader.show_gas_details.to_string())
             }
@@ -124,7 +140,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
             .write()
             .map_err(|err| {
                 tracing::error!("failed acquiring lock: {:?}", err);
-                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for inner node state.")))
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire read lock for inner node state.",
+                )))
             })
             .map(|mut writer| {
                 writer.show_gas_details = show_gas_details;
@@ -137,7 +155,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
             .write()
             .map_err(|err| {
                 tracing::error!("failed acquiring lock: {:?}", err);
-                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for inner node state.")))
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire read lock for inner node state.",
+                )))
             })
             .map(|mut writer| {
                 writer.resolve_hashes = value;
@@ -151,7 +171,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
             .read()
             .map_err(|err| {
                 tracing::error!("failed acquiring lock: {:?}", err);
-                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for inner node state.")))
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire read lock for inner node state.",
+                )))
             })?
             .observability
         {
@@ -172,7 +194,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
             .read()
             .map_err(|err| {
                 tracing::error!("failed acquiring lock: {:?}", err);
-                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for inner node state.")))
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire read lock for inner node state.",
+                )))
             })?
             .observability
         {

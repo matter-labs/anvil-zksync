@@ -35,9 +35,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> DebugNames
         let only_top = options.is_some_and(|o| o.tracer_config.only_top_call);
         let inner = self.get_inner().clone();
         Box::pin(async move {
-            let inner = inner
-                .read()
-                .map_err(|_| into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for inner node state."))))?;
+            let inner = inner.read().map_err(|_| {
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire read lock for inner node state.",
+                )))
+            })?;
 
             let block = {
                 let number =
@@ -92,9 +94,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> DebugNames
         let only_top = options.is_some_and(|o| o.tracer_config.only_top_call);
         let inner = self.get_inner().clone();
         Box::pin(async move {
-            let inner = inner
-                .read()
-                .map_err(|_| into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for inner node state."))))?;
+            let inner = inner.read().map_err(|_| {
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire read lock for inner node state.",
+                )))
+            })?;
 
             let block = inner.blocks.get(&hash).ok_or_else(|| {
                 into_jsrpc_error(Web3Error::SubmitTransactionError(
@@ -148,9 +152,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> DebugNames
                 ));
             }
 
-            let inner = inner
-                .read()
-                .map_err(|_| into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for inner node state."))))?;
+            let inner = inner.read().map_err(|_| {
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire read lock for inner node state.",
+                )))
+            })?;
 
             let mut l2_tx = match L2Tx::from_request(request.into(), MAX_TX_SIZE) {
                 Ok(tx) => tx,
@@ -215,9 +221,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> DebugNames
         let only_top = options.is_some_and(|o| o.tracer_config.only_top_call);
         let inner = self.get_inner().clone();
         Box::pin(async move {
-            let inner = inner
-                .read()
-                .map_err(|_| into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for inner node state."))))?;
+            let inner = inner.read().map_err(|_| {
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire read lock for inner node state.",
+                )))
+            })?;
 
             Ok(inner
                 .tx_results

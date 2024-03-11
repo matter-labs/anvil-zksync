@@ -47,6 +47,7 @@ use multivm::{
         ToTracerPointer, TracerPointer, Vm,
     },
 };
+use std::convert::TryInto;
 use zksync_basic_types::{
     web3::signing::keccak256, AccountTreeId, Address, Bytes, L1BatchNumber, MiniblockNumber, H160,
     H256, U256, U64,
@@ -72,7 +73,6 @@ use zksync_utils::{
     h256_to_account_address, h256_to_u256, u256_to_h256,
 };
 use zksync_web3_decl::error::Web3Error;
-use std::convert::TryInto;
 
 /// Max possible size of an ABI encoded tx (in bytes).
 pub const MAX_TX_SIZE: usize = 1_000_000;

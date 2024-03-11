@@ -242,7 +242,9 @@ pub fn into_jsrpc_error(err: Web3Error) -> Error {
             | Web3Error::LogsLimitExceeded(_, _, _)
             | Web3Error::InvalidFilterBlockHash
             | Web3Error::TreeApiUnavailable => ErrorCode::InvalidParams,
-            Web3Error::SubmitTransactionError(_, _) | Web3Error::SerializationError(_) => ErrorCode::ServerError(3),
+            Web3Error::SubmitTransactionError(_, _) | Web3Error::SerializationError(_) => {
+                ErrorCode::ServerError(3)
+            }
         },
         message: match err {
             Web3Error::SubmitTransactionError(_, _) => err.to_string(),

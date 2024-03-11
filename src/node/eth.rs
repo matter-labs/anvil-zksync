@@ -37,9 +37,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
     fn chain_id(&self) -> RpcResult<zksync_basic_types::U64> {
         match self.get_inner().read() {
             Ok(inner) => Ok(U64::from(inner.fork_storage.chain_id.as_u64())).into_boxed_future(),
-            Err(_) => Err(into_jsrpc_error(
-                Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for chain ID retrieval"))
-            )).into_boxed_future(),
+            Err(_) => Err(into_jsrpc_error(Web3Error::InternalError(
+                anyhow::Error::msg("Failed to acquire read lock for chain ID retrieval"),
+            )))
+            .into_boxed_future(),
         }
     }
 
@@ -167,7 +168,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
             let maybe_block = {
                 let reader = match inner.read() {
                     Ok(r) => r,
-                    Err(_) => return Err(into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for block retrieval")))),
+                    Err(_) => {
+                        return Err(into_jsrpc_error(Web3Error::InternalError(
+                            anyhow::Error::msg("Failed to acquire read lock for block retrieval"),
+                        )))
+                    }
                 };
                 let number =
                     utils::to_real_block_number(block_number, U64::from(reader.current_miniblock))
@@ -261,7 +266,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
 
                     Ok(Bytes::from(code))
                 }
-                Err(_) => Err(into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire write lock for code retrieval")))),
+                Err(_) => Err(into_jsrpc_error(Web3Error::InternalError(
+                    anyhow::Error::msg("Failed to acquire write lock for code retrieval"),
+                ))),
             }
         })
     }
@@ -291,7 +298,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
                     let result = guard.fork_storage.read_value(&nonce_key);
                     Ok(h256_to_u64(result).into())
                 }
-                Err(_) => Err(into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire write lock for nonce retrieval")))),
+                Err(_) => Err(into_jsrpc_error(Web3Error::InternalError(
+                    anyhow::Error::msg("Failed to acquire write lock for nonce retrieval"),
+                ))),
             }
         })
     }
@@ -314,7 +323,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
         Box::pin(async move {
             let reader = match inner.read() {
                 Ok(r) => r,
-                Err(_) => return Err(into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for transaction receipt retrieval")))),
+                Err(_) => {
+                    return Err(into_jsrpc_error(Web3Error::InternalError(
+                        anyhow::Error::msg(
+                            "Failed to acquire read lock for transaction receipt retrieval",
+                        ),
+                    )))
+                }
             };
 
             let receipt = reader
@@ -341,7 +356,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
         let chain_id = match self.get_inner().read() {
             Ok(reader) => reader.fork_storage.chain_id,
             Err(_) => {
-                return futures::future::err(into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for chain ID retrieval")))).boxed()
+                return futures::future::err(into_jsrpc_error(Web3Error::InternalError(
+                    anyhow::Error::msg("Failed to acquire read lock for chain ID retrieval"),
+                )))
+                .boxed()
             }
         };
 
@@ -363,10 +381,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
 
         l2_tx.set_input(tx_bytes.0, hash);
         if hash != l2_tx.hash() {
-            let error_message = "Invalid transaction data: computed hash does not match the provided hash.";
+            let error_message =
+                "Invalid transaction data: computed hash does not match the provided hash.";
             let web3_error = Web3Error::InternalError(anyhow::Error::msg(error_message));
             return futures::future::err(into_jsrpc_error(web3_error)).boxed();
-        };        
+        };
 
         match self.run_l2_tx(l2_tx.clone(), TxExecutionMode::VerifyExecute) {
             Ok(_) => Ok(hash).into_boxed_future(),
@@ -400,9 +419,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
 
         Box::pin(async move {
             let maybe_block = {
-                let reader = inner
-                    .read()
-                    .map_err(|_| into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for block retrieval."))))?;
+                let reader = inner.read().map_err(|_| {
+                    into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                        "Failed to acquire read lock for block retrieval.",
+                    )))
+                })?;
 
                 // try retrieving block from memory, and if unavailable subsequently from the fork
                 reader.blocks.get(&hash).cloned().or_else(|| {
@@ -472,9 +493,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
         let inner = self.get_inner().clone();
 
         Box::pin(async move {
-            let reader = inner
-                .read()
-                .map_err(|_| into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for transaction retrieval."))))?;
+            let reader = inner.read().map_err(|_| {
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire read lock for transaction retrieval.",
+                )))
+            })?;
 
             let maybe_result = {
                 // try retrieving transaction from memory, and if unavailable subsequently from the fork
@@ -543,9 +566,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
         let inner = self.get_inner().clone();
 
         Box::pin(async move {
-            let reader = inner
-                .read()
-                .map_err(|_| into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for block retrieval"))))?;
+            let reader = inner.read().map_err(|_| {
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire read lock for block retrieval",
+                )))
+            })?;
             Ok(U64::from(reader.current_miniblock))
         })
     }
@@ -569,7 +594,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
         let reader = match inner.read() {
             Ok(r) => r,
             Err(_) => {
-                return futures::future::err(into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for gas estimation.")))).boxed()
+                return futures::future::err(into_jsrpc_error(Web3Error::InternalError(
+                    anyhow::Error::msg("Failed to acquire read lock for gas estimation."),
+                )))
+                .boxed()
             }
         };
 
@@ -613,7 +641,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
         let mut writer = match inner.write() {
             Ok(r) => r,
             Err(_) => {
-                return futures::future::err(into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for filter creation")))).boxed()
+                return futures::future::err(into_jsrpc_error(Web3Error::InternalError(
+                    anyhow::Error::msg("Failed to acquire read lock for filter creation"),
+                )))
+                .boxed()
             }
         };
 
@@ -637,7 +668,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
         writer
             .filters
             .add_log_filter(from_block, to_block, addresses, topics)
-            .map_err(|_| into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire write lock for new filter."))))
+            .map_err(|_| {
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire write lock for new filter.",
+                )))
+            })
             .into_boxed_future()
     }
 
@@ -652,14 +687,21 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
         let mut writer = match inner.write() {
             Ok(r) => r,
             Err(_) => {
-                return futures::future::err(into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire write lock for new filter.")))).boxed()
+                return futures::future::err(into_jsrpc_error(Web3Error::InternalError(
+                    anyhow::Error::msg("Failed to acquire write lock for new filter."),
+                )))
+                .boxed()
             }
         };
 
         writer
             .filters
             .add_block_filter()
-            .map_err(|_| into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire write lock for new block filter."))))
+            .map_err(|_| {
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire write lock for new block filter.",
+                )))
+            })
             .into_boxed_future()
     }
 
@@ -674,14 +716,21 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
         let mut writer = match inner.write() {
             Ok(r) => r,
             Err(_) => {
-                return futures::future::err(into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire write lock for transaction filter.")))).boxed()
+                return futures::future::err(into_jsrpc_error(Web3Error::InternalError(
+                    anyhow::Error::msg("Failed to acquire write lock for transaction filter."),
+                )))
+                .boxed()
             }
         };
 
         writer
             .filters
             .add_pending_transaction_filter()
-            .map_err(|_| into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire write lock for transaction filter."))))
+            .map_err(|_| {
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire write lock for transaction filter.",
+                )))
+            })
             .into_boxed_future()
     }
 
@@ -699,7 +748,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
         let mut writer = match inner.write() {
             Ok(r) => r,
             Err(_) => {
-                return futures::future::err(into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire write lock for uninstalling filter.")))).boxed()
+                return futures::future::err(into_jsrpc_error(Web3Error::InternalError(
+                    anyhow::Error::msg("Failed to acquire write lock for uninstalling filter."),
+                )))
+                .boxed()
             }
         };
 
@@ -726,7 +778,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
         let reader = match inner.read() {
             Ok(r) => r,
             Err(_) => {
-                return futures::future::err(into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for logs.")))).boxed()
+                return futures::future::err(into_jsrpc_error(Web3Error::InternalError(
+                    anyhow::Error::msg("Failed to acquire read lock for logs."),
+                )))
+                .boxed()
             }
         };
         let from_block = filter.from_block.unwrap_or(BlockNumber::Earliest);
@@ -779,7 +834,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
         let reader = match inner.read() {
             Ok(r) => r,
             Err(_) => {
-                return futures::future::err(into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for get filter logs.")))).boxed()
+                return futures::future::err(into_jsrpc_error(Web3Error::InternalError(
+                    anyhow::Error::msg("Failed to acquire read lock for get filter logs."),
+                )))
+                .boxed()
             }
         };
 
@@ -797,7 +855,12 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
                         .cloned()
                 })
                 .collect_vec(),
-            _ => return futures::future::err(into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for filter logs.")))).boxed(),
+            _ => {
+                return futures::future::err(into_jsrpc_error(Web3Error::InternalError(
+                    anyhow::Error::msg("Failed to acquire read lock for filter logs."),
+                )))
+                .boxed()
+            }
         };
 
         Ok(FilterChanges::Logs(logs)).into_boxed_future()
@@ -822,14 +885,21 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
         let mut writer = match inner.write() {
             Ok(r) => r,
             Err(_) => {
-                return futures::future::err(into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire write lock for filtered changes")))).boxed()
+                return futures::future::err(into_jsrpc_error(Web3Error::InternalError(
+                    anyhow::Error::msg("Failed to acquire write lock for filtered changes"),
+                )))
+                .boxed()
             }
         };
 
         writer
             .filters
             .get_new_changes(id)
-            .map_err(|_| into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire write lock for filtered changes."))))
+            .map_err(|_| {
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire write lock for filtered changes.",
+                )))
+            })
             .into_boxed_future()
     }
 
@@ -843,7 +913,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
             let maybe_result = {
                 let reader = match inner.read() {
                     Ok(r) => r,
-                    Err(_) => return Err(into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for transaction count retrieval.")))),
+                    Err(_) => {
+                        return Err(into_jsrpc_error(Web3Error::InternalError(
+                            anyhow::Error::msg(
+                                "Failed to acquire read lock for transaction count retrieval.",
+                            ),
+                        )))
+                    }
                 };
                 let number =
                     utils::to_real_block_number(block_number, U64::from(reader.current_miniblock))
@@ -885,9 +961,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
         let inner = self.get_inner().clone();
 
         Box::pin(async move {
-            let reader = inner
-                .read()
-                .map_err(|_| into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for transaction count retrieval."))))?;
+            let reader = inner.read().map_err(|_| {
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire read lock for transaction count retrieval.",
+                )))
+            })?;
 
             // try retrieving block from memory, and if unavailable subsequently from the fork
             let maybe_result = reader
@@ -940,7 +1018,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
             let mut writer = match inner.write() {
                 Ok(r) => r,
                 Err(_) => {
-                    return Err(into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire write lock for storage retrieval."))));
+                    return Err(into_jsrpc_error(Web3Error::InternalError(
+                        anyhow::Error::msg("Failed to acquire write lock for storage retrieval."),
+                    )));
                 }
             };
 
@@ -965,7 +1045,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
                                 "unable to map block number to hash #{:#x}",
                                 o.block_hash
                             );
-                            into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to map block number to hash.")))
+                            into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                                "Failed to map block number to hash.",
+                            )))
                         }),
                 })
                 .unwrap_or_else(|| Ok(U64::from(writer.current_miniblock)))?;
@@ -1002,7 +1084,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
                             idx,
                             block
                         );
-                        into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to get storage.")))
+                        into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                            "Failed to get storage.",
+                        )))
                     })
             }
         })
@@ -1029,7 +1113,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
             let reader = match inner.read() {
                 Ok(r) => r,
                 Err(_) => {
-                    return Err(into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to get storage."))));
+                    return Err(into_jsrpc_error(Web3Error::InternalError(
+                        anyhow::Error::msg("Failed to get storage."),
+                    )));
                 }
             };
 
@@ -1094,7 +1180,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
             let reader = match inner.read() {
                 Ok(r) => r,
                 Err(_) => {
-                    return Err(into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for transaction retrieval."))));
+                    return Err(into_jsrpc_error(Web3Error::InternalError(
+                        anyhow::Error::msg(
+                            "Failed to acquire read lock for transaction retrieval.",
+                        ),
+                    )));
                 }
             };
 
@@ -1169,7 +1259,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
         let reader = match inner.read() {
             Ok(r) => r,
             Err(_) => {
-                return futures::future::err(into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for account retrieval.")))).boxed()
+                return futures::future::err(into_jsrpc_error(Web3Error::InternalError(
+                    anyhow::Error::msg("Failed to acquire read lock for account retrieval."),
+                )))
+                .boxed()
             }
         };
 
@@ -1227,9 +1320,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
         let inner = self.get_inner().clone();
 
         Box::pin(async move {
-            let reader = inner
-                .read()
-                .map_err(|_| into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for fee history."))))?;
+            let reader = inner.read().map_err(|_| {
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire read lock for fee history.",
+                )))
+            })?;
 
             let block_count = block_count
                 .as_u64()
@@ -1280,7 +1375,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthTestNod
         let chain_id = match self.get_inner().read() {
             Ok(reader) => reader.fork_storage.chain_id,
             Err(_) => {
-                return futures::future::err(into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for chain ID retrieval.")))).boxed()
+                return futures::future::err(into_jsrpc_error(Web3Error::InternalError(
+                    anyhow::Error::msg("Failed to acquire read lock for chain ID retrieval."),
+                )))
+                .boxed()
             }
         };
 
@@ -1289,9 +1387,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthTestNod
         if tx.gas_price.is_some() {
             if tx.max_fee_per_gas.is_some() || tx.max_priority_fee_per_gas.is_some() {
                 let error_message = "Transaction contains unsupported fields: max_fee_per_gas or max_priority_fee_per_gas";
-                return futures::future::err(into_jsrpc_error(
-                    Web3Error::InternalError(anyhow::Error::msg(error_message))
-                )).boxed();
+                return futures::future::err(into_jsrpc_error(Web3Error::InternalError(
+                    anyhow::Error::msg(error_message),
+                )))
+                .boxed();
             }
         } else {
             tx_req.gas_price = tx.max_fee_per_gas.unwrap_or_default();
@@ -1341,13 +1440,17 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthTestNod
                         "Initiator address {:?} is not allowed to perform transactions",
                         l2_tx.common_data.initiator_address
                     );
-                    return futures::future::err(into_jsrpc_error(
-                        Web3Error::InternalError(anyhow::Error::msg(error_message))
-                    )).boxed();
+                    return futures::future::err(into_jsrpc_error(Web3Error::InternalError(
+                        anyhow::Error::msg(error_message),
+                    )))
+                    .boxed();
                 }
             }
             Err(_) => {
-                return futures::future::err(into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg("Failed to acquire read lock for accounts.")))).boxed()
+                return futures::future::err(into_jsrpc_error(Web3Error::InternalError(
+                    anyhow::Error::msg("Failed to acquire read lock for accounts."),
+                )))
+                .boxed()
             }
         }
 

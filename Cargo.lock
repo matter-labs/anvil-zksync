@@ -4573,7 +4573,7 @@ checksum = "e5ce46fe64a9d73be07dcbe690a38ce1b293be448fd8ce1e6c1b8062c9f72c6a"
 [[package]]
 name = "multivm"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=e62ae326affa0b7665e783d351e560dfe6566251#e62ae326affa0b7665e783d351e560dfe6566251"
+source = "git+https://github.com/matter-labs/zksync-era.git?rev=fea67fb129601c647908fd758feead4ac8c4255e#fea67fb129601c647908fd758feead4ac8c4255e"
 dependencies = [
  "anyhow",
  "circuit_sequencer_api 0.1.0",
@@ -5625,7 +5625,7 @@ dependencies = [
 [[package]]
 name = "prometheus_exporter"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=e62ae326affa0b7665e783d351e560dfe6566251#e62ae326affa0b7665e783d351e560dfe6566251"
+source = "git+https://github.com/matter-labs/zksync-era.git?rev=fea67fb129601c647908fd758feead4ac8c4255e#fea67fb129601c647908fd758feead4ac8c4255e"
 dependencies = [
  "anyhow",
  "metrics",
@@ -8353,7 +8353,7 @@ dependencies = [
 [[package]]
 name = "vlog"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=e62ae326affa0b7665e783d351e560dfe6566251#e62ae326affa0b7665e783d351e560dfe6566251"
+source = "git+https://github.com/matter-labs/zksync-era.git?rev=fea67fb129601c647908fd758feead4ac8c4255e#fea67fb129601c647908fd758feead4ac8c4255e"
 dependencies = [
  "chrono",
  "sentry",
@@ -8365,7 +8365,7 @@ dependencies = [
 [[package]]
 name = "vm_utils"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=e62ae326affa0b7665e783d351e560dfe6566251#e62ae326affa0b7665e783d351e560dfe6566251"
+source = "git+https://github.com/matter-labs/zksync-era.git?rev=fea67fb129601c647908fd758feead4ac8c4255e#fea67fb129601c647908fd758feead4ac8c4255e"
 dependencies = [
  "anyhow",
  "multivm",
@@ -9065,7 +9065,7 @@ dependencies = [
 [[package]]
 name = "zksync_basic_types"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=e62ae326affa0b7665e783d351e560dfe6566251#e62ae326affa0b7665e783d351e560dfe6566251"
+source = "git+https://github.com/matter-labs/zksync-era.git?rev=fea67fb129601c647908fd758feead4ac8c4255e#fea67fb129601c647908fd758feead4ac8c4255e"
 dependencies = [
  "serde",
  "serde_json",
@@ -9075,7 +9075,7 @@ dependencies = [
 [[package]]
 name = "zksync_circuit_breaker"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=e62ae326affa0b7665e783d351e560dfe6566251#e62ae326affa0b7665e783d351e560dfe6566251"
+source = "git+https://github.com/matter-labs/zksync-era.git?rev=fea67fb129601c647908fd758feead4ac8c4255e#fea67fb129601c647908fd758feead4ac8c4255e"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9095,7 +9095,7 @@ dependencies = [
 [[package]]
 name = "zksync_commitment_utils"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=e62ae326affa0b7665e783d351e560dfe6566251#e62ae326affa0b7665e783d351e560dfe6566251"
+source = "git+https://github.com/matter-labs/zksync-era.git?rev=fea67fb129601c647908fd758feead4ac8c4255e#fea67fb129601c647908fd758feead4ac8c4255e"
 dependencies = [
  "circuit_sequencer_api 0.1.40",
  "circuit_sequencer_api 0.1.41",
@@ -9127,7 +9127,7 @@ dependencies = [
 [[package]]
 name = "zksync_config"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=e62ae326affa0b7665e783d351e560dfe6566251#e62ae326affa0b7665e783d351e560dfe6566251"
+source = "git+https://github.com/matter-labs/zksync-era.git?rev=fea67fb129601c647908fd758feead4ac8c4255e#fea67fb129601c647908fd758feead4ac8c4255e"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -9284,7 +9284,7 @@ dependencies = [
 [[package]]
 name = "zksync_contracts"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=e62ae326affa0b7665e783d351e560dfe6566251#e62ae326affa0b7665e783d351e560dfe6566251"
+source = "git+https://github.com/matter-labs/zksync-era.git?rev=fea67fb129601c647908fd758feead4ac8c4255e#fea67fb129601c647908fd758feead4ac8c4255e"
 dependencies = [
  "envy",
  "ethabi 18.0.0",
@@ -9298,7 +9298,7 @@ dependencies = [
 [[package]]
 name = "zksync_core"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=e62ae326affa0b7665e783d351e560dfe6566251#e62ae326affa0b7665e783d351e560dfe6566251"
+source = "git+https://github.com/matter-labs/zksync-era.git?rev=fea67fb129601c647908fd758feead4ac8c4255e#fea67fb129601c647908fd758feead4ac8c4255e"
 dependencies = [
  "actix-cors",
  "actix-rt",
@@ -9372,7 +9372,7 @@ dependencies = [
 [[package]]
 name = "zksync_crypto"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=e62ae326affa0b7665e783d351e560dfe6566251#e62ae326affa0b7665e783d351e560dfe6566251"
+source = "git+https://github.com/matter-labs/zksync-era.git?rev=fea67fb129601c647908fd758feead4ac8c4255e#fea67fb129601c647908fd758feead4ac8c4255e"
 dependencies = [
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex",
@@ -9386,7 +9386,7 @@ dependencies = [
 [[package]]
 name = "zksync_dal"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=e62ae326affa0b7665e783d351e560dfe6566251#e62ae326affa0b7665e783d351e560dfe6566251"
+source = "git+https://github.com/matter-labs/zksync-era.git?rev=fea67fb129601c647908fd758feead4ac8c4255e#fea67fb129601c647908fd758feead4ac8c4255e"
 dependencies = [
  "anyhow",
  "bigdecimal 0.3.1",
@@ -9420,7 +9420,7 @@ dependencies = [
 [[package]]
 name = "zksync_env_config"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=e62ae326affa0b7665e783d351e560dfe6566251#e62ae326affa0b7665e783d351e560dfe6566251"
+source = "git+https://github.com/matter-labs/zksync-era.git?rev=fea67fb129601c647908fd758feead4ac8c4255e#fea67fb129601c647908fd758feead4ac8c4255e"
 dependencies = [
  "anyhow",
  "envy",
@@ -9432,7 +9432,7 @@ dependencies = [
 [[package]]
 name = "zksync_eth_client"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=e62ae326affa0b7665e783d351e560dfe6566251#e62ae326affa0b7665e783d351e560dfe6566251"
+source = "git+https://github.com/matter-labs/zksync-era.git?rev=fea67fb129601c647908fd758feead4ac8c4255e#fea67fb129601c647908fd758feead4ac8c4255e"
 dependencies = [
  "async-trait",
  "jsonrpc-core 18.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -9450,7 +9450,7 @@ dependencies = [
 [[package]]
 name = "zksync_eth_signer"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=e62ae326affa0b7665e783d351e560dfe6566251#e62ae326affa0b7665e783d351e560dfe6566251"
+source = "git+https://github.com/matter-labs/zksync-era.git?rev=fea67fb129601c647908fd758feead4ac8c4255e#fea67fb129601c647908fd758feead4ac8c4255e"
 dependencies = [
  "async-trait",
  "hex",
@@ -9468,7 +9468,7 @@ dependencies = [
 [[package]]
 name = "zksync_health_check"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=e62ae326affa0b7665e783d351e560dfe6566251#e62ae326affa0b7665e783d351e560dfe6566251"
+source = "git+https://github.com/matter-labs/zksync-era.git?rev=fea67fb129601c647908fd758feead4ac8c4255e#fea67fb129601c647908fd758feead4ac8c4255e"
 dependencies = [
  "async-trait",
  "futures 0.3.30",
@@ -9482,7 +9482,7 @@ dependencies = [
 [[package]]
 name = "zksync_l1_contract_interface"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=e62ae326affa0b7665e783d351e560dfe6566251#e62ae326affa0b7665e783d351e560dfe6566251"
+source = "git+https://github.com/matter-labs/zksync-era.git?rev=fea67fb129601c647908fd758feead4ac8c4255e#fea67fb129601c647908fd758feead4ac8c4255e"
 dependencies = [
  "circuit_sequencer_api 0.1.0",
  "codegen",
@@ -9498,7 +9498,7 @@ dependencies = [
 [[package]]
 name = "zksync_mempool"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=e62ae326affa0b7665e783d351e560dfe6566251#e62ae326affa0b7665e783d351e560dfe6566251"
+source = "git+https://github.com/matter-labs/zksync-era.git?rev=fea67fb129601c647908fd758feead4ac8c4255e#fea67fb129601c647908fd758feead4ac8c4255e"
 dependencies = [
  "tracing",
  "zksync_types",
@@ -9507,7 +9507,7 @@ dependencies = [
 [[package]]
 name = "zksync_merkle_tree"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=e62ae326affa0b7665e783d351e560dfe6566251#e62ae326affa0b7665e783d351e560dfe6566251"
+source = "git+https://github.com/matter-labs/zksync-era.git?rev=fea67fb129601c647908fd758feead4ac8c4255e#fea67fb129601c647908fd758feead4ac8c4255e"
 dependencies = [
  "leb128",
  "once_cell",
@@ -9525,7 +9525,7 @@ dependencies = [
 [[package]]
 name = "zksync_mini_merkle_tree"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=e62ae326affa0b7665e783d351e560dfe6566251#e62ae326affa0b7665e783d351e560dfe6566251"
+source = "git+https://github.com/matter-labs/zksync-era.git?rev=fea67fb129601c647908fd758feead4ac8c4255e#fea67fb129601c647908fd758feead4ac8c4255e"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -9535,7 +9535,7 @@ dependencies = [
 [[package]]
 name = "zksync_object_store"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=e62ae326affa0b7665e783d351e560dfe6566251#e62ae326affa0b7665e783d351e560dfe6566251"
+source = "git+https://github.com/matter-labs/zksync-era.git?rev=fea67fb129601c647908fd758feead4ac8c4255e#fea67fb129601c647908fd758feead4ac8c4255e"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9591,7 +9591,7 @@ dependencies = [
 [[package]]
 name = "zksync_protobuf_config"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=e62ae326affa0b7665e783d351e560dfe6566251#e62ae326affa0b7665e783d351e560dfe6566251"
+source = "git+https://github.com/matter-labs/zksync-era.git?rev=fea67fb129601c647908fd758feead4ac8c4255e#fea67fb129601c647908fd758feead4ac8c4255e"
 dependencies = [
  "anyhow",
  "pretty_assertions",
@@ -9609,7 +9609,7 @@ dependencies = [
 [[package]]
 name = "zksync_prover_interface"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=e62ae326affa0b7665e783d351e560dfe6566251#e62ae326affa0b7665e783d351e560dfe6566251"
+source = "git+https://github.com/matter-labs/zksync-era.git?rev=fea67fb129601c647908fd758feead4ac8c4255e#fea67fb129601c647908fd758feead4ac8c4255e"
 dependencies = [
  "chrono",
  "circuit_sequencer_api 0.1.42",
@@ -9623,7 +9623,7 @@ dependencies = [
 [[package]]
 name = "zksync_queued_job_processor"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=e62ae326affa0b7665e783d351e560dfe6566251#e62ae326affa0b7665e783d351e560dfe6566251"
+source = "git+https://github.com/matter-labs/zksync-era.git?rev=fea67fb129601c647908fd758feead4ac8c4255e#fea67fb129601c647908fd758feead4ac8c4255e"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9636,7 +9636,7 @@ dependencies = [
 [[package]]
 name = "zksync_state"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=e62ae326affa0b7665e783d351e560dfe6566251#e62ae326affa0b7665e783d351e560dfe6566251"
+source = "git+https://github.com/matter-labs/zksync-era.git?rev=fea67fb129601c647908fd758feead4ac8c4255e#fea67fb129601c647908fd758feead4ac8c4255e"
 dependencies = [
  "anyhow",
  "itertools 0.10.5",
@@ -9653,7 +9653,7 @@ dependencies = [
 [[package]]
 name = "zksync_storage"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=e62ae326affa0b7665e783d351e560dfe6566251#e62ae326affa0b7665e783d351e560dfe6566251"
+source = "git+https://github.com/matter-labs/zksync-era.git?rev=fea67fb129601c647908fd758feead4ac8c4255e#fea67fb129601c647908fd758feead4ac8c4255e"
 dependencies = [
  "num_cpus",
  "once_cell",
@@ -9665,7 +9665,7 @@ dependencies = [
 [[package]]
 name = "zksync_system_constants"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=e62ae326affa0b7665e783d351e560dfe6566251#e62ae326affa0b7665e783d351e560dfe6566251"
+source = "git+https://github.com/matter-labs/zksync-era.git?rev=fea67fb129601c647908fd758feead4ac8c4255e#fea67fb129601c647908fd758feead4ac8c4255e"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -9675,7 +9675,7 @@ dependencies = [
 [[package]]
 name = "zksync_types"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=e62ae326affa0b7665e783d351e560dfe6566251#e62ae326affa0b7665e783d351e560dfe6566251"
+source = "git+https://github.com/matter-labs/zksync-era.git?rev=fea67fb129601c647908fd758feead4ac8c4255e#fea67fb129601c647908fd758feead4ac8c4255e"
 dependencies = [
  "anyhow",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -9705,7 +9705,7 @@ dependencies = [
 [[package]]
 name = "zksync_utils"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=e62ae326affa0b7665e783d351e560dfe6566251#e62ae326affa0b7665e783d351e560dfe6566251"
+source = "git+https://github.com/matter-labs/zksync-era.git?rev=fea67fb129601c647908fd758feead4ac8c4255e#fea67fb129601c647908fd758feead4ac8c4255e"
 dependencies = [
  "anyhow",
  "bigdecimal 0.3.1",
@@ -9727,7 +9727,7 @@ dependencies = [
 [[package]]
 name = "zksync_web3_decl"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=e62ae326affa0b7665e783d351e560dfe6566251#e62ae326affa0b7665e783d351e560dfe6566251"
+source = "git+https://github.com/matter-labs/zksync-era.git?rev=fea67fb129601c647908fd758feead4ac8c4255e#fea67fb129601c647908fd758feead4ac8c4255e"
 dependencies = [
  "anyhow",
  "jsonrpsee",
