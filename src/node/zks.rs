@@ -294,9 +294,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
 
                     let balances = {
                         let mut writer = inner.write().map_err(|_e| {
-                            into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(format!(
-                                "Failed to acquire lock"
-                            ))))
+                            let error_message = "Failed to acquire lock. Please ensure the lock is not being held by another process or thread.".to_string();
+                            into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(error_message)))
                         })?;
                         let mut balances = HashMap::new();
                         for token in tokens {
@@ -355,9 +354,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
         let inner = self.get_inner().clone();
         Box::pin(async move {
             let reader = inner.read().map_err(|_e| {
-                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(format!(
-                    "failed to acquire lock"
-                ))))
+                let error_message = "Failed to acquire lock. Please ensure the lock is not being held by another process or thread.".to_string();
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(error_message)))
             })?;
 
             let maybe_block = reader
@@ -436,9 +434,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
         let inner = self.get_inner().clone();
         Box::pin(async move {
             let reader = inner.read().map_err(|_e| {
-                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(format!(
-                    "failed acquire lock"
-                ))))
+                let error_message = "Failed to acquire lock. Please ensure the lock is not being held by another process or thread.".to_string();
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(error_message)))
             })?;
 
             let maybe_result = {
