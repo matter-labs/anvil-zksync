@@ -642,7 +642,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
             Ok(r) => r,
             Err(_) => {
                 return futures::future::err(into_jsrpc_error(Web3Error::InternalError(
-                    anyhow::Error::msg("Failed to acquire read lock for filter creation"),
+                    anyhow::Error::msg("Failed to acquire write lock for filter creation"),
                 )))
                 .boxed()
             }

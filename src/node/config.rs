@@ -48,7 +48,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
             .map_err(|err| {
                 tracing::error!("failed acquiring lock: {:?}", err);
                 into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
-                    "Failed to acquire read lock for inner node state.",
+                    "Failed to acquire write lock for inner node state.",
                 )))
             })
             .map(|mut writer| {
@@ -79,7 +79,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
             .map_err(|err| {
                 tracing::error!("failed acquiring lock: {:?}", err);
                 into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
-                    "Failed to acquire read lock for inner node state.",
+                    "Failed to acquire write lock for inner node state.",
                 )))
             })
             .map(|mut writer| {
@@ -110,7 +110,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
             .map_err(|err| {
                 tracing::error!("failed acquiring lock: {:?}", err);
                 into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
-                    "Failed to acquire read lock for inner node state.",
+                    "Failed to acquire write lock for inner node state.",
                 )))
             })
             .map(|mut writer| {
@@ -141,7 +141,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
             .map_err(|err| {
                 tracing::error!("failed acquiring lock: {:?}", err);
                 into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
-                    "Failed to acquire read lock for inner node state.",
+                    "Failed to acquire write lock for inner node state.",
                 )))
             })
             .map(|mut writer| {
@@ -156,7 +156,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
             .map_err(|err| {
                 tracing::error!("failed acquiring lock: {:?}", err);
                 into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
-                    "Failed to acquire read lock for inner node state.",
+                    "Failed to acquire write lock for inner node state.",
                 )))
             })
             .map(|mut writer| {
