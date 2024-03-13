@@ -121,7 +121,13 @@ pub fn print_event(event: &VmEvent, resolve_hashes: bool) {
 
 /// Pretty-prints contents of a 'call' - including subcalls.
 /// If skip_resolve is false, will try to contact openchain to resolve the ABI names.
-pub fn print_call(call: &Call, padding: usize, show_calls: &ShowCalls, show_outputs: bool, resolve_hashes: bool) {
+pub fn print_call(
+    call: &Call,
+    padding: usize,
+    show_calls: &ShowCalls,
+    show_outputs: bool,
+    resolve_hashes: bool,
+) {
     let contract_type = KNOWN_ADDRESSES
         .get(&call.to)
         .cloned()
@@ -168,7 +174,8 @@ pub fn print_call(call: &Call, padding: usize, show_calls: &ShowCalls, show_outp
         };
 
         let output = if show_outputs {
-            call.output.as_slice()
+            call.output
+                .as_slice()
                 .iter()
                 .map(|byte| format!("{:02x}", byte))
                 .collect::<Vec<_>>()
@@ -204,7 +211,13 @@ pub fn print_call(call: &Call, padding: usize, show_calls: &ShowCalls, show_outp
         }
     }
     for subcall in &call.calls {
-        print_call(subcall, padding + 2, show_calls, show_outputs, resolve_hashes);
+        print_call(
+            subcall,
+            padding + 2,
+            show_calls,
+            show_outputs,
+            resolve_hashes,
+        );
     }
 }
 

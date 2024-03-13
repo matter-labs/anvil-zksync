@@ -1089,7 +1089,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
         tracing::info!("=== Call traces:");
         for call in &call_traces {
-            formatter::print_call(call, 0, &inner.show_calls, inner.show_outputs, inner.resolve_hashes);
+            formatter::print_call(
+                call,
+                0,
+                &inner.show_calls,
+                inner.show_outputs,
+                inner.resolve_hashes,
+            );
         }
 
         Ok(tx_result.result)
@@ -1426,7 +1432,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
         if inner.show_calls != ShowCalls::None {
             for call in call_traces {
-                formatter::print_call(call, 0, &inner.show_calls, inner.show_outputs, inner.resolve_hashes);
+                formatter::print_call(
+                    call,
+                    0,
+                    &inner.show_calls,
+                    inner.show_outputs,
+                    inner.resolve_hashes,
+                );
             }
         }
         tracing::info!("");
