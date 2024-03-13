@@ -167,7 +167,7 @@ pub fn fee_estimate_impersonating_contracts(options: &Options) -> BaseSystemCont
         }
         Options::Local =>
             // Account impersonating is not supported with the local contracts
-            read_zbin_bytecode("contracts/system-contracts/bootloader/build/artifacts/fee_estimate.yul/fee_estimate.yul.zbin")
+            read_zbin_bytecode("contracts/system-contracts/bootloader/build/artifacts/fee_estimate.yul.zbin")
     };
 
     bsc_load_with_bootloader(bootloader_bytecode, options)
