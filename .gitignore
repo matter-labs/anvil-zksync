@@ -13,6 +13,7 @@ etc/**/*.zbin
 !.vscode/extensions.json
 !.vscode/launch.json
 !.vscode/tasks.json
+.idea
 
 *.log
 .cache
