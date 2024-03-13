@@ -7,7 +7,7 @@ use zksync_types::{
     ECRECOVER_PRECOMPILE_ADDRESS, EVENT_WRITER_ADDRESS, IMMUTABLE_SIMULATOR_STORAGE_ADDRESS,
     KECCAK256_PRECOMPILE_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
     L2_ETH_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS, NONCE_HOLDER_ADDRESS,
-    SHA256_PRECOMPILE_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
+    PUBDATA_CHUNK_PUBLISHER_ADDRESS, SHA256_PRECOMPILE_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
 };
 
 /// The `ecAdd` system contract address.
@@ -90,6 +90,11 @@ pub static COMPILED_IN_SYSTEM_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new
             "Compressor",
             COMPRESSOR_ADDRESS,
             include_bytes!("contracts/Compressor.json").to_vec(),
+        ),
+        (
+            "PubdataChunkPublisher",
+            PUBDATA_CHUNK_PUBLISHER_ADDRESS,
+            include_bytes!("contracts/PubdataChunkPublisher.json").to_vec(),
         ),
     ]
     .map(|(pname, address, contents)| DeployedContract {

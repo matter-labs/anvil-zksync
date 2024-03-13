@@ -28,12 +28,12 @@ Please note that `era-test-node` is still in its **alpha** stage. Some features 
 | 🚫 Limitations                                  | ✅ Features                                                 |
 | ----------------------------------------------- | ----------------------------------------------------------- |
 | No communication between Layer 1 and Layer 2.   | Can fork the state of mainnet, testnet, or custom network.  |
-| Many APIs are not yet implemented.              | Can replay existing mainnet or testnet transactions.        |
 | No support for accessing historical data.       | Uses local bootloader and system contracts.                 |
 | Only one transaction allowed per Layer 1 batch. | Operates deterministically in non-fork mode.                |
-| Fixed values returned for zk Gas estimation.    | Starts up quickly with pre-configured 'rich' accounts.      |
 | Redeploy requires MetaMask cache reset.         | Supports hardhat's console.log debugging.                   |
 |                                                 | Resolves names of ABI functions and Events using openchain. |
+|                                                 | Can replay existing mainnet or testnet transactions.        |
+|                                                 | Starts up quickly with pre-configured 'rich' accounts.      |
 
 ## 🛠 Prerequisites
 

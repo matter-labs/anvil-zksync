@@ -15,7 +15,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EvmNamespa
         self.increase_time(time_delta_seconds)
             .map_err(|err| {
                 tracing::error!("failed increasing time: {:?}", err);
-                into_jsrpc_error(Web3Error::InternalError)
+                into_jsrpc_error(Web3Error::InternalError(err))
             })
             .into_boxed_future()
     }
@@ -24,7 +24,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EvmNamespa
         self.mine_block()
             .map_err(|err| {
                 tracing::error!("failed mining block: {:?}", err);
-                into_jsrpc_error(Web3Error::InternalError)
+                into_jsrpc_error(Web3Error::InternalError(err))
             })
             .into_boxed_future()
     }
@@ -33,7 +33,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EvmNamespa
         self.set_next_block_timestamp(timestamp)
             .map_err(|err| {
                 tracing::error!("failed setting time for next timestamp: {:?}", err);
-                into_jsrpc_error(Web3Error::InternalError)
+                into_jsrpc_error(Web3Error::InternalError(err))
             })
             .into_boxed_future()
     }
@@ -42,7 +42,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EvmNamespa
         self.set_time(time)
             .map_err(|err| {
                 tracing::error!("failed setting time: {:?}", err);
-                into_jsrpc_error(Web3Error::InternalError)
+                into_jsrpc_error(Web3Error::InternalError(err))
             })
             .into_boxed_future()
     }
@@ -51,7 +51,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EvmNamespa
         self.snapshot()
             .map_err(|err| {
                 tracing::error!("failed creating snapshot: {:?}", err);
-                into_jsrpc_error(Web3Error::InternalError)
+                into_jsrpc_error(Web3Error::InternalError(err))
             })
             .into_boxed_future()
     }
@@ -60,7 +60,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EvmNamespa
         self.revert_snapshot(snapshot_id)
             .map_err(|err| {
                 tracing::error!("failed reverting snapshot: {:?}", err);
-                into_jsrpc_error(Web3Error::InternalError)
+                into_jsrpc_error(Web3Error::InternalError(err))
             })
             .into_boxed_future()
     }
