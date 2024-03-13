@@ -22,8 +22,8 @@ rebuild-contracts:
 rust-build:
 	cargo build --release
 
-# Run local
-run: rust-build
+# Run local after building everything
+run: all
 	./target/release/era_test_node run
 
 # Build the Rust project for a specific target. Primarily used for CI.
