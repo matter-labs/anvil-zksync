@@ -14,7 +14,7 @@ use zksync_state::WriteStorage;
 const DEBUG_START_SENTINEL: u64 = 1337;
 
 // Taken from bootloader.yul (MAX_MEM_SIZE)
-const MAX_MEMORY_BYTES: usize = 24_000_000;
+const MAX_MEMORY_BYTES: usize = 30_000_000;
 
 // Taken from Systemconfig.json
 const MAX_TRANSACTIONS: usize = 10000;
