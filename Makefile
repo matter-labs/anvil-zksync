@@ -1,3 +1,7 @@
+# Fetch submodule system contracts
+fetch-contracts:
+	git submodule update --init --recursive
+
 # Build the system contracts
 build-contracts:
 	cd contracts/system-contracts && yarn; yarn install; yarn build
@@ -51,7 +55,7 @@ test-e2e:
 	./scripts/execute-e2e-tests.sh
 
 # Build everything
-all: build-contracts rust-build
+all: fetch-contracts build-contracts rust-build
 
 # Clean everything
 clean: clean-contracts
