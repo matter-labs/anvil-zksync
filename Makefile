@@ -1,16 +1,20 @@
+# Fetch submodule system contracts
+fetch-contracts:
+	git submodule update --init --recursive
+
 # Build the system contracts
 build-contracts:
-	cd etc/system-contracts && yarn; yarn install; yarn build
+	cd contracts/system-contracts && yarn; yarn install; yarn build
 	./scripts/refresh_contracts.sh
 
 # Clean the system contracts
 clean-contracts:
-	cd etc/system-contracts && yarn clean
+	cd contracts/system-contracts && yarn clean
 	rm -rf src/deps/contracts
 
 # Rebuild the system contracts
 rebuild-contracts:
-	cd etc/system-contracts && yarn build
+	cd contracts/system-contracts && yarn build
 	./scripts/refresh_contracts.sh
 	./scripts/refresh_test_contracts.sh
 
@@ -18,8 +22,8 @@ rebuild-contracts:
 rust-build:
 	cargo build --release
 
-# Run local
-run: rust-build
+# Run local after building everything
+run: all
 	./target/release/era_test_node run
 
 # Build the Rust project for a specific target. Primarily used for CI.
@@ -51,7 +55,7 @@ test-e2e:
 	./scripts/execute-e2e-tests.sh
 
 # Build everything
-all: build-contracts rust-build
+all: fetch-contracts build-contracts rust-build
 
 # Clean everything
 clean: clean-contracts

@@ -44,7 +44,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
             .read()
             .map_err(|err| {
                 tracing::error!("failed acquiring lock: {:?}", err);
-                into_jsrpc_error(Web3Error::InternalError)
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire read lock for inner node state.",
+                )))
             })
             .and_then(|reader| reader.estimate_gas_impl(req))
             .into_boxed_future()
@@ -65,9 +67,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
     ) -> RpcResult<Vec<zksync_types::Transaction>> {
         let inner = self.get_inner().clone();
         Box::pin(async move {
-            let reader = inner
-                .read()
-                .map_err(|_err| into_jsrpc_error(Web3Error::InternalError))?;
+            let reader = inner.read().map_err(|_err| {
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire read lock for inner node state.",
+                )))
+            })?;
 
             let maybe_transactions = reader
                 .block_hashes
@@ -147,9 +151,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
     fn get_bridge_contracts(&self) -> RpcResult<BridgeAddresses> {
         let inner = self.get_inner().clone();
         Box::pin(async move {
-            let reader = inner
-                .read()
-                .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
+            let reader = inner.read().map_err(|_| {
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire read lock for inner node state.",
+                )))
+            })?;
 
             let result = match reader
                 .fork_storage
@@ -161,7 +167,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
             {
                 Some(fork) => fork.fork_source.get_bridge_contracts().map_err(|err| {
                     tracing::error!("failed fetching bridge contracts from the fork: {:?}", err);
-                    into_jsrpc_error(Web3Error::InternalError)
+                    into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(format!(
+                        "failed fetching bridge contracts from the fork: {:?}",
+                        err
+                    ))))
                 })?,
                 None => BridgeAddresses {
                     l1_erc20_default_bridge: Default::default(),
@@ -187,9 +196,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Vec<zksync_web3_decl::types::Token>>> {
         let inner = self.get_inner().clone();
         Box::pin(async move {
-            let reader = inner
-                .read()
-                .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
+            let reader = inner.read().map_err(|_| {
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire read lock for inner node state.",
+                )))
+            })?;
 
             let fork_storage_read = reader
                 .fork_storage
@@ -198,10 +209,17 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
                 .expect("failed reading fork storage");
 
             match fork_storage_read.fork.as_ref() {
-                Some(fork) => Ok(fork
-                    .fork_source
-                    .get_confirmed_tokens(from, limit)
-                    .map_err(|_e| into_jsrpc_error(Web3Error::InternalError))?),
+                Some(fork) => {
+                    Ok(fork
+                        .fork_source
+                        .get_confirmed_tokens(from, limit)
+                        .map_err(|e| {
+                            into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(format!(
+                                "failed fetching bridge contracts from the fork: {:?}",
+                                e
+                            ))))
+                        })?)
+                }
                 None => Ok(vec![zksync_web3_decl::types::Token {
                     l1_address: Address::zero(),
                     l2_address: L2_ETH_TOKEN_ADDRESS,
@@ -240,7 +258,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
                     "{}",
                     format!("Token price requested for unknown address {:?}", address).red()
                 );
-                futures::future::err(into_jsrpc_error(Web3Error::InternalError)).boxed()
+                futures::future::err(into_jsrpc_error(Web3Error::InternalError(
+                    anyhow::Error::msg(format!(
+                        "Token price requested for unknown address {:?}",
+                        address
+                    )),
+                )))
+                .boxed()
             }
         }
     }
@@ -263,26 +287,29 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
         let inner = self.get_inner().clone();
         Box::pin({
             self.get_confirmed_tokens(0, 100)
-                .then(move |tokens| async move {
-                    let tokens =
-                        tokens.map_err(|_err| into_jsrpc_error(Web3Error::InternalError))?;
+                .then(move |tokens_result| async move {
+                    let tokens = tokens_result.map_err(|e| {
+                        into_jsrpc_error(Web3Error::InternalError(anyhow::Error::new(e)))
+                    })?;
 
-                    let mut writer = inner
-                        .write()
-                        .map_err(|_err| into_jsrpc_error(Web3Error::InternalError))?;
-
-                    let mut balances = HashMap::new();
-                    for token in tokens {
-                        let balance_key = storage_key_for_standard_token_balance(
-                            AccountTreeId::new(token.l2_address),
-                            &address,
-                        );
-
-                        let balance = writer.fork_storage.read_value(&balance_key);
-                        if !balance.is_zero() {
-                            balances.insert(token.l2_address, h256_to_u256(balance));
+                    let balances = {
+                        let mut writer = inner.write().map_err(|_e| {
+                            let error_message = "Failed to acquire lock. Please ensure the lock is not being held by another process or thread.".to_string();
+                            into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(error_message)))
+                        })?;
+                        let mut balances = HashMap::new();
+                        for token in tokens {
+                            let balance_key = storage_key_for_standard_token_balance(
+                                AccountTreeId::new(token.l2_address),
+                                &address,
+                            );
+                            let balance = writer.fork_storage.read_value(&balance_key);
+                            if !balance.is_zero() {
+                                balances.insert(token.l2_address, h256_to_u256(balance));
+                            }
                         }
-                    }
+                        balances
+                    };
 
                     Ok(balances)
                 })
@@ -326,9 +353,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
     ) -> RpcResult<Option<zksync_types::api::BlockDetails>> {
         let inner = self.get_inner().clone();
         Box::pin(async move {
-            let reader = inner
-                .read()
-                .map_err(|_err| into_jsrpc_error(Web3Error::InternalError))?;
+            let reader = inner.read().map_err(|_e| {
+                let error_message = "Failed to acquire lock. Please ensure the lock is not being held by another process or thread.".to_string();
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(error_message)))
+            })?;
 
             let maybe_block = reader
                 .block_hashes
@@ -405,9 +433,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
     ) -> RpcResult<Option<zksync_types::api::TransactionDetails>> {
         let inner = self.get_inner().clone();
         Box::pin(async move {
-            let reader = inner
-                .read()
-                .map_err(|_err| into_jsrpc_error(Web3Error::InternalError))?;
+            let reader = inner.read().map_err(|_e| {
+                let error_message = "Failed to acquire lock. Please ensure the lock is not being held by another process or thread.".to_string();
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(error_message)))
+            })?;
 
             let maybe_result = {
                 reader
@@ -482,9 +511,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
     fn get_bytecode_by_hash(&self, hash: zksync_basic_types::H256) -> RpcResult<Option<Vec<u8>>> {
         let inner = self.get_inner().clone();
         Box::pin(async move {
-            let mut writer = inner
-                .write()
-                .map_err(|_| into_jsrpc_error(Web3Error::InternalError))?;
+            let mut writer = inner.write().map_err(|_e| {
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire write lock for bytecode retrieval.",
+                )))
+            })?;
 
             let maybe_bytecode = writer.fork_storage.load_factory_dep(hash).or_else(|| {
                 writer
@@ -552,6 +583,7 @@ mod tests {
             transaction_type: None,
             access_list: None,
             eip712_meta: None,
+            input: None,
         };
 
         let result = node.estimate_fee(mock_request).await.unwrap();
