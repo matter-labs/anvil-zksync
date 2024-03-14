@@ -15,9 +15,11 @@ The `status` options are:
 | Namespace | API | <div style="width:130px">Status</div> | Description |
 | --- | --- | --- | --- |
 | [`CONFIG`](#config-namespace) | [`config_getShowCalls`](#config_getshowcalls) | `SUPPORTED` | Gets the current value of `show_calls` that's originally set with `--show-calls` option |
+| [`CONFIG`](#config-namespace) | [`config_getShowOutputs`](#config_getshowoutputs) | `SUPPORTED` | Gets the current value of `show_outputs` that's originally set with `--show-outputs` option |
 | [`CONFIG`](#config-namespace) | [`config_getCurrentTimestamp`](#config_getcurrenttimestamp) | `SUPPORTED` | Gets the value of `current_timestamp` for the node |
 | [`CONFIG`](#config-namespace) | [`config_setResolveHashes`](#config_setresolvehashes) | `SUPPORTED` | Updates `resolve-hashes` to call OpenChain for human-readable ABI names in call traces |
 | [`CONFIG`](#config-namespace) | [`config_setShowCalls`](#config_setshowcalls) | `SUPPORTED` | Updates `show_calls` to print more detailed call traces |
+| [`CONFIG`](#config-namespace) | [`config_setShowOutputs`](#config_setshowoutputs) | `SUPPORTED` | Updates `show_outputs` to print calls outputs |
 | [`CONFIG`](#config-namespace) | [`config_setShowStorageLogs`](#config_setshowstoragelogs) | `SUPPORTED` | Updates `show_storage_logs` to print storage log reads/writes |
 | [`CONFIG`](#config-namespace) | [`config_setShowVmDetails`](#config_setshowvmdetails) | `SUPPORTED` | Updates `show_vm_details` to print more detailed results from vm execution |
 | [`CONFIG`](#config-namespace) | [`config_setShowGasDetails`](#config_setshowgasdetails) | `SUPPORTED` | Updates `show_gas_details` to print more details about gas estimation and usage |
@@ -156,6 +158,29 @@ curl --request POST \
   --data '{"jsonrpc": "2.0","id": "1","method": "config_getShowCalls","params": []}'
 ```
 
+### `config_getShowOutputs`
+
+[source](src/node/config.rs)
+
+Gets the current value of `show_outputs` that's originally set with `--show-outputs` option
+
+#### Arguments
+
++ _NONE_
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "config_getShowOutputs","params": []}'
+```
+
 ### `config_getCurrentTimestamp`
 
 [source](src/node/config.rs)
@@ -200,6 +225,29 @@ curl --request POST \
   --url http://localhost:8011/ \
   --header 'content-type: application/json' \
   --data '{"jsonrpc": "2.0","id": "1","method": "config_setShowCalls","params": ["all"]}'
+```
+
+### `config_setShowOutputs`
+
+[source](src/node/config.rs)
+
+Updates `show_outputs` to print calls outputs
+
+#### Arguments
+
++ `value: boolean`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "config_setShowOutputs","params": [true]}'
 ```
 
 ### `config_setShowStorageLogs`

@@ -25,6 +25,18 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
             .map(|reader| reader.show_calls.to_string())
     }
 
+    fn config_get_show_outputs(&self) -> Result<bool> {
+        self.get_inner()
+            .read()
+            .map_err(|err| {
+                tracing::error!("failed acquiring lock: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire read lock for inner node state.",
+                )))
+            })
+            .map(|reader| reader.show_outputs)
+    }
+
     fn config_get_current_timestamp(&self) -> Result<u64> {
         self.get_inner()
             .read()
@@ -54,6 +66,21 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
             .map(|mut writer| {
                 writer.show_calls = show_calls;
                 writer.show_calls.to_string()
+            })
+    }
+
+    fn config_set_show_outputs(&self, value: bool) -> Result<bool> {
+        self.get_inner()
+            .write()
+            .map_err(|err| {
+                tracing::error!("failed acquiring lock: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire write lock for inner node state.",
+                )))
+            })
+            .map(|mut writer| {
+                writer.show_outputs = value;
+                writer.show_outputs
             })
     }
 
