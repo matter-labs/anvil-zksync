@@ -218,6 +218,9 @@ struct Cli {
     #[arg(long, default_value = "none")]
     /// Show call debug information
     show_calls: ShowCalls,
+    #[arg[long]]
+    /// Show call output
+    show_outputs: bool,
     #[arg(long, default_value = "none")]
     /// Show storage log information
     show_storage_logs: ShowStorageLogs,
@@ -287,6 +290,7 @@ struct ForkArgs {
     // If not set - will use the current finalized block from the network.
     fork_at: Option<u64>,
 }
+
 #[derive(Debug, Parser)]
 struct ReplayArgs {
     /// Whether to fork from existing network.
@@ -357,6 +361,7 @@ async fn main() -> anyhow::Result<()> {
         Some(observability),
         InMemoryNodeConfig {
             show_calls: opt.show_calls,
+            show_outputs: opt.show_outputs,
             show_storage_logs: opt.show_storage_logs,
             show_vm_details: opt.show_vm_details,
             show_gas_details: opt.show_gas_details,

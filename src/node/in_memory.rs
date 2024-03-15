@@ -312,6 +312,8 @@ pub struct InMemoryNodeInner<S> {
     pub fork_storage: ForkStorage<S>,
     // Debug level information.
     pub show_calls: ShowCalls,
+    // If true - will display the output of the calls.
+    pub show_outputs: bool,
     // Displays storage logs.
     pub show_storage_logs: ShowStorageLogs,
     // Displays VM details.
@@ -876,6 +878,7 @@ pub struct Snapshot {
 #[derive(Default, Debug, Clone)]
 pub struct InMemoryNodeConfig {
     pub show_calls: ShowCalls,
+    pub show_outputs: bool,
     pub show_storage_logs: ShowStorageLogs,
     pub show_vm_details: ShowVMDetails,
     pub show_gas_details: ShowGasDetails,
@@ -935,6 +938,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 filters: Default::default(),
                 fork_storage: ForkStorage::new(fork, &config.system_contracts_options),
                 show_calls: config.show_calls,
+                show_outputs: config.show_outputs,
                 show_storage_logs: config.show_storage_logs,
                 show_vm_details: config.show_vm_details,
                 show_gas_details: config.show_gas_details,
@@ -968,6 +972,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 filters: Default::default(),
                 fork_storage: ForkStorage::new(fork, &config.system_contracts_options),
                 show_calls: config.show_calls,
+                show_outputs: config.show_outputs,
                 show_storage_logs: config.show_storage_logs,
                 show_vm_details: config.show_vm_details,
                 show_gas_details: config.show_gas_details,
@@ -1086,7 +1091,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
         tracing::info!("=== Call traces:");
         for call in &call_traces {
-            formatter::print_call(call, 0, &inner.show_calls, inner.resolve_hashes);
+            formatter::print_call(
+                call,
+                0,
+                &inner.show_calls,
+                inner.show_outputs,
+                inner.resolve_hashes,
+            );
         }
 
         Ok(tx_result.result)
@@ -1423,7 +1434,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
         if inner.show_calls != ShowCalls::None {
             for call in call_traces {
-                formatter::print_call(call, 0, &inner.show_calls, inner.resolve_hashes);
+                formatter::print_call(
+                    call,
+                    0,
+                    &inner.show_calls,
+                    inner.show_outputs,
+                    inner.resolve_hashes,
+                );
             }
         }
         tracing::info!("");
