@@ -373,7 +373,7 @@ impl Default for TransactionBuilder {
         Self {
             tx_hash: H256::repeat_byte(0x01),
             from_account_private_key: H256::random(),
-            gas_limit: U256::from(1_000_000),
+            gas_limit: U256::from(2_000_000),
             max_fee_per_gas: U256::from(50_000_000),
             max_priority_fee_per_gas: U256::from(50_000_000),
         }
@@ -414,7 +414,7 @@ impl TransactionBuilder {
                 gas_limit: self.gas_limit,
                 max_fee_per_gas: self.max_fee_per_gas,
                 max_priority_fee_per_gas: self.max_priority_fee_per_gas,
-                gas_per_pubdata_limit: U256::from(20000),
+                gas_per_pubdata_limit: U256::from(25000),
             },
             U256::from(1),
             L2ChainId::from(260),
@@ -441,7 +441,7 @@ pub fn apply_tx<T: ForkSource + std::fmt::Debug + Clone>(
     let produced_block_hash = compute_hash(next_miniblock, tx_hash);
 
     let tx = TransactionBuilder::new().set_hash(tx_hash).build();
-    
+
     node.set_rich_account(tx.common_data.initiator_address);
     node.apply_txs(vec![tx]).expect("failed applying tx");
 

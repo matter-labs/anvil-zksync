@@ -313,6 +313,7 @@ mod tests {
         assert!(trace.error.is_none());
         assert!(trace.revert_reason.is_none());
 
+        println!("\n trace: {:?}\n\n", trace);
         // check that the call was successful
         let output =
             ethers::abi::decode(&[ParamType::Uint(256)], trace.output.0.as_slice()).unwrap();
