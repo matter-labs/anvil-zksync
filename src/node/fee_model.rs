@@ -4,7 +4,7 @@ use zksync_types::fee_model::{FeeModelConfigV2, FeeParams, FeeParamsV2};
 use zksync_types::L1_GAS_PER_PUBDATA_BYTE;
 
 pub const CONFIG: FeeModelConfigV2 = FeeModelConfigV2 {
-    minimal_l2_gas_price: 100000000,
+    minimal_l2_gas_price: 50_000_000,
     compute_overhead_part: 0.0,
     pubdata_overhead_part: 1.0,
     batch_overhead_l1_gas: 800000,

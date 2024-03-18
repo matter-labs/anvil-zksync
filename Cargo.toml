@@ -11,14 +11,14 @@ categories = ["cryptography"]
 publish = false # We don't want to publish our binaries.
 
 [dependencies]
-zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era.git", rev = "cd748e9593949222fe6516fc18c987b6cdf39882" }
-zksync_core = { git = "https://github.com/matter-labs/zksync-era.git", rev = "cd748e9593949222fe6516fc18c987b6cdf39882" }
-multivm = { git = "https://github.com/matter-labs/zksync-era.git", rev = "cd748e9593949222fe6516fc18c987b6cdf39882" }
-zksync_contracts = { git = "https://github.com/matter-labs/zksync-era.git", rev = "cd748e9593949222fe6516fc18c987b6cdf39882" }
-zksync_types = { git = "https://github.com/matter-labs/zksync-era.git", rev = "cd748e9593949222fe6516fc18c987b6cdf39882" }
-zksync_utils = { git = "https://github.com/matter-labs/zksync-era.git", rev = "cd748e9593949222fe6516fc18c987b6cdf39882" }
-zksync_state = { git = "https://github.com/matter-labs/zksync-era.git", rev = "cd748e9593949222fe6516fc18c987b6cdf39882" }
-zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era.git", rev = "cd748e9593949222fe6516fc18c987b6cdf39882" }
+zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era.git", rev = "90dee732295d8eaf48a5308c39238a0f5838cc35" }
+zksync_core = { git = "https://github.com/matter-labs/zksync-era.git", rev = "90dee732295d8eaf48a5308c39238a0f5838cc35" }
+multivm = { git = "https://github.com/matter-labs/zksync-era.git", rev = "90dee732295d8eaf48a5308c39238a0f5838cc35" }
+zksync_contracts = { git = "https://github.com/matter-labs/zksync-era.git", rev = "90dee732295d8eaf48a5308c39238a0f5838cc35" }
+zksync_types = { git = "https://github.com/matter-labs/zksync-era.git", rev = "90dee732295d8eaf48a5308c39238a0f5838cc35" }
+zksync_utils = { git = "https://github.com/matter-labs/zksync-era.git", rev = "90dee732295d8eaf48a5308c39238a0f5838cc35" }
+zksync_state = { git = "https://github.com/matter-labs/zksync-era.git", rev = "90dee732295d8eaf48a5308c39238a0f5838cc35" }
+zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era.git", rev = "90dee732295d8eaf48a5308c39238a0f5838cc35" }
 sha3 = "0.10.6"
 
 
