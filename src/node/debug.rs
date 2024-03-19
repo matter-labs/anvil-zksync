@@ -165,7 +165,6 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> DebugNames
                     return Err(into_jsrpc_error(error));
                 }
             };
-
             let execution_mode = multivm::interface::TxExecutionMode::EthCall;
             let storage = StorageView::new(&inner.fork_storage).into_rc_ptr();
 
@@ -195,8 +194,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> DebugNames
 
             let call_tracer_result = Arc::new(OnceCell::default());
             let tracer = CallTracer::new(call_tracer_result.clone()).into_tracer_pointer();
-            let tx_result = vm.inspect(tracer.into(), multivm::interface::VmExecutionMode::OneTx);
 
+            let tx_result = vm.inspect(tracer.into(), multivm::interface::VmExecutionMode::OneTx);
             let call_traces = if only_top {
                 vec![]
             } else {
@@ -295,7 +294,6 @@ mod tests {
         let node = InMemoryNode::<HttpForkSource>::default();
 
         let (primary_deployed_address, secondary_deployed_address) = deploy_test_contracts(&node);
-
         // trace a call to the primary contract
         let func = HumanReadableParser::parse_function("calculate(uint)").unwrap();
         let calldata = func.encode_input(&[Token::Uint(U256::from(42))]).unwrap();
@@ -313,7 +311,6 @@ mod tests {
         assert!(trace.error.is_none());
         assert!(trace.revert_reason.is_none());
 
-        println!("\n trace: {:?}\n\n", trace);
         // check that the call was successful
         let output =
             ethers::abi::decode(&[ParamType::Uint(256)], trace.output.0.as_slice()).unwrap();
@@ -397,7 +394,6 @@ mod tests {
 
         // call should revert
         assert!(trace.revert_reason.is_some());
-
         // find the call to primary contract in the trace
         let contract_call = trace
             .calls

@@ -1877,7 +1877,7 @@ mod tests {
                 gas_limit: U256::from(815563),
                 max_fee_per_gas: U256::from(250_000_000),
                 max_priority_fee_per_gas: U256::from(250_000_000),
-                gas_per_pubdata_limit: U256::from(20000),
+                gas_per_pubdata_limit: U256::from(25000),
             },
             U256::from(0),
             zksync_basic_types::L2ChainId::from(260),

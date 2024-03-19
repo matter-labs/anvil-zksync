@@ -450,7 +450,7 @@ mod tests {
                 gas_limit: U256::from(1_000_000),
                 max_fee_per_gas: U256::from(50_000_000),
                 max_priority_fee_per_gas: U256::from(50_000_000),
-                gas_per_pubdata_limit: U256::from(20000),
+                gas_per_pubdata_limit: U256::from(25000),
             },
             to_impersonate,
             U256::one(),
