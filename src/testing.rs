@@ -512,7 +512,7 @@ pub fn deploy_contract<T: ForkSource + std::fmt::Debug + Clone>(
         data.to_vec(),
         nonce,
         Fee {
-            gas_limit: U256::from(82511299),
+            gas_limit: U256::from(92511299),
             max_fee_per_gas: U256::from(50_000_000),
             max_priority_fee_per_gas: U256::from(50_000_000),
             gas_per_pubdata_limit: U256::from(50000),
