@@ -71,6 +71,17 @@ content-type: application/json
 {
     "jsonrpc": "2.0",
     "id": "1",
+    "method": "config_getShowOutputs",
+    "params": []
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
     "method": "config_getCurrentTimestamp",
     "params": []
 }
@@ -84,6 +95,17 @@ content-type: application/json
     "id": "1",
     "method": "config_setShowCalls",
     "params": ["All"]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "config_setShowOutputs",
+    "params": [true]
 }
 
 ###

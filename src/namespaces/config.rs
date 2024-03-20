@@ -11,6 +11,13 @@ pub trait ConfigurationApiNamespaceT {
     #[rpc(name = "config_getShowCalls", returns = "String")]
     fn config_get_show_calls(&self) -> Result<String>;
 
+    /// Get the InMemoryNodeInner's show_outputs property as a boolean
+    ///
+    /// # Returns
+    /// The current `show_outputs` value for the InMemoryNodeInner.
+    #[rpc(name = "config_getShowOutputs", returns = "bool")]
+    fn config_get_show_outputs(&self) -> Result<bool>;
+
     /// Get the InMemoryNodeInner's current_timestamp property
     ///
     /// # Returns
@@ -27,6 +34,16 @@ pub trait ConfigurationApiNamespaceT {
     /// The updated/current `show_calls` value for the InMemoryNodeInner.
     #[rpc(name = "config_setShowCalls", returns = "String")]
     fn config_set_show_calls(&self, value: String) -> Result<String>;
+
+    /// Set show_outputs for the InMemoryNodeInner
+    ///
+    /// # Parameters
+    /// - `value`: a bool value to update show_outputs to
+    ///
+    /// # Returns
+    /// The updated/current `show_outputs` value for the InMemoryNodeInner.
+    #[rpc(name = "config_setShowOutputs", returns = "bool")]
+    fn config_set_show_outputs(&self, value: bool) -> Result<bool>;
 
     /// Set show_storage_logs for the InMemoryNodeInner
     ///
