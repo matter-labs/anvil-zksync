@@ -51,7 +51,7 @@ describe("debug_traceCall", function () {
     const deployer = new Deployer(hre, wallet);
     const secondary = await deployContract(deployer, "Secondary", ["3"]);
     const primary = await deployContract(deployer, "Primary", [secondary.address]);
-
+    console.log(primary.address, secondary.address);
     const result = await provider.send("debug_traceCall", [
       {
         to: primary.address,

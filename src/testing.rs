@@ -91,7 +91,7 @@ impl MockServer {
                     "executeTxHash": "0x65d50174b214b05e82936c4064023cbea5f6f8135e30b4887986b316a2178a39",
                     "executedAt": "2023-02-15T12:43:20.330052Z",
                     "l1GasPrice": 29860969933u64,
-                    "l2FairGasPrice": 500000000u64,
+                    "l2FairGasPrice": 25000000u64,
                     "baseSystemContractsHashes": {
                       "bootloader": "0x0100038581be3d0e201b3cc45d151ef5cc59eb3a0f146ad44f0f72abf00b594c",
                       "default_aa": "0x0100038dc66b69be75ec31653c64cb931678299b9b659472772b2550b703f41c"
@@ -414,7 +414,7 @@ impl TransactionBuilder {
                 gas_limit: self.gas_limit,
                 max_fee_per_gas: self.max_fee_per_gas,
                 max_priority_fee_per_gas: self.max_priority_fee_per_gas,
-                gas_per_pubdata_limit: U256::from(25000),
+                gas_per_pubdata_limit: U256::from(55000),
             },
             U256::from(1),
             L2ChainId::from(260),
@@ -512,7 +512,7 @@ pub fn deploy_contract<T: ForkSource + std::fmt::Debug + Clone>(
         data.to_vec(),
         nonce,
         Fee {
-            gas_limit: U256::from(92511299),
+            gas_limit: U256::from(112511299),
             max_fee_per_gas: U256::from(50_000_000),
             max_priority_fee_per_gas: U256::from(50_000_000),
             gas_per_pubdata_limit: U256::from(50000),

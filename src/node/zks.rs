@@ -778,7 +778,7 @@ mod tests {
                   "executeTxHash": null,
                   "executedAt": null,
                   "l1GasPrice": 6156252068u64,
-                  "l2FairGasPrice": 50000000u64,
+                  "l2FairGasPrice": 25000000u64,
                   "baseSystemContractsHashes": {
                     "bootloader": "0x0100089b8a2f2e6a20ba28f02c9e0ed0c13d702932364561a0ea61621f65f0a8",
                     "default_aa": "0x0100067d16a5485875b4249040bf421f53e869337fe118ec747cf40a4c777e5f"
@@ -1110,7 +1110,7 @@ mod tests {
                     "l1BatchNumber": 0,
                     "l1GasPrice": 0,
                     "l1TxCount": 1,
-                    "l2FairGasPrice": 50000000,
+                    "l2FairGasPrice": 25000000,
                     "l2TxCount": 0,
                     "number": 0,
                     "operatorAddress": "0x0000000000000000000000000000000000000000",

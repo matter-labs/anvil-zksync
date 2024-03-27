@@ -291,7 +291,7 @@ mod tests {
         assert_eq!("12_345", to_human_size(U256::from(12345u64)));
         assert_eq!("0", to_human_size(U256::from(0)));
         assert_eq!("1", to_human_size(U256::from(1)));
-        assert_eq!("50_000_000", to_human_size(U256::from(50000000u64)));
+        assert_eq!("25_000_000", to_human_size(U256::from(25000000u64)));
     }
 
     #[test]

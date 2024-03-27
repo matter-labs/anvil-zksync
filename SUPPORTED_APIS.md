@@ -33,8 +33,8 @@ The `status` options are:
 | [`ETH`](#eth-namespace) | [`eth_chainId`](#eth_chainid) | `SUPPORTED` | Returns the currently configured chain id <br />_(default is `260`)_ |
 | `ETH` | `eth_coinbase` | `NOT IMPLEMENTED` | Returns the client coinbase address |
 | [`ETH`](#eth-namespace) | [`eth_estimateGas`](#eth_estimategas) | `SUPPORTED` | Generates and returns an estimate of how much gas is necessary for the transaction to complete |
-| [`ETH`](#eth-namespace) | [`eth_feeHistory`](#eth_feehistory) | `SUPPORTED` | Returns a collection of historical block gas data <br />_(hardcoded with gas price of `50_000_000`)_ |
-| [`ETH`](#eth-namespace) | [`eth_gasPrice`](#eth_gasprice) | `SUPPORTED` | Returns the current price per gas in wei <br />_(hardcoded to `50_000_000`)_ |
+| [`ETH`](#eth-namespace) | [`eth_feeHistory`](#eth_feehistory) | `SUPPORTED` | Returns a collection of historical block gas data <br />_(hardcoded with gas price of `25_000_000`)_ |
+| [`ETH`](#eth-namespace) | [`eth_gasPrice`](#eth_gasprice) | `SUPPORTED` | Returns the current price per gas in wei <br />_(hardcoded to `25_000_000`)_ |
 | [`ETH`](#eth-namespace) | [`eth_getBalance`](#eth_getbalance) | `SUPPORTED` | Returns the balance of the account of given address |
 | [`ETH`](#eth-namespace) | [`eth_getBlockByHash`](#eth_getblockbyhash) | `SUPPORTED` | Returns information about a block by block hash |
 | [`ETH`](#eth-namespace) | [`eth_getBlockByNumber`](#eth_getblockbynumber) | `SUPPORTED` | Returns information about a block by block number |

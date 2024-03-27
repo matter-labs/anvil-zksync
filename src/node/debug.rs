@@ -157,7 +157,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> DebugNames
                     "Failed to acquire read lock for inner node state.",
                 )))
             })?;
-
+            println!("\ntrace_call\n");
             let mut l2_tx = match L2Tx::from_request(request.into(), MAX_TX_SIZE) {
                 Ok(tx) => tx,
                 Err(e) => {
@@ -165,6 +165,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> DebugNames
                     return Err(into_jsrpc_error(error));
                 }
             };
+            println!("\nl2_tx common data: {:?}\n\n", l2_tx.common_data);
             let execution_mode = multivm::interface::TxExecutionMode::EthCall;
             let storage = StorageView::new(&inner.fork_storage).into_rc_ptr();
 
@@ -172,7 +173,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> DebugNames
 
             // init vm
             let (mut l1_batch_env, _block_context) = inner.create_l1_batch_env(storage.clone());
-
+            println!(
+                "\nl2_tx.common_data.fee.max_fee_per_gas.as_u64(): {}\n",
+                l2_tx.common_data.fee.max_fee_per_gas.as_u64()
+            );
             // update the enforced_base_fee within l1_batch_env to match the logic in zksync_core
             l1_batch_env.enforced_base_fee = Some(l2_tx.common_data.fee.max_fee_per_gas.as_u64());
             let system_env = inner.create_system_env(bootloader_code.clone(), execution_mode);

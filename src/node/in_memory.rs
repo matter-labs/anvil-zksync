@@ -83,8 +83,8 @@ pub const TEST_NODE_NETWORK_ID: u32 = 260;
 /// L1 Gas Price.
 pub const L1_GAS_PRICE: u64 = 50_000_000_000;
 // TODO: for now, that's fine, as computation overhead is set to zero, but we may consider using calculated fee input everywhere.
-/// L2 Gas Price (0.05 gwei).
-pub const L2_GAS_PRICE: u64 = 50_000_000;
+/// L2 Gas Price (0.025 gwei).
+pub const L2_GAS_PRICE: u64 = 25_000_000;
 /// L1 Gas Price Scale Factor for gas estimation.
 pub const ESTIMATE_GAS_PRICE_SCALE_FACTOR: f64 = 1.5;
 /// The max possible number of gas that `eth_estimateGas` is allowed to overestimate.
@@ -1269,7 +1269,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         {
             return Err("exceeds block gas limit".into());
         }
-
+        println!(
+            "tx.common_data.fee.max_fee_per_gas: {}",
+            tx.common_data.fee.max_fee_per_gas
+        );
+        println!("L2_GAS_PRICE: {}", L2_GAS_PRICE);
         if tx.common_data.fee.max_fee_per_gas < L2_GAS_PRICE.into() {
             tracing::info!(
                 "Submitted Tx is Unexecutable {:?} because of MaxFeePerGasTooLow {}",
