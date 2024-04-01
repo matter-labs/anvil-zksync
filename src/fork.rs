@@ -121,7 +121,15 @@ impl<S: ForkSource> ForkStorage<S> {
                         l2_miniblock,
                     )))),
                 )
-                .unwrap();
+                .unwrap_or_else(|_err| {
+                    tracing::error!(
+                        "Failed to get storage at {:?} with index {:?} and block {:?}",
+                        *key_.account().address(),
+                        h256_to_u256(*key_.key()),
+                        l2_miniblock
+                    );
+                    panic!("Unable to access storage")
+                });
 
             mutator.value_read_cache.insert(*key, result);
             result
@@ -448,7 +456,6 @@ impl<S: ForkSource> ForkDetails<S> {
         let url = match fork {
             "mainnet" => "https://mainnet.era.zksync.io:443",
             "sepolia-testnet" => "https://sepolia.era.zksync.dev:443",
-            "goerli-testnet" => "https://testnet.era.zksync.dev:443",
             _ => fork,
         };
 

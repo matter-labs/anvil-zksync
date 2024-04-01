@@ -298,7 +298,6 @@ struct ReplayArgs {
     /// If set - will try to fork a remote network. Possible values:
     ///  - mainnet
     ///  - sepolia-testnet
-    ///  - goerli-testnet
     ///  - http://XXX:YY
     network: String,
     /// Transaction hash to replay.

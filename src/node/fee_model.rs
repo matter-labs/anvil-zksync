@@ -7,9 +7,9 @@ pub const CONFIG: FeeModelConfigV2 = FeeModelConfigV2 {
     minimal_l2_gas_price: 25_000_000,
     compute_overhead_part: 0.0,
     pubdata_overhead_part: 1.0,
-    batch_overhead_l1_gas: 800000,
-    max_gas_per_batch: 200000000,
-    max_pubdata_per_batch: 100000,
+    batch_overhead_l1_gas: 800_000,
+    max_gas_per_batch: 200_000_000,
+    max_pubdata_per_batch: 240_000,
 };
 
 #[derive(Debug, Clone, PartialEq)]
