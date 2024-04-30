@@ -22,7 +22,7 @@ use std::str::FromStr;
 use zksync_basic_types::{AccountTreeId, L2BlockNumber, H160, U64};
 use zksync_types::api::{BlockIdVariant, BridgeAddresses, DebugCall, DebugCallType, Log};
 use zksync_types::block::pack_block_info;
-use zksync_types::StorageKey;
+use zksync_types::{K256PrivateKey, StorageKey};
 use zksync_types::{fee::Fee, l2::L2Tx, Address, L2ChainId, Nonce, ProtocolVersionId, H256, U256};
 use zksync_utils::u256_to_h256;
 
@@ -362,7 +362,7 @@ impl RawTransactionsResponseBuilder {
 #[derive(Debug, Clone)]
 pub struct TransactionBuilder {
     tx_hash: H256,
-    from_account_private_key: H256,
+    from_account_private_key: K256PrivateKey,
     gas_limit: U256,
     max_fee_per_gas: U256,
     max_priority_fee_per_gas: U256,
@@ -372,7 +372,7 @@ impl Default for TransactionBuilder {
     fn default() -> Self {
         Self {
             tx_hash: H256::repeat_byte(0x01),
-            from_account_private_key: H256::random(),
+            from_account_private_key: K256PrivateKey::from_bytes(H256::random()).unwrap(),
             gas_limit: U256::from(2_000_000),
             max_fee_per_gas: U256::from(50_000_000),
             max_priority_fee_per_gas: U256::from(50_000_000),
@@ -452,7 +452,7 @@ pub fn apply_tx<T: ForkSource + std::fmt::Debug + Clone>(
 pub fn deploy_contract<T: ForkSource + std::fmt::Debug + Clone>(
     node: &InMemoryNode<T>,
     tx_hash: H256,
-    private_key: H256,
+    private_key: &K256PrivateKey,
     bytecode: Vec<u8>,
     calldata: Option<Vec<u8>>,
     nonce: Nonce,
@@ -519,7 +519,7 @@ pub fn deploy_contract<T: ForkSource + std::fmt::Debug + Clone>(
         },
         U256::from(0),
         zksync_basic_types::L2ChainId::from(260),
-        &private_key,
+        private_key,
         Some(vec![bytecode]),
         Default::default(),
     )

@@ -409,8 +409,10 @@ mod tests {
             raw_bytes: None,
         }];
         let bridge_addresses = BridgeAddresses {
-            l1_erc20_default_bridge: H160::repeat_byte(0x1),
-            l2_erc20_default_bridge: H160::repeat_byte(0x2),
+            l1_shared_default_bridge: Some(H160::repeat_byte(0x5)),
+            l2_shared_default_bridge: Some(H160::repeat_byte(0x6)),
+            l1_erc20_default_bridge: Some(H160::repeat_byte(0x1)),
+            l2_erc20_default_bridge: Some(H160::repeat_byte(0x2)),
             l1_weth_bridge: Some(H160::repeat_byte(0x3)),
             l2_weth_bridge: Some(H160::repeat_byte(0x4)),
         };
@@ -472,8 +474,10 @@ mod tests {
             raw_bytes: None,
         }];
         let bridge_addresses = BridgeAddresses {
-            l1_erc20_default_bridge: H160::repeat_byte(0x1),
-            l2_erc20_default_bridge: H160::repeat_byte(0x2),
+            l1_shared_default_bridge: Some(H160::repeat_byte(0x5)),
+            l2_shared_default_bridge: Some(H160::repeat_byte(0x6)),
+            l1_erc20_default_bridge: Some(H160::repeat_byte(0x1)),
+            l2_erc20_default_bridge: Some(H160::repeat_byte(0x2)),
             l1_weth_bridge: Some(H160::repeat_byte(0x3)),
             l2_weth_bridge: Some(H160::repeat_byte(0x4)),
         };
@@ -570,8 +574,10 @@ mod tests {
             raw_bytes: None,
         }];
         let bridge_addresses = BridgeAddresses {
-            l1_erc20_default_bridge: H160::repeat_byte(0x1),
-            l2_erc20_default_bridge: H160::repeat_byte(0x2),
+            l1_shared_default_bridge: Some(H160::repeat_byte(0x5)),
+            l2_shared_default_bridge: Some(H160::repeat_byte(0x6)),
+            l2_erc20_default_bridge: Some(H160::repeat_byte(0x2)),
+            l1_erc20_default_bridge: Some(H160::repeat_byte(0x1)),
             l1_weth_bridge: Some(H160::repeat_byte(0x3)),
             l2_weth_bridge: Some(H160::repeat_byte(0x4)),
         };

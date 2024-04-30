@@ -683,8 +683,10 @@ mod tests {
     #[test]
     fn test_get_bridge_contracts_is_cached() {
         let input_bridge_addresses = BridgeAddresses {
-            l1_erc20_default_bridge: H160::repeat_byte(0x1),
-            l2_erc20_default_bridge: H160::repeat_byte(0x2),
+            l1_erc20_default_bridge: Some(H160::repeat_byte(0x1)),
+            l2_erc20_default_bridge: Some(H160::repeat_byte(0x2)),
+            l1_shared_default_bridge: Some(H160::repeat_byte(0x5)),
+            l2_shared_default_bridge: Some(H160::repeat_byte(0x2)),
             l1_weth_bridge: Some(H160::repeat_byte(0x3)),
             l2_weth_bridge: Some(H160::repeat_byte(0x4)),
         };
@@ -698,8 +700,10 @@ mod tests {
             serde_json::json!({
                 "jsonrpc": "2.0",
                 "result": {
-                    "l1Erc20DefaultBridge": format!("{:#x}", input_bridge_addresses.l1_erc20_default_bridge),
-                    "l2Erc20DefaultBridge": format!("{:#x}", input_bridge_addresses.l2_erc20_default_bridge),
+                    "l1Erc20SharedBridge": format!("{:#x}", input_bridge_addresses.l1_shared_default_bridge.unwrap()),
+                    "l2Erc20SharedBridge": format!("{:#x}", input_bridge_addresses.l2_shared_default_bridge.unwrap()),
+                    "l1Erc20DefaultBridge": format!("{:#x}", input_bridge_addresses.l1_erc20_default_bridge.unwrap()),
+                    "l2Erc20DefaultBridge": format!("{:#x}", input_bridge_addresses.l2_erc20_default_bridge.unwrap()),
                     "l1WethBridge": format!("{:#x}", input_bridge_addresses.l1_weth_bridge.unwrap()),
                     "l2WethBridge": format!("{:#x}", input_bridge_addresses.l2_weth_bridge.unwrap())
                 },

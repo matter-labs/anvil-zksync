@@ -20,7 +20,6 @@ use core::fmt::Display;
 use indexmap::IndexMap;
 use once_cell::sync::OnceCell;
 use std::{
-    cmp::{self},
     collections::{HashMap, HashSet},
     str::FromStr,
     sync::{Arc, RwLock},
@@ -69,7 +68,6 @@ use zksync_types::{
     SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
 };
 use zksync_utils::{
-    bytecode::{compress_bytecode, hash_bytecode},
     h256_to_account_address, h256_to_u256, u256_to_h256,
 };
 use zksync_web3_decl::error::Web3Error;
@@ -501,8 +499,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         l2_tx.common_data.fee.max_fee_per_gas = base_fee.into();
         l2_tx.common_data.fee.max_priority_fee_per_gas = base_fee.into();
 
-        let mut storage_view = StorageView::new(&self.fork_storage);
-
+        let storage_view = StorageView::new(&self.fork_storage);
         let storage = storage_view.into_rc_ptr();
 
         let execution_mode = TxExecutionMode::EstimateFee;
@@ -1753,7 +1750,7 @@ impl BlockContext {
 mod tests {
     use ethabi::{Token, Uint};
     use zksync_basic_types::Nonce;
-    use zksync_types::utils::deployed_address_create;
+    use zksync_types::{utils::deployed_address_create, K256PrivateKey};
 
     use super::*;
     use crate::{
@@ -1884,16 +1881,15 @@ mod tests {
             },
         );
 
-        let private_key = H256::repeat_byte(0xef);
-        let from_account = zksync_types::PackedEthSignature::address_from_private_key(&private_key)
-            .expect("failed generating address");
+        let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(0xef)).unwrap();
+        let from_account = private_key.address();
         node.set_rich_account(from_account);
 
         let deployed_address = deployed_address_create(from_account, U256::zero());
         testing::deploy_contract(
             &node,
             H256::repeat_byte(0x1),
-            private_key,
+            &private_key,
             hex::decode(testing::STORAGE_CONTRACT_BYTECODE).unwrap(),
             None,
             Nonce(0),

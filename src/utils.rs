@@ -264,6 +264,12 @@ pub fn internal_error(method_name: &'static str, error: impl fmt::Display) -> We
     Web3Error::InternalError(anyhow::Error::msg(error.to_string()))
 }
 
+// pub fn addresss_from_private_key(private_key: &K256PrivateKey) {
+//     let private_key = H256::from_slice(&private_key.0);
+//     let address = KeyPair::from_secret(private_key)?.address();
+//     Ok(Address::from(address.0))
+// }
+
 #[cfg(test)]
 mod tests {
     use zksync_basic_types::{H256, U256};

@@ -248,13 +248,12 @@ mod tests {
     use zksync_types::{
         api::{Block, CallTracerConfig, SupportedTracers, TransactionReceipt},
         transaction_request::CallRequestBuilder,
-        utils::deployed_address_create,
+        utils::deployed_address_create, K256PrivateKey,
     };
 
     fn deploy_test_contracts(node: &InMemoryNode<HttpForkSource>) -> (Address, Address) {
-        let private_key = H256::repeat_byte(0xee);
-        let from_account = zksync_types::PackedEthSignature::address_from_private_key(&private_key)
-            .expect("failed generating address");
+        let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(0xee)).unwrap();
+        let from_account = private_key.address();
         node.set_rich_account(from_account);
 
         // first, deploy secondary contract
@@ -266,7 +265,7 @@ mod tests {
         testing::deploy_contract(
             node,
             H256::repeat_byte(0x1),
-            private_key,
+            &private_key,
             secondary_bytecode,
             Some((U256::from(2),).encode()),
             Nonce(0),
@@ -281,7 +280,7 @@ mod tests {
         testing::deploy_contract(
             node,
             H256::repeat_byte(0x1),
-            private_key,
+            &private_key,
             primary_bytecode,
             Some((secondary_deployed_address).encode()),
             Nonce(1),

@@ -1483,9 +1483,7 @@ mod tests {
     use maplit::hashmap;
     use zksync_basic_types::{web3, Nonce};
     use zksync_types::{
-        api::{BlockHashObject, BlockNumber, BlockNumberObject, TransactionReceipt},
-        utils::deployed_address_create,
-        PackedEthSignature,
+        api::{BlockHashObject, BlockNumber, BlockNumberObject, TransactionReceipt}, utils::deployed_address_create, K256PrivateKey, PackedEthSignature
     };
     use zksync_web3_decl::types::{SyncState, ValueOrArray};
 
@@ -2486,9 +2484,8 @@ mod tests {
     async fn test_get_storage_fetches_state_for_deployed_smart_contract_in_current_block() {
         let node = InMemoryNode::<HttpForkSource>::default();
 
-        let private_key = H256::repeat_byte(0xef);
-        let from_account = zksync_types::PackedEthSignature::address_from_private_key(&private_key)
-            .expect("failed generating address");
+        let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(0xef)).unwrap();
+        let from_account = private_key.address();
         node.set_rich_account(from_account);
 
         let deployed_address = deployed_address_create(from_account, U256::zero());
@@ -2496,7 +2493,7 @@ mod tests {
         testing::deploy_contract(
             &node,
             H256::repeat_byte(0x1),
-            private_key,
+            &private_key,
             hex::decode(testing::STORAGE_CONTRACT_BYTECODE).unwrap(),
             None,
             Nonce(0),
@@ -2519,9 +2516,8 @@ mod tests {
     async fn test_get_storage_fetches_state_for_deployed_smart_contract_in_old_block() {
         let node = InMemoryNode::<HttpForkSource>::default();
 
-        let private_key = H256::repeat_byte(0xef);
-        let from_account = zksync_types::PackedEthSignature::address_from_private_key(&private_key)
-            .expect("failed generating address");
+        let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(0xef)).unwrap();
+        let from_account = private_key.address();
         node.set_rich_account(from_account);
 
         let deployed_address = deployed_address_create(from_account, U256::zero());
@@ -2529,7 +2525,7 @@ mod tests {
         let initial_block_hash = testing::deploy_contract(
             &node,
             H256::repeat_byte(0x1),
-            private_key,
+            &private_key,
             hex::decode(testing::STORAGE_CONTRACT_BYTECODE).unwrap(),
             None,
             Nonce(0),
@@ -2735,7 +2731,7 @@ mod tests {
         let node = InMemoryNode::<HttpForkSource>::default();
 
         let private_key = H256::repeat_byte(0x01);
-        let from_account = PackedEthSignature::address_from_private_key(&private_key).unwrap();
+        let from_account = K256PrivateKey::from_bytes(private_key).unwrap().address();
         node.set_rich_account(from_account);
 
         let account_result = node.accounts().await;

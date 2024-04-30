@@ -590,10 +590,10 @@ mod tests {
 
         let result = node.estimate_fee(mock_request).await.unwrap();
 
-        assert_eq!(result.gas_limit, U256::from(2950553));
-        assert_eq!(result.max_fee_per_gas, U256::from(58593750));
+        assert_eq!(result.gas_limit, U256::from(2618937));
+        assert_eq!(result.max_fee_per_gas, U256::from(50000000));
         assert_eq!(result.max_priority_fee_per_gas, U256::from(0));
-        assert_eq!(result.gas_per_pubdata_limit, U256::from(32000));
+        assert_eq!(result.gas_per_pubdata_limit, U256::from(37500));
     }
 
     #[tokio::test]
@@ -856,8 +856,10 @@ mod tests {
             serde_json::json!({
                 "jsonrpc": "2.0",
                 "result": {
-                    "l1Erc20DefaultBridge": format!("{:#x}", input_bridge_addresses.l1_erc20_default_bridge),
-                    "l2Erc20DefaultBridge": format!("{:#x}", input_bridge_addresses.l2_erc20_default_bridge),
+                    "l1Erc20SharedBridge": format!("{:#x}", input_bridge_addresses.l1_shared_default_bridge.unwrap()),
+                    "l2Erc20SharedBridge": format!("{:#x}", input_bridge_addresses.l2_shared_default_bridge.unwrap()),
+                    "l1Erc20DefaultBridge": format!("{:#x}", input_bridge_addresses.l1_erc20_default_bridge.unwrap()),
+                    "l2Erc20DefaultBridge": format!("{:#x}", input_bridge_addresses.l2_erc20_default_bridge.unwrap()),
                     "l1WethBridge": format!("{:#x}", input_bridge_addresses.l1_weth_bridge.unwrap()),
                     "l2WethBridge": format!("{:#x}", input_bridge_addresses.l2_weth_bridge.unwrap())
                 },
