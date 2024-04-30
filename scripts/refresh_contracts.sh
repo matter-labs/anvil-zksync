@@ -6,13 +6,13 @@ DST_DIR=src/deps/contracts/
 
 mkdir -p $DST_DIR
 
-contracts=("AccountCodeStorage" "BootloaderUtilities" "Compressor" "ComplexUpgrader" "ContractDeployer" "DefaultAccount" "DefaultAccountNoSecurity" "EmptyContract" "ImmutableSimulator" "KnownCodesStorage" "L1Messenger" "L2EthToken" "MsgValueSimulator" "NonceHolder" "SystemContext" "PubdataChunkPublisher" )
+contracts=("AccountCodeStorage" "BootloaderUtilities" "Compressor" "ComplexUpgrader" "ContractDeployer" "DefaultAccount" "DefaultAccountNoSecurity" "EmptyContract" "ImmutableSimulator" "KnownCodesStorage" "L1Messenger" "L2BaseToken" "MsgValueSimulator" "NonceHolder" "SystemContext" "PubdataChunkPublisher" "Create2Factory")
 
 for contract in "${contracts[@]}"; do
     cp $SRC_DIR/$contract.sol/$contract.json $DST_DIR
 done
 
-precompiles=("EcAdd" "EcMul" "Ecrecover" "Keccak256" "SHA256")
+precompiles=("EcAdd" "EcMul" "Ecrecover" "Keccak256" "SHA256" "EcPairing" "CodeOracle" "P256Verify")
 
 for precompile in "${precompiles[@]}"; do
     cp contracts/system-contracts/contracts-preprocessed/precompiles/artifacts/$precompile.yul.zbin $DST_DIR

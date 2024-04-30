@@ -14,7 +14,7 @@ use zksync_types::{
     l2::L2Tx,
     transaction_request::TransactionRequest,
     utils::storage_key_for_standard_token_balance,
-    PackedEthSignature, StorageKey, L2_ETH_TOKEN_ADDRESS,
+    PackedEthSignature, StorageKey, L2_BASE_TOKEN_ADDRESS,
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
 use zksync_web3_decl::{
@@ -129,7 +129,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
 
         Box::pin(async move {
             let balance_key = storage_key_for_standard_token_balance(
-                AccountTreeId::new(L2_ETH_TOKEN_ADDRESS),
+                AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
                 &address,
             );
 

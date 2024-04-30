@@ -11,7 +11,7 @@ use std::{
 };
 
 use tokio::runtime::Builder;
-use zksync_basic_types::{Address, L1BatchNumber, L2ChainId, MiniblockNumber, H256, U256, U64};
+use zksync_basic_types::{Address, L1BatchNumber, L2ChainId, L2BlockNumber, H256, U256, U64};
 
 use zksync_types::{
     api::{
@@ -248,7 +248,7 @@ pub trait ForkSource {
     /// Gets all transactions that belong to a given miniblock.
     fn get_raw_block_transactions(
         &self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
     ) -> eyre::Result<Vec<zksync_types::Transaction>>;
 
     /// Returns the block for a given hash.
@@ -266,7 +266,7 @@ pub trait ForkSource {
     ) -> eyre::Result<Option<Block<TransactionVariant>>>;
 
     /// Returns the block details for a given miniblock number.
-    fn get_block_details(&self, miniblock: MiniblockNumber) -> eyre::Result<Option<BlockDetails>>;
+    fn get_block_details(&self, miniblock: L2BlockNumber) -> eyre::Result<Option<BlockDetails>>;
 
     /// Returns the  transaction count for a given block hash.
     fn get_block_transaction_count_by_hash(&self, block_hash: H256) -> eyre::Result<Option<U256>>;
@@ -357,7 +357,7 @@ impl ForkDetails<HttpForkSource> {
         cache_config: CacheConfig,
     ) -> Self {
         let block_details = client
-            .get_block_details(MiniblockNumber(miniblock as u32))
+            .get_block_details(L2BlockNumber(miniblock as u32))
             .await
             .unwrap()
             .unwrap_or_else(|| panic!("Could not find block {:?} in {:?}", miniblock, url));
@@ -427,7 +427,7 @@ impl ForkDetails<HttpForkSource> {
                 panic!("erroneous chain id {}: {:?}", tx_details.chain_id, err,)
             }),
         );
-        let miniblock_number = MiniblockNumber(tx_details.block_number.unwrap().as_u32());
+        let miniblock_number = L2BlockNumber(tx_details.block_number.unwrap().as_u32());
         // We have to sync to the one-miniblock before the one where transaction is.
         let l2_miniblock = miniblock_number.saturating_sub(1) as u64;
 
@@ -466,7 +466,7 @@ impl<S: ForkSource> ForkDetails<S> {
             .get_transaction_by_hash(replay_tx)
             .unwrap()
             .unwrap();
-        let miniblock = MiniblockNumber(tx_details.block_number.unwrap().as_u32());
+        let miniblock = L2BlockNumber(tx_details.block_number.unwrap().as_u32());
 
         // And we're fetching all the transactions from this miniblock.
         let block_transactions = self

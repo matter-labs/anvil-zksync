@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use bigdecimal::BigDecimal;
 use colored::Colorize;
 use futures::FutureExt;
-use zksync_basic_types::{AccountTreeId, Address, L1BatchNumber, MiniblockNumber, H256, U256};
+use zksync_basic_types::{AccountTreeId, Address, L1BatchNumber, L2BlockNumber, H256, U256};
 use zksync_state::ReadStorage;
 use zksync_types::{
     api::{
@@ -12,7 +12,7 @@ use zksync_types::{
     },
     fee::Fee,
     utils::storage_key_for_standard_token_balance,
-    ExecuteTransactionCommon, ProtocolVersionId, Transaction, L2_ETH_TOKEN_ADDRESS,
+    ExecuteTransactionCommon, ProtocolVersionId, Transaction, L2_BASE_TOKEN_ADDRESS,
 };
 use zksync_utils::h256_to_u256;
 use zksync_web3_decl::error::Web3Error;
@@ -63,7 +63,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
     /// A `BoxFuture` containing a `Result` with a `Vec` of `Transaction`s representing the transactions in the block.
     fn get_raw_block_transactions(
         &self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
     ) -> RpcResult<Vec<zksync_types::Transaction>> {
         let inner = self.get_inner().clone();
         Box::pin(async move {
@@ -173,6 +173,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
                     ))))
                 })?,
                 None => BridgeAddresses {
+                    l1_shared_default_bridge: Default::default(),
+                    l2_shared_default_bridge: Default::default(),
                     l1_erc20_default_bridge: Default::default(),
                     l2_erc20_default_bridge: Default::default(),
                     l1_weth_bridge: Default::default(),
@@ -222,7 +224,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
                 }
                 None => Ok(vec![zksync_web3_decl::types::Token {
                     l1_address: Address::zero(),
-                    l2_address: L2_ETH_TOKEN_ADDRESS,
+                    l2_address: L2_BASE_TOKEN_ADDRESS,
                     name: "Ether".to_string(),
                     symbol: "ETH".to_string(),
                     decimals: 18,
@@ -318,7 +320,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
 
     fn get_l2_to_l1_msg_proof(
         &self,
-        _block: zksync_basic_types::MiniblockNumber,
+        _block: zksync_basic_types::L2BlockNumber,
         _sender: zksync_basic_types::Address,
         _msg: zksync_basic_types::H256,
         _l2_log_position: Option<usize>,
@@ -349,7 +351,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
     /// A `BoxFuture` containing a `Result` with an `Option<BlockDetails>` representing details of the block (if found).
     fn get_block_details(
         &self,
-        block_number: zksync_basic_types::MiniblockNumber,
+        block_number: zksync_basic_types::L2BlockNumber,
     ) -> RpcResult<Option<zksync_types::api::BlockDetails>> {
         let inner = self.get_inner().clone();
         Box::pin(async move {
@@ -363,7 +365,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
                 .get(&(block_number.0 as u64))
                 .and_then(|hash| reader.blocks.get(hash))
                 .map(|block| BlockDetails {
-                    number: MiniblockNumber(block.number.as_u32()),
+                    number: L2BlockNumber(block.number.as_u32()),
                     l1_batch_number: L1BatchNumber(
                         block.l1_batch_number.unwrap_or_default().as_u32(),
                     ),
@@ -733,13 +735,13 @@ mod tests {
             writer.block_hashes.insert(0, H256::repeat_byte(0x1));
         }
         let result = node
-            .get_block_details(MiniblockNumber(0))
+            .get_block_details(L2BlockNumber(0))
             .await
             .expect("get block details")
             .expect("block details");
 
         // Assert
-        assert!(matches!(result.number, MiniblockNumber(0)));
+        assert!(matches!(result.number, L2BlockNumber(0)));
         assert_eq!(result.l1_batch_number, L1BatchNumber(0));
         assert_eq!(result.base.timestamp, 0);
     }
@@ -751,7 +753,7 @@ mod tests {
             transaction_count: 0,
             hash: H256::repeat_byte(0xab),
         });
-        let miniblock = MiniblockNumber::from(16474138);
+        let miniblock = L2BlockNumber::from(16474138);
         mock_server.expect(
             serde_json::json!({
                 "jsonrpc": "2.0",
@@ -802,7 +804,7 @@ mod tests {
             .expect("get block details")
             .expect("block details");
 
-        assert!(matches!(result.number, MiniblockNumber(16474138)));
+        assert!(matches!(result.number, L2BlockNumber(16474138)));
         assert_eq!(result.l1_batch_number, L1BatchNumber(270435));
         assert_eq!(result.base.timestamp, 1697405098);
     }
@@ -812,6 +814,8 @@ mod tests {
         // Arrange
         let node = InMemoryNode::<HttpForkSource>::default();
         let expected_bridge_addresses = BridgeAddresses {
+            l1_shared_default_bridge: Default::default(),
+            l2_shared_default_bridge: Default::default(),
             l1_erc20_default_bridge: Default::default(),
             l2_erc20_default_bridge: Default::default(),
             l1_weth_bridge: Default::default(),
@@ -836,8 +840,10 @@ mod tests {
             hash: H256::repeat_byte(0xab),
         });
         let input_bridge_addresses = BridgeAddresses {
-            l1_erc20_default_bridge: H160::repeat_byte(0x1),
-            l2_erc20_default_bridge: H160::repeat_byte(0x2),
+            l1_shared_default_bridge: Some(H160::repeat_byte(0x1)),
+            l2_shared_default_bridge: Some(H160::repeat_byte(0x2)),
+            l1_erc20_default_bridge: Some(H160::repeat_byte(0x1)),
+            l2_erc20_default_bridge: Some(H160::repeat_byte(0x2)),
             l1_weth_bridge: Some(H160::repeat_byte(0x3)),
             l2_weth_bridge: Some(H160::repeat_byte(0x4)),
         };
@@ -966,7 +972,7 @@ mod tests {
         }
 
         let txns = node
-            .get_raw_block_transactions(MiniblockNumber(0))
+            .get_raw_block_transactions(L2BlockNumber(0))
             .await
             .expect("get transaction details");
 
@@ -981,7 +987,7 @@ mod tests {
             transaction_count: 0,
             hash: H256::repeat_byte(0xab),
         });
-        let miniblock = MiniblockNumber::from(16474138);
+        let miniblock = L2BlockNumber::from(16474138);
         mock_server.expect(
             serde_json::json!({
                 "jsonrpc": "2.0",

@@ -19,7 +19,7 @@ use httptest::{
 use itertools::Itertools;
 use multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
 use std::str::FromStr;
-use zksync_basic_types::{AccountTreeId, MiniblockNumber, H160, U64};
+use zksync_basic_types::{AccountTreeId, L2BlockNumber, H160, U64};
 use zksync_types::api::{BlockIdVariant, BridgeAddresses, DebugCall, DebugCallType, Log};
 use zksync_types::block::pack_block_info;
 use zksync_types::StorageKey;
@@ -721,7 +721,7 @@ impl ForkSource for &ExternalStorage {
 
     fn get_raw_block_transactions(
         &self,
-        _block_number: MiniblockNumber,
+        _block_number: L2BlockNumber,
     ) -> eyre::Result<Vec<zksync_types::Transaction>> {
         todo!()
     }
@@ -762,7 +762,7 @@ impl ForkSource for &ExternalStorage {
 
     fn get_block_details(
         &self,
-        _miniblock: MiniblockNumber,
+        _miniblock: L2BlockNumber,
     ) -> eyre::Result<Option<zksync_types::api::BlockDetails>> {
         todo!()
     }

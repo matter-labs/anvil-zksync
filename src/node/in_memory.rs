@@ -31,7 +31,7 @@ use multivm::{
         ExecutionResult, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
         VmExecutionResultAndLogs, VmInterface,
     },
-    vm_latest::L2Block,
+    vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, L2Block},
     VmVersion,
 };
 use multivm::{
@@ -42,14 +42,14 @@ use multivm::{
     },
     vm_latest::HistoryDisabled,
     vm_latest::{
-        constants::{BLOCK_GAS_LIMIT, MAX_VM_PUBDATA_PER_BATCH},
+        constants::{BATCH_GAS_LIMIT, MAX_VM_PUBDATA_PER_BATCH},
         utils::l2_blocks::load_last_l2_block,
         ToTracerPointer, TracerPointer, Vm,
     },
 };
 use std::convert::TryInto;
 use zksync_basic_types::{
-    web3::signing::keccak256, AccountTreeId, Address, Bytes, L1BatchNumber, MiniblockNumber, H160,
+    web3::signing::keccak256, AccountTreeId, Address, Bytes, L1BatchNumber, L2BlockNumber, H160,
     H256, U256, U64,
 };
 use zksync_contracts::BaseSystemContracts;
@@ -57,7 +57,7 @@ use zksync_core::fee_model::BatchFeeModelInputProvider;
 use zksync_state::{ReadStorage, StoragePtr, WriteStorage};
 use zksync_types::{
     api::{Block, DebugCall, Log, TransactionReceipt, TransactionVariant},
-    block::{unpack_block_info, MiniblockHasher},
+    block::{unpack_block_info, L2BlockHasher},
     fee::Fee,
     get_nonce_key,
     l2::L2Tx,
@@ -90,7 +90,7 @@ pub const ESTIMATE_GAS_PRICE_SCALE_FACTOR: f64 = 1.5;
 /// The max possible number of gas that `eth_estimateGas` is allowed to overestimate.
 pub const ESTIMATE_GAS_PUBLISH_BYTE_OVERHEAD: u32 = 100;
 /// Acceptable gas overestimation limit.
-pub const ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION: u32 = 1_000;
+pub const ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION: u64 = 1_000;
 /// The factor by which to scale the gasLimit.
 pub const ESTIMATE_GAS_SCALE_FACTOR: f32 = 1.3;
 /// The maximum number of previous blocks to store the state for.
@@ -123,7 +123,7 @@ pub fn create_empty_block<TX>(
         l1_batch_number: Some(U64::from(batch)),
         transactions: vec![],
         gas_used: U256::from(0),
-        gas_limit: U256::from(BLOCK_GAS_LIMIT),
+        gas_limit: U256::from(BATCH_GAS_LIMIT),
         ..Default::default()
     }
 }
@@ -356,7 +356,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             .unwrap_or_else(|| (self.current_batch, self.current_timestamp));
         let last_l2_block = load_last_l2_block(storage.clone()).unwrap_or_else(|| L2Block {
             number: self.current_miniblock as u32,
-            hash: MiniblockHasher::legacy_hash(MiniblockNumber(self.current_miniblock as u32)),
+            hash: L2BlockHasher::legacy_hash(L2BlockNumber(self.current_miniblock as u32)),
             timestamp: self.current_timestamp,
         });
         let latest_timestamp = std::cmp::max(
@@ -377,7 +377,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             previous_batch_hash: None,
             number: L1BatchNumber::from(block_ctx.batch),
             timestamp: block_ctx.timestamp,
-            fee_input: block_on(async move { fee_input_provider.get_batch_fee_input().await }),
+            fee_input: block_on(async move { fee_input_provider.get_batch_fee_input_scaled(1.0, 1.0).await.unwrap() }),
             fee_account: H160::zero(),
             enforced_base_fee: None,
             first_l2_block: L2BlockEnv {
@@ -410,9 +410,9 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             // TODO: when forking, we could consider taking the protocol version id from the fork itself.
             version: zksync_types::ProtocolVersionId::latest(),
             base_system_smart_contracts: base_system_contracts,
-            gas_limit: BLOCK_GAS_LIMIT,
+            bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             execution_mode,
-            default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+            default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             chain_id: self.fork_storage.chain_id,
         }
     }
@@ -463,6 +463,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                         ESTIMATE_GAS_PRICE_SCALE_FACTOR,
                     )
                     .await
+                    .unwrap()
             });
 
             // In order for execution to pass smoothly, we need to ensure that block's required gasPerPubdata will be
@@ -497,45 +498,16 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
         let mut storage_view = StorageView::new(&self.fork_storage);
 
-        // Calculate gas_for_bytecodes_pubdata
-        let pubdata_for_factory_deps = l2_tx
-            .execute
-            .factory_deps
-            .as_deref()
-            .unwrap_or_default()
-            .iter()
-            .map(|bytecode| {
-                if storage_view.is_bytecode_known(&hash_bytecode(bytecode)) {
-                    return 0;
-                }
-
-                let length = if let Ok(compressed) = compress_bytecode(bytecode) {
-                    compressed.len()
-                } else {
-                    bytecode.len()
-                };
-                length as u32 + ESTIMATE_GAS_PUBLISH_BYTE_OVERHEAD
-            })
-            .sum::<u32>();
-
-        if pubdata_for_factory_deps > MAX_VM_PUBDATA_PER_BATCH.try_into().unwrap() {
-            return Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
-                "exceeds limit for published pubdata".into(),
-                Default::default(),
-            )));
-        }
-
-        let gas_for_bytecodes_pubdata: u32 =
-            pubdata_for_factory_deps * (gas_per_pubdata_byte as u32);
-
         let storage = storage_view.into_rc_ptr();
 
         let execution_mode = TxExecutionMode::EstimateFee;
         let (mut batch_env, _) = self.create_l1_batch_env(storage.clone());
         batch_env.fee_input = fee_input;
+
         let impersonating = self
             .impersonated_accounts
             .contains(&l2_tx.common_data.initiator_address);
+
         let system_env = self.create_system_env(
             self.system_contracts
                 .contracts_for_fee_estimate(impersonating)
@@ -543,9 +515,47 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             execution_mode,
         );
 
+        // When the pubdata cost grows very high, the total gas limit required may become very high as well. If
+        // we do binary search over any possible gas limit naively, we may end up with a very high number of iterations,
+        // which affects performance.
+        //
+        // To optimize for this case, we first calculate the amount of gas needed to cover for the pubdata. After that, we
+        // need to do a smaller binary search that is focused on computational gas limit only.
+        let additional_gas_for_pubdata = if tx.is_l1() {
+            // For L1 transactions the pubdata priced in such a way that the maximal computational
+            // gas limit should be enough to cover for the pubdata as well, so no additional gas is provided there.
+            0u64
+        } else {
+            // For L2 transactions, we estimate the amount of gas needed to cover for the pubdata by creating a transaction with infinite gas limit.
+            // And getting how much pubdata it used.
+
+            // In theory, if the transaction has failed with such large gas limit, we could have returned an API error here right away,
+            // but doing it later on keeps the code more lean.
+            let result = InMemoryNodeInner::estimate_gas_step(
+                    l2_tx.clone(),
+                    gas_per_pubdata_byte,
+                    BATCH_GAS_LIMIT,
+                    batch_env.clone(),
+                    system_env.clone(),
+                    &self.fork_storage,
+                );
+            
+
+            if result.statistics.pubdata_published > MAX_VM_PUBDATA_PER_BATCH.try_into().unwrap() {
+                return Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
+                    "exceeds limit for published pubdata".into(),
+                    Default::default(),
+                )));
+            }
+
+            // It is assumed that there is no overflow here
+            (result.statistics.pubdata_published as u64) * gas_per_pubdata_byte
+        };
+
+
         // We are using binary search to find the minimal values of gas_limit under which the transaction succeeds
-        let mut lower_bound = 0;
-        let mut upper_bound = MAX_L2_TX_GAS_LIMIT as u32;
+        let mut lower_bound = 0u64;
+        let mut upper_bound = MAX_L2_TX_GAS_LIMIT;
         let mut attempt_count = 1;
 
         tracing::trace!("Starting gas estimation loop");
@@ -558,7 +568,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 upper_bound,
                 mid
             );
-            let try_gas_limit = gas_for_bytecodes_pubdata + mid;
+            let try_gas_limit = additional_gas_for_pubdata + mid;
 
             let estimate_gas_result = InMemoryNodeInner::estimate_gas_step(
                 l2_tx.clone(),
@@ -583,11 +593,8 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         tracing::trace!("  Final upper_bound: {}", upper_bound);
         tracing::trace!("  ESTIMATE_GAS_SCALE_FACTOR: {}", ESTIMATE_GAS_SCALE_FACTOR);
         tracing::trace!("  MAX_L2_TX_GAS_LIMIT: {}", MAX_L2_TX_GAS_LIMIT);
-        let tx_body_gas_limit = cmp::min(
-            MAX_L2_TX_GAS_LIMIT as u32,
-            (upper_bound as f32 * ESTIMATE_GAS_SCALE_FACTOR) as u32,
-        );
-        let suggested_gas_limit = tx_body_gas_limit + gas_for_bytecodes_pubdata;
+        let tx_body_gas_limit = upper_bound;
+        let suggested_gas_limit = tx_body_gas_limit + additional_gas_for_pubdata;
 
         let estimate_gas_result = InMemoryNodeInner::estimate_gas_step(
             l2_tx.clone(),
@@ -598,13 +605,13 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             &self.fork_storage,
         );
 
-        let overhead: u32 = derive_overhead(
+        let overhead = derive_overhead(
             suggested_gas_limit,
             gas_per_pubdata_byte as u32,
             tx.encoding_len(),
             l2_tx.common_data.transaction_type as u8,
             VmVersion::latest(),
-        );
+        ) as u64;
 
         match estimate_gas_result.result {
             ExecutionResult::Revert { output } => {
@@ -619,7 +626,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 );
                 tracing::info!(
                     "{}",
-                    format!("\tGas for pubdata: {}", gas_for_bytecodes_pubdata).red()
+                    format!("\tGas for pubdata: {}", additional_gas_for_pubdata).red()
                 );
                 tracing::info!("{}", format!("\tOverhead: {}", overhead).red());
                 let message = output.to_string();
@@ -647,7 +654,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 );
                 tracing::info!(
                     "{}",
-                    format!("\tGas for pubdata: {}", gas_for_bytecodes_pubdata).red()
+                    format!("\tGas for pubdata: {}", additional_gas_for_pubdata).red()
                 );
                 tracing::info!("{}", format!("\tOverhead: {}", overhead).red());
                 let message = reason.to_string();
@@ -665,7 +672,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             }
             ExecutionResult::Success { .. } => {
                 let full_gas_limit = match tx_body_gas_limit
-                    .overflowing_add(gas_for_bytecodes_pubdata + overhead)
+                    .overflowing_add(additional_gas_for_pubdata + overhead)
                 {
                     (value, false) => value,
                     (_, true) => {
@@ -680,7 +687,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                         );
                         tracing::info!(
                             "{}",
-                            format!("\tGas for pubdata: {}", gas_for_bytecodes_pubdata).red()
+                            format!("\tGas for pubdata: {}", additional_gas_for_pubdata).red()
                         );
                         tracing::info!("{}", format!("\tOverhead: {}", overhead).red());
                         return Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
@@ -692,7 +699,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
                 tracing::trace!("Gas Estimation Results");
                 tracing::trace!("  tx_body_gas_limit: {}", tx_body_gas_limit);
-                tracing::trace!("  gas_for_bytecodes_pubdata: {}", gas_for_bytecodes_pubdata);
+                tracing::trace!("  additional_gas_for_pubdata: {}", additional_gas_for_pubdata);
                 tracing::trace!("  overhead: {}", overhead);
                 tracing::trace!("  full_gas_limit: {}", full_gas_limit);
                 let fee = Fee {
@@ -711,7 +718,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
     fn estimate_gas_step(
         mut l2_tx: L2Tx,
         gas_per_pubdata_byte: u64,
-        tx_gas_limit: u32,
+        tx_gas_limit: u64,
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         fork_storage: &ForkStorage<S>,
@@ -726,7 +733,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 tx.encoding_len(),
                 l2_tx.common_data.transaction_type as u8,
                 VmVersion::latest(),
-            );
+            ) as u64;
         l2_tx.common_data.fee.gas_limit = gas_limit_with_overhead.into();
 
         let storage = StorageView::new(fork_storage).into_rc_ptr();
@@ -1106,7 +1113,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     fn display_detailed_gas_info(
         &self,
         bootloader_debug_result: Option<&eyre::Result<BootloaderDebug, String>>,
-        spent_on_pubdata: u32,
+        spent_on_pubdata: u64,
     ) -> eyre::Result<(), String> {
         if let Some(bootloader_result) = bootloader_debug_result {
             let bootloader_debug = bootloader_result.clone()?;
@@ -1176,7 +1183,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 );
             }
 
-            let bytes_published = spent_on_pubdata / bootloader_debug.gas_per_pubdata.as_u32();
+            let bytes_published = spent_on_pubdata / bootloader_debug.gas_per_pubdata.as_u64();
 
             tracing::info!(
                 "During execution published {} bytes to L1, @{} each - in total {} gas",
@@ -1369,7 +1376,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         let call_traces = call_tracer_result.get().unwrap();
 
         let spent_on_pubdata =
-            tx_result.statistics.gas_used - tx_result.statistics.computational_gas_used;
+            tx_result.statistics.gas_used - tx_result.statistics.computational_gas_used as u64;
 
         tracing::info!("┌─────────────────────────┐");
         tracing::info!("│   TRANSACTION SUMMARY   │");
@@ -1473,7 +1480,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             l1_batch_number: Some(U64::from(batch_env.number.0)),
             transactions: vec![TransactionVariant::Full(transaction)],
             gas_used: U256::from(tx_result.statistics.gas_used),
-            gas_limit: U256::from(BLOCK_GAS_LIMIT),
+            gas_limit: U256::from(BATCH_GAS_LIMIT),
             ..Default::default()
         };
 

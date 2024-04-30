@@ -113,6 +113,10 @@ impl<S: ReadStorage + fmt::Debug> WriteStorage for StorageView<S> {
         original
     }
 
+    fn read_storage_keys(&self) -> &HashMap<StorageKey, StorageValue> {
+        &self.read_storage_keys
+    }
+
     fn modified_storage_keys(&self) -> &HashMap<StorageKey, StorageValue> {
         &self.modified_storage_keys
     }
