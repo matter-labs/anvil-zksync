@@ -11,7 +11,7 @@ use std::{
 };
 
 use tokio::runtime::Builder;
-use zksync_basic_types::{Address, L1BatchNumber, L2ChainId, L2BlockNumber, H256, U256, U64};
+use zksync_basic_types::{Address, L1BatchNumber, L2BlockNumber, L2ChainId, H256, U256, U64};
 
 use zksync_types::{
     api::{

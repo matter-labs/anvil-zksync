@@ -377,7 +377,12 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             previous_batch_hash: None,
             number: L1BatchNumber::from(block_ctx.batch),
             timestamp: block_ctx.timestamp,
-            fee_input: block_on(async move { fee_input_provider.get_batch_fee_input_scaled(1.0, 1.0).await.unwrap() }),
+            fee_input: block_on(async move {
+                fee_input_provider
+                    .get_batch_fee_input_scaled(1.0, 1.0)
+                    .await
+                    .unwrap()
+            }),
             fee_account: H160::zero(),
             enforced_base_fee: None,
             first_l2_block: L2BlockEnv {
@@ -532,14 +537,13 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             // In theory, if the transaction has failed with such large gas limit, we could have returned an API error here right away,
             // but doing it later on keeps the code more lean.
             let result = InMemoryNodeInner::estimate_gas_step(
-                    l2_tx.clone(),
-                    gas_per_pubdata_byte,
-                    BATCH_GAS_LIMIT,
-                    batch_env.clone(),
-                    system_env.clone(),
-                    &self.fork_storage,
-                );
-            
+                l2_tx.clone(),
+                gas_per_pubdata_byte,
+                BATCH_GAS_LIMIT,
+                batch_env.clone(),
+                system_env.clone(),
+                &self.fork_storage,
+            );
 
             if result.statistics.pubdata_published > MAX_VM_PUBDATA_PER_BATCH.try_into().unwrap() {
                 return Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
@@ -551,7 +555,6 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             // It is assumed that there is no overflow here
             (result.statistics.pubdata_published as u64) * gas_per_pubdata_byte
         };
-
 
         // We are using binary search to find the minimal values of gas_limit under which the transaction succeeds
         let mut lower_bound = 0u64;
@@ -699,7 +702,10 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
                 tracing::trace!("Gas Estimation Results");
                 tracing::trace!("  tx_body_gas_limit: {}", tx_body_gas_limit);
-                tracing::trace!("  additional_gas_for_pubdata: {}", additional_gas_for_pubdata);
+                tracing::trace!(
+                    "  additional_gas_for_pubdata: {}",
+                    additional_gas_for_pubdata
+                );
                 tracing::trace!("  overhead: {}", overhead);
                 tracing::trace!("  full_gas_limit: {}", full_gas_limit);
                 let fee = Fee {
