@@ -1483,7 +1483,9 @@ mod tests {
     use maplit::hashmap;
     use zksync_basic_types::{web3, Nonce};
     use zksync_types::{
-        api::{BlockHashObject, BlockNumber, BlockNumberObject, TransactionReceipt}, utils::deployed_address_create, K256PrivateKey, PackedEthSignature
+        api::{BlockHashObject, BlockNumber, BlockNumberObject, TransactionReceipt},
+        utils::deployed_address_create,
+        K256PrivateKey,
     };
     use zksync_web3_decl::types::{SyncState, ValueOrArray};
 

@@ -248,7 +248,8 @@ mod tests {
     use zksync_types::{
         api::{Block, CallTracerConfig, SupportedTracers, TransactionReceipt},
         transaction_request::CallRequestBuilder,
-        utils::deployed_address_create, K256PrivateKey,
+        utils::deployed_address_create,
+        K256PrivateKey,
     };
 
     fn deploy_test_contracts(node: &InMemoryNode<HttpForkSource>) -> (Address, Address) {

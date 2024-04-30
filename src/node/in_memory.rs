@@ -67,9 +67,7 @@ use zksync_types::{
     ACCOUNT_CODE_STORAGE_ADDRESS, MAX_L2_TX_GAS_LIMIT, SYSTEM_CONTEXT_ADDRESS,
     SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
 };
-use zksync_utils::{
-    h256_to_account_address, h256_to_u256, u256_to_h256,
-};
+use zksync_utils::{h256_to_account_address, h256_to_u256, u256_to_h256};
 use zksync_web3_decl::error::Web3Error;
 
 /// Max possible size of an ABI encoded tx (in bytes).
@@ -85,8 +83,6 @@ pub const L1_GAS_PRICE: u64 = 50_000_000_000;
 pub const L2_GAS_PRICE: u64 = 50_000_000;
 /// L1 Gas Price Scale Factor for gas estimation.
 pub const ESTIMATE_GAS_PRICE_SCALE_FACTOR: f64 = 1.5;
-/// The max possible number of gas that `eth_estimateGas` is allowed to overestimate.
-pub const ESTIMATE_GAS_PUBLISH_BYTE_OVERHEAD: u32 = 100;
 /// Acceptable gas overestimation limit.
 pub const ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION: u64 = 1_000;
 /// The factor by which to scale the gasLimit.
