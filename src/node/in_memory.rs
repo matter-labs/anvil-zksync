@@ -590,7 +590,8 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         tracing::trace!("  ESTIMATE_GAS_SCALE_FACTOR: {}", ESTIMATE_GAS_SCALE_FACTOR);
         tracing::trace!("  MAX_L2_TX_GAS_LIMIT: {}", MAX_L2_TX_GAS_LIMIT);
         let tx_body_gas_limit = upper_bound;
-        let suggested_gas_limit = tx_body_gas_limit + additional_gas_for_pubdata;
+        let suggested_gas_limit =
+            ((upper_bound + additional_gas_for_pubdata) as f32 * ESTIMATE_GAS_SCALE_FACTOR) as u64;
 
         let estimate_gas_result = InMemoryNodeInner::estimate_gas_step(
             l2_tx.clone(),
@@ -667,8 +668,8 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 )))
             }
             ExecutionResult::Success { .. } => {
-                let full_gas_limit = match tx_body_gas_limit
-                    .overflowing_add(additional_gas_for_pubdata + overhead)
+                let full_gas_limit = match suggested_gas_limit
+                    .overflowing_add(suggested_gas_limit + overhead)
                 {
                     (value, false) => value,
                     (_, true) => {

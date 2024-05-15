@@ -30,13 +30,13 @@ describe("zks_estimateFee", function () {
     // Act
     const response: Fee = await provider.send("zks_estimateFee", [transaction]);
     // Assert
-    expect(ethers.BigNumber.from(response.gas_limit)).to.eql(ethers.BigNumber.from("2407036"), "Unexpected gas_limit");
+    expect(ethers.BigNumber.from(response.gas_limit)).to.eql(ethers.BigNumber.from("5448356"), "Unexpected gas_limit");
     expect(ethers.BigNumber.from(response.gas_per_pubdata_limit)).to.eql(
-      ethers.BigNumber.from("32000"),
+      ethers.BigNumber.from("37500"),
       "Unexpected gas_per_pubdata_limit"
     );
     expect(ethers.BigNumber.from(response.max_fee_per_gas)).to.eql(
-      ethers.BigNumber.from("58593750"),
+      ethers.BigNumber.from("50000000"),
       "Unexpected max_fee_per_gas"
     );
     expect(ethers.BigNumber.from(response.max_priority_fee_per_gas)).to.eql(
@@ -79,8 +79,10 @@ describe("zks_getBridgeContracts", function () {
     const bridgeAddresses = await provider.send("zks_getBridgeContracts", []);
 
     expect(bridgeAddresses).to.deep.equal({
-      l1Erc20DefaultBridge: "0x0000000000000000000000000000000000000000",
-      l2Erc20DefaultBridge: "0x0000000000000000000000000000000000000000",
+      l1Erc20DefaultBridge: null,
+      l1SharedDefaultBridge: null,
+      l2Erc20DefaultBridge: null,
+      l2SharedDefaultBridge: null,
       l1WethBridge: null,
       l2WethBridge: null,
     });

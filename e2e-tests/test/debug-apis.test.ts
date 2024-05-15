@@ -25,12 +25,11 @@ describe("debug_traceCall", function () {
     const deployer = new Deployer(hre, wallet);
     const secondary = await deployContract(deployer, "Secondary", ["3"]);
     await deployContract(deployer, "Primary", [secondary.address]);
-
     const result = await provider.send("debug_traceCall", [
       {
         to: secondary.address,
         data: secondary.interface.encodeFunctionData("multiply", ["4"]),
-        gas: "0x5f5e100",
+        gas: "0x7f5e100",
       },
       "latest",
       { tracer: "callTracer", tracerConfig: { onlyTopCall: true } },
