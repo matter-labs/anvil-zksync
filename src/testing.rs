@@ -781,7 +781,7 @@ impl ForkSource for &ExternalStorage {
     fn get_transaction_by_block_hash_and_index(
         &self,
         _block_hash: H256,
-        _index: zksync_basic_types::web3::types::Index,
+        _index: zksync_basic_types::web3::Index,
     ) -> eyre::Result<Option<zksync_types::api::Transaction>> {
         todo!()
     }
@@ -789,7 +789,7 @@ impl ForkSource for &ExternalStorage {
     fn get_transaction_by_block_number_and_index(
         &self,
         _block_number: zksync_types::api::BlockNumber,
-        _index: zksync_basic_types::web3::types::Index,
+        _index: zksync_basic_types::web3::Index,
     ) -> eyre::Result<Option<zksync_types::api::Transaction>> {
         todo!()
     }

@@ -1,5 +1,5 @@
 use std::fmt::Debug;
-use zksync_core::fee_model::BatchFeeModelInputProvider;
+use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams, FeeParamsV2};
 use zksync_types::L1_GAS_PER_PUBDATA_BYTE;
 

@@ -7,6 +7,7 @@ use std::{
     collections::HashMap,
     convert::{TryFrom, TryInto},
     future::Future,
+    str::FromStr,
     sync::{Arc, RwLock},
 };
 
@@ -19,6 +20,7 @@ use zksync_types::{
         TransactionDetails, TransactionVariant,
     },
     l2::L2Tx,
+    url::SensitiveUrl,
     ProtocolVersionId, StorageKey,
 };
 
@@ -26,9 +28,10 @@ use zksync_state::ReadStorage;
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 
 use zksync_web3_decl::{
-    jsonrpsee::http_client::HttpClient, namespaces::EthNamespaceClient, types::Index,
+    client::{Client, L2},
+    namespaces::ZksNamespaceClient,
 };
-use zksync_web3_decl::{jsonrpsee::http_client::HttpClientBuilder, namespaces::ZksNamespaceClient};
+use zksync_web3_decl::{namespaces::EthNamespaceClient, types::Index};
 
 use crate::system_contracts;
 use crate::{cache::CacheConfig, node::TEST_NODE_NETWORK_ID};
@@ -354,7 +357,7 @@ pub fn supported_versions_to_string() -> String {
 impl ForkDetails<HttpForkSource> {
     pub async fn from_url_and_miniblock_and_chain(
         url: &str,
-        client: HttpClient,
+        client: Client<L2>,
         miniblock: u64,
         chain_id: Option<L2ChainId>,
         cache_config: CacheConfig,
@@ -447,7 +450,7 @@ impl ForkDetails<HttpForkSource> {
 
 impl<S: ForkSource> ForkDetails<S> {
     /// Return URL and HTTP client for a given fork name.
-    pub fn fork_to_url_and_client(fork: &str) -> (&str, HttpClient) {
+    pub fn fork_to_url_and_client(fork: &str) -> (&str, Client<L2>) {
         let url = match fork {
             "mainnet" => "https://mainnet.era.zksync.io:443",
             "sepolia-testnet" => "https://sepolia.era.zksync.dev:443",
@@ -455,9 +458,11 @@ impl<S: ForkSource> ForkDetails<S> {
             _ => fork,
         };
 
-        let client = HttpClientBuilder::default()
-            .build(url)
-            .expect("Unable to create a client for fork");
+        let parsed_url = SensitiveUrl::from_str(url)
+            .unwrap_or_else(|_| panic!("Unable to parse client URL: {}", &url));
+        let client = Client::http(parsed_url)
+            .unwrap_or_else(|_| panic!("Unable to create a client for fork: {}", &url))
+            .build();
 
         (url, client)
     }

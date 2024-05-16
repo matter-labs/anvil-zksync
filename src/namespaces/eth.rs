@@ -3,8 +3,8 @@ use jsonrpc_derive::rpc;
 use zksync_types::{
     api::{BlockIdVariant, BlockNumber, Transaction, TransactionReceipt, TransactionVariant},
     transaction_request::CallRequest,
-    web3::types::{FeeHistory, Index, SyncState},
-    Address, Bytes, H256, U256, U64,
+    web3::{Bytes, FeeHistory, Index, SyncState},
+    Address, H256, U256, U64,
 };
 use zksync_web3_decl::types::{Block, Filter, FilterChanges, Log};
 

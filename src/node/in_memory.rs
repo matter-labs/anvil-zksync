@@ -48,11 +48,11 @@ use multivm::{
 };
 use std::convert::TryInto;
 use zksync_basic_types::{
-    web3::signing::keccak256, AccountTreeId, Address, Bytes, L1BatchNumber, L2BlockNumber, H160,
-    H256, U256, U64,
+    web3::keccak256, web3::Bytes, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, H160, H256,
+    U256, U64,
 };
 use zksync_contracts::BaseSystemContracts;
-use zksync_core::fee_model::BatchFeeModelInputProvider;
+use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_state::{ReadStorage, StoragePtr, WriteStorage};
 use zksync_types::{
     api::{Block, DebugCall, Log, TransactionReceipt, TransactionVariant},
@@ -1080,7 +1080,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         match &tx_result.result {
             ExecutionResult::Success { output } => {
                 tracing::info!("Call: {}", "SUCCESS".green());
-                let output_bytes = zksync_basic_types::Bytes::from(output.clone());
+                let output_bytes = zksync_basic_types::web3::Bytes::from(output.clone());
                 tracing::info!("Output: {}", serde_json::to_string(&output_bytes).unwrap());
             }
             ExecutionResult::Revert { output } => {

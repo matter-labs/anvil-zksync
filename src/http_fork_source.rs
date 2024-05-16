@@ -1,4 +1,7 @@
-use std::sync::{Arc, RwLock};
+use std::{
+    str::FromStr,
+    sync::{Arc, RwLock},
+};
 
 use crate::{
     cache::{Cache, CacheConfig},
@@ -6,13 +9,16 @@ use crate::{
 };
 use eyre::Context;
 use zksync_basic_types::{H256, U256};
-use zksync_types::api::{BridgeAddresses, Transaction};
-use zksync_web3_decl::types::Token;
+use zksync_types::{
+    api::{BridgeAddresses, Transaction},
+    url::SensitiveUrl,
+};
 use zksync_web3_decl::{
-    jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
+    client::Client,
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
     types::Index,
 };
+use zksync_web3_decl::{client::L2, types::Token};
 
 #[derive(Debug, Clone)]
 /// Fork source that gets the data via HTTP requests.
@@ -31,10 +37,12 @@ impl HttpForkSource {
         }
     }
 
-    pub fn create_client(&self) -> HttpClient {
-        HttpClientBuilder::default()
-            .build(self.fork_url.clone())
+    pub fn create_client(&self) -> Client<L2> {
+        let url = SensitiveUrl::from_str(&self.fork_url)
+            .unwrap_or_else(|_| panic!("Unable to parse client URL: {}", &self.fork_url));
+        Client::http(url)
             .unwrap_or_else(|_| panic!("Unable to create a client for fork: {}", self.fork_url))
+            .build()
     }
 }
 

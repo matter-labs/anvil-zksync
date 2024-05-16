@@ -5,7 +5,10 @@ use futures::FutureExt;
 use itertools::Itertools;
 use multivm::interface::{ExecutionResult, TxExecutionMode};
 use multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
-use zksync_basic_types::{web3, AccountTreeId, Address, Bytes, H160, H256, U256, U64};
+use zksync_basic_types::{
+    web3::{self, Bytes},
+    AccountTreeId, Address, H160, H256, U256, U64,
+};
 use zksync_state::ReadStorage;
 use zksync_types::{
     api::{Block, BlockIdVariant, BlockNumber, TransactionVariant},
@@ -58,7 +61,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
         &self,
         req: zksync_types::transaction_request::CallRequest,
         _block: Option<BlockIdVariant>,
-    ) -> RpcResult<zksync_basic_types::Bytes> {
+    ) -> RpcResult<Bytes> {
         match L2Tx::from_request(req.into(), MAX_TX_SIZE) {
             Ok(mut tx) => {
                 tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
@@ -244,12 +247,12 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
     /// # Returns
     ///
     /// A `BoxFuture` containing the result of the operation, which is a `jsonrpc_core::Result` containing
-    /// the code as a `zksync_basic_types::Bytes` object.
+    /// the code as a `Bytes` object.
     fn get_code(
         &self,
         address: zksync_basic_types::Address,
         _block: Option<BlockIdVariant>,
-    ) -> RpcResult<zksync_basic_types::Bytes> {
+    ) -> RpcResult<Bytes> {
         let inner = self.get_inner().clone();
 
         Box::pin(async move {
@@ -349,10 +352,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
     /// # Returns
     ///
     /// A future that resolves to the hash of the transaction if successful, or an error if the transaction is invalid or execution fails.
-    fn send_raw_transaction(
-        &self,
-        tx_bytes: zksync_basic_types::Bytes,
-    ) -> RpcResult<zksync_basic_types::H256> {
+    fn send_raw_transaction(&self, tx_bytes: Bytes) -> RpcResult<zksync_basic_types::H256> {
         let chain_id = match self.get_inner().read() {
             Ok(reader) => reader.fork_storage.chain_id,
             Err(_) => {
@@ -1105,7 +1105,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
     fn get_transaction_by_block_hash_and_index(
         &self,
         block_hash: zksync_basic_types::H256,
-        index: zksync_basic_types::web3::types::Index,
+        index: zksync_basic_types::web3::Index,
     ) -> RpcResult<Option<zksync_types::api::Transaction>> {
         let inner = self.get_inner().clone();
 
@@ -1172,7 +1172,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
     fn get_transaction_by_block_number_and_index(
         &self,
         block_number: BlockNumber,
-        index: zksync_basic_types::web3::types::Index,
+        index: zksync_basic_types::web3::Index,
     ) -> RpcResult<Option<zksync_types::api::Transaction>> {
         let inner = self.get_inner().clone();
 
@@ -1347,7 +1347,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
             base_fee_per_gas.push(*base_fee_per_gas.last().unwrap());
 
             Ok(FeeHistory {
-                oldest_block: web3::types::BlockNumber::Number(oldest_block.into()),
+                oldest_block: web3::BlockNumber::Number(oldest_block.into()),
                 base_fee_per_gas,
                 gas_used_ratio,
                 reward,
@@ -1509,7 +1509,7 @@ mod tests {
 
         assert_eq!(
             fee_history.oldest_block,
-            web3::types::BlockNumber::Number(U64::from(0))
+            web3::BlockNumber::Number(U64::from(0))
         );
         assert_eq!(
             fee_history.base_fee_per_gas,
@@ -1530,7 +1530,7 @@ mod tests {
 
         assert_eq!(
             fee_history.oldest_block,
-            web3::types::BlockNumber::Number(U64::from(0))
+            web3::BlockNumber::Number(U64::from(0))
         );
         assert_eq!(
             fee_history.base_fee_per_gas,
@@ -1561,7 +1561,7 @@ mod tests {
         assert_eq!(latest_block, U64::from(2));
         assert_eq!(
             fee_history.oldest_block,
-            web3::types::BlockNumber::Number(U64::from(1))
+            web3::BlockNumber::Number(U64::from(1))
         );
         assert_eq!(
             fee_history.base_fee_per_gas,
