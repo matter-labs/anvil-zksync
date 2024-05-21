@@ -20,7 +20,7 @@ use zksync_web3_decl::error::Web3Error;
 use crate::{
     fork::ForkSource,
     namespaces::{RpcResult, ZksNamespaceT},
-    node::{InMemoryNode, TransactionResult, L2_GAS_PRICE},
+    node::{InMemoryNode, TransactionResult},
     utils::{
         internal_error, into_jsrpc_error, not_implemented, utc_datetime_from_epoch_ms,
         IntoBoxedFuture,
@@ -382,7 +382,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
                         execute_tx_hash: None,
                         executed_at: None,
                         l1_gas_price: 0,
-                        l2_fair_gas_price: L2_GAS_PRICE,
+                        l2_fair_gas_price: reader.fee_input_provider.l2_gas_price,
                         base_system_contracts_hashes: reader
                             .system_contracts
                             .baseline_contracts

@@ -29,7 +29,7 @@ use crate::{
     filters::{FilterType, LogFilter},
     fork::ForkSource,
     namespaces::{EthNamespaceT, EthTestNodeNamespaceT, RpcResult},
-    node::{InMemoryNode, TransactionResult, L2_GAS_PRICE, MAX_TX_SIZE, PROTOCOL_VERSION},
+    node::{InMemoryNode, TransactionResult, MAX_TX_SIZE, PROTOCOL_VERSION},
     utils::{self, h256_to_u64, into_jsrpc_error, not_implemented, IntoBoxedFuture},
 };
 
@@ -610,7 +610,12 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
 
     /// Returns the current gas price in U256 format.
     fn gas_price(&self) -> RpcResult<U256> {
-        let fair_l2_gas_price: u64 = L2_GAS_PRICE;
+        let fair_l2_gas_price: u64 = self
+            .get_inner()
+            .read()
+            .expect("Failed to acquire read lock")
+            .fee_input_provider
+            .l2_gas_price;
         Ok(U256::from(fair_l2_gas_price)).into_boxed_future()
     }
 
@@ -1332,7 +1337,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
                 // Can't be more than the total number of blocks
                 .clamp(1, reader.current_miniblock + 1);
 
-            let mut base_fee_per_gas = vec![U256::from(L2_GAS_PRICE); block_count as usize];
+            let mut base_fee_per_gas =
+                vec![U256::from(reader.fee_input_provider.l2_gas_price); block_count as usize];
 
             let oldest_block = reader.current_miniblock + 1 - base_fee_per_gas.len() as u64;
             // We do not store gas used ratio for blocks, returns array of zeroes as a placeholder.
@@ -1474,7 +1480,7 @@ mod tests {
         cache::CacheConfig,
         fork::ForkDetails,
         http_fork_source::HttpForkSource,
-        node::{compute_hash, InMemoryNode, Snapshot},
+        node::{compute_hash, InMemoryNode, Snapshot, DEFAULT_L2_GAS_PRICE},
         testing::{
             self, default_tx_debug_info, ForkBlockConfig, LogBuilder, MockServer,
             TransactionResponseBuilder,
@@ -1513,7 +1519,7 @@ mod tests {
         );
         assert_eq!(
             fee_history.base_fee_per_gas,
-            vec![U256::from(L2_GAS_PRICE); 2]
+            vec![U256::from(DEFAULT_L2_GAS_PRICE); 2]
         );
         assert_eq!(fee_history.gas_used_ratio, vec![0.0]);
         assert_eq!(fee_history.reward, Some(vec![vec![U256::from(0); 3]]));
@@ -1534,7 +1540,7 @@ mod tests {
         );
         assert_eq!(
             fee_history.base_fee_per_gas,
-            vec![U256::from(L2_GAS_PRICE); 2]
+            vec![U256::from(DEFAULT_L2_GAS_PRICE); 2]
         );
         assert_eq!(fee_history.gas_used_ratio, vec![0.0]);
         assert_eq!(fee_history.reward, Some(vec![vec![]]));
@@ -1565,7 +1571,7 @@ mod tests {
         );
         assert_eq!(
             fee_history.base_fee_per_gas,
-            vec![U256::from(L2_GAS_PRICE); 3]
+            vec![U256::from(DEFAULT_L2_GAS_PRICE); 3]
         );
         assert_eq!(fee_history.gas_used_ratio, vec![0.0, 0.0]);
         assert_eq!(fee_history.reward, Some(vec![vec![U256::from(0); 3]; 2]));

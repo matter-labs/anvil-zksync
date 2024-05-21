@@ -5,7 +5,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use colored::Colorize;
 use fork::{ForkDetails, ForkSource};
 use logging_middleware::LoggingMiddleware;
-use node::ShowCalls;
+use node::{ShowCalls, DEFAULT_L2_GAS_PRICE};
 use observability::LogLevel;
 use tracing_subscriber::filter::LevelFilter;
 
@@ -232,6 +232,10 @@ struct Cli {
     /// Show Gas details information
     show_gas_details: ShowGasDetails,
 
+    #[arg(long, default_value_t = DEFAULT_L2_GAS_PRICE)]
+    /// If provided, uses a custom value as the L2 gas price.
+    l2_gas_price: u64,
+
     #[arg(long)]
     /// If true, the tool will try to contact openchain to resolve the ABI & topic names.
     /// It will make debug log more readable, but will decrease the performance.
@@ -360,6 +364,7 @@ async fn main() -> anyhow::Result<()> {
         fork_details,
         Some(observability),
         InMemoryNodeConfig {
+            l2_gas_price: opt.l2_gas_price,
             show_calls: opt.show_calls,
             show_outputs: opt.show_outputs,
             show_storage_logs: opt.show_storage_logs,

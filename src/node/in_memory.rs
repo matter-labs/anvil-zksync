@@ -6,10 +6,7 @@ use crate::{
     filters::EthFilters,
     fork::{block_on, ForkDetails, ForkSource, ForkStorage},
     formatter,
-    node::{
-        fee_model::{TestNodeFeeInputProvider, CONFIG},
-        storage_logs::print_storage_logs_details,
-    },
+    node::{fee_model::TestNodeFeeInputProvider, storage_logs::print_storage_logs_details},
     observability::Observability,
     system_contracts::{self, SystemContracts},
     utils::{bytecode_to_factory_dep, create_debug_output, into_jsrpc_error, to_human_size},
@@ -79,8 +76,8 @@ pub const TEST_NODE_NETWORK_ID: u32 = 260;
 /// L1 Gas Price.
 pub const L1_GAS_PRICE: u64 = 50_000_000_000;
 // TODO: for now, that's fine, as computation overhead is set to zero, but we may consider using calculated fee input everywhere.
-/// L2 Gas Price.
-pub const L2_GAS_PRICE: u64 = 25_000_000;
+/// The default L2 Gas Price to be used if not supplied via the CLI argument.
+pub const DEFAULT_L2_GAS_PRICE: u64 = 25_000_000;
 /// L1 Gas Price Scale Factor for gas estimation.
 pub const ESTIMATE_GAS_PRICE_SCALE_FACTOR: f64 = 1.5;
 /// Acceptable gas overestimation limit.
@@ -882,8 +879,10 @@ pub struct Snapshot {
 }
 
 /// Defines the configuration parameters for the [InMemoryNode].
-#[derive(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct InMemoryNodeConfig {
+    // The values to be used when calculating gas.
+    pub l2_gas_price: u64,
     pub show_calls: ShowCalls,
     pub show_outputs: bool,
     pub show_storage_logs: ShowStorageLogs,
@@ -891,6 +890,21 @@ pub struct InMemoryNodeConfig {
     pub show_gas_details: ShowGasDetails,
     pub resolve_hashes: bool,
     pub system_contracts_options: system_contracts::Options,
+}
+
+impl Default for InMemoryNodeConfig {
+    fn default() -> Self {
+        Self {
+            l2_gas_price: DEFAULT_L2_GAS_PRICE,
+            show_calls: Default::default(),
+            show_outputs: Default::default(),
+            show_storage_logs: Default::default(),
+            show_vm_details: Default::default(),
+            show_gas_details: Default::default(),
+            resolve_hashes: Default::default(),
+            system_contracts_options: Default::default(),
+        }
+    }
 }
 
 /// In-memory node, that can be used for local & unit testing.
@@ -938,7 +952,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 current_batch: f.l1_block.0,
                 current_miniblock: f.l2_miniblock,
                 current_miniblock_hash: f.l2_miniblock_hash,
-                fee_input_provider: TestNodeFeeInputProvider::new(f.l1_gas_price),
+                fee_input_provider: TestNodeFeeInputProvider::new(
+                    f.l1_gas_price,
+                    config.l2_gas_price,
+                ),
                 tx_results: Default::default(),
                 blocks,
                 block_hashes,
@@ -972,7 +989,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 current_batch: 0,
                 current_miniblock: 0,
                 current_miniblock_hash: block_hash,
-                fee_input_provider: TestNodeFeeInputProvider::new(L1_GAS_PRICE),
+                fee_input_provider: TestNodeFeeInputProvider::new(
+                    L1_GAS_PRICE,
+                    config.l2_gas_price,
+                ),
                 tx_results: Default::default(),
                 blocks,
                 block_hashes,
@@ -1243,10 +1263,20 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 )
             );
 
-            tracing::info!(
-                "Publishing full block costs the operator around {} l2 gas",
-                to_human_size(bootloader_debug.gas_per_pubdata * CONFIG.batch_overhead_l1_gas),
-            );
+            {
+                let fee_model_config = self
+                    .inner
+                    .read()
+                    .expect("Failed to acquire reading lock")
+                    .fee_input_provider
+                    .get_fee_model_config();
+                tracing::info!(
+                    "Publishing full block costs the operator around {} l2 gas",
+                    to_human_size(
+                        bootloader_debug.gas_per_pubdata * fee_model_config.batch_overhead_l1_gas
+                    ),
+                );
+            }
             tracing::info!("Your transaction has contributed to filling up the block in the following way (we take the max contribution as the cost):");
             tracing::info!(
                 "  Length overhead:  {:>15}",
@@ -1277,7 +1307,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             return Err("exceeds block gas limit".into());
         }
 
-        if tx.common_data.fee.max_fee_per_gas < L2_GAS_PRICE.into() {
+        let l2_gas_price = self
+            .inner
+            .read()
+            .expect("failed acquiring reader")
+            .fee_input_provider
+            .l2_gas_price;
+        if tx.common_data.fee.max_fee_per_gas < l2_gas_price.into() {
             tracing::info!(
                 "Submitted Tx is Unexecutable {:?} because of MaxFeePerGasTooLow {}",
                 tx.hash(),
@@ -1619,7 +1655,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             } else {
                 U64::from(1)
             },
-            effective_gas_price: Some(L2_GAS_PRICE.into()),
+            effective_gas_price: Some(inner.fee_input_provider.l2_gas_price.into()),
             ..Default::default()
         };
         let debug = create_debug_output(&l2_tx, &result, call_traces).expect("create debug output"); // OK to unwrap here as Halt is handled above
@@ -1771,7 +1807,7 @@ mod tests {
     async fn test_run_l2_tx_validates_tx_max_fee_per_gas_too_low() {
         let node = InMemoryNode::<HttpForkSource>::default();
         let tx = testing::TransactionBuilder::new()
-            .set_max_fee_per_gas(U256::from(L2_GAS_PRICE - 1))
+            .set_max_fee_per_gas(U256::from(DEFAULT_L2_GAS_PRICE - 1))
             .build();
         node.set_rich_account(tx.common_data.initiator_address);
 
