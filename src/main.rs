@@ -1,6 +1,7 @@
 use crate::cache::CacheConfig;
 use crate::node::{InMemoryNodeConfig, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
 use crate::observability::Observability;
+use crate::utils::to_human_size;
 use clap::{Parser, Subcommand, ValueEnum};
 use colored::Colorize;
 use fork::{ForkDetails, ForkSource};
@@ -361,21 +362,32 @@ async fn main() -> anyhow::Result<()> {
         DevSystemContracts::Local => system_contracts::Options::Local,
     };
 
-    // If L2 gas price has been supplied as an argument use that value,
-    // otherwise procure it from the fork source, or if that fails, use the
-    // `DEFAULT_L2_GAS_PRICE`.
-    let l2_fair_gas_price = opt.l2_gas_price.unwrap_or_else(|| {
+    // If we're forking we set the price to be equal to that contained within
+    // `ForkDetails`. If not, we use the `DEFAULT_L2_GAS_PRICE` instead.
+    let mut l2_fair_gas_price = {
         if let Some(f) = &fork_details {
             f.l2_fair_gas_price
         } else {
             DEFAULT_L2_GAS_PRICE
         }
-    });
+    };
 
-    tracing::info!(
-        "Starting node with L2 gas price set to {}",
-        l2_fair_gas_price
-    );
+    // If L2 gas price has been supplied as an argument, override the value
+    // procured previously.
+    match opt.l2_gas_price {
+        Some(l2_gas_price) => {
+            tracing::info!(
+                "Starting node with L2 gas price set to {} (overridden from {})",
+                to_human_size(l2_gas_price.into()),
+                to_human_size(l2_fair_gas_price.into())
+            );
+            l2_fair_gas_price = l2_gas_price;
+        }
+        None => tracing::info!(
+            "Starting node with L2 gas price set to {}",
+            to_human_size(l2_fair_gas_price.into())
+        ),
+    }
 
     let node = InMemoryNode::new(
         fork_details,
