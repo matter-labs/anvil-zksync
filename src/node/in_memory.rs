@@ -1402,7 +1402,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             BootloaderDebugTracer {
                 result: bootloader_debug_result.clone(),
             }
-                .into_tracer_pointer(),
+            .into_tracer_pointer(),
         );
 
         let tx_result = vm.inspect(tracers.into(), VmExecutionMode::OneTx);
@@ -1436,8 +1436,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 "Use --show-gas-details flag or call config_setShowGasDetails to display more info"
             ),
             ShowGasDetails::All => {
-                let info = self
-                    .display_detailed_gas_info(bootloader_debug_result.get(), spent_on_pubdata);
+                let info =
+                    self.display_detailed_gas_info(bootloader_debug_result.get(), spent_on_pubdata);
                 if info.is_err() {
                     tracing::info!(
                         "{}\nError: {}",
@@ -1898,7 +1898,7 @@ mod tests {
             vec![],
             true,
         )
-            .expect("transaction must pass with external storage");
+        .expect("transaction must pass with external storage");
     }
 
     #[tokio::test]
@@ -1942,7 +1942,7 @@ mod tests {
             None,
             Default::default(),
         )
-            .expect("failed signing tx");
+        .expect("failed signing tx");
         tx.common_data.transaction_type = TransactionType::LegacyTransaction;
         tx.set_input(vec![], H256::repeat_byte(0x2));
         let (_, result, ..) = node
