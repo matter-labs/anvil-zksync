@@ -14,14 +14,14 @@ use zksync_state::WriteStorage;
 const DEBUG_START_SENTINEL: u64 = 1337;
 
 // Taken from bootloader.yul (MAX_MEM_SIZE)
-const MAX_MEMORY_BYTES: usize = 30_000_000;
+const MAX_MEMORY_BYTES: usize = 63_800_000;
 
 // Taken from Systemconfig.json
 const MAX_TRANSACTIONS: usize = 10000;
 
 const RESULTS_BYTES_OFFSET: usize = MAX_MEMORY_BYTES - MAX_TRANSACTIONS * 32;
 
-const VM_HOOKS_PARAMS: usize = 2;
+const VM_HOOKS_PARAMS: usize = 3;
 
 const VM_HOOKS_START: usize = RESULTS_BYTES_OFFSET - (VM_HOOKS_PARAMS + 1) * 32;
 
