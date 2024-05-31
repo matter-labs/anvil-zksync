@@ -55,16 +55,36 @@ where
     .unwrap()
 }
 
-// TODO: Don't match on url, we should have an enum representing each possible value instead.
-pub fn gase_scale_factors_from_url(url: &str) -> (f64, f32) {
-    match url {
-        "https://mainnet.era.zksync.io:443" => (1.5, 1.2),
-        "https://sepolia.era.zksync.dev:443" => (2.0, 1.2),
-        "https://testnet.era.zksync.dev:443" => (1.2, 1.2),
-        _ => (
-            DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
-            DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
-        ),
+/// The possible networks to fork from.
+pub enum ForkNetwork {
+    Mainnet,
+    SepoliaTestnet,
+    GoerliTestnet,
+    Other(String),
+}
+
+impl ForkNetwork {
+    /// Return the URL for the underlying fork source.
+    pub fn to_url(&self) -> &str {
+        match self {
+            ForkNetwork::Mainnet => "https://mainnet.era.zksync.io:443",
+            ForkNetwork::SepoliaTestnet => "https://sepolia.era.zksync.dev:443",
+            ForkNetwork::GoerliTestnet => "https://testnet.era.zksync.dev:443",
+            ForkNetwork::Other(url) => url,
+        }
+    }
+
+    /// Returns the local gas scale factors currently in ues by the upstream network.
+    pub fn local_gas_scale_factors(&self) -> (f64, f32) {
+        match self {
+            ForkNetwork::Mainnet => (1.5, 1.2),
+            ForkNetwork::SepoliaTestnet => (2.0, 1.2),
+            ForkNetwork::GoerliTestnet => (1.2, 1.2),
+            ForkNetwork::Other(_) => (
+                DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
+                DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
+            ),
+        }
     }
 }
 
@@ -376,13 +396,14 @@ pub fn supported_versions_to_string() -> String {
 }
 
 impl ForkDetails<HttpForkSource> {
-    pub async fn from_url_and_miniblock_and_chain(
-        url: &str,
+    pub async fn from_network_and_miniblock_and_chain(
+        network: ForkNetwork,
         client: Client<L2>,
         miniblock: u64,
         chain_id: Option<L2ChainId>,
         cache_config: CacheConfig,
     ) -> Self {
+        let url = network.to_url();
         let block_details = client
             .get_block_details(L2BlockNumber(miniblock as u32))
             .await
@@ -423,7 +444,7 @@ impl ForkDetails<HttpForkSource> {
         }
 
         let (estimate_gas_price_scale_factor, estimate_gas_scale_factor) =
-            gase_scale_factors_from_url(url);
+            network.local_gas_scale_factors();
         ForkDetails {
             fork_source: HttpForkSource::new(url.to_owned(), cache_config),
             l1_block: l1_batch_number,
@@ -440,19 +461,26 @@ impl ForkDetails<HttpForkSource> {
     }
     /// Create a fork from a given network at a given height.
     pub async fn from_network(fork: &str, fork_at: Option<u64>, cache_config: CacheConfig) -> Self {
-        let (url, client) = Self::fork_to_url_and_client(fork);
+        let (network, client) = Self::fork_network_and_client(fork);
         let l2_miniblock = if let Some(fork_at) = fork_at {
             fork_at
         } else {
             client.get_block_number().await.unwrap().as_u64()
         };
-        Self::from_url_and_miniblock_and_chain(url, client, l2_miniblock, None, cache_config).await
+        Self::from_network_and_miniblock_and_chain(
+            network,
+            client,
+            l2_miniblock,
+            None,
+            cache_config,
+        )
+        .await
     }
 
     /// Create a fork from a given network, at a height BEFORE a transaction.
     /// This will allow us to apply this transaction locally on top of this fork.
     pub async fn from_network_tx(fork: &str, tx: H256, cache_config: CacheConfig) -> Self {
-        let (url, client) = Self::fork_to_url_and_client(fork);
+        let (network, client) = Self::fork_network_and_client(fork);
         let tx_details = client.get_transaction_by_hash(tx).await.unwrap().unwrap();
         let overwrite_chain_id = Some(
             L2ChainId::try_from(tx_details.chain_id.as_u64()).unwrap_or_else(|err| {
@@ -463,8 +491,8 @@ impl ForkDetails<HttpForkSource> {
         // We have to sync to the one-miniblock before the one where transaction is.
         let l2_miniblock = miniblock_number.saturating_sub(1) as u64;
 
-        Self::from_url_and_miniblock_and_chain(
-            url,
+        Self::from_network_and_miniblock_and_chain(
+            network,
             client,
             l2_miniblock,
             overwrite_chain_id,
@@ -475,22 +503,23 @@ impl ForkDetails<HttpForkSource> {
 }
 
 impl<S: ForkSource> ForkDetails<S> {
-    /// Return URL and HTTP client for a given fork name.
-    pub fn fork_to_url_and_client(fork: &str) -> (&str, Client<L2>) {
-        let url = match fork {
-            "mainnet" => "https://mainnet.era.zksync.io:443",
-            "sepolia-testnet" => "https://sepolia.era.zksync.dev:443",
-            "goerli-testnet" => "https://testnet.era.zksync.dev:443",
-            _ => fork,
+    /// Return [`ForkNetwork`] and HTTP client for a given fork name.
+    pub fn fork_network_and_client(fork: &str) -> (ForkNetwork, Client<L2>) {
+        let network = match fork {
+            "mainnet" => ForkNetwork::Mainnet,
+            "sepolia-testnet" => ForkNetwork::SepoliaTestnet,
+            "goerli-testnet" => ForkNetwork::GoerliTestnet,
+            _ => ForkNetwork::Other(fork.to_string()),
         };
 
+        let url = network.to_url();
         let parsed_url = SensitiveUrl::from_str(url)
             .unwrap_or_else(|_| panic!("Unable to parse client URL: {}", &url));
         let client = Client::http(parsed_url)
             .unwrap_or_else(|_| panic!("Unable to create a client for fork: {}", &url))
             .build();
 
-        (url, client)
+        (network, client)
     }
 
     /// Returns transactions that are in the same L2 miniblock as replay_tx, but were executed before it.
