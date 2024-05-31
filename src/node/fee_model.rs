@@ -7,13 +7,24 @@ use zksync_types::L1_GAS_PER_PUBDATA_BYTE;
 pub struct TestNodeFeeInputProvider {
     pub l1_gas_price: u64,
     pub l2_gas_price: u64,
+    /// L1 Gas Price Scale Factor for gas estimation.
+    pub estimate_gas_price_scale_factor: f64,
+    /// The factor by which to scale the gasLimit.
+    pub estimate_gas_scale_factor: f32,
 }
 
 impl TestNodeFeeInputProvider {
-    pub fn new(l1_gas_price: u64, l2_gas_price: u64) -> Self {
+    pub fn new(
+        l1_gas_price: u64,
+        l2_gas_price: u64,
+        estimate_gas_price_scale_factor: f64,
+        estimate_gas_scale_factor: f32,
+    ) -> Self {
         Self {
             l1_gas_price,
             l2_gas_price,
+            estimate_gas_price_scale_factor,
+            estimate_gas_scale_factor,
         }
     }
 

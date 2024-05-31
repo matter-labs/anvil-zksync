@@ -33,9 +33,12 @@ use zksync_web3_decl::{
 };
 use zksync_web3_decl::{namespaces::EthNamespaceClient, types::Index};
 
-use crate::system_contracts;
 use crate::{cache::CacheConfig, node::TEST_NODE_NETWORK_ID};
 use crate::{deps::InMemoryStorage, http_fork_source::HttpForkSource};
+use crate::{
+    node::{DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR},
+    system_contracts,
+};
 
 pub fn block_on<F: Future + Send + 'static>(future: F) -> F::Output
 where
@@ -50,6 +53,19 @@ where
     })
     .join()
     .unwrap()
+}
+
+// TODO: Don't match on url, we should have an enum representing each possible value instead.
+pub fn gase_scale_factors_from_url(url: &str) -> (f64, f32) {
+    match url {
+        "https://mainnet.era.zksync.io:443" => (1.5, 1.2),
+        "https://sepolia.era.zksync.dev:443" => (2.0, 1.2),
+        "https://testnet.era.zksync.dev:443" => (1.2, 1.2),
+        _ => (
+            DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
+            DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
+        ),
+    }
 }
 
 /// In memory storage, that allows 'forking' from other network.
@@ -321,6 +337,10 @@ pub struct ForkDetails<S> {
     pub overwrite_chain_id: Option<L2ChainId>,
     pub l1_gas_price: u64,
     pub l2_fair_gas_price: u64,
+    /// L1 Gas Price Scale Factor for gas estimation.
+    pub estimate_gas_price_scale_factor: f64,
+    /// The factor by which to scale the gasLimit.
+    pub estimate_gas_scale_factor: f32,
 }
 
 const SUPPORTED_VERSIONS: &[ProtocolVersionId] = &[
@@ -402,6 +422,8 @@ impl ForkDetails<HttpForkSource> {
             );
         }
 
+        let (estimate_gas_price_scale_factor, estimate_gas_scale_factor) =
+            gase_scale_factors_from_url(url);
         ForkDetails {
             fork_source: HttpForkSource::new(url.to_owned(), cache_config),
             l1_block: l1_batch_number,
@@ -412,6 +434,8 @@ impl ForkDetails<HttpForkSource> {
             overwrite_chain_id: chain_id,
             l1_gas_price: block_details.base.l1_gas_price,
             l2_fair_gas_price: block_details.base.l2_fair_gas_price,
+            estimate_gas_price_scale_factor,
+            estimate_gas_scale_factor,
         }
     }
     /// Create a fork from a given network at a given height.
@@ -508,7 +532,14 @@ mod tests {
     use zksync_state::ReadStorage;
     use zksync_types::{api::TransactionVariant, StorageKey};
 
-    use crate::{deps::InMemoryStorage, node::DEFAULT_L2_GAS_PRICE, system_contracts, testing};
+    use crate::{
+        deps::InMemoryStorage,
+        node::{
+            DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
+            DEFAULT_L2_GAS_PRICE,
+        },
+        system_contracts, testing,
+    };
 
     use super::{ForkDetails, ForkStorage};
 
@@ -538,6 +569,8 @@ mod tests {
             overwrite_chain_id: None,
             l1_gas_price: 100,
             l2_fair_gas_price: DEFAULT_L2_GAS_PRICE,
+            estimate_gas_price_scale_factor: DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
+            estimate_gas_scale_factor: DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
         };
 
         let mut fork_storage = ForkStorage::new(Some(fork_details), &options);
