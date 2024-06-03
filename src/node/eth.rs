@@ -1492,10 +1492,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthTestNod
 #[cfg(test)]
 mod tests {
     use crate::{
-        cache::CacheConfig,
+        config::cache::CacheConfig,
+        config::gas::DEFAULT_L2_GAS_PRICE,
         fork::ForkDetails,
         http_fork_source::HttpForkSource,
-        node::{compute_hash, InMemoryNode, Snapshot, DEFAULT_L2_GAS_PRICE},
+        node::{compute_hash, InMemoryNode, Snapshot},
         testing::{
             self, default_tx_debug_info, ForkBlockConfig, LogBuilder, MockServer,
             TransactionResponseBuilder,

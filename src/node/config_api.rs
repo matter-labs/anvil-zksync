@@ -1,14 +1,13 @@
 use zksync_web3_decl::error::Web3Error;
 
 use crate::{
+    config::node::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails},
     fork::ForkSource,
     namespaces::{ConfigurationApiNamespaceT, Result},
     node::InMemoryNode,
     observability::LogLevel,
     utils::into_jsrpc_error,
 };
-
-use super::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
 
 impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ConfigurationApiNamespaceT
     for InMemoryNode<S>
@@ -204,7 +203,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
             })?
             .observability
         {
-            match observability.set_log_level(level.clone()) {
+            match observability.set_log_level(level) {
                 Ok(_) => tracing::info!("set log level to '{}'", level),
                 Err(err) => {
                     tracing::error!("failed setting log level {:?}", err);

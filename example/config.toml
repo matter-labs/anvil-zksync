@@ -1,0 +1,47 @@
+[node]
+# Port to listen on.
+port = 8011
+
+# Show call debug information. Possible values: None, User, System, All.
+show_calls = "None"
+# Show call output.
+show_outputs = false
+# Show storage log information. Possible values: None, Read, Write, Paid, All.
+show_storage_logs = "None"
+# Show VM details information. Possible values: None, All,
+show_vm_details = "None"
+# Show gas details information. Possible values: None, All.
+show_gas_details = "None"
+
+# If true, the tool will try to contact openchain to resolve the ABI & topic names.
+# It will make debug log more readable, but will decrease the performance.
+resolve_hashes = false
+
+# Specifies the option for the system contracts (use compiled built-in with or without signature verification, or load locally).
+# Possible values: BuiltIn, BuiltInNoVerify, Local.
+system_contracts_options = "BuiltIn"
+
+[node.gas]
+# L1 gas price.
+l1_gas_price = 50_000_000_000
+# L2 gas price.
+l2_gas_price = 25_000_000
+
+[node.gas.estimation]
+# L1 gas price scale factor for gas estimation.
+price_scale_factor = 1.5
+# The factor by which to scale the gasLimit.
+limit_scale_factor = 1.3
+
+[log]
+# Log filter level. Possible values: trace, debug, info, warn, error.
+level = "info"
+# Log file path.
+file_path = "era_test_node.log"
+
+[cache]
+# Cache type, can be one of `none`, `memory`, or `disk`
+# The disk variant can further be configured via:
+# - dir: Cache directory location.
+# - reset: If true, will reset the local cache.
+disk = { dir = ".cache", reset = false }

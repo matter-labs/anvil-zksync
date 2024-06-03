@@ -3,7 +3,7 @@ use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams, FeeParamsV2};
 use zksync_types::L1_GAS_PER_PUBDATA_BYTE;
 
-use super::{
+use crate::config::gas::{
     DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
     DEFAULT_L1_GAS_PRICE, DEFAULT_L2_GAS_PRICE,
 };

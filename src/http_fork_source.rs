@@ -4,7 +4,8 @@ use std::{
 };
 
 use crate::{
-    cache::{Cache, CacheConfig},
+    cache::Cache,
+    config::cache::CacheConfig,
     fork::{block_on, ForkSource},
 };
 use eyre::Context;

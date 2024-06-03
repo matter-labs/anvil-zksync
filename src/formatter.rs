@@ -1,5 +1,5 @@
 //! Helper methods to display transaction data in more human readable way.
-use crate::{node::ShowCalls, resolver};
+use crate::{config::node::ShowCalls, resolver};
 
 use colored::Colorize;
 

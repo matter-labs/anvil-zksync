@@ -36,12 +36,12 @@ use zksync_web3_decl::{
 };
 use zksync_web3_decl::{namespaces::EthNamespaceClient, types::Index};
 
-use crate::{cache::CacheConfig, node::TEST_NODE_NETWORK_ID};
-use crate::{deps::InMemoryStorage, http_fork_source::HttpForkSource};
+use crate::{config::cache::CacheConfig, node::TEST_NODE_NETWORK_ID};
 use crate::{
-    node::{DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR},
+    config::gas::{DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR},
     system_contracts,
 };
+use crate::{deps::InMemoryStorage, http_fork_source::HttpForkSource};
 
 pub fn block_on<F: Future + Send + 'static>(future: F) -> F::Output
 where
@@ -652,15 +652,12 @@ mod tests {
     use zksync_state::ReadStorage;
     use zksync_types::{api::TransactionVariant, StorageKey};
 
-    use crate::{
-        cache::CacheConfig,
-        deps::InMemoryStorage,
-        node::{
-            DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
-            DEFAULT_L2_GAS_PRICE,
-        },
-        system_contracts, testing,
+    use crate::config::cache::CacheConfig;
+    use crate::config::gas::{
+        DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
+        DEFAULT_L2_GAS_PRICE,
     };
+    use crate::{deps::InMemoryStorage, system_contracts, testing};
 
     use super::{ForkDetails, ForkStorage};
 

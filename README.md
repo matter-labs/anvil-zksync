@@ -79,6 +79,24 @@ Please note that `era-test-node` is still in its **alpha** stage. Some features 
    era_test_node run
    ```
 
+## 🔧 Configuring
+
+The test node can optionally be configured via a TOML configuration file placed
+at `$HOME/.era_test_node/config.toml` or supplied as a path via the `--config` CLI-argument. To start configuring the test node:
+
+1. Create the configuration directory:
+```bash
+mkdir $HOME/.era_test_node
+```
+
+2. Copy the example configuration file:
+```bash
+cp example/config.toml $HOME/.era_test_node
+```
+
+For all options that can be configured,
+please refer to [example/config.toml](example/config.toml)
+
 ## 🧑‍💻 Running Locally
 
 1. Compile Rust project and start the node:

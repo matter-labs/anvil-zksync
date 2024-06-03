@@ -568,7 +568,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
 mod tests {
     use std::str::FromStr;
 
-    use crate::cache::CacheConfig;
+    use crate::config::cache::CacheConfig;
     use crate::fork::ForkDetails;
     use crate::node::TEST_NODE_NETWORK_ID;
     use crate::testing;
