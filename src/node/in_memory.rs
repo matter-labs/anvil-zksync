@@ -880,7 +880,7 @@ pub struct Snapshot {
 #[derive(Debug, Clone)]
 pub struct InMemoryNodeConfig {
     // The values to be used when calculating gas.
-    pub l2_gas_price: u64,
+    pub l2_fair_gas_price: u64,
     pub show_calls: ShowCalls,
     pub show_outputs: bool,
     pub show_storage_logs: ShowStorageLogs,
@@ -893,7 +893,7 @@ pub struct InMemoryNodeConfig {
 impl Default for InMemoryNodeConfig {
     fn default() -> Self {
         Self {
-            l2_gas_price: DEFAULT_L2_GAS_PRICE,
+            l2_fair_gas_price: DEFAULT_L2_GAS_PRICE,
             show_calls: Default::default(),
             show_outputs: Default::default(),
             show_storage_logs: Default::default(),
@@ -952,7 +952,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 current_miniblock_hash: f.l2_miniblock_hash,
                 fee_input_provider: TestNodeFeeInputProvider::new(
                     f.l1_gas_price,
-                    config.l2_gas_price,
+                    config.l2_fair_gas_price,
                 ),
                 tx_results: Default::default(),
                 blocks,
@@ -989,7 +989,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 current_miniblock_hash: block_hash,
                 fee_input_provider: TestNodeFeeInputProvider::new(
                     L1_GAS_PRICE,
-                    config.l2_gas_price,
+                    config.l2_fair_gas_price,
                 ),
                 tx_results: Default::default(),
                 blocks,
@@ -1887,6 +1887,7 @@ mod tests {
                 block_timestamp: 1002,
                 overwrite_chain_id: None,
                 l1_gas_price: 1000,
+                l2_fair_gas_price: DEFAULT_L2_GAS_PRICE,
             }),
             None,
             Default::default(),

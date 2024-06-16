@@ -309,7 +309,7 @@ pub trait ForkSource {
 /// "S" is the implementation of the ForkSource.
 #[derive(Debug, Clone)]
 pub struct ForkDetails<S> {
-    // Source of the fork data (for example HTTPForkSoruce)
+    // Source of the fork data (for example HTTPForkSource)
     pub fork_source: S,
     // Block number at which we forked (the next block to create is l1_block + 1)
     pub l1_block: L1BatchNumber,
@@ -320,6 +320,7 @@ pub struct ForkDetails<S> {
     pub block_timestamp: u64,
     pub overwrite_chain_id: Option<L2ChainId>,
     pub l1_gas_price: u64,
+    pub l2_fair_gas_price: u64,
 }
 
 const SUPPORTED_VERSIONS: &[ProtocolVersionId] = &[
@@ -385,8 +386,8 @@ impl ForkDetails<HttpForkSource> {
         let l1_batch_number = block_details.l1_batch_number;
 
         tracing::info!(
-            "Creating fork from {:?} L1 block: {:?} L2 block: {:?} with timestamp {:?}, L1 gas price {:?} and protocol version: {:?}" ,
-            url, l1_batch_number, miniblock, block_details.base.timestamp, block_details.base.l1_gas_price, block_details.protocol_version
+            "Creating fork from {:?} L1 block: {:?} L2 block: {:?} with timestamp {:?}, L1 gas price {:?}, L2 fair gas price {:?} and protocol version: {:?}" ,
+            url, l1_batch_number, miniblock, block_details.base.timestamp, block_details.base.l1_gas_price, block_details.base.l2_fair_gas_price, block_details.protocol_version
         );
 
         if !block_details
@@ -410,6 +411,7 @@ impl ForkDetails<HttpForkSource> {
             l2_miniblock_hash: root_hash,
             overwrite_chain_id: chain_id,
             l1_gas_price: block_details.base.l1_gas_price,
+            l2_fair_gas_price: block_details.base.l2_fair_gas_price,
         }
     }
     /// Create a fork from a given network at a given height.
@@ -506,7 +508,7 @@ mod tests {
     use zksync_state::ReadStorage;
     use zksync_types::{api::TransactionVariant, StorageKey};
 
-    use crate::{deps::InMemoryStorage, system_contracts, testing};
+    use crate::{deps::InMemoryStorage, node::DEFAULT_L2_GAS_PRICE, system_contracts, testing};
 
     use super::{ForkDetails, ForkStorage};
 
@@ -535,6 +537,7 @@ mod tests {
             block_timestamp: 0,
             overwrite_chain_id: None,
             l1_gas_price: 100,
+            l2_fair_gas_price: DEFAULT_L2_GAS_PRICE,
         };
 
         let mut fork_storage = ForkStorage::new(Some(fork_details), &options);
