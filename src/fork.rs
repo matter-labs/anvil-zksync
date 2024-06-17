@@ -56,6 +56,7 @@ where
 }
 
 /// The possible networks to fork from.
+#[derive(Debug, Clone)]
 pub enum ForkNetwork {
     Mainnet,
     SepoliaTestnet,
