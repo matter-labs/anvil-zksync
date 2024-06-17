@@ -75,7 +75,7 @@ impl ForkNetwork {
         }
     }
 
-    /// Returns the local gas scale factors currently in ues by the upstream network.
+    /// Returns the local gas scale factors currently in use by the upstream network.
     pub fn local_gas_scale_factors(&self) -> (f64, f32) {
         match self {
             ForkNetwork::Mainnet => (1.5, 1.2),
