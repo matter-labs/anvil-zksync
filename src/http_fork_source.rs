@@ -286,6 +286,12 @@ impl ForkSource for HttpForkSource {
             .wrap_err("fork http client failed")
     }
 
+    /// Returns fee parameters for the give source.
+    fn get_fee_params(&self) -> eyre::Result<zksync_types::fee_model::FeeParams> {
+        let client = self.create_client();
+        block_on(async move { client.get_fee_params().await }).wrap_err("fork http client failed")
+    }
+
     /// Returns addresses of the default bridge contracts.
     fn get_bridge_contracts(&self) -> eyre::Result<BridgeAddresses> {
         if let Some(bridge_addresses) = self

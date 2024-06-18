@@ -767,6 +767,10 @@ impl ForkSource for &ExternalStorage {
         todo!()
     }
 
+    fn get_fee_params(&self) -> eyre::Result<zksync_types::fee_model::FeeParams> {
+        todo!()
+    }
+
     fn get_block_transaction_count_by_hash(&self, _block_hash: H256) -> eyre::Result<Option<U256>> {
         todo!()
     }

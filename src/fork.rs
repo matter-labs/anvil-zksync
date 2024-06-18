@@ -19,6 +19,7 @@ use zksync_types::{
         Block, BlockDetails, BlockIdVariant, BlockNumber, BridgeAddresses, Transaction,
         TransactionDetails, TransactionVariant,
     },
+    fee_model::FeeParams,
     l2::L2Tx,
     url::SensitiveUrl,
     ProtocolVersionId, StorageKey,
@@ -308,6 +309,9 @@ pub trait ForkSource {
     /// Returns the block details for a given miniblock number.
     fn get_block_details(&self, miniblock: L2BlockNumber) -> eyre::Result<Option<BlockDetails>>;
 
+    /// Returns fee parameters for the give source.
+    fn get_fee_params(&self) -> eyre::Result<FeeParams>;
+
     /// Returns the  transaction count for a given block hash.
     fn get_block_transaction_count_by_hash(&self, block_hash: H256) -> eyre::Result<Option<U256>>;
 
@@ -362,6 +366,7 @@ pub struct ForkDetails<S> {
     pub estimate_gas_price_scale_factor: f64,
     /// The factor by which to scale the gasLimit.
     pub estimate_gas_scale_factor: f32,
+    pub fee_params: FeeParams,
 }
 
 const SUPPORTED_VERSIONS: &[ProtocolVersionId] = &[
@@ -446,6 +451,11 @@ impl ForkDetails<HttpForkSource> {
 
         let (estimate_gas_price_scale_factor, estimate_gas_scale_factor) =
             network.local_gas_scale_factors();
+        let fee_params = client
+            .get_fee_params()
+            .await
+            .expect("Unable to get upstream fork");
+
         ForkDetails {
             fork_source: HttpForkSource::new(url.to_owned(), cache_config),
             l1_block: l1_batch_number,
@@ -458,6 +468,7 @@ impl ForkDetails<HttpForkSource> {
             l2_fair_gas_price: block_details.base.l2_fair_gas_price,
             estimate_gas_price_scale_factor,
             estimate_gas_scale_factor,
+            fee_params,
         }
     }
     /// Create a fork from a given network at a given height.
@@ -560,7 +571,7 @@ impl<S: ForkSource> ForkDetails<S> {
 mod tests {
     use zksync_basic_types::{AccountTreeId, L1BatchNumber, H256};
     use zksync_state::ReadStorage;
-    use zksync_types::{api::TransactionVariant, StorageKey};
+    use zksync_types::{api::TransactionVariant, fee_model::FeeParams, StorageKey};
 
     use crate::{
         deps::InMemoryStorage,
@@ -601,6 +612,7 @@ mod tests {
             l2_fair_gas_price: DEFAULT_L2_GAS_PRICE,
             estimate_gas_price_scale_factor: DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
             estimate_gas_scale_factor: DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
+            fee_params: FeeParams::sensible_v1_default(),
         };
 
         let mut fork_storage = ForkStorage::new(Some(fork_details), &options);
