@@ -949,17 +949,20 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             let mut blocks = HashMap::<H256, Block<TransactionVariant>>::new();
             blocks.insert(f.l2_block.hash, f.l2_block.clone());
 
+            let mut fee_input_provider =
+                TestNodeFeeInputProvider::from_fee_params_and_estimate_scale_factors(
+                    f.fee_params,
+                    f.estimate_gas_price_scale_factor,
+                    f.estimate_gas_scale_factor,
+                );
+            fee_input_provider.l2_gas_price = config.l2_fair_gas_price;
+
             InMemoryNodeInner {
                 current_timestamp: f.block_timestamp,
                 current_batch: f.l1_block.0,
                 current_miniblock: f.l2_miniblock,
                 current_miniblock_hash: f.l2_miniblock_hash,
-                fee_input_provider:
-                    TestNodeFeeInputProvider::from_fee_params_and_estimate_scale_factors(
-                        f.fee_params,
-                        f.estimate_gas_price_scale_factor,
-                        f.estimate_gas_scale_factor,
-                    ),
+                fee_input_provider,
                 tx_results: Default::default(),
                 blocks,
                 block_hashes,
