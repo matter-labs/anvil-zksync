@@ -46,6 +46,25 @@ Please note that `era-test-node` is still in its **alpha** stage. Some features 
 
 ## 📥 Installation & Setup
 
+### Using the installation script
+
+1. Download the installation script:
+   ```bash
+   curl --proto '=https' -sSf https://raw.githubusercontent.com/matter-labs/era-test-node/main/install.sh > install.sh
+   ```
+
+2. Run the script (version can optionally be specified via the `--version` argument):
+   ```bash
+   sudo ./install.sh
+   ```
+
+3. Start the node:
+   ```bash
+   era_test_node run
+   ```
+
+### Manually
+
 1. Download `era-test-node` from latest [Release](https://github.com/matter-labs/era-test-node/releases/latest)
 
 2. Extract the binary and mark as executable:
@@ -68,7 +87,7 @@ Please note that `era-test-node` is still in its **alpha** stage. Some features 
 
 ## 📄 System Contracts
 
-The system contract within the node can be specified via the `--dev-system-contracts` option. 
+The system contract within the node can be specified via the `--dev-system-contracts` option.
 It can take one of the following options:
    * `built-in`: Use the compiled built-in contracts
    * `built-in-no-verify`: Use the compiled built-in contracts, but without signature verification
@@ -91,7 +110,7 @@ The logging can be configured during runtime via the [`config_setLogLevel`](./SU
 ## 📃 Caching
 
 The node will cache certain network request by default to disk in the `.cache` directory. Alternatively the caching can be disabled or set to in-memory only
-via the `--cache=none|memory|disk` parameter. 
+via the `--cache=none|memory|disk` parameter.
 
 ```bash
 era_test_node --cache=none run
@@ -159,7 +178,7 @@ Payer: 0x4eaf936c172b5e5511959167e8ab4f7031113ca3
 Gas - Limit: 2_487_330 | Used: 969_330 | Refunded: 1_518_000
 Use --show-gas-details flag or call config_setShowGasDetails to display more info
 
-==== Console logs: 
+==== Console logs:
 
 ==== 22 call traces.  Use --show-calls flag or call config_setShowCalls to display more info.
   Call(Normal) 0x4eaf936c172b5e5511959167e8ab4f7031113ca3           validateTransaction(bytes32, bytes32, tuple)   1830339
@@ -171,16 +190,16 @@ Use --show-gas-details flag or call config_setShowGasDetails to display more inf
 
 You can use the following options to get more granular information during transaction processing:
 
-- `--show-storage-logs <SHOW_STORAGE_LOGS>`: Show storage log information.  
-  [default: none]  
+- `--show-storage-logs <SHOW_STORAGE_LOGS>`: Show storage log information.
+  [default: none]
   [possible values: none, read, paid, write, all]
 
-- `--show-vm-details <SHOW_VM_DETAILS>`: Show VM details information.  
-  [default: none]  
+- `--show-vm-details <SHOW_VM_DETAILS>`: Show VM details information.
+  [default: none]
   [possible values: none, all]
 
-- `--show-gas-details <SHOW_GAS_DETAILS>`: Show Gas details information.  
-  [default: none]  
+- `--show-gas-details <SHOW_GAS_DETAILS>`: Show Gas details information.
+  [default: none]
   [possible values: none, all]
 
 Example:
