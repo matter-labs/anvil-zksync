@@ -65,7 +65,7 @@ function prepare_binary() {
 }
 
 function download_binary() {
-    file_name="era_test_node-$version-$architecture-$os-gnu.tar.gz"
+    file_name="era_test_node-$version-$architecture-$os.tar.gz"
     url="$ERA_TEST_NODE_REPO/releases/download/$version/$file_name"
 
     echo "Downloading Era Test Node binary from: $url..."
@@ -78,10 +78,12 @@ function get_os_info() {
     unamestr="$(uname)"
     case $unamestr in
         "Linux")
-            os="unknown-linux"
+            os="unknown-linux-gnu"
+            arch_cmd="lscpu | awk '/Architecture:/{print $2}'"
             ;;
         "Darwin")
             os="apple-darwin"
+            arch_cmd="arch"
             ;;
         *)
             echo "Era Test Node only supports Linux and MacOS! Detected OS: $unamestr"
@@ -89,7 +91,18 @@ function get_os_info() {
             ;;
     esac
 
-    architecture=$(lscpu | awk '/Architecture:/{print $2}')
+    case $("$arch_cmd") in
+        "x86_64")
+            architecture="x86_64"
+            ;;
+        "arm64")
+            architecture="aarch64"
+            ;;
+        *)
+            echo "Unsupported architecture detected!: $unamestr"
+            exit 1
+            ;;
+    esac
 
     echo "Operating system: $os"
     echo "Architecture: $architecture"
