@@ -58,7 +58,9 @@ function main() {
 function prepare_binary() {
     echo "Preparing binary..."
 
-    tar xz -f "$file_name" -C "$destination"
+    tar xz -f "$file_name"
+    rm "$file_name"
+    mv era_test_node "$destination/era_test_node"
     chmod +x "$destination/era_test_node"
 
     echo "Succesfully prepared binary!"
@@ -76,22 +78,22 @@ function download_binary() {
 
 function get_os_info() {
     unamestr="$(uname)"
-    case $unamestr in
+    case "$unamestr" in
         "Linux")
             os="unknown-linux-gnu"
-            arch_cmd="lscpu | awk '/Architecture:/{print $2}'"
+            arch=$(lscpu | awk '/Architecture:/{print $2}')
             ;;
         "Darwin")
             os="apple-darwin"
-            arch_cmd="arch"
+            arch_cmd=$(arch)
             ;;
         *)
-            echo "Era Test Node only supports Linux and MacOS! Detected OS: $unamestr"
+            echo "ERROR: Era Test Node only supports Linux and MacOS! Detected OS: $unamestr"
             exit 1
             ;;
     esac
 
-    case $("$arch_cmd") in
+    case "$arch" in
         "x86_64")
             architecture="x86_64"
             ;;
@@ -99,7 +101,7 @@ function get_os_info() {
             architecture="aarch64"
             ;;
         *)
-            echo "Unsupported architecture detected!: $unamestr"
+            echo "ERROR: Unsupported architecture detected!"
             exit 1
             ;;
     esac
