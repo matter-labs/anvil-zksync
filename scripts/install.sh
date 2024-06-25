@@ -111,11 +111,10 @@ function get_os_info() {
 }
 
 function get_latest_version() {
-    echo v\
-        $(curl --proto '=https' -sSf https://raw.githubusercontent.com/matter-labs/era-test-node/main/Cargo.toml | \
+    echo v$(curl --proto '=https' -sSf https://raw.githubusercontent.com/matter-labs/era-test-node/main/Cargo.toml | \
         grep "version" -m 1 Cargo.toml | \
         awk '{print $3}' | \
-        sed 's/"//g')"
+        sed 's/"//g')
 }
 
 main "$@"
