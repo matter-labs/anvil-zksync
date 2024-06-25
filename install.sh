@@ -85,7 +85,7 @@ function get_os_info() {
             ;;
         "Darwin")
             os="apple-darwin"
-            arch_cmd=$(arch)
+            arch=$(arch)
             ;;
         *)
             echo "ERROR: Era Test Node only supports Linux and MacOS! Detected OS: $unamestr"
@@ -111,7 +111,11 @@ function get_os_info() {
 }
 
 function get_latest_version() {
-    echo "v$(grep "version" -m 1 Cargo.toml | awk '{print $3}' | sed 's/"//g')"
+    echo v\
+        $(curl --proto '=https' -sSf https://raw.githubusercontent.com/matter-labs/era-test-node/main/Cargo.toml | \
+        grep "version" -m 1 Cargo.toml | \
+        awk '{print $3}' | \
+        sed 's/"//g')"
 }
 
 main "$@"
