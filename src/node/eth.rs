@@ -9,7 +9,6 @@ use zksync_basic_types::{
     web3::{self, Bytes},
     AccountTreeId, Address, H160, H256, U256, U64,
 };
-use zksync_state::ReadStorage;
 use zksync_types::{
     api::{Block, BlockIdVariant, BlockNumber, TransactionVariant},
     fee::Fee,
@@ -30,7 +29,10 @@ use crate::{
     fork::ForkSource,
     namespaces::{EthNamespaceT, EthTestNodeNamespaceT, RpcResult},
     node::{InMemoryNode, TransactionResult, MAX_TX_SIZE, PROTOCOL_VERSION},
-    utils::{self, h256_to_u64, into_jsrpc_error, not_implemented, IntoBoxedFuture},
+    utils::{
+        self, h256_to_u64, into_jsrpc_error, not_implemented, report_into_jsrpc_error,
+        IntoBoxedFuture,
+    },
 };
 
 impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespaceT
@@ -137,9 +139,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
             );
 
             match inner.write() {
-                Ok(mut inner_guard) => {
-                    let balance = inner_guard.fork_storage.read_value(&balance_key);
-                    Ok(h256_to_u256(balance))
+                Ok(inner_guard) => {
+                    match inner_guard.fork_storage.read_value_internal(&balance_key) {
+                        Ok(balance) => Ok(h256_to_u256(balance)),
+                        Err(error) => Err(report_into_jsrpc_error(error)),
+                    }
                 }
                 Err(_) => {
                     let error_message = "Error acquiring write lock for balance retrieval";
@@ -259,16 +263,18 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
             let code_key = get_code_key(&address);
 
             match inner.write() {
-                Ok(mut guard) => {
-                    let code_hash = guard.fork_storage.read_value(&code_key);
-
-                    let code = guard
-                        .fork_storage
-                        .load_factory_dep(code_hash)
-                        .unwrap_or_default();
-
-                    Ok(Bytes::from(code))
-                }
+                Ok(guard) => match guard.fork_storage.read_value_internal(&code_key) {
+                    Ok(code_hash) => {
+                        match guard.fork_storage.load_factory_dep_internal(code_hash) {
+                            Ok(raw_code) => {
+                                let code = raw_code.unwrap_or_default();
+                                Ok(Bytes::from(code))
+                            }
+                            Err(error) => Err(report_into_jsrpc_error(error)),
+                        }
+                    }
+                    Err(error) => Err(report_into_jsrpc_error(error)),
+                },
                 Err(_) => Err(into_jsrpc_error(Web3Error::InternalError(
                     anyhow::Error::msg("Failed to acquire write lock for code retrieval"),
                 ))),
@@ -297,10 +303,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
             let nonce_key = get_nonce_key(&address);
 
             match inner.write() {
-                Ok(mut guard) => {
-                    let result = guard.fork_storage.read_value(&nonce_key);
-                    Ok(h256_to_u64(result).into())
-                }
+                Ok(guard) => match guard.fork_storage.read_value_internal(&nonce_key) {
+                    Ok(result) => Ok(h256_to_u64(result).into()),
+                    Err(error) => Err(report_into_jsrpc_error(error)),
+                },
                 Err(_) => Err(into_jsrpc_error(Web3Error::InternalError(
                     anyhow::Error::msg("Failed to acquire write lock for nonce retrieval"),
                 ))),
@@ -1020,7 +1026,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
         let inner = self.get_inner().clone();
 
         Box::pin(async move {
-            let mut writer = match inner.write() {
+            let writer = match inner.write() {
                 Ok(r) => r,
                 Err(_) => {
                     return Err(into_jsrpc_error(Web3Error::InternalError(
@@ -1058,7 +1064,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
                 .unwrap_or_else(|| Ok(U64::from(writer.current_miniblock)))?;
 
             if block_number.as_u64() == writer.current_miniblock {
-                Ok(H256(writer.fork_storage.read_value(&storage_key).0))
+                match writer.fork_storage.read_value_internal(&storage_key) {
+                    Ok(value) => Ok(H256(value.0)),
+                    Err(error) => Err(report_into_jsrpc_error(error)),
+                }
             } else if writer.block_hashes.contains_key(&block_number.as_u64()) {
                 let value = writer
                     .block_hashes
@@ -1069,7 +1078,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
                     .unwrap_or_default();
 
                 if value.is_zero() {
-                    Ok(H256(writer.fork_storage.read_value(&storage_key).0))
+                    match writer.fork_storage.read_value_internal(&storage_key) {
+                        Ok(value) => Ok(H256(value.0)),
+                        Err(error) => Err(report_into_jsrpc_error(error)),
+                    }
                 } else {
                     Ok(value)
                 }

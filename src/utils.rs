@@ -229,6 +229,12 @@ pub fn utc_datetime_from_epoch_ms(millis: u64) -> DateTime<Utc> {
     DateTime::<Utc>::from_timestamp(secs as i64, nanos as u32).expect("valid timestamp")
 }
 
+pub fn report_into_jsrpc_error(error: eyre::Report) -> Error {
+    into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+        error.to_string(),
+    )))
+}
+
 pub fn into_jsrpc_error(err: Web3Error) -> Error {
     Error {
         code: match err {

@@ -137,61 +137,61 @@ impl<S: ForkSource> ForkStorage<S> {
         }
     }
 
-    fn read_value_internal(&self, key: &StorageKey) -> zksync_types::StorageValue {
+    pub fn read_value_internal(
+        &self,
+        key: &StorageKey,
+    ) -> eyre::Result<zksync_types::StorageValue> {
         let mut mutator = self.inner.write().unwrap();
         let local_storage = mutator.raw_storage.read_value(key);
 
         if let Some(fork) = &mutator.fork {
             if !H256::is_zero(&local_storage) {
-                return local_storage;
+                return Ok(local_storage);
             }
 
             if let Some(value) = mutator.value_read_cache.get(key) {
-                return *value;
+                return Ok(*value);
             }
             let l2_miniblock = fork.l2_miniblock;
             let key_ = *key;
 
-            let result = fork
-                .fork_source
-                .get_storage_at(
-                    *key_.account().address(),
-                    h256_to_u256(*key_.key()),
-                    Some(BlockIdVariant::BlockNumber(BlockNumber::Number(U64::from(
-                        l2_miniblock,
-                    )))),
-                )
-                .unwrap();
+            let result = fork.fork_source.get_storage_at(
+                *key_.account().address(),
+                h256_to_u256(*key_.key()),
+                Some(BlockIdVariant::BlockNumber(BlockNumber::Number(U64::from(
+                    l2_miniblock,
+                )))),
+            )?;
 
             mutator.value_read_cache.insert(*key, result);
-            result
+            Ok(result)
         } else {
-            local_storage
+            Ok(local_storage)
         }
     }
 
-    fn load_factory_dep_internal(&self, hash: H256) -> Option<Vec<u8>> {
+    pub fn load_factory_dep_internal(&self, hash: H256) -> eyre::Result<Option<Vec<u8>>> {
         let mut mutator = self.inner.write().unwrap();
         let local_storage = mutator.raw_storage.load_factory_dep(hash);
         if let Some(fork) = &mutator.fork {
             if local_storage.is_some() {
-                return local_storage;
+                return Ok(local_storage);
             }
             if let Some(value) = mutator.factory_dep_cache.get(&hash) {
-                return value.clone();
+                return Ok(value.clone());
             }
 
-            let result = fork.fork_source.get_bytecode_by_hash(hash).unwrap();
+            let result = fork.fork_source.get_bytecode_by_hash(hash)?;
             mutator.factory_dep_cache.insert(hash, result.clone());
-            result
+            Ok(result)
         } else {
-            local_storage
+            Ok(local_storage)
         }
     }
 
     /// Check if this is the first time when we're ever writing to this key.
     /// This has impact on amount of pubdata that we have to spend for the write.
-    fn is_write_initial_internal(&self, key: &StorageKey) -> bool {
+    pub fn is_write_initial_internal(&self, key: &StorageKey) -> eyre::Result<bool> {
         // Currently we don't have the zks API to return us the information on whether a given
         // key was written to before a given block.
         // This means, we have to depend on the following heuristic: we'll read the value of the slot.
@@ -199,15 +199,15 @@ impl<S: ForkSource> ForkStorage<S> {
         //  - but if the value = 0 - there is a chance, that slot was written to in the past - and later was reset.
         //                            but unfortunately we cannot detect that with the current zks api, so we'll attempt to do it
         //                           only on local storage.
-        let value = self.read_value_internal(key);
+        let value = self.read_value_internal(key)?;
         if value != H256::zero() {
-            return false;
+            return Ok(false);
         }
 
         // If value was 0, there is still a chance, that the slot was written to in the past - and only now set to 0.
         // We unfortunately don't have the API to check it on the fork, but we can at least try to check it on local storage.
         let mut mutator = self.inner.write().unwrap();
-        mutator.raw_storage.is_write_initial(key)
+        Ok(mutator.raw_storage.is_write_initial(key))
     }
 
     /// Retrieves the enumeration index for a given `key`.
@@ -219,15 +219,15 @@ impl<S: ForkSource> ForkStorage<S> {
 
 impl<S: std::fmt::Debug + ForkSource> ReadStorage for ForkStorage<S> {
     fn is_write_initial(&mut self, key: &StorageKey) -> bool {
-        self.is_write_initial_internal(key)
+        self.is_write_initial_internal(key).unwrap()
     }
 
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
-        self.load_factory_dep_internal(hash)
+        self.load_factory_dep_internal(hash).unwrap()
     }
 
     fn read_value(&mut self, key: &StorageKey) -> zksync_types::StorageValue {
-        self.read_value_internal(key)
+        self.read_value_internal(key).unwrap()
     }
 
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
@@ -237,15 +237,15 @@ impl<S: std::fmt::Debug + ForkSource> ReadStorage for ForkStorage<S> {
 
 impl<S: std::fmt::Debug + ForkSource> ReadStorage for &ForkStorage<S> {
     fn read_value(&mut self, key: &StorageKey) -> zksync_types::StorageValue {
-        self.read_value_internal(key)
+        self.read_value_internal(key).unwrap()
     }
 
     fn is_write_initial(&mut self, key: &StorageKey) -> bool {
-        self.is_write_initial_internal(key)
+        self.is_write_initial_internal(key).unwrap()
     }
 
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
-        self.load_factory_dep_internal(hash)
+        self.load_factory_dep_internal(hash).unwrap()
     }
 
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {

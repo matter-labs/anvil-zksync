@@ -4,7 +4,6 @@ use bigdecimal::BigDecimal;
 use colored::Colorize;
 use futures::FutureExt;
 use zksync_basic_types::{AccountTreeId, Address, L1BatchNumber, L2BlockNumber, H256, U256};
-use zksync_state::ReadStorage;
 use zksync_types::{
     api::{
         BlockDetails, BlockDetailsBase, BlockStatus, BridgeAddresses, Proof, ProtocolVersion,
@@ -22,8 +21,8 @@ use crate::{
     namespaces::{RpcResult, ZksNamespaceT},
     node::{InMemoryNode, TransactionResult},
     utils::{
-        internal_error, into_jsrpc_error, not_implemented, utc_datetime_from_epoch_ms,
-        IntoBoxedFuture,
+        internal_error, into_jsrpc_error, not_implemented, report_into_jsrpc_error,
+        utc_datetime_from_epoch_ms, IntoBoxedFuture,
     },
 };
 
@@ -295,7 +294,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
                     })?;
 
                     let balances = {
-                        let mut writer = inner.write().map_err(|_e| {
+                        let writer = inner.write().map_err(|_e| {
                             let error_message = "Failed to acquire lock. Please ensure the lock is not being held by another process or thread.".to_string();
                             into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(error_message)))
                         })?;
@@ -305,7 +304,12 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
                                 AccountTreeId::new(token.l2_address),
                                 &address,
                             );
-                            let balance = writer.fork_storage.read_value(&balance_key);
+                            let balance = match writer.fork_storage.read_value_internal(&balance_key) {
+                                Ok(balance) => balance,
+                                Err(error) => {
+                                    return Err(report_into_jsrpc_error(error));
+                                }
+                            };
                             if !balance.is_zero() {
                                 balances.insert(token.l2_address, h256_to_u256(balance));
                             }
@@ -513,24 +517,41 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
     fn get_bytecode_by_hash(&self, hash: zksync_basic_types::H256) -> RpcResult<Option<Vec<u8>>> {
         let inner = self.get_inner().clone();
         Box::pin(async move {
-            let mut writer = inner.write().map_err(|_e| {
+            let writer = inner.write().map_err(|_e| {
                 into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
                     "Failed to acquire write lock for bytecode retrieval.",
                 )))
             })?;
 
-            let maybe_bytecode = writer.fork_storage.load_factory_dep(hash).or_else(|| {
-                writer
-                    .fork_storage
-                    .inner
-                    .read()
-                    .expect("failed reading fork storage")
-                    .fork
-                    .as_ref()
-                    .and_then(|fork| fork.fork_source.get_bytecode_by_hash(hash).ok().flatten())
-            });
+            let maybe_bytecode = match writer.fork_storage.load_factory_dep_internal(hash) {
+                Ok(maybe_bytecode) => maybe_bytecode,
+                Err(error) => {
+                    return Err(report_into_jsrpc_error(error));
+                }
+            };
 
-            Ok(maybe_bytecode)
+            if maybe_bytecode.is_some() {
+                return Ok(maybe_bytecode);
+            }
+
+            let maybe_fork_details = &writer
+                .fork_storage
+                .inner
+                .read()
+                .expect("failed reading fork storage")
+                .fork;
+            if let Some(fork_details) = maybe_fork_details {
+                let maybe_bytecode = match fork_details.fork_source.get_bytecode_by_hash(hash) {
+                    Ok(maybe_bytecode) => maybe_bytecode,
+                    Err(error) => {
+                        return Err(report_into_jsrpc_error(error));
+                    }
+                };
+
+                Ok(maybe_bytecode)
+            } else {
+                Ok(None)
+            }
         })
     }
 

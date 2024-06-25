@@ -1,6 +1,5 @@
 use anyhow::anyhow;
 use zksync_basic_types::{Address, U256, U64};
-use zksync_state::ReadStorage;
 use zksync_types::{
     get_code_key, get_nonce_key,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
@@ -210,7 +209,12 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
             .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
             .and_then(|mut writer| {
                 let nonce_key = get_nonce_key(&address);
-                let full_nonce = writer.fork_storage.read_value(&nonce_key);
+                let full_nonce = match writer.fork_storage.read_value_internal(&nonce_key) {
+                    Ok(full_nonce) => full_nonce,
+                    Err(error) => {
+                        return Err(anyhow!(error.to_string()));
+                    }
+                };
                 let (mut account_nonce, mut deployment_nonce) =
                     decompose_full_nonce(h256_to_u256(full_nonce));
                 if account_nonce >= nonce {
