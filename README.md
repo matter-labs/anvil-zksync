@@ -50,7 +50,7 @@ Please note that `era-test-node` is still in its **alpha** stage. Some features 
 
 1. Download the installation script and mark as executable:
    ```bash
-   curl --proto '=https' -sSf https://raw.githubusercontent.com/matter-labs/era-test-node/main/install.sh > install.sh
+   curl --proto '=https' -sSf https://raw.githubusercontent.com/matter-labs/era-test-node/main/scripts/install.sh > install.sh
    chmod +x install.sh
    ```
 
