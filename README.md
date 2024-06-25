@@ -48,12 +48,13 @@ Please note that `era-test-node` is still in its **alpha** stage. Some features 
 
 ### Using the installation script
 
-1. Download the installation script:
+1. Download the installation script and mark as executable:
    ```bash
    curl --proto '=https' -sSf https://raw.githubusercontent.com/matter-labs/era-test-node/main/install.sh > install.sh
+   chmod +x install.sh
    ```
 
-2. Run the script (version can optionally be specified via the `--version` argument):
+2. Run the script with `sudo` (version can optionally be specified via the `--version` argument):
    ```bash
    sudo ./install.sh
    ```
