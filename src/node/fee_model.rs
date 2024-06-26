@@ -47,6 +47,17 @@ impl TestNodeFeeInputProvider {
         }
     }
 
+    pub fn from_estimate_scale_factors(
+        estimate_gas_price_scale_factor: f64,
+        estimate_gas_scale_factor: f32,
+    ) -> Self {
+        Self {
+            estimate_gas_price_scale_factor,
+            estimate_gas_scale_factor,
+            ..Default::default()
+        }
+    }
+
     pub fn get_fee_model_config(&self) -> FeeModelConfigV2 {
         FeeModelConfigV2 {
             minimal_l2_gas_price: self.l2_gas_price,

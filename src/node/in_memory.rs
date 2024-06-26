@@ -949,12 +949,18 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             let mut blocks = HashMap::<H256, Block<TransactionVariant>>::new();
             blocks.insert(f.l2_block.hash, f.l2_block.clone());
 
-            let mut fee_input_provider =
+            let mut fee_input_provider = if let Some(params) = f.fee_params {
                 TestNodeFeeInputProvider::from_fee_params_and_estimate_scale_factors(
-                    f.fee_params,
+                    params,
                     f.estimate_gas_price_scale_factor,
                     f.estimate_gas_scale_factor,
-                );
+                )
+            } else {
+                TestNodeFeeInputProvider::from_estimate_scale_factors(
+                    f.estimate_gas_price_scale_factor,
+                    f.estimate_gas_scale_factor,
+                )
+            };
             fee_input_provider.l2_gas_price = config.l2_fair_gas_price;
 
             InMemoryNodeInner {
@@ -1793,7 +1799,7 @@ impl BlockContext {
 mod tests {
     use ethabi::{Token, Uint};
     use zksync_basic_types::Nonce;
-    use zksync_types::{fee_model::FeeParams, utils::deployed_address_create, K256PrivateKey};
+    use zksync_types::{utils::deployed_address_create, K256PrivateKey};
 
     use super::*;
     use crate::{
@@ -1900,7 +1906,7 @@ mod tests {
                 overwrite_chain_id: None,
                 l1_gas_price: 1000,
                 l2_fair_gas_price: DEFAULT_L2_GAS_PRICE,
-                fee_params: FeeParams::sensible_v1_default(),
+                fee_params: None,
                 estimate_gas_price_scale_factor: DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
                 estimate_gas_scale_factor: DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
             }),

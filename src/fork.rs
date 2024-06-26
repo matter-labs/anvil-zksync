@@ -366,7 +366,7 @@ pub struct ForkDetails<S> {
     pub estimate_gas_price_scale_factor: f64,
     /// The factor by which to scale the gasLimit.
     pub estimate_gas_scale_factor: f32,
-    pub fee_params: FeeParams,
+    pub fee_params: Option<FeeParams>,
 }
 
 const SUPPORTED_VERSIONS: &[ProtocolVersionId] = &[
@@ -451,10 +451,7 @@ impl ForkDetails<HttpForkSource> {
 
         let (estimate_gas_price_scale_factor, estimate_gas_scale_factor) =
             network.local_gas_scale_factors();
-        let fee_params = client
-            .get_fee_params()
-            .await
-            .expect("Unable to get upstream fork");
+        let fee_params = client.get_fee_params().await.ok();
 
         ForkDetails {
             fork_source: HttpForkSource::new(url.to_owned(), cache_config),
@@ -571,7 +568,7 @@ impl<S: ForkSource> ForkDetails<S> {
 mod tests {
     use zksync_basic_types::{AccountTreeId, L1BatchNumber, H256};
     use zksync_state::ReadStorage;
-    use zksync_types::{api::TransactionVariant, fee_model::FeeParams, StorageKey};
+    use zksync_types::{api::TransactionVariant, StorageKey};
 
     use crate::{
         deps::InMemoryStorage,
@@ -612,7 +609,7 @@ mod tests {
             l2_fair_gas_price: DEFAULT_L2_GAS_PRICE,
             estimate_gas_price_scale_factor: DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
             estimate_gas_scale_factor: DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
-            fee_params: FeeParams::sensible_v1_default(),
+            fee_params: None,
         };
 
         let mut fork_storage = ForkStorage::new(Some(fork_details), &options);

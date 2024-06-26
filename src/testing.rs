@@ -145,6 +145,32 @@ impl MockServer {
                 }
             }))),
         );
+        server.expect(
+            Expectation::matching(request::body(json_decoded(eq(serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "zks_getFeeParams",
+            })))))
+            .respond_with(json_encoded(serde_json::json!(
+            {
+              "jsonrpc": "2.0",
+              "result": {
+                "V2": {
+                  "config": {
+                    "minimal_l2_gas_price": 25000000,
+                    "compute_overhead_part": 0,
+                    "pubdata_overhead_part": 1,
+                    "batch_overhead_l1_gas": 800000,
+                    "max_gas_per_batch": 200000000,
+                    "max_pubdata_per_batch": 240000
+                  },
+                  "l1_gas_price": 46226388803u64,
+                  "l1_pubdata_price": 100780475095u64
+                }
+              },
+              "id": 3
+            }))),
+        );
 
         MockServer { inner: server }
     }
