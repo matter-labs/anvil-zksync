@@ -5,7 +5,7 @@ use crate::{
     fork::ForkSource,
     namespaces::{HardhatNamespaceT, RpcResult},
     node::InMemoryNode,
-    utils::{into_jsrpc_error, IntoBoxedFuture},
+    utils::{into_jsrpc_error, into_jsrpc_error_message, IntoBoxedFuture},
 };
 
 impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> HardhatNamespaceT
@@ -60,7 +60,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> HardhatNam
         self.set_code(address, code)
             .map_err(|err| {
                 tracing::error!("failed setting code: {:?}", err);
-                into_jsrpc_error(Web3Error::InternalError(err))
+                into_jsrpc_error_message(err.to_string())
             })
             .into_boxed_future()
     }

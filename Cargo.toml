@@ -11,6 +11,7 @@ categories = ["cryptography"]
 publish = false # We don't want to publish our binaries.
 
 [dependencies]
+zkevm_opcode_defs = { git = "https://github.com/matter-labs/era-zkevm_opcode_defs.git", branch = "v1.5.0" }
 zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era.git", rev = "e10bbdd1e863962552f37e768ae6af649353e4ea" }
 zksync_node_fee_model = { git = "https://github.com/matter-labs/zksync-era.git", rev = "e10bbdd1e863962552f37e768ae6af649353e4ea" }
 multivm = { git = "https://github.com/matter-labs/zksync-era.git", rev = "e10bbdd1e863962552f37e768ae6af649353e4ea" }

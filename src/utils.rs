@@ -3,20 +3,22 @@ use std::convert::TryInto;
 use std::fmt;
 use std::pin::Pin;
 
+use anyhow::anyhow;
 use chrono::{DateTime, Utc};
 use futures::Future;
 use jsonrpc_core::{Error, ErrorCode};
 use multivm::interface::{ExecutionResult, VmExecutionResultAndLogs, VmInterface};
 use multivm::vm_latest::HistoryDisabled;
 use multivm::vm_latest::Vm;
+use zkevm_opcode_defs::utils::bytecode_to_code_hash;
 use zksync_basic_types::{H256, U256, U64};
 use zksync_state::WriteStorage;
 use zksync_types::api::{BlockNumber, DebugCall, DebugCallType};
 use zksync_types::l2::L2Tx;
 use zksync_types::vm_trace::Call;
 use zksync_types::CONTRACT_DEPLOYER_ADDRESS;
+use zksync_utils::bytes_to_be_words;
 use zksync_utils::u256_to_h256;
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words};
 use zksync_web3_decl::error::Web3Error;
 
 use crate::deps::storage_view::StorageView;
@@ -55,13 +57,36 @@ pub fn to_human_size(input: U256) -> String {
     tmp.iter().rev().collect()
 }
 
-pub fn bytecode_to_factory_dep(bytecode: Vec<u8>) -> (U256, Vec<U256>) {
-    let bytecode_hash = hash_bytecode(&bytecode);
+pub fn bytes_to_chunks(bytes: &[u8]) -> Vec<[u8; 32]> {
+    bytes
+        .chunks(32)
+        .map(|el| {
+            let mut chunk = [0u8; 32];
+            chunk.copy_from_slice(el);
+            chunk
+        })
+        .collect()
+}
+
+pub fn hash_bytecode(code: &[u8]) -> Result<H256, anyhow::Error> {
+    if code.len() % 32 != 0 {
+        return Err(anyhow!("bytes must be divisible by 32"));
+    }
+
+    let chunked_code = bytes_to_chunks(code);
+    match bytecode_to_code_hash(&chunked_code) {
+        Ok(hash) => Ok(H256(hash)),
+        Err(_) => Err(anyhow!("invalid bytecode")),
+    }
+}
+
+pub fn bytecode_to_factory_dep(bytecode: Vec<u8>) -> Result<(U256, Vec<U256>), anyhow::Error> {
+    let bytecode_hash = hash_bytecode(&bytecode)?;
     let bytecode_hash = U256::from_big_endian(bytecode_hash.as_bytes());
 
     let bytecode_words = bytes_to_be_words(bytecode);
 
-    (bytecode_hash, bytecode_words)
+    Ok((bytecode_hash, bytecode_words))
 }
 
 /// Creates and inserts a given number of empty blocks into the node, with a given interval between them.
@@ -72,7 +97,7 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
     node: &mut InMemoryNodeInner<S>,
     num_blocks: u64,
     interval_ms: u64,
-) {
+) -> Result<(), anyhow::Error> {
     // build and insert new blocks
     for i in 0..num_blocks {
         // roll the vm
@@ -98,11 +123,11 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
 
             vm.execute(multivm::interface::VmExecutionMode::Bootloader);
 
-            let bytecodes: HashMap<U256, Vec<U256>> = vm
-                .get_last_tx_compressed_bytecodes()
-                .iter()
-                .map(|b| bytecode_to_factory_dep(b.original.clone()))
-                .collect();
+            let mut bytecodes = HashMap::new();
+            for b in vm.get_last_tx_compressed_bytecodes().iter() {
+                let hashcode = bytecode_to_factory_dep(b.original.clone())?;
+                bytecodes.insert(hashcode.0, hashcode.1);
+            }
             let modified_keys = storage.borrow().modified_storage_keys().clone();
             (modified_keys, bytecodes, block_ctx)
         };
@@ -140,6 +165,8 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
         node.current_miniblock = block_ctx.miniblock;
         node.current_timestamp = block_ctx.timestamp;
     }
+
+    Ok(())
 }
 
 /// Returns the actual [U64] block number from [BlockNumber].
@@ -265,6 +292,14 @@ pub fn into_jsrpc_error(err: Web3Error) -> Error {
     }
 }
 
+pub fn into_jsrpc_error_message(msg: String) -> Error {
+    Error {
+        code: ErrorCode::InternalError,
+        message: msg,
+        data: None,
+    }
+}
+
 pub fn internal_error(method_name: &'static str, error: impl fmt::Display) -> Web3Error {
     tracing::error!("Internal error in method {method_name}: {error}");
     Web3Error::InternalError(anyhow::Error::msg(error.to_string()))
@@ -362,7 +397,7 @@ mod tests {
 
         {
             let mut writer = inner.write().expect("failed acquiring write lock");
-            mine_empty_blocks(&mut writer, 1, 1000);
+            mine_empty_blocks(&mut writer, 1, 1000).unwrap();
         }
 
         let reader = inner.read().expect("failed acquiring reader");
@@ -396,7 +431,7 @@ mod tests {
 
         {
             let mut writer = inner.write().expect("failed acquiring write lock");
-            mine_empty_blocks(&mut writer, 2, 1000);
+            mine_empty_blocks(&mut writer, 2, 1000).unwrap();
         }
 
         let reader = inner.read().expect("failed acquiring reader");
@@ -439,7 +474,7 @@ mod tests {
 
         {
             let mut writer = inner.write().expect("failed acquiring write lock");
-            mine_empty_blocks(&mut writer, 2, 1000);
+            mine_empty_blocks(&mut writer, 2, 1000).unwrap();
         }
 
         {

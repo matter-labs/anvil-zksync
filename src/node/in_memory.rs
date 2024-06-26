@@ -1524,11 +1524,17 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             ..Default::default()
         };
 
-        let bytecodes: HashMap<U256, Vec<U256>> = vm
-            .get_last_tx_compressed_bytecodes()
-            .iter()
-            .map(|b| bytecode_to_factory_dep(b.original.clone()))
-            .collect();
+        let mut bytecodes = HashMap::new();
+        for b in vm.get_last_tx_compressed_bytecodes().iter() {
+            let hashcode = match bytecode_to_factory_dep(b.original.clone()) {
+                Ok(hc) => hc,
+                Err(error) => {
+                    tracing::error!("{}", format!("cannot convert bytecode: {}", error).on_red());
+                    return Err(error.to_string());
+                }
+            };
+            bytecodes.insert(hashcode.0, hashcode.1);
+        }
         if execute_bootloader {
             vm.execute(VmExecutionMode::Bootloader);
         }
