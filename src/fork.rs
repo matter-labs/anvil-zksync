@@ -33,9 +33,12 @@ use zksync_web3_decl::{
 };
 use zksync_web3_decl::{namespaces::EthNamespaceClient, types::Index};
 
-use crate::system_contracts;
 use crate::{cache::CacheConfig, node::TEST_NODE_NETWORK_ID};
 use crate::{deps::InMemoryStorage, http_fork_source::HttpForkSource};
+use crate::{
+    node::{DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR},
+    system_contracts,
+};
 
 pub fn block_on<F: Future + Send + 'static>(future: F) -> F::Output
 where
@@ -50,6 +53,40 @@ where
     })
     .join()
     .unwrap()
+}
+
+/// The possible networks to fork from.
+#[derive(Debug, Clone)]
+pub enum ForkNetwork {
+    Mainnet,
+    SepoliaTestnet,
+    GoerliTestnet,
+    Other(String),
+}
+
+impl ForkNetwork {
+    /// Return the URL for the underlying fork source.
+    pub fn to_url(&self) -> &str {
+        match self {
+            ForkNetwork::Mainnet => "https://mainnet.era.zksync.io:443",
+            ForkNetwork::SepoliaTestnet => "https://sepolia.era.zksync.dev:443",
+            ForkNetwork::GoerliTestnet => "https://testnet.era.zksync.dev:443",
+            ForkNetwork::Other(url) => url,
+        }
+    }
+
+    /// Returns the local gas scale factors currently in use by the upstream network.
+    pub fn local_gas_scale_factors(&self) -> (f64, f32) {
+        match self {
+            ForkNetwork::Mainnet => (1.5, 1.2),
+            ForkNetwork::SepoliaTestnet => (2.0, 1.2),
+            ForkNetwork::GoerliTestnet => (1.2, 1.2),
+            ForkNetwork::Other(_) => (
+                DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
+                DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
+            ),
+        }
+    }
 }
 
 /// In memory storage, that allows 'forking' from other network.
@@ -100,61 +137,61 @@ impl<S: ForkSource> ForkStorage<S> {
         }
     }
 
-    fn read_value_internal(&self, key: &StorageKey) -> zksync_types::StorageValue {
+    pub fn read_value_internal(
+        &self,
+        key: &StorageKey,
+    ) -> eyre::Result<zksync_types::StorageValue> {
         let mut mutator = self.inner.write().unwrap();
         let local_storage = mutator.raw_storage.read_value(key);
 
         if let Some(fork) = &mutator.fork {
             if !H256::is_zero(&local_storage) {
-                return local_storage;
+                return Ok(local_storage);
             }
 
             if let Some(value) = mutator.value_read_cache.get(key) {
-                return *value;
+                return Ok(*value);
             }
             let l2_miniblock = fork.l2_miniblock;
             let key_ = *key;
 
-            let result = fork
-                .fork_source
-                .get_storage_at(
-                    *key_.account().address(),
-                    h256_to_u256(*key_.key()),
-                    Some(BlockIdVariant::BlockNumber(BlockNumber::Number(U64::from(
-                        l2_miniblock,
-                    )))),
-                )
-                .unwrap();
+            let result = fork.fork_source.get_storage_at(
+                *key_.account().address(),
+                h256_to_u256(*key_.key()),
+                Some(BlockIdVariant::BlockNumber(BlockNumber::Number(U64::from(
+                    l2_miniblock,
+                )))),
+            )?;
 
             mutator.value_read_cache.insert(*key, result);
-            result
+            Ok(result)
         } else {
-            local_storage
+            Ok(local_storage)
         }
     }
 
-    fn load_factory_dep_internal(&self, hash: H256) -> Option<Vec<u8>> {
+    pub fn load_factory_dep_internal(&self, hash: H256) -> eyre::Result<Option<Vec<u8>>> {
         let mut mutator = self.inner.write().unwrap();
         let local_storage = mutator.raw_storage.load_factory_dep(hash);
         if let Some(fork) = &mutator.fork {
             if local_storage.is_some() {
-                return local_storage;
+                return Ok(local_storage);
             }
             if let Some(value) = mutator.factory_dep_cache.get(&hash) {
-                return value.clone();
+                return Ok(value.clone());
             }
 
-            let result = fork.fork_source.get_bytecode_by_hash(hash).unwrap();
+            let result = fork.fork_source.get_bytecode_by_hash(hash)?;
             mutator.factory_dep_cache.insert(hash, result.clone());
-            result
+            Ok(result)
         } else {
-            local_storage
+            Ok(local_storage)
         }
     }
 
     /// Check if this is the first time when we're ever writing to this key.
     /// This has impact on amount of pubdata that we have to spend for the write.
-    fn is_write_initial_internal(&self, key: &StorageKey) -> bool {
+    pub fn is_write_initial_internal(&self, key: &StorageKey) -> eyre::Result<bool> {
         // Currently we don't have the zks API to return us the information on whether a given
         // key was written to before a given block.
         // This means, we have to depend on the following heuristic: we'll read the value of the slot.
@@ -162,15 +199,15 @@ impl<S: ForkSource> ForkStorage<S> {
         //  - but if the value = 0 - there is a chance, that slot was written to in the past - and later was reset.
         //                            but unfortunately we cannot detect that with the current zks api, so we'll attempt to do it
         //                           only on local storage.
-        let value = self.read_value_internal(key);
+        let value = self.read_value_internal(key)?;
         if value != H256::zero() {
-            return false;
+            return Ok(false);
         }
 
         // If value was 0, there is still a chance, that the slot was written to in the past - and only now set to 0.
         // We unfortunately don't have the API to check it on the fork, but we can at least try to check it on local storage.
         let mut mutator = self.inner.write().unwrap();
-        mutator.raw_storage.is_write_initial(key)
+        Ok(mutator.raw_storage.is_write_initial(key))
     }
 
     /// Retrieves the enumeration index for a given `key`.
@@ -182,15 +219,15 @@ impl<S: ForkSource> ForkStorage<S> {
 
 impl<S: std::fmt::Debug + ForkSource> ReadStorage for ForkStorage<S> {
     fn is_write_initial(&mut self, key: &StorageKey) -> bool {
-        self.is_write_initial_internal(key)
+        self.is_write_initial_internal(key).unwrap()
     }
 
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
-        self.load_factory_dep_internal(hash)
+        self.load_factory_dep_internal(hash).unwrap()
     }
 
     fn read_value(&mut self, key: &StorageKey) -> zksync_types::StorageValue {
-        self.read_value_internal(key)
+        self.read_value_internal(key).unwrap()
     }
 
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
@@ -200,15 +237,15 @@ impl<S: std::fmt::Debug + ForkSource> ReadStorage for ForkStorage<S> {
 
 impl<S: std::fmt::Debug + ForkSource> ReadStorage for &ForkStorage<S> {
     fn read_value(&mut self, key: &StorageKey) -> zksync_types::StorageValue {
-        self.read_value_internal(key)
+        self.read_value_internal(key).unwrap()
     }
 
     fn is_write_initial(&mut self, key: &StorageKey) -> bool {
-        self.is_write_initial_internal(key)
+        self.is_write_initial_internal(key).unwrap()
     }
 
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
-        self.load_factory_dep_internal(hash)
+        self.load_factory_dep_internal(hash).unwrap()
     }
 
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
@@ -321,6 +358,10 @@ pub struct ForkDetails<S> {
     pub overwrite_chain_id: Option<L2ChainId>,
     pub l1_gas_price: u64,
     pub l2_fair_gas_price: u64,
+    /// L1 Gas Price Scale Factor for gas estimation.
+    pub estimate_gas_price_scale_factor: f64,
+    /// The factor by which to scale the gasLimit.
+    pub estimate_gas_scale_factor: f32,
 }
 
 const SUPPORTED_VERSIONS: &[ProtocolVersionId] = &[
@@ -356,13 +397,14 @@ pub fn supported_versions_to_string() -> String {
 }
 
 impl ForkDetails<HttpForkSource> {
-    pub async fn from_url_and_miniblock_and_chain(
-        url: &str,
+    pub async fn from_network_and_miniblock_and_chain(
+        network: ForkNetwork,
         client: Client<L2>,
         miniblock: u64,
         chain_id: Option<L2ChainId>,
         cache_config: CacheConfig,
     ) -> Self {
+        let url = network.to_url();
         let block_details = client
             .get_block_details(L2BlockNumber(miniblock as u32))
             .await
@@ -402,6 +444,8 @@ impl ForkDetails<HttpForkSource> {
             );
         }
 
+        let (estimate_gas_price_scale_factor, estimate_gas_scale_factor) =
+            network.local_gas_scale_factors();
         ForkDetails {
             fork_source: HttpForkSource::new(url.to_owned(), cache_config),
             l1_block: l1_batch_number,
@@ -412,23 +456,32 @@ impl ForkDetails<HttpForkSource> {
             overwrite_chain_id: chain_id,
             l1_gas_price: block_details.base.l1_gas_price,
             l2_fair_gas_price: block_details.base.l2_fair_gas_price,
+            estimate_gas_price_scale_factor,
+            estimate_gas_scale_factor,
         }
     }
     /// Create a fork from a given network at a given height.
     pub async fn from_network(fork: &str, fork_at: Option<u64>, cache_config: CacheConfig) -> Self {
-        let (url, client) = Self::fork_to_url_and_client(fork);
+        let (network, client) = Self::fork_network_and_client(fork);
         let l2_miniblock = if let Some(fork_at) = fork_at {
             fork_at
         } else {
             client.get_block_number().await.unwrap().as_u64()
         };
-        Self::from_url_and_miniblock_and_chain(url, client, l2_miniblock, None, cache_config).await
+        Self::from_network_and_miniblock_and_chain(
+            network,
+            client,
+            l2_miniblock,
+            None,
+            cache_config,
+        )
+        .await
     }
 
     /// Create a fork from a given network, at a height BEFORE a transaction.
     /// This will allow us to apply this transaction locally on top of this fork.
     pub async fn from_network_tx(fork: &str, tx: H256, cache_config: CacheConfig) -> Self {
-        let (url, client) = Self::fork_to_url_and_client(fork);
+        let (network, client) = Self::fork_network_and_client(fork);
         let tx_details = client.get_transaction_by_hash(tx).await.unwrap().unwrap();
         let overwrite_chain_id = Some(
             L2ChainId::try_from(tx_details.chain_id.as_u64()).unwrap_or_else(|err| {
@@ -439,8 +492,8 @@ impl ForkDetails<HttpForkSource> {
         // We have to sync to the one-miniblock before the one where transaction is.
         let l2_miniblock = miniblock_number.saturating_sub(1) as u64;
 
-        Self::from_url_and_miniblock_and_chain(
-            url,
+        Self::from_network_and_miniblock_and_chain(
+            network,
             client,
             l2_miniblock,
             overwrite_chain_id,
@@ -451,22 +504,23 @@ impl ForkDetails<HttpForkSource> {
 }
 
 impl<S: ForkSource> ForkDetails<S> {
-    /// Return URL and HTTP client for a given fork name.
-    pub fn fork_to_url_and_client(fork: &str) -> (&str, Client<L2>) {
-        let url = match fork {
-            "mainnet" => "https://mainnet.era.zksync.io:443",
-            "sepolia-testnet" => "https://sepolia.era.zksync.dev:443",
-            "goerli-testnet" => "https://testnet.era.zksync.dev:443",
-            _ => fork,
+    /// Return [`ForkNetwork`] and HTTP client for a given fork name.
+    pub fn fork_network_and_client(fork: &str) -> (ForkNetwork, Client<L2>) {
+        let network = match fork {
+            "mainnet" => ForkNetwork::Mainnet,
+            "sepolia-testnet" => ForkNetwork::SepoliaTestnet,
+            "goerli-testnet" => ForkNetwork::GoerliTestnet,
+            _ => ForkNetwork::Other(fork.to_string()),
         };
 
+        let url = network.to_url();
         let parsed_url = SensitiveUrl::from_str(url)
             .unwrap_or_else(|_| panic!("Unable to parse client URL: {}", &url));
         let client = Client::http(parsed_url)
             .unwrap_or_else(|_| panic!("Unable to create a client for fork: {}", &url))
             .build();
 
-        (url, client)
+        (network, client)
     }
 
     /// Returns transactions that are in the same L2 miniblock as replay_tx, but were executed before it.
@@ -508,7 +562,14 @@ mod tests {
     use zksync_state::ReadStorage;
     use zksync_types::{api::TransactionVariant, StorageKey};
 
-    use crate::{deps::InMemoryStorage, node::DEFAULT_L2_GAS_PRICE, system_contracts, testing};
+    use crate::{
+        deps::InMemoryStorage,
+        node::{
+            DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
+            DEFAULT_L2_GAS_PRICE,
+        },
+        system_contracts, testing,
+    };
 
     use super::{ForkDetails, ForkStorage};
 
@@ -538,6 +599,8 @@ mod tests {
             overwrite_chain_id: None,
             l1_gas_price: 100,
             l2_fair_gas_price: DEFAULT_L2_GAS_PRICE,
+            estimate_gas_price_scale_factor: DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
+            estimate_gas_scale_factor: DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
         };
 
         let mut fork_storage = ForkStorage::new(Some(fork_details), &options);

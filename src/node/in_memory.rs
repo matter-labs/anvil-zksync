@@ -79,11 +79,11 @@ pub const L1_GAS_PRICE: u64 = 50_000_000_000;
 /// The default L2 Gas Price to be used if not supplied via the CLI argument.
 pub const DEFAULT_L2_GAS_PRICE: u64 = 25_000_000;
 /// L1 Gas Price Scale Factor for gas estimation.
-pub const ESTIMATE_GAS_PRICE_SCALE_FACTOR: f64 = 1.5;
+pub const DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR: f64 = 1.5;
 /// Acceptable gas overestimation limit.
 pub const ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION: u64 = 1_000;
 /// The factor by which to scale the gasLimit.
-pub const ESTIMATE_GAS_SCALE_FACTOR: f32 = 1.3;
+pub const DEFAULT_ESTIMATE_GAS_SCALE_FACTOR: f32 = 1.3;
 /// The maximum number of previous blocks to store the state for.
 pub const MAX_PREVIOUS_STATES: u16 = 128;
 /// The zks protocol version.
@@ -455,8 +455,8 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             let fee_input = block_on(async move {
                 fee_input_provider
                     .get_batch_fee_input_scaled(
-                        ESTIMATE_GAS_PRICE_SCALE_FACTOR,
-                        ESTIMATE_GAS_PRICE_SCALE_FACTOR,
+                        fee_input_provider.estimate_gas_price_scale_factor,
+                        fee_input_provider.estimate_gas_price_scale_factor,
                     )
                     .await
                     .unwrap()
@@ -584,11 +584,15 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
         tracing::trace!("Gas Estimation Values:");
         tracing::trace!("  Final upper_bound: {}", upper_bound);
-        tracing::trace!("  ESTIMATE_GAS_SCALE_FACTOR: {}", ESTIMATE_GAS_SCALE_FACTOR);
+        tracing::trace!(
+            "  ESTIMATE_GAS_SCALE_FACTOR: {}",
+            self.fee_input_provider.estimate_gas_scale_factor
+        );
         tracing::trace!("  MAX_L2_TX_GAS_LIMIT: {}", MAX_L2_TX_GAS_LIMIT);
         let tx_body_gas_limit = upper_bound;
-        let suggested_gas_limit =
-            ((upper_bound + additional_gas_for_pubdata) as f32 * ESTIMATE_GAS_SCALE_FACTOR) as u64;
+        let suggested_gas_limit = ((upper_bound + additional_gas_for_pubdata) as f32
+            * self.fee_input_provider.estimate_gas_scale_factor)
+            as u64;
 
         let estimate_gas_result = InMemoryNodeInner::estimate_gas_step(
             l2_tx.clone(),
@@ -953,6 +957,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 fee_input_provider: TestNodeFeeInputProvider::new(
                     f.l1_gas_price,
                     config.l2_fair_gas_price,
+                    f.estimate_gas_price_scale_factor,
+                    f.estimate_gas_scale_factor,
                 ),
                 tx_results: Default::default(),
                 blocks,
@@ -990,6 +996,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 fee_input_provider: TestNodeFeeInputProvider::new(
                     L1_GAS_PRICE,
                     config.l2_fair_gas_price,
+                    DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
+                    DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
                 ),
                 tx_results: Default::default(),
                 blocks,
@@ -1518,11 +1526,17 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             ..Default::default()
         };
 
-        let bytecodes: HashMap<U256, Vec<U256>> = vm
-            .get_last_tx_compressed_bytecodes()
-            .iter()
-            .map(|b| bytecode_to_factory_dep(b.original.clone()))
-            .collect();
+        let mut bytecodes = HashMap::new();
+        for b in vm.get_last_tx_compressed_bytecodes().iter() {
+            let hashcode = match bytecode_to_factory_dep(b.original.clone()) {
+                Ok(hc) => hc,
+                Err(error) => {
+                    tracing::error!("{}", format!("cannot convert bytecode: {}", error).on_red());
+                    return Err(error.to_string());
+                }
+            };
+            bytecodes.insert(hashcode.0, hashcode.1);
+        }
         if execute_bootloader {
             vm.execute(VmExecutionMode::Bootloader);
         }
@@ -1888,6 +1902,8 @@ mod tests {
                 overwrite_chain_id: None,
                 l1_gas_price: 1000,
                 l2_fair_gas_price: DEFAULT_L2_GAS_PRICE,
+                estimate_gas_price_scale_factor: DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
+                estimate_gas_scale_factor: DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
             }),
             None,
             Default::default(),

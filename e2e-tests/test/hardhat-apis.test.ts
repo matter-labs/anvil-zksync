@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { Wallet } from "zksync-web3";
-import { deployContract, getTestProvider } from "../helpers/utils";
+import { deployContract, expectThrowsAsync, getTestProvider } from "../helpers/utils";
 import { RichAccounts } from "../helpers/constants";
 import { ethers } from "hardhat";
 import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
@@ -116,6 +116,24 @@ describe("hardhat_setCode", function () {
       "latest",
     ]);
     expect(BigNumber.from(result).toNumber()).to.eq(5);
+  });
+
+  it("Should reject invalid code", async function () {
+    const action = async () => {
+      // Arrange
+      const wallet = new Wallet(RichAccounts[0].PrivateKey);
+      const deployer = new Deployer(hre, wallet);
+
+      const address = "0x1000000000000000000000000000000000001111";
+      const artifact = await deployer.loadArtifact("Return5");
+      const contractCode = [...ethers.utils.arrayify(artifact.deployedBytecode)];
+      const shortCode = contractCode.slice(0, contractCode.length - 1);
+
+      // Act
+      await provider.send("hardhat_setCode", [address, shortCode]);
+    };
+
+    await expectThrowsAsync(action, "bytes must be divisible by 32");
   });
 
   it("Should update code with a different smart contract", async function () {

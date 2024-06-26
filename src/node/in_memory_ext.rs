@@ -1,6 +1,5 @@
 use anyhow::anyhow;
 use zksync_basic_types::{Address, U256, U64};
-use zksync_state::ReadStorage;
 use zksync_types::{
     get_code_key, get_nonce_key,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
@@ -97,10 +96,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
         self.get_inner()
             .write()
             .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
-            .map(|mut writer| {
-                utils::mine_empty_blocks(&mut writer, 1, 1000);
+            .and_then(|mut writer| {
+                utils::mine_empty_blocks(&mut writer, 1, 1000)?;
                 tracing::info!("👷 Mined block #{}", writer.current_miniblock);
-                "0x0".to_string()
+                Ok("0x0".to_string())
             })
     }
 
@@ -210,7 +209,12 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
             .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
             .and_then(|mut writer| {
                 let nonce_key = get_nonce_key(&address);
-                let full_nonce = writer.fork_storage.read_value(&nonce_key);
+                let full_nonce = match writer.fork_storage.read_value_internal(&nonce_key) {
+                    Ok(full_nonce) => full_nonce,
+                    Err(error) => {
+                        return Err(anyhow!(error.to_string()));
+                    }
+                };
                 let (mut account_nonce, mut deployment_nonce) =
                     decompose_full_nonce(h256_to_u256(full_nonce));
                 if account_nonce >= nonce {
@@ -256,7 +260,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
                         "Number of blocks must be greater than 0".to_string(),
                     ));
                 }
-                utils::mine_empty_blocks(&mut writer, num_blocks.as_u64(), interval_ms.as_u64());
+                utils::mine_empty_blocks(&mut writer, num_blocks.as_u64(), interval_ms.as_u64())?;
                 tracing::info!("👷 Mined {} blocks", num_blocks);
 
                 Ok(true)
@@ -300,22 +304,23 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
         self.get_inner()
             .write()
             .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
-            .map(|mut writer| {
+            .and_then(|mut writer| {
                 let code_key = get_code_key(&address);
                 tracing::info!("set code for address {address:#x}");
-                let (hash, code) = bytecode_to_factory_dep(code);
-                let hash = u256_to_h256(hash);
-                writer.fork_storage.store_factory_dep(
-                    hash,
-                    code.iter()
-                        .flat_map(|entry| {
-                            let mut bytes = vec![0u8; 32];
-                            entry.to_big_endian(&mut bytes);
-                            bytes.to_vec()
-                        })
-                        .collect(),
-                );
+                let hashcode = bytecode_to_factory_dep(code)?;
+                let hash = u256_to_h256(hashcode.0);
+                let code = hashcode
+                    .1
+                    .iter()
+                    .flat_map(|entry| {
+                        let mut bytes = vec![0u8; 32];
+                        entry.to_big_endian(&mut bytes);
+                        bytes.to_vec()
+                    })
+                    .collect();
+                writer.fork_storage.store_factory_dep(hash, code);
                 writer.fork_storage.set_value(code_key, hash);
+                Ok(())
             })
     }
 }
