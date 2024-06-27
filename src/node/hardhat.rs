@@ -64,4 +64,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> HardhatNam
             })
             .into_boxed_future()
     }
+
+    fn set_storage_at(&self, address: Address, slot: U256, value: U256) -> RpcResult<bool> {
+        self.set_storage_at(address, slot, value)
+            .map_err(|err| {
+                tracing::error!("failed setting storage: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(err))
+            })
+            .into_boxed_future()
+    }
 }

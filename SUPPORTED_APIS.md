@@ -108,7 +108,7 @@ The `status` options are:
 | `HARDHAT` | `hardhat_setNextBlockBaseFeePerGas` | `NOT IMPLEMENTED` | Sets the base fee per gas for the next block |
 | `HARDHAT` | `hardhat_setPrevRandao` | `NOT IMPLEMENTED` | Sets the PREVRANDAO value of the next block |
 | [`HARDHAT`](#hardhat-namespace) | [`hardhat_setNonce`](#hardhat_setnonce) | `SUPPORTED` | Sets the nonce of a given account |
-| `HARDHAT` | `hardhat_setStorageAt` | `NOT IMPLEMENTED` | Sets the storage value at a given key for a given account |
+| [`HARDHAT`](#hardhat-namespace) | [`hardhat_setStorageAt`](#hardhat_setstorageat) | `SUPPORTED` | Sets the storage value at a given key for a given account |
 | [`HARDHAT`](#hardhat-namespace) | [`hardhat_stopImpersonatingAccount`](#hardhat_stopimpersonatingaccount) | `SUPPORTED` | Stop impersonating an account after having previously used `hardhat_impersonateAccount` |
 | [`NETWORK`](#network-namespace) | [`net_version`](#net_version) | `SUPPORTED` | Returns the current network id <br />_(default is `260`)_ |
 | [`NETWORK`](#network-namespace) | [`net_peerCount`](#net_peercount) | `SUPPORTED` | Returns the number of peers currently connected to the client <br/>_(hard-coded to `0`)_ |
