@@ -1,8 +1,9 @@
 use anyhow::anyhow;
-use zksync_basic_types::{Address, U256, U64};
+use zksync_basic_types::{AccountTreeId, Address, U256, U64};
 use zksync_types::{
     get_code_key, get_nonce_key,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
+    StorageKey,
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
@@ -323,6 +324,17 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
                 Ok(())
             })
     }
+
+    pub fn set_storage_at(&self, address: Address, slot: U256, value: U256) -> Result<bool> {
+        self.get_inner()
+            .write()
+            .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
+            .map(|mut writer| {
+                let key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(slot));
+                writer.fork_storage.set_value(key, u256_to_h256(value));
+                true
+            })
+    }
 }
 
 #[cfg(test)]
@@ -332,6 +344,7 @@ mod tests {
     use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
     use std::str::FromStr;
     use zksync_basic_types::{Nonce, H256};
+    use zksync_state::ReadStorage;
     use zksync_types::{api::BlockNumber, fee::Fee, l2::L2Tx, PackedEthSignature};
 
     #[tokio::test]
@@ -527,6 +540,36 @@ mod tests {
             .expect("failed getting code")
             .0;
         assert_eq!(new_code, code_after);
+    }
+
+    #[tokio::test]
+    async fn test_set_storage_at() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let address = Address::repeat_byte(0x1);
+        let slot = U256::from(37);
+        let value = U256::from(42);
+
+        let key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(slot));
+        let value_before = node
+            .get_inner()
+            .write()
+            .unwrap()
+            .fork_storage
+            .read_value(&key);
+        assert_eq!(H256::default(), value_before);
+
+        let result = node
+            .set_storage_at(address, slot, value)
+            .expect("failed setting value");
+        assert!(result);
+
+        let value_after = node
+            .get_inner()
+            .write()
+            .unwrap()
+            .fork_storage
+            .read_value(&key);
+        assert_eq!(value, h256_to_u256(value_after));
     }
 
     #[tokio::test]
