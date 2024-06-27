@@ -1051,7 +1051,6 @@ mod test {
 
         let actual_bytecode = storage
             .get_bytecode_by_hash(H256::repeat_byte(0x1))
-            .ok()
             .expect("failed getting bytecode")
             .expect("missing bytecode");
         assert_eq!(input_bytecode, actual_bytecode);

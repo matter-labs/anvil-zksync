@@ -614,14 +614,14 @@ mod tests {
 
         let mut fork_storage = ForkStorage::new(Some(fork_details), &options);
 
-        assert_eq!(fork_storage.is_write_initial(&never_written_key), true);
-        assert_eq!(fork_storage.is_write_initial(&key_with_some_value), false);
+        assert!(fork_storage.is_write_initial(&never_written_key));
+        assert!(!fork_storage.is_write_initial(&key_with_some_value));
         // This is the current limitation of the sytem. In theory, this should return false - as the value was written, but we don't have the API to the
         // backend to get this information.
-        assert_eq!(fork_storage.is_write_initial(&key_with_value_0), true);
+        assert!(fork_storage.is_write_initial(&key_with_value_0));
 
         // But writing any value there in the local storage (even 0) - should make it non-initial write immediately.
         fork_storage.set_value(key_with_value_0, H256::zero());
-        assert_eq!(fork_storage.is_write_initial(&key_with_value_0), false);
+        assert!(!fork_storage.is_write_initial(&key_with_value_0));
     }
 }

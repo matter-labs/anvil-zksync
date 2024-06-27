@@ -1795,6 +1795,23 @@ impl BlockContext {
     }
 }
 
+pub fn load_last_l1_batch<S: ReadStorage>(storage: StoragePtr<S>) -> Option<(u64, u64)> {
+    // Get block number and timestamp
+    let current_l1_batch_info_key = StorageKey::new(
+        AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
+        SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
+    );
+    let mut storage_ptr = storage.borrow_mut();
+    let current_l1_batch_info = storage_ptr.read_value(&current_l1_batch_info_key);
+    let (batch_number, batch_timestamp) = unpack_block_info(h256_to_u256(current_l1_batch_info));
+    let block_number = batch_number as u32;
+    if block_number == 0 {
+        // The block does not exist yet
+        return None;
+    }
+    Some((batch_number, batch_timestamp))
+}
+
 #[cfg(test)]
 mod tests {
     use ethabi::{Token, Uint};
@@ -1980,21 +1997,4 @@ mod tests {
             _ => panic!("invalid result {:?}", result.result),
         }
     }
-}
-
-pub fn load_last_l1_batch<S: ReadStorage>(storage: StoragePtr<S>) -> Option<(u64, u64)> {
-    // Get block number and timestamp
-    let current_l1_batch_info_key = StorageKey::new(
-        AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
-        SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
-    );
-    let mut storage_ptr = storage.borrow_mut();
-    let current_l1_batch_info = storage_ptr.read_value(&current_l1_batch_info_key);
-    let (batch_number, batch_timestamp) = unpack_block_info(h256_to_u256(current_l1_batch_info));
-    let block_number = batch_number as u32;
-    if block_number == 0 {
-        // The block does not exist yet
-        return None;
-    }
-    Some((batch_number, batch_timestamp))
 }

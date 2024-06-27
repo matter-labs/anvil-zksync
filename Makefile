@@ -38,7 +38,7 @@ rust-doc:
 lint:
 	cd e2e-tests && yarn && yarn lint && yarn fmt && yarn typecheck
 	cargo fmt --all -- --check
-	cargo clippy -p era_test_node -Zunstable-options -- -D warnings --allow clippy::unwrap_used
+	cargo clippy --tests -p era_test_node -Zunstable-options -- -D warnings --allow clippy::unwrap_used
 
 # Fix lint errors for Rust code
 lint-fix:

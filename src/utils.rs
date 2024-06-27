@@ -311,6 +311,12 @@ pub fn internal_error(method_name: &'static str, error: impl fmt::Display) -> We
 //     Ok(Address::from(address.0))
 // }
 
+/// Converts `h256` value as BE into the u64
+pub fn h256_to_u64(value: H256) -> u64 {
+    let be_u64_bytes: [u8; 8] = value[24..].try_into().unwrap();
+    u64::from_be_bytes(be_u64_bytes)
+}
+
 #[cfg(test)]
 mod tests {
     use zksync_basic_types::{H256, U256};
@@ -511,10 +517,4 @@ mod tests {
             assert_eq!(U256::from(2002), tx_block_3.timestamp);
         }
     }
-}
-
-/// Converts `h256` value as BE into the u64
-pub fn h256_to_u64(value: H256) -> u64 {
-    let be_u64_bytes: [u8; 8] = value[24..].try_into().unwrap();
-    u64::from_be_bytes(be_u64_bytes)
 }
