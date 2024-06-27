@@ -1560,6 +1560,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     /// Runs L2 transaction and commits it to a new block.
     pub fn run_l2_tx(&self, l2_tx: L2Tx, execution_mode: TxExecutionMode) -> Result<(), String> {
         let tx_hash = l2_tx.hash();
+        let transaction_type = l2_tx.common_data.transaction_type;
 
         tracing::info!("");
         tracing::info!("Validating {}", format!("{:?}", tx_hash).bold());
@@ -1672,7 +1673,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 U64::from(1)
             },
             effective_gas_price: Some(inner.fee_input_provider.l2_gas_price.into()),
-            ..Default::default()
+            transaction_type: Some((transaction_type as u32).into()),
+            logs_bloom: Default::default(),
         };
         let debug = create_debug_output(&l2_tx, &result, call_traces).expect("create debug output"); // OK to unwrap here as Halt is handled above
         inner.tx_results.insert(
