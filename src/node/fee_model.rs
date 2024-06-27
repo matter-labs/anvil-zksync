@@ -5,7 +5,7 @@ use zksync_types::L1_GAS_PER_PUBDATA_BYTE;
 
 use super::{
     DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
-    DEFAULT_L2_GAS_PRICE, L1_GAS_PRICE,
+    DEFAULT_L1_GAS_PRICE, DEFAULT_L2_GAS_PRICE,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -84,8 +84,8 @@ impl BatchFeeModelInputProvider for TestNodeFeeInputProvider {
 impl Default for TestNodeFeeInputProvider {
     fn default() -> Self {
         Self {
-            l1_gas_price: L1_GAS_PRICE,
-            l1_pubdata_price: L1_GAS_PRICE * L1_GAS_PER_PUBDATA_BYTE as u64,
+            l1_gas_price: DEFAULT_L1_GAS_PRICE,
+            l1_pubdata_price: DEFAULT_L1_GAS_PRICE * L1_GAS_PER_PUBDATA_BYTE as u64,
             l2_gas_price: DEFAULT_L2_GAS_PRICE,
             compute_overhead_part: 0.0,
             pubdata_overhead_part: 1.0,

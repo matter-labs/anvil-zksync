@@ -74,7 +74,7 @@ pub const NON_FORK_FIRST_BLOCK_TIMESTAMP: u64 = 1_000;
 /// Network ID we use for the test node.
 pub const TEST_NODE_NETWORK_ID: u32 = 260;
 /// L1 Gas Price.
-pub const L1_GAS_PRICE: u64 = 50_000_000_000;
+pub const DEFAULT_L1_GAS_PRICE: u64 = 50_000_000_000;
 // TODO: for now, that's fine, as computation overhead is set to zero, but we may consider using calculated fee input everywhere.
 /// The default L2 Gas Price to be used if not supplied via the CLI argument.
 pub const DEFAULT_L2_GAS_PRICE: u64 = 25_000_000;
@@ -884,6 +884,7 @@ pub struct Snapshot {
 #[derive(Debug, Clone)]
 pub struct InMemoryNodeConfig {
     // The values to be used when calculating gas.
+    pub l1_gas_price: Option<u64>,
     pub l2_fair_gas_price: u64,
     pub show_calls: ShowCalls,
     pub show_outputs: bool,
@@ -897,6 +898,7 @@ pub struct InMemoryNodeConfig {
 impl Default for InMemoryNodeConfig {
     fn default() -> Self {
         Self {
+            l1_gas_price: None,
             l2_fair_gas_price: DEFAULT_L2_GAS_PRICE,
             show_calls: Default::default(),
             show_outputs: Default::default(),
@@ -943,6 +945,22 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         observability: Option<Observability>,
         config: InMemoryNodeConfig,
     ) -> Self {
+        let default_l1_gas_price = if let Some(f) = &fork {
+            f.l1_gas_price
+        } else {
+            DEFAULT_L1_GAS_PRICE
+        };
+        let l1_gas_price = if let Some(custom_l1_gas_price) = config.l1_gas_price {
+            tracing::info!(
+                "L1 gas price set to {} (overridden from {})",
+                to_human_size(custom_l1_gas_price.into()),
+                to_human_size(default_l1_gas_price.into())
+            );
+            custom_l1_gas_price
+        } else {
+            default_l1_gas_price
+        };
+
         let inner = if let Some(f) = &fork {
             let mut block_hashes = HashMap::<u64, H256>::new();
             block_hashes.insert(f.l2_block.number.as_u64(), f.l2_block.hash);
@@ -961,6 +979,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                     f.estimate_gas_scale_factor,
                 )
             };
+            fee_input_provider.l1_gas_price = l1_gas_price;
             fee_input_provider.l2_gas_price = config.l2_fair_gas_price;
 
             InMemoryNodeInner {
@@ -997,12 +1016,16 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 create_empty_block(0, NON_FORK_FIRST_BLOCK_TIMESTAMP, 0, None),
             );
 
+            let fee_input_provider = TestNodeFeeInputProvider {
+                l1_gas_price,
+                ..Default::default()
+            };
             InMemoryNodeInner {
                 current_timestamp: NON_FORK_FIRST_BLOCK_TIMESTAMP,
                 current_batch: 0,
                 current_miniblock: 0,
                 current_miniblock_hash: block_hash,
-                fee_input_provider: TestNodeFeeInputProvider::default(),
+                fee_input_provider,
                 tx_results: Default::default(),
                 blocks,
                 block_hashes,

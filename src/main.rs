@@ -234,6 +234,10 @@ struct Cli {
     show_gas_details: ShowGasDetails,
 
     #[arg(long)]
+    /// If provided, uses a custom value as the L1 gas price.
+    l1_gas_price: Option<u64>,
+
+    #[arg(long)]
     /// If provided, uses a custom value as the L2 gas price. If not provided the gas price will be
     /// inferred from the protocol version.
     l2_gas_price: Option<u64>,
@@ -395,6 +399,7 @@ async fn main() -> anyhow::Result<()> {
         fork_details,
         Some(observability),
         InMemoryNodeConfig {
+            l1_gas_price: opt.l1_gas_price,
             l2_fair_gas_price,
             show_calls: opt.show_calls,
             show_outputs: opt.show_outputs,
