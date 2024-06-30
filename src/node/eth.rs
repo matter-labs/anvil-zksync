@@ -515,7 +515,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
                         nonce: U256::from(info.tx.common_data.nonce.0),
                         block_hash: Some(hash),
                         block_number: Some(U64::from(info.miniblock_number)),
-                        transaction_index: Some(U64::from(1)),
+                        transaction_index: Some(U64::from(0)),
                         from: Some(info.tx.initiator_account()),
                         to: Some(info.tx.recipient_account()),
                         value: info.tx.execute.value,
