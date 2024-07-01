@@ -95,7 +95,7 @@ cp example/config.toml $HOME/.era_test_node
 ```
 
 For all options that can be configured,
-please refer to [example/config.toml](example/config.toml)
+please refer to [examples/config.toml](examples/config.toml)
 
 ## 🧑‍💻 Running Locally
 
