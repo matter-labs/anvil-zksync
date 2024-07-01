@@ -21,17 +21,19 @@ resolve_hashes = false
 # Possible values: BuiltIn, BuiltInNoVerify, Local.
 system_contracts_options = "BuiltIn"
 
-[node.gas]
+# Note: gas configuration functions as overrides. If provided, the node will use
+# these instead of setting them to network-appropriate values.
+# [node.gas]
 # L1 gas price.
-l1_gas_price = 50_000_000_000
+# l1_gas_price = 50_000_000_000
 # L2 gas price.
-l2_gas_price = 25_000_000
+# l2_gas_price = 25_000_000
 
-[node.gas.estimation]
+# [node.gas.estimation]
 # L1 gas price scale factor for gas estimation.
-price_scale_factor = 1.5
+# price_scale_factor = 1.5
 # The factor by which to scale the gasLimit.
-limit_scale_factor = 1.3
+# limit_scale_factor = 1.3
 
 [log]
 # Log filter level. Possible values: trace, debug, info, warn, error.
