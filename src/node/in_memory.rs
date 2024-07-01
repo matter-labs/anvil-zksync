@@ -171,18 +171,8 @@ pub struct InMemoryNodeInner<S> {
     pub filters: EthFilters,
     // Underlying storage
     pub fork_storage: ForkStorage<S>,
-    // Debug level information.
-    pub show_calls: ShowCalls,
-    // If true - will display the output of the calls.
-    pub show_outputs: bool,
-    // Displays storage logs.
-    pub show_storage_logs: ShowStorageLogs,
-    // Displays VM details.
-    pub show_vm_details: ShowVMDetails,
-    // Gas details information.
-    pub show_gas_details: ShowGasDetails,
-    // If true - will contact openchain to resolve the ABI to function names.
-    pub resolve_hashes: bool,
+    // Configuration.
+    pub config: InMemoryNodeConfig,
     pub console_log_handler: ConsoleLogHandler,
     pub system_contracts: SystemContracts,
     pub impersonated_accounts: HashSet<Address>,
@@ -240,12 +230,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 block_hashes,
                 filters: Default::default(),
                 fork_storage: ForkStorage::new(fork, &config.system_contracts_options),
-                show_calls: config.show_calls,
-                show_outputs: config.show_outputs,
-                show_storage_logs: config.show_storage_logs,
-                show_vm_details: config.show_vm_details,
-                show_gas_details: config.show_gas_details,
-                resolve_hashes: config.resolve_hashes,
+                config,
                 console_log_handler: ConsoleLogHandler::default(),
                 system_contracts: SystemContracts::from_options(&config.system_contracts_options),
                 impersonated_accounts: Default::default(),
@@ -275,12 +260,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 block_hashes,
                 filters: Default::default(),
                 fork_storage: ForkStorage::new(fork, &config.system_contracts_options),
-                show_calls: config.show_calls,
-                show_outputs: config.show_outputs,
-                show_storage_logs: config.show_storage_logs,
-                show_vm_details: config.show_vm_details,
-                show_gas_details: config.show_gas_details,
-                resolve_hashes: config.resolve_hashes,
+                config,
                 console_log_handler: ConsoleLogHandler::default(),
                 system_contracts: SystemContracts::from_options(&config.system_contracts_options),
                 impersonated_accounts: Default::default(),
@@ -904,27 +884,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         inner.fork_storage.get_fork_url()
     }
 
-    fn get_config(&self, l2_gas_price_override: Option<u64>) -> Result<InMemoryNodeConfig, String> {
+    fn get_config(&self) -> Result<InMemoryNodeConfig, String> {
         let inner = self
             .inner
             .read()
             .map_err(|e| format!("Failed to acquire read lock: {}", e))?;
-        let _l2_gas_price = if let Some(l2_gas_price) = l2_gas_price_override {
-            l2_gas_price
-        } else {
-            inner.fee_input_provider.l2_gas_price
-        };
-        Ok(InMemoryNodeConfig {
-            port: todo!(),
-            show_calls: todo!(),
-            show_outputs: todo!(),
-            show_storage_logs: todo!(),
-            show_vm_details: todo!(),
-            show_gas_details: todo!(),
-            resolve_hashes: todo!(),
-            system_contracts_options: todo!(),
-            gas: todo!(),
-        })
+
+        Ok(inner.config)
     }
 
     pub fn reset(&self, fork: Option<ForkDetails>) -> Result<(), String> {
@@ -935,9 +901,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             .observability
             .clone();
 
-        let l2_gas_price = fork.as_ref().map(|f| f.l2_fair_gas_price);
-        let config = self.get_config(l2_gas_price)?;
-
+        let config = self.get_config()?;
         let inner = InMemoryNodeInner::new(fork, observability, config);
 
         let mut writer = self
@@ -1052,9 +1016,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             formatter::print_call(
                 call,
                 0,
-                &inner.show_calls,
-                inner.show_outputs,
-                inner.resolve_hashes,
+                &inner.config.show_calls,
+                inner.config.show_outputs,
+                inner.config.resolve_hashes,
             );
         }
 
@@ -1364,7 +1328,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             to_human_size(tx_result.refunds.gas_refunded.into())
         );
 
-        match inner.show_gas_details {
+        match inner.config.show_gas_details {
             ShowGasDetails::None => tracing::info!(
                 "Use --show-gas-details flag or call config_setShowGasDetails to display more info"
             ),
@@ -1381,11 +1345,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             }
         }
 
-        if inner.show_storage_logs != ShowStorageLogs::None {
-            print_storage_logs_details(&inner.show_storage_logs, &tx_result);
+        if inner.config.show_storage_logs != ShowStorageLogs::None {
+            print_storage_logs_details(&inner.config.show_storage_logs, &tx_result);
         }
 
-        if inner.show_vm_details != ShowVMDetails::None {
+        if inner.config.show_vm_details != ShowVMDetails::None {
             formatter::print_vm_details(&tx_result);
         }
 
@@ -1406,14 +1370,14 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             format!("{:?} call traces. ", call_traces_count).bold()
         );
 
-        if inner.show_calls != ShowCalls::None {
+        if inner.config.show_calls != ShowCalls::None {
             for call in call_traces {
                 formatter::print_call(
                     call,
                     0,
-                    &inner.show_calls,
-                    inner.show_outputs,
-                    inner.resolve_hashes,
+                    &inner.config.show_calls,
+                    inner.config.show_outputs,
+                    inner.config.resolve_hashes,
                 );
             }
         }
@@ -1423,7 +1387,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             format!("{} events", tx_result.logs.events.len()).bold()
         );
         for event in &tx_result.logs.events {
-            formatter::print_event(event, inner.resolve_hashes);
+            formatter::print_event(event, inner.config.resolve_hashes);
         }
 
         // The computed block hash here will be different than that in production.
