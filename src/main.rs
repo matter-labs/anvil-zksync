@@ -198,7 +198,6 @@ async fn main() -> anyhow::Result<()> {
     // Try to read the [`TestNodeConfig`] file if supplied as an argument.
     let mut config = TestNodeConfig::try_load(&opt.config).unwrap();
     config.override_with_opts(&opt);
-    dbg!(&config);
 
     let log_level_filter = LevelFilter::from(config.log.level);
     let log_file = File::create(config.log.file_path)?;
