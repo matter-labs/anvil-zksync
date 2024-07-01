@@ -294,21 +294,12 @@ pub mod gas {
         pub estimation: Estimation,
     }
 
-    #[derive(Deserialize, Debug, Copy, Clone)]
+    #[derive(Deserialize, Debug, Default, Copy, Clone)]
     pub struct Estimation {
         /// L1 gas price scale factor for gas estimation.
-        pub price_scale_factor: f64,
+        pub price_scale_factor: Option<f64>,
         /// The factor by which to scale the gasLimit.
-        pub limit_scale_factor: f32,
-    }
-
-    impl Default for Estimation {
-        fn default() -> Self {
-            Self {
-                price_scale_factor: DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
-                limit_scale_factor: DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
-            }
-        }
+        pub limit_scale_factor: Option<f32>,
     }
 }
 

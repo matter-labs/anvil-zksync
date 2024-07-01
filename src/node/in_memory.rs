@@ -3,7 +3,6 @@ use crate::{
     bootloader_debug::{BootloaderDebug, BootloaderDebugTracer},
     config::{
         cache::CacheConfig,
-        gas::{DEFAULT_L1_GAS_PRICE, DEFAULT_L2_GAS_PRICE},
         node::{InMemoryNodeConfig, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails},
     },
     console_log::ConsoleLogHandler,
@@ -210,43 +209,26 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         observability: Option<Observability>,
         config: InMemoryNodeConfig,
     ) -> Self {
-        let default_l1_gas_price = if let Some(f) = &fork {
-            f.l1_gas_price
-        } else {
-            DEFAULT_L1_GAS_PRICE
-        };
-        let l1_gas_price = if let Some(custom_l1_gas_price) = config.gas.l1_gas_price {
-            tracing::info!(
-                "L1 gas price set to {} (overridden from {})",
-                to_human_size(custom_l1_gas_price.into()),
-                to_human_size(default_l1_gas_price.into())
-            );
-            custom_l1_gas_price
-        } else {
-            default_l1_gas_price
-        };
-
         if let Some(f) = &fork {
             let mut block_hashes = HashMap::<u64, H256>::new();
             block_hashes.insert(f.l2_block.number.as_u64(), f.l2_block.hash);
             let mut blocks = HashMap::<H256, Block<TransactionVariant>>::new();
             blocks.insert(f.l2_block.hash, f.l2_block.clone());
 
-            let mut fee_input_provider = if let Some(params) = f.fee_params {
+            let fee_input_provider = if let Some(params) = f.fee_params {
                 TestNodeFeeInputProvider::from_fee_params_and_estimate_scale_factors(
                     params,
                     f.estimate_gas_price_scale_factor,
                     f.estimate_gas_scale_factor,
                 )
+                .with_overrides(config.gas)
             } else {
                 TestNodeFeeInputProvider::from_estimate_scale_factors(
                     f.estimate_gas_price_scale_factor,
                     f.estimate_gas_scale_factor,
                 )
             };
-            fee_input_provider.l1_gas_price = l1_gas_price;
-            fee_input_provider.l2_gas_price =
-                config.gas.l2_gas_price.unwrap_or(DEFAULT_L2_GAS_PRICE);
+
             InMemoryNodeInner {
                 current_timestamp: f.block_timestamp,
                 current_batch: f.l1_block.0,
@@ -281,10 +263,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 create_empty_block(0, NON_FORK_FIRST_BLOCK_TIMESTAMP, 0, None),
             );
 
-            let fee_input_provider = TestNodeFeeInputProvider {
-                l1_gas_price,
-                ..Default::default()
-            };
+            let fee_input_provider = TestNodeFeeInputProvider::default().with_overrides(config.gas);
             InMemoryNodeInner {
                 current_timestamp: NON_FORK_FIRST_BLOCK_TIMESTAMP,
                 current_batch: 0,

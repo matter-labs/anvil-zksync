@@ -27,7 +27,6 @@ mod testing;
 mod utils;
 
 use node::InMemoryNode;
-use utils::to_human_size;
 
 use std::fs::File;
 use std::{
@@ -219,27 +218,6 @@ async fn main() -> anyhow::Result<()> {
             Some(ForkDetails::from_network_tx(&replay_tx.network, replay_tx.tx, config.cache).await)
         }
     };
-
-    // If we're forking we set the price to be equal to that contained within
-    // `ForkDetails`. If not, we use the one configured in the [`InMemoryNodeConfig`]
-    // configuration file/default value instead. We make sure to check if the
-    // value has been override via the CLI-argument as we don't want to
-    // override that value.
-    if let Some(f) = &fork_details {
-        if let Some(new_l2_gas_price) = opt.l2_gas_price {
-            tracing::info!(
-                "Starting node with L2 gas price set to {} (overridden from {})",
-                to_human_size(new_l2_gas_price.into()),
-                to_human_size(f.l2_fair_gas_price.into())
-            );
-        } else {
-            tracing::info!(
-                "Starting node with L2 gas price set to {}",
-                to_human_size(f.l2_fair_gas_price.into())
-            );
-            config.node.gas.l2_gas_price = Some(f.l2_fair_gas_price);
-        }
-    }
 
     // If we're replaying the transaction, we need to sync to the previous block
     // and then replay all the transactions that happened in
