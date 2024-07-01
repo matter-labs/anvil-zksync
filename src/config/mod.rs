@@ -2,6 +2,7 @@ use std::{env, fs::read_to_string, path::PathBuf};
 
 use cache::CacheConfig;
 use cli::{CacheType, Cli, DevSystemContracts};
+use gas::GasConfig;
 use log::LogConfig;
 use node::InMemoryNodeConfig;
 use serde::Deserialize;
@@ -17,6 +18,8 @@ pub const CONFIG_FILE_NAME: &str = "config.toml";
 #[derive(Deserialize, Default, Debug, Clone)]
 pub struct TestNodeConfig {
     pub node: InMemoryNodeConfig,
+    // The values to be used when calculating gas.
+    pub gas: Option<GasConfig>,
     // Logging configuration.
     pub log: LogConfig,
     // Caching configuration.
@@ -81,8 +84,15 @@ impl TestNodeConfig {
         }
 
         // [`GasConfig`]
+        if let Some(l1_gas_price) = &opt.l1_gas_price {
+            let mut gas = self.gas.unwrap_or_default();
+            gas.l1_gas_price = Some(*l1_gas_price);
+            self.gas = Some(gas);
+        }
         if let Some(l2_gas_price) = &opt.l2_gas_price {
-            self.node.gas.l2_gas_price = Some(*l2_gas_price);
+            let mut gas = self.gas.unwrap_or_default();
+            gas.l2_gas_price = Some(*l2_gas_price);
+            self.gas = Some(gas);
         }
 
         // [`LogConfig`].
@@ -114,8 +124,6 @@ pub mod node {
 
     use crate::system_contracts;
 
-    use super::gas::GasConfig;
-
     #[derive(Deserialize, Debug, Copy, Clone)]
     pub struct InMemoryNodeConfig {
         pub port: u16,
@@ -126,8 +134,6 @@ pub mod node {
         pub show_gas_details: ShowGasDetails,
         pub resolve_hashes: bool,
         pub system_contracts_options: system_contracts::Options,
-        // The values to be used when calculating gas.
-        pub gas: GasConfig,
     }
 
     impl Default for InMemoryNodeConfig {
@@ -141,7 +147,6 @@ pub mod node {
                 show_gas_details: Default::default(),
                 resolve_hashes: Default::default(),
                 system_contracts_options: Default::default(),
-                gas: Default::default(),
             }
         }
     }
@@ -291,7 +296,7 @@ pub mod gas {
         /// L2 gas price.
         pub l2_gas_price: Option<u64>,
         /// Factors used in estimating gas.
-        pub estimation: Estimation,
+        pub estimation: Option<Estimation>,
     }
 
     #[derive(Deserialize, Debug, Default, Copy, Clone)]

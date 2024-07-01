@@ -59,7 +59,11 @@ impl TestNodeFeeInputProvider {
         }
     }
 
-    pub fn with_overrides(mut self, gas_config: GasConfig) -> Self {
+    pub fn with_overrides(mut self, gas_config: Option<GasConfig>) -> Self {
+        let Some(gas_config) = gas_config else {
+            return self;
+        };
+
         if let Some(l1_gas_price) = gas_config.l1_gas_price {
             tracing::info!(
                 "L1 gas price set to {} (overridden from {})",
@@ -76,11 +80,14 @@ impl TestNodeFeeInputProvider {
             );
             self.l2_gas_price = l2_gas_price;
         }
-        if let Some(factor) = gas_config.estimation.price_scale_factor {
-            self.estimate_gas_price_scale_factor = factor;
-        }
-        if let Some(factor) = gas_config.estimation.limit_scale_factor {
-            self.estimate_gas_scale_factor = factor;
+
+        if let Some(estimation) = gas_config.estimation {
+            if let Some(factor) = estimation.price_scale_factor {
+                self.estimate_gas_price_scale_factor = factor;
+            }
+            if let Some(factor) = estimation.limit_scale_factor {
+                self.estimate_gas_scale_factor = factor;
+            }
         }
 
         self

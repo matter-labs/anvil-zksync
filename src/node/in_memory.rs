@@ -3,6 +3,7 @@ use crate::{
     bootloader_debug::{BootloaderDebug, BootloaderDebugTracer},
     config::{
         cache::CacheConfig,
+        gas::{self, GasConfig},
         node::{InMemoryNodeConfig, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails},
     },
     console_log::ConsoleLogHandler,
@@ -198,6 +199,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         fork: Option<ForkDetails>,
         observability: Option<Observability>,
         config: InMemoryNodeConfig,
+        gas_overrides: Option<GasConfig>,
     ) -> Self {
         if let Some(f) = &fork {
             let mut block_hashes = HashMap::<u64, H256>::new();
@@ -211,12 +213,13 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                     f.estimate_gas_price_scale_factor,
                     f.estimate_gas_scale_factor,
                 )
-                .with_overrides(config.gas)
+                .with_overrides(gas_overrides)
             } else {
                 TestNodeFeeInputProvider::from_estimate_scale_factors(
                     f.estimate_gas_price_scale_factor,
                     f.estimate_gas_scale_factor,
                 )
+                .with_overrides(gas_overrides)
             };
 
             InMemoryNodeInner {
@@ -248,7 +251,8 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 create_empty_block(0, NON_FORK_FIRST_BLOCK_TIMESTAMP, 0, None),
             );
 
-            let fee_input_provider = TestNodeFeeInputProvider::default().with_overrides(config.gas);
+            let fee_input_provider =
+                TestNodeFeeInputProvider::default().with_overrides(gas_overrides);
             InMemoryNodeInner {
                 current_timestamp: NON_FORK_FIRST_BLOCK_TIMESTAMP,
                 current_batch: 0,
@@ -845,7 +849,7 @@ fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) 
 
 impl<S: ForkSource + std::fmt::Debug + Clone> Default for InMemoryNode<S> {
     fn default() -> Self {
-        InMemoryNode::new(None, None, InMemoryNodeConfig::default())
+        InMemoryNode::new(None, None, InMemoryNodeConfig::default(), None)
     }
 }
 
@@ -854,9 +858,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         fork: Option<ForkDetails>,
         observability: Option<Observability>,
         config: InMemoryNodeConfig,
+        gas_overrides: Option<GasConfig>,
     ) -> Self {
         let system_contracts_options = config.system_contracts_options;
-        let inner = InMemoryNodeInner::new(fork, observability, config);
+        let inner = InMemoryNodeInner::new(fork, observability, config, gas_overrides);
         InMemoryNode {
             inner: Arc::new(RwLock::new(inner)),
             snapshots: Default::default(),
@@ -893,6 +898,23 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         Ok(inner.config)
     }
 
+    fn get_gas_values(&self) -> Result<GasConfig, String> {
+        let inner = self
+            .inner
+            .read()
+            .map_err(|e| format!("Failed to acquire read lock: {}", e))?;
+
+        let fee_input_provider = &inner.fee_input_provider;
+        Ok(GasConfig {
+            l1_gas_price: Some(fee_input_provider.l1_gas_price),
+            l2_gas_price: Some(fee_input_provider.l2_gas_price),
+            estimation: Some(gas::Estimation {
+                price_scale_factor: Some(fee_input_provider.estimate_gas_price_scale_factor),
+                limit_scale_factor: Some(fee_input_provider.estimate_gas_scale_factor),
+            }),
+        })
+    }
+
     pub fn reset(&self, fork: Option<ForkDetails>) -> Result<(), String> {
         let observability = self
             .inner
@@ -902,7 +924,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             .clone();
 
         let config = self.get_config()?;
-        let inner = InMemoryNodeInner::new(fork, observability, config);
+        let gas_values = self.get_gas_values()?;
+        let inner = InMemoryNodeInner::new(fork, observability, config, Some(gas_values));
 
         let mut writer = self
             .snapshots
@@ -1827,6 +1850,7 @@ mod tests {
             }),
             None,
             Default::default(),
+            Default::default(),
         );
 
         node.run_l2_tx_raw(
@@ -1847,6 +1871,7 @@ mod tests {
                 system_contracts_options: Options::BuiltInWithoutSecurity,
                 ..Default::default()
             },
+            Default::default(),
         );
 
         let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(0xef)).unwrap();

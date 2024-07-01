@@ -53,8 +53,11 @@ pub struct Cli {
     pub show_gas_details: Option<ShowGasDetails>,
 
     #[arg(long)]
-    /// If provided, uses a custom value as the L2 gas price. If not provided the gas price will be
-    /// inferred from the protocol version.
+    /// If provided, uses a custom value as the L1 gas price.
+    pub l1_gas_price: Option<u64>,
+
+    #[arg(long)]
+    /// If provided, uses a custom value as the L2 gas price.
     pub l2_gas_price: Option<u64>,
 
     #[arg(long)]

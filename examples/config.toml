@@ -23,13 +23,13 @@ system_contracts_options = "BuiltIn"
 
 # Note: gas configuration functions as overrides. If provided, the node will use
 # these instead of setting them to network-appropriate values.
-# [node.gas]
+[gas]
 # L1 gas price.
-# l1_gas_price = 50_000_000_000
+l1_gas_price = 10
 # L2 gas price.
 # l2_gas_price = 25_000_000
 
-# [node.gas.estimation]
+# [gas.estimation]
 # L1 gas price scale factor for gas estimation.
 # price_scale_factor = 1.5
 # The factor by which to scale the gasLimit.

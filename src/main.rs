@@ -196,7 +196,7 @@ async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
 
     // Try to read the [`TestNodeConfig`] file if supplied as an argument.
-    let mut config = TestNodeConfig::try_load(&opt.config).unwrap_or_default();
+    let mut config = TestNodeConfig::try_load(&opt.config).unwrap();
     config.override_with_opts(&opt);
     dbg!(&config);
 
@@ -241,7 +241,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let node: InMemoryNode<HttpForkSource> =
-        InMemoryNode::new(fork_details, Some(observability), config.node);
+        InMemoryNode::new(fork_details, Some(observability), config.node, config.gas);
 
     if !transactions_to_replay.is_empty() {
         let _ = node.apply_txs(transactions_to_replay);
