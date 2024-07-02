@@ -196,7 +196,7 @@ async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
 
     // Try to read the [`TestNodeConfig`] file if supplied as an argument.
-    let mut config = TestNodeConfig::try_load(&opt.config).unwrap();
+    let mut config = TestNodeConfig::try_load(&opt.config).unwrap_or_default();
     config.override_with_opts(&opt);
 
     let log_level_filter = LevelFilter::from(config.log.level);
