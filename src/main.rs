@@ -324,7 +324,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Initialize the tracing subscriber
     let observability =
-        Observability::init(String::from("era_test_node"), log_level_filter, log_file)?;
+        Observability::init(vec!["era_test_node".into(), "multivm".into()], log_level_filter, log_file)?;
 
     if matches!(opt.dev_system_contracts, DevSystemContracts::Local) {
         if let Some(path) = env::var_os("ZKSYNC_HOME") {
