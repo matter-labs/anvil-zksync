@@ -46,22 +46,20 @@ impl From<LogLevel> for LevelFilter {
 /// A sharable reference to the observability stack.
 #[derive(Debug, Default, Clone)]
 pub struct Observability {
-    binary_name: String,
+    binary_names: Vec<String>,
     reload_handle: Option<reload::Handle<EnvFilter, Registry>>,
 }
 
 impl Observability {
     /// Initialize the tracing subscriber.
     pub fn init(
-        binary_name: String,
+        binary_names: Vec<String>,
         log_level_filter: LevelFilter,
         log_file: File,
     ) -> Result<Self, anyhow::Error> {
-        let filter = Self::parse_filter(&format!(
-            "{}={}",
-            binary_name,
-            format!("{log_level_filter}").to_lowercase()
-        ))?;
+        let joined_filter = binary_names
+            .join(format!("={},", log_level_filter.to_string().to_lowercase()).as_str());
+        let filter = Self::parse_filter(&joined_filter)?;
         let (filter, reload_handle) = reload::Layer::new(filter);
 
         let timer_format =
@@ -93,7 +91,7 @@ impl Observability {
             .init();
 
         Ok(Self {
-            binary_name,
+            binary_names,
             reload_handle: Some(reload_handle),
         })
     }
@@ -101,11 +99,11 @@ impl Observability {
     /// Set the log level for the binary.
     pub fn set_log_level(&self, level: LogLevel) -> Result<(), anyhow::Error> {
         let level = LevelFilter::from(level);
-        let new_filter = Self::parse_filter(&format!(
-            "{}={}",
-            self.binary_name,
-            format!("{level}").to_lowercase()
-        ))?;
+        let new_filter = Self::parse_filter(
+            &self
+                .binary_names
+                .join(format!("={},", level.to_string().to_lowercase()).as_str()),
+        )?;
 
         if let Some(handle) = &self.reload_handle {
             handle.modify(|filter| *filter = new_filter)?;
