@@ -1,4 +1,5 @@
 use multivm::interface::TxExecutionMode;
+use serde::Deserialize;
 use zksync_contracts::{
     read_sys_contract_bytecode, read_zbin_bytecode, BaseSystemContracts, ContractLanguage,
     SystemContractCode,
@@ -8,7 +9,7 @@ use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words};
 
 use crate::deps::system_contracts::{bytecode_from_slice, COMPILED_IN_SYSTEM_CONTRACTS};
 
-#[derive(Default, Debug, Clone)]
+#[derive(Deserialize, Default, Debug, Copy, Clone)]
 pub enum Options {
     // Use the compiled-in contracts
     #[default]

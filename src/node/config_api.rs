@@ -1,14 +1,13 @@
 use zksync_web3_decl::error::Web3Error;
 
 use crate::{
+    config::node::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails},
     fork::ForkSource,
     namespaces::{ConfigurationApiNamespaceT, Result},
     node::InMemoryNode,
     observability::LogLevel,
     utils::into_jsrpc_error,
 };
-
-use super::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
 
 impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ConfigurationApiNamespaceT
     for InMemoryNode<S>
@@ -22,7 +21,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
                     "Failed to acquire read lock for inner node state.",
                 )))
             })
-            .map(|reader| reader.show_calls.to_string())
+            .map(|reader| reader.config.show_calls.to_string())
     }
 
     fn config_get_show_outputs(&self) -> Result<bool> {
@@ -34,7 +33,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
                     "Failed to acquire read lock for inner node state.",
                 )))
             })
-            .map(|reader| reader.show_outputs)
+            .map(|reader| reader.config.show_outputs)
     }
 
     fn config_get_current_timestamp(&self) -> Result<u64> {
@@ -64,8 +63,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
                 )))
             })
             .map(|mut writer| {
-                writer.show_calls = show_calls;
-                writer.show_calls.to_string()
+                writer.config.show_calls = show_calls;
+                writer.config.show_calls.to_string()
             })
     }
 
@@ -79,8 +78,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
                 )))
             })
             .map(|mut writer| {
-                writer.show_outputs = value;
-                writer.show_outputs
+                writer.config.show_outputs = value;
+                writer.config.show_outputs
             })
     }
 
@@ -97,7 +96,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
                             "Failed to acquire read lock for inner node state.",
                         )))
                     })
-                    .map(|reader| reader.show_storage_logs.to_string())
+                    .map(|reader| reader.config.show_storage_logs.to_string())
             }
         };
 
@@ -110,8 +109,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
                 )))
             })
             .map(|mut writer| {
-                writer.show_storage_logs = show_storage_logs;
-                writer.show_storage_logs.to_string()
+                writer.config.show_storage_logs = show_storage_logs;
+                writer.config.show_storage_logs.to_string()
             })
     }
 
@@ -128,7 +127,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
                             "Failed to acquire read lock for inner node state.",
                         )))
                     })
-                    .map(|reader| reader.show_vm_details.to_string())
+                    .map(|reader| reader.config.show_vm_details.to_string())
             }
         };
 
@@ -141,8 +140,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
                 )))
             })
             .map(|mut writer| {
-                writer.show_vm_details = show_vm_details;
-                writer.show_vm_details.to_string()
+                writer.config.show_vm_details = show_vm_details;
+                writer.config.show_vm_details.to_string()
             })
     }
 
@@ -159,7 +158,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
                             "Failed to acquire read lock for inner node state.",
                         )))
                     })
-                    .map(|reader| reader.show_gas_details.to_string())
+                    .map(|reader| reader.config.show_gas_details.to_string())
             }
         };
 
@@ -172,8 +171,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
                 )))
             })
             .map(|mut writer| {
-                writer.show_gas_details = show_gas_details;
-                writer.show_gas_details.to_string()
+                writer.config.show_gas_details = show_gas_details;
+                writer.config.show_gas_details.to_string()
             })
     }
 
@@ -187,8 +186,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
                 )))
             })
             .map(|mut writer| {
-                writer.resolve_hashes = value;
-                writer.resolve_hashes
+                writer.config.resolve_hashes = value;
+                writer.config.resolve_hashes
             })
     }
 
@@ -204,7 +203,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
             })?
             .observability
         {
-            match observability.set_log_level(level.clone()) {
+            match observability.set_log_level(level) {
                 Ok(_) => tracing::info!("set log level to '{}'", level),
                 Err(err) => {
                     tracing::error!("failed setting log level {:?}", err);

@@ -1,18 +1,16 @@
-use crate::cache::CacheConfig;
-use crate::http_fork_source::HttpForkSource;
-use crate::node::{InMemoryNodeConfig, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
 use crate::observability::Observability;
-use crate::utils::to_human_size;
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::Parser;
 use colored::Colorize;
+use config::cli::{Cli, Command};
+use config::TestNodeConfig;
 use fork::{ForkDetails, ForkSource};
+use http_fork_source::HttpForkSource;
 use logging_middleware::LoggingMiddleware;
-use node::{ShowCalls, DEFAULT_L2_GAS_PRICE};
-use observability::LogLevel;
 use tracing_subscriber::filter::LevelFilter;
 
 mod bootloader_debug;
 mod cache;
+mod config;
 mod console_log;
 mod deps;
 mod filters;
@@ -22,7 +20,7 @@ mod http_fork_source;
 mod logging_middleware;
 mod namespaces;
 mod node;
-pub mod observability;
+mod observability;
 mod resolver;
 mod system_contracts;
 mod testing;
@@ -43,7 +41,7 @@ use futures::{
     FutureExt,
 };
 use jsonrpc_core::MetaIoHandler;
-use zksync_basic_types::{H160, H256};
+use zksync_basic_types::H160;
 
 use crate::namespaces::{
     ConfigurationApiNamespaceT, DebugNamespaceT, EthNamespaceT, EthTestNodeNamespaceT,
@@ -193,162 +191,30 @@ async fn build_json_http<
     tokio::spawn(recv.map(drop))
 }
 
-/// Cache type config for the node.
-#[derive(ValueEnum, Debug, Clone)]
-enum CacheType {
-    None,
-    Memory,
-    Disk,
-}
-
-/// System contract options.
-#[derive(ValueEnum, Debug, Clone)]
-enum DevSystemContracts {
-    BuiltIn,
-    BuiltInNoVerify,
-    Local,
-}
-
-#[derive(Debug, Parser)]
-#[command(author = "Matter Labs", version, about = "Test Node", long_about = None)]
-struct Cli {
-    #[command(subcommand)]
-    command: Option<Command>,
-    #[arg(long, default_value = "8011")]
-    /// Port to listen on - default: 8011
-    port: u16,
-    #[arg(long, default_value = "none")]
-    /// Show call debug information
-    show_calls: ShowCalls,
-    #[arg[long]]
-    /// Show call output
-    show_outputs: bool,
-    #[arg(long, default_value = "none")]
-    /// Show storage log information
-    show_storage_logs: ShowStorageLogs,
-    #[arg(long, default_value = "none")]
-    /// Show VM details information
-    show_vm_details: ShowVMDetails,
-
-    #[arg(long, default_value = "none")]
-    /// Show Gas details information
-    show_gas_details: ShowGasDetails,
-
-    #[arg(long)]
-    /// If provided, uses a custom value as the L1 gas price.
-    l1_gas_price: Option<u64>,
-
-    #[arg(long)]
-    /// If provided, uses a custom value as the L2 gas price. If not provided the gas price will be
-    /// inferred from the protocol version.
-    l2_gas_price: Option<u64>,
-
-    #[arg(long)]
-    /// If true, the tool will try to contact openchain to resolve the ABI & topic names.
-    /// It will make debug log more readable, but will decrease the performance.
-    resolve_hashes: bool,
-
-    /// Specifies the option for the system contracts (use compiled built-in with or without signature verification, or load locally).
-    /// Default: built-in
-    #[arg(long, default_value = "built-in")]
-    dev_system_contracts: DevSystemContracts,
-
-    /// Log filter level - default: info
-    #[arg(long, default_value = "info")]
-    log: LogLevel,
-
-    /// Log file path - default: era_test_node.log
-    #[arg(long, default_value = "era_test_node.log")]
-    log_file_path: String,
-
-    /// Cache type, can be one of `none`, `memory`, or `disk` - default: "disk"
-    #[arg(long, default_value = "disk")]
-    cache: CacheType,
-
-    /// If true, will reset the local `disk` cache.
-    #[arg(long)]
-    reset_cache: bool,
-
-    /// Cache directory location for `disk` cache - default: ".cache"
-    #[arg(long, default_value = ".cache")]
-    cache_dir: String,
-}
-
-#[derive(Debug, Subcommand)]
-enum Command {
-    /// Starts a new empty local network.
-    #[command(name = "run")]
-    Run,
-    /// Starts a local network that is a fork of another network.
-    #[command(name = "fork")]
-    Fork(ForkArgs),
-    /// Starts a local network that is a fork of another network, and replays a given TX on it.
-    #[command(name = "replay_tx")]
-    ReplayTx(ReplayArgs),
-}
-
-#[derive(Debug, Parser)]
-struct ForkArgs {
-    /// Whether to fork from existing network.
-    /// If not set - will start a new network from genesis.
-    /// If set - will try to fork a remote network. Possible values:
-    ///  - mainnet
-    ///  - testnet
-    ///  - http://XXX:YY
-    network: String,
-    #[arg(long)]
-    // Fork at a given L2 miniblock height.
-    // If not set - will use the current finalized block from the network.
-    fork_at: Option<u64>,
-}
-
-#[derive(Debug, Parser)]
-struct ReplayArgs {
-    /// Whether to fork from existing network.
-    /// If not set - will start a new network from genesis.
-    /// If set - will try to fork a remote network. Possible values:
-    ///  - mainnet
-    ///  - sepolia-testnet
-    ///  - goerli-testnet
-    ///  - http://XXX:YY
-    network: String,
-    /// Transaction hash to replay.
-    tx: H256,
-}
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
-    let log_level_filter = LevelFilter::from(opt.log);
-    let log_file = File::create(opt.log_file_path)?;
+
+    // Try to read the [`TestNodeConfig`] file if supplied as an argument.
+    let mut config = TestNodeConfig::try_load(&opt.config).unwrap_or_default();
+    config.override_with_opts(&opt);
+
+    let log_level_filter = LevelFilter::from(config.log.level);
+    let log_file = File::create(config.log.file_path)?;
 
     // Initialize the tracing subscriber
     let observability =
-        Observability::init(String::from("era_test_node"), log_level_filter, log_file)?;
-
-    if matches!(opt.dev_system_contracts, DevSystemContracts::Local) {
-        if let Some(path) = env::var_os("ZKSYNC_HOME") {
-            tracing::info!("+++++ Reading local contracts from {:?} +++++", path);
-        }
-    }
-    let cache_config = match opt.cache {
-        CacheType::None => CacheConfig::None,
-        CacheType::Memory => CacheConfig::Memory,
-        CacheType::Disk => CacheConfig::Disk {
-            dir: opt.cache_dir,
-            reset: opt.reset_cache,
-        },
-    };
+        Observability::init(vec!["era_test_node".into()], log_level_filter, log_file)?;
 
     // Use `Command::Run` as default.
     let command = opt.command.as_ref().unwrap_or(&Command::Run);
-    let fork_details = match &command {
+    let fork_details = match command {
         Command::Run => None,
         Command::Fork(fork) => {
-            Some(ForkDetails::from_network(&fork.network, fork.fork_at, cache_config).await)
+            Some(ForkDetails::from_network(&fork.network, fork.fork_at, config.cache).await)
         }
         Command::ReplayTx(replay_tx) => {
-            Some(ForkDetails::from_network_tx(&replay_tx.network, replay_tx.tx, cache_config).await)
+            Some(ForkDetails::from_network_tx(&replay_tx.network, replay_tx.tx, config.cache).await)
         }
     };
 
@@ -363,54 +229,18 @@ async fn main() -> anyhow::Result<()> {
     } else {
         vec![]
     };
-    let system_contracts_options = match opt.dev_system_contracts {
-        DevSystemContracts::BuiltIn => system_contracts::Options::BuiltIn,
-        DevSystemContracts::BuiltInNoVerify => system_contracts::Options::BuiltInWithoutSecurity,
-        DevSystemContracts::Local => system_contracts::Options::Local,
-    };
 
-    // If we're forking we set the price to be equal to that contained within
-    // `ForkDetails`. If not, we use the `DEFAULT_L2_GAS_PRICE` instead.
-    let mut l2_fair_gas_price = {
-        if let Some(f) = &fork_details {
-            f.l2_fair_gas_price
-        } else {
-            DEFAULT_L2_GAS_PRICE
+    if matches!(
+        config.node.system_contracts_options,
+        system_contracts::Options::Local
+    ) {
+        if let Some(path) = env::var_os("ZKSYNC_HOME") {
+            tracing::info!("+++++ Reading local contracts from {:?} +++++", path);
         }
-    };
-
-    // If L2 gas price has been supplied as an argument, override the value
-    // procured previously.
-    match opt.l2_gas_price {
-        Some(l2_gas_price) => {
-            tracing::info!(
-                "Starting node with L2 gas price set to {} (overridden from {})",
-                to_human_size(l2_gas_price.into()),
-                to_human_size(l2_fair_gas_price.into())
-            );
-            l2_fair_gas_price = l2_gas_price;
-        }
-        None => tracing::info!(
-            "Starting node with L2 gas price set to {}",
-            to_human_size(l2_fair_gas_price.into())
-        ),
     }
 
-    let node: InMemoryNode<HttpForkSource> = InMemoryNode::new(
-        fork_details,
-        Some(observability),
-        InMemoryNodeConfig {
-            l1_gas_price: opt.l1_gas_price,
-            l2_fair_gas_price,
-            show_calls: opt.show_calls,
-            show_outputs: opt.show_outputs,
-            show_storage_logs: opt.show_storage_logs,
-            show_vm_details: opt.show_vm_details,
-            show_gas_details: opt.show_gas_details,
-            resolve_hashes: opt.resolve_hashes,
-            system_contracts_options,
-        },
-    );
+    let node: InMemoryNode<HttpForkSource> =
+        InMemoryNode::new(fork_details, Some(observability), config.node, config.gas);
 
     if !transactions_to_replay.is_empty() {
         let _ = node.apply_txs(transactions_to_replay);
@@ -440,14 +270,14 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let threads = build_json_http(
-        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), opt.port),
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), config.node.port),
         log_level_filter,
         node,
     )
     .await;
 
     tracing::info!("========================================");
-    tracing::info!("  Node is ready at 127.0.0.1:{}", opt.port);
+    tracing::info!("  Node is ready at 127.0.0.1:{}", config.node.port);
     tracing::info!("========================================");
 
     future::select_all(vec![threads]).await.0.unwrap();

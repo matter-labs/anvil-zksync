@@ -42,6 +42,7 @@
 //! Contributions to improve `era-test-node` are welcome. Please refer to the [contribution guidelines](https://github.com/matter-labs/era-test-node/blob/main/.github/CONTRIBUTING.md) for more details.
 
 pub mod bootloader_debug;
+pub mod config;
 pub mod console_log;
 pub mod deps;
 pub mod filters;

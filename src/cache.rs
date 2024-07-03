@@ -10,6 +10,8 @@ use zksync_basic_types::H256;
 use zksync_types::api::{Block, BridgeAddresses, Transaction, TransactionVariant};
 use zksync_types::Transaction as RawTransaction;
 
+use crate::config::cache::CacheConfig;
+
 /// Caches full blocks by their hashes
 const CACHE_TYPE_BLOCKS_FULL: &str = "blocks_full";
 /// Caches minimal blocks by their hashes
@@ -23,22 +25,6 @@ const CACHE_TYPE_KEY_VALUE: &str = "key_value";
 
 /// Caching key for bridge addresses
 const CACHE_KEY_BRIDGE_ADDRESSES: &str = "bridge_addresses";
-
-/// Cache configuration. Can be one of:
-///
-/// None    : Caching is disabled
-/// Memory  : Caching is provided in-memory and not persisted across runs
-/// Disk    : Caching is persisted on disk in the provided directory and can be reset
-#[derive(Default, Debug, Clone)]
-pub enum CacheConfig {
-    #[default]
-    None,
-    Memory,
-    Disk {
-        dir: String,
-        reset: bool,
-    },
-}
 
 /// A general purpose cache.
 #[derive(Default, Debug, Clone)]

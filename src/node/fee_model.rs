@@ -3,10 +3,11 @@ use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams, FeeParamsV2};
 use zksync_types::L1_GAS_PER_PUBDATA_BYTE;
 
-use super::{
-    DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
+use crate::config::gas::{
+    GasConfig, DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
     DEFAULT_L1_GAS_PRICE, DEFAULT_L2_GAS_PRICE,
 };
+use crate::utils::to_human_size;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TestNodeFeeInputProvider {
@@ -56,6 +57,40 @@ impl TestNodeFeeInputProvider {
             estimate_gas_scale_factor,
             ..Default::default()
         }
+    }
+
+    pub fn with_overrides(mut self, gas_config: Option<GasConfig>) -> Self {
+        let Some(gas_config) = gas_config else {
+            return self;
+        };
+
+        if let Some(l1_gas_price) = gas_config.l1_gas_price {
+            tracing::info!(
+                "L1 gas price set to {} (overridden from {})",
+                to_human_size(l1_gas_price.into()),
+                to_human_size(self.l1_gas_price.into())
+            );
+            self.l1_gas_price = l1_gas_price;
+        }
+        if let Some(l2_gas_price) = gas_config.l2_gas_price {
+            tracing::info!(
+                "L2 gas price set to {} (overridden from {})",
+                to_human_size(l2_gas_price.into()),
+                to_human_size(self.l2_gas_price.into())
+            );
+            self.l2_gas_price = l2_gas_price;
+        }
+
+        if let Some(estimation) = gas_config.estimation {
+            if let Some(factor) = estimation.price_scale_factor {
+                self.estimate_gas_price_scale_factor = factor;
+            }
+            if let Some(factor) = estimation.limit_scale_factor {
+                self.estimate_gas_scale_factor = factor;
+            }
+        }
+
+        self
     }
 
     pub fn get_fee_model_config(&self) -> FeeModelConfigV2 {

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::formatter::{self, PubdataBytesInfo};
 
-use super::ShowStorageLogs;
+use crate::config::node::ShowStorageLogs;
 use multivm::vm_latest::VmExecutionResultAndLogs;
 use zksync_basic_types::AccountTreeId;
 use zksync_types::{
