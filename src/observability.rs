@@ -62,7 +62,6 @@ impl Observability {
             .map(|x| format!("{}={}", x, log_level_filter.to_string().to_lowercase()))
             .collect::<Vec<String>>()
             .join(",");
-        println!("{}", joined_filter);
         let filter = Self::parse_filter(&joined_filter)?;
         let (filter, reload_handle) = reload::Layer::new(filter);
 
