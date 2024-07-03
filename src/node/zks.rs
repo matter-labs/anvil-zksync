@@ -568,7 +568,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
 mod tests {
     use std::str::FromStr;
 
-    use crate::cache::CacheConfig;
+    use crate::config::cache::CacheConfig;
     use crate::fork::ForkDetails;
     use crate::node::TEST_NODE_NETWORK_ID;
     use crate::testing;
@@ -732,6 +732,7 @@ mod tests {
             Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
             None,
             Default::default(),
+            Default::default(),
         );
 
         let result = node
@@ -817,6 +818,7 @@ mod tests {
             Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
             None,
             Default::default(),
+            Default::default(),
         );
 
         let result = node
@@ -892,6 +894,7 @@ mod tests {
             Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
             None,
             Default::default(),
+            Default::default(),
         );
 
         let actual_bridge_addresses = node
@@ -954,6 +957,7 @@ mod tests {
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
             None,
+            Default::default(),
             Default::default(),
         );
 
@@ -1075,6 +1079,7 @@ mod tests {
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
             None,
+            Default::default(),
             Default::default(),
         );
 
@@ -1241,6 +1246,7 @@ mod tests {
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(ForkDetails::from_network(&mock_server.url(), Some(1), CacheConfig::None).await),
             None,
+            Default::default(),
             Default::default(),
         );
         {

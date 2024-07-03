@@ -8,11 +8,12 @@ use tracing_subscriber::{
 };
 
 /// Log filter level for the node.
-#[derive(Debug, Clone, ValueEnum, Serialize, Deserialize)]
+#[derive(Default, Debug, Copy, Clone, ValueEnum, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum LogLevel {
     Trace,
     Debug,
+    #[default]
     Info,
     Warn,
     Error,

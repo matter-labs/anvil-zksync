@@ -1,7 +1,11 @@
 //! In-memory node, that supports forking other networks.
 use crate::{
     bootloader_debug::{BootloaderDebug, BootloaderDebugTracer},
-    cache::CacheConfig,
+    config::{
+        cache::CacheConfig,
+        gas::{self, GasConfig},
+        node::{InMemoryNodeConfig, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails},
+    },
     console_log::ConsoleLogHandler,
     deps::{storage_view::StorageView, InMemoryStorage},
     filters::EthFilters,
@@ -12,14 +16,11 @@ use crate::{
     system_contracts::{self, SystemContracts},
     utils::{bytecode_to_factory_dep, create_debug_output, into_jsrpc_error, to_human_size},
 };
-use clap::Parser;
 use colored::Colorize;
-use core::fmt::Display;
 use indexmap::IndexMap;
 use once_cell::sync::OnceCell;
 use std::{
     collections::{HashMap, HashSet},
-    str::FromStr,
     sync::{Arc, RwLock},
 };
 
@@ -74,17 +75,8 @@ pub const MAX_TX_SIZE: usize = 1_000_000;
 pub const NON_FORK_FIRST_BLOCK_TIMESTAMP: u64 = 1_000;
 /// Network ID we use for the test node.
 pub const TEST_NODE_NETWORK_ID: u32 = 260;
-/// L1 Gas Price.
-pub const DEFAULT_L1_GAS_PRICE: u64 = 50_000_000_000;
-// TODO: for now, that's fine, as computation overhead is set to zero, but we may consider using calculated fee input everywhere.
-/// The default L2 Gas Price to be used if not supplied via the CLI argument.
-pub const DEFAULT_L2_GAS_PRICE: u64 = 25_000_000;
-/// L1 Gas Price Scale Factor for gas estimation.
-pub const DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR: f64 = 1.5;
 /// Acceptable gas overestimation limit.
 pub const ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION: u64 = 1_000;
-/// The factor by which to scale the gasLimit.
-pub const DEFAULT_ESTIMATE_GAS_SCALE_FACTOR: f32 = 1.3;
 /// The maximum number of previous blocks to store the state for.
 pub const MAX_PREVIOUS_STATES: u16 = 128;
 /// The zks protocol version.
@@ -128,128 +120,6 @@ pub struct TxExecutionInfo {
     pub batch_number: u32,
     pub miniblock_number: u64,
     pub result: VmExecutionResultAndLogs,
-}
-
-#[derive(Debug, Default, clap::Parser, Clone, clap::ValueEnum, PartialEq, Eq)]
-pub enum ShowCalls {
-    #[default]
-    None,
-    User,
-    System,
-    All,
-}
-
-impl FromStr for ShowCalls {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_ref() {
-            "none" => Ok(ShowCalls::None),
-            "user" => Ok(ShowCalls::User),
-            "system" => Ok(ShowCalls::System),
-            "all" => Ok(ShowCalls::All),
-            _ => Err(format!(
-                "Unknown ShowCalls value {} - expected one of none|user|system|all.",
-                s
-            )),
-        }
-    }
-}
-
-impl Display for ShowCalls {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(f, "{:?}", self)
-    }
-}
-
-#[derive(Debug, Default, Parser, Clone, clap::ValueEnum, PartialEq, Eq)]
-pub enum ShowStorageLogs {
-    #[default]
-    None,
-    Read,
-    Write,
-    Paid,
-    All,
-}
-
-impl FromStr for ShowStorageLogs {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_ref() {
-            "none" => Ok(ShowStorageLogs::None),
-            "read" => Ok(ShowStorageLogs::Read),
-            "write" => Ok(ShowStorageLogs::Write),
-            "paid" => Ok(ShowStorageLogs::Paid),
-            "all" => Ok(ShowStorageLogs::All),
-            _ => Err(format!(
-                "Unknown ShowStorageLogs value {} - expected one of none|read|write|paid|all.",
-                s
-            )),
-        }
-    }
-}
-
-impl Display for ShowStorageLogs {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(f, "{:?}", self)
-    }
-}
-
-#[derive(Debug, Default, Parser, Clone, clap::ValueEnum, PartialEq, Eq)]
-pub enum ShowVMDetails {
-    #[default]
-    None,
-    All,
-}
-
-impl FromStr for ShowVMDetails {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_ref() {
-            "none" => Ok(ShowVMDetails::None),
-            "all" => Ok(ShowVMDetails::All),
-            _ => Err(format!(
-                "Unknown ShowVMDetails value {} - expected one of none|all.",
-                s
-            )),
-        }
-    }
-}
-
-impl Display for ShowVMDetails {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(f, "{:?}", self)
-    }
-}
-
-#[derive(Debug, Default, Parser, Clone, clap::ValueEnum, PartialEq, Eq)]
-pub enum ShowGasDetails {
-    #[default]
-    None,
-    All,
-}
-
-impl FromStr for ShowGasDetails {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_ref() {
-            "none" => Ok(ShowGasDetails::None),
-            "all" => Ok(ShowGasDetails::All),
-            _ => Err(format!(
-                "Unknown ShowGasDetails value {} - expected one of none|all.",
-                s
-            )),
-        }
-    }
-}
-
-impl Display for ShowGasDetails {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(f, "{:?}", self)
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -302,18 +172,8 @@ pub struct InMemoryNodeInner<S> {
     pub filters: EthFilters,
     // Underlying storage
     pub fork_storage: ForkStorage<S>,
-    // Debug level information.
-    pub show_calls: ShowCalls,
-    // If true - will display the output of the calls.
-    pub show_outputs: bool,
-    // Displays storage logs.
-    pub show_storage_logs: ShowStorageLogs,
-    // Displays VM details.
-    pub show_vm_details: ShowVMDetails,
-    // Gas details information.
-    pub show_gas_details: ShowGasDetails,
-    // If true - will contact openchain to resolve the ABI to function names.
-    pub resolve_hashes: bool,
+    // Configuration.
+    pub config: InMemoryNodeConfig,
     pub console_log_handler: ConsoleLogHandler,
     pub system_contracts: SystemContracts,
     pub impersonated_accounts: HashSet<Address>,
@@ -339,43 +199,29 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         fork: Option<ForkDetails>,
         observability: Option<Observability>,
         config: InMemoryNodeConfig,
+        gas_overrides: Option<GasConfig>,
     ) -> Self {
-        let default_l1_gas_price = if let Some(f) = &fork {
-            f.l1_gas_price
-        } else {
-            DEFAULT_L1_GAS_PRICE
-        };
-        let l1_gas_price = if let Some(custom_l1_gas_price) = config.l1_gas_price {
-            tracing::info!(
-                "L1 gas price set to {} (overridden from {})",
-                to_human_size(custom_l1_gas_price.into()),
-                to_human_size(default_l1_gas_price.into())
-            );
-            custom_l1_gas_price
-        } else {
-            default_l1_gas_price
-        };
-
         if let Some(f) = &fork {
             let mut block_hashes = HashMap::<u64, H256>::new();
             block_hashes.insert(f.l2_block.number.as_u64(), f.l2_block.hash);
             let mut blocks = HashMap::<H256, Block<TransactionVariant>>::new();
             blocks.insert(f.l2_block.hash, f.l2_block.clone());
 
-            let mut fee_input_provider = if let Some(params) = f.fee_params {
+            let fee_input_provider = if let Some(params) = f.fee_params {
                 TestNodeFeeInputProvider::from_fee_params_and_estimate_scale_factors(
                     params,
                     f.estimate_gas_price_scale_factor,
                     f.estimate_gas_scale_factor,
                 )
+                .with_overrides(gas_overrides)
             } else {
                 TestNodeFeeInputProvider::from_estimate_scale_factors(
                     f.estimate_gas_price_scale_factor,
                     f.estimate_gas_scale_factor,
                 )
+                .with_overrides(gas_overrides)
             };
-            fee_input_provider.l1_gas_price = l1_gas_price;
-            fee_input_provider.l2_gas_price = config.l2_fair_gas_price;
+
             InMemoryNodeInner {
                 current_timestamp: f.block_timestamp,
                 current_batch: f.l1_block.0,
@@ -387,12 +233,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 block_hashes,
                 filters: Default::default(),
                 fork_storage: ForkStorage::new(fork, &config.system_contracts_options),
-                show_calls: config.show_calls,
-                show_outputs: config.show_outputs,
-                show_storage_logs: config.show_storage_logs,
-                show_vm_details: config.show_vm_details,
-                show_gas_details: config.show_gas_details,
-                resolve_hashes: config.resolve_hashes,
+                config,
                 console_log_handler: ConsoleLogHandler::default(),
                 system_contracts: SystemContracts::from_options(&config.system_contracts_options),
                 impersonated_accounts: Default::default(),
@@ -410,10 +251,8 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 create_empty_block(0, NON_FORK_FIRST_BLOCK_TIMESTAMP, 0, None),
             );
 
-            let fee_input_provider = TestNodeFeeInputProvider {
-                l1_gas_price,
-                ..Default::default()
-            };
+            let fee_input_provider =
+                TestNodeFeeInputProvider::default().with_overrides(gas_overrides);
             InMemoryNodeInner {
                 current_timestamp: NON_FORK_FIRST_BLOCK_TIMESTAMP,
                 current_batch: 0,
@@ -425,12 +264,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 block_hashes,
                 filters: Default::default(),
                 fork_storage: ForkStorage::new(fork, &config.system_contracts_options),
-                show_calls: config.show_calls,
-                show_outputs: config.show_outputs,
-                show_storage_logs: config.show_storage_logs,
-                show_vm_details: config.show_vm_details,
-                show_gas_details: config.show_gas_details,
-                resolve_hashes: config.resolve_hashes,
+                config,
                 console_log_handler: ConsoleLogHandler::default(),
                 system_contracts: SystemContracts::from_options(&config.system_contracts_options),
                 impersonated_accounts: Default::default(),
@@ -988,37 +822,6 @@ pub struct Snapshot {
     pub(crate) factory_dep_cache: HashMap<H256, Option<Vec<u8>>>,
 }
 
-/// Defines the configuration parameters for the [InMemoryNode].
-#[derive(Debug, Clone)]
-pub struct InMemoryNodeConfig {
-    // The values to be used when calculating gas.
-    pub l1_gas_price: Option<u64>,
-    pub l2_fair_gas_price: u64,
-    pub show_calls: ShowCalls,
-    pub show_outputs: bool,
-    pub show_storage_logs: ShowStorageLogs,
-    pub show_vm_details: ShowVMDetails,
-    pub show_gas_details: ShowGasDetails,
-    pub resolve_hashes: bool,
-    pub system_contracts_options: system_contracts::Options,
-}
-
-impl Default for InMemoryNodeConfig {
-    fn default() -> Self {
-        Self {
-            l1_gas_price: None,
-            l2_fair_gas_price: DEFAULT_L2_GAS_PRICE,
-            show_calls: Default::default(),
-            show_outputs: Default::default(),
-            show_storage_logs: Default::default(),
-            show_vm_details: Default::default(),
-            show_gas_details: Default::default(),
-            resolve_hashes: Default::default(),
-            system_contracts_options: Default::default(),
-        }
-    }
-}
-
 /// In-memory node, that can be used for local & unit testing.
 /// It also supports the option of forking testnet/mainnet.
 /// All contents are removed when object is destroyed.
@@ -1029,6 +832,7 @@ pub struct InMemoryNode<S: Clone> {
     /// List of snapshots of the [InMemoryNodeInner]. This is bounded at runtime by [MAX_SNAPSHOTS].
     pub(crate) snapshots: Arc<RwLock<Vec<Snapshot>>>,
     /// Configuration option that survives reset.
+    #[allow(dead_code)]
     system_contracts_options: system_contracts::Options,
 }
 
@@ -1045,7 +849,7 @@ fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) 
 
 impl<S: ForkSource + std::fmt::Debug + Clone> Default for InMemoryNode<S> {
     fn default() -> Self {
-        InMemoryNode::new(None, None, InMemoryNodeConfig::default())
+        InMemoryNode::new(None, None, InMemoryNodeConfig::default(), None)
     }
 }
 
@@ -1054,9 +858,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         fork: Option<ForkDetails>,
         observability: Option<Observability>,
         config: InMemoryNodeConfig,
+        gas_overrides: Option<GasConfig>,
     ) -> Self {
-        let system_contracts_options = config.system_contracts_options.clone();
-        let inner = InMemoryNodeInner::new(fork, observability, config);
+        let system_contracts_options = config.system_contracts_options;
+        let inner = InMemoryNodeInner::new(fork, observability, config, gas_overrides);
         InMemoryNode {
             inner: Arc::new(RwLock::new(inner)),
             snapshots: Default::default(),
@@ -1084,26 +889,29 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         inner.fork_storage.get_fork_url()
     }
 
-    fn get_config(&self, l2_gas_price_override: Option<u64>) -> Result<InMemoryNodeConfig, String> {
+    fn get_config(&self) -> Result<InMemoryNodeConfig, String> {
         let inner = self
             .inner
             .read()
             .map_err(|e| format!("Failed to acquire read lock: {}", e))?;
-        let l2_gas_price = if let Some(l2_gas_price) = l2_gas_price_override {
-            l2_gas_price
-        } else {
-            inner.fee_input_provider.l2_gas_price
-        };
-        Ok(InMemoryNodeConfig {
-            l1_gas_price: Some(inner.fee_input_provider.l1_gas_price),
-            l2_fair_gas_price: l2_gas_price,
-            show_calls: inner.show_calls.clone(),
-            show_outputs: inner.show_outputs,
-            show_storage_logs: inner.show_storage_logs.clone(),
-            show_vm_details: inner.show_vm_details.clone(),
-            show_gas_details: inner.show_gas_details.clone(),
-            resolve_hashes: inner.resolve_hashes,
-            system_contracts_options: self.system_contracts_options.clone(),
+
+        Ok(inner.config)
+    }
+
+    fn get_gas_values(&self) -> Result<GasConfig, String> {
+        let inner = self
+            .inner
+            .read()
+            .map_err(|e| format!("Failed to acquire read lock: {}", e))?;
+
+        let fee_input_provider = &inner.fee_input_provider;
+        Ok(GasConfig {
+            l1_gas_price: Some(fee_input_provider.l1_gas_price),
+            l2_gas_price: Some(fee_input_provider.l2_gas_price),
+            estimation: Some(gas::Estimation {
+                price_scale_factor: Some(fee_input_provider.estimate_gas_price_scale_factor),
+                limit_scale_factor: Some(fee_input_provider.estimate_gas_scale_factor),
+            }),
         })
     }
 
@@ -1115,10 +923,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             .observability
             .clone();
 
-        let l2_gas_price = fork.as_ref().map(|f| f.l2_fair_gas_price);
-        let config = self.get_config(l2_gas_price)?;
-
-        let inner = InMemoryNodeInner::new(fork, observability, config);
+        let config = self.get_config()?;
+        let gas_values = self.get_gas_values()?;
+        let inner = InMemoryNodeInner::new(fork, observability, config, Some(gas_values));
 
         let mut writer = self
             .snapshots
@@ -1232,9 +1039,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             formatter::print_call(
                 call,
                 0,
-                &inner.show_calls,
-                inner.show_outputs,
-                inner.resolve_hashes,
+                &inner.config.show_calls,
+                inner.config.show_outputs,
+                inner.config.resolve_hashes,
             );
         }
 
@@ -1544,7 +1351,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             to_human_size(tx_result.refunds.gas_refunded.into())
         );
 
-        match inner.show_gas_details {
+        match inner.config.show_gas_details {
             ShowGasDetails::None => tracing::info!(
                 "Use --show-gas-details flag or call config_setShowGasDetails to display more info"
             ),
@@ -1561,11 +1368,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             }
         }
 
-        if inner.show_storage_logs != ShowStorageLogs::None {
-            print_storage_logs_details(&inner.show_storage_logs, &tx_result);
+        if inner.config.show_storage_logs != ShowStorageLogs::None {
+            print_storage_logs_details(&inner.config.show_storage_logs, &tx_result);
         }
 
-        if inner.show_vm_details != ShowVMDetails::None {
+        if inner.config.show_vm_details != ShowVMDetails::None {
             formatter::print_vm_details(&tx_result);
         }
 
@@ -1586,14 +1393,14 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             format!("{:?} call traces. ", call_traces_count).bold()
         );
 
-        if inner.show_calls != ShowCalls::None {
+        if inner.config.show_calls != ShowCalls::None {
             for call in call_traces {
                 formatter::print_call(
                     call,
                     0,
-                    &inner.show_calls,
-                    inner.show_outputs,
-                    inner.resolve_hashes,
+                    &inner.config.show_calls,
+                    inner.config.show_outputs,
+                    inner.config.resolve_hashes,
                 );
             }
         }
@@ -1603,7 +1410,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             format!("{} events", tx_result.logs.events.len()).bold()
         );
         for event in &tx_result.logs.events {
-            formatter::print_event(event, inner.resolve_hashes);
+            formatter::print_event(event, inner.config.resolve_hashes);
         }
 
         // The computed block hash here will be different than that in production.
@@ -1923,7 +1730,17 @@ mod tests {
 
     use super::*;
     use crate::{
-        http_fork_source::HttpForkSource, node::InMemoryNode, system_contracts::Options, testing,
+        config::{
+            gas::{
+                DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
+                DEFAULT_L2_GAS_PRICE,
+            },
+            node::InMemoryNodeConfig,
+        },
+        http_fork_source::HttpForkSource,
+        node::InMemoryNode,
+        system_contracts::Options,
+        testing,
     };
 
     #[tokio::test]
@@ -2033,6 +1850,7 @@ mod tests {
             }),
             None,
             Default::default(),
+            Default::default(),
         );
 
         node.run_l2_tx_raw(
@@ -2053,6 +1871,7 @@ mod tests {
                 system_contracts_options: Options::BuiltInWithoutSecurity,
                 ..Default::default()
             },
+            Default::default(),
         );
 
         let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(0xef)).unwrap();
