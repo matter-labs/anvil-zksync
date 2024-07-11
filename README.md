@@ -13,7 +13,7 @@ This crate provides an in-memory node that supports forking the state from other
 
 The goal of this crate is to offer a fast solution for integration testing, bootloader and system contract testing, and prototyping.
 
-🔗 For a detailed walkthrough, refer to the [official documentation](https://era.zksync.io/docs/tools/testing/era-test-node.html).
+🔗 For a detailed walkthrough, refer to the [official documentation](https://docs.zksync.io/build/test-and-debug/in-memory-node).
 
 ## 📌 Overview
 
