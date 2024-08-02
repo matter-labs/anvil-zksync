@@ -446,7 +446,7 @@ impl TransactionBuilder {
             U256::from(1),
             L2ChainId::from(260),
             &self.from_account_private_key,
-            None,
+            vec![],
             Default::default(),
         )
         .unwrap();
@@ -547,7 +547,7 @@ pub fn deploy_contract<T: ForkSource + std::fmt::Debug + Clone>(
         U256::from(0),
         zksync_basic_types::L2ChainId::from(260),
         private_key,
-        Some(vec![bytecode]),
+        vec![bytecode],
         Default::default(),
     )
     .expect("failed signing tx");

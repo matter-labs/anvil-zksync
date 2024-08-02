@@ -537,7 +537,7 @@ mod tests {
             },
             to_impersonate,
             U256::one(),
-            None,
+            vec![],
             Default::default(),
         );
         tx.set_input(vec![], H256::random());

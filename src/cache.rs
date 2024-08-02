@@ -388,7 +388,7 @@ mod tests {
             execute: Execute {
                 calldata: Default::default(),
                 contract_address: Default::default(),
-                factory_deps: None,
+                factory_deps: vec![],
                 value: Default::default(),
             },
             received_timestamp_ms: 0,
@@ -453,7 +453,7 @@ mod tests {
             execute: Execute {
                 calldata: Default::default(),
                 contract_address: Default::default(),
-                factory_deps: None,
+                factory_deps: vec![],
                 value: Default::default(),
             },
             received_timestamp_ms: 0,
@@ -553,7 +553,7 @@ mod tests {
             execute: Execute {
                 calldata: Default::default(),
                 contract_address: Default::default(),
-                factory_deps: None,
+                factory_deps: vec![],
                 value: Default::default(),
             },
             received_timestamp_ms: 0,

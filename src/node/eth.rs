@@ -2862,8 +2862,13 @@ mod tests {
             actual_snapshot.current_miniblock_hash
         );
         assert_eq!(
-            expected_snapshot.fee_input_provider,
-            actual_snapshot.fee_input_provider
+            expected_snapshot
+                .fee_input_provider
+                .0
+                .read()
+                .unwrap()
+                .clone(),
+            actual_snapshot.fee_input_provider.0.read().unwrap().clone()
         );
         assert_eq!(
             expected_snapshot.tx_results.keys().collect_vec(),
@@ -2997,9 +3002,15 @@ mod tests {
             expected_snapshot.current_miniblock_hash,
             inner.current_miniblock_hash
         );
+
         assert_eq!(
-            expected_snapshot.fee_input_provider,
-            inner.fee_input_provider
+            expected_snapshot
+                .fee_input_provider
+                .0
+                .read()
+                .unwrap()
+                .clone(),
+            inner.fee_input_provider.0.read().unwrap().clone()
         );
         assert_eq!(
             expected_snapshot.tx_results.keys().collect_vec(),

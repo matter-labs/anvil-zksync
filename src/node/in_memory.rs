@@ -1933,7 +1933,7 @@ mod tests {
             U256::from(0),
             zksync_basic_types::L2ChainId::from(260),
             &private_key,
-            None,
+            vec![],
             Default::default(),
         )
         .expect("failed signing tx");
