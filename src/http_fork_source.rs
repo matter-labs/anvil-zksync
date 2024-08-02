@@ -287,8 +287,10 @@ impl ForkSource for HttpForkSource {
         miniblock: zksync_basic_types::L2BlockNumber,
     ) -> eyre::Result<Option<zksync_types::api::BlockDetails>> {
         let client = self.create_client();
-        block_on(async move { client.get_block_details(miniblock).await })
-            .wrap_err(format!("Failed to get block details for {} l2 block", miniblock))
+        block_on(async move { client.get_block_details(miniblock).await }).wrap_err(format!(
+            "Failed to get block details for {} l2 block in fork http client",
+            miniblock
+        ))
     }
 
     /// Returns fee parameters for the give source.

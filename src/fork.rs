@@ -646,22 +646,22 @@ impl ForkDetails {
     }
 
     pub fn get_block_gas_details(&self, miniblock: u32) -> Option<(u64, u64, u64)> {
-        let opt_block_details = self
-            .fork_source
-            .get_block_details(L2BlockNumber(miniblock))
-            .unwrap();
-
-        if let Some(block_details) = opt_block_details {
-            Some((
-                block_details.base.l1_gas_price,
-                block_details.base.l2_fair_gas_price,
-                block_details
-                    .base
-                    .fair_pubdata_price
-                    .expect("fair pubdata price is not present in block details"),
-            ))
-        } else {
-            None
+        let res_opt_block_details = self.fork_source.get_block_details(L2BlockNumber(miniblock));
+        match res_opt_block_details {
+            Ok(opt_block_details) => opt_block_details.map(|block_details| {
+                (
+                    block_details.base.l1_gas_price,
+                    block_details.base.l2_fair_gas_price,
+                    block_details
+                        .base
+                        .fair_pubdata_price
+                        .expect("fair pubdata price is not present in block details"),
+                )
+            }),
+            Err(e) => {
+                tracing::warn!("Error getting block details: {:?}", e);
+                None
+            }
         }
     }
 }

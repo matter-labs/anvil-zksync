@@ -51,10 +51,10 @@ use zksync_basic_types::{
     U256, U64,
 };
 use zksync_contracts::BaseSystemContracts;
-use zksync_node_fee_model::{l1_gas_price, BatchFeeModelInputProvider};
+use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_state::{ReadStorage, StoragePtr, WriteStorage};
 use zksync_types::{
-    api::{Block, BlockDetails, DebugCall, Log, TransactionReceipt, TransactionVariant},
+    api::{Block, DebugCall, Log, TransactionReceipt, TransactionVariant},
     block::{unpack_block_info, L2BlockHasher},
     fee::Fee,
     get_nonce_key,
@@ -324,7 +324,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 fork.get_block_gas_details(block_ctx.miniblock as u32)
                     .unwrap()
             };
-            
+
             {
                 let mut fee_input_provider = self.fee_input_provider.0.write().unwrap();
 
