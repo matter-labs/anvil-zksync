@@ -644,6 +644,26 @@ impl ForkDetails {
             replay_tx, miniblock
         );
     }
+
+    pub fn get_block_gas_details(&self, miniblock: u32) -> Option<(u64, u64, u64)> {
+        let opt_block_details = self
+            .fork_source
+            .get_block_details(L2BlockNumber(miniblock))
+            .unwrap();
+
+        if let Some(block_details) = opt_block_details {
+            Some((
+                block_details.base.l1_gas_price,
+                block_details.base.l2_fair_gas_price,
+                block_details
+                    .base
+                    .fair_pubdata_price
+                    .expect("fair pubdata price is not present in block details"),
+            ))
+        } else {
+            None
+        }
+    }
 }
 
 #[cfg(test)]

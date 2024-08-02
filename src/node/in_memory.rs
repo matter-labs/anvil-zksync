@@ -51,10 +51,10 @@ use zksync_basic_types::{
     U256, U64,
 };
 use zksync_contracts::BaseSystemContracts;
-use zksync_node_fee_model::BatchFeeModelInputProvider;
+use zksync_node_fee_model::{l1_gas_price, BatchFeeModelInputProvider};
 use zksync_state::{ReadStorage, StoragePtr, WriteStorage};
 use zksync_types::{
-    api::{Block, DebugCall, Log, TransactionReceipt, TransactionVariant},
+    api::{Block, BlockDetails, DebugCall, Log, TransactionReceipt, TransactionVariant},
     block::{unpack_block_info, L2BlockHasher},
     fee::Fee,
     get_nonce_key,
@@ -284,6 +284,8 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         &self,
         storage: StoragePtr<ST>,
     ) -> (L1BatchEnv, BlockContext) {
+        tracing::debug!("creating l1 batch env...");
+
         let (last_l1_block_num, last_l1_block_ts) = load_last_l1_batch(storage.clone())
             .map(|(num, ts)| (num as u32, ts))
             .unwrap_or_else(|| (self.current_batch, self.current_timestamp));
@@ -304,18 +306,48 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         )
         .new_batch();
 
+        if let Some(fork) = &self
+            .fork_storage
+            .inner
+            .read()
+            .expect("fork_storage lock is already held by the current thread")
+            .fork
+        {
+            tracing::debug!(
+                "fork details are present. Updating fee input provider's
+                `l1_gas_price`, `l2_fair_gas_price`, `fair_pubdata_price`
+                for batch {}, that is being created..",
+                block_ctx.batch
+            );
+
+            let (l1_gas_price, l2_fair_gas_price, fair_pubdata_price) = {
+                fork.get_block_gas_details(block_ctx.miniblock as u32)
+                    .unwrap()
+            };
+            
+            {
+                let mut fee_input_provider = self.fee_input_provider.0.write().unwrap();
+
+                fee_input_provider.l1_gas_price = l1_gas_price;
+                fee_input_provider.l2_gas_price = l2_fair_gas_price;
+                fee_input_provider.l1_pubdata_price = fair_pubdata_price;
+            }
+        }
+
         let fee_input_provider = self.fee_input_provider.clone();
+        let fee_input = block_on(async move {
+            fee_input_provider
+                .get_batch_fee_input_scaled(1.0, 1.0)
+                .await
+                .unwrap()
+        });
+
         let batch_env = L1BatchEnv {
             // TODO: set the previous batch hash properly (take from fork, when forking, and from local storage, when this is not the first block).
             previous_batch_hash: None,
             number: L1BatchNumber::from(block_ctx.batch),
             timestamp: block_ctx.timestamp,
-            fee_input: block_on(async move {
-                fee_input_provider
-                    .get_batch_fee_input_scaled(1.0, 1.0)
-                    .await
-                    .unwrap()
-            }),
+            fee_input,
             fee_account: H160::zero(),
             enforced_base_fee: None,
             first_l2_block: L2BlockEnv {
@@ -397,8 +429,8 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             let fee_input = block_on(async move {
                 fee_input_provider
                     .get_batch_fee_input_scaled(
-                        fee_input_provider.estimate_gas_price_scale_factor,
-                        fee_input_provider.estimate_gas_price_scale_factor,
+                        fee_input_provider.get_estimate_gas_price_scale_factor(),
+                        fee_input_provider.get_estimate_gas_price_scale_factor(),
                     )
                     .await
                     .unwrap()
@@ -528,12 +560,12 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         tracing::trace!("  Final upper_bound: {}", upper_bound);
         tracing::trace!(
             "  ESTIMATE_GAS_SCALE_FACTOR: {}",
-            self.fee_input_provider.estimate_gas_scale_factor
+            self.fee_input_provider.get_estimate_gas_scale_factor()
         );
         tracing::trace!("  MAX_L2_TX_GAS_LIMIT: {}", MAX_L2_TX_GAS_LIMIT);
         let tx_body_gas_limit = upper_bound;
         let suggested_gas_limit = ((upper_bound + additional_gas_for_pubdata) as f32
-            * self.fee_input_provider.estimate_gas_scale_factor)
+            * self.fee_input_provider.get_estimate_gas_scale_factor())
             as u64;
 
         let estimate_gas_result = InMemoryNodeInner::estimate_gas_step(
@@ -906,11 +938,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
         let fee_input_provider = &inner.fee_input_provider;
         Ok(GasConfig {
-            l1_gas_price: Some(fee_input_provider.l1_gas_price),
-            l2_gas_price: Some(fee_input_provider.l2_gas_price),
+            l1_gas_price: Some(fee_input_provider.get_l1_gas_price()),
+            l2_gas_price: Some(fee_input_provider.get_l2_gas_price()),
             estimation: Some(gas::Estimation {
-                price_scale_factor: Some(fee_input_provider.estimate_gas_price_scale_factor),
-                limit_scale_factor: Some(fee_input_provider.estimate_gas_scale_factor),
+                price_scale_factor: Some(fee_input_provider.get_estimate_gas_price_scale_factor()),
+                limit_scale_factor: Some(fee_input_provider.get_estimate_gas_scale_factor()),
             }),
         })
     }
@@ -1230,7 +1262,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             .read()
             .expect("failed acquiring reader")
             .fee_input_provider
-            .l2_gas_price;
+            .get_l2_gas_price();
         if tx.common_data.fee.max_fee_per_gas < l2_gas_price.into() {
             tracing::info!(
                 "Submitted Tx is Unexecutable {:?} because of MaxFeePerGasTooLow {}",
@@ -1580,7 +1612,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             } else {
                 U64::from(1)
             },
-            effective_gas_price: Some(inner.fee_input_provider.l2_gas_price.into()),
+            effective_gas_price: Some(inner.fee_input_provider.get_l2_gas_price().into()),
             transaction_type: Some((transaction_type as u32).into()),
             logs_bloom: Default::default(),
         };

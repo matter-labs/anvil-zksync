@@ -621,7 +621,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
             .read()
             .expect("Failed to acquire read lock")
             .fee_input_provider
-            .l2_gas_price;
+            .get_l2_gas_price();
         Ok(U256::from(fair_l2_gas_price)).into_boxed_future()
     }
 
@@ -1349,8 +1349,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
                 // Can't be more than the total number of blocks
                 .clamp(1, reader.current_miniblock + 1);
 
-            let mut base_fee_per_gas =
-                vec![U256::from(reader.fee_input_provider.l2_gas_price); block_count as usize];
+            let mut base_fee_per_gas = vec![
+                U256::from(reader.fee_input_provider.get_l2_gas_price());
+                block_count as usize
+            ];
 
             let oldest_block = reader.current_miniblock + 1 - base_fee_per_gas.len() as u64;
             // We do not store gas used ratio for blocks, returns array of zeroes as a placeholder.
@@ -1390,14 +1392,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthTestNod
         &self,
         tx: zksync_types::transaction_request::CallRequest,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::H256>> {
-        let (chain_id, l1_gas_price) = match self.get_inner().read() {
-            Ok(reader) => (
-                reader.fork_storage.chain_id,
-                reader.fee_input_provider.l1_gas_price,
-            ),
+        let l1_gas_price = match self.get_inner().read() {
+            Ok(reader) => reader.fee_input_provider.get_l1_gas_price(),
             Err(_) => {
                 return futures::future::err(into_jsrpc_error_message(
-                    "Failed to acquire read lock for chain ID retrieval.".to_string(),
+                    "Failed to acquire read lock for l1 gas price retrieval.".to_string(),
                 ))
                 .boxed()
             }
@@ -1429,7 +1428,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthTestNod
         tx_req.s = Some(U256::default());
         tx_req.v = Some(U64::from(27));
 
-        let hash = match tx_req.get_tx_hash(chain_id) {
+        let hash = match tx_req.get_tx_hash() {
             Ok(result) => result,
             Err(e) => {
                 tracing::error!("Transaction request serialization error: {}", e);
@@ -1437,10 +1436,18 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthTestNod
                     .boxed();
             }
         };
-        let bytes = tx_req.get_signed_bytes(
-            &PackedEthSignature::from_rsv(&H256::default(), &H256::default(), 27),
-            chain_id,
-        );
+        let bytes = match tx_req.get_signed_bytes(&PackedEthSignature::from_rsv(
+            &H256::default(),
+            &H256::default(),
+            27,
+        )) {
+            Ok(result) => result,
+            Err(e) => {
+                tracing::error!("Transaction request serialization error: {}", e);
+                return futures::future::err(into_jsrpc_error(Web3Error::SerializationError(e)))
+                    .boxed();
+            }
+        };
         let mut l2_tx: L2Tx = match L2Tx::from_request(tx_req, MAX_TX_SIZE) {
             Ok(tx) => tx,
             Err(e) => {

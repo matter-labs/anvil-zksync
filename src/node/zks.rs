@@ -386,7 +386,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
                         execute_tx_hash: None,
                         executed_at: None,
                         l1_gas_price: 0,
-                        l2_fair_gas_price: reader.fee_input_provider.l2_gas_price,
+                        l2_fair_gas_price: reader.fee_input_provider.get_l2_gas_price(),
+                        fair_pubdata_price: Some(reader.fee_input_provider.get_l1_pubdata_price()),
                         base_system_contracts_hashes: reader
                             .system_contracts
                             .baseline_contracts

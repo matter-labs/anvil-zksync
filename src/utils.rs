@@ -265,7 +265,9 @@ pub fn report_into_jsrpc_error(error: eyre::Report) -> Error {
 pub fn into_jsrpc_error(err: Web3Error) -> Error {
     Error {
         code: match err {
-            Web3Error::InternalError(_) | Web3Error::NotImplemented => ErrorCode::InternalError,
+            Web3Error::InternalError(_) | Web3Error::MethodNotImplemented => {
+                ErrorCode::InternalError
+            }
             Web3Error::NoBlock
             | Web3Error::PrunedBlock(_)
             | Web3Error::PrunedL1Batch(_)
