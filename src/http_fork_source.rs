@@ -679,12 +679,13 @@ mod tests {
                   "executedAt": null,
                   "l1GasPrice": 6156252068u64,
                   "l2FairGasPrice": 50000000u64,
+                  "fairPubdataPrice": 100u64,
                   "baseSystemContractsHashes": {
                     "bootloader": "0x0100089b8a2f2e6a20ba28f02c9e0ed0c13d702932364561a0ea61621f65f0a8",
                     "default_aa": "0x0100067d16a5485875b4249040bf421f53e869337fe118ec747cf40a4c777e5f"
                   },
                   "operatorAddress": "0xa9232040bf0e0aea2578a5b2243f2916dbfc0a69",
-                  "protocolVersion": "Version15"
+                  "protocolVersion": "Version15",
                 },
                 "id": 0
               }),

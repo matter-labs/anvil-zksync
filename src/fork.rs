@@ -726,4 +726,30 @@ mod tests {
         fork_storage.set_value(key_with_value_0, H256::zero());
         assert!(!fork_storage.is_write_initial(&key_with_value_0));
     }
+
+    #[test]
+    fn test_get_block_gas_details() {
+        let fork_details = ForkDetails {
+            fork_source: Box::new(testing::ExternalStorage {
+                raw_storage: InMemoryStorage::default(),
+            }),
+            l1_block: L1BatchNumber(0),
+            l2_block: zksync_types::api::Block::<TransactionVariant>::default(),
+            l2_miniblock: 0,
+            l2_miniblock_hash: H256::zero(),
+            block_timestamp: 0,
+            overwrite_chain_id: None,
+            l1_gas_price: 0,
+            l2_fair_gas_price: 0,
+            estimate_gas_price_scale_factor: 0.0,
+            estimate_gas_scale_factor: 0.0,
+            fee_params: None,
+            cache_config: CacheConfig::None,
+        };
+
+        let actual_result = fork_details.get_block_gas_details(1);
+        let expected_result = Some((123, 234, 345));
+
+        assert_eq!(actual_result, expected_result);
+    }
 }

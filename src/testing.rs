@@ -20,8 +20,10 @@ use httptest::{
 use itertools::Itertools;
 use multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
 use std::str::FromStr;
-use zksync_basic_types::{AccountTreeId, L2BlockNumber, H160, U64};
-use zksync_types::api::{BlockIdVariant, BridgeAddresses, DebugCall, DebugCallType, Log};
+use zksync_basic_types::{AccountTreeId, L1BatchNumber, L2BlockNumber, H160, U64};
+use zksync_types::api::{
+    BlockDetailsBase, BlockIdVariant, BlockStatus, BridgeAddresses, DebugCall, DebugCallType, Log,
+};
 use zksync_types::block::pack_block_info;
 use zksync_types::{fee::Fee, l2::L2Tx, Address, L2ChainId, Nonce, ProtocolVersionId, H256, U256};
 use zksync_types::{K256PrivateKey, StorageKey};
@@ -793,9 +795,31 @@ impl ForkSource for ExternalStorage {
 
     fn get_block_details(
         &self,
-        _miniblock: L2BlockNumber,
+        miniblock: L2BlockNumber,
     ) -> eyre::Result<Option<zksync_types::api::BlockDetails>> {
-        todo!()
+        Ok(Some(zksync_types::api::BlockDetails {
+            number: miniblock,
+            l1_batch_number: L1BatchNumber(123),
+            base: BlockDetailsBase {
+                timestamp: 0,
+                l1_tx_count: 0,
+                l2_tx_count: 0,
+                root_hash: None,
+                status: BlockStatus::Sealed,
+                commit_tx_hash: None,
+                committed_at: None,
+                prove_tx_hash: None,
+                proven_at: None,
+                execute_tx_hash: None,
+                executed_at: None,
+                l1_gas_price: 123,
+                l2_fair_gas_price: 234,
+                fair_pubdata_price: Some(345),
+                base_system_contracts_hashes: Default::default(),
+            },
+            operator_address: H160::zero(),
+            protocol_version: None,
+        }))
     }
 
     fn get_fee_params(&self) -> eyre::Result<zksync_types::fee_model::FeeParams> {
