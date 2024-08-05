@@ -1400,7 +1400,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthTestNod
                     "Failed to acquire read lock for chain ID retrieval.".to_string(),
                 ))
                 .boxed()
-            }   
+            }
         };
 
         let mut tx_req = TransactionRequest::from(tx.clone());
