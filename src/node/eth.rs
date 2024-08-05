@@ -621,7 +621,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
             .read()
             .expect("Failed to acquire read lock")
             .fee_input_provider
-            .get_l2_gas_price();
+            .l2_gas_price;
         Ok(U256::from(fair_l2_gas_price)).into_boxed_future()
     }
 
@@ -1349,10 +1349,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
                 // Can't be more than the total number of blocks
                 .clamp(1, reader.current_miniblock + 1);
 
-            let mut base_fee_per_gas = vec![
-                U256::from(reader.fee_input_provider.get_l2_gas_price());
-                block_count as usize
-            ];
+            let mut base_fee_per_gas =
+                vec![U256::from(reader.fee_input_provider.l2_gas_price); block_count as usize];
 
             let oldest_block = reader.current_miniblock + 1 - base_fee_per_gas.len() as u64;
             // We do not store gas used ratio for blocks, returns array of zeroes as a placeholder.
@@ -1393,7 +1391,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthTestNod
         tx: zksync_types::transaction_request::CallRequest,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::H256>> {
         let l1_gas_price = match self.get_inner().read() {
-            Ok(reader) => reader.fee_input_provider.get_l1_gas_price(),
+            Ok(reader) => reader.fee_input_provider.l1_gas_price,
             Err(_) => {
                 return futures::future::err(into_jsrpc_error_message(
                     "Failed to acquire read lock for l1 gas price retrieval.".to_string(),
@@ -2862,13 +2860,8 @@ mod tests {
             actual_snapshot.current_miniblock_hash
         );
         assert_eq!(
-            expected_snapshot
-                .fee_input_provider
-                .0
-                .read()
-                .unwrap()
-                .clone(),
-            actual_snapshot.fee_input_provider.0.read().unwrap().clone()
+            expected_snapshot.fee_input_provider,
+            actual_snapshot.fee_input_provider
         );
         assert_eq!(
             expected_snapshot.tx_results.keys().collect_vec(),
@@ -3004,13 +2997,8 @@ mod tests {
         );
 
         assert_eq!(
-            expected_snapshot
-                .fee_input_provider
-                .0
-                .read()
-                .unwrap()
-                .clone(),
-            inner.fee_input_provider.0.read().unwrap().clone()
+            expected_snapshot.fee_input_provider,
+            inner.fee_input_provider
         );
         assert_eq!(
             expected_snapshot.tx_results.keys().collect_vec(),
