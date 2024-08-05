@@ -832,6 +832,7 @@ mod tests {
         assert!(matches!(result.number, L2BlockNumber(16474138)));
         assert_eq!(result.l1_batch_number, L1BatchNumber(270435));
         assert_eq!(result.base.timestamp, 1697405098);
+        assert_eq!(result.base.fair_pubdata_price, Some(100));
     }
 
     #[tokio::test]

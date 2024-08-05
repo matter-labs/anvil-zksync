@@ -1390,14 +1390,17 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthTestNod
         &self,
         tx: zksync_types::transaction_request::CallRequest,
     ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::H256>> {
-        let l1_gas_price = match self.get_inner().read() {
-            Ok(reader) => reader.fee_input_provider.l1_gas_price,
+        let (chain_id, l1_gas_price) = match self.get_inner().read() {
+            Ok(reader) => (
+                reader.fork_storage.chain_id,
+                reader.fee_input_provider.l1_gas_price,
+            ),
             Err(_) => {
                 return futures::future::err(into_jsrpc_error_message(
-                    "Failed to acquire read lock for l1 gas price retrieval.".to_string(),
+                    "Failed to acquire read lock for chain ID retrieval.".to_string(),
                 ))
                 .boxed()
-            }
+            }   
         };
 
         let mut tx_req = TransactionRequest::from(tx.clone());
@@ -1405,6 +1408,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthTestNod
         if tx.gas.is_none() {
             tx_req.gas = U256::from(MAX_L1_TRANSACTION_GAS_LIMIT);
         }
+
+        tx_req.chain_id = Some(chain_id.as_u64());
 
         // EIP-1559 gas fields should be processed separately
         if tx.gas_price.is_some() {
