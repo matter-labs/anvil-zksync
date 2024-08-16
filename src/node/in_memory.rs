@@ -980,7 +980,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             let address = wallet.0;
             self.set_rich_account(H160::from_str(address).unwrap());
         }
-        for (_, wallet) in RICH_WALLETS.iter().enumerate() {
+        for wallet in RICH_WALLETS.iter() {
             let address = wallet.0;
             self.set_rich_account(H160::from_str(address).unwrap());
         }
