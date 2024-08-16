@@ -388,9 +388,12 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fork::ForkStorage;
     use crate::namespaces::EthNamespaceT;
+    use crate::node::{InMemoryNodeInner, Snapshot};
     use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
     use std::str::FromStr;
+    use std::sync::{Arc, RwLock};
     use zksync_basic_types::{Nonce, H256};
     use zksync_state::ReadStorage;
     use zksync_types::{api::BlockNumber, fee::Fee, l2::L2Tx, PackedEthSignature};
@@ -499,19 +502,52 @@ mod tests {
 
     #[tokio::test]
     async fn test_reset() {
+        let old_snapshots = Arc::new(RwLock::new(vec![Snapshot::default()]));
+        let old_system_contracts_options = Default::default();
+        let old_inner = InMemoryNodeInner::<HttpForkSource> {
+            current_timestamp: 123,
+            current_batch: 100,
+            current_miniblock: 300,
+            current_miniblock_hash: H256::random(),
+            fee_input_provider: Default::default(),
+            tx_results: Default::default(),
+            blocks: Default::default(),
+            block_hashes: Default::default(),
+            filters: Default::default(),
+            fork_storage: ForkStorage::new(None, &old_system_contracts_options),
+            config: Default::default(),
+            console_log_handler: Default::default(),
+            system_contracts: Default::default(),
+            impersonated_accounts: Default::default(),
+            rich_accounts: Default::default(),
+            previous_states: Default::default(),
+            observability: None,
+        };
+
+        let node = InMemoryNode::<HttpForkSource> {
+            inner: Arc::new(RwLock::new(old_inner)),
+            snapshots: old_snapshots,
+            system_contracts_options: old_system_contracts_options,
+        };
+
         let address = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap();
-        let node = InMemoryNode::<HttpForkSource>::default();
-
         let nonce_before = node.get_transaction_count(address, None).await.unwrap();
-
         let set_result = node.set_nonce(address, U256::from(1337)).unwrap();
         assert!(set_result);
-
         let reset_result = node.reset_network(None).unwrap();
         assert!(reset_result);
 
         let nonce_after = node.get_transaction_count(address, None).await.unwrap();
         assert_eq!(nonce_before, nonce_after);
+
+        assert_eq!(node.snapshots.read().unwrap().len(), 0);
+        assert_eq!(node.inner.read().unwrap().current_timestamp, 1000);
+        assert_eq!(node.inner.read().unwrap().current_batch, 0);
+        assert_eq!(node.inner.read().unwrap().current_miniblock, 0);
+        assert_ne!(
+            node.inner.read().unwrap().current_miniblock_hash,
+            H256::random()
+        );
     }
 
     #[tokio::test]

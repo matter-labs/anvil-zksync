@@ -7,6 +7,7 @@ use crate::{
         node::{InMemoryNodeConfig, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails},
     },
     console_log::ConsoleLogHandler,
+    constants::{LEGACY_RICH_WALLETS, RICH_WALLETS},
     deps::{storage_view::StorageView, InMemoryStorage},
     filters::EthFilters,
     fork::{block_on, ForkDetails, ForkSource, ForkStorage},
@@ -21,6 +22,7 @@ use indexmap::IndexMap;
 use once_cell::sync::OnceCell;
 use std::{
     collections::{HashMap, HashSet},
+    str::FromStr,
     sync::{Arc, RwLock},
 };
 
@@ -834,7 +836,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
 /// Creates a restorable snapshot for the [InMemoryNodeInner]. The snapshot contains all the necessary
 /// data required to restore the [InMemoryNodeInner] state to a previous point in time.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Snapshot {
     pub(crate) current_timestamp: u64,
     pub(crate) current_batch: u32,
@@ -861,12 +863,12 @@ pub struct Snapshot {
 #[derive(Clone)]
 pub struct InMemoryNode<S: Clone> {
     /// A thread safe reference to the [InMemoryNodeInner].
-    inner: Arc<RwLock<InMemoryNodeInner<S>>>,
+    pub(crate) inner: Arc<RwLock<InMemoryNodeInner<S>>>,
     /// List of snapshots of the [InMemoryNodeInner]. This is bounded at runtime by [MAX_SNAPSHOTS].
     pub(crate) snapshots: Arc<RwLock<Vec<Snapshot>>>,
     /// Configuration option that survives reset.
     #[allow(dead_code)]
-    system_contracts_options: system_contracts::Options,
+    pub(crate) system_contracts_options: system_contracts::Options,
 }
 
 fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) -> Option<H160> {
@@ -966,11 +968,22 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
         writer.clear();
 
-        let mut guard = self
-            .inner
-            .write()
-            .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
-        *guard = inner;
+        {
+            let mut guard = self
+                .inner
+                .write()
+                .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
+            *guard = inner;
+        }
+
+        for wallet in LEGACY_RICH_WALLETS.iter() {
+            let address = wallet.0;
+            self.set_rich_account(H160::from_str(address).unwrap());
+        }
+        for (_, wallet) in RICH_WALLETS.iter().enumerate() {
+            let address = wallet.0;
+            self.set_rich_account(H160::from_str(address).unwrap());
+        }
         Ok(())
     }
 
