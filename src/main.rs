@@ -258,12 +258,12 @@ async fn main() -> anyhow::Result<()> {
     let node: InMemoryNode<HttpForkSource> =
         InMemoryNode::new(fork_details, Some(observability), config.node, config.gas);
 
-    if !transactions_to_replay.is_empty() {
-        let _ = node.apply_txs(transactions_to_replay);
-    }
-
     if let Some(bytecodes_dir) = opt.override_bytecodes_dir {
         override_bytecodes(&node, bytecodes_dir).unwrap();
+    }
+
+    if !transactions_to_replay.is_empty() {
+        let _ = node.apply_txs(transactions_to_replay);
     }
 
     tracing::info!("");
