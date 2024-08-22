@@ -89,6 +89,9 @@ pub struct Cli {
     /// Cache directory location for `disk` cache - default: ".cache"
     #[arg(long)]
     pub cache_dir: Option<String>,
+
+    #[arg(long)]
+    pub override_bytecodes_dir: Option<String>,
 }
 
 #[derive(Debug, Subcommand)]
