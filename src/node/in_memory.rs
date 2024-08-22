@@ -1698,7 +1698,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         Ok(())
     }
 
-    pub fn override_bytecode(&self, address: &Address, bytecode: &Vec<u8>) -> Result<(), String> {
+    // Forcefully stores the given bytecode at a given account.
+    pub fn override_bytecode(&self, address: &Address, bytecode: &[u8]) -> Result<(), String> {
         let mut inner = self
             .inner
             .write()
@@ -1710,7 +1711,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
         inner
             .fork_storage
-            .store_factory_dep(bytecode_hash, bytecode.clone());
+            .store_factory_dep(bytecode_hash, bytecode.to_owned());
 
         inner.fork_storage.set_value(code_key, bytecode_hash);
 
