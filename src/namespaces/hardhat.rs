@@ -116,7 +116,7 @@ pub trait HardhatNamespaceT {
     ///
     /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
     #[rpc(name = "hardhat_setCode")]
-    fn set_code(&self, address: Address, code: Vec<u8>) -> RpcResult<()>;
+    fn set_code(&self, address: Address, code: String) -> RpcResult<()>;
 
     /// Directly modifies the storage of a contract at a specified slot.
     ///

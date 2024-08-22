@@ -97,7 +97,7 @@ describe("hardhat_setCode", function () {
 
     const address = "0x1000000000000000000000000000000000001111";
     const artifact = await deployer.loadArtifact("Return5");
-    const contractCode = [...ethers.utils.arrayify(artifact.deployedBytecode)];
+    const contractCode = artifact.deployedBytecode;
 
     // Act
     await provider.send("hardhat_setCode", [address, contractCode]);
@@ -126,8 +126,8 @@ describe("hardhat_setCode", function () {
 
       const address = "0x1000000000000000000000000000000000001111";
       const artifact = await deployer.loadArtifact("Return5");
-      const contractCode = [...ethers.utils.arrayify(artifact.deployedBytecode)];
-      const shortCode = contractCode.slice(0, contractCode.length - 1);
+      const contractCode = artifact.deployedBytecode;
+      const shortCode = contractCode.slice(0, contractCode.length - 2);
 
       // Act
       await provider.send("hardhat_setCode", [address, shortCode]);
@@ -144,7 +144,7 @@ describe("hardhat_setCode", function () {
     const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
     expect(await greeter.greet()).to.eq("Hi");
     const artifact = await deployer.loadArtifact("Return5");
-    const newContractCode = [...ethers.utils.arrayify(artifact.deployedBytecode)];
+    const newContractCode = artifact.deployedBytecode;
 
     // Act
     await provider.send("hardhat_setCode", [greeter.address, newContractCode]);

@@ -65,7 +65,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> HardhatNam
             .into_boxed_future()
     }
 
-    fn set_code(&self, address: Address, code: Vec<u8>) -> RpcResult<()> {
+    fn set_code(&self, address: Address, code: String) -> RpcResult<()> {
         self.set_code(address, code)
             .map_err(|err| {
                 tracing::error!("failed setting code: {:?}", err);
