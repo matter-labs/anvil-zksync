@@ -172,14 +172,15 @@ era_test_node replay_tx <network> <transaction_hash>
 
 ## Replacing bytecodes
 
-You can also replace / override the contract bytecode with the local version. This is especially useful if you are replaying some mainnet transactions and would like to see how they would behave on the different bytecode.
+You can also replace / override the contract bytecode with the local version. This is especially useful if you are replaying some mainnet transactions and would like to see how they would behave on the different bytecode. Or when you want to fork mainnet to see how your code would
+behave on mainnet state.
 
 You have to prepare a directory, with files in format `0xabc..93f.json` that contain the json outputs that you can get from zkout directories from your compiler.
 
-Then you have to add `--override-bytecodes-dir=XX` flag to point at that directory.
+Then you have to add `--override-bytecodes-dir=XX` flag to point at that directory. See the `example_override` dir for more details.
 
 ```bash
-cargo run -- --override-bytecodes-dir=example_override --show-storage-logs all replay_tx mainnet 0x2134
+cargo run -- --override-bytecodes-dir=example_override --show-storage-logs all fork mainnet
 ```
 
 ## 📞 Sending Network Calls
