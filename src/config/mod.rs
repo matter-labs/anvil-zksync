@@ -280,10 +280,10 @@ pub mod gas {
     use serde::Deserialize;
 
     /// L1 Gas Price.
-    pub const DEFAULT_L1_GAS_PRICE: u64 = 50_000_000_000;
+    pub const DEFAULT_L1_GAS_PRICE: u64 = 1_000_000_000;
     // TODO: for now, that's fine, as computation overhead is set to zero, but we may consider using calculated fee input everywhere.
     /// The default L2 Gas Price to be used if not supplied via the CLI argument.
-    pub const DEFAULT_L2_GAS_PRICE: u64 = 25_000_000;
+    pub const DEFAULT_L2_GAS_PRICE: u64 = 100_000_000;
     /// L1 Gas Price Scale Factor for gas estimation.
     pub const DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR: f64 = 1.5;
     /// The factor by which to scale the gasLimit.
