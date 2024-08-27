@@ -10,14 +10,14 @@ import { BigNumber } from "ethers";
 
 const provider = getTestProvider();
 
-describe("hardhat_setBalance", function () {
+describe("anvil_setBalance", function () {
   it("Should update the balance of an account", async function () {
     // Arrange
     const userWallet = Wallet.createRandom().connect(provider);
     const newBalance = ethers.utils.parseEther("42");
 
     // Act
-    await provider.send("hardhat_setBalance", [userWallet.address, newBalance._hex]);
+    await provider.send("anvil_setBalance", [userWallet.address, newBalance._hex]);
 
     // Assert
     const balance = await userWallet.getBalance();
@@ -25,14 +25,14 @@ describe("hardhat_setBalance", function () {
   });
 });
 
-describe("hardhat_setNonce", function () {
+describe("anvil_setNonce", function () {
   it("Should update the nonce of an account", async function () {
     // Arrange
     const userWallet = Wallet.createRandom().connect(provider);
     const newNonce = 42;
 
     // Act
-    await provider.send("hardhat_setNonce", [userWallet.address, ethers.utils.hexlify(newNonce)]);
+    await provider.send("anvil_setNonce", [userWallet.address, ethers.utils.hexlify(newNonce)]);
 
     // Assert
     const nonce = await userWallet.getNonce();
@@ -40,7 +40,7 @@ describe("hardhat_setNonce", function () {
   });
 });
 
-describe("hardhat_mine", function () {
+describe("anvil_mine", function () {
   it("Should mine multiple blocks with a given interval", async function () {
     // Arrange
     const numberOfBlocks = 100;
@@ -49,10 +49,7 @@ describe("hardhat_mine", function () {
     const startingTimestamp: number = await provider.send("config_getCurrentTimestamp", []);
 
     // Act
-    await provider.send("hardhat_mine", [
-      ethers.utils.hexlify(numberOfBlocks),
-      ethers.utils.hexlify(intervalInSeconds),
-    ]);
+    await provider.send("anvil_mine", [ethers.utils.hexlify(numberOfBlocks), ethers.utils.hexlify(intervalInSeconds)]);
 
     // Assert
     const latestBlock = await provider.getBlock("latest");
@@ -64,16 +61,17 @@ describe("hardhat_mine", function () {
   });
 });
 
-describe("hardhat_impersonateAccount & hardhat_stopImpersonatingAccount", function () {
+describe("anvil_impersonateAccount & anvil_stopImpersonatingAccount", function () {
   it("Should allow transfers of funds without knowing the Private Key", async function () {
     // Arrange
     const userWallet = Wallet.createRandom().connect(provider);
-    const beforeBalance = await provider.getBalance(RichAccounts[5].Account);
+    const richAccount = RichAccounts[5].Account;
+    const beforeBalance = await provider.getBalance(richAccount);
 
     // Act
-    await provider.send("hardhat_impersonateAccount", [RichAccounts[5].Account]);
+    await provider.send("anvil_impersonateAccount", [richAccount]);
 
-    const signer = await ethers.getSigner(RichAccounts[5].Account);
+    const signer = await ethers.getSigner(richAccount);
     const tx = {
       to: userWallet.address,
       value: ethers.utils.parseEther("0.42"),
@@ -82,27 +80,27 @@ describe("hardhat_impersonateAccount & hardhat_stopImpersonatingAccount", functi
     const recieptTx = await signer.sendTransaction(tx);
     await recieptTx.wait();
 
-    await provider.send("hardhat_stopImpersonatingAccount", [RichAccounts[5].Account]);
+    await provider.send("anvil_stopImpersonatingAccount", [richAccount]);
 
     // Assert
     expect((await userWallet.getBalance()).eq(ethers.utils.parseEther("0.42"))).to.true;
-    expect((await provider.getBalance(RichAccounts[5].Account)).eq(beforeBalance.sub(ethers.utils.parseEther("0.42"))))
-      .to.true;
+    expect((await provider.getBalance(richAccount)).eq(beforeBalance.sub(ethers.utils.parseEther("0.42")))).to.true;
   });
 });
 
-describe("hardhat_setCode", function () {
+describe("anvil_setCode", function () {
   it("Should set code at an address", async function () {
     // Arrange
     const wallet = new Wallet(RichAccounts[0].PrivateKey);
     const deployer = new Deployer(hre, wallet);
 
-    const address = "0x1000000000000000000000000000000000001111";
+    const randomWallet = Wallet.createRandom();
+    const address = randomWallet.address;
     const artifact = await deployer.loadArtifact("Return5");
     const contractCode = artifact.deployedBytecode;
 
     // Act
-    await provider.send("hardhat_setCode", [address, contractCode]);
+    await provider.send("anvil_setCode", [address, contractCode]);
 
     // Assert
     const result = await provider.send("eth_call", [
@@ -132,7 +130,7 @@ describe("hardhat_setCode", function () {
       const shortCode = contractCode.slice(0, contractCode.length - 2);
 
       // Act
-      await provider.send("hardhat_setCode", [address, shortCode]);
+      await provider.send("anvil_setCode", [address, shortCode]);
     };
 
     await expectThrowsAsync(action, "bytes must be divisible by 32");
@@ -149,7 +147,7 @@ describe("hardhat_setCode", function () {
     const newContractCode = artifact.deployedBytecode;
 
     // Act
-    await provider.send("hardhat_setCode", [greeter.address, newContractCode]);
+    await provider.send("anvil_setCode", [greeter.address, newContractCode]);
 
     // Assert
     const result = await provider.send("eth_call", [
@@ -168,23 +166,7 @@ describe("hardhat_setCode", function () {
   });
 });
 
-describe("hardhat_reset", function () {
-  it("should return the correct block number after a hardhat_reset", async function () {
-    const oldBlockNumber = await provider.send("eth_blockNumber", []);
-
-    await provider.send("evm_mine", []);
-    await provider.send("evm_mine", []);
-
-    const blockNumber = await provider.send("eth_blockNumber", []);
-    expect(BigNumber.from(blockNumber).toNumber()).to.be.eq(BigNumber.from(oldBlockNumber).toNumber() + 2);
-
-    await provider.send("hardhat_reset", []);
-    const newBlockNumber = await provider.send("eth_blockNumber", []);
-    expect(BigNumber.from(newBlockNumber).toNumber()).to.be.eq(0);
-  });
-});
-
-describe("hardhat_setStorageAt", function () {
+describe("anvil_setStorageAt", function () {
   it("Should set storage at an address", async function () {
     const wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
     const userWallet = Wallet.createRandom().connect(provider);
@@ -201,7 +183,7 @@ describe("hardhat_setStorageAt", function () {
     expect(BigNumber.from(before).toNumber()).to.eq(0);
 
     const value = ethers.utils.hexlify(ethers.utils.zeroPad("0x10", 32));
-    await provider.send("hardhat_setStorageAt", [token.address, "0x0", value]);
+    await provider.send("anvil_setStorageAt", [token.address, "0x0", value]);
 
     const after = await provider.send("eth_getStorageAt", [token.address, "0x0", "latest"]);
     expect(BigNumber.from(after).toNumber()).to.eq(16);

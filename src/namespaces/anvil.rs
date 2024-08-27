@@ -1,29 +1,10 @@
 use jsonrpc_derive::rpc;
-use serde::{Deserialize, Serialize};
 use zksync_basic_types::{Address, U256, U64};
 
-use super::RpcResult;
-
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ResetRequestForking {
-    pub json_rpc_url: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub block_number: Option<U64>,
-}
-
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
-pub struct ResetRequest {
-    /// The block number to reset the state to.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub to: Option<U64>,
-    // Forking to a specified URL.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub forking: Option<ResetRequestForking>,
-}
+use super::{ResetRequest, RpcResult};
 
 #[rpc]
-pub trait HardhatNamespaceT {
+pub trait AnvilNamespaceT {
     /// Sets the balance of the given address to the given balance.
     ///
     /// # Arguments
@@ -34,7 +15,7 @@ pub trait HardhatNamespaceT {
     /// # Returns
     ///
     /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
-    #[rpc(name = "hardhat_setBalance")]
+    #[rpc(name = "anvil_setBalance")]
     fn set_balance(&self, address: Address, balance: U256) -> RpcResult<bool>;
 
     /// Modifies an account's nonce by overwriting it.
@@ -47,12 +28,12 @@ pub trait HardhatNamespaceT {
     /// # Returns
     ///
     /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
-    #[rpc(name = "hardhat_setNonce")]
+    #[rpc(name = "anvil_setNonce")]
     fn set_nonce(&self, address: Address, balance: U256) -> RpcResult<bool>;
 
     /// Sometimes you may want to advance the latest block number of the network by a large number of blocks.
     /// One way to do this would be to call the evm_mine RPC method multiple times, but this is too slow if you want to mine thousands of blocks.
-    /// The hardhat_mine method can mine any number of blocks at once, in constant time. (It exhibits the same performance no matter how many blocks are mined.)
+    /// The `anvil_mine` method can mine any number of blocks at once, in constant time. (It exhibits the same performance no matter how many blocks are mined.)
     ///
     /// # Arguments
     ///
@@ -62,8 +43,8 @@ pub trait HardhatNamespaceT {
     /// # Returns
     ///
     /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
-    #[rpc(name = "hardhat_mine")]
-    fn hardhat_mine(&self, num_blocks: Option<U64>, interval: Option<U64>) -> RpcResult<bool>;
+    #[rpc(name = "anvil_mine")]
+    fn anvil_mine(&self, num_blocks: Option<U64>, interval: Option<U64>) -> RpcResult<bool>;
 
     /// Reset the state of the network back to a fresh forked state, or disable forking.
     ///
@@ -74,10 +55,10 @@ pub trait HardhatNamespaceT {
     /// # Returns
     ///
     /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
-    #[rpc(name = "hardhat_reset")]
+    #[rpc(name = "anvil_reset")]
     fn reset_network(&self, reset_spec: Option<ResetRequest>) -> RpcResult<bool>;
 
-    /// Hardhat Network allows you to send transactions impersonating specific account and contract addresses.
+    /// Era Test Node allows transactions impersonating specific account and contract addresses.
     /// To impersonate an account use this method, passing the address to impersonate as its parameter.
     /// After calling this method, any transactions with this sender will be executed without verification.
     /// Multiple addresses can be impersonated at once.
@@ -89,10 +70,10 @@ pub trait HardhatNamespaceT {
     /// # Returns
     ///
     /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
-    #[rpc(name = "hardhat_impersonateAccount")]
+    #[rpc(name = "anvil_impersonateAccount")]
     fn impersonate_account(&self, address: Address) -> RpcResult<bool>;
 
-    /// Use this method to stop impersonating an account after having previously used `hardhat_impersonateAccount`
+    /// Use this method to stop impersonating an account after having previously used `anvil_impersonateAccount`
     /// The method returns `true` if the account was being impersonated and `false` otherwise.
     ///
     /// # Arguments
@@ -102,7 +83,7 @@ pub trait HardhatNamespaceT {
     /// # Returns
     ///
     /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
-    #[rpc(name = "hardhat_stopImpersonatingAccount")]
+    #[rpc(name = "anvil_stopImpersonatingAccount")]
     fn stop_impersonating_account(&self, address: Address) -> RpcResult<bool>;
 
     /// Modifies the bytecode stored at an account's address.
@@ -115,7 +96,7 @@ pub trait HardhatNamespaceT {
     /// # Returns
     ///
     /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
-    #[rpc(name = "hardhat_setCode")]
+    #[rpc(name = "anvil_setCode")]
     fn set_code(&self, address: Address, code: String) -> RpcResult<()>;
 
     /// Directly modifies the storage of a contract at a specified slot.
@@ -129,6 +110,6 @@ pub trait HardhatNamespaceT {
     /// # Returns
     ///
     /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
-    #[rpc(name = "hardhat_setStorageAt")]
+    #[rpc(name = "anvil_setStorageAt")]
     fn set_storage_at(&self, address: Address, slot: U256, value: U256) -> RpcResult<bool>;
 }

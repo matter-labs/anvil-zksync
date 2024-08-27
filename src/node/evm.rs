@@ -1,4 +1,4 @@
-use zksync_basic_types::U64;
+use zksync_basic_types::{Address, U256, U64};
 use zksync_web3_decl::error::Web3Error;
 
 use crate::{
@@ -20,6 +20,15 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EvmNamespa
             .into_boxed_future()
     }
 
+    fn set_nonce(&self, address: Address, balance: U256) -> RpcResult<bool> {
+        self.set_nonce(address, balance)
+            .map_err(|err| {
+                tracing::error!("failed setting nonce: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(err))
+            })
+            .into_boxed_future()
+    }
+
     fn evm_mine(&self) -> RpcResult<String> {
         self.mine_block()
             .map_err(|err| {
@@ -29,7 +38,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EvmNamespa
             .into_boxed_future()
     }
 
-    fn set_next_block_timestamp(&self, timestamp: u64) -> RpcResult<u64> {
+    fn set_next_block_timestamp(&self, timestamp: U64) -> RpcResult<U64> {
         self.set_next_block_timestamp(timestamp)
             .map_err(|err| {
                 tracing::error!("failed setting time for next timestamp: {:?}", err);

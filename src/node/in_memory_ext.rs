@@ -50,19 +50,20 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
     ///
     /// # Returns
     /// The new timestamp value for the InMemoryNodeInner.
-    pub fn set_next_block_timestamp(&self, timestamp: u64) -> Result<u64> {
+    pub fn set_next_block_timestamp(&self, timestamp: U64) -> Result<U64> {
         self.get_inner()
             .write()
             .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
             .and_then(|mut writer| {
-                if timestamp < writer.current_timestamp {
+                let ts = timestamp.as_u64();
+                if ts <= writer.current_timestamp {
                     Err(anyhow!(
                         "timestamp ({}) must be greater than current timestamp ({})",
-                        timestamp,
+                        ts,
                         writer.current_timestamp
                     ))
                 } else {
-                    writer.current_timestamp = timestamp;
+                    writer.current_timestamp = ts - 1;
                     Ok(timestamp)
                 }
             })
@@ -349,14 +350,18 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
             })
     }
 
-    pub fn set_code(&self, address: Address, code: Vec<u8>) -> Result<()> {
+    pub fn set_code(&self, address: Address, code: String) -> Result<()> {
         self.get_inner()
             .write()
             .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
             .and_then(|mut writer| {
                 let code_key = get_code_key(&address);
                 tracing::info!("set code for address {address:#x}");
-                let hashcode = bytecode_to_factory_dep(code)?;
+                let code_slice = code
+                    .strip_prefix("0x")
+                    .ok_or_else(|| anyhow!("code must be 0x-prefixed"))?;
+                let code_bytes = hex::decode(code_slice)?;
+                let hashcode = bytecode_to_factory_dep(code_bytes)?;
                 let hash = u256_to_h256(hashcode.0);
                 let code = hashcode
                     .1
@@ -633,7 +638,7 @@ mod tests {
             .0;
         assert_eq!(Vec::<u8>::default(), code_before);
 
-        node.set_code(address, new_code.clone())
+        node.set_code(address, format!("0x{}", hex::encode(new_code.clone())))
             .expect("failed setting code");
 
         let code_after = node
@@ -779,7 +784,7 @@ mod tests {
         let expected_response = new_timestamp;
 
         let actual_response = node
-            .set_next_block_timestamp(new_timestamp)
+            .set_next_block_timestamp(new_timestamp.into())
             .expect("failed setting timestamp");
         let timestamp_after = node
             .get_inner()
@@ -787,9 +792,14 @@ mod tests {
             .map(|inner| inner.current_timestamp)
             .expect("failed reading timestamp");
 
-        assert_eq!(expected_response, actual_response, "erroneous response");
         assert_eq!(
-            new_timestamp, timestamp_after,
+            expected_response,
+            actual_response.as_u64(),
+            "erroneous response"
+        );
+        assert_eq!(
+            new_timestamp,
+            timestamp_after + 1,
             "timestamp was not set correctly",
         );
     }
@@ -805,10 +815,10 @@ mod tests {
             .expect("failed reading timestamp");
 
         let new_timestamp = timestamp_before + 500;
-        node.set_next_block_timestamp(new_timestamp)
+        node.set_next_block_timestamp(new_timestamp.into())
             .expect("failed setting timestamp");
 
-        let result = node.set_next_block_timestamp(timestamp_before);
+        let result = node.set_next_block_timestamp(timestamp_before.into());
 
         assert!(result.is_err(), "expected an error for timestamp in past");
     }
@@ -824,18 +834,15 @@ mod tests {
             .map(|inner| inner.current_timestamp)
             .expect("failed reading timestamp");
         assert_eq!(timestamp_before, new_timestamp, "timestamps must be same");
-        let expected_response = new_timestamp;
 
-        let actual_response = node
-            .set_next_block_timestamp(new_timestamp)
-            .expect("failed setting timestamp");
+        let response = node.set_next_block_timestamp(new_timestamp.into());
+        assert!(response.is_err());
+
         let timestamp_after = node
             .get_inner()
             .read()
             .map(|inner| inner.current_timestamp)
             .expect("failed reading timestamp");
-
-        assert_eq!(expected_response, actual_response, "erroneous response");
         assert_eq!(
             timestamp_before, timestamp_after,
             "timestamp must not change",

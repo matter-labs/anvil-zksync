@@ -47,8 +47,9 @@ use zksync_basic_types::H160;
 
 use crate::constants::{LEGACY_RICH_WALLETS, RICH_WALLETS};
 use crate::namespaces::{
-    ConfigurationApiNamespaceT, DebugNamespaceT, EthNamespaceT, EthTestNodeNamespaceT,
-    EvmNamespaceT, HardhatNamespaceT, NetNamespaceT, Web3NamespaceT, ZksNamespaceT,
+    AnvilNamespaceT, ConfigurationApiNamespaceT, DebugNamespaceT, EthNamespaceT,
+    EthTestNodeNamespaceT, EvmNamespaceT, HardhatNamespaceT, NetNamespaceT, Web3NamespaceT,
+    ZksNamespaceT,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -70,6 +71,7 @@ async fn build_json_http<
         io.extend_with(DebugNamespaceT::to_delegate(node.clone()));
         io.extend_with(EthNamespaceT::to_delegate(node.clone()));
         io.extend_with(EthTestNodeNamespaceT::to_delegate(node.clone()));
+        io.extend_with(AnvilNamespaceT::to_delegate(node.clone()));
         io.extend_with(EvmNamespaceT::to_delegate(node.clone()));
         io.extend_with(HardhatNamespaceT::to_delegate(node.clone()));
         io.extend_with(ZksNamespaceT::to_delegate(node));
@@ -139,11 +141,20 @@ async fn main() -> anyhow::Result<()> {
     // If we're replaying the transaction, we need to sync to the previous block
     // and then replay all the transactions that happened in
     let transactions_to_replay = if let Command::ReplayTx(replay_tx) = command {
-        fork_details
+        match fork_details
             .as_ref()
             .unwrap()
             .get_earlier_transactions_in_same_block(replay_tx.tx)
-            .await
+        {
+            Ok(txs) => txs,
+            Err(error) => {
+                tracing::error!(
+                    "failed to get earlier transactions in the same block for replay tx: {:?}",
+                    error
+                );
+                return Err(anyhow!(error));
+            }
+        }
     } else {
         vec![]
     };

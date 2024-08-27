@@ -3,12 +3,12 @@ use zksync_web3_decl::error::Web3Error;
 
 use crate::{
     fork::ForkSource,
-    namespaces::{HardhatNamespaceT, ResetRequest, RpcResult},
+    namespaces::{AnvilNamespaceT, ResetRequest, RpcResult},
     node::InMemoryNode,
     utils::{into_jsrpc_error, into_jsrpc_error_message, IntoBoxedFuture},
 };
 
-impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> HardhatNamespaceT
+impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> AnvilNamespaceT
     for InMemoryNode<S>
 {
     fn set_balance(&self, address: Address, balance: U256) -> RpcResult<bool> {
@@ -29,7 +29,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> HardhatNam
             .into_boxed_future()
     }
 
-    fn hardhat_mine(&self, num_blocks: Option<U64>, interval: Option<U64>) -> RpcResult<bool> {
+    fn anvil_mine(&self, num_blocks: Option<U64>, interval: Option<U64>) -> RpcResult<bool> {
         self.mine_blocks(num_blocks, interval)
             .map_err(|err| {
                 tracing::error!("failed mining blocks: {:?}", err);

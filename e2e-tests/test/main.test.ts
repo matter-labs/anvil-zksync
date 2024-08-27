@@ -62,7 +62,7 @@ describe("Greeter Smart Contract", function () {
 
     // Validate log is created
     expect(receipt.logs.length).to.greaterThanOrEqual(1);
-    const setGreetingLog = receipt.logs.find(log => log.address === greeter.address);
+    const setGreetingLog = receipt.logs.find((log) => log.address === greeter.address);
     expect(setGreetingLog).not.to.equal(null);
 
     const eventInterface = new ethers.utils.Interface(["event LogString(string value)"]);
@@ -80,7 +80,8 @@ describe("Greeter Smart Contract", function () {
     const setGreetingTx = await greeter.setGreeting("Luke Skywalker");
     let receipt: TransactionReceipt = await setGreetingTx.wait();
 
-    const setGreetingLog = receipt.logs.find(log => log.address === greeter.address);
+    expect(receipt.logs.length).to.greaterThanOrEqual(1);
+    const setGreetingLog = receipt.logs.find((log) => log.address === greeter.address);
     expect(setGreetingLog).not.to.equal(null);
 
     // Create filter

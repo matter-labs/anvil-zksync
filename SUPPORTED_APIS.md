@@ -14,6 +14,14 @@ The `status` options are:
 
 | Namespace | API | <div style="width:130px">Status</div> | Description |
 | --- | --- | --- | --- |
+| `ANVIL` | `anvil_setNonce` | `SUPPORTED` | Sets the nonce of an address.|
+| `ANVIL` | `anvil_impersonateAccount` | `SUPPORTED` | Impersonate an account |
+| `ANVIL` | `anvil_stopImpersonatingAccount` | `SUPPORTED` | Stop impersonating an account after having previously used `anvil_impersonateAccount` |
+| `ANVIL` | `anvil_reset` | `PARTIALLY` | Resets the state of the network; cannot revert to past block numbers, unless they're in a fork |
+| `ANVIL` | `anvil_mine` | `SUPPORTED` | Mine any number of blocks at once, in constant time |
+| `ANVIL` | `anvil_setBalance` | `SUPPORTED` | Modifies the balance of an account |
+| `ANVIL` | `anvil_setCode` | `SUPPORTED` | Sets the bytecode of a given account |
+| `ANVIL` | `anvil_setStorageAt` | `SUPPORTED` | Sets the storage value at a given key for a given account |
 | [`CONFIG`](#config-namespace) | [`config_getShowCalls`](#config_getshowcalls) | `SUPPORTED` | Gets the current value of `show_calls` that's originally set with `--show-calls` option |
 | [`CONFIG`](#config-namespace) | [`config_getShowOutputs`](#config_getshowoutputs) | `SUPPORTED` | Gets the current value of `show_outputs` that's originally set with `--show-outputs` option |
 | [`CONFIG`](#config-namespace) | [`config_getCurrentTimestamp`](#config_getcurrenttimestamp) | `SUPPORTED` | Gets the value of `current_timestamp` for the node |
@@ -85,7 +93,7 @@ The `status` options are:
 | [`EVM`](#evm-namespace) | [`evm_revert`](#evm_revert) | `SUPPORTED` | Revert the state of the blockchain to a previous snapshot |
 | `EVM` | `evm_setAccountBalance` | `NOT IMPLEMENTED` | Sets the given account's balance to the specified WEI value |
 | `EVM` | `evm_setAccountCode` | `NOT IMPLEMENTED` | Sets the given account's code to the specified data |
-| `EVM` | `evm_setAccountNonce` | `NOT IMPLEMENTED` | Sets the given account's nonce to the specified value |
+| [`EVM`](#evm-namespace) | [`evm_setAccountNonce`](#evm_setaccountnonce) | `SUPPORTED` | Sets the given account's nonce to the specified value |
 | `EVM` | `evm_setAccountStorageAt` | `NOT IMPLEMENTED` | Sets the given account's storage slot to the specified data |
 | `EVM` | `evm_setAutomine` | `NOT IMPLEMENTED` | Enables or disables the automatic mining of new blocks with each new transaction submitted to the network |
 | `EVM` | `evm_setBlockGasLimit` | `NOT IMPLEMENTED` | Sets the Block Gas Limit of the network |
@@ -1667,6 +1675,35 @@ curl --request POST \
   --header 'content-type: application/json' \
   --data '{"jsonrpc": "2.0","id": "1","method": "evm_mine","params": []
 }'
+```
+
+### `evm_setAccountNonce`
+
+[source](src/node/evm.rs)
+
+Modifies an account's nonce by overwriting it.
+The new nonce must be greater than the existing nonce.
+
+#### Arguments
+
++ `address: Address` - The `Address` whose nonce is to be changed
++ `nonce: U256` - The new nonce
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+      "id": "1",
+      "method": "evm_setAccountNonce",
+      "params": [
+        "0x36615Cf349d7F6344891B1e7CA7C72883F5dc049",
+        "0x1337"
+      ]
+  }'
 ```
 
 ### `evm_increaseTime`

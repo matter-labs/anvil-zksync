@@ -241,7 +241,10 @@ impl<S: ForkSource> ForkStorage<S> {
 
         // If value was 0, there is still a chance, that the slot was written to in the past - and only now set to 0.
         // We unfortunately don't have the API to check it on the fork, but we can at least try to check it on local storage.
-        let mut mutator = self.inner.write().unwrap();
+        let mut mutator = self
+            .inner
+            .write()
+            .map_err(|err| eyre!("failed acquiring write lock on fork storage: {:?}", err))?;
         Ok(mutator.raw_storage.is_write_initial(key))
     }
 
@@ -531,7 +534,7 @@ impl ForkDetails {
         fork_at: Option<u64>,
         cache_config: CacheConfig,
     ) -> eyre::Result<Self> {
-        let (network, client) = Self::fork_network_and_client(fork);
+        let (network, client) = Self::fork_network_and_client(fork)?;
         let l2_miniblock = if let Some(fork_at) = fork_at {
             fork_at
         } else {
@@ -559,7 +562,7 @@ impl ForkDetails {
         tx: H256,
         cache_config: CacheConfig,
     ) -> eyre::Result<Self> {
-        let (network, client) = Self::fork_network_and_client(fork);
+        let (network, client) = Self::fork_network_and_client(fork)?;
         let opt_tx_details = client
             .get_transaction_by_hash(tx)
             .await
@@ -613,7 +616,7 @@ impl ForkDetails {
     }
 
     /// Return [`ForkNetwork`] and HTTP client for a given fork name.
-    pub fn fork_network_and_client(fork: &str) -> (ForkNetwork, Client<L2>) {
+    pub fn fork_network_and_client(fork: &str) -> eyre::Result<(ForkNetwork, Client<L2>)> {
         let network = match fork {
             "mainnet" => ForkNetwork::Mainnet,
             "sepolia-testnet" => ForkNetwork::SepoliaTestnet,
@@ -623,44 +626,51 @@ impl ForkDetails {
 
         let url = network.to_url();
         let parsed_url = SensitiveUrl::from_str(url)
-            .unwrap_or_else(|_| panic!("Unable to parse client URL: {}", &url));
-        let client = Client::http(parsed_url)
-            .unwrap_or_else(|_| panic!("Unable to create a client for fork: {}", &url))
-            .build();
-
-        (network, client)
+            .map_err(|_| eyre!("Unable to parse client URL: {}", &url))?;
+        let builder = Client::http(parsed_url)
+            .map_err(|_| eyre!("Unable to create a client for fork: {}", &url))?;
+        Ok((network, builder.build()))
     }
 
     /// Returns transactions that are in the same L2 miniblock as replay_tx, but were executed before it.
-    pub async fn get_earlier_transactions_in_same_block(&self, replay_tx: H256) -> Vec<L2Tx> {
-        let tx_details = self
+    pub fn get_earlier_transactions_in_same_block(
+        &self,
+        replay_tx: H256,
+    ) -> eyre::Result<Vec<L2Tx>> {
+        let opt_tx_details = self
             .fork_source
             .get_transaction_by_hash(replay_tx)
-            .unwrap()
-            .unwrap();
-        let miniblock = L2BlockNumber(tx_details.block_number.unwrap().as_u32());
+            .map_err(|err| {
+                eyre!(
+                    "Cannot get transaction to replay by hash from fork source: {:?}",
+                    err
+                )
+            })?;
+        let tx_details =
+            opt_tx_details.ok_or_else(|| eyre!("Cannot find transaction {:?}", replay_tx))?;
+        let block_number = tx_details
+            .block_number
+            .ok_or_else(|| eyre!("Block has no number"))?;
+        let miniblock = L2BlockNumber(block_number.as_u32());
 
         // And we're fetching all the transactions from this miniblock.
-        let block_transactions = self
-            .fork_source
-            .get_raw_block_transactions(miniblock)
-            .unwrap();
+        let block_transactions = self.fork_source.get_raw_block_transactions(miniblock)?;
 
         let mut tx_to_apply = Vec::new();
-
         for tx in block_transactions {
             let h = tx.hash();
             let l2_tx: L2Tx = tx.try_into().unwrap();
             tx_to_apply.push(l2_tx);
 
             if h == replay_tx {
-                return tx_to_apply;
+                return Ok(tx_to_apply);
             }
         }
-        panic!(
+        Err(eyre!(
             "Cound not find tx {:?} in miniblock: {:?}",
-            replay_tx, miniblock
-        );
+            replay_tx,
+            miniblock
+        ))
     }
 
     /// Returns
@@ -673,18 +683,26 @@ impl ForkDetails {
     pub fn get_block_gas_details(&self, miniblock: u32) -> Option<(u64, u64, u64)> {
         let res_opt_block_details = self.fork_source.get_block_details(L2BlockNumber(miniblock));
         match res_opt_block_details {
-            Ok(opt_block_details) => opt_block_details.map(|block_details| {
-                (
-                    block_details.base.l1_gas_price,
-                    block_details.base.l2_fair_gas_price,
-                    block_details.base.fair_pubdata_price.unwrap_or_else(|| {
-                        panic!(
-                            "fair pubdata price is not present in {} l2 block details",
+            Ok(opt_block_details) => {
+                if let Some(block_details) = opt_block_details {
+                    if let Some(fair_pubdata_price) = block_details.base.fair_pubdata_price {
+                        Some((
+                            block_details.base.l1_gas_price,
+                            block_details.base.l2_fair_gas_price,
+                            fair_pubdata_price,
+                        ))
+                    } else {
+                        tracing::warn!(
+                            "Fair pubdata price is not present in {} l2 block details",
                             miniblock
-                        )
-                    }),
-                )
-            }),
+                        );
+                        None
+                    }
+                } else {
+                    tracing::warn!("No block details for {}", miniblock);
+                    None
+                }
+            }
             Err(e) => {
                 tracing::warn!("Error getting block details: {:?}", e);
                 None
