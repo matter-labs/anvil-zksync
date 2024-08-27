@@ -532,8 +532,10 @@ mod tests {
 
         let address = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap();
         let nonce_before = node.get_transaction_count(address, None).await.unwrap();
+
         let set_result = node.set_nonce(address, U256::from(1337)).unwrap();
         assert!(set_result);
+
         let reset_result = node.reset_network(None).unwrap();
         assert!(reset_result);
 
@@ -541,13 +543,12 @@ mod tests {
         assert_eq!(nonce_before, nonce_after);
 
         assert_eq!(node.snapshots.read().unwrap().len(), 0);
-        assert_eq!(node.inner.read().unwrap().current_timestamp, 1000);
-        assert_eq!(node.inner.read().unwrap().current_batch, 0);
-        assert_eq!(node.inner.read().unwrap().current_miniblock, 0);
-        assert_ne!(
-            node.inner.read().unwrap().current_miniblock_hash,
-            H256::random()
-        );
+
+        let inner = node.inner.read().unwrap();
+        assert_eq!(inner.current_timestamp, 1000);
+        assert_eq!(inner.current_batch, 0);
+        assert_eq!(inner.current_miniblock, 0);
+        assert_ne!(inner.current_miniblock_hash, H256::random());
     }
 
     #[tokio::test]

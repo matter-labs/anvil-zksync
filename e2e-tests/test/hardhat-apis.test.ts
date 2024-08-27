@@ -168,16 +168,16 @@ describe("hardhat_setCode", function () {
 
 describe("hardhat_reset", function () {
   it("should return the correct block number after a hardhat_reset", async function () {
-    const old_blockNumber = await provider.send("eth_blockNumber", []);
+    const oldBlockNumber = await provider.send("eth_blockNumber", []);
 
     await provider.send("evm_mine", []);
     await provider.send("evm_mine", []);
 
     const blockNumber = await provider.send("eth_blockNumber", []);
-    expect(BigNumber.from(blockNumber).toNumber()).to.be.eq(BigNumber.from(old_blockNumber).toNumber() + 2);
+    expect(BigNumber.from(blockNumber).toNumber()).to.be.eq(BigNumber.from(oldBlockNumber).toNumber() + 2);
 
     await provider.send("hardhat_reset", []);
-    const new_blockNumber = await provider.send("eth_blockNumber", []);
-    expect(BigNumber.from(new_blockNumber).toNumber()).to.be.eq(0);
+    const newBlockNumber = await provider.send("eth_blockNumber", []);
+    expect(BigNumber.from(newBlockNumber).toNumber()).to.be.eq(0);
   });
 });
