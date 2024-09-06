@@ -39,7 +39,7 @@ use zksync_web3_decl::{namespaces::EthNamespaceClient, types::Index};
 
 use crate::{config::cache::CacheConfig, node::TEST_NODE_NETWORK_ID};
 use crate::{
-    config::gas::{DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR},
+    config::gas::{DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR},
     system_contracts,
 };
 use crate::{deps::InMemoryStorage, http_fork_source::HttpForkSource};
@@ -400,6 +400,8 @@ pub struct ForkDetails {
     pub overwrite_chain_id: Option<L2ChainId>,
     pub l1_gas_price: u64,
     pub l2_fair_gas_price: u64,
+    // Cost of publishing one byte (in wei).
+    pub fair_pubdata_price: u64,
     /// L1 Gas Price Scale Factor for gas estimation.
     pub estimate_gas_price_scale_factor: f64,
     /// The factor by which to scale the gasLimit.
@@ -522,6 +524,7 @@ impl ForkDetails {
             overwrite_chain_id: chain_id,
             l1_gas_price: block_details.base.l1_gas_price,
             l2_fair_gas_price: block_details.base.l2_fair_gas_price,
+            fair_pubdata_price: block_details.base.fair_pubdata_price.unwrap_or(DEFAULT_FAIR_PUBDATA_PRICE),
             estimate_gas_price_scale_factor,
             estimate_gas_scale_factor,
             fee_params,
@@ -719,8 +722,8 @@ mod tests {
 
     use crate::config::cache::CacheConfig;
     use crate::config::gas::{
-        DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
-        DEFAULT_L2_GAS_PRICE,
+        DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
+        DEFAULT_ESTIMATE_GAS_SCALE_FACTOR, DEFAULT_L2_GAS_PRICE,
     };
     use crate::{deps::InMemoryStorage, system_contracts, testing};
 
@@ -752,6 +755,7 @@ mod tests {
             overwrite_chain_id: None,
             l1_gas_price: 100,
             l2_fair_gas_price: DEFAULT_L2_GAS_PRICE,
+            fair_pubdata_price: DEFAULT_FAIR_PUBDATA_PRICE,
             estimate_gas_price_scale_factor: DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
             estimate_gas_scale_factor: DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
             fee_params: None,
@@ -786,6 +790,7 @@ mod tests {
             overwrite_chain_id: None,
             l1_gas_price: 0,
             l2_fair_gas_price: 0,
+            fair_pubdata_price: 0,
             estimate_gas_price_scale_factor: 0.0,
             estimate_gas_scale_factor: 0.0,
             fee_params: None,
