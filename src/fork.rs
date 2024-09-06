@@ -39,7 +39,10 @@ use zksync_web3_decl::{namespaces::EthNamespaceClient, types::Index};
 
 use crate::{config::cache::CacheConfig, node::TEST_NODE_NETWORK_ID};
 use crate::{
-    config::gas::{DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR},
+    config::gas::{
+        DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
+        DEFAULT_FAIR_PUBDATA_PRICE,
+    },
     system_contracts,
 };
 use crate::{deps::InMemoryStorage, http_fork_source::HttpForkSource};
@@ -524,7 +527,10 @@ impl ForkDetails {
             overwrite_chain_id: chain_id,
             l1_gas_price: block_details.base.l1_gas_price,
             l2_fair_gas_price: block_details.base.l2_fair_gas_price,
-            fair_pubdata_price: block_details.base.fair_pubdata_price.unwrap_or(DEFAULT_FAIR_PUBDATA_PRICE),
+            fair_pubdata_price: block_details
+                .base
+                .fair_pubdata_price
+                .unwrap_or(DEFAULT_FAIR_PUBDATA_PRICE),
             estimate_gas_price_scale_factor,
             estimate_gas_scale_factor,
             fee_params,
@@ -722,8 +728,8 @@ mod tests {
 
     use crate::config::cache::CacheConfig;
     use crate::config::gas::{
-        DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
-        DEFAULT_ESTIMATE_GAS_SCALE_FACTOR, DEFAULT_L2_GAS_PRICE,
+        DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
+        DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L2_GAS_PRICE,
     };
     use crate::{deps::InMemoryStorage, system_contracts, testing};
 

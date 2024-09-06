@@ -318,26 +318,10 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             .expect("fork_storage lock is already held by the current thread")
             .fork
         {
-            // fee_input = BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
-            //     l1_gas_price: fork.l1_gas_price,
-            //     fair_l2_gas_price: fork.l2_fair_gas_price,
-            //     fair_pubdata_price: fork.fair_pubdata_price,
-            // });
-            let (l1_gas_price, fair_l2_gas_price, fair_pubdata_price) = {
-                fork.get_block_gas_details(block_ctx.miniblock as u32)
-                .unwrap()
-            };
-            tracing::info!(
-                "Using fee_input with l1_gas_price: {}, fair_l2_gas_price: {}, fair_pubdata_price: {}",
-                l1_gas_price,
-                fair_l2_gas_price,
-                fair_pubdata_price
-            );
-
             fee_input = BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
-                fair_l2_gas_price,
-                fair_pubdata_price,
-                l1_gas_price,
+                l1_gas_price: fork.l1_gas_price,
+                fair_l2_gas_price: fork.l2_fair_gas_price,
+                fair_pubdata_price: fork.fair_pubdata_price,
             });
         } else {
             let fee_input_provider = self.fee_input_provider.clone();
