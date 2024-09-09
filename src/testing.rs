@@ -403,7 +403,7 @@ impl Default for TransactionBuilder {
             tx_hash: H256::repeat_byte(0x01),
             from_account_private_key: K256PrivateKey::from_bytes(H256::random()).unwrap(),
             gas_limit: U256::from(4_000_000),
-            max_fee_per_gas: U256::from(50_000_000),
+            max_fee_per_gas: U256::from(150_000_000),
             max_priority_fee_per_gas: U256::from(50_000_000),
         }
     }
@@ -542,7 +542,7 @@ pub fn deploy_contract<T: ForkSource + std::fmt::Debug + Clone>(
         nonce,
         Fee {
             gas_limit: U256::from(400_000_000),
-            max_fee_per_gas: U256::from(50_000_000),
+            max_fee_per_gas: U256::from(150_000_000),
             max_priority_fee_per_gas: U256::from(50_000_000),
             gas_per_pubdata_limit: U256::from(50000),
         },

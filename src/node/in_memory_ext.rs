@@ -535,7 +535,7 @@ mod tests {
             Nonce(0),
             Fee {
                 gas_limit: U256::from(100_000_000),
-                max_fee_per_gas: U256::from(50_000_000),
+                max_fee_per_gas: U256::from(150_000_000),
                 max_priority_fee_per_gas: U256::from(50_000_000),
                 gas_per_pubdata_limit: U256::from(50000),
             },
