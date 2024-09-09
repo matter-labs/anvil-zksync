@@ -50,19 +50,20 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
     ///
     /// # Returns
     /// The new timestamp value for the InMemoryNodeInner.
-    pub fn set_next_block_timestamp(&self, timestamp: u64) -> Result<u64> {
+    pub fn set_next_block_timestamp(&self, timestamp: U64) -> Result<U64> {
         self.get_inner()
             .write()
             .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
             .and_then(|mut writer| {
-                if timestamp < writer.current_timestamp {
+                let ts = timestamp.as_u64();
+                if ts <= writer.current_timestamp {
                     Err(anyhow!(
                         "timestamp ({}) must be greater than current timestamp ({})",
-                        timestamp,
+                        ts,
                         writer.current_timestamp
                     ))
                 } else {
-                    writer.current_timestamp = timestamp;
+                    writer.current_timestamp = ts - 1;
                     Ok(timestamp)
                 }
             })
@@ -392,9 +393,12 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fork::ForkStorage;
     use crate::namespaces::EthNamespaceT;
+    use crate::node::{InMemoryNodeInner, Snapshot};
     use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
     use std::str::FromStr;
+    use std::sync::{Arc, RwLock};
     use zksync_basic_types::{Nonce, H256};
     use zksync_state::ReadStorage;
     use zksync_types::{api::BlockNumber, fee::Fee, l2::L2Tx, PackedEthSignature};
@@ -503,9 +507,35 @@ mod tests {
 
     #[tokio::test]
     async fn test_reset() {
-        let address = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap();
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let old_snapshots = Arc::new(RwLock::new(vec![Snapshot::default()]));
+        let old_system_contracts_options = Default::default();
+        let old_inner = InMemoryNodeInner::<HttpForkSource> {
+            current_timestamp: 123,
+            current_batch: 100,
+            current_miniblock: 300,
+            current_miniblock_hash: H256::random(),
+            fee_input_provider: Default::default(),
+            tx_results: Default::default(),
+            blocks: Default::default(),
+            block_hashes: Default::default(),
+            filters: Default::default(),
+            fork_storage: ForkStorage::new(None, &old_system_contracts_options),
+            config: Default::default(),
+            console_log_handler: Default::default(),
+            system_contracts: Default::default(),
+            impersonated_accounts: Default::default(),
+            rich_accounts: Default::default(),
+            previous_states: Default::default(),
+            observability: None,
+        };
 
+        let node = InMemoryNode::<HttpForkSource> {
+            inner: Arc::new(RwLock::new(old_inner)),
+            snapshots: old_snapshots,
+            system_contracts_options: old_system_contracts_options,
+        };
+
+        let address = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap();
         let nonce_before = node.get_transaction_count(address, None).await.unwrap();
 
         let set_result = node.set_nonce(address, U256::from(1337)).unwrap();
@@ -516,6 +546,14 @@ mod tests {
 
         let nonce_after = node.get_transaction_count(address, None).await.unwrap();
         assert_eq!(nonce_before, nonce_after);
+
+        assert_eq!(node.snapshots.read().unwrap().len(), 0);
+
+        let inner = node.inner.read().unwrap();
+        assert_eq!(inner.current_timestamp, 1000);
+        assert_eq!(inner.current_batch, 0);
+        assert_eq!(inner.current_miniblock, 0);
+        assert_ne!(inner.current_miniblock_hash, H256::random());
     }
 
     #[tokio::test]
@@ -746,7 +784,7 @@ mod tests {
         let expected_response = new_timestamp;
 
         let actual_response = node
-            .set_next_block_timestamp(new_timestamp)
+            .set_next_block_timestamp(new_timestamp.into())
             .expect("failed setting timestamp");
         let timestamp_after = node
             .get_inner()
@@ -754,9 +792,14 @@ mod tests {
             .map(|inner| inner.current_timestamp)
             .expect("failed reading timestamp");
 
-        assert_eq!(expected_response, actual_response, "erroneous response");
         assert_eq!(
-            new_timestamp, timestamp_after,
+            expected_response,
+            actual_response.as_u64(),
+            "erroneous response"
+        );
+        assert_eq!(
+            new_timestamp,
+            timestamp_after + 1,
             "timestamp was not set correctly",
         );
     }
@@ -772,10 +815,10 @@ mod tests {
             .expect("failed reading timestamp");
 
         let new_timestamp = timestamp_before + 500;
-        node.set_next_block_timestamp(new_timestamp)
+        node.set_next_block_timestamp(new_timestamp.into())
             .expect("failed setting timestamp");
 
-        let result = node.set_next_block_timestamp(timestamp_before);
+        let result = node.set_next_block_timestamp(timestamp_before.into());
 
         assert!(result.is_err(), "expected an error for timestamp in past");
     }
@@ -791,18 +834,15 @@ mod tests {
             .map(|inner| inner.current_timestamp)
             .expect("failed reading timestamp");
         assert_eq!(timestamp_before, new_timestamp, "timestamps must be same");
-        let expected_response = new_timestamp;
 
-        let actual_response = node
-            .set_next_block_timestamp(new_timestamp)
-            .expect("failed setting timestamp");
+        let response = node.set_next_block_timestamp(new_timestamp.into());
+        assert!(response.is_err());
+
         let timestamp_after = node
             .get_inner()
             .read()
             .map(|inner| inner.current_timestamp)
             .expect("failed reading timestamp");
-
-        assert_eq!(expected_response, actual_response, "erroneous response");
         assert_eq!(
             timestamp_before, timestamp_after,
             "timestamp must not change",
