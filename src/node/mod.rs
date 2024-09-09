@@ -1,5 +1,6 @@
 //! In-memory node, that supports forking other networks.
 
+mod anvil;
 mod config_api;
 mod debug;
 mod eth;

@@ -1,3 +1,4 @@
+mod anvil;
 mod config;
 mod debug;
 mod eth;
@@ -8,6 +9,7 @@ mod net;
 mod web3;
 mod zks;
 
+pub use anvil::AnvilNamespaceT;
 pub use config::ConfigurationApiNamespaceT;
 pub use debug::DebugNamespaceT;
 pub use eth::EthNamespaceT;

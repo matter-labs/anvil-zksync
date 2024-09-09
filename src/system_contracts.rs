@@ -9,7 +9,7 @@ use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words};
 
 use crate::deps::system_contracts::{bytecode_from_slice, COMPILED_IN_SYSTEM_CONTRACTS};
 
-#[derive(Deserialize, Default, Debug, Copy, Clone)]
+#[derive(Deserialize, Default, Debug, Copy, Clone, PartialEq)]
 pub enum Options {
     // Use the compiled-in contracts
     #[default]

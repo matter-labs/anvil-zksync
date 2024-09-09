@@ -7,6 +7,7 @@ use crate::{
         node::{InMemoryNodeConfig, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails},
     },
     console_log::ConsoleLogHandler,
+    constants::{LEGACY_RICH_WALLETS, RICH_WALLETS},
     deps::{storage_view::StorageView, InMemoryStorage},
     filters::EthFilters,
     fork::{block_on, ForkDetails, ForkSource, ForkStorage},
@@ -21,6 +22,7 @@ use indexmap::IndexMap;
 use once_cell::sync::OnceCell;
 use std::{
     collections::{HashMap, HashSet},
+    str::FromStr,
     sync::{Arc, RwLock},
 };
 
@@ -285,7 +287,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         &self,
         storage: StoragePtr<ST>,
     ) -> (L1BatchEnv, BlockContext) {
-        tracing::debug!("creating l1 batch env...");
+        tracing::debug!("Creating l1 batch env...");
 
         let (last_l1_block_num, last_l1_block_ts) = load_last_l1_batch(storage.clone())
             .map(|(num, ts)| (num as u32, ts))
@@ -316,22 +318,10 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             .expect("fork_storage lock is already held by the current thread")
             .fork
         {
-            tracing::debug!(
-                "fork details are present. Updating fee input provider's
-                `l1_gas_price`, `l2_fair_gas_price`, `fair_pubdata_price`
-                for batch {}, that is being created..",
-                block_ctx.batch
-            );
-
-            let (l1_gas_price, fair_l2_gas_price, fair_pubdata_price) = {
-                fork.get_block_gas_details(block_ctx.miniblock as u32)
-                    .unwrap()
-            };
-
             fee_input = BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
-                fair_l2_gas_price,
-                fair_pubdata_price,
-                l1_gas_price,
+                l1_gas_price: fork.l1_gas_price,
+                fair_l2_gas_price: fork.l2_fair_gas_price,
+                fair_pubdata_price: fork.fair_pubdata_price,
             });
         } else {
             let fee_input_provider = self.fee_input_provider.clone();
@@ -834,7 +824,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
 /// Creates a restorable snapshot for the [InMemoryNodeInner]. The snapshot contains all the necessary
 /// data required to restore the [InMemoryNodeInner] state to a previous point in time.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Snapshot {
     pub(crate) current_timestamp: u64,
     pub(crate) current_batch: u32,
@@ -861,12 +851,12 @@ pub struct Snapshot {
 #[derive(Clone)]
 pub struct InMemoryNode<S: Clone> {
     /// A thread safe reference to the [InMemoryNodeInner].
-    inner: Arc<RwLock<InMemoryNodeInner<S>>>,
+    pub(crate) inner: Arc<RwLock<InMemoryNodeInner<S>>>,
     /// List of snapshots of the [InMemoryNodeInner]. This is bounded at runtime by [MAX_SNAPSHOTS].
     pub(crate) snapshots: Arc<RwLock<Vec<Snapshot>>>,
     /// Configuration option that survives reset.
     #[allow(dead_code)]
-    system_contracts_options: system_contracts::Options,
+    pub(crate) system_contracts_options: system_contracts::Options,
 }
 
 fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) -> Option<H160> {
@@ -966,11 +956,22 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
         writer.clear();
 
-        let mut guard = self
-            .inner
-            .write()
-            .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
-        *guard = inner;
+        {
+            let mut guard = self
+                .inner
+                .write()
+                .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
+            *guard = inner;
+        }
+
+        for wallet in LEGACY_RICH_WALLETS.iter() {
+            let address = wallet.0;
+            self.set_rich_account(H160::from_str(address).unwrap());
+        }
+        for wallet in RICH_WALLETS.iter() {
+            let address = wallet.0;
+            self.set_rich_account(H160::from_str(address).unwrap());
+        }
         Ok(())
     }
 
@@ -1251,7 +1252,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
     // Validates L2 transaction
     fn validate_tx(&self, tx: &L2Tx) -> Result<(), String> {
-        let max_gas = U256::from(u32::MAX);
+        let max_gas = U256::from(u64::MAX);
         if tx.common_data.fee.gas_limit > max_gas
             || tx.common_data.fee.gas_per_pubdata_limit > max_gas
         {
@@ -1758,6 +1759,7 @@ pub fn load_last_l1_batch<S: ReadStorage>(storage: StoragePtr<S>) -> Option<(u64
 #[cfg(test)]
 mod tests {
     use ethabi::{Token, Uint};
+    use gas::DEFAULT_FAIR_PUBDATA_PRICE;
     use zksync_basic_types::Nonce;
     use zksync_types::{utils::deployed_address_create, K256PrivateKey};
 
@@ -1780,7 +1782,7 @@ mod tests {
     async fn test_run_l2_tx_validates_tx_gas_limit_too_high() {
         let node = InMemoryNode::<HttpForkSource>::default();
         let tx = testing::TransactionBuilder::new()
-            .set_gas_limit(U256::from(u32::MAX) + 1)
+            .set_gas_limit(U256::from(u64::MAX) + 1)
             .build();
         node.set_rich_account(tx.common_data.initiator_address);
 
@@ -1876,6 +1878,7 @@ mod tests {
                 overwrite_chain_id: None,
                 l1_gas_price: 1000,
                 l2_fair_gas_price: DEFAULT_L2_GAS_PRICE,
+                fair_pubdata_price: DEFAULT_FAIR_PUBDATA_PRICE,
                 fee_params: None,
                 estimate_gas_price_scale_factor: DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
                 estimate_gas_scale_factor: DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
