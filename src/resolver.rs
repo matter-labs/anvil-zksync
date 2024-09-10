@@ -14,7 +14,7 @@ use std::{
 use tokio::sync::RwLock;
 use tracing::warn;
 
-static SELECTOR_DATABASE_URL: &str = "https://sig.eth.samczsun.com/api/v1/signatures";
+static SELECTOR_DATABASE_URL: &str = "https://api.openchain.xyz/signature-database/v1/lookup";
 
 /// The standard request timeout for API requests
 const REQ_TIMEOUT: Duration = Duration::from_secs(15);
@@ -22,7 +22,7 @@ const REQ_TIMEOUT: Duration = Duration::from_secs(15);
 /// How many request can time out before we decide this is a spurious connection
 const MAX_TIMEDOUT_REQ: usize = 4usize;
 
-/// A client that can request API data from `https://sig.eth.samczsun.com/api`
+/// A client that can request API data from `https://api.openchain.xyz`
 #[derive(Debug, Clone)]
 pub struct SignEthClient {
     inner: reqwest::Client,
@@ -104,7 +104,7 @@ impl SignEthClient {
         }
 
         if is_connectivity_err(err) {
-            warn!("spurious network detected for sig.eth.samczsun.com");
+            warn!("spurious network detected for api.openchain.xyz");
             let previous = self.timedout_requests.fetch_add(1, Ordering::SeqCst);
             if previous >= self.max_timedout_requests {
                 self.set_spurious();
@@ -129,7 +129,7 @@ impl SignEthClient {
         Ok(())
     }
 
-    /// Decodes the given function or event selector using sig.eth.samczsun.com
+    /// Decodes the given function or event selector using api.openchain.xyz
     pub async fn decode_selector(
         &self,
         selector: &str,
@@ -146,8 +146,8 @@ impl SignEthClient {
 
         #[derive(Deserialize)]
         struct ApiResult {
-            event: HashMap<String, Vec<Decoded>>,
-            function: HashMap<String, Vec<Decoded>>,
+            event: HashMap<String, Option<Vec<Decoded>>>,
+            function: HashMap<String, Option<Vec<Decoded>>>,
         }
 
         #[derive(Deserialize)]
@@ -156,11 +156,11 @@ impl SignEthClient {
             result: ApiResult,
         }
 
-        // using samczsun signature database over 4byte
+        // using openchain signature database over 4byte
         // see https://github.com/foundry-rs/foundry/issues/1672
         let url = match selector_type {
-            SelectorType::Function => format!("{SELECTOR_DATABASE_URL}?function={selector}"),
-            SelectorType::Event => format!("{SELECTOR_DATABASE_URL}?event={selector}"),
+            SelectorType::Function => format!("{SELECTOR_DATABASE_URL}?function={selector}&filter=true"),
+            SelectorType::Event => format!("{SELECTOR_DATABASE_URL}?event={selector}&filter=true"),
         };
 
         let res = self.get_text(&url).await?;
@@ -180,9 +180,17 @@ impl SignEthClient {
             SelectorType::Event => api_response.result.event,
         };
 
+        // If the search returns null, we should default to using the selector
+        let default_decoded = vec![Decoded {
+            name: selector.to_string(),
+            filtered: false,
+        }];
+
         Ok(decoded
             .get(selector)
             .ok_or(eyre::eyre!("No signature found"))?
+            .as_ref()
+            .unwrap_or(&default_decoded)
             .iter()
             .filter(|d| !d.filtered)
             .map(|d| d.name.clone())
@@ -191,7 +199,7 @@ impl SignEthClient {
             .cloned())
     }
 
-    /// Fetches a function signature given the selector using sig.eth.samczsun.com
+    /// Fetches a function signature given the selector using api.openchain.xyz
     pub async fn decode_function_selector(&self, selector: &str) -> eyre::Result<Option<String>> {
         let prefixed_selector = format!("0x{}", selector.strip_prefix("0x").unwrap_or(selector));
         if prefixed_selector.len() != 10 {
@@ -212,7 +220,7 @@ pub enum SelectorType {
     Function,
     Event,
 }
-/// Fetches a function signature given the selector using sig.eth.samczsun.com
+/// Fetches a function signature given the selector using api.openchain.xyz
 pub async fn decode_function_selector(selector: &str) -> eyre::Result<Option<String>> {
     {
         let cache = CACHE.read().await;
