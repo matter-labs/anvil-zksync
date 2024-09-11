@@ -159,7 +159,9 @@ impl SignEthClient {
         // using openchain signature database over 4byte
         // see https://github.com/foundry-rs/foundry/issues/1672
         let url = match selector_type {
-            SelectorType::Function => format!("{SELECTOR_DATABASE_URL}?function={selector}&filter=true"),
+            SelectorType::Function => {
+                format!("{SELECTOR_DATABASE_URL}?function={selector}&filter=true")
+            }
             SelectorType::Event => format!("{SELECTOR_DATABASE_URL}?event={selector}&filter=true"),
         };
 
