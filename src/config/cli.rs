@@ -32,6 +32,10 @@ pub struct Cli {
     /// The file path to the config file. If not supplied, defaults will be used.
     pub config: Option<String>,
 
+    #[arg(short, long)]
+    /// Enable default settings for debugging contracts
+    pub debug_mode: bool,
+
     #[arg(long)]
     /// Port to listen on - default: 8011
     pub port: Option<u16>,
