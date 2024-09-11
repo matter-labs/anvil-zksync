@@ -227,6 +227,12 @@ Example:
 era_test_node --show-storage-logs=all --show-vm-details=all --show-gas-details=all run
 ```
 
+This is now even easier with a single flag (`--debug-mode` or `-d`):
+
+```bash
+era_test_node -d
+```
+
 ## 💰 Using Rich Wallets
 
 For testing and development purposes, the `era-test-node` comes pre-configured with a set of 'rich' wallets. These wallets are loaded with test funds, allowing you to simulate transactions and interactions without the need for real assets.
