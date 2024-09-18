@@ -14,10 +14,7 @@ use std::{
 use tokio::sync::RwLock;
 use tracing::warn;
 
-use crate::{
-    cache::Cache,
-    config::cache::CacheConfig,
-};
+use crate::{cache::Cache, config::cache::CacheConfig};
 
 static SELECTOR_DATABASE_URL: &str = "https://api.openchain.xyz/signature-database/v1/lookup";
 
@@ -234,7 +231,9 @@ pub async fn decode_function_selector(selector: &str) -> eyre::Result<Option<Str
     let client = SignEthClient::new();
     {
         // Check cache
-        if let Some(resolved_selector) = client.as_ref().unwrap()
+        if let Some(resolved_selector) = client
+            .as_ref()
+            .unwrap() // Safe to do as client is created within this function
             .cache
             .read()
             .await
@@ -246,16 +245,23 @@ pub async fn decode_function_selector(selector: &str) -> eyre::Result<Option<Str
     }
 
     tracing::debug!("Making external request to resolve function selector for {selector}");
-    let result = client.as_ref().unwrap()
+    let result = client
+        .as_ref()
+        .unwrap() // Safe to do as client is created within this function
         .decode_function_selector(selector)
         .await;
 
     if let Ok(result) = &result {
-        client.as_ref().unwrap()
+        client
+            .as_ref()
+            .unwrap() // Safe to do as client is created within this function
             .cache
             .write()
             .await
-            .insert_resolver_selector(selector.to_string(), result.clone().unwrap_or_else(|| "".to_string()));
+            .insert_resolver_selector(
+                selector.to_string(),
+                result.clone().unwrap_or_else(|| "".to_string()),
+            );
     }
     result
 }
@@ -264,7 +270,9 @@ pub async fn decode_event_selector(selector: &str) -> eyre::Result<Option<String
     let client = SignEthClient::new();
     {
         // Check cache
-        if let Some(resolved_selector) = client.as_ref().unwrap()
+        if let Some(resolved_selector) = client
+            .as_ref()
+            .unwrap() // Safe to do as client is created within this function
             .cache
             .read()
             .await
@@ -276,16 +284,23 @@ pub async fn decode_event_selector(selector: &str) -> eyre::Result<Option<String
     }
 
     tracing::debug!("Making external request to resolve event selector for {selector}");
-    let result = SignEthClient::new()?
+    let result = client
+        .as_ref()
+        .unwrap()
         .decode_selector(selector, SelectorType::Event)
         .await;
 
     if let Ok(result) = &result {
-        client.as_ref().unwrap()
+        client
+            .as_ref()
+            .unwrap() // Safe to do as client is created within this function
             .cache
             .write()
             .await
-            .insert_resolver_selector(selector.to_string(), result.clone().unwrap_or_else(|| "".to_string()));
+            .insert_resolver_selector(
+                selector.to_string(),
+                result.clone().unwrap_or_else(|| "".to_string()),
+            );
     }
     result
 }

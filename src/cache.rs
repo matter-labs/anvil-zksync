@@ -332,10 +332,9 @@ impl Cache {
                         self.transactions.insert(key, transaction);
                     }
                     CACHE_TYPE_RESOLVER_SELECTORS => {
-                        let selector: String =
-                            serde_json::from_reader(reader).map_err(|err| {
-                                format!("failed parsing json for cache file '{:?}': {:?}", key, err)
-                            })?;
+                        let selector: String = serde_json::from_reader(reader).map_err(|err| {
+                            format!("failed parsing json for cache file '{:?}': {:?}", key, err)
+                        })?;
                         self.resolver_selectors.insert(key, selector);
                     }
                     CACHE_TYPE_KEY_VALUE => match key.as_str() {
