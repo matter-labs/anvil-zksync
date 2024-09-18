@@ -255,15 +255,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
             .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
             .and_then(|mut writer| {
                 let num_blocks = num_blocks.unwrap_or_else(|| U64::from(1));
-                let interval_ms = interval
-                    .unwrap_or_else(|| U64::from(1))
-                    .saturating_mul(1_000.into());
+                let interval_sec = interval.unwrap_or_else(|| U64::from(1));
                 if num_blocks.is_zero() {
                     return Err(anyhow!(
                         "Number of blocks must be greater than 0".to_string(),
                     ));
                 }
-                utils::mine_empty_blocks(&mut writer, num_blocks.as_u64(), interval_ms.as_u64())?;
+                utils::mine_empty_blocks(&mut writer, num_blocks.as_u64(), interval_sec.as_u64())?;
                 tracing::info!("👷 Mined {} blocks", num_blocks);
 
                 Ok(true)
@@ -498,10 +496,7 @@ mod tests {
                 .unwrap()
                 .expect("block exists");
             assert_eq!(start_block.number + i + 1, current_block.number);
-            assert_eq!(
-                start_timestamp + i * interval * 1_000,
-                current_block.timestamp
-            );
+            assert_eq!(start_timestamp + i * interval, current_block.timestamp);
         }
     }
 

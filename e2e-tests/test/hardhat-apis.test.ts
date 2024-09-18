@@ -58,7 +58,7 @@ describe("hardhat_mine", function () {
     const latestBlock = await provider.getBlock("latest");
     expect(latestBlock.number).to.equal(startingBlock.number + numberOfBlocks, "Block number mismatch");
     expect(latestBlock.timestamp).to.equal(
-      startingTimestamp + (numberOfBlocks - 1) * intervalInSeconds * 1000 + 1,
+      startingTimestamp + (numberOfBlocks - 1) * intervalInSeconds + 1,
       "Timestamp mismatch"
     );
   });

@@ -96,7 +96,7 @@ pub fn bytecode_to_factory_dep(bytecode: Vec<u8>) -> Result<(U256, Vec<U256>), a
 pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
     node: &mut InMemoryNodeInner<S>,
     num_blocks: u64,
-    interval_ms: u64,
+    interval_sec: u64,
 ) -> Result<(), anyhow::Error> {
     // build and insert new blocks
     for i in 0..num_blocks {
@@ -110,7 +110,7 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
             let (batch_env, mut block_ctx) = node.create_l1_batch_env(storage.clone());
             // override the next block's timestamp to match up with interval for subsequent blocks
             if i != 0 {
-                block_ctx.timestamp = node.current_timestamp.saturating_add(interval_ms);
+                block_ctx.timestamp = node.current_timestamp.saturating_add(interval_sec);
             }
 
             // init vm

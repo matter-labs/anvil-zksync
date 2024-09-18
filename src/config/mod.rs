@@ -4,7 +4,7 @@ use cache::CacheConfig;
 use cli::{CacheType, Cli, DevSystemContracts};
 use gas::GasConfig;
 use log::LogConfig;
-use node::InMemoryNodeConfig;
+use node::{InMemoryNodeConfig, ShowCalls, ShowGasDetails};
 use serde::Deserialize;
 
 use crate::system_contracts;
@@ -54,6 +54,12 @@ impl TestNodeConfig {
             self.node.port = *port;
         }
 
+        if opt.debug_mode {
+            self.node.show_calls = ShowCalls::All;
+            self.node.show_outputs = true;
+            self.node.show_gas_details = ShowGasDetails::All;
+            self.node.resolve_hashes = true;
+        }
         if let Some(show_calls) = &opt.show_calls {
             self.node.show_calls = *show_calls;
         }

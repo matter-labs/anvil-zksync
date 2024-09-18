@@ -1,5 +1,6 @@
 use crate::observability::Observability;
 use anyhow::anyhow;
+use bytecode_override::override_bytecodes;
 use clap::Parser;
 use colored::Colorize;
 use config::cli::{Cli, Command};
@@ -10,6 +11,7 @@ use logging_middleware::LoggingMiddleware;
 use tracing_subscriber::filter::LevelFilter;
 
 mod bootloader_debug;
+mod bytecode_override;
 mod cache;
 mod config;
 mod console_log;
@@ -170,6 +172,10 @@ async fn main() -> anyhow::Result<()> {
 
     let node: InMemoryNode<HttpForkSource> =
         InMemoryNode::new(fork_details, Some(observability), config.node, config.gas);
+
+    if let Some(bytecodes_dir) = opt.override_bytecodes_dir {
+        override_bytecodes(&node, bytecodes_dir).unwrap();
+    }
 
     if !transactions_to_replay.is_empty() {
         let _ = node.apply_txs(transactions_to_replay);

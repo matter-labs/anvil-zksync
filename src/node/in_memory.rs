@@ -60,16 +60,15 @@ use zksync_types::{
     block::{unpack_block_info, L2BlockHasher},
     fee::Fee,
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
-    get_nonce_key,
-    l2::L2Tx,
-    l2::TransactionType,
+    get_code_key, get_nonce_key,
+    l2::{L2Tx, TransactionType},
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
     vm_trace::Call,
     PackedEthSignature, StorageKey, StorageLogQueryType, StorageValue, Transaction,
     ACCOUNT_CODE_STORAGE_ADDRESS, MAX_L2_TX_GAS_LIMIT, SYSTEM_CONTEXT_ADDRESS,
     SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
 };
-use zksync_utils::{h256_to_account_address, h256_to_u256, u256_to_h256};
+use zksync_utils::{bytecode::hash_bytecode, h256_to_account_address, h256_to_u256, u256_to_h256};
 use zksync_web3_decl::error::Web3Error;
 
 /// Max possible size of an ABI encoded tx (in bytes).
@@ -1696,6 +1695,26 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             inner.blocks.insert(block.hash, block);
             inner.filters.notify_new_block(block_hash);
         }
+
+        Ok(())
+    }
+
+    // Forcefully stores the given bytecode at a given account.
+    pub fn override_bytecode(&self, address: &Address, bytecode: &[u8]) -> Result<(), String> {
+        let mut inner = self
+            .inner
+            .write()
+            .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
+
+        let code_key = get_code_key(address);
+
+        let bytecode_hash = hash_bytecode(bytecode);
+
+        inner
+            .fork_storage
+            .store_factory_dep(bytecode_hash, bytecode.to_owned());
+
+        inner.fork_storage.set_value(code_key, bytecode_hash);
 
         Ok(())
     }
