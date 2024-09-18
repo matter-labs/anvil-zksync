@@ -20,6 +20,8 @@ const CACHE_TYPE_BLOCKS_MIN: &str = "blocks_min";
 const CACHE_TYPE_BLOCK_RAW_TRANSACTIONS: &str = "block_raw_transactions";
 /// Caches transactions by their hashes
 const CACHE_TYPE_TRANSACTIONS: &str = "transactions";
+/// Caching resolver functions by their selectors
+const CACHE_TYPE_RESOLVER_SELECTORS: &str = "resolver_selectors";
 /// Caches arbitrary values by their keys
 const CACHE_TYPE_KEY_VALUE: &str = "key_value";
 
@@ -35,6 +37,7 @@ pub(crate) struct Cache {
     blocks_min: FxHashMap<H256, Block<TransactionVariant>>,
     block_raw_transactions: FxHashMap<u64, Vec<RawTransaction>>,
     transactions: FxHashMap<H256, Transaction>,
+    resolver_selectors: FxHashMap<String, String>,
     bridge_addresses: Option<BridgeAddresses>,
     confirmed_tokens: FxHashMap<(u32, u8), Vec<zksync_web3_decl::types::Token>>,
 }
@@ -54,6 +57,7 @@ impl Cache {
                     CACHE_TYPE_BLOCKS_MIN,
                     CACHE_TYPE_BLOCK_RAW_TRANSACTIONS,
                     CACHE_TYPE_TRANSACTIONS,
+                    CACHE_TYPE_RESOLVER_SELECTORS,
                     CACHE_TYPE_KEY_VALUE,
                 ] {
                     fs::remove_dir_all(Path::new(dir).join(cache_type)).unwrap_or_else(|err| {
@@ -75,6 +79,7 @@ impl Cache {
                 CACHE_TYPE_BLOCKS_MIN,
                 CACHE_TYPE_BLOCK_RAW_TRANSACTIONS,
                 CACHE_TYPE_TRANSACTIONS,
+                CACHE_TYPE_RESOLVER_SELECTORS,
                 CACHE_TYPE_KEY_VALUE,
             ] {
                 fs::create_dir_all(Path::new(dir).join(cache_type)).unwrap_or_else(|err| {
@@ -198,6 +203,15 @@ impl Cache {
         self.transactions.get(hash)
     }
 
+    /// Returns the cached resolved function/event selector for the provided selector.
+    pub(crate) fn get_resolver_selector(&self, selector: &String) -> Option<&String> {
+        if matches!(self.config, CacheConfig::None) {
+            return None;
+        }
+
+        self.resolver_selectors.get(selector)
+    }
+
     /// Cache a transaction for the provided hash.
     pub(crate) fn insert_transaction(&mut self, hash: H256, transaction: Transaction) {
         if matches!(self.config, CacheConfig::None) {
@@ -210,6 +224,20 @@ impl Cache {
             &transaction,
         );
         self.transactions.insert(hash, transaction);
+    }
+
+    /// Cache a resolver function for the provided selector.
+    pub(crate) fn insert_resolver_selector(&mut self, selector: String, selector_value: String) {
+        if matches!(self.config, CacheConfig::None) {
+            return;
+        }
+
+        self.write_to_disk(
+            CACHE_TYPE_RESOLVER_SELECTORS,
+            selector.clone(),
+            &selector_value,
+        );
+        self.resolver_selectors.insert(selector, selector_value);
     }
 
     /// Returns the cached bridge addresses for the provided hash.
@@ -242,6 +270,7 @@ impl Cache {
             CACHE_TYPE_BLOCKS_MIN,
             CACHE_TYPE_BLOCK_RAW_TRANSACTIONS,
             CACHE_TYPE_TRANSACTIONS,
+            CACHE_TYPE_RESOLVER_SELECTORS,
             CACHE_TYPE_KEY_VALUE,
         ] {
             let cache_dir = Path::new(dir).join(cache_type);
@@ -301,6 +330,13 @@ impl Cache {
                                 format!("failed parsing json for cache file '{:?}': {:?}", key, err)
                             })?;
                         self.transactions.insert(key, transaction);
+                    }
+                    CACHE_TYPE_RESOLVER_SELECTORS => {
+                        let selector: String =
+                            serde_json::from_reader(reader).map_err(|err| {
+                                format!("failed parsing json for cache file '{:?}': {:?}", key, err)
+                            })?;
+                        self.resolver_selectors.insert(key, selector);
                     }
                     CACHE_TYPE_KEY_VALUE => match key.as_str() {
                         CACHE_KEY_BRIDGE_ADDRESSES => {

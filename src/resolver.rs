@@ -14,6 +14,11 @@ use std::{
 use tokio::sync::RwLock;
 use tracing::warn;
 
+use crate::{
+    cache::Cache,
+    config::cache::CacheConfig,
+};
+
 static SELECTOR_DATABASE_URL: &str = "https://api.openchain.xyz/signature-database/v1/lookup";
 
 /// The standard request timeout for API requests
@@ -32,6 +37,8 @@ pub struct SignEthClient {
     timedout_requests: Arc<AtomicUsize>,
     /// Max allowed request that can time out
     max_timedout_requests: usize,
+    /// Cache for network data.
+    pub(crate) cache: Arc<RwLock<Cache>>,
 }
 
 #[derive(Deserialize)]
@@ -50,7 +57,6 @@ lazy_static! {
             .map(|entry| (entry.abi, entry.name))
             .collect()
     };
-    static ref CACHE: RwLock<HashMap<String, Option<String>>> = RwLock::new(HashMap::new());
 }
 
 impl SignEthClient {
@@ -68,6 +74,7 @@ impl SignEthClient {
             spurious_connection: Arc::new(Default::default()),
             timedout_requests: Arc::new(Default::default()),
             max_timedout_requests: MAX_TIMEDOUT_REQ,
+            cache: Arc::new(RwLock::new(Cache::new(CacheConfig::default()))),
         })
     }
 
@@ -224,38 +231,61 @@ pub enum SelectorType {
 }
 /// Fetches a function signature given the selector using api.openchain.xyz
 pub async fn decode_function_selector(selector: &str) -> eyre::Result<Option<String>> {
+    let client = SignEthClient::new();
     {
-        let cache = CACHE.read().await;
-        if let Some(result) = cache.get(selector) {
-            return Ok(result.clone());
+        // Check cache
+        if let Some(resolved_selector) = client.as_ref().unwrap()
+            .cache
+            .read()
+            .await
+            .get_resolver_selector(&(selector.to_string()))
+        {
+            tracing::debug!("Using cached function selector for {selector}");
+            return Ok(Some(resolved_selector.clone()));
         }
     }
-    let result = SignEthClient::new()?
+
+    tracing::debug!("Making external request to resolve function selector for {selector}");
+    let result = client.as_ref().unwrap()
         .decode_function_selector(selector)
         .await;
+
     if let Ok(result) = &result {
-        let mut cache = CACHE.write().await;
-        cache.insert(selector.to_string(), result.clone());
+        client.as_ref().unwrap()
+            .cache
+            .write()
+            .await
+            .insert_resolver_selector(selector.to_string(), result.clone().unwrap_or_else(|| "".to_string()));
     }
     result
 }
 
 pub async fn decode_event_selector(selector: &str) -> eyre::Result<Option<String>> {
+    let client = SignEthClient::new();
     {
-        let cache = CACHE.read().await;
-        if let Some(result) = cache.get(selector) {
-            return Ok(result.clone());
+        // Check cache
+        if let Some(resolved_selector) = client.as_ref().unwrap()
+            .cache
+            .read()
+            .await
+            .get_resolver_selector(&(selector.to_string()))
+        {
+            tracing::debug!("Using cached event selector for {selector}");
+            return Ok(Some(resolved_selector.clone()));
         }
     }
-    if let Some(r) = KNOWN_SIGNATURES.get(selector) {
-        return Ok(Some(r.clone()));
-    }
+
+    tracing::debug!("Making external request to resolve event selector for {selector}");
     let result = SignEthClient::new()?
         .decode_selector(selector, SelectorType::Event)
         .await;
+
     if let Ok(result) = &result {
-        let mut cache = CACHE.write().await;
-        cache.insert(selector.to_string(), result.clone());
+        client.as_ref().unwrap()
+            .cache
+            .write()
+            .await
+            .insert_resolver_selector(selector.to_string(), result.clone().unwrap_or_else(|| "".to_string()));
     }
     result
 }
