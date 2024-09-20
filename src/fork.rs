@@ -37,7 +37,7 @@ use zksync_web3_decl::{
 };
 use zksync_web3_decl::{namespaces::EthNamespaceClient, types::Index};
 
-use crate::{config::cache::CacheConfig, node::TEST_NODE_NETWORK_ID};
+use crate::{config::cache::CacheConfig, node::TEST_NODE_NETWORK_ID, utils::to_human_size};
 use crate::{
     config::gas::{
         DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
@@ -494,8 +494,8 @@ impl ForkDetails {
         let l1_batch_number = block_details.l1_batch_number;
 
         tracing::info!(
-            "Creating fork from {:?} L1 block: {:?} L2 block: {:?} with timestamp {:?}, L1 gas price {:?}, L2 fair gas price {:?} and protocol version: {:?}" ,
-            url, l1_batch_number, miniblock, block_details.base.timestamp, block_details.base.l1_gas_price, block_details.base.l2_fair_gas_price, block_details.protocol_version
+            "Creating fork from {:?} L1 block: {:?} L2 block: {:?} with timestamp {:?}, L1 gas price {}, L2 fair gas price {} and protocol version: {:?}" ,
+            url, l1_batch_number, miniblock, block_details.base.timestamp, to_human_size(block_details.base.l1_gas_price.into()), to_human_size(block_details.base.l2_fair_gas_price.into()), block_details.protocol_version
         );
 
         if !block_details
