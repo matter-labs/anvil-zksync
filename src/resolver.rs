@@ -80,15 +80,13 @@ impl SignEthClient {
             .get(url)
             .send()
             .await
-            .map_err(|err| {
-                self.on_reqwest_err(&err);
-                err
+            .inspect_err(|err| {
+                self.on_reqwest_err(err);
             })?
             .text()
             .await
-            .map_err(|err| {
-                self.on_reqwest_err(&err);
-                err
+            .inspect_err(|err| {
+                self.on_reqwest_err(err);
             })
     }
 

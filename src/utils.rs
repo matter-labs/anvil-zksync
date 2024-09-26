@@ -343,13 +343,7 @@ mod tests {
     #[test]
     fn test_utc_datetime_from_epoch_ms() {
         let actual = utc_datetime_from_epoch_ms(1623931200000);
-        assert_eq!(
-            DateTime::<Utc>::from_naive_utc_and_offset(
-                chrono::NaiveDateTime::from_timestamp_opt(1623931200, 0).unwrap(),
-                Utc
-            ),
-            actual
-        );
+        assert_eq!(DateTime::from_timestamp(1623931200, 0).unwrap(), actual);
     }
 
     #[test]

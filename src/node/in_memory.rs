@@ -1947,7 +1947,7 @@ mod tests {
         );
 
         let mut tx = L2Tx::new_signed(
-            deployed_address,
+            Some(deployed_address),
             hex::decode("bbf55335").unwrap(), // keccak selector for "transact_retrieve1()"
             Nonce(1),
             Fee {
