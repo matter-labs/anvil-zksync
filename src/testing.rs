@@ -18,9 +18,9 @@ use httptest::{
     Expectation, Server,
 };
 use itertools::Itertools;
-use multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
 use std::str::FromStr;
 use zksync_basic_types::{AccountTreeId, L1BatchNumber, L2BlockNumber, H160, U64};
+use zksync_multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
 use zksync_types::api::{
     BlockDetailsBase, BlockIdVariant, BlockStatus, BridgeAddresses, DebugCall, DebugCallType, Log,
 };

@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::convert::TryInto;
 use std::fmt;
 use std::pin::Pin;
@@ -7,18 +6,19 @@ use anyhow::anyhow;
 use chrono::{DateTime, Utc};
 use futures::Future;
 use jsonrpc_core::{Error, ErrorCode};
-use multivm::interface::{ExecutionResult, VmExecutionResultAndLogs, VmInterface};
-use multivm::vm_latest::HistoryDisabled;
-use multivm::vm_latest::Vm;
 use zkevm_opcode_defs::utils::bytecode_to_code_hash;
 use zksync_basic_types::{H256, U256, U64};
-use zksync_state::WriteStorage;
+use zksync_multivm::interface::{
+    Call, CallType, ExecutionResult, VmExecutionResultAndLogs, VmFactory, VmInterfaceExt,
+};
+use zksync_multivm::vm_latest::HistoryDisabled;
+use zksync_multivm::vm_latest::Vm;
+use zksync_state::interface::WriteStorage;
 use zksync_types::api::{BlockNumber, DebugCall, DebugCallType};
 use zksync_types::l2::L2Tx;
-use zksync_types::vm_trace::Call;
+use zksync_types::web3::Bytes;
 use zksync_types::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_utils::bytes_to_be_words;
-use zksync_utils::u256_to_h256;
 use zksync_web3_decl::error::Web3Error;
 
 use crate::deps::storage_view::StorageView;
@@ -101,7 +101,7 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
     // build and insert new blocks
     for i in 0..num_blocks {
         // roll the vm
-        let (keys, bytecodes, block_ctx) = {
+        let (keys, block_ctx) = {
             let storage = StorageView::new(&node.fork_storage).into_rc_ptr();
 
             // system_contract.contracts_for_l2_call() will give playground contracts
@@ -116,38 +116,20 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
             // init vm
             let system_env = node.create_system_env(
                 bootloader_code.clone(),
-                multivm::interface::TxExecutionMode::VerifyExecute,
+                zksync_multivm::interface::TxExecutionMode::VerifyExecute,
             );
 
             let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage.clone());
 
-            vm.execute(multivm::interface::VmExecutionMode::Bootloader);
+            vm.execute(zksync_multivm::interface::VmExecutionMode::Bootloader);
 
-            let mut bytecodes = HashMap::new();
-            for b in vm.get_last_tx_compressed_bytecodes().iter() {
-                let hashcode = bytecode_to_factory_dep(b.original.clone())?;
-                bytecodes.insert(hashcode.0, hashcode.1);
-            }
+            // we should not have any bytecodes
             let modified_keys = storage.borrow().modified_storage_keys().clone();
-            (modified_keys, bytecodes, block_ctx)
+            (modified_keys, block_ctx)
         };
 
         for (key, value) in keys.iter() {
             node.fork_storage.set_value(*key, *value);
-        }
-
-        // Write all the factory deps.
-        for (hash, code) in bytecodes.iter() {
-            node.fork_storage.store_factory_dep(
-                u256_to_h256(*hash),
-                code.iter()
-                    .flat_map(|entry| {
-                        let mut bytes = vec![0u8; 32];
-                        entry.to_big_endian(&mut bytes);
-                        bytes.to_vec()
-                    })
-                    .collect(),
-            )
         }
 
         let block = create_empty_block(
@@ -184,6 +166,7 @@ pub fn to_real_block_number(block_number: BlockNumber, latest_block_number: U64)
         BlockNumber::Finalized
         | BlockNumber::Pending
         | BlockNumber::Committed
+        | BlockNumber::L1Committed
         | BlockNumber::Latest => latest_block_number,
         BlockNumber::Earliest => U64::zero(),
         BlockNumber::Number(n) => n,
@@ -209,7 +192,11 @@ pub fn create_debug_output(
     result: &VmExecutionResultAndLogs,
     traces: Vec<Call>,
 ) -> Result<DebugCall, Web3Error> {
-    let calltype = if l2_tx.recipient_account() == CONTRACT_DEPLOYER_ADDRESS {
+    let calltype = if l2_tx
+        .recipient_account()
+        .map(|addr| addr == CONTRACT_DEPLOYER_ADDRESS)
+        .unwrap_or_default()
+    {
         DebugCallType::Create
     } else {
         DebugCallType::Call
@@ -220,31 +207,57 @@ pub fn create_debug_output(
             output: output.clone().into(),
             r#type: calltype,
             from: l2_tx.initiator_account(),
-            to: l2_tx.recipient_account(),
+            to: l2_tx
+                .recipient_account()
+                .expect("must have recipient address"),
             gas: l2_tx.common_data.fee.gas_limit,
             value: l2_tx.execute.value,
             input: l2_tx.execute.calldata().into(),
             error: None,
             revert_reason: None,
-            calls: traces.into_iter().map(Into::into).collect(),
+            calls: traces.into_iter().map(call_to_debug_call).collect(),
         }),
         ExecutionResult::Revert { output } => Ok(DebugCall {
             gas_used: result.statistics.gas_used.into(),
             output: Default::default(),
             r#type: calltype,
             from: l2_tx.initiator_account(),
-            to: l2_tx.recipient_account(),
+            to: l2_tx
+                .recipient_account()
+                .expect("must have recipient address"),
             gas: l2_tx.common_data.fee.gas_limit,
             value: l2_tx.execute.value,
             input: l2_tx.execute.calldata().into(),
             error: None,
             revert_reason: Some(output.to_string()),
-            calls: traces.into_iter().map(Into::into).collect(),
+            calls: traces.into_iter().map(call_to_debug_call).collect(),
         }),
         ExecutionResult::Halt { reason } => Err(Web3Error::SubmitTransactionError(
             reason.to_string(),
             vec![],
         )),
+    }
+}
+
+fn call_to_debug_call(value: Call) -> DebugCall {
+    let calls = value.calls.into_iter().map(call_to_debug_call).collect();
+    let debug_type = match value.r#type {
+        CallType::Call(_) => DebugCallType::Call,
+        CallType::Create => DebugCallType::Create,
+        CallType::NearCall => unreachable!("We have to filter our near calls before"),
+    };
+    DebugCall {
+        r#type: debug_type,
+        from: value.from,
+        to: value.to,
+        gas: U256::from(value.gas),
+        gas_used: U256::from(value.gas_used),
+        value: value.value,
+        output: Bytes::from(value.output.clone()),
+        input: Bytes::from(value.input.clone()),
+        error: value.error.clone(),
+        revert_reason: value.revert_reason,
+        calls,
     }
 }
 

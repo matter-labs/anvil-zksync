@@ -1,9 +1,9 @@
-use multivm::interface::TxExecutionMode;
 use serde::Deserialize;
 use zksync_contracts::{
     read_sys_contract_bytecode, read_zbin_bytecode, BaseSystemContracts, ContractLanguage,
     SystemContractCode,
 };
+use zksync_multivm::interface::TxExecutionMode;
 use zksync_types::system_contracts::get_system_smart_contracts;
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words};
 

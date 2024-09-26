@@ -2,10 +2,10 @@ use itertools::Itertools;
 use once_cell::sync::OnceCell;
 use std::sync::Arc;
 
-use multivm::interface::VmInterface;
-use multivm::tracers::CallTracer;
-use multivm::vm_latest::HistoryDisabled;
-use multivm::vm_latest::{constants::ETH_CALL_GAS_LIMIT, ToTracerPointer, Vm};
+use zksync_multivm::interface::{VmFactory, VmInterface};
+use zksync_multivm::tracers::CallTracer;
+use zksync_multivm::vm_latest::HistoryDisabled;
+use zksync_multivm::vm_latest::{constants::ETH_CALL_GAS_LIMIT, ToTracerPointer, Vm};
 
 use zksync_basic_types::H256;
 use zksync_types::{
@@ -165,7 +165,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> DebugNames
                     return Err(into_jsrpc_error(error));
                 }
             };
-            let execution_mode = multivm::interface::TxExecutionMode::EthCall;
+            let execution_mode = zksync_multivm::interface::TxExecutionMode::EthCall;
             let storage = StorageView::new(&inner.fork_storage).into_rc_ptr();
 
             let bootloader_code = inner.system_contracts.contracts_for_l2_call();
@@ -195,7 +195,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> DebugNames
             let call_tracer_result = Arc::new(OnceCell::default());
             let tracer = CallTracer::new(call_tracer_result.clone()).into_tracer_pointer();
 
-            let tx_result = vm.inspect(tracer.into(), multivm::interface::VmExecutionMode::OneTx);
+            let tx_result = vm.inspect(
+                &mut tracer.into(),
+                zksync_multivm::interface::VmExecutionMode::OneTx,
+            );
             let call_traces = if only_top {
                 vec![]
             } else {
@@ -298,7 +301,7 @@ mod tests {
         let func = HumanReadableParser::parse_function("calculate(uint)").unwrap();
         let calldata = func.encode_input(&[Token::Uint(U256::from(42))]).unwrap();
         let request = CallRequestBuilder::default()
-            .to(primary_deployed_address)
+            .to(Some(primary_deployed_address))
             .data(calldata.clone().into())
             .gas(80_000_000.into())
             .build();
@@ -348,7 +351,7 @@ mod tests {
         let func = HumanReadableParser::parse_function("calculate(uint)").unwrap();
         let calldata = func.encode_input(&[Token::Uint(U256::from(42))]).unwrap();
         let request = CallRequestBuilder::default()
-            .to(primary_deployed_address)
+            .to(Some(primary_deployed_address))
             .data(calldata.into())
             .gas(80_000_000.into())
             .build();
@@ -383,7 +386,7 @@ mod tests {
 
         // trace a call to the primary contract
         let request = CallRequestBuilder::default()
-            .to(primary_deployed_address)
+            .to(Some(primary_deployed_address))
             .data(short_signature("shouldRevert()", &[]).into())
             .gas(80_000_000.into())
             .build();
