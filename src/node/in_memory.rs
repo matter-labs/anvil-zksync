@@ -1353,11 +1353,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             .into_tracer_pointer(),
         );
 
-        let (compressed_bytecodes, tx_result) = vm.inspect_transaction_with_bytecode_compression(
-            &mut tracers.into(),
-            tx.clone(),
-            false,
-        );
+        let (compressed_bytecodes, tx_result) =
+            vm.inspect_transaction_with_bytecode_compression(&mut tracers.into(), tx.clone(), true);
         let compressed_bytecodes =
             compressed_bytecodes.map_err(|err| format!("failed compressing bytecodes: {err:?}"))?;
 
