@@ -108,4 +108,7 @@ pub trait ZksNamespaceT {
         keys: Vec<H256>,
         l1_batch_number: L1BatchNumber,
     ) -> BoxFuture<Result<Proof>>;
+
+    #[rpc(name = "zks_getBaseTokenL1Address")]
+    fn get_base_token_l1_address(&self) -> BoxFuture<Result<Address>>;
 }

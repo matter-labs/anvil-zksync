@@ -11,7 +11,7 @@ use zksync_types::{
     },
     fee::Fee,
     utils::storage_key_for_standard_token_balance,
-    ExecuteTransactionCommon, ProtocolVersionId, Transaction, L2_BASE_TOKEN_ADDRESS,
+    ExecuteTransactionCommon, ProtocolVersionId, Transaction, H160, L2_BASE_TOKEN_ADDRESS,
 };
 use zksync_utils::h256_to_u256;
 use zksync_web3_decl::error::Web3Error;
@@ -562,6 +562,15 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
 
     fn get_protocol_version(&self, _version_id: Option<u16>) -> RpcResult<Option<ProtocolVersion>> {
         not_implemented("zks_getProtocolVersion")
+    }
+
+    /// Retrieves the L1 base token address.
+    ///
+    /// # Returns
+    ///
+    /// Hard-coded address of 0x1 to replicate mainnet/testnet
+    fn get_base_token_l1_address(&self) -> RpcResult<zksync_basic_types::Address> {
+        Ok(H160::from_low_u64_be(1)).into_boxed_future()
     }
 }
 
@@ -1294,5 +1303,18 @@ mod tests {
             .await
             .expect("get balances");
         assert_eq!(balances.get(&cbeth_address).unwrap(), &U256::from(1337));
+    }
+
+    #[tokio::test]
+    async fn test_get_base_token_l1_address() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let token_address = node
+            .get_base_token_l1_address()
+            .await
+            .expect("get base token l1 address");
+        assert_eq!(
+            "0x0000000000000000000000000000000000000001",
+            format!("{:?}", token_address)
+        );
     }
 }

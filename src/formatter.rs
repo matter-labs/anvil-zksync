@@ -185,7 +185,7 @@ pub fn print_call(
         };
 
         let pretty_print = format!(
-            "{}{:?} {} {} {} {} {} {}",
+            "{}{:?} {} {} {} {} {} {} ({})",
             " ".repeat(padding),
             call.r#type,
             address_to_human_readable(call.to)
@@ -201,7 +201,8 @@ pub fn print_call(
                 .as_ref()
                 .map(|s| format!("Error: {}", s))
                 .unwrap_or_default(),
-            call.gas
+            call.gas,
+            call.gas_used
         );
 
         if call.revert_reason.as_ref().is_some() || call.error.as_ref().is_some() {

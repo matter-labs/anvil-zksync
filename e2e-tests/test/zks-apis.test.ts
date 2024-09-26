@@ -175,3 +175,10 @@ describe("zks_getAllAccountBalances", function () {
     expect(ethBalance.eq(expectedBalance)).to.be.true;
   });
 });
+
+describe("zks_getBaseTokenL1Address", function () {
+  it("Should return 0x1 address", async function () {
+    const token_address = await provider.send("zks_getBaseTokenL1Address", []);
+    expect(token_address).to.equal("0x0000000000000000000000000000000000000001");
+  });
+});
