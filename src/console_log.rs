@@ -4,7 +4,7 @@ use colored::Colorize;
 use ethabi::param_type::Reader;
 use ethabi::{Function, Param, StateMutability};
 use itertools::Itertools;
-use zksync_types::vm_trace::Call;
+use zksync_multivm::interface::Call;
 use zksync_types::H160;
 
 /// ConsoleLogHandler is responsible for printing the logs, that are created when contract calls 'console.log' method.

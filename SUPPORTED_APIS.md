@@ -107,7 +107,7 @@ The `status` options are:
 | `HARDHAT` | `hardhat_getAutomine` | `NOT IMPLEMENTED` | Returns `true` if automatic mining is enabled, and `false` otherwise |
 | `HARDHAT` | `hardhat_metadata` | `NOT IMPLEMENTED` | Returns the metadata of the current network |
 | [`HARDHAT`](#hardhat-namespace) | [`hardhat_mine`](#hardhat_mine) | Mine any number of blocks at once, in constant time |
-| [`HARDHAT`](#hardhat-namespace) | [`hardhat_reset`] | `PARTIALLY` | Resets the state of the network; cannot revert to past block numbers, unless they're in a fork |
+| [`HARDHAT`](#hardhat-namespace) | [`hardhat_reset`](#hardhat_reset) | `PARTIALLY` | Resets the state of the network; cannot revert to past block numbers, unless they're in a fork |
 | [`HARDHAT`](#hardhat-namespace) | [`hardhat_setBalance`](#hardhat_setbalance) | `SUPPORTED` | Modifies the balance of an account |
 | [`HARDHAT`](#hardhat-namespace) | [`hardhat_setCode`](#hardhat_setcode) | `SUPPORTED` | Sets the bytecode of a given account |
 | `HARDHAT` | `hardhat_setCoinbase` | `NOT IMPLEMENTED` | Sets the coinbase address |
@@ -129,6 +129,7 @@ The `status` options are:
 | [`ZKS`](#zks-namespace) | [`zks_getBlockDetails`](#zks_getblockdetails) | `SUPPORTED` | Returns additional zkSync-specific information about the L2 block |
 | `ZKS` | `zks_getBytecodeByHash` | `NOT IMPLEMENTED` | Returns bytecode of a transaction given by its hash |
 | [`ZKS`](#zks-namespace) | [`zks_getConfirmedTokens`](#zks_getconfirmedtokens) | `SUPPORTED` | Returns [address, symbol, name, and decimal] information of all tokens within a range of ids given by parameters `from` and `limit` |
+| [`ZKS`](#zks-namespace) | [`zks_getBaseTokenL1Address`](#zks_getBaseTokenL1Address) | `SUPPORTED` | Returns the L1 base token address <br/>_(hard-coded to `0x0000000000000000000000000000000000000001`)_ |
 | `ZKS` | `zks_getL1BatchBlockRange` | `NOT IMPLEMENTED` | Returns the range of blocks contained within a batch given by batch number |
 | `ZKS` | `zks_getL1BatchDetails` | `NOT IMPLEMENTED` | Returns data pertaining to a given batch |
 | `ZKS` | `zks_getL2ToL1LogProof` | `NOT IMPLEMENTED` | Given a transaction hash, and an index of the L2 to L1 log produced within the transaction, it returns the proof for the corresponding L2 to L1 log |
@@ -1569,6 +1570,32 @@ curl --request POST \
 }'
 
 ```
+
+### `hardhat_reset`
+
+[source](src/node/hardhat.rs)
+
+Resets the state of the network; cannot revert to past block numbers, unless they're in a fork
+
+#### Arguments
+
++ `reset_spec` - The requested state, defaults to resetting the current network.
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "2",
+    "method": "hardhat_mine",
+    "params": []
+}'
+
+```
+
 ### `hardhat_impersonateAccount`
 
 [source](src/node/hardhat.rs)
@@ -2034,6 +2061,30 @@ curl --request POST \
     "id": "1",
     "method": "zks_getConfirmedTokens",
     "params": [0, 100]
+}'
+```
+
+### `zks_getBaseTokenL1Address`
+
+[source](src/zks.rs)
+
+Retrieves the L1 base token address.
+
+#### Arguments
+
++ _NONE_
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "zks_getBaseTokenL1Address",
+    "params": []
 }'
 ```
 

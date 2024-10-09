@@ -1,13 +1,15 @@
-use multivm::interface::{dyn_tracers::vm_1_5_0::DynTracer, tracer::VmExecutionStopReason};
 use std::sync::Arc;
+use zksync_multivm::{
+    interface::tracer::VmExecutionStopReason, tracers::dynamic::vm_1_5_0::DynTracer,
+};
 
-use multivm::vm_latest::{
+use once_cell::sync::OnceCell;
+use zksync_basic_types::U256;
+use zksync_multivm::vm_latest::{
     constants::BOOTLOADER_HEAP_PAGE, BootloaderState, HistoryMode, SimpleMemory, VmTracer,
     ZkSyncVmState,
 };
-use once_cell::sync::OnceCell;
-use zksync_basic_types::U256;
-use zksync_state::WriteStorage;
+use zksync_state::interface::WriteStorage;
 
 /// Magic value that we put in bootloader.yul at the beginning of the debug section - to detect that
 /// debugger was enabled.

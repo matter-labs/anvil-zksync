@@ -34,14 +34,14 @@ impl TestNodeFeeInputProvider {
         match fee_params {
             FeeParams::V1(_) => todo!(),
             FeeParams::V2(fee_params) => Self {
-                l1_gas_price: fee_params.l1_gas_price,
-                l1_pubdata_price: fee_params.l1_pubdata_price,
-                l2_gas_price: fee_params.config.minimal_l2_gas_price,
-                compute_overhead_part: fee_params.config.compute_overhead_part,
-                pubdata_overhead_part: fee_params.config.pubdata_overhead_part,
-                batch_overhead_l1_gas: fee_params.config.batch_overhead_l1_gas,
-                max_gas_per_batch: fee_params.config.max_gas_per_batch,
-                max_pubdata_per_batch: fee_params.config.max_pubdata_per_batch,
+                l1_gas_price: fee_params.l1_gas_price(),
+                l1_pubdata_price: fee_params.l1_pubdata_price(),
+                l2_gas_price: fee_params.config().minimal_l2_gas_price,
+                compute_overhead_part: fee_params.config().compute_overhead_part,
+                pubdata_overhead_part: fee_params.config().pubdata_overhead_part,
+                batch_overhead_l1_gas: fee_params.config().batch_overhead_l1_gas,
+                max_gas_per_batch: fee_params.config().max_gas_per_batch,
+                max_pubdata_per_batch: fee_params.config().max_pubdata_per_batch,
                 estimate_gas_price_scale_factor,
                 estimate_gas_scale_factor,
             },
@@ -108,11 +108,12 @@ impl TestNodeFeeInputProvider {
 impl BatchFeeModelInputProvider for TestNodeFeeInputProvider {
     fn get_fee_model_params(&self) -> FeeParams {
         // TODO: consider using old fee model for the olds blocks, when forking
-        FeeParams::V2(FeeParamsV2 {
-            config: self.get_fee_model_config(),
-            l1_gas_price: self.l1_gas_price,
-            l1_pubdata_price: self.l1_pubdata_price,
-        })
+        FeeParams::V2(FeeParamsV2::new(
+            self.get_fee_model_config(),
+            self.l1_gas_price,
+            self.l1_pubdata_price,
+            Default::default(),
+        ))
     }
 }
 

@@ -3,17 +3,17 @@ use std::collections::HashMap;
 use crate::formatter::{self, PubdataBytesInfo};
 
 use crate::config::node::ShowStorageLogs;
-use multivm::vm_latest::VmExecutionResultAndLogs;
-use zksync_basic_types::AccountTreeId;
+use zksync_multivm::interface::VmExecutionResultAndLogs;
 use zksync_types::{
     utils::storage_key_for_eth_balance,
     writes::{
         compression::compress_with_best_strategy, BYTES_PER_DERIVED_KEY,
         BYTES_PER_ENUMERATION_INDEX,
     },
-    StorageKey, StorageLogQuery, StorageLogQueryType, BOOTLOADER_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
+    StorageKey, BOOTLOADER_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
 };
-use zksync_utils::u256_to_h256;
+use zksync_types::{StorageLogKind, StorageLogWithPreviousValue};
+use zksync_utils::h256_to_u256;
 
 fn is_storage_key_free(key: &StorageKey) -> bool {
     key.address() == &SYSTEM_CONTEXT_ADDRESS
@@ -22,24 +22,21 @@ fn is_storage_key_free(key: &StorageKey) -> bool {
 
 fn compute_and_update_pubdata_cost(
     cost_paid: &mut HashMap<StorageKey, u32>,
-    log_query: &StorageLogQuery,
+    log_query: &StorageLogWithPreviousValue,
 ) -> PubdataBytesInfo {
-    let storage_key = StorageKey::new(
-        AccountTreeId::new(log_query.log_query.address),
-        u256_to_h256(log_query.log_query.key),
-    );
+    let storage_key = log_query.log.key;
 
     if is_storage_key_free(&storage_key) {
         PubdataBytesInfo::FreeSlot
     } else {
         // how many bytes it takes after compression.
         let compressed_value_size = compress_with_best_strategy(
-            log_query.log_query.read_value,
-            log_query.log_query.written_value,
+            h256_to_u256(log_query.previous_value),
+            h256_to_u256(log_query.log.value),
         )
         .len() as u32;
 
-        let final_pubdata_cost = if log_query.log_type == StorageLogQueryType::InitialWrite {
+        let final_pubdata_cost = if log_query.log.kind == StorageLogKind::InitialWrite {
             (BYTES_PER_DERIVED_KEY as u32) + compressed_value_size
         } else {
             (BYTES_PER_ENUMERATION_INDEX as u32) + compressed_value_size
@@ -74,8 +71,8 @@ pub fn print_storage_logs_details(
 
     for log_query in &result.logs.storage_logs {
         let pubdata_bytes_info = if matches!(
-            log_query.log_type,
-            StorageLogQueryType::RepeatedWrite | StorageLogQueryType::InitialWrite
+            log_query.log.kind,
+            StorageLogKind::RepeatedWrite | StorageLogKind::InitialWrite
         ) {
             Some(compute_and_update_pubdata_cost(&mut cost_paid, log_query))
         } else {
@@ -85,8 +82,8 @@ pub fn print_storage_logs_details(
         match show_storage_logs {
             ShowStorageLogs::Write => {
                 if matches!(
-                    log_query.log_type,
-                    StorageLogQueryType::RepeatedWrite | StorageLogQueryType::InitialWrite
+                    log_query.log.kind,
+                    StorageLogKind::RepeatedWrite | StorageLogKind::InitialWrite
                 ) {
                     formatter::print_logs(log_query, pubdata_bytes_info);
                 }
@@ -102,7 +99,7 @@ pub fn print_storage_logs_details(
                 }
             }
             ShowStorageLogs::Read => {
-                if log_query.log_type == StorageLogQueryType::Read {
+                if log_query.log.kind == StorageLogKind::Read {
                     formatter::print_logs(log_query, pubdata_bytes_info);
                 }
             }

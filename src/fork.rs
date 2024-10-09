@@ -28,7 +28,7 @@ use zksync_types::{
     ProtocolVersionId, StorageKey,
 };
 
-use zksync_state::ReadStorage;
+use zksync_state::interface::ReadStorage;
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 
 use zksync_web3_decl::{
@@ -723,7 +723,7 @@ impl ForkDetails {
 #[cfg(test)]
 mod tests {
     use zksync_basic_types::{AccountTreeId, L1BatchNumber, H256};
-    use zksync_state::ReadStorage;
+    use zksync_state::interface::ReadStorage;
     use zksync_types::{api::TransactionVariant, StorageKey};
 
     use crate::config::cache::CacheConfig;

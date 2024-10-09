@@ -18,9 +18,9 @@ use httptest::{
     Expectation, Server,
 };
 use itertools::Itertools;
-use multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
 use std::str::FromStr;
 use zksync_basic_types::{AccountTreeId, L1BatchNumber, L2BlockNumber, H160, U64};
+use zksync_multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
 use zksync_types::api::{
     BlockDetailsBase, BlockIdVariant, BlockStatus, BridgeAddresses, DebugCall, DebugCallType, Log,
 };
@@ -436,7 +436,7 @@ impl TransactionBuilder {
 
     pub fn build(&mut self) -> L2Tx {
         let mut tx = L2Tx::new_signed(
-            Address::random(),
+            Some(Address::random()),
             vec![],
             Nonce(0),
             Fee {
@@ -537,7 +537,7 @@ pub fn deploy_contract<T: ForkSource + std::fmt::Debug + Clone>(
         .expect("failed encoding function data");
 
     let mut tx = L2Tx::new_signed(
-        zksync_types::CONTRACT_DEPLOYER_ADDRESS,
+        Some(zksync_types::CONTRACT_DEPLOYER_ADDRESS),
         data.to_vec(),
         nonce,
         Fee {
@@ -563,6 +563,7 @@ pub fn deploy_contract<T: ForkSource + std::fmt::Debug + Clone>(
 #[derive(Debug, Default, Clone)]
 pub struct LogBuilder {
     block_number: U64,
+    block_timestamp: U64,
     address: Option<H160>,
     topics: Option<Vec<H256>>,
 }
@@ -606,6 +607,7 @@ impl LogBuilder {
             transaction_log_index: Default::default(),
             log_type: Default::default(),
             removed: Some(false),
+            block_timestamp: Some(self.block_timestamp),
         }
     }
 }

@@ -87,7 +87,7 @@ impl ForkSource for HttpForkSource {
 
         let client = self.create_client();
         block_on(async move { client.get_transaction_by_hash(hash).await })
-            .map(|maybe_transaction| {
+            .inspect(|maybe_transaction| {
                 if let Some(transaction) = &maybe_transaction {
                     self.cache
                         .write()
@@ -99,7 +99,6 @@ impl ForkSource for HttpForkSource {
                             )
                         });
                 }
-                maybe_transaction
             })
             .wrap_err("fork http client failed")
     }
@@ -133,7 +132,7 @@ impl ForkSource for HttpForkSource {
         let client = self.create_client();
         block_on(async move { client.get_raw_block_transactions(block_number).await })
             .wrap_err("fork http client failed")
-            .map(|transactions| {
+            .inspect(|transactions| {
                 if !transactions.is_empty() {
                     self.cache
                         .write()
@@ -147,7 +146,6 @@ impl ForkSource for HttpForkSource {
                             )
                         });
                 }
-                transactions
             })
     }
 
@@ -167,7 +165,7 @@ impl ForkSource for HttpForkSource {
 
         let client = self.create_client();
         block_on(async move { client.get_block_by_hash(hash, full_transactions).await })
-            .map(|block| {
+            .inspect(|block| {
                 if let Some(block) = &block {
                     self.cache
                         .write()
@@ -179,7 +177,6 @@ impl ForkSource for HttpForkSource {
                             )
                         });
                 }
-                block
             })
             .wrap_err("fork http client failed")
     }
@@ -211,7 +208,7 @@ impl ForkSource for HttpForkSource {
                 .get_block_by_number(block_number, full_transactions)
                 .await
         })
-        .map(|block| {
+        .inspect(|block| {
             if let Some(block) = &block {
                 self.cache
                     .write()
@@ -225,7 +222,6 @@ impl ForkSource for HttpForkSource {
                         )
                     });
             }
-            block
         })
         .wrap_err("fork http client failed")
     }
@@ -313,7 +309,7 @@ impl ForkSource for HttpForkSource {
 
         let client = self.create_client();
         block_on(async move { client.get_bridge_contracts().await })
-            .map(|bridge_addresses| {
+            .inspect(|bridge_addresses| {
                 self.cache
                     .write()
                     .map(|mut guard| guard.set_bridge_addresses(bridge_addresses.clone()))
@@ -323,7 +319,6 @@ impl ForkSource for HttpForkSource {
                             err
                         )
                     });
-                bridge_addresses
             })
             .wrap_err("fork http client failed")
     }
@@ -342,7 +337,7 @@ impl ForkSource for HttpForkSource {
 
         let client = self.create_client();
         block_on(async move { client.get_confirmed_tokens(from, limit).await })
-            .map(|confirmed_tokens| {
+            .inspect(|confirmed_tokens| {
                 self.cache
                     .write()
                     .map(|mut guard| {
@@ -354,7 +349,6 @@ impl ForkSource for HttpForkSource {
                             err
                         )
                     });
-                confirmed_tokens
             })
             .wrap_err("fork http client failed")
     }

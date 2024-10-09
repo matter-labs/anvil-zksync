@@ -10,8 +10,8 @@ use std::str;
 use crate::fork::block_on;
 use zksync_basic_types::H160;
 
-use multivm::interface::VmExecutionResultAndLogs;
-use zksync_types::{vm_trace::Call, StorageLogQuery, StorageLogQueryType, VmEvent};
+use zksync_multivm::interface::{Call, VmEvent, VmExecutionResultAndLogs};
+use zksync_types::StorageLogWithPreviousValue;
 
 use lazy_static::lazy_static;
 
@@ -185,7 +185,7 @@ pub fn print_call(
         };
 
         let pretty_print = format!(
-            "{}{:?} {} {} {} {} {} {}",
+            "{}{:?} {} {} {} {} {} {} ({})",
             " ".repeat(padding),
             call.r#type,
             address_to_human_readable(call.to)
@@ -201,7 +201,8 @@ pub fn print_call(
                 .as_ref()
                 .map(|s| format!("Error: {}", s))
                 .unwrap_or_default(),
-            call.gas
+            call.gas,
+            call.gas_used
         );
 
         if call.revert_reason.as_ref().is_some() || call.error.as_ref().is_some() {
@@ -261,29 +262,24 @@ impl PubdataBytesInfo {
     }
 }
 
-pub fn print_logs(log_query: &StorageLogQuery, pubdata_bytes: Option<PubdataBytesInfo>) {
+pub fn print_logs(
+    log_query: &StorageLogWithPreviousValue,
+    pubdata_bytes: Option<PubdataBytesInfo>,
+) {
     let separator = "─".repeat(82);
-    tracing::info!("{:<15} {:?}", "Type:", log_query.log_type);
+    tracing::info!("{:<15} {:?}", "Kind:", log_query.log.kind);
     tracing::info!(
         "{:<15} {}",
         "Address:",
-        address_to_human_readable(log_query.log_query.address)
-            .unwrap_or(format!("{}", log_query.log_query.address))
+        address_to_human_readable(*log_query.log.key.address())
+            .unwrap_or(format!("{}", log_query.log.key.address()))
     );
-    tracing::info!("{:<15} {:#066x}", "Key:", log_query.log_query.key);
+    tracing::info!("{:<15} {:#066x}", "Key:", log_query.log.key.key());
 
-    tracing::info!(
-        "{:<15} {:#066x}",
-        "Read Value:",
-        log_query.log_query.read_value
-    );
+    tracing::info!("{:<15} {:#066x}", "Read Value:", log_query.previous_value,);
 
-    if log_query.log_type != StorageLogQueryType::Read {
-        tracing::info!(
-            "{:<15} {:#066x}",
-            "Written Value:",
-            log_query.log_query.written_value
-        );
+    if log_query.log.is_write() {
+        tracing::info!("{:<15} {:#066x}", "Written Value:", log_query.log.value);
     }
     if let Some(pubdata_bytes) = pubdata_bytes {
         tracing::info!("{:<15} {:}", "Pubdata bytes:", pubdata_bytes);
@@ -304,8 +300,8 @@ pub fn print_vm_details(result: &VmExecutionResultAndLogs) {
     );
     tracing::info!("Contracts Used:       {}", result.statistics.contracts_used);
     match &result.result {
-        multivm::interface::ExecutionResult::Success { .. } => {}
-        multivm::interface::ExecutionResult::Revert { output } => {
+        zksync_multivm::interface::ExecutionResult::Success { .. } => {}
+        zksync_multivm::interface::ExecutionResult::Revert { output } => {
             tracing::info!("");
             tracing::info!(
                 "{}",
@@ -316,7 +312,7 @@ pub fn print_vm_details(result: &VmExecutionResultAndLogs) {
                 .on_red()
             );
         }
-        multivm::interface::ExecutionResult::Halt { reason } => {
+        zksync_multivm::interface::ExecutionResult::Halt { reason } => {
             tracing::info!("");
             tracing::info!("{}", format!("\n[!] Halt Reason:    {}", reason).on_red());
         }

@@ -3,12 +3,12 @@ use std::collections::HashSet;
 use colored::Colorize;
 use futures::FutureExt;
 use itertools::Itertools;
-use multivm::interface::{ExecutionResult, TxExecutionMode};
-use multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use zksync_basic_types::{
     web3::{self, Bytes},
     AccountTreeId, Address, H160, H256, U256, U64,
 };
+use zksync_multivm::interface::{ExecutionResult, TxExecutionMode};
+use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use zksync_types::{
     api::{Block, BlockIdVariant, BlockNumber, TransactionVariant},
     fee::Fee,
@@ -517,7 +517,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
                         block_number: Some(U64::from(info.miniblock_number)),
                         transaction_index: Some(U64::from(0)),
                         from: Some(info.tx.initiator_account()),
-                        to: Some(info.tx.recipient_account()),
+                        to: info.tx.recipient_account(),
                         value: info.tx.execute.value,
                         gas_price: Some(U256::from(0)),
                         gas: Default::default(),
@@ -1369,6 +1369,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
                 base_fee_per_gas,
                 gas_used_ratio,
                 reward,
+                base_fee_per_blob_gas: Default::default(),
+                blob_gas_used_ratio: Default::default(),
             })
         })
     }

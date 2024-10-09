@@ -24,7 +24,7 @@ jobs:
     - name: Install Rust
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
-        toolchain: nightly-2024-01-01
+        toolchain: nightly-2024-08-01
 
     - name: Install cargo-nextest
       run: cargo install cargo-nextest

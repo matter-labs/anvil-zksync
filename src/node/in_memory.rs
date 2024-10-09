@@ -12,7 +12,10 @@ use crate::{
     filters::EthFilters,
     fork::{block_on, ForkDetails, ForkSource, ForkStorage},
     formatter,
-    node::{fee_model::TestNodeFeeInputProvider, storage_logs::print_storage_logs_details},
+    node::{
+        call_error_tracer::CallErrorTracer, fee_model::TestNodeFeeInputProvider,
+        storage_logs::print_storage_logs_details,
+    },
     observability::Observability,
     system_contracts::{self, SystemContracts},
     utils::{bytecode_to_factory_dep, create_debug_output, into_jsrpc_error, to_human_size},
@@ -26,15 +29,21 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use multivm::{
+use std::convert::TryInto;
+use zksync_basic_types::{
+    web3::keccak256, web3::Bytes, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, H160, H256,
+    U256, U64,
+};
+use zksync_contracts::BaseSystemContracts;
+use zksync_multivm::{
     interface::{
-        ExecutionResult, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
-        VmExecutionResultAndLogs, VmInterface,
+        Call, ExecutionResult, L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode,
+        VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt,
     },
-    vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, L2Block},
+    vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
     VmVersion,
 };
-use multivm::{
+use zksync_multivm::{
     tracers::CallTracer,
     utils::{
         adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
@@ -47,14 +56,8 @@ use multivm::{
         ToTracerPointer, TracerPointer, Vm,
     },
 };
-use std::convert::TryInto;
-use zksync_basic_types::{
-    web3::keccak256, web3::Bytes, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, H160, H256,
-    U256, U64,
-};
-use zksync_contracts::BaseSystemContracts;
 use zksync_node_fee_model::BatchFeeModelInputProvider;
-use zksync_state::{ReadStorage, StoragePtr, WriteStorage};
+use zksync_state::interface::{ReadStorage, StoragePtr, WriteStorage};
 use zksync_types::{
     api::{Block, DebugCall, Log, TransactionReceipt, TransactionVariant},
     block::{unpack_block_info, L2BlockHasher},
@@ -63,10 +66,8 @@ use zksync_types::{
     get_code_key, get_nonce_key,
     l2::{L2Tx, TransactionType},
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
-    vm_trace::Call,
-    PackedEthSignature, StorageKey, StorageLogQueryType, StorageValue, Transaction,
-    ACCOUNT_CODE_STORAGE_ADDRESS, MAX_L2_TX_GAS_LIMIT, SYSTEM_CONTEXT_ADDRESS,
-    SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
+    PackedEthSignature, StorageKey, StorageValue, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
+    MAX_L2_TX_GAS_LIMIT, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
 };
 use zksync_utils::{bytecode::hash_bytecode, h256_to_account_address, h256_to_u256, u256_to_h256};
 use zksync_web3_decl::error::Web3Error;
@@ -121,6 +122,7 @@ pub struct TxExecutionInfo {
     // Batch number where transaction was executed.
     pub batch_number: u32,
     pub miniblock_number: u64,
+    #[allow(unused)]
     pub result: VmExecutionResultAndLogs,
 }
 
@@ -291,7 +293,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         let (last_l1_block_num, last_l1_block_ts) = load_last_l1_batch(storage.clone())
             .map(|(num, ts)| (num as u32, ts))
             .unwrap_or_else(|| (self.current_batch, self.current_timestamp));
-        let last_l2_block = load_last_l2_block(storage.clone()).unwrap_or_else(|| L2Block {
+        let last_l2_block = load_last_l2_block(&storage).unwrap_or_else(|| L2Block {
             number: self.current_miniblock as u32,
             hash: L2BlockHasher::legacy_hash(L2BlockNumber(self.current_miniblock as u32)),
             timestamp: self.current_timestamp,
@@ -860,10 +862,8 @@ pub struct InMemoryNode<S: Clone> {
 
 fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) -> Option<H160> {
     for query in execution_result.logs.storage_logs.iter().rev() {
-        if query.log_type == StorageLogQueryType::InitialWrite
-            && query.log_query.address == ACCOUNT_CODE_STORAGE_ADDRESS
-        {
-            return Some(h256_to_account_address(&u256_to_h256(query.log_query.key)));
+        if query.log.is_write() && query.log.key.address() == &ACCOUNT_CODE_STORAGE_ADDRESS {
+            return Some(h256_to_account_address(query.log.key.key()));
         }
     }
     None
@@ -1039,9 +1039,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
         let call_tracer_result = Arc::new(OnceCell::default());
 
-        let custom_tracer = CallTracer::new(call_tracer_result.clone()).into_tracer_pointer();
-
-        let tx_result = vm.inspect(custom_tracer.into(), VmExecutionMode::OneTx);
+        let tracers = vec![
+            CallErrorTracer::new().into_tracer_pointer(),
+            CallTracer::new(call_tracer_result.clone()).into_tracer_pointer(),
+        ];
+        let tx_result = vm.inspect(&mut tracers.into(), VmExecutionMode::OneTx);
 
         let call_traces = Arc::try_unwrap(call_tracer_result)
             .unwrap()
@@ -1311,7 +1313,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         l2_tx: L2Tx,
         execution_mode: TxExecutionMode,
         mut tracers: Vec<
-            TracerPointer<StorageView<ForkStorage<S>>, multivm::vm_latest::HistoryDisabled>,
+            TracerPointer<StorageView<ForkStorage<S>>, zksync_multivm::vm_latest::HistoryDisabled>,
         >,
         execute_bootloader: bool,
     ) -> Result<L2TxResult, String> {
@@ -1345,11 +1347,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
         let tx: Transaction = l2_tx.clone().into();
 
-        vm.push_transaction(tx.clone());
-
         let call_tracer_result = Arc::new(OnceCell::default());
         let bootloader_debug_result = Arc::new(OnceCell::default());
 
+        tracers.push(CallErrorTracer::new().into_tracer_pointer());
         tracers.push(CallTracer::new(call_tracer_result.clone()).into_tracer_pointer());
         tracers.push(
             BootloaderDebugTracer {
@@ -1358,7 +1359,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             .into_tracer_pointer(),
         );
 
-        let tx_result = vm.inspect(tracers.into(), VmExecutionMode::OneTx);
+        let (compressed_bytecodes, tx_result) =
+            vm.inspect_transaction_with_bytecode_compression(&mut tracers.into(), tx.clone(), true);
+        let compressed_bytecodes =
+            compressed_bytecodes.map_err(|err| format!("failed compressing bytecodes: {err:?}"))?;
 
         let call_traces = call_tracer_result.get().unwrap();
 
@@ -1472,7 +1476,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         };
 
         let mut bytecodes = HashMap::new();
-        for b in vm.get_last_tx_compressed_bytecodes().iter() {
+        for b in compressed_bytecodes.iter() {
             let hashcode = match bytecode_to_factory_dep(b.original.clone()) {
                 Ok(hc) => hc,
                 Err(error) => {
@@ -1570,6 +1574,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                     transaction_log_index: Some(U256::from(log_idx)),
                     log_type: None,
                     removed: Some(false),
+                    block_timestamp: Some(block.timestamp.as_u64().into()),
                 },
                 block.number,
             );
@@ -1582,7 +1587,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             l1_batch_tx_index: None,
             l1_batch_number: block.l1_batch_number,
             from: l2_tx.initiator_account(),
-            to: Some(l2_tx.recipient_account()),
+            to: l2_tx.recipient_account(),
             root: H256::zero(),
             cumulative_gas_used: Default::default(),
             gas_used: Some(l2_tx.common_data.fee.gas_limit - result.refunds.gas_refunded),
@@ -1605,6 +1610,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                     transaction_log_index: Some(U256::from(log_idx)),
                     log_type: None,
                     removed: Some(false),
+                    block_timestamp: Some(block.timestamp.as_u64().into()),
                 })
                 .collect(),
             l2_to_l1_logs: vec![],
@@ -1944,7 +1950,7 @@ mod tests {
         );
 
         let mut tx = L2Tx::new_signed(
-            deployed_address,
+            Some(deployed_address),
             hex::decode("bbf55335").unwrap(), // keccak selector for "transact_retrieve1()"
             Nonce(1),
             Fee {
