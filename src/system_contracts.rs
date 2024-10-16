@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use zksync_contracts::{
-    read_sys_contract_bytecode, read_zbin_bytecode, BaseSystemContracts, ContractLanguage,
+    read_bootloader_code, read_sys_contract_bytecode, BaseSystemContracts, ContractLanguage,
     SystemContractCode,
 };
 use zksync_multivm::interface::TxExecutionMode;
@@ -30,30 +30,39 @@ pub struct SystemContracts {
     pub fee_estimate_impersonating_contracts: BaseSystemContracts,
 }
 
-pub fn get_deployed_contracts(options: &Options) -> Vec<zksync_types::block::DeployedContract> {
+pub fn get_deployed_contracts(
+    options: &Options,
+    use_evm_emulator: bool,
+) -> Vec<zksync_types::block::DeployedContract> {
     match options {
         Options::BuiltIn | Options::BuiltInWithoutSecurity => COMPILED_IN_SYSTEM_CONTRACTS.clone(),
-        Options::Local => get_system_smart_contracts(false), // FIXME: select based on something
+        Options::Local => get_system_smart_contracts(use_evm_emulator),
     }
 }
 
 impl Default for SystemContracts {
     /// Creates SystemContracts that use compiled-in contracts.
     fn default() -> Self {
-        SystemContracts::from_options(&Options::BuiltIn)
+        SystemContracts::from_options(&Options::BuiltIn, false)
     }
 }
 
 impl SystemContracts {
     /// Creates the SystemContracts that use the complied contracts from ZKSYNC_HOME path.
     /// These are loaded at binary runtime.
-    pub fn from_options(options: &Options) -> Self {
+    pub fn from_options(options: &Options, use_evm_emulator: bool) -> Self {
         Self {
-            baseline_contracts: baseline_contracts(options),
-            playground_contracts: playground(options),
-            fee_estimate_contracts: fee_estimate_contracts(options),
-            baseline_impersonating_contracts: baseline_impersonating_contracts(options),
-            fee_estimate_impersonating_contracts: fee_estimate_impersonating_contracts(options),
+            baseline_contracts: baseline_contracts(options, use_evm_emulator),
+            playground_contracts: playground(options, use_evm_emulator),
+            fee_estimate_contracts: fee_estimate_contracts(options, use_evm_emulator),
+            baseline_impersonating_contracts: baseline_impersonating_contracts(
+                options,
+                use_evm_emulator,
+            ),
+            fee_estimate_impersonating_contracts: fee_estimate_impersonating_contracts(
+                options,
+                use_evm_emulator,
+            ),
         }
     }
     pub fn contracts_for_l2_call(&self) -> &BaseSystemContracts {
@@ -91,6 +100,7 @@ impl SystemContracts {
 fn bsc_load_with_bootloader(
     bootloader_bytecode: Vec<u8>,
     options: &Options,
+    use_evm_emulator: bool,
 ) -> BaseSystemContracts {
     let hash = hash_bytecode(&bootloader_bytecode);
 
@@ -99,7 +109,7 @@ fn bsc_load_with_bootloader(
         hash,
     };
 
-    let bytecode = match options {
+    let aa_bytecode = match options {
         Options::BuiltIn => bytecode_from_slice(
             "DefaultAccount",
             include_bytes!("deps/contracts/DefaultAccount.json"),
@@ -111,94 +121,101 @@ fn bsc_load_with_bootloader(
         ),
     };
 
-    let hash = hash_bytecode(&bytecode);
-
+    let aa_hash = hash_bytecode(&aa_bytecode);
     let default_aa = SystemContractCode {
-        code: bytes_to_be_words(bytecode),
-        hash,
+        code: bytes_to_be_words(aa_bytecode),
+        hash: aa_hash,
+    };
+
+    let evm_emulator = if use_evm_emulator {
+        let evm_emulator_bytecode = match options {
+            Options::Local => {
+                read_sys_contract_bytecode("", "EvmInterpreter", ContractLanguage::Yul)
+            }
+            Options::BuiltIn | Options::BuiltInWithoutSecurity => {
+                panic!("no built-in EVM emulator yet")
+            }
+        };
+        let evm_emulator_hash = hash_bytecode(&evm_emulator_bytecode);
+        Some(SystemContractCode {
+            code: bytes_to_be_words(evm_emulator_bytecode),
+            hash: evm_emulator_hash,
+        })
+    } else {
+        None
     };
 
     BaseSystemContracts {
         bootloader,
         default_aa,
-        evm_emulator: None, // FIXME: load when local
+        evm_emulator,
     }
 }
 
 /// BaseSystemContracts with playground bootloader -  used for handling 'eth_calls'.
-pub fn playground(options: &Options) -> BaseSystemContracts {
+pub fn playground(options: &Options, use_evm_emulator: bool) -> BaseSystemContracts {
     let bootloader_bytecode = match options {
         Options::BuiltIn | Options::BuiltInWithoutSecurity => {
             include_bytes!("deps/contracts/playground_batch.yul.zbin").to_vec()
         }
-        Options::Local => read_zbin_bytecode(
-            "contracts/system-contracts/bootloader/build/artifacts/playground_batch.yul.zbin",
-        ),
+        Options::Local => read_bootloader_code("playground_batch"),
     };
 
-    bsc_load_with_bootloader(bootloader_bytecode, options)
+    bsc_load_with_bootloader(bootloader_bytecode, options, use_evm_emulator)
 }
 
 /// Returns the system contracts for fee estimation.
-///
-/// # Arguments
-///
-/// * `use_local_contracts` - A boolean indicating whether to use local contracts or not.
 ///
 /// # Returns
 ///
 /// A `BaseSystemContracts` struct containing the system contracts used for handling 'eth_estimateGas'.
 /// It sets ENSURE_RETURNED_MAGIC to 0 and BOOTLOADER_TYPE to 'playground_block'
-pub fn fee_estimate_contracts(options: &Options) -> BaseSystemContracts {
+pub fn fee_estimate_contracts(options: &Options, use_evm_emulator: bool) -> BaseSystemContracts {
     let bootloader_bytecode = match options {
         Options::BuiltIn | Options::BuiltInWithoutSecurity => {
             include_bytes!("deps/contracts/fee_estimate.yul.zbin").to_vec()
         }
-        Options::Local => read_zbin_bytecode(
-            "contracts/system-contracts/bootloader/build/artifacts/fee_estimate.yul.zbin",
-        ),
+        Options::Local => read_bootloader_code("fee_estimate"),
     };
 
-    bsc_load_with_bootloader(bootloader_bytecode, options)
+    bsc_load_with_bootloader(bootloader_bytecode, options, use_evm_emulator)
 }
 
-pub fn fee_estimate_impersonating_contracts(options: &Options) -> BaseSystemContracts {
+pub fn fee_estimate_impersonating_contracts(
+    options: &Options,
+    use_evm_emulator: bool,
+) -> BaseSystemContracts {
     let bootloader_bytecode = match options {
         Options::BuiltIn | Options::BuiltInWithoutSecurity => {
             include_bytes!("deps/contracts/fee_estimate_impersonating.yul.zbin").to_vec()
         }
-        Options::Local => {
-            // Account impersonating is not supported with the local contracts
-            read_zbin_bytecode(
-                "contracts/system-contracts/bootloader/build/artifacts/fee_estimate.yul.zbin",
-            )
-        }
+        // Account impersonating is not supported with the local contracts
+        Options::Local => read_bootloader_code("fee_estimate"),
     };
 
-    bsc_load_with_bootloader(bootloader_bytecode, options)
+    bsc_load_with_bootloader(bootloader_bytecode, options, use_evm_emulator)
 }
 
-pub fn baseline_contracts(options: &Options) -> BaseSystemContracts {
+pub fn baseline_contracts(options: &Options, use_evm_emulator: bool) -> BaseSystemContracts {
     let bootloader_bytecode = match options {
         Options::BuiltIn | Options::BuiltInWithoutSecurity => {
             include_bytes!("deps/contracts/proved_batch.yul.zbin").to_vec()
         }
-        Options::Local => read_zbin_bytecode(
-            "contracts/system-contracts/bootloader/build/artifacts/proved_batch.yul.zbin",
-        ),
+        Options::Local => read_bootloader_code("proved_batch"),
     };
-    bsc_load_with_bootloader(bootloader_bytecode, options)
+    bsc_load_with_bootloader(bootloader_bytecode, options, use_evm_emulator)
 }
 
-pub fn baseline_impersonating_contracts(options: &Options) -> BaseSystemContracts {
+pub fn baseline_impersonating_contracts(
+    options: &Options,
+    use_evm_emulator: bool,
+) -> BaseSystemContracts {
     let bootloader_bytecode = match options {
         Options::BuiltIn | Options::BuiltInWithoutSecurity => {
             include_bytes!("deps/contracts/proved_batch_impersonating.yul.zbin").to_vec()
         }
         // Account impersonating is not supported with the local contracts
-        Options::Local => read_zbin_bytecode(
-            "contracts/system-contracts/bootloader/build/artifacts/proved_batch.yul.zbin",
-        ),
+        Options::Local => read_bootloader_code("proved_batch"),
     };
-    bsc_load_with_bootloader(bootloader_bytecode, options)
+    bsc_load_with_bootloader(bootloader_bytecode, options, use_evm_emulator)
 }

@@ -124,6 +124,7 @@ impl<S: ForkSource> ForkStorage<S> {
     pub fn new(
         fork: Option<ForkDetails>,
         system_contracts_options: &system_contracts::Options,
+        use_evm_emulator: bool,
     ) -> Self {
         let chain_id = fork
             .as_ref()
@@ -137,6 +138,7 @@ impl<S: ForkSource> ForkStorage<S> {
                     chain_id,
                     hash_bytecode,
                     system_contracts_options,
+                    use_evm_emulator,
                 ),
                 value_read_cache: Default::default(),
                 fork,
@@ -769,11 +771,11 @@ mod tests {
         };
 
         let mut fork_storage: ForkStorage<testing::ExternalStorage> =
-            ForkStorage::new(Some(fork_details), &options);
+            ForkStorage::new(Some(fork_details), &options, false);
 
         assert!(fork_storage.is_write_initial(&never_written_key));
         assert!(!fork_storage.is_write_initial(&key_with_some_value));
-        // This is the current limitation of the sytem. In theory, this should return false - as the value was written, but we don't have the API to the
+        // This is the current limitation of the system. In theory, this should return false - as the value was written, but we don't have the API to the
         // backend to get this information.
         assert!(fork_storage.is_write_initial(&key_with_value_0));
 

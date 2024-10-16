@@ -20,8 +20,12 @@ impl InMemoryStorage {
         chain_id: L2ChainId,
         bytecode_hasher: impl Fn(&[u8]) -> H256,
         system_contracts_options: &crate::system_contracts::Options,
+        use_evm_emulator: bool,
     ) -> Self {
-        let contracts = crate::system_contracts::get_deployed_contracts(system_contracts_options);
+        let contracts = crate::system_contracts::get_deployed_contracts(
+            system_contracts_options,
+            use_evm_emulator,
+        );
 
         let system_context_init_log = get_system_context_init_logs(chain_id);
 
