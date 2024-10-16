@@ -36,6 +36,7 @@ use zksync_basic_types::{
     U256, U64,
 };
 use zksync_contracts::BaseSystemContracts;
+use zksync_multivm::interface::storage::{ReadStorage, StoragePtr, WriteStorage};
 use zksync_multivm::{
     interface::{
         Call, ExecutionResult, L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode,
@@ -58,7 +59,6 @@ use zksync_multivm::{
     },
 };
 use zksync_node_fee_model::BatchFeeModelInputProvider;
-use zksync_state::interface::{ReadStorage, StoragePtr, WriteStorage};
 use zksync_types::{
     api::{Block, DebugCall, Log, TransactionReceipt, TransactionVariant},
     block::{unpack_block_info, L2BlockHasher},

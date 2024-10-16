@@ -398,7 +398,7 @@ mod tests {
     use std::str::FromStr;
     use std::sync::{Arc, RwLock};
     use zksync_basic_types::{Nonce, H256};
-    use zksync_state::interface::ReadStorage;
+    use zksync_multivm::interface::storage::ReadStorage;
     use zksync_types::{api::BlockNumber, fee::Fee, l2::L2Tx, PackedEthSignature};
 
     #[tokio::test]

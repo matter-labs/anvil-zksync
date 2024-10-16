@@ -5,7 +5,7 @@ use zksync_types::{
     H256,
 };
 pub mod storage_view;
-use zksync_state::interface::ReadStorage;
+use zksync_multivm::interface::storage::ReadStorage;
 
 /// In-memory storage.
 #[derive(Debug, Default, Clone, PartialEq)]

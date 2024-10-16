@@ -8,12 +8,12 @@ use futures::Future;
 use jsonrpc_core::{Error, ErrorCode};
 use zkevm_opcode_defs::utils::bytecode_to_code_hash;
 use zksync_basic_types::{H256, U256, U64};
+use zksync_multivm::interface::storage::WriteStorage;
 use zksync_multivm::interface::{
     Call, CallType, ExecutionResult, VmExecutionResultAndLogs, VmFactory, VmInterfaceExt,
 };
 use zksync_multivm::vm_latest::HistoryDisabled;
 use zksync_multivm::vm_latest::Vm;
-use zksync_state::interface::WriteStorage;
 use zksync_types::api::{BlockNumber, DebugCall, DebugCallType};
 use zksync_types::l2::L2Tx;
 use zksync_types::web3::Bytes;

@@ -18,7 +18,6 @@ zksync_multivm = { git = "https://github.com/matter-labs/zksync-era.git", rev = 
 zksync_contracts = { git = "https://github.com/matter-labs/zksync-era.git", rev = "67475292ff770d2edd6884be27f976a4144778ae" }
 zksync_types = { git = "https://github.com/matter-labs/zksync-era.git", rev = "67475292ff770d2edd6884be27f976a4144778ae" }
 zksync_utils = { git = "https://github.com/matter-labs/zksync-era.git", rev = "67475292ff770d2edd6884be27f976a4144778ae" }
-zksync_state = { git = "https://github.com/matter-labs/zksync-era.git", rev = "67475292ff770d2edd6884be27f976a4144778ae" }
 zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era.git", rev = "67475292ff770d2edd6884be27f976a4144778ae", features = [
     "server",
 ] }
