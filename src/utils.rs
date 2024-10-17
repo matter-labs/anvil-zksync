@@ -294,8 +294,15 @@ pub fn into_jsrpc_error(err: Web3Error) -> Error {
                 ErrorCode::ServerError(3)
             }
         },
-        message: match err {
+        message: match &err {
             Web3Error::SubmitTransactionError(_, _) => err.to_string(),
+            Web3Error::InternalError(err) => {
+                if let Some(TransparentError(message)) = err.downcast_ref() {
+                    message.clone()
+                } else {
+                    err.to_string()
+                }
+            }
             _ => err.to_string(),
         },
         data: match err {
@@ -304,6 +311,24 @@ pub fn into_jsrpc_error(err: Web3Error) -> Error {
             }
             _ => None,
         },
+    }
+}
+
+/// Error that can be converted to a [`Web3Error`] and has transparent JSON-RPC error message (unlike `anyhow::Error` conversions).
+#[derive(Debug)]
+pub(crate) struct TransparentError(pub String);
+
+impl fmt::Display for TransparentError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for TransparentError {}
+
+impl From<TransparentError> for Web3Error {
+    fn from(err: TransparentError) -> Self {
+        Self::InternalError(err.into())
     }
 }
 

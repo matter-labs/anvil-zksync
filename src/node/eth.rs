@@ -32,7 +32,7 @@ use crate::{
     node::{InMemoryNode, TransactionResult, MAX_TX_SIZE, PROTOCOL_VERSION},
     utils::{
         self, h256_to_u64, into_jsrpc_error, not_implemented, report_into_jsrpc_error,
-        IntoBoxedFuture,
+        IntoBoxedFuture, TransparentError,
     },
 };
 
@@ -136,9 +136,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
         // EIP-1559 gas fields should be processed separately
         if tx.gas_price.is_some() {
             if tx.max_fee_per_gas.is_some() || tx.max_priority_fee_per_gas.is_some() {
-                let err = anyhow::anyhow!("Transaction contains unsupported fields: max_fee_per_gas or max_priority_fee_per_gas");
+                let err = "Transaction contains unsupported fields: max_fee_per_gas or max_priority_fee_per_gas";
                 tracing::error!("{err}");
-                return Err(err.into());
+                return Err(TransparentError(err.into()).into());
             }
         } else {
             tx_req.gas_price = tx.max_fee_per_gas.unwrap_or(U256::from(l1_gas_price));
@@ -179,12 +179,12 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
                 .impersonated_accounts
                 .contains(&l2_tx.common_data.initiator_address)
             {
-                let err = anyhow::anyhow!(
+                let err = format!(
                     "Initiator address {:?} is not allowed to perform transactions",
                     l2_tx.common_data.initiator_address
                 );
                 tracing::error!("{err}");
-                return Err(err.into());
+                return Err(TransparentError(err).into());
             }
         }
 
