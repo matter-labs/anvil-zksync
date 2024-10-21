@@ -129,9 +129,7 @@ fn bsc_load_with_bootloader(
 
     let evm_emulator = if use_evm_emulator {
         let evm_emulator_bytecode = match options {
-            Options::Local => {
-                read_sys_contract_bytecode("", "EvmInterpreter", ContractLanguage::Yul)
-            }
+            Options::Local => read_sys_contract_bytecode("", "EvmEmulator", ContractLanguage::Yul),
             Options::BuiltIn | Options::BuiltInWithoutSecurity => {
                 panic!("no built-in EVM emulator yet")
             }
