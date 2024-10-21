@@ -10,7 +10,7 @@ use crate::{
     constants::{LEGACY_RICH_WALLETS, RICH_WALLETS},
     deps::{storage_view::StorageView, InMemoryStorage},
     filters::EthFilters,
-    fork::{block_on, ForkDetails, ForkSource, ForkStorage},
+    fork::{ForkDetails, ForkSource, ForkStorage},
     formatter,
     node::{
         call_error_tracer::CallErrorTracer, fee_model::TestNodeFeeInputProvider,
@@ -58,7 +58,6 @@ use zksync_multivm::{
         ToTracerPointer, Vm,
     },
 };
-use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
     api::{Block, DebugCall, Log, TransactionReceipt, TransactionVariant},
     block::{unpack_block_info, L2BlockHasher},
@@ -325,29 +324,21 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         )
         .new_batch();
 
-        let fee_input: BatchFeeInput;
-
-        if let Some(fork) = &self
+        let fee_input = if let Some(fork) = &self
             .fork_storage
             .inner
             .read()
             .expect("fork_storage lock is already held by the current thread")
             .fork
         {
-            fee_input = BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
+            BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
                 l1_gas_price: fork.l1_gas_price,
                 fair_l2_gas_price: fork.l2_fair_gas_price,
                 fair_pubdata_price: fork.fair_pubdata_price,
-            });
+            })
         } else {
-            let fee_input_provider = self.fee_input_provider.clone();
-            fee_input = block_on(async move {
-                fee_input_provider
-                    .get_batch_fee_input_scaled(1.0, 1.0)
-                    .await
-                    .unwrap()
-            });
-        }
+            self.fee_input_provider.get_batch_fee_input()
+        };
 
         let batch_env = L1BatchEnv {
             // TODO: set the previous batch hash properly (take from fork, when forking, and from local storage, when this is not the first block).
@@ -438,18 +429,8 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
         let tx: Transaction = l2_tx.clone().into();
 
-        let fee_input_provider = self.fee_input_provider.clone();
         let fee_input = {
-            let fee_input = block_on(async move {
-                fee_input_provider
-                    .get_batch_fee_input_scaled(
-                        fee_input_provider.estimate_gas_price_scale_factor,
-                        fee_input_provider.estimate_gas_price_scale_factor,
-                    )
-                    .await
-                    .unwrap()
-            });
-
+            let fee_input = self.fee_input_provider.get_batch_fee_input_scaled();
             // In order for execution to pass smoothly, we need to ensure that block's required gasPerPubdata will be
             // <= to the one in the transaction itself.
             adjust_pubdata_price_for_tx(
