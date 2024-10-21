@@ -64,7 +64,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
         req: zksync_types::transaction_request::CallRequest,
         _block: Option<BlockIdVariant>,
     ) -> RpcResult<Bytes> {
-        match L2Tx::from_request(req.into(), MAX_TX_SIZE) {
+        match L2Tx::from_request(req.into(), MAX_TX_SIZE, false) {
             Ok(mut tx) => {
                 tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
                 let result = self.run_l2_call(tx);
@@ -377,7 +377,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
             }
         };
 
-        let mut l2_tx: L2Tx = match L2Tx::from_request(tx_req, MAX_TX_SIZE) {
+        let mut l2_tx: L2Tx = match L2Tx::from_request(tx_req, MAX_TX_SIZE, false) {
             Ok(tx) => tx,
             Err(e) => {
                 return futures::future::err(into_jsrpc_error(Web3Error::SerializationError(e)))
@@ -1453,7 +1453,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthTestNod
                     .boxed();
             }
         };
-        let mut l2_tx: L2Tx = match L2Tx::from_request(tx_req, MAX_TX_SIZE) {
+        let mut l2_tx: L2Tx = match L2Tx::from_request(tx_req, MAX_TX_SIZE, false) {
             Ok(tx) => tx,
             Err(e) => {
                 tracing::error!("Transaction serialization error: {}", e);

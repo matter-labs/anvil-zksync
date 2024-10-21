@@ -405,14 +405,17 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             .eip712_meta
             .is_some();
 
-        let mut l2_tx =
-            match L2Tx::from_request(request_with_gas_per_pubdata_overridden.into(), MAX_TX_SIZE) {
-                Ok(tx) => tx,
-                Err(e) => {
-                    let error = Web3Error::SerializationError(e);
-                    return Err(into_jsrpc_error(error));
-                }
-            };
+        let mut l2_tx = match L2Tx::from_request(
+            request_with_gas_per_pubdata_overridden.into(),
+            MAX_TX_SIZE,
+            false,
+        ) {
+            Ok(tx) => tx,
+            Err(e) => {
+                let error = Web3Error::SerializationError(e);
+                return Err(into_jsrpc_error(error));
+            }
+        };
 
         let tx: Transaction = l2_tx.clone().into();
 
@@ -1359,10 +1362,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             .into_tracer_pointer(),
         );
 
-        let (compressed_bytecodes, tx_result) =
-            vm.inspect_transaction_with_bytecode_compression(&mut tracers.into(), tx.clone(), true);
-        let compressed_bytecodes =
-            compressed_bytecodes.map_err(|err| format!("failed compressing bytecodes: {err:?}"))?;
+        let compressed_bytecodes = vm
+            .push_transaction(tx.clone())
+            .compressed_bytecodes
+            .into_owned();
+        let tx_result = vm.inspect(&mut tracers.into(), VmExecutionMode::OneTx);
 
         let call_traces = call_tracer_result.get().unwrap();
 

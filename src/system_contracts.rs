@@ -33,7 +33,7 @@ pub struct SystemContracts {
 pub fn get_deployed_contracts(options: &Options) -> Vec<zksync_types::block::DeployedContract> {
     match options {
         Options::BuiltIn | Options::BuiltInWithoutSecurity => COMPILED_IN_SYSTEM_CONTRACTS.clone(),
-        Options::Local => get_system_smart_contracts(),
+        Options::Local => get_system_smart_contracts(false),
     }
 }
 
@@ -121,6 +121,7 @@ fn bsc_load_with_bootloader(
     BaseSystemContracts {
         bootloader,
         default_aa,
+        evm_emulator: None,
     }
 }
 

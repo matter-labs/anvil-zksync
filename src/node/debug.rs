@@ -158,7 +158,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> DebugNames
                 )))
             })?;
 
-            let mut l2_tx = match L2Tx::from_request(request.into(), MAX_TX_SIZE) {
+            let mut l2_tx = match L2Tx::from_request(request.into(), MAX_TX_SIZE, false) {
                 Ok(tx) => tx,
                 Err(e) => {
                     let error = Web3Error::SerializationError(e);
