@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::HashMap, fmt, rc::Rc};
 
-use zksync_state::interface::{ReadStorage, WriteStorage};
+use zksync_multivm::interface::storage::{ReadStorage, WriteStorage};
 use zksync_types::{StorageKey, StorageValue, H256};
 
 /// `StorageView` is a buffer for `StorageLog`s between storage and transaction execution code.

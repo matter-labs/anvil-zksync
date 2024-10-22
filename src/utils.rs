@@ -8,12 +8,12 @@ use futures::Future;
 use jsonrpc_core::{Error, ErrorCode};
 use zkevm_opcode_defs::utils::bytecode_to_code_hash;
 use zksync_basic_types::{H256, U256, U64};
+use zksync_multivm::interface::storage::WriteStorage;
 use zksync_multivm::interface::{
     Call, CallType, ExecutionResult, VmExecutionResultAndLogs, VmFactory, VmInterfaceExt,
 };
 use zksync_multivm::vm_latest::HistoryDisabled;
 use zksync_multivm::vm_latest::Vm;
-use zksync_state::interface::WriteStorage;
 use zksync_types::api::{BlockNumber, DebugCall, DebugCallType};
 use zksync_types::l2::L2Tx;
 use zksync_types::web3::Bytes;
@@ -207,9 +207,7 @@ pub fn create_debug_output(
             output: output.clone().into(),
             r#type: calltype,
             from: l2_tx.initiator_account(),
-            to: l2_tx
-                .recipient_account()
-                .expect("must have recipient address"),
+            to: l2_tx.recipient_account().unwrap_or_default(),
             gas: l2_tx.common_data.fee.gas_limit,
             value: l2_tx.execute.value,
             input: l2_tx.execute.calldata().into(),
@@ -222,9 +220,7 @@ pub fn create_debug_output(
             output: Default::default(),
             r#type: calltype,
             from: l2_tx.initiator_account(),
-            to: l2_tx
-                .recipient_account()
-                .expect("must have recipient address"),
+            to: l2_tx.recipient_account().unwrap_or_default(),
             gas: l2_tx.common_data.fee.gas_limit,
             value: l2_tx.execute.value,
             input: l2_tx.execute.calldata().into(),
@@ -294,8 +290,15 @@ pub fn into_jsrpc_error(err: Web3Error) -> Error {
                 ErrorCode::ServerError(3)
             }
         },
-        message: match err {
+        message: match &err {
             Web3Error::SubmitTransactionError(_, _) => err.to_string(),
+            Web3Error::InternalError(err) => {
+                if let Some(TransparentError(message)) = err.downcast_ref() {
+                    message.clone()
+                } else {
+                    err.to_string()
+                }
+            }
             _ => err.to_string(),
         },
         data: match err {
@@ -304,6 +307,24 @@ pub fn into_jsrpc_error(err: Web3Error) -> Error {
             }
             _ => None,
         },
+    }
+}
+
+/// Error that can be converted to a [`Web3Error`] and has transparent JSON-RPC error message (unlike `anyhow::Error` conversions).
+#[derive(Debug)]
+pub(crate) struct TransparentError(pub String);
+
+impl fmt::Display for TransparentError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for TransparentError {}
+
+impl From<TransparentError> for Web3Error {
+    fn from(err: TransparentError) -> Self {
+        Self::InternalError(err.into())
     }
 }
 

@@ -403,7 +403,7 @@ mod tests {
     use std::str::FromStr;
     use std::sync::{Arc, RwLock};
     use zksync_basic_types::{Nonce, H256};
-    use zksync_state::interface::ReadStorage;
+    use zksync_multivm::interface::storage::ReadStorage;
     use zksync_types::{api::BlockNumber, fee::Fee, l2::L2Tx, PackedEthSignature};
 
     #[tokio::test]
@@ -519,7 +519,7 @@ mod tests {
             blocks: Default::default(),
             block_hashes: Default::default(),
             filters: Default::default(),
-            fork_storage: ForkStorage::new(None, &old_system_contracts_options),
+            fork_storage: ForkStorage::new(None, &old_system_contracts_options, false),
             config: Default::default(),
             console_log_handler: Default::default(),
             system_contracts: Default::default(),

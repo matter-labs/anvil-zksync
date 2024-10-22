@@ -158,24 +158,19 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> DebugNames
                 )))
             })?;
 
-            let mut l2_tx = match L2Tx::from_request(request.into(), MAX_TX_SIZE) {
-                Ok(tx) => tx,
-                Err(e) => {
-                    let error = Web3Error::SerializationError(e);
-                    return Err(into_jsrpc_error(error));
-                }
-            };
+            let system_contracts = inner.system_contracts.contracts_for_l2_call();
+            let allow_no_target = system_contracts.evm_emulator.is_some();
+            let mut l2_tx = L2Tx::from_request(request.into(), MAX_TX_SIZE, allow_no_target)
+                .map_err(|err| into_jsrpc_error(Web3Error::SerializationError(err)))?;
             let execution_mode = zksync_multivm::interface::TxExecutionMode::EthCall;
             let storage = StorageView::new(&inner.fork_storage).into_rc_ptr();
-
-            let bootloader_code = inner.system_contracts.contracts_for_l2_call();
 
             // init vm
             let (mut l1_batch_env, _block_context) = inner.create_l1_batch_env(storage.clone());
 
             // update the enforced_base_fee within l1_batch_env to match the logic in zksync_core
             l1_batch_env.enforced_base_fee = Some(l2_tx.common_data.fee.max_fee_per_gas.as_u64());
-            let system_env = inner.create_system_env(bootloader_code.clone(), execution_mode);
+            let system_env = inner.create_system_env(system_contracts.clone(), execution_mode);
             let mut vm: Vm<_, HistoryDisabled> = Vm::new(l1_batch_env, system_env, storage);
 
             // We must inject *some* signature (otherwise bootloader code fails to generate hash).

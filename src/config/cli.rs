@@ -74,6 +74,10 @@ pub struct Cli {
     #[arg(long)]
     pub dev_system_contracts: Option<DevSystemContracts>,
 
+    /// Enables EVM emulation. Currently, this requires local system contracts because there is no canonical EVM interpreter released yet.
+    #[arg(long, requires = "dev-system-contracts")]
+    pub emulate_evm: bool,
+
     /// Log filter level - default: info
     #[arg(long)]
     pub log: Option<LogLevel>,

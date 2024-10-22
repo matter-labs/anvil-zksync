@@ -12,6 +12,7 @@ on:
 env:
   REPO_NAME: ${{ github.repository_owner }}/era-test-node
   CARGO_TERM_COLOR: always
+  RUSTFLAGS: ""
 
 jobs:
   extract-version:
@@ -60,6 +61,8 @@ jobs:
       # ==============================
 
       - name: Install cross v0.2.4 from source
+        env:
+          RUSTFLAGS: ""
         run: |
           cargo install cross --git https://github.com/cross-rs/cross --tag v0.2.4
 

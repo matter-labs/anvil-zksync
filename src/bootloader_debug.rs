@@ -5,11 +5,11 @@ use zksync_multivm::{
 
 use once_cell::sync::OnceCell;
 use zksync_basic_types::U256;
+use zksync_multivm::interface::storage::WriteStorage;
 use zksync_multivm::vm_latest::{
     constants::BOOTLOADER_HEAP_PAGE, BootloaderState, HistoryMode, SimpleMemory, VmTracer,
     ZkSyncVmState,
 };
-use zksync_state::interface::WriteStorage;
 
 /// Magic value that we put in bootloader.yul at the beginning of the debug section - to detect that
 /// debugger was enabled.

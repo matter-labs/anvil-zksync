@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use anyhow::Context as _;
 use colored::Colorize;
 use futures::FutureExt;
 use itertools::Itertools;
@@ -7,7 +8,7 @@ use zksync_basic_types::{
     web3::{self, Bytes},
     AccountTreeId, Address, H160, H256, U256, U64,
 };
-use zksync_multivm::interface::{ExecutionResult, TxExecutionMode};
+use zksync_multivm::interface::ExecutionResult;
 use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use zksync_types::{
     api::{Block, BlockIdVariant, BlockNumber, TransactionVariant},
@@ -30,10 +31,172 @@ use crate::{
     namespaces::{EthNamespaceT, EthTestNodeNamespaceT, RpcResult},
     node::{InMemoryNode, TransactionResult, MAX_TX_SIZE, PROTOCOL_VERSION},
     utils::{
-        self, h256_to_u64, into_jsrpc_error, into_jsrpc_error_message, not_implemented,
-        report_into_jsrpc_error, IntoBoxedFuture,
+        self, h256_to_u64, into_jsrpc_error, not_implemented, report_into_jsrpc_error,
+        IntoBoxedFuture, TransparentError,
     },
 };
+
+impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNode<S> {
+    fn call_impl(
+        &self,
+        req: zksync_types::transaction_request::CallRequest,
+    ) -> Result<Bytes, Web3Error> {
+        let system_contracts = self.system_contracts_for_l2_call()?;
+        let allow_no_target = system_contracts.evm_emulator.is_some();
+
+        let mut tx = L2Tx::from_request(req.into(), MAX_TX_SIZE, allow_no_target)?;
+        tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
+        let call_result = self
+            .run_l2_call(tx, system_contracts)
+            .context("Invalid data due to invalid name")?;
+
+        match call_result {
+            ExecutionResult::Success { output } => Ok(output.into()),
+            ExecutionResult::Revert { output } => {
+                let message = output.to_user_friendly_string();
+                let pretty_message = format!(
+                    "execution reverted{}{}",
+                    if message.is_empty() { "" } else { ": " },
+                    message
+                );
+
+                tracing::info!("{}", pretty_message.on_red());
+                Err(Web3Error::SubmitTransactionError(
+                    pretty_message,
+                    output.encoded_data(),
+                ))
+            }
+            ExecutionResult::Halt { reason } => {
+                let message = reason.to_string();
+                let pretty_message = format!(
+                    "execution halted {}{}",
+                    if message.is_empty() { "" } else { ": " },
+                    message
+                );
+
+                tracing::info!("{}", pretty_message.on_red());
+                Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
+            }
+        }
+    }
+
+    fn send_raw_transaction_impl(&self, tx_bytes: Bytes) -> Result<H256, Web3Error> {
+        let chain_id = self
+            .get_inner()
+            .read()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire read lock for chain ID retrieval"))?
+            .fork_storage
+            .chain_id;
+
+        let (tx_req, hash) = TransactionRequest::from_bytes(&tx_bytes.0, chain_id)?;
+        let system_contracts = self.system_contracts_for_tx(tx_req.from.unwrap_or_default())?;
+        let allow_no_target = system_contracts.evm_emulator.is_some();
+        let mut l2_tx = L2Tx::from_request(tx_req, MAX_TX_SIZE, allow_no_target)?;
+
+        l2_tx.set_input(tx_bytes.0, hash);
+        if hash != l2_tx.hash() {
+            let err = anyhow::anyhow!(
+                "Invalid transaction data: computed hash does not match the provided hash."
+            );
+            return Err(err.into());
+        };
+
+        self.run_l2_tx(l2_tx, system_contracts).map_err(|err| {
+            Web3Error::SubmitTransactionError(
+                format!("Execution error: {err}"),
+                hash.as_bytes().to_vec(),
+            )
+        })?;
+        Ok(hash)
+    }
+
+    fn send_transaction_impl(
+        &self,
+        tx: zksync_types::transaction_request::CallRequest,
+    ) -> Result<H256, Web3Error> {
+        let (chain_id, l1_gas_price) = {
+            let reader = self
+                .inner
+                .read()
+                .map_err(|_| anyhow::anyhow!("Failed to acquire read lock"))?;
+            (
+                reader.fork_storage.chain_id,
+                reader.fee_input_provider.l1_gas_price,
+            )
+        };
+
+        let mut tx_req = TransactionRequest::from(tx.clone());
+        // Users might expect a "sensible default"
+        if tx.gas.is_none() {
+            tx_req.gas = U256::from(MAX_L1_TRANSACTION_GAS_LIMIT);
+        }
+
+        tx_req.chain_id = Some(chain_id.as_u64());
+
+        // EIP-1559 gas fields should be processed separately
+        if tx.gas_price.is_some() {
+            if tx.max_fee_per_gas.is_some() || tx.max_priority_fee_per_gas.is_some() {
+                let err = "Transaction contains unsupported fields: max_fee_per_gas or max_priority_fee_per_gas";
+                tracing::error!("{err}");
+                return Err(TransparentError(err.into()).into());
+            }
+        } else {
+            tx_req.gas_price = tx.max_fee_per_gas.unwrap_or(U256::from(l1_gas_price));
+            tx_req.max_priority_fee_per_gas = tx.max_priority_fee_per_gas;
+            if tx_req.transaction_type.is_none() {
+                tx_req.transaction_type = Some(zksync_types::EIP_1559_TX_TYPE.into());
+            }
+        }
+        // Needed to calculate hash
+        tx_req.r = Some(U256::default());
+        tx_req.s = Some(U256::default());
+        tx_req.v = Some(U64::from(27));
+
+        let hash = tx_req.get_tx_hash()?;
+        let bytes = tx_req.get_signed_bytes(&PackedEthSignature::from_rsv(
+            &H256::default(),
+            &H256::default(),
+            27,
+        ))?;
+
+        let system_contracts = self.system_contracts_for_tx(tx_req.from.unwrap_or_default())?;
+        let allow_no_target = system_contracts.evm_emulator.is_some();
+        let mut l2_tx: L2Tx = L2Tx::from_request(tx_req, MAX_TX_SIZE, allow_no_target)?;
+
+        // `v` was overwritten with 0 during converting into l2 tx
+        let mut signature = vec![0u8; 65];
+        signature[64] = 27;
+        l2_tx.common_data.signature = signature;
+
+        l2_tx.set_input(bytes, hash);
+
+        {
+            let reader = self
+                .inner
+                .read()
+                .map_err(|_| anyhow::anyhow!("Failed to acquire read lock for accounts."))?;
+            if !reader
+                .impersonated_accounts
+                .contains(&l2_tx.common_data.initiator_address)
+            {
+                let err = format!(
+                    "Initiator address {:?} is not allowed to perform transactions",
+                    l2_tx.common_data.initiator_address
+                );
+                tracing::error!("{err}");
+                return Err(TransparentError(err).into());
+            }
+        }
+
+        self.run_l2_tx(l2_tx, system_contracts).map_err(|err| {
+            Web3Error::SubmitTransactionError(
+                format!("Execution error: {err}"),
+                hash.as_bytes().to_vec(),
+            )
+        })?;
+        Ok(hash)
+    }
+}
 
 impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespaceT
     for InMemoryNode<S>
@@ -64,59 +227,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
         req: zksync_types::transaction_request::CallRequest,
         _block: Option<BlockIdVariant>,
     ) -> RpcResult<Bytes> {
-        match L2Tx::from_request(req.into(), MAX_TX_SIZE) {
-            Ok(mut tx) => {
-                tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
-                let result = self.run_l2_call(tx);
-
-                match result {
-                    Ok(execution_result) => match execution_result {
-                        ExecutionResult::Success { output } => {
-                            Ok(output.into()).into_boxed_future()
-                        }
-                        ExecutionResult::Revert { output } => {
-                            let message = output.to_user_friendly_string();
-                            let pretty_message = format!(
-                                "execution reverted{}{}",
-                                if message.is_empty() { "" } else { ": " },
-                                message
-                            );
-
-                            tracing::info!("{}", pretty_message.on_red());
-                            Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
-                                pretty_message,
-                                output.encoded_data(),
-                            )))
-                            .into_boxed_future()
-                        }
-                        ExecutionResult::Halt { reason } => {
-                            let message = reason.to_string();
-                            let pretty_message = format!(
-                                "execution halted {}{}",
-                                if message.is_empty() { "" } else { ": " },
-                                message
-                            );
-
-                            tracing::info!("{}", pretty_message.on_red());
-                            Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
-                                pretty_message,
-                                vec![],
-                            )))
-                            .into_boxed_future()
-                        }
-                    },
-                    Err(e) => {
-                        let error_message = format!("Invalid data due to invalid name: {}", e);
-                        let error = Web3Error::InternalError(anyhow::Error::msg(error_message));
-                        Err(into_jsrpc_error(error)).into_boxed_future()
-                    }
-                }
-            }
-            Err(e) => {
-                let error = Web3Error::SerializationError(e);
-                Err(into_jsrpc_error(error)).into_boxed_future()
-            }
-        }
+        self.call_impl(req)
+            .map_err(into_jsrpc_error)
+            .into_boxed_future()
     }
 
     /// Returns the balance of the specified address.
@@ -358,52 +471,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
     /// # Returns
     ///
     /// A future that resolves to the hash of the transaction if successful, or an error if the transaction is invalid or execution fails.
-    fn send_raw_transaction(&self, tx_bytes: Bytes) -> RpcResult<zksync_basic_types::H256> {
-        let chain_id = match self.get_inner().read() {
-            Ok(reader) => reader.fork_storage.chain_id,
-            Err(_) => {
-                return futures::future::err(into_jsrpc_error(Web3Error::InternalError(
-                    anyhow::Error::msg("Failed to acquire read lock for chain ID retrieval"),
-                )))
-                .boxed()
-            }
-        };
-
-        let (tx_req, hash) = match TransactionRequest::from_bytes(&tx_bytes.0, chain_id) {
-            Ok(result) => result,
-            Err(e) => {
-                return futures::future::err(into_jsrpc_error(Web3Error::SerializationError(e)))
-                    .boxed()
-            }
-        };
-
-        let mut l2_tx: L2Tx = match L2Tx::from_request(tx_req, MAX_TX_SIZE) {
-            Ok(tx) => tx,
-            Err(e) => {
-                return futures::future::err(into_jsrpc_error(Web3Error::SerializationError(e)))
-                    .boxed()
-            }
-        };
-
-        l2_tx.set_input(tx_bytes.0, hash);
-        if hash != l2_tx.hash() {
-            let error_message =
-                "Invalid transaction data: computed hash does not match the provided hash.";
-            let web3_error = Web3Error::InternalError(anyhow::Error::msg(error_message));
-            return futures::future::err(into_jsrpc_error(web3_error)).boxed();
-        };
-
-        match self.run_l2_tx(l2_tx.clone(), TxExecutionMode::VerifyExecute) {
-            Ok(_) => Ok(hash).into_boxed_future(),
-            Err(e) => {
-                let error_message = format!("Execution error: {}", e);
-                futures::future::err(into_jsrpc_error(Web3Error::SubmitTransactionError(
-                    error_message,
-                    l2_tx.hash().as_bytes().to_vec(),
-                )))
-                .boxed()
-            }
-        }
+    fn send_raw_transaction(&self, tx_bytes: Bytes) -> RpcResult<H256> {
+        self.send_raw_transaction_impl(tx_bytes)
+            .map_err(into_jsrpc_error)
+            .into_boxed_future()
     }
 
     /// Returns a block by its hash. Currently, only hashes for blocks in memory are supported.
@@ -1391,113 +1462,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthTestNod
     fn send_transaction(
         &self,
         tx: zksync_types::transaction_request::CallRequest,
-    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::H256>> {
-        let (chain_id, l1_gas_price) = match self.get_inner().read() {
-            Ok(reader) => (
-                reader.fork_storage.chain_id,
-                reader.fee_input_provider.l1_gas_price,
-            ),
-            Err(_) => {
-                return futures::future::err(into_jsrpc_error_message(
-                    "Failed to acquire read lock for chain ID retrieval.".to_string(),
-                ))
-                .boxed()
-            }
-        };
-
-        let mut tx_req = TransactionRequest::from(tx.clone());
-        // Users might expect a "sensible default"
-        if tx.gas.is_none() {
-            tx_req.gas = U256::from(MAX_L1_TRANSACTION_GAS_LIMIT);
-        }
-
-        tx_req.chain_id = Some(chain_id.as_u64());
-
-        // EIP-1559 gas fields should be processed separately
-        if tx.gas_price.is_some() {
-            if tx.max_fee_per_gas.is_some() || tx.max_priority_fee_per_gas.is_some() {
-                let error_message = "Transaction contains unsupported fields: max_fee_per_gas or max_priority_fee_per_gas";
-                tracing::error!("{}", error_message);
-                return futures::future::err(into_jsrpc_error_message(error_message.to_string()))
-                    .boxed();
-            }
-        } else {
-            tx_req.gas_price = tx.max_fee_per_gas.unwrap_or(U256::from(l1_gas_price));
-            tx_req.max_priority_fee_per_gas = tx.max_priority_fee_per_gas;
-            if tx_req.transaction_type.is_none() {
-                tx_req.transaction_type = Some(zksync_types::EIP_1559_TX_TYPE.into());
-            }
-        }
-        // Needed to calculate hash
-        tx_req.r = Some(U256::default());
-        tx_req.s = Some(U256::default());
-        tx_req.v = Some(U64::from(27));
-
-        let hash = match tx_req.get_tx_hash() {
-            Ok(result) => result,
-            Err(e) => {
-                tracing::error!("Transaction request serialization error: {}", e);
-                return futures::future::err(into_jsrpc_error(Web3Error::SerializationError(e)))
-                    .boxed();
-            }
-        };
-        let bytes = match tx_req.get_signed_bytes(&PackedEthSignature::from_rsv(
-            &H256::default(),
-            &H256::default(),
-            27,
-        )) {
-            Ok(result) => result,
-            Err(e) => {
-                tracing::error!("Transaction request serialization error: {}", e);
-                return futures::future::err(into_jsrpc_error(Web3Error::SerializationError(e)))
-                    .boxed();
-            }
-        };
-        let mut l2_tx: L2Tx = match L2Tx::from_request(tx_req, MAX_TX_SIZE) {
-            Ok(tx) => tx,
-            Err(e) => {
-                tracing::error!("Transaction serialization error: {}", e);
-                return futures::future::err(into_jsrpc_error(Web3Error::SerializationError(e)))
-                    .boxed();
-            }
-        };
-
-        // `v` was overwritten with 0 during converting into l2 tx
-        let mut signature = vec![0u8; 65];
-        signature[64] = 27;
-        l2_tx.common_data.signature = signature;
-
-        l2_tx.set_input(bytes, hash);
-
-        match self.get_inner().read() {
-            Ok(reader) => {
-                if !reader
-                    .impersonated_accounts
-                    .contains(&l2_tx.common_data.initiator_address)
-                {
-                    let error_message = format!(
-                        "Initiator address {:?} is not allowed to perform transactions",
-                        l2_tx.common_data.initiator_address
-                    );
-                    tracing::error!("{}", error_message);
-                    return futures::future::err(into_jsrpc_error_message(error_message)).boxed();
-                }
-            }
-            Err(_) => {
-                return futures::future::err(into_jsrpc_error_message(
-                    "Failed to acquire read lock for accounts.".to_string(),
-                ))
-                .boxed()
-            }
-        }
-
-        match self.run_l2_tx(l2_tx.clone(), TxExecutionMode::VerifyExecute) {
-            Ok(_) => Ok(l2_tx.hash()).into_boxed_future(),
-            Err(e) => {
-                let error_message = format!("Execution error: {}", e);
-                futures::future::err(into_jsrpc_error_message(error_message)).boxed()
-            }
-        }
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<H256>> {
+        self.send_transaction_impl(tx)
+            .map_err(into_jsrpc_error)
+            .into_boxed_future()
     }
 }
 

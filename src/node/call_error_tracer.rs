@@ -1,3 +1,4 @@
+use zksync_multivm::interface::storage::WriteStorage;
 use zksync_multivm::{
     tracers::dynamic::vm_1_5_0::DynTracer,
     vm_latest::{HistoryMode, SimpleMemory, VmTracer},
@@ -6,7 +7,6 @@ use zksync_multivm::{
         vm_state::ErrorFlags,
     },
 };
-use zksync_state::interface::WriteStorage;
 
 pub struct CallErrorTracer {}
 

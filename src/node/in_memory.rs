@@ -10,7 +10,7 @@ use crate::{
     constants::{LEGACY_RICH_WALLETS, RICH_WALLETS},
     deps::{storage_view::StorageView, InMemoryStorage},
     filters::EthFilters,
-    fork::{block_on, ForkDetails, ForkSource, ForkStorage},
+    fork::{ForkDetails, ForkSource, ForkStorage},
     formatter,
     node::{
         call_error_tracer::CallErrorTracer, fee_model::TestNodeFeeInputProvider,
@@ -20,6 +20,7 @@ use crate::{
     system_contracts::{self, SystemContracts},
     utils::{bytecode_to_factory_dep, create_debug_output, into_jsrpc_error, to_human_size},
 };
+use anyhow::Context as _;
 use colored::Colorize;
 use indexmap::IndexMap;
 use once_cell::sync::OnceCell;
@@ -35,6 +36,7 @@ use zksync_basic_types::{
     U256, U64,
 };
 use zksync_contracts::BaseSystemContracts;
+use zksync_multivm::interface::storage::{ReadStorage, StoragePtr, WriteStorage};
 use zksync_multivm::{
     interface::{
         Call, ExecutionResult, L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode,
@@ -53,11 +55,9 @@ use zksync_multivm::{
     vm_latest::{
         constants::{BATCH_GAS_LIMIT, MAX_VM_PUBDATA_PER_BATCH},
         utils::l2_blocks::load_last_l2_block,
-        ToTracerPointer, TracerPointer, Vm,
+        ToTracerPointer, Vm,
     },
 };
-use zksync_node_fee_model::BatchFeeModelInputProvider;
-use zksync_state::interface::{ReadStorage, StoragePtr, WriteStorage};
 use zksync_types::{
     api::{Block, DebugCall, Log, TransactionReceipt, TransactionVariant},
     block::{unpack_block_info, L2BlockHasher},
@@ -236,10 +236,17 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 blocks,
                 block_hashes,
                 filters: Default::default(),
-                fork_storage: ForkStorage::new(fork, &config.system_contracts_options),
+                fork_storage: ForkStorage::new(
+                    fork,
+                    &config.system_contracts_options,
+                    config.use_evm_emulator,
+                ),
                 config,
                 console_log_handler: ConsoleLogHandler::default(),
-                system_contracts: SystemContracts::from_options(&config.system_contracts_options),
+                system_contracts: SystemContracts::from_options(
+                    &config.system_contracts_options,
+                    config.use_evm_emulator,
+                ),
                 impersonated_accounts: Default::default(),
                 rich_accounts: HashSet::new(),
                 previous_states: Default::default(),
@@ -267,10 +274,17 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 blocks,
                 block_hashes,
                 filters: Default::default(),
-                fork_storage: ForkStorage::new(fork, &config.system_contracts_options),
+                fork_storage: ForkStorage::new(
+                    fork,
+                    &config.system_contracts_options,
+                    config.use_evm_emulator,
+                ),
                 config,
                 console_log_handler: ConsoleLogHandler::default(),
-                system_contracts: SystemContracts::from_options(&config.system_contracts_options),
+                system_contracts: SystemContracts::from_options(
+                    &config.system_contracts_options,
+                    config.use_evm_emulator,
+                ),
                 impersonated_accounts: Default::default(),
                 rich_accounts: HashSet::new(),
                 previous_states: Default::default(),
@@ -310,29 +324,21 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         )
         .new_batch();
 
-        let fee_input: BatchFeeInput;
-
-        if let Some(fork) = &self
+        let fee_input = if let Some(fork) = &self
             .fork_storage
             .inner
             .read()
             .expect("fork_storage lock is already held by the current thread")
             .fork
         {
-            fee_input = BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
+            BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
                 l1_gas_price: fork.l1_gas_price,
                 fair_l2_gas_price: fork.l2_fair_gas_price,
                 fair_pubdata_price: fork.fair_pubdata_price,
-            });
+            })
         } else {
-            let fee_input_provider = self.fee_input_provider.clone();
-            fee_input = block_on(async move {
-                fee_input_provider
-                    .get_batch_fee_input_scaled(1.0, 1.0)
-                    .await
-                    .unwrap()
-            });
-        }
+            self.fee_input_provider.get_batch_fee_input()
+        };
 
         let batch_env = L1BatchEnv {
             // TODO: set the previous batch hash properly (take from fork, when forking, and from local storage, when this is not the first block).
@@ -404,30 +410,27 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         let is_eip712 = request_with_gas_per_pubdata_overridden
             .eip712_meta
             .is_some();
+        let initiator_address = request_with_gas_per_pubdata_overridden
+            .from
+            .unwrap_or_default();
+        let impersonating = self.impersonated_accounts.contains(&initiator_address);
+        let system_contracts = self
+            .system_contracts
+            .contracts_for_fee_estimate(impersonating)
+            .clone();
+        let allow_no_target = system_contracts.evm_emulator.is_some();
 
-        let mut l2_tx =
-            match L2Tx::from_request(request_with_gas_per_pubdata_overridden.into(), MAX_TX_SIZE) {
-                Ok(tx) => tx,
-                Err(e) => {
-                    let error = Web3Error::SerializationError(e);
-                    return Err(into_jsrpc_error(error));
-                }
-            };
+        let mut l2_tx = L2Tx::from_request(
+            request_with_gas_per_pubdata_overridden.into(),
+            MAX_TX_SIZE,
+            allow_no_target,
+        )
+        .map_err(|err| into_jsrpc_error(Web3Error::SerializationError(err)))?;
 
         let tx: Transaction = l2_tx.clone().into();
 
-        let fee_input_provider = self.fee_input_provider.clone();
         let fee_input = {
-            let fee_input = block_on(async move {
-                fee_input_provider
-                    .get_batch_fee_input_scaled(
-                        fee_input_provider.estimate_gas_price_scale_factor,
-                        fee_input_provider.estimate_gas_price_scale_factor,
-                    )
-                    .await
-                    .unwrap()
-            });
-
+            let fee_input = self.fee_input_provider.get_batch_fee_input_scaled();
             // In order for execution to pass smoothly, we need to ensure that block's required gasPerPubdata will be
             // <= to the one in the transaction itself.
             adjust_pubdata_price_for_tx(
@@ -465,16 +468,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         let (mut batch_env, _) = self.create_l1_batch_env(storage.clone());
         batch_env.fee_input = fee_input;
 
-        let impersonating = self
-            .impersonated_accounts
-            .contains(&l2_tx.common_data.initiator_address);
-
-        let system_env = self.create_system_env(
-            self.system_contracts
-                .contracts_for_fee_estimate(impersonating)
-                .clone(),
-            execution_mode,
-        );
+        let system_env = self.create_system_env(system_contracts, execution_mode);
 
         // When the pubdata cost grows very high, the total gas limit required may become very high as well. If
         // we do binary search over any possible gas limit naively, we may end up with a very high number of iterations,
@@ -975,11 +969,14 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     }
 
     /// Applies multiple transactions - but still one per L1 batch.
-    pub fn apply_txs(&self, txs: Vec<L2Tx>) -> Result<(), String> {
+    pub fn apply_txs(&self, txs: Vec<L2Tx>) -> anyhow::Result<()> {
         tracing::info!("Running {:?} transactions (one per batch)", txs.len());
 
         for tx in txs {
-            self.run_l2_tx(tx, TxExecutionMode::VerifyExecute)?;
+            // Getting contracts is reasonably cheap, so we don't cache them. We may need differing contracts
+            // depending on whether impersonation should be enabled for a transaction.
+            let system_contracts = self.system_contracts_for_tx(tx.initiator_account())?;
+            self.run_l2_tx(tx, system_contracts)?;
         }
 
         Ok(())
@@ -1009,23 +1006,55 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         inner.rich_accounts.insert(address);
     }
 
+    pub fn system_contracts_for_l2_call(&self) -> anyhow::Result<BaseSystemContracts> {
+        let inner = self
+            .inner
+            .read()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire read lock"))?;
+        Ok(inner.system_contracts.contracts_for_l2_call().clone())
+    }
+
+    pub fn system_contracts_for_tx(
+        &self,
+        tx_initiator: Address,
+    ) -> anyhow::Result<BaseSystemContracts> {
+        let inner = self
+            .inner
+            .read()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire read lock"))?;
+        Ok(if inner.impersonated_accounts.contains(&tx_initiator) {
+            tracing::info!("🕵️ Executing tx from impersonated account {tx_initiator:?}");
+            inner
+                .system_contracts
+                .contracts(TxExecutionMode::VerifyExecute, true)
+                .clone()
+        } else {
+            inner
+                .system_contracts
+                .contracts(TxExecutionMode::VerifyExecute, false)
+                .clone()
+        })
+    }
+
     /// Runs L2 'eth call' method - that doesn't commit to a block.
-    pub fn run_l2_call(&self, mut l2_tx: L2Tx) -> Result<ExecutionResult, String> {
+    pub fn run_l2_call(
+        &self,
+        mut l2_tx: L2Tx,
+        base_contracts: BaseSystemContracts,
+    ) -> anyhow::Result<ExecutionResult> {
         let execution_mode = TxExecutionMode::EthCall;
 
         let inner = self
             .inner
-            .write()
-            .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
+            .read()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire write lock"))?;
 
         let storage = StorageView::new(&inner.fork_storage).into_rc_ptr();
-
-        let bootloader_code = inner.system_contracts.contracts_for_l2_call();
 
         // init vm
 
         let (batch_env, _) = inner.create_l1_batch_env(storage.clone());
-        let system_env = inner.create_system_env(bootloader_code.clone(), execution_mode);
+        let system_env = inner.create_system_env(base_contracts, execution_mode);
 
         let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage.clone());
 
@@ -1251,13 +1280,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         }
     }
 
-    // Validates L2 transaction
-    fn validate_tx(&self, tx: &L2Tx) -> Result<(), String> {
+    /// Validates L2 transaction
+    fn validate_tx(&self, tx: &L2Tx) -> anyhow::Result<()> {
         let max_gas = U256::from(u64::MAX);
         if tx.common_data.fee.gas_limit > max_gas
             || tx.common_data.fee.gas_per_pubdata_limit > max_gas
         {
-            return Err("exceeds block gas limit".into());
+            anyhow::bail!("exceeds block gas limit");
         }
 
         let l2_gas_price = self
@@ -1272,7 +1301,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 tx.hash(),
                 tx.common_data.fee.max_fee_per_gas
             );
-            return Err("block base fee higher than max fee per gas".into());
+            anyhow::bail!("block base fee higher than max fee per gas");
         }
 
         if tx.common_data.fee.max_fee_per_gas < tx.common_data.fee.max_priority_fee_per_gas {
@@ -1281,7 +1310,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 tx.hash(),
                 tx.common_data.fee.max_fee_per_gas
             );
-            return Err("max priority fee per gas higher than max fee per gas".into());
+            anyhow::bail!("max priority fee per gas higher than max fee per gas");
         }
         Ok(())
     }
@@ -1311,36 +1340,16 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     pub fn run_l2_tx_raw(
         &self,
         l2_tx: L2Tx,
-        execution_mode: TxExecutionMode,
-        mut tracers: Vec<
-            TracerPointer<StorageView<ForkStorage<S>>, zksync_multivm::vm_latest::HistoryDisabled>,
-        >,
+        system_contracts: BaseSystemContracts,
         execute_bootloader: bool,
-    ) -> Result<L2TxResult, String> {
+    ) -> anyhow::Result<L2TxResult> {
         let inner = self
             .inner
             .read()
-            .map_err(|e| format!("Failed to acquire read lock: {}", e))?;
-
+            .map_err(|_| anyhow::anyhow!("Failed to acquire read lock"))?;
         let storage = StorageView::new(inner.fork_storage.clone()).into_rc_ptr();
-
         let (batch_env, block_ctx) = inner.create_l1_batch_env(storage.clone());
-
-        let bootloader_code = {
-            if inner
-                .impersonated_accounts
-                .contains(&l2_tx.common_data.initiator_address)
-            {
-                tracing::info!(
-                    "🕵️ Executing tx from impersonated account {:?}",
-                    l2_tx.common_data.initiator_address
-                );
-                inner.system_contracts.contracts(execution_mode, true)
-            } else {
-                inner.system_contracts.contracts(execution_mode, false)
-            }
-        };
-        let system_env = inner.create_system_env(bootloader_code.clone(), execution_mode);
+        let system_env = inner.create_system_env(system_contracts, TxExecutionMode::VerifyExecute);
 
         let mut vm: Vm<_, HistoryDisabled> =
             Vm::new(batch_env.clone(), system_env, storage.clone());
@@ -1350,19 +1359,17 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         let call_tracer_result = Arc::new(OnceCell::default());
         let bootloader_debug_result = Arc::new(OnceCell::default());
 
-        tracers.push(CallErrorTracer::new().into_tracer_pointer());
-        tracers.push(CallTracer::new(call_tracer_result.clone()).into_tracer_pointer());
-        tracers.push(
+        let tracers = vec![
+            CallErrorTracer::new().into_tracer_pointer(),
+            CallTracer::new(call_tracer_result.clone()).into_tracer_pointer(),
             BootloaderDebugTracer {
                 result: bootloader_debug_result.clone(),
             }
             .into_tracer_pointer(),
-        );
-
+        ];
         let (compressed_bytecodes, tx_result) =
             vm.inspect_transaction_with_bytecode_compression(&mut tracers.into(), tx.clone(), true);
-        let compressed_bytecodes =
-            compressed_bytecodes.map_err(|err| format!("failed compressing bytecodes: {err:?}"))?;
+        let compressed_bytecodes = compressed_bytecodes.context("failed compressing bytecodes")?;
 
         let call_traces = call_tracer_result.get().unwrap();
 
@@ -1476,15 +1483,12 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         };
 
         let mut bytecodes = HashMap::new();
-        for b in compressed_bytecodes.iter() {
-            let hashcode = match bytecode_to_factory_dep(b.original.clone()) {
-                Ok(hc) => hc,
-                Err(error) => {
-                    tracing::error!("{}", format!("cannot convert bytecode: {}", error).on_red());
-                    return Err(error.to_string());
-                }
-            };
-            bytecodes.insert(hashcode.0, hashcode.1);
+        for b in &*compressed_bytecodes {
+            let (hash, bytecode) = bytecode_to_factory_dep(b.original.clone()).map_err(|err| {
+                tracing::error!("{}", format!("cannot convert bytecode: {err}").on_red());
+                err
+            })?;
+            bytecodes.insert(hash, bytecode);
         }
         if execute_bootloader {
             vm.execute(VmExecutionMode::Bootloader);
@@ -1503,19 +1507,18 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     }
 
     /// Runs L2 transaction and commits it to a new block.
-    pub fn run_l2_tx(&self, l2_tx: L2Tx, execution_mode: TxExecutionMode) -> Result<(), String> {
+    pub fn run_l2_tx(
+        &self,
+        l2_tx: L2Tx,
+        system_contracts: BaseSystemContracts,
+    ) -> anyhow::Result<()> {
         let tx_hash = l2_tx.hash();
         let transaction_type = l2_tx.common_data.transaction_type;
 
         tracing::info!("");
         tracing::info!("Validating {}", format!("{:?}", tx_hash).bold());
 
-        match self.validate_tx(&l2_tx) {
-            Ok(_) => (),
-            Err(e) => {
-                return Err(e);
-            }
-        };
+        self.validate_tx(&l2_tx)?;
 
         tracing::info!("Executing {}", format!("{:?}", tx_hash).bold());
 
@@ -1523,24 +1526,24 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             let mut inner = self
                 .inner
                 .write()
-                .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
+                .map_err(|_| anyhow::anyhow!("Failed to acquire write lock"))?;
             inner.filters.notify_new_pending_transaction(tx_hash);
         }
 
         let (keys, result, call_traces, block, bytecodes, block_ctx) =
-            self.run_l2_tx_raw(l2_tx.clone(), execution_mode, vec![], true)?;
+            self.run_l2_tx_raw(l2_tx.clone(), system_contracts, true)?;
 
         if let ExecutionResult::Halt { reason } = result.result {
             // Halt means that something went really bad with the transaction execution (in most cases invalid signature,
             // but it could also be bootloader panic etc).
             // In such case, we should not persist the VM data, and we should pretend that transaction never existed.
-            return Err(format!("Transaction HALT: {}", reason));
+            anyhow::bail!("Transaction HALT: {reason}");
         }
         // Write all the mutated keys (storage slots).
         let mut inner = self
             .inner
             .write()
-            .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
+            .map_err(|_| anyhow::anyhow!("Failed to acquire write lock"))?;
         for (key, value) in keys.iter() {
             inner.fork_storage.set_value(*key, *value);
         }
@@ -1811,9 +1814,11 @@ mod tests {
             .build();
         node.set_rich_account(tx.common_data.initiator_address);
 
-        let result = node.run_l2_tx(tx, TxExecutionMode::VerifyExecute);
-
-        assert_eq!(result.err(), Some("exceeds block gas limit".into()));
+        let system_contracts = node
+            .system_contracts_for_tx(tx.initiator_account())
+            .unwrap();
+        let err = node.run_l2_tx(tx, system_contracts).unwrap_err();
+        assert_eq!(err.to_string(), "exceeds block gas limit");
     }
 
     #[tokio::test]
@@ -1824,11 +1829,14 @@ mod tests {
             .build();
         node.set_rich_account(tx.common_data.initiator_address);
 
-        let result = node.run_l2_tx(tx, TxExecutionMode::VerifyExecute);
+        let system_contracts = node
+            .system_contracts_for_tx(tx.initiator_account())
+            .unwrap();
+        let err = node.run_l2_tx(tx, system_contracts).unwrap_err();
 
         assert_eq!(
-            result.err(),
-            Some("block base fee higher than max fee per gas".into())
+            err.to_string(),
+            "block base fee higher than max fee per gas"
         );
     }
 
@@ -1840,11 +1848,14 @@ mod tests {
             .build();
         node.set_rich_account(tx.common_data.initiator_address);
 
-        let result = node.run_l2_tx(tx, TxExecutionMode::VerifyExecute);
+        let system_contracts = node
+            .system_contracts_for_tx(tx.initiator_account())
+            .unwrap();
+        let err = node.run_l2_tx(tx, system_contracts).unwrap_err();
 
         assert_eq!(
-            result.err(),
-            Some("max priority fee per gas higher than max fee per gas".into())
+            err.to_string(),
+            "max priority fee per gas higher than max fee per gas"
         );
     }
 
@@ -1885,7 +1896,10 @@ mod tests {
         let node = InMemoryNode::<HttpForkSource>::default();
         let tx = testing::TransactionBuilder::new().build();
         node.set_rich_account(tx.common_data.initiator_address);
-        node.run_l2_tx(tx, TxExecutionMode::VerifyExecute).unwrap();
+        let system_contracts = node
+            .system_contracts_for_tx(tx.initiator_account())
+            .unwrap();
+        node.run_l2_tx(tx, system_contracts).unwrap();
         let external_storage = node.inner.read().unwrap().fork_storage.clone();
 
         // Execute next transaction using a fresh in-memory node and the external fork storage
@@ -1914,13 +1928,12 @@ mod tests {
             Default::default(),
         );
 
-        node.run_l2_tx_raw(
-            testing::TransactionBuilder::new().build(),
-            TxExecutionMode::VerifyExecute,
-            vec![],
-            true,
-        )
-        .expect("transaction must pass with external storage");
+        let tx = testing::TransactionBuilder::new().build();
+        let system_contracts = node
+            .system_contracts_for_tx(tx.initiator_account())
+            .unwrap();
+        node.run_l2_tx_raw(tx, system_contracts, true)
+            .expect("transaction must pass with external storage");
     }
 
     #[tokio::test]
@@ -1968,8 +1981,12 @@ mod tests {
         .expect("failed signing tx");
         tx.common_data.transaction_type = TransactionType::LegacyTransaction;
         tx.set_input(vec![], H256::repeat_byte(0x2));
+
+        let system_contracts = node
+            .system_contracts_for_tx(tx.initiator_account())
+            .unwrap();
         let (_, result, ..) = node
-            .run_l2_tx_raw(tx, TxExecutionMode::VerifyExecute, vec![], true)
+            .run_l2_tx_raw(tx, system_contracts, true)
             .expect("failed tx");
 
         match result.result {

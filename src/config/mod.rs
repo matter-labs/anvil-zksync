@@ -88,6 +88,14 @@ impl TestNodeConfig {
                 DevSystemContracts::Local => system_contracts::Options::Local,
             };
         }
+        if opt.emulate_evm {
+            assert_eq!(
+                self.node.system_contracts_options,
+                system_contracts::Options::Local,
+                "EVM emulation currently requires using local contracts"
+            );
+            self.node.use_evm_emulator = true;
+        }
 
         // [`GasConfig`]
         if let Some(l1_gas_price) = &opt.l1_gas_price {
@@ -140,6 +148,7 @@ pub mod node {
         pub show_gas_details: ShowGasDetails,
         pub resolve_hashes: bool,
         pub system_contracts_options: system_contracts::Options,
+        pub use_evm_emulator: bool,
     }
 
     impl Default for InMemoryNodeConfig {
@@ -153,6 +162,7 @@ pub mod node {
                 show_gas_details: Default::default(),
                 resolve_hashes: Default::default(),
                 system_contracts_options: Default::default(),
+                use_evm_emulator: false,
             }
         }
     }

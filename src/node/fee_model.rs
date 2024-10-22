@@ -1,6 +1,4 @@
-use std::fmt::Debug;
-use zksync_node_fee_model::BatchFeeModelInputProvider;
-use zksync_types::fee_model::{FeeModelConfigV2, FeeParams, FeeParamsV2};
+use zksync_types::fee_model::{BatchFeeInput, FeeModelConfigV2, FeeParams, FeeParamsV2};
 use zksync_types::L1_GAS_PER_PUBDATA_BYTE;
 
 use crate::config::gas::{
@@ -103,10 +101,8 @@ impl TestNodeFeeInputProvider {
             max_pubdata_per_batch: self.max_pubdata_per_batch,
         }
     }
-}
 
-impl BatchFeeModelInputProvider for TestNodeFeeInputProvider {
-    fn get_fee_model_params(&self) -> FeeParams {
+    fn get_params(&self) -> FeeParams {
         // TODO: consider using old fee model for the olds blocks, when forking
         FeeParams::V2(FeeParamsV2::new(
             self.get_fee_model_config(),
@@ -114,6 +110,15 @@ impl BatchFeeModelInputProvider for TestNodeFeeInputProvider {
             self.l1_pubdata_price,
             Default::default(),
         ))
+    }
+
+    pub(crate) fn get_batch_fee_input(&self) -> BatchFeeInput {
+        self.get_params().scale(1.0, 1.0)
+    }
+
+    pub(crate) fn get_batch_fee_input_scaled(&self) -> BatchFeeInput {
+        let scale_factor = self.estimate_gas_price_scale_factor;
+        self.get_params().scale(scale_factor, scale_factor)
     }
 }
 
