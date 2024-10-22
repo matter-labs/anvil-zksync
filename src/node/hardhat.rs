@@ -38,7 +38,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> HardhatNam
             .into_boxed_future()
     }
 
-    fn hardhat_getAutomine(&self) -> RpcResult<bool> {
+    fn hardhat_get_automine(&self) -> RpcResult<bool> {
         self.get_automine()
             .map_err(|err| {
                 tracing::error!("failed getting automine: {:?}", err);

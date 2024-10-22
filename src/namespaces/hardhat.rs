@@ -86,7 +86,7 @@ pub trait HardhatNamespaceT {
     /// automatically mine a new block for each transaction or if transactions are being
     /// stored in the mempool for manual or interval mining.
     #[rpc(name = "hardhat_getAutomine")]
-    fn hardhat_getAutomine(&self) -> RpcResult<bool>;
+    fn hardhat_get_automine(&self) -> RpcResult<bool>;
 
     /// Reset the state of the network back to a fresh forked state, or disable forking.
     ///
