@@ -38,6 +38,15 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> HardhatNam
             .into_boxed_future()
     }
 
+    fn hardhat_getAutomine(&self) -> RpcResult<bool> {
+        self.get_automine()
+            .map_err(|err| {
+                tracing::error!("failed getting automine: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(err))
+            })
+            .into_boxed_future()
+    }
+
     fn reset_network(&self, reset_spec: Option<ResetRequest>) -> RpcResult<bool> {
         self.reset_network(reset_spec)
             .map_err(|err| {

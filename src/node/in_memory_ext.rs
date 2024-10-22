@@ -268,6 +268,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
             })
     }
 
+    // TODO: Implement this method correctly
+    pub fn get_automine(&self) -> Result<bool> {
+        Ok(true)
+    }
+
     pub fn reset_network(&self, reset_spec: Option<ResetRequest>) -> Result<bool> {
         let (opt_url, block_number) = if let Some(spec) = reset_spec {
             if let Some(to) = spec.to {
