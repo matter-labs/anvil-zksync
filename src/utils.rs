@@ -207,9 +207,7 @@ pub fn create_debug_output(
             output: output.clone().into(),
             r#type: calltype,
             from: l2_tx.initiator_account(),
-            to: l2_tx
-                .recipient_account()
-                .expect("must have recipient address"),
+            to: l2_tx.recipient_account().unwrap_or_default(),
             gas: l2_tx.common_data.fee.gas_limit,
             value: l2_tx.execute.value,
             input: l2_tx.execute.calldata().into(),
@@ -222,9 +220,7 @@ pub fn create_debug_output(
             output: Default::default(),
             r#type: calltype,
             from: l2_tx.initiator_account(),
-            to: l2_tx
-                .recipient_account()
-                .expect("must have recipient address"),
+            to: l2_tx.recipient_account().unwrap_or_default(),
             gas: l2_tx.common_data.fee.gas_limit,
             value: l2_tx.execute.value,
             input: l2_tx.execute.calldata().into(),
