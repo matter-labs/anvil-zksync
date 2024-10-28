@@ -37,6 +37,7 @@ use zksync_basic_types::{
 };
 use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::interface::storage::{ReadStorage, StoragePtr, WriteStorage};
+use zksync_multivm::utils::{get_batch_base_fee, get_max_batch_gas_limit};
 use zksync_multivm::{
     interface::{
         Call, ExecutionResult, L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode,
@@ -58,6 +59,7 @@ use zksync_multivm::{
         ToTracerPointer, Vm,
     },
 };
+use zksync_types::block::build_bloom;
 use zksync_types::{
     api::{Block, DebugCall, Log, TransactionReceipt, TransactionVariant},
     block::{unpack_block_info, L2BlockHasher},
@@ -66,8 +68,9 @@ use zksync_types::{
     get_code_key, get_nonce_key,
     l2::{L2Tx, TransactionType},
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
-    PackedEthSignature, StorageKey, StorageValue, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
-    MAX_L2_TX_GAS_LIMIT, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
+    BloomInput, PackedEthSignature, StorageKey, StorageValue, Transaction,
+    ACCOUNT_CODE_STORAGE_ADDRESS, EMPTY_UNCLES_HASH, MAX_L2_TX_GAS_LIMIT, SYSTEM_CONTEXT_ADDRESS,
+    SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
 };
 use zksync_utils::{bytecode::hash_bytecode, h256_to_account_address, h256_to_u256, u256_to_h256};
 use zksync_web3_decl::error::Web3Error;
@@ -1470,15 +1473,28 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             .cloned()
             .unwrap_or_default();
 
+        let iter = tx_result.logs.events.iter().flat_map(|event| {
+            event
+                .indexed_topics
+                .iter()
+                .map(|topic| BloomInput::Raw(topic.as_bytes()))
+                .chain([BloomInput::Raw(event.address.as_bytes())])
+        });
+        let logs_bloom = build_bloom(iter);
+
         let block = Block {
             hash,
             parent_hash: parent_block_hash,
+            uncles_hash: EMPTY_UNCLES_HASH,
             number: U64::from(block_ctx.miniblock),
-            timestamp: U256::from(batch_env.timestamp),
             l1_batch_number: Some(U64::from(batch_env.number.0)),
+            base_fee_per_gas: U256::from(get_batch_base_fee(&batch_env, VmVersion::latest())),
+            timestamp: U256::from(batch_env.timestamp),
+            l1_batch_timestamp: Some(U256::from(batch_env.timestamp)),
             transactions: vec![TransactionVariant::Full(transaction)],
             gas_used: U256::from(tx_result.statistics.gas_used),
-            gas_limit: U256::from(BATCH_GAS_LIMIT),
+            gas_limit: U256::from(get_max_batch_gas_limit(VmVersion::latest())),
+            logs_bloom,
             ..Default::default()
         };
 
