@@ -1471,6 +1471,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthTestNod
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::node::NON_FORK_FIRST_BLOCK_TIMESTAMP;
     use crate::{
         config::{cache::CacheConfig, gas::DEFAULT_L2_GAS_PRICE},
         fork::ForkDetails,
@@ -1482,15 +1484,15 @@ mod tests {
         },
     };
     use maplit::hashmap;
+    use zksync_basic_types::vm::VmVersion;
     use zksync_basic_types::{web3, Nonce};
+    use zksync_multivm::utils::get_max_batch_gas_limit;
     use zksync_types::{
         api::{BlockHashObject, BlockNumber, BlockNumberObject, TransactionReceipt},
         utils::deployed_address_create,
-        K256PrivateKey,
+        Bloom, K256PrivateKey, EMPTY_UNCLES_HASH,
     };
     use zksync_web3_decl::types::{SyncState, ValueOrArray};
-
-    use super::*;
 
     #[tokio::test]
     async fn test_eth_syncing() {
@@ -1639,7 +1641,13 @@ mod tests {
     #[tokio::test]
     async fn test_get_block_by_hash_for_produced_block() {
         let node = InMemoryNode::<HttpForkSource>::default();
-        let (expected_block_hash, _) = testing::apply_tx(&node, H256::repeat_byte(0x01));
+        let tx_hash = H256::repeat_byte(0x01);
+        let (expected_block_hash, _) = testing::apply_tx(&node, tx_hash);
+        let genesis_block = node
+            .get_block_by_number(BlockNumber::from(0), false)
+            .await
+            .expect("failed fetching block by number")
+            .expect("no block");
 
         let actual_block = node
             .get_block_by_hash(expected_block_hash, false)
@@ -1647,9 +1655,40 @@ mod tests {
             .expect("failed fetching block by hash")
             .expect("no block");
 
-        assert_eq!(expected_block_hash, actual_block.hash);
-        assert_eq!(U64::from(1), actual_block.number);
-        assert_eq!(Some(U64::from(1)), actual_block.l1_batch_number);
+        let expected_block: Block<TransactionVariant> = Block {
+            hash: expected_block_hash,
+            parent_hash: genesis_block.hash,
+            uncles_hash: EMPTY_UNCLES_HASH,
+            author: Default::default(),
+            state_root: Default::default(),
+            transactions_root: Default::default(),
+            receipts_root: Default::default(),
+            number: U64::from(1),
+            l1_batch_number: Some(U64::from(1)),
+            gas_used: actual_block.gas_used, // Checked separately, see below
+            gas_limit: U256::from(get_max_batch_gas_limit(VmVersion::latest())),
+            base_fee_per_gas: actual_block.base_fee_per_gas, // Checked separately, see below
+            extra_data: Default::default(),
+            logs_bloom: actual_block.logs_bloom, // Checked separately, see below
+            timestamp: U256::from(NON_FORK_FIRST_BLOCK_TIMESTAMP + 1),
+            l1_batch_timestamp: Some(U256::from(NON_FORK_FIRST_BLOCK_TIMESTAMP + 1)),
+            difficulty: Default::default(),
+            total_difficulty: Default::default(),
+            seal_fields: vec![],
+            uncles: vec![],
+            transactions: vec![TransactionVariant::Hash(tx_hash)],
+            size: Default::default(),
+            mix_hash: Default::default(),
+            nonce: Default::default(),
+        };
+
+        assert_eq!(expected_block, actual_block);
+
+        // It is hard to predict the values below without repeating the exact logic used to calculate
+        // them. We are resorting to some basic sanity checks instead.
+        assert!(actual_block.gas_used > U256::zero());
+        assert!(actual_block.base_fee_per_gas > U256::zero());
+        assert_ne!(actual_block.logs_bloom, Bloom::zero());
     }
 
     #[tokio::test]
@@ -1748,17 +1787,55 @@ mod tests {
     #[tokio::test]
     async fn test_get_block_by_number_for_produced_block() {
         let node = InMemoryNode::<HttpForkSource>::default();
-        testing::apply_tx(&node, H256::repeat_byte(0x01));
+        let tx_hash = H256::repeat_byte(0x01);
+        let (expected_block_hash, _) = testing::apply_tx(&node, tx_hash);
         let expected_block_number = 1;
+        let genesis_block = node
+            .get_block_by_number(BlockNumber::from(0), false)
+            .await
+            .expect("failed fetching block by number")
+            .expect("no block");
 
         let actual_block = node
             .get_block_by_number(BlockNumber::Number(U64::from(expected_block_number)), false)
             .await
-            .expect("failed fetching block by hash")
+            .expect("failed fetching block by number")
             .expect("no block");
 
-        assert_eq!(U64::from(expected_block_number), actual_block.number);
-        assert_eq!(1, actual_block.transactions.len());
+        let expected_block: Block<TransactionVariant> = Block {
+            hash: expected_block_hash,
+            parent_hash: genesis_block.hash,
+            uncles_hash: EMPTY_UNCLES_HASH,
+            author: Default::default(),
+            state_root: Default::default(),
+            transactions_root: Default::default(),
+            receipts_root: Default::default(),
+            number: U64::from(expected_block_number),
+            l1_batch_number: Some(U64::from(1)),
+            gas_used: actual_block.gas_used, // Checked separately, see below
+            gas_limit: U256::from(get_max_batch_gas_limit(VmVersion::latest())),
+            base_fee_per_gas: actual_block.base_fee_per_gas, // Checked separately, see below
+            extra_data: Default::default(),
+            logs_bloom: actual_block.logs_bloom, // Checked separately, see below
+            timestamp: U256::from(NON_FORK_FIRST_BLOCK_TIMESTAMP + 1),
+            l1_batch_timestamp: Some(U256::from(NON_FORK_FIRST_BLOCK_TIMESTAMP + 1)),
+            difficulty: Default::default(),
+            total_difficulty: Default::default(),
+            seal_fields: vec![],
+            uncles: vec![],
+            transactions: vec![TransactionVariant::Hash(tx_hash)],
+            size: Default::default(),
+            mix_hash: Default::default(),
+            nonce: Default::default(),
+        };
+
+        assert_eq!(expected_block, actual_block);
+
+        // It is hard to predict the values below without repeating the exact logic used to calculate
+        // them. We are resorting to some basic sanity checks instead.
+        assert!(actual_block.gas_used > U256::zero());
+        assert!(actual_block.base_fee_per_gas > U256::zero());
+        assert_ne!(actual_block.logs_bloom, Bloom::zero());
     }
 
     #[tokio::test]
