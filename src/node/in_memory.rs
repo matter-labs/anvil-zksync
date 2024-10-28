@@ -31,6 +31,7 @@ use std::{
 };
 
 use std::convert::TryInto;
+use zksync_basic_types::web3::Index;
 use zksync_basic_types::{
     web3::keccak256, web3::Bytes, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, H160, H256,
     U256, U64,
@@ -1464,8 +1465,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         let hash = compute_hash(block_ctx.miniblock, l2_tx.hash());
 
         let mut transaction = zksync_types::api::Transaction::from(l2_tx);
-        transaction.block_hash = Some(inner.current_miniblock_hash);
-        transaction.block_number = Some(U64::from(inner.current_miniblock));
+        transaction.block_hash = Some(hash);
+        transaction.block_number = Some(U64::from(block_ctx.miniblock));
+        transaction.transaction_index = Some(Index::zero());
+        transaction.l1_batch_number = Some(U64::from(batch_env.number.0));
+        transaction.l1_batch_tx_index = Some(Index::zero());
 
         let parent_block_hash = inner
             .block_hashes
