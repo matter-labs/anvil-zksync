@@ -38,6 +38,15 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EvmNamespa
             .into_boxed_future()
     }
 
+    fn set_automine(&self, enable_automine: bool) -> RpcResult<String> {
+        self.mine_block()
+            .map_err(|err| {
+                tracing::error!("failed mining block: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(err))
+            })
+            .into_boxed_future()
+    }
+
     fn set_next_block_timestamp(&self, timestamp: U64) -> RpcResult<U64> {
         self.set_next_block_timestamp(timestamp)
             .map_err(|err| {
