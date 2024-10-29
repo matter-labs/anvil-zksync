@@ -65,12 +65,13 @@ pub trait HardhatNamespaceT {
     #[rpc(name = "hardhat_mine")]
     fn hardhat_mine(&self, num_blocks: Option<U64>, interval: Option<U64>) -> RpcResult<bool>;
 
-    /// Retrieves the current automine status of the Hardhat network.
+    /// Retrieves the current automine status of the network.
     ///
-    /// This method checks whether the automine feature is enabled or not. Automine mode
-    /// immediately mines a new block when each transaction is sent. When automine is
-    /// disabled, transactions are added to the mempool, and blocks can be mined manually
-    /// or at set intervals using interval mining.
+    /// This method always returns `true` as automining is enabled by default, meaning a new block is
+    /// mined immediately with each transaction. Disabling automining to allow pending transactions in the
+    /// mempool and manual or interval mining is currently not supported. To implement this, modifications
+    /// would be needed to support pending transaction handling and refactor `run_l2_tx` and `run_l2_tx_raw`
+    /// for modularity and maintainability.
     ///
     /// # Arguments
     ///
@@ -78,13 +79,7 @@ pub trait HardhatNamespaceT {
     ///
     /// # Returns
     ///
-    /// A `BoxFuture` containing a `Result` with a `bool` value indicating whether automine is enabled (`true`) or disabled (`false`).
-    ///
-    /// # Usage
-    ///
-    /// This method can be used to determine if the Hardhat Network is currently set to
-    /// automatically mine a new block for each transaction or if transactions are being
-    /// stored in the mempool for manual or interval mining.
+    /// A `BoxFuture` containing a `Result` with a `bool` value indicating the automine status (`true` for enabled).
     #[rpc(name = "hardhat_getAutomine")]
     fn hardhat_get_automine(&self) -> RpcResult<bool>;
 

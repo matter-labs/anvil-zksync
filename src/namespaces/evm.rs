@@ -37,16 +37,6 @@ pub trait EvmNamespaceT {
     #[rpc(name = "evm_mine")]
     fn evm_mine(&self) -> RpcResult<String>;
 
-    /// Enable or disable automining.
-    ///
-    /// # Parameters
-    /// - `enabled`: A boolean to enable (true) or disable (false) automining.
-    ///
-    /// # Returns
-    /// A `bool` indicating if automining was successfully enabled or disabled.
-    #[rpc(name = "evm_setAutomine")]
-    fn set_automine(&self, enabled: bool) -> RpcResult<bool>;
-
     /// Set timestamp for the next block. The timestamp must be in future.
     ///
     /// # Parameters
