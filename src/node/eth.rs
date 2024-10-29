@@ -1471,6 +1471,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthTestNod
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::node::NON_FORK_FIRST_BLOCK_TIMESTAMP;
     use crate::{
         config::{cache::CacheConfig, gas::DEFAULT_L2_GAS_PRICE},
         fork::ForkDetails,
@@ -1482,15 +1484,17 @@ mod tests {
         },
     };
     use maplit::hashmap;
+    use zksync_basic_types::vm::VmVersion;
     use zksync_basic_types::{web3, Nonce};
+    use zksync_multivm::utils::get_max_batch_gas_limit;
+    use zksync_types::l2::TransactionType;
     use zksync_types::{
+        api,
         api::{BlockHashObject, BlockNumber, BlockNumberObject, TransactionReceipt},
         utils::deployed_address_create,
-        K256PrivateKey,
+        Bloom, K256PrivateKey, EMPTY_UNCLES_HASH,
     };
     use zksync_web3_decl::types::{SyncState, ValueOrArray};
-
-    use super::*;
 
     #[tokio::test]
     async fn test_eth_syncing() {
@@ -1639,7 +1643,13 @@ mod tests {
     #[tokio::test]
     async fn test_get_block_by_hash_for_produced_block() {
         let node = InMemoryNode::<HttpForkSource>::default();
-        let (expected_block_hash, _) = testing::apply_tx(&node, H256::repeat_byte(0x01));
+        let tx_hash = H256::repeat_byte(0x01);
+        let (expected_block_hash, _, _) = testing::apply_tx(&node, tx_hash);
+        let genesis_block = node
+            .get_block_by_number(BlockNumber::from(0), false)
+            .await
+            .expect("failed fetching block by number")
+            .expect("no block");
 
         let actual_block = node
             .get_block_by_hash(expected_block_hash, false)
@@ -1647,9 +1657,40 @@ mod tests {
             .expect("failed fetching block by hash")
             .expect("no block");
 
-        assert_eq!(expected_block_hash, actual_block.hash);
-        assert_eq!(U64::from(1), actual_block.number);
-        assert_eq!(Some(U64::from(1)), actual_block.l1_batch_number);
+        let expected_block: Block<TransactionVariant> = Block {
+            hash: expected_block_hash,
+            parent_hash: genesis_block.hash,
+            uncles_hash: EMPTY_UNCLES_HASH,
+            author: Default::default(),
+            state_root: Default::default(),
+            transactions_root: Default::default(),
+            receipts_root: Default::default(),
+            number: U64::from(1),
+            l1_batch_number: Some(U64::from(1)),
+            gas_used: actual_block.gas_used, // Checked separately, see below
+            gas_limit: U256::from(get_max_batch_gas_limit(VmVersion::latest())),
+            base_fee_per_gas: actual_block.base_fee_per_gas, // Checked separately, see below
+            extra_data: Default::default(),
+            logs_bloom: actual_block.logs_bloom, // Checked separately, see below
+            timestamp: U256::from(NON_FORK_FIRST_BLOCK_TIMESTAMP + 1),
+            l1_batch_timestamp: Some(U256::from(NON_FORK_FIRST_BLOCK_TIMESTAMP + 1)),
+            difficulty: Default::default(),
+            total_difficulty: Default::default(),
+            seal_fields: vec![],
+            uncles: vec![],
+            transactions: vec![TransactionVariant::Hash(tx_hash)],
+            size: Default::default(),
+            mix_hash: Default::default(),
+            nonce: Default::default(),
+        };
+
+        assert_eq!(expected_block, actual_block);
+
+        // It is hard to predict the values below without repeating the exact logic used to calculate
+        // them. We are resorting to some basic sanity checks instead.
+        assert!(actual_block.gas_used > U256::zero());
+        assert!(actual_block.base_fee_per_gas > U256::zero());
+        assert_ne!(actual_block.logs_bloom, Bloom::zero());
     }
 
     #[tokio::test]
@@ -1748,17 +1789,102 @@ mod tests {
     #[tokio::test]
     async fn test_get_block_by_number_for_produced_block() {
         let node = InMemoryNode::<HttpForkSource>::default();
-        testing::apply_tx(&node, H256::repeat_byte(0x01));
+        let tx_hash = H256::repeat_byte(0x01);
+        let (expected_block_hash, _, _) = testing::apply_tx(&node, tx_hash);
         let expected_block_number = 1;
+        let genesis_block = node
+            .get_block_by_number(BlockNumber::from(0), false)
+            .await
+            .expect("failed fetching block by number")
+            .expect("no block");
 
         let actual_block = node
             .get_block_by_number(BlockNumber::Number(U64::from(expected_block_number)), false)
             .await
-            .expect("failed fetching block by hash")
+            .expect("failed fetching block by number")
             .expect("no block");
 
-        assert_eq!(U64::from(expected_block_number), actual_block.number);
-        assert_eq!(1, actual_block.transactions.len());
+        let expected_block: Block<TransactionVariant> = Block {
+            hash: expected_block_hash,
+            parent_hash: genesis_block.hash,
+            uncles_hash: EMPTY_UNCLES_HASH,
+            author: Default::default(),
+            state_root: Default::default(),
+            transactions_root: Default::default(),
+            receipts_root: Default::default(),
+            number: U64::from(expected_block_number),
+            l1_batch_number: Some(U64::from(1)),
+            gas_used: actual_block.gas_used, // Checked separately, see below
+            gas_limit: U256::from(get_max_batch_gas_limit(VmVersion::latest())),
+            base_fee_per_gas: actual_block.base_fee_per_gas, // Checked separately, see below
+            extra_data: Default::default(),
+            logs_bloom: actual_block.logs_bloom, // Checked separately, see below
+            timestamp: U256::from(NON_FORK_FIRST_BLOCK_TIMESTAMP + 1),
+            l1_batch_timestamp: Some(U256::from(NON_FORK_FIRST_BLOCK_TIMESTAMP + 1)),
+            difficulty: Default::default(),
+            total_difficulty: Default::default(),
+            seal_fields: vec![],
+            uncles: vec![],
+            transactions: vec![TransactionVariant::Hash(tx_hash)],
+            size: Default::default(),
+            mix_hash: Default::default(),
+            nonce: Default::default(),
+        };
+
+        assert_eq!(expected_block, actual_block);
+
+        // It is hard to predict the values below without repeating the exact logic used to calculate
+        // them. We are resorting to some basic sanity checks instead.
+        assert!(actual_block.gas_used > U256::zero());
+        assert!(actual_block.base_fee_per_gas > U256::zero());
+        assert_ne!(actual_block.logs_bloom, Bloom::zero());
+    }
+
+    #[tokio::test]
+    async fn test_get_block_by_number_for_produced_block_full_txs() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let tx_hash = H256::repeat_byte(0x01);
+        let (block_hash, _, tx) = testing::apply_tx(&node, tx_hash);
+        let expected_block_number = 1;
+
+        let mut actual_block = node
+            .get_block_by_number(BlockNumber::Number(U64::from(expected_block_number)), true)
+            .await
+            .expect("failed fetching block by number")
+            .expect("no block");
+
+        assert_eq!(actual_block.transactions.len(), 1);
+        let actual_tx = match actual_block.transactions.remove(0) {
+            TransactionVariant::Full(tx) => tx,
+            TransactionVariant::Hash(_) => unreachable!(),
+        };
+        let expected_tx = api::Transaction {
+            hash: tx_hash,
+            nonce: U256::from(0),
+            block_hash: Some(block_hash),
+            block_number: Some(U64::from(expected_block_number)),
+            transaction_index: Some(U64::from(0)),
+            from: Some(tx.initiator_account()),
+            to: tx.recipient_account(),
+            value: U256::from(1),
+            gas_price: Some(tx.common_data.fee.max_fee_per_gas),
+            gas: tx.common_data.fee.gas_limit,
+            input: Default::default(),
+            v: actual_tx.v, // Checked separately, see below
+            r: actual_tx.r, // Checked separately, see below
+            s: actual_tx.s, // Checked separately, see below
+            raw: None,
+            transaction_type: Some(U64::from(TransactionType::EIP712Transaction as u32)),
+            access_list: None,
+            max_fee_per_gas: Some(tx.common_data.fee.max_fee_per_gas),
+            max_priority_fee_per_gas: Some(tx.common_data.fee.max_priority_fee_per_gas),
+            chain_id: U256::from(260),
+            l1_batch_number: Some(U64::from(1)),
+            l1_batch_tx_index: Some(U64::from(0)),
+        };
+        assert_eq!(expected_tx, actual_tx);
+
+        // TODO: Verify that the TX is signed properly (use alloy to abstract from zksync-core code?)
     }
 
     #[tokio::test]
@@ -1939,7 +2065,7 @@ mod tests {
     async fn test_get_block_transaction_count_by_hash_for_produced_block() {
         let node = InMemoryNode::<HttpForkSource>::default();
 
-        let (expected_block_hash, _) = testing::apply_tx(&node, H256::repeat_byte(0x01));
+        let (expected_block_hash, _, _) = testing::apply_tx(&node, H256::repeat_byte(0x01));
         let actual_transaction_count = node
             .get_block_transaction_count_by_hash(expected_block_hash)
             .await
@@ -2150,7 +2276,7 @@ mod tests {
     async fn test_get_transaction_receipt_uses_produced_block_hash() {
         let node = InMemoryNode::<HttpForkSource>::default();
         let tx_hash = H256::repeat_byte(0x01);
-        let (expected_block_hash, _) = testing::apply_tx(&node, tx_hash);
+        let (expected_block_hash, _, _) = testing::apply_tx(&node, tx_hash);
 
         let actual_tx_receipt = node
             .get_transaction_receipt(tx_hash)
@@ -2232,7 +2358,7 @@ mod tests {
             .new_block_filter()
             .await
             .expect("failed creating filter");
-        let (block_hash, _) = testing::apply_tx(&node, H256::repeat_byte(0x1));
+        let (block_hash, _, _) = testing::apply_tx(&node, H256::repeat_byte(0x1));
 
         match node
             .get_filter_changes(filter_id)
@@ -3048,7 +3174,7 @@ mod tests {
     async fn test_get_transaction_by_block_hash_and_index_returns_none_for_invalid_block_hash() {
         let node = InMemoryNode::<HttpForkSource>::default();
         let input_tx_hash = H256::repeat_byte(0x01);
-        let (input_block_hash, _) = testing::apply_tx(&node, input_tx_hash);
+        let (input_block_hash, _, _) = testing::apply_tx(&node, input_tx_hash);
         let invalid_block_hash = H256::repeat_byte(0xab);
         assert_ne!(input_block_hash, invalid_block_hash);
 
@@ -3064,7 +3190,7 @@ mod tests {
     async fn test_get_transaction_by_block_hash_and_index_returns_none_for_invalid_index() {
         let node = InMemoryNode::<HttpForkSource>::default();
         let input_tx_hash = H256::repeat_byte(0x01);
-        let (input_block_hash, _) = testing::apply_tx(&node, input_tx_hash);
+        let (input_block_hash, _, _) = testing::apply_tx(&node, input_tx_hash);
 
         let result = node
             .get_transaction_by_block_hash_and_index(input_block_hash, U64::from(10))
@@ -3078,7 +3204,7 @@ mod tests {
     async fn test_get_transaction_by_block_hash_and_index_returns_transaction_for_valid_input() {
         let node = InMemoryNode::<HttpForkSource>::default();
         let input_tx_hash = H256::repeat_byte(0x01);
-        let (input_block_hash, _) = testing::apply_tx(&node, input_tx_hash);
+        let (input_block_hash, _, _) = testing::apply_tx(&node, input_tx_hash);
 
         let actual_tx = node
             .get_transaction_by_block_hash_and_index(input_block_hash, U64::from(0))
@@ -3201,7 +3327,7 @@ mod tests {
     {
         let node = InMemoryNode::<HttpForkSource>::default();
         let input_tx_hash = H256::repeat_byte(0x01);
-        let (input_block_hash, _) = testing::apply_tx(&node, input_tx_hash);
+        let (input_block_hash, _, _) = testing::apply_tx(&node, input_tx_hash);
         let invalid_block_hash = H256::repeat_byte(0xab);
         assert_ne!(input_block_hash, invalid_block_hash);
 
@@ -3234,7 +3360,7 @@ mod tests {
     async fn test_get_transaction_by_block_number_and_index_returns_transaction_for_valid_input() {
         let node = InMemoryNode::<HttpForkSource>::default();
         let input_tx_hash = H256::repeat_byte(0x01);
-        let (_, input_block_number) = testing::apply_tx(&node, input_tx_hash);
+        let (_, input_block_number, _) = testing::apply_tx(&node, input_tx_hash);
 
         let actual_tx = node
             .get_transaction_by_block_number_and_index(

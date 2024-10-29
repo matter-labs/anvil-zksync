@@ -1,4 +1,53 @@
 //! In-memory node, that supports forking other networks.
+use std::{
+    collections::{HashMap, HashSet},
+    convert::TryInto,
+    str::FromStr,
+    sync::{Arc, RwLock},
+};
+
+use anyhow::Context as _;
+use colored::Colorize;
+use indexmap::IndexMap;
+use once_cell::sync::OnceCell;
+use zksync_basic_types::{
+    web3::{keccak256, Bytes, Index},
+    AccountTreeId, Address, L1BatchNumber, L2BlockNumber, H160, H256, H64, U256, U64,
+};
+use zksync_contracts::BaseSystemContracts;
+use zksync_multivm::{
+    interface::{
+        storage::{ReadStorage, StoragePtr, WriteStorage},
+        Call, ExecutionResult, L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode,
+        VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt,
+    },
+    tracers::CallTracer,
+    utils::{
+        adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
+        get_batch_base_fee, get_max_batch_gas_limit, get_max_gas_per_pubdata_byte,
+    },
+    vm_latest::{
+        constants::{BATCH_COMPUTATIONAL_GAS_LIMIT, BATCH_GAS_LIMIT, MAX_VM_PUBDATA_PER_BATCH},
+        utils::l2_blocks::load_last_l2_block,
+        HistoryDisabled, ToTracerPointer, Vm,
+    },
+    VmVersion,
+};
+use zksync_types::{
+    api::{Block, DebugCall, Log, TransactionReceipt, TransactionVariant},
+    block::{build_bloom, unpack_block_info, L2BlockHasher},
+    fee::Fee,
+    fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
+    get_code_key, get_nonce_key,
+    l2::{L2Tx, TransactionType},
+    utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
+    BloomInput, PackedEthSignature, StorageKey, StorageValue, Transaction,
+    ACCOUNT_CODE_STORAGE_ADDRESS, EMPTY_UNCLES_HASH, MAX_L2_TX_GAS_LIMIT, SYSTEM_CONTEXT_ADDRESS,
+    SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
+};
+use zksync_utils::{bytecode::hash_bytecode, h256_to_account_address, h256_to_u256, u256_to_h256};
+use zksync_web3_decl::error::Web3Error;
+
 use crate::{
     bootloader_debug::{BootloaderDebug, BootloaderDebugTracer},
     config::{
@@ -20,57 +69,6 @@ use crate::{
     system_contracts::{self, SystemContracts},
     utils::{bytecode_to_factory_dep, create_debug_output, into_jsrpc_error, to_human_size},
 };
-use anyhow::Context as _;
-use colored::Colorize;
-use indexmap::IndexMap;
-use once_cell::sync::OnceCell;
-use std::{
-    collections::{HashMap, HashSet},
-    str::FromStr,
-    sync::{Arc, RwLock},
-};
-
-use std::convert::TryInto;
-use zksync_basic_types::{
-    web3::keccak256, web3::Bytes, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, H160, H256,
-    U256, U64,
-};
-use zksync_contracts::BaseSystemContracts;
-use zksync_multivm::interface::storage::{ReadStorage, StoragePtr, WriteStorage};
-use zksync_multivm::{
-    interface::{
-        Call, ExecutionResult, L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode,
-        VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt,
-    },
-    vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
-    VmVersion,
-};
-use zksync_multivm::{
-    tracers::CallTracer,
-    utils::{
-        adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
-        get_max_gas_per_pubdata_byte,
-    },
-    vm_latest::HistoryDisabled,
-    vm_latest::{
-        constants::{BATCH_GAS_LIMIT, MAX_VM_PUBDATA_PER_BATCH},
-        utils::l2_blocks::load_last_l2_block,
-        ToTracerPointer, Vm,
-    },
-};
-use zksync_types::{
-    api::{Block, DebugCall, Log, TransactionReceipt, TransactionVariant},
-    block::{unpack_block_info, L2BlockHasher},
-    fee::Fee,
-    fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
-    get_code_key, get_nonce_key,
-    l2::{L2Tx, TransactionType},
-    utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
-    PackedEthSignature, StorageKey, StorageValue, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
-    MAX_L2_TX_GAS_LIMIT, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
-};
-use zksync_utils::{bytecode::hash_bytecode, h256_to_account_address, h256_to_u256, u256_to_h256};
-use zksync_web3_decl::error::Web3Error;
 
 /// Max possible size of an ABI encoded tx (in bytes).
 pub const MAX_TX_SIZE: usize = 1_000_000;
@@ -1461,8 +1459,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         let hash = compute_hash(block_ctx.miniblock, l2_tx.hash());
 
         let mut transaction = zksync_types::api::Transaction::from(l2_tx);
-        transaction.block_hash = Some(inner.current_miniblock_hash);
-        transaction.block_number = Some(U64::from(inner.current_miniblock));
+        transaction.block_hash = Some(hash);
+        transaction.block_number = Some(U64::from(block_ctx.miniblock));
+        transaction.transaction_index = Some(Index::zero());
+        transaction.l1_batch_number = Some(U64::from(batch_env.number.0));
+        transaction.l1_batch_tx_index = Some(Index::zero());
 
         let parent_block_hash = inner
             .block_hashes
@@ -1470,16 +1471,40 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             .cloned()
             .unwrap_or_default();
 
+        let iter = tx_result.logs.events.iter().flat_map(|event| {
+            event
+                .indexed_topics
+                .iter()
+                .map(|topic| BloomInput::Raw(topic.as_bytes()))
+                .chain([BloomInput::Raw(event.address.as_bytes())])
+        });
+        let logs_bloom = build_bloom(iter);
+
         let block = Block {
             hash,
             parent_hash: parent_block_hash,
+            uncles_hash: EMPTY_UNCLES_HASH, // Static for non-PoW chains, see EIP-3675
             number: U64::from(block_ctx.miniblock),
-            timestamp: U256::from(batch_env.timestamp),
             l1_batch_number: Some(U64::from(batch_env.number.0)),
+            base_fee_per_gas: U256::from(get_batch_base_fee(&batch_env, VmVersion::latest())),
+            timestamp: U256::from(batch_env.timestamp),
+            l1_batch_timestamp: Some(U256::from(batch_env.timestamp)),
             transactions: vec![TransactionVariant::Full(transaction)],
             gas_used: U256::from(tx_result.statistics.gas_used),
-            gas_limit: U256::from(BATCH_GAS_LIMIT),
-            ..Default::default()
+            gas_limit: U256::from(get_max_batch_gas_limit(VmVersion::latest())),
+            logs_bloom,
+            author: Address::default(), // Matches core's behavior, irrelevant for ZKsync
+            state_root: H256::default(), // Intentionally empty as blocks in ZKsync don't have state - batches do
+            transactions_root: H256::default(), // Intentionally empty as blocks in ZKsync don't have state - batches do
+            receipts_root: H256::default(), // Intentionally empty as blocks in ZKsync don't have state - batches do
+            extra_data: Bytes::default(),   // Matches core's behavior, not used in ZKsync
+            difficulty: U256::default(), // Empty for non-PoW chains, see EIP-3675, TODO: should be 2500000000000000 to match DIFFICULTY opcode
+            total_difficulty: U256::default(), // Empty for non-PoW chains, see EIP-3675
+            seal_fields: vec![],         // Matches core's behavior, TODO: remove
+            uncles: vec![],              // Empty for non-PoW chains, see EIP-3675
+            size: U256::default(), // Matches core's behavior, TODO: perhaps it should be computed
+            mix_hash: H256::default(), // Empty for non-PoW chains, see EIP-3675
+            nonce: H64::default(), // Empty for non-PoW chains, see EIP-3675
         };
 
         let mut bytecodes = HashMap::new();
