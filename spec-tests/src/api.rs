@@ -1,4 +1,4 @@
-use alloy::network::EthereumWallet;
+use alloy::network::{EthereumWallet, TransactionBuilder};
 use alloy::primitives::Address;
 use alloy::providers::{Provider, ProviderBuilder};
 use alloy::rpc::types::TransactionRequest;
@@ -74,11 +74,12 @@ impl EraApi {
             .to(Address::from_str(
                 "0x55bE1B079b53962746B2e86d12f158a41DF294A6",
             )?)
-            .value(value.to_string().parse()?);
+            .value(value.to_string().parse()?)
+            .with_gas_price(100000000000);
 
         // FIXME: this does not work yet because we include pre EIP-98/EIP-658 `root` field in tx
         // receipts.
-        provider.send_transaction(tx).await?.register().await?;
+        provider.send_transaction(tx).await?.watch().await?;
 
         Ok(())
     }

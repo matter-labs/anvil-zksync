@@ -1,8 +1,6 @@
 //! Validation that zkSync Era In-Memory Node conforms to the official Ethereum Spec
 
-use crate::tests::api::EraApi;
-use crate::tests::patch::Patch;
-use crate::tests::process;
+use era_test_node_spec_tests::{process, EraApi, EthSpecPatch};
 use openrpc_types::resolved::{Method, OpenRPC};
 use schemars::visit::Visitor;
 use serde_json::json;
@@ -29,7 +27,7 @@ fn resolve_method_spec(method_name: &str) -> Method {
     method
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn validate_eth_get_block_genesis() -> anyhow::Result<()> {
     // Start era-test-node as an OS process with a randomly selected RPC port
     let node_handle = process::run_default().await?;
@@ -40,12 +38,11 @@ async fn validate_eth_get_block_genesis() -> anyhow::Result<()> {
     // Assumes you have a locally built openrpc.json from https://github.com/ethereum/execution-apis
     // (see TODO in resolve_method_spec).
     let method = resolve_method_spec("eth_getBlockByNumber");
-    // Resolve the expected result's JSON Schema (shoulb be self contained with no references).
+    // Resolve the expected result's JSON Schema (should be self-contained with no references).
     let mut result_schema = method.result.unwrap().schema;
     // Patch the schema with the **known** differences between Ethereum Specification and ZKsync.
     // In this case it is three extra fields relating to L1 batches and seal criteria.
-    let mut patch = Patch::for_block();
-    patch.visit_schema(&mut result_schema);
+    EthSpecPatch::for_block().visit_schema(&mut result_schema);
     // Build JSON Schema validator based on the resulting schema.
     let validator = jsonschema::options().build(&serde_json::to_value(result_schema)?)?;
     // Make a real request to the running era-test-node and get its response as a JSON value.
@@ -62,20 +59,18 @@ async fn validate_eth_get_block_genesis() -> anyhow::Result<()> {
 #[ignore]
 #[test_log::test(tokio::test)]
 async fn validate_eth_get_block_with_txs() -> anyhow::Result<()> {
-    // Start era-test-node process
     let node_handle = process::run_default().await?;
-    // Connect to it via JSON-RPC API
     let era_api = EraApi::local(node_handle.config.rpc_port)?;
 
     era_api.transfer_eth(U256::from("100")).await?;
 
     let method = resolve_method_spec("eth_getBlockByNumber");
     let mut result_schema = method.result.unwrap().schema;
-    let mut patch = Patch::for_block();
-    patch.visit_schema(&mut result_schema);
+    EthSpecPatch::for_block().visit_schema(&mut result_schema);
+    EthSpecPatch::for_full_txs().visit_schema(&mut result_schema);
     let validator = jsonschema::options().build(&serde_json::to_value(result_schema)?)?;
     let result = era_api
-        .make_request("eth_getBlockByNumber", vec![json!("0x1"), json!(false)])
+        .make_request("eth_getBlockByNumber", vec![json!("0x1"), json!(true)])
         .await?;
     validator.validate(&result).unwrap();
 

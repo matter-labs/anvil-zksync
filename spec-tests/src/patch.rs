@@ -5,12 +5,12 @@ use serde_json::json;
 
 /// Patch for **known** zkSync-specific fields that are not a part of Ethereum spec. Be mindful
 /// adding new stuff here and ensure this is the desired outcome!
-pub struct Patch {
+pub struct EthSpecPatch {
     schema_name: String,
     additional_properties: Map<String, Schema>,
 }
 
-impl Patch {
+impl EthSpecPatch {
     pub fn for_block() -> Self {
         Self {
             schema_name: "Block object".to_string(),
@@ -33,9 +33,27 @@ impl Patch {
             ].into(),
         }
     }
+
+    pub fn for_full_txs() -> Self {
+        Self {
+            schema_name: "Full transactions".to_string(),
+            additional_properties: [
+                (
+                    "l1BatchNumber".to_string(),
+                    // Null for blocks that are not a part of L1 batch yet
+                    serde_json::from_value(json!({"oneOf": [{"type": "null"}, {"type": "string", "pattern": "^0x([1-9a-f]+[0-9a-f]*|0)$"}]})).unwrap(),
+                ),
+                (
+                    "l1BatchTxIndex".to_string(),
+                    // Null for blocks that are not a part of L1 batch yet
+                    serde_json::from_value(json!({"oneOf": [{"type": "null"}, {"type": "string", "pattern": "^0x([1-9a-f]+[0-9a-f]*|0)$"}]})).unwrap(),
+                ),
+            ].into(),
+        }
+    }
 }
 
-impl Visitor for Patch {
+impl Visitor for EthSpecPatch {
     fn visit_schema_object(&mut self, schema: &mut SchemaObject) {
         // We need to always call `visit_schema_object` at the end of this function's flow.
         // Below is a little trick to still be able do early return without copy-pasting the
