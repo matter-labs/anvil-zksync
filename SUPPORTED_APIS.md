@@ -104,7 +104,7 @@ The `status` options are:
 | `HARDHAT` | `hardhat_addCompilationResult` | `NOT IMPLEMENTED` | Add information about compiled contracts |
 | `HARDHAT` | `hardhat_dropTransaction` | `NOT IMPLEMENTED` | Remove a transaction from the mempool |
 | [`HARDHAT`](#hardhat-namespace) | [`hardhat_impersonateAccount`](#hardhat_impersonateaccount) | `SUPPORTED` | Impersonate an account |
-| `HARDHAT` | `hardhat_getAutomine` | `PARTIAL` | Currently always returns `true` as era-test-node by default mines new blocks with each new transaction.  |
+| [`HARDHAT`](#hardhat-namespace) | [`hardhat_getAutomine`](#hardhat_getautomine) | `PARTIAL` | Currently always returns `true` as era-test-node by default mines new blocks with each new transaction.  |
 | `HARDHAT` | `hardhat_metadata` | `NOT IMPLEMENTED` | Returns the metadata of the current network |
 | [`HARDHAT`](#hardhat-namespace) | [`hardhat_mine`](#hardhat_mine) | Mine any number of blocks at once, in constant time |
 | [`HARDHAT`](#hardhat-namespace) | [`hardhat_reset`](#hardhat_reset) | `PARTIALLY` | Resets the state of the network; cannot revert to past block numbers, unless they're in a fork |
@@ -1570,6 +1570,39 @@ curl --request POST \
 }'
 
 ```
+
+### `hardhat_getAutomine`
+
+[source](src/node/hardhat.rs)
+
+This method retrieves the current automine status of the network. Automine mode mines a new block automatically with each transaction, ensuring that transactions are processed immediately. By default, automine is enabled, returning `true` for each call.
+
+Disabling automine to allow for pending transactions in the mempool and manual or interval mining is not currently supported. Thus, `hardhat_getAutomine` will always return true.
+
+#### Arguments
+
+This RPC method does not accept any arguments.
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "hardhat_getAutomine",
+    "params": []
+}'
+```
+
+#### Response
+
+A boolean value indicating the automine status:
+
+- `true`: Automine is enabled (the default state).
+- `false`: Automine is disabled (not currently supported).
 
 ### `hardhat_reset`
 
