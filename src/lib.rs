@@ -59,3 +59,6 @@ pub mod utils;
 
 mod cache;
 mod testing;
+
+#[cfg(test)]
+mod tests;
