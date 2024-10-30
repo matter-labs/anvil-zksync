@@ -452,7 +452,10 @@ impl TransactionBuilder {
             Default::default(),
         )
         .unwrap();
-        tx.set_input(vec![], self.tx_hash);
+        tx.set_input(
+            tx.common_data.input_data().unwrap_or_default().into(),
+            self.tx_hash,
+        );
         tx
     }
 }
@@ -461,7 +464,7 @@ impl TransactionBuilder {
 pub fn apply_tx<T: ForkSource + std::fmt::Debug + Clone>(
     node: &InMemoryNode<T>,
     tx_hash: H256,
-) -> (H256, U64) {
+) -> (H256, U64, L2Tx) {
     let next_miniblock = node
         .get_inner()
         .read()
@@ -472,9 +475,10 @@ pub fn apply_tx<T: ForkSource + std::fmt::Debug + Clone>(
     let tx = TransactionBuilder::new().set_hash(tx_hash).build();
 
     node.set_rich_account(tx.common_data.initiator_address);
-    node.apply_txs(vec![tx]).expect("failed applying tx");
+    node.apply_txs(vec![tx.clone()])
+        .expect("failed applying tx");
 
-    (produced_block_hash, U64::from(next_miniblock))
+    (produced_block_hash, U64::from(next_miniblock), tx)
 }
 
 /// Deploys a contract with the given bytecode.
@@ -964,7 +968,7 @@ mod test {
     #[tokio::test]
     async fn test_apply_tx() {
         let node = InMemoryNode::<HttpForkSource>::default();
-        let (actual_block_hash, actual_block_number) = apply_tx(&node, H256::repeat_byte(0x01));
+        let (actual_block_hash, actual_block_number, _) = apply_tx(&node, H256::repeat_byte(0x01));
 
         assert_eq!(
             H256::from_str("0xd97ba6a5ab0f2d7fbfc697251321cce20bff3da2b0ddaf12c80f80f0ab270b15")

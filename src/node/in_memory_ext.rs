@@ -268,6 +268,15 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
             })
     }
 
+    // @dev This function is necessary for Hardhat Ignite compatibility with `evm_emulator`.
+    // It always returns `true`, as each new transaction automatically mines a new block by default.
+    // Disabling auto mining would require adding functionality to mine blocks with pending transactions.
+    // This feature is not yet implemented and should be deferred until `run_l2_tx` and `run_l2_tx_raw` are
+    // refactored to handle pending transactions and modularized into smaller functions for maintainability.
+    pub fn get_automine(&self) -> Result<bool> {
+        Ok(true)
+    }
+
     pub fn reset_network(&self, reset_spec: Option<ResetRequest>) -> Result<bool> {
         let (opt_url, block_number) = if let Some(spec) = reset_spec {
             if let Some(to) = spec.to {
