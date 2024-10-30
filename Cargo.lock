@@ -1590,9 +1590,7 @@ dependencies = [
  "toml 0.8.13",
  "tracing",
  "tracing-subscriber",
- "zkevm_opcode_defs 1.5.0",
  "zksync-web3-rs",
- "zksync_basic_types",
  "zksync_contracts",
  "zksync_multivm",
  "zksync_types",
@@ -7394,22 +7392,6 @@ name = "zkevm_opcode_defs"
 version = "0.150.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "762b5f1c1b283c5388995a85d40a05aef1c14f50eb904998b7e9364739f5b899"
-dependencies = [
- "bitflags 2.6.0",
- "blake2",
- "ethereum-types 0.14.1",
- "k256 0.13.3",
- "lazy_static",
- "p256",
- "serde",
- "sha2 0.10.8",
- "sha3 0.10.8",
-]
-
-[[package]]
-name = "zkevm_opcode_defs"
-version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_opcode_defs.git?branch=v1.5.0#109d9f734804a8b9dc0531c0b576e2a0f55a40de"
 dependencies = [
  "bitflags 2.6.0",
  "blake2",

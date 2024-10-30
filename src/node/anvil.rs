@@ -1,4 +1,4 @@
-use zksync_basic_types::{Address, U256, U64};
+use zksync_types::{Address, U256, U64};
 use zksync_web3_decl::error::Web3Error;
 
 use crate::{

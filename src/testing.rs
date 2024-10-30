@@ -19,7 +19,7 @@ use httptest::{
 };
 use itertools::Itertools;
 use std::str::FromStr;
-use zksync_basic_types::{AccountTreeId, L1BatchNumber, L2BlockNumber, H160, U64};
+use zksync_types::{AccountTreeId, L1BatchNumber, L2BlockNumber, H160, U64};
 use zksync_multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
 use zksync_types::api::{
     BlockDetailsBase, BlockIdVariant, BlockStatus, BridgeAddresses, DebugCall, DebugCallType, Log,
@@ -551,7 +551,7 @@ pub fn deploy_contract<T: ForkSource + std::fmt::Debug + Clone>(
             gas_per_pubdata_limit: U256::from(50000),
         },
         U256::from(0),
-        zksync_basic_types::L2ChainId::from(260),
+        zksync_types::L2ChainId::from(260),
         private_key,
         vec![bytecode],
         Default::default(),
@@ -847,7 +847,7 @@ impl ForkSource for ExternalStorage {
     fn get_transaction_by_block_hash_and_index(
         &self,
         _block_hash: H256,
-        _index: zksync_basic_types::web3::Index,
+        _index: zksync_types::web3::Index,
     ) -> eyre::Result<Option<zksync_types::api::Transaction>> {
         todo!()
     }
@@ -855,7 +855,7 @@ impl ForkSource for ExternalStorage {
     fn get_transaction_by_block_number_and_index(
         &self,
         _block_number: zksync_types::api::BlockNumber,
-        _index: zksync_basic_types::web3::Index,
+        _index: zksync_types::web3::Index,
     ) -> eyre::Result<Option<zksync_types::api::Transaction>> {
         todo!()
     }

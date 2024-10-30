@@ -1,5 +1,5 @@
 use jsonrpc_derive::rpc;
-use zksync_basic_types::U256;
+use zksync_types::U256;
 
 use crate::namespaces::Result;
 

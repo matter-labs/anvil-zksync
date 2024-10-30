@@ -1,4 +1,4 @@
-use zksync_basic_types::U256;
+use zksync_types::U256;
 
 use crate::{
     fork::ForkSource,

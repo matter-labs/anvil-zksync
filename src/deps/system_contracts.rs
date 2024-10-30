@@ -1,6 +1,6 @@
 use once_cell::sync::Lazy;
 use serde_json::Value;
-use zksync_basic_types::{AccountTreeId, Address, H160};
+use zksync_types::{AccountTreeId, Address, H160};
 use zksync_types::{
     block::DeployedContract, ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS,
     BOOTLOADER_UTILITIES_ADDRESS, CODE_ORACLE_ADDRESS, COMPRESSOR_ADDRESS,

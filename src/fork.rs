@@ -15,7 +15,7 @@ use std::{
 
 use eyre::eyre;
 use tokio::runtime::Builder;
-use zksync_basic_types::{Address, L1BatchNumber, L2BlockNumber, L2ChainId, H256, U256, U64};
+use zksync_types::{Address, L1BatchNumber, L2BlockNumber, L2ChainId, H256, U256, U64};
 
 use zksync_types::{
     api::{
@@ -724,9 +724,9 @@ impl ForkDetails {
 
 #[cfg(test)]
 mod tests {
-    use zksync_basic_types::{AccountTreeId, L1BatchNumber, H256};
     use zksync_multivm::interface::storage::ReadStorage;
     use zksync_types::{api::TransactionVariant, StorageKey};
+    use zksync_types::{AccountTreeId, L1BatchNumber, H256};
 
     use crate::config::cache::CacheConfig;
     use crate::config::gas::{

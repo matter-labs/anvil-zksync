@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use colored::Colorize;
 use futures::FutureExt;
 use itertools::Itertools;
-use zksync_basic_types::{
+use zksync_types::{
     web3::{self, Bytes},
     AccountTreeId, Address, H160, H256, U256, U64,
 };
@@ -202,7 +202,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
     for InMemoryNode<S>
 {
     /// Returns the chain ID of the node.
-    fn chain_id(&self) -> RpcResult<zksync_basic_types::U64> {
+    fn chain_id(&self) -> RpcResult<zksync_types::U64> {
         match self.get_inner().read() {
             Ok(inner) => Ok(U64::from(inner.fork_storage.chain_id.as_u64())).into_boxed_future(),
             Err(_) => Err(into_jsrpc_error(Web3Error::InternalError(
@@ -367,7 +367,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
     /// the code as a `Bytes` object.
     fn get_code(
         &self,
-        address: zksync_basic_types::Address,
+        address: zksync_types::Address,
         _block: Option<BlockIdVariant>,
     ) -> RpcResult<Bytes> {
         let inner = self.get_inner().clone();
@@ -407,7 +407,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
     /// Returns a `BoxFuture` containing the transaction count as a `U256` wrapped in a `jsonrpc_core::Result`.
     fn get_transaction_count(
         &self,
-        address: zksync_basic_types::Address,
+        address: zksync_types::Address,
         _block: Option<BlockIdVariant>,
     ) -> RpcResult<U256> {
         let inner = self.get_inner().clone();
@@ -438,7 +438,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
     /// A `BoxFuture` that resolves to an `Option` of a `TransactionReceipt` or an error.
     fn get_transaction_receipt(
         &self,
-        hash: zksync_basic_types::H256,
+        hash: zksync_types::H256,
     ) -> RpcResult<Option<zksync_types::api::TransactionReceipt>> {
         let inner = self.get_inner().clone();
 
@@ -489,7 +489,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
     /// A `BoxFuture` containing a `jsonrpc_core::Result` that resolves to an `Option` of `Block<TransactionVariant>`.
     fn get_block_by_hash(
         &self,
-        hash: zksync_basic_types::H256,
+        hash: zksync_types::H256,
         full_transactions: bool,
     ) -> RpcResult<Option<Block<TransactionVariant>>> {
         let inner = self.get_inner().clone();
@@ -565,7 +565,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
     /// A `jsonrpc_core::BoxFuture` that resolves to a `jsonrpc_core::Result` containing an optional `zksync_types::api::Transaction`.
     fn get_transaction_by_hash(
         &self,
-        hash: zksync_basic_types::H256,
+        hash: zksync_types::H256,
     ) -> RpcResult<Option<zksync_types::api::Transaction>> {
         let inner = self.get_inner().clone();
 
@@ -639,7 +639,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
     }
 
     /// Returns the current block number as a `U64` wrapped in a `BoxFuture`.
-    fn get_block_number(&self) -> RpcResult<zksync_basic_types::U64> {
+    fn get_block_number(&self) -> RpcResult<zksync_types::U64> {
         let inner = self.get_inner().clone();
 
         Box::pin(async move {
@@ -1038,7 +1038,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
 
     fn get_block_transaction_count_by_hash(
         &self,
-        block_hash: zksync_basic_types::H256,
+        block_hash: zksync_types::H256,
     ) -> RpcResult<Option<U256>> {
         let inner = self.get_inner().clone();
 
@@ -1090,10 +1090,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
     /// A `BoxFuture` containing a `jsonrpc_core::Result` that resolves to a [H256] value in the storage.
     fn get_storage(
         &self,
-        address: zksync_basic_types::Address,
+        address: zksync_types::Address,
         idx: U256,
         block: Option<BlockIdVariant>,
-    ) -> RpcResult<zksync_basic_types::H256> {
+    ) -> RpcResult<zksync_types::H256> {
         let inner = self.get_inner().clone();
 
         Box::pin(async move {
@@ -1192,8 +1192,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
     /// A `BoxFuture` containing a `jsonrpc_core::Result` that maybe resolves to a [zksync_types::api::Transaction], if found.
     fn get_transaction_by_block_hash_and_index(
         &self,
-        block_hash: zksync_basic_types::H256,
-        index: zksync_basic_types::web3::Index,
+        block_hash: zksync_types::H256,
+        index: zksync_types::web3::Index,
     ) -> RpcResult<Option<zksync_types::api::Transaction>> {
         let inner = self.get_inner().clone();
 
@@ -1260,7 +1260,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
     fn get_transaction_by_block_number_and_index(
         &self,
         block_number: BlockNumber,
-        index: zksync_basic_types::web3::Index,
+        index: zksync_types::web3::Index,
     ) -> RpcResult<Option<zksync_types::api::Transaction>> {
         let inner = self.get_inner().clone();
 
@@ -1358,7 +1358,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
         futures::future::ok(accounts).boxed()
     }
 
-    fn coinbase(&self) -> RpcResult<zksync_basic_types::Address> {
+    fn coinbase(&self) -> RpcResult<zksync_types::Address> {
         not_implemented("eth_coinbase")
     }
 
@@ -1372,7 +1372,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
 
     fn get_uncle_count_by_block_hash(
         &self,
-        _hash: zksync_basic_types::H256,
+        _hash: zksync_types::H256,
     ) -> RpcResult<Option<U256>> {
         not_implemented("eth_getUncleCountByBlockHash")
     }
@@ -1484,8 +1484,8 @@ mod tests {
         },
     };
     use maplit::hashmap;
-    use zksync_basic_types::vm::VmVersion;
-    use zksync_basic_types::{web3, Nonce};
+    use zksync_types::vm::VmVersion;
+    use zksync_types::{web3, Nonce};
     use zksync_multivm::utils::get_max_batch_gas_limit;
     use zksync_types::l2::TransactionType;
     use zksync_types::{

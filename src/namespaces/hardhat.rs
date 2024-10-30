@@ -1,6 +1,6 @@
 use jsonrpc_derive::rpc;
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{Address, U256, U64};
+use zksync_types::{Address, U256, U64};
 
 use super::RpcResult;
 

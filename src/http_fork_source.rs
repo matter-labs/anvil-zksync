@@ -9,7 +9,7 @@ use crate::{
     fork::{block_on, ForkSource},
 };
 use eyre::Context;
-use zksync_basic_types::{H256, U256};
+use zksync_types::{H256, U256};
 use zksync_types::{
     api::{BridgeAddresses, Transaction},
     url::SensitiveUrl,
@@ -54,10 +54,10 @@ impl ForkSource for HttpForkSource {
 
     fn get_storage_at(
         &self,
-        address: zksync_basic_types::Address,
-        idx: zksync_basic_types::U256,
+        address: zksync_types::Address,
+        idx: zksync_types::U256,
         block: Option<zksync_types::api::BlockIdVariant>,
-    ) -> eyre::Result<zksync_basic_types::H256> {
+    ) -> eyre::Result<zksync_types::H256> {
         let client = self.create_client();
         block_on(async move { client.get_storage_at(address, idx, block).await })
             .wrap_err("fork http client failed")
@@ -65,7 +65,7 @@ impl ForkSource for HttpForkSource {
 
     fn get_bytecode_by_hash(
         &self,
-        hash: zksync_basic_types::H256,
+        hash: zksync_types::H256,
     ) -> eyre::Result<Option<Vec<u8>>> {
         let client = self.create_client();
         block_on(async move { client.get_bytecode_by_hash(hash).await })
@@ -74,7 +74,7 @@ impl ForkSource for HttpForkSource {
 
     fn get_transaction_by_hash(
         &self,
-        hash: zksync_basic_types::H256,
+        hash: zksync_types::H256,
     ) -> eyre::Result<Option<zksync_types::api::Transaction>> {
         if let Ok(Some(transaction)) = self
             .cache
@@ -117,7 +117,7 @@ impl ForkSource for HttpForkSource {
 
     fn get_raw_block_transactions(
         &self,
-        block_number: zksync_basic_types::L2BlockNumber,
+        block_number: zksync_types::L2BlockNumber,
     ) -> eyre::Result<Vec<zksync_types::Transaction>> {
         let number = block_number.0 as u64;
         if let Ok(Some(transaction)) = self
@@ -151,7 +151,7 @@ impl ForkSource for HttpForkSource {
 
     fn get_block_by_hash(
         &self,
-        hash: zksync_basic_types::H256,
+        hash: zksync_types::H256,
         full_transactions: bool,
     ) -> eyre::Result<Option<zksync_types::api::Block<zksync_types::api::TransactionVariant>>> {
         if let Ok(Some(block)) = self
@@ -280,7 +280,7 @@ impl ForkSource for HttpForkSource {
     /// Returns details of a block, given miniblock number
     fn get_block_details(
         &self,
-        miniblock: zksync_basic_types::L2BlockNumber,
+        miniblock: zksync_types::L2BlockNumber,
     ) -> eyre::Result<Option<zksync_types::api::BlockDetails>> {
         let client = self.create_client();
         block_on(async move { client.get_block_details(miniblock).await }).wrap_err(format!(
@@ -358,7 +358,7 @@ impl ForkSource for HttpForkSource {
 mod tests {
     use std::str::FromStr;
 
-    use zksync_basic_types::{Address, L2BlockNumber, H160, H256, U64};
+    use zksync_types::{Address, L2BlockNumber, H160, H256, U64};
     use zksync_types::api::BlockNumber;
 
     use crate::testing;

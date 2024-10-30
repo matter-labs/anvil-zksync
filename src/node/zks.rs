@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use bigdecimal::BigDecimal;
 use colored::Colorize;
 use futures::FutureExt;
-use zksync_basic_types::{AccountTreeId, Address, L1BatchNumber, L2BlockNumber, H256, U256};
+use zksync_types::{AccountTreeId, Address, L1BatchNumber, L2BlockNumber, H256, U256};
 use zksync_types::{
     api::{
         BlockDetails, BlockDetailsBase, BlockStatus, BridgeAddresses, Proof, ProtocolVersion,
@@ -139,11 +139,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
         not_implemented("zks_estimateGasL1ToL2")
     }
 
-    fn get_main_contract(&self) -> RpcResult<zksync_basic_types::Address> {
+    fn get_main_contract(&self) -> RpcResult<zksync_types::Address> {
         not_implemented("zks_getMainContract")
     }
 
-    fn get_testnet_paymaster(&self) -> RpcResult<Option<zksync_basic_types::Address>> {
+    fn get_testnet_paymaster(&self) -> RpcResult<Option<zksync_types::Address>> {
         not_implemented("zks_getTestnetPaymaster")
     }
 
@@ -185,7 +185,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
         })
     }
 
-    fn l1_chain_id(&self) -> RpcResult<zksync_basic_types::U64> {
+    fn l1_chain_id(&self) -> RpcResult<zksync_types::U64> {
         use crate::namespaces::EthNamespaceT;
         self.chain_id()
     }
@@ -232,7 +232,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
         })
     }
 
-    fn get_token_price(&self, token_address: zksync_basic_types::Address) -> RpcResult<BigDecimal> {
+    fn get_token_price(&self, token_address: zksync_types::Address) -> RpcResult<BigDecimal> {
         match format!("{:?}", token_address).to_lowercase().as_str() {
             "0x0000000000000000000000000000000000000000" => {
                 // ETH
@@ -281,9 +281,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
     /// A `BoxFuture` containing a `Result` with a (Token, Balance) map where account has non-zero value.
     fn get_all_account_balances(
         &self,
-        address: zksync_basic_types::Address,
+        address: zksync_types::Address,
     ) -> jsonrpc_core::BoxFuture<
-        jsonrpc_core::Result<std::collections::HashMap<zksync_basic_types::Address, U256>>,
+        jsonrpc_core::Result<std::collections::HashMap<zksync_types::Address, U256>>,
     > {
         let inner = self.get_inner().clone();
         Box::pin({
@@ -324,9 +324,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
 
     fn get_l2_to_l1_msg_proof(
         &self,
-        _block: zksync_basic_types::L2BlockNumber,
-        _sender: zksync_basic_types::Address,
-        _msg: zksync_basic_types::H256,
+        _block: zksync_types::L2BlockNumber,
+        _sender: zksync_types::Address,
+        _msg: zksync_types::H256,
         _l2_log_position: Option<usize>,
     ) -> RpcResult<Option<zksync_types::api::L2ToL1LogProof>> {
         not_implemented("zks_getL2ToL1MsgProof")
@@ -334,13 +334,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
 
     fn get_l2_to_l1_log_proof(
         &self,
-        _tx_hash: zksync_basic_types::H256,
+        _tx_hash: zksync_types::H256,
         _index: Option<usize>,
     ) -> RpcResult<Option<zksync_types::api::L2ToL1LogProof>> {
         not_implemented("zks_getL2ToL1LogProof")
     }
 
-    fn get_l1_batch_number(&self) -> RpcResult<zksync_basic_types::U64> {
+    fn get_l1_batch_number(&self) -> RpcResult<zksync_types::U64> {
         not_implemented("zks_L1BatchNumber")
     }
 
@@ -355,7 +355,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
     /// A `BoxFuture` containing a `Result` with an `Option<BlockDetails>` representing details of the block (if found).
     fn get_block_details(
         &self,
-        block_number: zksync_basic_types::L2BlockNumber,
+        block_number: zksync_types::L2BlockNumber,
     ) -> RpcResult<Option<zksync_types::api::BlockDetails>> {
         let inner = self.get_inner().clone();
         Box::pin(async move {
@@ -418,9 +418,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
 
     fn get_miniblock_range(
         &self,
-        _batch: zksync_basic_types::L1BatchNumber,
+        _batch: zksync_types::L1BatchNumber,
     ) -> jsonrpc_core::BoxFuture<
-        jsonrpc_core::Result<Option<(zksync_basic_types::U64, zksync_basic_types::U64)>>,
+        jsonrpc_core::Result<Option<(zksync_types::U64, zksync_types::U64)>>,
     > {
         not_implemented("zks_getL1BatchBlockRange")
     }
@@ -436,7 +436,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
     /// A `BoxFuture` containing a `Result` with an `Option<TransactionDetails>` representing details of the transaction (if found).
     fn get_transaction_details(
         &self,
-        hash: zksync_basic_types::H256,
+        hash: zksync_types::H256,
     ) -> RpcResult<Option<zksync_types::api::TransactionDetails>> {
         let inner = self.get_inner().clone();
         Box::pin(async move {
@@ -493,7 +493,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
     ///
     /// # Parameters
     ///
-    /// * `_batch`: The batch number of type `zksync_basic_types::L1BatchNumber` for which the details are to be fetched.
+    /// * `_batch`: The batch number of type `zksync_types::L1BatchNumber` for which the details are to be fetched.
     ///
     /// # Returns
     ///
@@ -501,7 +501,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
     /// Given the current implementation, this will always be `None`.
     fn get_l1_batch_details(
         &self,
-        _batch: zksync_basic_types::L1BatchNumber,
+        _batch: zksync_types::L1BatchNumber,
     ) -> RpcResult<Option<zksync_types::api::L1BatchDetails>> {
         Box::pin(async { Ok(None) })
     }
@@ -515,7 +515,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
     /// # Returns
     ///
     /// A boxed future resolving to a `jsonrpc_core::Result` containing an `Option` of bytes.
-    fn get_bytecode_by_hash(&self, hash: zksync_basic_types::H256) -> RpcResult<Option<Vec<u8>>> {
+    fn get_bytecode_by_hash(&self, hash: zksync_types::H256) -> RpcResult<Option<Vec<u8>>> {
         let inner = self.get_inner().clone();
         Box::pin(async move {
             let writer = inner.write().map_err(|_e| {
@@ -556,7 +556,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
         })
     }
 
-    fn get_l1_gas_price(&self) -> RpcResult<zksync_basic_types::U64> {
+    fn get_l1_gas_price(&self) -> RpcResult<zksync_types::U64> {
         not_implemented("zks_getL1GasPrice")
     }
 
@@ -569,7 +569,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
     /// # Returns
     ///
     /// Hard-coded address of 0x1 to replicate mainnet/testnet
-    fn get_base_token_l1_address(&self) -> RpcResult<zksync_basic_types::Address> {
+    fn get_base_token_l1_address(&self) -> RpcResult<zksync_types::Address> {
         Ok(H160::from_low_u64_be(1)).into_boxed_future()
     }
 }
@@ -586,7 +586,7 @@ mod tests {
     use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
 
     use super::*;
-    use zksync_basic_types::{Address, H160, H256};
+    use zksync_types::{Address, H160, H256};
     use zksync_types::api::{self, Block, TransactionReceipt, TransactionVariant};
     use zksync_types::transaction_request::CallRequest;
     use zksync_utils::u256_to_h256;

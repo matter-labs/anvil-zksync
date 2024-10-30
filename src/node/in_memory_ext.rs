@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use zksync_basic_types::{AccountTreeId, Address, U256, U64};
+use zksync_types::{AccountTreeId, Address, U256, U64};
 use zksync_types::{
     get_code_key, get_nonce_key,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
@@ -406,7 +406,7 @@ mod tests {
     use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
     use std::str::FromStr;
     use std::sync::{Arc, RwLock};
-    use zksync_basic_types::{Nonce, H256};
+    use zksync_types::{Nonce, H256};
     use zksync_multivm::interface::storage::ReadStorage;
     use zksync_types::{api::BlockNumber, fee::Fee, l2::L2Tx, PackedEthSignature};
 
