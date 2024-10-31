@@ -61,24 +61,37 @@ impl MockServer {
             Expectation::matching(request::body(json_decoded(eq(serde_json::json!({
                 "jsonrpc": "2.0",
                 "id": 0,
-                "method": "eth_blockNumber",
+                "method": "eth_chainId",
             })))))
             .respond_with(json_encoded(serde_json::json!({
                 "jsonrpc": "2.0",
                 "id": 0,
+                "result": "0x104",
+            }))),
+        );
+
+        server.expect(
+            Expectation::matching(request::body(json_decoded(eq(serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "eth_blockNumber",
+            })))))
+            .respond_with(json_encoded(serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
                 "result": format!("{:#x}", block_config.number),
             }))),
         );
         server.expect(
             Expectation::matching(request::body(json_decoded(eq(serde_json::json!({
                 "jsonrpc": "2.0",
-                "id": 1,
+                "id": 2,
                 "method": "zks_getBlockDetails",
                 "params": [ block_config.number ],
             })))))
             .respond_with(json_encoded(serde_json::json!({
                 "jsonrpc": "2.0",
-                "id": 1,
+                "id": 2,
                 "result": {
                     "number": block_config.number,
                     "l1BatchNumber": 1,
@@ -107,13 +120,13 @@ impl MockServer {
         server.expect(
             Expectation::matching(request::body(json_decoded(eq(serde_json::json!({
                 "jsonrpc": "2.0",
-                "id": 2,
+                "id": 3,
                 "method": "eth_getBlockByHash",
                 "params": [format!("{:#x}", block_config.hash), true],
             }))))).times(0..)
             .respond_with(json_encoded(serde_json::json!({
                 "jsonrpc": "2.0",
-                "id": 2,
+                "id": 3,
                 "result": {
                     "hash": format!("{:#x}", block_config.hash),
                     "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
@@ -151,7 +164,7 @@ impl MockServer {
         server.expect(
             Expectation::matching(request::body(json_decoded(eq(serde_json::json!({
                 "jsonrpc": "2.0",
-                "id": 3,
+                "id": 4,
                 "method": "zks_getFeeParams",
             })))))
             .respond_with(json_encoded(serde_json::json!(
@@ -171,7 +184,7 @@ impl MockServer {
                   "l1_pubdata_price": 100780475095u64
                 }
               },
-              "id": 3
+              "id": 4
             }))),
         );
 

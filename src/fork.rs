@@ -556,6 +556,7 @@ impl ForkDetails {
         let (network, client) = Self::fork_network_and_client(fork)?;
         let chain_id_u64 = client.chain_id().await?;
         let chain_id = L2ChainId::from(chain_id_u64.as_u32());
+
         let l2_miniblock = if let Some(fork_at) = fork_at {
             fork_at
         } else {
@@ -566,6 +567,7 @@ impl ForkDetails {
                 }
             }
         };
+
         Self::from_network_and_miniblock_and_chain(
             network,
             client,
@@ -745,6 +747,7 @@ mod tests {
         DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
         DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L2_GAS_PRICE,
     };
+    use crate::node::TEST_NODE_NETWORK_ID;
     use crate::{deps::InMemoryStorage, system_contracts, testing};
 
     use super::{ForkDetails, ForkStorage};
@@ -767,6 +770,7 @@ mod tests {
 
         let fork_details = ForkDetails {
             fork_source: Box::new(external_storage),
+            chain_id: TEST_NODE_NETWORK_ID.into(),
             l1_block: L1BatchNumber(1),
             l2_block: zksync_types::api::Block::<TransactionVariant>::default(),
             l2_miniblock: 1,
@@ -802,6 +806,7 @@ mod tests {
             fork_source: Box::new(testing::ExternalStorage {
                 raw_storage: InMemoryStorage::default(),
             }),
+            chain_id: TEST_NODE_NETWORK_ID.into(),
             l1_block: L1BatchNumber(0),
             l2_block: zksync_types::api::Block::<TransactionVariant>::default(),
             l2_miniblock: 0,

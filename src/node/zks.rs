@@ -1158,6 +1158,19 @@ mod tests {
             serde_json::json!({
                 "jsonrpc": "2.0",
                 "id": 0,
+                "method": "eth_chainId",
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "result": "0x104",
+            }),
+        );
+
+        mock_server.expect(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
                 "method": "zks_getBlockDetails",
                 "params": [1]
             }),
@@ -1186,13 +1199,13 @@ mod tests {
                     "status": "verified",
                     "timestamp": 1000
                 },
-                "id": 0
+                "id": 1
             }),
         );
         mock_server.expect(
             serde_json::json!({
                 "jsonrpc": "2.0",
-                "id": 1,
+                "id": 2,
                 "method": "eth_getBlockByHash",
                 "params": ["0xdaa77426c30c02a43d9fba4e841a6556c524d47030762eb14dc4af897e605d9b", true]
             }),
@@ -1224,7 +1237,7 @@ mod tests {
                     "transactionsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
                     "uncles": []
                 },
-                "id": 1
+                "id": 2
             }),
         );
         mock_server.expect(
@@ -1251,7 +1264,7 @@ mod tests {
         mock_server.expect(
             serde_json::json!({
                 "jsonrpc": "2.0",
-                "id": 2,
+                "id": 3,
                 "method": "zks_getFeeParams",
             }),
             serde_json::json!({
@@ -1270,7 +1283,7 @@ mod tests {
                   "l1_pubdata_price": 100780475095u64
                 }
               },
-              "id": 2
+              "id": 3
             }),
         );
 
@@ -1284,6 +1297,7 @@ mod tests {
             Default::default(),
             Default::default(),
         );
+
         {
             let inner = node.get_inner();
             let writer = inner.write().unwrap();
