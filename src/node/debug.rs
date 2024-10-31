@@ -242,13 +242,13 @@ mod tests {
         testing::{self, LogBuilder},
     };
     use ethers::abi::{short_signature, AbiEncode, HumanReadableParser, ParamType, Token};
-    use zksync_types::{Address, Nonce, H160, U256};
     use zksync_types::{
         api::{Block, CallTracerConfig, SupportedTracers, TransactionReceipt},
         transaction_request::CallRequestBuilder,
         utils::deployed_address_create,
         K256PrivateKey,
     };
+    use zksync_types::{Address, Nonce, H160, U256};
 
     fn deploy_test_contracts(node: &InMemoryNode<HttpForkSource>) -> (Address, Address) {
         let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(0xee)).unwrap();

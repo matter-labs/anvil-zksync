@@ -4,10 +4,6 @@ use anyhow::Context as _;
 use colored::Colorize;
 use futures::FutureExt;
 use itertools::Itertools;
-use zksync_types::{
-    web3::{self, Bytes},
-    AccountTreeId, Address, H160, H256, U256, U64,
-};
 use zksync_multivm::interface::ExecutionResult;
 use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use zksync_types::{
@@ -18,6 +14,10 @@ use zksync_types::{
     transaction_request::TransactionRequest,
     utils::storage_key_for_standard_token_balance,
     PackedEthSignature, StorageKey, L2_BASE_TOKEN_ADDRESS, MAX_L1_TRANSACTION_GAS_LIMIT,
+};
+use zksync_types::{
+    web3::{self, Bytes},
+    AccountTreeId, Address, H160, H256, U256, U64,
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
 use zksync_web3_decl::{
@@ -1370,10 +1370,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
         not_implemented("eth_hashrate")
     }
 
-    fn get_uncle_count_by_block_hash(
-        &self,
-        _hash: zksync_types::H256,
-    ) -> RpcResult<Option<U256>> {
+    fn get_uncle_count_by_block_hash(&self, _hash: zksync_types::H256) -> RpcResult<Option<U256>> {
         not_implemented("eth_getUncleCountByBlockHash")
     }
 
@@ -1484,16 +1481,16 @@ mod tests {
         },
     };
     use maplit::hashmap;
-    use zksync_types::vm::VmVersion;
-    use zksync_types::{web3, Nonce};
     use zksync_multivm::utils::get_max_batch_gas_limit;
     use zksync_types::l2::TransactionType;
+    use zksync_types::vm::VmVersion;
     use zksync_types::{
         api,
         api::{BlockHashObject, BlockNumber, BlockNumberObject, TransactionReceipt},
         utils::deployed_address_create,
         Bloom, K256PrivateKey, EMPTY_UNCLES_HASH,
     };
+    use zksync_types::{web3, Nonce};
     use zksync_web3_decl::types::{SyncState, ValueOrArray};
 
     #[tokio::test]

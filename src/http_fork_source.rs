@@ -9,11 +9,11 @@ use crate::{
     fork::{block_on, ForkSource},
 };
 use eyre::Context;
-use zksync_types::{H256, U256};
 use zksync_types::{
     api::{BridgeAddresses, Transaction},
     url::SensitiveUrl,
 };
+use zksync_types::{H256, U256};
 use zksync_web3_decl::{
     client::Client,
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
@@ -63,10 +63,7 @@ impl ForkSource for HttpForkSource {
             .wrap_err("fork http client failed")
     }
 
-    fn get_bytecode_by_hash(
-        &self,
-        hash: zksync_types::H256,
-    ) -> eyre::Result<Option<Vec<u8>>> {
+    fn get_bytecode_by_hash(&self, hash: zksync_types::H256) -> eyre::Result<Option<Vec<u8>>> {
         let client = self.create_client();
         block_on(async move { client.get_bytecode_by_hash(hash).await })
             .wrap_err("fork http client failed")
@@ -358,8 +355,8 @@ impl ForkSource for HttpForkSource {
 mod tests {
     use std::str::FromStr;
 
-    use zksync_types::{Address, L2BlockNumber, H160, H256, U64};
     use zksync_types::api::BlockNumber;
+    use zksync_types::{Address, L2BlockNumber, H160, H256, U64};
 
     use crate::testing;
 

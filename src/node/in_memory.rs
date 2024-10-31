@@ -10,10 +10,6 @@ use anyhow::Context as _;
 use colored::Colorize;
 use indexmap::IndexMap;
 use once_cell::sync::OnceCell;
-use zksync_types::{
-    web3::{keccak256, Bytes, Index},
-    AccountTreeId, Address, L1BatchNumber, L2BlockNumber, H160, H256, H64, U256, U64,
-};
 use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::{
     interface::{
@@ -44,6 +40,10 @@ use zksync_types::{
     BloomInput, PackedEthSignature, StorageKey, StorageValue, Transaction,
     ACCOUNT_CODE_STORAGE_ADDRESS, EMPTY_UNCLES_HASH, MAX_L2_TX_GAS_LIMIT, SYSTEM_CONTEXT_ADDRESS,
     SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
+};
+use zksync_types::{
+    web3::{keccak256, Bytes, Index},
+    AccountTreeId, Address, L1BatchNumber, L2BlockNumber, H160, H256, H64, U256, U64,
 };
 use zksync_utils::{bytecode::hash_bytecode, h256_to_account_address, h256_to_u256, u256_to_h256};
 use zksync_web3_decl::error::Web3Error;

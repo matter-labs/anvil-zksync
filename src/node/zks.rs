@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use bigdecimal::BigDecimal;
 use colored::Colorize;
 use futures::FutureExt;
-use zksync_types::{AccountTreeId, Address, L1BatchNumber, L2BlockNumber, H256, U256};
 use zksync_types::{
     api::{
         BlockDetails, BlockDetailsBase, BlockStatus, BridgeAddresses, Proof, ProtocolVersion,
@@ -13,6 +12,7 @@ use zksync_types::{
     utils::storage_key_for_standard_token_balance,
     ExecuteTransactionCommon, ProtocolVersionId, Transaction, H160, L2_BASE_TOKEN_ADDRESS,
 };
+use zksync_types::{AccountTreeId, Address, L1BatchNumber, L2BlockNumber, H256, U256};
 use zksync_utils::h256_to_u256;
 use zksync_web3_decl::error::Web3Error;
 
@@ -419,9 +419,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
     fn get_miniblock_range(
         &self,
         _batch: zksync_types::L1BatchNumber,
-    ) -> jsonrpc_core::BoxFuture<
-        jsonrpc_core::Result<Option<(zksync_types::U64, zksync_types::U64)>>,
-    > {
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<(zksync_types::U64, zksync_types::U64)>>>
+    {
         not_implemented("zks_getL1BatchBlockRange")
     }
 
@@ -586,9 +585,9 @@ mod tests {
     use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
 
     use super::*;
-    use zksync_types::{Address, H160, H256};
     use zksync_types::api::{self, Block, TransactionReceipt, TransactionVariant};
     use zksync_types::transaction_request::CallRequest;
+    use zksync_types::{Address, H160, H256};
     use zksync_utils::u256_to_h256;
 
     #[tokio::test]

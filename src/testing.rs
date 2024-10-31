@@ -19,13 +19,13 @@ use httptest::{
 };
 use itertools::Itertools;
 use std::str::FromStr;
-use zksync_types::{AccountTreeId, L1BatchNumber, L2BlockNumber, H160, U64};
 use zksync_multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
 use zksync_types::api::{
     BlockDetailsBase, BlockIdVariant, BlockStatus, BridgeAddresses, DebugCall, DebugCallType, Log,
 };
 use zksync_types::block::pack_block_info;
 use zksync_types::{fee::Fee, l2::L2Tx, Address, L2ChainId, Nonce, ProtocolVersionId, H256, U256};
+use zksync_types::{AccountTreeId, L1BatchNumber, L2BlockNumber, H160, U64};
 use zksync_types::{K256PrivateKey, StorageKey};
 use zksync_utils::u256_to_h256;
 
