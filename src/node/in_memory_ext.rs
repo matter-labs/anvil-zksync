@@ -523,7 +523,7 @@ mod tests {
             blocks: Default::default(),
             block_hashes: Default::default(),
             filters: Default::default(),
-            fork_storage: ForkStorage::new(None, &old_system_contracts_options, false),
+            fork_storage: ForkStorage::new(None, &old_system_contracts_options, false, None),
             config: Default::default(),
             console_log_handler: Default::default(),
             system_contracts: Default::default(),
