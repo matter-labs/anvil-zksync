@@ -127,12 +127,13 @@ impl<S: ForkSource> ForkStorage<S> {
         use_evm_emulator: bool,
         override_chain_id: Option<u32>,
     ) -> Self {
-        let chain_id = fork
-            .as_ref()
-            .and_then(|d| d.overwrite_chain_id)
-            .unwrap_or(L2ChainId::from(
-                override_chain_id.unwrap_or(TEST_NODE_NETWORK_ID),
-            ));
+        let chain_id = if let Some(override_id) = override_chain_id {
+            L2ChainId::from(override_id)
+        } else {
+            fork.as_ref()
+                .and_then(|d| d.overwrite_chain_id)
+                .unwrap_or(L2ChainId::from(TEST_NODE_NETWORK_ID))
+        };
         tracing::info!("Starting network with chain id: {:?}", chain_id);
 
         ForkStorage {
@@ -398,6 +399,8 @@ pub trait ForkSource {
 pub struct ForkDetails {
     // Source of the fork data (for example HttpForkSource)
     pub fork_source: Box<dyn ForkSource + Send + Sync>,
+    // Chain ID of fork
+    pub chain_id: L2ChainId,
     // Block number at which we forked (the next block to create is l1_block + 1)
     pub l1_block: L1BatchNumber,
     // The actual L2 block
@@ -453,6 +456,7 @@ pub fn supported_versions_to_string() -> String {
 impl fmt::Debug for ForkDetails {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ForkDetails")
+            .field("chain_id", &self.chain_id)
             .field("l1_block", &self.l1_block)
             .field("l2_block", &self.l2_block)
             .field("l2_miniblock", &self.l2_miniblock)
@@ -524,6 +528,7 @@ impl ForkDetails {
 
         Ok(ForkDetails {
             fork_source: Box::new(HttpForkSource::new(url.to_owned(), cache_config.clone())),
+            chain_id: chain_id.unwrap_or_else(|| L2ChainId::from(TEST_NODE_NETWORK_ID)),
             l1_block: l1_batch_number,
             l2_block: block,
             block_timestamp: block_details.base.timestamp,
@@ -549,6 +554,8 @@ impl ForkDetails {
         cache_config: CacheConfig,
     ) -> eyre::Result<Self> {
         let (network, client) = Self::fork_network_and_client(fork)?;
+        let chain_id_u64 = client.chain_id().await?;
+        let chain_id = L2ChainId::from(chain_id_u64.as_u32());
         let l2_miniblock = if let Some(fork_at) = fork_at {
             fork_at
         } else {
@@ -563,7 +570,7 @@ impl ForkDetails {
             network,
             client,
             l2_miniblock,
-            None,
+            chain_id.into(),
             cache_config,
         )
         .await
@@ -612,6 +619,8 @@ impl ForkDetails {
         let client = builder.build();
 
         block_on(async move {
+            let chain_id_u64 = client.chain_id().await?;
+            let chain_id = L2ChainId::from(chain_id_u64.as_u32());
             let l2_miniblock = if let Some(fork_at) = fork_at {
                 fork_at
             } else {
@@ -622,7 +631,7 @@ impl ForkDetails {
                 ForkNetwork::Other(url),
                 client,
                 l2_miniblock,
-                None,
+                chain_id.into(),
                 cache_config,
             )
             .await
