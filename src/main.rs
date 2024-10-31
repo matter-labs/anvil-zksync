@@ -120,7 +120,9 @@ async fn main() -> anyhow::Result<()> {
     let fork_details = match command {
         Command::Run => None,
         Command::Fork(fork) => {
-            match ForkDetails::from_network(&fork.network, fork.fork_at, config.cache).await {
+            match ForkDetails::from_network(&fork.network, fork.fork_block_number, config.cache)
+                .await
+            {
                 Ok(fd) => Some(fd),
                 Err(error) => {
                     tracing::error!("cannot fork: {:?}", error);

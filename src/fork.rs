@@ -550,15 +550,15 @@ impl ForkDetails {
     /// Create a fork from a given network at a given height.
     pub async fn from_network(
         fork: &str,
-        fork_at: Option<u64>,
+        fork_block_number: Option<u64>,
         cache_config: CacheConfig,
     ) -> eyre::Result<Self> {
         let (network, client) = Self::fork_network_and_client(fork)?;
         let chain_id_u64 = client.chain_id().await?;
         let chain_id = L2ChainId::from(chain_id_u64.as_u32());
 
-        let l2_miniblock = if let Some(fork_at) = fork_at {
-            fork_at
+        let l2_miniblock = if let Some(fork_block_number) = fork_block_number {
+            fork_block_number
         } else {
             match client.get_block_number().await {
                 Ok(bn) => bn.as_u64(),
@@ -613,7 +613,7 @@ impl ForkDetails {
     /// Return URL and HTTP client for `hardhat_reset`.
     pub fn from_url(
         url: String,
-        fork_at: Option<u64>,
+        fork_block_number: Option<u64>,
         cache_config: CacheConfig,
     ) -> eyre::Result<Self> {
         let parsed_url = SensitiveUrl::from_str(&url)?;
@@ -623,8 +623,8 @@ impl ForkDetails {
         block_on(async move {
             let chain_id_u64 = client.chain_id().await?;
             let chain_id = L2ChainId::from(chain_id_u64.as_u32());
-            let l2_miniblock = if let Some(fork_at) = fork_at {
-                fork_at
+            let l2_miniblock = if let Some(fork_block_number) = fork_block_number {
+                fork_block_number
             } else {
                 client.get_block_number().await?.as_u64()
             };

@@ -42,8 +42,8 @@ This command starts the node, forking it from the latest block on the zkSync Sep
 You also have the option to specify a custom http endpoint and a custom forking height, like so:
 
 ```sh
-# Usage: era_test_node fork --fork-at <FORK_AT> <NETWORK>
-era_test_node fork --fork-at 7000000 mainnet http://172.17.0.3:3060
+# Usage: era_test_node fork --fork-block-number <BLOCK> <NETWORK>
+era_test_node fork --fork-block-number 7000000 mainnet http://172.17.0.3:3060
 ```
 
 ## Sending network calls

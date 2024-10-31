@@ -128,10 +128,15 @@ pub struct ForkArgs {
     ///  - testnet
     ///  - http://XXX:YY
     pub network: String,
-    #[arg(long)]
     // Fork at a given L2 miniblock height.
     // If not set - will use the current finalized block from the network.
-    pub fork_at: Option<u64>,
+    #[arg(
+        long,
+        value_name = "BLOCK",
+        long_help = "Fetch state from a specific block number over a remote endpoint.",
+        requires = "fork"
+    )]
+    pub fork_block_number: Option<u64>,
 }
 
 #[derive(Debug, Parser)]
