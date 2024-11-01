@@ -1,13 +1,15 @@
-use alloy::network::{EthereumWallet, TransactionBuilder};
-use alloy::primitives::Address;
-use alloy::providers::{Provider, ProviderBuilder};
-use alloy::rpc::types::TransactionRequest;
-use alloy::signers::local::PrivateKeySigner;
+use std::{str::FromStr, time::Duration};
+
+use alloy::{
+    network::{EthereumWallet, TransactionBuilder},
+    primitives::Address,
+    providers::{Provider, ProviderBuilder},
+    rpc::types::TransactionRequest,
+    signers::local::PrivateKeySigner,
+};
 use anyhow::Context;
 use itertools::Itertools;
 use serde_json::Value;
-use std::str::FromStr;
-use std::time::Duration;
 use zksync_basic_types::U256;
 
 pub struct EraApi {
@@ -58,7 +60,7 @@ impl EraApi {
         anyhow::bail!("failed to parse response: {:?}", response);
     }
 
-    pub async fn transfer_eth(&self, value: U256) -> anyhow::Result<()> {
+    pub async fn transfer_eth_legacy(&self, value: U256) -> anyhow::Result<()> {
         // TODO: Make signer configurable, leave taking a random rich wallet as the default option
         let signer = PrivateKeySigner::from_str(
             "0x3d3cbc973389cb26f657686445bcc75662b415b656078503592ac8c1abb8810e",

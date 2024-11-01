@@ -1,12 +1,11 @@
-use crate::utils;
+use std::{ffi::OsStr, fmt::Display, path::Path, time::Duration};
+
 use anyhow::Context;
 use chrono::{DateTime, Local};
 use fs2::FileExt;
-use std::ffi::OsStr;
-use std::fmt::Display;
-use std::path::Path;
-use std::time::Duration;
 use tokio::process::{Child, Command};
+
+use crate::utils;
 
 const ERA_TEST_NODE_BINARY_PATH: &str = "../target/release/era_test_node";
 const ERA_TEST_NODE_SRC_PATH: &str = "../src";

@@ -1,7 +1,10 @@
+use std::{
+    fs::File,
+    net::{Ipv4Addr, SocketAddrV4},
+};
+
 use anyhow::Context;
 use fs2::FileExt;
-use std::fs::File;
-use std::net::{Ipv4Addr, SocketAddrV4};
 use tokio::net::TcpListener;
 
 /// Request an unused port from the OS.

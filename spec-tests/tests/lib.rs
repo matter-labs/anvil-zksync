@@ -1,9 +1,10 @@
 //! Validation that zkSync Era In-Memory Node conforms to the official Ethereum Spec
 
 use era_test_node_spec_tests::{process, EraApi, EthSpecPatch};
+use jsonschema::Validator;
 use openrpc_types::resolved::{Method, OpenRPC};
 use schemars::visit::Visitor;
-use serde_json::json;
+use serde_json::{json, Value};
 use zksync_basic_types::U256;
 
 fn resolve_method_spec(method_name: &str) -> Method {
@@ -25,6 +26,25 @@ fn resolve_method_spec(method_name: &str) -> Method {
         })
         .expect(&format!("method '{method_name}' not found"));
     method
+}
+
+/// Validate result against JSON Schema validator.
+///
+/// Prints all occurring errors instead of panicking on the first one. Asserts there are no errors
+/// at the end of the flow.
+fn validate_schema(validator: Validator, result: Value) {
+    let errors = validator.iter_errors(&result).collect::<Vec<_>>();
+    for err in &errors {
+        eprintln!(
+            "=== Validation error while validating instance at '{}' against schema at '{}':",
+            err.instance_path, err.schema_path
+        );
+        eprintln!("{}", err);
+    }
+    assert!(
+        errors.is_empty(),
+        "There were JSON Schema validation errors, see above for the full list"
+    );
 }
 
 #[test_log::test(tokio::test)]
@@ -50,29 +70,35 @@ async fn validate_eth_get_block_genesis() -> anyhow::Result<()> {
         .make_request("eth_getBlockByNumber", vec![json!("0x0"), json!(false)])
         .await?;
     // Validate the JSON response against the schema.
-    validator.validate(&result).unwrap();
+    validate_schema(validator, result);
 
     Ok(())
 }
 
-// FIXME: Does not work yet, need to fix TX receipts
-#[ignore]
 #[test_log::test(tokio::test)]
 async fn validate_eth_get_block_with_txs() -> anyhow::Result<()> {
     let node_handle = process::run_default().await?;
     let era_api = EraApi::local(node_handle.config.rpc_port)?;
 
-    era_api.transfer_eth(U256::from("100")).await?;
+    era_api.transfer_eth_legacy(U256::from("100")).await?;
 
     let method = resolve_method_spec("eth_getBlockByNumber");
     let mut result_schema = method.result.unwrap().schema;
     EthSpecPatch::for_block().visit_schema(&mut result_schema);
-    EthSpecPatch::for_full_txs().visit_schema(&mut result_schema);
+    EthSpecPatch::for_tx_info().visit_schema(&mut result_schema);
+    EthSpecPatch::for_legacy_tx().visit_schema(&mut result_schema);
     let validator = jsonschema::options().build(&serde_json::to_value(result_schema)?)?;
     let result = era_api
         .make_request("eth_getBlockByNumber", vec![json!("0x1"), json!(true)])
         .await?;
-    validator.validate(&result).unwrap();
+    // Asserts there is at least one transaction in the block
+    assert!(!result
+        .get("transactions")
+        .unwrap()
+        .as_array()
+        .unwrap()
+        .is_empty());
+    validate_schema(validator, result);
 
     Ok(())
 }
