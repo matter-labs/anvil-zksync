@@ -1,28 +1,30 @@
-use std::convert::TryInto;
-use std::fmt;
-use std::pin::Pin;
+use std::{convert::TryInto, fmt, pin::Pin};
 
 use anyhow::Context;
 use chrono::{DateTime, Utc};
 use futures::Future;
 use jsonrpc_core::{Error, ErrorCode};
-use zksync_multivm::interface::storage::WriteStorage;
-use zksync_multivm::interface::{
-    Call, CallType, ExecutionResult, VmExecutionResultAndLogs, VmFactory, VmInterfaceExt,
+use zksync_multivm::{
+    interface::{
+        storage::WriteStorage, Call, CallType, ExecutionResult, VmExecutionResultAndLogs,
+        VmFactory, VmInterfaceExt,
+    },
+    vm_latest::{HistoryDisabled, Vm},
 };
-use zksync_multivm::vm_latest::HistoryDisabled;
-use zksync_multivm::vm_latest::Vm;
-use zksync_types::api::{BlockNumber, DebugCall, DebugCallType};
-use zksync_types::l2::L2Tx;
-use zksync_types::web3::Bytes;
-use zksync_types::CONTRACT_DEPLOYER_ADDRESS;
-use zksync_types::{H256, U256, U64};
+use zksync_types::{
+    api::{BlockNumber, DebugCall, DebugCallType},
+    l2::L2Tx,
+    web3::Bytes,
+    CONTRACT_DEPLOYER_ADDRESS, H256, U256, U64,
+};
 use zksync_utils::bytes_to_be_words;
 use zksync_web3_decl::error::Web3Error;
 
-use crate::deps::storage_view::StorageView;
-use crate::node::create_empty_block;
-use crate::{fork::ForkSource, node::InMemoryNodeInner};
+use crate::{
+    deps::storage_view::StorageView,
+    fork::ForkSource,
+    node::{create_empty_block, InMemoryNodeInner},
+};
 
 pub(crate) trait IntoBoxedFuture: Sized + Send + 'static {
     fn into_boxed_future(self) -> Pin<Box<dyn Future<Output = Self> + Send>> {
@@ -98,7 +100,7 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
 
             let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage.clone());
 
-            vm.execute(zksync_multivm::interface::VmExecutionMode::Bootloader);
+            vm.execute(zksync_multivm::interface::InspectExecutionMode::Bootloader);
 
             // we should not have any bytecodes
             let modified_keys = storage.borrow().modified_storage_keys().clone();
@@ -334,9 +336,8 @@ pub fn h256_to_u64(value: H256) -> u64 {
 mod tests {
     use zksync_types::{H256, U256};
 
-    use crate::{http_fork_source::HttpForkSource, node::InMemoryNode, testing};
-
     use super::*;
+    use crate::{http_fork_source::HttpForkSource, node::InMemoryNode, testing};
 
     #[test]
     fn test_utc_datetime_from_epoch_ms() {

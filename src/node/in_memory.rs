@@ -14,8 +14,8 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::{
     interface::{
         storage::{ReadStorage, StoragePtr, WriteStorage},
-        Call, ExecutionResult, L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode,
-        VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt,
+        Call, ExecutionResult, InspectExecutionMode, L1BatchEnv, L2Block, L2BlockEnv, SystemEnv,
+        TxExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt,
     },
     tracers::CallTracer,
     utils::{
@@ -37,13 +37,11 @@ use zksync_types::{
     get_code_key, get_nonce_key,
     l2::{L2Tx, TransactionType},
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
-    BloomInput, PackedEthSignature, StorageKey, StorageValue, Transaction,
-    ACCOUNT_CODE_STORAGE_ADDRESS, EMPTY_UNCLES_HASH, MAX_L2_TX_GAS_LIMIT, SYSTEM_CONTEXT_ADDRESS,
-    SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
-};
-use zksync_types::{
     web3::{keccak256, Bytes, Index},
-    AccountTreeId, Address, L1BatchNumber, L2BlockNumber, H160, H256, H64, U256, U64,
+    AccountTreeId, Address, BloomInput, L1BatchNumber, L2BlockNumber, PackedEthSignature,
+    StorageKey, StorageValue, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS, EMPTY_UNCLES_HASH, H160,
+    H256, H64, MAX_L2_TX_GAS_LIMIT, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
+    U256, U64,
 };
 use zksync_utils::{bytecode::hash_bytecode, h256_to_account_address, h256_to_u256, u256_to_h256};
 use zksync_web3_decl::error::Web3Error;
@@ -722,7 +720,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         let tx: Transaction = l2_tx.into();
         vm.push_transaction(tx);
 
-        vm.execute(VmExecutionMode::OneTx)
+        vm.execute(InspectExecutionMode::OneTx)
     }
 
     /// Sets the `impersonated_account` field of the node.
@@ -1072,7 +1070,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             CallErrorTracer::new().into_tracer_pointer(),
             CallTracer::new(call_tracer_result.clone()).into_tracer_pointer(),
         ];
-        let tx_result = vm.inspect(&mut tracers.into(), VmExecutionMode::OneTx);
+        let tx_result = vm.inspect(&mut tracers.into(), InspectExecutionMode::OneTx);
 
         let call_traces = Arc::try_unwrap(call_tracer_result)
             .unwrap()
@@ -1518,7 +1516,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             bytecodes.insert(hash, bytecode);
         }
         if execute_bootloader {
-            vm.execute(VmExecutionMode::Bootloader);
+            vm.execute(InspectExecutionMode::Bootloader);
         }
 
         let modified_keys = storage.borrow().modified_storage_keys().clone();
@@ -1618,7 +1616,6 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             l1_batch_number: block.l1_batch_number,
             from: l2_tx.initiator_account(),
             to: l2_tx.recipient_account(),
-            root: H256::zero(),
             cumulative_gas_used: Default::default(),
             gas_used: Some(l2_tx.common_data.fee.gas_limit - result.refunds.gas_refunded),
             contract_address: contract_address_from_tx_result(&result),
@@ -1815,8 +1812,7 @@ pub fn load_last_l1_batch<S: ReadStorage>(storage: StoragePtr<S>) -> Option<(u64
 mod tests {
     use ethabi::{Token, Uint};
     use gas::DEFAULT_FAIR_PUBDATA_PRICE;
-    use zksync_types::Nonce;
-    use zksync_types::{utils::deployed_address_create, K256PrivateKey};
+    use zksync_types::{utils::deployed_address_create, K256PrivateKey, Nonce};
 
     use super::*;
     use crate::{

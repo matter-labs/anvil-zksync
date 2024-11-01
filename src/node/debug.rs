@@ -1,23 +1,22 @@
-use itertools::Itertools;
-use once_cell::sync::OnceCell;
 use std::sync::Arc;
 
-use zksync_multivm::interface::{VmFactory, VmInterface};
-use zksync_multivm::tracers::CallTracer;
-use zksync_multivm::vm_latest::HistoryDisabled;
-use zksync_multivm::vm_latest::{constants::ETH_CALL_GAS_LIMIT, ToTracerPointer, Vm};
-
-use zksync_types::H256;
+use itertools::Itertools;
+use once_cell::sync::OnceCell;
+use zksync_multivm::{
+    interface::{VmFactory, VmInterface},
+    tracers::CallTracer,
+    vm_latest::{constants::ETH_CALL_GAS_LIMIT, HistoryDisabled, ToTracerPointer, Vm},
+};
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig, TransactionVariant},
     l2::L2Tx,
     transaction_request::CallRequest,
-    PackedEthSignature, Transaction, U64,
+    PackedEthSignature, Transaction, H256, U64,
 };
 use zksync_web3_decl::error::Web3Error;
 
-use crate::deps::storage_view::StorageView;
 use crate::{
+    deps::storage_view::StorageView,
     fork::ForkSource,
     namespaces::{DebugNamespaceT, Result, RpcResult},
     node::{InMemoryNode, MAX_TX_SIZE},
@@ -192,7 +191,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> DebugNames
 
             let tx_result = vm.inspect(
                 &mut tracer.into(),
-                zksync_multivm::interface::VmExecutionMode::OneTx,
+                zksync_multivm::interface::InspectExecutionMode::OneTx,
             );
             let call_traces = if only_top {
                 vec![]
@@ -234,6 +233,14 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> DebugNames
 
 #[cfg(test)]
 mod tests {
+    use ethers::abi::{short_signature, AbiEncode, HumanReadableParser, ParamType, Token};
+    use zksync_types::{
+        api::{Block, CallTracerConfig, SupportedTracers, TransactionReceipt},
+        transaction_request::CallRequestBuilder,
+        utils::deployed_address_create,
+        Address, K256PrivateKey, Nonce, H160, U256,
+    };
+
     use super::*;
     use crate::{
         deps::system_contracts::bytecode_from_slice,
@@ -241,14 +248,6 @@ mod tests {
         node::{InMemoryNode, TransactionResult},
         testing::{self, LogBuilder},
     };
-    use ethers::abi::{short_signature, AbiEncode, HumanReadableParser, ParamType, Token};
-    use zksync_types::{
-        api::{Block, CallTracerConfig, SupportedTracers, TransactionReceipt},
-        transaction_request::CallRequestBuilder,
-        utils::deployed_address_create,
-        K256PrivateKey,
-    };
-    use zksync_types::{Address, Nonce, H160, U256};
 
     fn deploy_test_contracts(node: &InMemoryNode<HttpForkSource>) -> (Address, Address) {
         let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(0xee)).unwrap();

@@ -10,9 +10,9 @@ use zksync_types::{
     },
     fee::Fee,
     utils::storage_key_for_standard_token_balance,
-    ExecuteTransactionCommon, ProtocolVersionId, Transaction, H160, L2_BASE_TOKEN_ADDRESS,
+    AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber, L2BlockNumber,
+    ProtocolVersionId, Transaction, H160, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
-use zksync_types::{AccountTreeId, Address, L1BatchNumber, L2BlockNumber, H256, U256};
 use zksync_utils::h256_to_u256;
 use zksync_web3_decl::error::Web3Error;
 
@@ -178,6 +178,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
                     l2_erc20_default_bridge: Default::default(),
                     l1_weth_bridge: Default::default(),
                     l2_weth_bridge: Default::default(),
+                    l2_legacy_shared_bridge: Default::default(),
                 },
             };
 
@@ -577,18 +578,22 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
 mod tests {
     use std::str::FromStr;
 
-    use crate::config::cache::CacheConfig;
-    use crate::fork::ForkDetails;
-    use crate::node::TEST_NODE_NETWORK_ID;
-    use crate::testing;
-    use crate::testing::{ForkBlockConfig, MockServer};
-    use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
+    use zksync_types::{
+        api::{self, Block, TransactionReceipt, TransactionVariant},
+        transaction_request::CallRequest,
+        Address, H160, H256,
+    };
+    use zksync_utils::u256_to_h256;
 
     use super::*;
-    use zksync_types::api::{self, Block, TransactionReceipt, TransactionVariant};
-    use zksync_types::transaction_request::CallRequest;
-    use zksync_types::{Address, H160, H256};
-    use zksync_utils::u256_to_h256;
+    use crate::{
+        config::cache::CacheConfig,
+        fork::ForkDetails,
+        http_fork_source::HttpForkSource,
+        node::{InMemoryNode, TEST_NODE_NETWORK_ID},
+        testing,
+        testing::{ForkBlockConfig, MockServer},
+    };
 
     #[tokio::test]
     async fn test_estimate_fee() {
