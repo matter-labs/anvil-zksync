@@ -80,6 +80,7 @@ describe("zks_getBridgeContracts", function () {
       l1SharedDefaultBridge: null,
       l2Erc20DefaultBridge: null,
       l2SharedDefaultBridge: null,
+      l2LegacySharedBridge: null,
       l1WethBridge: null,
       l2WethBridge: null,
     });
