@@ -436,6 +436,7 @@ mod tests {
             l2_erc20_default_bridge: Some(H160::repeat_byte(0x2)),
             l1_weth_bridge: Some(H160::repeat_byte(0x3)),
             l2_weth_bridge: Some(H160::repeat_byte(0x4)),
+            l2_legacy_shared_bridge: Some(H160::repeat_byte(0x6)),
         };
 
         let mut cache = Cache::new(CacheConfig::Memory);
@@ -501,6 +502,7 @@ mod tests {
             l2_erc20_default_bridge: Some(H160::repeat_byte(0x2)),
             l1_weth_bridge: Some(H160::repeat_byte(0x3)),
             l2_weth_bridge: Some(H160::repeat_byte(0x4)),
+            l2_legacy_shared_bridge: Some(H160::repeat_byte(0x6)),
         };
 
         let cache_dir = TempDir::new("cache-test").expect("failed creating temporary dir");
@@ -601,6 +603,7 @@ mod tests {
             l1_erc20_default_bridge: Some(H160::repeat_byte(0x1)),
             l1_weth_bridge: Some(H160::repeat_byte(0x3)),
             l2_weth_bridge: Some(H160::repeat_byte(0x4)),
+            l2_legacy_shared_bridge: Some(H160::repeat_byte(0x6)),
         };
 
         let cache_dir = TempDir::new("cache-test").expect("failed creating temporary dir");

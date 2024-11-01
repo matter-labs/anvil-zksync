@@ -867,6 +867,7 @@ mod tests {
             l2_erc20_default_bridge: Default::default(),
             l1_weth_bridge: Default::default(),
             l2_weth_bridge: Default::default(),
+            l2_legacy_shared_bridge: Default::default(),
         };
 
         let actual_bridge_addresses = node
@@ -893,6 +894,7 @@ mod tests {
             l2_erc20_default_bridge: Some(H160::repeat_byte(0x2)),
             l1_weth_bridge: Some(H160::repeat_byte(0x3)),
             l2_weth_bridge: Some(H160::repeat_byte(0x4)),
+            l2_legacy_shared_bridge: Some(H160::repeat_byte(0x6)),
         };
         mock_server.expect(
             serde_json::json!({

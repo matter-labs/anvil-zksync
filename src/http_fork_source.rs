@@ -702,6 +702,7 @@ mod tests {
             l2_shared_default_bridge: Some(H160::repeat_byte(0x2)),
             l1_weth_bridge: Some(H160::repeat_byte(0x3)),
             l2_weth_bridge: Some(H160::repeat_byte(0x4)),
+            l2_legacy_shared_bridge: Some(H160::repeat_byte(0x6)),
         };
         let mock_server = testing::MockServer::run();
         mock_server.expect(
