@@ -15,7 +15,7 @@ use std::{
 
 use eyre::eyre;
 use tokio::runtime::Builder;
-use zksync_basic_types::{Address, L1BatchNumber, L2BlockNumber, L2ChainId, H256, U256, U64};
+use zksync_types::{Address, L1BatchNumber, L2BlockNumber, L2ChainId, H256, U256, U64};
 
 use zksync_types::{
     api::{
@@ -125,11 +125,14 @@ impl<S: ForkSource> ForkStorage<S> {
         fork: Option<ForkDetails>,
         system_contracts_options: &system_contracts::Options,
         use_evm_emulator: bool,
+        override_chain_id: Option<u32>,
     ) -> Self {
         let chain_id = fork
             .as_ref()
             .and_then(|d| d.overwrite_chain_id)
-            .unwrap_or(L2ChainId::from(TEST_NODE_NETWORK_ID));
+            .unwrap_or(L2ChainId::from(
+                override_chain_id.unwrap_or(TEST_NODE_NETWORK_ID),
+            ));
         tracing::info!("Starting network with chain id: {:?}", chain_id);
 
         ForkStorage {
@@ -724,9 +727,9 @@ impl ForkDetails {
 
 #[cfg(test)]
 mod tests {
-    use zksync_basic_types::{AccountTreeId, L1BatchNumber, H256};
     use zksync_multivm::interface::storage::ReadStorage;
     use zksync_types::{api::TransactionVariant, StorageKey};
+    use zksync_types::{AccountTreeId, L1BatchNumber, H256};
 
     use crate::config::cache::CacheConfig;
     use crate::config::gas::{
@@ -771,7 +774,7 @@ mod tests {
         };
 
         let mut fork_storage: ForkStorage<testing::ExternalStorage> =
-            ForkStorage::new(Some(fork_details), &options, false);
+            ForkStorage::new(Some(fork_details), &options, false, None);
 
         assert!(fork_storage.is_write_initial(&never_written_key));
         assert!(!fork_storage.is_write_initial(&key_with_some_value));

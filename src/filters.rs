@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
-use zksync_basic_types::{H160, H256, U256, U64};
 use zksync_types::api::{BlockNumber, Log};
+use zksync_types::{H160, H256, U256, U64};
 use zksync_web3_decl::types::FilterChanges;
 
 use crate::utils;

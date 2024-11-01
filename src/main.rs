@@ -45,7 +45,7 @@ use futures::{
     FutureExt,
 };
 use jsonrpc_core::MetaIoHandler;
-use zksync_basic_types::H160;
+use zksync_types::H160;
 
 use crate::constants::{LEGACY_RICH_WALLETS, RICH_WALLETS};
 use crate::namespaces::{

@@ -1,6 +1,5 @@
 use once_cell::sync::Lazy;
 use serde_json::Value;
-use zksync_basic_types::{AccountTreeId, Address, H160};
 use zksync_types::{
     block::DeployedContract, ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS,
     BOOTLOADER_UTILITIES_ADDRESS, CODE_ORACLE_ADDRESS, COMPRESSOR_ADDRESS,
@@ -11,6 +10,7 @@ use zksync_types::{
     P256VERIFY_PRECOMPILE_ADDRESS, PUBDATA_CHUNK_PUBLISHER_ADDRESS, SHA256_PRECOMPILE_ADDRESS,
     SYSTEM_CONTEXT_ADDRESS,
 };
+use zksync_types::{AccountTreeId, Address, H160};
 
 /// The `ecAdd` system contract address.
 pub const ECADD_PRECOMPILE_ADDRESS: Address = H160([

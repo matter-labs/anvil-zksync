@@ -79,6 +79,10 @@ impl TestNodeConfig {
             self.node.resolve_hashes = *resolve_hashes;
         }
 
+        if opt.chain_id.is_some() {
+            self.node.chain_id = opt.chain_id;
+        }
+
         if let Some(contract_options) = &opt.dev_system_contracts {
             self.node.system_contracts_options = match contract_options {
                 DevSystemContracts::BuiltIn => system_contracts::Options::BuiltIn,
@@ -149,6 +153,7 @@ pub mod node {
         pub resolve_hashes: bool,
         pub system_contracts_options: system_contracts::Options,
         pub use_evm_emulator: bool,
+        pub chain_id: Option<u32>,
     }
 
     impl Default for InMemoryNodeConfig {
@@ -163,6 +168,7 @@ pub mod node {
                 resolve_hashes: Default::default(),
                 system_contracts_options: Default::default(),
                 use_evm_emulator: false,
+                chain_id: Default::default(),
             }
         }
     }

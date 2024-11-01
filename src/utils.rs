@@ -2,12 +2,10 @@ use std::convert::TryInto;
 use std::fmt;
 use std::pin::Pin;
 
-use anyhow::anyhow;
+use anyhow::Context;
 use chrono::{DateTime, Utc};
 use futures::Future;
 use jsonrpc_core::{Error, ErrorCode};
-use zkevm_opcode_defs::utils::bytecode_to_code_hash;
-use zksync_basic_types::{H256, U256, U64};
 use zksync_multivm::interface::storage::WriteStorage;
 use zksync_multivm::interface::{
     Call, CallType, ExecutionResult, VmExecutionResultAndLogs, VmFactory, VmInterfaceExt,
@@ -18,6 +16,7 @@ use zksync_types::api::{BlockNumber, DebugCall, DebugCallType};
 use zksync_types::l2::L2Tx;
 use zksync_types::web3::Bytes;
 use zksync_types::CONTRACT_DEPLOYER_ADDRESS;
+use zksync_types::{H256, U256, U64};
 use zksync_utils::bytes_to_be_words;
 use zksync_web3_decl::error::Web3Error;
 
@@ -57,31 +56,9 @@ pub fn to_human_size(input: U256) -> String {
     tmp.iter().rev().collect()
 }
 
-pub fn bytes_to_chunks(bytes: &[u8]) -> Vec<[u8; 32]> {
-    bytes
-        .chunks(32)
-        .map(|el| {
-            let mut chunk = [0u8; 32];
-            chunk.copy_from_slice(el);
-            chunk
-        })
-        .collect()
-}
-
-pub fn hash_bytecode(code: &[u8]) -> Result<H256, anyhow::Error> {
-    if code.len() % 32 != 0 {
-        return Err(anyhow!("bytes must be divisible by 32"));
-    }
-
-    let chunked_code = bytes_to_chunks(code);
-    match bytecode_to_code_hash(&chunked_code) {
-        Ok(hash) => Ok(H256(hash)),
-        Err(_) => Err(anyhow!("invalid bytecode")),
-    }
-}
-
 pub fn bytecode_to_factory_dep(bytecode: Vec<u8>) -> Result<(U256, Vec<U256>), anyhow::Error> {
-    let bytecode_hash = hash_bytecode(&bytecode)?;
+    zksync_utils::bytecode::validate_bytecode(&bytecode).context("Invalid bytecode")?;
+    let bytecode_hash = zksync_utils::bytecode::hash_bytecode(&bytecode);
     let bytecode_hash = U256::from_big_endian(bytecode_hash.as_bytes());
 
     let bytecode_words = bytes_to_be_words(bytecode);
@@ -355,7 +332,7 @@ pub fn h256_to_u64(value: H256) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use zksync_basic_types::{H256, U256};
+    use zksync_types::{H256, U256};
 
     use crate::{http_fork_source::HttpForkSource, node::InMemoryNode, testing};
 

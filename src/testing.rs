@@ -19,13 +19,13 @@ use httptest::{
 };
 use itertools::Itertools;
 use std::str::FromStr;
-use zksync_basic_types::{AccountTreeId, L1BatchNumber, L2BlockNumber, H160, U64};
 use zksync_multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
 use zksync_types::api::{
     BlockDetailsBase, BlockIdVariant, BlockStatus, BridgeAddresses, DebugCall, DebugCallType, Log,
 };
 use zksync_types::block::pack_block_info;
 use zksync_types::{fee::Fee, l2::L2Tx, Address, L2ChainId, Nonce, ProtocolVersionId, H256, U256};
+use zksync_types::{AccountTreeId, L1BatchNumber, L2BlockNumber, H160, U64};
 use zksync_types::{K256PrivateKey, StorageKey};
 use zksync_utils::u256_to_h256;
 
@@ -452,7 +452,10 @@ impl TransactionBuilder {
             Default::default(),
         )
         .unwrap();
-        tx.set_input(vec![], self.tx_hash);
+        tx.set_input(
+            tx.common_data.input_data().unwrap_or_default().into(),
+            self.tx_hash,
+        );
         tx
     }
 }
@@ -461,7 +464,7 @@ impl TransactionBuilder {
 pub fn apply_tx<T: ForkSource + std::fmt::Debug + Clone>(
     node: &InMemoryNode<T>,
     tx_hash: H256,
-) -> (H256, U64) {
+) -> (H256, U64, L2Tx) {
     let next_miniblock = node
         .get_inner()
         .read()
@@ -472,9 +475,10 @@ pub fn apply_tx<T: ForkSource + std::fmt::Debug + Clone>(
     let tx = TransactionBuilder::new().set_hash(tx_hash).build();
 
     node.set_rich_account(tx.common_data.initiator_address);
-    node.apply_txs(vec![tx]).expect("failed applying tx");
+    node.apply_txs(vec![tx.clone()])
+        .expect("failed applying tx");
 
-    (produced_block_hash, U64::from(next_miniblock))
+    (produced_block_hash, U64::from(next_miniblock), tx)
 }
 
 /// Deploys a contract with the given bytecode.
@@ -547,7 +551,7 @@ pub fn deploy_contract<T: ForkSource + std::fmt::Debug + Clone>(
             gas_per_pubdata_limit: U256::from(50000),
         },
         U256::from(0),
-        zksync_basic_types::L2ChainId::from(260),
+        zksync_types::L2ChainId::from(260),
         private_key,
         vec![bytecode],
         Default::default(),
@@ -843,7 +847,7 @@ impl ForkSource for ExternalStorage {
     fn get_transaction_by_block_hash_and_index(
         &self,
         _block_hash: H256,
-        _index: zksync_basic_types::web3::Index,
+        _index: zksync_types::web3::Index,
     ) -> eyre::Result<Option<zksync_types::api::Transaction>> {
         todo!()
     }
@@ -851,7 +855,7 @@ impl ForkSource for ExternalStorage {
     fn get_transaction_by_block_number_and_index(
         &self,
         _block_number: zksync_types::api::BlockNumber,
-        _index: zksync_basic_types::web3::Index,
+        _index: zksync_types::web3::Index,
     ) -> eyre::Result<Option<zksync_types::api::Transaction>> {
         todo!()
     }
@@ -964,7 +968,7 @@ mod test {
     #[tokio::test]
     async fn test_apply_tx() {
         let node = InMemoryNode::<HttpForkSource>::default();
-        let (actual_block_hash, actual_block_number) = apply_tx(&node, H256::repeat_byte(0x01));
+        let (actual_block_hash, actual_block_number, _) = apply_tx(&node, H256::repeat_byte(0x01));
 
         assert_eq!(
             H256::from_str("0xd97ba6a5ab0f2d7fbfc697251321cce20bff3da2b0ddaf12c80f80f0ab270b15")

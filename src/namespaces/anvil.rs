@@ -1,5 +1,5 @@
 use jsonrpc_derive::rpc;
-use zksync_basic_types::{Address, U256, U64};
+use zksync_types::{Address, U256, U64};
 
 use super::{ResetRequest, RpcResult};
 

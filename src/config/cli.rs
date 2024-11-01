@@ -100,6 +100,10 @@ pub struct Cli {
 
     #[arg(long)]
     pub override_bytecodes_dir: Option<String>,
+
+    /// Use a given chain id. If not set uses 260 (or the one from the forked network).
+    #[arg(long)]
+    pub chain_id: Option<u32>,
 }
 
 #[derive(Debug, Subcommand)]

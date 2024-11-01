@@ -1,6 +1,6 @@
 use jsonrpc_derive::rpc;
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{Address, U256, U64};
+use zksync_types::{Address, U256, U64};
 
 use super::RpcResult;
 
@@ -64,6 +64,24 @@ pub trait HardhatNamespaceT {
     /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
     #[rpc(name = "hardhat_mine")]
     fn hardhat_mine(&self, num_blocks: Option<U64>, interval: Option<U64>) -> RpcResult<bool>;
+
+    /// Retrieves the current automine status of the network.
+    ///
+    /// This method always returns `true` as automining is enabled by default, meaning a new block is
+    /// mined immediately with each transaction. Disabling automining to allow pending transactions in the
+    /// mempool and manual or interval mining is currently not supported. To implement this, modifications
+    /// would be needed to support pending transaction handling and refactor `run_l2_tx` and `run_l2_tx_raw`
+    /// for modularity and maintainability.
+    ///
+    /// # Arguments
+    ///
+    /// This RPC method does not accept any arguments.
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `Result` with a `bool` value indicating the automine status (`true` for enabled).
+    #[rpc(name = "hardhat_getAutomine")]
+    fn hardhat_get_automine(&self) -> RpcResult<bool>;
 
     /// Reset the state of the network back to a fresh forked state, or disable forking.
     ///
