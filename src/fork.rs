@@ -81,12 +81,12 @@ impl ForkNetwork {
             ForkNetwork::Other(url) => url,
         }
     }
-
+    // TODO: This needs to be dynamic based on the network.
     /// Returns the local gas scale factors currently in use by the upstream network.
     pub fn local_gas_scale_factors(&self) -> (f64, f32) {
         match self {
-            ForkNetwork::Mainnet => (1.5, 1.2),
-            ForkNetwork::SepoliaTestnet => (2.0, 1.2),
+            ForkNetwork::Mainnet => (1.5, 1.3),
+            ForkNetwork::SepoliaTestnet => (2.0, 1.3),
             ForkNetwork::GoerliTestnet => (1.2, 1.2),
             ForkNetwork::Other(_) => (
                 DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
