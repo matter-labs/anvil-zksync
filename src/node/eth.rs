@@ -2400,7 +2400,7 @@ mod tests {
             .await
             .expect("failed getting filter changes")
         {
-            FilterChanges::Logs(result) => assert_eq!(3, result.len()),
+            FilterChanges::Logs(result) => assert_eq!(4, result.len()),
             changes => panic!("unexpected filter changes: {:?}", changes),
         }
 
