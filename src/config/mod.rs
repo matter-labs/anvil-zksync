@@ -301,15 +301,13 @@ pub mod node {
 pub mod gas {
     use serde::Deserialize;
 
-    /// L1 Gas Price.
-    pub const DEFAULT_L1_GAS_PRICE: u64 = 50_000_000_000;
-    // TODO: for now, that's fine, as computation overhead is set to zero, but we may consider using calculated fee input everywhere.
+    pub const DEFAULT_L1_GAS_PRICE: u64 = 14_932_364_075;
     /// The default L2 Gas Price to be used if not supplied via the CLI argument.
-    pub const DEFAULT_L2_GAS_PRICE: u64 = 25_000_000;
-    // Default fair pubdata price based on an average from Sepolia Testnet blocks
-    pub const DEFAULT_FAIR_PUBDATA_PRICE: u64 = 450_000_000_000;
+    pub const DEFAULT_L2_GAS_PRICE: u64 = 45_250_000;
+    /// Default fair pubdata price based on the provided value.
+    pub const DEFAULT_FAIR_PUBDATA_PRICE: u64 = 13_607_659_111;
     /// L1 Gas Price Scale Factor for gas estimation.
-    pub const DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR: f64 = 1.5;
+    pub const DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR: f64 = 2.0;
     /// The factor by which to scale the gasLimit.
     pub const DEFAULT_ESTIMATE_GAS_SCALE_FACTOR: f32 = 1.3;
 
@@ -319,6 +317,8 @@ pub mod gas {
         pub l1_gas_price: Option<u64>,
         /// L2 gas price.
         pub l2_gas_price: Option<u64>,
+        /// Fair pubdata price.
+        pub l1_pubdata_price: Option<u64>,
         /// Factors used in estimating gas.
         pub estimation: Option<Estimation>,
     }

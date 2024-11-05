@@ -4,6 +4,10 @@ use bytecode_override::override_bytecodes;
 use clap::Parser;
 use colored::Colorize;
 use config::cli::{Cli, Command};
+use config::gas::{
+    Estimation, GasConfig, DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
+    DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
+};
 use config::TestNodeConfig;
 use fork::{ForkDetails, ForkSource};
 use http_fork_source::HttpForkSource;
@@ -30,14 +34,15 @@ mod system_contracts;
 mod testing;
 mod utils;
 
-use node::InMemoryNode;
-
+use node::{InMemoryNode, TestNodeFeeInputProvider};
 use std::fs::File;
 use std::{
     env,
     net::{IpAddr, Ipv4Addr, SocketAddr},
     str::FromStr,
 };
+use zksync_types::fee_model::FeeParams;
+use zksync_web3_decl::namespaces::ZksNamespaceClient;
 
 use futures::{
     channel::oneshot,
@@ -118,7 +123,46 @@ async fn main() -> anyhow::Result<()> {
     // Use `Command::Run` as default.
     let command = opt.command.as_ref().unwrap_or(&Command::Run);
     let fork_details = match command {
-        Command::Run => None,
+        Command::Run => {
+            // TODO: This is a temporary solution to get the fee params from mainnet and use them
+            // during the test node initialization. This will be replaced with a more robust solution.
+            //
+            // Make use of `mainnet` fee params
+            let fork = "mainnet";
+            // Initialize the client to get the fee params
+            let (_, client) = ForkDetails::fork_network_and_client(fork).unwrap();
+            let fee = match client.get_fee_params().await {
+                Ok(fee) => fee,
+                Err(error) => {
+                    return Err(anyhow!(error));
+                }
+            };
+
+            let gas_config = match fee {
+                FeeParams::V1(_) => {
+                    // Handle V1 if needed; otherwise, return an error if V2 is expected.
+                    return Err(anyhow!("FeeParams::V1 is not supported in this context."));
+                }
+                FeeParams::V2(fee_v2) => GasConfig {
+                    l1_gas_price: Some(fee_v2.l1_gas_price()),
+                    l2_gas_price: Some(fee_v2.config().minimal_l2_gas_price),
+                    l1_pubdata_price: Some(fee_v2.l1_pubdata_price()),
+                    estimation: Some(Estimation {
+                        price_scale_factor: Some(DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR),
+                        limit_scale_factor: Some(DEFAULT_ESTIMATE_GAS_SCALE_FACTOR),
+                    }),
+                },
+            };
+
+            // Initialize fee_params with overrides
+            TestNodeFeeInputProvider::from_fee_params_and_estimate_scale_factors(
+                fee,
+                DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
+                DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
+            )
+            .with_overrides(Some(gas_config));
+            None
+        }
         Command::Fork(fork) => {
             match ForkDetails::from_network(&fork.network, fork.fork_block_number, config.cache)
                 .await

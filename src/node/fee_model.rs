@@ -1,9 +1,8 @@
 use zksync_types::fee_model::{BatchFeeInput, FeeModelConfigV2, FeeParams, FeeParamsV2};
-use zksync_types::L1_GAS_PER_PUBDATA_BYTE;
 
 use crate::config::gas::{
     GasConfig, DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
-    DEFAULT_L1_GAS_PRICE, DEFAULT_L2_GAS_PRICE,
+    DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L1_GAS_PRICE, DEFAULT_L2_GAS_PRICE,
 };
 use crate::utils::to_human_size;
 
@@ -70,6 +69,16 @@ impl TestNodeFeeInputProvider {
             );
             self.l1_gas_price = l1_gas_price;
         }
+
+        if let Some(l1_pubdata_price) = gas_config.l1_pubdata_price {
+            tracing::info!(
+                "L1 pubdata price set to {} (overridden from {})",
+                to_human_size(l1_pubdata_price.into()),
+                to_human_size(self.l1_pubdata_price.into())
+            );
+            self.l1_pubdata_price = l1_pubdata_price;
+        }
+
         if let Some(l2_gas_price) = gas_config.l2_gas_price {
             tracing::info!(
                 "L2 gas price set to {} (overridden from {})",
@@ -126,13 +135,13 @@ impl Default for TestNodeFeeInputProvider {
     fn default() -> Self {
         Self {
             l1_gas_price: DEFAULT_L1_GAS_PRICE,
-            l1_pubdata_price: DEFAULT_L1_GAS_PRICE * L1_GAS_PER_PUBDATA_BYTE as u64,
+            l1_pubdata_price: DEFAULT_FAIR_PUBDATA_PRICE,
             l2_gas_price: DEFAULT_L2_GAS_PRICE,
             compute_overhead_part: 0.0,
             pubdata_overhead_part: 1.0,
             batch_overhead_l1_gas: 800000,
             max_gas_per_batch: 200000000,
-            max_pubdata_per_batch: 100000,
+            max_pubdata_per_batch: 500000,
             estimate_gas_price_scale_factor: DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
             estimate_gas_scale_factor: DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
         }

@@ -922,6 +922,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         Ok(GasConfig {
             l1_gas_price: Some(fee_input_provider.l1_gas_price),
             l2_gas_price: Some(fee_input_provider.l2_gas_price),
+            l1_pubdata_price: Some(fee_input_provider.l1_pubdata_price),
             estimation: Some(gas::Estimation {
                 price_scale_factor: Some(fee_input_provider.estimate_gas_price_scale_factor),
                 limit_scale_factor: Some(fee_input_provider.estimate_gas_scale_factor),
