@@ -1,6 +1,6 @@
 [package]
 name = "era_test_node"
-version = "0.1.0-alpha.30"
+version = "0.1.0-alpha.31"
 edition = "2018"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
@@ -8,7 +8,7 @@ repository = "https://github.com/matter-labs/era-test-node"
 license = "MIT OR Apache-2.0"
 keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
-publish = false                                           # We don't want to publish our binaries.
+publish = false                                             # We don't want to publish our binaries.
 
 [dependencies]
 zksync_multivm = { git = "https://github.com/matter-labs/zksync-era.git", rev = "6c034f6e180cc92e99766f14c8840c90efa56cec" }
