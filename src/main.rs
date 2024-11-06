@@ -124,44 +124,46 @@ async fn main() -> anyhow::Result<()> {
     let command = opt.command.as_ref().unwrap_or(&Command::Run);
     let fork_details = match command {
         Command::Run => {
-            // TODO: This is a temporary solution to get the fee params from mainnet and use them
-            // during the test node initialization. This will be replaced with a more robust solution.
-            //
-            // Make use of `mainnet` fee params
-            let fork = "mainnet";
-            // Initialize the client to get the fee params
-            let (_, client) = ForkDetails::fork_network_and_client(fork).unwrap();
-            let fee = match client.get_fee_params().await {
-                Ok(fee) => fee,
-                Err(error) => {
-                    return Err(anyhow!(error));
-                }
-            };
+            if opt.offline {
+                tracing::warn!(
+                    "Running in offline mode: default fee parameters will be used. \
+        To override, specify values in `config.toml` and use the `--config` flag."
+                );
+                None
+            } else {
+                // Initialize the client to get the fee params
+                let (_, client) = ForkDetails::fork_network_and_client("mainnet")
+                    .map_err(|e| anyhow!("Failed to initialize client: {:?}", e))?;
 
-            let gas_config = match fee {
-                FeeParams::V1(_) => {
-                    // Handle V1 if needed; otherwise, return an error if V2 is expected.
-                    return Err(anyhow!("FeeParams::V1 is not supported in this context."));
-                }
-                FeeParams::V2(fee_v2) => GasConfig {
-                    l1_gas_price: Some(fee_v2.l1_gas_price()),
-                    l2_gas_price: Some(fee_v2.config().minimal_l2_gas_price),
-                    l1_pubdata_price: Some(fee_v2.l1_pubdata_price()),
-                    estimation: Some(Estimation {
-                        price_scale_factor: Some(DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR),
-                        limit_scale_factor: Some(DEFAULT_ESTIMATE_GAS_SCALE_FACTOR),
-                    }),
-                },
-            };
+                let fee = client.get_fee_params().await.map_err(|e| {
+                    tracing::error!("Failed to fetch fee params: {:?}", e);
+                    anyhow!(e)
+                })?;
 
-            // Initialize fee_params with overrides
-            TestNodeFeeInputProvider::from_fee_params_and_estimate_scale_factors(
-                fee,
-                DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
-                DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
-            )
-            .with_overrides(Some(gas_config));
-            None
+                let gas_config = match fee {
+                    FeeParams::V2(fee_v2) => GasConfig {
+                        l1_gas_price: Some(fee_v2.l1_gas_price()),
+                        l2_gas_price: Some(fee_v2.config().minimal_l2_gas_price),
+                        l1_pubdata_price: Some(fee_v2.l1_pubdata_price()),
+                        estimation: Some(Estimation {
+                            price_scale_factor: Some(DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR),
+                            limit_scale_factor: Some(DEFAULT_ESTIMATE_GAS_SCALE_FACTOR),
+                        }),
+                    },
+                    FeeParams::V1(_) => {
+                        return Err(anyhow!("Unsupported FeeParams::V1 in this context"))
+                    }
+                };
+
+                // Initialize fee_params with overrides
+                TestNodeFeeInputProvider::from_fee_params_and_estimate_scale_factors(
+                    fee,
+                    DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
+                    DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
+                )
+                .with_overrides(Some(gas_config));
+                None
+            }
         }
         Command::Fork(fork) => {
             match ForkDetails::from_network(&fork.network, fork.fork_block_number, config.cache)

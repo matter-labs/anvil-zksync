@@ -104,6 +104,11 @@ pub struct Cli {
     /// Use a given chain id. If not set uses 260 (or the one from the forked network).
     #[arg(long)]
     pub chain_id: Option<u32>,
+
+    /// Run the node in offline mode. This will disable all network requests.
+    /// Can only be run alongside `run` command.
+    #[arg(long)]
+    pub offline: bool,
 }
 
 #[derive(Debug, Subcommand)]
@@ -125,7 +130,7 @@ pub struct ForkArgs {
     /// If not set - will start a new network from genesis.
     /// If set - will try to fork a remote network. Possible values:
     ///  - mainnet
-    ///  - testnet
+    ///  - sepolia-testnet
     ///  - http://XXX:YY
     pub network: String,
     // Fork at a given L2 miniblock height.
