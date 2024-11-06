@@ -134,7 +134,6 @@ pub struct ForkArgs {
         long,
         value_name = "BLOCK",
         long_help = "Fetch state from a specific block number over a remote endpoint.",
-        requires = "fork",
         alias = "fork-at"
     )]
     pub fork_block_number: Option<u64>,
