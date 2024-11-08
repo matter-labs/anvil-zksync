@@ -62,29 +62,14 @@ impl TestNodeFeeInputProvider {
         };
 
         if let Some(l1_gas_price) = gas_config.l1_gas_price {
-            tracing::info!(
-                "L1 gas price set to {} (overridden from {})",
-                to_human_size(l1_gas_price.into()),
-                to_human_size(self.l1_gas_price.into())
-            );
             self.l1_gas_price = l1_gas_price;
         }
 
         if let Some(l1_pubdata_price) = gas_config.l1_pubdata_price {
-            tracing::info!(
-                "L1 pubdata price set to {} (overridden from {})",
-                to_human_size(l1_pubdata_price.into()),
-                to_human_size(self.l1_pubdata_price.into())
-            );
             self.l1_pubdata_price = l1_pubdata_price;
         }
 
         if let Some(l2_gas_price) = gas_config.l2_gas_price {
-            tracing::info!(
-                "L2 gas price set to {} (overridden from {})",
-                to_human_size(l2_gas_price.into()),
-                to_human_size(self.l2_gas_price.into())
-            );
             self.l2_gas_price = l2_gas_price;
         }
 

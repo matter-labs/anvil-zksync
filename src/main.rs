@@ -155,13 +155,8 @@ async fn main() -> anyhow::Result<()> {
                     }
                 };
 
-                // Initialize fee_params with overrides
-                TestNodeFeeInputProvider::from_fee_params_and_estimate_scale_factors(
-                    fee,
-                    DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
-                    DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
-                )
-                .with_overrides(Some(gas_config));
+                config.gas = Some(gas_config);
+
                 None
             }
         }
