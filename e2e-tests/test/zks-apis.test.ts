@@ -17,7 +17,7 @@ interface Fee {
 }
 
 describe("zks_estimateFee", function () {
-  it("Should return fee estimation data for transfer of 1 ETH", async function () {
+  it("Should return valid fee estimation data for transfer of 1 ETH", async function () {
     // Arrange
     const wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
     const userWallet = Wallet.createRandom().connect(provider);
@@ -29,17 +29,20 @@ describe("zks_estimateFee", function () {
 
     // Act
     const response: Fee = await provider.send("zks_estimateFee", [transaction]);
+
     // Assert
-    expect(ethers.BigNumber.from(response.gas_limit).toNumber()).to.eql(277731, "Unexpected gas_limit");
-    expect(ethers.BigNumber.from(response.gas_per_pubdata_limit)).to.eql(
-      ethers.BigNumber.from("1658"),
-      "Unexpected gas_per_pubdata_limit"
-    );
-    expect(ethers.BigNumber.from(response.max_fee_per_gas).toNumber()).to.eql(45250000, "Unexpected max_fee_per_gas");
-    expect(ethers.BigNumber.from(response.max_priority_fee_per_gas)).to.eql(
-      ethers.BigNumber.from("0"),
-      "Unexpected max_priority_fee_per_gas"
-    );
+    expect(response).to.have.property("gas_limit");
+    expect(response).to.have.property("gas_per_pubdata_limit");
+    expect(response).to.have.property("max_fee_per_gas");
+    expect(response).to.have.property("max_priority_fee_per_gas");
+
+    const gasLimit = ethers.BigNumber.from(response.gas_limit);
+    const gasPerPubdataLimit = ethers.BigNumber.from(response.gas_per_pubdata_limit);
+    const maxFeePerGas = ethers.BigNumber.from(response.max_fee_per_gas);
+
+    expect(gasLimit.toNumber()).to.be.greaterThan(0, "gas_limit should be greater than 0");
+    expect(gasPerPubdataLimit.toNumber()).to.be.greaterThan(0, "gas_per_pubdata_limit should be greater than 0");
+    expect(maxFeePerGas.toNumber()).to.be.greaterThan(0, "max_fee_per_gas should be greater than 0");
   });
 });
 

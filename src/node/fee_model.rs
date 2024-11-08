@@ -4,8 +4,6 @@ use crate::config::gas::{
     GasConfig, DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
     DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L1_GAS_PRICE, DEFAULT_L2_GAS_PRICE,
 };
-use crate::utils::to_human_size;
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct TestNodeFeeInputProvider {
     pub l1_gas_price: u64,

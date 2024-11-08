@@ -15,5 +15,4 @@ mod storage_logs;
 mod web3;
 mod zks;
 
-pub use fee_model::*;
 pub use in_memory::*;

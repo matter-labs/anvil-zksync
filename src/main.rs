@@ -34,7 +34,7 @@ mod system_contracts;
 mod testing;
 mod utils;
 
-use node::{InMemoryNode, TestNodeFeeInputProvider};
+use node::InMemoryNode;
 use std::fs::File;
 use std::{
     env,
