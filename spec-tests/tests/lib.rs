@@ -5,15 +5,24 @@ use jsonschema::Validator;
 use openrpc_types::resolved::{Method, OpenRPC};
 use schemars::visit::Visitor;
 use serde_json::{json, Value};
+use std::path::Path;
 use zksync_basic_types::U256;
 
-fn resolve_method_spec(method_name: &str) -> Method {
-    // Load Ethereum OpenRPC spec
-    // TODO: Add https://github.com/ethereum/execution-apis to git submodules and make sure that the
-    // output file exists. Give user helpful guide on how to generate it if it doesn't:
-    // npm install && npm run build.
-    let openrpc: OpenRPC =
-        serde_json::from_str(include_str!("../../../../execution-apis/openrpc.json")).unwrap();
+// We expect that the git submodule under root directory is initialized and has been built.
+const ETH_OPENRPC_PATH: &str = "../execution-apis/openrpc.json";
+
+fn resolve_method_spec(method_name: &str) -> anyhow::Result<Method> {
+    let path = Path::new(ETH_OPENRPC_PATH);
+    if !path.exists() {
+        // TODO: Explore whether it would make sense to do it automatically for the user
+        anyhow::bail!(
+            "Expected ETH execution api OpenRPC spec to be available at '{}'. \
+            Please make sure that git submodule is initialized and run \
+            `npm install && npm run build` inside the submodule.",
+            ETH_OPENRPC_PATH
+        );
+    }
+    let openrpc: OpenRPC = serde_json::from_slice(&std::fs::read(path)?)?;
     let method = openrpc
         .methods
         .into_iter()
@@ -25,7 +34,7 @@ fn resolve_method_spec(method_name: &str) -> Method {
             }
         })
         .expect(&format!("method '{method_name}' not found"));
-    method
+    Ok(method)
 }
 
 /// Validate result against JSON Schema validator.
@@ -57,7 +66,7 @@ async fn validate_eth_get_block_genesis() -> anyhow::Result<()> {
     // Resolve the method of interest from the official Ethereum Specification.
     // Assumes you have a locally built openrpc.json from https://github.com/ethereum/execution-apis
     // (see TODO in resolve_method_spec).
-    let method = resolve_method_spec("eth_getBlockByNumber");
+    let method = resolve_method_spec("eth_getBlockByNumber")?;
     // Resolve the expected result's JSON Schema (should be self-contained with no references).
     let mut result_schema = method.result.unwrap().schema;
     // Patch the schema with the **known** differences between Ethereum Specification and ZKsync.
@@ -82,7 +91,7 @@ async fn validate_eth_get_block_with_txs() -> anyhow::Result<()> {
 
     era_api.transfer_eth_legacy(U256::from("100")).await?;
 
-    let method = resolve_method_spec("eth_getBlockByNumber");
+    let method = resolve_method_spec("eth_getBlockByNumber")?;
     let mut result_schema = method.result.unwrap().schema;
     EthSpecPatch::for_block().visit_schema(&mut result_schema);
     EthSpecPatch::for_tx_info().visit_schema(&mut result_schema);
