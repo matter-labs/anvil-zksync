@@ -4,7 +4,8 @@ fetch-contracts:
 
 # Build the system contracts
 build-contracts:
-	cd contracts/system-contracts && yarn; yarn install; yarn build
+	cd contracts/system-contracts && yarn; yarn install; yarn build;
+	cd contracts/l2-contracts && yarn; yarn install; yarn build;
 	./scripts/refresh_contracts.sh
 
 # Clean the system contracts
@@ -14,7 +15,8 @@ clean-contracts:
 
 # Rebuild the system contracts
 rebuild-contracts:
-	cd contracts/system-contracts && yarn build
+	cd contracts/system-contracts && yarn build;
+	cd contracts/l2-contracts && yarn build;
 	./scripts/refresh_contracts.sh
 	./scripts/refresh_test_contracts.sh
 
