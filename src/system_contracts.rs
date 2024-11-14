@@ -28,6 +28,7 @@ pub struct SystemContracts {
     pub fee_estimate_contracts: BaseSystemContracts,
     pub baseline_impersonating_contracts: BaseSystemContracts,
     pub fee_estimate_impersonating_contracts: BaseSystemContracts,
+
 }
 
 pub fn get_deployed_contracts(

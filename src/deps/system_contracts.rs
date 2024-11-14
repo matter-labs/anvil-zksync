@@ -24,6 +24,11 @@ pub const ECMUL_PRECOMPILE_ADDRESS: Address = H160([
     0x00, 0x00, 0x00, 0x07,
 ]);
 
+pub const TIMESTAMP_ASSERTER_ADDRESS: Address = H160([
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x80, 0x12,
+]);
+
 pub fn bytecode_from_slice(artifact_name: &str, contents: &[u8]) -> Vec<u8> {
     let artifact: Value = serde_json::from_slice(contents).expect(artifact_name);
     let bytecode = artifact["bytecode"]
@@ -102,6 +107,11 @@ pub static COMPILED_IN_SYSTEM_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new
             "Create2Factory",
             CREATE2_FACTORY_ADDRESS,
             include_bytes!("contracts/Create2Factory.json").to_vec(),
+        ),
+        (
+            "TimestampAsserter",
+            TIMESTAMP_ASSERTER_ADDRESS,
+            include_bytes!("contracts/TimestampAsserter.json").to_vec(),
         ),
     ]
     .map(|(pname, address, contents)| DeployedContract {
