@@ -6,7 +6,7 @@ DST_DIR=src/deps/contracts/
 
 mkdir -p $DST_DIR
 
-contracts=("AccountCodeStorage" "BootloaderUtilities" "Compressor" "ComplexUpgrader" "ContractDeployer" "DefaultAccount" "DefaultAccountNoSecurity" "EmptyContract" "ImmutableSimulator" "KnownCodesStorage" "L1Messenger" "L2BaseToken" "MsgValueSimulator" "NonceHolder" "SystemContext" "PubdataChunkPublisher" "Create2Factory")
+contracts=("AccountCodeStorage" "BootloaderUtilities" "Compressor" "ComplexUpgrader" "ContractDeployer" "DefaultAccount" "EmptyContract" "ImmutableSimulator" "KnownCodesStorage" "L1Messenger" "L2BaseToken" "MsgValueSimulator" "NonceHolder" "SystemContext" "PubdataChunkPublisher" "Create2Factory")
 
 for contract in "${contracts[@]}"; do
     cp $SRC_DIR/$contract.sol/$contract.json $DST_DIR
@@ -21,7 +21,7 @@ done
 cp contracts/system-contracts/contracts-preprocessed/artifacts/EventWriter.yul.zbin $DST_DIR
 
 
-bootloaders=("fee_estimate"  "gas_test" "playground_batch" "proved_batch" "proved_batch_impersonating" "fee_estimate_impersonating" )
+bootloaders=("fee_estimate"  "gas_test" "playground_batch" "proved_batch")
 
 for bootloader in "${bootloaders[@]}"; do
     cp contracts/system-contracts/bootloader/build/artifacts/$bootloader.yul.zbin $DST_DIR
