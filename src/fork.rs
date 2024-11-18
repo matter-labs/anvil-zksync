@@ -412,7 +412,7 @@ pub struct ForkDetails {
     pub overwrite_chain_id: Option<L2ChainId>,
     pub l1_gas_price: u64,
     pub l2_fair_gas_price: u64,
-    // Cost of publishing one byte (in wei).
+    // Cost of publishing one byte.
     pub fair_pubdata_price: u64,
     /// L1 Gas Price Scale Factor for gas estimation.
     pub estimate_gas_price_scale_factor: f64,
@@ -545,7 +545,7 @@ impl ForkDetails {
             estimate_gas_price_scale_factor,
             estimate_gas_scale_factor,
             fee_params,
-            cache_config: cache_config.clone(), // todo revisit
+            cache_config: cache_config.clone(), // TODO: This is a temporary solution, we should avoid cloning the cache config here. We should look to refactor how cache is being configured / used as it currently feels a bit too rigid. See: https://github.com/matter-labs/era-test-node/issues/387
         })
     }
     /// Create a fork from a given network at a given height.
