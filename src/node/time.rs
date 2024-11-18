@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use std::sync::{Arc, RwLock};
 
 /// Manages timestamps (in seconds) across the system.
@@ -36,13 +37,36 @@ impl TimestampManager {
         next_timestamp
     }
 
-    /// Sets last used timestamp (in seconds) to the provided value.
-    pub fn set_last_timestamp(&self, timestamp: u64) {
+    /// Sets last used timestamp (in seconds) to the provided value and returns the difference
+    /// between new value and old value (represented as a signed number of seconds).
+    pub fn set_last_timestamp_unchecked(&self, timestamp: u64) -> i128 {
         let mut guard = self
             .last_timestamp
             .write()
             .expect("TimestampManager lock is poisoned");
+        let diff = (timestamp as i128).saturating_sub(*guard as i128);
         *guard = timestamp;
+        diff
+    }
+
+    /// Advances internal timestamp (in seconds) to the provided value.
+    ///
+    /// Expects provided timestamp to be in the future, returns error otherwise.
+    pub fn advance_timestamp(&self, timestamp: u64) -> anyhow::Result<()> {
+        let mut guard = self
+            .last_timestamp
+            .write()
+            .expect("TimestampManager lock is poisoned");
+        if timestamp < *guard {
+            Err(anyhow!(
+                "timestamp ({}) must be greater or equal than current timestamp ({})",
+                timestamp,
+                *guard
+            ))
+        } else {
+            *guard = timestamp;
+            Ok(())
+        }
     }
 
     /// Fast-forwards time by the given amount of seconds.

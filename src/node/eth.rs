@@ -2954,7 +2954,7 @@ mod tests {
         inner.current_batch = 1;
         inner.current_miniblock = 1;
         inner.current_miniblock_hash = H256::repeat_byte(0x1);
-        inner.time.set_last_timestamp(1);
+        inner.time.set_last_timestamp_unchecked(1);
         inner
             .filters
             .add_block_filter()
@@ -3060,7 +3060,7 @@ mod tests {
         inner.current_batch = 1;
         inner.current_miniblock = 1;
         inner.current_miniblock_hash = H256::repeat_byte(0x1);
-        inner.time.set_last_timestamp(1);
+        inner.time.set_last_timestamp_unchecked(1);
         inner
             .filters
             .add_block_filter()
@@ -3113,7 +3113,7 @@ mod tests {
         inner.current_batch = 2;
         inner.current_miniblock = 2;
         inner.current_miniblock_hash = H256::repeat_byte(0x2);
-        inner.time.set_last_timestamp(2);
+        inner.time.set_last_timestamp_unchecked(2);
         inner
             .filters
             .add_pending_transaction_filter()

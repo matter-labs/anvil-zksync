@@ -29,9 +29,6 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
     /// # Returns
     /// The applied time delta to `current_timestamp` value for the InMemoryNodeInner.
     pub fn increase_time(&self, time_delta_seconds: u64) -> Result<u64> {
-        if time_delta_seconds == 0 {
-            return Ok(time_delta_seconds);
-        }
         self.time.increase_time(time_delta_seconds);
         Ok(time_delta_seconds)
     }
@@ -44,18 +41,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
     /// # Returns
     /// The new timestamp value for the InMemoryNodeInner.
     pub fn set_next_block_timestamp(&self, timestamp: U64) -> Result<U64> {
-        let ts = timestamp.as_u64();
-        let last_timestamp = self.time.last_timestamp();
-        if ts <= last_timestamp {
-            Err(anyhow!(
-                "timestamp ({}) must be greater than current timestamp ({})",
-                ts,
-                last_timestamp
-            ))
-        } else {
-            self.time.set_last_timestamp(ts - 1);
-            Ok(timestamp)
-        }
+        self.time.advance_timestamp(timestamp.as_u64() - 1)?;
+        Ok(timestamp)
     }
 
     /// Set the current timestamp for the node.
@@ -68,9 +55,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
     /// # Returns
     /// The difference between the `current_timestamp` and the new timestamp for the InMemoryNodeInner.
     pub fn set_time(&self, time: u64) -> Result<i128> {
-        let time_diff = (time as i128).saturating_sub(self.time.last_timestamp() as i128);
-        self.time.set_last_timestamp(time);
-        Ok(time_diff)
+        Ok(self.time.set_last_timestamp_unchecked(time))
     }
 
     /// Force a single block to be mined.

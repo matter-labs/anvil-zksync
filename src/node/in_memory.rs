@@ -795,7 +795,8 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             .write()
             .map_err(|err| format!("failed acquiring write lock on storage: {:?}", err))?;
 
-        self.time.set_last_timestamp(snapshot.current_timestamp);
+        self.time
+            .set_last_timestamp_unchecked(snapshot.current_timestamp);
         self.current_batch = snapshot.current_batch;
         self.current_miniblock = snapshot.current_miniblock;
         self.current_miniblock_hash = snapshot.current_miniblock_hash;

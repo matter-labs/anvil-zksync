@@ -124,7 +124,7 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
         // leave node state ready for next interaction
         node.current_batch = block_ctx.batch;
         node.current_miniblock = block_ctx.miniblock;
-        node.time.set_last_timestamp(block_ctx.timestamp);
+        node.time.set_last_timestamp_unchecked(block_ctx.timestamp);
     }
 
     Ok(())
