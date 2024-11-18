@@ -5,6 +5,7 @@ use crate::config::{
     constants::*,
     show_details::*,
 };
+
 use alloy_signer::Signer;
 use alloy_signer_local::{
     coins_bip39::{English, Mnemonic},
@@ -78,7 +79,6 @@ pub struct TestNodeConfig {
 impl Default for TestNodeConfig {
     fn default() -> Self {
         // generate some random wallets
-        // TODO: this should be RICH WALLETS?
         let genesis_accounts = AccountGenerator::new(10).phrase(DEFAULT_MNEMONIC).gen();
         Self {
             // Node configuration defaults
@@ -109,12 +109,13 @@ impl Default for TestNodeConfig {
             cache_config: Default::default(),
 
             // Account generator
-            // TODO: switch order here
+            account_generator: None,
             genesis_accounts: genesis_accounts.clone(),
+            signer_accounts: genesis_accounts,
             // 100ETH default balance
             genesis_balance: U256::from(100u128 * 10u128.pow(18)),
-            account_generator: None,
-            signer_accounts: genesis_accounts,
+
+            // Offline mode disabled by default
             offline: false,
         }
     }
@@ -352,7 +353,7 @@ impl TestNodeConfig {
         self
     }
 
-    /// Sets the genesis accounts. TODO: this should be RICH WALLETS
+    /// Sets the genesis accounts.
     #[must_use]
     pub fn with_genesis_accounts(mut self, accounts: Vec<PrivateKeySigner>) -> Self {
         self.genesis_accounts = accounts;
@@ -502,6 +503,10 @@ impl AccountGenerator {
         self.phrase = phrase.into();
         self
     }
+    // todo: should not be public
+    pub fn get_phrase(&self) -> &str {
+        &self.phrase
+    }
 
     #[must_use]
     pub fn chain_id(mut self, chain_id: impl Into<u32>) -> Self {
@@ -517,6 +522,10 @@ impl AccountGenerator {
         }
         self.derivation_path = Some(derivation_path);
         self
+    }
+    // todo: should not be public
+    pub fn get_derivation_path(&self) -> &str {
+        self.derivation_path.as_deref().unwrap_or("m/44'/60'/0'/0/")
     }
 
     pub fn gen(&self) -> Vec<PrivateKeySigner> {

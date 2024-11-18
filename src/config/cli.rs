@@ -25,24 +25,9 @@ pub struct Cli {
     pub command: Option<Command>,
 
     // General Options
-    /// Number of dev accounts to generate and configure.
-    #[arg(
-        long,
-        short,
-        default_value = "10",
-        value_name = "NUM",
-        help_heading = "Account Configuration"
-    )]
-    pub accounts: u64,
-
-    /// The balance of every dev account in Ether.
-    #[arg(
-        long,
-        default_value = "10000",
-        value_name = "NUM",
-        help_heading = "Account Configuration"
-    )]
-    pub balance: u64,
+    #[arg(long, help_heading = "General Options")]
+    /// Run in offline mode (disables all network requests).
+    pub offline: bool,
 
     #[arg(long, default_value = "8011", help_heading = "Network Options")]
     /// Port to listen on (default: 8011).
@@ -51,10 +36,6 @@ pub struct Cli {
     #[arg(long, help_heading = "Network Options")]
     /// Specify chain ID (default: 260).
     pub chain_id: Option<u32>,
-
-    #[arg(long, help_heading = "General Options")]
-    /// Run in offline mode (disables all network requests).
-    pub offline: bool,
 
     #[arg(short, long, help_heading = "Debugging Options")]
     /// Enable default settings for debugging contracts.
@@ -145,6 +126,25 @@ pub struct Cli {
     #[arg(long, help_heading = "Cache Options")]
     /// Cache directory location for disk cache (default: .cache).
     pub cache_dir: Option<String>,
+
+    /// Number of dev accounts to generate and configure.
+    #[arg(
+        long,
+        short,
+        default_value = "10",
+        value_name = "NUM",
+        help_heading = "Account Configuration"
+    )]
+    pub accounts: u64,
+
+    /// The balance of every dev account in Ether.
+    #[arg(
+        long,
+        default_value = "10000",
+        value_name = "NUM",
+        help_heading = "Account Configuration"
+    )]
+    pub balance: u64,
 
     /// BIP39 mnemonic phrase used for generating accounts.
     /// Cannot be used if `mnemonic_random` or `mnemonic_seed` are used.
@@ -294,6 +294,7 @@ impl Cli {
             Ok(config)
         }
     }
+
     fn account_generator(&self) -> AccountGenerator {
         let mut gen = AccountGenerator::new(self.accounts as usize)
             .phrase(DEFAULT_MNEMONIC)

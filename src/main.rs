@@ -225,36 +225,16 @@ async fn main() -> anyhow::Result<()> {
         let _ = node.apply_txs(transactions_to_replay);
     }
 
-    tracing::info!("");
-    tracing::info!("Initializing Genesis Accounts");
-    tracing::info!("=============================");
-
-    for (index, signer) in config.genesis_accounts.iter().enumerate() {
+    // Initialize the dev wallets with some balance
+    // TODO: Will update to include in display
+    for (_, signer) in config.genesis_accounts.iter().enumerate() {
         let address = H160::from_slice(signer.address().as_ref());
         node.set_rich_account_with_balance(address, config.genesis_balance);
-
-        tracing::info!(
-            "Genesis Account #{}: {} with balance {} ETH",
-            index,
-            address,
-            config.genesis_balance
-        );
     }
 
-    tracing::info!("");
-    tracing::info!("Initializing Signer Accounts");
-    tracing::info!("============================");
-
-    for (index, signer) in config.signer_accounts.iter().enumerate() {
+    for (_, signer) in config.signer_accounts.iter().enumerate() {
         let address = H160::from_slice(signer.address().as_ref());
         node.set_rich_account_with_balance(address, config.genesis_balance);
-
-        tracing::info!(
-            "Signer Account #{}: {} with balance {} ETH",
-            index,
-            address,
-            config.genesis_balance
-        );
     }
 
     tracing::info!("");
@@ -295,6 +275,9 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!("========================================");
     tracing::info!("  Node is ready at 127.0.0.1:{}", config.port);
+    tracing::info!("========================================");
+
+    tracing::info!("test test test");
     tracing::info!("========================================");
 
     future::select_all(vec![threads]).await.0.unwrap();
