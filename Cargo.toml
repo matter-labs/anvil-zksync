@@ -20,6 +20,8 @@ zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era.git", rev 
 ] }
 sha3 = "0.10.6"
 
+# alloy
+alloy-signer-local = { version = "0.6.4", features = ["mnemonic"] }
 
 openssl-sys = { version = "0.9", features = ["vendored"] }
 
