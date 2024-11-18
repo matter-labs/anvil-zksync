@@ -29,18 +29,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
     /// # Returns
     /// The applied time delta to `current_timestamp` value for the InMemoryNodeInner.
     pub fn increase_time(&self, time_delta_seconds: u64) -> Result<u64> {
-        self.get_inner()
-            .write()
-            .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
-            .map(|mut writer| {
-                if time_delta_seconds == 0 {
-                    return time_delta_seconds;
-                }
-
-                let time_delta = time_delta_seconds.saturating_mul(1000);
-                writer.current_timestamp = writer.current_timestamp.saturating_add(time_delta);
-                time_delta_seconds
-            })
+        if time_delta_seconds == 0 {
+            return Ok(time_delta_seconds);
+        }
+        self.time.increase_time(time_delta_seconds);
+        Ok(time_delta_seconds)
     }
 
     /// Set the current timestamp for the node. The timestamp must be in future.
@@ -51,22 +44,18 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
     /// # Returns
     /// The new timestamp value for the InMemoryNodeInner.
     pub fn set_next_block_timestamp(&self, timestamp: U64) -> Result<U64> {
-        self.get_inner()
-            .write()
-            .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
-            .and_then(|mut writer| {
-                let ts = timestamp.as_u64();
-                if ts <= writer.current_timestamp {
-                    Err(anyhow!(
-                        "timestamp ({}) must be greater than current timestamp ({})",
-                        ts,
-                        writer.current_timestamp
-                    ))
-                } else {
-                    writer.current_timestamp = ts - 1;
-                    Ok(timestamp)
-                }
-            })
+        let ts = timestamp.as_u64();
+        let last_timestamp = self.time.last_timestamp();
+        if ts <= last_timestamp {
+            Err(anyhow!(
+                "timestamp ({}) must be greater than current timestamp ({})",
+                ts,
+                last_timestamp
+            ))
+        } else {
+            self.time.set_last_timestamp(ts - 1);
+            Ok(timestamp)
+        }
     }
 
     /// Set the current timestamp for the node.
@@ -79,14 +68,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
     /// # Returns
     /// The difference between the `current_timestamp` and the new timestamp for the InMemoryNodeInner.
     pub fn set_time(&self, time: u64) -> Result<i128> {
-        self.get_inner()
-            .write()
-            .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
-            .map(|mut writer| {
-                let time_diff = (time as i128).saturating_sub(writer.current_timestamp as i128);
-                writer.current_timestamp = time;
-                time_diff
-            })
+        let time_diff = (time as i128).saturating_sub(self.time.last_timestamp() as i128);
+        self.time.set_last_timestamp(time);
+        Ok(time_diff)
     }
 
     /// Force a single block to be mined.
@@ -402,6 +386,7 @@ mod tests {
     use super::*;
     use crate::fork::ForkStorage;
     use crate::namespaces::EthNamespaceT;
+    use crate::node::time::TimestampManager;
     use crate::node::{InMemoryNodeInner, Snapshot};
     use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
     use std::str::FromStr;
@@ -514,7 +499,7 @@ mod tests {
         let old_snapshots = Arc::new(RwLock::new(vec![Snapshot::default()]));
         let old_system_contracts_options = Default::default();
         let old_inner = InMemoryNodeInner::<HttpForkSource> {
-            current_timestamp: 123,
+            time: TimestampManager::new(123),
             current_batch: 100,
             current_miniblock: 300,
             current_miniblock_hash: H256::random(),
@@ -532,11 +517,13 @@ mod tests {
             previous_states: Default::default(),
             observability: None,
         };
+        let time = old_inner.time.clone();
 
         let node = InMemoryNode::<HttpForkSource> {
             inner: Arc::new(RwLock::new(old_inner)),
             snapshots: old_snapshots,
             system_contracts_options: old_system_contracts_options,
+            time,
         };
 
         let address = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap();
@@ -554,7 +541,7 @@ mod tests {
         assert_eq!(node.snapshots.read().unwrap().len(), 0);
 
         let inner = node.inner.read().unwrap();
-        assert_eq!(inner.current_timestamp, 1000);
+        assert_eq!(inner.time.last_timestamp(), 1000);
         assert_eq!(inner.current_batch, 0);
         assert_eq!(inner.current_miniblock, 0);
         assert_ne!(inner.current_miniblock_hash, H256::random());
@@ -691,7 +678,7 @@ mod tests {
         let timestamp_before = node
             .get_inner()
             .read()
-            .map(|inner| inner.current_timestamp)
+            .map(|inner| inner.time.last_timestamp())
             .expect("failed reading timestamp");
         let expected_response = increase_value_seconds;
 
@@ -701,7 +688,7 @@ mod tests {
         let timestamp_after = node
             .get_inner()
             .read()
-            .map(|inner| inner.current_timestamp)
+            .map(|inner| inner.time.last_timestamp())
             .expect("failed reading timestamp");
 
         assert_eq!(expected_response, actual_response, "erroneous response");
@@ -720,7 +707,7 @@ mod tests {
         let timestamp_before = node
             .get_inner()
             .read()
-            .map(|inner| inner.current_timestamp)
+            .map(|inner| inner.time.last_timestamp())
             .expect("failed reading timestamp");
         assert_ne!(0, timestamp_before, "initial timestamp must be non zero",);
         let expected_response = increase_value_seconds;
@@ -731,7 +718,7 @@ mod tests {
         let timestamp_after = node
             .get_inner()
             .read()
-            .map(|inner| inner.current_timestamp)
+            .map(|inner| inner.time.last_timestamp())
             .expect("failed reading timestamp");
 
         assert_eq!(expected_response, actual_response, "erroneous response");
@@ -750,7 +737,7 @@ mod tests {
         let timestamp_before = node
             .get_inner()
             .read()
-            .map(|inner| inner.current_timestamp)
+            .map(|inner| inner.time.last_timestamp())
             .expect("failed reading timestamp");
         let expected_response = increase_value_seconds;
 
@@ -760,12 +747,12 @@ mod tests {
         let timestamp_after = node
             .get_inner()
             .read()
-            .map(|inner| inner.current_timestamp)
+            .map(|inner| inner.time.last_timestamp())
             .expect("failed reading timestamp");
 
         assert_eq!(expected_response, actual_response, "erroneous response");
         assert_eq!(
-            increase_value_seconds.saturating_mul(1000u64),
+            increase_value_seconds,
             timestamp_after.saturating_sub(timestamp_before),
             "timestamp did not increase by the specified amount",
         );
@@ -779,7 +766,7 @@ mod tests {
         let timestamp_before = node
             .get_inner()
             .read()
-            .map(|inner| inner.current_timestamp)
+            .map(|inner| inner.time.last_timestamp())
             .expect("failed reading timestamp");
         assert_ne!(
             timestamp_before, new_timestamp,
@@ -793,7 +780,7 @@ mod tests {
         let timestamp_after = node
             .get_inner()
             .read()
-            .map(|inner| inner.current_timestamp)
+            .map(|inner| inner.time.last_timestamp())
             .expect("failed reading timestamp");
 
         assert_eq!(
@@ -815,7 +802,7 @@ mod tests {
         let timestamp_before = node
             .get_inner()
             .read()
-            .map(|inner| inner.current_timestamp)
+            .map(|inner| inner.time.last_timestamp())
             .expect("failed reading timestamp");
 
         let new_timestamp = timestamp_before + 500;
@@ -835,7 +822,7 @@ mod tests {
         let timestamp_before = node
             .get_inner()
             .read()
-            .map(|inner| inner.current_timestamp)
+            .map(|inner| inner.time.last_timestamp())
             .expect("failed reading timestamp");
         assert_eq!(timestamp_before, new_timestamp, "timestamps must be same");
 
@@ -845,7 +832,7 @@ mod tests {
         let timestamp_after = node
             .get_inner()
             .read()
-            .map(|inner| inner.current_timestamp)
+            .map(|inner| inner.time.last_timestamp())
             .expect("failed reading timestamp");
         assert_eq!(
             timestamp_before, timestamp_after,
@@ -861,7 +848,7 @@ mod tests {
         let timestamp_before = node
             .get_inner()
             .read()
-            .map(|inner| inner.current_timestamp)
+            .map(|inner| inner.time.last_timestamp())
             .expect("failed reading timestamp");
         assert_ne!(timestamp_before, new_time, "timestamps must be different");
         let expected_response = 9000;
@@ -870,7 +857,7 @@ mod tests {
         let timestamp_after = node
             .get_inner()
             .read()
-            .map(|inner| inner.current_timestamp)
+            .map(|inner| inner.time.last_timestamp())
             .expect("failed reading timestamp");
 
         assert_eq!(expected_response, actual_response, "erroneous response");
@@ -885,7 +872,7 @@ mod tests {
         let timestamp_before = node
             .get_inner()
             .read()
-            .map(|inner| inner.current_timestamp)
+            .map(|inner| inner.time.last_timestamp())
             .expect("failed reading timestamp");
         assert_ne!(timestamp_before, new_time, "timestamps must be different");
         let expected_response = -990;
@@ -894,7 +881,7 @@ mod tests {
         let timestamp_after = node
             .get_inner()
             .read()
-            .map(|inner| inner.current_timestamp)
+            .map(|inner| inner.time.last_timestamp())
             .expect("failed reading timestamp");
 
         assert_eq!(expected_response, actual_response, "erroneous response");
@@ -909,7 +896,7 @@ mod tests {
         let timestamp_before = node
             .get_inner()
             .read()
-            .map(|inner| inner.current_timestamp)
+            .map(|inner| inner.time.last_timestamp())
             .expect("failed reading timestamp");
         assert_eq!(timestamp_before, new_time, "timestamps must be same");
         let expected_response = 0;
@@ -918,7 +905,7 @@ mod tests {
         let timestamp_after = node
             .get_inner()
             .read()
-            .map(|inner| inner.current_timestamp)
+            .map(|inner| inner.time.last_timestamp())
             .expect("failed reading timestamp");
 
         assert_eq!(expected_response, actual_response, "erroneous response");
@@ -936,7 +923,7 @@ mod tests {
             let timestamp_before = node
                 .get_inner()
                 .read()
-                .map(|inner| inner.current_timestamp)
+                .map(|inner| inner.time.last_timestamp())
                 .unwrap_or_else(|_| panic!("case {}: failed reading timestamp", new_time));
             assert_ne!(
                 timestamp_before, new_time,
@@ -948,7 +935,7 @@ mod tests {
             let timestamp_after = node
                 .get_inner()
                 .read()
-                .map(|inner| inner.current_timestamp)
+                .map(|inner| inner.time.last_timestamp())
                 .unwrap_or_else(|_| panic!("case {}: failed reading timestamp", new_time));
 
             assert_eq!(

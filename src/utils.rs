@@ -89,7 +89,7 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
             let (batch_env, mut block_ctx) = node.create_l1_batch_env(storage.clone());
             // override the next block's timestamp to match up with interval for subsequent blocks
             if i != 0 {
-                block_ctx.timestamp = node.current_timestamp.saturating_add(interval_sec);
+                block_ctx.timestamp = node.time.increase_time(interval_sec);
             }
 
             // init vm
@@ -124,7 +124,7 @@ pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
         // leave node state ready for next interaction
         node.current_batch = block_ctx.batch;
         node.current_miniblock = block_ctx.miniblock;
-        node.current_timestamp = block_ctx.timestamp;
+        node.time.set_last_timestamp(block_ctx.timestamp);
     }
 
     Ok(())

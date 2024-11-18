@@ -44,7 +44,7 @@ describe("evm_increaseTime", function () {
     const wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
     const userWallet = Wallet.createRandom().connect(provider);
     let expectedTimestamp: number = await provider.send("config_getCurrentTimestamp", []);
-    expectedTimestamp += timeIncreaseInSeconds * 1000;
+    expectedTimestamp += timeIncreaseInSeconds;
 
     // Act
     await provider.send("evm_increaseTime", [timeIncreaseInSeconds]);

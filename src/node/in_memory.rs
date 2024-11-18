@@ -46,6 +46,7 @@ use zksync_types::{
 use zksync_utils::{bytecode::hash_bytecode, h256_to_account_address, h256_to_u256, u256_to_h256};
 use zksync_web3_decl::error::Web3Error;
 
+use crate::node::time::TimestampManager;
 use crate::{
     bootloader_debug::{BootloaderDebug, BootloaderDebugTracer},
     config::{
@@ -149,9 +150,8 @@ impl TransactionResult {
 /// S - is the Source of the Fork.
 #[derive(Clone)]
 pub struct InMemoryNodeInner<S> {
-    /// The latest timestamp that was already generated.
-    /// Next block will be current_timestamp + 1
-    pub current_timestamp: u64,
+    /// Supplies timestamps that are unique across the system.
+    pub time: TimestampManager,
     /// The latest batch number that was already generated.
     /// Next block will be current_batch + 1
     pub current_batch: u32,
@@ -223,7 +223,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             };
 
             InMemoryNodeInner {
-                current_timestamp: f.block_timestamp,
+                time: TimestampManager::new(f.block_timestamp),
                 current_batch: f.l1_block.0,
                 current_miniblock: f.l2_miniblock,
                 current_miniblock_hash: f.l2_miniblock_hash,
@@ -262,7 +262,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             let fee_input_provider =
                 TestNodeFeeInputProvider::default().with_overrides(gas_overrides);
             InMemoryNodeInner {
-                current_timestamp: NON_FORK_FIRST_BLOCK_TIMESTAMP,
+                time: TimestampManager::new(NON_FORK_FIRST_BLOCK_TIMESTAMP),
                 current_batch: 0,
                 current_miniblock: 0,
                 current_miniblock_hash: block_hash,
@@ -304,15 +304,15 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
         let (last_l1_block_num, last_l1_block_ts) = load_last_l1_batch(storage.clone())
             .map(|(num, ts)| (num as u32, ts))
-            .unwrap_or_else(|| (self.current_batch, self.current_timestamp));
+            .unwrap_or_else(|| (self.current_batch, self.time.last_timestamp()));
         let last_l2_block = load_last_l2_block(&storage).unwrap_or_else(|| L2Block {
             number: self.current_miniblock as u32,
             hash: L2BlockHasher::legacy_hash(L2BlockNumber(self.current_miniblock as u32)),
-            timestamp: self.current_timestamp,
+            timestamp: self.time.last_timestamp(),
         });
         let latest_timestamp = std::cmp::max(
             std::cmp::max(last_l1_block_ts, last_l2_block.timestamp),
-            self.current_timestamp,
+            self.time.last_timestamp(),
         );
 
         let block_ctx = BlockContext::from_current(
@@ -769,7 +769,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             .map_err(|err| format!("failed acquiring read lock on storage: {:?}", err))?;
 
         Ok(Snapshot {
-            current_timestamp: self.current_timestamp,
+            current_timestamp: self.time.last_timestamp(),
             current_batch: self.current_batch,
             current_miniblock: self.current_miniblock,
             current_miniblock_hash: self.current_miniblock_hash,
@@ -795,7 +795,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             .write()
             .map_err(|err| format!("failed acquiring write lock on storage: {:?}", err))?;
 
-        self.current_timestamp = snapshot.current_timestamp;
+        self.time.set_last_timestamp(snapshot.current_timestamp);
         self.current_batch = snapshot.current_batch;
         self.current_miniblock = snapshot.current_miniblock;
         self.current_miniblock_hash = snapshot.current_miniblock_hash;
@@ -850,6 +850,7 @@ pub struct InMemoryNode<S: Clone> {
     /// Configuration option that survives reset.
     #[allow(dead_code)]
     pub(crate) system_contracts_options: system_contracts::Options,
+    pub(crate) time: TimestampManager,
 }
 
 fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) -> Option<H160> {
@@ -876,10 +877,12 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     ) -> Self {
         let system_contracts_options = config.system_contracts_options;
         let inner = InMemoryNodeInner::new(fork, observability, config, gas_overrides);
+        let time = inner.time.clone();
         InMemoryNode {
             inner: Arc::new(RwLock::new(inner)),
             snapshots: Default::default(),
             system_contracts_options,
+            time,
         }
     }
 
@@ -1694,7 +1697,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             }
 
             inner.current_miniblock = inner.current_miniblock.saturating_add(1);
-            inner.current_timestamp = inner.current_timestamp.saturating_add(1);
+            let expected_timestamp = inner.time.next_timestamp();
 
             let actual_l1_batch_number = block
                 .l1_batch_number
@@ -1715,10 +1718,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 );
             }
 
-            if block.timestamp.as_u64() != inner.current_timestamp {
+            if block.timestamp.as_u64() != expected_timestamp {
                 panic!(
                     "expected next block to have timestamp {}, got {} | {i}",
-                    inner.current_timestamp,
+                    expected_timestamp,
                     block.timestamp.as_u64()
                 );
             }
