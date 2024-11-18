@@ -487,7 +487,10 @@ pub fn apply_tx<T: ForkSource + std::fmt::Debug + Clone>(
 
     let tx = TransactionBuilder::new().set_hash(tx_hash).build();
 
-    node.set_rich_account(tx.common_data.initiator_address);
+    node.set_rich_account_with_balance(
+        tx.common_data.initiator_address,
+        U256::from(100u128 * 10u128.pow(18)),
+    );
     node.apply_txs(vec![tx.clone()])
         .expect("failed applying tx");
 

@@ -8,7 +8,6 @@ use config::constants::{
     DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
     LEGACY_RICH_WALLETS, RICH_WALLETS,
 };
-use config::TestNodeConfig;
 use fork::{ForkDetails, ForkSource};
 use http_fork_source::HttpForkSource;
 use logging_middleware::LoggingMiddleware;
@@ -49,7 +48,7 @@ use futures::{
     FutureExt,
 };
 use jsonrpc_core::MetaIoHandler;
-use zksync_types::H160;
+use zksync_types::{H160, U256};
 
 use crate::namespaces::{
     AnvilNamespaceT, ConfigurationApiNamespaceT, DebugNamespaceT, EthNamespaceT,
@@ -107,9 +106,7 @@ async fn build_json_http<
 async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
 
-    // Try to read the [`TestNodeConfig`] file if supplied as an argument.
-    let mut config = TestNodeConfig::try_load(&opt.config).unwrap_or_default();
-    config.override_with_opts(&opt);
+    let mut config = opt.to_test_node_config().map_err(|e| anyhow!(e))?;
 
     let log_level_filter = LevelFilter::from(config.log_level);
     let log_file = File::create(&config.log_file_path)?;
@@ -122,7 +119,7 @@ async fn main() -> anyhow::Result<()> {
     let command = opt.command.as_ref().unwrap_or(&Command::Run);
     let fork_details = match command {
         Command::Run => {
-            if opt.offline {
+            if config.offline {
                 tracing::warn!(
                     "Running in offline mode: default fee parameters will be used. \
         To override, specify values in `config.toml` and use the `--config` flag."
@@ -220,7 +217,7 @@ async fn main() -> anyhow::Result<()> {
     let node: InMemoryNode<HttpForkSource> =
         InMemoryNode::new(fork_details, Some(observability), &config);
 
-    if let Some(bytecodes_dir) = opt.override_bytecodes_dir {
+    if let Some(bytecodes_dir) = config.override_bytecodes_dir {
         override_bytecodes(&node, bytecodes_dir).unwrap();
     }
 
@@ -229,17 +226,55 @@ async fn main() -> anyhow::Result<()> {
     }
 
     tracing::info!("");
+    tracing::info!("Initializing Genesis Accounts");
+    tracing::info!("=============================");
+
+    for (index, signer) in config.genesis_accounts.iter().enumerate() {
+        let address = H160::from_slice(signer.address().as_ref());
+        node.set_rich_account_with_balance(address, config.genesis_balance);
+
+        tracing::info!(
+            "Genesis Account #{}: {} with balance {} ETH",
+            index,
+            address,
+            config.genesis_balance
+        );
+    }
+
+    tracing::info!("");
+    tracing::info!("Initializing Signer Accounts");
+    tracing::info!("============================");
+
+    for (index, signer) in config.signer_accounts.iter().enumerate() {
+        let address = H160::from_slice(signer.address().as_ref());
+        node.set_rich_account_with_balance(address, config.genesis_balance);
+
+        tracing::info!(
+            "Signer Account #{}: {} with balance {} ETH",
+            index,
+            address,
+            config.genesis_balance
+        );
+    }
+
+    tracing::info!("");
     tracing::info!("Rich Accounts");
     tracing::info!("=============");
     for wallet in LEGACY_RICH_WALLETS.iter() {
         let address = wallet.0;
-        node.set_rich_account(H160::from_str(address).unwrap());
+        node.set_rich_account_with_balance(
+            H160::from_str(address).unwrap(),
+            U256::from(100u128 * 10u128.pow(18)),
+        );
     }
     for (index, wallet) in RICH_WALLETS.iter().enumerate() {
         let address = wallet.0;
         let private_key = wallet.1;
         let mnemonic_phrase = wallet.2;
-        node.set_rich_account(H160::from_str(address).unwrap());
+        node.set_rich_account_with_balance(
+            H160::from_str(address).unwrap(),
+            U256::from(100u128 * 10u128.pow(18)),
+        );
         tracing::info!(
             "Account #{}: {} ({})",
             index,

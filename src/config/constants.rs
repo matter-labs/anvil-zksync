@@ -1,7 +1,3 @@
-/// Directory where configuration files are stored
-pub const CONFIG_DIR: &str = ".era_test_node";
-/// Default name of the configuration file
-pub const CONFIG_FILE_NAME: &str = "config.toml";
 /// Default directory for disk cache
 pub const DEFAULT_DISK_CACHE_DIR: &str = ".cache";
 /// Default L1 gas price for transactions
@@ -20,6 +16,8 @@ pub const NODE_PORT: u16 = 8011;
 pub const TEST_NODE_NETWORK_ID: u32 = 260;
 /// Default log file path for the test node
 pub const DEFAULT_LOG_FILE_PATH: &str = "era_test_node.log";
+/// Default mnemonic phrase for the test node
+pub const DEFAULT_MNEMONIC: &str = "test test test test test test test test test test test junk";
 // List of wallets (address, private key, mnemonic) that we seed with tokens at start.
 pub const RICH_WALLETS: [(&str, &str, &str); 10] = [
     (

@@ -1,5 +1,3 @@
-use std::{env, fs::read_to_string, path::PathBuf};
-
 use crate::{observability, system_contracts};
 
 use crate::config::{
@@ -7,10 +5,16 @@ use crate::config::{
     constants::*,
     show_details::*,
 };
-
+use alloy_signer::Signer;
+use alloy_signer_local::{
+    coins_bip39::{English, Mnemonic},
+    MnemonicBuilder, PrivateKeySigner,
+};
 use cli::Cli;
 use observability::LogLevel;
+use rand::thread_rng;
 use serde::Deserialize;
+use zksync_types::U256;
 
 pub mod cache;
 pub mod cli;
@@ -18,7 +22,7 @@ pub mod constants;
 pub mod show_details;
 
 /// Defines the configuration parameters for the [InMemoryNode].
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct TestNodeConfig {
     /// Port the node will listen on
     pub port: u16,
@@ -58,10 +62,24 @@ pub struct TestNodeConfig {
     pub log_file_path: String,
     /// Cache configuration for the test node
     pub cache_config: CacheConfig,
+    // @dev these are essentially the RICH WALLETS
+    /// Signer accounts that will be initialized with `genesis_balance` in the genesis block.
+    pub genesis_accounts: Vec<PrivateKeySigner>,
+    /// Native token balance of every genesis account in the genesis block
+    pub genesis_balance: U256,
+    /// The generator used to generate the dev accounts
+    pub account_generator: Option<AccountGenerator>,
+    /// Signer accounts that can sign messages/transactions
+    pub signer_accounts: Vec<PrivateKeySigner>,
+    /// Whether the node operates in offline mode
+    pub offline: bool,
 }
 
 impl Default for TestNodeConfig {
     fn default() -> Self {
+        // generate some random wallets
+        // TODO: this should be RICH WALLETS?
+        let genesis_accounts = AccountGenerator::new(10).phrase(DEFAULT_MNEMONIC).gen();
         Self {
             // Node configuration defaults
             port: NODE_PORT,
@@ -89,31 +107,20 @@ impl Default for TestNodeConfig {
 
             // Cache configuration default
             cache_config: Default::default(),
+
+            // Account generator
+            // TODO: switch order here
+            genesis_accounts: genesis_accounts.clone(),
+            // 100ETH default balance
+            genesis_balance: U256::from(100u128 * 10u128.pow(18)),
+            account_generator: None,
+            signer_accounts: genesis_accounts,
+            offline: false,
         }
     }
 }
 
 impl TestNodeConfig {
-    /// Try to load a configuration file from either a provided path or the `$HOME` directory.
-    pub fn try_load(file_path: &Option<String>) -> eyre::Result<TestNodeConfig> {
-        let path = if let Some(path) = file_path {
-            PathBuf::from(path)
-        } else {
-            // NOTE: `env::home_dir` is not compatible with Windows.
-            #[allow(deprecated)]
-            let mut path = env::home_dir().expect("failed to get home directory");
-
-            path.push(CONFIG_DIR);
-            path.push(CONFIG_FILE_NAME);
-            path
-        };
-
-        let toml = read_to_string(path)?;
-        let config = toml::from_str(&toml)?;
-
-        Ok(config)
-    }
-
     /// Set the port for the test node
     #[must_use]
     pub fn with_port(mut self, port: Option<u16>) -> Self {
@@ -338,6 +345,51 @@ impl TestNodeConfig {
         self.show_vm_details
     }
 
+    /// Sets the balance of the genesis accounts in the genesis block
+    #[must_use]
+    pub fn with_genesis_balance<U: Into<U256>>(mut self, balance: U) -> Self {
+        self.genesis_balance = balance.into();
+        self
+    }
+
+    /// Sets the genesis accounts. TODO: this should be RICH WALLETS
+    #[must_use]
+    pub fn with_genesis_accounts(mut self, accounts: Vec<PrivateKeySigner>) -> Self {
+        self.genesis_accounts = accounts;
+        self
+    }
+
+    /// Sets the signer accounts
+    #[must_use]
+    pub fn with_signer_accounts(mut self, accounts: Vec<PrivateKeySigner>) -> Self {
+        self.signer_accounts = accounts;
+        self
+    }
+
+    /// Sets both the genesis accounts and the signer accounts
+    /// so that `genesis_accounts == accounts`
+    #[must_use]
+    pub fn with_account_generator(mut self, generator: AccountGenerator) -> Self {
+        let accounts = generator.gen();
+        self.account_generator = Some(generator);
+        self.with_signer_accounts(accounts.clone())
+            .with_genesis_accounts(accounts)
+    }
+
+    /// Set the offline mode
+    #[must_use]
+    pub fn with_offline(mut self, offline: Option<bool>) -> Self {
+        if let Some(offline) = offline {
+            self.offline = offline;
+        }
+        self
+    }
+
+    /// Get the offline mode status
+    pub fn is_offline(&self) -> bool {
+        self.offline
+    }
+
     /// Override the config with values provided by [`Cli`].
     pub fn override_with_opts(&mut self, opt: &Cli) {
         // [`NodeConfig`].
@@ -478,7 +530,10 @@ impl AccountGenerator {
                     .clone()
                     .derivation_path(format!("{derivation_path}{idx}"))
                     .unwrap();
-                builder.build().unwrap().with_chain_id(Some(self.chain_id))
+                builder
+                    .build()
+                    .unwrap()
+                    .with_chain_id(Some(self.chain_id.into()))
             })
             .collect()
     }
