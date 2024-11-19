@@ -23,11 +23,6 @@ sha3 = "0.10.6"
 # alloy
 alloy-signer-local = { version = "0.5.4", features = ["mnemonic"] }
 alloy-signer = { version = "0.5.4", default-features = false }
-alloy-primitives = { version = "0.8.11", features = [
-    "getrandom",
-    "rand",
-    "map-foldhash",
-] }
 
 openssl-sys = { version = "0.9", features = ["vendored"] }
 

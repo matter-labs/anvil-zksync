@@ -148,21 +148,21 @@ pub struct Cli {
 
     /// BIP39 mnemonic phrase used for generating accounts.
     /// Cannot be used if `mnemonic_random` or `mnemonic_seed` are used.
-    #[arg(long, short, help_heading = "Account Configuration", conflicts_with_all = &["mnemonic_seed", "mnemonic_random"])]
+    #[arg(long, short, conflicts_with_all = &["mnemonic_seed", "mnemonic_random"], help_heading = "Account Configuration")]
     pub mnemonic: Option<String>,
 
     /// Automatically generates a BIP39 mnemonic phrase and derives accounts from it.
     /// Cannot be used with other `mnemonic` options.
     /// You can specify the number of words you want in the mnemonic.
     /// [default: 12]
-    #[arg(long, help_heading = "Account Configuration", conflicts_with_all = &["mnemonic", "mnemonic_seed"], default_missing_value = "12", num_args(0..=1))]
+    #[arg(long, conflicts_with_all = &["mnemonic", "mnemonic_seed"], default_missing_value = "12", num_args(0..=1), help_heading = "Account Configuration")]
     pub mnemonic_random: Option<usize>,
 
     /// Generates a BIP39 mnemonic phrase from a given seed.
     /// Cannot be used with other `mnemonic` options.
     /// CAREFUL: This is NOT SAFE and should only be used for testing.
     /// Never use the private keys generated in production.
-    #[arg(long = "mnemonic-seed-unsafe", help_heading = "Account Configuration", conflicts_with_all = &["mnemonic", "mnemonic_random"])]
+    #[arg(long = "mnemonic-seed-unsafe", conflicts_with_all = &["mnemonic", "mnemonic_random"],  help_heading = "Account Configuration")]
     pub mnemonic_seed: Option<u64>,
 
     /// Sets the derivation path of the child key to be derived.
@@ -298,7 +298,7 @@ impl Cli {
     fn account_generator(&self) -> AccountGenerator {
         let mut gen = AccountGenerator::new(self.accounts as usize)
             .phrase(DEFAULT_MNEMONIC)
-            .chain_id(self.chain_id.unwrap_or_else(|| TEST_NODE_NETWORK_ID.into()));
+            .chain_id(self.chain_id.unwrap_or(TEST_NODE_NETWORK_ID));
         if let Some(ref mnemonic) = self.mnemonic {
             gen = gen.phrase(mnemonic);
         } else if let Some(count) = self.mnemonic_random {

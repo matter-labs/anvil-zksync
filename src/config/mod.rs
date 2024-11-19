@@ -63,7 +63,6 @@ pub struct TestNodeConfig {
     pub log_file_path: String,
     /// Cache configuration for the test node
     pub cache_config: CacheConfig,
-    // @dev these are essentially the RICH WALLETS
     /// Signer accounts that will be initialized with `genesis_balance` in the genesis block.
     pub genesis_accounts: Vec<PrivateKeySigner>,
     /// Native token balance of every genesis account in the genesis block
@@ -479,7 +478,8 @@ impl TestNodeConfig {
     }
 }
 
-/// Can create dev accounts
+/// Account Generator
+/// Manages the generation of accounts for era-test-node
 #[derive(Clone, Debug, Deserialize)]
 pub struct AccountGenerator {
     chain_id: u32,
@@ -491,7 +491,7 @@ pub struct AccountGenerator {
 impl AccountGenerator {
     pub fn new(amount: usize) -> Self {
         Self {
-            chain_id: TEST_NODE_NETWORK_ID.into(),
+            chain_id: TEST_NODE_NETWORK_ID,
             amount,
             phrase: Mnemonic::<English>::new(&mut thread_rng()).to_phrase(),
             derivation_path: None,
@@ -502,10 +502,6 @@ impl AccountGenerator {
     pub fn phrase(mut self, phrase: impl Into<String>) -> Self {
         self.phrase = phrase.into();
         self
-    }
-    // todo: should not be public
-    pub fn get_phrase(&self) -> &str {
-        &self.phrase
     }
 
     #[must_use]
@@ -522,10 +518,6 @@ impl AccountGenerator {
         }
         self.derivation_path = Some(derivation_path);
         self
-    }
-    // todo: should not be public
-    pub fn get_derivation_path(&self) -> &str {
-        self.derivation_path.as_deref().unwrap_or("m/44'/60'/0'/0/")
     }
 
     pub fn gen(&self) -> Vec<PrivateKeySigner> {

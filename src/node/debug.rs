@@ -252,7 +252,7 @@ mod tests {
     fn deploy_test_contracts(node: &InMemoryNode<HttpForkSource>) -> (Address, Address) {
         let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(0xee)).unwrap();
         let from_account = private_key.address();
-        node.set_rich_account_with_balance(from_account, U256::from(100u128 * 10u128.pow(18)));
+        node.set_rich_account(from_account);
 
         // first, deploy secondary contract
         let secondary_bytecode = bytecode_from_slice(

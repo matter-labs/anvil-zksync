@@ -48,7 +48,7 @@ use futures::{
     FutureExt,
 };
 use jsonrpc_core::MetaIoHandler;
-use zksync_types::{H160, U256};
+use zksync_types::H160;
 
 use crate::namespaces::{
     AnvilNamespaceT, ConfigurationApiNamespaceT, DebugNamespaceT, EthNamespaceT,
@@ -225,36 +225,18 @@ async fn main() -> anyhow::Result<()> {
         let _ = node.apply_txs(transactions_to_replay);
     }
 
-    // Initialize the dev wallets with some balance
-    // TODO: Will update to include in display
-    for (_, signer) in config.genesis_accounts.iter().enumerate() {
-        let address = H160::from_slice(signer.address().as_ref());
-        node.set_rich_account_with_balance(address, config.genesis_balance);
-    }
-
-    for (_, signer) in config.signer_accounts.iter().enumerate() {
-        let address = H160::from_slice(signer.address().as_ref());
-        node.set_rich_account_with_balance(address, config.genesis_balance);
-    }
-
     tracing::info!("");
     tracing::info!("Rich Accounts");
     tracing::info!("=============");
     for wallet in LEGACY_RICH_WALLETS.iter() {
         let address = wallet.0;
-        node.set_rich_account_with_balance(
-            H160::from_str(address).unwrap(),
-            U256::from(100u128 * 10u128.pow(18)),
-        );
+        node.set_rich_account(H160::from_str(address).unwrap());
     }
     for (index, wallet) in RICH_WALLETS.iter().enumerate() {
         let address = wallet.0;
         let private_key = wallet.1;
         let mnemonic_phrase = wallet.2;
-        node.set_rich_account_with_balance(
-            H160::from_str(address).unwrap(),
-            U256::from(100u128 * 10u128.pow(18)),
-        );
+        node.set_rich_account(H160::from_str(address).unwrap());
         tracing::info!(
             "Account #{}: {} ({})",
             index,
@@ -275,9 +257,6 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!("========================================");
     tracing::info!("  Node is ready at 127.0.0.1:{}", config.port);
-    tracing::info!("========================================");
-
-    tracing::info!("test test test");
     tracing::info!("========================================");
 
     future::select_all(vec![threads]).await.0.unwrap();

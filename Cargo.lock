@@ -295,7 +295,6 @@ dependencies = [
  "const-hex",
  "derive_more 1.0.0",
  "foldhash",
- "getrandom 0.2.12",
  "hashbrown 0.15.0",
  "hex-literal",
  "indexmap 2.5.0",
@@ -2469,7 +2468,6 @@ name = "era_test_node"
 version = "0.1.0-alpha.32"
 dependencies = [
  "alloy",
- "alloy-primitives",
  "alloy-signer",
  "alloy-signer-local",
  "anyhow",
@@ -6350,9 +6348,6 @@ name = "rustc-hash"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "583034fd73374156e66797ed8e5b0d5690409c9226b22d87cb7f19821c05d152"
-dependencies = [
- "rand 0.8.5",
-]
 
 [[package]]
 name = "rustc-hex"

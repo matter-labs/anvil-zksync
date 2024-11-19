@@ -944,17 +944,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         // Need to handle reset of new dev accounts
         for wallet in LEGACY_RICH_WALLETS.iter() {
             let address = wallet.0;
-            self.set_rich_account_with_balance(
-                H160::from_str(address).unwrap(),
-                U256::from(100u128 * 10u128.pow(18)),
-            );
+            self.set_rich_account(H160::from_str(address).unwrap());
         }
         for wallet in RICH_WALLETS.iter() {
             let address = wallet.0;
-            self.set_rich_account_with_balance(
-                H160::from_str(address).unwrap(),
-                U256::from(100u128 * 10u128.pow(18)),
-            );
+            self.set_rich_account(H160::from_str(address).unwrap());
         }
         Ok(())
     }
@@ -973,8 +967,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         Ok(())
     }
 
-    /// Adds tokens to a given account with a specified balance.
-    pub fn set_rich_account_with_balance(&self, address: H160, balance: U256) {
+    /// Adds a lot of tokens to a given account.
+    pub fn set_rich_account(&self, address: H160) {
         let key = storage_key_for_eth_balance(&address);
 
         let mut inner = match self.inner.write() {
@@ -987,7 +981,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
         let keys = {
             let mut storage_view = StorageView::new(&inner.fork_storage);
-            storage_view.set_value(key, u256_to_h256(balance));
+            storage_view.set_value(key, u256_to_h256(U256::from(10u128.pow(30))));
             storage_view.modified_storage_keys().clone()
         };
 
@@ -1827,10 +1821,7 @@ mod tests {
         let tx = testing::TransactionBuilder::new()
             .set_gas_limit(U256::from(u64::MAX) + 1)
             .build();
-        node.set_rich_account_with_balance(
-            tx.common_data.initiator_address,
-            U256::from(100u128 * 10u128.pow(18)),
-        );
+        node.set_rich_account(tx.common_data.initiator_address);
 
         let system_contracts = node
             .system_contracts_for_tx(tx.initiator_account())
@@ -1845,10 +1836,7 @@ mod tests {
         let tx = testing::TransactionBuilder::new()
             .set_max_fee_per_gas(U256::from(DEFAULT_L2_GAS_PRICE - 1))
             .build();
-        node.set_rich_account_with_balance(
-            tx.common_data.initiator_address,
-            U256::from(100u128 * 10u128.pow(18)),
-        );
+        node.set_rich_account(tx.common_data.initiator_address);
 
         let system_contracts = node
             .system_contracts_for_tx(tx.initiator_account())
@@ -1867,10 +1855,7 @@ mod tests {
         let tx = testing::TransactionBuilder::new()
             .set_max_priority_fee_per_gas(U256::from(250_000_000 + 1))
             .build();
-        node.set_rich_account_with_balance(
-            tx.common_data.initiator_address,
-            U256::from(100u128 * 10u128.pow(18)),
-        );
+        node.set_rich_account(tx.common_data.initiator_address);
 
         let system_contracts = node
             .system_contracts_for_tx(tx.initiator_account())
@@ -1919,10 +1904,7 @@ mod tests {
         // Perform a transaction to get storage to an intermediate state
         let node = InMemoryNode::<HttpForkSource>::default();
         let tx = testing::TransactionBuilder::new().build();
-        node.set_rich_account_with_balance(
-            tx.common_data.initiator_address,
-            U256::from(100u128 * 10u128.pow(18)),
-        );
+        node.set_rich_account(tx.common_data.initiator_address);
         let system_contracts = node
             .system_contracts_for_tx(tx.initiator_account())
             .unwrap();
@@ -1976,7 +1958,7 @@ mod tests {
 
         let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(0xef)).unwrap();
         let from_account = private_key.address();
-        node.set_rich_account_with_balance(from_account, U256::from(100u128 * 10u128.pow(18)));
+        node.set_rich_account(from_account);
 
         let deployed_address = deployed_address_create(from_account, U256::zero());
         testing::deploy_contract(
