@@ -11,7 +11,6 @@ use alloy_signer_local::{
     coins_bip39::{English, Mnemonic},
     MnemonicBuilder, PrivateKeySigner,
 };
-use cli::Cli;
 use colored::{Colorize, CustomColor};
 use observability::LogLevel;
 use rand::thread_rng;
@@ -551,93 +550,6 @@ impl TestNodeConfig {
     /// Get the offline mode status
     pub fn is_offline(&self) -> bool {
         self.offline
-    }
-
-    /// Override the config with values provided by [`Cli`].
-    pub fn override_with_opts(&mut self, opt: &Cli) {
-        // [`NodeConfig`].
-        if let Some(port) = &opt.port {
-            self.port = *port;
-        }
-
-        if opt.debug_mode {
-            self.show_calls = ShowCalls::All;
-            self.show_outputs = true;
-            self.show_gas_details = ShowGasDetails::All;
-            self.resolve_hashes = true;
-        }
-        if let Some(show_calls) = &opt.show_calls {
-            self.show_calls = *show_calls;
-        }
-        if let Some(show_outputs) = &opt.show_outputs {
-            self.show_outputs = *show_outputs;
-        }
-        if let Some(show_storage_logs) = &opt.show_storage_logs {
-            self.show_storage_logs = *show_storage_logs;
-        }
-        if let Some(show_vm_details) = &opt.show_vm_details {
-            self.show_vm_details = *show_vm_details;
-        }
-        if let Some(show_gas_details) = &opt.show_gas_details {
-            self.show_gas_details = *show_gas_details;
-        }
-        if let Some(resolve_hashes) = &opt.resolve_hashes {
-            self.resolve_hashes = *resolve_hashes;
-        }
-
-        if opt.chain_id.is_some() {
-            self.chain_id = opt.chain_id;
-        }
-
-        if let Some(contract_options) = opt.dev_system_contracts {
-            self.system_contracts_options = contract_options;
-        }
-
-        if opt.emulate_evm {
-            assert_eq!(
-                self.system_contracts_options,
-                system_contracts::Options::Local,
-                "EVM emulation currently requires using local contracts"
-            );
-            self.use_evm_emulator = true;
-        }
-
-        // [`GasConfig`]
-        if let Some(l1_gas_price) = &opt.l1_gas_price {
-            self.l1_gas_price = Some(*l1_gas_price);
-        }
-        if let Some(l2_gas_price) = &opt.l2_gas_price {
-            self.l2_gas_price = Some(*l2_gas_price);
-        }
-        if let Some(l1_pubdata_price) = &opt.l1_pubdata_price {
-            self.l1_pubdata_price = Some(*l1_pubdata_price);
-        }
-        if let Some(price_scale) = &opt.price_scale_factor {
-            self.price_scale_factor = Some(*price_scale);
-        }
-        if let Some(limit_scale) = &opt.limit_scale_factor {
-            self.limit_scale_factor = Some(*limit_scale);
-        }
-
-        // [`LogConfig`].
-        if let Some(log_level) = &opt.log {
-            self.log_level = *log_level;
-        }
-        if let Some(file_path) = &opt.log_file_path {
-            self.log_file_path = file_path.to_string();
-        }
-
-        // [`CacheConfig`].
-        if let Some(cache_type) = &opt.cache {
-            self.cache_config = match cache_type {
-                CacheType::None => CacheConfig::None,
-                CacheType::Memory => CacheConfig::Memory,
-                CacheType::Disk => CacheConfig::Disk {
-                    dir: opt.cache_dir.clone().expect("missing --cache-dir argument"),
-                    reset: opt.reset_cache.unwrap_or_default(),
-                },
-            };
-        }
     }
 }
 
