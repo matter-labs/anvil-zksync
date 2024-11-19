@@ -4,13 +4,7 @@ use anyhow::Context;
 use chrono::{DateTime, Utc};
 use futures::Future;
 use jsonrpc_core::{Error, ErrorCode};
-use zksync_multivm::{
-    interface::{
-        storage::WriteStorage, Call, CallType, ExecutionResult, VmExecutionResultAndLogs,
-        VmFactory, VmInterfaceExt,
-    },
-    vm_latest::{HistoryDisabled, Vm},
-};
+use zksync_multivm::interface::{Call, CallType, ExecutionResult, VmExecutionResultAndLogs};
 use zksync_types::{
     api::{BlockNumber, DebugCall, DebugCallType},
     l2::L2Tx,
@@ -19,12 +13,6 @@ use zksync_types::{
 };
 use zksync_utils::bytes_to_be_words;
 use zksync_web3_decl::error::Web3Error;
-
-use crate::{
-    deps::storage_view::StorageView,
-    fork::ForkSource,
-    node::{create_empty_block, InMemoryNodeInner},
-};
 
 pub(crate) trait IntoBoxedFuture: Sized + Send + 'static {
     fn into_boxed_future(self) -> Pin<Box<dyn Future<Output = Self> + Send>> {
@@ -66,68 +54,6 @@ pub fn bytecode_to_factory_dep(bytecode: Vec<u8>) -> Result<(U256, Vec<U256>), a
     let bytecode_words = bytes_to_be_words(bytecode);
 
     Ok((bytecode_hash, bytecode_words))
-}
-
-/// Creates and inserts a given number of empty blocks into the node, with a given interval between them.
-/// The blocks will be empty (contain no transactions).
-/// Currently this is quite slow - as we invoke the VM for each operation, in the future we might want to optimise it
-/// by adding a way to set state via some system contract call.
-pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
-    node: &mut InMemoryNodeInner<S>,
-    num_blocks: u64,
-    interval_sec: u64,
-) -> Result<(), anyhow::Error> {
-    // build and insert new blocks
-    for i in 0..num_blocks {
-        // roll the vm
-        let (keys, block_ctx) = {
-            let storage = StorageView::new(&node.fork_storage).into_rc_ptr();
-
-            // system_contract.contracts_for_l2_call() will give playground contracts
-            // we need these to use the unsafeOverrideBlock method in SystemContext.sol
-            let bootloader_code = node.system_contracts.contracts_for_l2_call();
-            let (batch_env, mut block_ctx) = node.create_l1_batch_env(storage.clone());
-            // override the next block's timestamp to match up with interval for subsequent blocks
-            if i != 0 {
-                block_ctx.timestamp = node.current_timestamp.saturating_add(interval_sec);
-            }
-
-            // init vm
-            let system_env = node.create_system_env(
-                bootloader_code.clone(),
-                zksync_multivm::interface::TxExecutionMode::VerifyExecute,
-            );
-
-            let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage.clone());
-
-            vm.execute(zksync_multivm::interface::InspectExecutionMode::Bootloader);
-
-            // we should not have any bytecodes
-            let modified_keys = storage.borrow().modified_storage_keys().clone();
-            (modified_keys, block_ctx)
-        };
-
-        for (key, value) in keys.iter() {
-            node.fork_storage.set_value(*key, *value);
-        }
-
-        let block = create_empty_block(
-            block_ctx.miniblock,
-            block_ctx.timestamp,
-            block_ctx.batch,
-            None,
-        );
-
-        node.block_hashes.insert(block.number.as_u64(), block.hash);
-        node.blocks.insert(block.hash, block);
-
-        // leave node state ready for next interaction
-        node.current_batch = block_ctx.batch;
-        node.current_miniblock = block_ctx.miniblock;
-        node.current_timestamp = block_ctx.timestamp;
-    }
-
-    Ok(())
 }
 
 /// Returns the actual [U64] block number from [BlockNumber].
@@ -356,10 +282,9 @@ pub fn format_gwei(value: U256) -> String {
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::{H256, U256};
+    use zksync_types::U256;
 
     use super::*;
-    use crate::{http_fork_source::HttpForkSource, node::InMemoryNode, testing};
 
     #[test]
     fn test_utc_datetime_from_epoch_ms() {
@@ -411,140 +336,5 @@ mod tests {
     fn test_to_real_block_number_number() {
         let actual = to_real_block_number(BlockNumber::Number(U64::from(5)), U64::from(10));
         assert_eq!(U64::from(5), actual);
-    }
-
-    #[test]
-    fn test_mine_empty_blocks_mines_the_first_block_immediately() {
-        let node = InMemoryNode::<HttpForkSource>::default();
-        let inner = node.get_inner();
-
-        let starting_block = {
-            let reader = inner.read().expect("failed acquiring reader");
-            reader
-                .block_hashes
-                .get(&reader.current_miniblock)
-                .and_then(|hash| reader.blocks.get(hash))
-                .expect("failed finding block")
-                .clone()
-        };
-        assert_eq!(U64::from(0), starting_block.number);
-        assert_eq!(Some(U64::from(0)), starting_block.l1_batch_number);
-        assert_eq!(U256::from(1000), starting_block.timestamp);
-
-        {
-            let mut writer = inner.write().expect("failed acquiring write lock");
-            mine_empty_blocks(&mut writer, 1, 1000).unwrap();
-        }
-
-        let reader = inner.read().expect("failed acquiring reader");
-        let mined_block = reader
-            .block_hashes
-            .get(&1)
-            .and_then(|hash| reader.blocks.get(hash))
-            .expect("failed finding block");
-        assert_eq!(U64::from(1), mined_block.number);
-        assert_eq!(Some(U64::from(1)), mined_block.l1_batch_number);
-        assert_eq!(U256::from(1001), mined_block.timestamp);
-    }
-
-    #[test]
-    fn test_mine_empty_blocks_mines_2_blocks_with_interval() {
-        let node = InMemoryNode::<HttpForkSource>::default();
-        let inner = node.get_inner();
-
-        let starting_block = {
-            let reader = inner.read().expect("failed acquiring reader");
-            reader
-                .block_hashes
-                .get(&reader.current_miniblock)
-                .and_then(|hash| reader.blocks.get(hash))
-                .expect("failed finding block")
-                .clone()
-        };
-        assert_eq!(U64::from(0), starting_block.number);
-        assert_eq!(Some(U64::from(0)), starting_block.l1_batch_number);
-        assert_eq!(U256::from(1000), starting_block.timestamp);
-
-        {
-            let mut writer = inner.write().expect("failed acquiring write lock");
-            mine_empty_blocks(&mut writer, 2, 1000).unwrap();
-        }
-
-        let reader = inner.read().expect("failed acquiring reader");
-        let mined_block_1 = reader
-            .block_hashes
-            .get(&1)
-            .and_then(|hash| reader.blocks.get(hash))
-            .expect("failed finding block 1");
-        assert_eq!(U64::from(1), mined_block_1.number);
-        assert_eq!(Some(U64::from(1)), mined_block_1.l1_batch_number);
-        assert_eq!(U256::from(1001), mined_block_1.timestamp);
-
-        let mined_block_2 = reader
-            .block_hashes
-            .get(&2)
-            .and_then(|hash| reader.blocks.get(hash))
-            .expect("failed finding block 2");
-        assert_eq!(U64::from(2), mined_block_2.number);
-        assert_eq!(Some(U64::from(2)), mined_block_2.l1_batch_number);
-        assert_eq!(U256::from(2001), mined_block_2.timestamp);
-    }
-
-    #[test]
-    fn test_mine_empty_blocks_mines_2_blocks_with_interval_and_next_block_immediately() {
-        let node = InMemoryNode::<HttpForkSource>::default();
-        let inner = node.get_inner();
-
-        let starting_block = {
-            let reader = inner.read().expect("failed acquiring reader");
-            reader
-                .block_hashes
-                .get(&reader.current_miniblock)
-                .and_then(|hash| reader.blocks.get(hash))
-                .expect("failed finding block")
-                .clone()
-        };
-        assert_eq!(U64::from(0), starting_block.number);
-        assert_eq!(Some(U64::from(0)), starting_block.l1_batch_number);
-        assert_eq!(U256::from(1000), starting_block.timestamp);
-
-        {
-            let mut writer = inner.write().expect("failed acquiring write lock");
-            mine_empty_blocks(&mut writer, 2, 1000).unwrap();
-        }
-
-        {
-            let reader = inner.read().expect("failed acquiring reader");
-            let mined_block_1 = reader
-                .block_hashes
-                .get(&1)
-                .and_then(|hash| reader.blocks.get(hash))
-                .expect("failed finding block 1");
-            assert_eq!(U64::from(1), mined_block_1.number);
-            assert_eq!(Some(U64::from(1)), mined_block_1.l1_batch_number);
-            assert_eq!(U256::from(1001), mined_block_1.timestamp);
-
-            let mined_block_2 = reader
-                .block_hashes
-                .get(&2)
-                .and_then(|hash| reader.blocks.get(hash))
-                .expect("failed finding block 2");
-            assert_eq!(U64::from(2), mined_block_2.number);
-            assert_eq!(Some(U64::from(2)), mined_block_2.l1_batch_number);
-            assert_eq!(U256::from(2001), mined_block_2.timestamp);
-        }
-
-        {
-            testing::apply_tx(&node, H256::repeat_byte(0x1));
-            let reader = inner.read().expect("failed acquiring reader");
-            let tx_block_3 = reader
-                .block_hashes
-                .get(&3)
-                .and_then(|hash| reader.blocks.get(hash))
-                .expect("failed finding block 2");
-            assert_eq!(U64::from(3), tx_block_3.number);
-            assert_eq!(Some(U64::from(3)), tx_block_3.l1_batch_number);
-            assert_eq!(U256::from(2002), tx_block_3.timestamp);
-        }
     }
 }

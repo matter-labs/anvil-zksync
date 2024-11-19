@@ -27,7 +27,7 @@ use zksync_multivm::{
         utils::l2_blocks::load_last_l2_block,
         HistoryDisabled, ToTracerPointer, Vm,
     },
-    VmVersion,
+    HistoryMode, VmVersion,
 };
 use zksync_types::{
     api::{Block, DebugCall, Log, TransactionReceipt, TransactionVariant},
@@ -38,7 +38,7 @@ use zksync_types::{
     l2::{L2Tx, TransactionType},
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
     web3::{keccak256, Bytes, Index},
-    AccountTreeId, Address, BloomInput, L1BatchNumber, L2BlockNumber, PackedEthSignature,
+    AccountTreeId, Address, Bloom, BloomInput, L1BatchNumber, L2BlockNumber, PackedEthSignature,
     StorageKey, StorageValue, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS, EMPTY_UNCLES_HASH, H160,
     H256, H64, MAX_L2_TX_GAS_LIMIT, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
     U256, U64,
@@ -46,6 +46,7 @@ use zksync_types::{
 use zksync_utils::{bytecode::hash_bytecode, h256_to_account_address, h256_to_u256, u256_to_h256};
 use zksync_web3_decl::error::Web3Error;
 
+use crate::node::time::TimestampManager;
 use crate::{
     bootloader_debug::{BootloaderDebug, BootloaderDebugTracer},
     config::{
@@ -79,33 +80,79 @@ pub const MAX_PREVIOUS_STATES: u16 = 128;
 /// The zks protocol version.
 pub const PROTOCOL_VERSION: &str = "zks/1";
 
-pub fn compute_hash(block_number: u64, tx_hash: H256) -> H256 {
-    let digest = [&block_number.to_be_bytes()[..], tx_hash.as_bytes()].concat();
+pub fn compute_hash<'a>(block_number: u64, tx_hashes: impl IntoIterator<Item = &'a H256>) -> H256 {
+    let tx_bytes = tx_hashes
+        .into_iter()
+        .flat_map(|h| h.to_fixed_bytes())
+        .collect::<Vec<_>>();
+    let digest = [&block_number.to_be_bytes()[..], tx_bytes.as_slice()].concat();
     H256(keccak256(&digest))
 }
 
-pub fn create_empty_block<TX>(
-    block_number: u64,
+pub fn create_genesis<TX>(timestamp: u64) -> Block<TX> {
+    let hash = compute_hash(0, []);
+    let batch_env = L1BatchEnv {
+        previous_batch_hash: None,
+        number: L1BatchNumber(0),
+        timestamp,
+        fee_input: BatchFeeInput::pubdata_independent(0, 0, 0),
+        fee_account: Default::default(),
+        enforced_base_fee: None,
+        first_l2_block: L2BlockEnv {
+            number: 0,
+            timestamp,
+            prev_block_hash: Default::default(),
+            max_virtual_blocks_to_create: 0,
+        },
+    };
+    create_block(
+        &batch_env,
+        hash,
+        H256::zero(),
+        0,
+        timestamp,
+        vec![],
+        U256::zero(),
+        Bloom::zero(),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn create_block<TX>(
+    batch_env: &L1BatchEnv,
+    hash: H256,
+    parent_hash: H256,
+    number: u64,
     timestamp: u64,
-    batch: u32,
-    parent_block_hash: Option<H256>,
+    transactions: Vec<TX>,
+    gas_used: U256,
+    logs_bloom: Bloom,
 ) -> Block<TX> {
-    let hash = compute_hash(block_number, H256::zero());
-    let parent_hash = parent_block_hash.unwrap_or(if block_number == 0 {
-        H256::zero()
-    } else {
-        compute_hash(block_number - 1, H256::zero())
-    });
     Block {
         hash,
         parent_hash,
-        number: U64::from(block_number),
+        uncles_hash: EMPTY_UNCLES_HASH, // Static for non-PoW chains, see EIP-3675
+        number: U64::from(number),
+        l1_batch_number: Some(U64::from(batch_env.number.0)),
+        base_fee_per_gas: U256::from(get_batch_base_fee(batch_env, VmVersion::latest())),
         timestamp: U256::from(timestamp),
-        l1_batch_number: Some(U64::from(batch)),
-        transactions: vec![],
-        gas_used: U256::from(0),
-        gas_limit: U256::from(BATCH_GAS_LIMIT),
-        ..Default::default()
+        l1_batch_timestamp: Some(U256::from(batch_env.timestamp)),
+        transactions,
+        gas_used,
+        gas_limit: U256::from(get_max_batch_gas_limit(VmVersion::latest())),
+        logs_bloom,
+        author: Address::default(), // Matches core's behavior, irrelevant for ZKsync
+        state_root: H256::default(), // Intentionally empty as blocks in ZKsync don't have state - batches do
+        transactions_root: H256::default(), // Intentionally empty as blocks in ZKsync don't have state - batches do
+        receipts_root: H256::default(), // Intentionally empty as blocks in ZKsync don't have state - batches do
+        extra_data: Bytes::default(),   // Matches core's behavior, not used in ZKsync
+        difficulty: U256::default(), // Empty for non-PoW chains, see EIP-3675, TODO: should be 2500000000000000 to match DIFFICULTY opcode
+        total_difficulty: U256::default(), // Empty for non-PoW chains, see EIP-3675
+        seal_fields: vec![],         // Matches core's behavior, TODO: remove
+        uncles: vec![],              // Empty for non-PoW chains, see EIP-3675
+        size: U256::default(),       // Matches core's behavior, TODO: perhaps it should be computed
+        mix_hash: H256::default(),   // Empty for non-PoW chains, see EIP-3675
+        nonce: H64::default(),       // Empty for non-PoW chains, see EIP-3675
     }
 }
 
@@ -147,9 +194,8 @@ impl TransactionResult {
 /// S - is the Source of the Fork.
 #[derive(Clone)]
 pub struct InMemoryNodeInner<S> {
-    /// The latest timestamp that was already generated.
-    /// Next block will be current_timestamp + 1
-    pub current_timestamp: u64,
+    /// Supplies timestamps that are unique across the system.
+    pub time: TimestampManager,
     /// The latest batch number that was already generated.
     /// Next block will be current_batch + 1
     pub current_batch: u32,
@@ -182,14 +228,12 @@ pub struct InMemoryNodeInner<S> {
     pub observability: Option<Observability>,
 }
 
-type L2TxResult = (
-    HashMap<StorageKey, H256>,
-    VmExecutionResultAndLogs,
-    Vec<Call>,
-    Block<TransactionVariant>,
-    HashMap<U256, Vec<U256>>,
-    BlockContext,
-);
+#[derive(Debug)]
+pub struct TxExecutionOutput {
+    result: VmExecutionResultAndLogs,
+    call_traces: Vec<Call>,
+    bytecodes: HashMap<U256, Vec<U256>>,
+}
 
 impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
     /// Create the state to be used implementing [InMemoryNode].
@@ -220,7 +264,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             };
 
             InMemoryNodeInner {
-                current_timestamp: f.block_timestamp,
+                time: TimestampManager::new(f.block_timestamp),
                 current_batch: f.l1_block.0,
                 current_miniblock: f.l2_miniblock,
                 current_miniblock_hash: f.l2_miniblock_hash,
@@ -248,17 +292,14 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             }
         } else {
             let mut block_hashes = HashMap::<u64, H256>::new();
-            let block_hash = compute_hash(0, H256::zero());
+            let block_hash = compute_hash(0, []);
             block_hashes.insert(0, block_hash);
             let mut blocks = HashMap::<H256, Block<TransactionVariant>>::new();
-            blocks.insert(
-                block_hash,
-                create_empty_block(0, NON_FORK_FIRST_BLOCK_TIMESTAMP, 0, None),
-            );
+            blocks.insert(block_hash, create_genesis(NON_FORK_FIRST_BLOCK_TIMESTAMP));
             let fee_input_provider = TestNodeFeeInputProvider::default();
 
             InMemoryNodeInner {
-                current_timestamp: NON_FORK_FIRST_BLOCK_TIMESTAMP,
+                time: TimestampManager::new(NON_FORK_FIRST_BLOCK_TIMESTAMP),
                 current_batch: 0,
                 current_miniblock: 0,
                 current_miniblock_hash: block_hash,
@@ -300,15 +341,15 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
         let (last_l1_block_num, last_l1_block_ts) = load_last_l1_batch(storage.clone())
             .map(|(num, ts)| (num as u32, ts))
-            .unwrap_or_else(|| (self.current_batch, self.current_timestamp));
+            .unwrap_or_else(|| (self.current_batch, self.time.last_timestamp()));
         let last_l2_block = load_last_l2_block(&storage).unwrap_or_else(|| L2Block {
             number: self.current_miniblock as u32,
             hash: L2BlockHasher::legacy_hash(L2BlockNumber(self.current_miniblock as u32)),
-            timestamp: self.current_timestamp,
+            timestamp: self.time.last_timestamp(),
         });
         let latest_timestamp = std::cmp::max(
             std::cmp::max(last_l1_block_ts, last_l2_block.timestamp),
-            self.current_timestamp,
+            self.time.last_timestamp(),
         );
 
         let block_ctx = BlockContext::from_current(
@@ -765,7 +806,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             .map_err(|err| format!("failed acquiring read lock on storage: {:?}", err))?;
 
         Ok(Snapshot {
-            current_timestamp: self.current_timestamp,
+            current_timestamp: self.time.last_timestamp(),
             current_batch: self.current_batch,
             current_miniblock: self.current_miniblock,
             current_miniblock_hash: self.current_miniblock_hash,
@@ -791,7 +832,8 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             .write()
             .map_err(|err| format!("failed acquiring write lock on storage: {:?}", err))?;
 
-        self.current_timestamp = snapshot.current_timestamp;
+        self.time
+            .set_last_timestamp_unchecked(snapshot.current_timestamp);
         self.current_batch = snapshot.current_batch;
         self.current_miniblock = snapshot.current_miniblock;
         self.current_miniblock_hash = snapshot.current_miniblock_hash;
@@ -846,6 +888,7 @@ pub struct InMemoryNode<S: Clone> {
     /// Configuration option that survives reset.
     #[allow(dead_code)]
     pub(crate) system_contracts_options: system_contracts::Options,
+    pub(crate) time: TimestampManager,
 }
 
 fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) -> Option<H160> {
@@ -871,10 +914,12 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     ) -> Self {
         let system_contracts_options = config.system_contracts_options;
         let inner = InMemoryNodeInner::new(fork, observability, config);
+        let time = inner.time.clone();
         InMemoryNode {
             inner: Arc::new(RwLock::new(inner)),
             snapshots: Default::default(),
             system_contracts_options,
+            time,
         }
     }
 
@@ -951,7 +996,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             // Getting contracts is reasonably cheap, so we don't cache them. We may need differing contracts
             // depending on whether impersonation should be enabled for a transaction.
             let system_contracts = self.system_contracts_for_tx(tx.initiator_account())?;
-            self.run_l2_tx(tx, system_contracts)?;
+            self.seal_block(vec![tx], system_contracts)?;
         }
 
         Ok(())
@@ -1314,24 +1359,17 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     /// This is because external users of the library may call this function to perform an isolated
     /// VM operation (optionally without bootloader execution) with an external storage and get the results back.
     /// So any data populated in [Self::run_l2_tx] will not be available for the next invocation.
-    pub fn run_l2_tx_raw(
+    pub fn run_l2_tx_raw<W: WriteStorage, H: HistoryMode>(
         &self,
         l2_tx: L2Tx,
-        system_contracts: BaseSystemContracts,
-        execute_bootloader: bool,
-    ) -> anyhow::Result<L2TxResult> {
+        vm: &mut Vm<W, H>,
+    ) -> anyhow::Result<TxExecutionOutput> {
         let inner = self
             .inner
             .read()
             .map_err(|_| anyhow::anyhow!("Failed to acquire read lock"))?;
-        let storage = StorageView::new(inner.fork_storage.clone()).into_rc_ptr();
-        let (batch_env, block_ctx) = inner.create_l1_batch_env(storage.clone());
-        let system_env = inner.create_system_env(system_contracts, TxExecutionMode::VerifyExecute);
 
-        let mut vm: Vm<_, HistoryDisabled> =
-            Vm::new(batch_env.clone(), system_env, storage.clone());
-
-        let tx: Transaction = l2_tx.clone().into();
+        let tx: Transaction = l2_tx.into();
 
         let call_tracer_result = Arc::new(OnceCell::default());
         let bootloader_debug_result = Arc::new(OnceCell::default());
@@ -1434,58 +1472,6 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             formatter::print_event(event, inner.config.resolve_hashes);
         }
 
-        // The computed block hash here will be different than that in production.
-        let hash = compute_hash(block_ctx.miniblock, l2_tx.hash());
-
-        let mut transaction = zksync_types::api::Transaction::from(l2_tx);
-        transaction.block_hash = Some(hash);
-        transaction.block_number = Some(U64::from(block_ctx.miniblock));
-        transaction.transaction_index = Some(Index::zero());
-        transaction.l1_batch_number = Some(U64::from(batch_env.number.0));
-        transaction.l1_batch_tx_index = Some(Index::zero());
-
-        let parent_block_hash = inner
-            .block_hashes
-            .get(&(block_ctx.miniblock - 1))
-            .cloned()
-            .unwrap_or_default();
-
-        let iter = tx_result.logs.events.iter().flat_map(|event| {
-            event
-                .indexed_topics
-                .iter()
-                .map(|topic| BloomInput::Raw(topic.as_bytes()))
-                .chain([BloomInput::Raw(event.address.as_bytes())])
-        });
-        let logs_bloom = build_bloom(iter);
-
-        let block = Block {
-            hash,
-            parent_hash: parent_block_hash,
-            uncles_hash: EMPTY_UNCLES_HASH, // Static for non-PoW chains, see EIP-3675
-            number: U64::from(block_ctx.miniblock),
-            l1_batch_number: Some(U64::from(batch_env.number.0)),
-            base_fee_per_gas: U256::from(get_batch_base_fee(&batch_env, VmVersion::latest())),
-            timestamp: U256::from(batch_env.timestamp),
-            l1_batch_timestamp: Some(U256::from(batch_env.timestamp)),
-            transactions: vec![TransactionVariant::Full(transaction)],
-            gas_used: U256::from(tx_result.statistics.gas_used),
-            gas_limit: U256::from(get_max_batch_gas_limit(VmVersion::latest())),
-            logs_bloom,
-            author: Address::default(), // Matches core's behavior, irrelevant for ZKsync
-            state_root: H256::default(), // Intentionally empty as blocks in ZKsync don't have state - batches do
-            transactions_root: H256::default(), // Intentionally empty as blocks in ZKsync don't have state - batches do
-            receipts_root: H256::default(), // Intentionally empty as blocks in ZKsync don't have state - batches do
-            extra_data: Bytes::default(),   // Matches core's behavior, not used in ZKsync
-            difficulty: U256::default(), // Empty for non-PoW chains, see EIP-3675, TODO: should be 2500000000000000 to match DIFFICULTY opcode
-            total_difficulty: U256::default(), // Empty for non-PoW chains, see EIP-3675
-            seal_fields: vec![],         // Matches core's behavior, TODO: remove
-            uncles: vec![],              // Empty for non-PoW chains, see EIP-3675
-            size: U256::default(), // Matches core's behavior, TODO: perhaps it should be computed
-            mix_hash: H256::default(), // Empty for non-PoW chains, see EIP-3675
-            nonce: H64::default(), // Empty for non-PoW chains, see EIP-3675
-        };
-
         let mut bytecodes = HashMap::new();
         for b in &*compressed_bytecodes {
             let (hash, bytecode) = bytecode_to_factory_dep(b.original.clone()).map_err(|err| {
@@ -1494,27 +1480,21 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             })?;
             bytecodes.insert(hash, bytecode);
         }
-        if execute_bootloader {
-            vm.execute(InspectExecutionMode::Bootloader);
-        }
 
-        let modified_keys = storage.borrow().modified_storage_keys().clone();
-
-        Ok((
-            modified_keys,
-            tx_result,
-            call_traces.clone(),
-            block,
+        Ok(TxExecutionOutput {
+            result: tx_result,
+            call_traces: call_traces.clone(),
             bytecodes,
-            block_ctx,
-        ))
+        })
     }
 
     /// Runs L2 transaction and commits it to a new block.
-    pub fn run_l2_tx(
+    pub fn run_l2_tx<W: WriteStorage, H: HistoryMode>(
         &self,
         l2_tx: L2Tx,
-        system_contracts: BaseSystemContracts,
+        block_ctx: &BlockContext,
+        batch_env: &L1BatchEnv,
+        vm: &mut Vm<W, H>,
     ) -> anyhow::Result<()> {
         let tx_hash = l2_tx.hash();
         let transaction_type = l2_tx.common_data.transaction_type;
@@ -1534,8 +1514,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             inner.filters.notify_new_pending_transaction(tx_hash);
         }
 
-        let (keys, result, call_traces, block, bytecodes, block_ctx) =
-            self.run_l2_tx_raw(l2_tx.clone(), system_contracts, true)?;
+        let TxExecutionOutput {
+            result,
+            bytecodes,
+            call_traces,
+        } = self.run_l2_tx_raw(l2_tx.clone(), vm)?;
 
         if let ExecutionResult::Halt { reason } = result.result {
             // Halt means that something went really bad with the transaction execution (in most cases invalid signature,
@@ -1543,16 +1526,12 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             // In such case, we should not persist the VM data, and we should pretend that transaction never existed.
             anyhow::bail!("Transaction HALT: {reason}");
         }
-        // Write all the mutated keys (storage slots).
+
+        // Write all the factory deps.
         let mut inner = self
             .inner
             .write()
             .map_err(|_| anyhow::anyhow!("Failed to acquire write lock"))?;
-        for (key, value) in keys.iter() {
-            inner.fork_storage.set_value(*key, *value);
-        }
-
-        // Write all the factory deps.
         for (hash, code) in bytecodes.iter() {
             inner.fork_storage.store_factory_dep(
                 u256_to_h256(*hash),
@@ -1566,59 +1545,45 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             )
         }
 
-        for (log_idx, event) in result.logs.events.iter().enumerate() {
-            inner.filters.notify_new_log(
-                &Log {
-                    address: event.address,
-                    topics: event.indexed_topics.clone(),
-                    data: Bytes(event.value.clone()),
-                    block_hash: Some(block.hash),
-                    block_number: Some(block.number),
-                    l1_batch_number: block.l1_batch_number,
-                    transaction_hash: Some(tx_hash),
-                    transaction_index: Some(U64::zero()),
-                    log_index: Some(U256::from(log_idx)),
-                    transaction_log_index: Some(U256::from(log_idx)),
-                    log_type: None,
-                    removed: Some(false),
-                    block_timestamp: Some(block.timestamp.as_u64().into()),
-                },
-                block.number,
-            );
+        let logs = result
+            .logs
+            .events
+            .iter()
+            .enumerate()
+            .map(|(log_idx, log)| Log {
+                address: log.address,
+                topics: log.indexed_topics.clone(),
+                data: Bytes(log.value.clone()),
+                block_hash: Some(block_ctx.hash),
+                block_number: Some(block_ctx.miniblock.into()),
+                l1_batch_number: Some(U64::from(batch_env.number.0)),
+                transaction_hash: Some(tx_hash),
+                transaction_index: Some(U64::zero()),
+                log_index: Some(U256::from(log_idx)),
+                transaction_log_index: Some(U256::from(log_idx)),
+                log_type: None,
+                removed: Some(false),
+                block_timestamp: Some(block_ctx.timestamp.into()),
+            })
+            .collect();
+        for log in &logs {
+            inner
+                .filters
+                .notify_new_log(log, block_ctx.miniblock.into());
         }
         let tx_receipt = TransactionReceipt {
             transaction_hash: tx_hash,
             transaction_index: U64::from(0),
-            block_hash: block.hash,
-            block_number: block.number,
+            block_hash: block_ctx.hash,
+            block_number: block_ctx.miniblock.into(),
             l1_batch_tx_index: None,
-            l1_batch_number: block.l1_batch_number,
+            l1_batch_number: Some(U64::from(batch_env.number.0)),
             from: l2_tx.initiator_account(),
             to: l2_tx.recipient_account(),
             cumulative_gas_used: Default::default(),
             gas_used: Some(l2_tx.common_data.fee.gas_limit - result.refunds.gas_refunded),
             contract_address: contract_address_from_tx_result(&result),
-            logs: result
-                .logs
-                .events
-                .iter()
-                .enumerate()
-                .map(|(log_idx, log)| Log {
-                    address: log.address,
-                    topics: log.indexed_topics.clone(),
-                    data: Bytes(log.value.clone()),
-                    block_hash: Some(block.hash),
-                    block_number: Some(block.number),
-                    l1_batch_number: block.l1_batch_number,
-                    transaction_hash: Some(tx_hash),
-                    transaction_index: Some(U64::zero()),
-                    log_index: Some(U256::from(log_idx)),
-                    transaction_log_index: Some(U256::from(log_idx)),
-                    log_type: None,
-                    removed: Some(false),
-                    block_timestamp: Some(block.timestamp.as_u64().into()),
-                })
-                .collect(),
+            logs,
             l2_to_l1_logs: vec![],
             status: if result.result.is_failed() {
                 U64::from(0)
@@ -1635,8 +1600,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             TransactionResult {
                 info: TxExecutionInfo {
                     tx: l2_tx,
-                    batch_number: block.l1_batch_number.unwrap_or_default().as_u32(),
-                    miniblock_number: block.number.as_u64(),
+                    batch_number: batch_env.number.0,
+                    miniblock_number: block_ctx.miniblock,
                     result,
                 },
                 receipt: tx_receipt,
@@ -1644,24 +1609,129 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             },
         );
 
-        // With the introduction of 'l2 blocks' (and virtual blocks),
-        // we are adding one l2 block at the end of each batch (to handle things like remaining events etc).
-        //  You can look at insert_fictive_l2_block function in VM to see how this fake block is inserted.
-        let block_ctx = block_ctx.new_block();
-        let parent_block_hash = block.hash;
-        let empty_block_at_end_of_batch = create_empty_block(
+        Ok(())
+    }
+
+    pub fn seal_block(
+        &self,
+        txs: Vec<L2Tx>,
+        system_contracts: BaseSystemContracts,
+    ) -> anyhow::Result<L2BlockNumber> {
+        // Prepare a new block context and a new batch env
+        let inner = self
+            .inner
+            .read()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire read lock"))?;
+        let storage = StorageView::new(inner.fork_storage.clone()).into_rc_ptr();
+        let system_env = inner.create_system_env(system_contracts, TxExecutionMode::VerifyExecute);
+        let (batch_env, mut block_ctx) = inner.create_l1_batch_env(storage.clone());
+        drop(inner);
+
+        let mut vm: Vm<_, HistoryDisabled> =
+            Vm::new(batch_env.clone(), system_env, storage.clone());
+
+        // Compute block hash. Note that the computed block hash here will be different than that in production.
+        let tx_hashes = txs.iter().map(|t| t.hash()).collect::<Vec<_>>();
+        let hash = compute_hash(block_ctx.miniblock, &tx_hashes);
+        block_ctx.hash = hash;
+
+        // Execute transactions and bootloader
+        for tx in txs {
+            self.run_l2_tx(tx, &block_ctx, &batch_env, &mut vm)?;
+        }
+        vm.execute(InspectExecutionMode::Bootloader);
+
+        // Write all the mutated keys (storage slots).
+        let mut inner = self
+            .inner
+            .write()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire write lock"))?;
+        for (key, value) in storage.borrow().modified_storage_keys() {
+            inner.fork_storage.set_value(*key, *value);
+        }
+
+        let mut transactions = Vec::new();
+        let mut tx_results = Vec::new();
+        for tx_hash in &tx_hashes {
+            let tx_result = inner
+                .tx_results
+                .get(tx_hash)
+                .context("tx result was not saved after a successful execution")?;
+            tx_results.push(&tx_result.info.result);
+
+            let mut transaction = zksync_types::api::Transaction::from(tx_result.info.tx.clone());
+            transaction.block_hash = Some(block_ctx.hash);
+            transaction.block_number = Some(U64::from(block_ctx.miniblock));
+            transaction.transaction_index = Some(Index::zero());
+            transaction.l1_batch_number = Some(U64::from(batch_env.number.0));
+            transaction.l1_batch_tx_index = Some(Index::zero());
+            transactions.push(TransactionVariant::Full(transaction));
+        }
+
+        // Build bloom hash
+        let iter = tx_results
+            .iter()
+            .flat_map(|r| r.logs.events.iter())
+            .flat_map(|event| {
+                event
+                    .indexed_topics
+                    .iter()
+                    .map(|topic| BloomInput::Raw(topic.as_bytes()))
+                    .chain([BloomInput::Raw(event.address.as_bytes())])
+            });
+        let logs_bloom = build_bloom(iter);
+
+        // Calculate how much gas was used across all txs
+        let gas_used = tx_results
+            .iter()
+            .map(|r| U256::from(r.statistics.gas_used))
+            .fold(U256::zero(), |acc, x| acc + x);
+
+        // Construct the block
+        let parent_block_hash = inner
+            .block_hashes
+            .get(&(block_ctx.miniblock - 1))
+            .cloned()
+            .unwrap_or_default();
+        let block = create_block(
+            &batch_env,
+            hash,
+            parent_block_hash,
             block_ctx.miniblock,
             block_ctx.timestamp,
-            block_ctx.batch,
-            Some(parent_block_hash),
+            transactions,
+            gas_used,
+            logs_bloom,
         );
+        let mut blocks = vec![block];
+
+        // Hack to ensure we don't mine twice the amount of requested empty blocks (i.e. one per
+        // batch).
+        // TODO: Remove once we separate batch sealing from block sealing
+        if !tx_hashes.is_empty() {
+            // With the introduction of 'l2 blocks' (and virtual blocks),
+            // we are adding one l2 block at the end of each batch (to handle things like remaining events etc).
+            // You can look at insert_fictive_l2_block function in VM to see how this fake block is inserted.
+            let parent_block_hash = block_ctx.hash;
+            let block_ctx = block_ctx.new_block();
+            let hash = compute_hash(block_ctx.miniblock, []);
+
+            let virtual_block = create_block(
+                &batch_env,
+                hash,
+                parent_block_hash,
+                block_ctx.miniblock,
+                block_ctx.timestamp,
+                vec![],
+                U256::zero(),
+                Bloom::zero(),
+            );
+            blocks.push(virtual_block);
+        }
 
         inner.current_batch = inner.current_batch.saturating_add(1);
 
-        for (i, block) in vec![block, empty_block_at_end_of_batch]
-            .into_iter()
-            .enumerate()
-        {
+        for (i, block) in blocks.into_iter().enumerate() {
             // archive current state before we produce new batch/blocks
             if let Err(err) = inner.archive_state() {
                 tracing::error!(
@@ -1672,7 +1742,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             }
 
             inner.current_miniblock = inner.current_miniblock.saturating_add(1);
-            inner.current_timestamp = inner.current_timestamp.saturating_add(1);
+            let expected_timestamp = inner.time.next_timestamp();
 
             let actual_l1_batch_number = block
                 .l1_batch_number
@@ -1693,10 +1763,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 );
             }
 
-            if block.timestamp.as_u64() != inner.current_timestamp {
+            if block.timestamp.as_u64() != expected_timestamp {
                 panic!(
                     "expected next block to have timestamp {}, got {} | {i}",
-                    inner.current_timestamp,
+                    expected_timestamp,
                     block.timestamp.as_u64()
                 );
             }
@@ -1708,7 +1778,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             inner.filters.notify_new_block(block_hash);
         }
 
-        Ok(())
+        Ok(L2BlockNumber(block_ctx.miniblock as u32))
     }
 
     // Forcefully stores the given bytecode at a given account.
@@ -1736,6 +1806,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 /// Useful for keeping track of the current context when creating multiple blocks.
 #[derive(Debug, Clone, Default)]
 pub struct BlockContext {
+    pub hash: H256,
     pub batch: u32,
     pub miniblock: u64,
     pub timestamp: u64,
@@ -1745,6 +1816,7 @@ impl BlockContext {
     /// Create the current instance that represents the latest block.
     pub fn from_current(batch: u32, miniblock: u64, timestamp: u64) -> Self {
         Self {
+            hash: H256::zero(),
             batch,
             miniblock,
             timestamp,
@@ -1754,6 +1826,7 @@ impl BlockContext {
     /// Create the next batch instance that has all parameters incremented by `1`.
     pub fn new_batch(&self) -> Self {
         Self {
+            hash: H256::zero(),
             batch: self.batch.saturating_add(1),
             miniblock: self.miniblock.saturating_add(1),
             timestamp: self.timestamp.saturating_add(1),
@@ -1763,6 +1836,7 @@ impl BlockContext {
     /// Create the next batch instance that uses the same batch number, and has all other parameters incremented by `1`.
     pub fn new_block(&self) -> BlockContext {
         Self {
+            hash: H256::zero(),
             batch: self.batch,
             miniblock: self.miniblock.saturating_add(1),
             timestamp: self.timestamp.saturating_add(1),
@@ -1790,6 +1864,7 @@ pub fn load_last_l1_batch<S: ReadStorage>(storage: StoragePtr<S>) -> Option<(u64
 #[cfg(test)]
 mod tests {
     use ethabi::{Token, Uint};
+    use std::fmt::Debug;
     use zksync_types::{utils::deployed_address_create, K256PrivateKey, Nonce};
 
     use super::*;
@@ -1807,6 +1882,23 @@ mod tests {
         testing,
     };
 
+    fn test_vm<S: Clone + Debug + ForkSource>(
+        node: &InMemoryNode<S>,
+        system_contracts: BaseSystemContracts,
+    ) -> (
+        BlockContext,
+        L1BatchEnv,
+        Vm<StorageView<ForkStorage<S>>, HistoryDisabled>,
+    ) {
+        let inner = node.inner.read().unwrap();
+        let storage = StorageView::new(inner.fork_storage.clone()).into_rc_ptr();
+        let system_env = inner.create_system_env(system_contracts, TxExecutionMode::VerifyExecute);
+        let (batch_env, block_ctx) = inner.create_l1_batch_env(storage.clone());
+        let vm: Vm<_, HistoryDisabled> = Vm::new(batch_env.clone(), system_env, storage);
+
+        (block_ctx, batch_env, vm)
+    }
+
     #[tokio::test]
     async fn test_run_l2_tx_validates_tx_gas_limit_too_high() {
         let node = InMemoryNode::<HttpForkSource>::default();
@@ -1818,7 +1910,10 @@ mod tests {
         let system_contracts = node
             .system_contracts_for_tx(tx.initiator_account())
             .unwrap();
-        let err = node.run_l2_tx(tx, system_contracts).unwrap_err();
+        let (block_ctx, batch_env, mut vm) = test_vm(&node, system_contracts.clone());
+        let err = node
+            .run_l2_tx(tx, &block_ctx, &batch_env, &mut vm)
+            .unwrap_err();
         assert_eq!(err.to_string(), "exceeds block gas limit");
     }
 
@@ -1833,7 +1928,10 @@ mod tests {
         let system_contracts = node
             .system_contracts_for_tx(tx.initiator_account())
             .unwrap();
-        let err = node.run_l2_tx(tx, system_contracts).unwrap_err();
+        let (block_ctx, batch_env, mut vm) = test_vm(&node, system_contracts.clone());
+        let err = node
+            .run_l2_tx(tx, &block_ctx, &batch_env, &mut vm)
+            .unwrap_err();
 
         assert_eq!(
             err.to_string(),
@@ -1852,7 +1950,10 @@ mod tests {
         let system_contracts = node
             .system_contracts_for_tx(tx.initiator_account())
             .unwrap();
-        let err = node.run_l2_tx(tx, system_contracts).unwrap_err();
+        let (block_ctx, batch_env, mut vm) = test_vm(&node, system_contracts.clone());
+        let err = node
+            .run_l2_tx(tx, &block_ctx, &batch_env, &mut vm)
+            .unwrap_err();
 
         assert_eq!(
             err.to_string(),
@@ -1861,34 +1962,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_create_empty_block_creates_genesis_block_with_hash_and_zero_parent_hash() {
-        let first_block = create_empty_block::<TransactionVariant>(0, 1000, 1, None);
+    async fn test_create_genesis_creates_block_with_hash_and_zero_parent_hash() {
+        let first_block = create_genesis::<TransactionVariant>(1000);
 
-        assert_eq!(first_block.hash, compute_hash(0, H256::zero()));
+        assert_eq!(first_block.hash, compute_hash(0, []));
         assert_eq!(first_block.parent_hash, H256::zero());
-    }
-
-    #[tokio::test]
-    async fn test_create_empty_block_creates_block_with_parent_hash_link_to_prev_block() {
-        let first_block = create_empty_block::<TransactionVariant>(0, 1000, 1, None);
-        let second_block = create_empty_block::<TransactionVariant>(1, 1000, 1, None);
-
-        assert_eq!(second_block.parent_hash, first_block.hash);
-    }
-
-    #[tokio::test]
-    async fn test_create_empty_block_creates_block_with_parent_hash_link_to_provided_parent_hash() {
-        let first_block = create_empty_block::<TransactionVariant>(
-            0,
-            1000,
-            1,
-            Some(compute_hash(123, H256::zero())),
-        );
-        let second_block =
-            create_empty_block::<TransactionVariant>(1, 1000, 1, Some(first_block.hash));
-
-        assert_eq!(first_block.parent_hash, compute_hash(123, H256::zero()));
-        assert_eq!(second_block.parent_hash, first_block.hash);
     }
 
     #[tokio::test]
@@ -1900,7 +1978,7 @@ mod tests {
         let system_contracts = node
             .system_contracts_for_tx(tx.initiator_account())
             .unwrap();
-        node.run_l2_tx(tx, system_contracts).unwrap();
+        node.seal_block(vec![tx], system_contracts).unwrap();
         let external_storage = node.inner.read().unwrap().fork_storage.clone();
 
         // Execute next transaction using a fresh in-memory node and the external fork storage
@@ -1933,7 +2011,8 @@ mod tests {
         let system_contracts = node
             .system_contracts_for_tx(tx.initiator_account())
             .unwrap();
-        node.run_l2_tx_raw(tx, system_contracts, true)
+        let (_, _, mut vm) = test_vm(&node, system_contracts);
+        node.run_l2_tx_raw(tx, &mut vm)
             .expect("transaction must pass with external storage");
     }
 
@@ -1985,9 +2064,8 @@ mod tests {
         let system_contracts = node
             .system_contracts_for_tx(tx.initiator_account())
             .unwrap();
-        let (_, result, ..) = node
-            .run_l2_tx_raw(tx, system_contracts, true)
-            .expect("failed tx");
+        let (_, _, mut vm) = test_vm(&node, system_contracts);
+        let TxExecutionOutput { result, .. } = node.run_l2_tx_raw(tx, &mut vm).expect("failed tx");
 
         match result.result {
             ExecutionResult::Success { output } => {

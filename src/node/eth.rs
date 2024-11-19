@@ -101,12 +101,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
             return Err(err.into());
         };
 
-        self.run_l2_tx(l2_tx, system_contracts).map_err(|err| {
-            Web3Error::SubmitTransactionError(
-                format!("Execution error: {err}"),
-                hash.as_bytes().to_vec(),
-            )
-        })?;
+        self.seal_block(vec![l2_tx], system_contracts)
+            .map_err(|err| {
+                Web3Error::SubmitTransactionError(
+                    format!("Execution error: {err}"),
+                    hash.as_bytes().to_vec(),
+                )
+            })?;
         Ok(hash)
     }
 
@@ -188,12 +189,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
             }
         }
 
-        self.run_l2_tx(l2_tx, system_contracts).map_err(|err| {
-            Web3Error::SubmitTransactionError(
-                format!("Execution error: {err}"),
-                hash.as_bytes().to_vec(),
-            )
-        })?;
+        self.seal_block(vec![l2_tx], system_contracts)
+            .map_err(|err| {
+                Web3Error::SubmitTransactionError(
+                    format!("Execution error: {err}"),
+                    hash.as_bytes().to_vec(),
+                )
+            })?;
         Ok(hash)
     }
 }
@@ -1596,7 +1598,7 @@ mod tests {
             .expect("no block");
 
         assert_eq!(0, block.number.as_u64());
-        assert_eq!(compute_hash(0, H256::zero()), block.hash);
+        assert_eq!(compute_hash(0, []), block.hash);
     }
 
     #[tokio::test]
@@ -1604,7 +1606,7 @@ mod tests {
         let node = InMemoryNode::<HttpForkSource>::default();
 
         let block = node
-            .get_block_by_hash(compute_hash(0, H256::zero()), false)
+            .get_block_by_hash(compute_hash(0, []), false)
             .await
             .expect("failed fetching block by hash")
             .expect("no block");
@@ -2942,7 +2944,7 @@ mod tests {
         inner.current_batch = 1;
         inner.current_miniblock = 1;
         inner.current_miniblock_hash = H256::repeat_byte(0x1);
-        inner.current_timestamp = 1;
+        inner.time.set_last_timestamp_unchecked(1);
         inner
             .filters
             .add_block_filter()
@@ -2959,7 +2961,7 @@ mod tests {
 
         let storage = inner.fork_storage.inner.read().unwrap();
         let expected_snapshot = Snapshot {
-            current_timestamp: inner.current_timestamp,
+            current_timestamp: inner.time.last_timestamp(),
             current_batch: inner.current_batch,
             current_miniblock: inner.current_miniblock,
             current_miniblock_hash: inner.current_miniblock_hash,
@@ -3048,7 +3050,7 @@ mod tests {
         inner.current_batch = 1;
         inner.current_miniblock = 1;
         inner.current_miniblock_hash = H256::repeat_byte(0x1);
-        inner.current_timestamp = 1;
+        inner.time.set_last_timestamp_unchecked(1);
         inner
             .filters
             .add_block_filter()
@@ -3066,7 +3068,7 @@ mod tests {
         let expected_snapshot = {
             let storage = inner.fork_storage.inner.read().unwrap();
             Snapshot {
-                current_timestamp: inner.current_timestamp,
+                current_timestamp: inner.time.last_timestamp(),
                 current_batch: inner.current_batch,
                 current_miniblock: inner.current_miniblock,
                 current_miniblock_hash: inner.current_miniblock_hash,
@@ -3101,7 +3103,7 @@ mod tests {
         inner.current_batch = 2;
         inner.current_miniblock = 2;
         inner.current_miniblock_hash = H256::repeat_byte(0x2);
-        inner.current_timestamp = 2;
+        inner.time.set_last_timestamp_unchecked(2);
         inner
             .filters
             .add_pending_transaction_filter()
@@ -3122,7 +3124,10 @@ mod tests {
             .expect("failed restoring snapshot");
 
         let storage = inner.fork_storage.inner.read().unwrap();
-        assert_eq!(expected_snapshot.current_timestamp, inner.current_timestamp);
+        assert_eq!(
+            expected_snapshot.current_timestamp,
+            inner.time.last_timestamp()
+        );
         assert_eq!(expected_snapshot.current_batch, inner.current_batch);
         assert_eq!(expected_snapshot.current_miniblock, inner.current_miniblock);
         assert_eq!(
