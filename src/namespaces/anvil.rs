@@ -44,7 +44,7 @@ pub trait AnvilNamespaceT {
     ///
     /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
     #[rpc(name = "anvil_mine")]
-    fn anvil_mine(&self, num_blocks: Option<U64>, interval: Option<U64>) -> RpcResult<bool>;
+    fn anvil_mine(&self, num_blocks: Option<U64>, interval: Option<U64>) -> RpcResult<()>;
 
     /// Reset the state of the network back to a fresh forked state, or disable forking.
     ///

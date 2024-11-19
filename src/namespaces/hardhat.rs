@@ -63,7 +63,7 @@ pub trait HardhatNamespaceT {
     ///
     /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
     #[rpc(name = "hardhat_mine")]
-    fn hardhat_mine(&self, num_blocks: Option<U64>, interval: Option<U64>) -> RpcResult<bool>;
+    fn hardhat_mine(&self, num_blocks: Option<U64>, interval: Option<U64>) -> RpcResult<()>;
 
     /// Retrieves the current automine status of the network.
     ///

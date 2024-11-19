@@ -218,14 +218,12 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
             })
     }
 
-    pub fn mine_blocks(&self, num_blocks: Option<U64>, interval: Option<U64>) -> Result<bool> {
-        let num_blocks = num_blocks.unwrap_or_else(|| U64::from(1)).as_u64();
-        let interval_sec = interval.unwrap_or_else(|| U64::from(1)).as_u64();
+    pub fn mine_blocks(&self, num_blocks: Option<U64>, interval: Option<U64>) -> Result<()> {
+        let num_blocks = num_blocks.map_or(1, |x| x.as_u64());
+        let interval_sec = interval.map_or(1, |x| x.as_u64());
 
         if num_blocks == 0 {
-            return Err(anyhow!(
-                "Number of blocks must be greater than 0".to_string(),
-            ));
+            return Ok(());
         }
 
         let bootloader_code = self
@@ -239,13 +237,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
                 // there is no guarantee that blocks produced by this method will have *exactly*
                 // `interval` seconds in-between of their respective timestamps. Instead, we treat
                 // it as the minimum amount of time that should have passed in-between of blocks.
-                self.time.increase_time(interval_sec - 1);
+                self.time.increase_time(interval_sec.saturating_sub(1));
             }
             self.seal_block(vec![], bootloader_code.clone())?;
         }
         tracing::info!("👷 Mined {} blocks", num_blocks);
 
-        Ok(true)
+        Ok(())
     }
 
     // @dev This function is necessary for Hardhat Ignite compatibility with `evm_emulator`.
@@ -436,8 +434,7 @@ mod tests {
             .expect("block exists");
 
         // test with defaults
-        let result = node.mine_blocks(None, None).expect("mine_blocks");
-        assert!(result);
+        node.mine_blocks(None, None).expect("mine_blocks");
 
         let current_block = node
             .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
@@ -447,8 +444,7 @@ mod tests {
 
         assert_eq!(start_block.number + 1, current_block.number);
         assert_eq!(start_block.timestamp + 1, current_block.timestamp);
-        let result = node.mine_blocks(None, None).expect("mine_blocks");
-        assert!(result);
+        node.mine_blocks(None, None).expect("mine_blocks");
 
         let current_block = node
             .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
@@ -474,10 +470,8 @@ mod tests {
         let interval = 3;
         let start_timestamp = start_block.timestamp + 1;
 
-        let result = node
-            .mine_blocks(Some(U64::from(num_blocks)), Some(U64::from(interval)))
+        node.mine_blocks(Some(U64::from(num_blocks)), Some(U64::from(interval)))
             .expect("mine blocks");
-        assert!(result);
 
         for i in 0..num_blocks {
             let current_block = node
