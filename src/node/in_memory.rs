@@ -940,8 +940,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
             *guard = inner;
         }
-        // TODO:
-        // Need to handle reset of new dev accounts
+
         for wallet in LEGACY_RICH_WALLETS.iter() {
             let address = wallet.0;
             self.set_rich_account(H160::from_str(address).unwrap());
