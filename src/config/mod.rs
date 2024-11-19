@@ -225,10 +225,15 @@ impl TestNodeConfig {
                 "Disabled".red()
             }
         );
-
+        println!("\n");
         info!("========================================");
-        info!("  Listening on 127.0.0.1:{}", self.port);
+        info!(
+            "  Listening on {}:{}",
+            "127.0.0.1".green(),
+            self.port.to_string().green()
+        );
         info!("========================================");
+        println!("\n");
     }
 
     /// Set the port for the test node
