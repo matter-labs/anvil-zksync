@@ -16,7 +16,6 @@ use colored::{Colorize, CustomColor};
 use observability::LogLevel;
 use rand::thread_rng;
 use serde::Deserialize;
-use tracing::info;
 use zksync_types::fee_model::FeeModelConfigV2;
 use zksync_types::U256;
 
@@ -148,34 +147,34 @@ impl TestNodeConfig {
         let color = CustomColor::new(13, 71, 198);
 
         println!("{}", BANNER.custom_color(color));
-        info!("Version:        {}", VERSION_MESSAGE.green());
-        info!(
+        tracing::info!("Version:        {}", VERSION_MESSAGE.green());
+        tracing::info!(
             "Repository:     {}",
             "https://github.com/matter-labs/era-test-node".green()
         );
         println!("\n");
 
-        info!("Rich Accounts");
-        info!("========================");
+        tracing::info!("Rich Accounts");
+        tracing::info!("========================");
         let balance = format_eth(self.genesis_balance);
         for (idx, account) in self.genesis_accounts.iter().enumerate() {
-            info!("({}) {} ({balance})", idx, account.address());
+            tracing::info!("({}) {} ({balance})", idx, account.address());
         }
         println!("\n");
 
-        info!("Private Keys");
-        info!("========================");
+        tracing::info!("Private Keys");
+        tracing::info!("========================");
         for (idx, account) in self.genesis_accounts.iter().enumerate() {
             let private_key = hex::encode(account.credential().to_bytes());
-            info!("({}) 0x{}", idx, private_key);
+            tracing::info!("({}) 0x{}", idx, private_key);
         }
         println!("\n");
 
         if let Some(ref generator) = self.account_generator {
-            info!("Wallet");
-            info!("========================");
-            info!("Mnemonic:            {}", generator.phrase.green());
-            info!(
+            tracing::info!("Wallet");
+            tracing::info!("========================");
+            tracing::info!("Mnemonic:            {}", generator.phrase.green());
+            tracing::info!(
                 "Derivation path:     {}",
                 generator
                     .derivation_path
@@ -187,50 +186,50 @@ impl TestNodeConfig {
         println!("\n");
 
         if let Some(fd) = fork_details {
-            info!("Fork Details");
-            info!("========================");
-            info!("Network RPC:               {}", fd.network_rpc.green());
-            info!(
+            tracing::info!("Fork Details");
+            tracing::info!("========================");
+            tracing::info!("Network RPC:               {}", fd.network_rpc.green());
+            tracing::info!(
                 "Chain ID:                  {}",
                 self.get_chain_id().to_string().green()
             );
-            info!("L1 Batch #:                {}", fd.l1_block.green());
-            info!("L2 Block #:                {}", fd.l2_block.green());
-            info!(
+            tracing::info!("L1 Batch #:                {}", fd.l1_block.green());
+            tracing::info!("L2 Block #:                {}", fd.l2_block.green());
+            tracing::info!(
                 "Block Timestamp:           {}",
                 fd.block_timestamp.to_string().green()
             );
-            info!(
+            tracing::info!(
                 "Fork Block Hash:           {}",
                 format!("{:#}", fd.fork_block_hash).green()
             );
             if let Some(fee_config) = &fd.fee_model_config_v2 {
-                info!(
+                tracing::info!(
                     "Compute Overhead Part:     {}",
                     fee_config.compute_overhead_part.to_string().green()
                 );
-                info!(
+                tracing::info!(
                     "Pubdata Overhead Part:     {}",
                     fee_config.pubdata_overhead_part.to_string().green()
                 );
-                info!(
+                tracing::info!(
                     "Batch Overhead L1 Gas:     {}",
                     fee_config.batch_overhead_l1_gas.to_string().green()
                 );
-                info!(
+                tracing::info!(
                     "Max Gas Per Batch:         {}",
                     fee_config.max_gas_per_batch.to_string().green()
                 );
-                info!(
+                tracing::info!(
                     "Max Pubdata Per Batch:     {}",
                     fee_config.max_pubdata_per_batch.to_string().green()
                 );
             }
             println!("\n");
         } else {
-            info!("Network Configuration");
-            info!("========================");
-            info!(
+            tracing::info!("Network Configuration");
+            tracing::info!("========================");
+            tracing::info!(
                 "Chain ID: {}",
                 self.chain_id
                     .unwrap_or(TEST_NODE_NETWORK_ID)
@@ -239,34 +238,34 @@ impl TestNodeConfig {
             );
             println!("\n");
         }
-        info!("Gas Configuration");
-        info!("========================");
-        info!(
+        tracing::info!("Gas Configuration");
+        tracing::info!("========================");
+        tracing::info!(
             "L1 Gas Price (gwei):               {}",
             format_gwei(self.get_l1_gas_price().into()).green()
         );
-        info!(
+        tracing::info!(
             "L2 Gas Price (gwei):               {}",
             format_gwei(self.get_l2_gas_price().into()).green()
         );
-        info!(
+        tracing::info!(
             "L1 Pubdata Price (gwei):           {}",
             format_gwei(self.get_l1_pubdata_price().into()).green()
         );
-        info!(
+        tracing::info!(
             "Estimated Gas Price Scale Factor:  {}",
             self.get_price_scale().to_string().green()
         );
-        info!(
+        tracing::info!(
             "Estimated Gas Limit Scale Factor:  {}",
             self.get_gas_limit_scale().to_string().green()
         );
         println!("\n");
 
-        info!("Node Configuration");
-        info!("========================");
-        info!("Port:               {}", self.port);
-        info!(
+        tracing::info!("Node Configuration");
+        tracing::info!("========================");
+        tracing::info!("Port:               {}", self.port);
+        tracing::info!(
             "EVM Emulator:       {}",
             if self.use_evm_emulator {
                 "Enabled".green()
@@ -275,13 +274,13 @@ impl TestNodeConfig {
             }
         );
         println!("\n");
-        info!("========================================");
-        info!(
+        tracing::info!("========================================");
+        tracing::info!(
             "  Listening on {}:{}",
             "127.0.0.1".green(),
             self.port.to_string().green()
         );
-        info!("========================================");
+        tracing::info!("========================================");
         println!("\n");
     }
 

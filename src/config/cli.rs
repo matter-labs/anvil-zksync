@@ -1,3 +1,5 @@
+use std::env;
+
 use clap::{arg, command, Parser, Subcommand};
 use rand::{rngs::StdRng, SeedableRng};
 use zksync_types::{H256, U256};
@@ -228,6 +230,15 @@ pub struct ReplayArgs {
 }
 
 impl Cli {
+    /// Checks for deprecated options and warns users.
+    pub fn deprecated_config_option() {
+        if env::args().any(|arg| arg == "--config" || arg.starts_with("--config=")) {
+            eprintln!(
+                "Warning: The '--config' option has been removed. \
+                Please migrate to using other configuration options or defaults."
+            );
+        }
+    }
     /// Converts the CLI arguments to a `TestNodeConfig`.
     pub fn to_test_node_config(&self) -> eyre::Result<TestNodeConfig> {
         let genesis_balance = U256::from(100u128 * 10u128.pow(18));

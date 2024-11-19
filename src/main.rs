@@ -103,6 +103,9 @@ async fn build_json_http<
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Check for deprecated options
+    Cli::deprecated_config_option();
+
     let opt = Cli::parse();
 
     let mut config = opt.to_test_node_config().map_err(|e| anyhow!(e))?;
