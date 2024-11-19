@@ -6,6 +6,7 @@ use config::cli::{Cli, Command};
 use config::constants::{
     DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR, LEGACY_RICH_WALLETS,
 };
+use config::ForkPrintInfo;
 use fork::{ForkDetails, ForkSource};
 use http_fork_source::HttpForkSource;
 use logging_middleware::LoggingMiddleware;
@@ -37,7 +38,7 @@ use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     str::FromStr,
 };
-use zksync_types::fee_model::FeeParams;
+use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
 use zksync_web3_decl::namespaces::ZksNamespaceClient;
 
 use futures::{
@@ -158,7 +159,17 @@ async fn main() -> anyhow::Result<()> {
             )
             .await
             {
-                Ok(fd) => Some(fd),
+                Ok(fd) => {
+                    // Update the config here
+                    config = config
+                        .with_l1_gas_price(Some(fd.l1_gas_price))
+                        .with_l2_gas_price(Some(fd.l2_fair_gas_price))
+                        .with_l1_pubdata_price(Some(fd.fair_pubdata_price))
+                        .with_price_scale(Some(fd.estimate_gas_price_scale_factor))
+                        .with_gas_limit_scale(Some(fd.estimate_gas_scale_factor))
+                        .with_chain_id(Some(fd.chain_id.as_u64() as u32));
+                    Some(fd)
+                }
                 Err(error) => {
                     tracing::error!("cannot fork: {:?}", error);
                     return Err(anyhow!(error));
@@ -173,7 +184,17 @@ async fn main() -> anyhow::Result<()> {
             )
             .await
             {
-                Ok(fd) => Some(fd),
+                Ok(fd) => {
+                    // Update the config here
+                    config = config
+                        .with_l1_gas_price(Some(fd.l1_gas_price))
+                        .with_l2_gas_price(Some(fd.l2_fair_gas_price))
+                        .with_l1_pubdata_price(Some(fd.fair_pubdata_price))
+                        .with_price_scale(Some(fd.estimate_gas_price_scale_factor))
+                        .with_gas_limit_scale(Some(fd.estimate_gas_scale_factor))
+                        .with_chain_id(Some(fd.chain_id.as_u64() as u32));
+                    Some(fd)
+                }
                 Err(error) => {
                     tracing::error!("cannot replay: {:?}", error);
                     return Err(anyhow!(error));
@@ -212,6 +233,34 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
+    let fork_print_info = if let Some(fd) = fork_details.as_ref() {
+        let fee_model_config_v2 = match fd.fee_params {
+            Some(FeeParams::V2(fee_params_v2)) => {
+                let config = fee_params_v2.config();
+                Some(FeeModelConfigV2 {
+                    minimal_l2_gas_price: config.minimal_l2_gas_price,
+                    compute_overhead_part: config.compute_overhead_part,
+                    pubdata_overhead_part: config.pubdata_overhead_part,
+                    batch_overhead_l1_gas: config.batch_overhead_l1_gas,
+                    max_gas_per_batch: config.max_gas_per_batch,
+                    max_pubdata_per_batch: config.max_pubdata_per_batch,
+                })
+            }
+            _ => None,
+        };
+
+        Some(ForkPrintInfo {
+            network_rpc: fd.fork_source.get_fork_url().unwrap_or_default(),
+            l1_block: fd.l1_block.to_string(),
+            l2_block: fd.l2_miniblock.to_string(),
+            block_timestamp: fd.block_timestamp.to_string(),
+            fork_block_hash: format!("{:#x}", fd.l2_block.hash),
+            fee_model_config_v2,
+        })
+    } else {
+        None
+    };
+
     let node: InMemoryNode<HttpForkSource> =
         InMemoryNode::new(fork_details, Some(observability), &config);
 
@@ -243,7 +292,7 @@ async fn main() -> anyhow::Result<()> {
     )
     .await;
 
-    config.print();
+    config.print(fork_print_info.as_ref());
 
     future::select_all(vec![threads]).await.0.unwrap();
 

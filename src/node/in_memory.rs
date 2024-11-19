@@ -198,22 +198,13 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         observability: Option<Observability>,
         config: &TestNodeConfig,
     ) -> Self {
-        let mut updated_config = config.clone();
+        let updated_config = config.clone();
 
         if let Some(f) = &fork {
             let mut block_hashes = HashMap::<u64, H256>::new();
             block_hashes.insert(f.l2_block.number.as_u64(), f.l2_block.hash);
             let mut blocks = HashMap::<H256, Block<TransactionVariant>>::new();
             blocks.insert(f.l2_block.hash, f.l2_block.clone());
-
-            // Update the config fields from fork details
-            updated_config = updated_config
-                .with_l1_gas_price(Some(f.l1_gas_price))
-                .with_l2_gas_price(Some(f.l2_fair_gas_price))
-                .with_l1_pubdata_price(Some(f.fair_pubdata_price))
-                .with_price_scale(Some(f.estimate_gas_price_scale_factor))
-                .with_gas_limit_scale(Some(f.estimate_gas_scale_factor))
-                .with_chain_id(Some(f.chain_id.as_u64() as u32));
 
             let fee_input_provider = if let Some(params) = f.fee_params {
                 TestNodeFeeInputProvider::from_fee_params_and_estimate_scale_factors(
