@@ -11,7 +11,7 @@ use crate::{
     fork::{ForkDetails, ForkSource},
     namespaces::ResetRequest,
     node::InMemoryNode,
-    utils::{self, bytecode_to_factory_dep},
+    utils::bytecode_to_factory_dep,
 };
 
 type Result<T> = anyhow::Result<T>;
@@ -65,14 +65,14 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
     /// # Returns
     /// The string "0x0".
     pub fn mine_block(&self) -> Result<String> {
-        self.get_inner()
-            .write()
+        let bootloader_code = self
+            .get_inner()
+            .read()
             .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
-            .and_then(|mut writer| {
-                utils::mine_empty_blocks(&mut writer, 1, 1000)?;
-                tracing::info!("👷 Mined block #{}", writer.current_miniblock);
-                Ok("0x0".to_string())
-            })
+            .map(|inner| inner.system_contracts.contracts_for_l2_call().clone())?;
+        let block_number = self.seal_block(vec![], bootloader_code.clone())?;
+        tracing::info!("👷 Mined block #{}", block_number);
+        Ok("0x0".to_string())
     }
 
     /// Snapshot the state of the blockchain at the current block. Takes no parameters. Returns the id of the snapshot
@@ -219,22 +219,33 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
     }
 
     pub fn mine_blocks(&self, num_blocks: Option<U64>, interval: Option<U64>) -> Result<bool> {
-        self.get_inner()
-            .write()
-            .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
-            .and_then(|mut writer| {
-                let num_blocks = num_blocks.unwrap_or_else(|| U64::from(1));
-                let interval_sec = interval.unwrap_or_else(|| U64::from(1));
-                if num_blocks.is_zero() {
-                    return Err(anyhow!(
-                        "Number of blocks must be greater than 0".to_string(),
-                    ));
-                }
-                utils::mine_empty_blocks(&mut writer, num_blocks.as_u64(), interval_sec.as_u64())?;
-                tracing::info!("👷 Mined {} blocks", num_blocks);
+        let num_blocks = num_blocks.unwrap_or_else(|| U64::from(1)).as_u64();
+        let interval_sec = interval.unwrap_or_else(|| U64::from(1)).as_u64();
 
-                Ok(true)
-            })
+        if num_blocks == 0 {
+            return Err(anyhow!(
+                "Number of blocks must be greater than 0".to_string(),
+            ));
+        }
+
+        let bootloader_code = self
+            .get_inner()
+            .read()
+            .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
+            .map(|inner| inner.system_contracts.contracts_for_l2_call().clone())?;
+        for i in 0..num_blocks {
+            if i != 0 {
+                // Accounts for the default increment of 1 done in `seal_block`. Note that
+                // there is no guarantee that blocks produced by this method will have *exactly*
+                // `interval` seconds in-between of their respective timestamps. Instead, we treat
+                // it as the minimum amount of time that should have passed in-between of blocks.
+                self.time.increase_time(interval_sec - 1);
+            }
+            self.seal_block(vec![], bootloader_code.clone())?;
+        }
+        tracing::info!("👷 Mined {} blocks", num_blocks);
+
+        Ok(true)
     }
 
     // @dev This function is necessary for Hardhat Ignite compatibility with `evm_emulator`.

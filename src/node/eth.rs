@@ -101,12 +101,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
             return Err(err.into());
         };
 
-        self.run_l2_tx(l2_tx, system_contracts).map_err(|err| {
-            Web3Error::SubmitTransactionError(
-                format!("Execution error: {err}"),
-                hash.as_bytes().to_vec(),
-            )
-        })?;
+        self.seal_block(vec![l2_tx], system_contracts)
+            .map_err(|err| {
+                Web3Error::SubmitTransactionError(
+                    format!("Execution error: {err}"),
+                    hash.as_bytes().to_vec(),
+                )
+            })?;
         Ok(hash)
     }
 
@@ -188,12 +189,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
             }
         }
 
-        self.run_l2_tx(l2_tx, system_contracts).map_err(|err| {
-            Web3Error::SubmitTransactionError(
-                format!("Execution error: {err}"),
-                hash.as_bytes().to_vec(),
-            )
-        })?;
+        self.seal_block(vec![l2_tx], system_contracts)
+            .map_err(|err| {
+                Web3Error::SubmitTransactionError(
+                    format!("Execution error: {err}"),
+                    hash.as_bytes().to_vec(),
+                )
+            })?;
         Ok(hash)
     }
 }
@@ -1596,7 +1598,7 @@ mod tests {
             .expect("no block");
 
         assert_eq!(0, block.number.as_u64());
-        assert_eq!(compute_hash(0, H256::zero()), block.hash);
+        assert_eq!(compute_hash(0, []), block.hash);
     }
 
     #[tokio::test]
@@ -1604,7 +1606,7 @@ mod tests {
         let node = InMemoryNode::<HttpForkSource>::default();
 
         let block = node
-            .get_block_by_hash(compute_hash(0, H256::zero()), false)
+            .get_block_by_hash(compute_hash(0, []), false)
             .await
             .expect("failed fetching block by hash")
             .expect("no block");
