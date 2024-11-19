@@ -483,7 +483,7 @@ pub fn apply_tx<T: ForkSource + std::fmt::Debug + Clone>(
         .read()
         .map(|reader| reader.current_miniblock.saturating_add(1))
         .expect("failed getting current batch number");
-    let produced_block_hash = compute_hash(next_miniblock, tx_hash);
+    let produced_block_hash = compute_hash(next_miniblock, [&tx_hash]);
 
     let tx = TransactionBuilder::new().set_hash(tx_hash).build();
 
@@ -512,7 +512,7 @@ pub fn deploy_contract<T: ForkSource + std::fmt::Debug + Clone>(
         .read()
         .map(|reader| reader.current_miniblock.saturating_add(1))
         .expect("failed getting current batch number");
-    let produced_block_hash = compute_hash(next_miniblock, tx_hash);
+    let produced_block_hash = compute_hash(next_miniblock, [&tx_hash]);
 
     let salt = [0u8; 32];
     let bytecode_hash = eip712::hash_bytecode(&bytecode).expect("invalid bytecode");

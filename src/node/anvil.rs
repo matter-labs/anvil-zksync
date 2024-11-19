@@ -29,7 +29,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> AnvilNames
             .into_boxed_future()
     }
 
-    fn anvil_mine(&self, num_blocks: Option<U64>, interval: Option<U64>) -> RpcResult<bool> {
+    fn anvil_mine(&self, num_blocks: Option<U64>, interval: Option<U64>) -> RpcResult<()> {
         self.mine_blocks(num_blocks, interval)
             .map_err(|err| {
                 tracing::error!("failed mining blocks: {:?}", err);

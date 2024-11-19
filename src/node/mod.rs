@@ -12,6 +12,7 @@ mod in_memory;
 mod in_memory_ext;
 mod net;
 mod storage_logs;
+mod time;
 mod web3;
 mod zks;
 
