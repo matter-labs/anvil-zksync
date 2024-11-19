@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::formatter::{self, PubdataBytesInfo};
 
-use crate::config::node::ShowStorageLogs;
+use crate::config::show_details::ShowStorageLogs;
 use zksync_multivm::interface::VmExecutionResultAndLogs;
 use zksync_types::{
     utils::storage_key_for_eth_balance,

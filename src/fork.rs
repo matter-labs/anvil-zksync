@@ -37,14 +37,15 @@ use zksync_web3_decl::{
 };
 use zksync_web3_decl::{namespaces::EthNamespaceClient, types::Index};
 
-use crate::{config::cache::CacheConfig, node::TEST_NODE_NETWORK_ID};
-use crate::{
-    config::gas::{
+use crate::config::{
+    cache::CacheConfig,
+    constants::{
         DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
-        DEFAULT_FAIR_PUBDATA_PRICE,
+        DEFAULT_FAIR_PUBDATA_PRICE, TEST_NODE_NETWORK_ID,
     },
-    system_contracts,
 };
+use crate::system_contracts;
+
 use crate::{deps::InMemoryStorage, http_fork_source::HttpForkSource};
 
 pub fn block_on<F: Future + Send + 'static>(future: F) -> F::Output
@@ -115,7 +116,7 @@ pub struct ForkStorageInner<S> {
     pub factory_dep_cache: HashMap<H256, Option<Vec<u8>>>,
     // If set - it hold the necessary information on where to fetch the data.
     // If not set - it will simply read from underlying storage.
-    pub fork: Option<ForkDetails>,
+    pub fork: Option<Box<ForkDetails>>,
     // ForkSource type no longer needed but retained to keep the old interface.
     pub dummy: PhantomData<S>,
 }
@@ -145,7 +146,7 @@ impl<S: ForkSource> ForkStorage<S> {
                     use_evm_emulator,
                 ),
                 value_read_cache: Default::default(),
-                fork,
+                fork: fork.map(Box::new),
                 factory_dep_cache: Default::default(),
                 dummy: Default::default(),
             })),
@@ -411,7 +412,7 @@ pub struct ForkDetails {
     pub overwrite_chain_id: Option<L2ChainId>,
     pub l1_gas_price: u64,
     pub l2_fair_gas_price: u64,
-    // Cost of publishing one byte (in wei).
+    // Cost of publishing one byte.
     pub fair_pubdata_price: u64,
     /// L1 Gas Price Scale Factor for gas estimation.
     pub estimate_gas_price_scale_factor: f64,
@@ -475,7 +476,7 @@ impl ForkDetails {
         client: Client<L2>,
         miniblock: u64,
         chain_id: Option<L2ChainId>,
-        cache_config: CacheConfig,
+        cache_config: &CacheConfig,
     ) -> eyre::Result<Self> {
         let url = network.to_url();
         let opt_block_details = client
@@ -544,14 +545,14 @@ impl ForkDetails {
             estimate_gas_price_scale_factor,
             estimate_gas_scale_factor,
             fee_params,
-            cache_config,
+            cache_config: cache_config.clone(), // TODO: This is a temporary solution, we should avoid cloning the cache config here. We should look to refactor how cache is being configured / used as it currently feels a bit too rigid. See: https://github.com/matter-labs/era-test-node/issues/387
         })
     }
     /// Create a fork from a given network at a given height.
     pub async fn from_network(
         fork: &str,
         fork_block_number: Option<u64>,
-        cache_config: CacheConfig,
+        cache_config: &CacheConfig,
     ) -> eyre::Result<Self> {
         let (network, client) = Self::fork_network_and_client(fork)?;
         let chain_id_u64 = client.chain_id().await?;
@@ -583,7 +584,7 @@ impl ForkDetails {
     pub async fn from_network_tx(
         fork: &str,
         tx: H256,
-        cache_config: CacheConfig,
+        cache_config: &CacheConfig,
     ) -> eyre::Result<Self> {
         let (network, client) = Self::fork_network_and_client(fork)?;
         let opt_tx_details = client
@@ -634,7 +635,7 @@ impl ForkDetails {
                 client,
                 l2_miniblock,
                 chain_id.into(),
-                cache_config,
+                &cache_config,
             )
             .await
         })
@@ -742,12 +743,13 @@ mod tests {
     use zksync_types::{api::TransactionVariant, StorageKey};
     use zksync_types::{AccountTreeId, L1BatchNumber, H256};
 
-    use crate::config::cache::CacheConfig;
-    use crate::config::gas::{
-        DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
-        DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L2_GAS_PRICE,
+    use crate::config::{
+        cache::CacheConfig,
+        constants::{
+            DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
+            DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L2_GAS_PRICE, TEST_NODE_NETWORK_ID,
+        },
     };
-    use crate::node::TEST_NODE_NETWORK_ID;
     use crate::{deps::InMemoryStorage, system_contracts, testing};
 
     use super::{ForkDetails, ForkStorage};

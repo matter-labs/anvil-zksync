@@ -1471,7 +1471,7 @@ mod tests {
     use super::*;
     use crate::node::NON_FORK_FIRST_BLOCK_TIMESTAMP;
     use crate::{
-        config::{cache::CacheConfig, gas::DEFAULT_L2_GAS_PRICE},
+        config::{cache::CacheConfig, constants::DEFAULT_L2_GAS_PRICE},
         fork::ForkDetails,
         http_fork_source::HttpForkSource,
         node::{compute_hash, InMemoryNode, Snapshot},
@@ -1702,13 +1702,12 @@ mod tests {
 
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(
-                ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None)
+                ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
                     .await
                     .unwrap(),
             ),
             None,
-            Default::default(),
-            Default::default(),
+            &Default::default(),
         );
 
         let inner = node.get_inner();
@@ -1751,13 +1750,12 @@ mod tests {
         );
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(
-                ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None)
+                ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
                     .await
                     .unwrap(),
             ),
             None,
-            Default::default(),
-            Default::default(),
+            &Default::default(),
         );
 
         let actual_block = node
@@ -1909,13 +1907,12 @@ mod tests {
         );
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(
-                ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None)
+                ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
                     .await
                     .unwrap(),
             ),
             None,
-            Default::default(),
-            Default::default(),
+            &Default::default(),
         );
 
         let actual_block = node
@@ -1962,13 +1959,12 @@ mod tests {
 
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(
-                ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None)
+                ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
                     .await
                     .unwrap(),
             ),
             None,
-            Default::default(),
-            Default::default(),
+            &Default::default(),
         );
 
         let actual_block = node
@@ -2003,13 +1999,12 @@ mod tests {
         );
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(
-                ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None)
+                ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
                     .await
                     .unwrap(),
             ),
             None,
-            Default::default(),
-            Default::default(),
+            &Default::default(),
         );
 
         let actual_block = node
@@ -2035,13 +2030,12 @@ mod tests {
             });
             let node = InMemoryNode::<HttpForkSource>::new(
                 Some(
-                    ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None)
+                    ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
                         .await
                         .unwrap(),
                 ),
                 None,
-                Default::default(),
-                Default::default(),
+                &Default::default(),
             );
 
             let actual_block = node
@@ -2098,13 +2092,12 @@ mod tests {
         );
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(
-                ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None)
+                ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
                     .await
                     .unwrap(),
             ),
             None,
-            Default::default(),
-            Default::default(),
+            &Default::default(),
         );
 
         let actual_transaction_count = node
@@ -2160,13 +2153,12 @@ mod tests {
 
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(
-                ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None)
+                ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
                     .await
                     .unwrap(),
             ),
             None,
-            Default::default(),
-            Default::default(),
+            &Default::default(),
         );
 
         let actual_transaction_count = node
@@ -2207,13 +2199,12 @@ mod tests {
 
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(
-                ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None)
+                ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
                     .await
                     .unwrap(),
             ),
             None,
-            Default::default(),
-            Default::default(),
+            &Default::default(),
         );
 
         let actual_transaction_count = node
@@ -2245,13 +2236,12 @@ mod tests {
 
             let node = InMemoryNode::<HttpForkSource>::new(
                 Some(
-                    ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None)
+                    ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
                         .await
                         .unwrap(),
                 ),
                 None,
-                Default::default(),
-                Default::default(),
+                &Default::default(),
             );
 
             let actual_transaction_count = node
@@ -2525,13 +2515,12 @@ mod tests {
 
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(
-                ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None)
+                ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
                     .await
                     .unwrap(),
             ),
             None,
-            Default::default(),
-            Default::default(),
+            &Default::default(),
         );
 
         let actual_value = node
@@ -2625,13 +2614,12 @@ mod tests {
 
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(
-                ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None)
+                ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
                     .await
                     .unwrap(),
             ),
             None,
-            Default::default(),
-            Default::default(),
+            &Default::default(),
         );
         node.get_inner()
             .write()
@@ -3243,13 +3231,12 @@ mod tests {
 
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(
-                ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None)
+                ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
                     .await
                     .unwrap(),
             ),
             None,
-            Default::default(),
-            Default::default(),
+            &Default::default(),
         );
 
         // store the block info with just the tx hash invariant
@@ -3303,13 +3290,12 @@ mod tests {
 
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(
-                ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None)
+                ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
                     .await
                     .unwrap(),
             ),
             None,
-            Default::default(),
-            Default::default(),
+            &Default::default(),
         );
 
         let actual_tx = node
@@ -3403,13 +3389,12 @@ mod tests {
 
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(
-                ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None)
+                ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
                     .await
                     .unwrap(),
             ),
             None,
-            Default::default(),
-            Default::default(),
+            &Default::default(),
         );
 
         // store the block info with just the tx hash invariant
@@ -3470,13 +3455,12 @@ mod tests {
 
         let node = InMemoryNode::<HttpForkSource>::new(
             Some(
-                ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None)
+                ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
                     .await
                     .unwrap(),
             ),
             None,
-            Default::default(),
-            Default::default(),
+            &Default::default(),
         );
 
         let actual_tx = node

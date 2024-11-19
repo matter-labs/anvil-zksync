@@ -1,3 +1,25 @@
+/// Directory where configuration files are stored
+pub const CONFIG_DIR: &str = ".era_test_node";
+/// Default name of the configuration file
+pub const CONFIG_FILE_NAME: &str = "config.toml";
+/// Default directory for disk cache
+pub const DEFAULT_DISK_CACHE_DIR: &str = ".cache";
+/// Default L1 gas price for transactions
+pub const DEFAULT_L1_GAS_PRICE: u64 = 14_932_364_075;
+/// Default L2 gas price for transactions if not provided via CLI
+pub const DEFAULT_L2_GAS_PRICE: u64 = 45_250_000;
+/// Default price for fair pubdata based on predefined value
+pub const DEFAULT_FAIR_PUBDATA_PRICE: u64 = 13_607_659_111;
+/// Scale factor for estimating L1 gas prices
+pub const DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR: f64 = 2.0;
+/// Scale factor for estimating gas limits
+pub const DEFAULT_ESTIMATE_GAS_SCALE_FACTOR: f32 = 1.3;
+/// Default port for the test node server
+pub const NODE_PORT: u16 = 8011;
+/// Network ID for the test node
+pub const TEST_NODE_NETWORK_ID: u32 = 260;
+/// Default log file path for the test node
+pub const DEFAULT_LOG_FILE_PATH: &str = "era_test_node.log";
 // List of wallets (address, private key, mnemonic) that we seed with tokens at start.
 pub const RICH_WALLETS: [(&str, &str, &str); 10] = [
     (

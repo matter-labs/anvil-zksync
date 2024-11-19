@@ -1,9 +1,10 @@
 use zksync_types::U256;
 
 use crate::{
+    config::constants::TEST_NODE_NETWORK_ID,
     fork::ForkSource,
     namespaces::{NetNamespaceT, Result},
-    node::{InMemoryNode, TEST_NODE_NETWORK_ID},
+    node::InMemoryNode,
 };
 
 impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> NetNamespaceT

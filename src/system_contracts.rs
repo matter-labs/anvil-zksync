@@ -1,3 +1,4 @@
+use clap::ValueEnum;
 use serde::Deserialize;
 use zksync_contracts::{
     read_bootloader_code, read_sys_contract_bytecode, BaseSystemContracts, ContractLanguage,
@@ -9,7 +10,7 @@ use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words};
 
 use crate::deps::system_contracts::{bytecode_from_slice, COMPILED_IN_SYSTEM_CONTRACTS};
 
-#[derive(Deserialize, Default, Debug, Copy, Clone, PartialEq)]
+#[derive(Deserialize, Default, Debug, Copy, Clone, PartialEq, ValueEnum)]
 pub enum Options {
     // Use the compiled-in contracts
     #[default]

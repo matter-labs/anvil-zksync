@@ -1,7 +1,7 @@
 use zksync_web3_decl::error::Web3Error;
 
 use crate::{
-    config::node::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails},
+    config::show_details::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails},
     fork::ForkSource,
     namespaces::{ConfigurationApiNamespaceT, Result},
     node::InMemoryNode,
