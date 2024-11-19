@@ -135,7 +135,6 @@ impl<S: ForkSource> ForkStorage<S> {
                 .and_then(|d| d.overwrite_chain_id)
                 .unwrap_or(L2ChainId::from(TEST_NODE_NETWORK_ID))
         };
-        tracing::info!("Starting network with chain id: {:?}", chain_id);
 
         ForkStorage {
             inner: Arc::new(RwLock::new(ForkStorageInner {

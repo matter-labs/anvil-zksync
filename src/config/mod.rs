@@ -5,22 +5,35 @@ use crate::config::{
     constants::*,
     show_details::*,
 };
-
+use crate::utils::{format_eth, format_gwei};
 use alloy_signer::Signer;
 use alloy_signer_local::{
     coins_bip39::{English, Mnemonic},
     MnemonicBuilder, PrivateKeySigner,
 };
 use cli::Cli;
+use colored::{Colorize, CustomColor};
 use observability::LogLevel;
 use rand::thread_rng;
 use serde::Deserialize;
+use tracing::info;
 use zksync_types::U256;
 
 pub mod cache;
 pub mod cli;
 pub mod constants;
 pub mod show_details;
+
+pub const VERSION_MESSAGE: &str = concat!(env!("CARGO_PKG_VERSION"));
+
+const BANNER: &str = r#"
+                      _  _         _____ _  __                         
+  __ _  _ __  __   __(_)| |       |__  /| |/ / ___  _   _  _ __    ___ 
+ / _` || '_ \ \ \ / /| || | _____   / / | ' / / __|| | | || '_ \  / __|
+| (_| || | | | \ V / | || ||_____| / /_ | . \ \__ \| |_| || | | || (__ 
+ \__,_||_| |_|  \_/  |_||_|       /____||_|\_\|___/ \__, ||_| |_| \___|
+                                                    |___/              
+"#;
 
 /// Defines the configuration parameters for the [InMemoryNode].
 #[derive(Debug, Clone)]
@@ -121,6 +134,103 @@ impl Default for TestNodeConfig {
 }
 
 impl TestNodeConfig {
+    pub fn print(&self) {
+        // Banner and version details
+        let color = CustomColor::new(13, 71, 198);
+
+        println!("{}", BANNER.custom_color(color));
+        info!("Version:        {}", VERSION_MESSAGE);
+        info!(
+            "Repository:     {}",
+            "https://github.com/matter-labs/era-test-node".green()
+        );
+        println!("\n");
+        // Genesis accounts and balances
+        info!("Rich Accounts");
+        info!("========================");
+        let balance = format_eth(self.genesis_balance);
+        for (idx, account) in self.genesis_accounts.iter().enumerate() {
+            info!("({}) {} ({balance})", idx, account.address());
+        }
+        println!("\n");
+        // Private keys
+        info!("Private Keys");
+        info!("========================");
+        for (idx, account) in self.genesis_accounts.iter().enumerate() {
+            let private_key = hex::encode(account.credential().to_bytes());
+            info!("({}) 0x{}", idx, private_key);
+        }
+        println!("\n");
+        // Account generator details
+        if let Some(ref generator) = self.account_generator {
+            info!("Wallet");
+            info!("========================");
+            info!("Mnemonic:          {}", generator.phrase);
+            info!(
+                "Derivation path:   {}",
+                generator
+                    .derivation_path
+                    .as_deref()
+                    .unwrap_or(DERIVATION_PATH)
+            );
+        }
+        println!("\n");
+        // Chain ID
+        info!("Chain ID");
+        info!("========================");
+        info!(
+            "{}",
+            self.chain_id.unwrap_or(TEST_NODE_NETWORK_ID).to_string()
+        );
+        println!("\n");
+        // Gas configuration
+        info!("Gas Configuration");
+        info!("========================");
+        info!(
+            "L1 Gas Price (gwei):      {}",
+            format_gwei(self.l1_gas_price.unwrap_or(DEFAULT_L1_GAS_PRICE).into())
+        );
+        info!(
+            "L2 Gas Price (gwei):      {}",
+            format_gwei(self.l2_gas_price.unwrap_or(DEFAULT_L2_GAS_PRICE).into())
+        );
+        info!(
+            "L1 Pubdata Price (gwei):  {}",
+            format_gwei(
+                self.l1_pubdata_price
+                    .unwrap_or(DEFAULT_FAIR_PUBDATA_PRICE)
+                    .into()
+            )
+        );
+        info!(
+            "Estimated Gas Price Scale Factor: {}",
+            self.price_scale_factor
+                .unwrap_or(DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR)
+        );
+        info!(
+            "Estimated Gas Limit Scale Factor: {}",
+            self.limit_scale_factor
+                .unwrap_or(DEFAULT_ESTIMATE_GAS_SCALE_FACTOR)
+        );
+        println!("\n");
+        // Port and emulator details
+        info!("Node Configuration");
+        info!("========================");
+        info!("Port:              {}", self.port);
+        info!(
+            "EVM Emulator:      {}",
+            if self.use_evm_emulator {
+                "Enabled".green()
+            } else {
+                "Disabled".red()
+            }
+        );
+
+        info!("========================================");
+        info!("  Listening on 127.0.0.1:{}", self.port);
+        info!("========================================");
+    }
+
     /// Set the port for the test node
     #[must_use]
     pub fn with_port(mut self, port: Option<u16>) -> Self {

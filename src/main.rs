@@ -2,11 +2,9 @@ use crate::observability::Observability;
 use anyhow::anyhow;
 use bytecode_override::override_bytecodes;
 use clap::Parser;
-use colored::Colorize;
 use config::cli::{Cli, Command};
 use config::constants::{
-    DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
-    LEGACY_RICH_WALLETS, RICH_WALLETS,
+    DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR, LEGACY_RICH_WALLETS,
 };
 use fork::{ForkDetails, ForkSource};
 use http_fork_source::HttpForkSource;
@@ -217,35 +215,25 @@ async fn main() -> anyhow::Result<()> {
     let node: InMemoryNode<HttpForkSource> =
         InMemoryNode::new(fork_details, Some(observability), &config);
 
-    if let Some(bytecodes_dir) = config.override_bytecodes_dir {
-        override_bytecodes(&node, bytecodes_dir).unwrap();
+    if let Some(ref bytecodes_dir) = config.override_bytecodes_dir {
+        override_bytecodes(&node, bytecodes_dir.to_string()).unwrap();
     }
 
     if !transactions_to_replay.is_empty() {
         let _ = node.apply_txs(transactions_to_replay);
     }
 
-    tracing::info!("");
-    tracing::info!("Rich Accounts");
-    tracing::info!("=============");
+    for signer in config.genesis_accounts.iter() {
+        let address = H160::from_slice(signer.address().as_ref());
+        node.set_rich_account(address);
+    }
+    for signer in config.signer_accounts.iter() {
+        let address = H160::from_slice(signer.address().as_ref());
+        node.set_rich_account(address);
+    }
     for wallet in LEGACY_RICH_WALLETS.iter() {
         let address = wallet.0;
         node.set_rich_account(H160::from_str(address).unwrap());
-    }
-    for (index, wallet) in RICH_WALLETS.iter().enumerate() {
-        let address = wallet.0;
-        let private_key = wallet.1;
-        let mnemonic_phrase = wallet.2;
-        node.set_rich_account(H160::from_str(address).unwrap());
-        tracing::info!(
-            "Account #{}: {} ({})",
-            index,
-            address,
-            "1_000_000_000_000 ETH".cyan()
-        );
-        tracing::info!("Private Key: {}", private_key);
-        tracing::info!("Mnemonic: {}", &mnemonic_phrase.truecolor(128, 128, 128));
-        tracing::info!("");
     }
 
     let threads = build_json_http(
@@ -255,9 +243,7 @@ async fn main() -> anyhow::Result<()> {
     )
     .await;
 
-    tracing::info!("========================================");
-    tracing::info!("  Node is ready at 127.0.0.1:{}", config.port);
-    tracing::info!("========================================");
+    config.print();
 
     future::select_all(vec![threads]).await.0.unwrap();
 

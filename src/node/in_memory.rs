@@ -980,7 +980,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
         let keys = {
             let mut storage_view = StorageView::new(&inner.fork_storage);
-            storage_view.set_value(key, u256_to_h256(U256::from(10u128.pow(30))));
+            // Set balance to 100 ETH (in Wei)
+            let balance_in_wei = U256::from(100u128 * 10u128.pow(18));
+            storage_view.set_value(key, u256_to_h256(balance_in_wei));
             storage_view.modified_storage_keys().clone()
         };
 
