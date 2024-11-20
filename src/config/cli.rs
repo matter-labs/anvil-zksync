@@ -15,7 +15,7 @@ use crate::system_contracts::Options as SystemContractsOptions;
 use super::DEFAULT_DISK_CACHE_DIR;
 use alloy_signer_local::coins_bip39::{English, Mnemonic};
 
-#[derive(Debug, Parser)]
+#[derive(Debug, Parser, Clone)]
 #[command(
     author = "Matter Labs",
     version,
@@ -30,6 +30,10 @@ pub struct Cli {
     #[arg(long, help_heading = "General Options")]
     /// Run in offline mode (disables all network requests).
     pub offline: bool,
+
+    /// Writes output of `era-test-node` as json to user-specified file.
+    #[arg(long, value_name = "OUT_FILE", help_heading = "General Options")]
+    pub config_out: Option<String>,
 
     #[arg(long, default_value = "8011", help_heading = "Network Options")]
     /// Port to listen on (default: 8011).
@@ -173,7 +177,7 @@ pub struct Cli {
     pub derivation_path: Option<String>,
 }
 
-#[derive(Debug, Subcommand)]
+#[derive(Debug, Subcommand, Clone)]
 pub enum Command {
     /// Starts a new empty local network.
     #[command(name = "run")]
@@ -186,7 +190,7 @@ pub enum Command {
     ReplayTx(ReplayArgs),
 }
 
-#[derive(Debug, Parser)]
+#[derive(Debug, Parser, Clone)]
 pub struct ForkArgs {
     /// Whether to fork from existing network.
     /// If not set - will start a new network from genesis.
@@ -210,7 +214,7 @@ pub struct ForkArgs {
     pub fork_block_number: Option<u64>,
 }
 
-#[derive(Debug, Parser)]
+#[derive(Debug, Parser, Clone)]
 pub struct ReplayArgs {
     /// Whether to fork from existing network.
     /// If not set - will start a new network from genesis.
@@ -240,7 +244,7 @@ impl Cli {
         }
     }
     /// Converts the CLI arguments to a `TestNodeConfig`.
-    pub fn to_test_node_config(&self) -> eyre::Result<TestNodeConfig> {
+    pub fn into_test_node_config(self) -> eyre::Result<TestNodeConfig> {
         let genesis_balance = U256::from(100u128 * 10u128.pow(18));
 
         let vm_log_detail = if let Some(output) = self.show_outputs {
@@ -288,6 +292,7 @@ impl Cli {
                 }
             }))
             .with_chain_id(self.chain_id)
+            .set_config_out(self.config_out)
             .with_evm_emulator(if self.emulate_evm { Some(true) } else { None });
 
         if self.emulate_evm && self.dev_system_contracts != Some(SystemContractsOptions::Local) {

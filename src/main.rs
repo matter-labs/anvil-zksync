@@ -107,8 +107,9 @@ async fn main() -> anyhow::Result<()> {
     Cli::deprecated_config_option();
 
     let opt = Cli::parse();
+    let command = opt.command.clone();
 
-    let mut config = opt.to_test_node_config().map_err(|e| anyhow!(e))?;
+    let mut config = opt.into_test_node_config().map_err(|e| anyhow!(e))?;
 
     let log_level_filter = LevelFilter::from(config.log_level);
     let log_file = File::create(&config.log_file_path)?;
@@ -118,7 +119,7 @@ async fn main() -> anyhow::Result<()> {
         Observability::init(vec!["era_test_node".into()], log_level_filter, log_file)?;
 
     // Use `Command::Run` as default.
-    let command = opt.command.as_ref().unwrap_or(&Command::Run);
+    let command = command.as_ref().unwrap_or(&Command::Run);
     let fork_details = match command {
         Command::Run => {
             if config.offline {
