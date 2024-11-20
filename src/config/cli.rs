@@ -14,6 +14,7 @@ use crate::system_contracts::Options as SystemContractsOptions;
 
 use super::DEFAULT_DISK_CACHE_DIR;
 use alloy_signer_local::coins_bip39::{English, Mnemonic};
+use std::net::IpAddr;
 
 #[derive(Debug, Parser, Clone)]
 #[command(
@@ -38,6 +39,16 @@ pub struct Cli {
     #[arg(long, default_value = "8011", help_heading = "Network Options")]
     /// Port to listen on (default: 8011).
     pub port: Option<u16>,
+
+    /// The hosts the server will listen on.
+    #[arg(
+        long,
+        value_name = "IP_ADDR",
+        default_value = "127.0.0.1",
+        value_delimiter = ',',
+        help_heading = "Network Options"
+    )]
+    pub host: Vec<IpAddr>,
 
     #[arg(long, help_heading = "Network Options")]
     /// Specify chain ID (default: 260).
@@ -293,6 +304,7 @@ impl Cli {
             }))
             .with_chain_id(self.chain_id)
             .set_config_out(self.config_out)
+            .with_host(self.host)
             .with_evm_emulator(if self.emulate_evm { Some(true) } else { None });
 
         if self.emulate_evm && self.dev_system_contracts != Some(SystemContractsOptions::Local) {

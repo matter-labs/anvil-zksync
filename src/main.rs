@@ -33,11 +33,7 @@ mod utils;
 
 use node::InMemoryNode;
 use std::fs::File;
-use std::{
-    env,
-    net::{IpAddr, Ipv4Addr, SocketAddr},
-    str::FromStr,
-};
+use std::{env, net::SocketAddr, str::FromStr};
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
 use zksync_web3_decl::namespaces::ZksNamespaceClient;
 
@@ -289,16 +285,15 @@ async fn main() -> anyhow::Result<()> {
         node.set_rich_account(H160::from_str(address).unwrap());
     }
 
-    let threads = build_json_http(
-        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), config.port),
-        log_level_filter,
-        node,
-    )
+    let threads = future::join_all(config.host.iter().map(|host| {
+        let addr = SocketAddr::new(*host, config.port);
+        build_json_http(addr, log_level_filter, node.clone())
+    }))
     .await;
 
     config.print(fork_print_info.as_ref());
 
-    future::select_all(vec![threads]).await.0.unwrap();
+    future::select_all(threads).await.0.unwrap();
 
     Ok(())
 }

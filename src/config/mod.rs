@@ -1,3 +1,5 @@
+use std::net::{IpAddr, Ipv4Addr};
+
 use crate::{observability, system_contracts};
 
 use crate::config::{
@@ -99,6 +101,8 @@ pub struct TestNodeConfig {
     pub signer_accounts: Vec<PrivateKeySigner>,
     /// Whether the node operates in offline mode
     pub offline: bool,
+    /// The host the server will listen on
+    pub host: Vec<IpAddr>,
 }
 
 impl Default for TestNodeConfig {
@@ -143,6 +147,7 @@ impl Default for TestNodeConfig {
 
             // Offline mode disabled by default
             offline: false,
+            host: vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
         }
     }
 }
@@ -289,11 +294,13 @@ impl TestNodeConfig {
         );
         println!("\n");
         tracing::info!("========================================");
-        tracing::info!(
-            "  Listening on {}:{}",
-            "127.0.0.1".green(),
-            self.port.to_string().green()
-        );
+        for host in &self.host {
+            tracing::info!(
+                "  Listening on {}:{}",
+                host.to_string().green(),
+                self.port.to_string().green()
+            );
+        }
         tracing::info!("========================================");
         println!("\n");
     }
@@ -622,6 +629,17 @@ impl TestNodeConfig {
     /// Get the offline mode status
     pub fn is_offline(&self) -> bool {
         self.offline
+    }
+
+    /// Sets the host the server will listen on
+    #[must_use]
+    pub fn with_host(mut self, host: Vec<IpAddr>) -> Self {
+        self.host = if host.is_empty() {
+            vec![IpAddr::V4(Ipv4Addr::LOCALHOST)]
+        } else {
+            host
+        };
+        self
     }
 }
 
