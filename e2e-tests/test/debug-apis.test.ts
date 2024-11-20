@@ -5,7 +5,7 @@ import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
 import { RichAccounts } from "../helpers/constants";
 import { deployContract, expectThrowsAsync, getTestProvider } from "../helpers/utils";
 import { BigNumber } from "ethers";
-import {TransactionResponse} from "@ethersproject/abstract-provider";
+import { TransactionResponse } from "@ethersproject/abstract-provider";
 
 const provider = getTestProvider();
 

@@ -6,7 +6,7 @@ import { BigNumber, ethers } from "ethers";
 import * as hre from "hardhat";
 import { TransactionRequest } from "zksync-web3/build/src/types";
 import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
-import {TransactionResponse} from "@ethersproject/abstract-provider";
+import { TransactionResponse } from "@ethersproject/abstract-provider";
 
 const provider = getTestProvider();
 
