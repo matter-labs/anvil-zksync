@@ -20,6 +20,9 @@ pub const DERIVATION_PATH: &str = "m/44'/60'/0'/0/0";
 pub const DEFAULT_LOG_FILE_PATH: &str = "era_test_node.log";
 /// Default mnemonic phrase for the test node
 pub const DEFAULT_MNEMONIC: &str = "test test test test test test test test test test test junk";
+/// Default account balance for the dev accounts
+#[cfg(test)]
+pub const DEFAULT_ACCOUNT_BALANCE: u128 = 1_000 * 10u128.pow(18);
 // List of wallets (address, private key, mnemonic) that we seed with tokens at start.
 pub const RICH_WALLETS: [(&str, &str, &str); 10] = [
     (

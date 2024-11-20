@@ -1467,7 +1467,10 @@ mod tests {
     use super::*;
     use crate::node::NON_FORK_FIRST_BLOCK_TIMESTAMP;
     use crate::{
-        config::{cache::CacheConfig, constants::DEFAULT_L2_GAS_PRICE},
+        config::{
+            cache::CacheConfig,
+            constants::{DEFAULT_ACCOUNT_BALANCE, DEFAULT_L2_GAS_PRICE},
+        },
         fork::ForkDetails,
         http_fork_source::HttpForkSource,
         node::{compute_hash, InMemoryNode, Snapshot},
@@ -2656,7 +2659,7 @@ mod tests {
 
         let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(0xef)).unwrap();
         let from_account = private_key.address();
-        node.set_rich_account(from_account);
+        node.set_rich_account(from_account, U256::from(DEFAULT_ACCOUNT_BALANCE));
 
         let deployed_address = deployed_address_create(from_account, U256::zero());
 
@@ -2688,7 +2691,7 @@ mod tests {
 
         let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(0xef)).unwrap();
         let from_account = private_key.address();
-        node.set_rich_account(from_account);
+        node.set_rich_account(from_account, U256::from(DEFAULT_ACCOUNT_BALANCE));
 
         let deployed_address = deployed_address_create(from_account, U256::zero());
 
@@ -2902,7 +2905,7 @@ mod tests {
 
         let private_key = H256::repeat_byte(0x01);
         let from_account = K256PrivateKey::from_bytes(private_key).unwrap().address();
-        node.set_rich_account(from_account);
+        node.set_rich_account(from_account, U256::from(DEFAULT_ACCOUNT_BALANCE));
 
         let account_result = node.accounts().await;
         let expected_accounts: Vec<H160> = vec![from_account];

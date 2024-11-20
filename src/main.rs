@@ -274,15 +274,15 @@ async fn main() -> anyhow::Result<()> {
 
     for signer in config.genesis_accounts.iter() {
         let address = H160::from_slice(signer.address().as_ref());
-        node.set_rich_account(address);
+        node.set_rich_account(address, config.genesis_balance);
     }
     for signer in config.signer_accounts.iter() {
         let address = H160::from_slice(signer.address().as_ref());
-        node.set_rich_account(address);
+        node.set_rich_account(address, config.genesis_balance);
     }
     for wallet in LEGACY_RICH_WALLETS.iter() {
         let address = wallet.0;
-        node.set_rich_account(H160::from_str(address).unwrap());
+        node.set_rich_account(H160::from_str(address).unwrap(), config.genesis_balance);
     }
 
     let threads = future::join_all(config.host.iter().map(|host| {
