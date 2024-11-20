@@ -244,7 +244,7 @@ impl Cli {
         }
     }
     /// Converts the CLI arguments to a `TestNodeConfig`.
-    pub fn into_test_node_config(&self) -> eyre::Result<TestNodeConfig> {
+    pub fn into_test_node_config(self) -> eyre::Result<TestNodeConfig> {
         let genesis_balance = U256::from(self.balance as u128 * 10u128.pow(18));
 
         let vm_log_detail = if let Some(output) = self.show_outputs {
