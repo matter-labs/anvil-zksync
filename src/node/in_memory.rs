@@ -1870,8 +1870,9 @@ mod tests {
     use crate::{
         config::{
             constants::{
-                DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
-                DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L2_GAS_PRICE, TEST_NODE_NETWORK_ID,
+                DEFAULT_ACCOUNT_BALANCE, DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
+                DEFAULT_ESTIMATE_GAS_SCALE_FACTOR, DEFAULT_FAIR_PUBDATA_PRICE,
+                DEFAULT_L2_GAS_PRICE, TEST_NODE_NETWORK_ID,
             },
             TestNodeConfig,
         },
@@ -2040,7 +2041,7 @@ mod tests {
 
         let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(0xef)).unwrap();
         let from_account = private_key.address();
-        node.set_rich_account(from_account, U256::from(100u128 * 10u128.pow(18)));
+        node.set_rich_account(from_account, U256::from(DEFAULT_ACCOUNT_BALANCE));
 
         let deployed_address = deployed_address_create(from_account, U256::zero());
         testing::deploy_contract(
