@@ -15,6 +15,9 @@ use colored::{Colorize, CustomColor};
 use observability::LogLevel;
 use rand::thread_rng;
 use serde::Deserialize;
+use serde_json::{json, to_writer, Value};
+use std::collections::HashMap;
+use std::fs::File;
 use zksync_types::fee_model::FeeModelConfigV2;
 use zksync_types::U256;
 
@@ -46,6 +49,8 @@ pub struct ForkPrintInfo {
 /// Defines the configuration parameters for the [InMemoryNode].
 #[derive(Debug, Clone)]
 pub struct TestNodeConfig {
+    /// Filename to write era-test-node output as json
+    pub config_out: Option<String>,
     /// Port the node will listen on
     pub port: u16,
     /// Controls visibility of call logs
@@ -102,6 +107,7 @@ impl Default for TestNodeConfig {
         let genesis_accounts = AccountGenerator::new(10).phrase(DEFAULT_MNEMONIC).gen();
         Self {
             // Node configuration defaults
+            config_out: None,
             port: NODE_PORT,
             show_calls: Default::default(),
             show_outputs: false,
@@ -143,6 +149,15 @@ impl Default for TestNodeConfig {
 
 impl TestNodeConfig {
     pub fn print(&self, fork_details: Option<&ForkPrintInfo>) {
+        if self.config_out.is_some() {
+            let config_out = self.config_out.as_deref().unwrap();
+            to_writer(
+                &File::create(config_out)
+                    .expect("Unable to create era-test-node config description file"),
+                &self.as_json(fork_details),
+            )
+            .expect("Failed writing json");
+        }
         let color = CustomColor::new(13, 71, 198);
 
         println!("{}", BANNER.custom_color(color));
@@ -281,6 +296,63 @@ impl TestNodeConfig {
         );
         tracing::info!("========================================");
         println!("\n");
+    }
+
+    fn as_json(&self, fork: Option<&ForkPrintInfo>) -> Value {
+        let mut wallet_description = HashMap::new();
+        let mut available_accounts = Vec::with_capacity(self.genesis_accounts.len());
+        let mut private_keys = Vec::with_capacity(self.genesis_accounts.len());
+
+        for wallet in &self.genesis_accounts {
+            available_accounts.push(format!("{:?}", wallet.address()));
+            private_keys.push(format!("0x{}", hex::encode(wallet.credential().to_bytes())));
+        }
+
+        if let Some(ref gen) = self.account_generator {
+            let phrase = gen.get_phrase().to_string();
+            let derivation_path = gen.get_derivation_path().to_string();
+
+            wallet_description.insert("derivation_path".to_string(), derivation_path);
+            wallet_description.insert("mnemonic".to_string(), phrase);
+        };
+
+        if let Some(fork) = fork {
+            json!({
+              "available_accounts": available_accounts,
+              "private_keys": private_keys,
+              "endpoint": fork.network_rpc,
+              "l1_block": fork.l1_block,
+              "l2_block": fork.l2_block,
+              "block_hash": fork.fork_block_hash,
+              "chain_id": self.get_chain_id(),
+              "wallet": wallet_description,
+              "l1_gas_price": format!("{}", self.get_l1_gas_price()),
+              "l2_gas_price": format!("{}", self.get_l2_gas_price()),
+              "l1_pubdata_price": format!("{}", self.get_l1_pubdata_price()),
+              "price_scale_factor": format!("{}", self.get_price_scale()),
+              "limit_scale_factor": format!("{}", self.get_gas_limit_scale()),
+              "fee_model_config_v2": fork.fee_model_config_v2,
+            })
+        } else {
+            json!({
+              "available_accounts": available_accounts,
+              "private_keys": private_keys,
+              "wallet": wallet_description,
+              "chain_id": self.get_chain_id(),
+              "l1_gas_price": format!("{}", self.get_l1_gas_price()),
+              "l2_gas_price": format!("{}", self.get_l2_gas_price()),
+              "l1_pubdata_price": format!("{}", self.get_l1_pubdata_price()),
+              "price_scale_factor": format!("{}", self.get_price_scale()),
+              "limit_scale_factor": format!("{}", self.get_gas_limit_scale()),
+            })
+        }
+    }
+
+    /// Sets the file path to write the Era-test-node's config info to.
+    #[must_use]
+    pub fn set_config_out(mut self, config_out: Option<String>) -> Self {
+        self.config_out = config_out;
+        self
     }
 
     /// Set the port for the test node
@@ -579,6 +651,10 @@ impl AccountGenerator {
         self
     }
 
+    fn get_phrase(&self) -> &str {
+        &self.phrase
+    }
+
     #[must_use]
     pub fn chain_id(mut self, chain_id: impl Into<u32>) -> Self {
         self.chain_id = chain_id.into();
@@ -593,6 +669,10 @@ impl AccountGenerator {
         }
         self.derivation_path = Some(derivation_path);
         self
+    }
+
+    fn get_derivation_path(&self) -> &str {
+        self.derivation_path.as_deref().unwrap_or(DERIVATION_PATH)
     }
 
     pub fn gen(&self) -> Vec<PrivateKeySigner> {
