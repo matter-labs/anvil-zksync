@@ -8,6 +8,7 @@ mod eth;
 mod evm;
 mod fee_model;
 mod hardhat;
+mod impersonate;
 mod in_memory;
 mod in_memory_ext;
 mod net;

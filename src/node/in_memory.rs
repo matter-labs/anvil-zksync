@@ -46,6 +46,7 @@ use zksync_types::{
 use zksync_utils::{bytecode::hash_bytecode, h256_to_account_address, h256_to_u256, u256_to_h256};
 use zksync_web3_decl::error::Web3Error;
 
+use crate::node::impersonate::ImpersonationManager;
 use crate::node::time::TimestampManager;
 use crate::{
     bootloader_debug::{BootloaderDebug, BootloaderDebugTracer},
@@ -220,7 +221,7 @@ pub struct InMemoryNodeInner<S> {
     pub config: TestNodeConfig,
     pub console_log_handler: ConsoleLogHandler,
     pub system_contracts: SystemContracts,
-    pub impersonated_accounts: HashSet<Address>,
+    pub impersonation: ImpersonationManager,
     pub rich_accounts: HashSet<H160>,
     /// Keeps track of historical states indexed via block hash. Limited to [MAX_PREVIOUS_STATES].
     pub previous_states: IndexMap<H256, HashMap<StorageKey, StorageValue>>,
@@ -294,7 +295,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                     &updated_config.system_contracts_options,
                     updated_config.use_evm_emulator,
                 ),
-                impersonated_accounts: Default::default(),
+                impersonation: Default::default(),
                 rich_accounts: HashSet::new(),
                 previous_states: Default::default(),
                 observability,
@@ -329,7 +330,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                     &config.system_contracts_options,
                     config.use_evm_emulator,
                 ),
-                impersonated_accounts: Default::default(),
+                impersonation: Default::default(),
                 rich_accounts: HashSet::new(),
                 previous_states: Default::default(),
                 observability,
@@ -457,7 +458,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         let initiator_address = request_with_gas_per_pubdata_overridden
             .from
             .unwrap_or_default();
-        let impersonating = self.impersonated_accounts.contains(&initiator_address);
+        let impersonating = self.impersonation.is_impersonating(&initiator_address);
         let system_contracts = self
             .system_contracts
             .contracts_for_fee_estimate(impersonating)
@@ -769,17 +770,6 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         vm.execute(InspectExecutionMode::OneTx)
     }
 
-    /// Sets the `impersonated_account` field of the node.
-    /// This field is used to override the `tx.initiator_account` field of the transaction in the `run_l2_tx` method.
-    pub fn set_impersonated_account(&mut self, address: Address) -> bool {
-        self.impersonated_accounts.insert(address)
-    }
-
-    /// Clears the `impersonated_account` field of the node.
-    pub fn stop_impersonating_account(&mut self, address: Address) -> bool {
-        self.impersonated_accounts.remove(&address)
-    }
-
     /// Archives the current state for later queries.
     pub fn archive_state(&mut self) -> Result<(), String> {
         if self.previous_states.len() > MAX_PREVIOUS_STATES as usize {
@@ -824,7 +814,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             blocks: self.blocks.clone(),
             block_hashes: self.block_hashes.clone(),
             filters: self.filters.clone(),
-            impersonated_accounts: self.impersonated_accounts.clone(),
+            impersonated_accounts: self.impersonation.impersonated_accounts(),
             rich_accounts: self.rich_accounts.clone(),
             previous_states: self.previous_states.clone(),
             raw_storage: storage.raw_storage.clone(),
@@ -851,7 +841,8 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         self.blocks = snapshot.blocks;
         self.block_hashes = snapshot.block_hashes;
         self.filters = snapshot.filters;
-        self.impersonated_accounts = snapshot.impersonated_accounts;
+        self.impersonation
+            .set_impersonated_accounts(snapshot.impersonated_accounts);
         self.rich_accounts = snapshot.rich_accounts;
         self.previous_states = snapshot.previous_states;
         storage.raw_storage = snapshot.raw_storage;
@@ -898,6 +889,7 @@ pub struct InMemoryNode<S: Clone> {
     #[allow(dead_code)]
     pub(crate) system_contracts_options: system_contracts::Options,
     pub(crate) time: TimestampManager,
+    pub(crate) impersonation: ImpersonationManager,
 }
 
 fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) -> Option<H160> {
@@ -924,11 +916,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         let system_contracts_options = config.system_contracts_options;
         let inner = InMemoryNodeInner::new(fork, observability, config);
         let time = inner.time.clone();
+        let impersonation = inner.impersonation.clone();
         InMemoryNode {
             inner: Arc::new(RwLock::new(inner)),
             snapshots: Default::default(),
             system_contracts_options,
             time,
+            impersonation,
         }
     }
 
@@ -1051,7 +1045,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             .inner
             .read()
             .map_err(|_| anyhow::anyhow!("Failed to acquire read lock"))?;
-        Ok(if inner.impersonated_accounts.contains(&tx_initiator) {
+        Ok(if inner.impersonation.is_impersonating(&tx_initiator) {
             tracing::info!("🕵️ Executing tx from impersonated account {tx_initiator:?}");
             inner
                 .system_contracts

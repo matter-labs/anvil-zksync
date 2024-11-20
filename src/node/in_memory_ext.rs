@@ -303,36 +303,26 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
     }
 
     pub fn impersonate_account(&self, address: Address) -> Result<bool> {
-        self.get_inner()
-            .write()
-            .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
-            .map(|mut writer| {
-                if writer.set_impersonated_account(address) {
-                    tracing::info!("🕵️ Account {:?} has been impersonated", address);
-                    true
-                } else {
-                    tracing::info!("🕵️ Account {:?} was already impersonated", address);
-                    false
-                }
-            })
+        if self.impersonation.impersonate(address) {
+            tracing::info!("🕵️ Account {:?} has been impersonated", address);
+            Ok(true)
+        } else {
+            tracing::info!("🕵️ Account {:?} was already impersonated", address);
+            Ok(false)
+        }
     }
 
     pub fn stop_impersonating_account(&self, address: Address) -> Result<bool> {
-        self.get_inner()
-            .write()
-            .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
-            .map(|mut writer| {
-                if writer.stop_impersonating_account(address) {
-                    tracing::info!("🕵️ Stopped impersonating account {:?}", address);
-                    true
-                } else {
-                    tracing::info!(
-                        "🕵️ Account {:?} was not impersonated, nothing to stop",
-                        address
-                    );
-                    false
-                }
-            })
+        if self.impersonation.stop_impersonating(&address) {
+            tracing::info!("🕵️ Stopped impersonating account {:?}", address);
+            Ok(true)
+        } else {
+            tracing::info!(
+                "🕵️ Account {:?} was not impersonated, nothing to stop",
+                address
+            );
+            Ok(false)
+        }
     }
 
     pub fn set_code(&self, address: Address, code: String) -> Result<()> {
@@ -502,18 +492,20 @@ mod tests {
             config: Default::default(),
             console_log_handler: Default::default(),
             system_contracts: Default::default(),
-            impersonated_accounts: Default::default(),
+            impersonation: Default::default(),
             rich_accounts: Default::default(),
             previous_states: Default::default(),
             observability: None,
         };
         let time = old_inner.time.clone();
+        let impersonation = old_inner.impersonation.clone();
 
         let node = InMemoryNode::<HttpForkSource> {
             inner: Arc::new(RwLock::new(old_inner)),
             snapshots: old_snapshots,
             system_contracts_options: old_system_contracts_options,
             time,
+            impersonation,
         };
 
         let address = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap();

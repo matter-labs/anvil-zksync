@@ -171,22 +171,16 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
 
         l2_tx.set_input(bytes, hash);
 
+        if !self
+            .impersonation
+            .is_impersonating(&l2_tx.common_data.initiator_address)
         {
-            let reader = self
-                .inner
-                .read()
-                .map_err(|_| anyhow::anyhow!("Failed to acquire read lock for accounts."))?;
-            if !reader
-                .impersonated_accounts
-                .contains(&l2_tx.common_data.initiator_address)
-            {
-                let err = format!(
-                    "Initiator address {:?} is not allowed to perform transactions",
-                    l2_tx.common_data.initiator_address
-                );
-                tracing::error!("{err}");
-                return Err(TransparentError(err).into());
-            }
+            let err = format!(
+                "Initiator address {:?} is not allowed to perform transactions",
+                l2_tx.common_data.initiator_address
+            );
+            tracing::error!("{err}");
+            return Err(TransparentError(err).into());
         }
 
         self.seal_block(vec![l2_tx], system_contracts)
@@ -2949,7 +2943,7 @@ mod tests {
             .filters
             .add_block_filter()
             .expect("failed adding block filter");
-        inner.impersonated_accounts.insert(H160::repeat_byte(0x1));
+        inner.impersonation.impersonate(H160::repeat_byte(0x1));
         inner.rich_accounts.insert(H160::repeat_byte(0x1));
         inner
             .previous_states
@@ -2970,7 +2964,7 @@ mod tests {
             blocks: inner.blocks.clone(),
             block_hashes: inner.block_hashes.clone(),
             filters: inner.filters.clone(),
-            impersonated_accounts: inner.impersonated_accounts.clone(),
+            impersonated_accounts: inner.impersonation.impersonated_accounts(),
             rich_accounts: inner.rich_accounts.clone(),
             previous_states: inner.previous_states.clone(),
             raw_storage: storage.raw_storage.clone(),
@@ -3055,7 +3049,7 @@ mod tests {
             .filters
             .add_block_filter()
             .expect("failed adding block filter");
-        inner.impersonated_accounts.insert(H160::repeat_byte(0x1));
+        inner.impersonation.impersonate(H160::repeat_byte(0x1));
         inner.rich_accounts.insert(H160::repeat_byte(0x1));
         inner
             .previous_states
@@ -3077,7 +3071,7 @@ mod tests {
                 blocks: inner.blocks.clone(),
                 block_hashes: inner.block_hashes.clone(),
                 filters: inner.filters.clone(),
-                impersonated_accounts: inner.impersonated_accounts.clone(),
+                impersonated_accounts: inner.impersonation.impersonated_accounts(),
                 rich_accounts: inner.rich_accounts.clone(),
                 previous_states: inner.previous_states.clone(),
                 raw_storage: storage.raw_storage.clone(),
@@ -3108,7 +3102,7 @@ mod tests {
             .filters
             .add_pending_transaction_filter()
             .expect("failed adding pending transaction filter");
-        inner.impersonated_accounts.insert(H160::repeat_byte(0x2));
+        inner.impersonation.impersonate(H160::repeat_byte(0x2));
         inner.rich_accounts.insert(H160::repeat_byte(0x2));
         inner
             .previous_states
@@ -3148,7 +3142,7 @@ mod tests {
         assert_eq!(expected_snapshot.filters, inner.filters);
         assert_eq!(
             expected_snapshot.impersonated_accounts,
-            inner.impersonated_accounts
+            inner.impersonation.impersonated_accounts()
         );
         assert_eq!(expected_snapshot.rich_accounts, inner.rich_accounts);
         assert_eq!(expected_snapshot.previous_states, inner.previous_states);
