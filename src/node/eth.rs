@@ -2656,7 +2656,7 @@ mod tests {
 
         let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(0xef)).unwrap();
         let from_account = private_key.address();
-        node.set_rich_account(from_account);
+        node.set_rich_account(from_account, U256::from(100u128 * 10u128.pow(18)));
 
         let deployed_address = deployed_address_create(from_account, U256::zero());
 
@@ -2688,7 +2688,7 @@ mod tests {
 
         let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(0xef)).unwrap();
         let from_account = private_key.address();
-        node.set_rich_account(from_account);
+        node.set_rich_account(from_account, U256::from(100u128 * 10u128.pow(18)));
 
         let deployed_address = deployed_address_create(from_account, U256::zero());
 
@@ -2902,7 +2902,7 @@ mod tests {
 
         let private_key = H256::repeat_byte(0x01);
         let from_account = K256PrivateKey::from_bytes(private_key).unwrap().address();
-        node.set_rich_account(from_account);
+        node.set_rich_account(from_account, U256::from(100u128 * 10u128.pow(18)));
 
         let account_result = node.accounts().await;
         let expected_accounts: Vec<H160> = vec![from_account];
