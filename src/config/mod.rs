@@ -58,6 +58,8 @@ pub struct TestNodeConfig {
     pub log_file_path: String,
     /// Cache configuration for the test node
     pub cache_config: CacheConfig,
+    /// Maximum number of transactions per block
+    pub max_transactions: usize,
 }
 
 impl Default for TestNodeConfig {
@@ -89,6 +91,9 @@ impl Default for TestNodeConfig {
 
             // Cache configuration default
             cache_config: Default::default(),
+
+            // Block sealing configuration default
+            max_transactions: 1000,
         }
     }
 }

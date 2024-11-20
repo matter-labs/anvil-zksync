@@ -58,4 +58,16 @@ impl ImpersonationManager {
             .write()
             .expect("ImpersonationManager lock is poisoned") = accounts;
     }
+
+    /// Inspects the entire account set on a user-provided function without dropping the lock.
+    pub fn inspect<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&HashSet<Address>) -> R,
+    {
+        let guard = self
+            .state
+            .read()
+            .expect("ImpersonationManager lock is poisoned");
+        f(&guard)
+    }
 }

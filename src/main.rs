@@ -56,6 +56,8 @@ use crate::namespaces::{
     EthTestNodeNamespaceT, EvmNamespaceT, HardhatNamespaceT, NetNamespaceT, Web3NamespaceT,
     ZksNamespaceT,
 };
+use crate::node::{BlockProducer, BlockSealer, ImpersonationManager, TimestampManager, TxPool};
+use crate::system_contracts::SystemContracts;
 
 #[allow(clippy::too_many_arguments)]
 async fn build_json_http<
@@ -217,8 +219,17 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    let node: InMemoryNode<HttpForkSource> =
-        InMemoryNode::new(fork_details, Some(observability), &config);
+    let time = TimestampManager::default();
+    let impersonation = ImpersonationManager::default();
+    let pool = TxPool::new(impersonation.clone());
+    let node: InMemoryNode<HttpForkSource> = InMemoryNode::new(
+        fork_details,
+        Some(observability),
+        &config,
+        time.clone(),
+        impersonation,
+        pool.clone(),
+    );
 
     if let Some(bytecodes_dir) = opt.override_bytecodes_dir {
         override_bytecodes(&node, bytecodes_dir).unwrap();
@@ -254,15 +265,32 @@ async fn main() -> anyhow::Result<()> {
     let threads = build_json_http(
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), config.port),
         log_level_filter,
-        node,
+        node.clone(),
     )
     .await;
+
+    let block_sealer = if let Some(block_time) = opt.block_time {
+        BlockSealer::fixed_time(config.max_transactions, block_time)
+    } else {
+        BlockSealer::immediate(config.max_transactions)
+    };
+    let system_contracts =
+        SystemContracts::from_options(&config.system_contracts_options, config.use_evm_emulator);
+    let block_producer_handle = tokio::task::spawn(BlockProducer::new(
+        node,
+        pool,
+        block_sealer,
+        system_contracts,
+    ));
 
     tracing::info!("========================================");
     tracing::info!("  Node is ready at 127.0.0.1:{}", config.port);
     tracing::info!("========================================");
 
-    future::select_all(vec![threads]).await.0.unwrap();
+    future::select_all(vec![threads, block_producer_handle])
+        .await
+        .0
+        .unwrap();
 
     Ok(())
 }

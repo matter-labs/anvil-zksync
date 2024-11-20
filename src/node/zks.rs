@@ -742,15 +742,11 @@ mod tests {
             }),
         );
 
-        let node = InMemoryNode::<HttpForkSource>::new(
-            Some(
-                ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
-                    .await
-                    .unwrap(),
-            ),
-            None,
-            &Default::default(),
-        );
+        let node = InMemoryNode::<HttpForkSource>::default_fork(Some(
+            ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
+                .await
+                .unwrap(),
+        ));
 
         let result = node
             .get_transaction_details(input_tx_hash)
@@ -832,15 +828,11 @@ mod tests {
               }),
         );
 
-        let node = InMemoryNode::<HttpForkSource>::new(
-            Some(
-                ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
-                    .await
-                    .unwrap(),
-            ),
-            None,
-            &Default::default(),
-        );
+        let node = InMemoryNode::<HttpForkSource>::default_fork(Some(
+            ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
+                .await
+                .unwrap(),
+        ));
 
         let result = node
             .get_block_details(miniblock)
@@ -914,15 +906,11 @@ mod tests {
             }),
         );
 
-        let node = InMemoryNode::<HttpForkSource>::new(
-            Some(
-                ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
-                    .await
-                    .unwrap(),
-            ),
-            None,
-            &Default::default(),
-        );
+        let node = InMemoryNode::<HttpForkSource>::default_fork(Some(
+            ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
+                .await
+                .unwrap(),
+        ));
 
         let actual_bridge_addresses = node
             .get_bridge_contracts()
@@ -981,15 +969,11 @@ mod tests {
             }),
         );
 
-        let node = InMemoryNode::<HttpForkSource>::new(
-            Some(
-                ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
-                    .await
-                    .unwrap(),
-            ),
-            None,
-            &Default::default(),
-        );
+        let node = InMemoryNode::<HttpForkSource>::default_fork(Some(
+            ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
+                .await
+                .unwrap(),
+        ));
 
         let actual = node
             .get_bytecode_by_hash(input_hash)
@@ -1106,15 +1090,11 @@ mod tests {
               }),
         );
 
-        let node = InMemoryNode::<HttpForkSource>::new(
-            Some(
-                ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
-                    .await
-                    .unwrap(),
-            ),
-            None,
-            &Default::default(),
-        );
+        let node = InMemoryNode::<HttpForkSource>::default_fork(Some(
+            ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
+                .await
+                .unwrap(),
+        ));
 
         let txns = node
             .get_raw_block_transactions(miniblock)
@@ -1289,15 +1269,11 @@ mod tests {
             }),
         );
 
-        let node = InMemoryNode::<HttpForkSource>::new(
-            Some(
-                ForkDetails::from_network(&mock_server.url(), Some(1), &CacheConfig::None)
-                    .await
-                    .unwrap(),
-            ),
-            None,
-            &Default::default(),
-        );
+        let node = InMemoryNode::<HttpForkSource>::default_fork(Some(
+            ForkDetails::from_network(&mock_server.url(), Some(1), &CacheConfig::None)
+                .await
+                .unwrap(),
+        ));
 
         {
             let inner = node.get_inner();

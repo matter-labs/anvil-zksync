@@ -1,4 +1,5 @@
 use clap::{arg, command, Parser, Subcommand};
+use std::time::Duration;
 use zksync_types::H256;
 
 use crate::config::{
@@ -127,6 +128,11 @@ pub struct Cli {
     #[arg(long, help_heading = "Cache Options")]
     /// Cache directory location for disk cache (default: .cache).
     pub cache_dir: Option<String>,
+
+    #[arg(long, value_parser = duration_from_secs_f64, help_heading = "Block Sealing")]
+    /// Block time in seconds for interval sealing.
+    /// If unset, node seals a new block as soon as there is at least one transaction.
+    pub block_time: Option<Duration>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -248,4 +254,12 @@ impl Cli {
             Ok(config)
         }
     }
+}
+
+fn duration_from_secs_f64(s: &str) -> Result<Duration, String> {
+    let s = s.parse::<f64>().map_err(|e| e.to_string())?;
+    if s == 0.0 {
+        return Err("Duration must be greater than 0".to_string());
+    }
+    Duration::try_from_secs_f64(s).map_err(|e| e.to_string())
 }
