@@ -33,7 +33,7 @@ describe("eth_accounts", function () {
       "0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f",
       "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
     ];
-    const expectedBalance = ethers.utils.parseEther("100");
+    const expectedBalance = ethers.utils.parseEther("10000");
 
     // Act
     const response: string[] = await provider.send("eth_accounts", []);
