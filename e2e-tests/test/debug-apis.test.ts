@@ -5,6 +5,7 @@ import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
 import { RichAccounts } from "../helpers/constants";
 import { deployContract, expectThrowsAsync, getTestProvider } from "../helpers/utils";
 import { BigNumber } from "ethers";
+import {TransactionResponse} from "@ethersproject/abstract-provider";
 
 const provider = getTestProvider();
 
@@ -88,15 +89,16 @@ describe("debug_traceTransaction", function () {
 
     const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
 
-    const txReceipt = await greeter.setGreeting("Luke Skywalker");
-    const trace = await provider.send("debug_traceTransaction", [txReceipt.hash]);
+    const txResponse: TransactionResponse = await greeter.setGreeting("Luke Skywalker");
+    const txReceipt = await txResponse.wait();
+    const trace = await provider.send("debug_traceTransaction", [txReceipt.transactionHash]);
 
     // call should be successful
     expect(trace.error).to.equal(null);
     expect(trace.calls.length).to.equal(1);
 
     // gas limit should match
-    expect(BigNumber.from(trace.gas).toNumber()).to.equal(txReceipt.gasLimit.toNumber());
+    expect(BigNumber.from(trace.gas).toNumber()).to.equal(txResponse.gasLimit.toNumber());
   });
 
   it("Should respect only_top_calls option", async function () {
@@ -105,9 +107,10 @@ describe("debug_traceTransaction", function () {
 
     const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
 
-    const txReceipt = await greeter.setGreeting("Luke Skywalker");
+    const txResponse: TransactionResponse = await greeter.setGreeting("Luke Skywalker");
+    const txReceipt = await txResponse.wait();
     const trace = await provider.send("debug_traceTransaction", [
-      txReceipt.hash,
+      txReceipt.transactionHash,
       { tracer: "callTracer", tracerConfig: { onlyTopCall: true } },
     ]);
 
@@ -124,7 +127,8 @@ describe("debug_traceBlockByHash", function () {
 
     const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
 
-    const txReceipt = await greeter.setGreeting("Luke Skywalker");
+    const txResponse: TransactionResponse = await greeter.setGreeting("Luke Skywalker");
+    await txResponse.wait();
     const latestBlock = await provider.getBlock("latest");
     const block = await provider.getBlock(latestBlock.number - 1);
 
@@ -135,7 +139,7 @@ describe("debug_traceBlockByHash", function () {
 
     // should contain trace for our tx
     const trace = traces[0].result;
-    expect(trace.input).to.equal(txReceipt.data);
+    expect(trace.input).to.equal(txResponse.data);
   });
 });
 
@@ -146,7 +150,8 @@ describe("debug_traceBlockByNumber", function () {
 
     const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
 
-    const txReceipt = await greeter.setGreeting("Luke Skywalker");
+    const txResponse: TransactionResponse = await greeter.setGreeting("Luke Skywalker");
+    await txResponse.wait();
 
     // latest block will be empty, check we get no traces for it
     const empty_traces = await provider.send("debug_traceBlockByNumber", ["latest"]);
@@ -161,6 +166,6 @@ describe("debug_traceBlockByNumber", function () {
 
     // should contain trace for our tx
     const trace = traces[0].result;
-    expect(trace.input).to.equal(txReceipt.data);
+    expect(trace.input).to.equal(txResponse.data);
   });
 });
