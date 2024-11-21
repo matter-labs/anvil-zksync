@@ -107,7 +107,7 @@ mod tests {
         let pool = TxPool::new(ImpersonationManager::default());
         let mut block_sealer = BlockSealer::immediate(1000);
         let waker = &WAKER_NOOP;
-        let mut cx = Context::from_waker(&waker);
+        let mut cx = Context::from_waker(waker);
 
         assert_eq!(block_sealer.poll(&pool, &mut cx), Poll::Pending);
     }
@@ -117,7 +117,7 @@ mod tests {
         let pool = TxPool::new(ImpersonationManager::default());
         let mut block_sealer = BlockSealer::immediate(1000);
         let waker = &WAKER_NOOP;
-        let mut cx = Context::from_waker(&waker);
+        let mut cx = Context::from_waker(waker);
 
         let [tx] = pool.populate::<1>();
 
@@ -136,7 +136,7 @@ mod tests {
         let pool = TxPool::new(ImpersonationManager::default());
         let mut block_sealer = BlockSealer::immediate(1000);
         let waker = &WAKER_NOOP;
-        let mut cx = Context::from_waker(&waker);
+        let mut cx = Context::from_waker(waker);
 
         let txs = pool.populate::<10>();
 
@@ -155,7 +155,7 @@ mod tests {
         let pool = TxPool::new(ImpersonationManager::default());
         let mut block_sealer = BlockSealer::immediate(3);
         let waker = &WAKER_NOOP;
-        let mut cx = Context::from_waker(&waker);
+        let mut cx = Context::from_waker(waker);
 
         let txs = pool.populate::<10>();
 
@@ -175,7 +175,7 @@ mod tests {
         let pool = TxPool::new(ImpersonationManager::default());
         let mut block_sealer = BlockSealer::immediate(1000);
         let waker = &WAKER_NOOP;
-        let mut cx = Context::from_waker(&waker);
+        let mut cx = Context::from_waker(waker);
 
         // Txs are added to the pool in small chunks
         let txs0 = pool.populate::<3>();
@@ -212,7 +212,7 @@ mod tests {
         let pool = TxPool::new(ImpersonationManager::default());
         let mut block_sealer = BlockSealer::fixed_time(1000, Duration::from_secs(10000));
         let waker = &WAKER_NOOP;
-        let mut cx = Context::from_waker(&waker);
+        let mut cx = Context::from_waker(waker);
 
         assert_eq!(block_sealer.poll(&pool, &mut cx), Poll::Pending);
     }
@@ -222,7 +222,7 @@ mod tests {
         let pool = TxPool::new(ImpersonationManager::default());
         let mut block_sealer = BlockSealer::fixed_time(1000, Duration::from_millis(100));
         let waker = &WAKER_NOOP;
-        let mut cx = Context::from_waker(&waker);
+        let mut cx = Context::from_waker(waker);
 
         // Sleep enough time to (theoretically) produce at least 2 blocks
         tokio::time::sleep(Duration::from_millis(250)).await;
@@ -256,7 +256,7 @@ mod tests {
         let pool = TxPool::new(ImpersonationManager::default());
         let mut block_sealer = BlockSealer::fixed_time(1000, Duration::from_millis(100));
         let waker = &WAKER_NOOP;
-        let mut cx = Context::from_waker(&waker);
+        let mut cx = Context::from_waker(waker);
 
         let txs = pool.populate::<3>();
 
@@ -277,7 +277,7 @@ mod tests {
         let pool = TxPool::new(ImpersonationManager::default());
         let mut block_sealer = BlockSealer::fixed_time(3, Duration::from_millis(100));
         let waker = &WAKER_NOOP;
-        let mut cx = Context::from_waker(&waker);
+        let mut cx = Context::from_waker(waker);
 
         let txs = pool.populate::<10>();
 
