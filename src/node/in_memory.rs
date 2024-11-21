@@ -1200,7 +1200,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         }
 
         let tx: Transaction = l2_tx.into();
-        vm.push_transaction(tx);
+        vm.push_transaction(tx.clone());
 
         let call_tracer_result = Arc::new(OnceCell::default());
 
@@ -1239,18 +1239,23 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             }
         }
 
-        if inner.config.show_calls != ShowCalls::None {
-            tracing::info!("");
-            tracing::info!("=== Call traces:");
-            for call in &call_traces {
-                formatter::print_call(
-                    call,
-                    0,
-                    &inner.config.show_calls,
-                    inner.config.show_outputs,
-                    inner.config.resolve_hashes,
-                );
-            }
+        tracing::info!(
+            "[Transaction Execution] ({} calls)",
+            call_traces[0].calls.len()
+        );
+        let num_calls = call_traces.len();
+        for (i, call) in call_traces.iter().enumerate() {
+            let is_last_sibling = i == num_calls - 1;
+            formatter::print_call(
+                tx.initiator_account(),
+                tx.execute.contract_address,
+                call,
+                &vec![],
+                is_last_sibling,
+                &inner.config.show_calls,
+                inner.config.show_outputs,
+                inner.config.resolve_hashes,
+            );
         }
 
         Ok(tx_result.result)
@@ -1515,38 +1520,31 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         let spent_on_pubdata =
             tx_result.statistics.gas_used - tx_result.statistics.computational_gas_used as u64;
 
+        let status = match &tx_result.result {
+            ExecutionResult::Success { .. } => "SUCCESS",
+            ExecutionResult::Revert { .. } => "FAILED",
+            ExecutionResult::Halt { .. } => "HALTED",
+        };
         if inner.config.show_tx_summary {
-            tracing::info!("┌─────────────────────────┐");
-            tracing::info!("│   TRANSACTION SUMMARY   │");
-            tracing::info!("└─────────────────────────┘");
-
-            match &tx_result.result {
-                ExecutionResult::Success { .. } => {
-                    tracing::info!("Transaction: {}", "SUCCESS".green())
-                }
-                ExecutionResult::Revert { .. } => tracing::info!("Transaction: {}", "FAILED".red()),
-                ExecutionResult::Halt { .. } => tracing::info!("Transaction: {}", "HALTED".red()),
-            }
-
-            tracing::info!("Initiator: {:?}", tx.initiator_account());
-            tracing::info!("Payer: {:?}", tx.payer());
-            tracing::info!(
-                "Gas - Limit: {} | Used: {} | Refunded: {}",
-                to_human_size(tx.gas_limit()),
-                to_human_size(tx.gas_limit() - tx_result.refunds.gas_refunded),
-                to_human_size(tx_result.refunds.gas_refunded.into())
+            formatter::log_transaction_summary(
+                inner.config.get_l2_gas_price(),
+                &tx,
+                &tx_result,
+                status,
             );
         }
-
-        if inner.config.show_gas_details != ShowGasDetails::None {
-            let info =
-                self.display_detailed_gas_info(bootloader_debug_result.get(), spent_on_pubdata);
-            if info.is_err() {
-                tracing::info!(
-                    "{}\nError: {}",
-                    "!!! FAILED TO GET DETAILED GAS INFO !!!".to_owned().red(),
-                    info.unwrap_err()
-                );
+        match inner.config.show_gas_details {
+            ShowGasDetails::None => {}
+            ShowGasDetails::All => {
+                let info =
+                    self.display_detailed_gas_info(bootloader_debug_result.get(), spent_on_pubdata);
+                if info.is_err() {
+                    tracing::info!(
+                        "{}\nError: {}",
+                        "!!! FAILED TO GET DETAILED GAS INFO !!!".to_owned().red(),
+                        info.unwrap_err()
+                    );
+                }
             }
         }
 
@@ -1566,15 +1564,19 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 inner.console_log_handler.handle_call_recursive(call);
             }
         }
-        println!("");
-        println!("");
+        tracing::info!("");
+
         if inner.config.show_calls != ShowCalls::None {
-            tracing::info!("[Transaction Execution]");
+            tracing::info!(
+                "[Transaction Execution] ({} calls)",
+                call_traces[0].calls.len()
+            );
             let num_calls = call_traces.len();
             for (i, call) in call_traces.iter().enumerate() {
                 let is_last_sibling = i == num_calls - 1;
-                formatter::print_call2(
+                formatter::print_call(
                     tx.initiator_account(),
+                    tx.execute.contract_address,
                     call,
                     &vec![],
                     is_last_sibling,
@@ -1584,7 +1586,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 );
             }
         }
-        println!("");
+        tracing::info!("");
         if inner.config.show_event_logs {
             tracing::info!("");
             tracing::info!(

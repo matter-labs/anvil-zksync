@@ -10,10 +10,11 @@ use std::str;
 use crate::fork::block_on;
 use zksync_types::H160;
 
+use crate::utils::{calculate_eth_cost, format_gwei, to_human_size};
 use lazy_static::lazy_static;
 use zksync_multivm::interface::{Call, VmEvent, VmExecutionResultAndLogs};
 use zksync_types::Address;
-use zksync_types::StorageLogWithPreviousValue;
+use zksync_types::{StorageLogWithPreviousValue, Transaction};
 
 #[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
 pub enum ContractType {
@@ -43,25 +44,57 @@ lazy_static! {
     };
 }
 
-fn address_to_human_readable(address: H160, initiator: H160) -> Option<String> {
+fn address_to_human_readable(address: H160) -> Option<String> {
+    KNOWN_ADDRESSES
+        .get(&address)
+        .map(|known_address| match known_address.contract_type {
+            ContractType::System => known_address.name.to_string(),
+            ContractType::Precompile => format!("{}", known_address.name.dimmed()),
+            ContractType::Popular => format!("{}", known_address.name.green()),
+            ContractType::Unknown => known_address.name.to_string(),
+        })
+}
+
+fn address_to_human_readable2(
+    address: H160,
+    initiator: H160,
+    contract_address: Option<H160>,
+    call_type: &str,
+) -> Option<String> {
     let is_initiator = address == initiator;
+    let excluded_addresses = [
+        H160::from_slice(&hex::decode("0000000000000000000000000000000000008006").unwrap()),
+        H160::from_slice(&hex::decode("0000000000000000000000000000000000010000").unwrap()),
+    ];
+
+    let is_contract = Some(address) == contract_address && !excluded_addresses.contains(&address);
+
     if is_initiator {
         let name = "initiator".bold().green().to_string();
         let formatted_address = format!("{:#x}", address);
-        Some(format!("{}@{}", name, formatted_address))
-    } else {
-        KNOWN_ADDRESSES.get(&address).map(|known_address| {
-            let name = match known_address.contract_type {
-                ContractType::System => known_address.name.bold().bright_blue().to_string(),
-                ContractType::Precompile => known_address.name.bold().magenta().to_string(),
-                ContractType::Popular => known_address.name.bold().green().to_string(),
-                ContractType::Unknown => known_address.name.dimmed().to_string(),
-            };
-
-            let formatted_address = format!("{:#x}", address);
-            format!("{}@{}", name, formatted_address)
-        })
+        return Some(format!("{}{}{}", name, "@".dimmed(), formatted_address));
     }
+    if call_type == "Create" {
+        let name = "deployed".bold().bright_green().to_string();
+        let formatted_address = format!("{:#x}", address);
+        return Some(format!("{}{}{}", name, "@".dimmed(), formatted_address));
+    } else if is_contract {
+        let name = "contract".bold().bright_green().to_string();
+        let formatted_address = format!("{:#x}", address);
+        return Some(format!("{}{}{}", name, "@".dimmed(), formatted_address));
+    }
+
+    KNOWN_ADDRESSES.get(&address).map(|known_address| {
+        let name = match known_address.contract_type {
+            ContractType::System => known_address.name.bold().bright_blue().to_string(),
+            ContractType::Precompile => known_address.name.bold().magenta().to_string(),
+            ContractType::Popular => known_address.name.bold().bright_green().to_string(),
+            ContractType::Unknown => known_address.name.dimmed().to_string(),
+        };
+
+        let formatted_address = format!("{:#x}", address).dimmed();
+        format!("{}{}{}", name, "@".dimmed(), formatted_address)
+    })
 }
 
 /// Pretty-prints event object
@@ -87,7 +120,7 @@ pub fn print_event(event: &VmEvent, resolve_hashes: bool) {
         // TODO: fix
         tracing::info!(
             "{}",
-            address_to_human_readable(event.address, event.address)
+            address_to_human_readable(event.address)
                 .map(|x| format!("{:42}", x.blue()))
                 .unwrap_or(format!("{:42}", format!("{:?}", event.address).blue()))
         );
@@ -127,109 +160,6 @@ pub fn print_event(event: &VmEvent, resolve_hashes: bool) {
 
         tracing::info!("");
     });
-}
-
-/// Pretty-prints contents of a 'call' - including subcalls.
-/// If skip_resolve is false, will try to contact openchain to resolve the ABI names.
-pub fn print_call(
-    call: &Call,
-    padding: usize,
-    show_calls: &ShowCalls,
-    show_outputs: bool,
-    resolve_hashes: bool,
-) {
-    let contract_type = KNOWN_ADDRESSES
-        .get(&call.to)
-        .cloned()
-        .map(|known_address| known_address.contract_type)
-        .unwrap_or(ContractType::Unknown);
-
-    let should_print = match (&contract_type, &show_calls) {
-        (_, ShowCalls::All) => true,
-        (_, ShowCalls::None) => false,
-        // now we're left only with 'user' and 'system'
-        (ContractType::Unknown, _) => true,
-        (ContractType::Popular, _) => true,
-        (ContractType::Precompile, _) => false,
-        // Now we're left with System
-        (ContractType::System, ShowCalls::User) => false,
-        (ContractType::System, ShowCalls::System) => true,
-    };
-    if should_print {
-        let function_signature = if call.input.len() >= 4 {
-            let sig = call.input.as_slice()[..4]
-                .iter()
-                .map(|byte| format!("{:02x}", byte))
-                .collect::<Vec<_>>()
-                .join("");
-
-            if contract_type == ContractType::Precompile || !resolve_hashes {
-                format!("{:>16}", sig)
-            } else {
-                block_on(async move {
-                    let fetch = resolver::decode_function_selector(&sig).await.unwrap();
-                    fetch.unwrap_or(format!("{:>16}", format!("0x{}", sig).dimmed()))
-                })
-            }
-        } else {
-            format!(
-                "0x{}",
-                call.input
-                    .as_slice()
-                    .iter()
-                    .map(|byte| format!("{:02x}", byte))
-                    .collect::<Vec<_>>()
-                    .join("")
-            )
-        };
-
-        let output = if show_outputs {
-            call.output
-                .as_slice()
-                .iter()
-                .map(|byte| format!("{:02x}", byte))
-                .collect::<Vec<_>>()
-                .join("")
-        } else {
-            "".to_string()
-        };
-
-        let pretty_print = format!(
-            "{}{:?} {} {} {} {} {} {} ({})",
-            " ".repeat(padding),
-            call.r#type,
-            address_to_human_readable(call.to, call.from)
-                .map(|x| format!("{:<52}", x))
-                .unwrap_or(format!("{:<52}", format!("{:?}", call.to).bold())),
-            function_signature,
-            output,
-            call.revert_reason
-                .as_ref()
-                .map(|s| format!("Revert: {}", s))
-                .unwrap_or_default(),
-            call.error
-                .as_ref()
-                .map(|s| format!("Error: {}", s))
-                .unwrap_or_default(),
-            call.gas,
-            call.gas_used
-        );
-
-        if call.revert_reason.as_ref().is_some() || call.error.as_ref().is_some() {
-            tracing::info!("{}", pretty_print.on_red());
-        } else {
-            tracing::info!("{}", pretty_print);
-        }
-    }
-    for subcall in &call.calls {
-        print_call(
-            subcall,
-            padding + 2,
-            show_calls,
-            show_outputs,
-            resolve_hashes,
-        );
-    }
 }
 
 /// Amount of pubdata that given write has cost.
@@ -272,10 +202,6 @@ impl PubdataBytesInfo {
     }
 }
 
-fn format_number(num: u64) -> String {
-    num.to_string()
-}
-
 fn build_prefix(sibling_stack: &Vec<bool>) -> String {
     let mut prefix = String::new();
     for &has_more_siblings in sibling_stack {
@@ -288,8 +214,9 @@ fn build_prefix(sibling_stack: &Vec<bool>) -> String {
     prefix
 }
 
-pub fn print_call2(
+pub fn print_call(
     initiator: Address,
+    contract_address: Option<H160>,
     call: &Call,
     sibling_stack: &Vec<bool>,
     is_last_sibling: bool,
@@ -323,13 +250,18 @@ pub fn print_call2(
         let full_prefix = format!("{}{}", prefix, branch);
 
         let call_type_display = format!("{:?}", call.r#type).blue();
-        let remaining_gas_display = format_number(call.gas).yellow();
-        let gas_used_display = format!("({})", format_number(call.gas_used)).bold();
+        let remaining_gas_display = to_human_size(call.gas.into()).yellow();
+        let gas_used_display = format!("({})", to_human_size(call.gas_used.into())).bold();
 
         // Get contract display
-        let contract_display = address_to_human_readable(call.to, initiator)
-            .map(|x| format!("{:}", x))
-            .unwrap_or(format!("{:}", format!("{:?}", call.to).bold()));
+        let contract_display = address_to_human_readable2(
+            call.to,
+            initiator,
+            contract_address,
+            format!("{:?}", call.r#type).as_str(),
+        )
+        .map(|x| format!("{:}", x))
+        .unwrap_or(format!("{:}", format!("{:?}", call.to).bold()));
 
         // Get function signature
         let function_signature = if call.input.len() >= 4 {
@@ -346,18 +278,6 @@ pub fn print_call2(
             }
         } else {
             "unknown".to_string()
-        };
-
-        // TODO: handle outputs
-        let output = if show_outputs {
-            call.output
-                .as_slice()
-                .iter()
-                .map(|byte| format!("{:02x}", byte))
-                .collect::<Vec<_>>()
-                .join("")
-        } else {
-            "".to_string()
         };
 
         let function_display = function_signature.cyan().bold();
@@ -387,7 +307,28 @@ pub fn print_call2(
         } else {
             tracing::info!("{}", line);
         }
+
+        // Handle outputs
+        if show_outputs && !call.output.is_empty() {
+            let output_display = call
+                .output
+                .as_slice()
+                .iter()
+                .map(|byte| format!("{:02x}", byte))
+                .collect::<Vec<_>>()
+                .join("");
+
+            let output_branch = if is_last_sibling {
+                "    └── Output: ".dimmed()
+            } else {
+                "    ├── Output: ".dimmed()
+            };
+
+            let output_line = format!("{}{}", full_prefix, output_branch) + &output_display;
+            tracing::info!("{}", output_line);
+        }
     }
+
     // Process subcalls
     let num_subcalls = call.calls.len();
     if num_subcalls > 0 {
@@ -395,8 +336,9 @@ pub fn print_call2(
         new_sibling_stack.push(!is_last_sibling);
         for (i, subcall) in call.calls.iter().enumerate() {
             let is_last_subcall = i == num_subcalls - 1;
-            print_call2(
+            print_call(
                 initiator,
+                contract_address,
                 subcall,
                 &new_sibling_stack,
                 is_last_subcall,
@@ -406,6 +348,46 @@ pub fn print_call2(
             );
         }
     }
+}
+
+pub fn log_transaction_summary(
+    l2_gas_price: u64,
+    tx: &Transaction,
+    tx_result: &VmExecutionResultAndLogs,
+    status: &str,
+) {
+    // Calculate used and refunded gas
+    let used_gas = tx.gas_limit() - tx_result.refunds.gas_refunded;
+    let paid_in_eth = calculate_eth_cost(l2_gas_price, used_gas.as_u64());
+
+    let refunded_gas = tx_result.refunds.gas_refunded;
+
+    // Calculate refunded gas in ETH
+    let refunded_in_eth = calculate_eth_cost(l2_gas_price, refunded_gas);
+
+    let emoji = match status {
+        "SUCCESS" => "✅",
+        "FAILED" => "❌",
+        "HALTED" => "⏸️",
+        _ => "⚠️",
+    };
+
+    tracing::info!("{}  [{}] Hash: {:?}", emoji, status, tx.hash());
+    tracing::info!("Initiator: {:?}", tx.initiator_account());
+    tracing::info!("Payer: {:?}", tx.payer());
+    tracing::info!(
+        "Gas Usage: Limit: {} | Used: {} | Refunded: {}",
+        to_human_size(tx.gas_limit()),
+        to_human_size(used_gas.into()),
+        to_human_size(tx_result.refunds.gas_refunded.into())
+    );
+    tracing::info!(
+        "Paid: {:.10} ETH ({} gas * {})",
+        paid_in_eth,
+        used_gas,
+        format_gwei(l2_gas_price.into())
+    );
+    tracing::info!("Refunded: {:.10} ETH", refunded_in_eth);
 }
 
 // TODO address to human readable issue
@@ -418,7 +400,7 @@ pub fn print_logs(
     tracing::info!(
         "{:<15} {}",
         "Address:",
-        address_to_human_readable(*log_query.log.key.address(), *log_query.log.key.address())
+        address_to_human_readable(*log_query.log.key.address())
             .unwrap_or(format!("{}", log_query.log.key.address()))
     );
     tracing::info!("{:<15} {:#066x}", "Key:", log_query.log.key.key());
