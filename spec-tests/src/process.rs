@@ -2,12 +2,11 @@ use std::{ffi::OsStr, fmt::Display, path::Path, time::Duration};
 
 use anyhow::Context;
 use chrono::{DateTime, Local};
-use fs2::FileExt;
 use tokio::process::{Child, Command};
 
-use crate::utils;
+use crate::utils::LockedPort;
 
-const ERA_TEST_NODE_BINARY_PATH: &str = "../target/release/era_test_node";
+const ERA_TEST_NODE_BINARY_DEFAULT_PATH: &str = "../target/release/era_test_node";
 const ERA_TEST_NODE_SRC_PATH: &str = "../src";
 
 pub struct EraRunConfig {
@@ -51,19 +50,19 @@ pub fn run<S: AsRef<OsStr> + Clone + Display>(
 
 /// Ensures that the era-test-node binary was built after the last source file got modified.
 fn ensure_binary_is_fresh() -> anyhow::Result<()> {
-    if !Path::new(ERA_TEST_NODE_BINARY_PATH).exists() {
+    if !Path::new(ERA_TEST_NODE_BINARY_DEFAULT_PATH).exists() {
         anyhow::bail!(
             "Expected era-test-node binary to be built and present at '{}'. Please run `make all` in the root directory.",
-            ERA_TEST_NODE_BINARY_PATH
+            ERA_TEST_NODE_BINARY_DEFAULT_PATH
         );
     }
-    let metadata = std::fs::metadata(ERA_TEST_NODE_BINARY_PATH)?;
+    let metadata = std::fs::metadata(ERA_TEST_NODE_BINARY_DEFAULT_PATH)?;
     match metadata.modified() {
         Ok(binary_mod_time) => {
             let binary_mod_time = DateTime::<Local>::from(binary_mod_time);
             tracing::info!(
                 %binary_mod_time,
-                path = ERA_TEST_NODE_BINARY_PATH,
+                path = ERA_TEST_NODE_BINARY_DEFAULT_PATH,
                 "Resolved when binary file was last modified"
             );
             let source_mod_time = std::fs::read_dir(ERA_TEST_NODE_SRC_PATH)
@@ -99,7 +98,7 @@ fn ensure_binary_is_fresh() -> anyhow::Result<()> {
         Err(error) => {
             tracing::warn!(
                 %error,
-                path = ERA_TEST_NODE_BINARY_PATH,
+                path = ERA_TEST_NODE_BINARY_DEFAULT_PATH,
                 "Could not get modification time from file (your platform might not support it, refer to the attached error). \
                 Make sure that your binary has been built against the code you are working with."
             );
@@ -108,19 +107,58 @@ fn ensure_binary_is_fresh() -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn run_default() -> anyhow::Result<EraRunHandle> {
-    ensure_binary_is_fresh()?;
-    let (rpc_port, rpc_port_lock) = utils::acquire_unused_port().await?;
-    let config = EraRunConfig { rpc_port };
+#[derive(Default)]
+pub struct EraTestNodeRunner {
+    path: Option<String>,
+    rpc_port: Option<u16>,
+}
 
-    let handle = run(ERA_TEST_NODE_BINARY_PATH, config)?;
+impl EraTestNodeRunner {
+    pub fn path(mut self, path: String) -> Self {
+        self.path = Some(path);
+        self
+    }
 
-    // TODO: Wait for era-test-node healthcheck instead
-    tokio::time::sleep(Duration::from_secs(1)).await;
+    pub fn rpc_port(mut self, rpc_port: u16) -> Self {
+        self.rpc_port = Some(rpc_port);
+        self
+    }
 
-    rpc_port_lock
-        .unlock()
-        .with_context(|| format!("failed to unlock lockfile for rpc_port={}", rpc_port))?;
+    pub async fn run(self) -> anyhow::Result<EraRunHandle> {
+        let path = match self.path {
+            Some(path) => path,
+            None => {
+                if let Some(path) = std::env::var("ERA_TEST_NODE_BINARY_PATH").ok() {
+                    path
+                } else {
+                    // Default to the binary taken from the target directory
+                    ensure_binary_is_fresh()?;
+                    ERA_TEST_NODE_BINARY_DEFAULT_PATH.to_string()
+                }
+            }
+        };
+        let rpc_port_lock = match self.rpc_port {
+            Some(rpc_port) => LockedPort::acquire(rpc_port).await?,
+            None => {
+                if let Some(rpc_port) = std::env::var("ERA_TEST_NODE_RPC_PORT").ok() {
+                    LockedPort::acquire(rpc_port.parse().context(
+                        "failed to parse `ERA_TEST_NODE_RPC_PORT` var as a valid port number",
+                    )?)
+                    .await?
+                } else {
+                    LockedPort::acquire_unused().await?
+                }
+            }
+        };
 
-    Ok(handle)
+        let config = EraRunConfig {
+            rpc_port: rpc_port_lock.port,
+        };
+        let handle = run(path, config)?;
+
+        // TODO: Wait for era-test-node healthcheck instead
+        tokio::time::sleep(Duration::from_secs(1)).await;
+
+        Ok(handle)
+    }
 }
