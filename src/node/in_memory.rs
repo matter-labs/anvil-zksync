@@ -246,22 +246,13 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         time: TimestampManager,
         impersonation: ImpersonationManager,
     ) -> Self {
-        let mut updated_config = config.clone();
+        let updated_config = config.clone();
 
         if let Some(f) = &fork {
             let mut block_hashes = HashMap::<u64, H256>::new();
             block_hashes.insert(f.l2_block.number.as_u64(), f.l2_block.hash);
             let mut blocks = HashMap::<H256, Block<TransactionVariant>>::new();
             blocks.insert(f.l2_block.hash, f.l2_block.clone());
-
-            // Update the config fields from fork details
-            updated_config = updated_config
-                .with_l1_gas_price(Some(f.l1_gas_price))
-                .with_l2_gas_price(Some(f.l2_fair_gas_price))
-                .with_l1_pubdata_price(Some(f.fair_pubdata_price))
-                .with_price_scale(Some(f.estimate_gas_price_scale_factor))
-                .with_gas_limit_scale(Some(f.estimate_gas_scale_factor))
-                .with_chain_id(Some(f.chain_id.as_u64() as u32));
 
             let fee_input_provider = if let Some(params) = f.fee_params {
                 TestNodeFeeInputProvider::from_fee_params_and_estimate_scale_factors(
@@ -1024,11 +1015,17 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
         for wallet in LEGACY_RICH_WALLETS.iter() {
             let address = wallet.0;
-            self.set_rich_account(H160::from_str(address).unwrap());
+            self.set_rich_account(
+                H160::from_str(address).unwrap(),
+                U256::from(100u128 * 10u128.pow(18)),
+            );
         }
         for wallet in RICH_WALLETS.iter() {
             let address = wallet.0;
-            self.set_rich_account(H160::from_str(address).unwrap());
+            self.set_rich_account(
+                H160::from_str(address).unwrap(),
+                U256::from(100u128 * 10u128.pow(18)),
+            );
         }
         Ok(())
     }
@@ -1047,8 +1044,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         Ok(())
     }
 
-    /// Adds a lot of tokens to a given account.
-    pub fn set_rich_account(&self, address: H160) {
+    /// Adds a lot of tokens to a given account with a specified balance.
+    pub fn set_rich_account(&self, address: H160, balance: U256) {
         let key = storage_key_for_eth_balance(&address);
 
         let mut inner = match self.inner.write() {
@@ -1061,7 +1058,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
         let keys = {
             let mut storage_view = StorageView::new(&inner.fork_storage);
-            storage_view.set_value(key, u256_to_h256(U256::from(10u128.pow(30))));
+            // Set balance to the specified amount
+            storage_view.set_value(key, u256_to_h256(balance));
             storage_view.modified_storage_keys().clone()
         };
 
@@ -1914,8 +1912,9 @@ mod tests {
     use crate::{
         config::{
             constants::{
-                DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
-                DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L2_GAS_PRICE, TEST_NODE_NETWORK_ID,
+                DEFAULT_ACCOUNT_BALANCE, DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
+                DEFAULT_ESTIMATE_GAS_SCALE_FACTOR, DEFAULT_FAIR_PUBDATA_PRICE,
+                DEFAULT_L2_GAS_PRICE, TEST_NODE_NETWORK_ID,
             },
             TestNodeConfig,
         },
@@ -1948,7 +1947,10 @@ mod tests {
         let tx = testing::TransactionBuilder::new()
             .set_gas_limit(U256::from(u64::MAX) + 1)
             .build();
-        node.set_rich_account(tx.common_data.initiator_address);
+        node.set_rich_account(
+            tx.common_data.initiator_address,
+            U256::from(100u128 * 10u128.pow(18)),
+        );
 
         let system_contracts = node
             .system_contracts_for_tx(tx.initiator_account())
@@ -1966,7 +1968,10 @@ mod tests {
         let tx = testing::TransactionBuilder::new()
             .set_max_fee_per_gas(U256::from(DEFAULT_L2_GAS_PRICE - 1))
             .build();
-        node.set_rich_account(tx.common_data.initiator_address);
+        node.set_rich_account(
+            tx.common_data.initiator_address,
+            U256::from(100u128 * 10u128.pow(18)),
+        );
 
         let system_contracts = node
             .system_contracts_for_tx(tx.initiator_account())
@@ -1988,7 +1993,10 @@ mod tests {
         let tx = testing::TransactionBuilder::new()
             .set_max_priority_fee_per_gas(U256::from(250_000_000 + 1))
             .build();
-        node.set_rich_account(tx.common_data.initiator_address);
+        node.set_rich_account(
+            tx.common_data.initiator_address,
+            U256::from(100u128 * 10u128.pow(18)),
+        );
 
         let system_contracts = node
             .system_contracts_for_tx(tx.initiator_account())
@@ -2017,7 +2025,10 @@ mod tests {
         // Perform a transaction to get storage to an intermediate state
         let node = InMemoryNode::<HttpForkSource>::default();
         let tx = testing::TransactionBuilder::new().build();
-        node.set_rich_account(tx.common_data.initiator_address);
+        node.set_rich_account(
+            tx.common_data.initiator_address,
+            U256::from(100u128 * 10u128.pow(18)),
+        );
         let system_contracts = node
             .system_contracts_for_tx(tx.initiator_account())
             .unwrap();
@@ -2080,7 +2091,7 @@ mod tests {
 
         let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(0xef)).unwrap();
         let from_account = private_key.address();
-        node.set_rich_account(from_account);
+        node.set_rich_account(from_account, U256::from(DEFAULT_ACCOUNT_BALANCE));
 
         let deployed_address = deployed_address_create(from_account, U256::zero());
         testing::deploy_contract(

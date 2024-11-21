@@ -1,5 +1,3 @@
-use std::{env, fs::read_to_string, path::PathBuf};
-
 use crate::{observability, system_contracts};
 
 use crate::config::{
@@ -7,19 +5,53 @@ use crate::config::{
     constants::*,
     show_details::*,
 };
-
-use cli::Cli;
+use crate::utils::{format_eth, format_gwei};
+use alloy_signer::Signer;
+use alloy_signer_local::{
+    coins_bip39::{English, Mnemonic},
+    MnemonicBuilder, PrivateKeySigner,
+};
+use colored::{Colorize, CustomColor};
 use observability::LogLevel;
+use rand::thread_rng;
 use serde::Deserialize;
+use serde_json::{json, to_writer, Value};
+use std::collections::HashMap;
+use std::fs::File;
+use std::time::Duration;
+use zksync_types::fee_model::FeeModelConfigV2;
+use zksync_types::U256;
 
 pub mod cache;
 pub mod cli;
 pub mod constants;
 pub mod show_details;
 
+pub const VERSION_MESSAGE: &str = concat!(env!("CARGO_PKG_VERSION"));
+
+const BANNER: &str = r#"
+                      _  _         _____ _  __
+  __ _  _ __  __   __(_)| |       |__  /| |/ / ___  _   _  _ __    ___
+ / _` || '_ \ \ \ / /| || | _____   / / | ' / / __|| | | || '_ \  / __|
+| (_| || | | | \ V / | || ||_____| / /_ | . \ \__ \| |_| || | | || (__
+ \__,_||_| |_|  \_/  |_||_|       /____||_|\_\|___/ \__, ||_| |_| \___|
+                                                    |___/
+"#;
+/// Struct to hold the details of the fork for display purposes
+pub struct ForkPrintInfo {
+    pub network_rpc: String,
+    pub l1_block: String,
+    pub l2_block: String,
+    pub block_timestamp: String,
+    pub fork_block_hash: String,
+    pub fee_model_config_v2: Option<FeeModelConfigV2>,
+}
+
 /// Defines the configuration parameters for the [InMemoryNode].
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct TestNodeConfig {
+    /// Filename to write era-test-node output as json
+    pub config_out: Option<String>,
     /// Port the node will listen on
     pub port: u16,
     /// Controls visibility of call logs
@@ -58,14 +90,30 @@ pub struct TestNodeConfig {
     pub log_file_path: String,
     /// Cache configuration for the test node
     pub cache_config: CacheConfig,
+    /// Signer accounts that will be initialized with `genesis_balance` in the genesis block.
+    pub genesis_accounts: Vec<PrivateKeySigner>,
+    /// Native token balance of every genesis account in the genesis block
+    pub genesis_balance: U256,
+    /// The generator used to generate the dev accounts
+    pub account_generator: Option<AccountGenerator>,
+    /// Signer accounts that can sign messages/transactions
+    pub signer_accounts: Vec<PrivateKeySigner>,
+    /// Whether the node operates in offline mode
+    pub offline: bool,
+    /// Block time in seconds for interval sealing.
+    /// If unset, node seals a new block as soon as there is at least one transaction.
+    pub block_time: Option<Duration>,
     /// Maximum number of transactions per block
     pub max_transactions: usize,
 }
 
 impl Default for TestNodeConfig {
     fn default() -> Self {
+        // generate some random wallets
+        let genesis_accounts = AccountGenerator::new(10).phrase(DEFAULT_MNEMONIC).gen();
         Self {
             // Node configuration defaults
+            config_out: None,
             port: NODE_PORT,
             show_calls: Default::default(),
             show_outputs: false,
@@ -92,31 +140,229 @@ impl Default for TestNodeConfig {
             // Cache configuration default
             cache_config: Default::default(),
 
+            // Account generator
+            account_generator: None,
+            genesis_accounts: genesis_accounts.clone(),
+            signer_accounts: genesis_accounts,
+            // 100ETH default balance
+            genesis_balance: U256::from(100u128 * 10u128.pow(18)),
+
+            // Offline mode disabled by default
+            offline: false,
+
             // Block sealing configuration default
+            block_time: None,
             max_transactions: 1000,
         }
     }
 }
 
 impl TestNodeConfig {
-    /// Try to load a configuration file from either a provided path or the `$HOME` directory.
-    pub fn try_load(file_path: &Option<String>) -> eyre::Result<TestNodeConfig> {
-        let path = if let Some(path) = file_path {
-            PathBuf::from(path)
-        } else {
-            // NOTE: `env::home_dir` is not compatible with Windows.
-            #[allow(deprecated)]
-            let mut path = env::home_dir().expect("failed to get home directory");
+    pub fn print(&self, fork_details: Option<&ForkPrintInfo>) {
+        if self.config_out.is_some() {
+            let config_out = self.config_out.as_deref().unwrap();
+            to_writer(
+                &File::create(config_out)
+                    .expect("Unable to create era-test-node config description file"),
+                &self.as_json(fork_details),
+            )
+            .expect("Failed writing json");
+        }
+        let color = CustomColor::new(13, 71, 198);
 
-            path.push(CONFIG_DIR);
-            path.push(CONFIG_FILE_NAME);
-            path
+        println!("{}", BANNER.custom_color(color));
+        tracing::info!("Version:        {}", VERSION_MESSAGE.green());
+        tracing::info!(
+            "Repository:     {}",
+            "https://github.com/matter-labs/era-test-node".green()
+        );
+        println!("\n");
+
+        tracing::info!("Rich Accounts");
+        tracing::info!("========================");
+        let balance = format_eth(self.genesis_balance);
+        for (idx, account) in self.genesis_accounts.iter().enumerate() {
+            tracing::info!("({}) {} ({balance})", idx, account.address());
+        }
+        println!("\n");
+
+        tracing::info!("Private Keys");
+        tracing::info!("========================");
+        for (idx, account) in self.genesis_accounts.iter().enumerate() {
+            let private_key = hex::encode(account.credential().to_bytes());
+            tracing::info!("({}) 0x{}", idx, private_key);
+        }
+        println!("\n");
+
+        if let Some(ref generator) = self.account_generator {
+            tracing::info!("Wallet");
+            tracing::info!("========================");
+            tracing::info!("Mnemonic:            {}", generator.phrase.green());
+            tracing::info!(
+                "Derivation path:     {}",
+                generator
+                    .derivation_path
+                    .as_deref()
+                    .unwrap_or(DERIVATION_PATH)
+                    .green()
+            );
+        }
+        println!("\n");
+
+        if let Some(fd) = fork_details {
+            tracing::info!("Fork Details");
+            tracing::info!("========================");
+            tracing::info!("Network RPC:               {}", fd.network_rpc.green());
+            tracing::info!(
+                "Chain ID:                  {}",
+                self.get_chain_id().to_string().green()
+            );
+            tracing::info!("L1 Batch #:                {}", fd.l1_block.green());
+            tracing::info!("L2 Block #:                {}", fd.l2_block.green());
+            tracing::info!(
+                "Block Timestamp:           {}",
+                fd.block_timestamp.to_string().green()
+            );
+            tracing::info!(
+                "Fork Block Hash:           {}",
+                format!("{:#}", fd.fork_block_hash).green()
+            );
+            if let Some(fee_config) = &fd.fee_model_config_v2 {
+                tracing::info!(
+                    "Compute Overhead Part:     {}",
+                    fee_config.compute_overhead_part.to_string().green()
+                );
+                tracing::info!(
+                    "Pubdata Overhead Part:     {}",
+                    fee_config.pubdata_overhead_part.to_string().green()
+                );
+                tracing::info!(
+                    "Batch Overhead L1 Gas:     {}",
+                    fee_config.batch_overhead_l1_gas.to_string().green()
+                );
+                tracing::info!(
+                    "Max Gas Per Batch:         {}",
+                    fee_config.max_gas_per_batch.to_string().green()
+                );
+                tracing::info!(
+                    "Max Pubdata Per Batch:     {}",
+                    fee_config.max_pubdata_per_batch.to_string().green()
+                );
+            }
+            println!("\n");
+        } else {
+            tracing::info!("Network Configuration");
+            tracing::info!("========================");
+            tracing::info!(
+                "Chain ID: {}",
+                self.chain_id
+                    .unwrap_or(TEST_NODE_NETWORK_ID)
+                    .to_string()
+                    .green()
+            );
+            println!("\n");
+        }
+        tracing::info!("Gas Configuration");
+        tracing::info!("========================");
+        tracing::info!(
+            "L1 Gas Price (gwei):               {}",
+            format_gwei(self.get_l1_gas_price().into()).green()
+        );
+        tracing::info!(
+            "L2 Gas Price (gwei):               {}",
+            format_gwei(self.get_l2_gas_price().into()).green()
+        );
+        tracing::info!(
+            "L1 Pubdata Price (gwei):           {}",
+            format_gwei(self.get_l1_pubdata_price().into()).green()
+        );
+        tracing::info!(
+            "Estimated Gas Price Scale Factor:  {}",
+            self.get_price_scale().to_string().green()
+        );
+        tracing::info!(
+            "Estimated Gas Limit Scale Factor:  {}",
+            self.get_gas_limit_scale().to_string().green()
+        );
+        println!("\n");
+
+        tracing::info!("Node Configuration");
+        tracing::info!("========================");
+        tracing::info!("Port:               {}", self.port);
+        tracing::info!(
+            "EVM Emulator:       {}",
+            if self.use_evm_emulator {
+                "Enabled".green()
+            } else {
+                "Disabled".red()
+            }
+        );
+        println!("\n");
+        tracing::info!("========================================");
+        tracing::info!(
+            "  Listening on {}:{}",
+            "127.0.0.1".green(),
+            self.port.to_string().green()
+        );
+        tracing::info!("========================================");
+        println!("\n");
+    }
+
+    fn as_json(&self, fork: Option<&ForkPrintInfo>) -> Value {
+        let mut wallet_description = HashMap::new();
+        let mut available_accounts = Vec::with_capacity(self.genesis_accounts.len());
+        let mut private_keys = Vec::with_capacity(self.genesis_accounts.len());
+
+        for wallet in &self.genesis_accounts {
+            available_accounts.push(format!("{:?}", wallet.address()));
+            private_keys.push(format!("0x{}", hex::encode(wallet.credential().to_bytes())));
+        }
+
+        if let Some(ref gen) = self.account_generator {
+            let phrase = gen.get_phrase().to_string();
+            let derivation_path = gen.get_derivation_path().to_string();
+
+            wallet_description.insert("derivation_path".to_string(), derivation_path);
+            wallet_description.insert("mnemonic".to_string(), phrase);
         };
 
-        let toml = read_to_string(path)?;
-        let config = toml::from_str(&toml)?;
+        if let Some(fork) = fork {
+            json!({
+              "available_accounts": available_accounts,
+              "private_keys": private_keys,
+              "endpoint": fork.network_rpc,
+              "l1_block": fork.l1_block,
+              "l2_block": fork.l2_block,
+              "block_hash": fork.fork_block_hash,
+              "chain_id": self.get_chain_id(),
+              "wallet": wallet_description,
+              "l1_gas_price": format!("{}", self.get_l1_gas_price()),
+              "l2_gas_price": format!("{}", self.get_l2_gas_price()),
+              "l1_pubdata_price": format!("{}", self.get_l1_pubdata_price()),
+              "price_scale_factor": format!("{}", self.get_price_scale()),
+              "limit_scale_factor": format!("{}", self.get_gas_limit_scale()),
+              "fee_model_config_v2": fork.fee_model_config_v2,
+            })
+        } else {
+            json!({
+              "available_accounts": available_accounts,
+              "private_keys": private_keys,
+              "wallet": wallet_description,
+              "chain_id": self.get_chain_id(),
+              "l1_gas_price": format!("{}", self.get_l1_gas_price()),
+              "l2_gas_price": format!("{}", self.get_l2_gas_price()),
+              "l1_pubdata_price": format!("{}", self.get_l1_pubdata_price()),
+              "price_scale_factor": format!("{}", self.get_price_scale()),
+              "limit_scale_factor": format!("{}", self.get_gas_limit_scale()),
+            })
+        }
+    }
 
-        Ok(config)
+    /// Sets the file path to write the Era-test-node's config info to.
+    #[must_use]
+    pub fn set_config_out(mut self, config_out: Option<String>) -> Self {
+        self.config_out = config_out;
+        self
     }
 
     /// Set the port for the test node
@@ -343,90 +589,125 @@ impl TestNodeConfig {
         self.show_vm_details
     }
 
-    /// Override the config with values provided by [`Cli`].
-    pub fn override_with_opts(&mut self, opt: &Cli) {
-        // [`NodeConfig`].
-        if let Some(port) = &opt.port {
-            self.port = *port;
-        }
+    /// Sets the balance of the genesis accounts in the genesis block
+    #[must_use]
+    pub fn with_genesis_balance<U: Into<U256>>(mut self, balance: U) -> Self {
+        self.genesis_balance = balance.into();
+        self
+    }
 
-        if opt.debug_mode {
-            self.show_calls = ShowCalls::All;
-            self.show_outputs = true;
-            self.show_gas_details = ShowGasDetails::All;
-            self.resolve_hashes = true;
-        }
-        if let Some(show_calls) = &opt.show_calls {
-            self.show_calls = *show_calls;
-        }
-        if let Some(show_outputs) = &opt.show_outputs {
-            self.show_outputs = *show_outputs;
-        }
-        if let Some(show_storage_logs) = &opt.show_storage_logs {
-            self.show_storage_logs = *show_storage_logs;
-        }
-        if let Some(show_vm_details) = &opt.show_vm_details {
-            self.show_vm_details = *show_vm_details;
-        }
-        if let Some(show_gas_details) = &opt.show_gas_details {
-            self.show_gas_details = *show_gas_details;
-        }
-        if let Some(resolve_hashes) = &opt.resolve_hashes {
-            self.resolve_hashes = *resolve_hashes;
-        }
+    /// Sets the genesis accounts.
+    #[must_use]
+    pub fn with_genesis_accounts(mut self, accounts: Vec<PrivateKeySigner>) -> Self {
+        self.genesis_accounts = accounts;
+        self
+    }
 
-        if opt.chain_id.is_some() {
-            self.chain_id = opt.chain_id;
-        }
+    /// Sets the signer accounts
+    #[must_use]
+    pub fn with_signer_accounts(mut self, accounts: Vec<PrivateKeySigner>) -> Self {
+        self.signer_accounts = accounts;
+        self
+    }
 
-        if let Some(contract_options) = opt.dev_system_contracts {
-            self.system_contracts_options = contract_options;
-        }
+    /// Sets both the genesis accounts and the signer accounts
+    /// so that `genesis_accounts == accounts`
+    #[must_use]
+    pub fn with_account_generator(mut self, generator: AccountGenerator) -> Self {
+        let accounts = generator.gen();
+        self.account_generator = Some(generator);
+        self.with_signer_accounts(accounts.clone())
+            .with_genesis_accounts(accounts)
+    }
 
-        if opt.emulate_evm {
-            assert_eq!(
-                self.system_contracts_options,
-                system_contracts::Options::Local,
-                "EVM emulation currently requires using local contracts"
-            );
-            self.use_evm_emulator = true;
+    /// Set the offline mode
+    #[must_use]
+    pub fn with_offline(mut self, offline: Option<bool>) -> Self {
+        if let Some(offline) = offline {
+            self.offline = offline;
         }
+        self
+    }
 
-        // [`GasConfig`]
-        if let Some(l1_gas_price) = &opt.l1_gas_price {
-            self.l1_gas_price = Some(*l1_gas_price);
-        }
-        if let Some(l2_gas_price) = &opt.l2_gas_price {
-            self.l2_gas_price = Some(*l2_gas_price);
-        }
-        if let Some(l1_pubdata_price) = &opt.l1_pubdata_price {
-            self.l1_pubdata_price = Some(*l1_pubdata_price);
-        }
-        if let Some(price_scale) = &opt.price_scale_factor {
-            self.price_scale_factor = Some(*price_scale);
-        }
-        if let Some(limit_scale) = &opt.limit_scale_factor {
-            self.limit_scale_factor = Some(*limit_scale);
-        }
+    /// Get the offline mode status
+    pub fn is_offline(&self) -> bool {
+        self.offline
+    }
 
-        // [`LogConfig`].
-        if let Some(log_level) = &opt.log {
-            self.log_level = *log_level;
-        }
-        if let Some(file_path) = &opt.log_file_path {
-            self.log_file_path = file_path.to_string();
-        }
+    /// Set the block time
+    #[must_use]
+    pub fn with_block_time(mut self, block_time: Option<Duration>) -> Self {
+        self.block_time = block_time;
+        self
+    }
+}
 
-        // [`CacheConfig`].
-        if let Some(cache_type) = &opt.cache {
-            self.cache_config = match cache_type {
-                CacheType::None => CacheConfig::None,
-                CacheType::Memory => CacheConfig::Memory,
-                CacheType::Disk => CacheConfig::Disk {
-                    dir: opt.cache_dir.clone().expect("missing --cache-dir argument"),
-                    reset: opt.reset_cache.unwrap_or_default(),
-                },
-            };
+/// Account Generator
+/// Manages the generation of accounts for era-test-node
+#[derive(Clone, Debug, Deserialize)]
+pub struct AccountGenerator {
+    chain_id: u32,
+    amount: usize,
+    phrase: String,
+    derivation_path: Option<String>,
+}
+
+impl AccountGenerator {
+    pub fn new(amount: usize) -> Self {
+        Self {
+            chain_id: TEST_NODE_NETWORK_ID,
+            amount,
+            phrase: Mnemonic::<English>::new(&mut thread_rng()).to_phrase(),
+            derivation_path: None,
         }
+    }
+
+    #[must_use]
+    pub fn phrase(mut self, phrase: impl Into<String>) -> Self {
+        self.phrase = phrase.into();
+        self
+    }
+
+    fn get_phrase(&self) -> &str {
+        &self.phrase
+    }
+
+    #[must_use]
+    pub fn chain_id(mut self, chain_id: impl Into<u32>) -> Self {
+        self.chain_id = chain_id.into();
+        self
+    }
+
+    #[must_use]
+    pub fn derivation_path(mut self, derivation_path: impl Into<String>) -> Self {
+        let mut derivation_path = derivation_path.into();
+        if !derivation_path.ends_with('/') {
+            derivation_path.push('/');
+        }
+        self.derivation_path = Some(derivation_path);
+        self
+    }
+
+    fn get_derivation_path(&self) -> &str {
+        self.derivation_path.as_deref().unwrap_or(DERIVATION_PATH)
+    }
+
+    pub fn gen(&self) -> Vec<PrivateKeySigner> {
+        let builder = MnemonicBuilder::<English>::default().phrase(self.phrase.as_str());
+
+        let derivation_path = self.derivation_path.as_deref().unwrap_or(DERIVATION_PATH);
+
+        (0..self.amount)
+            .map(|idx| {
+                let builder = builder
+                    .clone()
+                    .derivation_path(format!("{derivation_path}{idx}"))
+                    .unwrap();
+                builder
+                    .build()
+                    .unwrap()
+                    .with_chain_id(Some(self.chain_id.into()))
+            })
+            .collect()
     }
 }

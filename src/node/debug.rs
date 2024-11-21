@@ -243,6 +243,7 @@ mod tests {
 
     use super::*;
     use crate::{
+        config::constants::DEFAULT_ACCOUNT_BALANCE,
         deps::system_contracts::bytecode_from_slice,
         http_fork_source::HttpForkSource,
         node::{InMemoryNode, TransactionResult},
@@ -252,7 +253,7 @@ mod tests {
     fn deploy_test_contracts(node: &InMemoryNode<HttpForkSource>) -> (Address, Address) {
         let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(0xee)).unwrap();
         let from_account = private_key.address();
-        node.set_rich_account(from_account);
+        node.set_rich_account(from_account, U256::from(DEFAULT_ACCOUNT_BALANCE));
 
         // first, deploy secondary contract
         let secondary_bytecode = bytecode_from_slice(
