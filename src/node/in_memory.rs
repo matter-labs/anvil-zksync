@@ -1526,7 +1526,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             ExecutionResult::Halt { .. } => "HALTED",
         };
         if inner.config.show_tx_summary {
-            formatter::log_transaction_summary(
+            formatter::print_transaction_summary(
                 inner.config.get_l2_gas_price(),
                 &tx,
                 &tx_result,

@@ -43,7 +43,8 @@ lazy_static! {
             .collect()
     };
 }
-
+// TODO: When refactoring other logs (e.g event, storage, vm, gas) update this function.
+// Currently a close duplicate of format_address_human_readable
 fn address_to_human_readable(address: H160) -> Option<String> {
     KNOWN_ADDRESSES
         .get(&address)
@@ -55,7 +56,7 @@ fn address_to_human_readable(address: H160) -> Option<String> {
         })
 }
 
-fn address_to_human_readable2(
+fn format_address_human_readable(
     address: H160,
     initiator: H160,
     contract_address: Option<H160>,
@@ -214,6 +215,7 @@ fn build_prefix(sibling_stack: &Vec<bool>) -> String {
     prefix
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn print_call(
     initiator: Address,
     contract_address: Option<H160>,
@@ -254,13 +256,13 @@ pub fn print_call(
         let gas_used_display = format!("({})", to_human_size(call.gas_used.into())).bold();
 
         // Get contract display
-        let contract_display = address_to_human_readable2(
+        let contract_display = format_address_human_readable(
             call.to,
             initiator,
             contract_address,
             format!("{:?}", call.r#type).as_str(),
         )
-        .map(|x| format!("{:}", x))
+        .map(|x| x.to_string())
         .unwrap_or(format!("{:}", format!("{:?}", call.to).bold()));
 
         // Get function signature
@@ -350,7 +352,7 @@ pub fn print_call(
     }
 }
 
-pub fn log_transaction_summary(
+pub fn print_transaction_summary(
     l2_gas_price: u64,
     tx: &Transaction,
     tx_result: &VmExecutionResultAndLogs,
@@ -378,7 +380,7 @@ pub fn log_transaction_summary(
     tracing::info!(
         "Gas Usage: Limit: {} | Used: {} | Refunded: {}",
         to_human_size(tx.gas_limit()),
-        to_human_size(used_gas.into()),
+        to_human_size(used_gas),
         to_human_size(tx_result.refunds.gas_refunded.into())
     );
     tracing::info!(
