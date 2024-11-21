@@ -1261,6 +1261,152 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         Ok(tx_result.result)
     }
 
+    fn display_detailed_gas_info2(
+        &self,
+        bootloader_debug_result: Option<&eyre::Result<BootloaderDebug, String>>,
+        spent_on_pubdata: u64,
+    ) -> eyre::Result<(), String> {
+        if let Some(bootloader_result) = bootloader_debug_result {
+            let bootloader_debug = bootloader_result.clone()?;
+
+            tracing::info!("");
+            tracing::info!("[Gas Details]");
+
+            // Gas Summary
+            let total_gas_limit = bootloader_debug
+                .total_gas_limit_from_user
+                .saturating_sub(bootloader_debug.reserved_gas);
+            let intrinsic_gas = total_gas_limit - bootloader_debug.gas_limit_after_intrinsic;
+            let gas_for_validation =
+                bootloader_debug.gas_limit_after_intrinsic - bootloader_debug.gas_after_validation;
+            let gas_spent_on_compute = bootloader_debug.gas_spent_on_execution
+                - bootloader_debug.gas_spent_on_bytecode_preparation;
+            let gas_used = intrinsic_gas
+                + gas_for_validation
+                + bootloader_debug.gas_spent_on_bytecode_preparation
+                + gas_spent_on_compute;
+
+            tracing::info!("    ├─ Gas Summary");
+            tracing::info!(
+                "    │     ├─ Limit:       {}",
+                to_human_size(total_gas_limit)
+            );
+            tracing::info!("    │     ├─ Used:        {}", to_human_size(gas_used));
+            tracing::info!(
+                "    │     └─ Refunded:    {}",
+                to_human_size(bootloader_debug.refund_by_operator)
+            );
+
+            if bootloader_debug.refund_computed != bootloader_debug.refund_by_operator {
+                tracing::warn!(
+                    "    │         WARNING: Refund by VM: {}, but operator refunded more: {}",
+                    to_human_size(bootloader_debug.refund_computed),
+                    to_human_size(bootloader_debug.refund_by_operator)
+                );
+            }
+
+            if bootloader_debug.total_gas_limit_from_user != total_gas_limit {
+                tracing::info!(
+                "    │         WARNING: User provided more gas ({}), but system had a lower max limit.",
+                to_human_size(bootloader_debug.total_gas_limit_from_user)
+            );
+            }
+
+            // Execution Gas Breakdown
+            tracing::info!("    ├─ Execution Gas Breakdown");
+            tracing::info!(
+                "    │     ├─ Transaction Setup:      {} gas ({:>2}%)",
+                to_human_size(intrinsic_gas),
+                intrinsic_gas * 100 / gas_used
+            );
+            tracing::info!(
+                "    │     ├─ Bytecode Preparation:   {} gas ({:>2}%)",
+                to_human_size(bootloader_debug.gas_spent_on_bytecode_preparation),
+                bootloader_debug.gas_spent_on_bytecode_preparation * 100 / gas_used
+            );
+            tracing::info!(
+                "    │     ├─ Account Validation:     {} gas ({:>2}%)",
+                to_human_size(gas_for_validation),
+                gas_for_validation * 100 / gas_used
+            );
+            tracing::info!(
+                "    │     └─ Computations (Opcodes): {} gas ({:>2}%)",
+                to_human_size(gas_spent_on_compute),
+                gas_spent_on_compute * 100 / gas_used
+            );
+
+            // Transaction Setup Cost Breakdown
+            tracing::info!("    ├─ Transaction Setup Cost Breakdown");
+            tracing::info!(
+                "    │     ├─ Total Setup Cost:       {} gas",
+                to_human_size(intrinsic_gas)
+            );
+            tracing::info!(
+                "    │     ├─ Fixed Cost:             {} gas ({:>2}%)",
+                to_human_size(bootloader_debug.intrinsic_overhead),
+                bootloader_debug.intrinsic_overhead * 100 / intrinsic_gas
+            );
+            tracing::info!(
+                "    │     └─ Operator Cost:          {} gas ({:>2}%)",
+                to_human_size(bootloader_debug.operator_overhead),
+                bootloader_debug.operator_overhead * 100 / intrinsic_gas
+            );
+
+            if bootloader_debug.required_overhead != U256::zero() {
+                tracing::info!(
+                "    │         FYI: Operator could have charged up to {}, so you got a {}% discount.",
+                to_human_size(bootloader_debug.required_overhead),
+                (bootloader_debug.required_overhead - bootloader_debug.operator_overhead) * 100
+                    / bootloader_debug.required_overhead
+            );
+            }
+
+            // L1 Publishing Costs
+            let bytes_published = spent_on_pubdata / bootloader_debug.gas_per_pubdata.as_u64();
+            tracing::info!("    ├─ L1 Publishing Costs");
+            tracing::info!(
+                "    │     ├─ Published:             {} bytes",
+                to_human_size(bytes_published.into())
+            );
+            tracing::info!(
+                "    │     ├─ Cost per Byte:         {} gas",
+                to_human_size(bootloader_debug.gas_per_pubdata)
+            );
+            tracing::info!(
+                "    │     └─ Total Gas Cost:        {} gas",
+                to_human_size(spent_on_pubdata.into())
+            );
+
+            // Block Contribution
+            tracing::info!("    └─ Block Contribution");
+            tracing::info!(
+                "          ├─ Length Overhead:       {} gas",
+                to_human_size(bootloader_debug.overhead_for_length)
+            );
+            tracing::info!(
+                "          ├─ Slot Overhead:         {} gas",
+                to_human_size(bootloader_debug.overhead_for_slot)
+            );
+            tracing::info!(
+                "          └─ Full Block Cost:       ~{} L2 gas",
+                to_human_size(
+                    bootloader_debug.gas_per_pubdata
+                        * self
+                            .inner
+                            .read()
+                            .unwrap()
+                            .fee_input_provider
+                            .get_fee_model_config()
+                            .batch_overhead_l1_gas
+                )
+            );
+
+            Ok(())
+        } else {
+            Err("Bootloader tracer didn't finish.".to_owned())
+        }
+    }
+
     fn display_detailed_gas_info(
         &self,
         bootloader_debug_result: Option<&eyre::Result<BootloaderDebug, String>>,
@@ -1536,8 +1682,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         match inner.config.show_gas_details {
             ShowGasDetails::None => {}
             ShowGasDetails::All => {
-                let info =
-                    self.display_detailed_gas_info(bootloader_debug_result.get(), spent_on_pubdata);
+                let info = self
+                    .display_detailed_gas_info2(bootloader_debug_result.get(), spent_on_pubdata);
                 if info.is_err() {
                     tracing::info!(
                         "{}\nError: {}",
@@ -1553,7 +1699,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         }
 
         if inner.config.show_vm_details != ShowVMDetails::None {
-            formatter::print_vm_details(&tx_result);
+            formatter::print_vm_details2(&tx_result);
         }
 
         if !inner.config.disable_console_log {
@@ -1588,11 +1734,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         }
         tracing::info!("");
         if inner.config.show_event_logs {
-            tracing::info!("");
-            tracing::info!(
-                "==== {}",
-                format!("{} events", tx_result.logs.events.len()).bold()
-            );
+            tracing::info!("    [Events] ({} events)", tx_result.logs.events.len());
             for event in &tx_result.logs.events {
                 formatter::print_event(event, inner.config.resolve_hashes);
             }

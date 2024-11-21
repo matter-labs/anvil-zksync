@@ -63,13 +63,14 @@ pub fn print_storage_logs_details(
     result: &VmExecutionResultAndLogs,
 ) {
     tracing::info!("");
-    tracing::info!("┌──────────────────┐");
-    tracing::info!("│   STORAGE LOGS   │");
-    tracing::info!("└──────────────────┘");
+    tracing::info!(
+        "[Storage Logs] ({} entries)",
+        result.logs.storage_logs.len()
+    );
 
     let mut cost_paid = HashMap::<StorageKey, u32>::default();
 
-    for log_query in &result.logs.storage_logs {
+    for (index, log_query) in result.logs.storage_logs.iter().enumerate() {
         let pubdata_bytes_info = if matches!(
             log_query.log.kind,
             StorageLogKind::RepeatedWrite | StorageLogKind::InitialWrite
@@ -79,35 +80,24 @@ pub fn print_storage_logs_details(
             None
         };
 
-        match show_storage_logs {
-            ShowStorageLogs::Write => {
-                if matches!(
-                    log_query.log.kind,
-                    StorageLogKind::RepeatedWrite | StorageLogKind::InitialWrite
-                ) {
-                    formatter::print_logs(log_query, pubdata_bytes_info);
-                }
-            }
-            ShowStorageLogs::Paid => {
-                // Show only the logs that incur any cost.
-                if pubdata_bytes_info
-                    .as_ref()
-                    .map(|x| x.does_cost())
-                    .unwrap_or_default()
-                {
-                    formatter::print_logs(log_query, pubdata_bytes_info);
-                }
-            }
-            ShowStorageLogs::Read => {
-                if log_query.log.kind == StorageLogKind::Read {
-                    formatter::print_logs(log_query, pubdata_bytes_info);
-                }
-            }
-            ShowStorageLogs::All => {
-                formatter::print_logs(log_query, pubdata_bytes_info);
-            }
+        // Filter logs based on the selected storage log type
+        let should_print = match show_storage_logs {
+            ShowStorageLogs::Write => matches!(
+                log_query.log.kind,
+                StorageLogKind::RepeatedWrite | StorageLogKind::InitialWrite
+            ),
+            ShowStorageLogs::Paid => pubdata_bytes_info
+                .as_ref()
+                .map(|x| x.does_cost())
+                .unwrap_or_default(),
+            ShowStorageLogs::Read => log_query.log.kind == StorageLogKind::Read,
+            ShowStorageLogs::All => true,
+            _ => false,
+        };
 
-            _ => {}
+        if should_print {
+            let is_last = index == result.logs.storage_logs.len() - 1;
+            formatter::print_logs(log_query, pubdata_bytes_info, index + 1, is_last);
         }
     }
 }

@@ -46,14 +46,17 @@ lazy_static! {
 // TODO: When refactoring other logs (e.g event, storage, vm, gas) update this function.
 // Currently a close duplicate of format_address_human_readable
 fn address_to_human_readable(address: H160) -> Option<String> {
-    KNOWN_ADDRESSES
-        .get(&address)
-        .map(|known_address| match known_address.contract_type {
-            ContractType::System => known_address.name.to_string(),
-            ContractType::Precompile => format!("{}", known_address.name.dimmed()),
-            ContractType::Popular => format!("{}", known_address.name.green()),
-            ContractType::Unknown => known_address.name.to_string(),
-        })
+    KNOWN_ADDRESSES.get(&address).map(|known_address| {
+        let name = match known_address.contract_type {
+            ContractType::System => known_address.name.bold().bright_blue().to_string(),
+            ContractType::Precompile => known_address.name.bold().magenta().to_string(),
+            ContractType::Popular => known_address.name.bold().bright_green().to_string(),
+            ContractType::Unknown => known_address.name.dimmed().to_string(),
+        };
+
+        let formatted_address = format!("{:#x}", address).dimmed();
+        format!("{}{}{}", name, "@".dimmed(), formatted_address)
+    })
 }
 
 fn format_address_human_readable(
@@ -98,49 +101,55 @@ fn format_address_human_readable(
     })
 }
 
-/// Pretty-prints event object
-/// if skip_resolve is false, will try to contact openchain to resolve the topic hashes.
+/// Pretty-prints event object using the new structured log format.
+/// If `resolve_hashes` is true, attempts to resolve topic hashes.
 pub fn print_event(event: &VmEvent, resolve_hashes: bool) {
     let event = event.clone();
     block_on(async move {
-        let mut tt: Vec<String> = vec![];
-        if !resolve_hashes {
-            tt = event
-                .indexed_topics
-                .iter()
-                .map(|t| format!("{:#x}", t))
-                .collect();
-        } else {
-            for topic in event.indexed_topics {
-                let selector = resolver::decode_event_selector(&format!("{:#x}", topic))
+        let mut topics: Vec<String> = vec![];
+
+        // Resolve or fallback to raw hex topics
+        for topic in event.indexed_topics.iter() {
+            let resolved = if resolve_hashes {
+                resolver::decode_event_selector(&format!("{:#x}", topic))
                     .await
-                    .unwrap();
-                tt.push(selector.unwrap_or(format!("{:#x}", topic)));
+                    .unwrap_or(None)
+            } else {
+                None
+            };
+
+            topics.push(resolved.unwrap_or_else(|| format!("{:#x}", topic)));
+        }
+
+        // Event address (contract)
+        let contract_display = address_to_human_readable(event.address)
+            .map(|x| format!("{:42}", x.blue()))
+            .unwrap_or(format!("{:42}", format!("{:?}", event.address).blue()));
+
+        tracing::info!("    ├─ Event [{}]", contract_display);
+
+        // Topics
+        if topics.is_empty() {
+            tracing::info!("    │   └─ Topics: EMPTY");
+        } else {
+            tracing::info!("    │   ├─ Topics:");
+            for (i, topic) in topics.iter().enumerate() {
+                let prefix = if i + 1 == topics.len() {
+                    "└─"
+                } else {
+                    "├─"
+                };
+                tracing::info!("    │   │   {} Topic[{}]: {}", prefix, i, topic);
             }
         }
-        // TODO: fix
-        tracing::info!(
-            "{}",
-            address_to_human_readable(event.address)
-                .map(|x| format!("{:42}", x.blue()))
-                .unwrap_or(format!("{:42}", format!("{:?}", event.address).blue()))
-        );
 
-        tracing::info!("{}", "  Topics:".truecolor(128, 128, 128));
-        for indexed_topic in &tt {
-            tracing::info!("    {}", indexed_topic);
-        }
-
+        // Data
         if event.value.is_empty() {
-            tracing::info!("{}", "  Data: EMPTY".truecolor(128, 128, 128));
+            tracing::info!("    │   └─ Data: EMPTY");
         } else {
             match str::from_utf8(&event.value) {
                 Ok(v) => {
-                    tracing::info!(
-                        "{} {}",
-                        "  Data (String):".truecolor(128, 128, 128),
-                        v.to_string()
-                    );
+                    tracing::info!("    │   └─ Data (String): {}", v.truecolor(128, 128, 128));
                 }
                 Err(_) => {
                     let hex_str = hex::encode(&event.value);
@@ -151,12 +160,11 @@ pub fn print_event(event: &VmEvent, resolve_hashes: bool) {
                     };
 
                     tracing::info!(
-                        "{} 0x{}",
-                        "  Data (Hex):".truecolor(128, 128, 128),
-                        display_str
+                        "    │   └─ Data (Hex): 0x{}",
+                        display_str.truecolor(128, 128, 128)
                     );
                 }
-            };
+            }
         }
 
         tracing::info!("");
@@ -169,7 +177,7 @@ pub enum PubdataBytesInfo {
     FreeSlot,
     // This slot costs this much.
     Paid(u32),
-    // This happens when we already paid a litte for this slot in the past.
+    // This happens when we already paid a little for this slot in the past.
     // This slots costs additional X, the total cost is Y.
     AdditionalPayment(u32, u32),
     // We already paid for this slot in this transaction.
@@ -179,14 +187,17 @@ pub enum PubdataBytesInfo {
 impl std::fmt::Display for PubdataBytesInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PubdataBytesInfo::FreeSlot => write!(f, "free slot"),
-            PubdataBytesInfo::Paid(cost) => write!(f, "{:?} bytes", cost),
+            PubdataBytesInfo::FreeSlot => write!(f, "Free Slot (no cost)"),
+            PubdataBytesInfo::Paid(cost) => {
+                write!(f, "Paid: {} bytes", to_human_size((*cost).into()))
+            }
             PubdataBytesInfo::AdditionalPayment(additional_cost, total_cost) => write!(
                 f,
-                "{:?} addditional bytes, {:?} total cost",
-                additional_cost, total_cost
+                "Additional Payment: {} bytes (Total: {} bytes)",
+                to_human_size((*additional_cost).into()),
+                to_human_size((*total_cost).into())
             ),
-            PubdataBytesInfo::PaidAlready => write!(f, "already paid"),
+            PubdataBytesInfo::PaidAlready => write!(f, "Already Paid (no additional cost)"),
         }
     }
 }
@@ -392,30 +403,77 @@ pub fn print_transaction_summary(
     tracing::info!("Refunded: {:.10} ETH", refunded_in_eth);
 }
 
-// TODO address to human readable issue
 pub fn print_logs(
     log_query: &StorageLogWithPreviousValue,
     pubdata_bytes: Option<PubdataBytesInfo>,
+    log_index: usize,
+    is_last: bool,
 ) {
-    let separator = "─".repeat(82);
-    tracing::info!("{:<15} {:?}", "Kind:", log_query.log.kind);
+    let prefix = if is_last { "└─" } else { "├─" };
+    tracing::info!("    {} Log #{}", prefix, log_index);
+    tracing::info!("    │   ├─ Kind:           {:?}", log_query.log.kind);
     tracing::info!(
-        "{:<15} {}",
-        "Address:",
+        "    │   ├─ Address:        {}",
         address_to_human_readable(*log_query.log.key.address())
-            .unwrap_or(format!("{}", log_query.log.key.address()))
+            .unwrap_or_else(|| format!("{}", log_query.log.key.address()))
     );
-    tracing::info!("{:<15} {:#066x}", "Key:", log_query.log.key.key());
-
-    tracing::info!("{:<15} {:#066x}", "Read Value:", log_query.previous_value,);
+    tracing::info!(
+        "    │   ├─ Key:            {:#066x}",
+        log_query.log.key.key()
+    );
+    tracing::info!(
+        "    │   ├─ Read Value:     {:#066x}",
+        log_query.previous_value
+    );
 
     if log_query.log.is_write() {
-        tracing::info!("{:<15} {:#066x}", "Written Value:", log_query.log.value);
+        tracing::info!("    │   ├─ Written Value:  {:#066x}", log_query.log.value);
     }
+
     if let Some(pubdata_bytes) = pubdata_bytes {
-        tracing::info!("{:<15} {:}", "Pubdata bytes:", pubdata_bytes);
+        tracing::info!("    │   └─ Pubdata Bytes:  {}", pubdata_bytes);
+    } else {
+        tracing::info!("    │   └─ Pubdata Bytes:  None");
     }
-    tracing::info!("{}", separator);
+}
+
+pub fn print_vm_details2(result: &VmExecutionResultAndLogs) {
+    tracing::info!("");
+    tracing::info!("[VM Execution Results]");
+
+    // Log the main statistics
+    tracing::info!(
+        "    ├─ Cycles Used:          {}",
+        to_human_size(result.statistics.cycles_used.into())
+    );
+    tracing::info!(
+        "    ├─ Computation Gas Used: {}",
+        to_human_size(result.statistics.computational_gas_used.into())
+    );
+    tracing::info!(
+        "    ├─ Contracts Used:       {}",
+        to_human_size(result.statistics.contracts_used.into())
+    );
+
+    // Log execution outcome
+    match &result.result {
+        zksync_multivm::interface::ExecutionResult::Success { .. } => {
+            tracing::info!("    └─ Execution Outcome:    Success");
+        }
+        zksync_multivm::interface::ExecutionResult::Revert { output } => {
+            tracing::info!("    ├─ Execution Outcome:    Failure");
+            tracing::info!(
+                "    │   └─ Revert Reason:    {}",
+                output.to_user_friendly_string().red()
+            );
+        }
+        zksync_multivm::interface::ExecutionResult::Halt { reason } => {
+            tracing::info!("    ├─ Execution Outcome:    Failure");
+            tracing::info!("    │   └─ Halt Reason:      {}", reason.to_string().red());
+        }
+    }
+
+    tracing::info!("");
 }
 
 pub fn print_vm_details(result: &VmExecutionResultAndLogs) {
