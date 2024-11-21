@@ -179,7 +179,7 @@ pub struct Cli {
 
     /// Block time in seconds for interval sealing.
     /// If unset, node seals a new block as soon as there is at least one transaction.
-    #[arg(long, value_parser = duration_from_secs_f64, help_heading = "Block Sealing")]
+    #[arg(short, long, value_name = "SECONDS", value_parser = duration_from_secs_f64, help_heading = "Block Sealing")]
     pub block_time: Option<Duration>,
 }
 
