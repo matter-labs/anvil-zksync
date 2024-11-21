@@ -10,10 +10,10 @@ use std::str;
 use crate::fork::block_on;
 use zksync_types::H160;
 
-use zksync_multivm::interface::{Call, VmEvent, VmExecutionResultAndLogs};
-use zksync_types::StorageLogWithPreviousValue;
-
 use lazy_static::lazy_static;
+use zksync_multivm::interface::{Call, VmEvent, VmExecutionResultAndLogs};
+use zksync_types::Address;
+use zksync_types::StorageLogWithPreviousValue;
 
 #[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
 pub enum ContractType {
@@ -43,15 +43,25 @@ lazy_static! {
     };
 }
 
-fn address_to_human_readable(address: H160) -> Option<String> {
-    KNOWN_ADDRESSES
-        .get(&address)
-        .map(|known_address| match known_address.contract_type {
-            ContractType::System => known_address.name.to_string(),
-            ContractType::Precompile => format!("{}", known_address.name.dimmed()),
-            ContractType::Popular => format!("{}", known_address.name.green()),
-            ContractType::Unknown => known_address.name.to_string(),
+fn address_to_human_readable(address: H160, initiator: H160) -> Option<String> {
+    let is_initiator = address == initiator;
+    if is_initiator {
+        let name = "initiator".bold().green().to_string();
+        let formatted_address = format!("{:#x}", address);
+        Some(format!("{}@{}", name, formatted_address))
+    } else {
+        KNOWN_ADDRESSES.get(&address).map(|known_address| {
+            let name = match known_address.contract_type {
+                ContractType::System => known_address.name.bold().bright_blue().to_string(),
+                ContractType::Precompile => known_address.name.bold().magenta().to_string(),
+                ContractType::Popular => known_address.name.bold().green().to_string(),
+                ContractType::Unknown => known_address.name.dimmed().to_string(),
+            };
+
+            let formatted_address = format!("{:#x}", address);
+            format!("{}@{}", name, formatted_address)
         })
+    }
 }
 
 /// Pretty-prints event object
@@ -74,10 +84,10 @@ pub fn print_event(event: &VmEvent, resolve_hashes: bool) {
                 tt.push(selector.unwrap_or(format!("{:#x}", topic)));
             }
         }
-
+        // TODO: fix
         tracing::info!(
             "{}",
-            address_to_human_readable(event.address)
+            address_to_human_readable(event.address, event.address)
                 .map(|x| format!("{:42}", x.blue()))
                 .unwrap_or(format!("{:42}", format!("{:?}", event.address).blue()))
         );
@@ -188,7 +198,7 @@ pub fn print_call(
             "{}{:?} {} {} {} {} {} {} ({})",
             " ".repeat(padding),
             call.r#type,
-            address_to_human_readable(call.to)
+            address_to_human_readable(call.to, call.from)
                 .map(|x| format!("{:<52}", x))
                 .unwrap_or(format!("{:<52}", format!("{:?}", call.to).bold())),
             function_signature,
@@ -262,6 +272,143 @@ impl PubdataBytesInfo {
     }
 }
 
+fn format_number(num: u64) -> String {
+    num.to_string()
+}
+
+fn build_prefix(sibling_stack: &Vec<bool>) -> String {
+    let mut prefix = String::new();
+    for &has_more_siblings in sibling_stack {
+        if has_more_siblings {
+            prefix.push_str("│   ");
+        } else {
+            prefix.push_str("    ");
+        }
+    }
+    prefix
+}
+
+pub fn print_call2(
+    initiator: Address,
+    call: &Call,
+    sibling_stack: &Vec<bool>,
+    is_last_sibling: bool,
+    show_calls: &ShowCalls,
+    show_outputs: bool,
+    resolve_hashes: bool,
+) {
+    let contract_type = KNOWN_ADDRESSES
+        .get(&call.to)
+        .cloned()
+        .map(|known_address| known_address.contract_type)
+        .unwrap_or(ContractType::Unknown);
+
+    let should_print = match (&contract_type, &show_calls) {
+        (_, ShowCalls::All) => true,
+        (_, ShowCalls::None) => false,
+        (ContractType::Unknown, _) => true,
+        (ContractType::Popular, _) => true,
+        (ContractType::Precompile, _) => false,
+        (ContractType::System, ShowCalls::User) => false,
+        (ContractType::System, ShowCalls::System) => true,
+    };
+
+    if should_print {
+        let prefix = build_prefix(sibling_stack);
+        let branch = if is_last_sibling {
+            "└─ "
+        } else {
+            "├─ "
+        };
+        let full_prefix = format!("{}{}", prefix, branch);
+
+        let call_type_display = format!("{:?}", call.r#type).blue();
+        let remaining_gas_display = format_number(call.gas).yellow();
+        let gas_used_display = format!("({})", format_number(call.gas_used)).bold();
+
+        // Get contract display
+        let contract_display = address_to_human_readable(call.to, initiator)
+            .map(|x| format!("{:}", x))
+            .unwrap_or(format!("{:}", format!("{:?}", call.to).bold()));
+
+        // Get function signature
+        let function_signature = if call.input.len() >= 4 {
+            let sig = hex::encode(&call.input[0..4]);
+            if contract_type == ContractType::Precompile || !resolve_hashes {
+                format!("0x{}", sig)
+            } else {
+                block_on(async move {
+                    match resolver::decode_function_selector(&sig).await {
+                        Ok(Some(name)) => name,
+                        Ok(None) | Err(_) => format!("0x{}", sig),
+                    }
+                })
+            }
+        } else {
+            "unknown".to_string()
+        };
+
+        // TODO: handle outputs
+        let output = if show_outputs {
+            call.output
+                .as_slice()
+                .iter()
+                .map(|byte| format!("{:02x}", byte))
+                .collect::<Vec<_>>()
+                .join("")
+        } else {
+            "".to_string()
+        };
+
+        let function_display = function_signature.cyan().bold();
+
+        // Build the line
+        let line = format!(
+            "{}{} [{}] {}::{} {}",
+            full_prefix,
+            call_type_display,
+            remaining_gas_display,
+            contract_display,
+            function_display,
+            gas_used_display
+        );
+
+        // Handle errors
+        if call.revert_reason.is_some() || call.error.is_some() {
+            tracing::info!("{}", line.red());
+            if let Some(ref reason) = call.revert_reason {
+                let error_line = format!("{}    └─ 🔴 Revert reason: {}", prefix, reason);
+                tracing::info!("{}", error_line.red());
+            }
+            if let Some(ref error) = call.error {
+                let error_line = format!("{}    └─ 🔴 Error: {}", prefix, error);
+                tracing::info!("{}", error_line.red());
+            }
+        } else {
+            tracing::info!("{}", line);
+        }
+    }
+    // Process subcalls
+    let num_subcalls = call.calls.len();
+    if num_subcalls > 0 {
+        let mut new_sibling_stack = sibling_stack.clone();
+        new_sibling_stack.push(!is_last_sibling);
+        for (i, subcall) in call.calls.iter().enumerate() {
+            let is_last_subcall = i == num_subcalls - 1;
+            print_call2(
+                initiator,
+                subcall,
+                &new_sibling_stack,
+                is_last_subcall,
+                show_calls,
+                show_outputs,
+                resolve_hashes,
+            );
+        }
+    }
+}
+
+// TODO address to human readable issue
 pub fn print_logs(
     log_query: &StorageLogWithPreviousValue,
     pubdata_bytes: Option<PubdataBytesInfo>,
@@ -271,7 +418,7 @@ pub fn print_logs(
     tracing::info!(
         "{:<15} {}",
         "Address:",
-        address_to_human_readable(*log_query.log.key.address())
+        address_to_human_readable(*log_query.log.key.address(), *log_query.log.key.address())
             .unwrap_or(format!("{}", log_query.log.key.address()))
     );
     tracing::info!("{:<15} {:#066x}", "Key:", log_query.log.key.key());

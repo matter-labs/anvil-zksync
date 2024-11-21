@@ -1566,31 +1566,25 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 inner.console_log_handler.handle_call_recursive(call);
             }
         }
-
+        println!("");
+        println!("");
         if inner.config.show_calls != ShowCalls::None {
-            tracing::info!("");
-            let call_traces_count = if !call_traces.is_empty() {
-                // All calls/sub-calls are stored within the first call trace
-                call_traces[0].calls.len()
-            } else {
-                0
-            };
-            tracing::info!(
-                "==== {}",
-                format!("{:?} call traces. ", call_traces_count).bold()
-            );
-
-            for call in call_traces {
-                formatter::print_call(
+            tracing::info!("[Transaction Execution]");
+            let num_calls = call_traces.len();
+            for (i, call) in call_traces.iter().enumerate() {
+                let is_last_sibling = i == num_calls - 1;
+                formatter::print_call2(
+                    tx.initiator_account(),
                     call,
-                    0,
+                    &vec![],
+                    is_last_sibling,
                     &inner.config.show_calls,
                     inner.config.show_outputs,
                     inner.config.resolve_hashes,
                 );
             }
         }
-
+        println!("");
         if inner.config.show_event_logs {
             tracing::info!("");
             tracing::info!(

@@ -77,6 +77,8 @@ pub struct TestNodeConfig {
     pub show_vm_details: ShowVMDetails,
     /// Level of detail for gas usage logs
     pub show_gas_details: ShowGasDetails,
+    /// Whether to show event logs
+    pub show_event_logs: bool,
     /// Whether to resolve hash references
     pub resolve_hashes: bool,
     /// Don’t print anything on startup if true
@@ -151,6 +153,7 @@ impl Default for TestNodeConfig {
             show_storage_logs: Default::default(),
             show_vm_details: Default::default(),
             show_gas_details: Default::default(),
+            show_event_logs: false,
             resolve_hashes: false,
             silent: false,
             system_contracts_options: Default::default(),
@@ -600,6 +603,15 @@ impl TestNodeConfig {
         &self.log_file_path
     }
 
+    /// Applies the defaults for debug mode.
+    #[must_use]
+    pub fn with_debug_mode(mut self) -> Self {
+        self.show_calls = ShowCalls::User; // Set show_calls to User
+        self.resolve_hashes = true; // Enable resolving hashes
+        self.show_gas_details = ShowGasDetails::All; // Enable detailed gas logs
+        self
+    }
+
     /// Set the visibility of call logs
     #[must_use]
     pub fn with_show_calls(mut self, show_calls: Option<ShowCalls>) -> Self {
@@ -670,6 +682,76 @@ impl TestNodeConfig {
     /// Check if resolving hashes is enabled
     pub fn is_resolve_hashes_enabled(&self) -> bool {
         self.resolve_hashes
+    }
+
+    /// Set the visibility of storage logs
+    #[must_use]
+    pub fn with_show_storage_logs(mut self, show_storage_logs: Option<ShowStorageLogs>) -> Self {
+        if let Some(show_storage_logs) = show_storage_logs {
+            self.show_storage_logs = show_storage_logs;
+        }
+        self
+    }
+
+    /// Get the visibility of storage logs
+    pub fn get_show_storage_logs(&self) -> ShowStorageLogs {
+        self.show_storage_logs
+    }
+
+    /// Set the detail level of VM execution logs
+    #[must_use]
+    pub fn with_vm_log_detail(mut self, detail: Option<ShowVMDetails>) -> Self {
+        if let Some(detail) = detail {
+            self.show_vm_details = detail;
+        }
+        self
+    }
+
+    /// Get the detail level of VM execution logs
+    pub fn get_vm_log_detail(&self) -> ShowVMDetails {
+        self.show_vm_details
+    }
+
+    /// Set the visibility of gas usage logs
+    #[must_use]
+    pub fn with_show_gas_details(mut self, show_gas_details: Option<ShowGasDetails>) -> Self {
+        if let Some(show_gas_details) = show_gas_details {
+            self.show_gas_details = show_gas_details;
+        }
+        self
+    }
+
+    /// Get the visibility of gas usage logs
+    pub fn get_show_gas_details(&self) -> ShowGasDetails {
+        self.show_gas_details
+    }
+
+    /// Set the visibility of event logs
+    #[must_use]
+    pub fn with_show_event_logs(mut self, show_event_logs: Option<bool>) -> Self {
+        if let Some(show_event_logs) = show_event_logs {
+            self.show_event_logs = show_event_logs;
+        }
+        self
+    }
+
+    /// Get the visibility of event logs
+    pub fn get_show_event_logs(&self) -> bool {
+        self.show_event_logs
+    }
+
+    /// Set show outputs
+    #[must_use]
+    pub fn with_show_outputs(mut self, show_outputs: Option<bool>) -> Self {
+        if let Some(show_outputs) = show_outputs {
+            self.show_outputs = show_outputs;
+        }
+        self
+    }
+
+    /// Get show outputs
+    pub fn get_show_outputs(&self) -> bool {
+        self.show_outputs
     }
 
     /// Set the gas limit scale factor

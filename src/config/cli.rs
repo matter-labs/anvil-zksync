@@ -92,6 +92,10 @@ pub struct Cli {
     pub show_outputs: Option<bool>,
 
     #[arg(long, help_heading = "Debugging Options")]
+    /// Show event logs information.
+    pub show_event_logs: Option<bool>,
+
+    #[arg(long, help_heading = "Debugging Options")]
     /// Show storage log information.
     pub show_storage_logs: Option<ShowStorageLogs>,
 
@@ -325,22 +329,7 @@ impl Cli {
     pub fn into_test_node_config(self) -> eyre::Result<TestNodeConfig> {
         let genesis_balance = U256::from(self.balance as u128 * 10u128.pow(18));
 
-        let vm_log_detail = if let Some(output) = self.show_outputs {
-            if output {
-                Some(ShowVMDetails::All)
-            } else {
-                Some(ShowVMDetails::None)
-            }
-        } else if let Some(logs) = self.show_storage_logs {
-            match logs {
-                ShowStorageLogs::None => Some(ShowVMDetails::None),
-                _ => Some(ShowVMDetails::All),
-            }
-        } else {
-            None
-        };
-
-        let config = TestNodeConfig::default()
+        let mut config = TestNodeConfig::default()
             .with_port(self.port)
             .with_l1_gas_price(self.l1_gas_price)
             .with_l2_gas_price(self.l2_gas_price)
@@ -349,7 +338,12 @@ impl Cli {
             .with_show_event_logs(self.show_event_logs)
             .with_disable_console_log(self.disable_console_log)
             .with_show_calls(self.show_calls)
-            .with_vm_log_detail(vm_log_detail)
+            .with_vm_log_detail(self.show_vm_details)
+            .with_show_storage_logs(self.show_storage_logs)
+            .with_show_gas_details(self.show_gas_details)
+            .with_show_outputs(self.show_outputs)
+            .with_show_event_logs(self.show_event_logs)
+            .with_resolve_hashes(self.resolve_hashes)
             .with_gas_limit_scale(self.limit_scale_factor)
             .with_price_scale(self.price_scale_factor)
             .with_resolve_hashes(self.resolve_hashes)
@@ -396,13 +390,10 @@ impl Cli {
         }
 
         if self.debug_mode {
-            Ok(config
-                .with_show_calls(Some(ShowCalls::All))
-                .with_vm_log_detail(Some(ShowVMDetails::All))
-                .with_resolve_hashes(Some(true)))
-        } else {
-            Ok(config)
+            config = config.with_debug_mode();
         }
+
+        Ok(config)
     }
 
     fn account_generator(&self) -> AccountGenerator {
