@@ -1,0 +1,62 @@
+name: Build and push Docker image
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "*"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-push-image:
+    name: Build and push Docker image
+    runs-on: [matterlabs-ci-runner]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set git SHA
+        id: git_sha
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Set Docker tag
+        id: docker_tag
+        run: |
+          ts=$(date +%s%N | cut -b1-13)
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "tag=${{ steps.git_sha.outputs.sha_short }}-${ts}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "tag=$(echo ${GITHUB_REF#refs/tags/})" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "tag=none" >> $GITHUB_OUTPUT
+          else
+            echo "Unsupported event ${GITHUB_EVENT_NAME} or ref ${GITHUB_REF}, only refs/heads/, refs/tags/ and pull_request are supported."
+            exit 1
+          fi
+
+      - name: Login to GAR
+        run: |
+          gcloud auth configure-docker us-docker.pkg.dev -q
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # For now, we're only pushing to the internal registry
+      - name: Build and push Docker image
+        id: docker_build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) }}
+          tags: |
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/era-test-node:${{ steps.docker_tag.outputs.tag }}
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/era-test-node:latest
+
+      - name: Print image digest to summary
+        run: |
+          echo "Image tag: ${{ steps.docker_tag.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
