@@ -91,6 +91,12 @@ pub struct Formatter {
     sibling_stack: Vec<bool>,
 }
 
+impl Default for Formatter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Formatter {
     pub fn new() -> Self {
         Formatter {
@@ -403,6 +409,7 @@ impl Formatter {
         );
     }
     /// Prints the call stack of either the system or user calls in a structured log.
+    #[allow(clippy::too_many_arguments)]
     pub fn print_call(
         &mut self,
         initiator: Address,
@@ -590,7 +597,7 @@ impl Formatter {
         tracing::info!("");
 
         self.section("[VM Execution Results]", true, |section| {
-            let stats = vec![
+            let stats = [
                 (
                     "Cycles Used",
                     to_human_size(result.statistics.cycles_used.into()),
@@ -623,7 +630,7 @@ impl Formatter {
                 }
                 zksync_multivm::interface::ExecutionResult::Halt { reason } => {
                     section.item(false, "Execution Outcome", "Failure");
-                    section.format_error(true, &format!("Halt Reason: {}", reason.to_string()));
+                    section.format_error(true, &format!("Halt Reason: {}", reason));
                 }
             }
         });
