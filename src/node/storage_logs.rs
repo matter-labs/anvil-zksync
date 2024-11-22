@@ -97,7 +97,13 @@ pub fn print_storage_logs_details(
 
         if should_print {
             let is_last = index == result.logs.storage_logs.len() - 1;
-            formatter::print_logs(log_query, pubdata_bytes_info, index + 1, is_last);
+            formatter::print_logs(
+                log_query,
+                pubdata_bytes_info,
+                index + 1,
+                &mut formatter::Formatter::new(),
+                is_last,
+            );
         }
     }
 }

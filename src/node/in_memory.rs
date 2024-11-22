@@ -1250,7 +1250,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 tx.initiator_account(),
                 tx.execute.contract_address,
                 call,
-                &vec![],
+                &mut formatter::Formatter::new(),
                 is_last_sibling,
                 &inner.config.show_calls,
                 inner.config.show_outputs,
@@ -1262,6 +1262,237 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     }
 
     fn display_detailed_gas_info2(
+        &self,
+        bootloader_debug_result: Option<&eyre::Result<BootloaderDebug, String>>,
+        spent_on_pubdata: u64,
+    ) -> eyre::Result<(), String> {
+        if let Some(bootloader_result) = bootloader_debug_result {
+            let bootloader_debug = bootloader_result.clone()?;
+
+            let total_gas_limit = bootloader_debug
+                .total_gas_limit_from_user
+                .saturating_sub(bootloader_debug.reserved_gas);
+            let intrinsic_gas = total_gas_limit - bootloader_debug.gas_limit_after_intrinsic;
+            let gas_for_validation =
+                bootloader_debug.gas_limit_after_intrinsic - bootloader_debug.gas_after_validation;
+            let gas_spent_on_compute = bootloader_debug.gas_spent_on_execution
+                - bootloader_debug.gas_spent_on_bytecode_preparation;
+            let gas_used = intrinsic_gas
+                + gas_for_validation
+                + bootloader_debug.gas_spent_on_bytecode_preparation
+                + gas_spent_on_compute;
+
+            let bytes_published = spent_on_pubdata / bootloader_debug.gas_per_pubdata.as_u64();
+
+            // Initialize the logger with an empty sibling stack
+            let mut logger = formatter::Formatter::new();
+            logger.format_log(false, "[Gas Details]");
+
+            // 1. Gas Summary
+            logger.enter_scope(false); // Enter scope under [Gas Details], more sections follow
+            logger.format_log(false, "Gas Summary");
+
+            logger.enter_scope(true); // Items under Gas Summary
+            logger.format_log(
+                false,
+                &format!("Limit:       {}", to_human_size(total_gas_limit)),
+            );
+            logger.format_log(false, &format!("Used:        {}", to_human_size(gas_used)));
+            logger.format_log(
+                true,
+                &format!(
+                    "Refunded:    {}",
+                    to_human_size(bootloader_debug.refund_by_operator)
+                ),
+            );
+            logger.exit_scope(); // Exit items under Gas Summary
+
+            // Handle warnings
+            if bootloader_debug.refund_computed != bootloader_debug.refund_by_operator {
+                logger.format_error(
+                    false,
+                    &format!(
+                        "WARNING: Refund by VM: {}, but operator refunded more: {}",
+                        to_human_size(bootloader_debug.refund_computed),
+                        to_human_size(bootloader_debug.refund_by_operator)
+                    ),
+                );
+            }
+
+            if bootloader_debug.total_gas_limit_from_user != total_gas_limit {
+                logger.format_error(
+                    false,
+                    &format!(
+                        "WARNING: User provided more gas ({}), but system had a lower max limit.",
+                        to_human_size(bootloader_debug.total_gas_limit_from_user)
+                    ),
+                );
+            }
+            logger.exit_scope(); // Exit Gas Summary
+
+            // 2. Execution Gas Breakdown
+            logger.enter_scope(false); // More sections follow
+            logger.format_log(false, "Execution Gas Breakdown");
+
+            logger.enter_scope(true); // Items under Execution Gas Breakdown
+            let gas_breakdown_items = vec![
+                (
+                    "Transaction Setup",
+                    intrinsic_gas,
+                    intrinsic_gas * 100 / gas_used,
+                ),
+                (
+                    "Bytecode Preparation",
+                    bootloader_debug.gas_spent_on_bytecode_preparation,
+                    bootloader_debug.gas_spent_on_bytecode_preparation * 100 / gas_used,
+                ),
+                (
+                    "Account Validation",
+                    gas_for_validation,
+                    gas_for_validation * 100 / gas_used,
+                ),
+                (
+                    "Computations (Opcodes)",
+                    gas_spent_on_compute,
+                    gas_spent_on_compute * 100 / gas_used,
+                ),
+            ];
+
+            for (i, (description, amount, percentage)) in gas_breakdown_items.iter().enumerate() {
+                let is_last = i == gas_breakdown_items.len() - 1;
+                logger.format_log(
+                    is_last,
+                    &format!(
+                        "{}: {} gas ({:>2}%)",
+                        description,
+                        to_human_size(*amount),
+                        percentage
+                    ),
+                );
+            }
+
+            logger.exit_scope(); // Exit items under Execution Gas Breakdown
+            logger.exit_scope(); // Exit Execution Gas Breakdown
+
+            // 3. Transaction Setup Cost Breakdown
+            logger.enter_scope(false); // More sections follow
+            logger.format_log(false, "Transaction Setup Cost Breakdown");
+
+            logger.enter_scope(true); // Items under Transaction Setup Cost Breakdown
+            logger.format_log(
+                false,
+                &format!(
+                    "Total Setup Cost:       {} gas",
+                    to_human_size(intrinsic_gas)
+                ),
+            );
+            logger.format_log(
+                false,
+                &format!(
+                    "Fixed Cost:             {} gas ({:>2}%)",
+                    to_human_size(bootloader_debug.intrinsic_overhead),
+                    bootloader_debug.intrinsic_overhead * 100 / intrinsic_gas
+                ),
+            );
+            logger.format_log(
+                true,
+                &format!(
+                    "Operator Cost:          {} gas ({:>2}%)",
+                    to_human_size(bootloader_debug.operator_overhead),
+                    bootloader_debug.operator_overhead * 100 / intrinsic_gas
+                ),
+            );
+            logger.exit_scope(); // Exit items under Transaction Setup Cost Breakdown
+
+            if bootloader_debug.required_overhead != U256::zero() {
+                logger.format_log(
+                    false,
+                    &format!(
+                        "FYI: Operator could have charged up to {}, so you got a {}% discount.",
+                        to_human_size(bootloader_debug.required_overhead),
+                        (bootloader_debug.required_overhead - bootloader_debug.operator_overhead)
+                            * 100
+                            / bootloader_debug.required_overhead
+                    ),
+                );
+            }
+
+            logger.exit_scope(); // Exit Transaction Setup Cost Breakdown
+
+            // 4. L1 Publishing Costs
+            logger.enter_scope(false); // More sections follow
+            logger.format_log(false, "L1 Publishing Costs");
+
+            logger.enter_scope(true); // Items under L1 Publishing Costs
+            logger.format_log(
+                false,
+                &format!(
+                    "Published:             {} bytes",
+                    to_human_size(bytes_published.into())
+                ),
+            );
+            logger.format_log(
+                false,
+                &format!(
+                    "Cost per Byte:         {} gas",
+                    to_human_size(bootloader_debug.gas_per_pubdata)
+                ),
+            );
+            logger.format_log(
+                true,
+                &format!(
+                    "Total Gas Cost:        {} gas",
+                    to_human_size(spent_on_pubdata.into())
+                ),
+            );
+            logger.exit_scope(); // Exit items under L1 Publishing Costs
+            logger.exit_scope(); // Exit L1 Publishing Costs
+
+            // 5. Block Contribution
+            logger.enter_scope(true); // This is the last section
+            logger.format_log(true, "Block Contribution");
+
+            logger.enter_scope(true); // Items under Block Contribution
+            logger.format_log(
+                false,
+                &format!(
+                    "Length Overhead:       {} gas",
+                    to_human_size(bootloader_debug.overhead_for_length)
+                ),
+            );
+            logger.format_log(
+                false,
+                &format!(
+                    "Slot Overhead:         {} gas",
+                    to_human_size(bootloader_debug.overhead_for_slot)
+                ),
+            );
+            logger.format_log(
+                true,
+                &format!(
+                    "Full Block Cost:       ~{} L2 gas",
+                    to_human_size(
+                        bootloader_debug.gas_per_pubdata
+                            * self
+                                .inner
+                                .read()
+                                .unwrap()
+                                .fee_input_provider
+                                .get_fee_model_config()
+                                .batch_overhead_l1_gas
+                    )
+                ),
+            );
+            logger.exit_scope(); // Exit items under Block Contribution
+            logger.exit_scope(); // Exit Block Contribution
+
+            Ok(())
+        } else {
+            Err("Bootloader tracer didn't finish.".to_owned())
+        }
+    }
+
+    fn display_detailed_gas_info3(
         &self,
         bootloader_debug_result: Option<&eyre::Result<BootloaderDebug, String>>,
         spent_on_pubdata: u64,
@@ -1672,13 +1903,16 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             ExecutionResult::Halt { .. } => "HALTED",
         };
         if inner.config.show_tx_summary {
+            tracing::info!("");
             formatter::print_transaction_summary(
                 inner.config.get_l2_gas_price(),
                 &tx,
                 &tx_result,
                 status,
             );
+            tracing::info!("");
         }
+        // TODO: improve gas details
         match inner.config.show_gas_details {
             ShowGasDetails::None => {}
             ShowGasDetails::All => {
@@ -1694,10 +1928,12 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             }
         }
 
+        // TODO: improve storage logs
         if inner.config.show_storage_logs != ShowStorageLogs::None {
             print_storage_logs_details(&inner.config.show_storage_logs, &tx_result);
         }
 
+        // TODO: improve vm details
         if inner.config.show_vm_details != ShowVMDetails::None {
             formatter::print_vm_details2(&tx_result);
         }
@@ -1712,6 +1948,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         }
         tracing::info!("");
 
+        // TODO: improve call traces
         if inner.config.show_calls != ShowCalls::None {
             tracing::info!(
                 "[Transaction Execution] ({} calls)",
@@ -1724,7 +1961,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                     tx.initiator_account(),
                     tx.execute.contract_address,
                     call,
-                    &vec![],
+                    &mut formatter::Formatter::with_initial_stack(vec![false]),
                     is_last_sibling,
                     &inner.config.show_calls,
                     inner.config.show_outputs,
@@ -1734,11 +1971,14 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         }
         tracing::info!("");
         if inner.config.show_event_logs {
-            tracing::info!("    [Events] ({} events)", tx_result.logs.events.len());
-            for event in &tx_result.logs.events {
-                formatter::print_event(event, inner.config.resolve_hashes);
+            tracing::info!("[Events] ({} events)", tx_result.logs.events.len());
+
+            for (i, event) in tx_result.logs.events.iter().enumerate() {
+                let is_last = i == tx_result.logs.events.len() - 1;
+                formatter::print_event(event, inner.config.resolve_hashes, is_last);
             }
         }
+        tracing::info!("");
 
         let mut bytecodes = HashMap::new();
         for b in &*compressed_bytecodes {

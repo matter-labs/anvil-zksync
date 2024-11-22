@@ -8,13 +8,13 @@ use std::collections::HashMap;
 use std::str;
 
 use crate::fork::block_on;
+use zksync_types::H160;
+
 use crate::utils::{calculate_eth_cost, format_gwei, to_human_size};
-use futures::future::join_all;
 use lazy_static::lazy_static;
 use zksync_multivm::interface::{Call, VmEvent, VmExecutionResultAndLogs};
 use zksync_types::Address;
 use zksync_types::{StorageLogWithPreviousValue, Transaction};
-use zksync_types::{H160, H256};
 
 #[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
 pub enum ContractType {
@@ -43,93 +43,6 @@ lazy_static! {
             .collect()
     };
 }
-
-pub struct Formatter {
-    sibling_stack: Vec<bool>,
-}
-
-impl Formatter {
-    pub fn new() -> Self {
-        Formatter {
-            sibling_stack: Vec::new(),
-        }
-    }
-
-    pub fn with_initial_stack(sibling_stack: Vec<bool>) -> Self {
-        Formatter { sibling_stack }
-    }
-
-    pub fn section<F>(&mut self, title: &str, has_more_siblings: bool, f: F)
-    where
-        F: FnOnce(&mut Self),
-    {
-        self.format_log(false, title);
-        self.enter_scope(has_more_siblings);
-        f(self);
-        self.exit_scope();
-    }
-
-    pub fn subsection<F>(&mut self, title: &str, has_more_siblings: bool, f: F)
-    where
-        F: FnOnce(&mut Self),
-    {
-        self.format_log(false, title);
-        self.enter_scope(has_more_siblings);
-        f(self);
-        self.exit_scope();
-    }
-
-    pub fn item(&mut self, is_last_sibling: bool, key: &str, value: &str) {
-        self.format_log(
-            is_last_sibling,
-            &format!("{}: {}", key.bold(), value.dimmed()),
-        );
-    }
-
-    pub fn warning(&mut self, is_last_sibling: bool, message: &str) {
-        self.format_error(is_last_sibling, &format!("WARNING: {}", message));
-    }
-
-    pub fn enter_scope(&mut self, has_more_siblings: bool) {
-        self.sibling_stack.push(has_more_siblings);
-    }
-
-    pub fn exit_scope(&mut self) {
-        self.sibling_stack.pop();
-    }
-
-    pub fn format_log(&self, is_last_sibling: bool, message: &str) {
-        let prefix = build_prefix(&self.sibling_stack, is_last_sibling);
-        tracing::info!("{}{}", prefix, message);
-    }
-
-    pub fn format_error(&self, is_last_sibling: bool, message: &str) {
-        let prefix = build_prefix(&self.sibling_stack, is_last_sibling);
-        tracing::info!("{}", format!("{}{}", prefix, message).red());
-    }
-}
-
-fn build_prefix(sibling_stack: &[bool], is_last_sibling: bool) -> String {
-    let mut prefix = String::new();
-    let depth = sibling_stack.len();
-    if depth > 0 {
-        for &has_more_siblings in &sibling_stack[..depth - 1] {
-            if has_more_siblings {
-                prefix.push_str("│   ");
-            } else {
-                prefix.push_str("    ");
-            }
-        }
-        let branch = if is_last_sibling {
-            "└─ "
-        } else {
-            "├─ "
-        };
-        prefix.push_str(branch);
-    }
-    prefix
-}
-
 // TODO: When refactoring other logs (e.g event, storage, vm, gas) update this function.
 // Currently a close duplicate of format_address_human_readable
 fn address_to_human_readable(address: H160) -> Option<String> {
@@ -188,85 +101,74 @@ fn format_address_human_readable(
     })
 }
 
-fn resolve_topics(topics: &[H256], resolve_hashes: bool) -> Vec<String> {
-    let topics = topics.to_owned();
+/// Pretty-prints event object using the new structured log format.
+/// If `resolve_hashes` is true, attempts to resolve topic hashes.
+pub fn print_event(event: &VmEvent, resolve_hashes: bool) {
+    let event = event.clone();
     block_on(async move {
-        let futures = topics.into_iter().map(|topic| async move {
-            if resolve_hashes {
+        let mut topics: Vec<String> = vec![];
+
+        // Resolve or fallback to raw hex topics
+        for topic in event.indexed_topics.iter() {
+            let resolved = if resolve_hashes {
                 resolver::decode_event_selector(&format!("{:#x}", topic))
                     .await
                     .unwrap_or(None)
-                    .unwrap_or_else(|| format!("{:#x}", topic))
             } else {
-                format!("{:#x}", topic)
-            }
-        });
+                None
+            };
 
-        join_all(futures).await
-    })
-}
+            topics.push(resolved.unwrap_or_else(|| format!("{:#x}", topic)));
+        }
 
-pub fn print_event(event: &VmEvent, resolve_hashes: bool, is_last_sibling: bool) {
-    // Clone the event to avoid borrowing issues
-    let event = event.clone();
-    let mut formatter = Formatter::new();
+        // Event address (contract)
+        let contract_display = address_to_human_readable(event.address)
+            .map(|x| format!("{:42}", x.blue()))
+            .unwrap_or(format!("{:42}", format!("{:?}", event.address).blue()));
 
-    // Resolve topics before logging
-    let topics = resolve_topics(&event.indexed_topics, resolve_hashes);
+        tracing::info!("    ├─ Event [{}]", contract_display);
 
-    // Format the event address (contract)
-    let contract_display = address_to_human_readable(event.address)
-        .map(|x| format!("{:42}", x.blue()))
-        .unwrap_or_else(|| format!("{:42}", format!("{:?}", event.address).blue()));
-
-    // Start the event section
-    formatter.section(
-        &format!("Event [{}]", contract_display),
-        !is_last_sibling,
-        |event_section| {
-            // We'll always have two subitems: Topics and Data
-            let total_subitems = 2;
-            let mut subitem_idx = 0;
-
-            // Topics Section
-            subitem_idx += 1;
-            let is_last_subitem = subitem_idx == total_subitems;
-
-            event_section.section("Topics", !is_last_subitem, |topics_section| {
-                let num_topics = topics.len();
-                if num_topics == 0 {
-                    topics_section.item(true, "Topics", "EMPTY");
+        // Topics
+        if topics.is_empty() {
+            tracing::info!("    │   └─ Topics: EMPTY");
+        } else {
+            tracing::info!("    │   ├─ Topics:");
+            for (i, topic) in topics.iter().enumerate() {
+                let prefix = if i + 1 == topics.len() {
+                    "└─"
                 } else {
-                    for (i, topic) in topics.iter().enumerate() {
-                        let is_last_topic = i == num_topics - 1;
-                        topics_section.item(is_last_topic, &format!("Topic[{}]", i), topic);
-                    }
-                }
-            });
-
-            // Data Section
-            subitem_idx += 1;
-            let is_last_subitem = subitem_idx == total_subitems;
-
-            if event.value.is_empty() {
-                event_section.item(is_last_subitem, "Data", "EMPTY");
-            } else {
-                let data_str = match str::from_utf8(&event.value) {
-                    Ok(v) => format!("{}", v.truecolor(128, 128, 128)),
-                    Err(_) => {
-                        let hex_str = hex::encode(&event.value);
-                        let display_str = if hex_str.len() > 200 {
-                            format!("{}...", &hex_str[..200])
-                        } else {
-                            hex_str
-                        };
-                        format!("0x{}", display_str.truecolor(128, 128, 128))
-                    }
+                    "├─"
                 };
-                event_section.item(is_last_subitem, "Data", &data_str);
+                tracing::info!("    │   │   {} Topic[{}]: {}", prefix, i, topic);
             }
-        },
-    );
+        }
+
+        // Data
+        if event.value.is_empty() {
+            tracing::info!("    │   └─ Data: EMPTY");
+        } else {
+            match str::from_utf8(&event.value) {
+                Ok(v) => {
+                    tracing::info!("    │   └─ Data (String): {}", v.truecolor(128, 128, 128));
+                }
+                Err(_) => {
+                    let hex_str = hex::encode(&event.value);
+                    let display_str = if hex_str.len() > 200 {
+                        format!("{}...", &hex_str[..200])
+                    } else {
+                        hex_str.to_string()
+                    };
+
+                    tracing::info!(
+                        "    │   └─ Data (Hex): 0x{}",
+                        display_str.truecolor(128, 128, 128)
+                    );
+                }
+            }
+        }
+
+        tracing::info!("");
+    });
 }
 
 /// Amount of pubdata that given write has cost.
@@ -312,11 +214,24 @@ impl PubdataBytesInfo {
     }
 }
 
+fn build_prefix(sibling_stack: &Vec<bool>) -> String {
+    let mut prefix = String::new();
+    for &has_more_siblings in sibling_stack {
+        if has_more_siblings {
+            prefix.push_str("│   ");
+        } else {
+            prefix.push_str("    ");
+        }
+    }
+    prefix
+}
+
+#[allow(clippy::too_many_arguments)]
 pub fn print_call(
     initiator: Address,
     contract_address: Option<H160>,
     call: &Call,
-    formatter: &mut Formatter,
+    sibling_stack: &Vec<bool>,
     is_last_sibling: bool,
     show_calls: &ShowCalls,
     show_outputs: bool,
@@ -339,6 +254,14 @@ pub fn print_call(
     };
 
     if should_print {
+        let prefix = build_prefix(sibling_stack);
+        let branch = if is_last_sibling {
+            "└─ "
+        } else {
+            "├─ "
+        };
+        let full_prefix = format!("{}{}", prefix, branch);
+
         let call_type_display = format!("{:?}", call.r#type).blue();
         let remaining_gas_display = to_human_size(call.gas.into()).yellow();
         let gas_used_display = format!("({})", to_human_size(call.gas_used.into())).bold();
@@ -350,7 +273,8 @@ pub fn print_call(
             contract_address,
             format!("{:?}", call.r#type).as_str(),
         )
-        .unwrap_or_else(|| format!("{:}", format!("{:?}", call.to).bold()));
+        .map(|x| x.to_string())
+        .unwrap_or(format!("{:}", format!("{:?}", call.to).bold()));
 
         // Get function signature
         let function_signature = if call.input.len() >= 4 {
@@ -373,7 +297,8 @@ pub fn print_call(
 
         // Build the line
         let line = format!(
-            "{} [{}] {}::{} {}",
+            "{}{} [{}] {}::{} {}",
+            full_prefix,
             call_type_display,
             remaining_gas_display,
             contract_display,
@@ -383,19 +308,17 @@ pub fn print_call(
 
         // Handle errors
         if call.revert_reason.is_some() || call.error.is_some() {
-            formatter.format_error(is_last_sibling, &line);
+            tracing::info!("{}", line.red());
             if let Some(ref reason) = call.revert_reason {
-                formatter.enter_scope(!is_last_sibling);
-                formatter.format_error(true, &format!("🔴 Revert reason: {}", reason));
-                formatter.exit_scope();
+                let error_line = format!("{}    └─ 🔴 Revert reason: {}", prefix, reason);
+                tracing::info!("{}", error_line.red());
             }
             if let Some(ref error) = call.error {
-                formatter.enter_scope(!is_last_sibling);
-                formatter.format_error(true, &format!("🔴 Error: {}", error));
-                formatter.exit_scope();
+                let error_line = format!("{}    └─ 🔴 Error: {}", prefix, error);
+                tracing::info!("{}", error_line.red());
             }
         } else {
-            formatter.format_log(is_last_sibling, &line);
+            tracing::info!("{}", line);
         }
 
         // Handle outputs
@@ -408,130 +331,36 @@ pub fn print_call(
                 .collect::<Vec<_>>()
                 .join("");
 
-            formatter.enter_scope(!is_last_sibling);
-            formatter.format_log(true, &format!("Output: {}", output_display.dimmed()));
-            formatter.exit_scope();
+            let output_branch = if is_last_sibling {
+                "    └── Output: ".dimmed()
+            } else {
+                "    ├── Output: ".dimmed()
+            };
+
+            let output_line = format!("{}{}", full_prefix, output_branch) + &output_display;
+            tracing::info!("{}", output_line);
         }
     }
 
     // Process subcalls
-    if !call.calls.is_empty() {
-        formatter.enter_scope(!is_last_sibling);
-
-        let num_subcalls = call.calls.len();
+    let num_subcalls = call.calls.len();
+    if num_subcalls > 0 {
+        let mut new_sibling_stack = sibling_stack.clone();
+        new_sibling_stack.push(!is_last_sibling);
         for (i, subcall) in call.calls.iter().enumerate() {
             let is_last_subcall = i == num_subcalls - 1;
             print_call(
                 initiator,
                 contract_address,
                 subcall,
-                formatter,
+                &new_sibling_stack,
                 is_last_subcall,
                 show_calls,
                 show_outputs,
                 resolve_hashes,
             );
         }
-
-        formatter.exit_scope();
     }
-}
-
-pub fn print_logs(
-    log_query: &StorageLogWithPreviousValue,
-    pubdata_bytes: Option<PubdataBytesInfo>,
-    log_index: usize,
-    formatter: &mut Formatter,
-    is_last: bool,
-) {
-    formatter.format_log(is_last, &format!("Log #{}", log_index));
-
-    formatter.enter_scope(!is_last);
-    formatter.format_log(false, &format!("Kind:           {:?}", log_query.log.kind));
-    formatter.format_log(
-        false,
-        &format!(
-            "Address:        {}",
-            address_to_human_readable(*log_query.log.key.address())
-                .unwrap_or_else(|| format!("{}", log_query.log.key.address()))
-        ),
-    );
-    formatter.format_log(
-        false,
-        &format!("Key:            {:#066x}", log_query.log.key.key()),
-    );
-    formatter.format_log(
-        false,
-        &format!("Read Value:     {:#066x}", log_query.previous_value),
-    );
-
-    if log_query.log.is_write() {
-        formatter.format_log(
-            false,
-            &format!("Written Value:  {:#066x}", log_query.log.value),
-        );
-    }
-
-    if let Some(pubdata_bytes) = pubdata_bytes {
-        formatter.format_log(true, &format!("Pubdata Bytes:  {}", pubdata_bytes));
-    } else {
-        formatter.format_log(true, "Pubdata Bytes:  None");
-    }
-    formatter.exit_scope();
-}
-
-pub fn print_vm_details2(result: &VmExecutionResultAndLogs) {
-    tracing::info!("");
-    tracing::info!("[VM Execution Results]");
-
-    let mut formatter = Formatter::new();
-
-    // Log the main statistics
-    formatter.format_log(
-        false,
-        &format!(
-            "Cycles Used:          {}",
-            to_human_size(result.statistics.cycles_used.into())
-        ),
-    );
-    formatter.format_log(
-        false,
-        &format!(
-            "Computation Gas Used: {}",
-            to_human_size(result.statistics.computational_gas_used.into())
-        ),
-    );
-    formatter.format_log(
-        false,
-        &format!(
-            "Contracts Used:       {}",
-            to_human_size(result.statistics.contracts_used.into())
-        ),
-    );
-
-    // Log execution outcome
-    match &result.result {
-        zksync_multivm::interface::ExecutionResult::Success { .. } => {
-            formatter.format_log(true, "Execution Outcome:    Success");
-        }
-        zksync_multivm::interface::ExecutionResult::Revert { output } => {
-            formatter.format_log(false, "Execution Outcome:    Failure");
-            formatter.enter_scope(true);
-            formatter.format_error(
-                true,
-                &format!("Revert Reason:    {}", output.to_user_friendly_string()),
-            );
-            formatter.exit_scope();
-        }
-        zksync_multivm::interface::ExecutionResult::Halt { reason } => {
-            formatter.format_log(false, "Execution Outcome:    Failure");
-            formatter.enter_scope(true);
-            formatter.format_error(true, &format!("Halt Reason:      {}", reason.to_string()));
-            formatter.exit_scope();
-        }
-    }
-
-    tracing::info!("");
 }
 
 pub fn print_transaction_summary(
@@ -574,7 +403,80 @@ pub fn print_transaction_summary(
     tracing::info!("Refunded: {:.10} ETH", refunded_in_eth);
 }
 
-pub fn _print_vm_details(result: &VmExecutionResultAndLogs) {
+pub fn print_logs(
+    log_query: &StorageLogWithPreviousValue,
+    pubdata_bytes: Option<PubdataBytesInfo>,
+    log_index: usize,
+    is_last: bool,
+) {
+    let prefix = if is_last { "└─" } else { "├─" };
+    tracing::info!("    {} Log #{}", prefix, log_index);
+    tracing::info!("    │   ├─ Kind:           {:?}", log_query.log.kind);
+    tracing::info!(
+        "    │   ├─ Address:        {}",
+        address_to_human_readable(*log_query.log.key.address())
+            .unwrap_or_else(|| format!("{}", log_query.log.key.address()))
+    );
+    tracing::info!(
+        "    │   ├─ Key:            {:#066x}",
+        log_query.log.key.key()
+    );
+    tracing::info!(
+        "    │   ├─ Read Value:     {:#066x}",
+        log_query.previous_value
+    );
+
+    if log_query.log.is_write() {
+        tracing::info!("    │   ├─ Written Value:  {:#066x}", log_query.log.value);
+    }
+
+    if let Some(pubdata_bytes) = pubdata_bytes {
+        tracing::info!("    │   └─ Pubdata Bytes:  {}", pubdata_bytes);
+    } else {
+        tracing::info!("    │   └─ Pubdata Bytes:  None");
+    }
+}
+
+pub fn print_vm_details2(result: &VmExecutionResultAndLogs) {
+    tracing::info!("");
+    tracing::info!("[VM Execution Results]");
+
+    // Log the main statistics
+    tracing::info!(
+        "    ├─ Cycles Used:          {}",
+        to_human_size(result.statistics.cycles_used.into())
+    );
+    tracing::info!(
+        "    ├─ Computation Gas Used: {}",
+        to_human_size(result.statistics.computational_gas_used.into())
+    );
+    tracing::info!(
+        "    ├─ Contracts Used:       {}",
+        to_human_size(result.statistics.contracts_used.into())
+    );
+
+    // Log execution outcome
+    match &result.result {
+        zksync_multivm::interface::ExecutionResult::Success { .. } => {
+            tracing::info!("    └─ Execution Outcome:    Success");
+        }
+        zksync_multivm::interface::ExecutionResult::Revert { output } => {
+            tracing::info!("    ├─ Execution Outcome:    Failure");
+            tracing::info!(
+                "    │   └─ Revert Reason:    {}",
+                output.to_user_friendly_string().red()
+            );
+        }
+        zksync_multivm::interface::ExecutionResult::Halt { reason } => {
+            tracing::info!("    ├─ Execution Outcome:    Failure");
+            tracing::info!("    │   └─ Halt Reason:      {}", reason.to_string().red());
+        }
+    }
+
+    tracing::info!("");
+}
+
+pub fn print_vm_details(result: &VmExecutionResultAndLogs) {
     tracing::info!("");
     tracing::info!("┌──────────────────────────┐");
     tracing::info!("│   VM EXECUTION RESULTS   │");
