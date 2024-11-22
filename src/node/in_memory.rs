@@ -1238,6 +1238,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 inner.console_log_handler.handle_call_recursive(call);
             }
         }
+        tracing::info!("");
 
         tracing::info!(
             "[Transaction Execution] ({} calls)",

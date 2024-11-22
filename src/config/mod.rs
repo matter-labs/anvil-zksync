@@ -606,9 +606,9 @@ impl TestNodeConfig {
     /// Applies the defaults for debug mode.
     #[must_use]
     pub fn with_debug_mode(mut self) -> Self {
-        self.show_calls = ShowCalls::User; // Set show_calls to User
-        self.resolve_hashes = true; // Enable resolving hashes
-        self.show_gas_details = ShowGasDetails::All; // Enable detailed gas logs
+        self.show_calls = ShowCalls::User;
+        self.resolve_hashes = true;
+        self.show_gas_details = ShowGasDetails::All;
         self
     }
 

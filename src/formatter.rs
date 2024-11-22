@@ -16,7 +16,7 @@ use zksync_types::{
 };
 
 // @dev elected to have GasDetails struct as we can do more with it in the future
-// More detailed understanding of gas errors and gas usage
+// We can provide more detailed understanding of gas errors and gas usage
 #[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
 pub struct GasDetails {
     total_gas_limit: U256,
@@ -87,6 +87,7 @@ pub fn compute_gas_details(
     }
 }
 
+/// Responsible for formatting the data in a structured log.
 pub struct Formatter {
     sibling_stack: Vec<bool>,
 }
@@ -98,16 +99,13 @@ impl Default for Formatter {
 }
 
 impl Formatter {
+    /// Creates a new formatter with an empty sibling stack.
     pub fn new() -> Self {
         Formatter {
             sibling_stack: Vec::new(),
         }
     }
-
-    pub fn with_initial_stack(sibling_stack: Vec<bool>) -> Self {
-        Formatter { sibling_stack }
-    }
-
+    /// Logs a section with a title, applies a scoped function, and manages sibling hierarchy.
     pub fn section<F>(&mut self, title: &str, is_last_sibling: bool, f: F)
     where
         F: FnOnce(&mut Self),
@@ -117,41 +115,27 @@ impl Formatter {
         f(self);
         self.exit_scope();
     }
-
-    pub fn subsection<F>(&mut self, title: &str, is_last_sibling: bool, f: F)
-    where
-        F: FnOnce(&mut Self),
-    {
-        self.format_log(is_last_sibling, title);
-        self.enter_scope(is_last_sibling);
-        f(self);
-        self.exit_scope();
-    }
-
+    /// Logs a key-value item as part of the formatted output.
     pub fn item(&mut self, is_last_sibling: bool, key: &str, value: &str) {
         self.format_log(
             is_last_sibling,
             &format!("{}: {}", key.bold(), value.dimmed()),
         );
     }
-
-    pub fn warning(&mut self, is_last_sibling: bool, message: &str) {
-        self.format_error(is_last_sibling, &format!("WARNING: {}", message));
-    }
-
+    /// Enters a new scope for nested logging, tracking sibling relationships.
     pub fn enter_scope(&mut self, has_more_siblings: bool) {
         self.sibling_stack.push(has_more_siblings);
     }
-
+    /// Exits the current logging scope, removing the last sibling marker.
     pub fn exit_scope(&mut self) {
         self.sibling_stack.pop();
     }
-
+    /// Logs a formatted message with a hierarchical prefix.
     pub fn format_log(&self, is_last_sibling: bool, message: &str) {
         let prefix = build_prefix(&self.sibling_stack, is_last_sibling);
         tracing::info!("{}{}", prefix, message);
     }
-
+    /// Logs a formatted error message with a hierarchical prefix.
     pub fn format_error(&self, is_last_sibling: bool, message: &str) {
         let prefix = build_prefix(&self.sibling_stack, is_last_sibling);
         tracing::info!("{}", format!("{}{}", prefix, message).red());
@@ -213,7 +197,7 @@ impl Formatter {
 
             let mut item_index = 0;
 
-            // 1. Gas Summary
+            // Gas Summary
             let is_last_sibling = item_index == total_items - 1;
             gas_details_section.section("Gas Summary", is_last_sibling, |gas_summary_section| {
                 let items = vec![
@@ -237,7 +221,7 @@ impl Formatter {
                 item_index += 1;
             }
 
-            // 2. Execution Gas Breakdown
+            // Execution Gas Breakdown
             let is_last_sibling = item_index == total_items - 1;
             gas_details_section.section(
                 "Execution Gas Breakdown",
@@ -281,7 +265,7 @@ impl Formatter {
             );
             item_index += 1;
 
-            // 3. Transaction Setup Cost Breakdown
+            // Transaction Setup Cost Breakdown
             let is_last_sibling = item_index == total_items - 1;
             gas_details_section.section(
                 "Transaction Setup Cost Breakdown",
@@ -319,7 +303,7 @@ impl Formatter {
             );
             item_index += 1;
 
-            // 4. L1 Publishing Costs
+            // L1 Publishing Costs
             let is_last_sibling = item_index == total_items - 1;
             gas_details_section.section(
                 "L1 Publishing Costs",
@@ -349,7 +333,7 @@ impl Formatter {
             );
             item_index += 1;
 
-            // 5. Block Contribution
+            // Block Contribution
             let is_last_sibling = item_index == total_items - 1;
             gas_details_section.section("Block Contribution", is_last_sibling, |block_section| {
                 let full_block_cost = gas_per_pubdata * fee_model_config.batch_overhead_l1_gas;
@@ -379,10 +363,21 @@ impl Formatter {
     }
     /// Prints the events of a contract in a structured log.
     pub fn print_event(&mut self, event: &VmEvent, resolve_hashes: bool, is_last_sibling: bool) {
-        tracing::info!("");
         let event = event.clone();
 
-        let topics = resolve_topics(&event.indexed_topics, resolve_hashes);
+        let resolved_topics = resolve_topics(&event.indexed_topics, resolve_hashes);
+        let topics: Vec<String> = event
+            .indexed_topics
+            .iter()
+            .zip(resolved_topics.iter())
+            .map(|(original, resolved)| {
+                if resolved.is_empty() {
+                    format!("{:#x}", original)
+                } else {
+                    resolved.clone()
+                }
+            })
+            .collect();
 
         let contract_display = address_to_human_readable(event.address)
             .map(|x| format!("{:42}", x.blue()))
@@ -392,7 +387,7 @@ impl Formatter {
             &format!("Event [{}]", contract_display),
             is_last_sibling,
             |event_section| {
-                event_section.subsection("Topics", false, |topics_section| {
+                event_section.section("Topics", false, |topics_section| {
                     let num_topics = topics.len();
                     if num_topics == 0 {
                         topics_section.item(true, "Topics", "EMPTY");
@@ -420,7 +415,6 @@ impl Formatter {
         show_outputs: bool,
         resolve_hashes: bool,
     ) {
-        tracing::info!("");
         let contract_type = KNOWN_ADDRESSES
             .get(&call.to)
             .cloned()
@@ -502,6 +496,7 @@ impl Formatter {
             );
 
             // Handle errors and outputs within a new indentation scope
+            // TODO: can make this more informative by adding "Suggested action" for errors
             self.section(&line, is_last_sibling, |call_section| {
                 if call.revert_reason.is_some() || call.error.is_some() {
                     if let Some(ref reason) = call.revert_reason {
@@ -555,7 +550,6 @@ impl Formatter {
             }
         }
     }
-
     /// Prints the storage logs of the system in a structured log.
     pub fn print_storage_logs(
         &mut self,
@@ -717,6 +711,7 @@ fn format_address_human_readable(
     contract_address: Option<H160>,
     call_type: &str,
 ) -> Option<String> {
+    // Exclude ContractDeployer and Create2Factory addresses
     let excluded_addresses = [
         H160::from_slice(&hex::decode("0000000000000000000000000000000000008006").unwrap()),
         H160::from_slice(&hex::decode("0000000000000000000000000000000000010000").unwrap()),
@@ -767,10 +762,10 @@ fn resolve_topics(topics: &[H256], resolve_hashes: bool) -> Vec<String> {
     block_on(async move {
         let futures = topics.into_iter().map(|topic| async move {
             if resolve_hashes {
-                resolver::decode_event_selector(&format!("{:#x}", topic))
-                    .await
-                    .unwrap_or(None)
-                    .unwrap_or_else(|| format!("{:#x}", topic))
+                match resolver::decode_event_selector(&format!("{:#x}", topic)).await {
+                    Ok(Some(resolved)) => resolved,
+                    Ok(None) | Err(_) => format!("{:#x}", topic),
+                }
             } else {
                 format!("{:#x}", topic)
             }
