@@ -18,7 +18,6 @@ zksync_utils = { git = "https://github.com/matter-labs/zksync-era.git", rev = "6
 zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era.git", rev = "6c034f6e180cc92e99766f14c8840c90efa56cec", features = [
     "server",
 ] }
-sha3 = "0.10.6"
 
 # alloy
 alloy-signer-local = { version = "0.5.4", features = ["mnemonic"] }
@@ -59,7 +58,6 @@ rustc-hash = "1.1.0"
 indexmap = "2.0.1"
 chrono = { version = "0.4.31", default-features = false }
 time = "0.3.36"
-toml = "0.8.13"
 rand = "0.8"
 
 [dev-dependencies]

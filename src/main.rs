@@ -58,6 +58,7 @@ async fn build_json_http<
     addr: SocketAddr,
     log_level_filter: LevelFilter,
     node: InMemoryNode<S>,
+    enable_health_api: bool,
 ) -> tokio::task::JoinHandle<()> {
     let (sender, recv) = oneshot::channel::<()>();
 
@@ -84,11 +85,15 @@ async fn build_json_http<
             .build()
             .unwrap();
 
-        let server = jsonrpc_http_server::ServerBuilder::new(io_handler)
+        let mut builder = jsonrpc_http_server::ServerBuilder::new(io_handler)
             .threads(1)
-            .event_loop_executor(runtime.handle().clone())
-            .start_http(&addr)
-            .unwrap();
+            .event_loop_executor(runtime.handle().clone());
+
+        if enable_health_api {
+            builder = builder.health_api(("/health", "web3_clientVersion"));
+        }
+
+        let server = builder.start_http(&addr).unwrap();
 
         server.wait();
         let _ = sender;

@@ -103,6 +103,8 @@ pub struct TestNodeConfig {
     pub offline: bool,
     /// The host the server will listen on
     pub host: Vec<IpAddr>,
+    /// Whether we need to enable the health check endpoint.
+    pub health_check_endpoint: bool,
 }
 
 impl Default for TestNodeConfig {
@@ -148,6 +150,7 @@ impl Default for TestNodeConfig {
             // Offline mode disabled by default
             offline: false,
             host: vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
+            health_check_endpoint: false,
         }
     }
 }
@@ -287,6 +290,14 @@ impl TestNodeConfig {
         tracing::info!(
             "EVM Emulator:       {}",
             if self.use_evm_emulator {
+                "Enabled".green()
+            } else {
+                "Disabled".red()
+            }
+        );
+        tracing::info!(
+            "Health Check Endpoint: {}",
+            if self.health_check_endpoint {
                 "Enabled".green()
             } else {
                 "Disabled".red()
@@ -640,6 +651,19 @@ impl TestNodeConfig {
             host
         };
         self
+    }
+    /// Set the health check endpoint mode
+    #[must_use]
+    pub fn with_health_check_endpoint(mut self, health_check_endpoint: Option<bool>) -> Self {
+        if let Some(health_check_endpoint) = health_check_endpoint {
+            self.health_check_endpoint = health_check_endpoint;
+        }
+        self
+    }
+
+    /// Get the health check endpoint mode status
+    pub fn is_health_check_endpoint_endpoint_enabled(&self) -> bool {
+        self.health_check_endpoint
     }
 }
 
