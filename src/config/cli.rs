@@ -50,6 +50,7 @@ pub struct Cli {
     #[arg(
         long,
         value_name = "IP_ADDR",
+        env = "ANVIL_ZKSYNC_IP_ADDR",
         default_value = "127.0.0.1",
         value_delimiter = ',',
         help_heading = "Network Options"
@@ -311,7 +312,7 @@ impl Cli {
             .with_chain_id(self.chain_id)
             .set_config_out(self.config_out)
             .with_host(self.host)
-            .with_evm_emulator(if self.emulate_evm { Some(true) } else { None });
+            .with_evm_emulator(if self.emulate_evm { Some(true) } else { None })
             .with_health_check_endpoint(if self.health_check_endpoint {
                 Some(true)
             } else {
@@ -356,5 +357,59 @@ impl Cli {
             gen = gen.derivation_path(derivation);
         }
         gen
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::config::cli::Cli;
+    use clap::Parser;
+    use std::{
+        env,
+        net::{IpAddr, Ipv4Addr},
+    };
+
+    #[test]
+    fn can_parse_host() {
+        // Test adapted from https://github.com/foundry-rs/foundry/blob/398ef4a3d55d8dd769ce86cada5ec845e805188b/crates/anvil/src/cmd.rs#L895
+        let args = Cli::parse_from(["era_test_node"]);
+        assert_eq!(args.host, vec![IpAddr::V4(Ipv4Addr::LOCALHOST)]);
+
+        let args = Cli::parse_from([
+            "era_test_node",
+            "--host",
+            "::1",
+            "--host",
+            "1.1.1.1",
+            "--host",
+            "2.2.2.2",
+        ]);
+        assert_eq!(
+            args.host,
+            ["::1", "1.1.1.1", "2.2.2.2"]
+                .map(|ip| ip.parse::<IpAddr>().unwrap())
+                .to_vec()
+        );
+
+        let args = Cli::parse_from(["era_test_node", "--host", "::1,1.1.1.1,2.2.2.2"]);
+        assert_eq!(
+            args.host,
+            ["::1", "1.1.1.1", "2.2.2.2"]
+                .map(|ip| ip.parse::<IpAddr>().unwrap())
+                .to_vec()
+        );
+
+        env::set_var("ANVIL_ZKSYNC_IP_ADDR", "1.1.1.1");
+        let args = Cli::parse_from(["era_test_node"]);
+        assert_eq!(args.host, vec!["1.1.1.1".parse::<IpAddr>().unwrap()]);
+
+        env::set_var("ANVIL_ZKSYNC_IP_ADDR", "::1,1.1.1.1,2.2.2.2");
+        let args = Cli::parse_from(["era_test_node"]);
+        assert_eq!(
+            args.host,
+            ["::1", "1.1.1.1", "2.2.2.2"]
+                .map(|ip| ip.parse::<IpAddr>().unwrap())
+                .to_vec()
+        );
     }
 }

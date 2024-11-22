@@ -292,7 +292,12 @@ async fn main() -> anyhow::Result<()> {
 
     let threads = future::join_all(config.host.iter().map(|host| {
         let addr = SocketAddr::new(*host, config.port);
-        build_json_http(addr, log_level_filter, node.clone())
+        build_json_http(
+            addr,
+            log_level_filter,
+            node.clone(),
+            config.health_check_endpoint,
+        )
     }))
     .await;
 
