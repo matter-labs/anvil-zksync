@@ -87,11 +87,16 @@ pub struct Cli {
     /// Show call debug information.
     pub show_calls: Option<ShowCalls>,
 
-    #[arg(long, default_missing_value = "true", num_args(0..=1), help_heading = "Debugging Options")]
+    #[arg(
+        default_missing_value = "true", num_args(0..=1),
+        long,
+        requires = "show_calls",
+        help_heading = "Debugging Options"
+    )]
     /// Show call output information.
     pub show_outputs: Option<bool>,
 
-    #[arg(long, help_heading = "Debugging Options")]
+    #[arg(short, long, help_heading = "Debugging Options")]
     /// Show event logs information.
     pub show_event_logs: Option<bool>,
 
