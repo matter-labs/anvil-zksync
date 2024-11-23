@@ -146,7 +146,7 @@ The `status` options are:
 
 ### `config_getShowCalls`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Gets the current value of `show_calls` that's originally set with `--show-calls` option
 
@@ -169,7 +169,7 @@ curl --request POST \
 
 ### `config_getShowOutputs`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Gets the current value of `show_outputs` that's originally set with `--show-outputs` option
 
@@ -192,7 +192,7 @@ curl --request POST \
 
 ### `config_getCurrentTimestamp`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Gets the value of `current_timestamp` for the node
 
@@ -215,7 +215,7 @@ curl --request POST \
 
 ### `config_setShowCalls`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Updates `show_calls` to print more detailed call traces
 
@@ -238,7 +238,7 @@ curl --request POST \
 
 ### `config_setShowOutputs`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Updates `show_outputs` to print calls outputs
 
@@ -261,7 +261,7 @@ curl --request POST \
 
 ### `config_setShowStorageLogs`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Updates `show_storage_logs` to print storage log reads/writes
 
@@ -284,7 +284,7 @@ curl --request POST \
 
 ### `config_setShowVmDetails`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Updates `show_vm_details` to print more detailed results from vm execution
 
@@ -307,7 +307,7 @@ curl --request POST \
 
 ### `config_setShowGasDetails`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Updates `show_gas_details` to print more details about gas estimation and usage
 
@@ -330,7 +330,7 @@ curl --request POST \
 
 ### `config_setResolveHashes`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Updates `resolve-hashes` to call OpenChain for human-readable ABI names in call traces
 
@@ -353,7 +353,7 @@ curl --request POST \
 
 ### `config_setLogLevel`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Sets the logging level for the node and only displays the node logs.
 
@@ -376,7 +376,7 @@ curl --request POST \
 
 ### `config_setLogging`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Sets the fine-tuned logging levels for the node and any of its dependencies. 
 The directive format is comma-separated `module=level` for any number of modules.
