@@ -179,7 +179,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
         self.get_inner()
             .write()
             .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
-            .and_then(|mut writer| {
+            .map(|mut writer| {
                 let nonce_key = get_nonce_key(&address);
                 let enforced_full_nonce = nonces_to_full_nonce(nonce, nonce);
                 tracing::info!(
@@ -190,7 +190,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
                 writer
                     .fork_storage
                     .set_value(nonce_key, u256_to_h256(enforced_full_nonce));
-                Ok(true)
+                true
             })
     }
 
