@@ -278,6 +278,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
         }
     }
 
+    pub fn auto_impersonate_account(&self, enabled: bool) {
+        self.impersonation.set_auto_impersonation(enabled);
+    }
+
     pub fn impersonate_account(&self, address: Address) -> Result<bool> {
         if self.impersonation.impersonate(address) {
             tracing::info!("🕵️ Account {:?} has been impersonated", address);
@@ -354,6 +358,7 @@ mod tests {
     use zksync_multivm::interface::storage::ReadStorage;
     use zksync_types::{api::BlockNumber, fee::Fee, l2::L2Tx, PackedEthSignature};
     use zksync_types::{Nonce, H256};
+    use zksync_utils::h256_to_u256;
 
     #[tokio::test]
     async fn test_set_balance() {

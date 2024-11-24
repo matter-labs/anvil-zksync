@@ -109,6 +109,31 @@ describe("anvil_impersonateAccount & anvil_stopImpersonatingAccount", function (
   });
 });
 
+describe("anvil_autoImpersonateAccount", function () {
+  it("Should allow transfers of funds without knowing the Private Key", async function () {
+    // Arrange
+    const userWallet = Wallet.createRandom().connect(provider);
+    const richAccount = RichAccounts[6].Account;
+    const beforeBalance = await provider.getBalance(richAccount);
+
+    // Act
+    await provider.send("anvil_autoImpersonateAccount", [true]);
+
+    const signer = await ethers.getSigner(richAccount);
+    const tx = {
+      to: userWallet.address,
+      value: ethers.utils.parseEther("0.42"),
+    };
+
+    const recieptTx = await signer.sendTransaction(tx);
+    await recieptTx.wait();
+
+    // Assert
+    expect((await userWallet.getBalance()).eq(ethers.utils.parseEther("0.42"))).to.true;
+    expect((await provider.getBalance(richAccount)).eq(beforeBalance.sub(ethers.utils.parseEther("0.42")))).to.true;
+  });
+});
+
 describe("anvil_setCode", function () {
   it("Should set code at an address", async function () {
     // Arrange

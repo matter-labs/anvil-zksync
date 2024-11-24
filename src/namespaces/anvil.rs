@@ -5,6 +5,18 @@ use super::{ResetRequest, RpcResult};
 
 #[rpc]
 pub trait AnvilNamespaceT {
+    /// Sets auto impersonation status.
+    ///
+    /// # Arguments
+    ///
+    /// * `enabled` - `true` makes every account impersonated, `false` disables this behavior
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `Result` representing the success of the operation.
+    #[rpc(name = "anvil_autoImpersonateAccount")]
+    fn auto_impersonate_account(&self, enabled: bool) -> RpcResult<()>;
+
     /// Sets the balance of the given address to the given balance.
     ///
     /// # Arguments

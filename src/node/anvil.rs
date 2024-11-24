@@ -11,6 +11,11 @@ use crate::{
 impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> AnvilNamespaceT
     for InMemoryNode<S>
 {
+    fn auto_impersonate_account(&self, enabled: bool) -> RpcResult<()> {
+        self.auto_impersonate_account(enabled);
+        Ok(()).into_boxed_future()
+    }
+
     fn set_balance(&self, address: Address, balance: U256) -> RpcResult<bool> {
         self.set_balance(address, balance)
             .map_err(|err| {
