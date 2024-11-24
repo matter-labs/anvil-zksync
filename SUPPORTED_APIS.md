@@ -14,6 +14,7 @@ The `status` options are:
 
 | Namespace | API | <div style="width:130px">Status</div> | Description |
 | --- | --- | --- | --- |
+| `ANVIL` | `anvil_autoImpersonateAccount` | `SUPPORTED` | Sets auto impersonation status.|
 | `ANVIL` | `anvil_setNonce` | `SUPPORTED` | Sets the nonce of an address.|
 | `ANVIL` | `anvil_impersonateAccount` | `SUPPORTED` | Impersonate an account |
 | `ANVIL` | `anvil_stopImpersonatingAccount` | `SUPPORTED` | Stop impersonating an account after having previously used `anvil_impersonateAccount` |
