@@ -17,7 +17,7 @@ The `status` options are:
 | `ANVIL` | `anvil_setNonce` | `SUPPORTED` | Sets the nonce of an address.|
 | `ANVIL` | `anvil_impersonateAccount` | `SUPPORTED` | Impersonate an account |
 | `ANVIL` | `anvil_stopImpersonatingAccount` | `SUPPORTED` | Stop impersonating an account after having previously used `anvil_impersonateAccount` |
-| `ANVIL` | `anvil_reset` | `PARTIALLY` | Resets the state of the network; cannot revert to past block numbers, unless they're in a fork |
+| `ANVIL` | `anvil_reset` | `SUPPORTED` | Resets the state of the network; cannot revert to past block numbers, unless they're in a fork |
 | `ANVIL` | `anvil_mine` | `SUPPORTED` | Mine any number of blocks at once, in constant time |
 | `ANVIL` | `anvil_setBalance` | `SUPPORTED` | Modifies the balance of an account |
 | `ANVIL` | `anvil_setCode` | `SUPPORTED` | Sets the bytecode of a given account |
