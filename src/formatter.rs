@@ -204,6 +204,7 @@ impl Formatter {
                     ("Limit", to_human_size(total_gas_limit)),
                     ("Used", to_human_size(gas_used)),
                     ("Refunded", to_human_size(refund_by_operator)),
+                    ("Paid:", to_human_size(total_gas_limit - refund_by_operator)),
                 ];
 
                 let num_items = items.len();
