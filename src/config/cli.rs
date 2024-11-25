@@ -304,6 +304,7 @@ impl Cli {
             .with_log_level(self.log)
             .with_log_file_path(self.log_file_path.clone())
             .with_account_generator(self.account_generator())
+            .with_auto_impersonate(self.auto_impersonate)
             .with_genesis_balance(genesis_balance)
             .with_cache_config(self.cache.map(|cache_type| {
                 match cache_type {
