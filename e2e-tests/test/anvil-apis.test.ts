@@ -10,6 +10,78 @@ import { BigNumber } from "ethers";
 
 const provider = getTestProvider();
 
+describe("anvil_increaseTime", function () {
+  it("Should increase current timestamp of the node", async function () {
+    // Arrange
+    const timeIncreaseInSeconds = 13;
+    const wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
+    const userWallet = Wallet.createRandom().connect(provider);
+    let expectedTimestamp: number = await provider.send("config_getCurrentTimestamp", []);
+    expectedTimestamp += timeIncreaseInSeconds;
+
+    // Act
+    await provider.send("anvil_increaseTime", [timeIncreaseInSeconds]);
+
+    await wallet.sendTransaction({
+      to: userWallet.address,
+      value: ethers.utils.parseEther("0.1"),
+    });
+    expectedTimestamp += 2; // New transaction will add two blocks
+
+    // Assert
+    const newBlockTimestamp = (await provider.getBlock("latest")).timestamp;
+    expect(newBlockTimestamp).to.equal(expectedTimestamp);
+  });
+});
+
+describe("anvil_setNextBlockTimestamp", function () {
+  it("Should set current timestamp of the node to specific value", async function () {
+    // Arrange
+    const timeIncreaseInMS = 123;
+    let expectedTimestamp: number = await provider.send("config_getCurrentTimestamp", []);
+    expectedTimestamp += timeIncreaseInMS;
+    const wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
+    const userWallet = Wallet.createRandom().connect(provider);
+
+    // Act
+    await provider.send("anvil_setNextBlockTimestamp", [expectedTimestamp.toString(16)]);
+
+    await wallet.sendTransaction({
+      to: userWallet.address,
+      value: ethers.utils.parseEther("0.1"),
+    });
+    expectedTimestamp += 1; // After executing a transaction, the node puts it into a block and increases its current timestamp
+
+    // Assert
+    const newBlockTimestamp = (await provider.getBlock("latest")).timestamp;
+    expect(newBlockTimestamp).to.equal(expectedTimestamp);
+  });
+});
+
+describe("anvil_setTime", function () {
+  it("Should set current timestamp of the node to specific value", async function () {
+    // Arrange
+    const timeIncreaseInMS = 123;
+    let expectedTimestamp: number = await provider.send("config_getCurrentTimestamp", []);
+    expectedTimestamp += timeIncreaseInMS;
+    const wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
+    const userWallet = Wallet.createRandom().connect(provider);
+
+    // Act
+    await provider.send("anvil_setTime", [expectedTimestamp]);
+
+    await wallet.sendTransaction({
+      to: userWallet.address,
+      value: ethers.utils.parseEther("0.1"),
+    });
+    expectedTimestamp += 2; // New transaction will add two blocks
+
+    // Assert
+    const newBlockTimestamp = (await provider.getBlock("latest")).timestamp;
+    expect(newBlockTimestamp).to.equal(expectedTimestamp);
+  });
+});
+
 describe("anvil_setBalance", function () {
   it("Should update the balance of an account", async function () {
     // Arrange

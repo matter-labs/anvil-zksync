@@ -2,9 +2,42 @@ use jsonrpc_derive::rpc;
 use zksync_types::{Address, U256, U64};
 
 use super::{ResetRequest, RpcResult};
+use crate::utils::Numeric;
 
 #[rpc]
 pub trait AnvilNamespaceT {
+    /// Set the current timestamp for the node.
+    /// Warning: This will allow you to move backwards in time, which may cause new blocks to appear to be
+    /// mined before old blocks. This will result in an invalid state.
+    ///
+    /// # Arguments
+    ///
+    /// * `time` - The timestamp to set the time to
+    ///
+    /// # Returns
+    /// The difference between the current timestamp and the new timestamp.
+    #[rpc(name = "anvil_setTime")]
+    fn set_time(&self, timestamp: Numeric) -> RpcResult<i128>;
+
+    /// Increase the current timestamp for the node
+    ///
+    /// # Arguments
+    ///
+    /// * `seconds` - The number of seconds to increase time by
+    ///
+    /// # Returns
+    /// The applied time delta to the current timestamp in seconds.
+    #[rpc(name = "anvil_increaseTime")]
+    fn increase_time(&self, seconds: Numeric) -> RpcResult<u64>;
+
+    /// Set timestamp for the next block. The timestamp must be in future.
+    ///
+    /// # Arguments
+    ///
+    /// * `timestamp` - The timestamp to set the time to
+    #[rpc(name = "anvil_setNextBlockTimestamp")]
+    fn set_next_block_timestamp(&self, timestamp: Numeric) -> RpcResult<()>;
+
     /// Sets the balance of the given address to the given balance.
     ///
     /// # Arguments
