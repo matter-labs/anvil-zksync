@@ -158,7 +158,7 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Fork(fork) => {
             match ForkDetails::from_network(
-                &fork.network,
+                &fork.fork_url,
                 fork.fork_block_number,
                 &config.cache_config,
             )
@@ -183,7 +183,7 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::ReplayTx(replay_tx) => {
             match ForkDetails::from_network_tx(
-                &replay_tx.network,
+                &replay_tx.fork_url,
                 replay_tx.tx,
                 &config.cache_config,
             )

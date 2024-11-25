@@ -218,9 +218,10 @@ pub struct ForkArgs {
     ///  - http://XXX:YY
     #[arg(
         long,
+        alias = "network",
         help = "Network to fork from (e.g., mainnet, sepolia-testnet, etc.)."
     )]
-    pub network: String,
+    pub fork_url: String,
     // Fork at a given L2 miniblock height.
     // If not set - will use the current finalized block from the network.
     #[arg(
@@ -243,9 +244,10 @@ pub struct ReplayArgs {
     ///  - http://XXX:YY
     #[arg(
         long,
+        alias = "network",
         help = "Network to fork from (e.g., mainnet, sepolia-testnet, etc.)."
     )]
-    pub network: String,
+    pub fork_url: String,
     /// Transaction hash to replay.
     #[arg(help = "Transaction hash to replay.")]
     pub tx: H256,
