@@ -44,7 +44,7 @@ describe("anvil_setNextBlockTimestamp", function () {
     const userWallet = Wallet.createRandom().connect(provider);
 
     // Act
-    await provider.send("anvil_setNextBlockTimestamp", [expectedTimestamp.toString(16)]);
+    await provider.send("anvil_setNextBlockTimestamp", [expectedTimestamp]);
 
     await wallet.sendTransaction({
       to: userWallet.address,
