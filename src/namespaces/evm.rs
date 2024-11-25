@@ -2,6 +2,7 @@ use jsonrpc_derive::rpc;
 use zksync_types::{Address, U256, U64};
 
 use crate::namespaces::RpcResult;
+use crate::utils::Numeric;
 
 #[rpc]
 pub trait EvmNamespaceT {
@@ -13,7 +14,7 @@ pub trait EvmNamespaceT {
     /// # Returns
     /// The applied time delta to `current_timestamp` value for the InMemoryNodeInner.
     #[rpc(name = "evm_increaseTime")]
-    fn increase_time(&self, time_delta_seconds: u64) -> RpcResult<u64>;
+    fn increase_time(&self, time_delta_seconds: Numeric) -> RpcResult<u64>;
 
     /// Modifies an account's nonce by overwriting it.
     ///
@@ -41,11 +42,8 @@ pub trait EvmNamespaceT {
     ///
     /// # Parameters
     /// - `timestamp`: The timestamp to set the time to
-    ///
-    /// # Returns
-    /// The new timestamp value for the InMemoryNodeInner.
     #[rpc(name = "evm_setNextBlockTimestamp")]
-    fn set_next_block_timestamp(&self, timestamp: U64) -> RpcResult<U64>;
+    fn set_next_block_timestamp(&self, timestamp: Numeric) -> RpcResult<()>;
 
     /// Set the current timestamp for the node.
     /// Warning: This will allow you to move backwards in time, which may cause new blocks to appear to be
@@ -57,7 +55,7 @@ pub trait EvmNamespaceT {
     /// # Returns
     /// The difference between the `current_timestamp` and the new timestamp for the InMemoryNodeInner.
     #[rpc(name = "evm_setTime")]
-    fn set_time(&self, time: u64) -> RpcResult<i128>;
+    fn set_time(&self, time: Numeric) -> RpcResult<i128>;
 
     /// Snapshot the state of the blockchain at the current block. Takes no parameters. Returns the id of the snapshot
     /// that was created. A snapshot can only be reverted once. After a successful evm_revert, the same snapshot id cannot
