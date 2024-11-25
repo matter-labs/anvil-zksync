@@ -99,6 +99,8 @@ pub struct TestNodeConfig {
     pub account_generator: Option<AccountGenerator>,
     /// Signer accounts that can sign messages/transactions
     pub signer_accounts: Vec<PrivateKeySigner>,
+    /// Enable auto impersonation of accounts on startup
+    pub enable_auto_impersonate: bool,
     /// Whether the node operates in offline mode
     pub offline: bool,
     /// The host the server will listen on
@@ -144,6 +146,7 @@ impl Default for TestNodeConfig {
             account_generator: None,
             genesis_accounts: genesis_accounts.clone(),
             signer_accounts: genesis_accounts,
+            enable_auto_impersonate: false,
             // 100ETH default balance
             genesis_balance: U256::from(100u128 * 10u128.pow(18)),
 
@@ -626,6 +629,13 @@ impl TestNodeConfig {
         self.account_generator = Some(generator);
         self.with_signer_accounts(accounts.clone())
             .with_genesis_accounts(accounts)
+    }
+
+    /// Sets whether to enable autoImpersonate
+    #[must_use]
+    pub fn with_auto_impersonate(mut self, enable_auto_impersonate: bool) -> Self {
+        self.enable_auto_impersonate = enable_auto_impersonate;
+        self
     }
 
     /// Set the offline mode

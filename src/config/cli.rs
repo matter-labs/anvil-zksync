@@ -193,6 +193,15 @@ pub struct Cli {
     /// [default: m/44'/60'/0'/0/]
     #[arg(long, help_heading = "Account Configuration")]
     pub derivation_path: Option<String>,
+
+    /// Enables automatic impersonation on startup. This allows any transaction sender to be
+    /// simulated as different accounts, which is useful for testing contract behavior.
+    #[arg(
+        long,
+        visible_alias = "auto-unlock",
+        help_heading = "Account Configuration"
+    )]
+    pub auto_impersonate: bool,
 }
 
 #[derive(Debug, Subcommand, Clone)]
