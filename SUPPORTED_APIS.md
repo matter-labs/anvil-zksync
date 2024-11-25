@@ -14,6 +14,9 @@ The `status` options are:
 
 | Namespace | API | <div style="width:130px">Status</div> | Description |
 | --- | --- | --- | --- |
+| `ANVIL` | `anvil_setTime` | `SUPPORTED` | Sets the internal clock time to the given timestamp |
+| `ANVIL` | `anvil_increaseTime` | `SUPPORTED` | Jump forward in time by the given amount of time, in seconds |
+| `ANVIL` | `anvil_setNextBlockTimestamp` | `SUPPORTED` | Works like `anvil_increaseTime`, but takes the exact timestamp that you want in the next block, and increases the time accordingly |
 | `ANVIL` | `anvil_autoImpersonateAccount` | `SUPPORTED` | Sets auto impersonation status.|
 | `ANVIL` | `anvil_setNonce` | `SUPPORTED` | Sets the nonce of an address.|
 | `ANVIL` | `anvil_impersonateAccount` | `SUPPORTED` | Impersonate an account |
