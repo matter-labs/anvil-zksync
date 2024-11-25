@@ -96,10 +96,6 @@ pub struct Cli {
     /// Show call output information.
     pub show_outputs: Option<bool>,
 
-    #[arg(short, long, help_heading = "Debugging Options")]
-    /// Show event logs information.
-    pub show_event_logs: Option<bool>,
-
     #[arg(long, help_heading = "Debugging Options")]
     /// Show storage log information.
     pub show_storage_logs: Option<ShowStorageLogs>,
