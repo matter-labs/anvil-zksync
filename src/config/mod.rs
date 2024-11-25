@@ -99,6 +99,8 @@ pub struct TestNodeConfig {
     pub signer_accounts: Vec<PrivateKeySigner>,
     /// Whether the node operates in offline mode
     pub offline: bool,
+    /// Whether we need to enable the health check endpoint.
+    pub health_check_endpoint: bool,
 }
 
 impl Default for TestNodeConfig {
@@ -143,6 +145,7 @@ impl Default for TestNodeConfig {
 
             // Offline mode disabled by default
             offline: false,
+            health_check_endpoint: false,
         }
     }
 }
@@ -282,6 +285,14 @@ impl TestNodeConfig {
         tracing::info!(
             "EVM Emulator:       {}",
             if self.use_evm_emulator {
+                "Enabled".green()
+            } else {
+                "Disabled".red()
+            }
+        );
+        tracing::info!(
+            "Health Check Endpoint: {}",
+            if self.health_check_endpoint {
                 "Enabled".green()
             } else {
                 "Disabled".red()
@@ -622,6 +633,20 @@ impl TestNodeConfig {
     /// Get the offline mode status
     pub fn is_offline(&self) -> bool {
         self.offline
+    }
+
+    /// Set the health check endpoint mode
+    #[must_use]
+    pub fn with_health_check_endpoint(mut self, health_check_endpoint: Option<bool>) -> Self {
+        if let Some(health_check_endpoint) = health_check_endpoint {
+            self.health_check_endpoint = health_check_endpoint;
+        }
+        self
+    }
+
+    /// Get the health check endpoint mode status
+    pub fn is_health_check_endpoint_endpoint_enabled(&self) -> bool {
+        self.health_check_endpoint
     }
 }
 

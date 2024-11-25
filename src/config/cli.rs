@@ -31,6 +31,12 @@ pub struct Cli {
     /// Run in offline mode (disables all network requests).
     pub offline: bool,
 
+    #[arg(long, help_heading = "General Options")]
+    /// Enable health check endpoint.
+    /// It will be available for GET requests at /health.
+    /// The endpoint will return 200 OK if the node is healthy.
+    pub health_check_endpoint: bool,
+
     /// Writes output of `era-test-node` as json to user-specified file.
     #[arg(long, value_name = "OUT_FILE", help_heading = "General Options")]
     pub config_out: Option<String>,
@@ -293,7 +299,12 @@ impl Cli {
             }))
             .with_chain_id(self.chain_id)
             .set_config_out(self.config_out)
-            .with_evm_emulator(if self.emulate_evm { Some(true) } else { None });
+            .with_evm_emulator(if self.emulate_evm { Some(true) } else { None })
+            .with_health_check_endpoint(if self.health_check_endpoint {
+                Some(true)
+            } else {
+                None
+            });
 
         if self.emulate_evm && self.dev_system_contracts != Some(SystemContractsOptions::Local) {
             return Err(eyre::eyre!(
