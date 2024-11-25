@@ -389,9 +389,11 @@ mod tests {
         assert_eq!(nonce_after, U256::from(1337));
         assert_ne!(nonce_before, nonce_after);
 
-        // setting nonce lower than the current one should fail
-        let result = node.set_nonce(address, U256::from(1336));
-        assert!(result.is_err());
+        let result = node.set_nonce(address, U256::from(1336)).unwrap();
+        assert!(result);
+
+        let nonce_after = node.get_transaction_count(address, None).await.unwrap();
+        assert_eq!(nonce_after, U256::from(1336));
     }
 
     #[tokio::test]

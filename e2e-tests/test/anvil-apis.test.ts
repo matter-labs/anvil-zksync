@@ -128,6 +128,8 @@ describe("anvil_autoImpersonateAccount", function () {
     const recieptTx = await signer.sendTransaction(tx);
     await recieptTx.wait();
 
+    await provider.send("anvil_autoImpersonateAccount", [false]);
+
     // Assert
     expect((await userWallet.getBalance()).eq(ethers.utils.parseEther("0.42"))).to.true;
     expect((await provider.getBalance(richAccount)).eq(beforeBalance.sub(ethers.utils.parseEther("0.42")))).to.true;
