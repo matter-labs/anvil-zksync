@@ -38,6 +38,18 @@ pub trait AnvilNamespaceT {
     #[rpc(name = "anvil_setNextBlockTimestamp")]
     fn set_next_block_timestamp(&self, timestamp: Numeric) -> RpcResult<()>;
 
+    /// Sets auto impersonation status.
+    ///
+    /// # Arguments
+    ///
+    /// * `enabled` - `true` makes every account impersonated, `false` disables this behavior
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `Result` representing the success of the operation.
+    #[rpc(name = "anvil_autoImpersonateAccount")]
+    fn auto_impersonate_account(&self, enabled: bool) -> RpcResult<()>;
+
     /// Sets the balance of the given address to the given balance.
     ///
     /// # Arguments
@@ -62,7 +74,7 @@ pub trait AnvilNamespaceT {
     ///
     /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
     #[rpc(name = "anvil_setNonce")]
-    fn set_nonce(&self, address: Address, balance: U256) -> RpcResult<bool>;
+    fn set_nonce(&self, address: Address, nonce: U256) -> RpcResult<bool>;
 
     /// Sometimes you may want to advance the latest block number of the network by a large number of blocks.
     /// One way to do this would be to call the evm_mine RPC method multiple times, but this is too slow if you want to mine thousands of blocks.

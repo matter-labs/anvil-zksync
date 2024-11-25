@@ -39,6 +39,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> AnvilNames
             .into_boxed_future()
     }
 
+    fn auto_impersonate_account(&self, enabled: bool) -> RpcResult<()> {
+        self.auto_impersonate_account(enabled);
+        Ok(()).into_boxed_future()
+    }
+
     fn set_balance(&self, address: Address, balance: U256) -> RpcResult<bool> {
         self.set_balance(address, balance)
             .map_err(|err| {
@@ -48,8 +53,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> AnvilNames
             .into_boxed_future()
     }
 
-    fn set_nonce(&self, address: Address, balance: U256) -> RpcResult<bool> {
-        self.set_nonce(address, balance)
+    fn set_nonce(&self, address: Address, nonce: U256) -> RpcResult<bool> {
+        self.set_nonce(address, nonce)
             .map_err(|err| {
                 tracing::error!("failed setting nonce: {:?}", err);
                 into_jsrpc_error(Web3Error::InternalError(err))

@@ -2,11 +2,11 @@ use anyhow::{anyhow, Context};
 use std::convert::TryInto;
 use zksync_types::{
     get_code_key, get_nonce_key,
-    utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
+    utils::{nonces_to_full_nonce, storage_key_for_eth_balance},
     StorageKey,
 };
 use zksync_types::{AccountTreeId, Address, U256, U64};
-use zksync_utils::{h256_to_u256, u256_to_h256};
+use zksync_utils::u256_to_h256;
 
 use crate::utils::Numeric;
 use crate::{
@@ -186,33 +186,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
         self.get_inner()
             .write()
             .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
-            .and_then(|mut writer| {
+            .map(|mut writer| {
                 let nonce_key = get_nonce_key(&address);
-                let full_nonce = match writer.fork_storage.read_value_internal(&nonce_key) {
-                    Ok(full_nonce) => full_nonce,
-                    Err(error) => {
-                        return Err(anyhow!(error.to_string()));
-                    }
-                };
-                let (mut account_nonce, mut deployment_nonce) =
-                    decompose_full_nonce(h256_to_u256(full_nonce));
-                if account_nonce >= nonce {
-                    return Err(anyhow!(
-                        "Account Nonce is already set to a higher value ({}, requested {})",
-                        account_nonce,
-                        nonce
-                    ));
-                }
-                account_nonce = nonce;
-                if deployment_nonce >= nonce {
-                    return Err(anyhow!(
-                        "Deployment Nonce is already set to a higher value ({}, requested {})",
-                        deployment_nonce,
-                        nonce
-                    ));
-                }
-                deployment_nonce = nonce;
-                let enforced_full_nonce = nonces_to_full_nonce(account_nonce, deployment_nonce);
+                let enforced_full_nonce = nonces_to_full_nonce(nonce, nonce);
                 tracing::info!(
                     "👷 Nonces for address {:?} have been set to {}",
                     address,
@@ -221,7 +197,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
                 writer
                     .fork_storage
                     .set_value(nonce_key, u256_to_h256(enforced_full_nonce));
-                Ok(true)
+                true
             })
     }
 
@@ -309,6 +285,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
         }
     }
 
+    pub fn auto_impersonate_account(&self, enabled: bool) {
+        self.impersonation.set_auto_impersonation(enabled);
+    }
+
     pub fn impersonate_account(&self, address: Address) -> Result<bool> {
         if self.impersonation.impersonate(address) {
             tracing::info!("🕵️ Account {:?} has been impersonated", address);
@@ -385,6 +365,7 @@ mod tests {
     use zksync_multivm::interface::storage::ReadStorage;
     use zksync_types::{api::BlockNumber, fee::Fee, l2::L2Tx, PackedEthSignature};
     use zksync_types::{Nonce, H256};
+    use zksync_utils::h256_to_u256;
 
     #[tokio::test]
     async fn test_set_balance() {
@@ -415,9 +396,11 @@ mod tests {
         assert_eq!(nonce_after, U256::from(1337));
         assert_ne!(nonce_before, nonce_after);
 
-        // setting nonce lower than the current one should fail
-        let result = node.set_nonce(address, U256::from(1336));
-        assert!(result.is_err());
+        let result = node.set_nonce(address, U256::from(1336)).unwrap();
+        assert!(result);
+
+        let nonce_after = node.get_transaction_count(address, None).await.unwrap();
+        assert_eq!(nonce_after, U256::from(1336));
     }
 
     #[tokio::test]
