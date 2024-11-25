@@ -231,6 +231,17 @@ pub struct ForkArgs {
         alias = "fork-at"
     )]
     pub fork_block_number: Option<u64>,
+
+    /// Fetch state from a specific transaction hash over a remote endpoint.
+    ///
+    /// See --fork-url.
+    #[arg(
+        long,
+        requires = "fork_url",
+        value_name = "TRANSACTION",
+        conflicts_with = "fork_block_number"
+    )]
+    pub fork_transaction_hash: Option<H256>,
 }
 
 #[derive(Debug, Parser, Clone)]
