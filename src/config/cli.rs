@@ -219,7 +219,7 @@ pub struct ForkArgs {
     #[arg(
         long,
         alias = "network",
-        help = "Network to fork from (e.g., mainnet, sepolia-testnet, etc.)."
+        help = "Network to fork from (e.g., http://XXX:YY, mainnet, sepolia-testnet)."
     )]
     pub fork_url: String,
     // Fork at a given L2 miniblock height.
@@ -245,7 +245,7 @@ pub struct ReplayArgs {
     #[arg(
         long,
         alias = "network",
-        help = "Network to fork from (e.g., mainnet, sepolia-testnet, etc.)."
+        help = "Network to fork from (e.g., http://XXX:YY, mainnet, sepolia-testnet)."
     )]
     pub fork_url: String,
     /// Transaction hash to replay.
