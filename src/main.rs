@@ -124,10 +124,7 @@ async fn main() -> anyhow::Result<()> {
     let fork_details = match command {
         Command::Run => {
             if config.offline {
-                tracing::warn!(
-                    "Running in offline mode: default fee parameters will be used. \
-                To override, specify values in `config.toml` and use the `--config` flag."
-                );
+                tracing::warn!("Running in offline mode: default fee parameters will be used.");
                 None
             } else {
                 // Initialize the client to get the fee params

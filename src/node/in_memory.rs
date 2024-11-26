@@ -263,6 +263,11 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                     f.estimate_gas_scale_factor,
                 )
             };
+            let impersonation_manager = ImpersonationManager::default();
+            if config.enable_auto_impersonate {
+                // Enable auto impersonation if configured
+                impersonation_manager.set_auto_impersonation(true);
+            }
 
             InMemoryNodeInner {
                 time: TimestampManager::new(f.block_timestamp),
@@ -286,7 +291,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                     &updated_config.system_contracts_options,
                     updated_config.use_evm_emulator,
                 ),
-                impersonation: Default::default(),
+                impersonation: impersonation_manager,
                 rich_accounts: HashSet::new(),
                 previous_states: Default::default(),
                 observability,
@@ -298,6 +303,12 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             let mut blocks = HashMap::<H256, Block<TransactionVariant>>::new();
             blocks.insert(block_hash, create_genesis(NON_FORK_FIRST_BLOCK_TIMESTAMP));
             let fee_input_provider = TestNodeFeeInputProvider::default();
+
+            let impersonation_manager = ImpersonationManager::default();
+            if config.enable_auto_impersonate {
+                // Enable auto impersonation if configured
+                impersonation_manager.set_auto_impersonation(true);
+            }
 
             InMemoryNodeInner {
                 time: TimestampManager::new(NON_FORK_FIRST_BLOCK_TIMESTAMP),
@@ -321,7 +332,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                     &config.system_contracts_options,
                     config.use_evm_emulator,
                 ),
-                impersonation: Default::default(),
+                impersonation: impersonation_manager,
                 rich_accounts: HashSet::new(),
                 previous_states: Default::default(),
                 observability,
