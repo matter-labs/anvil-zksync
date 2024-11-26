@@ -1,0 +1,209 @@
+{
+    "types": [
+        {
+            "name": "uint",
+            "description": "Unsigned 32-bit integer",
+            "bindings": {
+                "rust":
+                {
+                    "name": "u32",
+                    "path": ""
+                }
+            }
+        },
+        {
+            "name": "string",
+            "description": "Unicode zero-terminated string",
+            "bindings": {
+                "rust": {
+                    "name": "String",
+                    "path": ""
+                }
+            }
+        },
+        {
+            "name": "WrappedError",
+            "description": "Any wrapped error",
+            "bindings": {
+                "rust": {
+                    "name": "serde_json::Value",
+                    "path": ""
+                }
+            }
+        },
+        {
+            "name": "WrappedErrorMessage",
+            "description": "Any wrapped error message",
+            "bindings": {
+                "rust": {
+                    "name": "String",
+                    "path": ""
+                }
+            }
+        }
+    ],
+    "domains": [
+        {
+            "domain_name": "compiler",
+            "domain_code": 1,
+            "identifier_encoding": "comp",
+            "description": "Errors in compilers: zksolc, solc, zkvyper, etc.",
+            "bindings": {
+                "rust": "Compiler"
+            },
+            "components" : [
+                {
+                    "component_name": "zksolc",
+                    "component_code": 1,
+                    "identifier_encoding": "zksolc",
+                    "description": "Errors in zksolc compiler",
+                    "bindings": {
+                        "rust" : "Zksolc"
+                    },
+                    "errors" :
+                    [
+                        {
+                            "name": "Umbrella",
+                            "code": 42,
+                            "message": "Any error!",
+                            "bindings": {
+                                "rust":
+                                {
+                                    "name": "Umbrella"
+                                }
+                            },
+                            "fields": [
+                                {
+                                    "name": "inner",
+                                    "type": "WrappedError"
+                                }
+                            ]
+                        },
+                        {
+                            "name": "SolcNotFound",
+                            "code": 1,
+                            "message": "I just can't find solc!",
+                            "bindings": {
+                                "rust":
+                                {
+                                    "name": "SolcNotFound"
+                                }
+                            },
+                            "fields": [
+                                {
+                                    "name": "path",
+                                    "type": "string"
+                                },
+                                {
+                                    "name": "payload",
+                                    "type": "uint"
+                                }
+
+                            ]
+                        },
+                        {
+                            "name": "FileNotFound",
+                            "code": 2,
+                            "message": "Can't find the file {path} to compile.",
+                            "bindings": {
+                                "rust":
+                                {
+                                    "name": "FileNotFound"
+                                },
+                                "typescript":
+                                {
+                                    "name": "TSFileNotFound"
+                                }
+                            },
+                            "fields": [
+                                {
+                                    "name": "path",
+                                    "type": "string"
+                                },
+                                {
+                                    "name": "file_index",
+                                    "type": "uint"
+                                }
+
+                            ],
+                            "doc" : {
+                                "description": "The compiler is unable to find the file with the source code that it needs",
+                                "short_description": "No input file",
+                                "likely_causes": [
+                                    {
+                                        "cause": "You did not provide a file to compile",
+                                        "fixes": [
+                                            "Check if you have provided a correct Solidity or YUL file to compile."
+                                        ],
+                                        "report": "https://matter-labs.io",
+                                        "owner": {
+                                            "name": "solc",
+                                            "version": "> 1.0.0"
+                                        }
+                                    }
+                                ],
+                                "references": ["https://matter-labs.io", "https://github.com"]
+                            }
+                        }
+
+                    ]
+
+                }
+            ]
+        },
+        {
+            "domain_name": "core",
+            "domain_code": 2,
+            "identifier_encoding": "core",
+            "description": "Errors in core components such as sequencer",
+            "bindings": {
+                "rust": "Core"
+            },
+            "components" : [
+                {
+                    "component_name": "Sequencer",
+                    "component_code": 1,
+                    "identifier_encoding": "seq",
+                    "bindings": {
+                        "rust": "Sequencer",
+                        "typescript": "Sequencer"
+                    },
+                    "description": "Errors in core components such as sequencer",
+                    "errors" : [
+                        {
+                            "name": "NotFound",
+                            "code": 1,
+                            "message": "I just can't find solc!",
+                            "bindings": {
+                                "rust":
+                                {
+                                    "name": "NotFound"
+                                }
+                            },
+                            "fields": [
+                                {
+                                    "name": "path",
+                                    "type": "string"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "component_name": "TestNode",
+                    "component_code": 2,
+                    "identifier_encoding": "testnode",
+                    "bindings": {
+                        "rust": "TestNode"
+                    },
+                    "description": "Errors in Era Test Node",
+                    "takeFrom": [
+                        "errors-era-test-node.json"
+                    ]
+                }
+
+            ]
+        }
+    ]
+}
+

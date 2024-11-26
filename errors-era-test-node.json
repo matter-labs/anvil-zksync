@@ -1,0 +1,32 @@
+{
+    "component_name": "TestNode",
+    "component_code": 2,
+    "errors": [
+        {
+            "name": "TestNodeError",
+            "code": 1,
+            "message": "Some error in EraTestNode happened: {inner}.",
+            "fields": [
+                {
+                    "name": "inner",
+                    "type": "WrappedErrorMessage"
+                }
+            ]
+        },
+        {
+            "name": "LogFileCreationError",
+            "code": 2,
+            "message": "Unable to create log file {path}: {inner}",
+            "fields": [
+                {
+                    "name": "path",
+                    "type": "string"
+                },
+                {
+                    "name": "inner",
+                    "type": "WrappedErrorMessage"
+                }
+            ]
+        }
+    ]
+}

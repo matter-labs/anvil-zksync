@@ -51,6 +51,9 @@ use crate::namespaces::{
     ZksNamespaceT,
 };
 
+use zksync_error::error::definitions::TestNode;
+use zksync_error::serialized::SerializedError;
+
 #[allow(clippy::too_many_arguments)]
 async fn build_json_http<
     S: std::marker::Sync + std::marker::Send + 'static + ForkSource + std::fmt::Debug + Clone,
@@ -103,21 +106,36 @@ async fn build_json_http<
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> Result<(), SerializedError> {
+    fn generic_error<T: std::fmt::Display>(e: T) -> TestNode {
+        TestNode::TestNodeError {
+            inner: e.to_string(),
+        }.into()
+    }
+    fn generic_error_msg(msg: impl Into<String>) -> TestNode {
+        TestNode::TestNodeError { inner: msg.into() }.into()
+    }
+
     // Check for deprecated options
     Cli::deprecated_config_option();
 
     let opt = Cli::parse();
     let command = opt.command.clone();
 
-    let mut config = opt.into_test_node_config().map_err(|e| anyhow!(e))?;
+    let mut config = opt.into_test_node_config().map_err(generic_error)?;
 
     let log_level_filter = LevelFilter::from(config.log_level);
-    let log_file = File::create(&config.log_file_path)?;
+    let log_file = File::create(&config.log_file_path).map_err(|e| {
+        TestNode::LogFileCreationError {
+            path: config.log_file_path.to_string(),
+            inner: e.to_string(),
+        }
+    })?;
 
     // Initialize the tracing subscriber
     let observability =
-        Observability::init(vec!["era_test_node".into()], log_level_filter, log_file)?;
+        Observability::init(vec!["era_test_node".into()], log_level_filter, log_file)
+            .map_err(generic_error)?;
 
     // Use `Command::Run` as default.
     let command = command.as_ref().unwrap_or(&Command::Run);
@@ -128,12 +146,13 @@ async fn main() -> anyhow::Result<()> {
                 None
             } else {
                 // Initialize the client to get the fee params
-                let (_, client) = ForkDetails::fork_network_and_client("mainnet")
-                    .map_err(|e| anyhow!("Failed to initialize client: {:?}", e))?;
+                let (_, client) = ForkDetails::fork_network_and_client("mainnet").map_err(|e| {
+                    generic_error_msg(format!("Failed to initialize client: {e:?}"))
+                })?;
 
                 let fee = client.get_fee_params().await.map_err(|e| {
                     tracing::error!("Failed to fetch fee params: {:?}", e);
-                    anyhow!(e)
+                    generic_error(e)
                 })?;
 
                 match fee {
@@ -146,7 +165,9 @@ async fn main() -> anyhow::Result<()> {
                             .with_l1_pubdata_price(Some(fee_v2.l1_pubdata_price()));
                     }
                     FeeParams::V1(_) => {
-                        return Err(anyhow!("Unsupported FeeParams::V1 in this context"));
+                        return Err(generic_error_msg(
+                            "Unsupported FeeParams::V1 in this context",
+                        ));
                     }
                 }
 
@@ -174,7 +195,7 @@ async fn main() -> anyhow::Result<()> {
                 }
                 Err(error) => {
                     tracing::error!("cannot fork: {:?}", error);
-                    return Err(anyhow!(error));
+                    return Err(generic_error(error));
                 }
             }
         }
@@ -199,7 +220,7 @@ async fn main() -> anyhow::Result<()> {
                 }
                 Err(error) => {
                     tracing::error!("cannot replay: {:?}", error);
-                    return Err(anyhow!(error));
+                    return Err(generic_error(error));
                 }
             }
         }
@@ -219,7 +240,7 @@ async fn main() -> anyhow::Result<()> {
                     "failed to get earlier transactions in the same block for replay tx: {:?}",
                     error
                 );
-                return Err(anyhow!(error));
+                return Err(generic_error(error));
             }
         }
     } else {

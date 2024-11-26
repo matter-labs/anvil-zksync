@@ -59,6 +59,7 @@ indexmap = "2.0.1"
 chrono = { version = "0.4.31", default-features = false }
 time = "0.3.36"
 rand = "0.8"
+zksync_error = { path = "../zksync_error" }
 
 [dev-dependencies]
 httptest = "0.15.4"
