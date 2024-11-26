@@ -126,7 +126,7 @@ async fn main() -> anyhow::Result<()> {
             if config.offline {
                 tracing::warn!(
                     "Running in offline mode: default fee parameters will be used. \
-        To override, specify values in `config.toml` and use the `--config` flag."
+                To override, specify values in `config.toml` and use the `--config` flag."
                 );
                 None
             } else {
@@ -157,76 +157,30 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         Command::Fork(fork) => {
-            if let Some(tx_hash) = fork.fork_transaction_hash {
+            let fork_details_result = if let Some(tx_hash) = fork.fork_transaction_hash {
                 // If fork_transaction_hash is provided, use from_network_tx
-                match ForkDetails::from_network_tx(&fork.fork_url, tx_hash, &config.cache_config)
-                    .await
-                {
-                    Ok(fd) => {
-                        config = config
-                            .with_l1_gas_price(Some(fd.l1_gas_price))
-                            .with_l2_gas_price(Some(fd.l2_fair_gas_price))
-                            .with_l1_pubdata_price(Some(fd.fair_pubdata_price))
-                            .with_price_scale(Some(fd.estimate_gas_price_scale_factor))
-                            .with_gas_limit_scale(Some(fd.estimate_gas_scale_factor))
-                            .with_chain_id(Some(fd.chain_id.as_u64() as u32));
-                        Some(fd)
-                    }
-                    Err(error) => {
-                        tracing::error!("cannot fork from transaction: {:?}", error);
-                        return Err(anyhow!(error));
-                    }
-                }
+                ForkDetails::from_network_tx(&fork.fork_url, tx_hash, &config.cache_config).await
             } else {
                 // Otherwise, use from_network
-                match ForkDetails::from_network(
+                ForkDetails::from_network(
                     &fork.fork_url,
                     fork.fork_block_number,
                     &config.cache_config,
                 )
                 .await
-                {
-                    Ok(fd) => {
-                        config = config
-                            .with_l1_gas_price(Some(fd.l1_gas_price))
-                            .with_l2_gas_price(Some(fd.l2_fair_gas_price))
-                            .with_l1_pubdata_price(Some(fd.fair_pubdata_price))
-                            .with_price_scale(Some(fd.estimate_gas_price_scale_factor))
-                            .with_gas_limit_scale(Some(fd.estimate_gas_scale_factor))
-                            .with_chain_id(Some(fd.chain_id.as_u64() as u32));
-                        Some(fd)
-                    }
-                    Err(error) => {
-                        tracing::error!("cannot fork: {:?}", error);
-                        return Err(anyhow!(error));
-                    }
-                }
-            }
+            };
+
+            config.update_with_fork_details(fork_details_result).await?
         }
         Command::ReplayTx(replay_tx) => {
-            match ForkDetails::from_network_tx(
+            let fork_details_result = ForkDetails::from_network_tx(
                 &replay_tx.fork_url,
                 replay_tx.tx,
                 &config.cache_config,
             )
-            .await
-            {
-                Ok(fd) => {
-                    // Update the config here
-                    config = config
-                        .with_l1_gas_price(Some(fd.l1_gas_price))
-                        .with_l2_gas_price(Some(fd.l2_fair_gas_price))
-                        .with_l1_pubdata_price(Some(fd.fair_pubdata_price))
-                        .with_price_scale(Some(fd.estimate_gas_price_scale_factor))
-                        .with_gas_limit_scale(Some(fd.estimate_gas_scale_factor))
-                        .with_chain_id(Some(fd.chain_id.as_u64() as u32));
-                    Some(fd)
-                }
-                Err(error) => {
-                    tracing::error!("cannot replay: {:?}", error);
-                    return Err(anyhow!(error));
-                }
-            }
+            .await;
+
+            config.update_with_fork_details(fork_details_result).await?
         }
     };
 
