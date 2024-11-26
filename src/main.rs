@@ -4,7 +4,8 @@ use bytecode_override::override_bytecodes;
 use clap::Parser;
 use config::cli::{Cli, Command};
 use config::constants::{
-    DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR, LEGACY_RICH_WALLETS,
+    DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
+    LEGACY_RICH_WALLETS, RICH_WALLETS,
 };
 use config::ForkPrintInfo;
 use fork::{ForkDetails, ForkSource};
@@ -258,7 +259,13 @@ async fn main() -> anyhow::Result<()> {
         let address = H160::from_slice(signer.address().as_ref());
         node.set_rich_account(address, config.genesis_balance);
     }
+    // sets legacy rich wallets
     for wallet in LEGACY_RICH_WALLETS.iter() {
+        let address = wallet.0;
+        node.set_rich_account(H160::from_str(address).unwrap(), config.genesis_balance);
+    }
+    // sets additional legacy rich wallets
+    for wallet in RICH_WALLETS.iter() {
         let address = wallet.0;
         node.set_rich_account(H160::from_str(address).unwrap(), config.genesis_balance);
     }
