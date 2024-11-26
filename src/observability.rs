@@ -154,7 +154,7 @@ impl Observability {
             .last_directives
             .read()
             .expect("Observability lock is poisoned");
-        let new_filter = Self::parse_filter(&last_directives)?;
+        let new_filter = Self::parse_filter(last_directives)?;
         self.reload_handle.reload(new_filter)?;
 
         Ok(())
