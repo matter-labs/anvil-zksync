@@ -96,7 +96,7 @@ pub struct Cli {
     /// Custom L1 gas price (in wei).
     pub l1_gas_price: Option<u64>,
 
-    #[arg(long, help_heading = "Gas Configuration")]
+    #[arg(long, alias = "gas-price", help_heading = "Gas Configuration")]
     /// Custom L2 gas price (in wei).
     pub l2_gas_price: Option<u64>,
 
