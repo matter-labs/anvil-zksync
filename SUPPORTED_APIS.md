@@ -14,10 +14,16 @@ The `status` options are:
 
 | Namespace | API | <div style="width:130px">Status</div> | Description |
 | --- | --- | --- | --- |
+| `ANVIL` | `anvil_snapshot` | `SUPPORTED` | Snapshot the state of the blockchain at the current block |
+| `ANVIL` | `anvil_revert` | `SUPPORTED` | Revert the state of the blockchain to a previous snapshot |
+| `ANVIL` | `anvil_setTime` | `SUPPORTED` | Sets the internal clock time to the given timestamp |
+| `ANVIL` | `anvil_increaseTime` | `SUPPORTED` | Jump forward in time by the given amount of time, in seconds |
+| `ANVIL` | `anvil_setNextBlockTimestamp` | `SUPPORTED` | Works like `anvil_increaseTime`, but takes the exact timestamp that you want in the next block, and increases the time accordingly |
+| `ANVIL` | `anvil_autoImpersonateAccount` | `SUPPORTED` | Sets auto impersonation status.|
 | `ANVIL` | `anvil_setNonce` | `SUPPORTED` | Sets the nonce of an address.|
 | `ANVIL` | `anvil_impersonateAccount` | `SUPPORTED` | Impersonate an account |
 | `ANVIL` | `anvil_stopImpersonatingAccount` | `SUPPORTED` | Stop impersonating an account after having previously used `anvil_impersonateAccount` |
-| `ANVIL` | `anvil_reset` | `PARTIALLY` | Resets the state of the network; cannot revert to past block numbers, unless they're in a fork |
+| `ANVIL` | `anvil_reset` | `SUPPORTED` | Resets the state of the network; cannot revert to past block numbers, unless they're in a fork |
 | `ANVIL` | `anvil_mine` | `SUPPORTED` | Mine any number of blocks at once, in constant time |
 | `ANVIL` | `anvil_setBalance` | `SUPPORTED` | Modifies the balance of an account |
 | `ANVIL` | `anvil_setCode` | `SUPPORTED` | Sets the bytecode of a given account |
@@ -146,7 +152,7 @@ The `status` options are:
 
 ### `config_getShowCalls`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Gets the current value of `show_calls` that's originally set with `--show-calls` option
 
@@ -169,7 +175,7 @@ curl --request POST \
 
 ### `config_getShowOutputs`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Gets the current value of `show_outputs` that's originally set with `--show-outputs` option
 
@@ -192,7 +198,7 @@ curl --request POST \
 
 ### `config_getCurrentTimestamp`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Gets the value of `current_timestamp` for the node
 
@@ -215,7 +221,7 @@ curl --request POST \
 
 ### `config_setShowCalls`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Updates `show_calls` to print more detailed call traces
 
@@ -238,7 +244,7 @@ curl --request POST \
 
 ### `config_setShowOutputs`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Updates `show_outputs` to print calls outputs
 
@@ -261,7 +267,7 @@ curl --request POST \
 
 ### `config_setShowStorageLogs`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Updates `show_storage_logs` to print storage log reads/writes
 
@@ -284,7 +290,7 @@ curl --request POST \
 
 ### `config_setShowVmDetails`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Updates `show_vm_details` to print more detailed results from vm execution
 
@@ -307,7 +313,7 @@ curl --request POST \
 
 ### `config_setShowGasDetails`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Updates `show_gas_details` to print more details about gas estimation and usage
 
@@ -330,7 +336,7 @@ curl --request POST \
 
 ### `config_setResolveHashes`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Updates `resolve-hashes` to call OpenChain for human-readable ABI names in call traces
 
@@ -353,7 +359,7 @@ curl --request POST \
 
 ### `config_setLogLevel`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Sets the logging level for the node and only displays the node logs.
 
@@ -376,7 +382,7 @@ curl --request POST \
 
 ### `config_setLogging`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Sets the fine-tuned logging levels for the node and any of its dependencies. 
 The directive format is comma-separated `module=level` for any number of modules.

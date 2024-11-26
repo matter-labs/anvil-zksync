@@ -33,11 +33,7 @@ mod utils;
 
 use node::InMemoryNode;
 use std::fs::File;
-use std::{
-    env,
-    net::{IpAddr, Ipv4Addr, SocketAddr},
-    str::FromStr,
-};
+use std::{env, net::SocketAddr, str::FromStr};
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
 use zksync_web3_decl::namespaces::ZksNamespaceClient;
 
@@ -64,6 +60,7 @@ async fn build_json_http<
     addr: SocketAddr,
     log_level_filter: LevelFilter,
     node: InMemoryNode<S>,
+    enable_health_api: bool,
 ) -> tokio::task::JoinHandle<()> {
     let (sender, recv) = oneshot::channel::<()>();
 
@@ -90,11 +87,15 @@ async fn build_json_http<
             .build()
             .unwrap();
 
-        let server = jsonrpc_http_server::ServerBuilder::new(io_handler)
+        let mut builder = jsonrpc_http_server::ServerBuilder::new(io_handler)
             .threads(1)
-            .event_loop_executor(runtime.handle().clone())
-            .start_http(&addr)
-            .unwrap();
+            .event_loop_executor(runtime.handle().clone());
+
+        if enable_health_api {
+            builder = builder.health_api(("/health", "web3_clientVersion"));
+        }
+
+        let server = builder.start_http(&addr).unwrap();
 
         server.wait();
         let _ = sender;
@@ -125,10 +126,7 @@ async fn main() -> anyhow::Result<()> {
     let fork_details = match command {
         Command::Run => {
             if config.offline {
-                tracing::warn!(
-                    "Running in offline mode: default fee parameters will be used. \
-        To override, specify values in `config.toml` and use the `--config` flag."
-                );
+                tracing::warn!("Running in offline mode: default fee parameters will be used.");
                 None
             } else {
                 // Initialize the client to get the fee params
@@ -300,11 +298,15 @@ async fn main() -> anyhow::Result<()> {
         node.set_rich_account(H160::from_str(address).unwrap(), config.genesis_balance);
     }
 
-    let threads = build_json_http(
-        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), config.port),
-        log_level_filter,
-        node.clone(),
-    )
+    let mut threads = future::join_all(config.host.iter().map(|host| {
+        let addr = SocketAddr::new(*host, config.port);
+        build_json_http(
+            addr,
+            log_level_filter,
+            node.clone(),
+            config.health_check_endpoint,
+        )
+    }))
     .await;
 
     let block_sealer = if let Some(block_time) = config.block_time {
@@ -320,13 +322,11 @@ async fn main() -> anyhow::Result<()> {
         block_sealer,
         system_contracts,
     ));
+    threads.push(block_producer_handle);
 
     config.print(fork_print_info.as_ref());
 
-    future::select_all(vec![threads, block_producer_handle])
-        .await
-        .0
-        .unwrap();
+    future::select_all(threads).await.0.unwrap();
 
     Ok(())
 }

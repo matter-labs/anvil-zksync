@@ -1,6 +1,7 @@
 use zksync_types::{Address, U256, U64};
 use zksync_web3_decl::error::Web3Error;
 
+use crate::utils::Numeric;
 use crate::{
     fork::ForkSource,
     namespaces::{AnvilNamespaceT, ResetRequest, RpcResult},
@@ -11,6 +12,56 @@ use crate::{
 impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> AnvilNamespaceT
     for InMemoryNode<S>
 {
+    fn snapshot(&self) -> RpcResult<U64> {
+        self.snapshot()
+            .map_err(|err| {
+                tracing::error!("failed creating snapshot: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(err))
+            })
+            .into_boxed_future()
+    }
+
+    fn revert(&self, id: U64) -> RpcResult<bool> {
+        self.revert_snapshot(id)
+            .map_err(|err| {
+                tracing::error!("failed reverting snapshot: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(err))
+            })
+            .into_boxed_future()
+    }
+
+    fn set_time(&self, timestamp: Numeric) -> RpcResult<i128> {
+        self.set_time(timestamp)
+            .map_err(|err| {
+                tracing::error!("failed setting time: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(err))
+            })
+            .into_boxed_future()
+    }
+
+    fn increase_time(&self, seconds: Numeric) -> RpcResult<u64> {
+        self.increase_time(seconds)
+            .map_err(|err| {
+                tracing::error!("failed increasing time: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(err))
+            })
+            .into_boxed_future()
+    }
+
+    fn set_next_block_timestamp(&self, timestamp: Numeric) -> RpcResult<()> {
+        self.set_next_block_timestamp(timestamp)
+            .map_err(|err| {
+                tracing::error!("failed setting time for next timestamp: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(err))
+            })
+            .into_boxed_future()
+    }
+
+    fn auto_impersonate_account(&self, enabled: bool) -> RpcResult<()> {
+        self.auto_impersonate_account(enabled);
+        Ok(()).into_boxed_future()
+    }
+
     fn set_balance(&self, address: Address, balance: U256) -> RpcResult<bool> {
         self.set_balance(address, balance)
             .map_err(|err| {
@@ -20,8 +71,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> AnvilNames
             .into_boxed_future()
     }
 
-    fn set_nonce(&self, address: Address, balance: U256) -> RpcResult<bool> {
-        self.set_nonce(address, balance)
+    fn set_nonce(&self, address: Address, nonce: U256) -> RpcResult<bool> {
+        self.set_nonce(address, nonce)
             .map_err(|err| {
                 tracing::error!("failed setting nonce: {:?}", err);
                 into_jsrpc_error(Web3Error::InternalError(err))

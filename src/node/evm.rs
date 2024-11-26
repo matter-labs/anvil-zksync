@@ -1,6 +1,7 @@
 use zksync_types::{Address, U256, U64};
 use zksync_web3_decl::error::Web3Error;
 
+use crate::utils::Numeric;
 use crate::{
     fork::ForkSource,
     namespaces::{EvmNamespaceT, RpcResult},
@@ -11,7 +12,7 @@ use crate::{
 impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EvmNamespaceT
     for InMemoryNode<S>
 {
-    fn increase_time(&self, time_delta_seconds: u64) -> RpcResult<u64> {
+    fn increase_time(&self, time_delta_seconds: Numeric) -> RpcResult<u64> {
         self.increase_time(time_delta_seconds)
             .map_err(|err| {
                 tracing::error!("failed increasing time: {:?}", err);
@@ -38,7 +39,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EvmNamespa
             .into_boxed_future()
     }
 
-    fn set_next_block_timestamp(&self, timestamp: U64) -> RpcResult<U64> {
+    fn set_next_block_timestamp(&self, timestamp: Numeric) -> RpcResult<()> {
         self.set_next_block_timestamp(timestamp)
             .map_err(|err| {
                 tracing::error!("failed setting time for next timestamp: {:?}", err);
@@ -47,8 +48,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EvmNamespa
             .into_boxed_future()
     }
 
-    fn set_time(&self, time: u64) -> RpcResult<i128> {
-        self.set_time(time)
+    fn set_time(&self, timestamp: Numeric) -> RpcResult<i128> {
+        self.set_time(timestamp)
             .map_err(|err| {
                 tracing::error!("failed setting time: {:?}", err);
                 into_jsrpc_error(Web3Error::InternalError(err))

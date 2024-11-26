@@ -1,6 +1,7 @@
 //! Validation that zkSync Era In-Memory Node conforms to the official Ethereum Spec
 
-use era_test_node_spec_tests::{process, EraApi, EthSpecPatch};
+use era_test_node_spec_tests::process::EraTestNodeRunner;
+use era_test_node_spec_tests::{EraApi, EthSpecPatch};
 use jsonschema::Validator;
 use openrpc_types::resolved::{Method, OpenRPC};
 use schemars::visit::Visitor;
@@ -59,7 +60,7 @@ fn validate_schema(validator: Validator, result: Value) {
 #[test_log::test(tokio::test)]
 async fn validate_eth_get_block_genesis() -> anyhow::Result<()> {
     // Start era-test-node as an OS process with a randomly selected RPC port
-    let node_handle = process::run_default().await?;
+    let node_handle = EraTestNodeRunner::default().run().await?;
     // Connect to it via JSON-RPC API
     let era_api = EraApi::local(node_handle.config.rpc_port)?;
 
@@ -85,8 +86,8 @@ async fn validate_eth_get_block_genesis() -> anyhow::Result<()> {
 }
 
 #[test_log::test(tokio::test)]
-async fn validate_eth_get_block_with_txs() -> anyhow::Result<()> {
-    let node_handle = process::run_default().await?;
+async fn validate_eth_get_block_with_txs_legacy() -> anyhow::Result<()> {
+    let node_handle = EraTestNodeRunner::default().run().await?;
     let era_api = EraApi::local(node_handle.config.rpc_port)?;
 
     era_api.transfer_eth_legacy(U256::from("100")).await?;

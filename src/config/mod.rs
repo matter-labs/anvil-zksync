@@ -1,3 +1,5 @@
+use std::net::{IpAddr, Ipv4Addr};
+
 use crate::{observability, system_contracts};
 
 use crate::config::{
@@ -98,8 +100,14 @@ pub struct TestNodeConfig {
     pub account_generator: Option<AccountGenerator>,
     /// Signer accounts that can sign messages/transactions
     pub signer_accounts: Vec<PrivateKeySigner>,
+    /// Enable auto impersonation of accounts on startup
+    pub enable_auto_impersonate: bool,
     /// Whether the node operates in offline mode
     pub offline: bool,
+    /// The host the server will listen on
+    pub host: Vec<IpAddr>,
+    /// Whether we need to enable the health check endpoint.
+    pub health_check_endpoint: bool,
     /// Block time in seconds for interval sealing.
     /// If unset, node seals a new block as soon as there is at least one transaction.
     pub block_time: Option<Duration>,
@@ -144,11 +152,14 @@ impl Default for TestNodeConfig {
             account_generator: None,
             genesis_accounts: genesis_accounts.clone(),
             signer_accounts: genesis_accounts,
+            enable_auto_impersonate: false,
             // 100ETH default balance
             genesis_balance: U256::from(100u128 * 10u128.pow(18)),
 
             // Offline mode disabled by default
             offline: false,
+            host: vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
+            health_check_endpoint: false,
 
             // Block sealing configuration default
             block_time: None,
@@ -297,13 +308,23 @@ impl TestNodeConfig {
                 "Disabled".red()
             }
         );
+        tracing::info!(
+            "Health Check Endpoint: {}",
+            if self.health_check_endpoint {
+                "Enabled".green()
+            } else {
+                "Disabled".red()
+            }
+        );
         println!("\n");
         tracing::info!("========================================");
-        tracing::info!(
-            "  Listening on {}:{}",
-            "127.0.0.1".green(),
-            self.port.to_string().green()
-        );
+        for host in &self.host {
+            tracing::info!(
+                "  Listening on {}:{}",
+                host.to_string().green(),
+                self.port.to_string().green()
+            );
+        }
         tracing::info!("========================================");
         println!("\n");
     }
@@ -620,6 +641,13 @@ impl TestNodeConfig {
             .with_genesis_accounts(accounts)
     }
 
+    /// Sets whether to enable autoImpersonate
+    #[must_use]
+    pub fn with_auto_impersonate(mut self, enable_auto_impersonate: bool) -> Self {
+        self.enable_auto_impersonate = enable_auto_impersonate;
+        self
+    }
+
     /// Set the offline mode
     #[must_use]
     pub fn with_offline(mut self, offline: Option<bool>) -> Self {
@@ -632,6 +660,30 @@ impl TestNodeConfig {
     /// Get the offline mode status
     pub fn is_offline(&self) -> bool {
         self.offline
+    }
+
+    /// Sets the host the server will listen on
+    #[must_use]
+    pub fn with_host(mut self, host: Vec<IpAddr>) -> Self {
+        self.host = if host.is_empty() {
+            vec![IpAddr::V4(Ipv4Addr::LOCALHOST)]
+        } else {
+            host
+        };
+        self
+    }
+    /// Set the health check endpoint mode
+    #[must_use]
+    pub fn with_health_check_endpoint(mut self, health_check_endpoint: Option<bool>) -> Self {
+        if let Some(health_check_endpoint) = health_check_endpoint {
+            self.health_check_endpoint = health_check_endpoint;
+        }
+        self
+    }
+
+    /// Get the health check endpoint mode status
+    pub fn is_health_check_endpoint_endpoint_enabled(&self) -> bool {
+        self.health_check_endpoint
     }
 
     /// Set the block time

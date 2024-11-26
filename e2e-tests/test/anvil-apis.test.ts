@@ -10,6 +10,118 @@ import { BigNumber } from "ethers";
 
 const provider = getTestProvider();
 
+describe("anvil_snapshot", function () {
+  it("Should return incrementing snapshot ids", async function () {
+    const wallet = new Wallet(RichAccounts[6].PrivateKey);
+    const deployer = new Deployer(hre, wallet);
+    const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
+    expect(await greeter.greet()).to.eq("Hi");
+
+    // Act
+    const snapshotId1: string = await provider.send("anvil_snapshot", []);
+    const snapshotId2: string = await provider.send("anvil_snapshot", []);
+
+    // Assert
+    expect(await greeter.greet()).to.eq("Hi");
+    expect(BigNumber.from(snapshotId2).toString()).to.eq(BigNumber.from(snapshotId1).add(1).toString());
+  });
+});
+
+describe("anvil_revert", function () {
+  it("Should revert with correct snapshot id", async function () {
+    const wallet = new Wallet(RichAccounts[6].PrivateKey);
+    const deployer = new Deployer(hre, wallet);
+    const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
+    expect(await greeter.greet()).to.eq("Hi");
+    const snapshotId = await provider.send("anvil_snapshot", []);
+    const setGreetingTx = await greeter.setGreeting("Hola, mundo!");
+    await setGreetingTx.wait();
+    expect(await greeter.greet()).to.equal("Hola, mundo!");
+
+    // Act
+    const reverted: boolean = await provider.send("anvil_revert", [snapshotId]);
+
+    // Assert
+    expect(await greeter.greet()).to.eq("Hi");
+    expect(reverted).to.be.true;
+  });
+});
+
+describe("anvil_increaseTime", function () {
+  it("Should increase current timestamp of the node", async function () {
+    // Arrange
+    const timeIncreaseInSeconds = 13;
+    const wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
+    const userWallet = Wallet.createRandom().connect(provider);
+    let expectedTimestamp: number = await provider.send("config_getCurrentTimestamp", []);
+    expectedTimestamp += timeIncreaseInSeconds;
+
+    // Act
+    await provider.send("anvil_increaseTime", [timeIncreaseInSeconds]);
+
+    const txResponse = await wallet.sendTransaction({
+      to: userWallet.address,
+      value: ethers.utils.parseEther("0.1"),
+    });
+    await txResponse.wait();
+    expectedTimestamp += 2; // New transaction will add two blocks
+
+    // Assert
+    const newBlockTimestamp = (await provider.getBlock("latest")).timestamp;
+    expect(newBlockTimestamp).to.equal(expectedTimestamp);
+  });
+});
+
+describe("anvil_setNextBlockTimestamp", function () {
+  it("Should set current timestamp of the node to specific value", async function () {
+    // Arrange
+    const timeIncreaseInMS = 123;
+    let expectedTimestamp: number = await provider.send("config_getCurrentTimestamp", []);
+    expectedTimestamp += timeIncreaseInMS;
+    const wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
+    const userWallet = Wallet.createRandom().connect(provider);
+
+    // Act
+    await provider.send("anvil_setNextBlockTimestamp", [expectedTimestamp]);
+
+    const txResponse = await wallet.sendTransaction({
+      to: userWallet.address,
+      value: ethers.utils.parseEther("0.1"),
+    });
+    await txResponse.wait();
+    expectedTimestamp += 1; // After executing a transaction, the node puts it into a block and increases its current timestamp
+
+    // Assert
+    const newBlockTimestamp = (await provider.getBlock("latest")).timestamp;
+    expect(newBlockTimestamp).to.equal(expectedTimestamp);
+  });
+});
+
+describe("anvil_setTime", function () {
+  it("Should set current timestamp of the node to specific value", async function () {
+    // Arrange
+    const timeIncreaseInMS = 123;
+    let expectedTimestamp: number = await provider.send("config_getCurrentTimestamp", []);
+    expectedTimestamp += timeIncreaseInMS;
+    const wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
+    const userWallet = Wallet.createRandom().connect(provider);
+
+    // Act
+    await provider.send("anvil_setTime", [expectedTimestamp]);
+
+    const txResponse = await wallet.sendTransaction({
+      to: userWallet.address,
+      value: ethers.utils.parseEther("0.1"),
+    });
+    await txResponse.wait();
+    expectedTimestamp += 2; // New transaction will add two blocks
+
+    // Assert
+    const newBlockTimestamp = (await provider.getBlock("latest")).timestamp;
+    expect(newBlockTimestamp).to.equal(expectedTimestamp);
+  });
+});
+
 describe("anvil_setBalance", function () {
   it("Should update the balance of an account", async function () {
     // Arrange
@@ -28,15 +140,36 @@ describe("anvil_setBalance", function () {
 describe("anvil_setNonce", function () {
   it("Should update the nonce of an account", async function () {
     // Arrange
+    const richWallet = new Wallet(RichAccounts[0].PrivateKey).connect(provider);
     const userWallet = Wallet.createRandom().connect(provider);
+
+    // Simply asserts that `richWallet` can still send successful transactions
+    async function assertCanSendTx() {
+      const tx = {
+        to: userWallet.address,
+        value: ethers.utils.parseEther("0.42"),
+      };
+
+      const txResponse = await richWallet.sendTransaction(tx);
+      const txReceipt = await txResponse.wait();
+      expect(txReceipt.status).to.equal(1);
+    }
+
     const newNonce = 42;
 
-    // Act
-    await provider.send("anvil_setNonce", [userWallet.address, ethers.utils.hexlify(newNonce)]);
+    // Advance nonce to 42
+    await provider.send("anvil_setNonce", [richWallet.address, ethers.utils.hexlify(newNonce)]);
 
     // Assert
-    const nonce = await userWallet.getNonce();
-    expect(nonce).to.equal(newNonce);
+    expect(await richWallet.getNonce()).to.equal(newNonce);
+    await assertCanSendTx();
+
+    // Rollback nonce to 0
+    await provider.send("anvil_setNonce", [richWallet.address, ethers.utils.hexlify(0)]);
+
+    // Assert
+    expect(await richWallet.getNonce()).to.equal(0);
+    await assertCanSendTx();
   });
 });
 
@@ -81,6 +214,33 @@ describe("anvil_impersonateAccount & anvil_stopImpersonatingAccount", function (
     await recieptTx.wait();
 
     await provider.send("anvil_stopImpersonatingAccount", [richAccount]);
+
+    // Assert
+    expect((await userWallet.getBalance()).eq(ethers.utils.parseEther("0.42"))).to.true;
+    expect((await provider.getBalance(richAccount)).eq(beforeBalance.sub(ethers.utils.parseEther("0.42")))).to.true;
+  });
+});
+
+describe("anvil_autoImpersonateAccount", function () {
+  it("Should allow transfers of funds without knowing the Private Key", async function () {
+    // Arrange
+    const userWallet = Wallet.createRandom().connect(provider);
+    const richAccount = RichAccounts[6].Account;
+    const beforeBalance = await provider.getBalance(richAccount);
+
+    // Act
+    await provider.send("anvil_autoImpersonateAccount", [true]);
+
+    const signer = await ethers.getSigner(richAccount);
+    const tx = {
+      to: userWallet.address,
+      value: ethers.utils.parseEther("0.42"),
+    };
+
+    const recieptTx = await signer.sendTransaction(tx);
+    await recieptTx.wait();
+
+    await provider.send("anvil_autoImpersonateAccount", [false]);
 
     // Assert
     expect((await userWallet.getBalance()).eq(ethers.utils.parseEther("0.42"))).to.true;

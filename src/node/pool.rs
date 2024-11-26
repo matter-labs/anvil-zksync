@@ -34,17 +34,15 @@ impl TxPool {
             // Pool is empty
             return None;
         };
-        let (impersonating, tx_count) = self.impersonation.inspect(|impersonated_accounts| {
+        let (impersonating, tx_count) = self.impersonation.inspect(|state| {
             // First tx's impersonation status decides what all other txs' impersonation status is
             // expected to be.
-            let impersonating =
-                impersonated_accounts.contains(&head_tx.common_data.initiator_address);
+            let impersonating = state.is_impersonating(&head_tx.common_data.initiator_address);
             let tail_txs = iter
                 // Guaranteed to be non-zero
                 .take(n - 1)
                 .take_while(|tx| {
-                    impersonating
-                        == impersonated_accounts.contains(&tx.common_data.initiator_address)
+                    impersonating == state.is_impersonating(&tx.common_data.initiator_address)
                 });
             // The amount of transactions that can be taken from the pool; `+1` accounts for `head_tx`.
             (impersonating, tail_txs.count() + 1)
@@ -91,10 +89,10 @@ pub struct TxBatch {
 
 #[cfg(test)]
 mod tests {
+    use crate::node::impersonate::ImpersonationState;
     use crate::node::pool::TxBatch;
     use crate::node::{ImpersonationManager, TxPool};
     use crate::testing;
-    use std::collections::HashSet;
     use test_case::test_case;
 
     #[test]
@@ -333,7 +331,7 @@ mod tests {
 
         let take_handle = tokio::spawn(async move { pool.take_uniform(4096) });
         let clear_impersonation_handle =
-            tokio::spawn(async move { impersonation.set_impersonated_accounts(HashSet::new()) });
+            tokio::spawn(async move { impersonation.set_state(ImpersonationState::default()) });
 
         clear_impersonation_handle.await.unwrap();
         let tx_batch = take_handle

@@ -2,9 +2,77 @@ use jsonrpc_derive::rpc;
 use zksync_types::{Address, U256, U64};
 
 use super::{ResetRequest, RpcResult};
+use crate::utils::Numeric;
 
 #[rpc]
 pub trait AnvilNamespaceT {
+    /// Snapshot the state of the blockchain at the current block. Takes no parameters. Returns the id of the snapshot
+    /// that was created. A snapshot can only be reverted once. After a successful `anvil_revert`, the same snapshot id cannot
+    /// be used again. Consider creating a new snapshot after each `anvil_revert` if you need to revert to the same
+    /// point multiple times.
+    ///
+    /// # Returns
+    /// The `U64` identifier for this snapshot.
+    #[rpc(name = "anvil_snapshot")]
+    fn snapshot(&self) -> RpcResult<U64>;
+
+    /// Revert the state of the blockchain to a previous snapshot. Takes a single parameter,
+    /// which is the snapshot id to revert to. This deletes the given snapshot, as well as any snapshots
+    /// taken after (e.g.: reverting to id 0x1 will delete snapshots with ids 0x1, 0x2, etc.)
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - The snapshot id to revert
+    ///
+    /// # Returns
+    /// `true` if a snapshot was reverted, otherwise `false`.
+    #[rpc(name = "anvil_revert")]
+    fn revert(&self, id: U64) -> RpcResult<bool>;
+
+    /// Set the current timestamp for the node.
+    /// Warning: This will allow you to move backwards in time, which may cause new blocks to appear to be
+    /// mined before old blocks. This will result in an invalid state.
+    ///
+    /// # Arguments
+    ///
+    /// * `time` - The timestamp to set the time to
+    ///
+    /// # Returns
+    /// The difference between the current timestamp and the new timestamp.
+    #[rpc(name = "anvil_setTime")]
+    fn set_time(&self, timestamp: Numeric) -> RpcResult<i128>;
+
+    /// Increase the current timestamp for the node
+    ///
+    /// # Arguments
+    ///
+    /// * `seconds` - The number of seconds to increase time by
+    ///
+    /// # Returns
+    /// The applied time delta to the current timestamp in seconds.
+    #[rpc(name = "anvil_increaseTime")]
+    fn increase_time(&self, seconds: Numeric) -> RpcResult<u64>;
+
+    /// Set timestamp for the next block. The timestamp must be in future.
+    ///
+    /// # Arguments
+    ///
+    /// * `timestamp` - The timestamp to set the time to
+    #[rpc(name = "anvil_setNextBlockTimestamp")]
+    fn set_next_block_timestamp(&self, timestamp: Numeric) -> RpcResult<()>;
+
+    /// Sets auto impersonation status.
+    ///
+    /// # Arguments
+    ///
+    /// * `enabled` - `true` makes every account impersonated, `false` disables this behavior
+    ///
+    /// # Returns
+    ///
+    /// A `BoxFuture` containing a `Result` representing the success of the operation.
+    #[rpc(name = "anvil_autoImpersonateAccount")]
+    fn auto_impersonate_account(&self, enabled: bool) -> RpcResult<()>;
+
     /// Sets the balance of the given address to the given balance.
     ///
     /// # Arguments
@@ -29,7 +97,7 @@ pub trait AnvilNamespaceT {
     ///
     /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
     #[rpc(name = "anvil_setNonce")]
-    fn set_nonce(&self, address: Address, balance: U256) -> RpcResult<bool>;
+    fn set_nonce(&self, address: Address, nonce: U256) -> RpcResult<bool>;
 
     /// Sometimes you may want to advance the latest block number of the network by a large number of blocks.
     /// One way to do this would be to call the evm_mine RPC method multiple times, but this is too slow if you want to mine thousands of blocks.

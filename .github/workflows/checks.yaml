@@ -63,3 +63,7 @@ jobs:
     needs: build
     uses: ./.github/workflows/e2e.yml
     name: e2e-tests
+  spec:
+    needs: build
+    uses: ./.github/workflows/spec.yml
+    name: spec-tests

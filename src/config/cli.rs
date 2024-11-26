@@ -15,6 +15,7 @@ use crate::system_contracts::Options as SystemContractsOptions;
 
 use super::DEFAULT_DISK_CACHE_DIR;
 use alloy_signer_local::coins_bip39::{English, Mnemonic};
+use std::net::IpAddr;
 
 #[derive(Debug, Parser, Clone)]
 #[command(
@@ -32,6 +33,12 @@ pub struct Cli {
     /// Run in offline mode (disables all network requests).
     pub offline: bool,
 
+    #[arg(long, help_heading = "General Options")]
+    /// Enable health check endpoint.
+    /// It will be available for GET requests at /health.
+    /// The endpoint will return 200 OK if the node is healthy.
+    pub health_check_endpoint: bool,
+
     /// Writes output of `era-test-node` as json to user-specified file.
     #[arg(long, value_name = "OUT_FILE", help_heading = "General Options")]
     pub config_out: Option<String>,
@@ -39,6 +46,17 @@ pub struct Cli {
     #[arg(long, default_value = "8011", help_heading = "Network Options")]
     /// Port to listen on (default: 8011).
     pub port: Option<u16>,
+
+    /// The hosts the server will listen on.
+    #[arg(
+        long,
+        value_name = "IP_ADDR",
+        env = "ANVIL_ZKSYNC_IP_ADDR",
+        default_value = "127.0.0.1",
+        value_delimiter = ',',
+        help_heading = "Network Options"
+    )]
+    pub host: Vec<IpAddr>,
 
     #[arg(long, help_heading = "Network Options")]
     /// Specify chain ID (default: 260).
@@ -177,6 +195,15 @@ pub struct Cli {
     #[arg(long, help_heading = "Account Configuration")]
     pub derivation_path: Option<String>,
 
+    /// Enables automatic impersonation on startup. This allows any transaction sender to be
+    /// simulated as different accounts, which is useful for testing contract behavior.
+    #[arg(
+        long,
+        visible_alias = "auto-unlock",
+        help_heading = "Account Configuration"
+    )]
+    pub auto_impersonate: bool,
+
     /// Block time in seconds for interval sealing.
     /// If unset, node seals a new block as soon as there is at least one transaction.
     #[arg(short, long, value_name = "SECONDS", value_parser = duration_from_secs_f64, help_heading = "Block Sealing")]
@@ -283,6 +310,7 @@ impl Cli {
             .with_log_level(self.log)
             .with_log_file_path(self.log_file_path.clone())
             .with_account_generator(self.account_generator())
+            .with_auto_impersonate(self.auto_impersonate)
             .with_genesis_balance(genesis_balance)
             .with_cache_config(self.cache.map(|cache_type| {
                 match cache_type {
@@ -299,7 +327,13 @@ impl Cli {
             }))
             .with_chain_id(self.chain_id)
             .set_config_out(self.config_out)
+            .with_host(self.host)
             .with_evm_emulator(if self.emulate_evm { Some(true) } else { None })
+            .with_health_check_endpoint(if self.health_check_endpoint {
+                Some(true)
+            } else {
+                None
+            })
             .with_block_time(self.block_time);
 
         if self.emulate_evm && self.dev_system_contracts != Some(SystemContractsOptions::Local) {
@@ -349,4 +383,58 @@ fn duration_from_secs_f64(s: &str) -> Result<Duration, String> {
         return Err("Duration must be greater than 0".to_string());
     }
     Duration::try_from_secs_f64(s).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::config::cli::Cli;
+    use clap::Parser;
+    use std::{
+        env,
+        net::{IpAddr, Ipv4Addr},
+    };
+
+    #[test]
+    fn can_parse_host() {
+        // Test adapted from https://github.com/foundry-rs/foundry/blob/398ef4a3d55d8dd769ce86cada5ec845e805188b/crates/anvil/src/cmd.rs#L895
+        let args = Cli::parse_from(["era_test_node"]);
+        assert_eq!(args.host, vec![IpAddr::V4(Ipv4Addr::LOCALHOST)]);
+
+        let args = Cli::parse_from([
+            "era_test_node",
+            "--host",
+            "::1",
+            "--host",
+            "1.1.1.1",
+            "--host",
+            "2.2.2.2",
+        ]);
+        assert_eq!(
+            args.host,
+            ["::1", "1.1.1.1", "2.2.2.2"]
+                .map(|ip| ip.parse::<IpAddr>().unwrap())
+                .to_vec()
+        );
+
+        let args = Cli::parse_from(["era_test_node", "--host", "::1,1.1.1.1,2.2.2.2"]);
+        assert_eq!(
+            args.host,
+            ["::1", "1.1.1.1", "2.2.2.2"]
+                .map(|ip| ip.parse::<IpAddr>().unwrap())
+                .to_vec()
+        );
+
+        env::set_var("ANVIL_ZKSYNC_IP_ADDR", "1.1.1.1");
+        let args = Cli::parse_from(["era_test_node"]);
+        assert_eq!(args.host, vec!["1.1.1.1".parse::<IpAddr>().unwrap()]);
+
+        env::set_var("ANVIL_ZKSYNC_IP_ADDR", "::1,1.1.1.1,2.2.2.2");
+        let args = Cli::parse_from(["era_test_node"]);
+        assert_eq!(
+            args.host,
+            ["::1", "1.1.1.1", "2.2.2.2"]
+                .map(|ip| ip.parse::<IpAddr>().unwrap())
+                .to_vec()
+        );
+    }
 }

@@ -46,7 +46,7 @@ use zksync_types::{
 use zksync_utils::{bytecode::hash_bytecode, h256_to_account_address, h256_to_u256, u256_to_h256};
 use zksync_web3_decl::error::Web3Error;
 
-use crate::node::impersonate::ImpersonationManager;
+use crate::node::impersonate::{ImpersonationManager, ImpersonationState};
 use crate::node::time::TimestampManager;
 use crate::node::TxPool;
 use crate::{
@@ -247,6 +247,10 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         impersonation: ImpersonationManager,
     ) -> Self {
         let updated_config = config.clone();
+        if config.enable_auto_impersonate {
+            // Enable auto impersonation if configured
+            impersonation.set_auto_impersonation(true);
+        }
 
         if let Some(f) = &fork {
             let mut block_hashes = HashMap::<u64, H256>::new();
@@ -290,7 +294,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                     &updated_config.system_contracts_options,
                     updated_config.use_evm_emulator,
                 ),
-                impersonation: Default::default(),
+                impersonation,
                 rich_accounts: HashSet::new(),
                 previous_states: Default::default(),
                 observability,
@@ -810,7 +814,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             blocks: self.blocks.clone(),
             block_hashes: self.block_hashes.clone(),
             filters: self.filters.clone(),
-            impersonated_accounts: self.impersonation.impersonated_accounts(),
+            impersonation_state: self.impersonation.state(),
             rich_accounts: self.rich_accounts.clone(),
             previous_states: self.previous_states.clone(),
             raw_storage: storage.raw_storage.clone(),
@@ -837,8 +841,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         self.blocks = snapshot.blocks;
         self.block_hashes = snapshot.block_hashes;
         self.filters = snapshot.filters;
-        self.impersonation
-            .set_impersonated_accounts(snapshot.impersonated_accounts);
+        self.impersonation.set_state(snapshot.impersonation_state);
         self.rich_accounts = snapshot.rich_accounts;
         self.previous_states = snapshot.previous_states;
         storage.raw_storage = snapshot.raw_storage;
@@ -864,7 +867,7 @@ pub struct Snapshot {
     pub(crate) blocks: HashMap<H256, Block<TransactionVariant>>,
     pub(crate) block_hashes: HashMap<u64, H256>,
     pub(crate) filters: EthFilters,
-    pub(crate) impersonated_accounts: HashSet<Address>,
+    pub(crate) impersonation_state: ImpersonationState,
     pub(crate) rich_accounts: HashSet<H160>,
     pub(crate) previous_states: IndexMap<H256, HashMap<StorageKey, StorageValue>>,
     pub(crate) raw_storage: InMemoryStorage,
@@ -1423,9 +1426,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             }
             .into_tracer_pointer(),
         ];
-        let (compressed_bytecodes, tx_result) =
-            vm.inspect_transaction_with_bytecode_compression(&mut tracers.into(), tx.clone(), true);
-        let compressed_bytecodes = compressed_bytecodes.context("failed compressing bytecodes")?;
+        let compressed_bytecodes = vm
+            .push_transaction(tx.clone())
+            .compressed_bytecodes
+            .into_owned();
+        let tx_result = vm.inspect(&mut tracers.into(), InspectExecutionMode::OneTx);
 
         let call_traces = call_tracer_result.get().unwrap();
 

@@ -72,7 +72,7 @@ describe("evm_setNextBlockTimestamp", function () {
     const userWallet = Wallet.createRandom().connect(provider);
 
     // Act
-    await provider.send("evm_setNextBlockTimestamp", [expectedTimestamp.toString(16)]);
+    await provider.send("evm_setNextBlockTimestamp", [expectedTimestamp]);
 
     const txResponse = await wallet.sendTransaction({
       to: userWallet.address,

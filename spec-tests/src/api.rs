@@ -63,7 +63,7 @@ impl EraApi {
     pub async fn transfer_eth_legacy(&self, value: U256) -> anyhow::Result<()> {
         // TODO: Make signer configurable, leave taking a random rich wallet as the default option
         let signer = PrivateKeySigner::from_str(
-            "0x3d3cbc973389cb26f657686445bcc75662b415b656078503592ac8c1abb8810e",
+            "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110",
         )?;
         let wallet = EthereumWallet::from(signer);
         let provider = ProviderBuilder::new()
@@ -74,7 +74,7 @@ impl EraApi {
         // TODO: Make `to` configurable, leave taking a random wallet as the default option
         let tx = TransactionRequest::default()
             .to(Address::from_str(
-                "0x55bE1B079b53962746B2e86d12f158a41DF294A6",
+                "0x36615Cf349d7F6344891B1e7CA7C72883F5dc049",
             )?)
             .value(value.to_string().parse()?)
             .with_gas_price(100000000000);
