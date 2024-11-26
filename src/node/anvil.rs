@@ -12,6 +12,11 @@ use crate::{
 impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> AnvilNamespaceT
     for InMemoryNode<S>
 {
+    fn set_min_gas_price(&self, _gas: U256) -> RpcResult<()> {
+        tracing::info!("anvil_setMinGasPrice is unsupported as ZKsync is a post-EIP1559 chain");
+        Err(into_jsrpc_error(Web3Error::MethodNotImplemented)).into_boxed_future()
+    }
+
     fn snapshot(&self) -> RpcResult<U64> {
         self.snapshot()
             .map_err(|err| {
