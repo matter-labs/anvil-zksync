@@ -226,8 +226,6 @@ pub struct InMemoryNodeInner<S> {
     pub rich_accounts: HashSet<H160>,
     /// Keeps track of historical states indexed via block hash. Limited to [MAX_PREVIOUS_STATES].
     pub previous_states: IndexMap<H256, HashMap<StorageKey, StorageValue>>,
-    /// An optional handle to the observability stack
-    pub observability: Option<Observability>,
 }
 
 #[derive(Debug)]
@@ -241,7 +239,6 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
     /// Create the state to be used implementing [InMemoryNode].
     pub fn new(
         fork: Option<ForkDetails>,
-        observability: Option<Observability>,
         config: &TestNodeConfig,
         time: TimestampManager,
         impersonation: ImpersonationManager,
@@ -297,7 +294,6 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 impersonation,
                 rich_accounts: HashSet::new(),
                 previous_states: Default::default(),
-                observability,
             }
         } else {
             let mut block_hashes = HashMap::<u64, H256>::new();
@@ -333,7 +329,6 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 impersonation,
                 rich_accounts: HashSet::new(),
                 previous_states: Default::default(),
-                observability,
             }
         }
     }
@@ -889,6 +884,8 @@ pub struct InMemoryNode<S: Clone> {
     pub(crate) system_contracts_options: system_contracts::Options,
     pub(crate) time: TimestampManager,
     pub(crate) impersonation: ImpersonationManager,
+    /// An optional handle to the observability stack
+    pub(crate) observability: Option<Observability>,
     pub(crate) pool: TxPool,
 }
 
@@ -927,7 +924,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         let system_contracts_options = config.system_contracts_options;
         let inner = InMemoryNodeInner::new(
             fork,
-            observability,
+
             config,
             time.clone(),
             impersonation.clone(),
@@ -938,6 +935,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             system_contracts_options,
             time,
             impersonation,
+            observability,
             pool,
         }
     }
@@ -986,17 +984,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     }
 
     pub fn reset(&self, fork: Option<ForkDetails>) -> Result<(), String> {
-        let observability = self
-            .inner
-            .read()
-            .map_err(|e| format!("Failed to acquire read lock: {}", e))?
-            .observability
-            .clone();
-
         let config = self.get_config()?;
         let inner = InMemoryNodeInner::new(
             fork,
-            observability,
+
             &config,
             TimestampManager::default(),
             ImpersonationManager::default(),
