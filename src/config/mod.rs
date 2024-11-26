@@ -720,12 +720,24 @@ impl TestNodeConfig {
     ) -> Result<Option<ForkDetails>, anyhow::Error> {
         match fork_details_result {
             Ok(fd) => {
-                self.update_l1_gas_price(Some(fd.l1_gas_price))
-                    .update_l2_gas_price(Some(fd.l2_fair_gas_price))
-                    .update_l1_pubdata_price(Some(fd.fair_pubdata_price))
-                    .update_price_scale(Some(fd.estimate_gas_price_scale_factor))
-                    .update_gas_limit_scale(Some(fd.estimate_gas_scale_factor))
-                    .update_chain_id(Some(fd.chain_id.as_u64() as u32));
+                let l1_gas_price = self.l1_gas_price.or(Some(fd.l1_gas_price));
+                let l2_gas_price = self.l2_gas_price.or(Some(fd.l2_fair_gas_price));
+                let l1_pubdata_price = self.l1_pubdata_price.or(Some(fd.fair_pubdata_price));
+                let price_scale = self
+                    .price_scale_factor
+                    .or(Some(fd.estimate_gas_price_scale_factor));
+                let gas_limit_scale = self
+                    .limit_scale_factor
+                    .or(Some(fd.estimate_gas_scale_factor));
+                let chain_id = self.chain_id.or(Some(fd.chain_id.as_u64() as u32));
+
+                self.update_l1_gas_price(l1_gas_price)
+                    .update_l2_gas_price(l2_gas_price)
+                    .update_l1_pubdata_price(l1_pubdata_price)
+                    .update_price_scale(price_scale)
+                    .update_gas_limit_scale(gas_limit_scale)
+                    .update_chain_id(chain_id);
+
                 Ok(Some(fd))
             }
             Err(error) => {
