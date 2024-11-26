@@ -6,7 +6,8 @@ use crate::utils::Numeric;
 
 #[rpc]
 pub trait AnvilNamespaceT {
-    /// Set the minimum gas price for the node. Unsupported by design.
+    /// Set the minimum gas price for the node. Unsupported for ZKsync as it is only relevant for
+    /// pre-EIP1559 chains.
     ///
     /// # Arguments
     ///
