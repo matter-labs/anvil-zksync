@@ -1380,9 +1380,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             }
             .into_tracer_pointer(),
         ];
-        let (compressed_bytecodes, tx_result) =
-            vm.inspect_transaction_with_bytecode_compression(&mut tracers.into(), tx.clone(), true);
-        let compressed_bytecodes = compressed_bytecodes.context("failed compressing bytecodes")?;
+        let compressed_bytecodes = vm
+            .push_transaction(tx.clone())
+            .compressed_bytecodes
+            .into_owned();
+        let tx_result = vm.inspect(&mut tracers.into(), InspectExecutionMode::OneTx);
 
         let call_traces = call_tracer_result.get().unwrap();
 
