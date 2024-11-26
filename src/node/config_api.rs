@@ -184,48 +184,46 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
     }
 
     fn config_set_log_level(&self, level: LogLevel) -> Result<bool> {
-        if let Some(observability) = &self
-            .get_inner()
-            .read()
-            .map_err(|err| {
-                tracing::error!("failed acquiring lock: {:?}", err);
-                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
-                    "Failed to acquire read lock for inner node state.",
-                )))
-            })?
-            .observability
-        {
-            match observability.set_log_level(level) {
-                Ok(_) => tracing::info!("set log level to '{}'", level),
-                Err(err) => {
-                    tracing::error!("failed setting log level {:?}", err);
-                    return Ok(false);
-                }
+        let Some(observability) = &self.observability else {
+            return Err(into_jsrpc_error(Web3Error::InternalError(
+                anyhow::Error::msg("Node's logging is not set up."),
+            )));
+        };
+        match observability.set_log_level(level) {
+            Ok(_) => {
+                tracing::info!("set log level to '{}'", level);
+                self.get_inner()
+                    .write()
+                    .map_err(|err| {
+                        tracing::error!("failed acquiring lock: {:?}", err);
+                        into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                            "Failed to acquire write lock for inner node state.",
+                        )))
+                    })?
+                    .config
+                    .log_level = level;
+                Ok(true)
+            }
+            Err(err) => {
+                tracing::error!("failed setting log level {:?}", err);
+                Ok(false)
             }
         }
-        Ok(true)
     }
 
     fn config_set_logging(&self, directive: String) -> Result<bool> {
-        if let Some(observability) = &self
-            .get_inner()
-            .read()
-            .map_err(|err| {
-                tracing::error!("failed acquiring lock: {:?}", err);
-                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
-                    "Failed to acquire read lock for inner node state.",
-                )))
-            })?
-            .observability
-        {
-            match observability.set_logging(&directive) {
-                Ok(_) => tracing::info!("set logging to '{}'", directive),
-                Err(err) => {
-                    tracing::error!("failed setting logging to '{}': {:?}", directive, err);
-                    return Ok(false);
-                }
+        let Some(observability) = &self.observability else {
+            return Err(into_jsrpc_error(Web3Error::InternalError(
+                anyhow::Error::msg("Node's logging is not set up."),
+            )));
+        };
+        match observability.set_logging(directive.clone()) {
+            Ok(_) => tracing::info!("set logging to '{}'", directive),
+            Err(err) => {
+                tracing::error!("failed setting logging to '{}': {:?}", directive, err);
+                return Ok(false);
             }
-        }
+        };
         Ok(true)
     }
 }

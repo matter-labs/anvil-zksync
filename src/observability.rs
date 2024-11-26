@@ -1,8 +1,8 @@
-use core::fmt;
-use std::{fs::File, sync::Mutex};
-
 use clap::ValueEnum;
+use core::fmt;
 use serde::{Deserialize, Serialize};
+use std::sync::{Arc, RwLock};
+use std::{fs::File, sync::Mutex};
 use tracing_subscriber::{
     filter::LevelFilter, layer::SubscriberExt, reload, util::SubscriberInitExt, EnvFilter, Registry,
 };
@@ -44,10 +44,12 @@ impl From<LogLevel> for LevelFilter {
 }
 
 /// A sharable reference to the observability stack.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct Observability {
     binary_names: Vec<String>,
-    reload_handle: Option<reload::Handle<EnvFilter, Registry>>,
+    reload_handle: reload::Handle<EnvFilter, Registry>,
+    /// Last directives used to reload the underlying `EnvFilter` instance.
+    last_directives: Arc<RwLock<String>>,
 }
 
 impl Observability {
@@ -57,12 +59,12 @@ impl Observability {
         log_level_filter: LevelFilter,
         log_file: File,
     ) -> Result<Self, anyhow::Error> {
-        let joined_filter = binary_names
+        let directives = binary_names
             .iter()
             .map(|x| format!("{}={}", x, log_level_filter.to_string().to_lowercase()))
             .collect::<Vec<String>>()
             .join(",");
-        let filter = Self::parse_filter(&joined_filter)?;
+        let filter = Self::parse_filter(&directives)?;
         let (filter, reload_handle) = reload::Layer::new(filter);
 
         let timer_format =
@@ -95,22 +97,23 @@ impl Observability {
 
         Ok(Self {
             binary_names,
-            reload_handle: Some(reload_handle),
+            reload_handle,
+            last_directives: Arc::new(RwLock::new(directives)),
         })
     }
 
     /// Set the log level for the binary.
-    pub fn set_log_level(&self, level: LogLevel) -> Result<(), anyhow::Error> {
+    pub fn set_log_level(&self, level: LogLevel) -> anyhow::Result<()> {
         let level = LevelFilter::from(level);
-        let new_filter = Self::parse_filter(
-            &self
-                .binary_names
-                .join(format!("={},", level.to_string().to_lowercase()).as_str()),
-        )?;
-
-        if let Some(handle) = &self.reload_handle {
-            handle.modify(|filter| *filter = new_filter)?;
-        }
+        let directives = self
+            .binary_names
+            .join(&format!("={},", level.to_string().to_lowercase()));
+        let new_filter = Self::parse_filter(&directives)?;
+        self.reload_handle.reload(new_filter)?;
+        *self
+            .last_directives
+            .write()
+            .expect("Observability lock is poisoned") = directives;
 
         Ok(())
     }
@@ -120,12 +123,13 @@ impl Observability {
     ///     * "my_crate=debug"
     ///     * "my_crate::module=trace"
     ///     * "my_crate=debug,other_crate=warn"
-    pub fn set_logging(&self, directive: &str) -> Result<(), anyhow::Error> {
-        let new_filter = Self::parse_filter(directive)?;
-
-        if let Some(handle) = &self.reload_handle {
-            handle.modify(|filter| *filter = new_filter)?;
-        }
+    pub fn set_logging(&self, directives: String) -> Result<(), anyhow::Error> {
+        let new_filter = Self::parse_filter(&directives)?;
+        self.reload_handle.reload(new_filter)?;
+        *self
+            .last_directives
+            .write()
+            .expect("Observability lock is poisoned") = directives;
 
         Ok(())
     }
@@ -135,12 +139,32 @@ impl Observability {
     ///     * "my_crate=debug"
     ///     * "my_crate::module=trace"
     ///     * "my_crate=debug,other_crate=warn"
-    fn parse_filter(directive: &str) -> Result<EnvFilter, anyhow::Error> {
+    fn parse_filter(directives: &str) -> Result<EnvFilter, anyhow::Error> {
         let mut filter = EnvFilter::from_default_env();
-        for directive in directive.split(',') {
+        for directive in directives.split(',') {
             filter = filter.add_directive(directive.parse()?);
         }
 
         Ok(filter)
+    }
+
+    /// Enables logging with the latest used directives.
+    pub fn enable_logging(&self) -> Result<(), anyhow::Error> {
+        let last_directives = &*self
+            .last_directives
+            .read()
+            .expect("Observability lock is poisoned");
+        let new_filter = Self::parse_filter(&last_directives)?;
+        self.reload_handle.reload(new_filter)?;
+
+        Ok(())
+    }
+
+    /// Disables all logging.
+    pub fn disable_logging(&self) -> Result<(), anyhow::Error> {
+        let new_filter = EnvFilter::new("off");
+        self.reload_handle.reload(new_filter)?;
+
+        Ok(())
     }
 }

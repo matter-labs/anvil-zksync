@@ -14,6 +14,7 @@ The `status` options are:
 
 | Namespace | API | <div style="width:130px">Status</div> | Description |
 | --- | --- | --- | --- |
+| `ANVIL` | `anvil_setLoggingEnabled` | `SUPPORTED` | Enables or disables logging |
 | `ANVIL` | `anvil_snapshot` | `SUPPORTED` | Snapshot the state of the blockchain at the current block |
 | `ANVIL` | `anvil_revert` | `SUPPORTED` | Revert the state of the blockchain to a previous snapshot |
 | `ANVIL` | `anvil_setTime` | `SUPPORTED` | Sets the internal clock time to the given timestamp |

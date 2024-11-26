@@ -12,6 +12,15 @@ use crate::{
 impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> AnvilNamespaceT
     for InMemoryNode<S>
 {
+    fn set_logging_enabled(&self, enable: bool) -> RpcResult<()> {
+        self.set_logging_enabled(enable)
+            .map_err(|err| {
+                tracing::error!("failed creating snapshot: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(err))
+            })
+            .into_boxed_future()
+    }
+
     fn snapshot(&self) -> RpcResult<U64> {
         self.snapshot()
             .map_err(|err| {
