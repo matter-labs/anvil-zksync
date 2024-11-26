@@ -12,6 +12,24 @@ use crate::{
 impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> AnvilNamespaceT
     for InMemoryNode<S>
 {
+    fn snapshot(&self) -> RpcResult<U64> {
+        self.snapshot()
+            .map_err(|err| {
+                tracing::error!("failed creating snapshot: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(err))
+            })
+            .into_boxed_future()
+    }
+
+    fn revert(&self, id: U64) -> RpcResult<bool> {
+        self.revert_snapshot(id)
+            .map_err(|err| {
+                tracing::error!("failed reverting snapshot: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(err))
+            })
+            .into_boxed_future()
+    }
+
     fn set_time(&self, timestamp: Numeric) -> RpcResult<i128> {
         self.set_time(timestamp)
             .map_err(|err| {

@@ -6,6 +6,29 @@ use crate::utils::Numeric;
 
 #[rpc]
 pub trait AnvilNamespaceT {
+    /// Snapshot the state of the blockchain at the current block. Takes no parameters. Returns the id of the snapshot
+    /// that was created. A snapshot can only be reverted once. After a successful `anvil_revert`, the same snapshot id cannot
+    /// be used again. Consider creating a new snapshot after each `anvil_revert` if you need to revert to the same
+    /// point multiple times.
+    ///
+    /// # Returns
+    /// The `U64` identifier for this snapshot.
+    #[rpc(name = "anvil_snapshot")]
+    fn snapshot(&self) -> RpcResult<U64>;
+
+    /// Revert the state of the blockchain to a previous snapshot. Takes a single parameter,
+    /// which is the snapshot id to revert to. This deletes the given snapshot, as well as any snapshots
+    /// taken after (e.g.: reverting to id 0x1 will delete snapshots with ids 0x1, 0x2, etc.)
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - The snapshot id to revert
+    ///
+    /// # Returns
+    /// `true` if a snapshot was reverted, otherwise `false`.
+    #[rpc(name = "anvil_revert")]
+    fn revert(&self, id: U64) -> RpcResult<bool>;
+
     /// Set the current timestamp for the node.
     /// Warning: This will allow you to move backwards in time, which may cause new blocks to appear to be
     /// mined before old blocks. This will result in an invalid state.

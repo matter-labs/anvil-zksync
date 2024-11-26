@@ -14,6 +14,8 @@ The `status` options are:
 
 | Namespace | API | <div style="width:130px">Status</div> | Description |
 | --- | --- | --- | --- |
+| `ANVIL` | `anvil_snapshot` | `SUPPORTED` | Snapshot the state of the blockchain at the current block |
+| `ANVIL` | `anvil_revert` | `SUPPORTED` | Revert the state of the blockchain to a previous snapshot |
 | `ANVIL` | `anvil_setTime` | `SUPPORTED` | Sets the internal clock time to the given timestamp |
 | `ANVIL` | `anvil_increaseTime` | `SUPPORTED` | Jump forward in time by the given amount of time, in seconds |
 | `ANVIL` | `anvil_setNextBlockTimestamp` | `SUPPORTED` | Works like `anvil_increaseTime`, but takes the exact timestamp that you want in the next block, and increases the time accordingly |

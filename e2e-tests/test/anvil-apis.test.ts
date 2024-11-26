@@ -10,6 +10,43 @@ import { BigNumber } from "ethers";
 
 const provider = getTestProvider();
 
+describe("anvil_snapshot", function () {
+  it("Should return incrementing snapshot ids", async function () {
+    const wallet = new Wallet(RichAccounts[6].PrivateKey);
+    const deployer = new Deployer(hre, wallet);
+    const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
+    expect(await greeter.greet()).to.eq("Hi");
+
+    // Act
+    const snapshotId1: string = await provider.send("anvil_snapshot", []);
+    const snapshotId2: string = await provider.send("anvil_snapshot", []);
+
+    // Assert
+    expect(await greeter.greet()).to.eq("Hi");
+    expect(BigNumber.from(snapshotId2).toString()).to.eq(BigNumber.from(snapshotId1).add(1).toString());
+  });
+});
+
+describe("anvil_revert", function () {
+  it("Should revert with correct snapshot id", async function () {
+    const wallet = new Wallet(RichAccounts[6].PrivateKey);
+    const deployer = new Deployer(hre, wallet);
+    const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
+    expect(await greeter.greet()).to.eq("Hi");
+    const snapshotId = await provider.send("anvil_snapshot", []);
+    const setGreetingTx = await greeter.setGreeting("Hola, mundo!");
+    await setGreetingTx.wait();
+    expect(await greeter.greet()).to.equal("Hola, mundo!");
+
+    // Act
+    const reverted: boolean = await provider.send("anvil_revert", [snapshotId]);
+
+    // Assert
+    expect(await greeter.greet()).to.eq("Hi");
+    expect(reverted).to.be.true;
+  });
+});
+
 describe("anvil_increaseTime", function () {
   it("Should increase current timestamp of the node", async function () {
     // Arrange
