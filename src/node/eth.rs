@@ -1465,11 +1465,12 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthTestNod
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::node::NON_FORK_FIRST_BLOCK_TIMESTAMP;
     use crate::{
         config::{
             cache::CacheConfig,
-            constants::{DEFAULT_ACCOUNT_BALANCE, DEFAULT_L2_GAS_PRICE},
+            constants::{
+                DEFAULT_ACCOUNT_BALANCE, DEFAULT_L2_GAS_PRICE, NON_FORK_FIRST_BLOCK_TIMESTAMP,
+            },
         },
         fork::ForkDetails,
         http_fork_source::HttpForkSource,

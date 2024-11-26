@@ -1,9 +1,11 @@
+use crate::config::Genesis;
 use anyhow::Context;
 use chrono::{DateTime, Utc};
 use futures::Future;
 use jsonrpc_core::{Error, ErrorCode};
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
+use std::fs;
 use std::{convert::TryInto, fmt, pin::Pin};
 use zksync_multivm::interface::{Call, CallType, ExecutionResult, VmExecutionResultAndLogs};
 use zksync_types::{
@@ -26,6 +28,13 @@ where
     T: Send + 'static,
     U: Send + 'static,
 {
+}
+
+/// Parses the genesis file from the given path.
+pub fn parse_genesis_file(path: &str) -> Result<Genesis, String> {
+    let file_content =
+        fs::read_to_string(path).map_err(|err| format!("Failed to read file: {err}"))?;
+    serde_json::from_str(&file_content).map_err(|err| format!("Failed to parse JSON: {err}"))
 }
 
 /// Takes long integers and returns them in human friendly format with "_".

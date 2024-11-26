@@ -52,9 +52,9 @@ use crate::{
     bootloader_debug::{BootloaderDebug, BootloaderDebugTracer},
     config::{
         cache::CacheConfig,
-        constants::{LEGACY_RICH_WALLETS, RICH_WALLETS},
+        constants::{LEGACY_RICH_WALLETS, NON_FORK_FIRST_BLOCK_TIMESTAMP, RICH_WALLETS},
         show_details::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails},
-        TestNodeConfig,
+        Genesis, TestNodeConfig,
     },
     console_log::ConsoleLogHandler,
     deps::{storage_view::StorageView, InMemoryStorage},
@@ -72,8 +72,6 @@ use crate::{
 
 /// Max possible size of an ABI encoded tx (in bytes).
 pub const MAX_TX_SIZE: usize = 1_000_000;
-/// Timestamp of the first block (if not running in fork mode).
-pub const NON_FORK_FIRST_BLOCK_TIMESTAMP: u64 = 1_000;
 /// Acceptable gas overestimation limit.
 pub const ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION: u64 = 1_000;
 /// The maximum number of previous blocks to store the state for.
@@ -90,8 +88,45 @@ pub fn compute_hash<'a>(block_number: u64, tx_hashes: impl IntoIterator<Item = &
     H256(keccak256(&digest))
 }
 
-pub fn create_genesis<TX>(timestamp: u64) -> Block<TX> {
+pub fn create_genesis_from_json(
+    genesis: &Genesis,
+    timestamp: Option<u64>,
+) -> Block<TransactionVariant> {
+    let hash = genesis.hash.unwrap_or_else(|| compute_hash(0, []));
+    let timestamp = timestamp
+        .or(genesis.timestamp)
+        .unwrap_or(NON_FORK_FIRST_BLOCK_TIMESTAMP);
+
+    let l1_batch_env = genesis.l1_batch_env.clone().unwrap_or_else(|| L1BatchEnv {
+        previous_batch_hash: None,
+        number: L1BatchNumber(0),
+        timestamp,
+        fee_input: BatchFeeInput::pubdata_independent(0, 0, 0),
+        fee_account: Address::zero(),
+        enforced_base_fee: None,
+        first_l2_block: L2BlockEnv {
+            number: 0,
+            timestamp,
+            prev_block_hash: H256::zero(),
+            max_virtual_blocks_to_create: 0,
+        },
+    });
+
+    create_block(
+        &l1_batch_env,
+        hash,
+        genesis.parent_hash.unwrap_or_else(H256::zero),
+        genesis.block_number.unwrap_or(0),
+        timestamp,
+        genesis.transactions.clone().unwrap_or_default(),
+        genesis.gas_used.unwrap_or_else(U256::zero),
+        genesis.logs_bloom.unwrap_or_else(Bloom::zero),
+    )
+}
+
+pub fn create_genesis<TX>(timestamp: Option<u64>) -> Block<TX> {
     let hash = compute_hash(0, []);
+    let timestamp = timestamp.unwrap_or(NON_FORK_FIRST_BLOCK_TIMESTAMP);
     let batch_env = L1BatchEnv {
         previous_batch_hash: None,
         number: L1BatchNumber(0),
@@ -294,7 +329,14 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             let block_hash = compute_hash(0, []);
             block_hashes.insert(0, block_hash);
             let mut blocks = HashMap::<H256, Block<TransactionVariant>>::new();
-            blocks.insert(block_hash, create_genesis(NON_FORK_FIRST_BLOCK_TIMESTAMP));
+            let genesis_block: Block<TransactionVariant> = if let Some(ref genesis) = config.genesis
+            {
+                create_genesis_from_json(genesis, config.genesis_timestamp)
+            } else {
+                create_genesis(config.genesis_timestamp)
+            };
+
+            blocks.insert(block_hash, genesis_block);
             let fee_input_provider = TestNodeFeeInputProvider::default();
 
             let impersonation_manager = ImpersonationManager::default();
@@ -1972,7 +2014,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_genesis_creates_block_with_hash_and_zero_parent_hash() {
-        let first_block = create_genesis::<TransactionVariant>(1000);
+        let first_block = create_genesis::<TransactionVariant>(Some(1000));
 
         assert_eq!(first_block.hash, compute_hash(0, []));
         assert_eq!(first_block.parent_hash, H256::zero());

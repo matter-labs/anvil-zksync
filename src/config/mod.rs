@@ -2,6 +2,8 @@ use crate::fork::ForkDetails;
 use crate::{observability, system_contracts};
 use anyhow::anyhow;
 use std::net::{IpAddr, Ipv4Addr};
+use zksync_multivm::interface::L1BatchEnv;
+use zksync_types::api::TransactionVariant;
 
 use crate::config::{
     cache::{CacheConfig, CacheType},
@@ -22,7 +24,7 @@ use serde_json::{json, to_writer, Value};
 use std::collections::HashMap;
 use std::fs::File;
 use zksync_types::fee_model::FeeModelConfigV2;
-use zksync_types::U256;
+use zksync_types::{Bloom, H256, U256};
 
 pub mod cache;
 pub mod cli;
@@ -100,6 +102,10 @@ pub struct TestNodeConfig {
     pub account_generator: Option<AccountGenerator>,
     /// Signer accounts that can sign messages/transactions
     pub signer_accounts: Vec<PrivateKeySigner>,
+    /// The genesis to use to initialize the node
+    pub genesis: Option<Genesis>,
+    /// Genesis block timestamp
+    pub genesis_timestamp: Option<u64>,
     /// Enable auto impersonation of accounts on startup
     pub enable_auto_impersonate: bool,
     /// Whether the node operates in offline mode
@@ -150,6 +156,8 @@ impl Default for TestNodeConfig {
             enable_auto_impersonate: false,
             // 100ETH default balance
             genesis_balance: U256::from(100u128 * 10u128.pow(18)),
+            genesis_timestamp: Some(NON_FORK_FIRST_BLOCK_TIMESTAMP),
+            genesis: None,
 
             // Offline mode disabled by default
             offline: false,
@@ -286,6 +294,11 @@ impl TestNodeConfig {
             "Estimated Gas Limit Scale Factor:  {}",
             self.get_gas_limit_scale().to_string().green()
         );
+        println!("\n");
+
+        tracing::info!("Genesis Timestamp");
+        tracing::info!("========================");
+        tracing::info!("{}", self.get_genesis_timestamp().to_string().green());
         println!("\n");
 
         tracing::info!("Node Configuration");
@@ -668,6 +681,26 @@ impl TestNodeConfig {
             .with_genesis_accounts(accounts)
     }
 
+    /// Sets the genesis timestamp
+    #[must_use]
+    pub fn with_genesis_timestamp(mut self, timestamp: Option<u64>) -> Self {
+        self.genesis_timestamp = timestamp;
+        self
+    }
+
+    /// Returns the genesis timestamp to use
+    pub fn get_genesis_timestamp(&self) -> u64 {
+        self.genesis_timestamp
+            .unwrap_or(NON_FORK_FIRST_BLOCK_TIMESTAMP)
+    }
+
+    /// Sets the init genesis (genesis.json)
+    #[must_use]
+    pub fn with_genesis(mut self, genesis: Option<Genesis>) -> Self {
+        self.genesis = genesis;
+        self
+    }
+
     /// Sets whether to enable autoImpersonate
     #[must_use]
     pub fn with_auto_impersonate(mut self, enable_auto_impersonate: bool) -> Self {
@@ -804,4 +837,25 @@ impl AccountGenerator {
             })
             .collect()
     }
+}
+
+/// Genesis
+#[derive(Deserialize, Clone, Debug)]
+pub struct Genesis {
+    /// The hash of the genesis block. If not provided, it can be computed.
+    pub hash: Option<H256>,
+    /// The parent hash of the genesis block. Usually zero.
+    pub parent_hash: Option<H256>,
+    /// The block number of the genesis block. Usually zero.
+    pub block_number: Option<u64>,
+    /// The timestamp of the genesis block.
+    pub timestamp: Option<u64>,
+    /// The L1 batch environment.
+    pub l1_batch_env: Option<L1BatchEnv>,
+    /// The transactions included in the genesis block.
+    pub transactions: Option<Vec<TransactionVariant>>,
+    /// The amount of gas used.
+    pub gas_used: Option<U256>,
+    /// The logs bloom filter.
+    pub logs_bloom: Option<Bloom>,
 }

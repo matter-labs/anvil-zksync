@@ -20,6 +20,8 @@ pub const DERIVATION_PATH: &str = "m/44'/60'/0'/0/0";
 pub const DEFAULT_LOG_FILE_PATH: &str = "era_test_node.log";
 /// Default mnemonic phrase for the test node
 pub const DEFAULT_MNEMONIC: &str = "test test test test test test test test test test test junk";
+/// Timestamp of the first block (if not running in fork mode).
+pub const NON_FORK_FIRST_BLOCK_TIMESTAMP: u64 = 1_000;
 /// Default account balance for the dev accounts
 #[cfg(test)]
 pub const DEFAULT_ACCOUNT_BALANCE: u128 = 1_000 * 10u128.pow(18);
