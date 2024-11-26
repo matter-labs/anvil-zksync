@@ -1,3 +1,10 @@
+use crate::utils::Numeric;
+use crate::{
+    fork::{ForkDetails, ForkSource},
+    namespaces::ResetRequest,
+    node::InMemoryNode,
+    utils::bytecode_to_factory_dep,
+};
 use anyhow::{anyhow, Context};
 use std::convert::TryInto;
 use zksync_types::{
@@ -7,14 +14,6 @@ use zksync_types::{
 };
 use zksync_types::{AccountTreeId, Address, U256, U64};
 use zksync_utils::u256_to_h256;
-
-use crate::utils::Numeric;
-use crate::{
-    fork::{ForkDetails, ForkSource},
-    namespaces::ResetRequest,
-    node::InMemoryNode,
-    utils::bytecode_to_factory_dep,
-};
 
 type Result<T> = anyhow::Result<T>;
 
@@ -350,6 +349,17 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
                 true
             })
     }
+
+    pub fn set_logging_enabled(&self, enable: bool) -> Result<()> {
+        let Some(observability) = &self.observability else {
+            anyhow::bail!("Node's logging is not set up");
+        };
+        if enable {
+            observability.enable_logging()
+        } else {
+            observability.disable_logging()
+        }
+    }
 }
 
 #[cfg(test)]
@@ -485,7 +495,6 @@ mod tests {
             impersonation: Default::default(),
             rich_accounts: Default::default(),
             previous_states: Default::default(),
-            observability: None,
         };
         let time = old_inner.time.clone();
         let impersonation = old_inner.impersonation.clone();
@@ -496,6 +505,7 @@ mod tests {
             system_contracts_options: old_system_contracts_options,
             time,
             impersonation,
+            observability: None,
         };
 
         let address = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap();

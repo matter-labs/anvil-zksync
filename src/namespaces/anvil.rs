@@ -15,6 +15,14 @@ pub trait AnvilNamespaceT {
     #[rpc(name = "anvil_setMinGasPrice")]
     fn set_min_gas_price(&self, gas: U256) -> RpcResult<()>;
 
+    /// Enable or disable logging.
+    ///
+    /// # Arguments
+    ///
+    /// * `enable` - if `true` logging will be enabled, disabled otherwise
+    #[rpc(name = "anvil_setLoggingEnabled")]
+    fn set_logging_enabled(&self, enable: bool) -> RpcResult<()>;
+
     /// Snapshot the state of the blockchain at the current block. Takes no parameters. Returns the id of the snapshot
     /// that was created. A snapshot can only be reverted once. After a successful `anvil_revert`, the same snapshot id cannot
     /// be used again. Consider creating a new snapshot after each `anvil_revert` if you need to revert to the same

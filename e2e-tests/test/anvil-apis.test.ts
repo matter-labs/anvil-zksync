@@ -7,8 +7,33 @@ import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
 import * as hre from "hardhat";
 import { keccak256 } from "ethers/lib/utils";
 import { BigNumber } from "ethers";
+import * as fs from "node:fs";
 
 const provider = getTestProvider();
+
+describe("anvil_setLoggingEnabled", function () {
+  it("Should disable and enable logging", async function () {
+    // Arrange
+    const wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
+    const userWallet = Wallet.createRandom().connect(provider);
+
+    // Act
+    await provider.send("anvil_setLoggingEnabled", [false]);
+    const logSizeBefore = fs.statSync("../era_test_node.log").size;
+
+    await wallet.sendTransaction({
+      to: userWallet.address,
+      value: ethers.utils.parseEther("0.1"),
+    });
+    const logSizeAfter = fs.statSync("../era_test_node.log").size;
+
+    // Reset
+    await provider.send("anvil_setLoggingEnabled", [true]);
+
+    // Assert
+    expect(logSizeBefore).to.equal(logSizeAfter);
+  });
+});
 
 describe("anvil_snapshot", function () {
   it("Should return incrementing snapshot ids", async function () {

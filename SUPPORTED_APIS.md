@@ -15,6 +15,7 @@ The `status` options are:
 | Namespace | API | <div style="width:130px">Status</div> | Description |
 | --- | --- | --- | --- |
 | `ANVIL` | `anvil_setMinGasPrice` | `NOT IMPLEMENTED` | Set the minimum gas price for the node. Unsupported for ZKsync as it is only relevant for pre-EIP1559 chains |
+| `ANVIL` | `anvil_setLoggingEnabled` | `SUPPORTED` | Enables or disables logging |
 | `ANVIL` | `anvil_snapshot` | `SUPPORTED` | Snapshot the state of the blockchain at the current block |
 | `ANVIL` | `anvil_revert` | `SUPPORTED` | Revert the state of the blockchain to a previous snapshot |
 | `ANVIL` | `anvil_setTime` | `SUPPORTED` | Sets the internal clock time to the given timestamp |
