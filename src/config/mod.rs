@@ -1,6 +1,7 @@
-use std::net::{IpAddr, Ipv4Addr};
-
+use crate::fork::ForkDetails;
 use crate::{observability, system_contracts};
+use anyhow::anyhow;
+use std::net::{IpAddr, Ipv4Addr};
 
 use crate::config::{
     cache::{CacheConfig, CacheType},
@@ -404,6 +405,12 @@ impl TestNodeConfig {
         self.chain_id.unwrap_or(TEST_NODE_NETWORK_ID)
     }
 
+    /// Update the chain ID
+    pub fn update_chain_id(&mut self, chain_id: Option<u32>) -> &mut Self {
+        self.chain_id = chain_id;
+        self
+    }
+
     /// Set the system contracts configuration option
     #[must_use]
     pub fn with_system_contracts(mut self, option: Option<system_contracts::Options>) -> Self {
@@ -460,6 +467,12 @@ impl TestNodeConfig {
         self.l1_gas_price.unwrap_or(DEFAULT_L1_GAS_PRICE)
     }
 
+    /// Update the L1 gas price
+    pub fn update_l1_gas_price(&mut self, price: Option<u64>) -> &mut Self {
+        self.l1_gas_price = price;
+        self
+    }
+
     /// Set the L2 gas price
     #[must_use]
     pub fn with_l2_gas_price(mut self, price: Option<u64>) -> Self {
@@ -474,6 +487,12 @@ impl TestNodeConfig {
         self.l2_gas_price.unwrap_or(DEFAULT_L2_GAS_PRICE)
     }
 
+    /// Update the L2 gas price
+    pub fn update_l2_gas_price(&mut self, price: Option<u64>) -> &mut Self {
+        self.l2_gas_price = price;
+        self
+    }
+
     /// Set the L1 pubdata price
     #[must_use]
     pub fn with_l1_pubdata_price(mut self, price: Option<u64>) -> Self {
@@ -484,6 +503,12 @@ impl TestNodeConfig {
     /// Get the L1 pubdata price
     pub fn get_l1_pubdata_price(&self) -> u64 {
         self.l1_pubdata_price.unwrap_or(DEFAULT_FAIR_PUBDATA_PRICE)
+    }
+
+    /// Update the L1 pubdata price
+    pub fn update_l1_pubdata_price(&mut self, price: Option<u64>) -> &mut Self {
+        self.l1_pubdata_price = price;
+        self
     }
 
     /// Set the log level
@@ -571,6 +596,12 @@ impl TestNodeConfig {
             .unwrap_or(DEFAULT_ESTIMATE_GAS_SCALE_FACTOR)
     }
 
+    /// Update the gas limit scale factor
+    pub fn update_gas_limit_scale(&mut self, scale: Option<f32>) -> &mut Self {
+        self.limit_scale_factor = scale;
+        self
+    }
+
     /// Set the price scale factor
     #[must_use]
     pub fn with_price_scale(mut self, scale: Option<f64>) -> Self {
@@ -584,6 +615,12 @@ impl TestNodeConfig {
     pub fn get_price_scale(&self) -> f64 {
         self.price_scale_factor
             .unwrap_or(DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR)
+    }
+
+    /// Updates the price scale factor
+    pub fn update_price_scale(&mut self, scale: Option<f64>) -> &mut Self {
+        self.price_scale_factor = scale;
+        self
     }
 
     /// Set the detail level of VM execution logs
@@ -674,6 +711,28 @@ impl TestNodeConfig {
     /// Get the health check endpoint mode status
     pub fn is_health_check_endpoint_endpoint_enabled(&self) -> bool {
         self.health_check_endpoint
+    }
+
+    /// Updates the configuration from fork details.
+    pub async fn update_with_fork_details(
+        &mut self,
+        fork_details_result: Result<ForkDetails, eyre::Report>,
+    ) -> Result<Option<ForkDetails>, anyhow::Error> {
+        match fork_details_result {
+            Ok(fd) => {
+                self.update_l1_gas_price(Some(fd.l1_gas_price))
+                    .update_l2_gas_price(Some(fd.l2_fair_gas_price))
+                    .update_l1_pubdata_price(Some(fd.fair_pubdata_price))
+                    .update_price_scale(Some(fd.estimate_gas_price_scale_factor))
+                    .update_gas_limit_scale(Some(fd.estimate_gas_scale_factor))
+                    .update_chain_id(Some(fd.chain_id.as_u64() as u32));
+                Ok(Some(fd))
+            }
+            Err(error) => {
+                tracing::error!("Error while attempting to fork: {:?}", error);
+                Err(anyhow!(error))
+            }
+        }
     }
 }
 
