@@ -139,11 +139,26 @@ async fn main() -> anyhow::Result<()> {
                 match fee {
                     FeeParams::V2(fee_v2) => {
                         config = config
-                            .with_l1_gas_price(Some(fee_v2.l1_gas_price()))
-                            .with_l2_gas_price(Some(fee_v2.config().minimal_l2_gas_price))
-                            .with_price_scale(Some(DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR))
-                            .with_gas_limit_scale(Some(DEFAULT_ESTIMATE_GAS_SCALE_FACTOR))
-                            .with_l1_pubdata_price(Some(fee_v2.l1_pubdata_price()));
+                            .clone()
+                            .with_l1_gas_price(config.l1_gas_price.or(Some(fee_v2.l1_gas_price())))
+                            .with_l2_gas_price(
+                                config
+                                    .l2_gas_price
+                                    .or(Some(fee_v2.config().minimal_l2_gas_price)),
+                            )
+                            .with_price_scale(
+                                config
+                                    .price_scale_factor
+                                    .or(Some(DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR)),
+                            )
+                            .with_gas_limit_scale(
+                                config
+                                    .limit_scale_factor
+                                    .or(Some(DEFAULT_ESTIMATE_GAS_SCALE_FACTOR)),
+                            )
+                            .with_l1_pubdata_price(
+                                config.l1_pubdata_price.or(Some(fee_v2.l1_pubdata_price())),
+                            );
                     }
                     FeeParams::V1(_) => {
                         return Err(anyhow!("Unsupported FeeParams::V1 in this context"));
