@@ -208,6 +208,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
         if num_blocks == 0 {
             return Ok(());
         }
+        if num_blocks > 1 && interval_sec == 0 {
+            anyhow::bail!("Provided interval is `0`; unable to produce {num_blocks} blocks with the same timestamp");
+        }
 
         let bootloader_code = self
             .get_inner()
