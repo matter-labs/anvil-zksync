@@ -63,7 +63,13 @@ jobs:
     needs: build
     uses: ./.github/workflows/e2e.yml
     name: e2e-tests
+
   spec:
     needs: build
     uses: ./.github/workflows/spec.yml
     name: spec-tests
+
+  e2e-rust:
+    needs: build
+    uses: ./.github/workflows/e2e-rust.yml
+    name: e2e-tests-rust

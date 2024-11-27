@@ -922,13 +922,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         pool: TxPool,
     ) -> Self {
         let system_contracts_options = config.system_contracts_options;
-        let inner = InMemoryNodeInner::new(
-            fork,
-
-            config,
-            time.clone(),
-            impersonation.clone(),
-        );
+        let inner = InMemoryNodeInner::new(fork, config, time.clone(), impersonation.clone());
         InMemoryNode {
             inner: Arc::new(RwLock::new(inner)),
             snapshots: Default::default(),
@@ -987,7 +981,6 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         let config = self.get_config()?;
         let inner = InMemoryNodeInner::new(
             fork,
-
             &config,
             TimestampManager::default(),
             ImpersonationManager::default(),
