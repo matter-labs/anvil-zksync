@@ -117,8 +117,12 @@ async fn main() -> anyhow::Result<()> {
     let log_file = File::create(&config.log_file_path)?;
 
     // Initialize the tracing subscriber
-    let observability =
-        Observability::init(vec!["era_test_node".into()], log_level_filter, log_file, config.silent)?;
+    let observability = Observability::init(
+        vec!["era_test_node".into()],
+        log_level_filter,
+        log_file,
+        config.silent,
+    )?;
 
     // Use `Command::Run` as default.
     let command = command.as_ref().unwrap_or(&Command::Run);

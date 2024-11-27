@@ -1401,7 +1401,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             tracing::info!("└─────────────────────────┘");
 
             match &tx_result.result {
-                ExecutionResult::Success { .. } => tracing::info!("Transaction: {}", "SUCCESS".green()),
+                ExecutionResult::Success { .. } => {
+                    tracing::info!("Transaction: {}", "SUCCESS".green())
+                }
                 ExecutionResult::Revert { .. } => tracing::info!("Transaction: {}", "FAILED".red()),
                 ExecutionResult::Halt { .. } => tracing::info!("Transaction: {}", "HALTED".red()),
             }
@@ -1529,11 +1531,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             tracing::info!("Executing {}", format!("{:?}", tx_hash).bold());
         }
 
-        self
-            .inner
+        self.inner
             .write()
             .map_err(|_| anyhow::anyhow!("Failed to acquire write lock"))?
-            .filters.notify_new_pending_transaction(tx_hash);
+            .filters
+            .notify_new_pending_transaction(tx_hash);
 
         let TxExecutionOutput {
             result,

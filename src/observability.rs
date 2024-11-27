@@ -65,7 +65,11 @@ impl Observability {
             .map(|x| format!("{}={}", x, log_level_filter.to_string().to_lowercase()))
             .collect::<Vec<String>>()
             .join(",");
-        let filter = if disabled { EnvFilter::new("off") } else { Self::parse_filter(&directives)? };
+        let filter = if disabled {
+            EnvFilter::new("off")
+        } else {
+            Self::parse_filter(&directives)?
+        };
         let (filter, reload_handle) = reload::Layer::new(filter);
 
         let timer_format =
