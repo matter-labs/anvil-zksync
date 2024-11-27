@@ -233,9 +233,10 @@ pub struct ForkArgs {
     ///  - http://XXX:YY
     #[arg(
         long,
-        help = "Network to fork from (e.g., mainnet, sepolia-testnet, etc.)."
+        alias = "network",
+        help = "Network to fork from (e.g., http://XXX:YY, mainnet, sepolia-testnet)."
     )]
-    pub network: String,
+    pub fork_url: String,
     // Fork at a given L2 miniblock height.
     // If not set - will use the current finalized block from the network.
     #[arg(
@@ -245,6 +246,17 @@ pub struct ForkArgs {
         alias = "fork-at"
     )]
     pub fork_block_number: Option<u64>,
+
+    /// Fetch state from a specific transaction hash over a remote endpoint.
+    ///
+    /// See --fork-url.
+    #[arg(
+        long,
+        requires = "fork_url",
+        value_name = "TRANSACTION",
+        conflicts_with = "fork_block_number"
+    )]
+    pub fork_transaction_hash: Option<H256>,
 }
 
 #[derive(Debug, Parser, Clone)]
@@ -258,9 +270,10 @@ pub struct ReplayArgs {
     ///  - http://XXX:YY
     #[arg(
         long,
-        help = "Network to fork from (e.g., mainnet, sepolia-testnet, etc.)."
+        alias = "network",
+        help = "Network to fork from (e.g., http://XXX:YY, mainnet, sepolia-testnet)."
     )]
-    pub network: String,
+    pub fork_url: String,
     /// Transaction hash to replay.
     #[arg(help = "Transaction hash to replay.")]
     pub tx: H256,
