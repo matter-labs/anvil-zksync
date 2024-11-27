@@ -144,6 +144,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> DebugNames
     ) -> RpcResult<DebugCall> {
         let only_top = options.is_some_and(|o| o.tracer_config.only_top_call);
         let inner = self.get_inner().clone();
+        let time = self.time.clone();
         Box::pin(async move {
             if block.is_some() && !matches!(block, Some(BlockId::Number(BlockNumber::Latest))) {
                 return Err(jsonrpc_core::Error::invalid_params(
@@ -165,7 +166,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> DebugNames
             let storage = StorageView::new(&inner.fork_storage).into_rc_ptr();
 
             // init vm
-            let (mut l1_batch_env, _block_context) = inner.create_l1_batch_env(storage.clone());
+            let (mut l1_batch_env, _block_context) =
+                inner.create_l1_batch_env(&time, storage.clone());
 
             // update the enforced_base_fee within l1_batch_env to match the logic in zksync_core
             l1_batch_env.enforced_base_fee = Some(l2_tx.common_data.fee.max_fee_per_gas.as_u64());

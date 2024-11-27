@@ -47,7 +47,7 @@ use zksync_utils::{bytecode::hash_bytecode, h256_to_account_address, h256_to_u25
 use zksync_web3_decl::error::Web3Error;
 
 use crate::node::impersonate::{ImpersonationManager, ImpersonationState};
-use crate::node::time::TimestampManager;
+use crate::node::time::{TimeExclusive, TimeRead, TimestampManager};
 use crate::node::TxPool;
 use crate::{
     bootloader_debug::{BootloaderDebug, BootloaderDebugTracer},
@@ -196,8 +196,6 @@ impl TransactionResult {
 /// S - is the Source of the Fork.
 #[derive(Clone)]
 pub struct InMemoryNodeInner<S> {
-    /// Supplies timestamps that are unique across the system.
-    pub time: TimestampManager,
     /// The latest batch number that was already generated.
     /// Next block will be current_batch + 1
     pub current_batch: u32,
@@ -240,7 +238,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
     pub fn new(
         fork: Option<ForkDetails>,
         config: &TestNodeConfig,
-        time: TimestampManager,
+        time: &TimestampManager,
         impersonation: ImpersonationManager,
     ) -> Self {
         let updated_config = config.clone();
@@ -270,7 +268,6 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             time.set_last_timestamp_unchecked(f.block_timestamp);
 
             InMemoryNodeInner {
-                time,
                 current_batch: f.l1_block.0,
                 current_miniblock: f.l2_miniblock,
                 current_miniblock_hash: f.l2_miniblock_hash,
@@ -305,7 +302,6 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             time.set_last_timestamp_unchecked(NON_FORK_FIRST_BLOCK_TIMESTAMP);
 
             InMemoryNodeInner {
-                time,
                 current_batch: 0,
                 current_miniblock: 0,
                 current_miniblock_hash: block_hash,
@@ -338,31 +334,28 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
     /// We compute l1/l2 block details from storage to support fork testing, where the storage
     /// can be updated mid execution and no longer matches with the initial node's state.
     /// The L1 & L2 timestamps are also compared with node's timestamp to ensure it always increases monotonically.
-    pub fn create_l1_batch_env<ST: ReadStorage>(
+    pub fn create_l1_batch_env<T: TimeRead, ST: ReadStorage>(
         &self,
+        time: &T,
         storage: StoragePtr<ST>,
     ) -> (L1BatchEnv, BlockContext) {
         tracing::debug!("Creating l1 batch env...");
 
-        let (last_l1_block_num, last_l1_block_ts) = load_last_l1_batch(storage.clone())
-            .map(|(num, ts)| (num as u32, ts))
-            .unwrap_or_else(|| (self.current_batch, self.time.last_timestamp()));
+        let last_l1_block_num = load_last_l1_batch(storage.clone())
+            .map(|(num, _)| num as u32)
+            .unwrap_or(self.current_batch);
         let last_l2_block = load_last_l2_block(&storage).unwrap_or_else(|| L2Block {
             number: self.current_miniblock as u32,
             hash: L2BlockHasher::legacy_hash(L2BlockNumber(self.current_miniblock as u32)),
-            timestamp: self.time.last_timestamp(),
+            timestamp: time.last_timestamp(),
         });
-        let latest_timestamp = std::cmp::max(
-            std::cmp::max(last_l1_block_ts, last_l2_block.timestamp),
-            self.time.last_timestamp(),
-        );
 
-        let block_ctx = BlockContext::from_current(
-            last_l1_block_num,
-            last_l2_block.number as u64,
-            latest_timestamp,
-        )
-        .new_batch();
+        let block_ctx = BlockContext {
+            hash: H256::zero(),
+            batch: last_l1_block_num.saturating_add(1),
+            miniblock: (last_l2_block.number as u64).saturating_add(1),
+            timestamp: time.peek_next_timestamp(),
+        };
 
         let fee_input = if let Some(fork) = &self
             .fork_storage
@@ -434,8 +427,9 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
     /// # Returns
     ///
     /// A `Result` with a `Fee` representing the estimated gas related data.
-    pub fn estimate_gas_impl(
+    pub fn estimate_gas_impl<T: TimeRead>(
         &self,
+        time: &T,
         req: zksync_types::transaction_request::CallRequest,
     ) -> jsonrpc_core::Result<Fee> {
         let mut request_with_gas_per_pubdata_overridden = req;
@@ -505,7 +499,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         let storage = storage_view.into_rc_ptr();
 
         let execution_mode = TxExecutionMode::EstimateFee;
-        let (mut batch_env, _) = self.create_l1_batch_env(storage.clone());
+        let (mut batch_env, _) = self.create_l1_batch_env(time, storage.clone());
         batch_env.fee_input = fee_input;
 
         let system_env = self.create_system_env(system_contracts, execution_mode);
@@ -800,7 +794,6 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             .map_err(|err| format!("failed acquiring read lock on storage: {:?}", err))?;
 
         Ok(Snapshot {
-            current_timestamp: self.time.last_timestamp(),
             current_batch: self.current_batch,
             current_miniblock: self.current_miniblock,
             current_miniblock_hash: self.current_miniblock_hash,
@@ -826,8 +819,6 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             .write()
             .map_err(|err| format!("failed acquiring write lock on storage: {:?}", err))?;
 
-        self.time
-            .set_last_timestamp_unchecked(snapshot.current_timestamp);
         self.current_batch = snapshot.current_batch;
         self.current_miniblock = snapshot.current_miniblock;
         self.current_miniblock_hash = snapshot.current_miniblock_hash;
@@ -845,13 +836,64 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
         Ok(())
     }
+
+    fn apply_block<T: TimeExclusive>(
+        &mut self,
+        time: &mut T,
+        block: Block<TransactionVariant>,
+        index: u32,
+    ) {
+        // archive current state before we produce new batch/blocks
+        if let Err(err) = self.archive_state() {
+            tracing::error!(
+                "failed archiving state for block {}: {}",
+                self.current_miniblock,
+                err
+            );
+        }
+
+        self.current_miniblock = self.current_miniblock.saturating_add(1);
+        let expected_timestamp = time.next_timestamp();
+
+        let actual_l1_batch_number = block
+            .l1_batch_number
+            .expect("block must have a l1_batch_number");
+        if actual_l1_batch_number.as_u32() != self.current_batch {
+            panic!(
+                "expected next block to have batch_number {}, got {}",
+                self.current_batch,
+                actual_l1_batch_number.as_u32()
+            );
+        }
+
+        if block.number.as_u64() != self.current_miniblock {
+            panic!(
+                "expected next block to have miniblock {}, got {} | {index}",
+                self.current_miniblock,
+                block.number.as_u64()
+            );
+        }
+
+        if block.timestamp.as_u64() != expected_timestamp {
+            panic!(
+                "expected next block to have timestamp {}, got {} | {index}",
+                expected_timestamp,
+                block.timestamp.as_u64()
+            );
+        }
+
+        let block_hash = block.hash;
+        self.current_miniblock_hash = block_hash;
+        self.block_hashes.insert(block.number.as_u64(), block.hash);
+        self.blocks.insert(block.hash, block);
+        self.filters.notify_new_block(block_hash);
+    }
 }
 
 /// Creates a restorable snapshot for the [InMemoryNodeInner]. The snapshot contains all the necessary
 /// data required to restore the [InMemoryNodeInner] state to a previous point in time.
 #[derive(Debug, Clone, Default)]
 pub struct Snapshot {
-    pub(crate) current_timestamp: u64,
     pub(crate) current_batch: u32,
     pub(crate) current_miniblock: u64,
     pub(crate) current_miniblock_hash: H256,
@@ -922,7 +964,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         pool: TxPool,
     ) -> Self {
         let system_contracts_options = config.system_contracts_options;
-        let inner = InMemoryNodeInner::new(fork, config, time.clone(), impersonation.clone());
+        let inner = InMemoryNodeInner::new(fork, config, &time, impersonation.clone());
         InMemoryNode {
             inner: Arc::new(RwLock::new(inner)),
             snapshots: Default::default(),
@@ -979,12 +1021,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
     pub fn reset(&self, fork: Option<ForkDetails>) -> Result<(), String> {
         let config = self.get_config()?;
-        let inner = InMemoryNodeInner::new(
-            fork,
-            &config,
-            TimestampManager::default(),
-            ImpersonationManager::default(),
-        );
+        let inner = InMemoryNodeInner::new(fork, &config, &self.time, self.impersonation.clone());
 
         let mut writer = self
             .snapshots
@@ -1021,11 +1058,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     pub fn apply_txs(&self, txs: Vec<L2Tx>) -> anyhow::Result<()> {
         tracing::info!("Running {:?} transactions (one per batch)", txs.len());
 
+        // Lock time so that the produced blocks are guaranteed to be sequential in time.
+        let mut time = self.time.lock();
         for tx in txs {
             // Getting contracts is reasonably cheap, so we don't cache them. We may need differing contracts
             // depending on whether impersonation should be enabled for a transaction.
             let system_contracts = self.system_contracts_for_tx(tx.initiator_account())?;
-            self.seal_block(vec![tx], system_contracts)?;
+            self.seal_block(&mut time, vec![tx], system_contracts)?;
         }
 
         Ok(())
@@ -1103,7 +1142,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
         // init vm
 
-        let (batch_env, _) = inner.create_l1_batch_env(storage.clone());
+        let (batch_env, _) = inner.create_l1_batch_env(&self.time, storage.clone());
         let system_env = inner.create_system_env(base_contracts, execution_mode);
 
         let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage.clone());
@@ -1642,8 +1681,12 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         Ok(())
     }
 
-    pub fn seal_block(
+    // Requirement for `TimeExclusive` ensures that we have exclusive writeable access to time
+    // manager. Meaning we can construct blocks and apply them without worrying about TOCTOU with
+    // timestamps.
+    pub fn seal_block<T: TimeExclusive>(
         &self,
+        time: &mut T,
         txs: Vec<L2Tx>,
         system_contracts: BaseSystemContracts,
     ) -> anyhow::Result<L2BlockNumber> {
@@ -1654,7 +1697,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             .map_err(|_| anyhow::anyhow!("Failed to acquire read lock"))?;
         let storage = StorageView::new(inner.fork_storage.clone()).into_rc_ptr();
         let system_env = inner.create_system_env(system_contracts, TxExecutionMode::VerifyExecute);
-        let (batch_env, mut block_ctx) = inner.create_l1_batch_env(storage.clone());
+        let (batch_env, mut block_ctx) = inner.create_l1_batch_env(time, storage.clone());
         drop(inner);
 
         let mut vm: Vm<_, HistoryDisabled> =
@@ -1733,7 +1776,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             gas_used,
             logs_bloom,
         );
-        let mut blocks = vec![block];
+        inner.current_batch = inner.current_batch.saturating_add(1);
+        inner.apply_block(time, block, 0);
 
         // Hack to ensure we don't mine twice the amount of requested empty blocks (i.e. one per
         // batch).
@@ -1743,7 +1787,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             // we are adding one l2 block at the end of each batch (to handle things like remaining events etc).
             // You can look at insert_fictive_l2_block function in VM to see how this fake block is inserted.
             let parent_block_hash = block_ctx.hash;
-            let block_ctx = block_ctx.new_block();
+            let block_ctx = block_ctx.new_block(time);
             let hash = compute_hash(block_ctx.miniblock, []);
 
             let virtual_block = create_block(
@@ -1756,56 +1800,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 U256::zero(),
                 Bloom::zero(),
             );
-            blocks.push(virtual_block);
-        }
-
-        inner.current_batch = inner.current_batch.saturating_add(1);
-
-        for (i, block) in blocks.into_iter().enumerate() {
-            // archive current state before we produce new batch/blocks
-            if let Err(err) = inner.archive_state() {
-                tracing::error!(
-                    "failed archiving state for block {}: {}",
-                    inner.current_miniblock,
-                    err
-                );
-            }
-
-            inner.current_miniblock = inner.current_miniblock.saturating_add(1);
-            let expected_timestamp = inner.time.next_timestamp();
-
-            let actual_l1_batch_number = block
-                .l1_batch_number
-                .expect("block must have a l1_batch_number");
-            if actual_l1_batch_number.as_u32() != inner.current_batch {
-                panic!(
-                    "expected next block to have batch_number {}, got {}",
-                    inner.current_batch,
-                    actual_l1_batch_number.as_u32()
-                );
-            }
-
-            if block.number.as_u64() != inner.current_miniblock {
-                panic!(
-                    "expected next block to have miniblock {}, got {} | {i}",
-                    inner.current_miniblock,
-                    block.number.as_u64()
-                );
-            }
-
-            if block.timestamp.as_u64() != expected_timestamp {
-                panic!(
-                    "expected next block to have timestamp {}, got {} | {i}",
-                    expected_timestamp,
-                    block.timestamp.as_u64()
-                );
-            }
-
-            let block_hash = block.hash;
-            inner.current_miniblock_hash = block_hash;
-            inner.block_hashes.insert(block.number.as_u64(), block.hash);
-            inner.blocks.insert(block.hash, block);
-            inner.filters.notify_new_block(block_hash);
+            inner.apply_block(time, virtual_block, 1);
         }
 
         Ok(L2BlockNumber(block_ctx.miniblock as u32))
@@ -1843,33 +1838,13 @@ pub struct BlockContext {
 }
 
 impl BlockContext {
-    /// Create the current instance that represents the latest block.
-    pub fn from_current(batch: u32, miniblock: u64, timestamp: u64) -> Self {
-        Self {
-            hash: H256::zero(),
-            batch,
-            miniblock,
-            timestamp,
-        }
-    }
-
-    /// Create the next batch instance that has all parameters incremented by `1`.
-    pub fn new_batch(&self) -> Self {
-        Self {
-            hash: H256::zero(),
-            batch: self.batch.saturating_add(1),
-            miniblock: self.miniblock.saturating_add(1),
-            timestamp: self.timestamp.saturating_add(1),
-        }
-    }
-
     /// Create the next batch instance that uses the same batch number, and has all other parameters incremented by `1`.
-    pub fn new_block(&self) -> BlockContext {
+    pub fn new_block<T: TimeRead>(&self, time: &T) -> BlockContext {
         Self {
             hash: H256::zero(),
             batch: self.batch,
             miniblock: self.miniblock.saturating_add(1),
-            timestamp: self.timestamp.saturating_add(1),
+            timestamp: time.peek_next_timestamp(),
         }
     }
 }
@@ -1924,7 +1899,7 @@ mod tests {
         let inner = node.inner.read().unwrap();
         let storage = StorageView::new(inner.fork_storage.clone()).into_rc_ptr();
         let system_env = inner.create_system_env(system_contracts, TxExecutionMode::VerifyExecute);
-        let (batch_env, block_ctx) = inner.create_l1_batch_env(storage.clone());
+        let (batch_env, block_ctx) = inner.create_l1_batch_env(&node.time, storage.clone());
         let vm: Vm<_, HistoryDisabled> = Vm::new(batch_env.clone(), system_env, storage);
 
         (block_ctx, batch_env, vm)
@@ -2021,7 +1996,8 @@ mod tests {
         let system_contracts = node
             .system_contracts_for_tx(tx.initiator_account())
             .unwrap();
-        node.seal_block(vec![tx], system_contracts).unwrap();
+        node.seal_block(&mut node.time.lock(), vec![tx], system_contracts)
+            .unwrap();
         let external_storage = node.inner.read().unwrap().fork_storage.clone();
 
         // Execute next transaction using a fresh in-memory node and the external fork storage

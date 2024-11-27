@@ -1,5 +1,6 @@
 use zksync_web3_decl::error::Web3Error;
 
+use crate::node::time::TimeRead;
 use crate::{
     config::show_details::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails},
     fork::ForkSource,

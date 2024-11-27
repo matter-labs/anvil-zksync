@@ -47,7 +47,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
                     "Failed to acquire read lock for inner node state.",
                 )))
             })
-            .and_then(|reader| reader.estimate_gas_impl(req))
+            .and_then(|reader| reader.estimate_gas_impl(&self.time, req))
             .into_boxed_future()
     }
 
