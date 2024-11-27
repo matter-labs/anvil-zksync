@@ -15,7 +15,7 @@ RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
     rustup install nightly-2024-08-01 && \
     rustup default nightly-2024-08-01
 
-WORKDIR /usr/src/era-test-node
+WORKDIR /usr/src/anvil-zksync
 COPY . .
 
 RUN cargo build --release
@@ -31,6 +31,6 @@ RUN apt-get update && \
 EXPOSE 8011
 
 WORKDIR /usr/local/bin
-COPY --from=builder /usr/src/era-test-node/target/release/era_test_node .
+COPY --from=builder /usr/src/anvil-zksync/target/release/anvil-zksync .
 
-ENTRYPOINT [ "era_test_node" ]
+ENTRYPOINT [ "anvil-zksync" ]

@@ -55,7 +55,7 @@ pub struct ForkPrintInfo {
 /// Defines the configuration parameters for the [InMemoryNode].
 #[derive(Debug, Clone)]
 pub struct TestNodeConfig {
-    /// Filename to write era-test-node output as json
+    /// Filename to write anvil-zksync output as json
     pub config_out: Option<String>,
     /// Port the node will listen on
     pub port: u16,
@@ -202,7 +202,7 @@ impl TestNodeConfig {
             let config_out = self.config_out.as_deref().unwrap();
             to_writer(
                 &File::create(config_out)
-                    .expect("Unable to create era-test-node config description file"),
+                    .expect("Unable to create anvil-zksync config description file"),
                 &self.as_json(fork_details),
             )
             .expect("Failed writing json");
@@ -215,6 +215,7 @@ impl TestNodeConfig {
         let color = CustomColor::new(13, 71, 198);
 
         println!("{}", BANNER.custom_color(color));
+        println!("testing");
         tracing::info!("Version:        {}", VERSION_MESSAGE.green());
         tracing::info!(
             "Repository:     {}",
@@ -417,7 +418,7 @@ impl TestNodeConfig {
         }
     }
 
-    /// Sets the file path to write the Era-test-node's config info to.
+    /// Sets the file path to write the anvil-zksync config info to.
     #[must_use]
     pub fn set_config_out(mut self, config_out: Option<String>) -> Self {
         self.config_out = config_out;
@@ -930,7 +931,7 @@ impl TestNodeConfig {
 }
 
 /// Account Generator
-/// Manages the generation of accounts for era-test-node
+/// Manages the generation of accounts for anvil-zksync
 #[derive(Clone, Debug, Deserialize)]
 pub struct AccountGenerator {
     chain_id: u32,

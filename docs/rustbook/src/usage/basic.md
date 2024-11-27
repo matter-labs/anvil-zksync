@@ -3,7 +3,7 @@
 Start the node:
 
 ```sh
-era_test_node run
+anvil-zksync run
 ```
 
 The expected output will be as follows:

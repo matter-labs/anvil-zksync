@@ -8,7 +8,7 @@ In-memory node allows testing of the currently compiled bootloader and system co
 This makes it possible to examine the effects of changes on already deployed contracts.
 
 > *Note:* These commands assume you have set `$ZKSYNC_HOME` in your shell profile file (e.g. `~/.bash_profile`, `~/.zshrc`) 
-to target your local copy of `era-test-node`. For instance:
+to target your local copy of `anvil-zksync`. For instance:
 
 ```sh
 # Add path here:
@@ -25,7 +25,7 @@ yarn preprocess && yarn hardhat run ./scripts/compile-yul.ts
 
 To use the locally compiled bootloader and system contracts, run:
 ```sh
-RUST_LOG=vm=trace era_test_node --dev-use-local-contracts fork sepolia-testnet
+RUST_LOG=vm=trace anvil-zksync --dev-use-local-contracts fork sepolia-testnet
 ```
 
 ## Writing and running tests locally

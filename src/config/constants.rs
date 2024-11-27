@@ -17,7 +17,7 @@ pub const TEST_NODE_NETWORK_ID: u32 = 260;
 /// Default derivation path for the test node
 pub const DERIVATION_PATH: &str = "m/44'/60'/0'/0/0";
 /// Default log file path for the test node
-pub const DEFAULT_LOG_FILE_PATH: &str = "era_test_node.log";
+pub const DEFAULT_LOG_FILE_PATH: &str = "anvil-zksync.log";
 /// Default mnemonic phrase for the test node
 pub const DEFAULT_MNEMONIC: &str = "test test test test test test test test test test test junk";
 /// Timestamp of the first block (if not running in fork mode).

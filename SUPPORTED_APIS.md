@@ -502,7 +502,7 @@ The directive format is comma-separated `module=level` for any number of modules
 curl --request POST \
   --url http://localhost:8011/ \
   --header 'content-type: application/json' \
-  --data '{"jsonrpc": "2.0","id": "1","method": "config_setLogging","params": ["era_test_node=trace,hyper=debug"]}'
+  --data '{"jsonrpc": "2.0","id": "1","method": "config_setLogging","params": ["anvil-zksync=trace,hyper=debug"]}'
 ```
 
 ## `DEBUG NAMESPACE`

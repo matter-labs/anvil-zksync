@@ -2,7 +2,8 @@
 
 set -e
 
-ERA_TEST_NODE_REPO="https://github.com/matter-labs/era-test-node"
+# TODO update repo name when it's created
+ANVIL_ZKSYNC_REPO="https://github.com/matter-labs/era-test-node"
 
 function script_usage() {
     cat << EOF
@@ -60,20 +61,20 @@ function prepare_binary() {
 
     tar xz -f "$file_name"
     rm "$file_name"
-    mv era_test_node "$destination/era_test_node"
-    chmod +x "$destination/era_test_node"
+    mv anvil-zksync "$destination/anvil-zksync"
+    chmod +x "$destination/anvil-zksync"
 
     echo "Succesfully prepared binary!"
 }
 
 function download_binary() {
-    file_name="era_test_node-$version-$architecture-$os.tar.gz"
-    url="$ERA_TEST_NODE_REPO/releases/download/$version/$file_name"
+    file_name="anvil-zksync-$version-$architecture-$os.tar.gz"
+    url="$ANVIL_ZKSYNC_REPO/releases/download/$version/$file_name"
 
-    echo "Downloading Era Test Node binary from: $url..."
+    echo "Downloading anvil-zksync binary from: $url..."
     wget $url
 
-    echo "Successfully downloaded Era Test Node Binary!"
+    echo "Successfully downloaded anvil-zksync Binary!"
 }
 
 function get_os_info() {
@@ -88,7 +89,7 @@ function get_os_info() {
             arch=$(arch)
             ;;
         *)
-            echo "ERROR: Era Test Node only supports Linux and MacOS! Detected OS: $unamestr"
+            echo "ERROR: anvil-zksync only supports Linux and MacOS! Detected OS: $unamestr"
             exit 1
             ;;
     esac
@@ -111,6 +112,7 @@ function get_os_info() {
 }
 
 function get_latest_version() {
+    # TODO: update repo name when it's created
     echo v$(curl --proto '=https' -sSf https://raw.githubusercontent.com/matter-labs/era-test-node/main/Cargo.toml | \
         grep "version" -m 1 | \
         awk '{print $3}' | \

@@ -4,7 +4,7 @@ In-Memory node can be utilized for a variety of reasons.
 
 
 ## Network Details
-The `era_test_node` has the following default network configurations:
+The `anvil-zksync` has the following default network configurations:
 
 * **L2 RPC:** `http://localhost:8011`
 * **Network Id:** 260
@@ -19,17 +19,17 @@ The node will cache certain network request by default to disk in the `.cache` d
 via the `--cache=none|memory|disk` parameter. 
 
 ```bash
-era_test_node --cache=none run
+anvil-zksync --cache=none run
 ```
 
 ```bash
-era_test_node --cache=memory run
+anvil-zksync --cache=memory run
 ```
 
 Additionally when using `--cache=disk`, the cache directory may be specified via `--cache-dir` and the cache may
 be reset on startup via `--reset-cache` parameters.
 ```bash
-era_test_node --cache=disk --cache-dir=/tmp/foo --reset-cache run
+anvil-zksync --cache=disk --cache-dir=/tmp/foo --reset-cache run
 ```
 
 ## Pre-configured Rich Wallets

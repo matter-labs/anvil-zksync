@@ -2,12 +2,12 @@
 
 To fork the `sepolia-testnet`, use the following command:
 ```sh
-era_test_node fork sepolia-testnet
+anvil-zksync fork sepolia-testnet
 ```
 
 You can also fork `mainnet` with 
 ```sh
-era_test_node fork mainnet
+anvil-zksync fork mainnet
 ```
 
 The expected output will be similar to the following:
@@ -42,17 +42,17 @@ This command starts the node, forking it from the latest block on the zkSync Sep
 You also have the option to specify a custom http endpoint and a custom forking height, like so:
 
 ```sh
-# Usage: era_test_node fork --fork-block-number <BLOCK> <NETWORK>
-era_test_node fork --fork-block-number 7000000 mainnet http://172.17.0.3:3060
+# Usage: anvil-zksync fork --fork-block-number <BLOCK> <NETWORK>
+anvil-zksync fork --fork-block-number 7000000 mainnet http://172.17.0.3:3060
 ```
 
 ## Sending network calls
 
-You can send network calls against a running `era-test-node`. You can check the Goerli testnet LINK balance or mainnet USDT using `curl` or [foundry-zksync](https://github.com/matter-labs/foundry-zksync).
+You can send network calls against a running `anvil-zksync`. You can check the Goerli testnet LINK balance or mainnet USDT using `curl` or [foundry-zksync](https://github.com/matter-labs/foundry-zksync).
 
 To get started, launch the local in-memory node:
 ```sh
-era_test_node fork goerli-testnet
+anvil-zksync fork sepolia-testnet
 ```
 
 Next, use curl to send a network call:

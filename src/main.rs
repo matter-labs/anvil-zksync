@@ -111,6 +111,7 @@ async fn build_json_http<
 async fn main() -> anyhow::Result<()> {
     // Check for deprecated options
     Cli::deprecated_config_option();
+    tracing::info!(target: "anvil-zksync", "This is a test log with explicit target");
 
     let opt = Cli::parse();
     let command = opt.command.clone();
@@ -122,7 +123,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Initialize the tracing subscriber
     let observability = Observability::init(
-        vec!["era_test_node".into()],
+        vec!["anvil-zksync".into()],
         log_level_filter,
         log_file,
         config.silent,

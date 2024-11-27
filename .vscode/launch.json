@@ -7,15 +7,15 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug era_test_node",
+            "name": "Debug anvil-zksync",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=era_test_node",
-                    "--package=era_test_node"
+                    "--bin=anvil-zksync",
+                    "--package=anvil-zksync"
                 ],
                 "filter": {
-                    "name": "era_test_node",
+                    "name": "anvil-zksync",
                     "kind": "bin"
                 }
             },
@@ -30,15 +30,15 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug era_test_node w/ system-contracts",
+            "name": "Debug anvil-zksync w/ system-contracts",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=era_test_node",
-                    "--package=era_test_node"
+                    "--bin=anvil-zksync",
+                    "--package=anvil-zksync"
                 ],
                 "filter": {
-                    "name": "era_test_node",
+                    "name": "anvil-zksync",
                     "kind": "bin"
                 }
             },

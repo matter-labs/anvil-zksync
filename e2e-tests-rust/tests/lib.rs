@@ -9,8 +9,8 @@ use alloy_zksync::network::Zksync;
 use alloy_zksync::node_bindings::EraTestNode;
 use alloy_zksync::provider::{zksync_provider, ProviderBuilderExt};
 use alloy_zksync::wallet::ZksyncWallet;
-use era_test_node_e2e_tests::utils::LockedPort;
-use era_test_node_e2e_tests::EraTestNodeApiProvider;
+use anvil_zksync_e2e_tests::utils::LockedPort;
+use anvil_zksync_e2e_tests::EraTestNodeApiProvider;
 use std::time::Duration;
 
 async fn init(
@@ -24,8 +24,8 @@ async fn init(
         .on_era_test_node_with_wallet_and_config(|node| {
             f(node
                 .path(
-                    std::env::var("ERA_TEST_NODE_BINARY_PATH")
-                        .unwrap_or("../target/release/era_test_node".to_string()),
+                    std::env::var("ANVIL_ZKSYNC_BINARY_PATH")
+                        .unwrap_or("../target/release/anvil-zksync".to_string()),
                 )
                 .port(locked_port.port))
         });

@@ -1,4 +1,4 @@
-name: Testing era_test_node against ETH spec
+name: Testing anvil-zksync against ETH spec
 on:
   workflow_call:
 
@@ -14,14 +14,14 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v3
         with:
-          name: era_test_node-ubuntu-latest.tar.gz
+          name: anvil-zksync-ubuntu-latest.tar.gz
       
-      - name: Extract era_test_node
+      - name: Extract anvil-zksync
         id: extract_node
         run: |
-          echo "Extracting era_test_node binary"
-          tar -xzf era_test_node-ubuntu-latest.tar.gz
-          chmod +x era_test_node
+          echo "Extracting anvil-zksync binary"
+          tar -xzf anvil-zksync-ubuntu-latest.tar.gz
+          chmod +x anvil-zksync
 
       - name: Build ETH spec
         id: build_eth_spec
@@ -33,4 +33,4 @@ jobs:
         working-directory: ./spec-tests
         run: cargo test
         env:
-          ERA_TEST_NODE_BINARY_PATH: ../era_test_node
+          ANVIL_ZKSYNC_BINARY_PATH: ../anvil-zksync

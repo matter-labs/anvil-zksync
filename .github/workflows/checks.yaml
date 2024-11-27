@@ -52,13 +52,13 @@ jobs:
       - name: Create artifact
         run: |
           cd ./target/release
-          tar -czf era_test_node-${{ matrix.os }}.tar.gz ./era_test_node*
+          tar -czf anvil-zksync-${{ matrix.os }}.tar.gz ./anvil-zksync*
 
       - name:  Upload artifact
         uses:  actions/upload-artifact@v3
         with:
-          name: era_test_node-${{ matrix.os }}.tar.gz
-          path: ./target/release/era_test_node-${{ matrix.os }}.tar.gz
+          name: anvil-zksync-${{ matrix.os }}.tar.gz
+          path: ./target/release/anvil-zksync-${{ matrix.os }}.tar.gz
   e2e:
     needs: build
     uses: ./.github/workflows/e2e.yml

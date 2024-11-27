@@ -1,13 +1,13 @@
 <div align="center">
 <a href="https://era.zksync.io/docs/tools/testing/era-test-node.html">
 
-![era-test-node](./.github/assets/era_test_node_banner_light.png#gh-light-mode-only)
-![era-test-node](./.github/assets/era_test_node_banner_dark.png#gh-dark-mode-only)
+![anvil-zksync](./.github/assets/era_test_node_banner_light.png#gh-light-mode-only)
+![anvil-zksync](./.github/assets/era_test_node_banner_dark.png#gh-dark-mode-only)
 </a>
 
   </div>
 
-# 🚀 zkSync Era In-Memory Node 🚀
+# 🚀 anvil-zksync 🚀
 
 This crate provides an in-memory node that supports forking the state from other networks.
 
@@ -21,7 +21,7 @@ The In-Memory Node is designed for local testing and uses an in-memory database 
 
 ## ⚠️ Caution
 
-Please note that `era-test-node` is still in its **alpha** stage. Some features might not be fully supported yet and may not work as intended. However, it is open-sourced, and contributions are welcome!
+Please note that `anvil-zksync` is still in its **alpha** stage. Some features might not be fully supported yet and may not work as intended. However, it is open-sourced, and contributions are welcome!
 
 ## 📊 Limitations & Features
 
@@ -37,7 +37,7 @@ Please note that `era-test-node` is still in its **alpha** stage. Some features 
 
 ## 🛠 Prerequisites
 
-1. **Rust**: `era-test-node` is written in Rust. Ensure you have Rust installed on your machine. [Download Rust here](https://www.rust-lang.org/tools/install).
+1. **Rust**: `anvil-zksync` is written in Rust. Ensure you have Rust installed on your machine. [Download Rust here](https://www.rust-lang.org/tools/install).
 
 2. **Other Dependencies**: This crate relies on rocksDB. If you face any compile errors due to rocksDB, install the necessary dependencies with:
    ```bash
@@ -61,41 +61,23 @@ Please note that `era-test-node` is still in its **alpha** stage. Some features 
 
 3. Start the node:
    ```bash
-   era_test_node run
+   anvil-zksync run
    ```
 
 ### Manually
 
-1. Download `era-test-node` from latest [Release](https://github.com/matter-labs/era-test-node/releases/latest)
+1. Download `anvil-zksync` from latest [Release](https://github.com/matter-labs/era-test-node/releases/latest)
 
 2. Extract the binary and mark as executable:
    ```bash
-   tar xz -f era_test_node.tar.gz -C /usr/local/bin/
-   chmod +x /usr/local/bin/era_test_node
+   tar xz -f anvil-zksync.tar.gz -C /usr/local/bin/
+   chmod +x /usr/local/bin/anvil-zksync
    ```
 
 3. Start the node:
    ```bash
-   era_test_node run
+   anvil-zksync run
    ```
-
-## 🔧 Configuring
-
-The test node can optionally be configured via a TOML configuration file placed
-at `$HOME/.era_test_node/config.toml` or supplied as a path via the `--config` CLI-argument. To start configuring the test node:
-
-1. Create the configuration directory:
-```bash
-mkdir $HOME/.era_test_node
-```
-
-2. Copy the example configuration file:
-```bash
-cp example/config.toml $HOME/.era_test_node
-```
-
-For all options that can be configured,
-please refer to [examples/config.toml](examples/config.toml)
 
 ## 🧑‍💻 Running Locally
 
@@ -116,12 +98,12 @@ It can take one of the following options:
 
 The node may be started in either of `debug`, `info`, `warn` or `error` logging levels via the `--log` option:
 ```bash
-era_test_node --log=error run
+anvil-zksync --log=error run
 ```
 
-Additionally, the file path can be provided via the `--log-file-path` option (defaults to `./era_test_node.log`):
+Additionally, the file path can be provided via the `--log-file-path` option (defaults to `./anvil-zksync.log`):
 ```bash
-era_test_node --log=error --log-file-path=run.log run
+anvil-zksync --log=error --log-file-path=run.log run
 ```
 
 The logging can be configured during runtime via the [`config_setLogLevel`](./SUPPORTED_APIS.md#config_setloglevel) and [`config_setLogging`](./SUPPORTED_APIS.md#config_setlogging) methods.
@@ -132,17 +114,17 @@ The node will cache certain network request by default to disk in the `.cache` d
 via the `--cache=none|memory|disk` parameter.
 
 ```bash
-era_test_node --cache=none run
+anvil-zksync --cache=none run
 ```
 
 ```bash
-era_test_node --cache=memory run
+anvil-zksync --cache=memory run
 ```
 
 Additionally when using `--cache=disk`, the cache directory may be specified via `--cache-dir` and the cache may
 be reset on startup via `--reset-cache` parameters.
 ```bash
-era_test_node --cache=disk --cache-dir=/tmp/foo --reset-cache run
+anvil-zksync --cache=disk --cache-dir=/tmp/foo --reset-cache run
 ```
 
 ## 🌐 Network Details
@@ -157,17 +139,17 @@ era_test_node --cache=disk --cache-dir=/tmp/foo --reset-cache run
 To fork the mainnet:
 
 ```bash
-era_test_node fork mainnet
+anvil-zksync fork mainnet
 ```
 
-> Tip: You can also fork the zkSync Sepolia testnet with `era_test_node fork sepolia-testnet`.
+> Tip: You can also fork the zkSync Sepolia testnet with `anvil-zksync fork sepolia-testnet`.
 
 ## 🔄 Replay Remote Transactions Locally
 
 If you wish to replay a remote transaction locally for deep debugging, use the following command:
 
 ```bash
-era_test_node replay_tx <network> <transaction_hash>
+anvil-zksync replay_tx <network> <transaction_hash>
 ```
 
 ## Replacing bytecodes
@@ -185,7 +167,7 @@ cargo run -- --override-bytecodes-dir=example_override --show-storage-logs all f
 
 ## 📞 Sending Network Calls
 
-You can send network calls against a running `era-test-node`. For example, to check the testnet LINK balance or mainnet USDT, use `curl` or `foundry-zksync`.
+You can send network calls against a running `anvil-zksync`. For example, to check the testnet LINK balance or mainnet USDT, use `curl` or `foundry-zksync`.
 
 ```bash
 curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"eth_call","params":[{"to":"0x40609141Db628BeEE3BfAB8034Fc2D8278D0Cc78", "data":"0x06fdde03"}, "latest"],"id":1}' http://localhost:8011
@@ -198,7 +180,7 @@ By default, the tool is just printing the basic information about the executed t
 But with --show-calls flag, it can print more detailed call traces, and with --resolve-hashes, it will ask openchain for ABI names.
 
 ```bash
-era_test_node --show-calls=user --resolve-hashes replay_tx sepolia-testnet 0x7119045573862797257e4441ff48bf5a3bc4d133a00d167c18dc955eda12cfac
+anvil-zksync --show-calls=user --resolve-hashes replay_tx sepolia-testnet 0x7119045573862797257e4441ff48bf5a3bc4d133a00d167c18dc955eda12cfac
 
 Executing 0x7119045573862797257e4441ff48bf5a3bc4d133a00d167c18dc955eda12cfac
 ┌─────────────────────────┐
@@ -237,18 +219,18 @@ You can use the following options to get more granular information during transa
 Example:
 
 ```bash
-era_test_node --show-storage-logs=all --show-vm-details=all --show-gas-details=all run
+anvil-zksync --show-storage-logs=all --show-vm-details=all --show-gas-details=all run
 ```
 
 This is now even easier with a single flag (`--debug-mode` or `-d`):
 
 ```bash
-era_test_node -d
+anvil-zksync -d
 ```
 
 ## 💰 Using Rich Wallets
 
-For testing and development purposes, the `era-test-node` comes pre-configured with a set of 'rich' wallets. These wallets are loaded with test funds, allowing you to simulate transactions and interactions without the need for real assets.
+For testing and development purposes, the `anvil-zksync` comes pre-configured with a set of 'rich' wallets. These wallets are loaded with test funds, allowing you to simulate transactions and interactions without the need for real assets.
 
 Here's a list of the available rich wallets:
 
@@ -273,13 +255,15 @@ See our list of [Supported APIs here](SUPPORTED_APIS.md).
 
 ## 🤖 CI/CD Testing with GitHub Actions
 
-A GitHub Action is available for integrating `era-test-node` into your CI/CD environments. This action offers high configurability and streamlines the process of testing your applications in an automated way.
+A GitHub Action is available for integrating `anvil-zksync` into your CI/CD environments. This action offers high configurability and streamlines the process of testing your applications in an automated way.
 
+<!-- TODO: update to point to anvil-zksync action -->
 You can find this GitHub Action in the marketplace [here](https://github.com/marketplace/actions/era-test-node-action).
 
+<!-- TODO: update to point to anvil-zksync action -->
 ### 📝 Example Usage
 
-Below is an example `yaml` configuration to use the `era-test-node` GitHub Action in your workflow:
+Below is an example `yaml` configuration to use the `anvil-zksync` GitHub Action in your workflow:
 
 ```yml
 name: Run Era Test Node Action

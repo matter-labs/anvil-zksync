@@ -1,5 +1,5 @@
 [package]
-name = "era_test_node"
+name = "anvil_zksync"
 version = "0.1.0-alpha.34"
 edition = "2018"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]

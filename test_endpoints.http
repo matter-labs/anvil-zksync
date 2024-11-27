@@ -865,7 +865,7 @@ content-type: application/json
     "jsonrpc": "2.0",
     "id": "1",
     "method": "config_setLogging",
-    "params": ["era_test_node=trace,multivm=trace"]
+    "params": ["anvil-zksync=trace,multivm=trace"]
 }
 
 ###
