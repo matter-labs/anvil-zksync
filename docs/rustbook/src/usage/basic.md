@@ -29,5 +29,5 @@ The expected output will be as follows:
 12:34:56 [INFO] ========================================
 ```
 
-> *Note:* When utilizing `era-test-node` with MetaMask, it's essential to note that any restart of the in-memory node will necessitate a reset of MetaMask's 
+> *Note:* When utilizing `anvil-zksync` with MetaMask, it's essential to note that any restart of the in-memory node will necessitate a reset of MetaMask's 
 cached account data (nonce, etc). To do this, navigate to `Settings`, then `Advanced`, and finally, select `Clear activity tab data`.

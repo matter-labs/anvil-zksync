@@ -12,7 +12,7 @@ to target your local copy of `anvil-zksync`. For instance:
 
 ```sh
 # Add path here:
-export ZKSYNC_HOME=/path/to/era-test-node
+export ZKSYNC_HOME=/path/to/anvil-zksync
 
 export PATH=$ZKSYNC_HOME/bin:$PATH
 ```
@@ -29,7 +29,7 @@ RUST_LOG=vm=trace anvil-zksync --dev-use-local-contracts fork sepolia-testnet
 ```
 
 ## Writing and running tests locally
-This section demonstrates how to author and execute tests locally against `era-test-node` using the `mocha` and `chai` testing frameworks.
+This section demonstrates how to author and execute tests locally against `anvil-zksync` using the `mocha` and `chai` testing frameworks.
 
 ### Project configuration
 Start by creating a new Hardhat project. If you need guidance, follow the [getting started guide](https://era.zksync.io/docs/tools/hardhat/getting-started.html).
@@ -50,7 +50,7 @@ This script makes it possible to run tests in a Hardhat environment with the `NO
 
 ### Configuring tests
 Adjust `hardhat.config.ts` to use the local node for testing:
-> *Note:* Ensure `era-test-node` is running in another process before executing `yarn test`.
+> *Note:* Ensure `anvil-zksync` is running in another process before executing `yarn test`.
 
 ```ts
 import "@matterlabs/hardhat-zksync-deploy";
@@ -115,16 +115,16 @@ To run the test file, execute:
 yarn test
 ```
 
-Well done! You've successfully run your first local tests with zkSync Era and `era-test-node`.
+Well done! You've successfully run your first local tests with zkSync Era and `anvil-zksync`.
 
 ## CI/CD Testing with GitHub Actions
-A GitHub Action is available for integrating era-test-node into your CI/CD environments. 
+A GitHub Action is available for integrating anvil-zksync into your CI/CD environments. 
 This action offers high configurability and streamlines the process of testing your applications in an automated way.
 
 You can find this GitHub Action in the marketplace [here](https://github.com/marketplace/actions/era-test-node-action).
 
 ### Example Usage
-Below is an example yaml configuration to use the era-test-node GitHub Action in your workflow:
+Below is an example yaml configuration to use the anvil-zksync GitHub Action in your workflow:
 ```yml
 name: Run Era Test Node Action
 

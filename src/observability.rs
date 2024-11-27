@@ -72,13 +72,8 @@ impl Observability {
         };
         let (filter, reload_handle) = reload::Layer::new(filter);
 
-        println!("Logging directives: {}", directives);
-
         let filter = Self::parse_filter(&directives)?;
-        println!("filter: {:?}", filter);
         let (filter, reload_handle) = reload::Layer::new(filter);
-        println!("filter2: {:?}", filter);
-        println!("reload_handle: {:?}", reload_handle);
         let timer_format =
             time::format_description::parse("[hour]:[minute]:[second]").expect("Cataplum");
         let time_offset = time::UtcOffset::current_local_offset().unwrap_or(time::UtcOffset::UTC);

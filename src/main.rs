@@ -123,7 +123,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Initialize the tracing subscriber
     let observability = Observability::init(
-        vec!["anvil-zksync".into()],
+        vec!["anvil_zksync".into()],
         log_level_filter,
         log_file,
         config.silent,

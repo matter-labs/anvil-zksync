@@ -719,7 +719,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "anvil_zksync"
+name = "anvil-zksync"
 version = "0.1.0-alpha.34"
 dependencies = [
  "alloy",

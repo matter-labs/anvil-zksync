@@ -127,7 +127,7 @@ The `status` options are:
 | `HARDHAT` | `hardhat_addCompilationResult` | `NOT IMPLEMENTED` | Add information about compiled contracts |
 | `HARDHAT` | `hardhat_dropTransaction` | `NOT IMPLEMENTED` | Remove a transaction from the mempool |
 | [`HARDHAT`](#hardhat-namespace) | [`hardhat_impersonateAccount`](#hardhat_impersonateaccount) | `SUPPORTED` | Impersonate an account |
-| [`HARDHAT`](#hardhat-namespace) | [`hardhat_getAutomine`](#hardhat_getautomine) | `PARTIAL` | Currently always returns `true` as era-test-node by default mines new blocks with each new transaction. |
+| [`HARDHAT`](#hardhat-namespace) | [`hardhat_getAutomine`](#hardhat_getautomine) | `PARTIAL` | Currently always returns `true` as anvil-zksync by default mines new blocks with each new transaction. |
 | `HARDHAT` | `hardhat_metadata` | `NOT IMPLEMENTED` | Returns the metadata of the current network |
 | [`HARDHAT`](#hardhat-namespace) | [`hardhat_mine`](#hardhat_mine) | Mine any number of blocks at once, in constant time |
 | [`HARDHAT`](#hardhat-namespace) | [`hardhat_reset`](#hardhat_reset) | `PARTIALLY` | Resets the state of the network; cannot revert to past block numbers, unless they're in a fork |
