@@ -103,7 +103,7 @@ impl TimestampManager {
     ///
     /// Use this method when you need to ensure that no one else can access [`TimeManager`] during
     /// this view's lifetime.
-    pub fn lock<'a>(&'a self) -> impl TimeExclusive + 'a {
+    pub fn lock(&self) -> impl TimeExclusive + '_ {
         self.lock_with_offsets([])
     }
 
@@ -131,11 +131,11 @@ impl TimestampManager {
 
 impl TimeRead for TimestampManager {
     fn last_timestamp(&self) -> u64 {
-        (&*self.get()).last_timestamp()
+        (*self.get()).last_timestamp()
     }
 
     fn peek_next_timestamp(&self) -> u64 {
-        (&*self.get()).peek_next_timestamp()
+        (*self.get()).peek_next_timestamp()
     }
 }
 

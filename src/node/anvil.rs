@@ -13,7 +13,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> AnvilNames
     for InMemoryNode<S>
 {
     fn set_block_timestamp_interval(&self, seconds: u64) -> RpcResult<()> {
-        Ok(self.time.set_block_timestamp_interval(seconds)).into_boxed_future()
+        self.time.set_block_timestamp_interval(seconds);
+        Ok(()).into_boxed_future()
     }
 
     fn remove_block_timestamp_interval(&self) -> RpcResult<bool> {
