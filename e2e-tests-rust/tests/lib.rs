@@ -83,15 +83,15 @@ async fn interval_sealing_multiple_txs() -> anyhow::Result<()> {
     assert!(receipt1.status());
 
     // Assert that they are different txs but executed in the same block
-    assert_eq!(receipt0.from, RICH_WALLET0);
-    assert_eq!(receipt1.from, RICH_WALLET1);
-    assert_ne!(receipt0.transaction_hash, receipt1.transaction_hash);
+    assert_eq!(receipt0.from(), RICH_WALLET0);
+    assert_eq!(receipt1.from(), RICH_WALLET1);
+    assert_ne!(receipt0.transaction_hash(), receipt1.transaction_hash());
 
     // But executed in the same block
-    assert!(receipt0.block_number.is_some());
-    assert_eq!(receipt0.block_number, receipt1.block_number);
-    assert!(receipt0.block_hash.is_some());
-    assert_eq!(receipt0.block_hash, receipt1.block_hash);
+    assert!(receipt0.block_number().is_some());
+    assert_eq!(receipt0.block_number(), receipt1.block_number());
+    assert!(receipt0.block_hash().is_some());
+    assert_eq!(receipt0.block_hash(), receipt1.block_hash());
 
     Ok(())
 }
