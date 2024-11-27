@@ -2,6 +2,8 @@ use crate::fork::ForkDetails;
 use crate::{observability, system_contracts};
 use anyhow::anyhow;
 use std::net::{IpAddr, Ipv4Addr};
+use zksync_multivm::interface::L1BatchEnv;
+use zksync_types::api::TransactionVariant;
 
 use crate::config::{
     cache::{CacheConfig, CacheType},
@@ -21,8 +23,9 @@ use serde::Deserialize;
 use serde_json::{json, to_writer, Value};
 use std::collections::HashMap;
 use std::fs::File;
+use std::time::Duration;
 use zksync_types::fee_model::FeeModelConfigV2;
-use zksync_types::U256;
+use zksync_types::{Bloom, H256, U256};
 
 pub mod cache;
 pub mod cli;
@@ -32,12 +35,12 @@ pub mod show_details;
 pub const VERSION_MESSAGE: &str = concat!(env!("CARGO_PKG_VERSION"));
 
 const BANNER: &str = r#"
-                      _  _         _____ _  __                         
-  __ _  _ __  __   __(_)| |       |__  /| |/ / ___  _   _  _ __    ___ 
+                      _  _         _____ _  __
+  __ _  _ __  __   __(_)| |       |__  /| |/ / ___  _   _  _ __    ___
  / _` || '_ \ \ \ / /| || | _____   / / | ' / / __|| | | || '_ \  / __|
-| (_| || | | | \ V / | || ||_____| / /_ | . \ \__ \| |_| || | | || (__ 
+| (_| || | | | \ V / | || ||_____| / /_ | . \ \__ \| |_| || | | || (__
  \__,_||_| |_|  \_/  |_||_|       /____||_|\_\|___/ \__, ||_| |_| \___|
-                                                    |___/              
+                                                    |___/
 "#;
 /// Struct to hold the details of the fork for display purposes
 pub struct ForkPrintInfo {
@@ -104,6 +107,10 @@ pub struct TestNodeConfig {
     pub account_generator: Option<AccountGenerator>,
     /// Signer accounts that can sign messages/transactions
     pub signer_accounts: Vec<PrivateKeySigner>,
+    /// The genesis to use to initialize the node
+    pub genesis: Option<Genesis>,
+    /// Genesis block timestamp
+    pub genesis_timestamp: Option<u64>,
     /// Enable auto impersonation of accounts on startup
     pub enable_auto_impersonate: bool,
     /// Whether the node operates in offline mode
@@ -112,6 +119,11 @@ pub struct TestNodeConfig {
     pub host: Vec<IpAddr>,
     /// Whether we need to enable the health check endpoint.
     pub health_check_endpoint: bool,
+    /// Block time in seconds for interval sealing.
+    /// If unset, node seals a new block as soon as there is at least one transaction.
+    pub block_time: Option<Duration>,
+    /// Maximum number of transactions per block
+    pub max_transactions: usize,
 }
 
 impl Default for TestNodeConfig {
@@ -156,11 +168,17 @@ impl Default for TestNodeConfig {
             enable_auto_impersonate: false,
             // 100ETH default balance
             genesis_balance: U256::from(100u128 * 10u128.pow(18)),
+            genesis_timestamp: Some(NON_FORK_FIRST_BLOCK_TIMESTAMP),
+            genesis: None,
 
             // Offline mode disabled by default
             offline: false,
             host: vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
             health_check_endpoint: false,
+
+            // Block sealing configuration default
+            block_time: None,
+            max_transactions: 1000,
         }
     }
 }
@@ -297,6 +315,11 @@ impl TestNodeConfig {
             "Estimated Gas Limit Scale Factor:  {}",
             self.get_gas_limit_scale().to_string().green()
         );
+        println!("\n");
+
+        tracing::info!("Genesis Timestamp");
+        tracing::info!("========================");
+        tracing::info!("{}", self.get_genesis_timestamp().to_string().green());
         println!("\n");
 
         tracing::info!("Node Configuration");
@@ -697,6 +720,26 @@ impl TestNodeConfig {
             .with_genesis_accounts(accounts)
     }
 
+    /// Sets the genesis timestamp
+    #[must_use]
+    pub fn with_genesis_timestamp(mut self, timestamp: Option<u64>) -> Self {
+        self.genesis_timestamp = timestamp;
+        self
+    }
+
+    /// Returns the genesis timestamp to use
+    pub fn get_genesis_timestamp(&self) -> u64 {
+        self.genesis_timestamp
+            .unwrap_or(NON_FORK_FIRST_BLOCK_TIMESTAMP)
+    }
+
+    /// Sets the init genesis (genesis.json)
+    #[must_use]
+    pub fn with_genesis(mut self, genesis: Option<Genesis>) -> Self {
+        self.genesis = genesis;
+        self
+    }
+
     /// Sets whether to enable autoImpersonate
     #[must_use]
     pub fn with_auto_impersonate(mut self, enable_auto_impersonate: bool) -> Self {
@@ -749,12 +792,24 @@ impl TestNodeConfig {
     ) -> Result<Option<ForkDetails>, anyhow::Error> {
         match fork_details_result {
             Ok(fd) => {
-                self.update_l1_gas_price(Some(fd.l1_gas_price))
-                    .update_l2_gas_price(Some(fd.l2_fair_gas_price))
-                    .update_l1_pubdata_price(Some(fd.fair_pubdata_price))
-                    .update_price_scale(Some(fd.estimate_gas_price_scale_factor))
-                    .update_gas_limit_scale(Some(fd.estimate_gas_scale_factor))
-                    .update_chain_id(Some(fd.chain_id.as_u64() as u32));
+                let l1_gas_price = self.l1_gas_price.or(Some(fd.l1_gas_price));
+                let l2_gas_price = self.l2_gas_price.or(Some(fd.l2_fair_gas_price));
+                let l1_pubdata_price = self.l1_pubdata_price.or(Some(fd.fair_pubdata_price));
+                let price_scale = self
+                    .price_scale_factor
+                    .or(Some(fd.estimate_gas_price_scale_factor));
+                let gas_limit_scale = self
+                    .limit_scale_factor
+                    .or(Some(fd.estimate_gas_scale_factor));
+                let chain_id = self.chain_id.or(Some(fd.chain_id.as_u64() as u32));
+
+                self.update_l1_gas_price(l1_gas_price)
+                    .update_l2_gas_price(l2_gas_price)
+                    .update_l1_pubdata_price(l1_pubdata_price)
+                    .update_price_scale(price_scale)
+                    .update_gas_limit_scale(gas_limit_scale)
+                    .update_chain_id(chain_id);
+
                 Ok(Some(fd))
             }
             Err(error) => {
@@ -762,6 +817,13 @@ impl TestNodeConfig {
                 Err(anyhow!(error))
             }
         }
+    }
+
+    /// Set the block time
+    #[must_use]
+    pub fn with_block_time(mut self, block_time: Option<Duration>) -> Self {
+        self.block_time = block_time;
+        self
     }
 }
 
@@ -833,4 +895,25 @@ impl AccountGenerator {
             })
             .collect()
     }
+}
+
+/// Genesis
+#[derive(Deserialize, Clone, Debug)]
+pub struct Genesis {
+    /// The hash of the genesis block. If not provided, it can be computed.
+    pub hash: Option<H256>,
+    /// The parent hash of the genesis block. Usually zero.
+    pub parent_hash: Option<H256>,
+    /// The block number of the genesis block. Usually zero.
+    pub block_number: Option<u64>,
+    /// The timestamp of the genesis block.
+    pub timestamp: Option<u64>,
+    /// The L1 batch environment.
+    pub l1_batch_env: Option<L1BatchEnv>,
+    /// The transactions included in the genesis block.
+    pub transactions: Option<Vec<TransactionVariant>>,
+    /// The amount of gas used.
+    pub gas_used: Option<U256>,
+    /// The logs bloom filter.
+    pub logs_bloom: Option<Bloom>,
 }

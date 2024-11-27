@@ -6,6 +6,7 @@ import { BigNumber, ethers } from "ethers";
 import * as hre from "hardhat";
 import { TransactionRequest } from "zksync-web3/build/src/types";
 import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
+import { TransactionResponse } from "@ethersproject/abstract-provider";
 
 const provider = getTestProvider();
 
@@ -66,8 +67,9 @@ describe("zks_getTransactionDetails", function () {
 
     const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
 
-    const txReceipt = await greeter.setGreeting("Luke Skywalker");
-    const details = await provider.send("zks_getTransactionDetails", [txReceipt.hash]);
+    const txResponse: TransactionResponse = await greeter.setGreeting("Luke Skywalker");
+    const txReceipt = await txResponse.wait();
+    const details = await provider.send("zks_getTransactionDetails", [txReceipt.transactionHash]);
 
     expect(details["status"]).to.equal("included");
     expect(details["initiatorAddress"].toLowerCase()).to.equal(wallet.address.toLowerCase());
@@ -96,7 +98,7 @@ describe("zks_getBlockDetails", function () {
     const deployer = new Deployer(hre, wallet);
 
     const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
-    await greeter.setGreeting("Luke Skywalker");
+    await (await greeter.setGreeting("Luke Skywalker")).wait();
 
     const latestBlock = await provider.getBlock("latest");
     const details = await provider.send("zks_getBlockDetails", [latestBlock.number]);
@@ -145,13 +147,14 @@ describe("zks_getRawBlockTransactions", function () {
     const deployer = new Deployer(hre, wallet);
 
     const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
-    const receipt = await greeter.setGreeting("Luke Skywalker");
+    const txResponse: TransactionResponse = await greeter.setGreeting("Luke Skywalker");
+    await txResponse.wait();
 
     const latestBlock = await provider.getBlock("latest");
     const txns = await provider.send("zks_getRawBlockTransactions", [latestBlock.number - 1]);
 
     expect(txns.length).to.equal(1);
-    expect(txns[0]["execute"]["calldata"]).to.equal(receipt.data);
+    expect(txns[0]["execute"]["calldata"]).to.equal(txResponse.data);
   });
 });
 

@@ -4,7 +4,7 @@ use std::sync::{Arc, RwLock};
 /// Manages timestamps (in seconds) across the system.
 ///
 /// Clones always agree on the underlying timestamp and updating one affects all other instances.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct TimestampManager {
     /// The latest timestamp (in seconds) that has already been used.
     last_timestamp: Arc<RwLock<u64>>,

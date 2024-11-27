@@ -32,10 +32,11 @@ describe("Greeter Smart Contract", function () {
 
       // setup user wallet with 3 ETH
       const userWallet = Wallet.createRandom().connect(provider);
-      await wallet.sendTransaction({
+      const txResponse = await wallet.sendTransaction({
         to: userWallet.address,
         value: ethers.utils.parseEther("3"),
       });
+      await txResponse.wait();
 
       // deploy Greeter contract
       const artifact = await deployer.loadArtifact("Greeter");

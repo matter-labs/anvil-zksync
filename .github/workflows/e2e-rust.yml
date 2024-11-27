@@ -1,0 +1,35 @@
+name: Testing era_test_node using e2e (Rust version)
+on:
+  workflow_call:
+
+jobs:
+  spec:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, macos-latest ]
+    name: spec
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: era_test_node-${{ matrix.os }}.tar.gz
+
+      - name: Extract era_test_node
+        id: extract_node
+        run: |
+          echo "Extracting era_test_node binary"
+          tar -xzf era_test_node-${{ matrix.os }}.tar.gz
+          chmod +x era_test_node
+
+      - name: Launch tests
+        id: launch
+        working-directory: ./e2e-tests-rust
+        run: cargo test
+        env:
+          ERA_TEST_NODE_BINARY_PATH: ../era_test_node

@@ -84,10 +84,11 @@ describe("anvil_increaseTime", function () {
     // Act
     await provider.send("anvil_increaseTime", [timeIncreaseInSeconds]);
 
-    await wallet.sendTransaction({
+    const txResponse = await wallet.sendTransaction({
       to: userWallet.address,
       value: ethers.utils.parseEther("0.1"),
     });
+    await txResponse.wait();
     expectedTimestamp += 2; // New transaction will add two blocks
 
     // Assert
@@ -108,10 +109,11 @@ describe("anvil_setNextBlockTimestamp", function () {
     // Act
     await provider.send("anvil_setNextBlockTimestamp", [expectedTimestamp]);
 
-    await wallet.sendTransaction({
+    const txResponse = await wallet.sendTransaction({
       to: userWallet.address,
       value: ethers.utils.parseEther("0.1"),
     });
+    await txResponse.wait();
     expectedTimestamp += 1; // After executing a transaction, the node puts it into a block and increases its current timestamp
 
     // Assert
@@ -132,10 +134,11 @@ describe("anvil_setTime", function () {
     // Act
     await provider.send("anvil_setTime", [expectedTimestamp]);
 
-    await wallet.sendTransaction({
+    const txResponse = await wallet.sendTransaction({
       to: userWallet.address,
       value: ethers.utils.parseEther("0.1"),
     });
+    await txResponse.wait();
     expectedTimestamp += 2; // New transaction will add two blocks
 
     // Assert

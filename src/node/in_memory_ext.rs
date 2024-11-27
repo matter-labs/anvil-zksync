@@ -368,7 +368,7 @@ mod tests {
     use crate::fork::ForkStorage;
     use crate::namespaces::EthNamespaceT;
     use crate::node::time::TimestampManager;
-    use crate::node::{InMemoryNodeInner, Snapshot};
+    use crate::node::{InMemoryNodeInner, Snapshot, TxPool};
     use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
     use std::str::FromStr;
     use std::sync::{Arc, RwLock};
@@ -498,6 +498,7 @@ mod tests {
         };
         let time = old_inner.time.clone();
         let impersonation = old_inner.impersonation.clone();
+        let pool = TxPool::new(impersonation.clone());
 
         let node = InMemoryNode::<HttpForkSource> {
             inner: Arc::new(RwLock::new(old_inner)),
@@ -506,6 +507,7 @@ mod tests {
             time,
             impersonation,
             observability: None,
+            pool,
         };
 
         let address = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap();

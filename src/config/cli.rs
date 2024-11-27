@@ -1,18 +1,19 @@
 use std::env;
+use std::time::Duration;
 
 use clap::{arg, command, Parser, Subcommand};
 use rand::{rngs::StdRng, SeedableRng};
 use zksync_types::{H256, U256};
 
+use super::DEFAULT_DISK_CACHE_DIR;
 use crate::config::constants::{DEFAULT_MNEMONIC, TEST_NODE_NETWORK_ID};
 use crate::config::{
-    AccountGenerator, CacheConfig, CacheType, ShowCalls, ShowGasDetails, ShowStorageLogs,
+    AccountGenerator, CacheConfig, CacheType, Genesis, ShowCalls, ShowGasDetails, ShowStorageLogs,
     ShowVMDetails, TestNodeConfig,
 };
 use crate::observability::LogLevel;
 use crate::system_contracts::Options as SystemContractsOptions;
-
-use super::DEFAULT_DISK_CACHE_DIR;
+use crate::utils::parse_genesis_file;
 use alloy_signer_local::coins_bip39::{English, Mnemonic};
 use std::net::IpAddr;
 
@@ -100,7 +101,7 @@ pub struct Cli {
     /// Custom L1 gas price (in wei).
     pub l1_gas_price: Option<u64>,
 
-    #[arg(long, help_heading = "Gas Configuration")]
+    #[arg(long, alias = "gas-price", help_heading = "Gas Configuration")]
     /// Custom L2 gas price (in wei).
     pub l2_gas_price: Option<u64>,
 
@@ -178,6 +179,14 @@ pub struct Cli {
     )]
     pub balance: u64,
 
+    /// The timestamp of the genesis block.
+    #[arg(long, value_name = "NUM")]
+    pub timestamp: Option<u64>,
+
+    /// Initialize the genesis block with the given `genesis.json` file.
+    #[arg(long, value_name = "PATH", value_parser= parse_genesis_file)]
+    pub init: Option<Genesis>,
+
     /// BIP39 mnemonic phrase used for generating accounts.
     /// Cannot be used if `mnemonic_random` or `mnemonic_seed` are used.
     #[arg(long, short, conflicts_with_all = &["mnemonic_seed", "mnemonic_random"], help_heading = "Account Configuration")]
@@ -210,6 +219,11 @@ pub struct Cli {
         help_heading = "Account Configuration"
     )]
     pub auto_impersonate: bool,
+
+    /// Block time in seconds for interval sealing.
+    /// If unset, node seals a new block as soon as there is at least one transaction.
+    #[arg(short, long, value_name = "SECONDS", value_parser = duration_from_secs_f64, help_heading = "Block Sealing")]
+    pub block_time: Option<Duration>,
 }
 
 #[derive(Debug, Subcommand, Clone)]
@@ -342,6 +356,8 @@ impl Cli {
                     },
                 }
             }))
+            .with_genesis_timestamp(self.timestamp)
+            .with_genesis(self.init)
             .with_chain_id(self.chain_id)
             .set_config_out(self.config_out)
             .with_host(self.host)
@@ -350,7 +366,8 @@ impl Cli {
                 Some(true)
             } else {
                 None
-            });
+            })
+            .with_block_time(self.block_time);
 
         if self.emulate_evm && self.dev_system_contracts != Some(SystemContractsOptions::Local) {
             return Err(eyre::eyre!(
@@ -391,6 +408,14 @@ impl Cli {
         }
         gen
     }
+}
+
+fn duration_from_secs_f64(s: &str) -> Result<Duration, String> {
+    let s = s.parse::<f64>().map_err(|e| e.to_string())?;
+    if s == 0.0 {
+        return Err("Duration must be greater than 0".to_string());
+    }
+    Duration::try_from_secs_f64(s).map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

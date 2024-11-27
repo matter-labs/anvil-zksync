@@ -52,7 +52,7 @@ impl ImpersonationManager {
             .state
             .read()
             .expect("ImpersonationManager lock is poisoned");
-        state.auto || state.accounts.contains(addr)
+        state.is_impersonating(addr)
     }
 
     /// Returns internal state representation.
@@ -70,6 +70,18 @@ impl ImpersonationManager {
             .write()
             .expect("ImpersonationManager lock is poisoned") = state;
     }
+
+    /// Inspects the entire account set on a user-provided function without dropping the lock.
+    pub fn inspect<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&ImpersonationState) -> R,
+    {
+        let guard = self
+            .state
+            .read()
+            .expect("ImpersonationManager lock is poisoned");
+        f(&guard)
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -78,4 +90,10 @@ pub struct ImpersonationState {
     pub auto: bool,
     /// Accounts that are currently impersonated
     pub accounts: HashSet<Address>,
+}
+
+impl ImpersonationState {
+    pub fn is_impersonating(&self, addr: &Address) -> bool {
+        self.auto || self.accounts.contains(addr)
+    }
 }

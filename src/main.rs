@@ -51,6 +51,8 @@ use crate::namespaces::{
     EthTestNodeNamespaceT, EvmNamespaceT, HardhatNamespaceT, NetNamespaceT, Web3NamespaceT,
     ZksNamespaceT,
 };
+use crate::node::{BlockProducer, BlockSealer, ImpersonationManager, TimestampManager, TxPool};
+use crate::system_contracts::SystemContracts;
 
 #[allow(clippy::too_many_arguments)]
 async fn build_json_http<
@@ -144,11 +146,26 @@ async fn main() -> anyhow::Result<()> {
                 match fee {
                     FeeParams::V2(fee_v2) => {
                         config = config
-                            .with_l1_gas_price(Some(fee_v2.l1_gas_price()))
-                            .with_l2_gas_price(Some(fee_v2.config().minimal_l2_gas_price))
-                            .with_price_scale(Some(DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR))
-                            .with_gas_limit_scale(Some(DEFAULT_ESTIMATE_GAS_SCALE_FACTOR))
-                            .with_l1_pubdata_price(Some(fee_v2.l1_pubdata_price()));
+                            .clone()
+                            .with_l1_gas_price(config.l1_gas_price.or(Some(fee_v2.l1_gas_price())))
+                            .with_l2_gas_price(
+                                config
+                                    .l2_gas_price
+                                    .or(Some(fee_v2.config().minimal_l2_gas_price)),
+                            )
+                            .with_price_scale(
+                                config
+                                    .price_scale_factor
+                                    .or(Some(DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR)),
+                            )
+                            .with_gas_limit_scale(
+                                config
+                                    .limit_scale_factor
+                                    .or(Some(DEFAULT_ESTIMATE_GAS_SCALE_FACTOR)),
+                            )
+                            .with_l1_pubdata_price(
+                                config.l1_pubdata_price.or(Some(fee_v2.l1_pubdata_price())),
+                            );
                     }
                     FeeParams::V1(_) => {
                         return Err(anyhow!("Unsupported FeeParams::V1 in this context"));
@@ -244,8 +261,17 @@ async fn main() -> anyhow::Result<()> {
         None
     };
 
-    let node: InMemoryNode<HttpForkSource> =
-        InMemoryNode::new(fork_details, Some(observability), &config);
+    let time = TimestampManager::default();
+    let impersonation = ImpersonationManager::default();
+    let pool = TxPool::new(impersonation.clone());
+    let node: InMemoryNode<HttpForkSource> = InMemoryNode::new(
+        fork_details,
+        Some(observability),
+        &config,
+        time.clone(),
+        impersonation,
+        pool.clone(),
+    );
 
     if let Some(ref bytecodes_dir) = config.override_bytecodes_dir {
         override_bytecodes(&node, bytecodes_dir.to_string()).unwrap();
@@ -274,7 +300,7 @@ async fn main() -> anyhow::Result<()> {
         node.set_rich_account(H160::from_str(address).unwrap(), config.genesis_balance);
     }
 
-    let threads = future::join_all(config.host.iter().map(|host| {
+    let mut threads = future::join_all(config.host.iter().map(|host| {
         let addr = SocketAddr::new(*host, config.port);
         build_json_http(
             addr,
@@ -284,6 +310,21 @@ async fn main() -> anyhow::Result<()> {
         )
     }))
     .await;
+
+    let block_sealer = if let Some(block_time) = config.block_time {
+        BlockSealer::fixed_time(config.max_transactions, block_time)
+    } else {
+        BlockSealer::immediate(config.max_transactions)
+    };
+    let system_contracts =
+        SystemContracts::from_options(&config.system_contracts_options, config.use_evm_emulator);
+    let block_producer_handle = tokio::task::spawn(BlockProducer::new(
+        node,
+        pool,
+        block_sealer,
+        system_contracts,
+    ));
+    threads.push(block_producer_handle);
 
     config.print(fork_print_info.as_ref());
 
