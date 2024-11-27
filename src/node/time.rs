@@ -31,7 +31,10 @@ pub struct TimestampManager {
 impl TimestampManager {
     pub fn new(last_timestamp: u64) -> TimestampManager {
         TimestampManager {
-            internal: Arc::new(RwLock::new(TimestampManagerInternal { last_timestamp })),
+            internal: Arc::new(RwLock::new(TimestampManagerInternal {
+                last_timestamp,
+                next_timestamp: None,
+            })),
         }
     }
 
@@ -52,23 +55,24 @@ impl TimestampManager {
     pub fn set_last_timestamp_unchecked(&self, timestamp: u64) -> i128 {
         let mut this = self.get_mut();
         let diff = (timestamp as i128).saturating_sub(this.last_timestamp as i128);
-        this.last_timestamp = timestamp;
+        this.reset_to(timestamp);
         diff
     }
 
-    /// Advances internal timestamp (in seconds) to th1e provided value.
+    /// Forces clock to return provided value as the next timestamp. Time skip will not be performed
+    /// before the next invocation of `next_timestamp`.
     ///
     /// Expects provided timestamp to be in the future, returns error otherwise.
-    pub fn advance_timestamp(&self, timestamp: u64) -> anyhow::Result<()> {
+    pub fn enforce_next_timestamp(&self, timestamp: u64) -> anyhow::Result<()> {
         let mut this = self.get_mut();
-        if timestamp < this.last_timestamp {
+        if timestamp <= this.last_timestamp {
             Err(anyhow!(
-                "timestamp ({}) must be greater or equal than current timestamp ({})",
+                "timestamp ({}) must be greater than the last used timestamp ({})",
                 timestamp,
                 this.last_timestamp
             ))
         } else {
-            this.last_timestamp = timestamp;
+            this.next_timestamp.replace(timestamp);
             Ok(())
         }
     }
@@ -77,7 +81,7 @@ impl TimestampManager {
     pub fn increase_time(&self, seconds: u64) -> u64 {
         let mut this = self.get_mut();
         let next = this.last_timestamp.saturating_add(seconds);
-        this.last_timestamp = next;
+        this.reset_to(next);
         next
     }
 
@@ -125,6 +129,15 @@ impl TimeRead for TimestampManager {
 struct TimestampManagerInternal {
     /// The latest timestamp (in seconds) that has already been used.
     last_timestamp: u64,
+    /// The next timestamp (in seconds) that the clock will be forced to return.
+    next_timestamp: Option<u64>,
+}
+
+impl TimestampManagerInternal {
+    fn reset_to(&mut self, timestamp: u64) {
+        self.next_timestamp.take();
+        self.last_timestamp = timestamp;
+    }
 }
 
 impl TimeRead for TimestampManagerInternal {
@@ -133,15 +146,19 @@ impl TimeRead for TimestampManagerInternal {
     }
 
     fn peek_next_timestamp(&self) -> u64 {
-        self.last_timestamp.saturating_add(1)
+        self.next_timestamp
+            .unwrap_or_else(|| self.last_timestamp.saturating_add(1))
     }
 }
 
 impl TimeExclusive for TimestampManagerInternal {
     fn next_timestamp(&mut self) -> u64 {
-        let next_timestamp = self.last_timestamp.saturating_add(1);
-        self.last_timestamp = next_timestamp;
+        let next_timestamp = match self.next_timestamp.take() {
+            Some(next_timestamp) => next_timestamp,
+            None => self.last_timestamp.saturating_add(1),
+        };
 
+        self.last_timestamp = next_timestamp;
         next_timestamp
     }
 }
@@ -175,7 +192,7 @@ impl TimeExclusive for TimeLockWithOffsets<'_> {
                 let timestamp = self.start_timestamp.saturating_add(offset);
                 // Persist last used timestamp in the underlying state as this instance can be
                 // dropped before we finish iterating all values.
-                self.guard.last_timestamp = timestamp;
+                self.guard.reset_to(timestamp);
 
                 timestamp
             }

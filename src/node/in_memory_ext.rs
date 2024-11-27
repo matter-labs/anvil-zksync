@@ -46,7 +46,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
     /// The new timestamp value for the InMemoryNodeInner.
     pub fn set_next_block_timestamp(&self, timestamp: Numeric) -> Result<()> {
         let timestamp: u64 = timestamp.try_into().context("The timestamp is too big")?;
-        self.time.advance_timestamp(timestamp - 1)
+        self.time.enforce_next_timestamp(timestamp)
     }
 
     /// Set the current timestamp for the node.
@@ -727,11 +727,11 @@ mod tests {
 
         node.set_next_block_timestamp(new_timestamp.into())
             .expect("failed setting timestamp");
+        node.mine_block().expect("failed to mine a block");
         let timestamp_after = node.time.last_timestamp();
 
         assert_eq!(
-            new_timestamp,
-            timestamp_after + 1,
+            new_timestamp, timestamp_after,
             "timestamp was not set correctly",
         );
     }
@@ -745,6 +745,8 @@ mod tests {
         let new_timestamp = timestamp_before + 500;
         node.set_next_block_timestamp(new_timestamp.into())
             .expect("failed setting timestamp");
+
+        node.mine_block().expect("failed to mine a block");
 
         let result = node.set_next_block_timestamp(timestamp_before.into());
 
