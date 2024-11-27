@@ -1098,34 +1098,39 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             .take()
             .unwrap_or_default();
 
-        match &tx_result.result {
-            ExecutionResult::Success { output } => {
-                tracing::info!("Call: {}", "SUCCESS".green());
-                let output_bytes = zksync_types::web3::Bytes::from(output.clone());
-                tracing::info!("Output: {}", serde_json::to_string(&output_bytes).unwrap());
-            }
-            ExecutionResult::Revert { output } => {
-                tracing::info!("Call: {}: {}", "FAILED".red(), output);
-            }
-            ExecutionResult::Halt { reason } => {
-                tracing::info!("Call: {} {}", "HALTED".red(), reason)
-            }
-        };
+        if !inner.config.show_only_contract_logs {
+            match &tx_result.result {
+                ExecutionResult::Success { output } => {
+                    tracing::info!("Call: {}", "SUCCESS".green());
+                    let output_bytes = zksync_types::web3::Bytes::from(output.clone());
+                    tracing::info!("Output: {}", serde_json::to_string(&output_bytes).unwrap());
+                }
+                ExecutionResult::Revert { output } => {
+                    tracing::info!("Call: {}: {}", "FAILED".red(), output);
+                }
+                ExecutionResult::Halt { reason } => {
+                    tracing::info!("Call: {} {}", "HALTED".red(), reason)
+                }
+            };
+            // Don't print the header if only contract calls should be shown
+            tracing::info!("=== Console Logs: ");
+        }
 
-        tracing::info!("=== Console Logs: ");
         for call in &call_traces {
             inner.console_log_handler.handle_call_recursive(call);
         }
 
-        tracing::info!("=== Call traces:");
-        for call in &call_traces {
-            formatter::print_call(
-                call,
-                0,
-                &inner.config.show_calls,
-                inner.config.show_outputs,
-                inner.config.resolve_hashes,
-            );
+        if !inner.config.show_only_contract_logs {
+            tracing::info!("=== Call traces:");
+            for call in &call_traces {
+                formatter::print_call(
+                    call,
+                    0,
+                    &inner.config.show_calls,
+                    inner.config.show_outputs,
+                    inner.config.resolve_hashes,
+                );
+            }
         }
 
         Ok(tx_result.result)
@@ -1390,85 +1395,92 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         let spent_on_pubdata =
             tx_result.statistics.gas_used - tx_result.statistics.computational_gas_used as u64;
 
-        tracing::info!("┌─────────────────────────┐");
-        tracing::info!("│   TRANSACTION SUMMARY   │");
-        tracing::info!("└─────────────────────────┘");
+        if !inner.config.show_only_contract_logs {
+            tracing::info!("┌─────────────────────────┐");
+            tracing::info!("│   TRANSACTION SUMMARY   │");
+            tracing::info!("└─────────────────────────┘");
 
-        match &tx_result.result {
-            ExecutionResult::Success { .. } => tracing::info!("Transaction: {}", "SUCCESS".green()),
-            ExecutionResult::Revert { .. } => tracing::info!("Transaction: {}", "FAILED".red()),
-            ExecutionResult::Halt { .. } => tracing::info!("Transaction: {}", "HALTED".red()),
-        }
+            match &tx_result.result {
+                ExecutionResult::Success { .. } => tracing::info!("Transaction: {}", "SUCCESS".green()),
+                ExecutionResult::Revert { .. } => tracing::info!("Transaction: {}", "FAILED".red()),
+                ExecutionResult::Halt { .. } => tracing::info!("Transaction: {}", "HALTED".red()),
+            }
 
-        tracing::info!("Initiator: {:?}", tx.initiator_account());
-        tracing::info!("Payer: {:?}", tx.payer());
-        tracing::info!(
-            "Gas - Limit: {} | Used: {} | Refunded: {}",
-            to_human_size(tx.gas_limit()),
-            to_human_size(tx.gas_limit() - tx_result.refunds.gas_refunded),
-            to_human_size(tx_result.refunds.gas_refunded.into())
-        );
+            tracing::info!("Initiator: {:?}", tx.initiator_account());
+            tracing::info!("Payer: {:?}", tx.payer());
+            tracing::info!(
+                "Gas - Limit: {} | Used: {} | Refunded: {}",
+                to_human_size(tx.gas_limit()),
+                to_human_size(tx.gas_limit() - tx_result.refunds.gas_refunded),
+                to_human_size(tx_result.refunds.gas_refunded.into())
+            );
 
-        match inner.config.show_gas_details {
-            ShowGasDetails::None => tracing::info!(
-                "Use --show-gas-details flag or call config_setShowGasDetails to display more info"
-            ),
-            ShowGasDetails::All => {
-                let info =
-                    self.display_detailed_gas_info(bootloader_debug_result.get(), spent_on_pubdata);
-                if info.is_err() {
-                    tracing::info!(
-                        "{}\nError: {}",
-                        "!!! FAILED TO GET DETAILED GAS INFO !!!".to_owned().red(),
-                        info.unwrap_err()
-                    );
+            match inner.config.show_gas_details {
+                ShowGasDetails::None => tracing::info!(
+                    "Use --show-gas-details flag or call config_setShowGasDetails to display more info"
+                ),
+                ShowGasDetails::All => {
+                    let info =
+                        self.display_detailed_gas_info(bootloader_debug_result.get(), spent_on_pubdata);
+                    if info.is_err() {
+                        tracing::info!(
+                            "{}\nError: {}",
+                            "!!! FAILED TO GET DETAILED GAS INFO !!!".to_owned().red(),
+                            info.unwrap_err()
+                        );
+                    }
                 }
             }
+
+            if inner.config.show_storage_logs != ShowStorageLogs::None {
+                print_storage_logs_details(&inner.config.show_storage_logs, &tx_result);
+            }
+
+            if inner.config.show_vm_details != ShowVMDetails::None {
+                formatter::print_vm_details(&tx_result);
+            }
+
+            // Don't print the header if only contract calls should be shown
+            tracing::info!("");
+            tracing::info!("==== Console logs: ");
         }
 
-        if inner.config.show_storage_logs != ShowStorageLogs::None {
-            print_storage_logs_details(&inner.config.show_storage_logs, &tx_result);
-        }
-
-        if inner.config.show_vm_details != ShowVMDetails::None {
-            formatter::print_vm_details(&tx_result);
-        }
-
-        tracing::info!("");
-        tracing::info!("==== Console logs: ");
         for call in call_traces {
             inner.console_log_handler.handle_call_recursive(call);
         }
-        tracing::info!("");
-        let call_traces_count = if !call_traces.is_empty() {
-            // All calls/sub-calls are stored within the first call trace
-            call_traces[0].calls.len()
-        } else {
-            0
-        };
-        tracing::info!(
-            "==== {} Use --show-calls flag or call config_setShowCalls to display more info.",
-            format!("{:?} call traces. ", call_traces_count).bold()
-        );
 
-        if inner.config.show_calls != ShowCalls::None {
-            for call in call_traces {
-                formatter::print_call(
-                    call,
-                    0,
-                    &inner.config.show_calls,
-                    inner.config.show_outputs,
-                    inner.config.resolve_hashes,
-                );
+        if !inner.config.show_only_contract_logs {
+            tracing::info!("");
+            let call_traces_count = if !call_traces.is_empty() {
+                // All calls/sub-calls are stored within the first call trace
+                call_traces[0].calls.len()
+            } else {
+                0
+            };
+            tracing::info!(
+                "==== {} Use --show-calls flag or call config_setShowCalls to display more info.",
+                format!("{:?} call traces. ", call_traces_count).bold()
+            );
+
+            if inner.config.show_calls != ShowCalls::None {
+                for call in call_traces {
+                    formatter::print_call(
+                        call,
+                        0,
+                        &inner.config.show_calls,
+                        inner.config.show_outputs,
+                        inner.config.resolve_hashes,
+                    );
+                }
             }
-        }
-        tracing::info!("");
-        tracing::info!(
-            "==== {}",
-            format!("{} events", tx_result.logs.events.len()).bold()
-        );
-        for event in &tx_result.logs.events {
-            formatter::print_event(event, inner.config.resolve_hashes);
+            tracing::info!("");
+            tracing::info!(
+                "==== {}",
+                format!("{} events", tx_result.logs.events.len()).bold()
+            );
+            for event in &tx_result.logs.events {
+                formatter::print_event(event, inner.config.resolve_hashes);
+            }
         }
 
         let mut bytecodes = HashMap::new();
@@ -1498,20 +1510,30 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         let tx_hash = l2_tx.hash();
         let transaction_type = l2_tx.common_data.transaction_type;
 
-        tracing::info!("");
-        tracing::info!("Validating {}", format!("{:?}", tx_hash).bold());
+        let disable_tracing = {
+            let inner = self
+                .inner
+                .read()
+                .map_err(|_| anyhow::anyhow!("Failed to acquire read lock"))?;
+            inner.config.silent || inner.config.show_only_contract_logs
+        };
+
+        if !disable_tracing {
+            tracing::info!("");
+            tracing::info!("Validating {}", format!("{:?}", tx_hash).bold());
+        }
 
         self.validate_tx(&l2_tx)?;
 
-        tracing::info!("Executing {}", format!("{:?}", tx_hash).bold());
-
-        {
-            let mut inner = self
-                .inner
-                .write()
-                .map_err(|_| anyhow::anyhow!("Failed to acquire write lock"))?;
-            inner.filters.notify_new_pending_transaction(tx_hash);
+        if !disable_tracing {
+            tracing::info!("Executing {}", format!("{:?}", tx_hash).bold());
         }
+
+        self
+            .inner
+            .write()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire write lock"))?
+            .filters.notify_new_pending_transaction(tx_hash);
 
         let TxExecutionOutput {
             result,

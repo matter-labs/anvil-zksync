@@ -159,6 +159,17 @@ content-type: application/json
 {
     "jsonrpc": "2.0",
     "id": "1",
+    "method": "config_setShowOnlyContractLogs",
+    "params": [true]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
     "method": "debug_traceCall",
     "params": [{
         "to": "0x36615Cf349d7F6344891B1e7CA7C72883F5dc049",

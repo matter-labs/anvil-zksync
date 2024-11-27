@@ -183,6 +183,21 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
             })
     }
 
+    fn config_set_show_only_contract_logs(&self, value: bool) -> Result<bool> {
+        self.get_inner()
+            .write()
+            .map_err(|err| {
+                tracing::error!("failed acquiring lock: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire write lock for inner node state.",
+                )))
+            })
+            .map(|mut writer| {
+                writer.config.show_only_contract_logs = value;
+                writer.config.show_only_contract_logs
+            })
+    }
+
     fn config_set_log_level(&self, level: LogLevel) -> Result<bool> {
         let Some(observability) = &self.observability else {
             return Err(into_jsrpc_error(Web3Error::InternalError(

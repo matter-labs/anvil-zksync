@@ -85,6 +85,16 @@ pub trait ConfigurationApiNamespaceT {
     #[rpc(name = "config_setResolveHashes", returns = "bool")]
     fn config_set_resolve_hashes(&self, value: bool) -> Result<bool>;
 
+    /// Set show_only_contract_logs for the InMemoryNodeInner
+    ///
+    /// # Parameters
+    /// - `value`: A bool to update show_only_contract_logs to
+    ///
+    /// # Returns
+    /// The updated/current `show_only_contract_logs` value for the InMemoryNodeInner.
+    #[rpc(name = "config_setShowOnlyContractLogs", returns = "bool")]
+    fn config_set_show_only_contract_logs(&self, value: bool) -> Result<bool>;
+
     /// Set the logging for the InMemoryNodeInner
     ///
     /// # Parameters

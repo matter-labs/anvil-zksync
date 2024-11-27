@@ -68,6 +68,10 @@ pub struct TestNodeConfig {
     pub show_gas_details: ShowGasDetails,
     /// Whether to resolve hash references
     pub resolve_hashes: bool,
+    /// Don’t print anything on startup if true
+    pub silent: bool,
+    /// Print only contract logs
+    pub show_only_contract_logs: bool,
     /// Configuration for system contracts
     pub system_contracts_options: system_contracts::Options,
     /// Directory to override bytecodes
@@ -124,6 +128,8 @@ impl Default for TestNodeConfig {
             show_vm_details: Default::default(),
             show_gas_details: Default::default(),
             resolve_hashes: false,
+            show_only_contract_logs: false,
+            silent: false,
             system_contracts_options: Default::default(),
             override_bytecodes_dir: None,
             use_evm_emulator: false,
@@ -170,6 +176,11 @@ impl TestNodeConfig {
             )
             .expect("Failed writing json");
         }
+
+        if self.silent || self.show_only_contract_logs {
+            return;
+        }
+
         let color = CustomColor::new(13, 71, 198);
 
         println!("{}", BANNER.custom_color(color));
@@ -572,6 +583,24 @@ impl TestNodeConfig {
     pub fn with_resolve_hashes(mut self, resolve: Option<bool>) -> Self {
         if let Some(resolve) = resolve {
             self.resolve_hashes = resolve;
+        }
+        self
+    }
+
+    /// Enable or disable silent mode
+    #[must_use]
+    pub fn with_silent(mut self, silent: Option<bool>) -> Self {
+        if let Some(silent) = silent {
+            self.silent = silent;
+        }
+        self
+    }
+
+    /// Enable or disable printing only contract logs
+    #[must_use]
+    pub fn with_show_only_contract_logs(mut self, show_only_contract_logs: Option<bool>) -> Self {
+        if let Some(show_only_contract_logs) = show_only_contract_logs {
+            self.show_only_contract_logs = show_only_contract_logs;
         }
         self
     }
