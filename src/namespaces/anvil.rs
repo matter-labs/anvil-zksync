@@ -6,6 +6,23 @@ use crate::utils::Numeric;
 
 #[rpc]
 pub trait AnvilNamespaceT {
+    /// Sets the block timestamp interval. All future blocks' timestamps will
+    /// have the provided amount of seconds in-between of them. Does not affect
+    /// the block production interval.
+    ///
+    /// # Arguments
+    ///
+    /// * `seconds` - The minimum gas price to be set
+    #[rpc(name = "anvil_setBlockTimestampInterval")]
+    fn set_block_timestamp_interval(&self, seconds: u64) -> RpcResult<()>;
+
+    /// Removes the block timestamp interval if it exists.
+    ///
+    /// # Returns
+    /// `true` if an existing interval was removed, `false` otherwise
+    #[rpc(name = "anvil_removeBlockTimestampInterval")]
+    fn remove_block_timestamp_interval(&self) -> RpcResult<bool>;
+
     /// Set the minimum gas price for the node. Unsupported for ZKsync as it is only relevant for
     /// pre-EIP1559 chains.
     ///

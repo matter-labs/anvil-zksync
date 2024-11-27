@@ -34,6 +34,7 @@ impl TimestampManager {
             internal: Arc::new(RwLock::new(TimestampManagerInternal {
                 last_timestamp,
                 next_timestamp: None,
+                interval: None,
             })),
         }
     }
@@ -85,6 +86,19 @@ impl TimestampManager {
         next
     }
 
+    /// Sets an interval to use when computing the next timestamp
+    ///
+    /// If an interval already exists, this will update the interval, otherwise a new interval will
+    /// be set starting with the current timestamp.
+    pub fn set_block_timestamp_interval(&self, seconds: u64) {
+        self.get_mut().interval.replace(seconds);
+    }
+
+    /// Removes the interval. Returns true if it existed before being removed, false otherwise.
+    pub fn remove_block_timestamp_interval(&self) -> bool {
+        self.get_mut().interval.take().is_some()
+    }
+
     /// Returns an exclusively owned writeable view on this [`TimeManager`] instance.
     ///
     /// Use this method when you need to ensure that no one else can access [`TimeManager`] during
@@ -131,12 +145,19 @@ struct TimestampManagerInternal {
     last_timestamp: u64,
     /// The next timestamp (in seconds) that the clock will be forced to return.
     next_timestamp: Option<u64>,
+    /// The interval to use when determining the next block's timestamp (i.e. the difference in
+    /// seconds between two consecutive blocks).
+    interval: Option<u64>,
 }
 
 impl TimestampManagerInternal {
     fn reset_to(&mut self, timestamp: u64) {
         self.next_timestamp.take();
         self.last_timestamp = timestamp;
+    }
+
+    fn interval(&self) -> u64 {
+        self.interval.unwrap_or(1)
     }
 }
 
@@ -147,7 +168,7 @@ impl TimeRead for TimestampManagerInternal {
 
     fn peek_next_timestamp(&self) -> u64 {
         self.next_timestamp
-            .unwrap_or_else(|| self.last_timestamp.saturating_add(1))
+            .unwrap_or_else(|| self.last_timestamp.saturating_add(self.interval()))
     }
 }
 
@@ -155,7 +176,7 @@ impl TimeExclusive for TimestampManagerInternal {
     fn next_timestamp(&mut self) -> u64 {
         let next_timestamp = match self.next_timestamp.take() {
             Some(next_timestamp) => next_timestamp,
-            None => self.last_timestamp.saturating_add(1),
+            None => self.last_timestamp.saturating_add(self.interval()),
         };
 
         self.last_timestamp = next_timestamp;

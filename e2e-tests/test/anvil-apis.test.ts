@@ -11,6 +11,47 @@ import * as fs from "node:fs";
 
 const provider = getTestProvider();
 
+describe("anvil_setBlockTimestampInterval & anvil_removeBlockTimestampInterval", function () {
+  it("Should control timestamp interval between blocks", async function () {
+    // Arrange
+    const interval = 42;
+    let expectedTimestamp: number = await provider.send("config_getCurrentTimestamp", []);
+    expectedTimestamp += interval;
+    const wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
+    const userWallet = Wallet.createRandom().connect(provider);
+
+    // Set interval
+    await provider.send("anvil_setBlockTimestampInterval", [interval]);
+
+    const txResponse = await wallet.sendTransaction({
+      to: userWallet.address,
+      value: ethers.utils.parseEther("0.1"),
+    });
+    const txReceipt = await txResponse.wait();
+
+    // Assert new block is `interval` apart from start
+    const newBlockTimestamp = (await provider.getBlock(txReceipt.blockNumber)).timestamp;
+    expect(newBlockTimestamp).to.equal(expectedTimestamp);
+
+    // Accomodate for virtual block
+    expectedTimestamp += interval;
+
+    // Remove interval
+    const result: boolean = await provider.send("anvil_removeBlockTimestampInterval", []);
+    expect(result);
+
+    const txResponse2 = await wallet.sendTransaction({
+      to: userWallet.address,
+      value: ethers.utils.parseEther("0.1"),
+    });
+    const txReceipt2 = await txResponse2.wait();
+
+    // Assert new block is `1` apart from previous block
+    const newBlockTimestamp2 = (await provider.getBlock(txReceipt2.blockNumber)).timestamp;
+    expect(newBlockTimestamp2).to.equal(expectedTimestamp + 1);
+  });
+});
+
 describe("anvil_setLoggingEnabled", function () {
   it("Should disable and enable logging", async function () {
     // Arrange
