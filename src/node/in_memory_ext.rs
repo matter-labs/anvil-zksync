@@ -59,7 +59,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
     /// # Returns
     /// The difference between the `current_timestamp` and the new timestamp for the InMemoryNodeInner.
     pub fn set_time(&self, timestamp: Numeric) -> Result<i128> {
-        Ok(self.time.set_last_timestamp_unchecked(
+        Ok(self.time.set_current_timestamp_unchecked(
             timestamp.try_into().context("The timestamp is too big")?,
         ))
     }
@@ -367,7 +367,7 @@ mod tests {
     use super::*;
     use crate::fork::ForkStorage;
     use crate::namespaces::EthNamespaceT;
-    use crate::node::time::{TimeRead, TimestampManager};
+    use crate::node::time::{ReadTime, TimestampManager};
     use crate::node::{ImpersonationManager, InMemoryNodeInner, Snapshot, TxPool};
     use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
     use std::str::FromStr;
@@ -524,7 +524,7 @@ mod tests {
         assert_eq!(node.snapshots.read().unwrap().len(), 0);
 
         let inner = node.inner.read().unwrap();
-        assert_eq!(node.time.last_timestamp(), 1000);
+        assert_eq!(node.time.current_timestamp(), 1000);
         assert_eq!(inner.current_batch, 0);
         assert_eq!(inner.current_miniblock, 0);
         assert_ne!(inner.current_miniblock_hash, H256::random());
@@ -658,13 +658,13 @@ mod tests {
         let node = InMemoryNode::<HttpForkSource>::default();
 
         let increase_value_seconds = 0u64;
-        let timestamp_before = node.time.last_timestamp();
+        let timestamp_before = node.time.current_timestamp();
         let expected_response = increase_value_seconds;
 
         let actual_response = node
             .increase_time(increase_value_seconds.into())
             .expect("failed increasing timestamp");
-        let timestamp_after = node.time.last_timestamp();
+        let timestamp_after = node.time.current_timestamp();
 
         assert_eq!(expected_response, actual_response, "erroneous response");
         assert_eq!(
@@ -679,14 +679,14 @@ mod tests {
         let node = InMemoryNode::<HttpForkSource>::default();
 
         let increase_value_seconds = u64::MAX;
-        let timestamp_before = node.time.last_timestamp();
+        let timestamp_before = node.time.current_timestamp();
         assert_ne!(0, timestamp_before, "initial timestamp must be non zero",);
         let expected_response = increase_value_seconds;
 
         let actual_response = node
             .increase_time(increase_value_seconds.into())
             .expect("failed increasing timestamp");
-        let timestamp_after = node.time.last_timestamp();
+        let timestamp_after = node.time.current_timestamp();
 
         assert_eq!(expected_response, actual_response, "erroneous response");
         assert_eq!(
@@ -701,13 +701,13 @@ mod tests {
         let node = InMemoryNode::<HttpForkSource>::default();
 
         let increase_value_seconds = 100u64;
-        let timestamp_before = node.time.last_timestamp();
+        let timestamp_before = node.time.current_timestamp();
         let expected_response = increase_value_seconds;
 
         let actual_response = node
             .increase_time(increase_value_seconds.into())
             .expect("failed increasing timestamp");
-        let timestamp_after = node.time.last_timestamp();
+        let timestamp_after = node.time.current_timestamp();
 
         assert_eq!(expected_response, actual_response, "erroneous response");
         assert_eq!(
@@ -722,7 +722,7 @@ mod tests {
         let node = InMemoryNode::<HttpForkSource>::default();
 
         let new_timestamp = 10_000u64;
-        let timestamp_before = node.time.last_timestamp();
+        let timestamp_before = node.time.current_timestamp();
         assert_ne!(
             timestamp_before, new_timestamp,
             "timestamps must be different"
@@ -731,7 +731,7 @@ mod tests {
         node.set_next_block_timestamp(new_timestamp.into())
             .expect("failed setting timestamp");
         node.mine_block().expect("failed to mine a block");
-        let timestamp_after = node.time.last_timestamp();
+        let timestamp_after = node.time.current_timestamp();
 
         assert_eq!(
             new_timestamp, timestamp_after,
@@ -743,7 +743,7 @@ mod tests {
     async fn test_set_next_block_timestamp_past_fails() {
         let node = InMemoryNode::<HttpForkSource>::default();
 
-        let timestamp_before = node.time.last_timestamp();
+        let timestamp_before = node.time.current_timestamp();
 
         let new_timestamp = timestamp_before + 500;
         node.set_next_block_timestamp(new_timestamp.into())
@@ -761,13 +761,13 @@ mod tests {
         let node = InMemoryNode::<HttpForkSource>::default();
 
         let new_timestamp = 1000u64;
-        let timestamp_before = node.time.last_timestamp();
+        let timestamp_before = node.time.current_timestamp();
         assert_eq!(timestamp_before, new_timestamp, "timestamps must be same");
 
         let response = node.set_next_block_timestamp(new_timestamp.into());
         assert!(response.is_err());
 
-        let timestamp_after = node.time.last_timestamp();
+        let timestamp_after = node.time.current_timestamp();
         assert_eq!(
             timestamp_before, timestamp_after,
             "timestamp must not change",
@@ -779,14 +779,14 @@ mod tests {
         let node = InMemoryNode::<HttpForkSource>::default();
 
         let new_time = 10_000u64;
-        let timestamp_before = node.time.last_timestamp();
+        let timestamp_before = node.time.current_timestamp();
         assert_ne!(timestamp_before, new_time, "timestamps must be different");
         let expected_response = 9000;
 
         let actual_response = node
             .set_time(new_time.into())
             .expect("failed setting timestamp");
-        let timestamp_after = node.time.last_timestamp();
+        let timestamp_after = node.time.current_timestamp();
 
         assert_eq!(expected_response, actual_response, "erroneous response");
         assert_eq!(new_time, timestamp_after, "timestamp was not set correctly",);
@@ -797,14 +797,14 @@ mod tests {
         let node = InMemoryNode::<HttpForkSource>::default();
 
         let new_time = 10u64;
-        let timestamp_before = node.time.last_timestamp();
+        let timestamp_before = node.time.current_timestamp();
         assert_ne!(timestamp_before, new_time, "timestamps must be different");
         let expected_response = -990;
 
         let actual_response = node
             .set_time(new_time.into())
             .expect("failed setting timestamp");
-        let timestamp_after = node.time.last_timestamp();
+        let timestamp_after = node.time.current_timestamp();
 
         assert_eq!(expected_response, actual_response, "erroneous response");
         assert_eq!(new_time, timestamp_after, "timestamp was not set correctly",);
@@ -815,14 +815,14 @@ mod tests {
         let node = InMemoryNode::<HttpForkSource>::default();
 
         let new_time = 1000u64;
-        let timestamp_before = node.time.last_timestamp();
+        let timestamp_before = node.time.current_timestamp();
         assert_eq!(timestamp_before, new_time, "timestamps must be same");
         let expected_response = 0;
 
         let actual_response = node
             .set_time(new_time.into())
             .expect("failed setting timestamp");
-        let timestamp_after = node.time.last_timestamp();
+        let timestamp_after = node.time.current_timestamp();
 
         assert_eq!(expected_response, actual_response, "erroneous response");
         assert_eq!(
@@ -836,7 +836,7 @@ mod tests {
         let node = InMemoryNode::<HttpForkSource>::default();
 
         for new_time in [0, u64::MAX] {
-            let timestamp_before = node.time.last_timestamp();
+            let timestamp_before = node.time.current_timestamp();
             assert_ne!(
                 timestamp_before, new_time,
                 "case {new_time}: timestamps must be different"
@@ -846,7 +846,7 @@ mod tests {
             let actual_response = node
                 .set_time(new_time.into())
                 .expect("failed setting timestamp");
-            let timestamp_after = node.time.last_timestamp();
+            let timestamp_after = node.time.current_timestamp();
 
             assert_eq!(
                 expected_response, actual_response,

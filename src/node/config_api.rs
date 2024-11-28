@@ -1,6 +1,6 @@
 use zksync_web3_decl::error::Web3Error;
 
-use crate::node::time::TimeRead;
+use crate::node::time::ReadTime;
 use crate::{
     config::show_details::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails},
     fork::ForkSource,
@@ -38,7 +38,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
     }
 
     fn config_get_current_timestamp(&self) -> Result<u64> {
-        Ok(self.time.last_timestamp())
+        Ok(self.time.current_timestamp())
     }
 
     fn config_set_show_calls(&self, value: String) -> Result<String> {

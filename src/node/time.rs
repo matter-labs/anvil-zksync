@@ -3,21 +3,22 @@ use std::collections::VecDeque;
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 /// Shared readable view on time.
-pub trait TimeRead {
-    /// Returns the last timestamp (in seconds) that has already been used.
-    fn last_timestamp(&self) -> u64;
+pub trait ReadTime {
+    /// Returns timestamp (in seconds) that the clock is currently on.
+    fn current_timestamp(&self) -> u64;
 
-    /// Peek at what the next call to `next_timestamp` will return.
+    /// Peek at what the next call to `advance_timestamp` will return.
     fn peek_next_timestamp(&self) -> u64;
 }
 
 /// Writeable view on time management. The owner of this view should be able to treat it as
 /// exclusive access to the underlying clock.
-pub trait TimeExclusive: TimeRead {
-    /// Returns the next unique timestamp in seconds.
+pub trait AdvanceTime: ReadTime {
+    /// Advances clock to the next timestamp and returns that timestamp in seconds.
     ///
-    /// Subsequent calls to this method return monotonically increasing values.
-    fn next_timestamp(&mut self) -> u64;
+    /// Subsequent calls to this method return monotonically increasing values. Time difference
+    /// between calls is implementation-specific.
+    fn advance_timestamp(&mut self) -> u64;
 }
 
 /// Manages timestamps (in seconds) across the system.
@@ -29,10 +30,10 @@ pub struct TimestampManager {
 }
 
 impl TimestampManager {
-    pub fn new(last_timestamp: u64) -> TimestampManager {
+    pub fn new(current_timestamp: u64) -> TimestampManager {
         TimestampManager {
             internal: Arc::new(RwLock::new(TimestampManagerInternal {
-                last_timestamp,
+                current_timestamp,
                 next_timestamp: None,
                 interval: None,
             })),
@@ -53,24 +54,24 @@ impl TimestampManager {
 
     /// Sets last used timestamp (in seconds) to the provided value and returns the difference
     /// between new value and old value (represented as a signed number of seconds).
-    pub fn set_last_timestamp_unchecked(&self, timestamp: u64) -> i128 {
+    pub fn set_current_timestamp_unchecked(&self, timestamp: u64) -> i128 {
         let mut this = self.get_mut();
-        let diff = (timestamp as i128).saturating_sub(this.last_timestamp as i128);
+        let diff = (timestamp as i128).saturating_sub(this.current_timestamp as i128);
         this.reset_to(timestamp);
         diff
     }
 
     /// Forces clock to return provided value as the next timestamp. Time skip will not be performed
-    /// before the next invocation of `next_timestamp`.
+    /// before the next invocation of `advance_timestamp`.
     ///
     /// Expects provided timestamp to be in the future, returns error otherwise.
     pub fn enforce_next_timestamp(&self, timestamp: u64) -> anyhow::Result<()> {
         let mut this = self.get_mut();
-        if timestamp <= this.last_timestamp {
+        if timestamp <= this.current_timestamp {
             Err(anyhow!(
                 "timestamp ({}) must be greater than the last used timestamp ({})",
                 timestamp,
-                this.last_timestamp
+                this.current_timestamp
             ))
         } else {
             this.next_timestamp.replace(timestamp);
@@ -81,7 +82,7 @@ impl TimestampManager {
     /// Fast-forwards time by the given amount of seconds.
     pub fn increase_time(&self, seconds: u64) -> u64 {
         let mut this = self.get_mut();
-        let next = this.last_timestamp.saturating_add(seconds);
+        let next = this.current_timestamp.saturating_add(seconds);
         this.reset_to(next);
         next
     }
@@ -103,7 +104,7 @@ impl TimestampManager {
     ///
     /// Use this method when you need to ensure that no one else can access [`TimeManager`] during
     /// this view's lifetime.
-    pub fn lock(&self) -> impl TimeExclusive + '_ {
+    pub fn lock(&self) -> impl AdvanceTime + '_ {
         self.lock_with_offsets([])
     }
 
@@ -116,7 +117,7 @@ impl TimestampManager {
     pub fn lock_with_offsets<'a, I: IntoIterator<Item = u64>>(
         &'a self,
         offsets: I,
-    ) -> impl TimeExclusive + 'a
+    ) -> impl AdvanceTime + 'a
     where
         <I as IntoIterator>::IntoIter: 'a,
     {
@@ -129,9 +130,9 @@ impl TimestampManager {
     }
 }
 
-impl TimeRead for TimestampManager {
-    fn last_timestamp(&self) -> u64 {
-        (*self.get()).last_timestamp()
+impl ReadTime for TimestampManager {
+    fn current_timestamp(&self) -> u64 {
+        (*self.get()).current_timestamp()
     }
 
     fn peek_next_timestamp(&self) -> u64 {
@@ -141,19 +142,20 @@ impl TimeRead for TimestampManager {
 
 #[derive(Debug, Default)]
 struct TimestampManagerInternal {
-    /// The latest timestamp (in seconds) that has already been used.
-    last_timestamp: u64,
-    /// The next timestamp (in seconds) that the clock will be forced to return.
+    /// The current timestamp (in seconds). This timestamp is considered to be used already: there
+    /// might be a logical event that already happened on that timestamp (e.g. a block was sealed
+    /// with this timestamp).
+    current_timestamp: u64,
+    /// The next timestamp (in seconds) that the clock will be forced to advance to.
     next_timestamp: Option<u64>,
-    /// The interval to use when determining the next block's timestamp (i.e. the difference in
-    /// seconds between two consecutive blocks).
+    /// The interval to use when determining the next timestamp to advance to.
     interval: Option<u64>,
 }
 
 impl TimestampManagerInternal {
     fn reset_to(&mut self, timestamp: u64) {
         self.next_timestamp.take();
-        self.last_timestamp = timestamp;
+        self.current_timestamp = timestamp;
     }
 
     fn interval(&self) -> u64 {
@@ -161,25 +163,25 @@ impl TimestampManagerInternal {
     }
 }
 
-impl TimeRead for TimestampManagerInternal {
-    fn last_timestamp(&self) -> u64 {
-        self.last_timestamp
+impl ReadTime for TimestampManagerInternal {
+    fn current_timestamp(&self) -> u64 {
+        self.current_timestamp
     }
 
     fn peek_next_timestamp(&self) -> u64 {
         self.next_timestamp
-            .unwrap_or_else(|| self.last_timestamp.saturating_add(self.interval()))
+            .unwrap_or_else(|| self.current_timestamp.saturating_add(self.interval()))
     }
 }
 
-impl TimeExclusive for TimestampManagerInternal {
-    fn next_timestamp(&mut self) -> u64 {
+impl AdvanceTime for TimestampManagerInternal {
+    fn advance_timestamp(&mut self) -> u64 {
         let next_timestamp = match self.next_timestamp.take() {
             Some(next_timestamp) => next_timestamp,
-            None => self.last_timestamp.saturating_add(self.interval()),
+            None => self.current_timestamp.saturating_add(self.interval()),
         };
 
-        self.last_timestamp = next_timestamp;
+        self.current_timestamp = next_timestamp;
         next_timestamp
     }
 }
@@ -193,9 +195,9 @@ struct TimeLockWithOffsets<'a> {
     offsets: VecDeque<u64>,
 }
 
-impl TimeRead for TimeLockWithOffsets<'_> {
-    fn last_timestamp(&self) -> u64 {
-        self.guard.last_timestamp()
+impl ReadTime for TimeLockWithOffsets<'_> {
+    fn current_timestamp(&self) -> u64 {
+        self.guard.current_timestamp()
     }
 
     fn peek_next_timestamp(&self) -> u64 {
@@ -206,8 +208,8 @@ impl TimeRead for TimeLockWithOffsets<'_> {
     }
 }
 
-impl TimeExclusive for TimeLockWithOffsets<'_> {
-    fn next_timestamp(&mut self) -> u64 {
+impl AdvanceTime for TimeLockWithOffsets<'_> {
+    fn advance_timestamp(&mut self) -> u64 {
         match self.offsets.pop_front() {
             Some(offset) => {
                 let timestamp = self.start_timestamp.saturating_add(offset);
@@ -217,7 +219,7 @@ impl TimeExclusive for TimeLockWithOffsets<'_> {
 
                 timestamp
             }
-            None => self.guard.next_timestamp(),
+            None => self.guard.advance_timestamp(),
         }
     }
 }

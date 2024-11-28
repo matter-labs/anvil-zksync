@@ -47,7 +47,7 @@ use zksync_utils::{bytecode::hash_bytecode, h256_to_account_address, h256_to_u25
 use zksync_web3_decl::error::Web3Error;
 
 use crate::node::impersonate::{ImpersonationManager, ImpersonationState};
-use crate::node::time::{TimeExclusive, TimeRead, TimestampManager};
+use crate::node::time::{AdvanceTime, ReadTime, TimestampManager};
 use crate::node::TxPool;
 use crate::{
     bootloader_debug::{BootloaderDebug, BootloaderDebugTracer},
@@ -265,7 +265,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                     f.estimate_gas_scale_factor,
                 )
             };
-            time.set_last_timestamp_unchecked(f.block_timestamp);
+            time.set_current_timestamp_unchecked(f.block_timestamp);
 
             InMemoryNodeInner {
                 current_batch: f.l1_block.0,
@@ -299,7 +299,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             let mut blocks = HashMap::<H256, Block<TransactionVariant>>::new();
             blocks.insert(block_hash, create_genesis(NON_FORK_FIRST_BLOCK_TIMESTAMP));
             let fee_input_provider = TestNodeFeeInputProvider::default();
-            time.set_last_timestamp_unchecked(NON_FORK_FIRST_BLOCK_TIMESTAMP);
+            time.set_current_timestamp_unchecked(NON_FORK_FIRST_BLOCK_TIMESTAMP);
 
             InMemoryNodeInner {
                 current_batch: 0,
@@ -334,7 +334,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
     /// We compute l1/l2 block details from storage to support fork testing, where the storage
     /// can be updated mid execution and no longer matches with the initial node's state.
     /// The L1 & L2 timestamps are also compared with node's timestamp to ensure it always increases monotonically.
-    pub fn create_l1_batch_env<T: TimeRead, ST: ReadStorage>(
+    pub fn create_l1_batch_env<T: ReadTime, ST: ReadStorage>(
         &self,
         time: &T,
         storage: StoragePtr<ST>,
@@ -347,7 +347,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         let last_l2_block = load_last_l2_block(&storage).unwrap_or_else(|| L2Block {
             number: self.current_miniblock as u32,
             hash: L2BlockHasher::legacy_hash(L2BlockNumber(self.current_miniblock as u32)),
-            timestamp: time.last_timestamp(),
+            timestamp: time.current_timestamp(),
         });
 
         let block_ctx = BlockContext {
@@ -427,7 +427,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
     /// # Returns
     ///
     /// A `Result` with a `Fee` representing the estimated gas related data.
-    pub fn estimate_gas_impl<T: TimeRead>(
+    pub fn estimate_gas_impl<T: ReadTime>(
         &self,
         time: &T,
         req: zksync_types::transaction_request::CallRequest,
@@ -837,7 +837,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         Ok(())
     }
 
-    fn apply_block<T: TimeExclusive>(
+    fn apply_block<T: AdvanceTime>(
         &mut self,
         time: &mut T,
         block: Block<TransactionVariant>,
@@ -853,7 +853,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         }
 
         self.current_miniblock = self.current_miniblock.saturating_add(1);
-        let expected_timestamp = time.next_timestamp();
+        let expected_timestamp = time.advance_timestamp();
 
         let actual_l1_batch_number = block
             .l1_batch_number
@@ -1684,7 +1684,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     // Requirement for `TimeExclusive` ensures that we have exclusive writeable access to time
     // manager. Meaning we can construct blocks and apply them without worrying about TOCTOU with
     // timestamps.
-    pub fn seal_block<T: TimeExclusive>(
+    pub fn seal_block<T: AdvanceTime>(
         &self,
         time: &mut T,
         txs: Vec<L2Tx>,
@@ -1839,7 +1839,7 @@ pub struct BlockContext {
 
 impl BlockContext {
     /// Create the next batch instance that uses the same batch number, and has all other parameters incremented by `1`.
-    pub fn new_block<T: TimeRead>(&self, time: &T) -> BlockContext {
+    pub fn new_block<T: ReadTime>(&self, time: &T) -> BlockContext {
         Self {
             hash: H256::zero(),
             batch: self.batch,
