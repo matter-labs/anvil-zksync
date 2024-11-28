@@ -59,6 +59,8 @@ indexmap = "2.0.1"
 chrono = { version = "0.4.31", default-features = false }
 time = "0.3.36"
 rand = "0.8"
+flate2 = "1.0"
+thiserror = "1"
 
 [dev-dependencies]
 httptest = "0.15.4"

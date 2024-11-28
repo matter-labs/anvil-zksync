@@ -11,7 +11,7 @@ use crate::{
 use anyhow::{anyhow, Context};
 use std::convert::TryInto;
 use std::time::Duration;
-use zksync_multivm::interface::{ExecutionResult, TxExecutionMode};
+use zksync_multivm::interface::TxExecutionMode;
 use zksync_types::api::{Block, TransactionVariant};
 use zksync_types::{
     get_code_key, get_nonce_key,
@@ -111,15 +111,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
                         .tx_results
                         .get(&tx.hash)
                         .expect("freshly executed tx is missing from storage");
-                    let (output, revert_reason) = match &tx_result.info.result.result {
-                        ExecutionResult::Success { output } => (Some(output.clone().into()), None),
-                        ExecutionResult::Revert { output } => (
-                            Some(output.encoded_data().into()),
-                            Some(output.to_user_friendly_string()),
-                        ),
-                        // Halted transaction should never be a part of a block
-                        ExecutionResult::Halt { .. } => unreachable!(),
-                    };
+                    let output = Some(tx_result.debug.output.clone());
+                    let revert_reason = tx_result.debug.revert_reason.clone();
                     DetailedTransaction {
                         inner: tx,
                         output,

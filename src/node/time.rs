@@ -19,6 +19,8 @@ pub trait AdvanceTime: ReadTime {
     /// Subsequent calls to this method return monotonically increasing values. Time difference
     /// between calls is implementation-specific.
     fn advance_timestamp(&mut self) -> u64;
+
+    fn reset_to(&mut self, timestamp: u64);
 }
 
 /// Manages timestamps (in seconds) across the system.
@@ -153,11 +155,6 @@ struct TimestampManagerInternal {
 }
 
 impl TimestampManagerInternal {
-    fn reset_to(&mut self, timestamp: u64) {
-        self.next_timestamp.take();
-        self.current_timestamp = timestamp;
-    }
-
     fn interval(&self) -> u64 {
         self.interval.unwrap_or(1)
     }
@@ -183,6 +180,11 @@ impl AdvanceTime for TimestampManagerInternal {
 
         self.current_timestamp = next_timestamp;
         next_timestamp
+    }
+
+    fn reset_to(&mut self, timestamp: u64) {
+        self.next_timestamp.take();
+        self.current_timestamp = timestamp;
     }
 }
 
@@ -221,5 +223,13 @@ impl AdvanceTime for TimeLockWithOffsets<'_> {
             }
             None => self.guard.advance_timestamp(),
         }
+    }
+
+    fn reset_to(&mut self, timestamp: u64) {
+        // Resetting `start_timestamp` to `timestamp` may look weird here but at the same time there
+        // is no "expected" behavior in this case.
+        // Also, this is temporary logic that will become irrelevant after block production refactoring.
+        self.guard.reset_to(timestamp);
+        self.start_timestamp = timestamp;
     }
 }

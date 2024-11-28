@@ -3,6 +3,19 @@
 //! There is ForkStorage (that is a wrapper over InMemoryStorage)
 //! And ForkDetails - that parses network address and fork height from arguments.
 
+use crate::config::{
+    cache::CacheConfig,
+    constants::{
+        DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
+        DEFAULT_FAIR_PUBDATA_PRICE, TEST_NODE_NETWORK_ID,
+    },
+};
+use crate::system_contracts;
+use crate::{deps::InMemoryStorage, http_fork_source::HttpForkSource};
+use eyre::eyre;
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+use std::iter::FromIterator;
 use std::{
     collections::HashMap,
     convert::{TryFrom, TryInto},
@@ -12,11 +25,9 @@ use std::{
     str::FromStr,
     sync::{Arc, RwLock},
 };
-
-use eyre::eyre;
 use tokio::runtime::Builder;
-use zksync_types::{Address, L1BatchNumber, L2BlockNumber, L2ChainId, H256, U256, U64};
-
+use zksync_multivm::interface::storage::ReadStorage;
+use zksync_types::web3::Bytes;
 use zksync_types::{
     api::{
         Block, BlockDetails, BlockIdVariant, BlockNumber, BridgeAddresses, Transaction,
@@ -27,26 +38,15 @@ use zksync_types::{
     url::SensitiveUrl,
     ProtocolVersionId, StorageKey,
 };
-
-use zksync_multivm::interface::storage::ReadStorage;
+use zksync_types::{
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, StorageValue, H256, U256, U64,
+};
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
-
 use zksync_web3_decl::{
     client::{Client, L2},
     namespaces::ZksNamespaceClient,
 };
 use zksync_web3_decl::{namespaces::EthNamespaceClient, types::Index};
-
-use crate::config::{
-    cache::CacheConfig,
-    constants::{
-        DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
-        DEFAULT_FAIR_PUBDATA_PRICE, TEST_NODE_NETWORK_ID,
-    },
-};
-use crate::system_contracts;
-
-use crate::{deps::InMemoryStorage, http_fork_source::HttpForkSource};
 
 pub fn block_on<F: Future + Send + 'static>(future: F) -> F::Output
 where
@@ -261,6 +261,46 @@ impl<S: ForkSource> ForkStorage<S> {
     fn get_enumeration_index_internal(&self, _key: &StorageKey) -> Option<u64> {
         // TODO: Update this file to use proper enumeration index value once it's exposed for forks via API
         Some(0_u64)
+    }
+
+    pub fn dump_state(&self) -> SerializableForkStorage {
+        let inner = self.inner.read().unwrap();
+        let mut state = BTreeMap::from_iter(inner.value_read_cache.clone());
+        state.extend(inner.raw_storage.state.clone());
+        let mut factory_deps = BTreeMap::from_iter(
+            inner
+                .factory_dep_cache
+                .iter()
+                // Ignore cache misses
+                .filter_map(|(k, v)| v.as_ref().map(|v| (k, v)))
+                .map(|(k, v)| (*k, Bytes::from(v.clone()))),
+        );
+        factory_deps.extend(
+            inner
+                .raw_storage
+                .factory_deps
+                .iter()
+                .map(|(k, v)| (*k, Bytes::from(v.clone()))),
+        );
+
+        SerializableForkStorage {
+            storage: SerializableStorage(state),
+            factory_deps,
+        }
+    }
+
+    pub fn load_state(&self, state: SerializableForkStorage) {
+        tracing::trace!(
+            slots = state.storage.0.len(),
+            factory_deps = state.factory_deps.len(),
+            "loading fork storage from supplied state"
+        );
+        let mut inner = self.inner.write().unwrap();
+        inner.raw_storage.state.extend(state.storage.0);
+        inner
+            .raw_storage
+            .factory_deps
+            .extend(state.factory_deps.into_iter().map(|(k, v)| (k, v.0)));
     }
 }
 
@@ -733,6 +773,85 @@ impl ForkDetails {
     /// Sets fork's internal URL. Assumes the underlying chain is the same as before.
     pub fn set_rpc_url(&mut self, url: String) {
         self.fork_source = Box::new(HttpForkSource::new(url, self.cache_config.clone()));
+    }
+}
+
+/// Serializable representation of [`ForkStorage`]'s state.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SerializableForkStorage {
+    /// Node's current key-value storage state (contains both local and cached fork data if applicable).
+    pub storage: SerializableStorage,
+    /// Factory dependencies by their hash.
+    pub factory_deps: BTreeMap<H256, Bytes>,
+}
+
+/// Wrapper for [`BTreeMap<StorageKey, StorageValue>`] to avoid serializing [`StorageKey`] as a struct.
+/// JSON does not support non-string keys so we use conversion to [`Bytes`] via [`crate::node::state::SerializableStorageKey`]
+/// instead.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(
+    into = "BTreeMap<serde_from::SerializableStorageKey, StorageValue>",
+    from = "BTreeMap<serde_from::SerializableStorageKey, StorageValue>"
+)]
+pub struct SerializableStorage(pub BTreeMap<StorageKey, StorageValue>);
+
+mod serde_from {
+    use crate::fork::SerializableStorage;
+    use serde::{Deserialize, Serialize};
+    use std::collections::BTreeMap;
+    use std::convert::TryFrom;
+    use zksync_types::web3::Bytes;
+    use zksync_types::{AccountTreeId, Address, StorageKey, StorageValue, H256};
+
+    impl From<BTreeMap<SerializableStorageKey, StorageValue>> for SerializableStorage {
+        fn from(value: BTreeMap<SerializableStorageKey, StorageValue>) -> Self {
+            SerializableStorage(value.into_iter().map(|(k, v)| (k.into(), v)).collect())
+        }
+    }
+
+    impl From<SerializableStorage> for BTreeMap<SerializableStorageKey, StorageValue> {
+        fn from(value: SerializableStorage) -> Self {
+            value.0.into_iter().map(|(k, v)| (k.into(), v)).collect()
+        }
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+    #[serde(into = "Bytes", try_from = "Bytes")]
+    pub struct SerializableStorageKey(StorageKey);
+
+    impl From<StorageKey> for SerializableStorageKey {
+        fn from(value: StorageKey) -> Self {
+            SerializableStorageKey(value)
+        }
+    }
+
+    impl From<SerializableStorageKey> for StorageKey {
+        fn from(value: SerializableStorageKey) -> Self {
+            value.0
+        }
+    }
+
+    impl TryFrom<Bytes> for SerializableStorageKey {
+        type Error = anyhow::Error;
+
+        fn try_from(bytes: Bytes) -> anyhow::Result<Self> {
+            if bytes.0.len() != 52 {
+                anyhow::bail!("invalid bytes length (expected 52, got {})", bytes.0.len())
+            }
+            let address = Address::from_slice(&bytes.0[0..20]);
+            let key = H256::from_slice(&bytes.0[20..52]);
+            Ok(SerializableStorageKey(StorageKey::new(
+                AccountTreeId::new(address),
+                key,
+            )))
+        }
+    }
+
+    impl From<SerializableStorageKey> for Bytes {
+        fn from(value: SerializableStorageKey) -> Self {
+            let bytes = [value.0.address().as_bytes(), value.0.key().as_bytes()].concat();
+            bytes.into()
+        }
     }
 }
 
