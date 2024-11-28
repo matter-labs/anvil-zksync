@@ -124,6 +124,8 @@ pub struct TestNodeConfig {
     pub block_time: Option<Duration>,
     /// Maximum number of transactions per block
     pub max_transactions: usize,
+    /// Disable automatic sealing mode and use `BlockSealer::Noop` instead
+    pub no_mining: bool,
 }
 
 impl Default for TestNodeConfig {
@@ -178,6 +180,8 @@ impl Default for TestNodeConfig {
 
             // Block sealing configuration default
             block_time: None,
+            no_mining: false,
+
             max_transactions: 1000,
         }
     }
@@ -823,6 +827,13 @@ impl TestNodeConfig {
     #[must_use]
     pub fn with_block_time(mut self, block_time: Option<Duration>) -> Self {
         self.block_time = block_time;
+        self
+    }
+
+    /// If set to `true` auto sealing will be disabled
+    #[must_use]
+    pub fn with_no_mining(mut self, no_mining: bool) -> Self {
+        self.no_mining = no_mining;
         self
     }
 }

@@ -662,7 +662,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
             }
         };
 
-        let result: jsonrpc_core::Result<Fee> = reader.estimate_gas_impl(req);
+        let result: jsonrpc_core::Result<Fee> = reader.estimate_gas_impl(&self.time, req);
         match result {
             Ok(fee) => Ok(fee.gas_limit).into_boxed_future(),
             Err(err) => return futures::future::err(err).boxed(),
@@ -2842,7 +2842,7 @@ mod tests {
         inner.current_batch = 1;
         inner.current_miniblock = 1;
         inner.current_miniblock_hash = H256::repeat_byte(0x1);
-        inner.time.set_last_timestamp_unchecked(1);
+        node.time.set_current_timestamp_unchecked(1);
         inner
             .filters
             .add_block_filter()
@@ -2859,7 +2859,6 @@ mod tests {
 
         let storage = inner.fork_storage.inner.read().unwrap();
         let expected_snapshot = Snapshot {
-            current_timestamp: inner.time.last_timestamp(),
             current_batch: inner.current_batch,
             current_miniblock: inner.current_miniblock,
             current_miniblock_hash: inner.current_miniblock_hash,
@@ -2877,10 +2876,6 @@ mod tests {
         };
         let actual_snapshot = inner.snapshot().expect("failed taking snapshot");
 
-        assert_eq!(
-            expected_snapshot.current_timestamp,
-            actual_snapshot.current_timestamp
-        );
         assert_eq!(
             expected_snapshot.current_batch,
             actual_snapshot.current_batch
@@ -2948,7 +2943,7 @@ mod tests {
         inner.current_batch = 1;
         inner.current_miniblock = 1;
         inner.current_miniblock_hash = H256::repeat_byte(0x1);
-        inner.time.set_last_timestamp_unchecked(1);
+        node.time.set_current_timestamp_unchecked(1);
         inner
             .filters
             .add_block_filter()
@@ -2966,7 +2961,6 @@ mod tests {
         let expected_snapshot = {
             let storage = inner.fork_storage.inner.read().unwrap();
             Snapshot {
-                current_timestamp: inner.time.last_timestamp(),
                 current_batch: inner.current_batch,
                 current_miniblock: inner.current_miniblock,
                 current_miniblock_hash: inner.current_miniblock_hash,
@@ -3001,7 +2995,7 @@ mod tests {
         inner.current_batch = 2;
         inner.current_miniblock = 2;
         inner.current_miniblock_hash = H256::repeat_byte(0x2);
-        inner.time.set_last_timestamp_unchecked(2);
+        node.time.set_current_timestamp_unchecked(2);
         inner
             .filters
             .add_pending_transaction_filter()
@@ -3022,10 +3016,6 @@ mod tests {
             .expect("failed restoring snapshot");
 
         let storage = inner.fork_storage.inner.read().unwrap();
-        assert_eq!(
-            expected_snapshot.current_timestamp,
-            inner.time.last_timestamp()
-        );
         assert_eq!(expected_snapshot.current_batch, inner.current_batch);
         assert_eq!(expected_snapshot.current_miniblock, inner.current_miniblock);
         assert_eq!(

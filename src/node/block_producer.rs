@@ -46,7 +46,7 @@ impl<S: ForkSource + Clone + fmt::Debug> Future for BlockProducer<S> {
                     .contracts(TxExecutionMode::VerifyExecute, impersonating)
                     .clone();
                 pin.node
-                    .seal_block(txs, base_system_contracts)
+                    .seal_block(&mut pin.node.time.lock(), txs, base_system_contracts)
                     .expect("block sealing failed");
             }
         }
