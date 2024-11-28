@@ -307,7 +307,9 @@ async fn main() -> anyhow::Result<()> {
     }))
     .await;
 
-    let block_sealer = if let Some(block_time) = config.block_time {
+    let block_sealer = if config.no_mining {
+        BlockSealer::noop()
+    } else if let Some(block_time) = config.block_time {
         BlockSealer::fixed_time(config.max_transactions, block_time)
     } else {
         BlockSealer::immediate(config.max_transactions)

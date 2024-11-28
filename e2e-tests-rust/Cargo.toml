@@ -15,7 +15,7 @@ fs2 = "0.4.3"
 tokio = { version = "1", features = ["time", "rt", "process"] }
 
 [dev-dependencies]
-alloy-zksync = { git = "https://github.com/itegulov/alloy-zksync.git", rev = "b433d2d64e0f7d939891064b00d8a7991a427682" }
+alloy-zksync = { git = "https://github.com/itegulov/alloy-zksync.git", rev = "e0e54a5ac9e24c1c32c7a8783bbf3e34dde2e218" }
 alloy = { version = "0.6", features = ["full", "rlp", "serde", "sol-types"] }
 
 [workspace] # ignore higher-level workspace

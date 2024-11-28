@@ -216,6 +216,10 @@ pub struct Cli {
     /// If unset, node seals a new block as soon as there is at least one transaction.
     #[arg(short, long, value_name = "SECONDS", value_parser = duration_from_secs_f64, help_heading = "Block Sealing")]
     pub block_time: Option<Duration>,
+
+    /// Disable auto and interval mining, and mine on demand instead.
+    #[arg(long, visible_alias = "no-mine", conflicts_with = "block_time")]
+    pub no_mining: bool,
 }
 
 #[derive(Debug, Subcommand, Clone)]
@@ -357,7 +361,8 @@ impl Cli {
             } else {
                 None
             })
-            .with_block_time(self.block_time);
+            .with_block_time(self.block_time)
+            .with_no_mining(self.no_mining);
 
         if self.emulate_evm && self.dev_system_contracts != Some(SystemContractsOptions::Local) {
             return Err(eyre::eyre!(
