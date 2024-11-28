@@ -436,14 +436,14 @@ mod tests {
         assert_eq!(start_block.timestamp + 1, current_block.timestamp);
         node.mine_blocks(None, None).expect("mine_blocks");
 
-        // let current_block = node
-        //     .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
-        //     .await
-        //     .unwrap()
-        //     .expect("block exists");
-        //
-        // assert_eq!(start_block.number + 2, current_block.number);
-        // assert_eq!(start_block.timestamp + 2, current_block.timestamp);
+        let current_block = node
+            .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
+            .await
+            .unwrap()
+            .expect("block exists");
+
+        assert_eq!(start_block.number + 2, current_block.number);
+        assert_eq!(start_block.timestamp + 2, current_block.timestamp);
     }
 
     #[tokio::test]
