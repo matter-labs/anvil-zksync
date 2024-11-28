@@ -7,6 +7,7 @@ use alloy_zksync::network::Zksync;
 use alloy_zksync::node_bindings::EraTestNode;
 use alloy_zksync::provider::{zksync_provider, ProviderBuilderExt};
 use era_test_node_e2e_tests::utils::LockedPort;
+use era_test_node_e2e_tests::EraTestNodeApiProvider;
 use std::time::Duration;
 
 async fn init(
@@ -32,45 +33,28 @@ async fn init(
     Ok(provider)
 }
 
-#[tokio::test]
-async fn interval_sealing_finalization() -> anyhow::Result<()> {
-    // Test that we can submit a transaction and wait for it to finalize when era-test-node is
-    // operating in interval sealing mode.
-    let provider = init(|node| node.block_time(1)).await?;
+const RICH_WALLET0: Address = address!("f39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
+const RICH_WALLET1: Address = address!("70997970C51812dc3A010C7d01b50e0d17dc79C8");
 
-    let tx = TransactionRequest::default()
-        .with_to(address!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"))
-        .with_value(U256::from(100));
-    let receipt = provider.send_transaction(tx).await?.get_receipt().await?;
-    assert!(receipt.status());
-
-    Ok(())
-}
-
-#[tokio::test]
-async fn interval_sealing_multiple_txs() -> anyhow::Result<()> {
-    // Test that we can submit two transactions and wait for them to finalize in the same block when
-    // era-test-node is operating in interval sealing mode. 3 seconds should be long enough for
-    // the entire flow to execute before the first block is produced.
-    let provider = init(|node| node.block_time(3)).await?;
-    const RICH_WALLET0: Address = address!("f39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
-    const RICH_WALLET1: Address = address!("70997970C51812dc3A010C7d01b50e0d17dc79C8");
-    const TARGET: Address = address!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045");
-
+async fn test_finalize_two_txs_in_the_same_block(
+    provider: impl Provider<Http<reqwest::Client>, Zksync> + WalletProvider<Zksync> + Clone + 'static,
+    target: Address,
+) -> anyhow::Result<()> {
     async fn submit_tx(
         provider: impl Provider<Http<reqwest::Client>, Zksync> + WalletProvider<Zksync> + Clone,
         rich_wallet: Address,
+        target: Address,
     ) -> Result<PendingTransaction, PendingTransactionError> {
         let tx = TransactionRequest::default()
             .with_from(rich_wallet)
-            .with_to(TARGET)
+            .with_to(target)
             .with_value(U256::from(100));
         provider.send_transaction(tx).await?.register().await
     }
 
     // Submit two txs at the same time
-    let handle0 = tokio::spawn(submit_tx(provider.clone(), RICH_WALLET0));
-    let handle1 = tokio::spawn(submit_tx(provider.clone(), RICH_WALLET1));
+    let handle0 = tokio::spawn(submit_tx(provider.clone(), RICH_WALLET0, target));
+    let handle1 = tokio::spawn(submit_tx(provider.clone(), RICH_WALLET1, target));
 
     // Wait until both are finalized
     let (pending_tx0, pending_tx1) = tokio::join!(handle0, handle1);
@@ -104,11 +88,85 @@ async fn interval_sealing_multiple_txs() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
+async fn interval_sealing_finalization() -> anyhow::Result<()> {
+    // Test that we can submit a transaction and wait for it to finalize when era-test-node is
+    // operating in interval sealing mode.
+    let provider = init(|node| node.block_time(1)).await?;
+
+    let tx = TransactionRequest::default()
+        .with_to(address!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"))
+        .with_value(U256::from(100));
+    let receipt = provider.send_transaction(tx).await?.get_receipt().await?;
+    assert!(receipt.status());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn interval_sealing_multiple_txs() -> anyhow::Result<()> {
+    // Test that we can submit two transactions and wait for them to finalize in the same block when
+    // era-test-node is operating in interval sealing mode. 3 seconds should be long enough for
+    // the entire flow to execute before the first block is produced.
+    let provider = init(|node| node.block_time(3)).await?;
+
+    test_finalize_two_txs_in_the_same_block(
+        provider,
+        address!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
+    )
+    .await?;
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn no_sealing_timeout() -> anyhow::Result<()> {
     // Test that we can submit a transaction and timeout while waiting for it to finalize when
     // era-test-node is operating in no sealing mode.
     let provider = init(|node| node.no_mine()).await?;
 
+    let tx = TransactionRequest::default()
+        .with_to(address!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"))
+        .with_value(U256::from(100));
+    let pending_tx = provider.send_transaction(tx).await?.register().await?;
+    let finalization_result = tokio::time::timeout(Duration::from_secs(3), pending_tx).await;
+    assert!(finalization_result.is_err());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn dynamic_sealing_mode() -> anyhow::Result<()> {
+    // Test that we can successfully switch between different sealing modes
+    let provider = init(|node| node.no_mine()).await?;
+    assert_eq!(provider.get_auto_mine().await?, false);
+
+    // Enable immediate block sealing
+    provider.set_auto_mine(true).await?;
+    assert_eq!(provider.get_auto_mine().await?, true);
+
+    // Check that we can finalize transactions now
+    let tx = TransactionRequest::default()
+        .with_to(address!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"))
+        .with_value(U256::from(100));
+    let receipt = provider.send_transaction(tx).await?.get_receipt().await?;
+    assert!(receipt.status());
+
+    // Enable interval block sealing
+    provider.set_interval_mining(3).await?;
+    assert_eq!(provider.get_auto_mine().await?, false);
+
+    // Check that we can finalize two txs in the same block now
+    test_finalize_two_txs_in_the_same_block(
+        provider.clone(),
+        address!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
+    )
+    .await?;
+
+    // Disable block sealing entirely
+    provider.set_auto_mine(false).await?;
+    assert_eq!(provider.get_auto_mine().await?, false);
+
+    // Check that transactions do not get finalized now
     let tx = TransactionRequest::default()
         .with_to(address!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"))
         .with_value(U256::from(100));
