@@ -9,6 +9,10 @@
 
 # 🚀 anvil-zksync 🚀
 
+# ⚠️ Repository Renamed
+
+This repository has been renamed from **era-test-node** to **anvil-zksync**. All references to the previous name have been updated to reflect this change.
+
 This crate provides an in-memory node that supports forking the state from other networks.
 
 The goal of this crate is to offer a fast solution for integration testing, bootloader and system contract testing, and prototyping.
@@ -286,6 +290,6 @@ jobs:
 
 ## 🤝 Contributing
 
-We welcome contributions from the community! If you're interested in contributing to the zkSync Era In-Memory Node, please take a look at our [CONTRIBUTING.md](./.github/CONTRIBUTING.md) for guidelines and details on the process.
+We welcome contributions from the community! If you're interested in contributing to the anvil-zksync, please take a look at our [CONTRIBUTING.md](./.github/CONTRIBUTING.md) for guidelines and details on the process.
 
-Thank you for making zkSync Era In-Memory Node better! 🙌
+Thank you for making anvil-zksync better! 🙌
