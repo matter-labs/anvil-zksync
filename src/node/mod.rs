@@ -22,6 +22,6 @@ mod zks;
 
 pub use self::{
     block_producer::BlockProducer, impersonate::ImpersonationManager, pool::TxPool,
-    sealer::BlockSealer, time::TimestampManager,
+    sealer::BlockSealer, sealer::BlockSealerMode, time::TimestampManager,
 };
 pub use in_memory::*;

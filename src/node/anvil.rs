@@ -12,6 +12,33 @@ use crate::{
 impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> AnvilNamespaceT
     for InMemoryNode<S>
 {
+    fn get_auto_mine(&self) -> RpcResult<bool> {
+        self.get_immediate_sealing()
+            .map_err(|err| {
+                tracing::error!("failed getting immediate sealing: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(err))
+            })
+            .into_boxed_future()
+    }
+
+    fn set_auto_mine(&self, enable: bool) -> RpcResult<()> {
+        self.set_immediate_sealing(enable)
+            .map_err(|err| {
+                tracing::error!("failed setting immediate sealing: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(err))
+            })
+            .into_boxed_future()
+    }
+
+    fn set_interval_mining(&self, seconds: u64) -> RpcResult<()> {
+        self.set_interval_sealing(seconds)
+            .map_err(|err| {
+                tracing::error!("failed setting interval sealing: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(err))
+            })
+            .into_boxed_future()
+    }
+
     fn set_block_timestamp_interval(&self, seconds: u64) -> RpcResult<()> {
         self.time.set_block_timestamp_interval(seconds);
         Ok(()).into_boxed_future()

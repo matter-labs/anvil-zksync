@@ -1,3 +1,4 @@
+use crate::node::sealer::BlockSealerMode;
 use crate::utils::Numeric;
 use crate::{
     fork::{ForkDetails, ForkSource},
@@ -7,6 +8,7 @@ use crate::{
 };
 use anyhow::{anyhow, Context};
 use std::convert::TryInto;
+use std::time::Duration;
 use zksync_types::{
     get_code_key, get_nonce_key,
     utils::{nonces_to_full_nonce, storage_key_for_eth_balance},
@@ -360,6 +362,44 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
             observability.disable_logging()
         }
     }
+
+    pub fn get_immediate_sealing(&self) -> Result<bool> {
+        Ok(self.sealer.is_immediate())
+    }
+
+    pub fn set_immediate_sealing(&self, enable: bool) -> Result<()> {
+        if enable {
+            self.sealer.set_mode(BlockSealerMode::immediate(
+                self.inner
+                    .read()
+                    .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))?
+                    .config
+                    .max_transactions,
+            ))
+        } else {
+            self.sealer.set_mode(BlockSealerMode::Noop)
+        }
+        Ok(())
+    }
+
+    pub fn set_interval_sealing(&self, seconds: u64) -> Result<()> {
+        let sealing_mode = if seconds == 0 {
+            BlockSealerMode::noop()
+        } else {
+            let block_time = Duration::from_secs(seconds);
+
+            BlockSealerMode::fixed_time(
+                self.inner
+                    .read()
+                    .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))?
+                    .config
+                    .max_transactions,
+                block_time,
+            )
+        };
+        self.sealer.set_mode(sealing_mode);
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -368,7 +408,7 @@ mod tests {
     use crate::fork::ForkStorage;
     use crate::namespaces::EthNamespaceT;
     use crate::node::time::{ReadTime, TimestampManager};
-    use crate::node::{ImpersonationManager, InMemoryNodeInner, Snapshot, TxPool};
+    use crate::node::{BlockSealer, ImpersonationManager, InMemoryNodeInner, Snapshot, TxPool};
     use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
     use std::str::FromStr;
     use std::sync::{Arc, RwLock};
@@ -507,6 +547,7 @@ mod tests {
             impersonation,
             observability: None,
             pool,
+            sealer: BlockSealer::default(),
         };
 
         let address = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap();

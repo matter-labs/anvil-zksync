@@ -51,7 +51,9 @@ use crate::namespaces::{
     EthTestNodeNamespaceT, EvmNamespaceT, HardhatNamespaceT, NetNamespaceT, Web3NamespaceT,
     ZksNamespaceT,
 };
-use crate::node::{BlockProducer, BlockSealer, ImpersonationManager, TimestampManager, TxPool};
+use crate::node::{
+    BlockProducer, BlockSealer, BlockSealerMode, ImpersonationManager, TimestampManager, TxPool,
+};
 use crate::system_contracts::SystemContracts;
 
 #[allow(clippy::too_many_arguments)]
@@ -260,6 +262,15 @@ async fn main() -> anyhow::Result<()> {
     let time = TimestampManager::default();
     let impersonation = ImpersonationManager::default();
     let pool = TxPool::new(impersonation.clone());
+    let sealing_mode = if config.no_mining {
+        BlockSealerMode::noop()
+    } else if let Some(block_time) = config.block_time {
+        BlockSealerMode::fixed_time(config.max_transactions, block_time)
+    } else {
+        BlockSealerMode::immediate(config.max_transactions)
+    };
+    let block_sealer = BlockSealer::new(sealing_mode);
+
     let node: InMemoryNode<HttpForkSource> = InMemoryNode::new(
         fork_details,
         Some(observability),
@@ -267,6 +278,7 @@ async fn main() -> anyhow::Result<()> {
         time.clone(),
         impersonation,
         pool.clone(),
+        block_sealer.clone(),
     );
 
     if let Some(ref bytecodes_dir) = config.override_bytecodes_dir {
@@ -307,13 +319,6 @@ async fn main() -> anyhow::Result<()> {
     }))
     .await;
 
-    let block_sealer = if config.no_mining {
-        BlockSealer::noop()
-    } else if let Some(block_time) = config.block_time {
-        BlockSealer::fixed_time(config.max_transactions, block_time)
-    } else {
-        BlockSealer::immediate(config.max_transactions)
-    };
     let system_contracts =
         SystemContracts::from_options(&config.system_contracts_options, config.use_evm_emulator);
     let block_producer_handle = tokio::task::spawn(BlockProducer::new(
