@@ -1561,7 +1561,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 inner.console_log_handler.handle_call_recursive(call);
             }
         }
-        
+
         if inner.config.show_calls != ShowCalls::None {
             tracing::info!("");
             let call_traces_count = if !call_traces.is_empty() {
