@@ -159,7 +159,40 @@ content-type: application/json
 {
     "jsonrpc": "2.0",
     "id": "1",
-    "method": "config_setShowOnlyContractLogs",
+    "method": "config_setShowNodeConfig",
+    "params": [true]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "config_setShowTxSummary",
+    "params": [true]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "config_setShowEventLogs",
+    "params": [true]
+}
+
+###
+POST http://localhost:8011
+content-type: application/json
+
+{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "config_setDisableConsoleLog",
     "params": [true]
 }
 
