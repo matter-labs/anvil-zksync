@@ -184,7 +184,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
             })
     }
 
-    fn config_set_show_only_contract_logs(&self, value: bool) -> Result<bool> {
+    fn config_set_show_node_config(&self, value: bool) -> Result<bool> {
         self.get_inner()
             .write()
             .map_err(|err| {
@@ -194,8 +194,53 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
                 )))
             })
             .map(|mut writer| {
-                writer.config.show_only_contract_logs = value;
-                writer.config.show_only_contract_logs
+                writer.config.show_node_config = value;
+                writer.config.show_node_config
+            })
+    }
+
+    fn config_set_show_calls_summary(&self, value: bool) -> Result<bool> {
+        self.get_inner()
+            .write()
+            .map_err(|err| {
+                tracing::error!("failed acquiring lock: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire write lock for inner node state.",
+                )))
+            })
+            .map(|mut writer| {
+                writer.config.show_calls_summary = value;
+                writer.config.show_calls_summary
+            })
+    }
+
+    fn config_set_show_event_logs(&self, value: bool) -> Result<bool> {
+        self.get_inner()
+            .write()
+            .map_err(|err| {
+                tracing::error!("failed acquiring lock: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire write lock for inner node state.",
+                )))
+            })
+            .map(|mut writer| {
+                writer.config.show_event_logs = value;
+                writer.config.show_event_logs
+            })
+    }
+
+    fn config_set_disable_console_log(&self, value: bool) -> Result<bool> {
+        self.get_inner()
+            .write()
+            .map_err(|err| {
+                tracing::error!("failed acquiring lock: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire write lock for inner node state.",
+                )))
+            })
+            .map(|mut writer| {
+                writer.config.disable_console_log = value;
+                writer.config.disable_console_log
             })
     }
 

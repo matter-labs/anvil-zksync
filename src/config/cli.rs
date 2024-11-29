@@ -66,6 +66,22 @@ pub struct Cli {
     /// Enable default settings for debugging contracts.
     pub debug_mode: bool,
 
+    #[arg(long, default_value = "true", default_missing_value = "true", num_args(0..=1), help_heading = "Debugging Options")]
+    /// If true, prints node config on startup.
+    pub show_node_config: Option<bool>,
+
+    #[arg(long, default_value = "true", default_missing_value = "true", num_args(0..=1), help_heading = "Debugging Options")]
+    /// If true, prints calls and transactions summary.
+    pub show_calls_summary: Option<bool>,
+
+    #[arg(long, alias = "no-console-log", default_missing_value = "true", num_args(0..=1), help_heading = "Debugging Options")]
+    /// Disables printing of `console.log` invocations to stdout if true.
+    pub disable_console_log: Option<bool>,
+
+    #[arg(long, default_value = "true", default_missing_value = "true", num_args(0..=1), help_heading = "Debugging Options")]
+    /// If true, logs events.
+    pub show_event_logs: Option<bool>,
+
     // Debugging Options
     #[arg(long, help_heading = "Debugging Options")]
     /// Show call debug information.
@@ -91,10 +107,6 @@ pub struct Cli {
     /// If true, the tool will try to resolve ABI and topic names for better readability.
     /// May decrease performance.
     pub resolve_hashes: Option<bool>,
-
-    #[arg(long, default_missing_value = "true", num_args(0..=1), help_heading = "Debugging Options")]
-    /// If true, the tool will only show contract logs.
-    pub show_only_contract_logs: Option<bool>,
 
     // Gas Configuration
     #[arg(long, help_heading = "Gas Configuration")]
@@ -143,7 +155,7 @@ pub struct Cli {
     /// Log file path (default: era_test_node.log).
     pub log_file_path: Option<String>,
 
-    #[arg(long, default_missing_value = "true", num_args(0..=1), help_heading = "Logging Configuration")]
+    #[arg(long, alias = "quiet", default_missing_value = "true", num_args(0..=1), help_heading = "Logging Configuration")]
     /// If true, the tool will not print anything on startup.
     pub silent: Option<bool>,
 
@@ -333,12 +345,15 @@ impl Cli {
             .with_l1_gas_price(self.l1_gas_price)
             .with_l2_gas_price(self.l2_gas_price)
             .with_l1_pubdata_price(self.l1_pubdata_price)
+            .with_show_calls_summary(self.show_calls_summary)
+            .with_show_event_logs(self.show_event_logs)
+            .with_disable_console_log(self.disable_console_log)
             .with_show_calls(self.show_calls)
             .with_vm_log_detail(vm_log_detail)
             .with_gas_limit_scale(self.limit_scale_factor)
             .with_price_scale(self.price_scale_factor)
             .with_resolve_hashes(self.resolve_hashes)
-            .with_show_only_contract_logs(self.show_only_contract_logs)
+            .with_show_node_config(self.show_node_config)
             .with_silent(self.silent)
             .with_system_contracts(self.dev_system_contracts)
             .with_override_bytecodes_dir(self.override_bytecodes_dir.clone()) // Added

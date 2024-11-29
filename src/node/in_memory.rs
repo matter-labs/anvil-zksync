@@ -1210,7 +1210,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             .take()
             .unwrap_or_default();
 
-        if !inner.config.show_only_contract_logs {
+        if inner.config.show_calls_summary {
             match &tx_result.result {
                 ExecutionResult::Success { output } => {
                     tracing::info!("Call: {}", "SUCCESS".green());
@@ -1224,15 +1224,18 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                     tracing::info!("Call: {} {}", "HALTED".red(), reason)
                 }
             };
-            // Don't print the header if only contract calls should be shown
+        }
+
+        if !inner.config.disable_console_log {
+            tracing::info!("");
             tracing::info!("=== Console Logs: ");
+            for call in &call_traces {
+                inner.console_log_handler.handle_call_recursive(call);
+            }
         }
 
-        for call in &call_traces {
-            inner.console_log_handler.handle_call_recursive(call);
-        }
-
-        if !inner.config.show_only_contract_logs {
+        if inner.config.show_calls != ShowCalls::None {
+            tracing::info!("");
             tracing::info!("=== Call traces:");
             for call in &call_traces {
                 formatter::print_call(
@@ -1507,7 +1510,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         let spent_on_pubdata =
             tx_result.statistics.gas_used - tx_result.statistics.computational_gas_used as u64;
 
-        if !inner.config.show_only_contract_logs {
+        if inner.config.show_calls_summary {
             tracing::info!("┌─────────────────────────┐");
             tracing::info!("│   TRANSACTION SUMMARY   │");
             tracing::info!("└─────────────────────────┘");
@@ -1528,42 +1531,38 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 to_human_size(tx.gas_limit() - tx_result.refunds.gas_refunded),
                 to_human_size(tx_result.refunds.gas_refunded.into())
             );
+        }
 
-            match inner.config.show_gas_details {
-                ShowGasDetails::None => tracing::info!(
-                    "Use --show-gas-details flag or call config_setShowGasDetails to display more info"
-                ),
-                ShowGasDetails::All => {
-                    let info =
-                        self.display_detailed_gas_info(bootloader_debug_result.get(), spent_on_pubdata);
-                    if info.is_err() {
-                        tracing::info!(
-                            "{}\nError: {}",
-                            "!!! FAILED TO GET DETAILED GAS INFO !!!".to_owned().red(),
-                            info.unwrap_err()
-                        );
-                    }
-                }
+        if inner.config.show_gas_details != ShowGasDetails::None {
+            let info =
+                self.display_detailed_gas_info(bootloader_debug_result.get(), spent_on_pubdata);
+            if info.is_err() {
+                tracing::info!(
+                    "{}\nError: {}",
+                    "!!! FAILED TO GET DETAILED GAS INFO !!!".to_owned().red(),
+                    info.unwrap_err()
+                );
             }
+        }
 
-            if inner.config.show_storage_logs != ShowStorageLogs::None {
-                print_storage_logs_details(&inner.config.show_storage_logs, &tx_result);
-            }
+        if inner.config.show_storage_logs != ShowStorageLogs::None {
+            print_storage_logs_details(&inner.config.show_storage_logs, &tx_result);
+        }
 
-            if inner.config.show_vm_details != ShowVMDetails::None {
-                formatter::print_vm_details(&tx_result);
-            }
+        if inner.config.show_vm_details != ShowVMDetails::None {
+            formatter::print_vm_details(&tx_result);
+        }
 
-            // Don't print the header if only contract calls should be shown
+        if !inner.config.disable_console_log {
             tracing::info!("");
             tracing::info!("==== Console logs: ");
-        }
 
-        for call in call_traces {
-            inner.console_log_handler.handle_call_recursive(call);
+            for call in call_traces {
+                inner.console_log_handler.handle_call_recursive(call);
+            }
         }
-
-        if !inner.config.show_only_contract_logs {
+        
+        if inner.config.show_calls != ShowCalls::None {
             tracing::info!("");
             let call_traces_count = if !call_traces.is_empty() {
                 // All calls/sub-calls are stored within the first call trace
@@ -1572,21 +1571,22 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 0
             };
             tracing::info!(
-                "==== {} Use --show-calls flag or call config_setShowCalls to display more info.",
+                "==== {}",
                 format!("{:?} call traces. ", call_traces_count).bold()
             );
 
-            if inner.config.show_calls != ShowCalls::None {
-                for call in call_traces {
-                    formatter::print_call(
-                        call,
-                        0,
-                        &inner.config.show_calls,
-                        inner.config.show_outputs,
-                        inner.config.resolve_hashes,
-                    );
-                }
+            for call in call_traces {
+                formatter::print_call(
+                    call,
+                    0,
+                    &inner.config.show_calls,
+                    inner.config.show_outputs,
+                    inner.config.resolve_hashes,
+                );
             }
+        }
+
+        if inner.config.show_event_logs {
             tracing::info!("");
             tracing::info!(
                 "==== {}",
@@ -1624,22 +1624,21 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         let tx_hash = l2_tx.hash();
         let transaction_type = l2_tx.common_data.transaction_type;
 
-        let disable_tracing = {
-            let inner = self
-                .inner
-                .read()
-                .map_err(|_| anyhow::anyhow!("Failed to acquire read lock"))?;
-            inner.config.silent || inner.config.show_only_contract_logs
-        };
+        let show_calls_summary = self
+            .inner
+            .read()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire read lock"))?
+            .config
+            .show_calls_summary;
 
-        if !disable_tracing {
+        if show_calls_summary {
             tracing::info!("");
             tracing::info!("Validating {}", format!("{:?}", tx_hash).bold());
         }
 
         self.validate_tx(&l2_tx)?;
 
-        if !disable_tracing {
+        if show_calls_summary {
             tracing::info!("Executing {}", format!("{:?}", tx_hash).bold());
         }
 

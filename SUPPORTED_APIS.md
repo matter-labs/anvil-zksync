@@ -41,7 +41,10 @@ The `status` options are:
 | [`CONFIG`](#config-namespace) | [`config_setShowStorageLogs`](#config_setshowstoragelogs) | `SUPPORTED` | Updates `show_storage_logs` to print storage log reads/writes |
 | [`CONFIG`](#config-namespace) | [`config_setShowVmDetails`](#config_setshowvmdetails) | `SUPPORTED` | Updates `show_vm_details` to print more detailed results from vm execution |
 | [`CONFIG`](#config-namespace) | [`config_setShowGasDetails`](#config_setshowgasdetails) | `SUPPORTED` | Updates `show_gas_details` to print more details about gas estimation and usage |
-| [`CONFIG`](#config-namespace) | [`config_setShowOnlyContractLogs`](#config_setshowonlycontractlogs) | `SUPPORTED` | Updates `show_only_contract_logs` |
+| [`CONFIG`](#config-namespace) | [`config_setShowNodeConfig`](#config_setshownodeconfig) | `SUPPORTED` | Updates `show_node_config` to print node config on startup |
+| [`CONFIG`](#config-namespace) | [`config_setShowCallsSummary`](#config_setshowcallssummary) | `SUPPORTED` | Updates `show_calls_summary` to print calls and transactions summary |
+| [`CONFIG`](#config-namespace) | [`config_setDisableConsoleLog`](#config_setdisableconsolelog) | `SUPPORTED` | Updates `disable_console_log` to disable printing of `console.log` invocations to stdout |
+| [`CONFIG`](#config-namespace) | [`config_setShowEventLogs`](#config_setshowcallssummary) | `SUPPORTED` | Updates `show_event_logs` to log events |
 | [`CONFIG`](#config-namespace) | [`config_setLogLevel`](#config_setloglevel) | `SUPPORTED` | Sets the logging level for the node and only displays the node logs. |
 | [`CONFIG`](#config-namespace) | [`config_setLogging`](#config_setlogging) | `SUPPORTED` | Sets the fine-tuned logging levels for the node and any of its dependencies |
 | [`DEBUG`](#debug-namespace) | [`debug_traceCall`](#debug_tracecall) | `SUPPORTED` | Performs a call and returns structured traces of the execution |
@@ -362,11 +365,11 @@ curl --request POST \
   --data '{"jsonrpc": "2.0","id": "1","method": "config_setResolveHashes","params": [true]}'
 ```
 
-### `config_setShowOnlyContractLogs`
+### `config_setShowNodeConfig`
 
 [source](src/node/config_api.rs)
 
-Updates `show_only_contract_logs`
+Updates `show_node_config` to print node config on startup
 #### Arguments
 
 + `value: boolean`
@@ -381,7 +384,69 @@ Updates `show_only_contract_logs`
 curl --request POST \
   --url http://localhost:8011/ \
   --header 'content-type: application/json' \
-  --data '{"jsonrpc": "2.0","id": "1","method": "config_setShowOnlyContractLogs","params": [true]}'
+  --data '{"jsonrpc": "2.0","id": "1","method": "config_setShowNodeConfig","params": [true]}'
+```
+
+### `config_setShowCallsSummary`
+
+[source](src/node/config_api.rs)
+
+Updates `show_calls_summary` to print calls and transactions summary
+#### Arguments
+
++ `value: boolean`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "config_setShowCallsSummary","params": [true]}'
+```
+
+### `config_setDisableConsoleLog`
+
+[source](src/node/config_api.rs)
+
+Updates `disable_console_log` to disable printing of `console.log` invocations to stdout
+#### Arguments
+
++ `value: boolean`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "config_setDisableConsoleLog","params": [true]}'
+```
+
+Updates `show_event_logs` to log events to stdout
+#### Arguments
+
++ `value: boolean`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "config_setShowEventLogs","params": [true]}'
 ```
 
 ### `config_setLogLevel`

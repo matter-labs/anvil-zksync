@@ -85,15 +85,45 @@ pub trait ConfigurationApiNamespaceT {
     #[rpc(name = "config_setResolveHashes", returns = "bool")]
     fn config_set_resolve_hashes(&self, value: bool) -> Result<bool>;
 
-    /// Set show_only_contract_logs for the InMemoryNodeInner
+    /// Set show_node_config for the InMemoryNodeInner
     ///
     /// # Parameters
-    /// - `value`: A bool to update show_only_contract_logs to
+    /// - `value`: A bool to update show_node_config to
     ///
     /// # Returns
-    /// The updated/current `show_only_contract_logs` value for the InMemoryNodeInner.
-    #[rpc(name = "config_setShowOnlyContractLogs", returns = "bool")]
-    fn config_set_show_only_contract_logs(&self, value: bool) -> Result<bool>;
+    /// The updated/current `show_node_config` value for the InMemoryNodeInner.
+    #[rpc(name = "config_setShowNodeConfig", returns = "bool")]
+    fn config_set_show_node_config(&self, value: bool) -> Result<bool>;
+
+    /// Set show_calls_summary for the InMemoryNodeInner
+    ///
+    /// # Parameters
+    /// - `value`: A bool to update show_calls_summary to
+    ///
+    /// # Returns
+    /// The updated/current `show_calls_summary` value for the InMemoryNodeInner.
+    #[rpc(name = "config_setShowCallsSummary", returns = "bool")]
+    fn config_set_show_calls_summary(&self, value: bool) -> Result<bool>;
+
+    /// Set show_event_logs for the InMemoryNodeInner
+    ///
+    /// # Parameters
+    /// - `value`: A bool to update show_event_logs to
+    ///
+    /// # Returns
+    /// The updated/current `show_event_logs` value for the InMemoryNodeInner.
+    #[rpc(name = "config_setShowEventLogs", returns = "bool")]
+    fn config_set_show_event_logs(&self, value: bool) -> Result<bool>;
+
+    /// Set disable_console_log for the InMemoryNodeInner
+    ///
+    /// # Parameters
+    /// - `value`: A bool to update disable_console_log to
+    ///
+    /// # Returns
+    /// The updated/current `disable_console_log` value for the InMemoryNodeInner.
+    #[rpc(name = "config_setDisableConsoleLog", returns = "bool")]
+    fn config_set_disable_console_log(&self, value: bool) -> Result<bool>;
 
     /// Set the logging for the InMemoryNodeInner
     ///
