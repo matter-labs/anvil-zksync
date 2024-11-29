@@ -24,7 +24,7 @@ itertools = "0.13"
 tracing = "0.1"
 chrono = "0.4"
 
-zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era.git", rev = "ad5d42e0c7b50068ff0fd501c2b2ee549410adf8" }
+zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era.git", rev = "6c034f6e180cc92e99766f14c8840c90efa56cec" }
 
 [dev-dependencies]
 test-log = "0.2.16"

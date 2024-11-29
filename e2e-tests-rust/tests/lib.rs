@@ -176,3 +176,102 @@ async fn dynamic_sealing_mode() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn drop_transaction() -> anyhow::Result<()> {
+    // Test that we can submit two transactions and then remove one from the pool before it gets
+    // finalized. 3 seconds should be long enough for the entire flow to execute before the first
+    // block is produced.
+    let provider = init(|node| node.block_time(3)).await?;
+
+    // Submit two transactions
+    let tx0 = TransactionRequest::default()
+        .with_from(RICH_WALLET0)
+        .with_to(address!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"))
+        .with_value(U256::from(100));
+    let pending_tx0 = provider.send_transaction(tx0).await?.register().await?;
+    let tx1 = TransactionRequest::default()
+        .with_from(RICH_WALLET1)
+        .with_to(address!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"))
+        .with_value(U256::from(100));
+    let pending_tx1 = provider.send_transaction(tx1).await?.register().await?;
+
+    // Drop first
+    provider.drop_transaction(*pending_tx0.tx_hash()).await?;
+
+    // Assert first never gets finalized but the second one does
+    let finalization_result = tokio::time::timeout(Duration::from_secs(4), pending_tx0).await;
+    assert!(finalization_result.is_err());
+    let receipt = provider
+        .get_transaction_receipt(pending_tx1.await?)
+        .await?
+        .unwrap();
+    assert!(receipt.status());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn drop_all_transactions() -> anyhow::Result<()> {
+    // Test that we can submit two transactions and then remove them from the pool before the get
+    // finalized. 3 seconds should be long enough for the entire flow to execute before the first
+    // block is produced.
+    let provider = init(|node| node.block_time(3)).await?;
+
+    // Submit two transactions
+    let tx0 = TransactionRequest::default()
+        .with_from(RICH_WALLET0)
+        .with_to(address!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"))
+        .with_value(U256::from(100));
+    let pending_tx0 = provider.send_transaction(tx0).await?.register().await?;
+    let tx1 = TransactionRequest::default()
+        .with_from(RICH_WALLET1)
+        .with_to(address!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"))
+        .with_value(U256::from(100));
+    let pending_tx1 = provider.send_transaction(tx1).await?.register().await?;
+
+    // Drop all transactions
+    provider.drop_all_transactions().await?;
+
+    // Neither transaction gets finalized
+    let finalization_result = tokio::time::timeout(Duration::from_secs(4), pending_tx0).await;
+    assert!(finalization_result.is_err());
+    let finalization_result = tokio::time::timeout(Duration::from_secs(4), pending_tx1).await;
+    assert!(finalization_result.is_err());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn remove_pool_transactions() -> anyhow::Result<()> {
+    // Test that we can submit two transactions from two senders and then remove first sender's
+    // transaction from the pool before it gets finalized. 3 seconds should be long enough for the
+    // entire flow to execute before the first block is produced.
+    let provider = init(|node| node.block_time(3)).await?;
+
+    // Submit two transactions
+    let tx0 = TransactionRequest::default()
+        .with_from(RICH_WALLET0)
+        .with_to(address!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"))
+        .with_value(U256::from(100));
+    let pending_tx0 = provider.send_transaction(tx0).await?.register().await?;
+    let tx1 = TransactionRequest::default()
+        .with_from(RICH_WALLET1)
+        .with_to(address!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"))
+        .with_value(U256::from(100));
+    let pending_tx1 = provider.send_transaction(tx1).await?.register().await?;
+
+    // Drop first
+    provider.remove_pool_transactions(RICH_WALLET0).await?;
+
+    // Assert first never gets finalized but the second one does
+    let finalization_result = tokio::time::timeout(Duration::from_secs(4), pending_tx0).await;
+    assert!(finalization_result.is_err());
+    let receipt = provider
+        .get_transaction_receipt(pending_tx1.await?)
+        .await?
+        .unwrap();
+    assert!(receipt.status());
+
+    Ok(())
+}

@@ -14,7 +14,7 @@ use zksync_types::{
     utils::{nonces_to_full_nonce, storage_key_for_eth_balance},
     StorageKey,
 };
-use zksync_types::{AccountTreeId, Address, U256, U64};
+use zksync_types::{AccountTreeId, Address, H256, U256, U64};
 use zksync_utils::u256_to_h256;
 
 type Result<T> = anyhow::Result<T>;
@@ -398,6 +398,19 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
             )
         };
         self.sealer.set_mode(sealing_mode);
+        Ok(())
+    }
+
+    pub fn drop_transaction(&self, hash: H256) -> Result<Option<H256>> {
+        Ok(self.pool.drop_transaction(hash).map(|tx| tx.hash()))
+    }
+
+    pub fn drop_all_transactions(&self) -> Result<()> {
+        Ok(self.pool.clear())
+    }
+
+    pub fn remove_pool_transactions(&self, address: Address) -> Result<()> {
+        self.pool.drop_transactions_by_sender(address);
         Ok(())
     }
 }

@@ -1,11 +1,34 @@
 use jsonrpc_derive::rpc;
-use zksync_types::{Address, U256, U64};
+use zksync_types::{Address, H256, U256, U64};
 
 use super::{ResetRequest, RpcResult};
 use crate::utils::Numeric;
 
 #[rpc]
 pub trait AnvilNamespaceT {
+    /// Removes a transaction from the pool.
+    ///
+    /// # Arguments
+    ///
+    /// * `hash` - Hash of the transaction to be removed from the pool
+    ///
+    /// # Returns
+    /// `Some(hash)` if transaction was in the pool before being removed, `None` otherwise
+    #[rpc(name = "anvil_dropTransaction")]
+    fn drop_transaction(&self, hash: H256) -> RpcResult<Option<H256>>;
+
+    /// Remove all transactions from the pool.
+    #[rpc(name = "anvil_dropAllTransactions")]
+    fn drop_all_transactions(&self) -> RpcResult<()>;
+
+    /// Remove all transactions from the pool by sender address.
+    ///
+    /// # Arguments
+    ///
+    /// * `address` - Sender which transactions should be removed from the pool
+    #[rpc(name = "anvil_removePoolTransactions")]
+    fn remove_pool_transactions(&self, address: Address) -> RpcResult<()>;
+
     /// Gets node's auto mining status.
     ///
     /// # Returns

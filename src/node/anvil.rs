@@ -1,4 +1,4 @@
-use zksync_types::{Address, U256, U64};
+use zksync_types::{Address, H256, U256, U64};
 use zksync_web3_decl::error::Web3Error;
 
 use crate::utils::Numeric;
@@ -12,6 +12,33 @@ use crate::{
 impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> AnvilNamespaceT
     for InMemoryNode<S>
 {
+    fn drop_transaction(&self, hash: H256) -> RpcResult<Option<H256>> {
+        self.drop_transaction(hash)
+            .map_err(|err| {
+                tracing::error!("failed dropping transaction: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(err))
+            })
+            .into_boxed_future()
+    }
+
+    fn drop_all_transactions(&self) -> RpcResult<()> {
+        self.drop_all_transactions()
+            .map_err(|err| {
+                tracing::error!("failed dropping all transactions: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(err))
+            })
+            .into_boxed_future()
+    }
+
+    fn remove_pool_transactions(&self, address: Address) -> RpcResult<()> {
+        self.remove_pool_transactions(address)
+            .map_err(|err| {
+                tracing::error!("failed removing pool transactions: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(err))
+            })
+            .into_boxed_future()
+    }
+
     fn get_auto_mine(&self) -> RpcResult<bool> {
         self.get_immediate_sealing()
             .map_err(|err| {

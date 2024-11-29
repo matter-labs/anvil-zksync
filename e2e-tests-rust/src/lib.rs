@@ -1,3 +1,4 @@
+use alloy::primitives::{Address, TxHash};
 use alloy::providers::{Provider, ProviderCall};
 use alloy::rpc::client::NoParams;
 use alloy::transports::Transport;
@@ -20,6 +21,24 @@ where
     fn set_interval_mining(&self, seconds: u64) -> ProviderCall<T, (u64,), ()> {
         self.client()
             .request("anvil_setIntervalMining", (seconds,))
+            .into()
+    }
+
+    fn drop_transaction(&self, hash: TxHash) -> ProviderCall<T, (TxHash,), Option<TxHash>> {
+        self.client()
+            .request("anvil_dropTransaction", (hash,))
+            .into()
+    }
+
+    fn drop_all_transactions(&self) -> ProviderCall<T, NoParams, ()> {
+        self.client()
+            .request_noparams("anvil_dropAllTransactions")
+            .into()
+    }
+
+    fn remove_pool_transactions(&self, address: Address) -> ProviderCall<T, (Address,), ()> {
+        self.client()
+            .request("anvil_removePoolTransactions", (address,))
             .into()
     }
 }
