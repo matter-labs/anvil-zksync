@@ -77,8 +77,6 @@ pub struct TestNodeConfig {
     pub show_vm_details: ShowVMDetails,
     /// Level of detail for gas usage logs
     pub show_gas_details: ShowGasDetails,
-    /// Whether to show event logs
-    pub show_event_logs: bool,
     /// Whether to resolve hash references
     pub resolve_hashes: bool,
     /// Don’t print anything on startup if true
@@ -153,7 +151,6 @@ impl Default for TestNodeConfig {
             show_storage_logs: Default::default(),
             show_vm_details: Default::default(),
             show_gas_details: Default::default(),
-            show_event_logs: false,
             resolve_hashes: false,
             silent: false,
             system_contracts_options: Default::default(),
@@ -670,6 +667,11 @@ impl TestNodeConfig {
         self
     }
 
+    /// Get the visibility of event logs
+    pub fn get_show_event_logs(&self) -> bool {
+        self.show_event_logs
+    }
+
     // Enable or disable printing of `console.log` invocations to stdout
     #[must_use]
     pub fn with_disable_console_log(mut self, disable_console_log: Option<bool>) -> Self {
@@ -726,20 +728,6 @@ impl TestNodeConfig {
         self.show_gas_details
     }
 
-    /// Set the visibility of event logs
-    #[must_use]
-    pub fn with_show_event_logs(mut self, show_event_logs: Option<bool>) -> Self {
-        if let Some(show_event_logs) = show_event_logs {
-            self.show_event_logs = show_event_logs;
-        }
-        self
-    }
-
-    /// Get the visibility of event logs
-    pub fn get_show_event_logs(&self) -> bool {
-        self.show_event_logs
-    }
-
     /// Set show outputs
     #[must_use]
     pub fn with_show_outputs(mut self, show_outputs: Option<bool>) -> Self {
@@ -794,20 +782,6 @@ impl TestNodeConfig {
     pub fn update_price_scale(&mut self, scale: Option<f64>) -> &mut Self {
         self.price_scale_factor = scale;
         self
-    }
-
-    /// Set the detail level of VM execution logs
-    #[must_use]
-    pub fn with_vm_log_detail(mut self, detail: Option<ShowVMDetails>) -> Self {
-        if let Some(detail) = detail {
-            self.show_vm_details = detail;
-        }
-        self
-    }
-
-    /// Get the detail level of VM execution logs
-    pub fn get_vm_log_detail(&self) -> ShowVMDetails {
-        self.show_vm_details
     }
 
     /// Sets the balance of the genesis accounts in the genesis block

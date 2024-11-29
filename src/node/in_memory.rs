@@ -1426,6 +1426,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
         // TODO: improve call traces
         if inner.config.show_calls != ShowCalls::None {
+            tracing::info!("");
             tracing::info!(
                 "[Transaction Execution] ({} calls)",
                 call_traces[0].calls.len()
@@ -1447,21 +1448,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         }
         // Print event logs if enabled
         if inner.config.show_event_logs {
+            tracing::info!("");
             tracing::info!("[Events] ({} events)", tx_result.logs.events.len());
             for (i, event) in tx_result.logs.events.iter().enumerate() {
                 let is_last = i == tx_result.logs.events.len() - 1;
                 let mut formatter = formatter::Formatter::new();
                 formatter.print_event(event, inner.config.resolve_hashes, is_last);
             }
-        }
-        tracing::info!("");
-
-        // TODO: Properly handle console logs. Consider adding a flag to enable console logs.
-        // Maybe related to issue: https://github.com/matter-labs/era-test-node/issues/205
-        tracing::info!("");
-        tracing::info!("==== Console logs: ");
-        for call in call_traces {
-            inner.console_log_handler.handle_call_recursive(call);
         }
         tracing::info!("");
 
