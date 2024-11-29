@@ -11,6 +11,44 @@ import * as fs from "node:fs";
 
 const provider = getTestProvider();
 
+describe("anvil_setNextBlockBaseFeePerGas", function () {
+  it("Should change gas price", async function () {
+    const oldBaseFee = (await provider.getGasPrice()).toNumber()
+    const expectedNewBaseFee = oldBaseFee + 42;
+
+    // Act
+    await provider.send("anvil_setNextBlockBaseFeePerGas", [ethers.utils.hexlify(expectedNewBaseFee)]);
+
+    // Assert
+    const newBaseFee = (await provider.getGasPrice()).toNumber()
+    expect(newBaseFee).to.equal(expectedNewBaseFee);
+
+    // Revert
+    await provider.send("anvil_setNextBlockBaseFeePerGas", [ethers.utils.hexlify(oldBaseFee)]);
+  });
+
+  it("Should produce a block with new gas price", async function () {
+    const wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
+    const userWallet = Wallet.createRandom().connect(provider);
+    const oldBaseFee = (await provider.getGasPrice()).toNumber()
+    const expectedNewBaseFee = oldBaseFee + 42;
+
+    // Act
+    await provider.send("anvil_setNextBlockBaseFeePerGas", [ethers.utils.hexlify(expectedNewBaseFee)]);
+
+    const txResponse = await wallet.sendTransaction({
+      to: userWallet.address,
+      value: ethers.utils.parseEther("0.1"),
+    });
+    const txReceipt = await txResponse.wait();
+    const newBlock = (await provider.getBlock(txReceipt.blockNumber));
+    expect(newBlock.baseFeePerGas?.toNumber()).to.equal(expectedNewBaseFee);
+
+    // Revert
+    await provider.send("anvil_setNextBlockBaseFeePerGas", [ethers.utils.hexlify(oldBaseFee)]);
+  });
+});
+
 describe("anvil_setBlockTimestampInterval & anvil_removeBlockTimestampInterval", function () {
   it("Should control timestamp interval between blocks", async function () {
     // Arrange

@@ -6,6 +6,14 @@ use crate::utils::Numeric;
 
 #[rpc]
 pub trait AnvilNamespaceT {
+    /// Sets the base fee of the next block.
+    ///
+    /// # Arguments
+    ///
+    /// * `base_fee` - Value to be set as base fee for the next block
+    #[rpc(name = "anvil_setNextBlockBaseFeePerGas")]
+    fn set_next_block_base_fee_per_gas(&self, base_fee: U256) -> RpcResult<()>;
+
     /// Removes a transaction from the pool.
     ///
     /// # Arguments

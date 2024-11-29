@@ -414,6 +414,15 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
         self.pool.drop_transactions_by_sender(address);
         Ok(())
     }
+
+    pub fn set_next_block_base_fee_per_gas(&self, base_fee: U256) -> Result<()> {
+        self.inner
+            .write()
+            .expect("")
+            .fee_input_provider
+            .set_base_fee(base_fee.as_u64());
+        Ok(())
+    }
 }
 
 #[cfg(test)]

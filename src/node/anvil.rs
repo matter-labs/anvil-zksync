@@ -12,6 +12,15 @@ use crate::{
 impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> AnvilNamespaceT
     for InMemoryNode<S>
 {
+    fn set_next_block_base_fee_per_gas(&self, base_fee: U256) -> RpcResult<()> {
+        self.set_next_block_base_fee_per_gas(base_fee)
+            .map_err(|err| {
+                tracing::error!("failed setting next block's base fee: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(err))
+            })
+            .into_boxed_future()
+    }
+
     fn drop_transaction(&self, hash: H256) -> RpcResult<Option<H256>> {
         self.drop_transaction(hash)
             .map_err(|err| {

@@ -16,6 +16,7 @@ pub struct TestNodeFeeInputProvider {
     pub estimate_gas_scale_factor: f32,
 
     fee_params: FeeParamsV2,
+    forced_base_fee: Option<u64>,
 }
 
 // TODO: Derive PartialEq for `FeeParamsV2` in upstream
@@ -50,6 +51,7 @@ impl TestNodeFeeInputProvider {
                 estimate_gas_price_scale_factor,
                 estimate_gas_scale_factor,
                 fee_params,
+                forced_base_fee: None,
             },
         }
     }
@@ -74,13 +76,24 @@ impl TestNodeFeeInputProvider {
         FeeParams::V2(self.fee_params)
     }
 
+    fn enforce_base_fee(&self, mut fee_input: BatchFeeInput) -> BatchFeeInput {
+        if let Some(base_fee) = self.forced_base_fee {
+            let mut pubdata_fee_input = fee_input.into_pubdata_independent();
+            pubdata_fee_input.fair_l2_gas_price = base_fee;
+            fee_input = BatchFeeInput::PubdataIndependent(pubdata_fee_input);
+        }
+        fee_input
+    }
+
     pub(crate) fn get_batch_fee_input(&self) -> BatchFeeInput {
-        self.get_params().scale(1.0, 1.0)
+        let fee_input = self.get_params().scale(1.0, 1.0);
+        self.enforce_base_fee(fee_input)
     }
 
     pub(crate) fn get_batch_fee_input_scaled(&self) -> BatchFeeInput {
         let scale_factor = self.estimate_gas_price_scale_factor;
-        self.get_params().scale(scale_factor, scale_factor)
+        let fee_input = self.get_params().scale(scale_factor, scale_factor);
+        self.enforce_base_fee(fee_input)
     }
 
     pub fn gas_price(&self) -> u64 {
@@ -93,6 +106,10 @@ impl TestNodeFeeInputProvider {
 
     pub fn fair_pubdata_price(&self) -> u64 {
         self.get_batch_fee_input_scaled().fair_pubdata_price()
+    }
+
+    pub fn set_base_fee(&mut self, base_fee: u64) {
+        self.forced_base_fee = Some(base_fee);
     }
 }
 
@@ -114,6 +131,7 @@ impl Default for TestNodeFeeInputProvider {
                 DEFAULT_FAIR_PUBDATA_PRICE,
                 BaseTokenConversionRatio::default(),
             ),
+            forced_base_fee: None,
         }
     }
 }
