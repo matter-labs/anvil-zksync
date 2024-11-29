@@ -1,5 +1,5 @@
 <div align="center">
-<a href="https://era.zksync.io/docs/tools/testing/era-test-node.html">
+<a href="https://era.zksync.io/docs/tools/testing/anvil-zksync.html">
 
 ![anvil-zksync](./.github/assets/era_test_node_banner_light.png#gh-light-mode-only)
 ![anvil-zksync](./.github/assets/era_test_node_banner_dark.png#gh-dark-mode-only)
@@ -57,7 +57,7 @@ Please note that `anvil-zksync` is still in its **alpha** stage. Some features m
 
 1. Download the installation script and mark as executable:
    ```bash
-   curl --proto '=https' -sSf https://raw.githubusercontent.com/matter-labs/era-test-node/main/scripts/install.sh > install.sh
+   curl --proto '=https' -sSf https://raw.githubusercontent.com/matter-labs/anvil-zksync/main/scripts/install.sh > install.sh
    chmod +x install.sh
    ```
 
@@ -73,7 +73,7 @@ Please note that `anvil-zksync` is still in its **alpha** stage. Some features m
 
 ### Manually
 
-1. Download `anvil-zksync` from latest [Release](https://github.com/matter-labs/era-test-node/releases/latest)
+1. Download `anvil-zksync` from latest [Release](https://github.com/matter-labs/anvil-zksync/releases/latest)
 
 2. Extract the binary and mark as executable:
    ```bash

@@ -2,8 +2,7 @@
 
 set -e
 
-# TODO update repo name when it's created
-ANVIL_ZKSYNC_REPO="https://github.com/matter-labs/era-test-node"
+ANVIL_ZKSYNC_REPO="https://github.com/matter-labs/anvil-zksync"
 
 function script_usage() {
     cat << EOF
@@ -113,7 +112,7 @@ function get_os_info() {
 
 function get_latest_version() {
     # TODO: update repo name when it's created
-    echo v$(curl --proto '=https' -sSf https://raw.githubusercontent.com/matter-labs/era-test-node/main/Cargo.toml | \
+    echo v$(curl --proto '=https' -sSf https://raw.githubusercontent.com/matter-labs/anvil-zksync/main/Cargo.toml | \
         grep "version" -m 1 | \
         awk '{print $3}' | \
         sed 's/"//g')

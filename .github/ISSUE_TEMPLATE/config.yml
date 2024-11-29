@@ -4,5 +4,5 @@ contact_links:
       url: https://github.com/zkSync-Community-Hub/zkync-developers/discussions
       about: Please provide feedback, and ask questions here.
     - name: In-memory documentation page
-      url: https://era.zksync.io/docs/tools/testing/era-test-node.html
+      url: https://era.zksync.io/docs/tools/testing/anvil-zksync.html
       about: Please refer to the documentation for immediate answers.

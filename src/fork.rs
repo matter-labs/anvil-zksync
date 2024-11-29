@@ -539,7 +539,7 @@ impl ForkDetails {
             estimate_gas_price_scale_factor,
             estimate_gas_scale_factor,
             fee_params,
-            cache_config: cache_config.clone(), // TODO: This is a temporary solution, we should avoid cloning the cache config here. We should look to refactor how cache is being configured / used as it currently feels a bit too rigid. See: https://github.com/matter-labs/era-test-node/issues/387
+            cache_config: cache_config.clone(), // TODO: This is a temporary solution, we should avoid cloning the cache config here. We should look to refactor how cache is being configured / used as it currently feels a bit too rigid. See: https://github.com/matter-labs/anvil-zksync/issues/387
         })
     }
     /// Create a fork from a given network at a given height.

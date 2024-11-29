@@ -12,9 +12,8 @@ Please take a moment to review this document to ensure a smooth and efficient co
 
 - **Clone the repository.** After forking, clone the repository to your local machine:
 
-<!-- TODO: update when repo is updated -->
 ```bash
-git clone https://github.com/<your-github-username>/era-test-node.git
+git clone https://github.com/<your-github-username>/anvil-zksync.git
 ```
 
 - **Create a new branch.** Use descriptive names for your branches to help identify the feature, bugfix, or enhancement you're addressing:

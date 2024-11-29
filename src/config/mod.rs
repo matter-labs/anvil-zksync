@@ -219,7 +219,7 @@ impl TestNodeConfig {
         tracing::info!("Version:        {}", VERSION_MESSAGE.green());
         tracing::info!(
             "Repository:     {}",
-            "https://github.com/matter-labs/era-test-node".green()
+            "https://github.com/matter-labs/anvil-zksync".green()
         );
         println!("\n");
 

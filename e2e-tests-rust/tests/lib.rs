@@ -30,7 +30,7 @@ async fn init(
                 .port(locked_port.port))
         });
 
-    // Wait for era-test-node to get up and be able to respond
+    // Wait for anvil-zksync to get up and be able to respond
     provider.get_accounts().await?;
     // Explicitly unlock the port to showcase why we waited above
     drop(locked_port);
@@ -94,7 +94,7 @@ async fn test_finalize_two_txs_in_the_same_block(
 
 #[tokio::test]
 async fn interval_sealing_finalization() -> anyhow::Result<()> {
-    // Test that we can submit a transaction and wait for it to finalize when era-test-node is
+    // Test that we can submit a transaction and wait for it to finalize when anvil-zksync is
     // operating in interval sealing mode.
     let provider = init(|node| node.block_time(1)).await?;
 
@@ -110,7 +110,7 @@ async fn interval_sealing_finalization() -> anyhow::Result<()> {
 #[tokio::test]
 async fn interval_sealing_multiple_txs() -> anyhow::Result<()> {
     // Test that we can submit two transactions and wait for them to finalize in the same block when
-    // era-test-node is operating in interval sealing mode. 3 seconds should be long enough for
+    // anvil-zksync is operating in interval sealing mode. 3 seconds should be long enough for
     // the entire flow to execute before the first block is produced.
     let provider = init(|node| node.block_time(3)).await?;
 
@@ -126,7 +126,7 @@ async fn interval_sealing_multiple_txs() -> anyhow::Result<()> {
 #[tokio::test]
 async fn no_sealing_timeout() -> anyhow::Result<()> {
     // Test that we can submit a transaction and timeout while waiting for it to finalize when
-    // era-test-node is operating in no sealing mode.
+    // anvil-zksync is operating in no sealing mode.
     let provider = init(|node| node.no_mine()).await?;
 
     let tx = TransactionRequest::default()

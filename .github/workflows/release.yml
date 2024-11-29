@@ -10,7 +10,7 @@ on:
       - v*
 
 env:
-  REPO_NAME: ${{ github.repository_owner }}/era-test-node
+  REPO_NAME: ${{ github.repository_owner }}/anvil-zksync
   CARGO_TERM_COLOR: always
   RUSTFLAGS: ""
 

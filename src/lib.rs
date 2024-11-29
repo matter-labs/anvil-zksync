@@ -35,11 +35,11 @@
 //! ## Usage
 //!
 //! To start the node, use the command `anvil-zksync run`. For more advanced functionalities like forking or
-//! replaying transactions, refer to the [official documentation](https://era.zksync.io/docs/tools/testing/era-test-node.html).
+//! replaying transactions, refer to the [official documentation](https://era.zksync.io/docs/tools/testing/anvil-zksync.html).
 //!
 //! ## Contributions
 //!
-//! Contributions to improve `anvil-zksync` are welcome. Please refer to the [contribution guidelines](https://github.com/matter-labs/era-test-node/blob/main/.github/CONTRIBUTING.md) for more details.
+//! Contributions to improve `anvil-zksync` are welcome. Please refer to the [contribution guidelines](https://github.com/matter-labs/anvil-zksync/blob/main/.github/CONTRIBUTING.md) for more details.
 
 pub mod bootloader_debug;
 pub mod config;

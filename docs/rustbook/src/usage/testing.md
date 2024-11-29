@@ -121,7 +121,7 @@ Well done! You've successfully run your first local tests with zkSync Era and `a
 A GitHub Action is available for integrating anvil-zksync into your CI/CD environments. 
 This action offers high configurability and streamlines the process of testing your applications in an automated way.
 
-You can find this GitHub Action in the marketplace [here](https://github.com/marketplace/actions/era-test-node-action).
+You can find this GitHub Action in the marketplace [here](https://github.com/marketplace/actions/anvil-zksync-action).
 
 ### Example Usage
 Below is an example yaml configuration to use the anvil-zksync GitHub Action in your workflow:
@@ -141,5 +141,5 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Run Era Test Node
-        uses: dutterbutter/era-test-node-action@latest
+        uses: dutterbutter/anvil-zksync-action@latest
 ```
