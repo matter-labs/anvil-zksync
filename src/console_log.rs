@@ -59,7 +59,11 @@ impl ConsoleLogHandler {
                         tokens.iter().map(|t| format!("{}", t)).join(" ")
                     })
                 });
-        tracing::info!("{}", message.cyan());
+        if !message.is_empty() {
+            tracing::info!("");
+            tracing::info!("==== Console logs: ");
+            tracing::info!("{}", message.cyan());
+        }
     }
 }
 

@@ -1232,31 +1232,30 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         }
 
         if !inner.config.disable_console_log {
-            tracing::info!("");
-            tracing::info!("=== Console Logs: ");
             for call in &call_traces {
                 inner.console_log_handler.handle_call_recursive(call);
             }
         }
-        tracing::info!("");
 
-        tracing::info!(
-            "[Transaction Execution] ({} calls)",
-            call_traces[0].calls.len()
-        );
-        let num_calls = call_traces.len();
-        for (i, call) in call_traces.iter().enumerate() {
-            let is_last_sibling = i == num_calls - 1;
-            let mut formatter = formatter::Formatter::new();
-            formatter.print_call(
-                tx.initiator_account(),
-                tx.execute.contract_address,
-                call,
-                is_last_sibling,
-                &inner.config.show_calls,
-                inner.config.show_outputs,
-                inner.config.resolve_hashes,
+        if inner.config.show_calls != ShowCalls::None {
+            tracing::info!(
+                "[Transaction Execution] ({} calls)",
+                call_traces[0].calls.len()
             );
+            let num_calls = call_traces.len();
+            for (i, call) in call_traces.iter().enumerate() {
+                let is_last_sibling = i == num_calls - 1;
+                let mut formatter = formatter::Formatter::new();
+                formatter.print_call(
+                    tx.initiator_account(),
+                    tx.execute.contract_address,
+                    call,
+                    is_last_sibling,
+                    &inner.config.show_calls,
+                    inner.config.show_outputs,
+                    inner.config.resolve_hashes,
+                );
+            }
         }
 
         Ok(tx_result.result)
@@ -1415,16 +1414,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         }
 
         if !inner.config.disable_console_log {
-            tracing::info!("");
-            tracing::info!("==== Console logs: ");
-
             for call in call_traces {
                 inner.console_log_handler.handle_call_recursive(call);
             }
         }
-        tracing::info!("");
 
-        // TODO: improve call traces
         if inner.config.show_calls != ShowCalls::None {
             tracing::info!("");
             tracing::info!(
@@ -1455,8 +1449,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 let mut formatter = formatter::Formatter::new();
                 formatter.print_event(event, inner.config.resolve_hashes, is_last);
             }
+            tracing::info!("");
         }
-        tracing::info!("");
 
         let mut bytecodes = HashMap::new();
         for b in &*compressed_bytecodes {
