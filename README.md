@@ -9,9 +9,8 @@
 
 # 🚀 anvil-zksync 🚀
 
-# ⚠️ Repository Renamed
-
-This repository has been renamed from **era-test-node** to **anvil-zksync**. All references to the previous name have been updated to reflect this change.
+> [!IMPORTANT]  
+> This repository has been renamed from **era-test-node** to **anvil-zksync**. All references to the previous name have been updated to reflect this change.
 
 This crate provides an in-memory node that supports forking the state from other networks.
 
