@@ -1430,7 +1430,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             .read()
             .expect("failed acquiring reader")
             .fee_input_provider
-            .l2_gas_price;
+            .gas_price();
         if tx.common_data.fee.max_fee_per_gas < l2_gas_price.into() {
             tracing::info!(
                 "Submitted Tx is Unexecutable {:?} because of MaxFeePerGasTooLow {}",
@@ -1706,7 +1706,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             } else {
                 U64::from(1)
             },
-            effective_gas_price: Some(inner.fee_input_provider.l2_gas_price.into()),
+            effective_gas_price: Some(inner.fee_input_provider.gas_price().into()),
             transaction_type: Some((transaction_type as u32).into()),
             logs_bloom: Default::default(),
         };
