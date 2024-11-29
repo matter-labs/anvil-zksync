@@ -1,6 +1,8 @@
 use crate::node::impersonate::ImpersonationManager;
+use itertools::Itertools;
 use std::sync::{Arc, RwLock};
 use zksync_types::l2::L2Tx;
+use zksync_types::{Address, H256};
 
 #[derive(Clone)]
 pub struct TxPool {
@@ -19,6 +21,30 @@ impl TxPool {
     pub fn add_tx(&self, tx: L2Tx) {
         let mut guard = self.inner.write().expect("TxPool lock is poisoned");
         guard.push(tx);
+    }
+
+    /// Removes a single transaction from the pool
+    pub fn drop_transaction(&self, hash: H256) -> Option<L2Tx> {
+        let mut guard = self.inner.write().expect("TxPool lock is poisoned");
+        let (position, _) = guard.iter_mut().find_position(|tx| tx.hash() == hash)?;
+        Some(guard.remove(position))
+    }
+
+    /// Remove transactions by sender
+    pub fn drop_transactions_by_sender(&self, sender: Address) -> Vec<L2Tx> {
+        let mut guard = self.inner.write().expect("TxPool lock is poisoned");
+        let txs = std::mem::take(&mut *guard);
+        let (sender_txs, other_txs) = txs
+            .into_iter()
+            .partition(|tx| tx.common_data.initiator_address == sender);
+        *guard = other_txs;
+        sender_txs
+    }
+
+    /// Removes all transactions from the pool
+    pub fn clear(&self) {
+        let mut guard = self.inner.write().expect("TxPool lock is poisoned");
+        guard.clear();
     }
 
     /// Take up to `n` continuous transactions from the pool that are all uniform in impersonation

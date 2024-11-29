@@ -4530,7 +4530,7 @@ dependencies = [
 [[package]]
 name = "zksync_basic_types"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-era.git?rev=ad5d42e0c7b50068ff0fd501c2b2ee549410adf8#ad5d42e0c7b50068ff0fd501c2b2ee549410adf8"
+source = "git+https://github.com/matter-labs/zksync-era.git?rev=6c034f6e180cc92e99766f14c8840c90efa56cec#6c034f6e180cc92e99766f14c8840c90efa56cec"
 dependencies = [
  "anyhow",
  "chrono",

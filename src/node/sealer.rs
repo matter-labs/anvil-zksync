@@ -1,11 +1,59 @@
 use crate::node::pool::{TxBatch, TxPool};
+use futures::task::AtomicWaker;
+use std::sync::{Arc, RwLock};
 use std::task::{Context, Poll};
 use std::time::Duration;
 use tokio::time::{Interval, MissedTickBehavior};
 
+#[derive(Clone, Debug)]
+pub struct BlockSealer {
+    /// The mode this sealer currently operates in
+    mode: Arc<RwLock<BlockSealerMode>>,
+    /// Used for task wake up when the sealing mode was forcefully changed
+    waker: Arc<AtomicWaker>,
+}
+
+impl Default for BlockSealer {
+    fn default() -> Self {
+        BlockSealer::new(BlockSealerMode::immediate(1000))
+    }
+}
+
+impl BlockSealer {
+    pub fn new(mode: BlockSealerMode) -> Self {
+        Self {
+            mode: Arc::new(RwLock::new(mode)),
+            waker: Arc::new(AtomicWaker::new()),
+        }
+    }
+
+    pub fn is_immediate(&self) -> bool {
+        matches!(
+            *self.mode.read().expect("BlockSealer lock is poisoned"),
+            BlockSealerMode::Immediate(_)
+        )
+    }
+
+    pub fn set_mode(&self, mode: BlockSealerMode) {
+        *self.mode.write().expect("BlockSealer lock is poisoned") = mode;
+        // Notify last used waker that the mode might have changed
+        self.waker.wake();
+    }
+
+    pub fn poll(&mut self, pool: &TxPool, cx: &mut Context<'_>) -> Poll<TxBatch> {
+        self.waker.register(cx.waker());
+        let mut mode = self.mode.write().expect("BlockSealer lock is poisoned");
+        match &mut *mode {
+            BlockSealerMode::Noop => Poll::Pending,
+            BlockSealerMode::Immediate(immediate) => immediate.poll(pool),
+            BlockSealerMode::FixedTime(fixed) => fixed.poll(pool, cx),
+        }
+    }
+}
+
 /// Represents different modes of block sealing available on the node
 #[derive(Debug)]
-pub enum BlockSealer {
+pub enum BlockSealerMode {
     /// Never seals blocks.
     Noop,
     /// Seals a block as soon as there is at least one transaction.
@@ -14,7 +62,7 @@ pub enum BlockSealer {
     FixedTime(FixedTimeBlockSealer),
 }
 
-impl BlockSealer {
+impl BlockSealerMode {
     pub fn noop() -> Self {
         Self::Noop
     }
@@ -29,9 +77,9 @@ impl BlockSealer {
 
     pub fn poll(&mut self, pool: &TxPool, cx: &mut Context<'_>) -> Poll<TxBatch> {
         match self {
-            BlockSealer::Noop => Poll::Pending,
-            BlockSealer::Immediate(immediate) => immediate.poll(pool),
-            BlockSealer::FixedTime(fixed) => fixed.poll(pool, cx),
+            BlockSealerMode::Noop => Poll::Pending,
+            BlockSealerMode::Immediate(immediate) => immediate.poll(pool),
+            BlockSealerMode::FixedTime(fixed) => fixed.poll(pool, cx),
         }
     }
 }
@@ -89,6 +137,7 @@ impl FixedTimeBlockSealer {
 #[cfg(test)]
 mod tests {
     use crate::node::pool::TxBatch;
+    use crate::node::sealer::BlockSealerMode;
     use crate::node::{BlockSealer, ImpersonationManager, TxPool};
     use std::ptr;
     use std::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
@@ -112,7 +161,7 @@ mod tests {
     #[test]
     fn immediate_empty() {
         let pool = TxPool::new(ImpersonationManager::default());
-        let mut block_sealer = BlockSealer::immediate(1000);
+        let mut block_sealer = BlockSealer::new(BlockSealerMode::immediate(1000));
         let waker = &WAKER_NOOP;
         let mut cx = Context::from_waker(waker);
 
@@ -122,7 +171,7 @@ mod tests {
     #[test]
     fn immediate_one_tx() {
         let pool = TxPool::new(ImpersonationManager::default());
-        let mut block_sealer = BlockSealer::immediate(1000);
+        let mut block_sealer = BlockSealer::new(BlockSealerMode::immediate(1000));
         let waker = &WAKER_NOOP;
         let mut cx = Context::from_waker(waker);
 
@@ -141,7 +190,7 @@ mod tests {
     #[test]
     fn immediate_several_txs() {
         let pool = TxPool::new(ImpersonationManager::default());
-        let mut block_sealer = BlockSealer::immediate(1000);
+        let mut block_sealer = BlockSealer::new(BlockSealerMode::immediate(1000));
         let waker = &WAKER_NOOP;
         let mut cx = Context::from_waker(waker);
 
@@ -160,7 +209,7 @@ mod tests {
     #[test]
     fn immediate_respect_max_txs() {
         let pool = TxPool::new(ImpersonationManager::default());
-        let mut block_sealer = BlockSealer::immediate(3);
+        let mut block_sealer = BlockSealer::new(BlockSealerMode::immediate(3));
         let waker = &WAKER_NOOP;
         let mut cx = Context::from_waker(waker);
 
@@ -180,7 +229,7 @@ mod tests {
     #[test]
     fn immediate_gradual_txs() {
         let pool = TxPool::new(ImpersonationManager::default());
-        let mut block_sealer = BlockSealer::immediate(1000);
+        let mut block_sealer = BlockSealer::new(BlockSealerMode::immediate(1000));
         let waker = &WAKER_NOOP;
         let mut cx = Context::from_waker(waker);
 
@@ -217,7 +266,10 @@ mod tests {
     #[tokio::test]
     async fn fixed_time_very_long() {
         let pool = TxPool::new(ImpersonationManager::default());
-        let mut block_sealer = BlockSealer::fixed_time(1000, Duration::from_secs(10000));
+        let mut block_sealer = BlockSealer::new(BlockSealerMode::fixed_time(
+            1000,
+            Duration::from_secs(10000),
+        ));
         let waker = &WAKER_NOOP;
         let mut cx = Context::from_waker(waker);
 
@@ -227,7 +279,10 @@ mod tests {
     #[tokio::test]
     async fn fixed_time_seal_empty() {
         let pool = TxPool::new(ImpersonationManager::default());
-        let mut block_sealer = BlockSealer::fixed_time(1000, Duration::from_millis(100));
+        let mut block_sealer = BlockSealer::new(BlockSealerMode::fixed_time(
+            1000,
+            Duration::from_millis(100),
+        ));
         let waker = &WAKER_NOOP;
         let mut cx = Context::from_waker(waker);
 
@@ -261,7 +316,10 @@ mod tests {
     #[tokio::test]
     async fn fixed_time_seal_with_txs() {
         let pool = TxPool::new(ImpersonationManager::default());
-        let mut block_sealer = BlockSealer::fixed_time(1000, Duration::from_millis(100));
+        let mut block_sealer = BlockSealer::new(BlockSealerMode::fixed_time(
+            1000,
+            Duration::from_millis(100),
+        ));
         let waker = &WAKER_NOOP;
         let mut cx = Context::from_waker(waker);
 
@@ -282,7 +340,8 @@ mod tests {
     #[tokio::test]
     async fn fixed_time_respect_max_txs() {
         let pool = TxPool::new(ImpersonationManager::default());
-        let mut block_sealer = BlockSealer::fixed_time(3, Duration::from_millis(100));
+        let mut block_sealer =
+            BlockSealer::new(BlockSealerMode::fixed_time(3, Duration::from_millis(100)));
         let waker = &WAKER_NOOP;
         let mut cx = Context::from_waker(waker);
 

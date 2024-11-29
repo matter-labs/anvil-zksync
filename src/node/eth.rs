@@ -109,14 +109,14 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
         &self,
         tx: zksync_types::transaction_request::CallRequest,
     ) -> Result<H256, Web3Error> {
-        let (chain_id, l1_gas_price) = {
+        let (chain_id, l2_gas_price) = {
             let reader = self
                 .inner
                 .read()
                 .map_err(|_| anyhow::anyhow!("Failed to acquire read lock"))?;
             (
                 reader.fork_storage.chain_id,
-                reader.fee_input_provider.l1_gas_price,
+                reader.fee_input_provider.gas_price(),
             )
         };
 
@@ -136,7 +136,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
                 return Err(TransparentError(err.into()).into());
             }
         } else {
-            tx_req.gas_price = tx.max_fee_per_gas.unwrap_or(U256::from(l1_gas_price));
+            tx_req.gas_price = tx.max_fee_per_gas.unwrap_or(U256::from(l2_gas_price));
             tx_req.max_priority_fee_per_gas = tx.max_priority_fee_per_gas;
             if tx_req.transaction_type.is_none() {
                 tx_req.transaction_type = Some(zksync_types::EIP_1559_TX_TYPE.into());
@@ -676,7 +676,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
             .read()
             .expect("Failed to acquire read lock")
             .fee_input_provider
-            .l2_gas_price;
+            .gas_price();
         Ok(U256::from(fair_l2_gas_price)).into_boxed_future()
     }
 
@@ -1402,7 +1402,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
                 .clamp(1, reader.current_miniblock + 1);
 
             let mut base_fee_per_gas =
-                vec![U256::from(reader.fee_input_provider.l2_gas_price); block_count as usize];
+                vec![U256::from(reader.fee_input_provider.gas_price()); block_count as usize];
 
             let oldest_block = reader.current_miniblock + 1 - base_fee_per_gas.len() as u64;
             // We do not store gas used ratio for blocks, returns array of zeroes as a placeholder.

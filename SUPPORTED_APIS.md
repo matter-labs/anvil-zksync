@@ -14,6 +14,13 @@ The `status` options are:
 
 | Namespace | API | <div style="width:130px">Status</div> | Description |
 | --- | --- | --- | --- |
+| `ANVIL` | `anvil_setNextBlockBaseFeePerGas` | `SUPPORTED` | Sets the base fee of the next block |
+| `ANVIL` | `anvil_dropTransaction` | `SUPPORTED` | Removes a transaction from the pool |
+| `ANVIL` | `anvil_dropAllTransactions` | `SUPPORTED` | Remove all transactions from the pool |
+| `ANVIL` | `anvil_removePoolTransactions` | `SUPPORTED` | Remove all transactions from the pool by sender address |
+| `ANVIL` | `anvil_getAutomine` | `SUPPORTED` | Get node's auto mining status |
+| `ANVIL` | `anvil_setAutomine` | `SUPPORTED` | Enable or disables auto mining of new blocks |
+| `ANVIL` | `anvil_setIntervalMining` | `SUPPORTED` | Set the mining behavior to interval with the given interval |
 | `ANVIL` | `anvil_setBlockTimestampInterval` | `SUPPORTED` | Sets the block timestamp interval |
 | `ANVIL` | `anvil_removeBlockTimestampInterval` | `SUPPORTED` | Removes the block timestamp interval |
 | `ANVIL` | `anvil_setMinGasPrice` | `NOT IMPLEMENTED` | Set the minimum gas price for the node. Unsupported for ZKsync as it is only relevant for pre-EIP1559 chains |

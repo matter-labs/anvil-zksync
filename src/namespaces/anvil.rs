@@ -1,18 +1,73 @@
 use jsonrpc_derive::rpc;
-use zksync_types::{Address, U256, U64};
+use zksync_types::{Address, H256, U256, U64};
 
 use super::{ResetRequest, RpcResult};
 use crate::utils::Numeric;
 
 #[rpc]
 pub trait AnvilNamespaceT {
+    /// Sets the base fee of the next block.
+    ///
+    /// # Arguments
+    ///
+    /// * `base_fee` - Value to be set as base fee for the next block
+    #[rpc(name = "anvil_setNextBlockBaseFeePerGas")]
+    fn set_next_block_base_fee_per_gas(&self, base_fee: U256) -> RpcResult<()>;
+
+    /// Removes a transaction from the pool.
+    ///
+    /// # Arguments
+    ///
+    /// * `hash` - Hash of the transaction to be removed from the pool
+    ///
+    /// # Returns
+    /// `Some(hash)` if transaction was in the pool before being removed, `None` otherwise
+    #[rpc(name = "anvil_dropTransaction")]
+    fn drop_transaction(&self, hash: H256) -> RpcResult<Option<H256>>;
+
+    /// Remove all transactions from the pool.
+    #[rpc(name = "anvil_dropAllTransactions")]
+    fn drop_all_transactions(&self) -> RpcResult<()>;
+
+    /// Remove all transactions from the pool by sender address.
+    ///
+    /// # Arguments
+    ///
+    /// * `address` - Sender which transactions should be removed from the pool
+    #[rpc(name = "anvil_removePoolTransactions")]
+    fn remove_pool_transactions(&self, address: Address) -> RpcResult<()>;
+
+    /// Gets node's auto mining status.
+    ///
+    /// # Returns
+    /// `true` if auto mining is enabled, `false` otherwise
+    #[rpc(name = "anvil_getAutomine")]
+    fn get_auto_mine(&self) -> RpcResult<bool>;
+
+    /// Enables or disables, based on the single boolean argument, the automatic mining of new
+    /// blocks with each new transaction submitted to the network.
+    ///
+    /// # Arguments
+    ///
+    /// * `enable` - if `true` automatic mining will be enabled, disabled otherwise
+    #[rpc(name = "anvil_setAutomine")]
+    fn set_auto_mine(&self, enable: bool) -> RpcResult<()>;
+
+    /// Sets the mining behavior to interval with the given interval (seconds).
+    ///
+    /// # Arguments
+    ///
+    /// * `seconds` - Frequency of automatic block production (in seconds)
+    #[rpc(name = "anvil_setIntervalMining")]
+    fn set_interval_mining(&self, seconds: u64) -> RpcResult<()>;
+
     /// Sets the block timestamp interval. All future blocks' timestamps will
     /// have the provided amount of seconds in-between of them. Does not affect
     /// the block production interval.
     ///
     /// # Arguments
     ///
-    /// * `seconds` - The minimum gas price to be set
+    /// * `seconds` - The interval between two consecutive blocks (in seconds)
     #[rpc(name = "anvil_setBlockTimestampInterval")]
     fn set_block_timestamp_interval(&self, seconds: u64) -> RpcResult<()>;
 

@@ -48,7 +48,7 @@ use zksync_web3_decl::error::Web3Error;
 
 use crate::node::impersonate::{ImpersonationManager, ImpersonationState};
 use crate::node::time::{AdvanceTime, ReadTime, TimestampManager};
-use crate::node::TxPool;
+use crate::node::{BlockSealer, TxPool};
 use crate::{
     bootloader_debug::{BootloaderDebug, BootloaderDebugTracer},
     config::{
@@ -971,6 +971,7 @@ pub struct InMemoryNode<S: Clone> {
     /// An optional handle to the observability stack
     pub(crate) observability: Option<Observability>,
     pub(crate) pool: TxPool,
+    pub(crate) sealer: BlockSealer,
 }
 
 fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) -> Option<H160> {
@@ -992,6 +993,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> Default for InMemoryNode<S> {
             TimestampManager::default(),
             impersonation.clone(),
             TxPool::new(impersonation),
+            BlockSealer::default(),
         )
     }
 }
@@ -1004,6 +1006,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         time: TimestampManager,
         impersonation: ImpersonationManager,
         pool: TxPool,
+        sealer: BlockSealer,
     ) -> Self {
         let system_contracts_options = config.system_contracts_options;
         let inner = InMemoryNodeInner::new(fork, config, &time, impersonation.clone());
@@ -1015,6 +1018,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             impersonation,
             observability,
             pool,
+            sealer,
         }
     }
 
@@ -1029,6 +1033,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             TimestampManager::default(),
             impersonation.clone(),
             TxPool::new(impersonation),
+            BlockSealer::default(),
         )
     }
 
@@ -1433,7 +1438,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             .read()
             .expect("failed acquiring reader")
             .fee_input_provider
-            .l2_gas_price;
+            .gas_price();
         if tx.common_data.fee.max_fee_per_gas < l2_gas_price.into() {
             tracing::info!(
                 "Submitted Tx is Unexecutable {:?} because of MaxFeePerGasTooLow {}",
@@ -1724,7 +1729,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             } else {
                 U64::from(1)
             },
-            effective_gas_price: Some(inner.fee_input_provider.l2_gas_price.into()),
+            effective_gas_price: Some(inner.fee_input_provider.gas_price().into()),
             transaction_type: Some((transaction_type as u32).into()),
             logs_bloom: Default::default(),
         };
@@ -2093,6 +2098,7 @@ mod tests {
             TimestampManager::default(),
             impersonation.clone(),
             TxPool::new(impersonation),
+            BlockSealer::default(),
         );
 
         let tx = testing::TransactionBuilder::new().build();
@@ -2117,6 +2123,7 @@ mod tests {
             TimestampManager::default(),
             impersonation.clone(),
             TxPool::new(impersonation),
+            BlockSealer::default(),
         );
 
         let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(0xef)).unwrap();
