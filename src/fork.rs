@@ -729,6 +729,11 @@ impl ForkDetails {
             }
         }
     }
+
+    /// Sets fork's internal URL. Assumes the underlying chain is the same as before.
+    pub fn set_rpc_url(&mut self, url: String) {
+        self.fork_source = Box::new(HttpForkSource::new(url, self.cache_config.clone()));
+    }
 }
 
 #[cfg(test)]

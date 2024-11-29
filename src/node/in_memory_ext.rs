@@ -423,6 +423,31 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
             .set_base_fee(base_fee.as_u64());
         Ok(())
     }
+
+    pub fn set_rpc_url(&self, url: String) -> Result<()> {
+        let inner = self
+            .inner
+            .read()
+            .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))?;
+        let mut fork_storage = inner
+            .fork_storage
+            .inner
+            .write()
+            .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))?;
+        if let Some(fork) = &mut fork_storage.fork {
+            let old_url = fork.fork_source.get_fork_url().map_err(|e| {
+                anyhow::anyhow!(
+                    "failed to resolve current fork's RPC URL: {}",
+                    e.to_string()
+                )
+            })?;
+            fork.set_rpc_url(url.clone());
+            tracing::info!("Updated fork rpc from \"{}\" to \"{}\"", old_url, url);
+        } else {
+            tracing::info!("Non-forking node tried to switch RPC URL to '{url}'. Call `anvil_reset` instead if you wish to switch to forking mode");
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]

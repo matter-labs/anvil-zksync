@@ -6,6 +6,14 @@ use crate::utils::Numeric;
 
 #[rpc]
 pub trait AnvilNamespaceT {
+    /// Sets the fork RPC url. Assumes the underlying chain is the same as before.
+    ///
+    /// # Arguments
+    ///
+    /// * `url` - Fork's new URL
+    #[rpc(name = "anvil_setRpcUrl")]
+    fn set_rpc_url(&self, url: String) -> RpcResult<()>;
+
     /// Sets the base fee of the next block.
     ///
     /// # Arguments

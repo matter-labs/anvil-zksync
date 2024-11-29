@@ -14,6 +14,7 @@ The `status` options are:
 
 | Namespace | API | <div style="width:130px">Status</div> | Description |
 | --- | --- | --- | --- |
+| `ANVIL` | `anvil_setRpcUrl` | `SUPPORTED` | Sets the fork RPC url. Assumes the underlying chain is the same as before |
 | `ANVIL` | `anvil_setNextBlockBaseFeePerGas` | `SUPPORTED` | Sets the base fee of the next block |
 | `ANVIL` | `anvil_dropTransaction` | `SUPPORTED` | Removes a transaction from the pool |
 | `ANVIL` | `anvil_dropAllTransactions` | `SUPPORTED` | Remove all transactions from the pool |
