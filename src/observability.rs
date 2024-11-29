@@ -70,10 +70,8 @@ impl Observability {
         } else {
             Self::parse_filter(&directives)?
         };
-        let (filter, reload_handle) = reload::Layer::new(filter);
+        let (filter, reload_handle) = reload::Layer::<EnvFilter, Registry>::new(filter);
 
-        let filter = Self::parse_filter(&directives)?;
-        let (filter, reload_handle) = reload::Layer::new(filter);
         let timer_format =
             time::format_description::parse("[hour]:[minute]:[second]").expect("Cataplum");
         let time_offset = time::UtcOffset::current_local_offset().unwrap_or(time::UtcOffset::UTC);
