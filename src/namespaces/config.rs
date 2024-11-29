@@ -95,15 +95,15 @@ pub trait ConfigurationApiNamespaceT {
     #[rpc(name = "config_setShowNodeConfig", returns = "bool")]
     fn config_set_show_node_config(&self, value: bool) -> Result<bool>;
 
-    /// Set show_calls_summary for the InMemoryNodeInner
+    /// Set show_tx_summary for the InMemoryNodeInner
     ///
     /// # Parameters
-    /// - `value`: A bool to update show_calls_summary to
+    /// - `value`: A bool to update show_tx_summary to
     ///
     /// # Returns
-    /// The updated/current `show_calls_summary` value for the InMemoryNodeInner.
-    #[rpc(name = "config_setShowCallsSummary", returns = "bool")]
-    fn config_set_show_calls_summary(&self, value: bool) -> Result<bool>;
+    /// The updated/current `show_tx_summary` value for the InMemoryNodeInner.
+    #[rpc(name = "config_setShowTxSummary", returns = "bool")]
+    fn config_set_show_tx_summary(&self, value: bool) -> Result<bool>;
 
     /// Set show_event_logs for the InMemoryNodeInner
     ///

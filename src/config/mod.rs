@@ -61,8 +61,8 @@ pub struct TestNodeConfig {
     pub port: u16,
     /// Print node config on startup if true
     pub show_node_config: bool,
-    /// Print calls and transactions summary if true
-    pub show_calls_summary: bool,
+    /// Print transactions and calls summary if true
+    pub show_tx_summary: bool,
     /// If true, logs events.
     pub show_event_logs: bool,
     /// Disables printing of `console.log` invocations to stdout if true
@@ -143,8 +143,8 @@ impl Default for TestNodeConfig {
             config_out: None,
             port: NODE_PORT,
             show_node_config: true,
-            show_calls_summary: true,
-            show_event_logs: true,
+            show_tx_summary: true,
+            show_event_logs: false,
             disable_console_log: false,
             show_calls: Default::default(),
             show_outputs: false,
@@ -641,11 +641,11 @@ impl TestNodeConfig {
         self
     }
 
-    // Enable or disable printing calls and transactions summary
+    // Enable or disable printing transactions and calls summary
     #[must_use]
-    pub fn with_show_calls_summary(mut self, show_calls_summary: Option<bool>) -> Self {
-        if let Some(show_calls_summary) = show_calls_summary {
-            self.show_calls_summary = show_calls_summary;
+    pub fn with_show_tx_summary(mut self, show_tx_summary: Option<bool>) -> Self {
+        if let Some(show_tx_summary) = show_tx_summary {
+            self.show_tx_summary = show_tx_summary;
         }
         self
     }

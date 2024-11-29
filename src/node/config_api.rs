@@ -199,7 +199,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
             })
     }
 
-    fn config_set_show_calls_summary(&self, value: bool) -> Result<bool> {
+    fn config_set_show_tx_summary(&self, value: bool) -> Result<bool> {
         self.get_inner()
             .write()
             .map_err(|err| {
@@ -209,8 +209,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
                 )))
             })
             .map(|mut writer| {
-                writer.config.show_calls_summary = value;
-                writer.config.show_calls_summary
+                writer.config.show_tx_summary = value;
+                writer.config.show_tx_summary
             })
     }
 

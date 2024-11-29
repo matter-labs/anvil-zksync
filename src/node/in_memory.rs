@@ -1215,7 +1215,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             .take()
             .unwrap_or_default();
 
-        if inner.config.show_calls_summary {
+        if inner.config.show_tx_summary {
             match &tx_result.result {
                 ExecutionResult::Success { output } => {
                     tracing::info!("Call: {}", "SUCCESS".green());
@@ -1515,7 +1515,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         let spent_on_pubdata =
             tx_result.statistics.gas_used - tx_result.statistics.computational_gas_used as u64;
 
-        if inner.config.show_calls_summary {
+        if inner.config.show_tx_summary {
             tracing::info!("┌─────────────────────────┐");
             tracing::info!("│   TRANSACTION SUMMARY   │");
             tracing::info!("└─────────────────────────┘");
@@ -1629,21 +1629,21 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         let tx_hash = l2_tx.hash();
         let transaction_type = l2_tx.common_data.transaction_type;
 
-        let show_calls_summary = self
+        let show_tx_summary = self
             .inner
             .read()
             .map_err(|_| anyhow::anyhow!("Failed to acquire read lock"))?
             .config
-            .show_calls_summary;
+            .show_tx_summary;
 
-        if show_calls_summary {
+        if show_tx_summary {
             tracing::info!("");
             tracing::info!("Validating {}", format!("{:?}", tx_hash).bold());
         }
 
         self.validate_tx(&l2_tx)?;
 
-        if show_calls_summary {
+        if show_tx_summary {
             tracing::info!("Executing {}", format!("{:?}", tx_hash).bold());
         }
 

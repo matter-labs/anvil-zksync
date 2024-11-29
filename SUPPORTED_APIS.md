@@ -49,9 +49,9 @@ The `status` options are:
 | [`CONFIG`](#config-namespace) | [`config_setShowVmDetails`](#config_setshowvmdetails) | `SUPPORTED` | Updates `show_vm_details` to print more detailed results from vm execution |
 | [`CONFIG`](#config-namespace) | [`config_setShowGasDetails`](#config_setshowgasdetails) | `SUPPORTED` | Updates `show_gas_details` to print more details about gas estimation and usage |
 | [`CONFIG`](#config-namespace) | [`config_setShowNodeConfig`](#config_setshownodeconfig) | `SUPPORTED` | Updates `show_node_config` to print node config on startup |
-| [`CONFIG`](#config-namespace) | [`config_setShowCallsSummary`](#config_setshowcallssummary) | `SUPPORTED` | Updates `show_calls_summary` to print calls and transactions summary |
+| [`CONFIG`](#config-namespace) | [`config_setShowTxSummary`](#config_setshowtxsummary) | `SUPPORTED` | Updates `show_tx_summary` to print transactions and calls summary |
 | [`CONFIG`](#config-namespace) | [`config_setDisableConsoleLog`](#config_setdisableconsolelog) | `SUPPORTED` | Updates `disable_console_log` to disable printing of `console.log` invocations to stdout |
-| [`CONFIG`](#config-namespace) | [`config_setShowEventLogs`](#config_setshowcallssummary) | `SUPPORTED` | Updates `show_event_logs` to log events |
+| [`CONFIG`](#config-namespace) | [`config_setShowEventLogs`](#config_setshoweventlogs) | `SUPPORTED` | Updates `show_event_logs` to log events |
 | [`CONFIG`](#config-namespace) | [`config_setLogLevel`](#config_setloglevel) | `SUPPORTED` | Sets the logging level for the node and only displays the node logs. |
 | [`CONFIG`](#config-namespace) | [`config_setLogging`](#config_setlogging) | `SUPPORTED` | Sets the fine-tuned logging levels for the node and any of its dependencies |
 | [`DEBUG`](#debug-namespace) | [`debug_traceCall`](#debug_tracecall) | `SUPPORTED` | Performs a call and returns structured traces of the execution |
@@ -394,11 +394,11 @@ curl --request POST \
   --data '{"jsonrpc": "2.0","id": "1","method": "config_setShowNodeConfig","params": [true]}'
 ```
 
-### `config_setShowCallsSummary`
+### `config_setShowTxSummary`
 
 [source](src/node/config_api.rs)
 
-Updates `show_calls_summary` to print calls and transactions summary
+Updates `show_tx_summary` to print transactions and calls summary
 #### Arguments
 
 + `value: boolean`
@@ -413,7 +413,7 @@ Updates `show_calls_summary` to print calls and transactions summary
 curl --request POST \
   --url http://localhost:8011/ \
   --header 'content-type: application/json' \
-  --data '{"jsonrpc": "2.0","id": "1","method": "config_setShowCallsSummary","params": [true]}'
+  --data '{"jsonrpc": "2.0","id": "1","method": "config_setShowTxSummary","params": [true]}'
 ```
 
 ### `config_setDisableConsoleLog`

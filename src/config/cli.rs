@@ -71,14 +71,14 @@ pub struct Cli {
     pub show_node_config: Option<bool>,
 
     #[arg(long, default_value = "true", default_missing_value = "true", num_args(0..=1), help_heading = "Debugging Options")]
-    /// If true, prints calls and transactions summary.
-    pub show_calls_summary: Option<bool>,
+    /// If true, prints transactions and calls summary.
+    pub show_tx_summary: Option<bool>,
 
     #[arg(long, alias = "no-console-log", default_missing_value = "true", num_args(0..=1), help_heading = "Debugging Options")]
     /// Disables printing of `console.log` invocations to stdout if true.
     pub disable_console_log: Option<bool>,
 
-    #[arg(long, default_value = "true", default_missing_value = "true", num_args(0..=1), help_heading = "Debugging Options")]
+    #[arg(long, default_missing_value = "true", num_args(0..=1), help_heading = "Debugging Options")]
     /// If true, logs events.
     pub show_event_logs: Option<bool>,
 
@@ -345,7 +345,7 @@ impl Cli {
             .with_l1_gas_price(self.l1_gas_price)
             .with_l2_gas_price(self.l2_gas_price)
             .with_l1_pubdata_price(self.l1_pubdata_price)
-            .with_show_calls_summary(self.show_calls_summary)
+            .with_show_tx_summary(self.show_tx_summary)
             .with_show_event_logs(self.show_event_logs)
             .with_disable_console_log(self.disable_console_log)
             .with_show_calls(self.show_calls)
