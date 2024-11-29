@@ -406,7 +406,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
     }
 
     pub fn drop_all_transactions(&self) -> Result<()> {
-        Ok(self.pool.clear())
+        self.pool.clear();
+        Ok(())
     }
 
     pub fn remove_pool_transactions(&self, address: Address) -> Result<()> {
