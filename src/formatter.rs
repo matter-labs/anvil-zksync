@@ -848,7 +848,7 @@ pub fn print_transaction_summary(
     tracing::info!("Initiator: {:?}", tx.initiator_account());
     tracing::info!("Payer: {:?}", tx.payer());
     tracing::info!(
-        "Gas Usage: Limit: {} | Used: {} | Refunded: {}",
+        "Gas Limit: {} | Used: {} | Refunded: {}",
         to_human_size(tx.gas_limit()),
         to_human_size(used_gas),
         to_human_size(tx_result.refunds.gas_refunded.into())
