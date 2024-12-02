@@ -359,6 +359,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
         block_number: zksync_types::L2BlockNumber,
     ) -> RpcResult<Option<zksync_types::api::BlockDetails>> {
         let inner = self.get_inner().clone();
+        let base_system_contracts_hashes = self.system_contracts.base_system_contracts_hashes();
         Box::pin(async move {
             let reader = inner.read().map_err(|_e| {
                 let error_message = "Failed to acquire lock. Please ensure the lock is not being held by another process or thread.".to_string();
@@ -389,9 +390,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
                         l1_gas_price: 0,
                         l2_fair_gas_price: reader.fee_input_provider.gas_price(),
                         fair_pubdata_price: Some(reader.fee_input_provider.fair_pubdata_price()),
-                        base_system_contracts_hashes: reader
-                            .system_contracts
-                            .base_system_contracts_hashes(),
+                        base_system_contracts_hashes,
                     },
                     operator_address: Address::zero(),
                     protocol_version: Some(ProtocolVersionId::latest()),

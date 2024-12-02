@@ -73,9 +73,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
     /// # Returns
     /// The string "0x0".
     pub fn mine_block(&self) -> Result<String> {
-        let bootloader_code = self
-            .read_inner()
-            .map(|inner| inner.system_contracts.contracts_for_l2_call().clone())?;
+        let bootloader_code = self.system_contracts.contracts_for_l2_call().clone();
         let block_number =
             self.seal_block(&mut self.time.lock(), vec![], bootloader_code.clone())?;
         tracing::info!("👷 Mined block #{}", block_number);
@@ -200,9 +198,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
             anyhow::bail!("Provided interval is `0`; unable to produce {num_blocks} blocks with the same timestamp");
         }
 
-        let bootloader_code = self
-            .read_inner()
-            .map(|inner| inner.system_contracts.contracts_for_l2_call().clone())?;
+        let bootloader_code = self.system_contracts.contracts_for_l2_call();
         let mut time = self
             .time
             .lock_with_offsets((0..num_blocks).map(|i| i * interval_sec));
@@ -574,6 +570,7 @@ mod tests {
             observability: None,
             pool,
             sealer: BlockSealer::default(),
+            system_contracts: Default::default(),
         };
 
         let address = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap();

@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use colored::Colorize;
 use futures::FutureExt;
 use itertools::Itertools;
-use zksync_multivm::interface::ExecutionResult;
+use zksync_multivm::interface::{ExecutionResult, TxExecutionMode};
 use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use zksync_types::{
     api::{Block, BlockIdVariant, BlockNumber, TransactionVariant},
@@ -41,7 +41,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
         &self,
         req: zksync_types::transaction_request::CallRequest,
     ) -> Result<Bytes, Web3Error> {
-        let system_contracts = self.system_contracts_for_l2_call()?;
+        let system_contracts = self.system_contracts.contracts_for_l2_call().clone();
         let allow_no_target = system_contracts.evm_emulator.is_some();
 
         let mut tx = L2Tx::from_request(req.into(), MAX_TX_SIZE, allow_no_target)?;
@@ -89,7 +89,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
             .chain_id;
 
         let (tx_req, hash) = TransactionRequest::from_bytes(&tx_bytes.0, chain_id)?;
-        let system_contracts = self.system_contracts_for_tx(tx_req.from.unwrap_or_default())?;
+        // Impersonation does not matter in this context so we assume the tx is not impersonated:
+        // system contracts here are fetched solely to check for EVM emulator.
+        let system_contracts = self
+            .system_contracts
+            .contracts(TxExecutionMode::VerifyExecute, false);
         let allow_no_target = system_contracts.evm_emulator.is_some();
         let mut l2_tx = L2Tx::from_request(tx_req, MAX_TX_SIZE, allow_no_target)?;
 
@@ -154,7 +158,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
             27,
         ))?;
 
-        let system_contracts = self.system_contracts_for_tx(tx_req.from.unwrap_or_default())?;
+        // Impersonation does not matter in this context so we assume the tx is not impersonated:
+        // system contracts here are fetched solely to check for EVM emulator.
+        let system_contracts = self
+            .system_contracts
+            .contracts(TxExecutionMode::VerifyExecute, false);
         let allow_no_target = system_contracts.evm_emulator.is_some();
         let mut l2_tx: L2Tx = L2Tx::from_request(tx_req, MAX_TX_SIZE, allow_no_target)?;
 
