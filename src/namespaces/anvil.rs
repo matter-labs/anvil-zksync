@@ -236,7 +236,7 @@ pub trait AnvilNamespaceT {
     ///
     /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
     #[rpc(name = "anvil_impersonateAccount")]
-    fn impersonate_account(&self, address: Address) -> RpcResult<bool>;
+    fn impersonate_account(&self, address: Address) -> RpcResult<()>;
 
     /// Use this method to stop impersonating an account after having previously used `anvil_impersonateAccount`
     /// The method returns `true` if the account was being impersonated and `false` otherwise.
@@ -249,7 +249,7 @@ pub trait AnvilNamespaceT {
     ///
     /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
     #[rpc(name = "anvil_stopImpersonatingAccount")]
-    fn stop_impersonating_account(&self, address: Address) -> RpcResult<bool>;
+    fn stop_impersonating_account(&self, address: Address) -> RpcResult<()>;
 
     /// Modifies the bytecode stored at an account's address.
     ///

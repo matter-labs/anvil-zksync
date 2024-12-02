@@ -1,5 +1,6 @@
 use alloy::network::{ReceiptResponse, TransactionBuilder};
 use alloy::primitives::{address, Address, U256};
+use alloy::providers::ext::AnvilApi;
 use alloy::providers::{PendingTransaction, PendingTransactionError, Provider, WalletProvider};
 use alloy::signers::local::PrivateKeySigner;
 use alloy::transports::http::{reqwest, Http};
@@ -9,7 +10,6 @@ use alloy_zksync::node_bindings::EraTestNode;
 use alloy_zksync::provider::{zksync_provider, ProviderBuilderExt};
 use alloy_zksync::wallet::ZksyncWallet;
 use era_test_node_e2e_tests::utils::LockedPort;
-use era_test_node_e2e_tests::EraTestNodeApiProvider;
 use std::time::Duration;
 
 async fn init(
@@ -142,11 +142,11 @@ async fn no_sealing_timeout() -> anyhow::Result<()> {
 async fn dynamic_sealing_mode() -> anyhow::Result<()> {
     // Test that we can successfully switch between different sealing modes
     let provider = init(|node| node.no_mine()).await?;
-    assert_eq!(provider.get_auto_mine().await?, false);
+    assert_eq!(provider.anvil_get_auto_mine().await?, false);
 
     // Enable immediate block sealing
-    provider.set_auto_mine(true).await?;
-    assert_eq!(provider.get_auto_mine().await?, true);
+    provider.anvil_set_auto_mine(true).await?;
+    assert_eq!(provider.anvil_get_auto_mine().await?, true);
 
     // Check that we can finalize transactions now
     let tx = TransactionRequest::default()
@@ -156,8 +156,8 @@ async fn dynamic_sealing_mode() -> anyhow::Result<()> {
     assert!(receipt.status());
 
     // Enable interval block sealing
-    provider.set_interval_mining(3).await?;
-    assert_eq!(provider.get_auto_mine().await?, false);
+    provider.anvil_set_interval_mining(3).await?;
+    assert_eq!(provider.anvil_get_auto_mine().await?, false);
 
     // Check that we can finalize two txs in the same block now
     test_finalize_two_txs_in_the_same_block(
@@ -167,8 +167,8 @@ async fn dynamic_sealing_mode() -> anyhow::Result<()> {
     .await?;
 
     // Disable block sealing entirely
-    provider.set_auto_mine(false).await?;
-    assert_eq!(provider.get_auto_mine().await?, false);
+    provider.anvil_set_auto_mine(false).await?;
+    assert_eq!(provider.anvil_get_auto_mine().await?, false);
 
     // Check that transactions do not get finalized now
     let tx = TransactionRequest::default()
@@ -201,7 +201,9 @@ async fn drop_transaction() -> anyhow::Result<()> {
     let pending_tx1 = provider.send_transaction(tx1).await?.register().await?;
 
     // Drop first
-    provider.drop_transaction(*pending_tx0.tx_hash()).await?;
+    provider
+        .anvil_drop_transaction(*pending_tx0.tx_hash())
+        .await?;
 
     // Assert first never gets finalized but the second one does
     let finalization_result = tokio::time::timeout(Duration::from_secs(4), pending_tx0).await;
@@ -235,7 +237,7 @@ async fn drop_all_transactions() -> anyhow::Result<()> {
     let pending_tx1 = provider.send_transaction(tx1).await?.register().await?;
 
     // Drop all transactions
-    provider.drop_all_transactions().await?;
+    provider.anvil_drop_all_transactions().await?;
 
     // Neither transaction gets finalized
     let finalization_result = tokio::time::timeout(Duration::from_secs(4), pending_tx0).await;
@@ -266,7 +268,9 @@ async fn remove_pool_transactions() -> anyhow::Result<()> {
     let pending_tx1 = provider.send_transaction(tx1).await?.register().await?;
 
     // Drop first
-    provider.remove_pool_transactions(RICH_WALLET0).await?;
+    provider
+        .anvil_remove_pool_transactions(RICH_WALLET0)
+        .await?;
 
     // Assert first never gets finalized but the second one does
     let finalization_result = tokio::time::timeout(Duration::from_secs(4), pending_tx0).await;
@@ -290,7 +294,7 @@ async fn seal_block_ignoring_halted_transaction() -> anyhow::Result<()> {
     provider.wallet_mut().register_signer(signer);
 
     // Impersonate random account for now so that gas estimation works as expected
-    provider.impersonate(random_account).await?;
+    provider.anvil_impersonate_account(random_account).await?;
 
     // Submit three transactions
     let tx0 = TransactionRequest::default()
@@ -310,7 +314,9 @@ async fn seal_block_ignoring_halted_transaction() -> anyhow::Result<()> {
     let pending_tx2 = provider.send_transaction(tx2).await?.register().await?;
 
     // Stop impersonating random account so that tx is going to halt
-    provider.stop_impersonating(random_account).await?;
+    provider
+        .anvil_stop_impersonating_account(random_account)
+        .await?;
 
     // Fetch their receipts
     let receipt0 = provider
