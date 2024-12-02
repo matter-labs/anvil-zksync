@@ -1819,6 +1819,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             transaction.transaction_index = Some(Index::zero());
             transaction.l1_batch_number = Some(U64::from(batch_env.number.0));
             transaction.l1_batch_tx_index = Some(Index::zero());
+            if transaction.transaction_type == Some(U64::zero())
+                || transaction.transaction_type.is_none()
+            {
+                transaction.v = transaction
+                    .v
+                    .map(|v| v + 35 + inner.fork_storage.chain_id.as_u64() * 2);
+            }
             transactions.push(TransactionVariant::Full(transaction));
         }
 

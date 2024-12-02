@@ -317,3 +317,33 @@ async fn manual_mining_two_txs_in_one_block() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn detailed_mining_success() -> anyhow::Result<()> {
+    // Test that we can detailed mining on a successful transaction and get output from it.
+    let provider = init(|node| node.no_mine()).await?;
+
+    let tx = TransactionRequest::default()
+        .with_from(RICH_WALLET0)
+        .with_to(address!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"))
+        .with_value(U256::from(100));
+    provider.send_transaction(tx).await?.register().await?;
+
+    // Mine a block manually and assert that it has our transaction with extra fields
+    let block = provider.mine_detailed().await?;
+    assert_eq!(block.transactions.len(), 1);
+    let actual_tx = block
+        .transactions
+        .clone()
+        .into_transactions()
+        .next()
+        .unwrap();
+
+    assert_eq!(
+        actual_tx.other.get("output").and_then(|x| x.as_str()),
+        Some("0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000")
+    );
+    assert!(actual_tx.other.get("revertReason").is_none());
+
+    Ok(())
+}

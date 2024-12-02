@@ -1,3 +1,4 @@
+use crate::namespaces::DetailedTransaction;
 use crate::node::pool::TxBatch;
 use crate::node::sealer::BlockSealerMode;
 use crate::utils::Numeric;
@@ -10,11 +11,12 @@ use crate::{
 use anyhow::{anyhow, Context};
 use std::convert::TryInto;
 use std::time::Duration;
-use zksync_multivm::interface::TxExecutionMode;
+use zksync_multivm::interface::{ExecutionResult, TxExecutionMode};
+use zksync_types::api::{Block, TransactionVariant};
 use zksync_types::{
     get_code_key, get_nonce_key,
     utils::{nonces_to_full_nonce, storage_key_for_eth_balance},
-    StorageKey,
+    L2BlockNumber, StorageKey,
 };
 use zksync_types::{AccountTreeId, Address, H256, U256, U64};
 use zksync_utils::u256_to_h256;
@@ -74,7 +76,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
     ///
     /// # Returns
     /// The string "0x0".
-    pub fn mine_block(&self) -> Result<String> {
+    pub fn mine_block(&self) -> Result<L2BlockNumber> {
         // TODO: Remove locking once `TestNodeConfig` is refactored into mutable/immutable components
         let max_transactions = self.read_inner()?.config.max_transactions;
         let TxBatch { impersonating, txs } =
@@ -89,7 +91,47 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
 
         let block_number = self.seal_block(&mut self.time.lock(), txs, base_system_contracts)?;
         tracing::info!("👷 Mined block #{}", block_number);
-        Ok("0x0".to_string())
+        Ok(block_number)
+    }
+
+    pub fn mine_detailed(&self) -> Result<Block<DetailedTransaction>> {
+        let block_number = self.mine_block()?;
+        let inner = self.read_inner()?;
+        let mut block = inner
+            .block_hashes
+            .get(&(block_number.0 as u64))
+            .and_then(|hash| inner.blocks.get(hash))
+            .expect("freshly mined block is missing from storage")
+            .clone();
+        let detailed_txs = std::mem::take(&mut block.transactions)
+            .into_iter()
+            .map(|tx| match tx {
+                TransactionVariant::Full(tx) => {
+                    let tx_result = inner
+                        .tx_results
+                        .get(&tx.hash)
+                        .expect("freshly executed tx is missing from storage");
+                    let (output, revert_reason) = match &tx_result.info.result.result {
+                        ExecutionResult::Success { output } => (Some(output.clone().into()), None),
+                        ExecutionResult::Revert { output } => (
+                            Some(output.encoded_data().into()),
+                            Some(output.to_user_friendly_string()),
+                        ),
+                        // Halted transaction should never be a part of a block
+                        ExecutionResult::Halt { .. } => unreachable!(),
+                    };
+                    DetailedTransaction {
+                        inner: tx,
+                        output,
+                        revert_reason,
+                    }
+                }
+                TransactionVariant::Hash(_) => {
+                    unreachable!()
+                }
+            })
+            .collect();
+        Ok(block.with_transactions(detailed_txs))
     }
 
     /// Snapshot the state of the blockchain at the current block. Takes no parameters. Returns the id of the snapshot
@@ -945,7 +987,7 @@ mod tests {
             .unwrap()
             .expect("block exists");
         let result = node.mine_block().expect("mine_block");
-        assert_eq!(&result, "0x0");
+        assert_eq!(result, L2BlockNumber(1));
 
         let current_block = node
             .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
@@ -957,7 +999,7 @@ mod tests {
         assert_eq!(start_block.timestamp + 1, current_block.timestamp);
 
         let result = node.mine_block().expect("mine_block");
-        assert_eq!(&result, "0x0");
+        assert_eq!(result, L2BlockNumber(start_block.number.as_u32() + 2));
 
         let current_block = node
             .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)

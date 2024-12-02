@@ -10,7 +10,7 @@ categories = ["cryptography"]
 publish = false
 
 [dependencies]
-alloy-zksync = { git = "https://github.com/itegulov/alloy-zksync.git", rev = "e0e54a5ac9e24c1c32c7a8783bbf3e34dde2e218" }
+alloy-zksync = { git = "https://github.com/itegulov/alloy-zksync.git", rev = "c43bba1a6c5e744afb975b261cba6e964d6a58c6" }
 alloy = { version = "0.6", features = ["full", "rlp", "serde", "sol-types"] }
 anyhow = "1.0"
 fs2 = "0.4.3"
