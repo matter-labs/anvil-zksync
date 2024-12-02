@@ -1,15 +1,15 @@
 //! In-memory node, that supports forking other networks.
+use anyhow::{anyhow, Context as _};
+use colored::Colorize;
+use indexmap::IndexMap;
+use once_cell::sync::OnceCell;
+use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 use std::{
     collections::{HashMap, HashSet},
     convert::TryInto,
     str::FromStr,
     sync::{Arc, RwLock},
 };
-
-use anyhow::Context as _;
-use colored::Colorize;
-use indexmap::IndexMap;
-use once_cell::sync::OnceCell;
 use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::{
     interface::{
@@ -1039,6 +1039,18 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
     pub fn get_inner(&self) -> Arc<RwLock<InMemoryNodeInner<S>>> {
         self.inner.clone()
+    }
+
+    pub fn read_inner(&self) -> anyhow::Result<RwLockReadGuard<'_, InMemoryNodeInner<S>>> {
+        self.inner
+            .read()
+            .map_err(|e| anyhow!("InMemoryNode lock is poisoned: {}", e))
+    }
+
+    pub fn write_inner(&self) -> anyhow::Result<RwLockWriteGuard<'_, InMemoryNodeInner<S>>> {
+        self.inner
+            .write()
+            .map_err(|e| anyhow!("InMemoryNode lock is poisoned: {}", e))
     }
 
     pub fn get_cache_config(&self) -> Result<CacheConfig, String> {

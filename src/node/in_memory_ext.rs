@@ -74,9 +74,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
     /// The string "0x0".
     pub fn mine_block(&self) -> Result<String> {
         let bootloader_code = self
-            .get_inner()
-            .read()
-            .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
+            .read_inner()
             .map(|inner| inner.system_contracts.contracts_for_l2_call().clone())?;
         let block_number =
             self.seal_block(&mut self.time.lock(), vec![], bootloader_code.clone())?;
@@ -93,37 +91,34 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
     /// The `U64` identifier for this snapshot.
     pub fn snapshot(&self) -> Result<U64> {
         let snapshots = self.snapshots.clone();
-        self.get_inner()
-            .write()
-            .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
-            .and_then(|writer| {
-                // validate max snapshots
-                snapshots
-                    .read()
-                    .map_err(|err| anyhow!("failed acquiring read lock for snapshot: {:?}", err))
-                    .and_then(|snapshots| {
-                        if snapshots.len() >= MAX_SNAPSHOTS as usize {
-                            return Err(anyhow!(
-                                "maximum number of '{}' snapshots exceeded",
-                                MAX_SNAPSHOTS
-                            ));
-                        }
+        self.read_inner().and_then(|writer| {
+            // validate max snapshots
+            snapshots
+                .read()
+                .map_err(|err| anyhow!("failed acquiring read lock for snapshot: {:?}", err))
+                .and_then(|snapshots| {
+                    if snapshots.len() >= MAX_SNAPSHOTS as usize {
+                        return Err(anyhow!(
+                            "maximum number of '{}' snapshots exceeded",
+                            MAX_SNAPSHOTS
+                        ));
+                    }
 
-                        Ok(())
-                    })?;
+                    Ok(())
+                })?;
 
-                // snapshot the node
-                let snapshot = writer.snapshot().map_err(|err| anyhow!("{}", err))?;
-                snapshots
-                    .write()
-                    .map(|mut snapshots| {
-                        snapshots.push(snapshot);
-                        tracing::info!("Created snapshot '{}'", snapshots.len());
-                        snapshots.len()
-                    })
-                    .map_err(|err| anyhow!("failed storing snapshot: {:?}", err))
-                    .map(U64::from)
-            })
+            // snapshot the node
+            let snapshot = writer.snapshot().map_err(|err| anyhow!("{}", err))?;
+            snapshots
+                .write()
+                .map(|mut snapshots| {
+                    snapshots.push(snapshot);
+                    tracing::info!("Created snapshot '{}'", snapshots.len());
+                    snapshots.len()
+                })
+                .map_err(|err| anyhow!("failed storing snapshot: {:?}", err))
+                .map(U64::from)
+        })
     }
 
     /// Revert the state of the blockchain to a previous snapshot. Takes a single parameter,
@@ -137,70 +132,61 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
     /// `true` if a snapshot was reverted, otherwise `false`.
     pub fn revert_snapshot(&self, snapshot_id: U64) -> Result<bool> {
         let snapshots = self.snapshots.clone();
-        self.get_inner()
-            .write()
-            .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
-            .and_then(|mut writer| {
-                let mut snapshots = snapshots.write().map_err(|err| {
-                    anyhow!("failed acquiring read lock for snapshots: {:?}", err)
-                })?;
-                let snapshot_id_index = snapshot_id.as_usize().saturating_sub(1);
-                if snapshot_id_index >= snapshots.len() {
-                    return Err(anyhow!("no snapshot exists for the id '{}'", snapshot_id));
-                }
+        self.write_inner().and_then(|mut writer| {
+            let mut snapshots = snapshots
+                .write()
+                .map_err(|err| anyhow!("failed acquiring read lock for snapshots: {:?}", err))?;
+            let snapshot_id_index = snapshot_id.as_usize().saturating_sub(1);
+            if snapshot_id_index >= snapshots.len() {
+                return Err(anyhow!("no snapshot exists for the id '{}'", snapshot_id));
+            }
 
-                // remove all snapshots following the index and use the first snapshot for restore
-                let selected_snapshot = snapshots
-                    .drain(snapshot_id_index..)
-                    .next()
-                    .expect("unexpected failure, value must exist");
+            // remove all snapshots following the index and use the first snapshot for restore
+            let selected_snapshot = snapshots
+                .drain(snapshot_id_index..)
+                .next()
+                .expect("unexpected failure, value must exist");
 
-                tracing::info!("Reverting node to snapshot '{snapshot_id:?}'");
-                writer
-                    .restore_snapshot(selected_snapshot)
-                    .map(|_| {
-                        tracing::info!("Reverting node to snapshot '{snapshot_id:?}'");
-                        true
-                    })
-                    .map_err(|err| anyhow!("{}", err))
-            })
+            tracing::info!("Reverting node to snapshot '{snapshot_id:?}'");
+            writer
+                .restore_snapshot(selected_snapshot)
+                .map(|_| {
+                    tracing::info!("Reverting node to snapshot '{snapshot_id:?}'");
+                    true
+                })
+                .map_err(|err| anyhow!("{}", err))
+        })
     }
 
     pub fn set_balance(&self, address: Address, balance: U256) -> Result<bool> {
-        self.get_inner()
-            .write()
-            .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
-            .map(|mut writer| {
-                let balance_key = storage_key_for_eth_balance(&address);
-                writer
-                    .fork_storage
-                    .set_value(balance_key, u256_to_h256(balance));
-                tracing::info!(
-                    "👷 Balance for address {:?} has been manually set to {} Wei",
-                    address,
-                    balance
-                );
-                true
-            })
+        self.write_inner().map(|mut writer| {
+            let balance_key = storage_key_for_eth_balance(&address);
+            writer
+                .fork_storage
+                .set_value(balance_key, u256_to_h256(balance));
+            tracing::info!(
+                "👷 Balance for address {:?} has been manually set to {} Wei",
+                address,
+                balance
+            );
+            true
+        })
     }
 
     pub fn set_nonce(&self, address: Address, nonce: U256) -> Result<bool> {
-        self.get_inner()
-            .write()
-            .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
-            .map(|mut writer| {
-                let nonce_key = get_nonce_key(&address);
-                let enforced_full_nonce = nonces_to_full_nonce(nonce, nonce);
-                tracing::info!(
-                    "👷 Nonces for address {:?} have been set to {}",
-                    address,
-                    nonce
-                );
-                writer
-                    .fork_storage
-                    .set_value(nonce_key, u256_to_h256(enforced_full_nonce));
-                true
-            })
+        self.write_inner().map(|mut writer| {
+            let nonce_key = get_nonce_key(&address);
+            let enforced_full_nonce = nonces_to_full_nonce(nonce, nonce);
+            tracing::info!(
+                "👷 Nonces for address {:?} have been set to {}",
+                address,
+                nonce
+            );
+            writer
+                .fork_storage
+                .set_value(nonce_key, u256_to_h256(enforced_full_nonce));
+            true
+        })
     }
 
     pub fn mine_blocks(&self, num_blocks: Option<U64>, interval: Option<U64>) -> Result<()> {
@@ -215,9 +201,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
         }
 
         let bootloader_code = self
-            .get_inner()
-            .read()
-            .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
+            .read_inner()
             .map(|inner| inner.system_contracts.contracts_for_l2_call().clone())?;
         let mut time = self
             .time
@@ -314,42 +298,36 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
     }
 
     pub fn set_code(&self, address: Address, code: String) -> Result<()> {
-        self.get_inner()
-            .write()
-            .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
-            .and_then(|mut writer| {
-                let code_key = get_code_key(&address);
-                tracing::info!("set code for address {address:#x}");
-                let code_slice = code
-                    .strip_prefix("0x")
-                    .ok_or_else(|| anyhow!("code must be 0x-prefixed"))?;
-                let code_bytes = hex::decode(code_slice)?;
-                let hashcode = bytecode_to_factory_dep(code_bytes)?;
-                let hash = u256_to_h256(hashcode.0);
-                let code = hashcode
-                    .1
-                    .iter()
-                    .flat_map(|entry| {
-                        let mut bytes = vec![0u8; 32];
-                        entry.to_big_endian(&mut bytes);
-                        bytes.to_vec()
-                    })
-                    .collect();
-                writer.fork_storage.store_factory_dep(hash, code);
-                writer.fork_storage.set_value(code_key, hash);
-                Ok(())
-            })
+        self.write_inner().and_then(|mut writer| {
+            let code_key = get_code_key(&address);
+            tracing::info!("set code for address {address:#x}");
+            let code_slice = code
+                .strip_prefix("0x")
+                .ok_or_else(|| anyhow!("code must be 0x-prefixed"))?;
+            let code_bytes = hex::decode(code_slice)?;
+            let hashcode = bytecode_to_factory_dep(code_bytes)?;
+            let hash = u256_to_h256(hashcode.0);
+            let code = hashcode
+                .1
+                .iter()
+                .flat_map(|entry| {
+                    let mut bytes = vec![0u8; 32];
+                    entry.to_big_endian(&mut bytes);
+                    bytes.to_vec()
+                })
+                .collect();
+            writer.fork_storage.store_factory_dep(hash, code);
+            writer.fork_storage.set_value(code_key, hash);
+            Ok(())
+        })
     }
 
     pub fn set_storage_at(&self, address: Address, slot: U256, value: U256) -> Result<bool> {
-        self.get_inner()
-            .write()
-            .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
-            .map(|mut writer| {
-                let key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(slot));
-                writer.fork_storage.set_value(key, u256_to_h256(value));
-                true
-            })
+        self.write_inner().map(|mut writer| {
+            let key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(slot));
+            writer.fork_storage.set_value(key, u256_to_h256(value));
+            true
+        })
     }
 
     pub fn set_logging_enabled(&self, enable: bool) -> Result<()> {
@@ -720,12 +698,7 @@ mod tests {
         let value = U256::from(42);
 
         let key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(slot));
-        let value_before = node
-            .get_inner()
-            .write()
-            .unwrap()
-            .fork_storage
-            .read_value(&key);
+        let value_before = node.write_inner().unwrap().fork_storage.read_value(&key);
         assert_eq!(H256::default(), value_before);
 
         let result = node
@@ -733,12 +706,7 @@ mod tests {
             .expect("failed setting value");
         assert!(result);
 
-        let value_after = node
-            .get_inner()
-            .write()
-            .unwrap()
-            .fork_storage
-            .read_value(&key);
+        let value_after = node.write_inner().unwrap().fork_storage.read_value(&key);
         assert_eq!(value, h256_to_u256(value_after));
     }
 
