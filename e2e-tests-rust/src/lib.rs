@@ -1,6 +1,8 @@
+use alloy::network::Network;
 use alloy::primitives::{Address, TxHash};
 use alloy::providers::{Provider, ProviderCall};
 use alloy::rpc::client::NoParams;
+use alloy::serde::WithOtherFields;
 use alloy::transports::Transport;
 use alloy_zksync::network::Zksync;
 
@@ -50,6 +52,19 @@ where
         self.client()
             .request("anvil_mine", (num_blocks, interval))
             .into()
+    }
+
+    fn mine_detailed(
+        &self,
+    ) -> ProviderCall<
+        T,
+        NoParams,
+        alloy::rpc::types::Block<
+            WithOtherFields<<Zksync as Network>::TransactionResponse>,
+            <Zksync as Network>::HeaderResponse,
+        >,
+    > {
+        self.client().request_noparams("anvil_mine_detailed").into()
     }
 }
 
