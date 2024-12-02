@@ -6,16 +6,17 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use anyhow::Context as _;
 use colored::Colorize;
 use indexmap::IndexMap;
 use once_cell::sync::OnceCell;
 use zksync_contracts::BaseSystemContracts;
+use zksync_multivm::vm_latest::HistoryEnabled;
 use zksync_multivm::{
     interface::{
         storage::{ReadStorage, StoragePtr, WriteStorage},
         Call, ExecutionResult, InspectExecutionMode, L1BatchEnv, L2Block, L2BlockEnv, SystemEnv,
         TxExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt,
+        VmInterfaceHistoryEnabled,
     },
     tracers::CallTracer,
     utils::{
@@ -1770,8 +1771,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         let (batch_env, mut block_ctx) = inner.create_l1_batch_env(time, storage.clone());
         drop(inner);
 
-        let mut vm: Vm<_, HistoryDisabled> =
-            Vm::new(batch_env.clone(), system_env, storage.clone());
+        let mut vm: Vm<_, HistoryEnabled> = Vm::new(batch_env.clone(), system_env, storage.clone());
 
         // Compute block hash. Note that the computed block hash here will be different than that in production.
         let tx_hashes = txs.iter().map(|t| t.hash()).collect::<Vec<_>>();
@@ -1780,7 +1780,15 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
         // Execute transactions and bootloader
         for tx in txs {
-            self.run_l2_tx(tx, &block_ctx, &batch_env, &mut vm)?;
+            // Executing a next transaction means that a previous transaction was either rolled back (in which case its snapshot
+            // was already removed), or that we build on top of it (in which case, it can be removed now).
+            vm.pop_snapshot_no_rollback();
+            // Save pre-execution VM snapshot.
+            vm.make_snapshot();
+            if let Err(e) = self.run_l2_tx(tx, &block_ctx, &batch_env, &mut vm) {
+                tracing::error!("Error while executing transaction: {e}");
+                vm.rollback_to_the_latest_snapshot();
+            }
         }
         vm.execute(InspectExecutionMode::Bootloader);
 
@@ -1796,10 +1804,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         let mut transactions = Vec::new();
         let mut tx_results = Vec::new();
         for tx_hash in &tx_hashes {
-            let tx_result = inner
-                .tx_results
-                .get(tx_hash)
-                .context("tx result was not saved after a successful execution")?;
+            let Some(tx_result) = inner.tx_results.get(tx_hash) else {
+                // Skipping halted transaction
+                continue;
+            };
             tx_results.push(&tx_result.info.result);
 
             let mut transaction = zksync_types::api::Transaction::from(tx_result.info.tx.clone());

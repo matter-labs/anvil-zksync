@@ -41,6 +41,18 @@ where
             .request("anvil_removePoolTransactions", (address,))
             .into()
     }
+
+    fn impersonate(&self, address: Address) -> ProviderCall<T, (Address,), bool> {
+        self.client()
+            .request("anvil_impersonateAccount", (address,))
+            .into()
+    }
+
+    fn stop_impersonating(&self, address: Address) -> ProviderCall<T, (Address,), bool> {
+        self.client()
+            .request("anvil_stopImpersonatingAccount", (address,))
+            .into()
+    }
 }
 
 impl<P, T> EraTestNodeApiProvider<T> for P
