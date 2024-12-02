@@ -391,8 +391,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
                         fair_pubdata_price: Some(reader.fee_input_provider.fair_pubdata_price()),
                         base_system_contracts_hashes: reader
                             .system_contracts
-                            .baseline_contracts
-                            .hashes(),
+                            .base_system_contracts_hashes(),
                     },
                     operator_address: Address::zero(),
                     protocol_version: Some(ProtocolVersionId::latest()),

@@ -1,5 +1,7 @@
+use crate::system_contracts::Options;
 use once_cell::sync::Lazy;
 use serde_json::Value;
+use zksync_types::system_contracts::get_system_smart_contracts;
 use zksync_types::{
     block::DeployedContract, ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS,
     BOOTLOADER_UTILITIES_ADDRESS, CODE_ORACLE_ADDRESS, COMPRESSOR_ADDRESS,
@@ -190,3 +192,13 @@ pub static COMPILED_IN_SYSTEM_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new
     deployed_system_contracts.extend(empty_system_contracts);
     deployed_system_contracts
 });
+
+pub fn get_deployed_contracts(
+    options: &Options,
+    use_evm_emulator: bool,
+) -> Vec<zksync_types::block::DeployedContract> {
+    match options {
+        Options::BuiltIn | Options::BuiltInWithoutSecurity => COMPILED_IN_SYSTEM_CONTRACTS.clone(),
+        Options::Local => get_system_smart_contracts(use_evm_emulator),
+    }
+}
