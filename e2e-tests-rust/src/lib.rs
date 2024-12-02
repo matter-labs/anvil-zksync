@@ -41,6 +41,16 @@ where
             .request("anvil_removePoolTransactions", (address,))
             .into()
     }
+
+    fn mine(
+        &self,
+        num_blocks: Option<u64>,
+        interval: Option<u64>,
+    ) -> ProviderCall<T, (Option<u64>, Option<u64>), ()> {
+        self.client()
+            .request("anvil_mine", (num_blocks, interval))
+            .into()
+    }
 }
 
 impl<P, T> EraTestNodeApiProvider<T> for P

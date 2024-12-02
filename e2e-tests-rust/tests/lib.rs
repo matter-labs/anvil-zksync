@@ -128,8 +128,14 @@ async fn no_sealing_timeout() -> anyhow::Result<()> {
         .with_to(address!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"))
         .with_value(U256::from(100));
     let pending_tx = provider.send_transaction(tx).await?.register().await?;
+    let tx_hash = pending_tx.tx_hash().clone();
     let finalization_result = tokio::time::timeout(Duration::from_secs(3), pending_tx).await;
     assert!(finalization_result.is_err());
+
+    // Mine a block manually and assert that the transaction is finalized now
+    provider.mine(None, None).await?;
+    let receipt = provider.get_transaction_receipt(tx_hash).await?.unwrap();
+    assert!(receipt.status());
 
     Ok(())
 }
@@ -272,6 +278,42 @@ async fn remove_pool_transactions() -> anyhow::Result<()> {
         .await?
         .unwrap();
     assert!(receipt.status());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn manual_mining_two_txs_in_one_block() -> anyhow::Result<()> {
+    // Test that we can submit two transaction and then manually mine one block that contains both
+    // transactions in it.
+    let provider = init(|node| node.no_mine()).await?;
+
+    let tx0 = TransactionRequest::default()
+        .with_from(RICH_WALLET0)
+        .with_to(address!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"))
+        .with_value(U256::from(100));
+    let pending_tx0 = provider.send_transaction(tx0).await?.register().await?;
+    let tx1 = TransactionRequest::default()
+        .with_from(RICH_WALLET1)
+        .with_to(address!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"))
+        .with_value(U256::from(100));
+    let pending_tx1 = provider.send_transaction(tx1).await?.register().await?;
+
+    // Mine a block manually and assert that both transactions are finalized now
+    provider.mine(None, None).await?;
+    let receipt0 = provider
+        .get_transaction_receipt(pending_tx0.await?)
+        .await?
+        .unwrap();
+    assert!(receipt0.status());
+    let receipt1 = provider
+        .get_transaction_receipt(pending_tx1.await?)
+        .await?
+        .unwrap();
+    assert!(receipt1.status());
+
+    assert_eq!(receipt0.block_hash(), receipt1.block_hash());
+    assert_eq!(receipt0.block_number(), receipt1.block_number());
 
     Ok(())
 }

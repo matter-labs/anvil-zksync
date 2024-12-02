@@ -1,3 +1,4 @@
+use crate::node::pool::TxBatch;
 use crate::node::sealer::BlockSealerMode;
 use crate::utils::Numeric;
 use crate::{
@@ -9,6 +10,7 @@ use crate::{
 use anyhow::{anyhow, Context};
 use std::convert::TryInto;
 use std::time::Duration;
+use zksync_multivm::interface::TxExecutionMode;
 use zksync_types::{
     get_code_key, get_nonce_key,
     utils::{nonces_to_full_nonce, storage_key_for_eth_balance},
@@ -73,9 +75,19 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
     /// # Returns
     /// The string "0x0".
     pub fn mine_block(&self) -> Result<String> {
-        let bootloader_code = self.system_contracts.contracts_for_l2_call().clone();
-        let block_number =
-            self.seal_block(&mut self.time.lock(), vec![], bootloader_code.clone())?;
+        // TODO: Remove locking once `TestNodeConfig` is refactored into mutable/immutable components
+        let max_transactions = self.read_inner()?.config.max_transactions;
+        let TxBatch { impersonating, txs } =
+            self.pool.take_uniform(max_transactions).unwrap_or(TxBatch {
+                impersonating: false,
+                txs: Vec::new(),
+            });
+        let base_system_contracts = self
+            .system_contracts
+            .contracts(TxExecutionMode::VerifyExecute, impersonating)
+            .clone();
+
+        let block_number = self.seal_block(&mut self.time.lock(), txs, base_system_contracts)?;
         tracing::info!("👷 Mined block #{}", block_number);
         Ok("0x0".to_string())
     }
@@ -198,12 +210,22 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
             anyhow::bail!("Provided interval is `0`; unable to produce {num_blocks} blocks with the same timestamp");
         }
 
-        let bootloader_code = self.system_contracts.contracts_for_l2_call();
+        // TODO: Remove locking once `TestNodeConfig` is refactored into mutable/immutable components
+        let max_transactions = self.read_inner()?.config.max_transactions;
         let mut time = self
             .time
             .lock_with_offsets((0..num_blocks).map(|i| i * interval_sec));
         for _ in 0..num_blocks {
-            self.seal_block(&mut time, vec![], bootloader_code.clone())?;
+            let TxBatch { impersonating, txs } =
+                self.pool.take_uniform(max_transactions).unwrap_or(TxBatch {
+                    impersonating: false,
+                    txs: Vec::new(),
+                });
+            let base_system_contracts = self
+                .system_contracts
+                .contracts(TxExecutionMode::VerifyExecute, impersonating)
+                .clone();
+            self.seal_block(&mut time, txs, base_system_contracts)?;
         }
         tracing::info!("👷 Mined {} blocks", num_blocks);
 
