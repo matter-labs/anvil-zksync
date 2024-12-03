@@ -23,6 +23,11 @@ impl TxPool {
         guard.push(tx);
     }
 
+    pub fn add_txs(&self, txs: impl IntoIterator<Item = L2Tx>) {
+        let mut guard = self.inner.write().expect("TxPool lock is poisoned");
+        guard.extend(txs);
+    }
+
     /// Removes a single transaction from the pool
     pub fn drop_transaction(&self, hash: H256) -> Option<L2Tx> {
         let mut guard = self.inner.write().expect("TxPool lock is poisoned");

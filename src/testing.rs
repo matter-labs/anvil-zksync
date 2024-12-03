@@ -491,7 +491,7 @@ pub fn apply_tx<T: ForkSource + std::fmt::Debug + Clone>(
         tx.common_data.initiator_address,
         U256::from(100u128 * 10u128.pow(18)),
     );
-    node.apply_txs(vec![tx.clone()])
+    node.apply_txs(vec![tx.clone()], 1)
         .expect("failed applying tx");
 
     (produced_block_hash, U64::from(next_miniblock), tx)
@@ -574,7 +574,8 @@ pub fn deploy_contract<T: ForkSource + std::fmt::Debug + Clone>(
     )
     .expect("failed signing tx");
     tx.set_input(vec![], tx_hash);
-    node.apply_txs(vec![tx]).expect("failed deploying contract");
+    node.apply_txs(vec![tx], 1)
+        .expect("failed deploying contract");
 
     produced_block_hash
 }
