@@ -145,6 +145,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> DebugNames
         let only_top = options.is_some_and(|o| o.tracer_config.only_top_call);
         let inner = self.get_inner().clone();
         let time = self.time.clone();
+        let system_contracts = self.system_contracts.contracts_for_l2_call().clone();
         Box::pin(async move {
             if block.is_some() && !matches!(block, Some(BlockId::Number(BlockNumber::Latest))) {
                 return Err(jsonrpc_core::Error::invalid_params(
@@ -158,7 +159,6 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> DebugNames
                 )))
             })?;
 
-            let system_contracts = inner.system_contracts.contracts_for_l2_call();
             let allow_no_target = system_contracts.evm_emulator.is_some();
             let mut l2_tx = L2Tx::from_request(request.into(), MAX_TX_SIZE, allow_no_target)
                 .map_err(|err| into_jsrpc_error(Web3Error::SerializationError(err)))?;

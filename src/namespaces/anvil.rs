@@ -1,11 +1,21 @@
-use jsonrpc_derive::rpc;
-use zksync_types::{Address, H256, U256, U64};
-
 use super::{ResetRequest, RpcResult};
 use crate::utils::Numeric;
+use jsonrpc_derive::rpc;
+use serde::{Deserialize, Serialize};
+use zksync_types::api::{Block, Transaction};
+use zksync_types::web3::Bytes;
+use zksync_types::{Address, H256, U256, U64};
 
 #[rpc]
 pub trait AnvilNamespaceT {
+    /// Mines a single block in the same way as `evm_mine` but returns extra fields.
+    ///
+    ///
+    /// # Returns
+    /// Freshly mined block's representation along with extra fields.
+    #[rpc(name = "anvil_mine_detailed")]
+    fn mine_detailed(&self) -> RpcResult<Block<DetailedTransaction>>;
+
     /// Sets the fork RPC url. Assumes the underlying chain is the same as before.
     ///
     /// # Arguments
@@ -277,4 +287,17 @@ pub trait AnvilNamespaceT {
     /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
     #[rpc(name = "anvil_setStorageAt")]
     fn set_storage_at(&self, address: Address, slot: U256, value: U256) -> RpcResult<bool>;
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct DetailedTransaction {
+    #[serde(flatten)]
+    pub inner: Transaction,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub output: Option<Bytes>,
+    #[serde(rename = "revertReason")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub revert_reason: Option<String>,
 }

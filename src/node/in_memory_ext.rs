@@ -1,3 +1,5 @@
+use crate::namespaces::DetailedTransaction;
+use crate::node::pool::TxBatch;
 use crate::node::sealer::BlockSealerMode;
 use crate::utils::Numeric;
 use crate::{
@@ -9,10 +11,12 @@ use crate::{
 use anyhow::{anyhow, Context};
 use std::convert::TryInto;
 use std::time::Duration;
+use zksync_multivm::interface::{ExecutionResult, TxExecutionMode};
+use zksync_types::api::{Block, TransactionVariant};
 use zksync_types::{
     get_code_key, get_nonce_key,
     utils::{nonces_to_full_nonce, storage_key_for_eth_balance},
-    StorageKey,
+    L2BlockNumber, StorageKey,
 };
 use zksync_types::{AccountTreeId, Address, H256, U256, U64};
 use zksync_utils::u256_to_h256;
@@ -72,16 +76,62 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
     ///
     /// # Returns
     /// The string "0x0".
-    pub fn mine_block(&self) -> Result<String> {
-        let bootloader_code = self
-            .get_inner()
-            .read()
-            .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
-            .map(|inner| inner.system_contracts.contracts_for_l2_call().clone())?;
-        let block_number =
-            self.seal_block(&mut self.time.lock(), vec![], bootloader_code.clone())?;
+    pub fn mine_block(&self) -> Result<L2BlockNumber> {
+        // TODO: Remove locking once `TestNodeConfig` is refactored into mutable/immutable components
+        let max_transactions = self.read_inner()?.config.max_transactions;
+        let TxBatch { impersonating, txs } =
+            self.pool.take_uniform(max_transactions).unwrap_or(TxBatch {
+                impersonating: false,
+                txs: Vec::new(),
+            });
+        let base_system_contracts = self
+            .system_contracts
+            .contracts(TxExecutionMode::VerifyExecute, impersonating)
+            .clone();
+
+        let block_number = self.seal_block(&mut self.time.lock(), txs, base_system_contracts)?;
         tracing::info!("👷 Mined block #{}", block_number);
-        Ok("0x0".to_string())
+        Ok(block_number)
+    }
+
+    pub fn mine_detailed(&self) -> Result<Block<DetailedTransaction>> {
+        let block_number = self.mine_block()?;
+        let inner = self.read_inner()?;
+        let mut block = inner
+            .block_hashes
+            .get(&(block_number.0 as u64))
+            .and_then(|hash| inner.blocks.get(hash))
+            .expect("freshly mined block is missing from storage")
+            .clone();
+        let detailed_txs = std::mem::take(&mut block.transactions)
+            .into_iter()
+            .map(|tx| match tx {
+                TransactionVariant::Full(tx) => {
+                    let tx_result = inner
+                        .tx_results
+                        .get(&tx.hash)
+                        .expect("freshly executed tx is missing from storage");
+                    let (output, revert_reason) = match &tx_result.info.result.result {
+                        ExecutionResult::Success { output } => (Some(output.clone().into()), None),
+                        ExecutionResult::Revert { output } => (
+                            Some(output.encoded_data().into()),
+                            Some(output.to_user_friendly_string()),
+                        ),
+                        // Halted transaction should never be a part of a block
+                        ExecutionResult::Halt { .. } => unreachable!(),
+                    };
+                    DetailedTransaction {
+                        inner: tx,
+                        output,
+                        revert_reason,
+                    }
+                }
+                TransactionVariant::Hash(_) => {
+                    unreachable!()
+                }
+            })
+            .collect();
+        Ok(block.with_transactions(detailed_txs))
     }
 
     /// Snapshot the state of the blockchain at the current block. Takes no parameters. Returns the id of the snapshot
@@ -93,37 +143,34 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
     /// The `U64` identifier for this snapshot.
     pub fn snapshot(&self) -> Result<U64> {
         let snapshots = self.snapshots.clone();
-        self.get_inner()
-            .write()
-            .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
-            .and_then(|writer| {
-                // validate max snapshots
-                snapshots
-                    .read()
-                    .map_err(|err| anyhow!("failed acquiring read lock for snapshot: {:?}", err))
-                    .and_then(|snapshots| {
-                        if snapshots.len() >= MAX_SNAPSHOTS as usize {
-                            return Err(anyhow!(
-                                "maximum number of '{}' snapshots exceeded",
-                                MAX_SNAPSHOTS
-                            ));
-                        }
+        self.read_inner().and_then(|writer| {
+            // validate max snapshots
+            snapshots
+                .read()
+                .map_err(|err| anyhow!("failed acquiring read lock for snapshot: {:?}", err))
+                .and_then(|snapshots| {
+                    if snapshots.len() >= MAX_SNAPSHOTS as usize {
+                        return Err(anyhow!(
+                            "maximum number of '{}' snapshots exceeded",
+                            MAX_SNAPSHOTS
+                        ));
+                    }
 
-                        Ok(())
-                    })?;
+                    Ok(())
+                })?;
 
-                // snapshot the node
-                let snapshot = writer.snapshot().map_err(|err| anyhow!("{}", err))?;
-                snapshots
-                    .write()
-                    .map(|mut snapshots| {
-                        snapshots.push(snapshot);
-                        tracing::info!("Created snapshot '{}'", snapshots.len());
-                        snapshots.len()
-                    })
-                    .map_err(|err| anyhow!("failed storing snapshot: {:?}", err))
-                    .map(U64::from)
-            })
+            // snapshot the node
+            let snapshot = writer.snapshot().map_err(|err| anyhow!("{}", err))?;
+            snapshots
+                .write()
+                .map(|mut snapshots| {
+                    snapshots.push(snapshot);
+                    tracing::info!("Created snapshot '{}'", snapshots.len());
+                    snapshots.len()
+                })
+                .map_err(|err| anyhow!("failed storing snapshot: {:?}", err))
+                .map(U64::from)
+        })
     }
 
     /// Revert the state of the blockchain to a previous snapshot. Takes a single parameter,
@@ -137,70 +184,61 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
     /// `true` if a snapshot was reverted, otherwise `false`.
     pub fn revert_snapshot(&self, snapshot_id: U64) -> Result<bool> {
         let snapshots = self.snapshots.clone();
-        self.get_inner()
-            .write()
-            .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
-            .and_then(|mut writer| {
-                let mut snapshots = snapshots.write().map_err(|err| {
-                    anyhow!("failed acquiring read lock for snapshots: {:?}", err)
-                })?;
-                let snapshot_id_index = snapshot_id.as_usize().saturating_sub(1);
-                if snapshot_id_index >= snapshots.len() {
-                    return Err(anyhow!("no snapshot exists for the id '{}'", snapshot_id));
-                }
+        self.write_inner().and_then(|mut writer| {
+            let mut snapshots = snapshots
+                .write()
+                .map_err(|err| anyhow!("failed acquiring read lock for snapshots: {:?}", err))?;
+            let snapshot_id_index = snapshot_id.as_usize().saturating_sub(1);
+            if snapshot_id_index >= snapshots.len() {
+                return Err(anyhow!("no snapshot exists for the id '{}'", snapshot_id));
+            }
 
-                // remove all snapshots following the index and use the first snapshot for restore
-                let selected_snapshot = snapshots
-                    .drain(snapshot_id_index..)
-                    .next()
-                    .expect("unexpected failure, value must exist");
+            // remove all snapshots following the index and use the first snapshot for restore
+            let selected_snapshot = snapshots
+                .drain(snapshot_id_index..)
+                .next()
+                .expect("unexpected failure, value must exist");
 
-                tracing::info!("Reverting node to snapshot '{snapshot_id:?}'");
-                writer
-                    .restore_snapshot(selected_snapshot)
-                    .map(|_| {
-                        tracing::info!("Reverting node to snapshot '{snapshot_id:?}'");
-                        true
-                    })
-                    .map_err(|err| anyhow!("{}", err))
-            })
+            tracing::info!("Reverting node to snapshot '{snapshot_id:?}'");
+            writer
+                .restore_snapshot(selected_snapshot)
+                .map(|_| {
+                    tracing::info!("Reverting node to snapshot '{snapshot_id:?}'");
+                    true
+                })
+                .map_err(|err| anyhow!("{}", err))
+        })
     }
 
     pub fn set_balance(&self, address: Address, balance: U256) -> Result<bool> {
-        self.get_inner()
-            .write()
-            .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
-            .map(|mut writer| {
-                let balance_key = storage_key_for_eth_balance(&address);
-                writer
-                    .fork_storage
-                    .set_value(balance_key, u256_to_h256(balance));
-                tracing::info!(
-                    "👷 Balance for address {:?} has been manually set to {} Wei",
-                    address,
-                    balance
-                );
-                true
-            })
+        self.write_inner().map(|mut writer| {
+            let balance_key = storage_key_for_eth_balance(&address);
+            writer
+                .fork_storage
+                .set_value(balance_key, u256_to_h256(balance));
+            tracing::info!(
+                "👷 Balance for address {:?} has been manually set to {} Wei",
+                address,
+                balance
+            );
+            true
+        })
     }
 
     pub fn set_nonce(&self, address: Address, nonce: U256) -> Result<bool> {
-        self.get_inner()
-            .write()
-            .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
-            .map(|mut writer| {
-                let nonce_key = get_nonce_key(&address);
-                let enforced_full_nonce = nonces_to_full_nonce(nonce, nonce);
-                tracing::info!(
-                    "👷 Nonces for address {:?} have been set to {}",
-                    address,
-                    nonce
-                );
-                writer
-                    .fork_storage
-                    .set_value(nonce_key, u256_to_h256(enforced_full_nonce));
-                true
-            })
+        self.write_inner().map(|mut writer| {
+            let nonce_key = get_nonce_key(&address);
+            let enforced_full_nonce = nonces_to_full_nonce(nonce, nonce);
+            tracing::info!(
+                "👷 Nonces for address {:?} have been set to {}",
+                address,
+                nonce
+            );
+            writer
+                .fork_storage
+                .set_value(nonce_key, u256_to_h256(enforced_full_nonce));
+            true
+        })
     }
 
     pub fn mine_blocks(&self, num_blocks: Option<U64>, interval: Option<U64>) -> Result<()> {
@@ -214,16 +252,22 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
             anyhow::bail!("Provided interval is `0`; unable to produce {num_blocks} blocks with the same timestamp");
         }
 
-        let bootloader_code = self
-            .get_inner()
-            .read()
-            .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
-            .map(|inner| inner.system_contracts.contracts_for_l2_call().clone())?;
+        // TODO: Remove locking once `TestNodeConfig` is refactored into mutable/immutable components
+        let max_transactions = self.read_inner()?.config.max_transactions;
         let mut time = self
             .time
             .lock_with_offsets((0..num_blocks).map(|i| i * interval_sec));
         for _ in 0..num_blocks {
-            self.seal_block(&mut time, vec![], bootloader_code.clone())?;
+            let TxBatch { impersonating, txs } =
+                self.pool.take_uniform(max_transactions).unwrap_or(TxBatch {
+                    impersonating: false,
+                    txs: Vec::new(),
+                });
+            let base_system_contracts = self
+                .system_contracts
+                .contracts(TxExecutionMode::VerifyExecute, impersonating)
+                .clone();
+            self.seal_block(&mut time, txs, base_system_contracts)?;
         }
         tracing::info!("👷 Mined {} blocks", num_blocks);
 
@@ -314,42 +358,36 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
     }
 
     pub fn set_code(&self, address: Address, code: String) -> Result<()> {
-        self.get_inner()
-            .write()
-            .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
-            .and_then(|mut writer| {
-                let code_key = get_code_key(&address);
-                tracing::info!("set code for address {address:#x}");
-                let code_slice = code
-                    .strip_prefix("0x")
-                    .ok_or_else(|| anyhow!("code must be 0x-prefixed"))?;
-                let code_bytes = hex::decode(code_slice)?;
-                let hashcode = bytecode_to_factory_dep(code_bytes)?;
-                let hash = u256_to_h256(hashcode.0);
-                let code = hashcode
-                    .1
-                    .iter()
-                    .flat_map(|entry| {
-                        let mut bytes = vec![0u8; 32];
-                        entry.to_big_endian(&mut bytes);
-                        bytes.to_vec()
-                    })
-                    .collect();
-                writer.fork_storage.store_factory_dep(hash, code);
-                writer.fork_storage.set_value(code_key, hash);
-                Ok(())
-            })
+        self.write_inner().and_then(|mut writer| {
+            let code_key = get_code_key(&address);
+            tracing::info!("set code for address {address:#x}");
+            let code_slice = code
+                .strip_prefix("0x")
+                .ok_or_else(|| anyhow!("code must be 0x-prefixed"))?;
+            let code_bytes = hex::decode(code_slice)?;
+            let hashcode = bytecode_to_factory_dep(code_bytes)?;
+            let hash = u256_to_h256(hashcode.0);
+            let code = hashcode
+                .1
+                .iter()
+                .flat_map(|entry| {
+                    let mut bytes = vec![0u8; 32];
+                    entry.to_big_endian(&mut bytes);
+                    bytes.to_vec()
+                })
+                .collect();
+            writer.fork_storage.store_factory_dep(hash, code);
+            writer.fork_storage.set_value(code_key, hash);
+            Ok(())
+        })
     }
 
     pub fn set_storage_at(&self, address: Address, slot: U256, value: U256) -> Result<bool> {
-        self.get_inner()
-            .write()
-            .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))
-            .map(|mut writer| {
-                let key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(slot));
-                writer.fork_storage.set_value(key, u256_to_h256(value));
-                true
-            })
+        self.write_inner().map(|mut writer| {
+            let key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(slot));
+            writer.fork_storage.set_value(key, u256_to_h256(value));
+            true
+        })
     }
 
     pub fn set_logging_enabled(&self, enable: bool) -> Result<()> {
@@ -596,6 +634,7 @@ mod tests {
             observability: None,
             pool,
             sealer: BlockSealer::default(),
+            system_contracts: Default::default(),
         };
 
         let address = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap();
@@ -720,12 +759,7 @@ mod tests {
         let value = U256::from(42);
 
         let key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(slot));
-        let value_before = node
-            .get_inner()
-            .write()
-            .unwrap()
-            .fork_storage
-            .read_value(&key);
+        let value_before = node.write_inner().unwrap().fork_storage.read_value(&key);
         assert_eq!(H256::default(), value_before);
 
         let result = node
@@ -733,12 +767,7 @@ mod tests {
             .expect("failed setting value");
         assert!(result);
 
-        let value_after = node
-            .get_inner()
-            .write()
-            .unwrap()
-            .fork_storage
-            .read_value(&key);
+        let value_after = node.write_inner().unwrap().fork_storage.read_value(&key);
         assert_eq!(value, h256_to_u256(value_after));
     }
 
@@ -958,7 +987,7 @@ mod tests {
             .unwrap()
             .expect("block exists");
         let result = node.mine_block().expect("mine_block");
-        assert_eq!(&result, "0x0");
+        assert_eq!(result, L2BlockNumber(1));
 
         let current_block = node
             .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
@@ -970,7 +999,7 @@ mod tests {
         assert_eq!(start_block.timestamp + 1, current_block.timestamp);
 
         let result = node.mine_block().expect("mine_block");
-        assert_eq!(&result, "0x0");
+        assert_eq!(result, L2BlockNumber(start_block.number.as_u32() + 2));
 
         let current_block = node
             .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
