@@ -1,4 +1,4 @@
-//! Validation that zkSync Era In-Memory Node conforms to the official Ethereum Spec
+//! Validation that anvil-zksync conforms to the official Ethereum Spec
 
 use anvil_zksync_spec_tests::process::EraTestNodeRunner;
 use anvil_zksync_spec_tests::{EraApi, EthSpecPatch};

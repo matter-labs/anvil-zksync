@@ -232,7 +232,7 @@ pub trait AnvilNamespaceT {
     #[rpc(name = "anvil_reset")]
     fn reset_network(&self, reset_spec: Option<ResetRequest>) -> RpcResult<bool>;
 
-    /// Era Test Node allows transactions impersonating specific account and contract addresses.
+    /// anvil-zksync allows transactions impersonating specific account and contract addresses.
     /// To impersonate an account use this method, passing the address to impersonate as its parameter.
     /// After calling this method, any transactions with this sender will be executed without verification.
     /// Multiple addresses can be impersonated at once.

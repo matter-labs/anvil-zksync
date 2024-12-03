@@ -7,7 +7,7 @@ assignees: ''
 
 ---
 
-### 🐛 Bug Report for zkSync Era In-Memory Node
+### 🐛 Bug Report for anvil-zksync
 
 #### 📝 Description
 

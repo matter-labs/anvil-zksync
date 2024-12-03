@@ -1,12 +1,3 @@
-<div align="center">
-<a href="https://era.zksync.io/docs/tools/testing/anvil-zksync.html">
-
-![anvil-zksync](./.github/assets/era_test_node_banner_light.png#gh-light-mode-only)
-![anvil-zksync](./.github/assets/era_test_node_banner_dark.png#gh-dark-mode-only)
-</a>
-
-  </div>
-
 # 🚀 anvil-zksync 🚀
 
 > [!IMPORTANT]  
@@ -286,8 +277,8 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v2
 
-    - name: Run Era Test Node
-      uses: dutterbutter/anvil-zksync-action@v1
+    - name: Run anvil-zksync
+      uses: dutterbutter/anvil-zksync-action@latest
 ```
 
 ## 🤝 Contributing

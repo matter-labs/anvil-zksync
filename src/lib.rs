@@ -1,4 +1,4 @@
-//! zkSync Era In-Memory Node
+//! anvil-zksync
 //!
 //! The `anvil-zksync` crate provides an in-memory node designed primarily for local testing.
 //! It supports forking the state from other networks, making it a valuable tool for integration testing,

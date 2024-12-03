@@ -1,4 +1,4 @@
-//! In-memory node, that supports forking other networks.
+//! anvil-zksync, that supports forking other networks.
 
 mod anvil;
 mod block_producer;

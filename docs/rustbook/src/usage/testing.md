@@ -126,7 +126,7 @@ You can find this GitHub Action in the marketplace [here](https://github.com/mar
 ### Example Usage
 Below is an example yaml configuration to use the anvil-zksync GitHub Action in your workflow:
 ```yml
-name: Run Era Test Node Action
+name: Run anvil-zksync Action
 
 on:
   push:
@@ -140,6 +140,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Run Era Test Node
+      - name: Run anvil-zksync
         uses: dutterbutter/anvil-zksync-action@latest
 ```

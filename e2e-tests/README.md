@@ -1,4 +1,4 @@
-# Era Test Node E2E Tests project
+# anvil-zksync E2E Tests project
 
 This project is used for running e2e tests against `anvil-zksync`
 

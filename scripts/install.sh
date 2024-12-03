@@ -6,11 +6,11 @@ ANVIL_ZKSYNC_REPO="https://github.com/matter-labs/anvil-zksync"
 
 function script_usage() {
     cat << EOF
-Era Test Node Installer v0.1.0
+anvil-zksync Installer v0.1.0
 
 USAGE:
     -h | --help              Display help information
-    -v | --version           Downloads a specific version of Era Test Node              (default: latest release)
+    -v | --version           Downloads a specific version of anvil-zksync             (default: latest release)
     -d | --destination       The path to the folder where the binary will be installed  (default: /usr/local/bin)
 EOF
 }
@@ -46,13 +46,13 @@ function parse_args() {
 function main() {
     parse_args "$@"
 
-    echo "Running install script for Era Test Node..."
+    echo "Running install script for anvil-zksync..."
 
     get_os_info
     download_binary
     prepare_binary
 
-    echo "Era Test Node has been successfully installed!"
+    echo "anvil-zksync has been successfully installed!"
 }
 
 function prepare_binary() {

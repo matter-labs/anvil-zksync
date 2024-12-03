@@ -22,7 +22,7 @@ use std::net::IpAddr;
     author = "Matter Labs",
     version,
     about = "A fast and extensible local ZKsync test node.",
-    long_about = "Era Test Node\n\nA developer-friendly ZKsync local node for testing."
+    long_about = "anvil-zksync\n\nA developer-friendly ZKsync local node for testing."
 )]
 pub struct Cli {
     #[command(subcommand)]
