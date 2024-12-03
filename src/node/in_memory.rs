@@ -1227,6 +1227,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             .unwrap_or_default();
 
         if inner.config.show_tx_summary {
+            tracing::info!("");
             match &tx_result.result {
                 ExecutionResult::Success { output } => {
                     tracing::info!("Call: {}", "SUCCESS".green());
@@ -1243,12 +1244,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         }
 
         if !inner.config.disable_console_log {
-            for call in &call_traces {
-                inner.console_log_handler.handle_call_recursive(call);
-            }
+            inner.console_log_handler.handle_calls_recursive(&call_traces);
         }
 
         if inner.config.show_calls != ShowCalls::None {
+            tracing::info!("");
             tracing::info!(
                 "[Transaction Execution] ({} calls)",
                 call_traces[0].calls.len()
@@ -1425,9 +1425,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         }
 
         if !inner.config.disable_console_log {
-            for call in call_traces {
-                inner.console_log_handler.handle_call_recursive(call);
-            }
+            inner.console_log_handler.handle_calls_recursive(&call_traces);
         }
 
         if inner.config.show_calls != ShowCalls::None {

@@ -629,8 +629,6 @@ impl Formatter {
                 }
             }
         });
-
-        tracing::info!("");
     }
 }
 // Builds the branched prefix for the structured logs.
