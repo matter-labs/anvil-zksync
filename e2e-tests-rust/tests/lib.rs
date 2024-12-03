@@ -10,6 +10,7 @@ use alloy_zksync::node_bindings::EraTestNode;
 use alloy_zksync::provider::{zksync_provider, ProviderBuilderExt};
 use alloy_zksync::wallet::ZksyncWallet;
 use era_test_node_e2e_tests::utils::LockedPort;
+use era_test_node_e2e_tests::EraTestNodeApiProvider;
 use std::time::Duration;
 
 async fn init(
@@ -137,7 +138,7 @@ async fn no_sealing_timeout() -> anyhow::Result<()> {
     assert!(finalization_result.is_err());
 
     // Mine a block manually and assert that the transaction is finalized now
-    provider.mine(None, None).await?;
+    provider.anvil_mine(None, None).await?;
     let receipt = provider.get_transaction_receipt(tx_hash).await?.unwrap();
     assert!(receipt.status());
 
@@ -308,7 +309,7 @@ async fn manual_mining_two_txs_in_one_block() -> anyhow::Result<()> {
     let pending_tx1 = provider.send_transaction(tx1).await?.register().await?;
 
     // Mine a block manually and assert that both transactions are finalized now
-    provider.mine(None, None).await?;
+    provider.anvil_mine(None, None).await?;
     let receipt0 = provider
         .get_transaction_receipt(pending_tx0.await?)
         .await?

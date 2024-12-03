@@ -1053,13 +1053,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     pub fn read_inner(&self) -> anyhow::Result<RwLockReadGuard<'_, InMemoryNodeInner<S>>> {
         self.inner
             .read()
-            .map_err(|e| anyhow!("InMemoryNode lock is poisoned: {}", e))
+            .map_err(|e| anyhow::anyhow!("InMemoryNode lock is poisoned: {}", e))
     }
 
     pub fn write_inner(&self) -> anyhow::Result<RwLockWriteGuard<'_, InMemoryNodeInner<S>>> {
         self.inner
             .write()
-            .map_err(|e| anyhow!("InMemoryNode lock is poisoned: {}", e))
+            .map_err(|e| anyhow::anyhow!("InMemoryNode lock is poisoned: {}", e))
     }
 
     pub fn get_cache_config(&self) -> Result<CacheConfig, String> {

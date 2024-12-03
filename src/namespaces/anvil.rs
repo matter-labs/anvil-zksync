@@ -10,7 +10,6 @@ use zksync_types::{Address, H256, U256, U64};
 pub trait AnvilNamespaceT {
     /// Mines a single block in the same way as `evm_mine` but returns extra fields.
     ///
-    ///
     /// # Returns
     /// Freshly mined block's representation along with extra fields.
     #[rpc(name = "anvil_mine_detailed")]
