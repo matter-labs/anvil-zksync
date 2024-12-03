@@ -1244,7 +1244,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         }
 
         if !inner.config.disable_console_log {
-            inner.console_log_handler.handle_calls_recursive(&call_traces);
+            inner
+                .console_log_handler
+                .handle_calls_recursive(&call_traces);
         }
 
         if inner.config.show_calls != ShowCalls::None {
@@ -1425,7 +1427,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         }
 
         if !inner.config.disable_console_log {
-            inner.console_log_handler.handle_calls_recursive(&call_traces);
+            inner
+                .console_log_handler
+                .handle_calls_recursive(call_traces);
         }
 
         if inner.config.show_calls != ShowCalls::None {
