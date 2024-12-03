@@ -108,12 +108,12 @@ fn ensure_binary_is_fresh() -> anyhow::Result<()> {
 }
 
 #[derive(Default)]
-pub struct EraTestNodeRunner {
+pub struct AnvilZKsyncRunner {
     path: Option<String>,
     rpc_port: Option<u16>,
 }
 
-impl EraTestNodeRunner {
+impl AnvilZKsyncRunner {
     pub fn path(mut self, path: String) -> Self {
         self.path = Some(path);
         self

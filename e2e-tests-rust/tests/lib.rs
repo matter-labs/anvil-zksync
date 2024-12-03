@@ -10,7 +10,7 @@ use alloy_zksync::node_bindings::EraTestNode;
 use alloy_zksync::provider::{zksync_provider, ProviderBuilderExt};
 use alloy_zksync::wallet::ZksyncWallet;
 use anvil_zksync_e2e_tests::utils::LockedPort;
-use anvil_zksync_e2e_tests::EraTestNodeApiProvider;
+use anvil_zksync_e2e_tests::AnvilZKsyncApiProvider;
 use std::time::Duration;
 
 async fn init(

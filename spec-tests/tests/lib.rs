@@ -1,6 +1,6 @@
 //! Validation that anvil-zksync conforms to the official Ethereum Spec
 
-use anvil_zksync_spec_tests::process::EraTestNodeRunner;
+use anvil_zksync_spec_tests::process::AnvilZKsyncRunner;
 use anvil_zksync_spec_tests::{EraApi, EthSpecPatch};
 use jsonschema::Validator;
 use openrpc_types::resolved::{Method, OpenRPC};
@@ -60,7 +60,7 @@ fn validate_schema(validator: Validator, result: Value) {
 #[test_log::test(tokio::test)]
 async fn validate_eth_get_block_genesis() -> anyhow::Result<()> {
     // Start anvil-zksync as an OS process with a randomly selected RPC port
-    let node_handle = EraTestNodeRunner::default().run().await?;
+    let node_handle = AnvilZKsyncRunner::default().run().await?;
     // Connect to it via JSON-RPC API
     let era_api = EraApi::local(node_handle.config.rpc_port)?;
 
@@ -87,7 +87,7 @@ async fn validate_eth_get_block_genesis() -> anyhow::Result<()> {
 
 #[test_log::test(tokio::test)]
 async fn validate_eth_get_block_with_txs_legacy() -> anyhow::Result<()> {
-    let node_handle = EraTestNodeRunner::default().run().await?;
+    let node_handle = AnvilZKsyncRunner::default().run().await?;
     let era_api = EraApi::local(node_handle.config.rpc_port)?;
 
     era_api.transfer_eth_legacy(U256::from("100")).await?;

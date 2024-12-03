@@ -7,7 +7,7 @@ use alloy_zksync::network::Zksync;
 
 pub mod utils;
 
-pub trait EraTestNodeApiProvider<T>: Provider<T, Zksync>
+pub trait AnvilZKsyncApiProvider<T>: Provider<T, Zksync>
 where
     T: Transport + Clone,
 {
@@ -27,7 +27,7 @@ where
     }
 }
 
-impl<P, T> EraTestNodeApiProvider<T> for P
+impl<P, T> AnvilZKsyncApiProvider<T> for P
 where
     T: Transport + Clone,
     P: Provider<T, Zksync>,
