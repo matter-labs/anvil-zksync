@@ -1,6 +1,8 @@
+use zksync_types::api::Block;
 use zksync_types::{Address, H256, U256, U64};
 use zksync_web3_decl::error::Web3Error;
 
+use crate::namespaces::DetailedTransaction;
 use crate::utils::Numeric;
 use crate::{
     fork::ForkSource,
@@ -12,6 +14,15 @@ use crate::{
 impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> AnvilNamespaceT
     for InMemoryNode<S>
 {
+    fn mine_detailed(&self) -> RpcResult<Block<DetailedTransaction>> {
+        self.mine_detailed()
+            .map_err(|err| {
+                tracing::error!("failed mining with detailed view: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(err))
+            })
+            .into_boxed_future()
+    }
+
     fn set_rpc_url(&self, url: String) -> RpcResult<()> {
         self.set_rpc_url(url)
             .map_err(|err| {

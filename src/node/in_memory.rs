@@ -1,4 +1,8 @@
 //! In-memory node, that supports forking other networks.
+use colored::Colorize;
+use indexmap::IndexMap;
+use once_cell::sync::OnceCell;
+use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 use std::{
     collections::{HashMap, HashSet},
     convert::TryInto,
@@ -6,9 +10,6 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use colored::Colorize;
-use indexmap::IndexMap;
-use once_cell::sync::OnceCell;
 use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::vm_latest::HistoryEnabled;
 use zksync_multivm::{
@@ -276,6 +277,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         config: &TestNodeConfig,
         time: &TimestampManager,
         impersonation: ImpersonationManager,
+        system_contracts: SystemContracts,
     ) -> Self {
         let updated_config = config.clone();
         if config.enable_auto_impersonate {
@@ -320,10 +322,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 ),
                 config: updated_config.clone(),
                 console_log_handler: ConsoleLogHandler::default(),
-                system_contracts: SystemContracts::from_options(
-                    &updated_config.system_contracts_options,
-                    updated_config.use_evm_emulator,
-                ),
+                system_contracts,
                 impersonation,
                 rich_accounts: HashSet::new(),
                 previous_states: Default::default(),
@@ -361,10 +360,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
                 ),
                 config: config.clone(),
                 console_log_handler: ConsoleLogHandler::default(),
-                system_contracts: SystemContracts::from_options(
-                    &config.system_contracts_options,
-                    config.use_evm_emulator,
-                ),
+                system_contracts,
                 impersonation,
                 rich_accounts: HashSet::new(),
                 previous_states: Default::default(),
@@ -973,6 +969,7 @@ pub struct InMemoryNode<S: Clone> {
     pub(crate) observability: Option<Observability>,
     pub(crate) pool: TxPool,
     pub(crate) sealer: BlockSealer,
+    pub(crate) system_contracts: SystemContracts,
 }
 
 fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) -> Option<H160> {
@@ -1010,7 +1007,17 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         sealer: BlockSealer,
     ) -> Self {
         let system_contracts_options = config.system_contracts_options;
-        let inner = InMemoryNodeInner::new(fork, config, &time, impersonation.clone());
+        let system_contracts = SystemContracts::from_options(
+            &config.system_contracts_options,
+            config.use_evm_emulator,
+        );
+        let inner = InMemoryNodeInner::new(
+            fork,
+            config,
+            &time,
+            impersonation.clone(),
+            system_contracts.clone(),
+        );
         InMemoryNode {
             inner: Arc::new(RwLock::new(inner)),
             snapshots: Default::default(),
@@ -1020,6 +1027,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             observability,
             pool,
             sealer,
+            system_contracts,
         }
     }
 
@@ -1040,6 +1048,18 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
     pub fn get_inner(&self) -> Arc<RwLock<InMemoryNodeInner<S>>> {
         self.inner.clone()
+    }
+
+    pub fn read_inner(&self) -> anyhow::Result<RwLockReadGuard<'_, InMemoryNodeInner<S>>> {
+        self.inner
+            .read()
+            .map_err(|e| anyhow!("InMemoryNode lock is poisoned: {}", e))
+    }
+
+    pub fn write_inner(&self) -> anyhow::Result<RwLockWriteGuard<'_, InMemoryNodeInner<S>>> {
+        self.inner
+            .write()
+            .map_err(|e| anyhow!("InMemoryNode lock is poisoned: {}", e))
     }
 
     pub fn get_cache_config(&self) -> Result<CacheConfig, String> {
@@ -1069,7 +1089,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
     pub fn reset(&self, fork: Option<ForkDetails>) -> Result<(), String> {
         let config = self.get_config()?;
-        let inner = InMemoryNodeInner::new(fork, &config, &self.time, self.impersonation.clone());
+        let inner = InMemoryNodeInner::new(
+            fork,
+            &config,
+            &self.time,
+            self.impersonation.clone(),
+            self.system_contracts.clone(),
+        );
 
         let mut writer = self
             .snapshots
@@ -1143,31 +1169,17 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         inner.rich_accounts.insert(address);
     }
 
-    pub fn system_contracts_for_l2_call(&self) -> anyhow::Result<BaseSystemContracts> {
-        let inner = self
-            .inner
-            .read()
-            .map_err(|_| anyhow::anyhow!("Failed to acquire read lock"))?;
-        Ok(inner.system_contracts.contracts_for_l2_call().clone())
-    }
-
     pub fn system_contracts_for_tx(
         &self,
         tx_initiator: Address,
     ) -> anyhow::Result<BaseSystemContracts> {
-        let inner = self
-            .inner
-            .read()
-            .map_err(|_| anyhow::anyhow!("Failed to acquire read lock"))?;
-        Ok(if inner.impersonation.is_impersonating(&tx_initiator) {
+        Ok(if self.impersonation.is_impersonating(&tx_initiator) {
             tracing::info!("🕵️ Executing tx from impersonated account {tx_initiator:?}");
-            inner
-                .system_contracts
+            self.system_contracts
                 .contracts(TxExecutionMode::VerifyExecute, true)
                 .clone()
         } else {
-            inner
-                .system_contracts
+            self.system_contracts
                 .contracts(TxExecutionMode::VerifyExecute, false)
                 .clone()
         })
@@ -1816,6 +1828,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             transaction.transaction_index = Some(Index::zero());
             transaction.l1_batch_number = Some(U64::from(batch_env.number.0));
             transaction.l1_batch_tx_index = Some(Index::zero());
+            if transaction.transaction_type == Some(U64::zero())
+                || transaction.transaction_type.is_none()
+            {
+                transaction.v = transaction
+                    .v
+                    .map(|v| v + 35 + inner.fork_storage.chain_id.as_u64() * 2);
+            }
             transactions.push(TransactionVariant::Full(transaction));
         }
 

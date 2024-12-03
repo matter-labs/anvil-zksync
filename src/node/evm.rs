@@ -36,6 +36,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EvmNamespa
                 tracing::error!("failed mining block: {:?}", err);
                 into_jsrpc_error(Web3Error::InternalError(err))
             })
+            .map(|_| "0x0".to_string())
             .into_boxed_future()
     }
 
