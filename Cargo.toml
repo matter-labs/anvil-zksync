@@ -11,11 +11,20 @@ categories = ["cryptography"]
 publish = false                                             # We don't want to publish our binaries.
 
 [dependencies]
-zksync_multivm = { git = "https://github.com/matter-labs/zksync-era.git", rev = "6c034f6e180cc92e99766f14c8840c90efa56cec" }
-zksync_contracts = { git = "https://github.com/matter-labs/zksync-era.git", rev = "6c034f6e180cc92e99766f14c8840c90efa56cec" }
-zksync_types = { git = "https://github.com/matter-labs/zksync-era.git", rev = "6c034f6e180cc92e99766f14c8840c90efa56cec" }
-zksync_utils = { git = "https://github.com/matter-labs/zksync-era.git", rev = "6c034f6e180cc92e99766f14c8840c90efa56cec" }
-zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era.git", rev = "6c034f6e180cc92e99766f14c8840c90efa56cec", features = [
+#zksync_multivm = { git = "https://github.com/matter-labs/zksync-era.git", rev = "ea818c53d9b362d030ac10db7b01aeaf48eb8054" }
+#zksync_contracts = { git = "https://github.com/matter-labs/zksync-era.git", rev = "ea818c53d9b362d030ac10db7b01aeaf48eb8054" }
+#zksync_types = { git = "https://github.com/matter-labs/zksync-era.git", rev = "ea818c53d9b362d030ac10db7b01aeaf48eb8054" }
+#zksync_utils = { git = "https://github.com/matter-labs/zksync-era.git", rev = "ea818c53d9b362d030ac10db7b01aeaf48eb8054" }
+#zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era.git", rev = "ea818c53d9b362d030ac10db7b01aeaf48eb8054", features = [
+#    "server",
+#] }
+
+zksync_multivm = { path = "../zksync-era/core/lib/multivm" }
+zksync_contracts = { path = "../zksync-era/core/lib/contracts" }
+zksync_basic_types = { path = "../zksync-era/core/lib/basic_types" }
+zksync_types = { path = "../zksync-era/core/lib/types" }
+zksync_utils = { path = "../zksync-era/core/lib/utils" }
+zksync_web3_decl = { path = "../zksync-era/core/lib/web3_decl" , features = [
     "server",
 ] }
 
@@ -59,6 +68,12 @@ indexmap = "2.0.1"
 chrono = { version = "0.4.31", default-features = false }
 time = "0.3.36"
 rand = "0.8"
+
+forward_system = { path = "../zk_ee/forward_system"}
+basic_system = { path = "../zk_ee/basic_system"}
+ruint = { version = "1.12.3", default-features = false, features = ["alloc"] }
+
+
 
 [dev-dependencies]
 httptest = "0.15.4"

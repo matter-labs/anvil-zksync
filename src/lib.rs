@@ -1,3 +1,5 @@
+#![feature(allocator_api)]
+
 //! zkSync Era In-Memory Node
 //!
 //! The `era-test-node` crate provides an in-memory node designed primarily for local testing.

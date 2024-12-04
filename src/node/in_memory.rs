@@ -1,7 +1,11 @@
 //! In-memory node, that supports forking other networks.
+use basic_system::basic_system::simple_growable_storage::TestingTree;
 use colored::Colorize;
+use forward_system::run::test_impl::{InMemoryPreimageSource, InMemoryTree, TxListSource};
+use forward_system::run::StorageCommitment;
 use indexmap::IndexMap;
 use once_cell::sync::OnceCell;
+use std::alloc::Global;
 use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 use std::{
     collections::{HashMap, HashSet},
@@ -1232,6 +1236,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     }
 
     /// Runs L2 'eth call' method - that doesn't commit to a block.
+    /// MMZK
     pub fn run_l2_call(
         &self,
         mut l2_tx: L2Tx,
@@ -1406,6 +1411,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     /// This is because external users of the library may call this function to perform an isolated
     /// VM operation (optionally without bootloader execution) with an external storage and get the results back.
     /// So any data populated in [Self::run_l2_tx] will not be available for the next invocation.
+    // MMZK
     pub fn run_l2_tx_raw<W: WriteStorage, H: HistoryMode>(
         &self,
         l2_tx: L2Tx,
@@ -1429,11 +1435,45 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             }
             .into_tracer_pointer(),
         ];
-        let compressed_bytecodes = vm
-            .push_transaction(tx.clone())
-            .compressed_bytecodes
-            .into_owned();
+        //let compressed_bytecodes = vm
+        //    .push_transaction(tx.clone())
+        //    .compressed_bytecodes
+        //    .into_owned();
         let tx_result = vm.inspect(&mut tracers.into(), InspectExecutionMode::OneTx);
+
+        let batch_context = basic_system::basic_system::BasicBlockMetadataFromOracle {
+            eip1559_basefee: ruint::aliases::U256::from(1000u64),
+            ergs_price: ruint::aliases::U256::from(1u64),
+            block_number: 1,
+            timestamp: 42,
+        };
+        let mut tree = InMemoryTree {
+            storage_tree: TestingTree::new_in(Global),
+            cold_storage: HashMap::new(),
+        };
+        let mut preimage_source = InMemoryPreimageSource {
+            inner: HashMap::new(),
+        };
+
+        let storage_commitment = StorageCommitment {
+            root: *tree.storage_tree.root(),
+            next_free_slot: tree.storage_tree.next_free_slot,
+        };
+        // FIXME: this might be wrong..
+        let aa = tx.raw_bytes.as_ref().unwrap();
+
+        let tx_source = TxListSource {
+            // transactions: vec![encoded_iwasm_tx].into(),
+            transactions: vec![aa.0.clone()].into(),
+        };
+
+        forward_system::run::run_batch(
+            batch_context,
+            storage_commitment,
+            tree,
+            preimage_source,
+            tx_source,
+        );
 
         let call_traces = call_tracer_result.get().unwrap();
 
@@ -1513,14 +1553,14 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             tracing::info!("");
         }
 
-        let mut bytecodes = HashMap::new();
-        for b in &*compressed_bytecodes {
+        let bytecodes = HashMap::new();
+        /*for b in &*compressed_bytecodes {
             let (hash, bytecode) = bytecode_to_factory_dep(b.original.clone()).map_err(|err| {
                 tracing::error!("{}", format!("cannot convert bytecode: {err}").on_red());
                 err
             })?;
             bytecodes.insert(hash, bytecode);
-        }
+        }*/
 
         Ok(TxExecutionOutput {
             result: tx_result,

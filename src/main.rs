@@ -1,3 +1,5 @@
+#![feature(allocator_api)]
+
 use crate::observability::Observability;
 use anyhow::anyhow;
 use bytecode_override::override_bytecodes;
