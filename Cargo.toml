@@ -1,6 +1,6 @@
 [package]
 name = "anvil-zksync"
-version = "0.1.0-alpha.34"
+version = "0.2.0"
 edition = "2018"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
