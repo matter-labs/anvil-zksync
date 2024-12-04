@@ -156,14 +156,14 @@ impl Default for TestNodeConfig {
             system_contracts_options: Default::default(),
             override_bytecodes_dir: None,
             use_evm_emulator: false,
-            chain_id: Some(TEST_NODE_NETWORK_ID),
+            chain_id: None,
 
             // Gas configuration defaults
-            l1_gas_price: Some(DEFAULT_L1_GAS_PRICE),
-            l2_gas_price: Some(DEFAULT_L2_GAS_PRICE),
-            l1_pubdata_price: Some(DEFAULT_FAIR_PUBDATA_PRICE),
-            price_scale_factor: Some(DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR),
-            limit_scale_factor: Some(DEFAULT_ESTIMATE_GAS_SCALE_FACTOR),
+            l1_gas_price: None,
+            l2_gas_price: None,
+            l1_pubdata_price: None,
+            price_scale_factor: None,
+            limit_scale_factor: None,
 
             // Log configuration defaults
             log_level: Default::default(),
@@ -215,7 +215,7 @@ impl TestNodeConfig {
         let color = CustomColor::new(13, 71, 198);
 
         println!("{}", BANNER.custom_color(color));
-        println!("testing");
+
         tracing::info!("Version:        {}", VERSION_MESSAGE.green());
         tracing::info!(
             "Repository:     {}",

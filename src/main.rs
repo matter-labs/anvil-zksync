@@ -1,11 +1,13 @@
 use crate::observability::Observability;
+use anvil_zksync::config::constants::DEFAULT_L1_GAS_PRICE;
 use anyhow::anyhow;
 use bytecode_override::override_bytecodes;
 use clap::Parser;
 use config::cli::{Cli, Command};
 use config::constants::{
     DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
-    LEGACY_RICH_WALLETS, RICH_WALLETS,
+    DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L2_GAS_PRICE, LEGACY_RICH_WALLETS, RICH_WALLETS,
+    TEST_NODE_NETWORK_ID,
 };
 use config::ForkPrintInfo;
 use fork::{ForkDetails, ForkSource};
@@ -111,7 +113,6 @@ async fn build_json_http<
 async fn main() -> anyhow::Result<()> {
     // Check for deprecated options
     Cli::deprecated_config_option();
-    tracing::info!(target: "anvil-zksync", "This is a test log with explicit target");
 
     let opt = Cli::parse();
     let command = opt.command.clone();
@@ -135,6 +136,24 @@ async fn main() -> anyhow::Result<()> {
         Command::Run => {
             if config.offline {
                 tracing::warn!("Running in offline mode: default fee parameters will be used.");
+                config = config
+                    .clone()
+                    .with_l1_gas_price(config.l1_gas_price.or(Some(DEFAULT_L1_GAS_PRICE)))
+                    .with_l2_gas_price(config.l2_gas_price.or(Some(DEFAULT_L2_GAS_PRICE)))
+                    .with_price_scale(
+                        config
+                            .price_scale_factor
+                            .or(Some(DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR)),
+                    )
+                    .with_gas_limit_scale(
+                        config
+                            .limit_scale_factor
+                            .or(Some(DEFAULT_ESTIMATE_GAS_SCALE_FACTOR)),
+                    )
+                    .with_l1_pubdata_price(
+                        config.l1_pubdata_price.or(Some(DEFAULT_FAIR_PUBDATA_PRICE)),
+                    )
+                    .with_chain_id(config.chain_id.or(Some(TEST_NODE_NETWORK_ID)));
                 None
             } else {
                 // Initialize the client to get the fee params
@@ -168,7 +187,8 @@ async fn main() -> anyhow::Result<()> {
                             )
                             .with_l1_pubdata_price(
                                 config.l1_pubdata_price.or(Some(fee_v2.l1_pubdata_price())),
-                            );
+                            )
+                            .with_chain_id(Some(TEST_NODE_NETWORK_ID));
                     }
                     FeeParams::V1(_) => {
                         return Err(anyhow!("Unsupported FeeParams::V1 in this context"));

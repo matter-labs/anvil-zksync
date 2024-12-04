@@ -332,6 +332,7 @@ impl Cli {
 
         let mut config = TestNodeConfig::default()
             .with_port(self.port)
+            .with_offline(if self.offline { Some(true) } else { None })
             .with_l1_gas_price(self.l1_gas_price)
             .with_l2_gas_price(self.l2_gas_price)
             .with_l1_pubdata_price(self.l1_pubdata_price)
