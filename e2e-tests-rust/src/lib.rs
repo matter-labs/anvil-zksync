@@ -1,35 +1,8 @@
-use alloy::network::Network;
-use alloy::providers::{Provider, ProviderCall};
-use alloy::rpc::client::NoParams;
-use alloy::serde::WithOtherFields;
-use alloy::transports::Transport;
-use alloy_zksync::network::Zksync;
+#![allow(async_fn_in_trait)]
 
-pub mod utils;
+mod ext;
+mod provider;
+mod utils;
 
-pub trait AnvilZKsyncApiProvider<T>: Provider<T, Zksync>
-where
-    T: Transport + Clone,
-{
-    /// Custom version of [`alloy::providers::ext::AnvilApi::anvil_mine_detailed`] that returns
-    /// block representation with transactions that contain extra custom fields.
-    fn mine_detailed(
-        &self,
-    ) -> ProviderCall<
-        T,
-        NoParams,
-        alloy::rpc::types::Block<
-            WithOtherFields<<Zksync as Network>::TransactionResponse>,
-            <Zksync as Network>::HeaderResponse,
-        >,
-    > {
-        self.client().request_noparams("anvil_mine_detailed").into()
-    }
-}
-
-impl<P, T> AnvilZKsyncApiProvider<T> for P
-where
-    T: Transport + Clone,
-    P: Provider<T, Zksync>,
-{
-}
+pub use ext::{ReceiptExt, ZksyncWalletProviderExt};
+pub use provider::{init_testing_provider, AnvilZKsyncApi, TestingProvider};
