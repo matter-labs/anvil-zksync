@@ -1,8 +1,9 @@
 use alloy::network::ReceiptResponse;
 use alloy::providers::ext::AnvilApi;
 use anvil_zksync_e2e_tests::{
-    init_testing_provider, AnvilZKsyncApi, ReceiptExt, ZksyncWalletProviderExt,
+    init_testing_provider, AnvilZKsyncApi, ReceiptExt, ZksyncWalletProviderExt, DEFAULT_VALUE,
 };
+use std::convert::identity;
 use std::time::Duration;
 
 #[tokio::test]
@@ -248,6 +249,86 @@ async fn seal_block_ignoring_halted_transaction() -> anyhow::Result<()> {
     // Halted transaction never gets finalized
     pending_tx1
         .assert_not_finalizable(Duration::from_secs(4))
+        .await?;
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn dump_and_load_state() -> anyhow::Result<()> {
+    // Test that we can submit transactions, then dump state and shutdown the node. Following that we
+    // should be able to spin up a new node and load state into it. Previous transactions/block should
+    // be present on the new node along with the old state.
+    let provider = init_testing_provider(identity).await?;
+
+    let receipts = [
+        provider.tx().finalize().await?,
+        provider.tx().finalize().await?,
+    ];
+    let blocks = provider.get_blocks_by_receipts(&receipts).await?;
+
+    // Dump node's state, re-create it and load old state
+    let state = provider.anvil_dump_state().await?;
+    let provider = init_testing_provider(identity).await?;
+    provider.anvil_load_state(state).await?;
+
+    // Assert that new node has pre-restart receipts, blocks and state
+    provider.assert_has_receipts(&receipts).await?;
+    provider.assert_has_blocks(&blocks).await?;
+    provider
+        .assert_balance(receipts[0].sender()?, DEFAULT_VALUE)
+        .await?;
+    provider
+        .assert_balance(receipts[1].sender()?, DEFAULT_VALUE)
+        .await?;
+
+    // Assert we can still finalize transactions after loading state
+    provider.tx().finalize().await?;
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn cant_load_into_existing_state() -> anyhow::Result<()> {
+    // Test that we can't load new state into a node with existing state.
+    let provider = init_testing_provider(identity).await?;
+
+    let old_receipts = [
+        provider.tx().finalize().await?,
+        provider.tx().finalize().await?,
+    ];
+    let old_blocks = provider.get_blocks_by_receipts(&old_receipts).await?;
+
+    // Dump node's state and re-create it
+    let state = provider.anvil_dump_state().await?;
+    let provider = init_testing_provider(identity).await?;
+
+    let new_receipts = [
+        provider.tx().finalize().await?,
+        provider.tx().finalize().await?,
+    ];
+    let new_blocks = provider.get_blocks_by_receipts(&new_receipts).await?;
+
+    // Load state into the new node, make sure it fails and assert that the node still has new
+    // receipts, blocks and state.
+    assert!(provider.anvil_load_state(state).await.is_err());
+    provider.assert_has_receipts(&new_receipts).await?;
+    provider.assert_has_blocks(&new_blocks).await?;
+    provider
+        .assert_balance(new_receipts[0].sender()?, DEFAULT_VALUE)
+        .await?;
+    provider
+        .assert_balance(new_receipts[1].sender()?, DEFAULT_VALUE)
+        .await?;
+
+    // Assert the node does not have old state
+    provider.assert_no_receipts(&old_receipts).await?;
+    provider.assert_no_blocks(&old_blocks).await?;
+    provider
+        .assert_balance(old_receipts[0].sender()?, 0)
+        .await?;
+    provider
+        .assert_balance(old_receipts[1].sender()?, 0)
         .await?;
 
     Ok(())

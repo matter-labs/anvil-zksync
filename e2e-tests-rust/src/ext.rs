@@ -26,6 +26,15 @@ pub trait ReceiptExt: ReceiptResponse {
         })
     }
 
+    fn sender(&self) -> anyhow::Result<Address> {
+        self.to().ok_or_else(|| {
+            anyhow::anyhow!(
+                "receipt (hash={}) does not have `to` address",
+                self.transaction_hash()
+            )
+        })
+    }
+
     /// Asserts that receipts belong to a block and that block is the same for both of them.
     fn assert_same_block(&self, other: &Self) -> anyhow::Result<()> {
         let lhs_number = self.block_number_ext()?;
@@ -45,6 +54,7 @@ pub trait ReceiptExt: ReceiptResponse {
             )
         }
     }
+
     /// Asserts that receipt is successful.
     fn assert_successful(&self) -> anyhow::Result<()> {
         if !self.status() {

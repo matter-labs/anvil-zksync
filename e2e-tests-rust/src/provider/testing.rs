@@ -1,19 +1,23 @@
 use crate::utils::LockedPort;
 use crate::ReceiptExt;
-use alloy::network::{Network, TransactionBuilder};
+use alloy::network::primitives::{BlockTransactionsKind, HeaderResponse as _};
+use alloy::network::{Network, ReceiptResponse as _, TransactionBuilder};
 use alloy::primitives::{Address, U256};
 use alloy::providers::{
     PendingTransaction, PendingTransactionBuilder, PendingTransactionError, Provider, RootProvider,
     SendableTx, WalletProvider,
 };
-use alloy::rpc::types::TransactionRequest;
+use alloy::rpc::types::{Block, TransactionRequest};
 use alloy::transports::http::{reqwest, Http};
 use alloy::transports::{RpcError, Transport, TransportErrorKind, TransportResult};
+use alloy_zksync::network::header_response::HeaderResponse;
 use alloy_zksync::network::receipt_response::ReceiptResponse;
+use alloy_zksync::network::transaction_response::TransactionResponse;
 use alloy_zksync::network::Zksync;
 use alloy_zksync::node_bindings::EraTestNode;
 use alloy_zksync::provider::{zksync_provider, ProviderBuilderExt};
 use alloy_zksync::wallet::ZksyncWallet;
+use anyhow::Context as _;
 use itertools::Itertools;
 use std::future::Future;
 use std::marker::PhantomData;
@@ -22,6 +26,8 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
 use tokio::task::JoinHandle;
+
+pub const DEFAULT_VALUE: u64 = 100;
 
 /// Full requirements for the underlying Zksync provider.
 pub trait FullZksyncProvider<T>:
@@ -114,7 +120,7 @@ where
     pub fn tx(&self) -> TestTxBuilder<P, T> {
         let tx = TransactionRequest::default()
             .with_to(Address::random())
-            .with_value(U256::from(100));
+            .with_value(U256::from(DEFAULT_VALUE));
         TestTxBuilder {
             inner: tx,
             provider: (*self).clone(),
@@ -160,6 +166,156 @@ where
         &self,
     ) -> Result<RacedReceipts<N>, PendingTransactionError> {
         self.race_n_txs(|i, tx| tx.with_rich_from(i)).await
+    }
+
+    pub async fn get_block_by_receipt(
+        &self,
+        receipt: &ReceiptResponse,
+    ) -> anyhow::Result<Block<TransactionResponse, HeaderResponse>> {
+        let hash = receipt.block_hash_ext()?;
+        self.get_block_by_hash(receipt.block_hash_ext()?, BlockTransactionsKind::Full)
+            .await?
+            .with_context(|| format!("block (hash={}) not found", hash))
+    }
+
+    pub async fn get_blocks_by_receipts(
+        &self,
+        receipts: impl IntoIterator<Item = &ReceiptResponse>,
+    ) -> anyhow::Result<Vec<Block<TransactionResponse, HeaderResponse>>> {
+        futures::future::join_all(
+            receipts
+                .into_iter()
+                .map(|receipt| self.get_block_by_receipt(receipt)),
+        )
+        .await
+        .into_iter()
+        .collect()
+    }
+
+    pub async fn assert_has_receipt(
+        &self,
+        expected_receipt: &ReceiptResponse,
+    ) -> anyhow::Result<()> {
+        let Some(actual_receipt) = self
+            .get_transaction_receipt(expected_receipt.transaction_hash())
+            .await?
+        else {
+            anyhow::bail!(
+                "receipt (hash={}) not found",
+                expected_receipt.transaction_hash()
+            );
+        };
+        assert_eq!(expected_receipt, &actual_receipt);
+        Ok(())
+    }
+
+    pub async fn assert_has_receipts(
+        &self,
+        receipts: impl IntoIterator<Item = &ReceiptResponse>,
+    ) -> anyhow::Result<()> {
+        for receipt in receipts {
+            self.assert_has_receipt(receipt).await?;
+        }
+        Ok(())
+    }
+
+    pub async fn assert_no_receipt(
+        &self,
+        expected_receipt: &ReceiptResponse,
+    ) -> anyhow::Result<()> {
+        if let Some(actual_receipt) = self
+            .get_transaction_receipt(expected_receipt.transaction_hash())
+            .await?
+        {
+            anyhow::bail!(
+                "receipt (hash={}) expected to be missing but was found",
+                actual_receipt.transaction_hash()
+            );
+        } else {
+            Ok(())
+        }
+    }
+
+    pub async fn assert_no_receipts(
+        &self,
+        receipts: impl IntoIterator<Item = &ReceiptResponse>,
+    ) -> anyhow::Result<()> {
+        for receipt in receipts {
+            self.assert_no_receipt(receipt).await?;
+        }
+        Ok(())
+    }
+
+    pub async fn assert_has_block(
+        &self,
+        expected_block: &Block<TransactionResponse, HeaderResponse>,
+    ) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            expected_block.transactions.is_full(),
+            "expected block did not have full transactions"
+        );
+        let Some(actual_block) = self
+            .get_block_by_hash(expected_block.header.hash(), BlockTransactionsKind::Full)
+            .await?
+        else {
+            anyhow::bail!("block (hash={}) not found", expected_block.header.hash());
+        };
+        assert_eq!(expected_block, &actual_block);
+        Ok(())
+    }
+
+    pub async fn assert_has_blocks(
+        &self,
+        blocks: impl IntoIterator<Item = &Block<TransactionResponse, HeaderResponse>>,
+    ) -> anyhow::Result<()> {
+        for block in blocks {
+            self.assert_has_block(block).await?;
+        }
+        Ok(())
+    }
+
+    pub async fn assert_no_block(
+        &self,
+        expected_block: &Block<TransactionResponse, HeaderResponse>,
+    ) -> anyhow::Result<()> {
+        if let Some(actual_block) = self
+            .get_block_by_hash(expected_block.header.hash(), BlockTransactionsKind::Full)
+            .await?
+        {
+            anyhow::bail!(
+                "block (hash={}) expected to be missing but was found",
+                actual_block.header.hash()
+            );
+        } else {
+            Ok(())
+        }
+    }
+
+    pub async fn assert_no_blocks(
+        &self,
+        blocks: impl IntoIterator<Item = &Block<TransactionResponse, HeaderResponse>>,
+    ) -> anyhow::Result<()> {
+        for block in blocks {
+            self.assert_no_block(block).await?;
+        }
+        Ok(())
+    }
+
+    pub async fn assert_balance(
+        &self,
+        address: Address,
+        expected_balance: u64,
+    ) -> anyhow::Result<()> {
+        let actual_balance = self.get_balance(address).await?;
+        let expected_balance = U256::from(expected_balance);
+        anyhow::ensure!(
+            actual_balance == expected_balance,
+            "account's ({}) balance ({}) did not match expected value ({})",
+            address,
+            actual_balance,
+            expected_balance,
+        );
+        Ok(())
     }
 }
 
