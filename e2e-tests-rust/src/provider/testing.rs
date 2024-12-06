@@ -27,7 +27,7 @@ use std::task::{Context, Poll};
 use std::time::Duration;
 use tokio::task::JoinHandle;
 
-pub const DEFAULT_VALUE: u64 = 100;
+pub const DEFAULT_TX_VALUE: u64 = 100;
 
 /// Full requirements for the underlying Zksync provider.
 pub trait FullZksyncProvider<T>:
@@ -120,7 +120,7 @@ where
     pub fn tx(&self) -> TestTxBuilder<P, T> {
         let tx = TransactionRequest::default()
             .with_to(Address::random())
-            .with_value(U256::from(DEFAULT_VALUE));
+            .with_value(U256::from(DEFAULT_TX_VALUE));
         TestTxBuilder {
             inner: tx,
             provider: (*self).clone(),

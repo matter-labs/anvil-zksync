@@ -1,7 +1,7 @@
 use alloy::network::ReceiptResponse;
 use alloy::providers::ext::AnvilApi;
 use anvil_zksync_e2e_tests::{
-    init_testing_provider, AnvilZKsyncApi, ReceiptExt, ZksyncWalletProviderExt, DEFAULT_VALUE,
+    init_testing_provider, AnvilZKsyncApi, ReceiptExt, ZksyncWalletProviderExt, DEFAULT_TX_VALUE,
 };
 use std::convert::identity;
 use std::time::Duration;
@@ -276,10 +276,10 @@ async fn dump_and_load_state() -> anyhow::Result<()> {
     provider.assert_has_receipts(&receipts).await?;
     provider.assert_has_blocks(&blocks).await?;
     provider
-        .assert_balance(receipts[0].sender()?, DEFAULT_VALUE)
+        .assert_balance(receipts[0].sender()?, DEFAULT_TX_VALUE)
         .await?;
     provider
-        .assert_balance(receipts[1].sender()?, DEFAULT_VALUE)
+        .assert_balance(receipts[1].sender()?, DEFAULT_TX_VALUE)
         .await?;
 
     // Assert we can still finalize transactions after loading state
@@ -315,10 +315,10 @@ async fn cant_load_into_existing_state() -> anyhow::Result<()> {
     provider.assert_has_receipts(&new_receipts).await?;
     provider.assert_has_blocks(&new_blocks).await?;
     provider
-        .assert_balance(new_receipts[0].sender()?, DEFAULT_VALUE)
+        .assert_balance(new_receipts[0].sender()?, DEFAULT_TX_VALUE)
         .await?;
     provider
-        .assert_balance(new_receipts[1].sender()?, DEFAULT_VALUE)
+        .assert_balance(new_receipts[1].sender()?, DEFAULT_TX_VALUE)
         .await?;
 
     // Assert the node does not have old state
