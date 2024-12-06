@@ -444,7 +444,7 @@ mod tests {
     fn can_parse_host() {
         // Test adapted from https://github.com/foundry-rs/foundry/blob/398ef4a3d55d8dd769ce86cada5ec845e805188b/crates/anvil/src/cmd.rs#L895
         let args = Cli::parse_from(["anvil-zksync"]);
-        assert_eq!(args.host, vec![IpAddr::V4(Ipv4Addr::LOCALHOST)]);
+        assert_eq!(args.host, vec![IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0))]);
 
         let args = Cli::parse_from([
             "anvil-zksync",
