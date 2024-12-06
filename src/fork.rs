@@ -263,6 +263,8 @@ impl<S: ForkSource> ForkStorage<S> {
         Some(0_u64)
     }
 
+    /// Creates a serializable representation of current storage state. It will contain both locally
+    /// stored data and cached data read from the fork.
     pub fn dump_state(&self) -> SerializableForkStorage {
         let inner = self.inner.read().unwrap();
         let mut state = BTreeMap::from_iter(inner.value_read_cache.clone());
