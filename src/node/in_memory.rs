@@ -1875,7 +1875,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         // Calculate how much gas was used across all txs
         let gas_used = debug_calls
             .iter()
-            .map(|r| U256::from(r.gas_used))
+            .map(|r| r.gas_used)
             .fold(U256::zero(), |acc, x| acc + x);
 
         // Construct the block
