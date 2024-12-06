@@ -1,6 +1,6 @@
-# 🔧 Supported APIs for In-Memory Node 🔧
+# 🔧 Supported APIs for anvil-zksync 🔧
 
-> ⚠️ **WORK IN PROGRESS**: This list is non-comprehensive and being updated. If there is an API that requires additional support, please start by [creating a GitHub Issue](https://github.com/matter-labs/era-test-node/issues/new/choose).
+> ⚠️ **WORK IN PROGRESS**: This list is non-comprehensive and being updated. If there is an API that requires additional support, please start by [creating a GitHub Issue](https://github.com/matter-labs/anvil-zksync/issues/new/choose).
 
 ## Key
 
@@ -127,7 +127,7 @@ The `status` options are:
 | `HARDHAT` | `hardhat_addCompilationResult` | `NOT IMPLEMENTED` | Add information about compiled contracts |
 | `HARDHAT` | `hardhat_dropTransaction` | `NOT IMPLEMENTED` | Remove a transaction from the mempool |
 | [`HARDHAT`](#hardhat-namespace) | [`hardhat_impersonateAccount`](#hardhat_impersonateaccount) | `SUPPORTED` | Impersonate an account |
-| [`HARDHAT`](#hardhat-namespace) | [`hardhat_getAutomine`](#hardhat_getautomine) | `PARTIAL` | Currently always returns `true` as era-test-node by default mines new blocks with each new transaction. |
+| [`HARDHAT`](#hardhat-namespace) | [`hardhat_getAutomine`](#hardhat_getautomine) | `PARTIAL` | Currently always returns `true` as anvil-zksync by default mines new blocks with each new transaction. |
 | `HARDHAT` | `hardhat_metadata` | `NOT IMPLEMENTED` | Returns the metadata of the current network |
 | [`HARDHAT`](#hardhat-namespace) | [`hardhat_mine`](#hardhat_mine) | Mine any number of blocks at once, in constant time |
 | [`HARDHAT`](#hardhat-namespace) | [`hardhat_reset`](#hardhat_reset) | `PARTIALLY` | Resets the state of the network; cannot revert to past block numbers, unless they're in a fork |
@@ -502,7 +502,7 @@ The directive format is comma-separated `module=level` for any number of modules
 curl --request POST \
   --url http://localhost:8011/ \
   --header 'content-type: application/json' \
-  --data '{"jsonrpc": "2.0","id": "1","method": "config_setLogging","params": ["era_test_node=trace,hyper=debug"]}'
+  --data '{"jsonrpc": "2.0","id": "1","method": "config_setLogging","params": ["anvil-zksync=trace,hyper=debug"]}'
 ```
 
 ## `DEBUG NAMESPACE`

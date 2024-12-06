@@ -1,7 +1,12 @@
 //! In-memory node, that supports forking other networks.
 use colored::Colorize;
+use flate2::read::GzDecoder;
+use flate2::write::GzEncoder;
+use flate2::Compression;
 use indexmap::IndexMap;
 use once_cell::sync::OnceCell;
+use serde::{Deserialize, Serialize};
+use std::io::{Read, Write};
 use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 use std::{
     collections::{HashMap, HashSet},
@@ -48,7 +53,10 @@ use zksync_types::{
 use zksync_utils::{bytecode::hash_bytecode, h256_to_account_address, h256_to_u256, u256_to_h256};
 use zksync_web3_decl::error::Web3Error;
 
+use crate::fork::SerializableStorage;
+use crate::node::error::LoadStateError;
 use crate::node::impersonate::{ImpersonationManager, ImpersonationState};
+use crate::node::state::{StateV1, VersionedState};
 use crate::node::time::{AdvanceTime, ReadTime, TimestampManager};
 use crate::node::{BlockSealer, TxPool};
 use crate::{
@@ -196,17 +204,15 @@ fn create_block<TX>(
 }
 
 /// Information about the executed transaction.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TxExecutionInfo {
     pub tx: L2Tx,
     // Batch number where transaction was executed.
     pub batch_number: u32,
     pub miniblock_number: u64,
-    #[allow(unused)]
-    pub result: VmExecutionResultAndLogs,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TransactionResult {
     pub info: TxExecutionInfo,
     pub receipt: TransactionReceipt,
@@ -896,6 +902,119 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         storage.factory_dep_cache = snapshot.factory_dep_cache;
 
         Ok(())
+    }
+
+    fn dump_state(&self, preserve_historical_states: bool) -> anyhow::Result<VersionedState> {
+        let fork_storage = self.fork_storage.dump_state();
+        let historical_states = if preserve_historical_states {
+            self.previous_states
+                .iter()
+                .map(|(k, v)| (*k, SerializableStorage(v.clone().into_iter().collect())))
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        Ok(VersionedState::v1(StateV1 {
+            blocks: self.blocks.values().cloned().collect(),
+            transactions: self.tx_results.values().cloned().collect(),
+            fork_storage,
+            historical_states,
+        }))
+    }
+
+    fn load_blocks<T: AdvanceTime>(&mut self, mut time: T, blocks: Vec<Block<TransactionVariant>>) {
+        tracing::trace!(
+            blocks = blocks.len(),
+            "loading new blocks from supplied state"
+        );
+        for block in blocks {
+            let number = block.number.as_u64();
+            tracing::trace!(
+                number,
+                hash = %block.hash,
+                "loading new block from supplied state"
+            );
+
+            self.block_hashes.insert(number, block.hash);
+            self.blocks.insert(block.hash, block);
+        }
+
+        // Safe unwrap as there was at least one block in the loaded state
+        let latest_block = self.blocks.values().max_by_key(|b| b.number).unwrap();
+        let latest_number = latest_block.number.as_u64();
+        let latest_hash = latest_block.hash;
+        let Some(latest_batch_number) = latest_block.l1_batch_number.map(|n| n.as_u32()) else {
+            panic!("encountered a block with no batch; this is not supposed to happen")
+        };
+        let latest_timestamp = latest_block.timestamp.as_u64();
+        tracing::info!(
+            number = latest_number,
+            hash = %latest_hash,
+            batch_number = latest_batch_number,
+            timestamp = latest_timestamp,
+            "latest block after loading state"
+        );
+        self.current_miniblock = latest_number;
+        self.current_miniblock_hash = latest_hash;
+        self.current_batch = latest_batch_number;
+        time.reset_to(latest_timestamp);
+    }
+
+    fn load_transactions(&mut self, transactions: Vec<TransactionResult>) {
+        tracing::trace!(
+            transactions = transactions.len(),
+            "loading new transactions from supplied state"
+        );
+        for transaction in transactions {
+            tracing::trace!(
+                hash = %transaction.receipt.transaction_hash,
+                "loading new transaction from supplied state"
+            );
+            self.tx_results
+                .insert(transaction.receipt.transaction_hash, transaction);
+        }
+    }
+
+    fn load_state<T: AdvanceTime>(
+        &mut self,
+        time: T,
+        state: VersionedState,
+    ) -> Result<bool, LoadStateError> {
+        if self.blocks.len() > 1 {
+            tracing::debug!(
+                blocks = self.blocks.len(),
+                "node has existing state; refusing to load new state"
+            );
+            return Err(LoadStateError::HasExistingState);
+        }
+        let state = match state {
+            VersionedState::V1 { state, .. } => state,
+            VersionedState::Unknown { version } => {
+                return Err(LoadStateError::UnknownStateVersion(version))
+            }
+        };
+        if state.blocks.is_empty() {
+            tracing::debug!("new state has no blocks; refusing to load");
+            return Err(LoadStateError::EmptyState);
+        }
+
+        self.load_blocks(time, state.blocks);
+        self.load_transactions(state.transactions);
+        self.fork_storage.load_state(state.fork_storage);
+
+        tracing::trace!(
+            states = state.historical_states.len(),
+            "loading historical states from supplied state"
+        );
+        self.previous_states.extend(
+            state
+                .historical_states
+                .into_iter()
+                .map(|(k, v)| (k, v.0.into_iter().collect())),
+        );
+
+        Ok(true)
     }
 
     fn apply_block<T: AdvanceTime>(
@@ -1697,7 +1816,6 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                     tx: l2_tx,
                     batch_number: batch_env.number.0,
                     miniblock_number: block_ctx.miniblock,
-                    result,
                 },
                 receipt: tx_receipt,
                 debug,
@@ -1761,13 +1879,15 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         }
 
         let mut transactions = Vec::new();
-        let mut tx_results = Vec::new();
+        let mut tx_receipts = Vec::new();
+        let mut debug_calls = Vec::new();
         for tx_hash in &executed_tx_hashes {
             let Some(tx_result) = inner.tx_results.get(tx_hash) else {
                 // Skipping halted transaction
                 continue;
             };
-            tx_results.push(&tx_result.info.result);
+            tx_receipts.push(&tx_result.receipt);
+            debug_calls.push(&tx_result.debug);
 
             let mut transaction = zksync_types::api::Transaction::from(tx_result.info.tx.clone());
             transaction.block_hash = Some(block_ctx.hash);
@@ -1786,12 +1906,12 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         }
 
         // Build bloom hash
-        let iter = tx_results
+        let iter = tx_receipts
             .iter()
-            .flat_map(|r| r.logs.events.iter())
+            .flat_map(|r| r.logs.iter())
             .flat_map(|event| {
                 event
-                    .indexed_topics
+                    .topics
                     .iter()
                     .map(|topic| BloomInput::Raw(topic.as_bytes()))
                     .chain([BloomInput::Raw(event.address.as_bytes())])
@@ -1799,9 +1919,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         let logs_bloom = build_bloom(iter);
 
         // Calculate how much gas was used across all txs
-        let gas_used = tx_results
+        let gas_used = debug_calls
             .iter()
-            .map(|r| U256::from(r.statistics.gas_used))
+            .map(|r| r.gas_used)
             .fold(U256::zero(), |acc, x| acc + x);
 
         // Construct the block
@@ -1868,6 +1988,43 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         inner.fork_storage.set_value(code_key, bytecode_hash);
 
         Ok(())
+    }
+
+    pub fn dump_state(&self, preserve_historical_states: bool) -> anyhow::Result<Bytes> {
+        let state = self
+            .inner
+            .read()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire read lock"))?
+            .dump_state(preserve_historical_states)?;
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(&serde_json::to_vec(&state)?)?;
+        Ok(encoder.finish()?.into())
+    }
+
+    pub fn load_state(&self, buf: Bytes) -> Result<bool, LoadStateError> {
+        let orig_buf = &buf.0[..];
+        let mut decoder = GzDecoder::new(orig_buf);
+        let mut decoded_data = Vec::new();
+
+        // Support both compressed and non-compressed state format
+        let decoded = if decoder.header().is_some() {
+            tracing::trace!(bytes = buf.0.len(), "decompressing state");
+            decoder
+                .read_to_end(decoded_data.as_mut())
+                .map_err(LoadStateError::FailedDecompress)?;
+            &decoded_data
+        } else {
+            &buf.0
+        };
+        tracing::trace!(bytes = decoded.len(), "deserializing state");
+        let state: VersionedState =
+            serde_json::from_slice(decoded).map_err(LoadStateError::FailedDeserialize)?;
+
+        let time = self.time.lock();
+        self.inner
+            .write()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire write lock"))?
+            .load_state(time, state)
     }
 }
 

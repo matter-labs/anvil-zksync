@@ -132,7 +132,7 @@ pub fn create_debug_output(
         }),
         ExecutionResult::Revert { output } => Ok(DebugCall {
             gas_used: result.statistics.gas_used.into(),
-            output: Default::default(),
+            output: output.encoded_data().into(),
             r#type: calltype,
             from: l2_tx.initiator_account(),
             to: l2_tx.recipient_account().unwrap_or_default(),

@@ -63,7 +63,7 @@ impl EthSpecPatchBuilder {
 impl EthSpecPatch {
     pub fn for_block() -> Self {
         // ZKsync introduces two extra L1 batch-related properties for block objects. Along with an
-        // empty `sealFields` property (TODO: remove from core and era-test-node).
+        // empty `sealFields` property (TODO: remove from core and anvil-zksync).
         EthSpecPatchBuilder::new("Block object".to_string())
             .additional_property(
                 "l1BatchNumber".to_string(),
@@ -77,7 +77,7 @@ impl EthSpecPatch {
             )
             .additional_property(
                 "sealFields".to_string(),
-                // Always empty (both core and era-test-node)
+                // Always empty (both core and anvil-zksync)
                 serde_json::from_value(json!({"const": []})).unwrap(),
             )
             .build()

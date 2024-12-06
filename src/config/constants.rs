@@ -1,7 +1,7 @@
 /// Default directory for disk cache
 pub const DEFAULT_DISK_CACHE_DIR: &str = ".cache";
 /// Default L1 gas price for transactions
-pub const DEFAULT_L1_GAS_PRICE: u64 = 14_932_364_075;
+pub const DEFAULT_L1_GAS_PRICE: u64 = 35_932_364_075;
 /// Default L2 gas price for transactions if not provided via CLI
 pub const DEFAULT_L2_GAS_PRICE: u64 = 45_250_000;
 /// Default price for fair pubdata based on predefined value
@@ -17,7 +17,7 @@ pub const TEST_NODE_NETWORK_ID: u32 = 260;
 /// Default derivation path for the test node
 pub const DERIVATION_PATH: &str = "m/44'/60'/0'/0/0";
 /// Default log file path for the test node
-pub const DEFAULT_LOG_FILE_PATH: &str = "era_test_node.log";
+pub const DEFAULT_LOG_FILE_PATH: &str = "anvil-zksync.log";
 /// Default mnemonic phrase for the test node
 pub const DEFAULT_MNEMONIC: &str = "test test test test test test test test test test test junk";
 /// Timestamp of the first block (if not running in fork mode).

@@ -8,6 +8,30 @@ use zksync_types::{Address, H256, U256, U64};
 
 #[rpc]
 pub trait AnvilNamespaceT {
+    /// Create a buffer that represents all state on the chain, which can be loaded to separate
+    /// process by calling `anvil_loadState`.
+    ///
+    /// # Arguments
+    ///
+    /// * `preserve_historical_states` - Whether to preserve historical states
+    ///
+    /// # Returns
+    /// Buffer representing the chain state.
+    #[rpc(name = "anvil_dumpState")]
+    fn dump_state(&self, preserve_historical_states: Option<bool>) -> RpcResult<Bytes>;
+
+    /// Append chain state buffer to current chain. Will overwrite any conflicting addresses or
+    /// storage.
+    ///
+    /// # Arguments
+    ///
+    /// * `bytes` - Buffer containing the chain state
+    ///
+    /// # Returns
+    /// `true` if a snapshot was reverted, otherwise `false`.
+    #[rpc(name = "anvil_loadState")]
+    fn load_state(&self, bytes: Bytes) -> RpcResult<bool>;
+
     /// Mines a single block in the same way as `evm_mine` but returns extra fields.
     ///
     /// # Returns
@@ -232,7 +256,7 @@ pub trait AnvilNamespaceT {
     #[rpc(name = "anvil_reset")]
     fn reset_network(&self, reset_spec: Option<ResetRequest>) -> RpcResult<bool>;
 
-    /// Era Test Node allows transactions impersonating specific account and contract addresses.
+    /// anvil-zksync allows transactions impersonating specific account and contract addresses.
     /// To impersonate an account use this method, passing the address to impersonate as its parameter.
     /// After calling this method, any transactions with this sender will be executed without verification.
     /// Multiple addresses can be impersonated at once.

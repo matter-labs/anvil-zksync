@@ -267,6 +267,7 @@ dependencies = [
  "const-hex",
  "derive_more",
  "foldhash",
+ "getrandom",
  "hashbrown 0.15.2",
  "hex-literal",
  "indexmap",
@@ -641,7 +642,7 @@ dependencies = [
 [[package]]
 name = "alloy-zksync"
 version = "0.6.1"
-source = "git+https://github.com/itegulov/alloy-zksync.git?rev=c43bba1a6c5e744afb975b261cba6e964d6a58c6#c43bba1a6c5e744afb975b261cba6e964d6a58c6"
+source = "git+https://github.com/itegulov/alloy-zksync.git?rev=692c5c2ca5defc88ac542f420d97c6756dadf9df#692c5c2ca5defc88ac542f420d97c6756dadf9df"
 dependencies = [
  "alloy",
  "async-trait",
@@ -669,6 +670,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "819e7219dbd41043ac279b19830f2efc897156490d7fd6ea916720117ee66311"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "anvil-zksync_e2e_tests"
+version = "0.0.0"
+dependencies = [
+ "alloy",
+ "alloy-zksync",
+ "anyhow",
+ "async-trait",
+ "fs2",
+ "futures",
+ "itertools 0.13.0",
+ "tokio",
 ]
 
 [[package]]
@@ -1276,17 +1291,6 @@ name = "equivalent"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
-
-[[package]]
-name = "era_test_node_e2e_tests"
-version = "0.0.0"
-dependencies = [
- "alloy",
- "alloy-zksync",
- "anyhow",
- "fs2",
- "tokio",
-]
 
 [[package]]
 name = "errno"

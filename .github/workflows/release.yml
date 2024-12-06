@@ -1,16 +1,16 @@
-# This workflow is borrowed from reth, which is borrowed from Lighthouse: 
+# This workflow is borrowed from reth, which is borrowed from Lighthouse:
 # reth: https://github.com/paradigmxyz/reth/blob/500b0fac135fe07635d871d64467326599e2b27e/.github/workflows/release.yml
 # lighthouse: https://github.com/sigp/lighthouse/blob/693886b94176faa4cb450f024696cb69cda2fe58/.github/workflows/release.yml
 
 name: release
 
 on:
- push:
+  push:
     tags:
       - v*
 
 env:
-  REPO_NAME: ${{ github.repository_owner }}/era-test-node
+  REPO_NAME: ${{ github.repository_owner }}/anvil-zksync
   CARGO_TERM_COLOR: always
   RUSTFLAGS: ""
 
@@ -29,16 +29,22 @@ jobs:
     name: build release
     strategy:
       matrix:
-        arch: [x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu, x86_64-apple-darwin, aarch64-apple-darwin]
+        arch:
+          [
+            x86_64-unknown-linux-gnu,
+            aarch64-unknown-linux-gnu,
+            x86_64-apple-darwin,
+            aarch64-apple-darwin,
+          ]
         include:
-          -   arch: x86_64-unknown-linux-gnu
-              platform: ubuntu-20.04
-          -   arch: aarch64-unknown-linux-gnu
-              platform: ubuntu-20.04
-          -   arch: x86_64-apple-darwin
-              platform: macos-latest
-          -   arch: aarch64-apple-darwin
-              platform: macos-latest
+          - arch: x86_64-unknown-linux-gnu
+            platform: ubuntu-20.04
+          - arch: aarch64-unknown-linux-gnu
+            platform: ubuntu-20.04
+          - arch: x86_64-apple-darwin
+            platform: macos-latest
+          - arch: aarch64-apple-darwin
+            platform: macos-latest
 
     runs-on: ${{ matrix.platform }}
     needs: [extract-version]
@@ -66,37 +72,37 @@ jobs:
         run: |
           cargo install cross --git https://github.com/cross-rs/cross --tag v0.2.4
 
-      - name: Build era-test-node for ${{ matrix.arch }}
+      - name: Build anvil-zksync for ${{ matrix.arch }}
         run: |
           make build-${{ matrix.arch }}
-    
+
       - name: Rename and move binary
-        run: |      
+        run: |
           mkdir artifacts
-          mv target/${{ matrix.arch }}/release/era_test_node ./artifacts
-      
+          mv target/${{ matrix.arch }}/release/anvil-zksync ./artifacts
+
       - name: Create artifacts
         run: |
           cd artifacts
-          tar -czf era_test_node-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.arch }}.tar.gz era_test_node*
+          tar -czf anvil-zksync-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.arch }}.tar.gz anvil-zksync*
           mv *tar.gz* ..
-    
+
         # =======================================================================
         # Upload artifacts
         # This is required to share artifacts between different jobs
         # =======================================================================
-      - name:  Upload artifact
-        uses:  actions/upload-artifact@v3
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
         with:
-          name: era_test_node-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.arch }}.tar.gz
-          path: era_test_node-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.arch }}.tar.gz
+          name: anvil-zksync-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.arch }}.tar.gz
+          path: anvil-zksync-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.arch }}.tar.gz
 
   draft-release:
     name: draft release
-    needs:  [build, extract-version]
+    needs: [build, extract-version]
     runs-on: ubuntu-latest
     env:
-      VERSION:  ${{ needs.extract-version.outputs.VERSION }}
+      VERSION: ${{ needs.extract-version.outputs.VERSION }}
     permissions:
       # Required to post the release
       contents: write
@@ -122,14 +128,14 @@ jobs:
           echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
           echo "$(git log --pretty=format:"- %s" $(git describe --tags --abbrev=0 ${{ env.VERSION }}^)..${{ env.VERSION }})" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-      
+
       - name: Generate list of contributors
         id: contributors
         run: |
           echo "CONTRIBUTORS<<EOF" >> $GITHUB_OUTPUT
           echo "$(git log --pretty=format:"- %aN (%aE)" $(git describe --tags --abbrev=0 ${{ env.VERSION }}^)..${{ env.VERSION }} | sort | uniq)" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-        
+
       - name: Create release draft
         env:
           GITHUB_USER: ${{ github.repository_owner }}
@@ -142,37 +148,37 @@ jobs:
           [![YouTube Release Notes](https://img.youtube.com/vi/FZefCZW7JJk/0.jpg)](https://www.youtube.com/watch?v=FZefCZW7JJk)-->
 
           ## 📋 Summary
-          
+
           ### 🐛 Bug Fixes:
           - TBD
-          
+
           ### ✨ New Features:
           - TBD
-          
+
           ### ⚠️ Breaking Changes:
           - TBD
-          
+
           ## 📜 All Changes
-          
+
           ${{ steps.changelog.outputs.CHANGELOG }}
-          
+
           ## ⭐ Contributors
-          
+
           ${{ steps.contributors.outputs.CONTRIBUTORS }}
-          
+
           ## 📥 Binaries
-          
+
           | System | Architecture | Binary |
           |:---:|:---:|:---:|
-          | <img src="https://simpleicons.org/icons/linux.svg" style="width: 32px;"/> | x86_64 | [era-test-node-${{ env.VERSION }}-x86_64-unknown-linux-gnu.tar.gz](https://github.com/${{ env.REPO_NAME }}/releases/download/${{ env.VERSION }}/era_test_node-${{ env.VERSION }}-x86_64-unknown-linux-gnu.tar.gz) | 
-          | <img src="https://simpleicons.org/icons/linux.svg" style="width: 32px;"/> | aarch64 | [era-test-node-${{ env.VERSION }}-aarch64-unknown-linux-gnu.tar.gz](https://github.com/${{ env.REPO_NAME }}/releases/download/${{ env.VERSION }}/era_test_node-${{ env.VERSION }}-aarch64-unknown-linux-gnu.tar.gz) | 
-          | <img src="https://simpleicons.org/icons/apple.svg" style="width: 32px;"/> | x86_64 | [era-test-node-${{ env.VERSION }}-x86_64-apple-darwin.tar.gz](https://github.com/${{ env.REPO_NAME }}/releases/download/${{ env.VERSION }}/era_test_node-${{ env.VERSION }}-x86_64-apple-darwin.tar.gz) | 
-          | <img src="https://simpleicons.org/icons/apple.svg" style="width: 32px;"/> | aarch64 | [era-test-node-${{ env.VERSION }}-aarch64-apple-darwin.tar.gz](https://github.com/${{ env.REPO_NAME }}/releases/download/${{ env.VERSION }}/era_test_node-${{ env.VERSION }}-aarch64-apple-darwin.tar.gz) |
+          | <img src="https://simpleicons.org/icons/linux.svg" style="width: 32px;"/> | x86_64 | [anvil-zksync-${{ env.VERSION }}-x86_64-unknown-linux-gnu.tar.gz](https://github.com/${{ env.REPO_NAME }}/releases/download/${{ env.VERSION }}/anvil-zksync-${{ env.VERSION }}-x86_64-unknown-linux-gnu.tar.gz) | 
+          | <img src="https://simpleicons.org/icons/linux.svg" style="width: 32px;"/> | aarch64 | [anvil-zksync-${{ env.VERSION }}-aarch64-unknown-linux-gnu.tar.gz](https://github.com/${{ env.REPO_NAME }}/releases/download/${{ env.VERSION }}/anvil-zksync-${{ env.VERSION }}-aarch64-unknown-linux-gnu.tar.gz) | 
+          | <img src="https://simpleicons.org/icons/apple.svg" style="width: 32px;"/> | x86_64 | [anvil-zksync-${{ env.VERSION }}-x86_64-apple-darwin.tar.gz](https://github.com/${{ env.REPO_NAME }}/releases/download/${{ env.VERSION }}/anvil-zksync-${{ env.VERSION }}-x86_64-apple-darwin.tar.gz) | 
+          | <img src="https://simpleicons.org/icons/apple.svg" style="width: 32px;"/> | aarch64 | [anvil-zksync-${{ env.VERSION }}-aarch64-apple-darwin.tar.gz](https://github.com/${{ env.REPO_NAME }}/releases/download/${{ env.VERSION }}/anvil-zksync-${{ env.VERSION }}-aarch64-apple-darwin.tar.gz) |
           | | | | 
           ENDBODY
           )
           assets=()
-          for asset in ./era_test_node-*.tar.gz*; do
+          for asset in ./anvil-zksync-*.tar.gz*; do
               assets+=("$asset/$asset")
           done
           tag_name="${{ env.VERSION }}"

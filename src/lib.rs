@@ -1,6 +1,6 @@
-//! zkSync Era In-Memory Node
+//! anvil-zksync
 //!
-//! The `era-test-node` crate provides an in-memory node designed primarily for local testing.
+//! The `anvil-zksync` crate provides an in-memory node designed primarily for local testing.
 //! It supports forking the state from other networks, making it a valuable tool for integration testing,
 //! bootloader and system contract testing, and prototyping.
 //!
@@ -34,12 +34,12 @@
 //!
 //! ## Usage
 //!
-//! To start the node, use the command `era_test_node run`. For more advanced functionalities like forking or
-//! replaying transactions, refer to the [official documentation](https://era.zksync.io/docs/tools/testing/era-test-node.html).
+//! To start the node, use the command `anvil-zksync run`. For more advanced functionalities like forking or
+//! replaying transactions, refer to the [official documentation](https://era.zksync.io/docs/tools/testing/anvil-zksync.html).
 //!
 //! ## Contributions
 //!
-//! Contributions to improve `era-test-node` are welcome. Please refer to the [contribution guidelines](https://github.com/matter-labs/era-test-node/blob/main/.github/CONTRIBUTING.md) for more details.
+//! Contributions to improve `anvil-zksync` are welcome. Please refer to the [contribution guidelines](https://github.com/matter-labs/anvil-zksync/blob/main/.github/CONTRIBUTING.md) for more details.
 
 pub mod bootloader_debug;
 pub mod config;

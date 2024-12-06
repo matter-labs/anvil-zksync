@@ -98,13 +98,13 @@ describe("anvil_setLoggingEnabled", function () {
 
     // Act
     await provider.send("anvil_setLoggingEnabled", [false]);
-    const logSizeBefore = fs.statSync("../era_test_node.log").size;
+    const logSizeBefore = fs.statSync("../anvil-zksync.log").size;
 
     await wallet.sendTransaction({
       to: userWallet.address,
       value: ethers.utils.parseEther("0.1"),
     });
-    const logSizeAfter = fs.statSync("../era_test_node.log").size;
+    const logSizeAfter = fs.statSync("../anvil-zksync.log").size;
 
     // Reset
     await provider.send("anvil_setLoggingEnabled", [true]);
