@@ -3,17 +3,28 @@ use crate::bootloader_debug::BootloaderDebug;
 use crate::fork::block_on;
 use crate::utils::{calculate_eth_cost, format_gwei, to_human_size};
 use crate::{config::show_details::ShowCalls, resolver};
-
 use colored::Colorize;
 use futures::future::join_all;
+use hex::encode;
 use lazy_static::lazy_static;
 use serde::Deserialize;
 use std::{collections::HashMap, str};
-use zksync_multivm::interface::{Call, VmEvent, VmExecutionResultAndLogs};
+use zksync_multivm::interface::{
+    Call, ExecutionResult, Halt, VmEvent, VmExecutionResultAndLogs, VmExecutionStatistics,
+    VmRevertReason,
+};
+use zksync_multivm::zk_evm_latest::vm_state::ErrorFlags;
+use zksync_types::ExecuteTransactionCommon;
 use zksync_types::{
     fee_model::FeeModelConfigV2, Address, StorageLogWithPreviousValue, Transaction, H160, H256,
     U256,
 };
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExecutionOutput {
+    RevertReason(VmRevertReason),
+    HaltReason(Halt),
+}
 
 // @dev elected to have GasDetails struct as we can do more with it in the future
 // We can provide more detailed understanding of gas errors and gas usage
@@ -456,57 +467,20 @@ impl Formatter {
             .collect();
 
         if should_print {
-            let call_type_display = format!("{:?}", call.r#type).blue();
-            let remaining_gas_display = to_human_size(call.gas.into()).yellow();
-            let gas_used_display = format!("({})", to_human_size(call.gas_used.into())).bold();
-
-            let contract_display = format_address_human_readable(
-                call.to,
-                initiator,
-                contract_address,
-                format!("{:?}", call.r#type).as_str(),
-            )
-            .unwrap_or_else(|| format!("{:}", format!("{:?}", call.to).bold()));
-
-            // Get function signature
-            let function_signature = if call.input.len() >= 4 {
-                let sig = hex::encode(&call.input[0..4]);
-                if contract_type == ContractType::Precompile || !resolve_hashes {
-                    format!("0x{}", sig)
-                } else {
-                    block_on(async move {
-                        match resolver::decode_function_selector(&sig).await {
-                            Ok(Some(name)) => name,
-                            Ok(None) | Err(_) => format!("0x{}", sig),
-                        }
-                    })
-                }
-            } else {
-                "unknown".to_string()
-            };
-
-            let function_display = function_signature.cyan().bold();
-
-            let line = format!(
-                "{} [{}] {}::{} {}",
-                call_type_display,
-                remaining_gas_display,
-                contract_display,
-                function_display,
-                gas_used_display
-            );
+            let (line, function_signature, contract_type) =
+                format_call_info(initiator, contract_address, call, resolve_hashes);
 
             // Handle errors and outputs within a new indentation scope
-            // TODO: can make this more informative by adding "Suggested action" for errors
             self.section(&line, is_last_sibling, |call_section| {
-                if call.revert_reason.is_some() || call.error.is_some() {
-                    if let Some(ref reason) = call.revert_reason {
-                        call_section.format_error(true, &format!("🔴 Revert reason: {}", reason));
-                    }
-                    if let Some(ref error) = call.error {
-                        call_section.format_error(true, &format!("🔴 Error: {}", error));
-                    }
-                }
+                format_call_errors(
+                    call_section,
+                    call,
+                    None,
+                    None,
+                    None,
+                    &function_signature,
+                    contract_type,
+                );
 
                 if show_outputs && !call.output.is_empty() {
                     let output_display = call
@@ -630,6 +604,38 @@ impl Formatter {
             }
         });
     }
+    /// Prints structured error message.
+    /// TODO: we can incorporate suggested actions here (e.g. insights).
+    #[allow(clippy::too_many_arguments)]
+    pub fn print_structured_error(
+        &mut self,
+        initiator: Address,
+        contract_address: Option<H160>,
+        call: &Call,
+        is_last_sibling: bool,
+        error_flag: &ErrorFlags,
+        _tx_result: &VmExecutionStatistics, // TODO: we can use this to provide more insights
+        output: &ExecutionOutput,
+        tx: &Transaction,
+    ) {
+        // Filter to only the last error call
+        if let Some(last_error_call) = find_last_error_call(call) {
+            let (line, function_signature, contract_type) =
+                format_call_info(initiator, contract_address, last_error_call, true);
+
+            self.section(&line, is_last_sibling, |call_section| {
+                format_call_errors(
+                    call_section,
+                    last_error_call,
+                    Some(output),
+                    Some(error_flag),
+                    Some(tx),
+                    &function_signature,
+                    contract_type,
+                );
+            });
+        }
+    }
 }
 // Builds the branched prefix for the structured logs.
 fn build_prefix(sibling_stack: &[bool], is_last_sibling: bool) -> String {
@@ -650,6 +656,22 @@ fn build_prefix(sibling_stack: &[bool], is_last_sibling: bool) -> String {
         prefix.push_str(branch);
     }
     prefix
+}
+/// Finds the last call containing an error or revert reason in the call stack.
+fn find_last_error_call(call: &Call) -> Option<&Call> {
+    let mut last_error_call = None;
+    if call.revert_reason.is_some() || call.error.is_some() {
+        last_error_call = Some(call);
+    }
+
+    // Recursively check subcalls
+    for subcall in &call.calls {
+        if let Some(sub_error_call) = find_last_error_call(subcall) {
+            last_error_call = Some(sub_error_call);
+        }
+    }
+
+    last_error_call
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
@@ -755,6 +777,271 @@ fn format_data(value: &[u8]) -> String {
         }
     }
 }
+
+fn format_call_info(
+    initiator: Address,
+    contract_address: Option<H160>,
+    call: &Call,
+    resolve_hashes: bool,
+) -> (String, String, ContractType) {
+    let contract_type = KNOWN_ADDRESSES
+        .get(&call.to)
+        .cloned()
+        .map(|known_address| known_address.contract_type)
+        .unwrap_or(ContractType::Unknown);
+
+    let call_type_display = format!("{:?}", call.r#type).blue();
+    let remaining_gas_display = to_human_size(call.gas.into()).yellow();
+    let gas_used_display = format!("({})", to_human_size(call.gas_used.into())).bold();
+
+    let contract_display = format_address_human_readable(
+        call.to,
+        initiator,
+        contract_address,
+        format!("{:?}", call.r#type).as_str(),
+    )
+    .unwrap_or_else(|| format!("{:}", format!("{:?}", call.to).bold()));
+
+    // Get function signature
+    let function_signature = if call.input.len() >= 4 {
+        let sig = hex::encode(&call.input[0..4]);
+        if contract_type == ContractType::Precompile || !resolve_hashes {
+            format!("0x{}", sig)
+        } else {
+            block_on(async move {
+                match resolver::decode_function_selector(sig.clone()).await {
+                    Ok(Some(name)) => name,
+                    Ok(None) | Err(_) => format!("0x{}", sig),
+                }
+            })
+        }
+    } else {
+        "unknown".to_string()
+    };
+
+    let function_display = function_signature.cyan().bold();
+
+    let line = format!(
+        "{} [{}] {}::{} {}",
+        call_type_display,
+        remaining_gas_display,
+        contract_display,
+        function_display,
+        gas_used_display
+    );
+
+    (line, function_signature, contract_type)
+}
+
+fn format_call_errors(
+    call_section: &mut Formatter,
+    call: &Call,
+    output: Option<&ExecutionOutput>,
+    error_flag: Option<&ErrorFlags>,
+    tx: Option<&Transaction>,
+    function_signature: &str,
+    contract_type: ContractType,
+) {
+    if call.revert_reason.is_some() || call.error.is_some() {
+        if let Some(ref reason) = call.revert_reason {
+            if reason.contains("Error function_selector = 0x") {
+                // Extract the function selector from the reason string
+                if let Some(func_selector_hex) = extract_function_selector_from_reason(reason) {
+                    let error_function_name =
+                        get_error_function_name(func_selector_hex.clone(), contract_type);
+                    call_section.format_error(
+                        true,
+                        &format!(
+                            "🔴 Revert reason: Error in function `{}` (selector 0x{}).",
+                            error_function_name, func_selector_hex,
+                        ),
+                    );
+                } else {
+                    // If function selector couldn't be extracted, print the original reason
+                    call_section.format_error(true, &format!("🔴 Revert reason: {}", reason));
+                }
+            } else {
+                call_section.format_error(true, &format!("🔴 Revert reason: {}", reason));
+            }
+        }
+        if let Some(ref error) = call.error {
+            call_section.format_error(true, &format!("🔴 Error: {}", error));
+        }
+        if let Some(output) = output {
+            format_execution_output(call_section, output);
+        }
+        if let Some(error_flag) = error_flag {
+            if error_flag != &ErrorFlags::empty() {
+                call_section.format_error(true, &format!("🔴 Error flag: {:?}", error_flag));
+            }
+        }
+        if let Some(tx) = tx {
+            call_section.section("🔴 Failed Transaction Summary", true, |summary_section| {
+                for detail in format_transaction_error_summary(
+                    tx,
+                    call.gas_used,
+                    call.to,
+                    function_signature.to_string(),
+                ) {
+                    summary_section.format_log(true, &detail);
+                }
+            });
+        }
+    }
+}
+fn format_execution_output(call_section: &mut Formatter, output: &ExecutionOutput) {
+    match output {
+        ExecutionOutput::RevertReason(reason) => call_section.format_error(
+            true,
+            &format!("🔴 Error output: {}", format_revert_reason(reason)),
+        ),
+        ExecutionOutput::HaltReason(halt_reason) => call_section.format_error(
+            true,
+            &format!("🔴 Error output: {}", format_halt_reason(halt_reason)),
+        ),
+    }
+}
+fn format_revert_reason(reason: &VmRevertReason) -> String {
+    match reason {
+        VmRevertReason::General { msg, data } => {
+            let hex_data = encode(data);
+            format!(
+                "RevertReason(General {{ msg: \"{}\", data: 0x{} }})",
+                msg, hex_data
+            )
+        }
+        VmRevertReason::Unknown {
+            function_selector,
+            data,
+        } => {
+            let func_selector_hex = encode(function_selector);
+            let hex_data = encode(data);
+            format!(
+                "RevertReason(Unknown {{ function_selector: 0x{}, data: 0x{} }})",
+                func_selector_hex, hex_data
+            )
+        }
+        VmRevertReason::InnerTxError => "RevertReason(InnerTxError)".to_string(),
+        VmRevertReason::VmError => "RevertReason(VmError)".to_string(),
+        &_ => "RevertReason(Unknown)".to_string(),
+    }
+}
+fn format_halt_reason(halt: &Halt) -> String {
+    match halt {
+        Halt::ValidationFailed(reason)
+        | Halt::PaymasterValidationFailed(reason)
+        | Halt::PrePaymasterPreparationFailed(reason)
+        | Halt::PayForTxFailed(reason)
+        | Halt::FailedToMarkFactoryDependencies(reason)
+        | Halt::FailedToChargeFee(reason)
+        | Halt::Unknown(reason) => {
+            format!("Halt({})", format_revert_reason(reason))
+        }
+        Halt::FromIsNotAnAccount => "Halt(FromIsNotAnAccount)".to_string(),
+        Halt::InnerTxError => "Halt(InnerTxError)".to_string(),
+        Halt::UnexpectedVMBehavior(msg) => {
+            format!("Halt(UnexpectedVMBehavior {{ msg: \"{}\" }})", msg)
+        }
+        Halt::BootloaderOutOfGas => "Halt(BootloaderOutOfGas)".to_string(),
+        Halt::ValidationOutOfGas => "Halt(ValidationOutOfGas)".to_string(),
+        Halt::TooBigGasLimit => "Halt(TooBigGasLimit)".to_string(),
+        Halt::NotEnoughGasProvided => "Halt(NotEnoughGasProvided)".to_string(),
+        Halt::MissingInvocationLimitReached => "Halt(MissingInvocationLimitReached)".to_string(),
+        Halt::FailedToSetL2Block(msg) => {
+            format!("Halt(FailedToSetL2Block {{ msg: \"{}\" }})", msg)
+        }
+        Halt::FailedToAppendTransactionToL2Block(msg) => {
+            format!(
+                "Halt(FailedToAppendTransactionToL2Block {{ msg: \"{}\" }})",
+                msg
+            )
+        }
+        Halt::VMPanic => "Halt(VMPanic)".to_string(),
+        Halt::TracerCustom(msg) => format!("Halt(TracerCustom {{ msg: \"{}\" }})", msg),
+        Halt::FailedToPublishCompressedBytecodes => {
+            "Halt(FailedToPublishCompressedBytecodes)".to_string()
+        }
+    }
+}
+
+fn format_transaction_error_summary(
+    tx: &Transaction,
+    gas_used: u64,
+    to: H160,
+    fn_signature: String,
+) -> Vec<String> {
+    match &tx.common_data {
+        ExecuteTransactionCommon::L1(_) => {
+            vec![format!(
+                "{}",
+                "Transaction Type: L1".to_string().bold().red()
+            )]
+        }
+        ExecuteTransactionCommon::L2(data) => {
+            let mut details = vec![
+                format!("{} {:?}", "Transaction Type:".bold().red(), tx.tx_format()),
+                format!(
+                    "{} {}",
+                    "Nonce:".bold().red(),
+                    tx.nonce()
+                        .map_or("N/A".to_string(), |nonce| nonce.to_string())
+                        .dimmed()
+                        .red()
+                ),
+                format!(
+                    "{} {}",
+                    "From:".bold().red(),
+                    format!("0x{:x}", tx.initiator_account()).dimmed().red()
+                ),
+                format!(
+                    "{} {}",
+                    "To:".bold().red(),
+                    format!("{:?}", tx.execute.contract_address.unwrap_or(to))
+                        .dimmed()
+                        .red()
+                ),
+                format!(
+                    "{} {}",
+                    "Function:".bold().red(),
+                    fn_signature.dimmed().red()
+                ),
+                format!(
+                    "{} {}",
+                    "Gas Used:".bold().red(),
+                    to_human_size(gas_used.into()).dimmed().red()
+                ),
+            ];
+            if data.paymaster_params.paymaster != Address::zero() {
+                details.push(format!(
+                    "{} {}",
+                    "Paymaster:".bold().red(),
+                    format!("{:?}", data.paymaster_params.paymaster)
+                        .dimmed()
+                        .red()
+                ));
+                details.push(format!(
+                    "{} {}",
+                    "Paymaster Input Params:".bold().red(),
+                    format!(
+                        "{:?}",
+                        encode(data.paymaster_params.paymaster_input.clone())
+                    )
+                    .dimmed()
+                    .red()
+                ));
+            }
+
+            details
+        }
+        ExecuteTransactionCommon::ProtocolUpgrade(_) => vec![format!(
+            "{}",
+            "Transaction Type: Protocol Upgrade"
+                .to_string()
+                .bold()
+                .red()
+        )],
+    }
+}
 // Separated from print_events. Consider the same for print_calls.
 fn resolve_topics(topics: &[H256], resolve_hashes: bool) -> Vec<String> {
     let topics = topics.to_owned();
@@ -772,6 +1059,40 @@ fn resolve_topics(topics: &[H256], resolve_hashes: bool) -> Vec<String> {
 
         join_all(futures).await
     })
+}
+// Helper function to get the error function name from the function selector
+fn get_error_function_name(func_selector_hex: String, contract_type: ContractType) -> String {
+    if contract_type == ContractType::Precompile {
+        format!("0x{}", func_selector_hex)
+    } else {
+        match block_on(resolver::decode_function_selector(
+            func_selector_hex.clone(),
+        )) {
+            Ok(Some(name)) => name,
+            Ok(None) | Err(_) => format!("0x{}", func_selector_hex),
+        }
+    }
+}
+// Helper function to extract function selector from the reason string
+fn extract_function_selector_from_reason(reason: &str) -> Option<String> {
+    let pattern = "Error function_selector = 0x";
+    if let Some(start) = reason.find(pattern) {
+        let selector_start = start + pattern.len();
+        // Function selector is 4 bytes (8 hex characters), but we should handle variable lengths
+        let selector_end = reason[selector_start..]
+            .find(|c: char| c == ',' || c.is_whitespace())
+            .map(|offset| selector_start + offset)
+            .unwrap_or(reason.len());
+        if selector_end > selector_start {
+            let func_selector_hex = &reason[selector_start..selector_end];
+            if func_selector_hex.len() == 8
+                && func_selector_hex.chars().all(|c| c.is_ascii_hexdigit())
+            {
+                return Some(func_selector_hex.to_string());
+            }
+        }
+    }
+    None
 }
 
 /// Amount of pubdata that given write has cost.
@@ -825,6 +1146,8 @@ pub fn print_transaction_summary(
     tx: &Transaction,
     tx_result: &VmExecutionResultAndLogs,
     status: &str,
+    call_traces: &[Call],
+    error_flags: &ErrorFlags,
 ) {
     // Calculate used and refunded gas
     let used_gas = tx.gas_limit() - tx_result.refunds.gas_refunded;
@@ -858,4 +1181,54 @@ pub fn print_transaction_summary(
         format_gwei(l2_gas_price.into())
     );
     tracing::info!("Refunded: {:.10} ETH", refunded_in_eth);
+    match &tx_result.result {
+        ExecutionResult::Success { output } => {
+            let output_bytes = zksync_types::web3::Bytes::from(output.clone());
+            tracing::info!("Output: {}", serde_json::to_string(&output_bytes).unwrap());
+        }
+        ExecutionResult::Revert { output } => {
+            print_transaction_error(
+                tx,
+                call_traces,
+                error_flags,
+                &tx_result.statistics,
+                &ExecutionOutput::RevertReason(output.clone()),
+            );
+        }
+        ExecutionResult::Halt { reason } => {
+            print_transaction_error(
+                tx,
+                call_traces,
+                error_flags,
+                &tx_result.statistics,
+                &ExecutionOutput::HaltReason(reason.clone()),
+            );
+        }
+    }
+}
+/// Print the transaction error with detailed call traces.
+pub fn print_transaction_error(
+    tx: &Transaction,
+    call_traces: &[Call],
+    error_flags: &ErrorFlags,
+    tx_result: &VmExecutionStatistics,
+    output: &ExecutionOutput,
+) {
+    let mut formatter = Formatter::new();
+    tracing::info!("");
+    tracing::error!("{}", "[Transaction Error]".red());
+    let num_calls = call_traces.len();
+    for (i, call) in call_traces.iter().enumerate() {
+        let is_last_sibling = i == num_calls - 1;
+        formatter.print_structured_error(
+            tx.initiator_account(),
+            tx.execute.contract_address,
+            call,
+            is_last_sibling,
+            error_flags,
+            tx_result,
+            &output.clone(),
+            tx,
+        );
+    }
 }

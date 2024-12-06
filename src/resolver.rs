@@ -225,7 +225,7 @@ pub enum SelectorType {
     Event,
 }
 /// Fetches a function signature given the selector using api.openchain.xyz
-pub async fn decode_function_selector(selector: &str) -> eyre::Result<Option<String>> {
+pub async fn decode_function_selector(selector: String) -> eyre::Result<Option<String>> {
     let client = SignEthClient::new();
     {
         // Check cache
@@ -246,7 +246,7 @@ pub async fn decode_function_selector(selector: &str) -> eyre::Result<Option<Str
     let result = client
         .as_ref()
         .unwrap() // Safe to do as client is created within this function
-        .decode_function_selector(selector)
+        .decode_function_selector(&selector)
         .await;
 
     if let Ok(result) = &result {
