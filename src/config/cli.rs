@@ -52,7 +52,7 @@ pub struct Cli {
         long,
         value_name = "IP_ADDR",
         env = "ANVIL_ZKSYNC_IP_ADDR",
-        default_value = "127.0.0.1",
+        default_value = "0.0.0.0",
         value_delimiter = ',',
         help_heading = "Network Options"
     )]
