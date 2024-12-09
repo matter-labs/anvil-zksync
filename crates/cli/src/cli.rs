@@ -47,12 +47,9 @@ pub struct Cli {
     // General Options
     #[arg(long, help_heading = "General Options")]
     /// Run in offline mode (disables all network requests).
-    pub offline: bool,
 
     #[arg(long, help_heading = "General Options")]
     /// Enable health check endpoint.
-    /// It will be available for GET requests at /health.
-    /// The endpoint will return 200 OK if the node is healthy.
     pub health_check_endpoint: bool,
 
     /// Writes output of `anvil-zksync` as json to user-specified file.
@@ -219,6 +216,21 @@ pub struct Cli {
     /// Initialize the genesis block with the given `genesis.json` file.
     #[arg(long, value_name = "PATH", value_parser= parse_genesis_file)]
     pub init: Option<Genesis>,
+
+    /// This is an alias for both --load-state and --dump-state.
+    ///
+    /// It initializes the chain with the state and block environment stored at the file, if it
+    /// exists, and dumps the chain's state on exit.
+    #[arg(
+        long,
+        value_name = "PATH",
+        conflicts_with_all = &[
+            "init",
+            "dump_state",
+            "load_state"
+        ]
+    )]
+    pub state: Option<VersionedState>,
 
     /// Interval in seconds at which the state and block environment is to be dumped to disk.
     ///

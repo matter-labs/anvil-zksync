@@ -948,7 +948,7 @@ impl InMemoryNodeInner {
         }
     }
 
-    fn load_state<T: AdvanceTime>(
+    pub fn load_state<T: AdvanceTime>(
         &mut self,
         time: T,
         state: VersionedState,
