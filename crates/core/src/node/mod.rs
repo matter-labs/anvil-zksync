@@ -16,7 +16,7 @@ mod in_memory_ext;
 mod net;
 mod pool;
 mod sealer;
-mod state;
+pub mod state;
 mod storage_logs;
 mod time;
 mod web3;
