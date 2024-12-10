@@ -874,7 +874,7 @@ mod serde_from {
 mod tests {
     use zksync_multivm::interface::storage::ReadStorage;
     use zksync_types::{api::TransactionVariant, StorageKey};
-    use zksync_types::{AccountTreeId, L1BatchNumber, H256};
+    use zksync_types::{AccountTreeId, L1BatchNumber, L2ChainId, H256};
 
     use crate::config::{
         cache::CacheConfig,
@@ -961,5 +961,37 @@ mod tests {
         let expected_result = Some((123, 234, 345));
 
         assert_eq!(actual_result, expected_result);
+    }
+
+    #[test]
+    fn test_fork_storage_set_chain_id() {
+        let fork_details = ForkDetails {
+            fork_source: Box::new(testing::ExternalStorage {
+                raw_storage: InMemoryStorage::default(),
+            }),
+            chain_id: TEST_NODE_NETWORK_ID.into(),
+            l1_block: L1BatchNumber(0),
+            l2_block: zksync_types::api::Block::<TransactionVariant>::default(),
+            l2_miniblock: 0,
+            l2_miniblock_hash: H256::zero(),
+            block_timestamp: 0,
+            overwrite_chain_id: None,
+            l1_gas_price: 0,
+            l2_fair_gas_price: 0,
+            fair_pubdata_price: 0,
+            estimate_gas_price_scale_factor: 0.0,
+            estimate_gas_scale_factor: 0.0,
+            fee_params: None,
+            cache_config: CacheConfig::None,
+        };
+        let mut fork_storage: ForkStorage<testing::ExternalStorage> =
+            ForkStorage::new(Some(fork_details), &system_contracts::Options::default(), false, None);
+        let new_chain_id = L2ChainId::from(261);
+        fork_storage.set_chain_id(new_chain_id);
+
+        let str = fork_storage.inner.read().unwrap();
+
+        assert_eq!(new_chain_id, fork_storage.chain_id);
+        assert_eq!(new_chain_id, str.fork.as_ref().and_then(|f| Some(f.chain_id)).unwrap());
     }
 }
