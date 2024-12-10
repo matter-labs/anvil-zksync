@@ -1,5 +1,6 @@
 use alloy::network::ReceiptResponse;
 use alloy::providers::ext::AnvilApi;
+use alloy::providers::Provider;
 use anvil_zksync_e2e_tests::{
     init_testing_provider, AnvilZKsyncApi, ReceiptExt, ZksyncWalletProviderExt, DEFAULT_TX_VALUE,
 };
@@ -330,6 +331,18 @@ async fn cant_load_into_existing_state() -> anyhow::Result<()> {
     provider
         .assert_balance(old_receipts[1].sender()?, 0)
         .await?;
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn set_chain_id() -> anyhow::Result<()> {
+    let provider = init_testing_provider(|node| node.block_time(3)).await?;
+
+    let new_chain_id = 261;
+    provider.anvil_set_chain_id(new_chain_id).await?;
+
+    assert_eq!(new_chain_id, provider.get_chain_id().await?);
 
     Ok(())
 }
