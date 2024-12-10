@@ -978,7 +978,7 @@ mod tests {
             cache_config: CacheConfig::None,
         };
         let mut fork_storage: ForkStorage<testing::ExternalStorage> =
-            ForkStorage::new(Some(fork_details), &system_contracts::Options::default(), false, None);
+            ForkStorage::new(Some(fork_details), &SystemContractsOptions::default(), false, None);
         let new_chain_id = L2ChainId::from(261);
         fork_storage.set_chain_id(new_chain_id);
 
