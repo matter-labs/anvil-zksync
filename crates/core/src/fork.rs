@@ -977,14 +977,18 @@ mod tests {
             fee_params: None,
             cache_config: CacheConfig::None,
         };
-        let mut fork_storage: ForkStorage<testing::ExternalStorage> =
-            ForkStorage::new(Some(fork_details), &SystemContractsOptions::default(), false, None);
+        let mut fork_storage: ForkStorage<testing::ExternalStorage> = ForkStorage::new(
+            Some(fork_details),
+            &SystemContractsOptions::default(),
+            false,
+            None,
+        );
         let new_chain_id = L2ChainId::from(261);
         fork_storage.set_chain_id(new_chain_id);
 
         let str = fork_storage.inner.read().unwrap();
 
         assert_eq!(new_chain_id, fork_storage.chain_id);
-        assert_eq!(new_chain_id, str.fork.as_ref().and_then(|f| Some(f.chain_id)).unwrap());
+        assert_eq!(new_chain_id, str.fork.as_ref().map(|f| f.chain_id).unwrap());
     }
 }

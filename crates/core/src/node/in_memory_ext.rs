@@ -483,7 +483,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
     }
 
     pub fn set_chain_id(&self, id: u32) -> Result<()> {
-        let mut inner =  self.inner
+        let mut inner = self
+            .inner
             .write()
             .map_err(|_| anyhow::anyhow!("Failed to acquire write lock"))?;
 
@@ -505,7 +506,7 @@ mod tests {
     use std::sync::{Arc, RwLock};
     use zksync_multivm::interface::storage::ReadStorage;
     use zksync_types::{api::BlockNumber, fee::Fee, l2::L2Tx, PackedEthSignature};
-    use zksync_types::{Nonce, H256, L2ChainId};
+    use zksync_types::{L2ChainId, Nonce, H256};
     use zksync_utils::h256_to_u256;
 
     #[tokio::test]
@@ -1088,8 +1089,11 @@ mod tests {
 
         let _ = node.set_chain_id(new_chain_id);
 
-        let node_inner =  node.inner.read().unwrap();
+        let node_inner = node.inner.read().unwrap();
         assert_eq!(new_chain_id, node_inner.config.chain_id.unwrap());
-        assert_eq!(L2ChainId::from(new_chain_id), node_inner.fork_storage.chain_id);
+        assert_eq!(
+            L2ChainId::from(new_chain_id),
+            node_inner.fork_storage.chain_id
+        );
     }
 }
