@@ -4,7 +4,7 @@ use crate::node::error::LoadStateError;
 use crate::node::impersonate::{ImpersonationManager, ImpersonationState};
 use crate::node::state::{StateV1, VersionedState};
 use crate::node::time::{AdvanceTime, ReadTime, TimestampManager};
-use crate::node::{BlockSealer, TxPool};
+use crate::node::{BlockSealer, BlockSealerMode, TxPool};
 use crate::{
     bootloader_debug::{BootloaderDebug, BootloaderDebugTracer},
     console_log::ConsoleLogHandler,
@@ -1109,14 +1109,16 @@ fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) 
 impl<S: ForkSource + std::fmt::Debug + Clone> Default for InMemoryNode<S> {
     fn default() -> Self {
         let impersonation = ImpersonationManager::default();
+        let pool = TxPool::new(impersonation.clone());
+        let tx_listener = pool.add_tx_listener();
         InMemoryNode::new(
             None,
             None,
             &TestNodeConfig::default(),
             TimestampManager::default(),
-            impersonation.clone(),
-            TxPool::new(impersonation),
-            BlockSealer::default(),
+            impersonation,
+            pool,
+            BlockSealer::new(BlockSealerMode::immediate(1000, tx_listener)),
         )
     }
 }
@@ -1160,14 +1162,16 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     // TODO: Refactor InMemoryNode with a builder pattern
     pub fn default_fork(fork: Option<ForkDetails>) -> Self {
         let impersonation = ImpersonationManager::default();
+        let pool = TxPool::new(impersonation.clone());
+        let tx_listener = pool.add_tx_listener();
         Self::new(
             fork,
             None,
             &Default::default(),
             TimestampManager::default(),
-            impersonation.clone(),
-            TxPool::new(impersonation),
-            BlockSealer::default(),
+            impersonation,
+            pool,
+            BlockSealer::new(BlockSealerMode::immediate(1000, tx_listener)),
         )
     }
 
@@ -2155,6 +2159,8 @@ mod tests {
             raw_storage: external_storage.inner.read().unwrap().raw_storage.clone(),
         };
         let impersonation = ImpersonationManager::default();
+        let pool = TxPool::new(impersonation.clone());
+        let sealer = BlockSealer::new(BlockSealerMode::immediate(1000, pool.add_tx_listener()));
         let node: InMemoryNode<testing::ExternalStorage> = InMemoryNode::new(
             Some(ForkDetails {
                 fork_source: Box::new(mock_db),
@@ -2176,9 +2182,9 @@ mod tests {
             None,
             &Default::default(),
             TimestampManager::default(),
-            impersonation.clone(),
-            TxPool::new(impersonation),
-            BlockSealer::default(),
+            impersonation,
+            pool,
+            sealer,
         );
 
         let tx = testing::TransactionBuilder::new().build();
@@ -2193,6 +2199,8 @@ mod tests {
     #[tokio::test]
     async fn test_transact_returns_data_in_built_in_without_security_mode() {
         let impersonation = ImpersonationManager::default();
+        let pool = TxPool::new(impersonation.clone());
+        let sealer = BlockSealer::new(BlockSealerMode::immediate(1000, pool.add_tx_listener()));
         let node = InMemoryNode::<HttpForkSource>::new(
             None,
             None,
@@ -2201,9 +2209,9 @@ mod tests {
                 ..Default::default()
             },
             TimestampManager::default(),
-            impersonation.clone(),
-            TxPool::new(impersonation),
-            BlockSealer::default(),
+            impersonation,
+            pool,
+            sealer,
         );
 
         let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(0xef)).unwrap();

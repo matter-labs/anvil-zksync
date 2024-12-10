@@ -276,7 +276,7 @@ async fn main() -> anyhow::Result<()> {
     } else if let Some(block_time) = config.block_time {
         BlockSealerMode::fixed_time(config.max_transactions, block_time)
     } else {
-        BlockSealerMode::immediate(config.max_transactions)
+        BlockSealerMode::immediate(config.max_transactions, pool.add_tx_listener())
     };
     let block_sealer = BlockSealer::new(sealing_mode);
 

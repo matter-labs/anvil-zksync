@@ -1,12 +1,15 @@
 use crate::node::impersonate::ImpersonationManager;
+use futures::channel::mpsc::{channel, Receiver, Sender};
 use itertools::Itertools;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use zksync_types::l2::L2Tx;
 use zksync_types::{Address, H256};
 
 #[derive(Clone)]
 pub struct TxPool {
     inner: Arc<RwLock<Vec<L2Tx>>>,
+    /// Listeners for new transactions' hashes
+    tx_listeners: Arc<Mutex<Vec<Sender<H256>>>>,
     pub(crate) impersonation: ImpersonationManager,
 }
 
@@ -14,18 +17,25 @@ impl TxPool {
     pub fn new(impersonation: ImpersonationManager) -> Self {
         Self {
             inner: Arc::new(RwLock::new(Vec::new())),
+            tx_listeners: Arc::new(Mutex::new(Vec::new())),
             impersonation,
         }
     }
 
     pub fn add_tx(&self, tx: L2Tx) {
         let mut guard = self.inner.write().expect("TxPool lock is poisoned");
+        let hash = tx.hash();
         guard.push(tx);
+        self.notify_listeners(hash);
     }
 
     pub fn add_txs(&self, txs: impl IntoIterator<Item = L2Tx>) {
         let mut guard = self.inner.write().expect("TxPool lock is poisoned");
-        guard.extend(txs);
+        for tx in txs {
+            let hash = tx.hash();
+            guard.push(tx);
+            self.notify_listeners(hash);
+        }
     }
 
     /// Removes a single transaction from the pool
@@ -81,6 +91,36 @@ impl TxPool {
 
         let txs = guard.drain(0..tx_count).collect();
         Some(TxBatch { impersonating, txs })
+    }
+
+    /// Adds a new transaction listener to the pool that gets notified about every new transaction.
+    pub fn add_tx_listener(&self) -> Receiver<H256> {
+        const TX_LISTENER_BUFFER_SIZE: usize = 2048;
+        let (tx, rx) = channel(TX_LISTENER_BUFFER_SIZE);
+        self.tx_listeners
+            .lock()
+            .expect("TxPool lock is poisoned")
+            .push(tx);
+        rx
+    }
+
+    /// Notifies all listeners about the transaction.
+    fn notify_listeners(&self, tx_hash: H256) {
+        let mut tx_listeners = self.tx_listeners.lock().expect("TxPool lock is poisoned");
+        tx_listeners.retain_mut(|listener| match listener.try_send(tx_hash) {
+            Ok(()) => true,
+            Err(e) => {
+                if e.is_full() {
+                    tracing::warn!(
+                        %tx_hash,
+                        "Failed to send transaction notification because channel is full",
+                    );
+                    true
+                } else {
+                    false
+                }
+            }
+        });
     }
 }
 

@@ -400,12 +400,14 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
 
     pub fn set_immediate_sealing(&self, enable: bool) -> Result<()> {
         if enable {
+            let listener = self.pool.add_tx_listener();
             self.sealer.set_mode(BlockSealerMode::immediate(
                 self.inner
                     .read()
                     .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))?
                     .config
                     .max_transactions,
+                listener,
             ))
         } else {
             self.sealer.set_mode(BlockSealerMode::Noop)
@@ -617,6 +619,7 @@ mod tests {
             previous_states: Default::default(),
         };
         let pool = TxPool::new(impersonation.clone());
+        let sealer = BlockSealer::new(BlockSealerMode::immediate(1000, pool.add_tx_listener()));
 
         let node = InMemoryNode::<HttpForkSource> {
             inner: Arc::new(RwLock::new(old_inner)),
@@ -626,7 +629,7 @@ mod tests {
             impersonation,
             observability: None,
             pool,
-            sealer: BlockSealer::default(),
+            sealer,
             system_contracts: Default::default(),
         };
 
