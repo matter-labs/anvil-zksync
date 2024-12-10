@@ -310,6 +310,14 @@ pub trait AnvilNamespaceT {
     /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
     #[rpc(name = "anvil_setStorageAt")]
     fn set_storage_at(&self, address: Address, slot: U256, value: U256) -> RpcResult<bool>;
+
+    /// Sets the chain id.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - The chain id to be set.
+    #[rpc(name = "anvil_setChainId")]
+    fn set_chain_id(&self, id: u32) -> RpcResult<()>;
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

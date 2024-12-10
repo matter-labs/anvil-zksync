@@ -257,4 +257,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> AnvilNames
             })
             .into_boxed_future()
     }
+
+    fn set_chain_id(&self, id: u32) -> RpcResult<()> {
+        self.set_chain_id(id)
+            .map_err(|err| {
+                tracing::error!("failed setting chain id: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(err))
+            })
+            .into_boxed_future()
+    }
 }
