@@ -1,0 +1,55 @@
+[package]
+name = "anvil_zksync_core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+anvil_zksync_config.workspace = true
+
+zksync_multivm.workspace = true
+zksync_contracts.workspace = true
+zksync_types.workspace = true
+zksync_utils.workspace = true
+zksync_web3_decl.workspace = true
+
+anyhow.workspace = true
+tokio.workspace = true
+futures.workspace = true
+once_cell.workspace = true
+
+jsonrpc-core.workspace = true
+jsonrpc-core-client.workspace = true
+jsonrpc-derive.workspace = true
+
+reqwest.workspace = true
+serde.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+colored.workspace = true
+lazy_static.workspace = true
+eyre.workspace = true
+serde_json.workspace = true
+bigdecimal.workspace = true
+hex.workspace = true
+ethabi.workspace = true
+itertools.workspace = true
+rustc-hash.workspace = true
+indexmap.workspace = true
+chrono.workspace = true
+time.workspace = true
+flate2.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+httptest = "0.15.4"
+tempdir = "0.3.7"
+maplit = "1.0.2"
+zksync-web3-rs = "0.1.1"
+ethers = { version = "2.0.4", features = ["rustls"] }
+test-case = "3.3.1"

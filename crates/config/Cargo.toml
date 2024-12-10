@@ -1,0 +1,25 @@
+[package]
+name = "anvil_zksync_config"
+description = "anvil-zksync configuration"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_types.workspace = true
+zksync_vm_interface.workspace = true
+
+alloy-signer.workspace = true
+alloy-signer-local.workspace = true
+clap.workspace = true
+colored.workspace = true
+hex.workspace = true
+rand.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
