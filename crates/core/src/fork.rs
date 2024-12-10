@@ -31,9 +31,10 @@ use zksync_types::{
         TransactionDetails, TransactionVariant,
     },
     fee_model::FeeParams,
+    get_system_context_key,
     l2::L2Tx,
     url::SensitiveUrl,
-    ProtocolVersionId, StorageKey,
+    ProtocolVersionId, StorageKey, SYSTEM_CONTEXT_CHAIN_ID_POSITION,
 };
 use zksync_types::{
     Address, L1BatchNumber, L2BlockNumber, L2ChainId, StorageValue, H256, U256, U64,
@@ -354,6 +355,10 @@ impl<S> ForkStorage<S> {
         if let Some(fork) = &mut mutator.fork {
             fork.set_chain_id(id)
         }
+        mutator.raw_storage.set_value(
+            get_system_context_key(SYSTEM_CONTEXT_CHAIN_ID_POSITION),
+            H256::from_low_u64_be(id.as_u64()),
+        );
     }
 }
 
@@ -878,7 +883,10 @@ mod tests {
     use anvil_zksync_config::types::{CacheConfig, SystemContractsOptions};
     use zksync_multivm::interface::storage::ReadStorage;
     use zksync_types::{api::TransactionVariant, StorageKey};
-    use zksync_types::{AccountTreeId, L1BatchNumber, L2ChainId, H256};
+    use zksync_types::{
+        get_system_context_key, AccountTreeId, L1BatchNumber, L2ChainId, H256,
+        SYSTEM_CONTEXT_CHAIN_ID_POSITION,
+    };
 
     #[test]
     fn test_initial_writes() {
@@ -986,9 +994,20 @@ mod tests {
         let new_chain_id = L2ChainId::from(261);
         fork_storage.set_chain_id(new_chain_id);
 
-        let str = fork_storage.inner.read().unwrap();
+        let inner = fork_storage.inner.read().unwrap();
 
         assert_eq!(new_chain_id, fork_storage.chain_id);
-        assert_eq!(new_chain_id, str.fork.as_ref().map(|f| f.chain_id).unwrap());
+        assert_eq!(
+            new_chain_id,
+            inner.fork.as_ref().map(|f| f.chain_id).unwrap()
+        );
+        assert_eq!(
+            H256::from_low_u64_be(new_chain_id.as_u64()),
+            *inner
+                .raw_storage
+                .state
+                .get(&get_system_context_key(SYSTEM_CONTEXT_CHAIN_ID_POSITION))
+                .unwrap()
+        );
     }
 }
