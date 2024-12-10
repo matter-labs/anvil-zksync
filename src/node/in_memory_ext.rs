@@ -479,6 +479,16 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
         }
         Ok(())
     }
+
+    pub fn set_chain_id(&self, id: u32) -> Result<()> {
+        let mut inner =  self.inner
+            .write()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire write lock"))?;
+
+        inner.config.update_chain_id(Some(id));
+        inner.fork_storage.set_chain_id(id.into());
+        Ok(())
+    }
 }
 
 #[cfg(test)]

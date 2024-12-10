@@ -351,6 +351,13 @@ impl<S> ForkStorage<S> {
         let mut mutator = self.inner.write().unwrap();
         mutator.raw_storage.store_factory_dep(hash, bytecode)
     }
+    pub fn set_chain_id(&mut self, id: L2ChainId) {
+        self.chain_id = id;
+        let mut mutator = self.inner.write().unwrap();
+        if let Some(fork) = &mut mutator.fork {
+            fork.set_chain_id(id)
+        }
+    }
 }
 
 /// Trait that provides necessary data when
@@ -775,6 +782,12 @@ impl ForkDetails {
     /// Sets fork's internal URL. Assumes the underlying chain is the same as before.
     pub fn set_rpc_url(&mut self, url: String) {
         self.fork_source = Box::new(HttpForkSource::new(url, self.cache_config.clone()));
+    }
+
+    // Sets fork's chain id.
+    pub fn set_chain_id(&mut self, id: L2ChainId) {
+        self.chain_id = id;
+        self.overwrite_chain_id = Some(id);
     }
 }
 
