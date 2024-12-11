@@ -111,6 +111,10 @@ pub struct TestNodeConfig {
     pub max_transactions: usize,
     /// Disable automatic sealing mode and use `BlockSealer::Noop` instead
     pub no_mining: bool,
+    /// The cors `allow_origin` header
+    pub allow_origin: String,
+    /// Disable CORS if true
+    pub no_cors: bool,
 }
 
 impl Default for TestNodeConfig {
@@ -171,6 +175,10 @@ impl Default for TestNodeConfig {
             no_mining: false,
 
             max_transactions: 1000,
+
+            // Server configuration
+            allow_origin: "*".to_string(),
+            no_cors: false,
         }
     }
 }
@@ -867,6 +875,22 @@ impl TestNodeConfig {
     #[must_use]
     pub fn with_no_mining(mut self, no_mining: bool) -> Self {
         self.no_mining = no_mining;
+        self
+    }
+
+    // Set allow_origin CORS header
+    #[must_use]
+    pub fn with_allow_origin(mut self, allow_origin: String) -> Self {
+        self.allow_origin = allow_origin;
+        self
+    }
+
+    // Enable or disable CORS
+    #[must_use]
+    pub fn with_no_cors(mut self, no_cors: Option<bool>) -> Self {
+        if let Some(no_cors) = no_cors {
+            self.no_cors = no_cors;
+        }
         self
     }
 }
