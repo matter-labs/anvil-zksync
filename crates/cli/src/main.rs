@@ -79,7 +79,11 @@ async fn build_json_http<
             .build()
             .unwrap();
 
-        let allow_origin = if disable_cors { "null" } else { &cors_allow_origin };
+        let allow_origin = if disable_cors {
+            "null"
+        } else {
+            &cors_allow_origin
+        };
         let mut builder = jsonrpc_http_server::ServerBuilder::new(io_handler)
             .threads(1)
             .event_loop_executor(runtime.handle().clone())
