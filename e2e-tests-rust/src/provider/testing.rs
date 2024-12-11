@@ -383,6 +383,24 @@ where
         self
     }
 
+    /// Builder-pattern method for setting the chain id.
+    pub fn with_chain_id(mut self, id: u64) -> Self {
+        self.inner = self.inner.with_chain_id(id);
+        self
+    }
+
+    /// Builder-pattern method for setting the recipient.
+    pub fn with_to(mut self, to: Address) -> Self {
+        self.inner = self.inner.with_to(to);
+        self
+    }
+
+    /// Builder-pattern method for setting the value.
+    pub fn with_value(mut self, value: U256) -> Self {
+        self.inner = self.inner.with_value(value);
+        self
+    }
+
     /// Submits transaction to the node.
     ///
     /// This does not wait for the transaction to be confirmed, but returns a [`PendingTransactionFinalizable`]
