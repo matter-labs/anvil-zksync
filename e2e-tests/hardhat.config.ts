@@ -6,7 +6,7 @@ import "@nomiclabs/hardhat-ethers";
 
 const config: HardhatUserConfig = {
   zksolc: {
-    version: "latest",
+    version: "1.5.7",
     settings: {},
   },
   defaultNetwork: "zkSyncTestnet",
