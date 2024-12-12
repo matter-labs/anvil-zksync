@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { Wallet, Provider, Contract, utils } from "zksync-web3";
+import { Wallet, Provider, Contract, utils } from "zksync-ethers";
 import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
 import * as ethers from "ethers";
 import * as hre from "hardhat";
@@ -29,36 +29,36 @@ describe("ERC20FixedPaymaster", function () {
     let artifact = await deployer.loadArtifact("MyERC20");
     token = await deployer.deploy(artifact, ["MyToken", "MyToken", 18]);
     artifact = await deployer.loadArtifact("ERC20FixedPaymaster");
-    paymaster = await deployer.deploy(artifact, [token.address]);
+    paymaster = await deployer.deploy(artifact, [await token.getAddress()]);
     artifact = await deployer.loadArtifact("Greeter");
     greeter = await deployer.deploy(artifact, ["Hi"]);
 
     // Fund Paymaster
-    await provider.send("hardhat_setBalance", [paymaster.address, ethers.utils.parseEther("10")._hex]);
+    await provider.send("hardhat_setBalance", [await paymaster.getAddress(), ethers.toBeHex(ethers.parseEther("10"))]);
   });
 
   async function executeGreetingTransaction(user: Wallet, greeting: string) {
     const gasPrice = await provider.getGasPrice();
-    const token_address = token.address.toString();
+    const token_address = (await token.getAddress()).toString();
 
-    const paymasterParams = utils.getPaymasterParams(paymaster.address, {
+    const paymasterParams = utils.getPaymasterParams(await paymaster.getAddress(), {
       type: "ApprovalBased",
       token: token_address,
-      minimalAllowance: ethers.BigNumber.from(1),
+      minimalAllowance: 1n,
       // empty bytes as testnet paymaster does not use innerInput
       innerInput: new Uint8Array(),
     });
 
     // Estimate gasLimit via paymaster
-    const gasLimit = await greeter.connect(user).estimateGas.setGreeting(greeting, {
+    const gasLimit = await (greeter.connect(user) as Contract).setGreeting.estimateGas(greeting, {
       customData: {
         gasPerPubdata: utils.DEFAULT_GAS_PER_PUBDATA_LIMIT,
         paymasterParams,
       },
     });
 
-    const setGreetingTx = await greeter.connect(user).setGreeting(greeting, {
-      maxPriorityFeePerGas: ethers.BigNumber.from(0),
+    const setGreetingTx = await (greeter.connect(user) as Contract).setGreeting(greeting, {
+      maxPriorityFeePerGas: 0n,
       maxFeePerGas: gasPrice,
       gasLimit,
       customData: {
@@ -72,13 +72,13 @@ describe("ERC20FixedPaymaster", function () {
 
   it("user with MyERC20 token can update message for free", async function () {
     // Arrange
-    const initialMintAmount = ethers.utils.parseEther("3");
+    const initialMintAmount = ethers.parseEther("3");
     const success = await token.mint(userWallet.address, initialMintAmount);
     await success.wait();
 
     const userInitialTokenBalance = await token.balanceOf(userWallet.address);
     const userInitialETHBalance = await userWallet.getBalance();
-    const initialPaymasterBalance = await provider.getBalance(paymaster.address);
+    const initialPaymasterBalance = await provider.getBalance(await paymaster.getAddress());
 
     // Act
     await executeGreetingTransaction(userWallet, "Hola, mundo!");
@@ -86,28 +86,28 @@ describe("ERC20FixedPaymaster", function () {
     // Assert
     const finalETHBalance = await userWallet.getBalance();
     const finalUserTokenBalance = await token.balanceOf(userWallet.address);
-    const finalPaymasterBalance = await provider.getBalance(paymaster.address);
+    const finalPaymasterBalance = await provider.getBalance(await paymaster.getAddress());
 
     expect(await greeter.greet()).to.equal("Hola, mundo!");
-    expect(initialPaymasterBalance.gt(finalPaymasterBalance)).to.be.true;
+    expect(initialPaymasterBalance > finalPaymasterBalance).to.be.true;
     expect(userInitialETHBalance).to.eql(finalETHBalance);
-    expect(userInitialTokenBalance.gt(finalUserTokenBalance)).to.be.true;
+    expect(userInitialTokenBalance > finalUserTokenBalance).to.be.true;
   });
 
   it("should allow owner to withdraw all funds", async function () {
     // Arrange
     // Act
-    const tx = await paymaster.connect(richWallet).withdraw(userWallet.address);
+    const tx = await (paymaster.connect(richWallet) as Contract).withdraw(userWallet.address);
     await tx.wait();
 
     // Assert
-    const finalContractBalance = await provider.getBalance(paymaster.address);
-    expect(finalContractBalance).to.eql(ethers.BigNumber.from(0));
+    const finalContractBalance = await provider.getBalance(await paymaster.getAddress());
+    expect(finalContractBalance).to.eql(0n);
   });
 
   it("should prevent non-owners from withdrawing funds", async function () {
     const action = async () => {
-      await paymaster.connect(userWallet).withdraw(userWallet.address);
+      await (paymaster.connect(userWallet) as Contract).withdraw(userWallet.address);
     };
 
     await expectThrowsAsync(action, "Ownable: caller is not the owner");

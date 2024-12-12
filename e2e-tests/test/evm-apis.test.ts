@@ -1,9 +1,9 @@
 import { expect } from "chai";
 import * as hre from "hardhat";
 import { deployContract, getTestProvider } from "../helpers/utils";
-import { Wallet } from "zksync-web3";
+import { Wallet } from "zksync-ethers";
 import { RichAccounts } from "../helpers/constants";
-import { BigNumber, ethers } from "ethers";
+import { ethers } from "ethers";
 import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
 
 const provider = getTestProvider();
@@ -15,7 +15,7 @@ describe("evm_setAccountNonce", function () {
     const newNonce = 42;
 
     // Act
-    await provider.send("evm_setAccountNonce", [userWallet.address, ethers.utils.hexlify(newNonce)]);
+    await provider.send("evm_setAccountNonce", [userWallet.address, ethers.toBeHex(newNonce)]);
 
     // Assert
     const nonce = await userWallet.getNonce();
@@ -51,7 +51,7 @@ describe("evm_increaseTime", function () {
 
     const txResponse = await wallet.sendTransaction({
       to: userWallet.address,
-      value: ethers.utils.parseEther("0.1"),
+      value: ethers.parseEther("0.1"),
     });
     await txResponse.wait();
     expectedTimestamp += 2; // New transaction will add two blocks
@@ -76,7 +76,7 @@ describe("evm_setNextBlockTimestamp", function () {
 
     const txResponse = await wallet.sendTransaction({
       to: userWallet.address,
-      value: ethers.utils.parseEther("0.1"),
+      value: ethers.parseEther("0.1"),
     });
     await txResponse.wait();
     expectedTimestamp += 1; // After executing a transaction, the node puts it into a block and increases its current timestamp
@@ -101,7 +101,7 @@ describe("evm_setTime", function () {
 
     const txResponse = await wallet.sendTransaction({
       to: userWallet.address,
-      value: ethers.utils.parseEther("0.1"),
+      value: ethers.parseEther("0.1"),
     });
     await txResponse.wait();
     expectedTimestamp += 2; // New transaction will add two blocks
@@ -125,7 +125,7 @@ describe("evm_snapshot", function () {
 
     // Assert
     expect(await greeter.greet()).to.eq("Hi");
-    expect(BigNumber.from(snapshotId2).toString()).to.eq(BigNumber.from(snapshotId1).add(1).toString());
+    expect(BigInt(snapshotId2)).to.eq(BigInt(snapshotId1) + 1n);
   });
 });
 

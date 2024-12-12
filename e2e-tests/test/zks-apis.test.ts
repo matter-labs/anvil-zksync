@@ -1,20 +1,20 @@
 import { expect } from "chai";
 import { deployContract, getTestProvider } from "../helpers/utils";
-import { Wallet } from "zksync-web3";
+import { Wallet } from "zksync-ethers";
 import { RichAccounts } from "../helpers/constants";
-import { BigNumber, ethers } from "ethers";
+import { ethers } from "ethers";
 import * as hre from "hardhat";
-import { TransactionRequest } from "zksync-web3/build/src/types";
+import { TransactionRequest } from "zksync-ethers/build/types";
 import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
 import { TransactionResponse } from "@ethersproject/abstract-provider";
 
 const provider = getTestProvider();
 
 interface Fee {
-  gas_limit: ethers.BigNumber;
-  gas_per_pubdata_limit: ethers.BigNumber;
-  max_fee_per_gas: ethers.BigNumber;
-  max_priority_fee_per_gas: ethers.BigNumber;
+  gas_limit: bigint;
+  gas_per_pubdata_limit: bigint;
+  max_fee_per_gas: bigint;
+  max_priority_fee_per_gas: bigint;
 }
 
 describe("zks_estimateFee", function () {
@@ -25,7 +25,7 @@ describe("zks_estimateFee", function () {
     const transaction: TransactionRequest = {
       from: wallet.address,
       to: userWallet.address,
-      value: ethers.utils.parseEther("1")._hex,
+      value: ethers.toBeHex(ethers.parseEther("1")),
     };
 
     // Act
@@ -37,13 +37,13 @@ describe("zks_estimateFee", function () {
     expect(response).to.have.property("max_fee_per_gas");
     expect(response).to.have.property("max_priority_fee_per_gas");
 
-    const gasLimit = ethers.BigNumber.from(response.gas_limit);
-    const gasPerPubdataLimit = ethers.BigNumber.from(response.gas_per_pubdata_limit);
-    const maxFeePerGas = ethers.BigNumber.from(response.max_fee_per_gas);
+    const gasLimit = BigInt(response.gas_limit);
+    const gasPerPubdataLimit = BigInt(response.gas_per_pubdata_limit);
+    const maxFeePerGas = BigInt(response.max_fee_per_gas);
 
-    expect(gasLimit.toNumber()).to.be.greaterThan(0, "gas_limit should be greater than 0");
-    expect(gasPerPubdataLimit.toNumber()).to.be.greaterThan(0, "gas_per_pubdata_limit should be greater than 0");
-    expect(maxFeePerGas.toNumber()).to.be.greaterThan(0, "max_fee_per_gas should be greater than 0");
+    expect(gasLimit).to.be.greaterThan(0, "gas_limit should be greater than 0");
+    expect(gasPerPubdataLimit).to.be.greaterThan(0, "gas_per_pubdata_limit should be greater than 0");
+    expect(maxFeePerGas).to.be.greaterThan(0, "max_fee_per_gas should be greater than 0");
   });
 });
 
@@ -114,17 +114,16 @@ describe("zks_getBytecodeByHash", function () {
     const deployer = new Deployer(hre, wallet);
     const artifact = await deployer.loadArtifact("Greeter");
     const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
-    const deployedContract = await greeter.deployTransaction.wait();
     expect(await greeter.greet()).to.eq("Hi");
 
     // get the bytecode hash from the event
-    const contractDeployedHash = ethers.utils
-      .keccak256(ethers.utils.toUtf8Bytes("ContractDeployed(address,bytes32,address)"))
+    const contractDeployedHash = ethers
+      .keccak256(ethers.toUtf8Bytes("ContractDeployed(address,bytes32,address)"))
       .substring(2);
     const logs = await provider.send("eth_getLogs", [
       {
-        fromBlock: ethers.utils.hexlify(deployedContract.blockNumber),
-        toBlock: ethers.utils.hexlify(deployedContract.blockNumber),
+        fromBlock: ethers.toBeHex(greeter.deploymentTransaction()!.blockNumber!),
+        toBlock: ethers.toBeHex(greeter.deploymentTransaction()!.blockNumber!),
         address: "0x0000000000000000000000000000000000008006", // L2 Deployer address
         topics: [contractDeployedHash],
       },
@@ -137,7 +136,7 @@ describe("zks_getBytecodeByHash", function () {
     const bytecode = await provider.send("zks_getBytecodeByHash", [bytecodeHash]);
 
     // Assert
-    expect(ethers.utils.hexlify(bytecode)).to.equal(artifact.deployedBytecode);
+    expect(ethers.hexlify(bytecode)).to.equal(artifact.deployedBytecode);
   });
 });
 
@@ -170,16 +169,16 @@ describe("zks_getAllAccountBalances", function () {
   it("Should return balance of a rich account", async function () {
     // Arrange
     const account = RichAccounts[0].Account;
-    const expectedBalance = ethers.utils.parseEther("1000000000000"); // 1_000_000_000_000 ETH
+    const expectedBalance = ethers.parseEther("1000000000000"); // 1_000_000_000_000 ETH
     const ethAddress = "0x000000000000000000000000000000000000800a";
     await provider.send("hardhat_setBalance", [account, expectedBalance._hex]);
 
     // Act
     const balances = await provider.send("zks_getAllAccountBalances", [account]);
-    const ethBalance = BigNumber.from(balances[ethAddress]);
+    const ethBalance = BigInt(balances[ethAddress]);
 
     // Assert
-    expect(ethBalance.eq(expectedBalance)).to.be.true;
+    expect(ethBalance === expectedBalance).to.be.true;
   });
 });
 

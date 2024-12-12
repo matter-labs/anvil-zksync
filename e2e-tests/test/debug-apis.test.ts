@@ -1,11 +1,9 @@
 import { expect } from "chai";
-import { Wallet } from "zksync-web3";
+import { Wallet } from "zksync-ethers";
 import * as hre from "hardhat";
 import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
 import { RichAccounts } from "../helpers/constants";
 import { deployContract, expectThrowsAsync, getTestProvider } from "../helpers/utils";
-import { BigNumber } from "ethers";
-import { TransactionResponse } from "@ethersproject/abstract-provider";
 
 const provider = getTestProvider();
 
@@ -25,10 +23,10 @@ describe("debug_traceCall", function () {
 
     const deployer = new Deployer(hre, wallet);
     const secondary = await deployContract(deployer, "Secondary", ["3"]);
-    await deployContract(deployer, "Primary", [secondary.address]);
+    await deployContract(deployer, "Primary", [await secondary.getAddress()]);
     const result = await provider.send("debug_traceCall", [
       {
-        to: secondary.address,
+        to: await secondary.getAddress(),
         data: secondary.interface.encodeFunctionData("multiply", ["4"]),
         gas: "0x7f5e100",
       },
@@ -50,11 +48,11 @@ describe("debug_traceCall", function () {
 
     const deployer = new Deployer(hre, wallet);
     const secondary = await deployContract(deployer, "Secondary", ["3"]);
-    const primary = await deployContract(deployer, "Primary", [secondary.address]);
+    const primary = await deployContract(deployer, "Primary", [await secondary.getAddress()]);
 
     const result = await provider.send("debug_traceCall", [
       {
-        to: primary.address,
+        to: await primary.getAddress(),
         data: primary.interface.encodeFunctionData("calculate", ["4"]),
         gas: "0x5f5e100",
       },
@@ -67,8 +65,8 @@ describe("debug_traceCall", function () {
 
     // subcall from primary to secondary contract should be present
     const contract_call = calls[0].calls.at(-1).calls[0].calls[0];
-    expect(contract_call.from.toLowerCase()).to.equal(primary.address.toLowerCase());
-    expect(contract_call.to.toLowerCase()).to.equal(secondary.address.toLowerCase());
+    expect(contract_call.from.toLowerCase()).to.equal((await primary.getAddress()).toLowerCase());
+    expect(contract_call.to.toLowerCase()).to.equal((await primary.getAddress()).toLowerCase());
 
     const [output_number] = primary.interface.decodeFunctionResult("calculate", output);
     expect(output_number.toNumber()).to.equal(12);
@@ -89,7 +87,7 @@ describe("debug_traceTransaction", function () {
 
     const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
 
-    const txResponse: TransactionResponse = await greeter.setGreeting("Luke Skywalker");
+    const txResponse = await greeter.setGreeting("Luke Skywalker");
     const txReceipt = await txResponse.wait();
     const trace = await provider.send("debug_traceTransaction", [txReceipt.transactionHash]);
 
@@ -98,7 +96,7 @@ describe("debug_traceTransaction", function () {
     expect(trace.calls.length).to.equal(1);
 
     // gas limit should match
-    expect(BigNumber.from(trace.gas).toNumber()).to.equal(txResponse.gasLimit.toNumber());
+    expect(BigInt(trace.gas)).to.equal(BigInt(txResponse.gasLimit));
   });
 
   it("Should respect only_top_calls option", async function () {
@@ -107,7 +105,7 @@ describe("debug_traceTransaction", function () {
 
     const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
 
-    const txResponse: TransactionResponse = await greeter.setGreeting("Luke Skywalker");
+    const txResponse = await greeter.setGreeting("Luke Skywalker");
     const txReceipt = await txResponse.wait();
     const trace = await provider.send("debug_traceTransaction", [
       txReceipt.transactionHash,
@@ -127,7 +125,7 @@ describe("debug_traceBlockByHash", function () {
 
     const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
 
-    const txResponse: TransactionResponse = await greeter.setGreeting("Luke Skywalker");
+    const txResponse = await greeter.setGreeting("Luke Skywalker");
     await txResponse.wait();
     const latestBlock = await provider.getBlock("latest");
     const block = await provider.getBlock(latestBlock.number - 1);
@@ -150,7 +148,7 @@ describe("debug_traceBlockByNumber", function () {
 
     const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
 
-    const txResponse: TransactionResponse = await greeter.setGreeting("Luke Skywalker");
+    const txResponse = await greeter.setGreeting("Luke Skywalker");
     await txResponse.wait();
 
     // latest block will be empty, check we get no traces for it

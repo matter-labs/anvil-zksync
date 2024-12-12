@@ -1,7 +1,6 @@
 import { HardhatUserConfig } from "hardhat/config";
 
 import "@matterlabs/hardhat-zksync";
-import "@nomiclabs/hardhat-ethers";
 
 const config: HardhatUserConfig = {
   zksolc: {
