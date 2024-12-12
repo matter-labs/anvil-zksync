@@ -84,7 +84,7 @@ describe("ERC721GatedPaymaster", function () {
 
   it("should require the user to have the NFT", async function () {
     // Arrange
-    let normalUserWallet = new Wallet(Wallet.createRandom().privateKey, provider);
+    const normalUserWallet = new Wallet(Wallet.createRandom().privateKey, provider);
 
     // Act
     const action = async () => {
