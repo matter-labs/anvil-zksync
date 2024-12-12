@@ -1,6 +1,6 @@
-import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
+import { Deployer } from "@matterlabs/hardhat-zksync";
 import { expect } from "chai";
-import { Contract, Provider } from "zksync-web3";
+import { Contract, Provider } from "zksync-ethers";
 import * as hre from "hardhat";
 import { HttpNetworkUserConfig } from "hardhat/types";
 

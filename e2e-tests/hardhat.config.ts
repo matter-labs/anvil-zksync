@@ -1,12 +1,10 @@
 import { HardhatUserConfig } from "hardhat/config";
 
-import "@matterlabs/hardhat-zksync-deploy";
-import "@matterlabs/hardhat-zksync-solc";
-import "@nomiclabs/hardhat-ethers";
+import "@matterlabs/hardhat-zksync";
 
 const config: HardhatUserConfig = {
   zksolc: {
-    version: "1.5.7",
+    version: "1.5.8",
     settings: {},
   },
   defaultNetwork: "zkSyncTestnet",

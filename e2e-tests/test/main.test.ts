@@ -1,11 +1,11 @@
 import { expect } from "chai";
-import { Wallet } from "zksync-web3";
+import { Wallet } from "zksync-ethers";
 import * as hre from "hardhat";
 import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
-import { ethers } from "ethers";
+import { ethers, Contract } from "ethers";
 import { RichAccounts } from "../helpers/constants";
 import { deployContract, expectThrowsAsync, getTestProvider } from "../helpers/utils";
-import { Log, TransactionReceipt } from "zksync-web3/build/src/types";
+import { Log, TransactionReceipt } from "zksync-ethers/build/types";
 
 const provider = getTestProvider();
 
@@ -34,7 +34,7 @@ describe("Greeter Smart Contract", function () {
       const userWallet = Wallet.createRandom().connect(provider);
       const txResponse = await wallet.sendTransaction({
         to: userWallet.address,
-        value: ethers.utils.parseEther("3"),
+        value: ethers.parseEther("3"),
       });
       await txResponse.wait();
 
@@ -43,7 +43,7 @@ describe("Greeter Smart Contract", function () {
       const greeter = await deployer.deploy(artifact, ["Hello, world!"]);
 
       // should revert
-      const tx = await greeter.connect(userWallet).setGreetingByOwner("Hola, mundo!");
+      const tx = await (greeter.connect(userWallet) as Contract).setGreetingByOwner("Hola, mundo!");
       await tx.wait();
     };
 
@@ -55,6 +55,7 @@ describe("Greeter Smart Contract", function () {
     const deployer = new Deployer(hre, wallet);
 
     const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
+    const greeterAddress = await greeter.getAddress();
 
     expect(await greeter.greet()).to.eq("Hi");
 
@@ -63,12 +64,12 @@ describe("Greeter Smart Contract", function () {
 
     // Validate log is created
     expect(receipt.logs.length).to.greaterThanOrEqual(1);
-    const setGreetingLog = receipt.logs.find((log) => log.address === greeter.address);
+    const setGreetingLog = receipt.logs.find((log) => log.address === greeterAddress);
     expect(setGreetingLog).not.to.equal(null);
 
-    const eventInterface = new ethers.utils.Interface(["event LogString(string value)"]);
+    const eventInterface = new ethers.Interface(["event LogString(string value)"]);
     const parsedLog = eventInterface.parseLog(setGreetingLog!);
-    const parsedLogArg = parsedLog.args[0].toString();
+    const parsedLogArg = parsedLog?.args[0].toString();
     expect(parsedLogArg).to.equal("Greeting is being updated to Luke Skywalker");
   });
 
@@ -76,13 +77,14 @@ describe("Greeter Smart Contract", function () {
     const wallet = new Wallet(RichAccounts[0].PrivateKey);
     const deployer = new Deployer(hre, wallet);
     const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
+    const greeterAddress = await greeter.getAddress();
     expect(await greeter.greet()).to.eq("Hi");
 
     const setGreetingTx = await greeter.setGreeting("Luke Skywalker");
     let receipt: TransactionReceipt = await setGreetingTx.wait();
 
     expect(receipt.logs.length).to.greaterThanOrEqual(1);
-    const setGreetingLog = receipt.logs.find((log) => log.address === greeter.address);
+    const setGreetingLog = receipt.logs.find((log) => log.address === greeterAddress);
     expect(setGreetingLog).not.to.equal(null);
 
     // Create filter
@@ -104,10 +106,10 @@ describe("Greeter Smart Contract", function () {
     filterChanges = await provider.send("eth_getFilterChanges", [filterId]);
 
     expect(filterChanges.length).to.eq(1);
-    expect(filterChanges[0].transactionHash).to.eq(receipt.transactionHash);
+    expect(filterChanges[0].transactionHash).to.eq(receipt.hash);
     expect(filterChanges[0].blockHash).to.eq(receipt.blockHash);
     expect(filterChanges[0].removed).to.eq(false);
-    const eventInterface = new ethers.utils.Interface(["event LogString(string value)"]);
-    expect(eventInterface.parseLog(filterChanges[0]).args[0]).to.equal("Greeting is being updated to Darth Vader");
+    const eventInterface = new ethers.Interface(["event LogString(string value)"]);
+    expect(eventInterface.parseLog(filterChanges[0])?.args[0]).to.equal("Greeting is being updated to Darth Vader");
   });
 });
