@@ -7,8 +7,7 @@
   "license": "MIT",
   "devDependencies": {
     "@matterlabs/eslint-config-vue": "^1.1.4",
-    "@matterlabs/hardhat-zksync-deploy": "^0.6.5",
-    "@matterlabs/hardhat-zksync-solc": "^1.2.5",
+    "@matterlabs/hardhat-zksync": "^1.3.0",
     "@matterlabs/prettier-config": "^1.0.3",
     "@matterlabs/zksync-contracts": "0.6.1",
     "@nomiclabs/hardhat-ethers": "^2.2.3",
