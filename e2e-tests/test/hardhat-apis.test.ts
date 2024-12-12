@@ -47,10 +47,7 @@ describe("hardhat_mine", function () {
     const startingTimestamp: number = await provider.send("config_getCurrentTimestamp", []);
 
     // Act
-    await provider.send("hardhat_mine", [
-      ethers.toBeHex(numberOfBlocks),
-      ethers.toBeHex(intervalInSeconds),
-    ]);
+    await provider.send("hardhat_mine", [ethers.toBeHex(numberOfBlocks), ethers.toBeHex(intervalInSeconds)]);
 
     // Assert
     const latestBlock = await provider.getBlock("latest");

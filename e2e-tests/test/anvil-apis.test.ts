@@ -11,14 +11,14 @@ const provider = getTestProvider();
 
 describe("anvil_setNextBlockBaseFeePerGas", function () {
   it("Should change gas price", async function () {
-    const oldBaseFee = (await provider.getGasPrice());
+    const oldBaseFee = await provider.getGasPrice();
     const expectedNewBaseFee = oldBaseFee + 42n;
 
     // Act
     await provider.send("anvil_setNextBlockBaseFeePerGas", [ethers.toBeHex(expectedNewBaseFee)]);
 
     // Assert
-    const newBaseFee = (await provider.getGasPrice());
+    const newBaseFee = await provider.getGasPrice();
     expect(newBaseFee).to.equal(expectedNewBaseFee);
 
     // Revert
@@ -28,7 +28,7 @@ describe("anvil_setNextBlockBaseFeePerGas", function () {
   it("Should produce a block with new gas price", async function () {
     const wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
     const userWallet = Wallet.createRandom().connect(provider);
-    const oldBaseFee = (await provider.getGasPrice());
+    const oldBaseFee = await provider.getGasPrice();
     const expectedNewBaseFee = oldBaseFee + 42n;
 
     // Act
@@ -318,8 +318,8 @@ describe("anvil_impersonateAccount & anvil_stopImpersonatingAccount", function (
     await provider.send("anvil_stopImpersonatingAccount", [richAccount]);
 
     // Assert
-    expect((await userWallet.getBalance())).to.eq(ethers.parseEther("0.42"));
-    expect((await provider.getBalance(richAccount))).to.eq(beforeBalance - ethers.parseEther("0.42"));
+    expect(await userWallet.getBalance()).to.eq(ethers.parseEther("0.42"));
+    expect(await provider.getBalance(richAccount)).to.eq(beforeBalance - ethers.parseEther("0.42"));
   });
 });
 
@@ -345,8 +345,8 @@ describe("anvil_autoImpersonateAccount", function () {
     await provider.send("anvil_autoImpersonateAccount", [false]);
 
     // Assert
-    expect((await userWallet.getBalance())).to.eq(ethers.parseEther("0.42"));
-    expect((await provider.getBalance(richAccount))).to.eq(beforeBalance - ethers.parseEther("0.42"));
+    expect(await userWallet.getBalance()).to.eq(ethers.parseEther("0.42"));
+    expect(await provider.getBalance(richAccount)).to.eq(beforeBalance - ethers.parseEther("0.42"));
   });
 });
 
