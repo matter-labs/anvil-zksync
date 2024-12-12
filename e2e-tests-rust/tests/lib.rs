@@ -1,7 +1,12 @@
 use alloy::network::ReceiptResponse;
 use alloy::providers::ext::AnvilApi;
+use alloy::providers::Provider;
 use anvil_zksync_e2e_tests::{
     init_testing_provider, AnvilZKsyncApi, ReceiptExt, ZksyncWalletProviderExt, DEFAULT_TX_VALUE,
+};
+use alloy::{
+    primitives::U256,
+    signers::local::PrivateKeySigner,
 };
 use std::convert::identity;
 use std::time::Duration;
@@ -330,6 +335,31 @@ async fn cant_load_into_existing_state() -> anyhow::Result<()> {
     provider
         .assert_balance(old_receipts[1].sender()?, 0)
         .await?;
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn set_chain_id() -> anyhow::Result<()> {
+    let mut provider = init_testing_provider(identity).await?;
+
+    let random_signer = PrivateKeySigner::random();
+    let random_signer_address = random_signer.address();
+
+    // Send transaction before changing chain id
+    provider.tx().with_to(random_signer_address).with_value(U256::from(1e18 as u64)).finalize().await?;
+
+    // Change chain id
+    let new_chain_id = 123;
+    provider.anvil_set_chain_id(new_chain_id).await?;
+
+    // Verify new chain id
+    assert_eq!(new_chain_id, provider.get_chain_id().await?);
+
+    // Verify transactions can be executed after chain id change
+    // Registering and using new signer to get new chain id applied
+    provider.register_signer(random_signer);
+    provider.tx().with_from(random_signer_address).with_chain_id(new_chain_id).finalize().await?;
 
     Ok(())
 }

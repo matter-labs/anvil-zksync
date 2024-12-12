@@ -481,6 +481,17 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
         }
         Ok(())
     }
+
+    pub fn set_chain_id(&self, id: u32) -> Result<()> {
+        let mut inner = self
+            .inner
+            .write()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire write lock"))?;
+
+        inner.config.update_chain_id(Some(id));
+        inner.fork_storage.set_chain_id(id.into());
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -495,7 +506,7 @@ mod tests {
     use std::sync::{Arc, RwLock};
     use zksync_multivm::interface::storage::ReadStorage;
     use zksync_types::{api::BlockNumber, fee::Fee, l2::L2Tx, PackedEthSignature};
-    use zksync_types::{Nonce, H256};
+    use zksync_types::{L2ChainId, Nonce, H256};
     use zksync_utils::h256_to_u256;
 
     #[tokio::test]
@@ -1069,5 +1080,20 @@ mod tests {
 
         let result = node.revert_snapshot(U64::from(100));
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_node_set_chain_id() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let new_chain_id = 261;
+
+        let _ = node.set_chain_id(new_chain_id);
+
+        let node_inner = node.inner.read().unwrap();
+        assert_eq!(new_chain_id, node_inner.config.chain_id.unwrap());
+        assert_eq!(
+            L2ChainId::from(new_chain_id),
+            node_inner.fork_storage.chain_id
+        );
     }
 }
