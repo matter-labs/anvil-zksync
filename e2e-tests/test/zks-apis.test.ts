@@ -6,7 +6,6 @@ import { ethers } from "ethers";
 import * as hre from "hardhat";
 import { TransactionRequest } from "zksync-ethers/build/types";
 import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
-import { TransactionResponse } from "@ethersproject/abstract-provider";
 
 const provider = getTestProvider();
 
@@ -41,9 +40,9 @@ describe("zks_estimateFee", function () {
     const gasPerPubdataLimit = BigInt(response.gas_per_pubdata_limit);
     const maxFeePerGas = BigInt(response.max_fee_per_gas);
 
-    expect(gasLimit).to.be.greaterThan(0, "gas_limit should be greater than 0");
-    expect(gasPerPubdataLimit).to.be.greaterThan(0, "gas_per_pubdata_limit should be greater than 0");
-    expect(maxFeePerGas).to.be.greaterThan(0, "max_fee_per_gas should be greater than 0");
+    expect(gasLimit > 0).to.be.true;
+    expect(gasPerPubdataLimit > 0).to.be.true;
+    expect(maxFeePerGas > 0).to.be.true;
   });
 });
 
@@ -67,9 +66,9 @@ describe("zks_getTransactionDetails", function () {
 
     const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
 
-    const txResponse: TransactionResponse = await greeter.setGreeting("Luke Skywalker");
+    const txResponse = await greeter.setGreeting("Luke Skywalker");
     const txReceipt = await txResponse.wait();
-    const details = await provider.send("zks_getTransactionDetails", [txReceipt.transactionHash]);
+    const details = await provider.send("zks_getTransactionDetails", [txReceipt.hash]);
 
     expect(details["status"]).to.equal("included");
     expect(details["initiatorAddress"].toLowerCase()).to.equal(wallet.address.toLowerCase());
@@ -133,10 +132,10 @@ describe("zks_getBytecodeByHash", function () {
     const bytecodeHash = logs[0].topics[2];
 
     // Act
-    const bytecode = await provider.send("zks_getBytecodeByHash", [bytecodeHash]);
+    const bytecode = await provider.getBytecodeByHash(bytecodeHash);
 
     // Assert
-    expect(ethers.hexlify(bytecode)).to.equal(artifact.deployedBytecode);
+    expect(ethers.hexlify(new Uint8Array(bytecode))).to.equal(artifact.deployedBytecode);
   });
 });
 
@@ -146,7 +145,7 @@ describe("zks_getRawBlockTransactions", function () {
     const deployer = new Deployer(hre, wallet);
 
     const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
-    const txResponse: TransactionResponse = await greeter.setGreeting("Luke Skywalker");
+    const txResponse = await greeter.setGreeting("Luke Skywalker");
     await txResponse.wait();
 
     const latestBlock = await provider.getBlock("latest");

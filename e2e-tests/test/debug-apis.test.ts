@@ -66,10 +66,10 @@ describe("debug_traceCall", function () {
     // subcall from primary to secondary contract should be present
     const contract_call = calls[0].calls.at(-1).calls[0].calls[0];
     expect(contract_call.from.toLowerCase()).to.equal((await primary.getAddress()).toLowerCase());
-    expect(contract_call.to.toLowerCase()).to.equal((await primary.getAddress()).toLowerCase());
+    expect(contract_call.to.toLowerCase()).to.equal((await secondary.getAddress()).toLowerCase());
 
     const [output_number] = primary.interface.decodeFunctionResult("calculate", output);
-    expect(output_number.toNumber()).to.equal(12);
+    expect(output_number).to.equal(12n);
   });
 });
 
@@ -89,7 +89,7 @@ describe("debug_traceTransaction", function () {
 
     const txResponse = await greeter.setGreeting("Luke Skywalker");
     const txReceipt = await txResponse.wait();
-    const trace = await provider.send("debug_traceTransaction", [txReceipt.transactionHash]);
+    const trace = await provider.send("debug_traceTransaction", [txReceipt.hash]);
 
     // call should be successful
     expect(trace.error).to.equal(null);
@@ -108,7 +108,7 @@ describe("debug_traceTransaction", function () {
     const txResponse = await greeter.setGreeting("Luke Skywalker");
     const txReceipt = await txResponse.wait();
     const trace = await provider.send("debug_traceTransaction", [
-      txReceipt.transactionHash,
+      txReceipt.hash,
       { tracer: "callTracer", tracerConfig: { onlyTopCall: true } },
     ]);
 

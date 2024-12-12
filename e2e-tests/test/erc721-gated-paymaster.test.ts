@@ -28,12 +28,12 @@ describe("ERC721GatedPaymaster", function () {
     let artifact = await deployer.loadArtifact("MyNFT");
     erc721 = await deployer.deploy(artifact, []);
     artifact = await deployer.loadArtifact("ERC721GatedPaymaster");
-    paymaster = await deployer.deploy(artifact, [erc721.address]);
+    paymaster = await deployer.deploy(artifact, [await erc721.getAddress()]);
     artifact = await deployer.loadArtifact("Greeter");
     greeter = await deployer.deploy(artifact, ["Hi"]);
 
     // Fund Paymaster
-    await provider.send("hardhat_setBalance", [paymaster.address, ethers.toBeHex(ethers.parseEther("10"))]);
+    await provider.send("hardhat_setBalance", [await paymaster.getAddress(), ethers.toBeHex(ethers.parseEther("10"))]);
 
     // Assign NFT to nftUserWallet
     const tx = await erc721.mint(nftUserWallet.address);

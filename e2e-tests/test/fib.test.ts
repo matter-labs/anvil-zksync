@@ -19,6 +19,6 @@ describe("Test Fib error flags", function () {
     // This is expected to throw and the console is expected to show:
     //   XX:YY:ZZ ERROR !! Got error flags:
     //   XX:YY:ZZ ERROR NOT ENOUGH ERGS
-    await expectThrowsAsync(action, "call revert exception");
+    await expectThrowsAsync(action, "execution reverted");
   });
 });
