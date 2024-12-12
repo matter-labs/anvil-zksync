@@ -171,7 +171,7 @@ describe("zks_getAllAccountBalances", function () {
     const account = RichAccounts[0].Account;
     const expectedBalance = ethers.parseEther("1000000000000"); // 1_000_000_000_000 ETH
     const ethAddress = "0x000000000000000000000000000000000000800a";
-    await provider.send("hardhat_setBalance", [account, expectedBalance._hex]);
+    await provider.send("hardhat_setBalance", [account, ethers.toBeHex(expectedBalance)]);
 
     // Act
     const balances = await provider.send("zks_getAllAccountBalances", [account]);
