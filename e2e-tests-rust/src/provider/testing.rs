@@ -1,21 +1,32 @@
-use crate::utils::LockedPort;
+use crate::utils::{LockedPort,get_node_binary_path};
 use crate::ReceiptExt;
 use alloy::network::primitives::{BlockTransactionsKind, HeaderResponse as _};
 use alloy::network::{Network, ReceiptResponse as _, TransactionBuilder};
 use alloy::primitives::{Address, U256};
+use alloy::signers::local::LocalSigner;
 use alloy::providers::{
     PendingTransaction, PendingTransactionBuilder, PendingTransactionError, Provider, RootProvider,
     SendableTx, WalletProvider,
 };
-use alloy::rpc::types::{Block, TransactionRequest};
-use alloy::transports::http::{reqwest, Http};
+use alloy::rpc::{
+    types::{Block, TransactionRequest},
+    client::RpcClient,
+};
+use alloy::transports::http::{
+    reqwest,
+    reqwest::{
+        header::HeaderMap,
+        Client,
+    },
+    Http
+};
 use alloy::transports::{RpcError, Transport, TransportErrorKind, TransportResult};
 use alloy_zksync::network::header_response::HeaderResponse;
 use alloy_zksync::network::receipt_response::ReceiptResponse;
 use alloy_zksync::network::transaction_response::TransactionResponse;
 use alloy_zksync::network::Zksync;
-use alloy_zksync::node_bindings::EraTestNode;
-use alloy_zksync::provider::{zksync_provider, ProviderBuilderExt};
+use alloy_zksync::node_bindings::{EraTestNode,EraTestNodeError::NoKeysAvailable};
+use alloy_zksync::provider::{zksync_provider, ProviderBuilderExt, layers::era_test_node::EraTestNodeLayer};
 use alloy_zksync::wallet::ZksyncWallet;
 use anyhow::Context as _;
 use itertools::Itertools;
@@ -71,10 +82,7 @@ pub async fn init_testing_provider(
         .with_recommended_fillers()
         .on_era_test_node_with_wallet_and_config(|node| {
             f(node
-                .path(
-                    std::env::var("ANVIL_ZKSYNC_BINARY_PATH")
-                        .unwrap_or("../target/release/anvil-zksync".to_string()),
-                )
+                .path(get_node_binary_path())
                 .port(locked_port.port))
         });
 
@@ -83,6 +91,66 @@ pub async fn init_testing_provider(
     let rich_accounts = provider.signer_addresses().collect::<Vec<_>>();
     // Wait for anvil-zksync to get up and be able to respond
     provider.get_chain_id().await?;
+    // Explicitly unlock the port to showcase why we waited above
+    drop(locked_port);
+
+    Ok(TestingProvider {
+        inner: provider,
+        rich_accounts,
+        _pd: Default::default(),
+    })
+}
+
+// Init testing provider which sends specified HTTP headers e.g. for authentication
+// Outside of `TestingProvider` to avoid specifying `P`
+pub async fn init_testing_provider_with_http_headers(
+    headers: HeaderMap,
+    f: impl FnOnce(EraTestNode) -> EraTestNode,
+) -> anyhow::Result<
+    TestingProvider<impl FullZksyncProvider<Http<reqwest::Client>>, Http<reqwest::Client>>,
+> {
+    use alloy::signers::Signer;
+
+    let locked_port = LockedPort::acquire_unused().await?;
+    let node_layer = EraTestNodeLayer::from(
+        f(
+            EraTestNode::new()
+                .path(get_node_binary_path())
+                .port(locked_port.port)
+        )
+    );
+
+    let client_with_headers = Client::builder().default_headers(headers).build()?;
+    let rpc_url = node_layer.endpoint_url();
+    let http = Http::with_client(client_with_headers, rpc_url);
+    let rpc_client = RpcClient::new(http, true);
+
+    let default_keys = node_layer.instance().keys().to_vec();
+    let (default_key, remaining_keys) = default_keys
+        .split_first()
+        .ok_or(NoKeysAvailable)?;
+
+    let default_signer = LocalSigner::from(default_key.clone())
+        .with_chain_id(Some(node_layer.instance().chain_id()));
+    let mut wallet = ZksyncWallet::from(default_signer);
+
+    for key in remaining_keys {
+        let signer = LocalSigner::from(key.clone());
+        wallet.register_signer(signer)
+    }
+    
+    let provider = zksync_provider()
+        .with_recommended_fillers()
+        .wallet(wallet)
+        .layer(node_layer)
+        .on_client(rpc_client);
+
+    // Grab default rich accounts right after init. Note that subsequent calls to this method
+    // might return different value as wallet's signers are dynamic and can be changed by the user.
+    let rich_accounts = provider.signer_addresses().collect::<Vec<_>>();
+    // Wait for anvil-zksync to get up and be able to respond
+    // Ignore error response (should not fail here if provider is used with intentionally wrong origin for testing purposes)
+    let _ = provider.get_chain_id().await;
     // Explicitly unlock the port to showcase why we waited above
     drop(locked_port);
 
@@ -383,13 +451,7 @@ where
         self
     }
 
-    /// Builder-pattern method for setting the chain id.
-    pub fn with_chain_id(mut self, id: u64) -> Self {
-        self.inner = self.inner.with_chain_id(id);
-        self
-    }
-
-    /// Builder-pattern method for setting the recipient.
+    /// Builder-pattern method for setting the receiver.
     pub fn with_to(mut self, to: Address) -> Self {
         self.inner = self.inner.with_to(to);
         self
@@ -398,6 +460,12 @@ where
     /// Builder-pattern method for setting the value.
     pub fn with_value(mut self, value: U256) -> Self {
         self.inner = self.inner.with_value(value);
+        self
+    }
+
+    /// Builder-pattern method for setting the chain id.
+    pub fn with_chain_id(mut self, id: u64) -> Self {
+        self.inner = self.inner.with_chain_id(id);
         self
     }
 
