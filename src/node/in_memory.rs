@@ -17,6 +17,7 @@ use std::{
 };
 use zk_ee::common_structs::derive_flat_storage_key;
 use zk_ee::utils::Bytes32;
+use zksync_types::block::pack_block_info;
 
 use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::vm_latest::HistoryEnabled;
@@ -1498,6 +1499,21 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         //    .into_owned();
         //let tx_result = vm.inspect(&mut tracers.into(), InspectExecutionMode::OneTx);
 
+        let mut storage_ptr = vm.storage.borrow_mut();
+        let current_l1_batch_info_key = StorageKey::new(
+            AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
+            SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
+        );
+        let current_l1_batch_info = storage_ptr.read_value(&current_l1_batch_info_key);
+        let (batch_number, batch_timestamp) =
+            unpack_block_info(h256_to_u256(current_l1_batch_info));
+
+        dbg!(batch_number);
+        dbg!(batch_timestamp);
+
+        let aa = pack_block_info(batch_number + 1, batch_timestamp + 1);
+        storage_ptr.set_value(current_l1_batch_info_key, u256_to_h256(aa));
+
         let tx_result = {
             let batch_context = basic_system::basic_system::BasicBlockMetadataFromOracle {
                 eip1559_basefee: ruint::aliases::U256::from(1000u64),
@@ -1917,7 +1933,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 executed_tx_hashes.push(hash);
             }
         }
-        vm.execute(InspectExecutionMode::Bootloader);
+        //vm.execute(InspectExecutionMode::Bootloader);
 
         // Write all the mutated keys (storage slots).
         let mut inner = self
