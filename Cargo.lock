@@ -2823,6 +2823,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "zk_ee",
  "zksync-web3-rs",
  "zksync_basic_types",
  "zksync_contracts",

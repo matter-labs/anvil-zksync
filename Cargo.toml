@@ -72,7 +72,7 @@ rand = "0.8"
 forward_system = { path = "../zk_ee/forward_system"}
 basic_system = { path = "../zk_ee/basic_system"}
 ruint = { version = "1.12.3", default-features = false, features = ["alloc"] }
-
+zk_ee = { path = "../zk_ee/zk_ee" }
 
 
 [dev-dependencies]
@@ -90,4 +90,4 @@ fs2 = "0.4.3"
 test-case = "3.3.1"
 
 [profile.dev]
-debug = 0
+debug = 2

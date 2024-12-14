@@ -1,10 +1,12 @@
 //! In-memory node, that supports forking other networks.
 use basic_system::basic_system::simple_growable_storage::TestingTree;
 use colored::Colorize;
+use ethabi::{ethereum_types, Token};
 use forward_system::run::test_impl::{InMemoryPreimageSource, InMemoryTree, TxListSource};
 use forward_system::run::StorageCommitment;
 use indexmap::IndexMap;
 use once_cell::sync::OnceCell;
+use ruint::aliases::B160;
 use std::alloc::Global;
 use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 use std::{
@@ -13,6 +15,8 @@ use std::{
     str::FromStr,
     sync::{Arc, RwLock},
 };
+use zk_ee::common_structs::derive_flat_storage_key;
+use zk_ee::utils::Bytes32;
 
 use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::vm_latest::HistoryEnabled;
@@ -85,6 +89,39 @@ pub const ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION: u64 = 1_000;
 pub const MAX_PREVIOUS_STATES: u16 = 128;
 /// The zks protocol version.
 pub const PROTOCOL_VERSION: &str = "zks/1";
+
+pub fn append_address(data: &mut Vec<u8>, address: &H160) {
+    let mut pp = vec![0u8; 32];
+    let ap1 = address.as_fixed_bytes();
+    for i in 0..20 {
+        pp[i + 12] = ap1[i];
+    }
+    data.append(&mut pp);
+}
+
+pub fn append_u256(data: &mut Vec<u8>, payload: &zksync_types::U256) {
+    let mut pp = [0u8; 32];
+    payload.to_big_endian(&mut pp);
+
+    data.append(&mut pp.to_vec());
+}
+pub fn append_u64(data: &mut Vec<u8>, payload: u64) {
+    let mut pp = [0u8; 32];
+    let pp1 = payload.to_be_bytes();
+    for i in 0..8 {
+        pp[24 + i] = pp1[i];
+    }
+    data.append(&mut pp.to_vec());
+}
+
+pub fn append_usize(data: &mut Vec<u8>, payload: usize) {
+    let mut pp = [0u8; 32];
+    let pp1 = payload.to_be_bytes();
+    for i in 0..8 {
+        pp[24 + i] = pp1[i];
+    }
+    data.append(&mut pp.to_vec());
+}
 
 pub fn compute_hash<'a>(block_number: u64, tx_hashes: impl IntoIterator<Item = &'a H256>) -> H256 {
     let tx_bytes = tx_hashes
@@ -991,6 +1028,26 @@ fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) 
     None
 }
 
+pub fn address_into_special_storage_key(address: &B160) -> Bytes32 {
+    let mut key = Bytes32::zero();
+    key.as_u8_array_mut()[12..].copy_from_slice(&address.to_be_bytes::<{ B160::BYTES }>());
+
+    key
+}
+
+pub const NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS: B160 = B160::from_limbs([0x8009, 0, 0]);
+
+fn add_funds_to_address(address: B160, balance: ruint::aliases::U256, tree: &mut InMemoryTree) {
+    // We are updating both cold storage (hash map) and our storage tree.
+    let key = address_into_special_storage_key(&address);
+    let balance = Bytes32::from_u256_be(balance);
+    let flat_key = derive_flat_storage_key(&NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS, &key);
+
+    tree.cold_storage.insert(flat_key, balance);
+
+    tree.storage_tree.insert(&flat_key, &balance);
+}
+
 impl<S: ForkSource + std::fmt::Debug + Clone> Default for InMemoryNode<S> {
     fn default() -> Self {
         let impersonation = ImpersonationManager::default();
@@ -1424,58 +1481,174 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
         let tx: Transaction = l2_tx.into();
 
-        let call_tracer_result = Arc::new(OnceCell::default());
+        let call_tracer_result: Arc<OnceCell<Vec<Call>>> = Arc::new(OnceCell::default());
         let bootloader_debug_result = Arc::new(OnceCell::default());
 
-        let tracers = vec![
+        /*let tracers = vec![
             CallErrorTracer::new().into_tracer_pointer(),
             CallTracer::new(call_tracer_result.clone()).into_tracer_pointer(),
             BootloaderDebugTracer {
                 result: bootloader_debug_result.clone(),
             }
             .into_tracer_pointer(),
-        ];
+        ];*/
         //let compressed_bytecodes = vm
         //    .push_transaction(tx.clone())
         //    .compressed_bytecodes
         //    .into_owned();
-        let tx_result = vm.inspect(&mut tracers.into(), InspectExecutionMode::OneTx);
+        //let tx_result = vm.inspect(&mut tracers.into(), InspectExecutionMode::OneTx);
 
-        let batch_context = basic_system::basic_system::BasicBlockMetadataFromOracle {
-            eip1559_basefee: ruint::aliases::U256::from(1000u64),
-            ergs_price: ruint::aliases::U256::from(1u64),
-            block_number: 1,
-            timestamp: 42,
-        };
-        let mut tree = InMemoryTree {
-            storage_tree: TestingTree::new_in(Global),
-            cold_storage: HashMap::new(),
-        };
-        let mut preimage_source = InMemoryPreimageSource {
-            inner: HashMap::new(),
+        let tx_result = {
+            let batch_context = basic_system::basic_system::BasicBlockMetadataFromOracle {
+                eip1559_basefee: ruint::aliases::U256::from(1000u64),
+                ergs_price: ruint::aliases::U256::from(1u64),
+                block_number: 1,
+                timestamp: 42,
+            };
+            let mut tree = InMemoryTree {
+                storage_tree: TestingTree::new_in(Global),
+                cold_storage: HashMap::new(),
+            };
+
+            tree.storage_tree
+                .insert(&zk_ee::utils::Bytes32::ZERO, &zk_ee::utils::Bytes32::MAX);
+
+            let mut preimage_source = InMemoryPreimageSource {
+                inner: HashMap::new(),
+            };
+
+            let aa1 = match &tx.common_data {
+                zksync_types::ExecuteTransactionCommon::L1(l1_tx_common_data) => todo!(),
+                zksync_types::ExecuteTransactionCommon::L2(l2_tx_common_data) => l2_tx_common_data,
+                zksync_types::ExecuteTransactionCommon::ProtocolUpgrade(
+                    protocol_upgrade_tx_common_data,
+                ) => todo!(),
+            };
+
+            add_funds_to_address(
+                B160::from_be_bytes(aa1.initiator_address.0),
+                ruint::aliases::U256::from(1_000_000_000_000_000_u64),
+                &mut tree,
+            );
+
+            let storage_commitment = StorageCommitment {
+                root: *tree.storage_tree.root(),
+                next_free_slot: tree.storage_tree.next_free_slot,
+            };
+
+            //let foo = ethereum_types::H160::repeat_byte(3);
+            //ethereum_types::H160::
+            // aa1.initiator_address
+
+            /*let bb = Token::Tuple(vec![
+                Token::Uint(ethereum_types::U256::zero()),
+                Token::Address(foo),
+            ])
+            .to_vec();*/
+            // FIXME: this might be wrong..
+            let aa = tx.raw_bytes.as_ref().unwrap();
+            println!("Tx raw bytes: {:?}", aa);
+
+            let mut tx_raw: Vec<u8> = vec![];
+            tx_raw.append(&mut vec![0u8; 32]);
+            append_address(&mut tx_raw, &aa1.initiator_address);
+            append_address(&mut tx_raw, &tx.execute.contract_address.unwrap());
+            append_u256(&mut tx_raw, &aa1.fee.gas_limit);
+            append_u256(&mut tx_raw, &aa1.fee.gas_per_pubdata_limit);
+            append_u256(&mut tx_raw, &aa1.fee.max_fee_per_gas);
+            //append_u256(&mut tx_raw, &aa1.fee.max_priority_fee_per_gas);
+            // hack for legacy tx.
+            append_u256(&mut tx_raw, &aa1.fee.max_fee_per_gas);
+
+            // paymaster
+            append_u64(&mut tx_raw, 0);
+
+            append_u64(&mut tx_raw, aa1.nonce.0.into());
+
+            append_u256(&mut tx_raw, &tx.execute.value);
+
+            for _ in 0..4 {
+                // reserved
+                append_u64(&mut tx_raw, 0);
+            }
+
+            let signature_u256 = aa1.signature.len().div_ceil(32);
+
+            // data offset
+            append_u64(&mut tx_raw, 19 * 32);
+            // signature offset (stupid -- this doesn't include the padding!!)
+            append_u64(&mut tx_raw, 20 * 32);
+
+            // factory deps
+            append_usize(&mut tx_raw, (21 + signature_u256) * 32);
+            // paymater
+            append_usize(&mut tx_raw, (22 + signature_u256) * 32);
+            // reserved
+            append_usize(&mut tx_raw, (23 + signature_u256) * 32);
+
+            // len - data.
+            append_u64(&mut tx_raw, 0);
+
+            // len - signature.
+            append_usize(&mut tx_raw, aa1.signature.len());
+            let mut padded_sig = aa1.signature.clone();
+            let remainder = padded_sig.len().div_ceil(32) * 32 - padded_sig.len();
+            for _ in 0..remainder {
+                padded_sig.push(0u8);
+            }
+            tx_raw.append(&mut padded_sig);
+
+            // factory deps
+            append_u64(&mut tx_raw, 0);
+            // paymater
+            append_u64(&mut tx_raw, 0);
+            // reserved
+            append_u64(&mut tx_raw, 0);
+
+            /*let mut pp = vec![0u8; 32];
+            let ap1 = aa1.initiator_address.as_fixed_bytes();
+            for i in 0..20 {
+                pp[i + 12] = ap1[i];
+            }
+            tx_raw.append(&mut pp);*/
+
+            let tx_source = TxListSource {
+                // transactions: vec![encoded_iwasm_tx].into(),
+                transactions: vec![tx_raw].into(),
+            };
+
+            let batch_output = forward_system::run::run_batch(
+                batch_context,
+                storage_commitment,
+                tree,
+                preimage_source,
+                tx_source,
+            )
+            .unwrap();
+            let tx_output = match &batch_output.tx_results[0]
+                .as_ref()
+                .unwrap()
+                .execution_result
+            {
+                forward_system::run::output::ExecutionResult::Success(output) => match &output {
+                    forward_system::run::output::ExecutionOutput::Call(data) => data,
+                    _ => panic!("only data"),
+                },
+                _ => panic!("TX failed"),
+            };
+
+            VmExecutionResultAndLogs {
+                result: ExecutionResult::Success {
+                    output: tx_output.clone(),
+                },
+                logs: Default::default(),
+                statistics: Default::default(),
+                refunds: Default::default(),
+                new_known_factory_deps: Default::default(),
+            }
         };
 
-        let storage_commitment = StorageCommitment {
-            root: *tree.storage_tree.root(),
-            next_free_slot: tree.storage_tree.next_free_slot,
-        };
-        // FIXME: this might be wrong..
-        let aa = tx.raw_bytes.as_ref().unwrap();
-
-        let tx_source = TxListSource {
-            // transactions: vec![encoded_iwasm_tx].into(),
-            transactions: vec![aa.0.clone()].into(),
-        };
-
-        forward_system::run::run_batch(
-            batch_context,
-            storage_commitment,
-            tree,
-            preimage_source,
-            tx_source,
-        );
-
-        let call_traces = call_tracer_result.get().unwrap();
+        let call_traces: &Vec<Call> = &vec![]; //call_tracer_result.get().unwrap();
 
         let spent_on_pubdata =
             tx_result.statistics.gas_used - tx_result.statistics.computational_gas_used as u64;
@@ -1805,7 +1978,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             .get(&(block_ctx.miniblock - 1))
             .cloned()
             .unwrap_or_default();
-        let block = create_block(
+        let block: Block<TransactionVariant> = create_block(
             &batch_env,
             hash,
             parent_block_hash,
