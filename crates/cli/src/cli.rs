@@ -7,7 +7,7 @@ use anvil_zksync_config::types::{
     AccountGenerator, CacheConfig, CacheType, Genesis, LogLevel, ShowCalls, ShowGasDetails,
     ShowStorageLogs, ShowVMDetails, SystemContractsOptions,
 };
-use anvil_zksync_config::TestNodeConfig;
+use anvil_zksync_config::{types::TransactionOrder, TestNodeConfig};
 use clap::{arg, command, Parser, Subcommand};
 use rand::{rngs::StdRng, SeedableRng};
 use std::env;
@@ -243,6 +243,10 @@ pub struct Cli {
     /// Disable auto and interval mining, and mine on demand instead.
     #[arg(long, visible_alias = "no-mine", conflicts_with = "block_time")]
     pub no_mining: bool,
+
+    /// How transactions are sorted in the mempool.
+    #[arg(long, default_value = "fees")]
+    pub order: TransactionOrder,
 }
 
 #[derive(Debug, Subcommand, Clone)]
@@ -381,7 +385,8 @@ impl Cli {
                 None
             })
             .with_block_time(self.block_time)
-            .with_no_mining(self.no_mining);
+            .with_no_mining(self.no_mining)
+            .with_transactions_order(self.order);
 
         if self.emulate_evm && self.dev_system_contracts != Some(SystemContractsOptions::Local) {
             return Err(eyre::eyre!(

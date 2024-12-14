@@ -3,6 +3,7 @@ mod cache;
 mod genesis;
 mod log;
 mod show_details;
+mod transaction_order;
 
 pub use account_generator::AccountGenerator;
 pub use cache::{CacheConfig, CacheType};
@@ -11,6 +12,7 @@ pub use genesis::Genesis;
 pub use log::LogLevel;
 use serde::Deserialize;
 pub use show_details::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
+pub use transaction_order::{TransactionOrder, TransactionPriority};
 
 #[derive(Deserialize, Default, Debug, Copy, Clone, PartialEq, ValueEnum)]
 pub enum SystemContractsOptions {

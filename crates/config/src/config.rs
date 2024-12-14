@@ -111,6 +111,8 @@ pub struct TestNodeConfig {
     pub max_transactions: usize,
     /// Disable automatic sealing mode and use `BlockSealer::Noop` instead
     pub no_mining: bool,
+    /// How transactions are sorted in the mempool
+    pub transactions_order: TransactionOrder,
 }
 
 impl Default for TestNodeConfig {
@@ -171,6 +173,7 @@ impl Default for TestNodeConfig {
             no_mining: false,
 
             max_transactions: 1000,
+            transactions_order: TransactionOrder::Fees,
         }
     }
 }
@@ -867,6 +870,12 @@ impl TestNodeConfig {
     #[must_use]
     pub fn with_no_mining(mut self, no_mining: bool) -> Self {
         self.no_mining = no_mining;
+        self
+    }
+    // Set transactions order in the mempool
+    #[must_use]
+    pub fn with_transactions_order(mut self, transactions_order: TransactionOrder) -> Self {
+        self.transactions_order = transactions_order;
         self
     }
 }

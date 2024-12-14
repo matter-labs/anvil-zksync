@@ -270,7 +270,7 @@ async fn main() -> anyhow::Result<()> {
 
     let time = TimestampManager::default();
     let impersonation = ImpersonationManager::default();
-    let pool = TxPool::new(impersonation.clone());
+    let pool = TxPool::new(impersonation.clone(), config.transactions_order);
     let sealing_mode = if config.no_mining {
         BlockSealerMode::noop()
     } else if let Some(block_time) = config.block_time {

@@ -25,7 +25,7 @@ use anvil_zksync_config::constants::{
 };
 use anvil_zksync_config::types::{
     CacheConfig, Genesis, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails,
-    SystemContractsOptions,
+    SystemContractsOptions, TransactionOrder,
 };
 use anvil_zksync_config::TestNodeConfig;
 use colored::Colorize;
@@ -1109,7 +1109,7 @@ fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) 
 impl<S: ForkSource + std::fmt::Debug + Clone> Default for InMemoryNode<S> {
     fn default() -> Self {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation.clone());
+        let pool = TxPool::new(impersonation.clone(), TransactionOrder::Fees);
         let tx_listener = pool.add_tx_listener();
         InMemoryNode::new(
             None,
@@ -1162,7 +1162,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     // TODO: Refactor InMemoryNode with a builder pattern
     pub fn default_fork(fork: Option<ForkDetails>) -> Self {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation.clone());
+        let pool = TxPool::new(impersonation.clone(), TransactionOrder::Fees);
         let tx_listener = pool.add_tx_listener();
         Self::new(
             fork,
@@ -1262,9 +1262,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     /// some txs have been applied while others have not).
     pub fn apply_txs(&self, txs: Vec<L2Tx>, max_transactions: usize) -> anyhow::Result<()> {
         tracing::debug!(count = txs.len(), "applying transactions");
+        let inner = self.read_inner()?;
 
         // Create a temporary tx pool (i.e. state is not shared with the node mempool).
-        let pool = TxPool::new(self.impersonation.clone());
+        let pool = TxPool::new(self.impersonation.clone(), inner.config.transactions_order);
         pool.add_txs(txs);
 
         // Lock time so that the produced blocks are guaranteed to be sequential in time.
@@ -1284,7 +1285,6 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             let block_numer = self.seal_block(&mut time, tx_batch.txs, system_contracts)?;
 
             // Fetch the block that was just sealed
-            let inner = self.read_inner()?;
             let block = inner
                 .get_block(block_numer)
                 .expect("freshly sealed block could not be found in storage");
@@ -2033,7 +2033,7 @@ mod tests {
         DEFAULT_ESTIMATE_GAS_SCALE_FACTOR, DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L2_GAS_PRICE,
         TEST_NODE_NETWORK_ID,
     };
-    use anvil_zksync_config::types::SystemContractsOptions;
+    use anvil_zksync_config::types::{SystemContractsOptions, TransactionOrder};
     use anvil_zksync_config::TestNodeConfig;
     use ethabi::{Token, Uint};
     use std::fmt::Debug;
@@ -2159,7 +2159,7 @@ mod tests {
             raw_storage: external_storage.inner.read().unwrap().raw_storage.clone(),
         };
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation.clone());
+        let pool = TxPool::new(impersonation.clone(), TransactionOrder::Fees);
         let sealer = BlockSealer::new(BlockSealerMode::immediate(1000, pool.add_tx_listener()));
         let node: InMemoryNode<testing::ExternalStorage> = InMemoryNode::new(
             Some(ForkDetails {
@@ -2199,7 +2199,7 @@ mod tests {
     #[tokio::test]
     async fn test_transact_returns_data_in_built_in_without_security_mode() {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation.clone());
+        let pool = TxPool::new(impersonation.clone(), TransactionOrder::Fees);
         let sealer = BlockSealer::new(BlockSealerMode::immediate(1000, pool.add_tx_listener()));
         let node = InMemoryNode::<HttpForkSource>::new(
             None,

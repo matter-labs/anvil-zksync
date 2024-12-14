@@ -154,6 +154,7 @@ mod tests {
     use crate::node::pool::TxBatch;
     use crate::node::sealer::BlockSealerMode;
     use crate::node::{BlockSealer, ImpersonationManager, TxPool};
+    use anvil_zksync_config::types::TransactionOrder;
     use std::ptr;
     use std::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
     use std::time::Duration;
@@ -175,7 +176,7 @@ mod tests {
 
     #[test]
     fn immediate_empty() {
-        let pool = TxPool::new(ImpersonationManager::default());
+        let pool = TxPool::new(ImpersonationManager::default(), TransactionOrder::Fees);
         let mut block_sealer =
             BlockSealer::new(BlockSealerMode::immediate(1000, pool.add_tx_listener()));
         let waker = &WAKER_NOOP;
@@ -186,7 +187,7 @@ mod tests {
 
     #[test]
     fn immediate_one_tx() {
-        let pool = TxPool::new(ImpersonationManager::default());
+        let pool = TxPool::new(ImpersonationManager::default(), TransactionOrder::Fees);
         let mut block_sealer =
             BlockSealer::new(BlockSealerMode::immediate(1000, pool.add_tx_listener()));
         let waker = &WAKER_NOOP;
@@ -206,7 +207,7 @@ mod tests {
 
     #[test]
     fn immediate_several_txs() {
-        let pool = TxPool::new(ImpersonationManager::default());
+        let pool = TxPool::new(ImpersonationManager::default(), TransactionOrder::Fees);
         let mut block_sealer =
             BlockSealer::new(BlockSealerMode::immediate(1000, pool.add_tx_listener()));
         let waker = &WAKER_NOOP;
@@ -226,7 +227,7 @@ mod tests {
 
     #[test]
     fn immediate_respect_max_txs() {
-        let pool = TxPool::new(ImpersonationManager::default());
+        let pool = TxPool::new(ImpersonationManager::default(), TransactionOrder::Fees);
         let mut block_sealer =
             BlockSealer::new(BlockSealerMode::immediate(3, pool.add_tx_listener()));
         let waker = &WAKER_NOOP;
@@ -247,7 +248,7 @@ mod tests {
 
     #[test]
     fn immediate_gradual_txs() {
-        let pool = TxPool::new(ImpersonationManager::default());
+        let pool = TxPool::new(ImpersonationManager::default(), TransactionOrder::Fees);
         let mut block_sealer =
             BlockSealer::new(BlockSealerMode::immediate(1000, pool.add_tx_listener()));
         let waker = &WAKER_NOOP;
@@ -285,7 +286,7 @@ mod tests {
 
     #[tokio::test]
     async fn fixed_time_very_long() {
-        let pool = TxPool::new(ImpersonationManager::default());
+        let pool = TxPool::new(ImpersonationManager::default(), TransactionOrder::Fees);
         let mut block_sealer = BlockSealer::new(BlockSealerMode::fixed_time(
             1000,
             Duration::from_secs(10000),
@@ -298,7 +299,7 @@ mod tests {
 
     #[tokio::test]
     async fn fixed_time_seal_empty() {
-        let pool = TxPool::new(ImpersonationManager::default());
+        let pool = TxPool::new(ImpersonationManager::default(), TransactionOrder::Fees);
         let mut block_sealer = BlockSealer::new(BlockSealerMode::fixed_time(
             1000,
             Duration::from_millis(100),
@@ -335,7 +336,7 @@ mod tests {
 
     #[tokio::test]
     async fn fixed_time_seal_with_txs() {
-        let pool = TxPool::new(ImpersonationManager::default());
+        let pool = TxPool::new(ImpersonationManager::default(), TransactionOrder::Fees);
         let mut block_sealer = BlockSealer::new(BlockSealerMode::fixed_time(
             1000,
             Duration::from_millis(100),
@@ -359,7 +360,7 @@ mod tests {
 
     #[tokio::test]
     async fn fixed_time_respect_max_txs() {
-        let pool = TxPool::new(ImpersonationManager::default());
+        let pool = TxPool::new(ImpersonationManager::default(), TransactionOrder::Fees);
         let mut block_sealer =
             BlockSealer::new(BlockSealerMode::fixed_time(3, Duration::from_millis(100)));
         let waker = &WAKER_NOOP;
