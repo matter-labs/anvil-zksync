@@ -91,6 +91,23 @@ pub const MAX_PREVIOUS_STATES: u16 = 128;
 /// The zks protocol version.
 pub const PROTOCOL_VERSION: &str = "zks/1";
 
+pub fn bytes32_to_h256(data: Bytes32) -> H256 {
+    H256::from(data.as_u8_array_ref())
+}
+
+pub fn h256_to_bytes32(data: &H256) -> Bytes32 {
+    Bytes32::from(data.as_fixed_bytes().clone())
+}
+
+pub fn b160_to_h160(data: B160) -> H160 {
+    H160::from_slice(&data.to_be_bytes_vec())
+}
+
+// TODO: check endinanness
+pub fn h160_to_b160(data: &H160) -> B160 {
+    B160::from_be_bytes(data.as_fixed_bytes().clone())
+}
+
 pub fn append_address(data: &mut Vec<u8>, address: &H160) {
     let mut pp = vec![0u8; 32];
     let ap1 = address.as_fixed_bytes();
@@ -1511,6 +1528,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         dbg!(batch_number);
         dbg!(batch_timestamp);
 
+        // TODO: move this somewhere
         let aa = pack_block_info(batch_number + 1, batch_timestamp + 1);
         storage_ptr.set_value(current_l1_batch_info_key, u256_to_h256(aa));
 
@@ -1521,13 +1539,38 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 block_number: 1,
                 timestamp: 42,
             };
-            let mut tree = InMemoryTree {
-                storage_tree: TestingTree::new_in(Global),
-                cold_storage: HashMap::new(),
+
+            let mut tree = {
+                let reader = inner
+                    .fork_storage
+                    .inner
+                    .read()
+                    .map_err(|e| format!("Failed to acquire read lock: {}", e))
+                    .unwrap();
+
+                let original_state = &reader.raw_storage.state;
+                let mut tree = InMemoryTree {
+                    storage_tree: TestingTree::new_in(Global),
+                    cold_storage: HashMap::new(),
+                };
+
+                for entry in original_state {
+                    let kk = derive_flat_storage_key(
+                        &h160_to_b160(entry.0.address()),
+                        &h256_to_bytes32(entry.0.key()),
+                    );
+                    let vv = h256_to_bytes32(entry.1);
+
+                    tree.storage_tree.insert(&kk, &vv);
+                    tree.cold_storage.insert(kk, vv);
+                }
+                tree
             };
 
-            tree.storage_tree
-                .insert(&zk_ee::utils::Bytes32::ZERO, &zk_ee::utils::Bytes32::MAX);
+            println!("Tree size is: {}", tree.cold_storage.len());
+
+            /*tree.storage_tree
+            .insert(&zk_ee::utils::Bytes32::ZERO, &zk_ee::utils::Bytes32::MAX);*/
 
             let mut preimage_source = InMemoryPreimageSource {
                 inner: HashMap::new(),
@@ -1541,11 +1584,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 ) => todo!(),
             };
 
-            add_funds_to_address(
+            /*add_funds_to_address(
                 B160::from_be_bytes(aa1.initiator_address.0),
                 ruint::aliases::U256::from(1_000_000_000_000_000_u64),
                 &mut tree,
-            );
+            );*/
 
             let storage_commitment = StorageCommitment {
                 root: *tree.storage_tree.root(),
@@ -1652,6 +1695,19 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 },
                 _ => panic!("TX failed"),
             };
+
+            // apply storage writes..
+            for write in batch_output.storage_writes {
+                //let ab = write.key.as_u8_array_ref();
+                //let ac = H256::from(ab);
+
+                let ab = StorageKey::new(
+                    AccountTreeId::new(Address::from_slice(&write.account.to_be_bytes_vec())),
+                    H256::from(write.account_key.as_u8_array_ref()),
+                );
+                dbg!(&ab);
+                storage_ptr.set_value(ab, H256::from(write.value.as_u8_array_ref()));
+            }
 
             VmExecutionResultAndLogs {
                 result: ExecutionResult::Success {

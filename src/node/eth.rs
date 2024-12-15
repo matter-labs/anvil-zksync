@@ -242,6 +242,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
                 AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
                 &address,
             );
+            dbg!(&balance_key);
 
             match inner.write() {
                 Ok(inner_guard) => {
