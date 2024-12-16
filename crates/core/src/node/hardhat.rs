@@ -2,15 +2,12 @@ use zksync_types::{Address, U256, U64};
 use zksync_web3_decl::error::Web3Error;
 
 use crate::{
-    fork::ForkSource,
     namespaces::{HardhatNamespaceT, ResetRequest, RpcResult},
     node::InMemoryNode,
     utils::{into_jsrpc_error, into_jsrpc_error_message, IntoBoxedFuture},
 };
 
-impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> HardhatNamespaceT
-    for InMemoryNode<S>
-{
+impl HardhatNamespaceT for InMemoryNode {
     fn set_balance(&self, address: Address, balance: U256) -> RpcResult<bool> {
         self.set_balance(address, balance)
             .map_err(|err| {
@@ -66,7 +63,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> HardhatNam
     }
 
     fn stop_impersonating_account(&self, address: Address) -> RpcResult<bool> {
-        InMemoryNode::<S>::stop_impersonating_account(self, address)
+        InMemoryNode::stop_impersonating_account(self, address)
             .map_err(|err| {
                 tracing::error!("failed stopping to impersonate account: {:?}", err);
                 into_jsrpc_error(Web3Error::InternalError(err))

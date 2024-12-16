@@ -10,7 +10,7 @@ use crate::{
     console_log::ConsoleLogHandler,
     deps::{storage_view::StorageView, InMemoryStorage},
     filters::EthFilters,
-    fork::{ForkDetails, ForkSource, ForkStorage},
+    fork::{ForkDetails, ForkStorage},
     formatter,
     node::{
         call_error_tracer::CallErrorTracer, fee_model::TestNodeFeeInputProvider,
@@ -237,8 +237,7 @@ impl TransactionResult {
 
 /// Helper struct for InMemoryNode.
 /// S - is the Source of the Fork.
-#[derive(Clone)]
-pub struct InMemoryNodeInner<S> {
+pub struct InMemoryNodeInner {
     /// The latest batch number that was already generated.
     /// Next block will be current_batch + 1
     pub current_batch: u32,
@@ -258,7 +257,7 @@ pub struct InMemoryNodeInner<S> {
     // Map from filter_id to the eth filter
     pub filters: EthFilters,
     // Underlying storage
-    pub fork_storage: ForkStorage<S>,
+    pub fork_storage: ForkStorage,
     // Configuration.
     pub config: TestNodeConfig,
     pub console_log_handler: ConsoleLogHandler,
@@ -276,7 +275,7 @@ pub struct TxExecutionOutput {
     bytecodes: HashMap<U256, Vec<U256>>,
 }
 
-impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
+impl InMemoryNodeInner {
     /// Create the state to be used implementing [InMemoryNode].
     pub fn new(
         fork: Option<ForkDetails>,
@@ -759,7 +758,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         tx_gas_limit: u64,
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
-        fork_storage: &ForkStorage<S>,
+        fork_storage: &ForkStorage,
     ) -> VmExecutionResultAndLogs {
         let tx: Transaction = l2_tx.clone().into();
 
@@ -1080,9 +1079,9 @@ pub struct Snapshot {
 /// It also supports the option of forking testnet/mainnet.
 /// All contents are removed when object is destroyed.
 #[derive(Clone)]
-pub struct InMemoryNode<S: Clone> {
+pub struct InMemoryNode {
     /// A thread safe reference to the [InMemoryNodeInner].
-    pub(crate) inner: Arc<RwLock<InMemoryNodeInner<S>>>,
+    pub(crate) inner: Arc<RwLock<InMemoryNodeInner>>,
     /// List of snapshots of the [InMemoryNodeInner]. This is bounded at runtime by [MAX_SNAPSHOTS].
     pub(crate) snapshots: Arc<RwLock<Vec<Snapshot>>>,
     /// Configuration option that survives reset.
@@ -1106,7 +1105,7 @@ fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) 
     None
 }
 
-impl<S: ForkSource + std::fmt::Debug + Clone> Default for InMemoryNode<S> {
+impl Default for InMemoryNode {
     fn default() -> Self {
         let impersonation = ImpersonationManager::default();
         let pool = TxPool::new(impersonation.clone());
@@ -1123,7 +1122,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> Default for InMemoryNode<S> {
     }
 }
 
-impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
+impl InMemoryNode {
     pub fn new(
         fork: Option<ForkDetails>,
         observability: Option<Observability>,
@@ -1175,17 +1174,17 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         )
     }
 
-    pub fn get_inner(&self) -> Arc<RwLock<InMemoryNodeInner<S>>> {
+    pub fn get_inner(&self) -> Arc<RwLock<InMemoryNodeInner>> {
         self.inner.clone()
     }
 
-    pub fn read_inner(&self) -> anyhow::Result<RwLockReadGuard<'_, InMemoryNodeInner<S>>> {
+    pub fn read_inner(&self) -> anyhow::Result<RwLockReadGuard<'_, InMemoryNodeInner>> {
         self.inner
             .read()
             .map_err(|e| anyhow::anyhow!("InMemoryNode lock is poisoned: {}", e))
     }
 
-    pub fn write_inner(&self) -> anyhow::Result<RwLockWriteGuard<'_, InMemoryNodeInner<S>>> {
+    pub fn write_inner(&self) -> anyhow::Result<RwLockWriteGuard<'_, InMemoryNodeInner>> {
         self.inner
             .write()
             .map_err(|e| anyhow::anyhow!("InMemoryNode lock is poisoned: {}", e))
@@ -2036,19 +2035,18 @@ mod tests {
     use anvil_zksync_config::types::SystemContractsOptions;
     use anvil_zksync_config::TestNodeConfig;
     use ethabi::{Token, Uint};
-    use std::fmt::Debug;
     use zksync_types::{utils::deployed_address_create, K256PrivateKey, Nonce};
 
     use super::*;
-    use crate::{http_fork_source::HttpForkSource, node::InMemoryNode, testing};
+    use crate::{node::InMemoryNode, testing};
 
-    fn test_vm<S: Clone + Debug + ForkSource>(
-        node: &InMemoryNode<S>,
+    fn test_vm(
+        node: &InMemoryNode,
         system_contracts: BaseSystemContracts,
     ) -> (
         BlockContext,
         L1BatchEnv,
-        Vm<StorageView<ForkStorage<S>>, HistoryDisabled>,
+        Vm<StorageView<ForkStorage>, HistoryDisabled>,
     ) {
         let inner = node.inner.read().unwrap();
         let storage = StorageView::new(inner.fork_storage.clone()).into_rc_ptr();
@@ -2061,7 +2059,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_run_l2_tx_validates_tx_gas_limit_too_high() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let tx = testing::TransactionBuilder::new()
             .set_gas_limit(U256::from(u64::MAX) + 1)
             .build();
@@ -2082,7 +2080,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_run_l2_tx_validates_tx_max_fee_per_gas_too_low() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let tx = testing::TransactionBuilder::new()
             .set_max_fee_per_gas(U256::from(DEFAULT_L2_GAS_PRICE - 1))
             .build();
@@ -2107,7 +2105,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_run_l2_tx_validates_tx_max_priority_fee_per_gas_higher_than_max_fee_per_gas() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let tx = testing::TransactionBuilder::new()
             .set_max_priority_fee_per_gas(U256::from(250_000_000 + 1))
             .build();
@@ -2141,7 +2139,7 @@ mod tests {
     #[tokio::test]
     async fn test_run_l2_tx_raw_does_not_panic_on_external_storage_call() {
         // Perform a transaction to get storage to an intermediate state
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let tx = testing::TransactionBuilder::new().build();
         node.set_rich_account(
             tx.common_data.initiator_address,
@@ -2161,7 +2159,7 @@ mod tests {
         let impersonation = ImpersonationManager::default();
         let pool = TxPool::new(impersonation.clone());
         let sealer = BlockSealer::new(BlockSealerMode::immediate(1000, pool.add_tx_listener()));
-        let node: InMemoryNode<testing::ExternalStorage> = InMemoryNode::new(
+        let node = InMemoryNode::new(
             Some(ForkDetails {
                 fork_source: Box::new(mock_db),
                 chain_id: TEST_NODE_NETWORK_ID.into(),
@@ -2201,7 +2199,7 @@ mod tests {
         let impersonation = ImpersonationManager::default();
         let pool = TxPool::new(impersonation.clone());
         let sealer = BlockSealer::new(BlockSealerMode::immediate(1000, pool.add_tx_listener()));
-        let node = InMemoryNode::<HttpForkSource>::new(
+        let node = InMemoryNode::new(
             None,
             None,
             &TestNodeConfig {

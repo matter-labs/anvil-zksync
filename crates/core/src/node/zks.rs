@@ -17,7 +17,6 @@ use zksync_utils::h256_to_u256;
 use zksync_web3_decl::error::Web3Error;
 
 use crate::{
-    fork::ForkSource,
     namespaces::{RpcResult, ZksNamespaceT},
     node::{InMemoryNode, TransactionResult},
     utils::{
@@ -26,9 +25,7 @@ use crate::{
     },
 };
 
-impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespaceT
-    for InMemoryNode<S>
-{
+impl ZksNamespaceT for InMemoryNode {
     /// Estimates the gas fee data required for a given call request.
     ///
     /// # Arguments
@@ -588,7 +585,6 @@ mod tests {
     use super::*;
     use crate::{
         fork::ForkDetails,
-        http_fork_source::HttpForkSource,
         node::InMemoryNode,
         testing,
         testing::{ForkBlockConfig, MockServer},
@@ -596,7 +592,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_estimate_fee() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let mock_request = CallRequest {
             from: Some(
@@ -633,7 +629,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_token_price_given_eth_should_return_price() {
         // Arrange
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let mock_address = Address::from_str("0x0000000000000000000000000000000000000000")
             .expect("Failed to parse address");
@@ -648,7 +644,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_token_price_given_capitalized_link_address_should_return_price() {
         // Arrange
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let mock_address = Address::from_str("0x40609141Db628BeEE3BfAB8034Fc2D8278D0Cc78")
             .expect("Failed to parse address");
@@ -663,7 +659,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_token_price_given_unknown_address_should_return_error() {
         // Arrange
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let mock_address = Address::from_str("0x0000000000000000000000000000000000000042")
             .expect("Failed to parse address");
@@ -678,7 +674,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_transaction_details_local() {
         // Arrange
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let inner = node.get_inner();
         {
             let mut writer = inner.write().unwrap();
@@ -741,7 +737,7 @@ mod tests {
             }),
         );
 
-        let node = InMemoryNode::<HttpForkSource>::default_fork(Some(
+        let node = InMemoryNode::default_fork(Some(
             ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
                 .await
                 .unwrap(),
@@ -760,7 +756,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_block_details_local() {
         // Arrange
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let inner = node.get_inner();
         {
             let mut writer = inner.write().unwrap();
@@ -827,7 +823,7 @@ mod tests {
               }),
         );
 
-        let node = InMemoryNode::<HttpForkSource>::default_fork(Some(
+        let node = InMemoryNode::default_fork(Some(
             ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
                 .await
                 .unwrap(),
@@ -848,7 +844,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_bridge_contracts_uses_default_values_if_local() {
         // Arrange
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let expected_bridge_addresses = BridgeAddresses {
             l1_shared_default_bridge: Default::default(),
             l2_shared_default_bridge: Default::default(),
@@ -905,7 +901,7 @@ mod tests {
             }),
         );
 
-        let node = InMemoryNode::<HttpForkSource>::default_fork(Some(
+        let node = InMemoryNode::default_fork(Some(
             ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
                 .await
                 .unwrap(),
@@ -923,7 +919,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_bytecode_by_hash_returns_local_value_if_available() {
         // Arrange
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let input_hash = H256::repeat_byte(0x1);
         let input_bytecode = vec![0x1];
         node.get_inner()
@@ -968,7 +964,7 @@ mod tests {
             }),
         );
 
-        let node = InMemoryNode::<HttpForkSource>::default_fork(Some(
+        let node = InMemoryNode::default_fork(Some(
             ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
                 .await
                 .unwrap(),
@@ -987,7 +983,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_raw_block_transactions_local() {
         // Arrange
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let inner = node.get_inner();
         {
             let mut writer = inner.write().unwrap();
@@ -1089,7 +1085,7 @@ mod tests {
               }),
         );
 
-        let node = InMemoryNode::<HttpForkSource>::default_fork(Some(
+        let node = InMemoryNode::default_fork(Some(
             ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
                 .await
                 .unwrap(),
@@ -1104,7 +1100,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_all_account_balances_empty() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let balances = node
             .get_all_account_balances(Address::zero())
             .await
@@ -1114,7 +1110,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_confirmed_tokens_eth() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let balances = node
             .get_confirmed_tokens(0, 100)
             .await
@@ -1125,7 +1121,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_l1_chain_id() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let chain_id = node.l1_chain_id().await.expect("get chain id").as_u32();
         assert_eq!(TEST_NODE_NETWORK_ID, chain_id);
     }
@@ -1268,7 +1264,7 @@ mod tests {
             }),
         );
 
-        let node = InMemoryNode::<HttpForkSource>::default_fork(Some(
+        let node = InMemoryNode::default_fork(Some(
             ForkDetails::from_network(&mock_server.url(), Some(1), &CacheConfig::None)
                 .await
                 .unwrap(),
@@ -1296,7 +1292,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_base_token_l1_address() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let token_address = node
             .get_base_token_l1_address()
             .await

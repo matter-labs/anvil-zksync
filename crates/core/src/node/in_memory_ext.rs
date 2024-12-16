@@ -3,10 +3,7 @@ use crate::node::pool::TxBatch;
 use crate::node::sealer::BlockSealerMode;
 use crate::utils::Numeric;
 use crate::{
-    fork::{ForkDetails, ForkSource},
-    namespaces::ResetRequest,
-    node::InMemoryNode,
-    utils::bytecode_to_factory_dep,
+    fork::ForkDetails, namespaces::ResetRequest, node::InMemoryNode, utils::bytecode_to_factory_dep,
 };
 use anyhow::{anyhow, Context};
 use std::convert::TryInto;
@@ -27,7 +24,7 @@ type Result<T> = anyhow::Result<T>;
 /// and can be used to revert the node to an earlier point in time.
 const MAX_SNAPSHOTS: u8 = 100;
 
-impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNode<S> {
+impl InMemoryNode {
     /// Increase the current timestamp for the node
     ///
     /// # Parameters
@@ -500,8 +497,8 @@ mod tests {
     use crate::fork::ForkStorage;
     use crate::namespaces::EthNamespaceT;
     use crate::node::time::{ReadTime, TimestampManager};
+    use crate::node::InMemoryNode;
     use crate::node::{BlockSealer, ImpersonationManager, InMemoryNodeInner, Snapshot, TxPool};
-    use crate::{http_fork_source::HttpForkSource, node::InMemoryNode};
     use std::str::FromStr;
     use std::sync::{Arc, RwLock};
     use zksync_multivm::interface::storage::ReadStorage;
@@ -512,7 +509,7 @@ mod tests {
     #[tokio::test]
     async fn test_set_balance() {
         let address = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap();
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let balance_before = node.get_balance(address, None).await.unwrap();
 
@@ -527,7 +524,7 @@ mod tests {
     #[tokio::test]
     async fn test_set_nonce() {
         let address = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap();
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let nonce_before = node.get_transaction_count(address, None).await.unwrap();
 
@@ -547,7 +544,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_mine_blocks_default() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let start_block = node
             .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
@@ -580,7 +577,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_mine_blocks() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let start_block = node
             .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
@@ -612,7 +609,7 @@ mod tests {
         let old_system_contracts_options = Default::default();
         let time = TimestampManager::new(123);
         let impersonation = ImpersonationManager::default();
-        let old_inner = InMemoryNodeInner::<HttpForkSource> {
+        let old_inner = InMemoryNodeInner {
             current_batch: 100,
             current_miniblock: 300,
             current_miniblock_hash: H256::random(),
@@ -632,7 +629,7 @@ mod tests {
         let pool = TxPool::new(impersonation.clone());
         let sealer = BlockSealer::new(BlockSealerMode::immediate(1000, pool.add_tx_listener()));
 
-        let node = InMemoryNode::<HttpForkSource> {
+        let node = InMemoryNode {
             inner: Arc::new(RwLock::new(old_inner)),
             snapshots: old_snapshots,
             system_contracts_options: old_system_contracts_options,
@@ -667,7 +664,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_impersonate_account() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let to_impersonate =
             Address::from_str("0xd8da6bf26964af9d7eed9e03e53415d37aa96045").unwrap();
 
@@ -737,7 +734,7 @@ mod tests {
     #[tokio::test]
     async fn test_set_code() {
         let address = Address::repeat_byte(0x1);
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let new_code = vec![0x1u8; 32];
 
         let code_before = node
@@ -760,7 +757,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_storage_at() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let address = Address::repeat_byte(0x1);
         let slot = U256::from(37);
         let value = U256::from(42);
@@ -780,7 +777,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_increase_time_zero_value() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let increase_value_seconds = 0u64;
         let timestamp_before = node.time.current_timestamp();
@@ -801,7 +798,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_increase_time_max_value() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let increase_value_seconds = u64::MAX;
         let timestamp_before = node.time.current_timestamp();
@@ -823,7 +820,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_increase_time() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let increase_value_seconds = 100u64;
         let timestamp_before = node.time.current_timestamp();
@@ -844,7 +841,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_next_block_timestamp_future() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let new_timestamp = 10_000u64;
         let timestamp_before = node.time.current_timestamp();
@@ -866,7 +863,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_next_block_timestamp_past_fails() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let timestamp_before = node.time.current_timestamp();
 
@@ -883,7 +880,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_next_block_timestamp_same_value() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let new_timestamp = 1000u64;
         let timestamp_before = node.time.current_timestamp();
@@ -901,7 +898,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_time_future() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let new_time = 10_000u64;
         let timestamp_before = node.time.current_timestamp();
@@ -919,7 +916,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_time_past() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let new_time = 10u64;
         let timestamp_before = node.time.current_timestamp();
@@ -937,7 +934,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_time_same_value() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let new_time = 1000u64;
         let timestamp_before = node.time.current_timestamp();
@@ -958,7 +955,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_time_edges() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         for new_time in [0, u64::MAX] {
             let timestamp_before = node.time.current_timestamp();
@@ -986,7 +983,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_mine_block() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let start_block = node
             .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
@@ -1020,7 +1017,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_evm_snapshot_creates_incrementing_ids() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let snapshot_id_1 = node.snapshot().expect("failed creating snapshot 1");
         let snapshot_id_2 = node.snapshot().expect("failed creating snapshot 2");
@@ -1031,7 +1028,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_evm_revert_snapshot_restores_state() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let initial_block = node
             .get_block_number()
@@ -1059,7 +1056,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_evm_revert_snapshot_removes_all_snapshots_following_the_reverted_one() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let _snapshot_id_1 = node.snapshot().expect("failed creating snapshot");
         let snapshot_id_2 = node.snapshot().expect("failed creating snapshot");
@@ -1076,7 +1073,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_evm_revert_snapshot_fails_for_invalid_snapshot_id() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let result = node.revert_snapshot(U64::from(100));
         assert!(result.is_err());
@@ -1084,7 +1081,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_node_set_chain_id() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let new_chain_id = 261;
 
         let _ = node.set_chain_id(new_chain_id);

@@ -3,15 +3,12 @@ use zksync_web3_decl::error::Web3Error;
 
 use crate::utils::Numeric;
 use crate::{
-    fork::ForkSource,
     namespaces::{EvmNamespaceT, RpcResult},
     node::InMemoryNode,
     utils::{into_jsrpc_error, IntoBoxedFuture},
 };
 
-impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EvmNamespaceT
-    for InMemoryNode<S>
-{
+impl EvmNamespaceT for InMemoryNode {
     fn increase_time(&self, time_delta_seconds: Numeric) -> RpcResult<u64> {
         self.increase_time(time_delta_seconds)
             .map_err(|err| {

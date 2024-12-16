@@ -1,14 +1,11 @@
 use crate::{
-    fork::ForkSource,
     namespaces::{NetNamespaceT, Result},
     node::InMemoryNode,
 };
 use anvil_zksync_config::constants::TEST_NODE_NETWORK_ID;
 use zksync_types::U256;
 
-impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> NetNamespaceT
-    for InMemoryNode<S>
-{
+impl NetNamespaceT for InMemoryNode {
     fn net_version(&self) -> Result<String> {
         let chain_id = self
             .get_inner()

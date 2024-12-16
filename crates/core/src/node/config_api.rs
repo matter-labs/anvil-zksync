@@ -1,6 +1,5 @@
 use crate::node::time::ReadTime;
 use crate::{
-    fork::ForkSource,
     namespaces::{ConfigurationApiNamespaceT, Result},
     node::InMemoryNode,
     utils::into_jsrpc_error,
@@ -10,9 +9,7 @@ use anvil_zksync_config::types::{
 };
 use zksync_web3_decl::error::Web3Error;
 
-impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ConfigurationApiNamespaceT
-    for InMemoryNode<S>
-{
+impl ConfigurationApiNamespaceT for InMemoryNode {
     fn config_get_show_calls(&self) -> Result<String> {
         self.get_inner()
             .read()

@@ -473,10 +473,7 @@ impl TransactionBuilder {
 }
 
 /// Applies a transaction with a given hash to the node and returns the block hash.
-pub fn apply_tx<T: ForkSource + std::fmt::Debug + Clone>(
-    node: &InMemoryNode<T>,
-    tx_hash: H256,
-) -> (H256, U64, L2Tx) {
+pub fn apply_tx(node: &InMemoryNode, tx_hash: H256) -> (H256, U64, L2Tx) {
     let next_miniblock = node
         .get_inner()
         .read()
@@ -497,8 +494,8 @@ pub fn apply_tx<T: ForkSource + std::fmt::Debug + Clone>(
 }
 
 /// Deploys a contract with the given bytecode.
-pub fn deploy_contract<T: ForkSource + std::fmt::Debug + Clone>(
-    node: &InMemoryNode<T>,
+pub fn deploy_contract(
+    node: &InMemoryNode,
     tx_hash: H256,
     private_key: &K256PrivateKey,
     bytecode: Vec<u8>,
@@ -888,7 +885,6 @@ mod test {
     use zksync_utils::h256_to_u256;
 
     use super::*;
-    use crate::http_fork_source::HttpForkSource;
 
     #[test]
     fn test_block_response_builder_set_hash() {
@@ -976,7 +972,7 @@ mod test {
 
     #[tokio::test]
     async fn test_apply_tx() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let (actual_block_hash, actual_block_number, _) = apply_tx(&node, H256::repeat_byte(0x01));
 
         assert_eq!(

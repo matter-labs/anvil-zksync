@@ -8,8 +8,7 @@ use anvil_zksync_config::constants::{
 };
 use anvil_zksync_config::types::SystemContractsOptions;
 use anvil_zksync_config::ForkPrintInfo;
-use anvil_zksync_core::fork::{ForkDetails, ForkSource};
-use anvil_zksync_core::http_fork_source::HttpForkSource;
+use anvil_zksync_core::fork::ForkDetails;
 use anvil_zksync_core::namespaces::{
     AnvilNamespaceT, ConfigurationApiNamespaceT, DebugNamespaceT, EthNamespaceT,
     EthTestNodeNamespaceT, EvmNamespaceT, HardhatNamespaceT, NetNamespaceT, Web3NamespaceT,
@@ -43,12 +42,10 @@ mod logging_middleware;
 mod utils;
 
 #[allow(clippy::too_many_arguments)]
-async fn build_json_http<
-    S: std::marker::Sync + std::marker::Send + 'static + ForkSource + std::fmt::Debug + Clone,
->(
+async fn build_json_http(
     addr: SocketAddr,
     log_level_filter: LevelFilter,
-    node: InMemoryNode<S>,
+    node: InMemoryNode,
     enable_health_api: bool,
 ) -> tokio::task::JoinHandle<()> {
     let (sender, recv) = oneshot::channel::<()>();
@@ -280,7 +277,7 @@ async fn main() -> anyhow::Result<()> {
     };
     let block_sealer = BlockSealer::new(sealing_mode);
 
-    let node: InMemoryNode<HttpForkSource> = InMemoryNode::new(
+    let node: InMemoryNode = InMemoryNode::new(
         fork_details,
         Some(observability),
         &config,

@@ -18,7 +18,6 @@ use std::{
     convert::{TryFrom, TryInto},
     fmt,
     future::Future,
-    marker::PhantomData,
     str::FromStr,
     sync::{Arc, RwLock},
 };
@@ -99,13 +98,13 @@ impl ForkNetwork {
 /// If forking is enabled, it reads missing data from remote location.
 /// S - is a struct that is used for source of the fork.
 #[derive(Debug, Clone)]
-pub struct ForkStorage<S> {
-    pub inner: Arc<RwLock<ForkStorageInner<S>>>,
+pub struct ForkStorage {
+    pub inner: Arc<RwLock<ForkStorageInner>>,
     pub chain_id: L2ChainId,
 }
 
 #[derive(Debug)]
-pub struct ForkStorageInner<S> {
+pub struct ForkStorageInner {
     // Underlying local storage
     pub raw_storage: InMemoryStorage,
     // Cache of data that was read from remote location.
@@ -115,11 +114,9 @@ pub struct ForkStorageInner<S> {
     // If set - it hold the necessary information on where to fetch the data.
     // If not set - it will simply read from underlying storage.
     pub fork: Option<Box<ForkDetails>>,
-    // ForkSource type no longer needed but retained to keep the old interface.
-    pub dummy: PhantomData<S>,
 }
 
-impl<S: ForkSource> ForkStorage<S> {
+impl ForkStorage {
     pub fn new(
         fork: Option<ForkDetails>,
         system_contracts_options: &SystemContractsOptions,
@@ -145,7 +142,6 @@ impl<S: ForkSource> ForkStorage<S> {
                 value_read_cache: Default::default(),
                 fork: fork.map(Box::new),
                 factory_dep_cache: Default::default(),
-                dummy: Default::default(),
             })),
             chain_id,
         }
@@ -304,7 +300,7 @@ impl<S: ForkSource> ForkStorage<S> {
     }
 }
 
-impl<S: std::fmt::Debug + ForkSource> ReadStorage for ForkStorage<S> {
+impl ReadStorage for ForkStorage {
     fn is_write_initial(&mut self, key: &StorageKey) -> bool {
         self.is_write_initial_internal(key).unwrap()
     }
@@ -322,7 +318,7 @@ impl<S: std::fmt::Debug + ForkSource> ReadStorage for ForkStorage<S> {
     }
 }
 
-impl<S: std::fmt::Debug + ForkSource> ReadStorage for &ForkStorage<S> {
+impl ReadStorage for &ForkStorage {
     fn read_value(&mut self, key: &StorageKey) -> zksync_types::StorageValue {
         self.read_value_internal(key).unwrap()
     }
@@ -340,7 +336,7 @@ impl<S: std::fmt::Debug + ForkSource> ReadStorage for &ForkStorage<S> {
     }
 }
 
-impl<S> ForkStorage<S> {
+impl ForkStorage {
     pub fn set_value(&mut self, key: StorageKey, value: zksync_types::StorageValue) {
         let mut mutator = self.inner.write().unwrap();
         mutator.raw_storage.set_value(key, value)
@@ -922,7 +918,7 @@ mod tests {
             cache_config: CacheConfig::None,
         };
 
-        let mut fork_storage: ForkStorage<testing::ExternalStorage> =
+        let mut fork_storage: ForkStorage =
             ForkStorage::new(Some(fork_details), &options, false, None);
 
         assert!(fork_storage.is_write_initial(&never_written_key));
@@ -985,7 +981,7 @@ mod tests {
             fee_params: None,
             cache_config: CacheConfig::None,
         };
-        let mut fork_storage: ForkStorage<testing::ExternalStorage> = ForkStorage::new(
+        let mut fork_storage: ForkStorage = ForkStorage::new(
             Some(fork_details),
             &SystemContractsOptions::default(),
             false,

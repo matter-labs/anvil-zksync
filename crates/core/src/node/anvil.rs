@@ -6,15 +6,12 @@ use zksync_web3_decl::error::Web3Error;
 use crate::namespaces::DetailedTransaction;
 use crate::utils::Numeric;
 use crate::{
-    fork::ForkSource,
     namespaces::{AnvilNamespaceT, ResetRequest, RpcResult},
     node::InMemoryNode,
     utils::{into_jsrpc_error, into_jsrpc_error_message, IntoBoxedFuture},
 };
 
-impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> AnvilNamespaceT
-    for InMemoryNode<S>
-{
+impl AnvilNamespaceT for InMemoryNode {
     fn dump_state(&self, preserve_historical_states: Option<bool>) -> RpcResult<Bytes> {
         self.dump_state(preserve_historical_states.unwrap_or(false))
             .map_err(|err| {
@@ -231,7 +228,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> AnvilNames
     }
 
     fn stop_impersonating_account(&self, address: Address) -> RpcResult<()> {
-        InMemoryNode::<S>::stop_impersonating_account(self, address)
+        InMemoryNode::stop_impersonating_account(self, address)
             .map(|_| ())
             .map_err(|err| {
                 tracing::error!("failed stopping to impersonate account: {:?}", err);

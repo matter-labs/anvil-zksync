@@ -17,15 +17,12 @@ use zksync_web3_decl::error::Web3Error;
 
 use crate::{
     deps::storage_view::StorageView,
-    fork::ForkSource,
     namespaces::{DebugNamespaceT, Result, RpcResult},
     node::{InMemoryNode, MAX_TX_SIZE},
     utils::{create_debug_output, into_jsrpc_error, to_real_block_number},
 };
 
-impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> DebugNamespaceT
-    for InMemoryNode<S>
-{
+impl DebugNamespaceT for InMemoryNode {
     fn trace_block_by_number(
         &self,
         block: BlockNumber,
@@ -247,12 +244,11 @@ mod tests {
     use super::*;
     use crate::{
         deps::system_contracts::bytecode_from_slice,
-        http_fork_source::HttpForkSource,
         node::{InMemoryNode, TransactionResult},
         testing::{self, LogBuilder},
     };
 
-    fn deploy_test_contracts(node: &InMemoryNode<HttpForkSource>) -> (Address, Address) {
+    fn deploy_test_contracts(node: &InMemoryNode) -> (Address, Address) {
         let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(0xee)).unwrap();
         let from_account = private_key.address();
         node.set_rich_account(from_account, U256::from(DEFAULT_ACCOUNT_BALANCE));
@@ -291,7 +287,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_trace_deployed_contract() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let (primary_deployed_address, secondary_deployed_address) = deploy_test_contracts(&node);
         // trace a call to the primary contract
@@ -340,7 +336,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_trace_only_top() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let (primary_deployed_address, _) = deploy_test_contracts(&node);
 
@@ -377,7 +373,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_trace_reverts() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let (primary_deployed_address, _) = deploy_test_contracts(&node);
 
@@ -412,7 +408,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_trace_transaction() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let inner = node.get_inner();
         {
             let mut writer = inner.write().unwrap();
@@ -440,7 +436,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_trace_transaction_only_top() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let inner = node.get_inner();
         {
             let mut writer = inner.write().unwrap();
@@ -476,7 +472,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_trace_transaction_not_found() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let result = node
             .trace_transaction(H256::repeat_byte(0x1), None)
             .await
@@ -486,7 +482,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_trace_block_by_hash_empty() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let inner = node.get_inner();
         {
             let mut writer = inner.write().unwrap();
@@ -502,7 +498,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_trace_block_by_hash() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let inner = node.get_inner();
         {
             let mut writer = inner.write().unwrap();
@@ -530,7 +526,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_trace_block_by_number() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let inner = node.get_inner();
         {
             let mut writer = inner.write().unwrap();

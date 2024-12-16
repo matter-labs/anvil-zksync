@@ -27,7 +27,6 @@ use zksync_web3_decl::{
 
 use crate::{
     filters::{FilterType, LogFilter},
-    fork::ForkSource,
     namespaces::{EthNamespaceT, EthTestNodeNamespaceT, RpcResult},
     node::{InMemoryNode, TransactionResult, MAX_TX_SIZE, PROTOCOL_VERSION},
     utils::{
@@ -36,7 +35,7 @@ use crate::{
     },
 };
 
-impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNode<S> {
+impl InMemoryNode {
     fn call_impl(
         &self,
         req: zksync_types::transaction_request::CallRequest,
@@ -190,9 +189,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
     }
 }
 
-impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespaceT
-    for InMemoryNode<S>
-{
+impl EthNamespaceT for InMemoryNode {
     /// Returns the chain ID of the node.
     fn chain_id(&self) -> RpcResult<zksync_types::U64> {
         match self.get_inner().read() {
@@ -1436,9 +1433,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
     }
 }
 
-impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthTestNodeNamespaceT
-    for InMemoryNode<S>
-{
+impl EthTestNodeNamespaceT for InMemoryNode {
     /// Sends a transaction to the L2 network. Can be used for the impersonated account.
     ///
     /// # Arguments
@@ -1463,7 +1458,6 @@ mod tests {
     use super::*;
     use crate::{
         fork::ForkDetails,
-        http_fork_source::HttpForkSource,
         node::{compute_hash, InMemoryNode, Snapshot},
         testing::{
             self, default_tx_debug_info, ForkBlockConfig, LogBuilder, MockServer,
@@ -1487,8 +1481,8 @@ mod tests {
     use zksync_types::{web3, Nonce};
     use zksync_web3_decl::types::{SyncState, ValueOrArray};
 
-    async fn test_node(url: &str) -> InMemoryNode<HttpForkSource> {
-        InMemoryNode::<HttpForkSource>::default_fork(Some(
+    async fn test_node(url: &str) -> InMemoryNode {
+        InMemoryNode::default_fork(Some(
             ForkDetails::from_network(url, None, &CacheConfig::None)
                 .await
                 .unwrap(),
@@ -1497,14 +1491,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_eth_syncing() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let syncing = node.syncing().await.expect("failed syncing");
         assert!(matches!(syncing, SyncState::NotSyncing));
     }
 
     #[tokio::test]
     async fn test_get_fee_history_with_1_block() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let fee_history = node
             .fee_history(U64::from(1), BlockNumber::Latest, vec![25.0, 50.0, 75.0])
@@ -1525,7 +1519,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_fee_history_with_no_reward_percentiles() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let fee_history = node
             .fee_history(U64::from(1), BlockNumber::Latest, vec![])
@@ -1547,7 +1541,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_fee_history_with_multiple_blocks() {
         // Arrange
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         testing::apply_tx(&node, H256::repeat_byte(0x01));
 
         // Act
@@ -1577,7 +1571,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_block_by_hash_returns_none_for_non_existing_block() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let result = node
             .get_block_by_hash(H256::repeat_byte(0x01), false)
@@ -1589,7 +1583,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_node_has_genesis_block() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let block = node
             .get_block_by_number(BlockNumber::Latest, false)
@@ -1603,7 +1597,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_node_creates_genesis_block_with_hash_and_zero_parent_hash() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let block = node
             .get_block_by_hash(compute_hash(0, []), false)
@@ -1616,7 +1610,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_node_produces_blocks_with_parent_hash_links() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         testing::apply_tx(&node, H256::repeat_byte(0x01));
 
         let genesis_block = node
@@ -1641,7 +1635,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_block_by_hash_for_produced_block() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let tx_hash = H256::repeat_byte(0x01);
         let (expected_block_hash, _, _) = testing::apply_tx(&node, tx_hash);
         let genesis_block = node
@@ -1757,7 +1751,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_block_by_number_returns_none_for_non_existing_block() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let result = node
             .get_block_by_number(BlockNumber::Number(U64::from(42)), false)
@@ -1769,7 +1763,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_block_by_number_for_produced_block() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let tx_hash = H256::repeat_byte(0x01);
         let (expected_block_hash, _, _) = testing::apply_tx(&node, tx_hash);
         let expected_block_number = 1;
@@ -1823,7 +1817,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_block_by_number_for_produced_block_full_txs() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let tx_hash = H256::repeat_byte(0x01);
         let (block_hash, _, tx) = testing::apply_tx(&node, tx_hash);
         let expected_block_number = 1;
@@ -1903,7 +1897,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_block_by_number_for_latest_block_produced_locally() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         testing::apply_tx(&node, H256::repeat_byte(0x01));
 
         // The latest block, will be the 'virtual' one with 0 transactions (block 2).
@@ -2008,7 +2002,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_block_transaction_count_by_hash_for_produced_block() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let (expected_block_hash, _, _) = testing::apply_tx(&node, H256::repeat_byte(0x01));
         let actual_transaction_count = node
@@ -2060,7 +2054,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_block_transaction_count_by_number_for_produced_block() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         testing::apply_tx(&node, H256::repeat_byte(0x01));
         let actual_transaction_count = node
@@ -2183,7 +2177,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_transaction_receipt_uses_produced_block_hash() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let tx_hash = H256::repeat_byte(0x01);
         let (expected_block_hash, _, _) = testing::apply_tx(&node, tx_hash);
 
@@ -2198,7 +2192,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_new_block_filter_returns_filter_id() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let actual_filter_id = node
             .new_block_filter()
@@ -2210,7 +2204,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_new_filter_returns_filter_id() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let actual_filter_id = node
             .new_filter(Filter::default())
@@ -2222,7 +2216,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_new_pending_transaction_filter_returns_filter_id() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let actual_filter_id = node
             .new_pending_transaction_filter()
@@ -2234,7 +2228,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_uninstall_filter_returns_true_if_filter_exists() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let filter_id = node
             .new_block_filter()
             .await
@@ -2250,7 +2244,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_uninstall_filter_returns_false_if_filter_does_not_exist() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let actual_result = node
             .uninstall_filter(U256::from(100))
@@ -2262,7 +2256,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_filter_changes_returns_block_hash_updates_only_once() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let filter_id = node
             .new_block_filter()
             .await
@@ -2294,7 +2288,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_filter_changes_returns_log_updates_only_once() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let filter_id = node
             .new_filter(Filter {
                 from_block: None,
@@ -2328,7 +2322,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_filter_changes_returns_pending_transaction_updates_only_once() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let filter_id = node
             .new_pending_transaction_filter()
             .await
@@ -2356,7 +2350,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_produced_block_archives_previous_blocks() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let input_storage_key = StorageKey::new(
             AccountTreeId::new(H160::repeat_byte(0x1)),
@@ -2399,7 +2393,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_storage_fetches_zero_value_for_non_existent_key() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let value = node
             .get_storage(H160::repeat_byte(0xf1), U256::from(1024), None)
@@ -2461,7 +2455,7 @@ mod tests {
         );
         let input_storage_value = H256::repeat_byte(0xcd);
 
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         node.get_inner()
             .write()
             .map(|mut writer| {
@@ -2562,7 +2556,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_storage_fetches_state_for_deployed_smart_contract_in_current_block() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(0xef)).unwrap();
         let from_account = private_key.address();
@@ -2594,7 +2588,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_storage_fetches_state_for_deployed_smart_contract_in_old_block() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(0xef)).unwrap();
         let from_account = private_key.address();
@@ -2651,7 +2645,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_filter_logs_returns_matching_logs_for_valid_id() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         // populate tx receipts with 2 tx each having logs
         {
@@ -2710,7 +2704,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_filter_logs_returns_error_for_invalid_id() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         // populate tx receipts with 2 tx each having logs
         {
@@ -2739,7 +2733,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_logs_returns_matching_logs() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         // populate tx receipts with 2 tx each having logs
         {
@@ -2808,7 +2802,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_accounts() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let private_key = H256::repeat_byte(0x01);
         let from_account = K256PrivateKey::from_bytes(private_key).unwrap().address();
@@ -2829,7 +2823,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_snapshot() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let inner = node.get_inner();
         let mut inner = inner.write().unwrap();
 
@@ -2930,7 +2924,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_snapshot_restore() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let inner = node.get_inner();
         let mut inner = inner.write().unwrap();
 
@@ -3056,7 +3050,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_transaction_by_block_hash_and_index_returns_none_for_invalid_block_hash() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let input_tx_hash = H256::repeat_byte(0x01);
         let (input_block_hash, _, _) = testing::apply_tx(&node, input_tx_hash);
         let invalid_block_hash = H256::repeat_byte(0xab);
@@ -3072,7 +3066,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_transaction_by_block_hash_and_index_returns_none_for_invalid_index() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let input_tx_hash = H256::repeat_byte(0x01);
         let (input_block_hash, _, _) = testing::apply_tx(&node, input_tx_hash);
 
@@ -3086,7 +3080,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_transaction_by_block_hash_and_index_returns_transaction_for_valid_input() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let input_tx_hash = H256::repeat_byte(0x01);
         let (input_block_hash, _, _) = testing::apply_tx(&node, input_tx_hash);
 
@@ -3191,7 +3185,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_transaction_by_block_number_and_index_returns_none_for_invalid_block_number()
     {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let input_tx_hash = H256::repeat_byte(0x01);
         let (input_block_hash, _, _) = testing::apply_tx(&node, input_tx_hash);
         let invalid_block_hash = H256::repeat_byte(0xab);
@@ -3210,7 +3204,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_transaction_by_block_number_and_index_returns_none_for_invalid_index() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let input_tx_hash = H256::repeat_byte(0x01);
         testing::apply_tx(&node, input_tx_hash);
 
@@ -3224,7 +3218,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_transaction_by_block_number_and_index_returns_transaction_for_valid_input() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
         let input_tx_hash = H256::repeat_byte(0x01);
         let (_, input_block_number, _) = testing::apply_tx(&node, input_tx_hash);
 
@@ -3342,7 +3336,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_protocol_version_returns_currently_supported_version() {
-        let node = InMemoryNode::<HttpForkSource>::default();
+        let node = InMemoryNode::default();
 
         let expected_version = String::from(PROTOCOL_VERSION);
         let actual_version = node
