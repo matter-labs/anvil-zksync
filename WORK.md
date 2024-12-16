@@ -24,3 +24,13 @@ Fails in verify & apply batch
 ### Nonce addressing
 Same issue as balances address -- hashing in key.
 
+### 'null' address
+had to switch the bool - to say it is enabled.
+
+Also seems that we're treating 'null' and all-zeros in the same way - seems that deployment doens't really work.
+
+
+
+When contract is deployed - how do we pass the address to the output??
+
+* not great info when we run out of gas.

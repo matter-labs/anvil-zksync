@@ -103,6 +103,15 @@ pub fn b160_to_h160(data: B160) -> H160 {
     H160::from_slice(&data.to_be_bytes_vec())
 }
 
+pub fn pad_to_word(input: &Vec<u8>) -> Vec<u8> {
+    let mut data = input.clone();
+    let remainder = input.len().div_ceil(32) * 32 - input.len();
+    for _ in 0..remainder {
+        data.push(0u8);
+    }
+    data
+}
+
 // TODO: check endinanness
 pub fn h160_to_b160(data: &H160) -> B160 {
     B160::from_be_bytes(data.as_fixed_bytes().clone())
@@ -1611,7 +1620,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             let mut tx_raw: Vec<u8> = vec![];
             tx_raw.append(&mut vec![0u8; 32]);
             append_address(&mut tx_raw, &aa1.initiator_address);
-            append_address(&mut tx_raw, &tx.execute.contract_address.unwrap());
+            append_address(
+                &mut tx_raw,
+                &tx.execute.contract_address.unwrap_or(H160::zero()),
+            );
             append_u256(&mut tx_raw, &aa1.fee.gas_limit);
             append_u256(&mut tx_raw, &aa1.fee.gas_per_pubdata_limit);
             append_u256(&mut tx_raw, &aa1.fee.max_fee_per_gas);
@@ -1626,36 +1638,49 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
             append_u256(&mut tx_raw, &tx.execute.value);
 
-            for _ in 0..4 {
-                // reserved
-                append_u64(&mut tx_raw, 0);
+            let mut reserved = [0u64; 4];
+
+            if tx.execute.contract_address.is_none() {
+                reserved[1] = 1;
             }
 
-            let signature_u256 = aa1.signature.len().div_ceil(32);
+            for i in 0..4 {
+                // reserved
+                append_u64(&mut tx_raw, reserved[i]);
+            }
+
+            let signature_u256 = aa1.signature.len().div_ceil(32) as u64;
+
+            let execute_calldata_words = tx.execute.calldata.len().div_ceil(32) as u64;
+            dbg!(execute_calldata_words);
+
+            let mut current_offset = 19;
 
             // data offset
-            append_u64(&mut tx_raw, 19 * 32);
+            append_u64(&mut tx_raw, current_offset * 32);
+            // lent
+            current_offset += 1 + execute_calldata_words;
             // signature offset (stupid -- this doesn't include the padding!!)
-            append_u64(&mut tx_raw, 20 * 32);
+            append_u64(&mut tx_raw, current_offset * 32);
+            current_offset += 1 + signature_u256;
 
             // factory deps
-            append_usize(&mut tx_raw, (21 + signature_u256) * 32);
+            append_u64(&mut tx_raw, current_offset * 32);
+            current_offset += 1;
             // paymater
-            append_usize(&mut tx_raw, (22 + signature_u256) * 32);
+            append_u64(&mut tx_raw, current_offset * 32);
+            current_offset += 1;
             // reserved
-            append_usize(&mut tx_raw, (23 + signature_u256) * 32);
+            append_u64(&mut tx_raw, current_offset * 32);
+            current_offset += 1;
 
             // len - data.
-            append_u64(&mut tx_raw, 0);
+            append_usize(&mut tx_raw, tx.execute.calldata.len());
+            tx_raw.append(&mut pad_to_word(&tx.execute.calldata));
 
             // len - signature.
             append_usize(&mut tx_raw, aa1.signature.len());
-            let mut padded_sig = aa1.signature.clone();
-            let remainder = padded_sig.len().div_ceil(32) * 32 - padded_sig.len();
-            for _ in 0..remainder {
-                padded_sig.push(0u8);
-            }
-            tx_raw.append(&mut padded_sig);
+            tx_raw.append(&mut pad_to_word(&aa1.signature));
 
             // factory deps
             append_u64(&mut tx_raw, 0);
@@ -1691,7 +1716,12 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             {
                 forward_system::run::output::ExecutionResult::Success(output) => match &output {
                     forward_system::run::output::ExecutionOutput::Call(data) => data,
-                    _ => panic!("only data"),
+                    forward_system::run::output::ExecutionOutput::Create(data, address) => {
+                        dbg!(address);
+                        // TODO - pass it to the output somehow.
+                        println!("Deployed to {:?}", address);
+                        data
+                    }
                 },
                 _ => panic!("TX failed"),
             };

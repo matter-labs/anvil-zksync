@@ -94,7 +94,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
         let system_contracts = self
             .system_contracts
             .contracts(TxExecutionMode::VerifyExecute, false);
-        let allow_no_target = system_contracts.evm_emulator.is_some();
+        //let allow_no_target = system_contracts.evm_emulator.is_some();
+        let allow_no_target = true;
         let mut l2_tx = L2Tx::from_request(tx_req, MAX_TX_SIZE, allow_no_target)?;
 
         l2_tx.set_input(tx_bytes.0, hash);
