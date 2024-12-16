@@ -1,4 +1,4 @@
-use crate::utils::parse_genesis_file;
+use crate::utils::{parse_genesis_file, write_json_file};
 use alloy_signer_local::coins_bip39::{English, Mnemonic};
 use anvil_zksync_config::constants::{
     DEFAULT_DISK_CACHE_DIR, DEFAULT_MNEMONIC, TEST_NODE_NETWORK_ID,
@@ -47,6 +47,7 @@ pub struct Cli {
     // General Options
     #[arg(long, help_heading = "General Options")]
     /// Run in offline mode (disables all network requests).
+    pub offline: bool,
 
     #[arg(long, help_heading = "General Options")]
     /// Enable health check endpoint.
@@ -216,21 +217,6 @@ pub struct Cli {
     /// Initialize the genesis block with the given `genesis.json` file.
     #[arg(long, value_name = "PATH", value_parser= parse_genesis_file)]
     pub init: Option<Genesis>,
-
-    /// This is an alias for both --load-state and --dump-state.
-    ///
-    /// It initializes the chain with the state and block environment stored at the file, if it
-    /// exists, and dumps the chain's state on exit.
-    #[arg(
-        long,
-        value_name = "PATH",
-        conflicts_with_all = &[
-            "init",
-            "dump_state",
-            "load_state"
-        ]
-    )]
-    pub state: Option<VersionedState>,
 
     /// Interval in seconds at which the state and block environment is to be dumped to disk.
     ///
@@ -448,11 +434,7 @@ impl Cli {
             .with_allow_origin(self.allow_origin)
             .with_no_cors(self.no_cors)
             .with_transaction_order(self.order)
-            .with_state_interval(self.state_interval)
             .with_dump_state(self.dump_state)
-            .with_preserve_historical_states(self.preserve_historical_states);
-
-        if self.emulate_evm && self.dev_system_contracts != Some(SystemContractsOptions::Local) {
             return Err(eyre::eyre!(
                 "EVM emulation requires the 'local' system contracts option."
             ));

@@ -22,6 +22,7 @@ use std::fs::File;
 use std::time::Duration;
 use std::{env, net::SocketAddr, str::FromStr};
 use tower_http::cors::AllowOrigin;
+use tokio::signal;
 use tracing_subscriber::filter::LevelFilter;
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
 use zksync_types::H160;
@@ -228,81 +229,15 @@ async fn main() -> anyhow::Result<()> {
         block_sealer.clone(),
     );
 
+    let dump_state = config.dump_state.clone(); // Option<PathBuf>
+    let dump_interval = config
+        .state_interval
+        .map(Duration::from_secs)
+        .unwrap_or(Duration::from_secs(60));
+    let preserve_historical_states = config.preserve_historical_states;
+
     if let Some(ref bytecodes_dir) = config.override_bytecodes_dir {
         override_bytecodes(&node, bytecodes_dir.to_string()).unwrap();
-    }
-
-    if let Some(ref state_path) = config.state_path {
-        // Attempt to load from state file if it exists
-        if state_path.exists() {
-            match std::fs::read(state_path) {
-                Ok(data) => {
-                    // Attempt to decompress
-                    let versioned_state = match try_decompress_and_deserialize(&data) {
-                        Ok(state) => state,
-                        Err(err) => {
-                            eprintln!(
-                                "Failed to load state from {}: {:?}",
-                                state_path.display(),
-                                err
-                            );
-                            // It's up to you if you want to proceed without loading the state,
-                            // or fail the entire startup.
-                            // For now, let's just fail the startup.
-                            return Err(anyhow!(err));
-                        }
-                    };
-
-                    // Load into node
-                    {
-                        let time = node.time.lock();
-                        // node.inner is protected by RwLock; load_state calls from your code snippet
-                        let mut inner = node.inner.write().map_err(|_| anyhow!("Lock error"))?;
-                        inner
-                            .load_state(time, versioned_state)
-                            .map_err(|e| anyhow!("Failed to load state: {}", e))?;
-                    }
-                }
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                    // File doesn't exist, start fresh
-                    tracing::info!(
-                        "No existing state file at {}, starting a fresh node",
-                        state_path.display()
-                    );
-                }
-                Err(e) => {
-                    return Err(anyhow!("Failed to read state file: {:?}", e));
-                }
-            }
-        } else {
-            tracing::info!(
-                "No state file found at {}, starting a fresh node",
-                state_path.display()
-            );
-        }
-    }
-
-    if let Some(interval) = config.state_interval {
-        let node_ref = node.clone();
-        let interval_path = config
-            .dump_state_path
-            .clone()
-            .or_else(|| config.state_path.clone());
-        if let Some(path) = interval_path {
-            tokio::spawn(async move {
-                let mut ticker = tokio::time::interval(std::time::Duration::from_secs(interval));
-                loop {
-                    ticker.tick().await;
-                    if let Err(e) = dump_node_state(&node_ref, &path, true) {
-                        eprintln!("Failed to dump state at interval: {:?}", e);
-                    } else {
-                        tracing::info!("Dumped state at interval to {:?}", path);
-                    }
-                }
-            });
-        } else {
-            tracing::warn!("--state-interval provided but no --state or --dump-state path given.");
-        }
     }
 
     if !transactions_to_replay.is_empty() {
