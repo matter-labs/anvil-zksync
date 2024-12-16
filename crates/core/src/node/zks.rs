@@ -1,396 +1,259 @@
+use crate::node::{InMemoryNode, TransactionResult};
+use crate::utils::{internal_error, utc_datetime_from_epoch_ms};
 use std::collections::HashMap;
-
-use bigdecimal::BigDecimal;
-use colored::Colorize;
-use futures::FutureExt;
+use zksync_types::api::{
+    BlockDetails, BlockDetailsBase, BlockStatus, BridgeAddresses, TransactionDetails,
+    TransactionStatus, TransactionVariant,
+};
+use zksync_types::fee::Fee;
+use zksync_types::transaction_request::CallRequest;
+use zksync_types::utils::storage_key_for_standard_token_balance;
 use zksync_types::{
-    api::{
-        BlockDetails, BlockDetailsBase, BlockStatus, BridgeAddresses, Proof, ProtocolVersion,
-        TransactionDetails, TransactionStatus, TransactionVariant,
-    },
-    fee::Fee,
-    utils::storage_key_for_standard_token_balance,
     AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber, L2BlockNumber,
     ProtocolVersionId, Transaction, H160, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::h256_to_u256;
 use zksync_web3_decl::error::Web3Error;
 
-use crate::{
-    namespaces::{RpcResult, ZksNamespaceT},
-    node::{InMemoryNode, TransactionResult},
-    utils::{
-        internal_error, into_jsrpc_error, not_implemented, report_into_jsrpc_error,
-        utc_datetime_from_epoch_ms, IntoBoxedFuture,
-    },
-};
-
-impl ZksNamespaceT for InMemoryNode {
-    /// Estimates the gas fee data required for a given call request.
-    ///
-    /// # Arguments
-    ///
-    /// * `req` - A `CallRequest` struct representing the call request to estimate gas for.
-    ///
-    /// # Returns
-    ///
-    /// A `BoxFuture` containing a `Result` with a `Fee` representing the estimated gas data required.
-    fn estimate_fee(&self, req: zksync_types::transaction_request::CallRequest) -> RpcResult<Fee> {
-        self.get_inner()
-            .read()
-            .map_err(|err| {
-                tracing::error!("failed acquiring lock: {:?}", err);
-                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
-                    "Failed to acquire read lock for inner node state.",
-                )))
-            })
-            .and_then(|reader| reader.estimate_gas_impl(&self.time, req))
-            .into_boxed_future()
+impl InMemoryNode {
+    pub async fn estimate_fee_impl(&self, req: CallRequest) -> Result<Fee, Web3Error> {
+        // TODO: Burn with fire
+        let time = self.time.lock();
+        self.read_inner()?.estimate_gas_impl(&time, req)
     }
 
-    /// Returns data of transactions in a block.
-    ///
-    /// # Arguments
-    ///
-    /// * `block` - Block number
-    ///
-    /// # Returns
-    ///
-    /// A `BoxFuture` containing a `Result` with a `Vec` of `Transaction`s representing the transactions in the block.
-    fn get_raw_block_transactions(
+    pub async fn get_raw_block_transactions_impl(
         &self,
         block_number: L2BlockNumber,
-    ) -> RpcResult<Vec<zksync_types::Transaction>> {
-        let inner = self.get_inner().clone();
-        Box::pin(async move {
-            let reader = inner.read().map_err(|_err| {
-                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
-                    "Failed to acquire read lock for inner node state.",
-                )))
-            })?;
+    ) -> Result<Vec<Transaction>, Web3Error> {
+        let reader = self.read_inner()?;
 
-            let maybe_transactions = reader
-                .block_hashes
-                .get(&(block_number.0 as u64))
-                .and_then(|hash| reader.blocks.get(hash))
-                .map(|block| {
-                    block
-                        .transactions
-                        .iter()
-                        .map(|tx| match tx {
-                            TransactionVariant::Full(tx) => &tx.hash,
-                            TransactionVariant::Hash(hash) => hash,
-                        })
-                        .flat_map(|tx_hash| {
-                            reader.tx_results.get(tx_hash).map(
-                                |TransactionResult { info, .. }| Transaction {
-                                    common_data: ExecuteTransactionCommon::L2(
-                                        info.tx.common_data.clone(),
-                                    ),
-                                    execute: info.tx.execute.clone(),
-                                    received_timestamp_ms: info.tx.received_timestamp_ms,
-                                    raw_bytes: info.tx.raw_bytes.clone(),
-                                },
-                            )
-                        })
-                        .collect()
-                });
+        let maybe_transactions = reader
+            .block_hashes
+            .get(&(block_number.0 as u64))
+            .and_then(|hash| reader.blocks.get(hash))
+            .map(|block| {
+                block
+                    .transactions
+                    .iter()
+                    .map(|tx| match tx {
+                        TransactionVariant::Full(tx) => &tx.hash,
+                        TransactionVariant::Hash(hash) => hash,
+                    })
+                    .flat_map(|tx_hash| {
+                        reader
+                            .tx_results
+                            .get(tx_hash)
+                            .map(|TransactionResult { info, .. }| Transaction {
+                                common_data: ExecuteTransactionCommon::L2(
+                                    info.tx.common_data.clone(),
+                                ),
+                                execute: info.tx.execute.clone(),
+                                received_timestamp_ms: info.tx.received_timestamp_ms,
+                                raw_bytes: info.tx.raw_bytes.clone(),
+                            })
+                    })
+                    .collect()
+            });
 
-            let transactions = match maybe_transactions {
-                Some(txns) => Ok(txns),
-                None => {
-                    let fork_storage_read = reader
-                        .fork_storage
-                        .inner
-                        .read()
-                        .expect("failed reading fork storage");
+        let transactions = match maybe_transactions {
+            Some(txns) => Ok(txns),
+            None => {
+                let fork_storage_read = reader
+                    .fork_storage
+                    .inner
+                    .read()
+                    .expect("failed reading fork storage");
 
-                    match fork_storage_read.fork.as_ref() {
-                        Some(fork) => fork
-                            .fork_source
-                            .get_raw_block_transactions(block_number)
-                            .map_err(|e| internal_error("get_raw_block_transactions", e)),
-                        None => Ok(vec![]),
-                    }
+                match fork_storage_read.fork.as_ref() {
+                    Some(fork) => fork
+                        .fork_source
+                        .get_raw_block_transactions(block_number)
+                        .map_err(|e| internal_error("get_raw_block_transactions", e)),
+                    None => Ok(vec![]),
                 }
             }
-            .map_err(into_jsrpc_error)?;
+        }?;
 
-            Ok(transactions)
-        })
+        Ok(transactions)
     }
 
-    fn get_proof(
-        &self,
-        _address: Address,
-        _keys: Vec<H256>,
-        _l1_batch_number: L1BatchNumber,
-    ) -> RpcResult<Proof> {
-        not_implemented("zks_getProof")
-    }
+    pub async fn get_bridge_contracts_impl(&self) -> Result<BridgeAddresses, Web3Error> {
+        let reader = self.read_inner()?;
 
-    fn estimate_gas_l1_to_l2(
-        &self,
-        _req: zksync_types::transaction_request::CallRequest,
-    ) -> RpcResult<U256> {
-        not_implemented("zks_estimateGasL1ToL2")
-    }
-
-    fn get_main_contract(&self) -> RpcResult<zksync_types::Address> {
-        not_implemented("zks_getMainContract")
-    }
-
-    fn get_testnet_paymaster(&self) -> RpcResult<Option<zksync_types::Address>> {
-        not_implemented("zks_getTestnetPaymaster")
-    }
-
-    fn get_bridge_contracts(&self) -> RpcResult<BridgeAddresses> {
-        let inner = self.get_inner().clone();
-        Box::pin(async move {
-            let reader = inner.read().map_err(|_| {
-                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
-                    "Failed to acquire read lock for inner node state.",
+        let result = match reader
+            .fork_storage
+            .inner
+            .read()
+            .expect("failed reading fork storage")
+            .fork
+            .as_ref()
+        {
+            Some(fork) => fork.fork_source.get_bridge_contracts().map_err(|err| {
+                tracing::error!("failed fetching bridge contracts from the fork: {:?}", err);
+                Web3Error::InternalError(anyhow::Error::msg(format!(
+                    "failed fetching bridge contracts from the fork: {:?}",
+                    err
                 )))
-            })?;
+            })?,
+            None => BridgeAddresses {
+                l1_shared_default_bridge: Default::default(),
+                l2_shared_default_bridge: Default::default(),
+                l1_erc20_default_bridge: Default::default(),
+                l2_erc20_default_bridge: Default::default(),
+                l1_weth_bridge: Default::default(),
+                l2_weth_bridge: Default::default(),
+                l2_legacy_shared_bridge: Default::default(),
+            },
+        };
 
-            let result = match reader
-                .fork_storage
-                .inner
-                .read()
-                .expect("failed reading fork storage")
-                .fork
-                .as_ref()
-            {
-                Some(fork) => fork.fork_source.get_bridge_contracts().map_err(|err| {
-                    tracing::error!("failed fetching bridge contracts from the fork: {:?}", err);
-                    into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(format!(
-                        "failed fetching bridge contracts from the fork: {:?}",
-                        err
-                    ))))
-                })?,
-                None => BridgeAddresses {
-                    l1_shared_default_bridge: Default::default(),
-                    l2_shared_default_bridge: Default::default(),
-                    l1_erc20_default_bridge: Default::default(),
-                    l2_erc20_default_bridge: Default::default(),
-                    l1_weth_bridge: Default::default(),
-                    l2_weth_bridge: Default::default(),
-                    l2_legacy_shared_bridge: Default::default(),
-                },
-            };
-
-            Ok(result)
-        })
+        Ok(result)
     }
 
-    fn l1_chain_id(&self) -> RpcResult<zksync_types::U64> {
-        use crate::namespaces::EthNamespaceT;
-        self.chain_id()
-    }
-
-    fn get_confirmed_tokens(
+    pub async fn get_confirmed_tokens_impl(
         &self,
         from: u32,
         limit: u8,
-    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Vec<zksync_web3_decl::types::Token>>> {
-        let inner = self.get_inner().clone();
-        Box::pin(async move {
-            let reader = inner.read().map_err(|_| {
-                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
-                    "Failed to acquire read lock for inner node state.",
-                )))
-            })?;
+    ) -> anyhow::Result<Vec<zksync_web3_decl::types::Token>> {
+        let reader = self.read_inner()?;
 
-            let fork_storage_read = reader
-                .fork_storage
-                .inner
-                .read()
-                .expect("failed reading fork storage");
+        let fork_storage_read = reader
+            .fork_storage
+            .inner
+            .read()
+            .expect("failed reading fork storage");
 
-            match fork_storage_read.fork.as_ref() {
-                Some(fork) => {
-                    Ok(fork
-                        .fork_source
-                        .get_confirmed_tokens(from, limit)
-                        .map_err(|e| {
-                            into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(format!(
-                                "failed fetching bridge contracts from the fork: {:?}",
-                                e
-                            ))))
-                        })?)
-                }
-                None => Ok(vec![zksync_web3_decl::types::Token {
-                    l1_address: Address::zero(),
-                    l2_address: L2_BASE_TOKEN_ADDRESS,
-                    name: "Ether".to_string(),
-                    symbol: "ETH".to_string(),
-                    decimals: 18,
-                }]),
-            }
-        })
-    }
-
-    fn get_token_price(&self, token_address: zksync_types::Address) -> RpcResult<BigDecimal> {
-        match format!("{:?}", token_address).to_lowercase().as_str() {
-            "0x0000000000000000000000000000000000000000" => {
-                // ETH
-                Ok(1_500.into()).into_boxed_future()
-            }
-            "0x40609141db628beee3bfab8034fc2d8278d0cc78" => {
-                // LINK
-                Ok(1.into()).into_boxed_future()
-            }
-            "0x0bfce1d53451b4a8175dd94e6e029f7d8a701e9c" => {
-                // wBTC
-                Ok(1.into()).into_boxed_future()
-            }
-            "0x0faf6df7054946141266420b43783387a78d82a9" => {
-                // USDC
-                Ok(1.into()).into_boxed_future()
-            }
-            "0x3e7676937a7e96cfb7616f255b9ad9ff47363d4b" => {
-                // DAI
-                Ok(1.into()).into_boxed_future()
-            }
-            address => {
-                tracing::error!(
-                    "{}",
-                    format!("Token price requested for unknown address {:?}", address).red()
-                );
-                futures::future::err(into_jsrpc_error(Web3Error::InternalError(
-                    anyhow::Error::msg(format!(
-                        "Token price requested for unknown address {:?}",
-                        address
-                    )),
-                )))
-                .boxed()
-            }
+        match fork_storage_read.fork.as_ref() {
+            Some(fork) => Ok(fork
+                .fork_source
+                .get_confirmed_tokens(from, limit)
+                .map_err(|e| {
+                    anyhow::anyhow!("failed fetching bridge contracts from the fork: {:?}", e)
+                })?),
+            None => Ok(vec![zksync_web3_decl::types::Token {
+                l1_address: Address::zero(),
+                l2_address: L2_BASE_TOKEN_ADDRESS,
+                name: "Ether".to_string(),
+                symbol: "ETH".to_string(),
+                decimals: 18,
+            }]),
         }
     }
 
-    /// Get all known balances for a given account.
-    ///
-    /// # Arguments
-    ///
-    /// * `address` - The user address with balances to check.
-    ///
-    /// # Returns
-    ///
-    /// A `BoxFuture` containing a `Result` with a (Token, Balance) map where account has non-zero value.
-    fn get_all_account_balances(
+    pub async fn get_all_account_balances_impl(
         &self,
-        address: zksync_types::Address,
-    ) -> jsonrpc_core::BoxFuture<
-        jsonrpc_core::Result<std::collections::HashMap<zksync_types::Address, U256>>,
-    > {
+        address: Address,
+    ) -> Result<HashMap<Address, U256>, Web3Error> {
         let inner = self.get_inner().clone();
-        Box::pin({
-            self.get_confirmed_tokens(0, 100)
-                .then(move |tokens_result| async move {
-                    let tokens = tokens_result.map_err(|e| {
-                        into_jsrpc_error(Web3Error::InternalError(anyhow::Error::new(e)))
-                    })?;
+        let tokens = self.get_confirmed_tokens_impl(0, 100).await?;
 
-                    let balances = {
-                        let writer = inner.write().map_err(|_e| {
-                            let error_message = "Failed to acquire lock. Please ensure the lock is not being held by another process or thread.".to_string();
-                            into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(error_message)))
-                        })?;
-                        let mut balances = HashMap::new();
-                        for token in tokens {
-                            let balance_key = storage_key_for_standard_token_balance(
-                                AccountTreeId::new(token.l2_address),
-                                &address,
-                            );
-                            let balance = match writer.fork_storage.read_value_internal(&balance_key) {
-                                Ok(balance) => balance,
-                                Err(error) => {
-                                    return Err(report_into_jsrpc_error(error));
-                                }
-                            };
-                            if !balance.is_zero() {
-                                balances.insert(token.l2_address, h256_to_u256(balance));
-                            }
-                        }
-                        balances
-                    };
-
-                    Ok(balances)
-                })
-        })
-    }
-
-    fn get_l2_to_l1_msg_proof(
-        &self,
-        _block: zksync_types::L2BlockNumber,
-        _sender: zksync_types::Address,
-        _msg: zksync_types::H256,
-        _l2_log_position: Option<usize>,
-    ) -> RpcResult<Option<zksync_types::api::L2ToL1LogProof>> {
-        not_implemented("zks_getL2ToL1MsgProof")
-    }
-
-    fn get_l2_to_l1_log_proof(
-        &self,
-        _tx_hash: zksync_types::H256,
-        _index: Option<usize>,
-    ) -> RpcResult<Option<zksync_types::api::L2ToL1LogProof>> {
-        not_implemented("zks_getL2ToL1LogProof")
-    }
-
-    fn get_l1_batch_number(&self) -> RpcResult<zksync_types::U64> {
-        not_implemented("zks_L1BatchNumber")
-    }
-
-    /// Get block details.
-    ///
-    /// # Arguments
-    ///
-    /// * `blockNumber` - `u32` miniblock number
-    ///
-    /// # Returns
-    ///
-    /// A `BoxFuture` containing a `Result` with an `Option<BlockDetails>` representing details of the block (if found).
-    fn get_block_details(
-        &self,
-        block_number: zksync_types::L2BlockNumber,
-    ) -> RpcResult<Option<zksync_types::api::BlockDetails>> {
-        let inner = self.get_inner().clone();
-        let base_system_contracts_hashes = self.system_contracts.base_system_contracts_hashes();
-        Box::pin(async move {
-            let reader = inner.read().map_err(|_e| {
+        let balances = {
+            let writer = inner.write().map_err(|_e| {
                 let error_message = "Failed to acquire lock. Please ensure the lock is not being held by another process or thread.".to_string();
-                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(error_message)))
+                Web3Error::InternalError(anyhow::Error::msg(error_message))
             })?;
+            let mut balances = HashMap::new();
+            for token in tokens {
+                let balance_key = storage_key_for_standard_token_balance(
+                    AccountTreeId::new(token.l2_address),
+                    &address,
+                );
+                let balance = match writer.fork_storage.read_value_internal(&balance_key) {
+                    Ok(balance) => balance,
+                    Err(error) => {
+                        return Err(Web3Error::InternalError(anyhow::anyhow!(
+                            "failed reading value: {:?}",
+                            error
+                        )));
+                    }
+                };
+                if !balance.is_zero() {
+                    balances.insert(token.l2_address, h256_to_u256(balance));
+                }
+            }
+            balances
+        };
 
-            let maybe_block = reader
-                .block_hashes
-                .get(&(block_number.0 as u64))
-                .and_then(|hash| reader.blocks.get(hash))
-                .map(|block| BlockDetails {
-                    number: L2BlockNumber(block.number.as_u32()),
-                    l1_batch_number: L1BatchNumber(
-                        block.l1_batch_number.unwrap_or_default().as_u32(),
-                    ),
-                    base: BlockDetailsBase {
-                        timestamp: block.timestamp.as_u64(),
-                        l1_tx_count: 1,
-                        l2_tx_count: block.transactions.len(),
-                        root_hash: Some(block.hash),
-                        status: BlockStatus::Verified,
-                        commit_tx_hash: None,
-                        committed_at: None,
-                        prove_tx_hash: None,
-                        proven_at: None,
-                        execute_tx_hash: None,
-                        executed_at: None,
-                        l1_gas_price: 0,
-                        l2_fair_gas_price: reader.fee_input_provider.gas_price(),
-                        fair_pubdata_price: Some(reader.fee_input_provider.fair_pubdata_price()),
-                        base_system_contracts_hashes,
-                    },
-                    operator_address: Address::zero(),
-                    protocol_version: Some(ProtocolVersionId::latest()),
+        Ok(balances)
+    }
+
+    pub async fn get_block_details_impl(
+        &self,
+        block_number: L2BlockNumber,
+    ) -> anyhow::Result<Option<BlockDetails>> {
+        let base_system_contracts_hashes = self.system_contracts.base_system_contracts_hashes();
+        let reader = self.read_inner()?;
+
+        let maybe_block = reader
+            .block_hashes
+            .get(&(block_number.0 as u64))
+            .and_then(|hash| reader.blocks.get(hash))
+            .map(|block| BlockDetails {
+                number: L2BlockNumber(block.number.as_u32()),
+                l1_batch_number: L1BatchNumber(block.l1_batch_number.unwrap_or_default().as_u32()),
+                base: BlockDetailsBase {
+                    timestamp: block.timestamp.as_u64(),
+                    l1_tx_count: 1,
+                    l2_tx_count: block.transactions.len(),
+                    root_hash: Some(block.hash),
+                    status: BlockStatus::Verified,
+                    commit_tx_hash: None,
+                    committed_at: None,
+                    prove_tx_hash: None,
+                    proven_at: None,
+                    execute_tx_hash: None,
+                    executed_at: None,
+                    l1_gas_price: 0,
+                    l2_fair_gas_price: reader.fee_input_provider.gas_price(),
+                    fair_pubdata_price: Some(reader.fee_input_provider.fair_pubdata_price()),
+                    base_system_contracts_hashes,
+                },
+                operator_address: Address::zero(),
+                protocol_version: Some(ProtocolVersionId::latest()),
+            })
+            .or_else(|| {
+                reader
+                    .fork_storage
+                    .inner
+                    .read()
+                    .expect("failed reading fork storage")
+                    .fork
+                    .as_ref()
+                    .and_then(|fork| {
+                        fork.fork_source
+                            .get_block_details(block_number)
+                            .ok()
+                            .flatten()
+                    })
+            });
+
+        Ok(maybe_block)
+    }
+
+    pub async fn get_transaction_details_impl(
+        &self,
+        hash: H256,
+    ) -> anyhow::Result<Option<TransactionDetails>> {
+        let reader = self.read_inner()?;
+
+        let maybe_result = {
+            reader
+                .tx_results
+                .get(&hash)
+                .map(|TransactionResult { info, receipt, .. }| {
+                    TransactionDetails {
+                        is_l1_originated: false,
+                        status: TransactionStatus::Included,
+                        // if these are not set, fee is effectively 0
+                        fee: receipt.effective_gas_price.unwrap_or_default()
+                            * receipt.gas_used.unwrap_or_default(),
+                        gas_per_pubdata: info.tx.common_data.fee.gas_per_pubdata_limit,
+                        initiator_address: info.tx.initiator_account(),
+                        received_at: utc_datetime_from_epoch_ms(info.tx.received_timestamp_ms),
+                        eth_commit_tx_hash: None,
+                        eth_prove_tx_hash: None,
+                        eth_execute_tx_hash: None,
+                    }
                 })
                 .or_else(|| {
                     reader
@@ -402,170 +265,52 @@ impl ZksNamespaceT for InMemoryNode {
                         .as_ref()
                         .and_then(|fork| {
                             fork.fork_source
-                                .get_block_details(block_number)
+                                .get_transaction_details(hash)
                                 .ok()
                                 .flatten()
                         })
-                });
+                })
+        };
 
-            Ok(maybe_block)
-        })
+        Ok(maybe_result)
     }
 
-    fn get_miniblock_range(
-        &self,
-        _batch: zksync_types::L1BatchNumber,
-    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<Option<(zksync_types::U64, zksync_types::U64)>>>
-    {
-        not_implemented("zks_getL1BatchBlockRange")
-    }
+    pub async fn get_bytecode_by_hash_impl(&self, hash: H256) -> anyhow::Result<Option<Vec<u8>>> {
+        let writer = self.write_inner()?;
 
-    /// Get transaction details.
-    ///
-    /// # Arguments
-    ///
-    /// * `transactionHash` - `H256` hash of the transaction
-    ///
-    /// # Returns
-    ///
-    /// A `BoxFuture` containing a `Result` with an `Option<TransactionDetails>` representing details of the transaction (if found).
-    fn get_transaction_details(
-        &self,
-        hash: zksync_types::H256,
-    ) -> RpcResult<Option<zksync_types::api::TransactionDetails>> {
-        let inner = self.get_inner().clone();
-        Box::pin(async move {
-            let reader = inner.read().map_err(|_e| {
-                let error_message = "Failed to acquire lock. Please ensure the lock is not being held by another process or thread.".to_string();
-                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(error_message)))
-            })?;
+        let maybe_bytecode = match writer.fork_storage.load_factory_dep_internal(hash) {
+            Ok(maybe_bytecode) => maybe_bytecode,
+            Err(error) => {
+                return Err(anyhow::anyhow!("failed to load factory dep: {:?}", error));
+            }
+        };
 
-            let maybe_result = {
-                reader
-                    .tx_results
-                    .get(&hash)
-                    .map(|TransactionResult { info, receipt, .. }| {
-                        TransactionDetails {
-                            is_l1_originated: false,
-                            status: TransactionStatus::Included,
-                            // if these are not set, fee is effectively 0
-                            fee: receipt.effective_gas_price.unwrap_or_default()
-                                * receipt.gas_used.unwrap_or_default(),
-                            gas_per_pubdata: info.tx.common_data.fee.gas_per_pubdata_limit,
-                            initiator_address: info.tx.initiator_account(),
-                            received_at: utc_datetime_from_epoch_ms(info.tx.received_timestamp_ms),
-                            eth_commit_tx_hash: None,
-                            eth_prove_tx_hash: None,
-                            eth_execute_tx_hash: None,
-                        }
-                    })
-                    .or_else(|| {
-                        reader
-                            .fork_storage
-                            .inner
-                            .read()
-                            .expect("failed reading fork storage")
-                            .fork
-                            .as_ref()
-                            .and_then(|fork| {
-                                fork.fork_source
-                                    .get_transaction_details(hash)
-                                    .ok()
-                                    .flatten()
-                            })
-                    })
-            };
+        if maybe_bytecode.is_some() {
+            return Ok(maybe_bytecode);
+        }
 
-            Ok(maybe_result)
-        })
-    }
-
-    /// Retrieves details for a given L1 batch.
-    ///
-    /// This method is intended to handle queries related to L1 batch details. However, as of the current implementation,
-    /// L1 communication is not supported. Instead of an error or no method found, this method intentionally returns
-    /// `{"jsonrpc":"2.0","result":null,"id":1}` to ensure compatibility with block explorer integration.
-    ///
-    /// # Parameters
-    ///
-    /// * `_batch`: The batch number of type `zksync_types::L1BatchNumber` for which the details are to be fetched.
-    ///
-    /// # Returns
-    ///
-    /// A boxed future resolving to a `jsonrpc_core::Result` containing an `Option` of `zksync_types::api::L1BatchDetails`.
-    /// Given the current implementation, this will always be `None`.
-    fn get_l1_batch_details(
-        &self,
-        _batch: zksync_types::L1BatchNumber,
-    ) -> RpcResult<Option<zksync_types::api::L1BatchDetails>> {
-        Box::pin(async { Ok(None) })
-    }
-
-    /// Returns bytecode of a transaction given by its hash.
-    ///
-    /// # Parameters
-    ///
-    /// * `hash`: Hash address.
-    ///
-    /// # Returns
-    ///
-    /// A boxed future resolving to a `jsonrpc_core::Result` containing an `Option` of bytes.
-    fn get_bytecode_by_hash(&self, hash: zksync_types::H256) -> RpcResult<Option<Vec<u8>>> {
-        let inner = self.get_inner().clone();
-        Box::pin(async move {
-            let writer = inner.write().map_err(|_e| {
-                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
-                    "Failed to acquire write lock for bytecode retrieval.",
-                )))
-            })?;
-
-            let maybe_bytecode = match writer.fork_storage.load_factory_dep_internal(hash) {
+        let maybe_fork_details = &writer
+            .fork_storage
+            .inner
+            .read()
+            .expect("failed reading fork storage")
+            .fork;
+        if let Some(fork_details) = maybe_fork_details {
+            let maybe_bytecode = match fork_details.fork_source.get_bytecode_by_hash(hash) {
                 Ok(maybe_bytecode) => maybe_bytecode,
                 Err(error) => {
-                    return Err(report_into_jsrpc_error(error));
+                    return Err(anyhow::anyhow!("failed to get bytecode: {:?}", error));
                 }
             };
 
-            if maybe_bytecode.is_some() {
-                return Ok(maybe_bytecode);
-            }
-
-            let maybe_fork_details = &writer
-                .fork_storage
-                .inner
-                .read()
-                .expect("failed reading fork storage")
-                .fork;
-            if let Some(fork_details) = maybe_fork_details {
-                let maybe_bytecode = match fork_details.fork_source.get_bytecode_by_hash(hash) {
-                    Ok(maybe_bytecode) => maybe_bytecode,
-                    Err(error) => {
-                        return Err(report_into_jsrpc_error(error));
-                    }
-                };
-
-                Ok(maybe_bytecode)
-            } else {
-                Ok(None)
-            }
-        })
+            Ok(maybe_bytecode)
+        } else {
+            Ok(None)
+        }
     }
 
-    fn get_l1_gas_price(&self) -> RpcResult<zksync_types::U64> {
-        not_implemented("zks_getL1GasPrice")
-    }
-
-    fn get_protocol_version(&self, _version_id: Option<u16>) -> RpcResult<Option<ProtocolVersion>> {
-        not_implemented("zks_getProtocolVersion")
-    }
-
-    /// Retrieves the L1 base token address.
-    ///
-    /// # Returns
-    ///
-    /// Hard-coded address of 0x1 to replicate mainnet/testnet
-    fn get_base_token_l1_address(&self) -> RpcResult<zksync_types::Address> {
-        Ok(H160::from_low_u64_be(1)).into_boxed_future()
+    pub async fn get_base_token_l1_address_impl(&self) -> anyhow::Result<Address> {
+        Ok(H160::from_low_u64_be(1))
     }
 }
 
@@ -573,7 +318,6 @@ impl ZksNamespaceT for InMemoryNode {
 mod tests {
     use std::str::FromStr;
 
-    use anvil_zksync_config::constants::TEST_NODE_NETWORK_ID;
     use anvil_zksync_config::types::CacheConfig;
     use zksync_types::{
         api::{self, Block, TransactionReceipt, TransactionVariant},
@@ -618,57 +362,12 @@ mod tests {
             input: None,
         };
 
-        let result = node.estimate_fee(mock_request).await.unwrap();
+        let result = node.estimate_fee_impl(mock_request).await.unwrap();
 
         assert_eq!(result.gas_limit, U256::from(409123));
         assert_eq!(result.max_fee_per_gas, U256::from(45250000));
         assert_eq!(result.max_priority_fee_per_gas, U256::from(0));
         assert_eq!(result.gas_per_pubdata_limit, U256::from(3143));
-    }
-
-    #[tokio::test]
-    async fn test_get_token_price_given_eth_should_return_price() {
-        // Arrange
-        let node = InMemoryNode::default();
-
-        let mock_address = Address::from_str("0x0000000000000000000000000000000000000000")
-            .expect("Failed to parse address");
-
-        // Act
-        let result = node.get_token_price(mock_address).await.unwrap();
-
-        // Assert
-        assert_eq!(result, BigDecimal::from(1_500));
-    }
-
-    #[tokio::test]
-    async fn test_get_token_price_given_capitalized_link_address_should_return_price() {
-        // Arrange
-        let node = InMemoryNode::default();
-
-        let mock_address = Address::from_str("0x40609141Db628BeEE3BfAB8034Fc2D8278D0Cc78")
-            .expect("Failed to parse address");
-
-        // Act
-        let result = node.get_token_price(mock_address).await.unwrap();
-
-        // Assert
-        assert_eq!(result, BigDecimal::from(1));
-    }
-
-    #[tokio::test]
-    async fn test_get_token_price_given_unknown_address_should_return_error() {
-        // Arrange
-        let node = InMemoryNode::default();
-
-        let mock_address = Address::from_str("0x0000000000000000000000000000000000000042")
-            .expect("Failed to parse address");
-
-        // Act
-        let result = node.get_token_price(mock_address).await;
-
-        // Assert
-        assert!(result.is_err());
     }
 
     #[tokio::test]
@@ -693,7 +392,7 @@ mod tests {
             );
         }
         let result = node
-            .get_transaction_details(H256::repeat_byte(0x1))
+            .get_transaction_details_impl(H256::repeat_byte(0x1))
             .await
             .expect("get transaction details")
             .expect("transaction details");
@@ -744,7 +443,7 @@ mod tests {
         ));
 
         let result = node
-            .get_transaction_details(input_tx_hash)
+            .get_transaction_details_impl(input_tx_hash)
             .await
             .expect("get transaction details")
             .expect("transaction details");
@@ -765,7 +464,7 @@ mod tests {
             writer.block_hashes.insert(0, H256::repeat_byte(0x1));
         }
         let result = node
-            .get_block_details(L2BlockNumber(0))
+            .get_block_details_impl(L2BlockNumber(0))
             .await
             .expect("get block details")
             .expect("block details");
@@ -830,7 +529,7 @@ mod tests {
         ));
 
         let result = node
-            .get_block_details(miniblock)
+            .get_block_details_impl(miniblock)
             .await
             .expect("get block details")
             .expect("block details");
@@ -856,7 +555,7 @@ mod tests {
         };
 
         let actual_bridge_addresses = node
-            .get_bridge_contracts()
+            .get_bridge_contracts_impl()
             .await
             .expect("get bridge addresses");
 
@@ -908,7 +607,7 @@ mod tests {
         ));
 
         let actual_bridge_addresses = node
-            .get_bridge_contracts()
+            .get_bridge_contracts_impl()
             .await
             .expect("get bridge addresses");
 
@@ -929,7 +628,7 @@ mod tests {
             .store_factory_dep(input_hash, input_bytecode.clone());
 
         let actual = node
-            .get_bytecode_by_hash(input_hash)
+            .get_bytecode_by_hash_impl(input_hash)
             .await
             .expect("failed fetching bytecode")
             .expect("no bytecode was found");
@@ -971,7 +670,7 @@ mod tests {
         ));
 
         let actual = node
-            .get_bytecode_by_hash(input_hash)
+            .get_bytecode_by_hash_impl(input_hash)
             .await
             .expect("failed fetching bytecode")
             .expect("no bytecode was found");
@@ -1008,7 +707,7 @@ mod tests {
         }
 
         let txns = node
-            .get_raw_block_transactions(L2BlockNumber(0))
+            .get_raw_block_transactions_impl(L2BlockNumber(0))
             .await
             .expect("get transaction details");
 
@@ -1092,7 +791,7 @@ mod tests {
         ));
 
         let txns = node
-            .get_raw_block_transactions(miniblock)
+            .get_raw_block_transactions_impl(miniblock)
             .await
             .expect("get transaction details");
         assert_eq!(txns.len(), 1);
@@ -1102,7 +801,7 @@ mod tests {
     async fn test_get_all_account_balances_empty() {
         let node = InMemoryNode::default();
         let balances = node
-            .get_all_account_balances(Address::zero())
+            .get_all_account_balances_impl(Address::zero())
             .await
             .expect("get balances");
         assert!(balances.is_empty());
@@ -1112,18 +811,11 @@ mod tests {
     async fn test_get_confirmed_tokens_eth() {
         let node = InMemoryNode::default();
         let balances = node
-            .get_confirmed_tokens(0, 100)
+            .get_confirmed_tokens_impl(0, 100)
             .await
             .expect("get balances");
         assert_eq!(balances.len(), 1);
         assert_eq!(&balances[0].name, "Ether");
-    }
-
-    #[tokio::test]
-    async fn test_get_l1_chain_id() {
-        let node = InMemoryNode::default();
-        let chain_id = node.l1_chain_id().await.expect("get chain id").as_u32();
-        assert_eq!(TEST_NODE_NETWORK_ID, chain_id);
     }
 
     #[tokio::test]
@@ -1284,7 +976,7 @@ mod tests {
         }
 
         let balances = node
-            .get_all_account_balances(Address::repeat_byte(0x1))
+            .get_all_account_balances_impl(Address::repeat_byte(0x1))
             .await
             .expect("get balances");
         assert_eq!(balances.get(&cbeth_address).unwrap(), &U256::from(1337));
@@ -1294,7 +986,7 @@ mod tests {
     async fn test_get_base_token_l1_address() {
         let node = InMemoryNode::default();
         let token_address = node
-            .get_base_token_l1_address()
+            .get_base_token_l1_address_impl()
             .await
             .expect("get base token l1 address");
         assert_eq!(

@@ -4,5 +4,5 @@ pub use namespaces::{AnvilNamespaceServer, ConfigNamespaceServer, EvmNamespaceSe
 
 // Re-export available namespaces from zksync-era
 pub use zksync_web3_decl::namespaces::{
-    DebugNamespaceServer, NetNamespaceServer, Web3NamespaceServer,
+    DebugNamespaceServer, NetNamespaceServer, Web3NamespaceServer, ZksNamespaceServer,
 };

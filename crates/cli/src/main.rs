@@ -3,10 +3,11 @@ use crate::cli::{Cli, Command};
 use crate::utils::update_with_fork_details;
 use anvil_zksync_api_decl::{
     AnvilNamespaceServer, ConfigNamespaceServer, DebugNamespaceServer, EvmNamespaceServer,
-    NetNamespaceServer, Web3NamespaceServer,
+    NetNamespaceServer, Web3NamespaceServer, ZksNamespaceServer,
 };
 use anvil_zksync_api_server::{
     AnvilNamespace, ConfigNamespace, DebugNamespace, EvmNamespace, NetNamespace, Web3Namespace,
+    ZksNamespace,
 };
 use anvil_zksync_config::constants::{
     DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
@@ -16,7 +17,7 @@ use anvil_zksync_config::constants::{
 use anvil_zksync_config::types::SystemContractsOptions;
 use anvil_zksync_config::ForkPrintInfo;
 use anvil_zksync_core::fork::ForkDetails;
-use anvil_zksync_core::namespaces::{EthNamespaceT, EthTestNodeNamespaceT, ZksNamespaceT};
+use anvil_zksync_core::namespaces::{EthNamespaceT, EthTestNodeNamespaceT};
 use anvil_zksync_core::node::{
     BlockProducer, BlockSealer, BlockSealerMode, ImpersonationManager, InMemoryNode,
     TimestampManager, TxPool,
@@ -62,7 +63,6 @@ async fn build_json_http(
 
         io.extend_with(EthNamespaceT::to_delegate(node.clone()));
         io.extend_with(EthTestNodeNamespaceT::to_delegate(node.clone()));
-        io.extend_with(ZksNamespaceT::to_delegate(node));
         io
     };
 
@@ -354,6 +354,8 @@ async fn main() -> anyhow::Result<()> {
         rpc.merge(NetNamespace::new(node.clone()).into_rpc())
             .unwrap();
         rpc.merge(ConfigNamespace::new(node.clone()).into_rpc())
+            .unwrap();
+        rpc.merge(ZksNamespace::new(node.clone()).into_rpc())
             .unwrap();
         rpc.merge(Web3Namespace.into_rpc()).unwrap();
 

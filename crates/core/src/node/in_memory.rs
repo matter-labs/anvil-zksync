@@ -19,7 +19,7 @@ use crate::{
     },
     observability::Observability,
     system_contracts::SystemContracts,
-    utils::{bytecode_to_factory_dep, create_debug_output, into_jsrpc_error},
+    utils::{bytecode_to_factory_dep, create_debug_output},
 };
 use anvil_zksync_config::constants::{
     LEGACY_RICH_WALLETS, NON_FORK_FIRST_BLOCK_TIMESTAMP, RICH_WALLETS, TEST_NODE_NETWORK_ID,
@@ -479,8 +479,8 @@ impl InMemoryNodeInner {
     pub fn estimate_gas_impl<T: ReadTime>(
         &self,
         time: &T,
-        req: zksync_types::transaction_request::CallRequest,
-    ) -> jsonrpc_core::Result<Fee> {
+        req: CallRequest,
+    ) -> Result<Fee, Web3Error> {
         let mut request_with_gas_per_pubdata_overridden = req;
 
         if let Some(ref mut eip712_meta) = request_with_gas_per_pubdata_overridden.eip712_meta {
@@ -508,7 +508,7 @@ impl InMemoryNodeInner {
             MAX_TX_SIZE,
             allow_no_target,
         )
-        .map_err(|err| into_jsrpc_error(Web3Error::SerializationError(err)))?;
+        .map_err(|err| Web3Error::SerializationError(err))?;
 
         let tx: Transaction = l2_tx.clone().into();
 
@@ -579,10 +579,10 @@ impl InMemoryNodeInner {
             );
 
             if result.statistics.pubdata_published > MAX_VM_PUBDATA_PER_BATCH.try_into().unwrap() {
-                return Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
+                return Err(Web3Error::SubmitTransactionError(
                     "exceeds limit for published pubdata".into(),
                     Default::default(),
-                )));
+                ));
             }
 
             // It is assumed that there is no overflow here
@@ -678,10 +678,7 @@ impl InMemoryNodeInner {
                 );
                 let data = output.encoded_data();
                 tracing::info!("{}", pretty_message.on_red());
-                Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
-                    pretty_message,
-                    data,
-                )))
+                Err(Web3Error::SubmitTransactionError(pretty_message, data))
             }
             ExecutionResult::Halt { reason } => {
                 tracing::info!("{}", format!("Unable to estimate gas for the request with our suggested gas limit of {}. The transaction is most likely unexecutable. Breakdown of estimation:", suggested_gas_limit + overhead).red());
@@ -706,10 +703,7 @@ impl InMemoryNodeInner {
                 );
 
                 tracing::info!("{}", pretty_message.on_red());
-                Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
-                    pretty_message,
-                    vec![],
-                )))
+                Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
             }
             ExecutionResult::Success { .. } => {
                 let full_gas_limit = match suggested_gas_limit.overflowing_add(overhead) {
@@ -729,10 +723,10 @@ impl InMemoryNodeInner {
                             format!("\tGas for pubdata: {}", additional_gas_for_pubdata).red()
                         );
                         tracing::info!("{}", format!("\tOverhead: {}", overhead).red());
-                        return Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
+                        return Err(Web3Error::SubmitTransactionError(
                             "exceeds block gas limit".into(),
                             Default::default(),
-                        )));
+                        ));
                     }
                 };
 
@@ -2057,17 +2051,19 @@ impl InMemoryNode {
         request: CallRequest,
         block: Option<BlockId>,
         options: Option<TracerConfig>,
-    ) -> anyhow::Result<CallTracerResult> {
+    ) -> Result<CallTracerResult, Web3Error> {
         let only_top = options.is_some_and(|o| o.tracer_config.only_top_call);
         let inner = self.read_inner()?;
         let system_contracts = self.system_contracts.contracts_for_l2_call();
         if block.is_some() && !matches!(block, Some(BlockId::Number(BlockNumber::Latest))) {
-            anyhow::bail!("tracing only supported at `latest` block",);
+            return Err(Web3Error::InternalError(anyhow::anyhow!(
+                "tracing only supported at `latest` block"
+            )));
         }
 
         let allow_no_target = system_contracts.evm_emulator.is_some();
         let mut l2_tx = L2Tx::from_request(request.into(), MAX_TX_SIZE, allow_no_target)
-            .map_err(|err| into_jsrpc_error(Web3Error::SerializationError(err)))?;
+            .map_err(|err| Web3Error::SerializationError(err))?;
         let execution_mode = zksync_multivm::interface::TxExecutionMode::EthCall;
         let storage = StorageView::new(&inner.fork_storage).into_rc_ptr();
 
@@ -2109,8 +2105,7 @@ impl InMemoryNode {
                 .unwrap_or_default()
         };
 
-        let debug =
-            create_debug_output(&l2_tx, &tx_result, call_traces).map_err(into_jsrpc_error)?;
+        let debug = create_debug_output(&l2_tx, &tx_result, call_traces)?;
 
         Ok(CallTracerResult::CallTrace(debug))
     }

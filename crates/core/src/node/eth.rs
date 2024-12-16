@@ -667,7 +667,9 @@ impl EthNamespaceT for InMemoryNode {
             }
         };
 
-        let result: jsonrpc_core::Result<Fee> = reader.estimate_gas_impl(&self.time, req);
+        let result: jsonrpc_core::Result<Fee> = reader
+            .estimate_gas_impl(&self.time, req)
+            .map_err(|err| into_jsrpc_error(Web3Error::InternalError(err)));
         match result {
             Ok(fee) => Ok(fee.gas_limit).into_boxed_future(),
             Err(err) => return futures::future::err(err).boxed(),
