@@ -6,7 +6,10 @@ use forward_system::run::{
     PreimageType, StorageCommitment,
 };
 use ruint::aliases::B160;
-use zk_ee::{common_structs::derive_flat_storage_key, utils::Bytes32};
+use zk_ee::{
+    common_structs::derive_flat_storage_key,
+    utils::{is_proper_size_and_alignment_for_kv, Bytes32},
+};
 use zksync_multivm::interface::{
     storage::{StoragePtr, WriteStorage},
     ExecutionResult, VmExecutionResultAndLogs, VmRevertReason,
@@ -125,6 +128,7 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
     tree: &mut InMemoryTree,
     preimage_source: &mut InMemoryPreimageSource,
     storage: &mut StoragePtr<W>,
+    simulate_only: bool,
 ) -> VmExecutionResultAndLogs {
     let batch_context = basic_system::basic_system::BasicBlockMetadataFromOracle {
         eip1559_basefee: ruint::aliases::U256::from(1000u64),
@@ -177,7 +181,15 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
         &mut tx_raw,
         &tx.execute.contract_address.unwrap_or(H160::zero()),
     );
-    append_u256(&mut tx_raw, &aa1.fee.gas_limit);
+
+    let mut gas_limit = aa1.fee.gas_limit;
+    // HACK
+    if simulate_only {
+        gas_limit = gas_limit.saturating_sub(3_000_000.into())
+    }
+
+    println!("=== Gas limit: {}", gas_limit);
+    append_u256(&mut tx_raw, &gas_limit);
     append_u256(&mut tx_raw, &aa1.fee.gas_per_pubdata_limit);
 
     let mut fee_per_gas = aa1.fee.max_fee_per_gas;
@@ -185,6 +197,7 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
     if fee_per_gas.is_zero() {
         fee_per_gas = 1000.into();
     }
+
     append_u256(&mut tx_raw, &fee_per_gas);
     //append_u256(&mut tx_raw, &aa1.fee.max_priority_fee_per_gas);
     // hack for legacy tx.
@@ -255,22 +268,65 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
     }
     tx_raw.append(&mut pp);*/
 
-    let tx_source = TxListSource {
-        // transactions: vec![encoded_iwasm_tx].into(),
-        transactions: vec![tx_raw].into(),
+    let (output, new_known_factory_deps) = if simulate_only {
+        (
+            forward_system::run::simulate_tx(
+                tx_raw,
+                storage_commitment,
+                batch_context,
+                tree.clone(),
+                preimage_source.clone(),
+            )
+            .unwrap(),
+            None,
+        )
+    } else {
+        let tx_source = TxListSource {
+            // transactions: vec![encoded_iwasm_tx].into(),
+            transactions: vec![tx_raw].into(),
+        };
+        let batch_output = forward_system::run::run_batch(
+            batch_context,
+            storage_commitment,
+            // FIXME
+            tree.clone(),
+            preimage_source.clone(),
+            tx_source,
+        )
+        .unwrap();
+
+        let mut storage_ptr = storage.borrow_mut();
+
+        // apply storage writes..
+        for write in batch_output.storage_writes {
+            //let ab = write.key.as_u8_array_ref();
+            //let ac = H256::from(ab);
+
+            let ab = StorageKey::new(
+                AccountTreeId::new(Address::from_slice(&write.account.to_be_bytes_vec())),
+                H256::from(write.account_key.as_u8_array_ref()),
+            );
+            dbg!(&ab);
+            storage_ptr.set_value(ab, H256::from(write.value.as_u8_array_ref()));
+        }
+        // TODO - update newknown fcatory deps with batch_output.published_preimages..
+
+        let mut f_deps = HashMap::new();
+
+        println!(
+            "Adding {} preimages:",
+            batch_output.published_preimages.len()
+        );
+
+        for factory_dep in batch_output.published_preimages {
+            println!("    {:?}", factory_dep.0);
+            f_deps.insert(bytes32_to_h256(factory_dep.0), factory_dep.1);
+        }
+
+        (batch_output.tx_results[0].clone(), Some(f_deps))
     };
 
-    let batch_output = forward_system::run::run_batch(
-        batch_context,
-        storage_commitment,
-        // FIXME
-        tree.clone(),
-        preimage_source.clone(),
-        tx_source,
-    )
-    .unwrap();
-
-    let tx_output = match batch_output.tx_results[0].as_ref() {
+    let tx_output = match output.as_ref() {
         Ok(tx_output) => {
             match &tx_output.execution_result {
                 forward_system::run::output::ExecutionResult::Success(output) => match &output {
@@ -301,34 +357,6 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
         }
     };
 
-    let mut storage_ptr = storage.borrow_mut();
-
-    // apply storage writes..
-    for write in batch_output.storage_writes {
-        //let ab = write.key.as_u8_array_ref();
-        //let ac = H256::from(ab);
-
-        let ab = StorageKey::new(
-            AccountTreeId::new(Address::from_slice(&write.account.to_be_bytes_vec())),
-            H256::from(write.account_key.as_u8_array_ref()),
-        );
-        dbg!(&ab);
-        storage_ptr.set_value(ab, H256::from(write.value.as_u8_array_ref()));
-    }
-    // TODO - update newknown fcatory deps with batch_output.published_preimages..
-
-    let mut f_deps = HashMap::new();
-
-    println!(
-        "Adding {} preimages:",
-        batch_output.published_preimages.len()
-    );
-
-    for factory_dep in batch_output.published_preimages {
-        println!("    {:?}", factory_dep.0);
-        f_deps.insert(bytes32_to_h256(factory_dep.0), factory_dep.1);
-    }
-
     VmExecutionResultAndLogs {
         result: ExecutionResult::Success {
             output: tx_output.clone(),
@@ -336,6 +364,6 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
         logs: Default::default(),
         statistics: Default::default(),
         refunds: Default::default(),
-        new_known_factory_deps: Some(f_deps),
+        new_known_factory_deps,
     }
 }

@@ -11,6 +11,10 @@
 
 ## Issues:
 
+### Ecrecover issue
+
+[TODO] - signatures issue
+
 ### Balances address
 zk_ee balance is in 0x8009, in 'direct' account key.
 in era -it is in 0x800a - in 'hashed' account key..
@@ -42,7 +46,9 @@ We don't have support for 'call' in the bootloader:
 * should not check if can pay.
 
 had to do a lot of hacks with not-requiring payments (and refunds) during 'call' execution.
-[TODO] - Solution from Anton
+[FIXED] - Solution from Anton
+
+Simulate works now, but still the gas estimate doesn't properly handle the cost of verification (that can be ~3M of gas).
 
 
 

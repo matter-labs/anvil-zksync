@@ -881,7 +881,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             add_elem_to_tree(&mut tree, &nonce_key, &u256_to_h256(enforced_full_nonce));
             add_elem_to_tree(&mut tree, &balance_key, &u256_to_h256(current_balance));
 
-            execute_tx_in_zkos(&tx, &mut tree, &mut preimage, &mut vm.storage)
+            execute_tx_in_zkos(&tx, &mut tree, &mut preimage, &mut vm.storage, true)
         };
 
         tx_result
@@ -1391,7 +1391,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 create_tree_from_full_state(&reader.raw_storage)
             };
 
-            execute_tx_in_zkos(&tx, &mut tree, &mut preimage, &mut vm.storage)
+            execute_tx_in_zkos(&tx, &mut tree, &mut preimage, &mut vm.storage, true)
         };
 
         let call_traces = Arc::try_unwrap(call_tracer_result)
@@ -1593,7 +1593,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 create_tree_from_full_state(&reader.raw_storage)
             };
 
-            execute_tx_in_zkos(&tx, &mut tree, &mut preimage, &mut vm.storage)
+            execute_tx_in_zkos(&tx, &mut tree, &mut preimage, &mut vm.storage, false)
         };
 
         let call_traces: &Vec<Call> = &vec![]; //call_tracer_result.get().unwrap();
