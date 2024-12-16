@@ -21,3 +21,4 @@ etc/**/*.zbin
 zkout/
 cache/
 example.json
+state.json
