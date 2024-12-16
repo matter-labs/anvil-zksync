@@ -18,6 +18,7 @@ mod sealer;
 mod storage_logs;
 mod time;
 mod web3;
+mod zkos;
 mod zks;
 
 pub use self::{

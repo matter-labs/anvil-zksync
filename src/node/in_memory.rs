@@ -59,6 +59,7 @@ use zksync_web3_decl::error::Web3Error;
 
 use crate::node::impersonate::{ImpersonationManager, ImpersonationState};
 use crate::node::time::{AdvanceTime, ReadTime, TimestampManager};
+use crate::node::zkos::execute_tx_in_zkos;
 use crate::node::{BlockSealer, TxPool};
 use crate::{
     bootloader_debug::{BootloaderDebug, BootloaderDebugTracer},
@@ -81,6 +82,8 @@ use crate::{
     system_contracts::{self, SystemContracts},
     utils::{bytecode_to_factory_dep, create_debug_output, into_jsrpc_error},
 };
+
+use super::zkos::create_tree_from_full_state;
 
 /// Max possible size of an ABI encoded tx (in bytes).
 pub const MAX_TX_SIZE: usize = 1_000_000;
@@ -335,7 +338,7 @@ pub struct InMemoryNodeInner<S> {
 pub struct TxExecutionOutput {
     result: VmExecutionResultAndLogs,
     call_traces: Vec<Call>,
-    bytecodes: HashMap<U256, Vec<U256>>,
+    bytecodes: HashMap<H256, Vec<u8>>,
 }
 
 impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
@@ -1348,15 +1351,30 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         }
 
         let tx: Transaction = l2_tx.into();
-        vm.push_transaction(tx.clone());
+        //vm.push_transaction(tx.clone());
 
         let call_tracer_result = Arc::new(OnceCell::default());
 
-        let tracers = vec![
-            CallErrorTracer::new().into_tracer_pointer(),
-            CallTracer::new(call_tracer_result.clone()).into_tracer_pointer(),
-        ];
-        let tx_result = vm.inspect(&mut tracers.into(), InspectExecutionMode::OneTx);
+        //let tracers = vec![
+        //CallErrorTracer::new().into_tracer_pointer(),
+        //CallTracer::new(call_tracer_result.clone()).into_tracer_pointer(),
+        //];
+        //let tx_result = vm.inspect(&mut tracers.into(), InspectExecutionMode::OneTx);
+
+        let tx_result = {
+            let (mut tree, mut preimage) = {
+                let reader = inner
+                    .fork_storage
+                    .inner
+                    .read()
+                    .map_err(|e| format!("Failed to acquire read lock: {}", e))
+                    .unwrap();
+
+                create_tree_from_full_state(&reader.raw_storage)
+            };
+
+            execute_tx_in_zkos(&tx, &mut tree, &mut preimage, &mut vm.storage)
+        };
 
         let call_traces = Arc::try_unwrap(call_tracer_result)
             .unwrap()
@@ -1525,31 +1543,28 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         //    .into_owned();
         //let tx_result = vm.inspect(&mut tracers.into(), InspectExecutionMode::OneTx);
 
-        let mut storage_ptr = vm.storage.borrow_mut();
-        let current_l1_batch_info_key = StorageKey::new(
-            AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
-            SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
-        );
-        let current_l1_batch_info = storage_ptr.read_value(&current_l1_batch_info_key);
-        let (batch_number, batch_timestamp) =
-            unpack_block_info(h256_to_u256(current_l1_batch_info));
+        {
+            let mut storage_ptr = vm.storage.borrow_mut();
+            let current_l1_batch_info_key = StorageKey::new(
+                AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
+                SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
+            );
+            let current_l1_batch_info = storage_ptr.read_value(&current_l1_batch_info_key);
+            let (batch_number, batch_timestamp) =
+                unpack_block_info(h256_to_u256(current_l1_batch_info));
 
-        dbg!(batch_number);
-        dbg!(batch_timestamp);
+            dbg!(batch_number);
+            dbg!(batch_timestamp);
 
-        // TODO: move this somewhere
-        let aa = pack_block_info(batch_number + 1, batch_timestamp + 1);
-        storage_ptr.set_value(current_l1_batch_info_key, u256_to_h256(aa));
+            // TODO: move this somewhere
+            let aa = pack_block_info(batch_number + 1, batch_timestamp + 1);
+            storage_ptr.set_value(current_l1_batch_info_key, u256_to_h256(aa));
+        }
+
+        //let bb = storage_ptr.borrow();
 
         let tx_result = {
-            let batch_context = basic_system::basic_system::BasicBlockMetadataFromOracle {
-                eip1559_basefee: ruint::aliases::U256::from(1000u64),
-                ergs_price: ruint::aliases::U256::from(1u64),
-                block_number: 1,
-                timestamp: 42,
-            };
-
-            let mut tree = {
+            let (mut tree, mut preimage) = {
                 let reader = inner
                     .fork_storage
                     .inner
@@ -1557,197 +1572,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                     .map_err(|e| format!("Failed to acquire read lock: {}", e))
                     .unwrap();
 
-                let original_state = &reader.raw_storage.state;
-                let mut tree = InMemoryTree {
-                    storage_tree: TestingTree::new_in(Global),
-                    cold_storage: HashMap::new(),
-                };
-
-                for entry in original_state {
-                    let kk = derive_flat_storage_key(
-                        &h160_to_b160(entry.0.address()),
-                        &h256_to_bytes32(entry.0.key()),
-                    );
-                    let vv = h256_to_bytes32(entry.1);
-
-                    tree.storage_tree.insert(&kk, &vv);
-                    tree.cold_storage.insert(kk, vv);
-                }
-                tree
+                create_tree_from_full_state(&reader.raw_storage)
             };
 
-            println!("Tree size is: {}", tree.cold_storage.len());
-
-            /*tree.storage_tree
-            .insert(&zk_ee::utils::Bytes32::ZERO, &zk_ee::utils::Bytes32::MAX);*/
-
-            let mut preimage_source = InMemoryPreimageSource {
-                inner: HashMap::new(),
-            };
-
-            let aa1 = match &tx.common_data {
-                zksync_types::ExecuteTransactionCommon::L1(l1_tx_common_data) => todo!(),
-                zksync_types::ExecuteTransactionCommon::L2(l2_tx_common_data) => l2_tx_common_data,
-                zksync_types::ExecuteTransactionCommon::ProtocolUpgrade(
-                    protocol_upgrade_tx_common_data,
-                ) => todo!(),
-            };
-
-            /*add_funds_to_address(
-                B160::from_be_bytes(aa1.initiator_address.0),
-                ruint::aliases::U256::from(1_000_000_000_000_000_u64),
-                &mut tree,
-            );*/
-
-            let storage_commitment = StorageCommitment {
-                root: *tree.storage_tree.root(),
-                next_free_slot: tree.storage_tree.next_free_slot,
-            };
-
-            //let foo = ethereum_types::H160::repeat_byte(3);
-            //ethereum_types::H160::
-            // aa1.initiator_address
-
-            /*let bb = Token::Tuple(vec![
-                Token::Uint(ethereum_types::U256::zero()),
-                Token::Address(foo),
-            ])
-            .to_vec();*/
-            // FIXME: this might be wrong..
-            let aa = tx.raw_bytes.as_ref().unwrap();
-            println!("Tx raw bytes: {:?}", aa);
-
-            let mut tx_raw: Vec<u8> = vec![];
-            tx_raw.append(&mut vec![0u8; 32]);
-            append_address(&mut tx_raw, &aa1.initiator_address);
-            append_address(
-                &mut tx_raw,
-                &tx.execute.contract_address.unwrap_or(H160::zero()),
-            );
-            append_u256(&mut tx_raw, &aa1.fee.gas_limit);
-            append_u256(&mut tx_raw, &aa1.fee.gas_per_pubdata_limit);
-            append_u256(&mut tx_raw, &aa1.fee.max_fee_per_gas);
-            //append_u256(&mut tx_raw, &aa1.fee.max_priority_fee_per_gas);
-            // hack for legacy tx.
-            append_u256(&mut tx_raw, &aa1.fee.max_fee_per_gas);
-
-            // paymaster
-            append_u64(&mut tx_raw, 0);
-
-            append_u64(&mut tx_raw, aa1.nonce.0.into());
-
-            append_u256(&mut tx_raw, &tx.execute.value);
-
-            let mut reserved = [0u64; 4];
-
-            if tx.execute.contract_address.is_none() {
-                reserved[1] = 1;
-            }
-
-            for i in 0..4 {
-                // reserved
-                append_u64(&mut tx_raw, reserved[i]);
-            }
-
-            let signature_u256 = aa1.signature.len().div_ceil(32) as u64;
-
-            let execute_calldata_words = tx.execute.calldata.len().div_ceil(32) as u64;
-            dbg!(execute_calldata_words);
-
-            let mut current_offset = 19;
-
-            // data offset
-            append_u64(&mut tx_raw, current_offset * 32);
-            // lent
-            current_offset += 1 + execute_calldata_words;
-            // signature offset (stupid -- this doesn't include the padding!!)
-            append_u64(&mut tx_raw, current_offset * 32);
-            current_offset += 1 + signature_u256;
-
-            // factory deps
-            append_u64(&mut tx_raw, current_offset * 32);
-            current_offset += 1;
-            // paymater
-            append_u64(&mut tx_raw, current_offset * 32);
-            current_offset += 1;
-            // reserved
-            append_u64(&mut tx_raw, current_offset * 32);
-            current_offset += 1;
-
-            // len - data.
-            append_usize(&mut tx_raw, tx.execute.calldata.len());
-            tx_raw.append(&mut pad_to_word(&tx.execute.calldata));
-
-            // len - signature.
-            append_usize(&mut tx_raw, aa1.signature.len());
-            tx_raw.append(&mut pad_to_word(&aa1.signature));
-
-            // factory deps
-            append_u64(&mut tx_raw, 0);
-            // paymater
-            append_u64(&mut tx_raw, 0);
-            // reserved
-            append_u64(&mut tx_raw, 0);
-
-            /*let mut pp = vec![0u8; 32];
-            let ap1 = aa1.initiator_address.as_fixed_bytes();
-            for i in 0..20 {
-                pp[i + 12] = ap1[i];
-            }
-            tx_raw.append(&mut pp);*/
-
-            let tx_source = TxListSource {
-                // transactions: vec![encoded_iwasm_tx].into(),
-                transactions: vec![tx_raw].into(),
-            };
-
-            let batch_output = forward_system::run::run_batch(
-                batch_context,
-                storage_commitment,
-                tree,
-                preimage_source,
-                tx_source,
-            )
-            .unwrap();
-            let tx_output = match &batch_output.tx_results[0]
-                .as_ref()
-                .unwrap()
-                .execution_result
-            {
-                forward_system::run::output::ExecutionResult::Success(output) => match &output {
-                    forward_system::run::output::ExecutionOutput::Call(data) => data,
-                    forward_system::run::output::ExecutionOutput::Create(data, address) => {
-                        dbg!(address);
-                        // TODO - pass it to the output somehow.
-                        println!("Deployed to {:?}", address);
-                        data
-                    }
-                },
-                _ => panic!("TX failed"),
-            };
-
-            // apply storage writes..
-            for write in batch_output.storage_writes {
-                //let ab = write.key.as_u8_array_ref();
-                //let ac = H256::from(ab);
-
-                let ab = StorageKey::new(
-                    AccountTreeId::new(Address::from_slice(&write.account.to_be_bytes_vec())),
-                    H256::from(write.account_key.as_u8_array_ref()),
-                );
-                dbg!(&ab);
-                storage_ptr.set_value(ab, H256::from(write.value.as_u8_array_ref()));
-            }
-
-            VmExecutionResultAndLogs {
-                result: ExecutionResult::Success {
-                    output: tx_output.clone(),
-                },
-                logs: Default::default(),
-                statistics: Default::default(),
-                refunds: Default::default(),
-                new_known_factory_deps: Default::default(),
-            }
+            execute_tx_in_zkos(&tx, &mut tree, &mut preimage, &mut vm.storage)
         };
 
         let call_traces: &Vec<Call> = &vec![]; //call_tracer_result.get().unwrap();
@@ -1828,7 +1656,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             tracing::info!("");
         }
 
-        let bytecodes = HashMap::new();
+        //let bytecodes = HashMap::new();
+        // HERE
         /*for b in &*compressed_bytecodes {
             let (hash, bytecode) = bytecode_to_factory_dep(b.original.clone()).map_err(|err| {
                 tracing::error!("{}", format!("cannot convert bytecode: {err}").on_red());
@@ -1838,9 +1667,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         }*/
 
         Ok(TxExecutionOutput {
-            result: tx_result,
+            result: tx_result.clone(),
             call_traces: call_traces.clone(),
-            bytecodes,
+            bytecodes: tx_result.new_known_factory_deps.unwrap().clone(),
         })
     }
 
@@ -1898,7 +1727,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             .write()
             .map_err(|_| anyhow::anyhow!("Failed to acquire write lock"))?;
         for (hash, code) in bytecodes.iter() {
-            inner.fork_storage.store_factory_dep(
+            inner
+                .fork_storage
+                .store_factory_dep(hash.clone(), code.clone());
+            /*inner.fork_storage.store_factory_dep(
                 u256_to_h256(*hash),
                 code.iter()
                     .flat_map(|entry| {
@@ -1907,7 +1739,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                         bytes.to_vec()
                     })
                     .collect(),
-            )
+            )*/
         }
 
         let logs = result
