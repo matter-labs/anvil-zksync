@@ -109,7 +109,7 @@ async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
     let command = opt.command.clone();
 
-    let mut config = opt.into_test_node_config().map_err(|e| anyhow!(e))?;
+    let mut config = opt.clone().into_test_node_config().map_err(|e| anyhow!(e))?;
 
     let log_level_filter = LevelFilter::from(config.log_level);
     let log_file = File::create(&config.log_file_path)?;
@@ -298,6 +298,20 @@ async fn main() -> anyhow::Result<()> {
         block_sealer.clone(),
     );
 
+    // Load state from `--load-state` if provided
+    if let Some(ref load_state_path) = config.load_state {
+        let bytes = std::fs::read(load_state_path)
+            .expect("Failed to read load state file");
+        node.load_state(zksync_types::web3::Bytes(bytes))?;
+    }
+
+    // Load state from `--state` if provided and contains a saved state
+    if let Some(ref state_path) = config.state {
+        let bytes = std::fs::read(state_path)
+            .expect("Failed to read load state file");
+        node.load_state(zksync_types::web3::Bytes(bytes))?;
+    }
+
     if let Some(ref bytecodes_dir) = config.override_bytecodes_dir {
         override_bytecodes(&node, bytecodes_dir.to_string()).unwrap();
     }
@@ -338,7 +352,10 @@ async fn main() -> anyhow::Result<()> {
     }))
     .await;
 
-    let dump_state = config.dump_state.clone();
+    let dump_path = config.dump_state.clone().or_else(|| {
+        config.state.clone()
+    });
+   
     let dump_interval = config
         .state_interval
         .map(Duration::from_secs)
@@ -346,7 +363,7 @@ async fn main() -> anyhow::Result<()> {
     let preserve_historical_states = config.preserve_historical_states;
 
     // If user provided a dump state path, spawn the periodic dumper
-    if let Some(dump_path) = dump_state {
+    if let Some(dump_path) = dump_path {
         let node_for_dumper = node.clone();
         let mut state_dumper = PeriodicStateDumper::new(
             node_for_dumper,

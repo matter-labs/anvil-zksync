@@ -116,12 +116,16 @@ pub struct TestNodeConfig {
     pub allow_origin: String,
     /// Disable CORS if true
     pub no_cors: bool,
+    /// Path to load/dump the state from
+    pub state: Option<PathBuf>,
     /// Path to dump the state to
     pub dump_state: Option<PathBuf>,
     /// Interval to dump the state
     pub state_interval: Option<u64>,
     /// Preserve historical states
     pub preserve_historical_states: bool,
+    /// State to load
+    pub load_state: Option<PathBuf>,
 }
 
 impl Default for TestNodeConfig {
@@ -188,9 +192,11 @@ impl Default for TestNodeConfig {
             no_cors: false,
 
             // state configuration
+            state: None,
             dump_state: None,
             state_interval: None,
             preserve_historical_states: false,
+            load_state: None,
         }
     }
 }
@@ -903,6 +909,20 @@ impl TestNodeConfig {
         if let Some(no_cors) = no_cors {
             self.no_cors = no_cors;
         }
+        self
+    }
+
+    /// Set the state
+    #[must_use]
+    pub fn with_state(mut self, state: Option<PathBuf>) -> Self {
+        self.state = state;
+        self
+    }
+
+    /// Set the state to load
+    #[must_use]
+    pub fn with_load_state(mut self, load_state: Option<PathBuf>) -> Self {
+        self.load_state = load_state;
         self
     }
 
