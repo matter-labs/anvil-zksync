@@ -193,6 +193,7 @@ impl Default for TestNodeConfig {
             // Server configuration
             allow_origin: "*".to_string(),
             no_cors: false,
+
             // state configuration
             dump_state: None,
             state_interval: None,
