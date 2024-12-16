@@ -1,8 +1,13 @@
 use crate::bytecode_override::override_bytecodes;
 use crate::cli::{Cli, Command};
 use crate::utils::update_with_fork_details;
-use anvil_zksync_api_decl::{AnvilNamespaceServer, EvmNamespaceServer, Web3NamespaceServer};
-use anvil_zksync_api_server::{AnvilNamespace, EvmNamespace, Web3Namespace};
+use anvil_zksync_api_decl::{
+    AnvilNamespaceServer, ConfigNamespaceServer, DebugNamespaceServer, EvmNamespaceServer,
+    NetNamespaceServer, Web3NamespaceServer,
+};
+use anvil_zksync_api_server::{
+    AnvilNamespace, ConfigNamespace, DebugNamespace, EvmNamespace, NetNamespace, Web3Namespace,
+};
 use anvil_zksync_config::constants::{
     DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
     DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L1_GAS_PRICE, DEFAULT_L2_GAS_PRICE, LEGACY_RICH_WALLETS,
@@ -11,9 +16,7 @@ use anvil_zksync_config::constants::{
 use anvil_zksync_config::types::SystemContractsOptions;
 use anvil_zksync_config::ForkPrintInfo;
 use anvil_zksync_core::fork::ForkDetails;
-use anvil_zksync_core::namespaces::{
-    ConfigurationApiNamespaceT, EthNamespaceT, EthTestNodeNamespaceT, ZksNamespaceT,
-};
+use anvil_zksync_core::namespaces::{EthNamespaceT, EthTestNodeNamespaceT, ZksNamespaceT};
 use anvil_zksync_core::node::{
     BlockProducer, BlockSealer, BlockSealerMode, ImpersonationManager, InMemoryNode,
     TimestampManager, TxPool,
@@ -57,7 +60,6 @@ async fn build_json_http(
     let io_handler = {
         let mut io = MetaIoHandler::with_middleware(LoggingMiddleware::new(log_level_filter));
 
-        io.extend_with(ConfigurationApiNamespaceT::to_delegate(node.clone()));
         io.extend_with(EthNamespaceT::to_delegate(node.clone()));
         io.extend_with(EthTestNodeNamespaceT::to_delegate(node.clone()));
         io.extend_with(ZksNamespaceT::to_delegate(node));
@@ -346,6 +348,12 @@ async fn main() -> anyhow::Result<()> {
         rpc.merge(AnvilNamespace::new(node.clone()).into_rpc())
             .unwrap();
         rpc.merge(EvmNamespace::new(node.clone()).into_rpc())
+            .unwrap();
+        rpc.merge(DebugNamespace::new(node.clone()).into_rpc())
+            .unwrap();
+        rpc.merge(NetNamespace::new(node.clone()).into_rpc())
+            .unwrap();
+        rpc.merge(ConfigNamespace::new(node.clone()).into_rpc())
             .unwrap();
         rpc.merge(Web3Namespace.into_rpc()).unwrap();
 

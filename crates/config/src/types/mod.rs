@@ -1,16 +1,12 @@
 mod account_generator;
 mod cache;
 mod genesis;
-mod log;
-mod show_details;
 
 pub use account_generator::AccountGenerator;
 pub use cache::{CacheConfig, CacheType};
 use clap::ValueEnum;
 pub use genesis::Genesis;
-pub use log::LogLevel;
 use serde::Deserialize;
-pub use show_details::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
 
 #[derive(Deserialize, Default, Debug, Copy, Clone, PartialEq, ValueEnum)]
 pub enum SystemContractsOptions {

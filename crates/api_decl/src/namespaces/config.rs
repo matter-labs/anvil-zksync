@@ -1,29 +1,29 @@
-use crate::namespaces::Result;
-use anvil_zksync_config::types::LogLevel;
-use jsonrpc_derive::rpc;
+use anvil_zksync_types::{LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
+use jsonrpsee::core::RpcResult;
+use jsonrpsee::proc_macros::rpc;
 
-#[rpc]
-pub trait ConfigurationApiNamespaceT {
+#[rpc(server, namespace = "config")]
+pub trait ConfigNamespace {
     /// Get the InMemoryNodeInner's show_calls property as a string
     ///
     /// # Returns
     /// The current `show_calls` value for the InMemoryNodeInner.
-    #[rpc(name = "config_getShowCalls", returns = "String")]
-    fn config_get_show_calls(&self) -> Result<String>;
+    #[method(name = "getShowCalls")]
+    fn get_show_calls(&self) -> RpcResult<String>;
 
     /// Get the InMemoryNodeInner's show_outputs property as a boolean
     ///
     /// # Returns
     /// The current `show_outputs` value for the InMemoryNodeInner.
-    #[rpc(name = "config_getShowOutputs", returns = "bool")]
-    fn config_get_show_outputs(&self) -> Result<bool>;
+    #[method(name = "getShowOutputs")]
+    fn get_show_outputs(&self) -> RpcResult<bool>;
 
     /// Get the InMemoryNodeInner's current_timestamp property
     ///
     /// # Returns
     /// The current `current_timestamp` value for the InMemoryNodeInner.
-    #[rpc(name = "config_getCurrentTimestamp", returns = "u64")]
-    fn config_get_current_timestamp(&self) -> Result<u64>;
+    #[method(name = "getCurrentTimestamp")]
+    fn get_current_timestamp(&self) -> RpcResult<u64>;
 
     /// Set show_calls for the InMemoryNodeInner
     ///
@@ -32,8 +32,8 @@ pub trait ConfigurationApiNamespaceT {
     ///
     /// # Returns
     /// The updated/current `show_calls` value for the InMemoryNodeInner.
-    #[rpc(name = "config_setShowCalls", returns = "String")]
-    fn config_set_show_calls(&self, value: String) -> Result<String>;
+    #[method(name = "setShowCalls")]
+    fn set_show_calls(&self, value: ShowCalls) -> RpcResult<String>;
 
     /// Set show_outputs for the InMemoryNodeInner
     ///
@@ -42,8 +42,8 @@ pub trait ConfigurationApiNamespaceT {
     ///
     /// # Returns
     /// The updated/current `show_outputs` value for the InMemoryNodeInner.
-    #[rpc(name = "config_setShowOutputs", returns = "bool")]
-    fn config_set_show_outputs(&self, value: bool) -> Result<bool>;
+    #[method(name = "setShowOutputs")]
+    fn set_show_outputs(&self, value: bool) -> RpcResult<bool>;
 
     /// Set show_storage_logs for the InMemoryNodeInner
     ///
@@ -52,8 +52,8 @@ pub trait ConfigurationApiNamespaceT {
     ///
     /// # Returns
     /// The updated/current `show_storage_logs` value for the InMemoryNodeInner.
-    #[rpc(name = "config_setShowStorageLogs", returns = "String")]
-    fn config_set_show_storage_logs(&self, value: String) -> Result<String>;
+    #[method(name = "setShowStorageLogs")]
+    fn set_show_storage_logs(&self, value: ShowStorageLogs) -> RpcResult<String>;
 
     /// Set show_vm_details for the InMemoryNodeInner
     ///
@@ -62,8 +62,8 @@ pub trait ConfigurationApiNamespaceT {
     ///
     /// # Returns
     /// The updated/current `show_vm_details` value for the InMemoryNodeInner.
-    #[rpc(name = "config_setShowVmDetails", returns = "String")]
-    fn config_set_show_vm_details(&self, value: String) -> Result<String>;
+    #[method(name = "setShowVmDetails")]
+    fn set_show_vm_details(&self, value: ShowVMDetails) -> RpcResult<String>;
 
     /// Set show_gas_details for the InMemoryNodeInner
     ///
@@ -72,8 +72,8 @@ pub trait ConfigurationApiNamespaceT {
     ///
     /// # Returns
     /// The updated/current `show_gas_details` value for the InMemoryNodeInner.
-    #[rpc(name = "config_setShowGasDetails", returns = "String")]
-    fn config_set_show_gas_details(&self, value: String) -> Result<String>;
+    #[method(name = "setShowGasDetails")]
+    fn set_show_gas_details(&self, value: ShowGasDetails) -> RpcResult<String>;
 
     /// Set resolve_hashes for the InMemoryNodeInner
     ///
@@ -82,8 +82,8 @@ pub trait ConfigurationApiNamespaceT {
     ///
     /// # Returns
     /// The updated `resolve_hashes` value for the InMemoryNodeInner.
-    #[rpc(name = "config_setResolveHashes", returns = "bool")]
-    fn config_set_resolve_hashes(&self, value: bool) -> Result<bool>;
+    #[method(name = "setResolveHashes")]
+    fn set_resolve_hashes(&self, value: bool) -> RpcResult<bool>;
 
     /// Set show_node_config for the InMemoryNodeInner
     ///
@@ -92,8 +92,8 @@ pub trait ConfigurationApiNamespaceT {
     ///
     /// # Returns
     /// The updated/current `show_node_config` value for the InMemoryNodeInner.
-    #[rpc(name = "config_setShowNodeConfig", returns = "bool")]
-    fn config_set_show_node_config(&self, value: bool) -> Result<bool>;
+    #[method(name = "setShowNodeConfig")]
+    fn set_show_node_config(&self, value: bool) -> RpcResult<bool>;
 
     /// Set show_tx_summary for the InMemoryNodeInner
     ///
@@ -102,8 +102,8 @@ pub trait ConfigurationApiNamespaceT {
     ///
     /// # Returns
     /// The updated/current `show_tx_summary` value for the InMemoryNodeInner.
-    #[rpc(name = "config_setShowTxSummary", returns = "bool")]
-    fn config_set_show_tx_summary(&self, value: bool) -> Result<bool>;
+    #[method(name = "setShowTxSummary")]
+    fn set_show_tx_summary(&self, value: bool) -> RpcResult<bool>;
 
     /// Set show_event_logs for the InMemoryNodeInner
     ///
@@ -112,8 +112,8 @@ pub trait ConfigurationApiNamespaceT {
     ///
     /// # Returns
     /// The updated/current `show_event_logs` value for the InMemoryNodeInner.
-    #[rpc(name = "config_setShowEventLogs", returns = "bool")]
-    fn config_set_show_event_logs(&self, value: bool) -> Result<bool>;
+    #[method(name = "setShowEventLogs")]
+    fn set_show_event_logs(&self, value: bool) -> RpcResult<bool>;
 
     /// Set disable_console_log for the InMemoryNodeInner
     ///
@@ -122,8 +122,8 @@ pub trait ConfigurationApiNamespaceT {
     ///
     /// # Returns
     /// The updated/current `disable_console_log` value for the InMemoryNodeInner.
-    #[rpc(name = "config_setDisableConsoleLog", returns = "bool")]
-    fn config_set_disable_console_log(&self, value: bool) -> Result<bool>;
+    #[method(name = "setDisableConsoleLog")]
+    fn set_disable_console_log(&self, value: bool) -> RpcResult<bool>;
 
     /// Set the logging for the InMemoryNodeInner
     ///
@@ -132,8 +132,8 @@ pub trait ConfigurationApiNamespaceT {
     ///
     /// # Returns
     /// `true` if the operation succeeded, `false` otherwise.
-    #[rpc(name = "config_setLogLevel", returns = "bool")]
-    fn config_set_log_level(&self, level: LogLevel) -> Result<bool>;
+    #[method(name = "setLogLevel")]
+    fn set_log_level(&self, level: LogLevel) -> RpcResult<bool>;
 
     /// Set the logging for the InMemoryNodeInner
     ///
@@ -145,6 +145,6 @@ pub trait ConfigurationApiNamespaceT {
     ///
     /// # Returns
     /// `true` if the operation succeeded, `false` otherwise.
-    #[rpc(name = "config_setLogging", returns = "bool")]
-    fn config_set_logging(&self, directive: String) -> Result<bool>;
+    #[method(name = "setLogging")]
+    fn set_logging(&self, directive: String) -> RpcResult<bool>;
 }

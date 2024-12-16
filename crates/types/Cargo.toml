@@ -12,7 +12,10 @@ categories.workspace = true
 [dependencies]
 zksync_types.workspace = true
 
+# TODO: Depending on `clap` here is not the worst thing for now but need to reconsider if this is strictly necessary
+clap.workspace = true
 serde.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true

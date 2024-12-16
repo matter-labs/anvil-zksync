@@ -2,7 +2,6 @@
 
 mod block_producer;
 mod call_error_tracer;
-mod config_api;
 pub mod error;
 mod eth;
 mod fee_model;

@@ -4,10 +4,10 @@ use anvil_zksync_config::constants::{
     DEFAULT_DISK_CACHE_DIR, DEFAULT_MNEMONIC, TEST_NODE_NETWORK_ID,
 };
 use anvil_zksync_config::types::{
-    AccountGenerator, CacheConfig, CacheType, Genesis, LogLevel, ShowCalls, ShowGasDetails,
-    ShowStorageLogs, ShowVMDetails, SystemContractsOptions,
+    AccountGenerator, CacheConfig, CacheType, Genesis, SystemContractsOptions,
 };
 use anvil_zksync_config::TestNodeConfig;
+use anvil_zksync_types::{LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
 use clap::{arg, command, Parser, Subcommand};
 use rand::{rngs::StdRng, SeedableRng};
 use std::env;

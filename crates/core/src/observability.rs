@@ -1,4 +1,4 @@
-use anvil_zksync_config::types::LogLevel;
+use anvil_zksync_types::LogLevel;
 use std::sync::{Arc, RwLock};
 use std::{fs::File, sync::Mutex};
 use tracing_subscriber::{

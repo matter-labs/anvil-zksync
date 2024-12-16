@@ -395,6 +395,7 @@ dependencies = [
  "anvil_zksync_api_server",
  "anvil_zksync_config",
  "anvil_zksync_core",
+ "anvil_zksync_types",
  "anyhow",
  "clap",
  "colored",
@@ -444,6 +445,7 @@ version = "0.2.1"
 dependencies = [
  "alloy-signer",
  "alloy-signer-local",
+ "anvil_zksync_types",
  "clap",
  "colored",
  "hex",
@@ -503,8 +505,10 @@ dependencies = [
 name = "anvil_zksync_types"
 version = "0.2.1"
 dependencies = [
+ "clap",
  "serde",
  "serde_json",
+ "tracing",
  "zksync_types",
 ]
 

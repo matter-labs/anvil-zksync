@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::formatter::{self, PubdataBytesInfo};
 
-use anvil_zksync_config::types::ShowStorageLogs;
+use anvil_zksync_types::ShowStorageLogs;
 use zksync_multivm::interface::VmExecutionResultAndLogs;
 use zksync_types::{
     utils::storage_key_for_eth_balance,

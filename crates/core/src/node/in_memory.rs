@@ -24,11 +24,9 @@ use crate::{
 use anvil_zksync_config::constants::{
     LEGACY_RICH_WALLETS, NON_FORK_FIRST_BLOCK_TIMESTAMP, RICH_WALLETS, TEST_NODE_NETWORK_ID,
 };
-use anvil_zksync_config::types::{
-    CacheConfig, Genesis, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails,
-    SystemContractsOptions,
-};
+use anvil_zksync_config::types::{CacheConfig, Genesis, SystemContractsOptions};
 use anvil_zksync_config::TestNodeConfig;
+use anvil_zksync_types::{LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
 use colored::Colorize;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
@@ -2129,6 +2127,89 @@ impl InMemoryNode {
             .tx_results
             .get(&tx_hash)
             .map(|tx| CallTracerResult::CallTrace(tx.debug_info(only_top))))
+    }
+
+    pub fn get_show_calls(&self) -> anyhow::Result<String> {
+        Ok(self.read_inner()?.config.show_calls.to_string())
+    }
+
+    pub fn get_show_outputs(&self) -> anyhow::Result<bool> {
+        Ok(self.read_inner()?.config.show_outputs)
+    }
+
+    pub fn get_current_timestamp(&self) -> anyhow::Result<u64> {
+        Ok(self.time.current_timestamp())
+    }
+
+    pub fn set_show_calls(&self, show_calls: ShowCalls) -> anyhow::Result<String> {
+        self.write_inner()?.config.show_calls = show_calls;
+        Ok(show_calls.to_string())
+    }
+
+    pub fn set_show_outputs(&self, value: bool) -> anyhow::Result<bool> {
+        self.write_inner()?.config.show_outputs = value;
+        Ok(value)
+    }
+
+    pub fn set_show_storage_logs(
+        &self,
+        show_storage_logs: ShowStorageLogs,
+    ) -> anyhow::Result<String> {
+        self.write_inner()?.config.show_storage_logs = show_storage_logs;
+        Ok(show_storage_logs.to_string())
+    }
+
+    pub fn set_show_vm_details(&self, show_vm_details: ShowVMDetails) -> anyhow::Result<String> {
+        self.write_inner()?.config.show_vm_details = show_vm_details;
+        Ok(show_vm_details.to_string())
+    }
+
+    pub fn set_show_gas_details(&self, show_gas_details: ShowGasDetails) -> anyhow::Result<String> {
+        self.write_inner()?.config.show_gas_details = show_gas_details;
+        Ok(show_gas_details.to_string())
+    }
+
+    pub fn set_resolve_hashes(&self, value: bool) -> anyhow::Result<bool> {
+        self.write_inner()?.config.resolve_hashes = value;
+        Ok(value)
+    }
+
+    pub fn set_show_node_config(&self, value: bool) -> anyhow::Result<bool> {
+        self.write_inner()?.config.show_node_config = value;
+        Ok(value)
+    }
+
+    pub fn set_show_tx_summary(&self, value: bool) -> anyhow::Result<bool> {
+        self.write_inner()?.config.show_tx_summary = value;
+        Ok(value)
+    }
+
+    pub fn set_show_event_logs(&self, value: bool) -> anyhow::Result<bool> {
+        self.write_inner()?.config.show_event_logs = value;
+        Ok(value)
+    }
+
+    pub fn set_disable_console_log(&self, value: bool) -> anyhow::Result<bool> {
+        self.write_inner()?.config.disable_console_log = value;
+        Ok(value)
+    }
+
+    pub fn set_log_level(&self, level: LogLevel) -> anyhow::Result<bool> {
+        let Some(observability) = &self.observability else {
+            anyhow::bail!("Node's logging is not set up.")
+        };
+        tracing::info!("setting log level to '{}'", level);
+        observability.set_log_level(level)?;
+        Ok(true)
+    }
+
+    pub fn set_logging(&self, directive: String) -> anyhow::Result<bool> {
+        let Some(observability) = &self.observability else {
+            anyhow::bail!("Node's logging is not set up.")
+        };
+        tracing::info!("setting logging to '{}'", directive);
+        observability.set_logging(directive)?;
+        Ok(true)
     }
 }
 
