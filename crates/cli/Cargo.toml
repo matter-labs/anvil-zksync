@@ -1,5 +1,5 @@
 [package]
-name = "anvil-zksync" # Compatible with the legacy bin crate name
+name = "anvil-zksync"            # Compatible with the legacy bin crate name
 description = "anvil-zksync CLI"
 version.workspace = true
 edition.workspace = true
@@ -33,3 +33,5 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 tower.workspace = true
 tower-http.workspace = true
+flate2.workspace = true
+tempfile = "3"

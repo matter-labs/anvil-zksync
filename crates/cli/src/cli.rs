@@ -1,4 +1,4 @@
-use crate::utils::parse_genesis_file;
+use crate::utils::{parse_genesis_file, write_json_file};
 use alloy_signer_local::coins_bip39::{English, Mnemonic};
 use anvil_zksync_config::constants::{
     DEFAULT_DISK_CACHE_DIR, DEFAULT_MNEMONIC, TEST_NODE_NETWORK_ID,
@@ -10,11 +10,25 @@ use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_types::{
     LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails, TransactionOrder,
 };
+use anvil_zksync_core::node::state::VersionedState;
+use anvil_zksync_core::node::InMemoryNode;
+use anyhow::Result;
 use clap::{arg, command, Parser, Subcommand};
+use flate2::read::GzDecoder;
+use futures::FutureExt;
 use rand::{rngs::StdRng, SeedableRng};
 use std::env;
+use std::io::Read;
 use std::net::IpAddr;
+use std::path::PathBuf;
 use std::time::Duration;
+use std::{
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
+use tokio::task::spawn_blocking;
+use tokio::time::{Instant, Interval};
 use zksync_types::{H256, U256};
 
 #[derive(Debug, Parser, Clone)]
@@ -31,6 +45,7 @@ pub struct Cli {
     // General Options
     #[arg(long, help_heading = "General Options")]
     /// Run in offline mode (disables all network requests).
+    pub offline: bool,
 
     #[arg(long, help_heading = "General Options")]
     /// Enable health check endpoint.
@@ -201,21 +216,6 @@ pub struct Cli {
     #[arg(long, value_name = "PATH", value_parser= parse_genesis_file)]
     pub init: Option<Genesis>,
 
-    /// This is an alias for both --load-state and --dump-state.
-    ///
-    /// It initializes the chain with the state and block environment stored at the file, if it
-    /// exists, and dumps the chain's state on exit.
-    #[arg(
-        long,
-        value_name = "PATH",
-        conflicts_with_all = &[
-            "init",
-            "dump_state",
-            "load_state"
-        ]
-    )]
-    pub state: Option<VersionedState>,
-
     /// Interval in seconds at which the state and block environment is to be dumped to disk.
     ///
     /// See --state and --dump-state
@@ -227,6 +227,15 @@ pub struct Cli {
     /// If the value is a directory, the state will be written to `<VALUE>/state.json`.
     #[arg(long, value_name = "PATH", conflicts_with = "init")]
     pub dump_state: Option<PathBuf>,
+
+    /// Preserve historical state snapshots when dumping the state.
+    ///
+    /// This will save the in-memory states of the chain at particular block hashes.
+    ///
+    /// These historical states will be loaded into the memory when `--load-state` / `--state`, and
+    /// aids in RPC calls beyond the block at which state was dumped.
+    #[arg(long, conflicts_with = "init", default_value = "false")]
+    pub preserve_historical_states: bool,
 
     /// BIP39 mnemonic phrase used for generating accounts.
     /// Cannot be used if `mnemonic_random` or `mnemonic_seed` are used.
@@ -423,6 +432,9 @@ impl Cli {
             .with_allow_origin(self.allow_origin)
             .with_no_cors(self.no_cors)
             .with_transaction_order(self.order);
+            .with_state_interval(self.state_interval)
+            .with_dump_state(self.dump_state)
+            .with_preserve_historical_states(self.preserve_historical_states);
 
         if self.emulate_evm && self.dev_system_contracts != Some(SystemContractsOptions::Local) {
             return Err(eyre::eyre!(
@@ -470,9 +482,136 @@ fn duration_from_secs_f64(s: &str) -> Result<Duration, String> {
     Duration::try_from_secs_f64(s).map_err(|e| e.to_string())
 }
 
+// Implementation adapted from: https://github.com/foundry-rs/foundry/blob/206dab285437bd6889463ab006b6a5fb984079d8/crates/anvil/src/cmd.rs#L606
+/// Helper type to periodically dump the state of the chain to disk
+pub struct PeriodicStateDumper {
+    in_progress_dump: Option<Pin<Box<dyn Future<Output = ()> + Send + Sync + 'static>>>,
+    node: InMemoryNode,
+    dump_state: Option<PathBuf>,
+    preserve_historical_states: bool,
+    interval: Interval,
+}
+
+impl PeriodicStateDumper {
+    pub fn new(
+        node: InMemoryNode,
+        dump_state: Option<PathBuf>,
+        interval: Duration,
+        preserve_historical_states: bool,
+    ) -> Self {
+        let dump_state = dump_state.map(|mut dump_state| {
+            if dump_state.is_dir() {
+                dump_state = dump_state.join("state.json");
+            }
+            dump_state
+        });
+
+        let interval = tokio::time::interval_at(Instant::now() + interval, interval);
+        Self {
+            in_progress_dump: None,
+            node,
+            dump_state,
+            preserve_historical_states,
+            interval,
+        }
+    }
+
+    pub async fn dump(&self) {
+        if let Some(state) = self.dump_state.clone() {
+            Self::dump_state(self.node.clone(), state, self.preserve_historical_states).await
+        }
+    }
+
+    /// Infallible state dump
+    async fn dump_state(node: InMemoryNode, dump_path: PathBuf, preserve_historical_states: bool) {
+        tracing::trace!(path=?dump_path, "Dumping state");
+
+        // Spawn a blocking task for state dumping
+        let state_bytes =
+            match spawn_blocking(move || node.dump_state(preserve_historical_states)).await {
+                Ok(Ok(bytes)) => bytes,
+                Ok(Err(err)) => {
+                    tracing::error!("Failed to dump state: {:?}", err);
+                    return;
+                }
+                Err(err) => {
+                    tracing::error!("Failed to join blocking task: {:?}", err);
+                    return;
+                }
+            };
+
+        let mut decoder = GzDecoder::new(&state_bytes.0[..]);
+        let mut json_str = String::new();
+        if let Err(err) = decoder.read_to_string(&mut json_str) {
+            tracing::error!(?err, "Failed to decompress state bytes");
+            return;
+        }
+
+        let state = match serde_json::from_str::<VersionedState>(&json_str) {
+            Ok(state) => state,
+            Err(err) => {
+                tracing::error!(?err, "Failed to parse state JSON");
+                return;
+            }
+        };
+
+        if let Err(err) = write_json_file(&dump_path, &state) {
+            tracing::error!(?err, "Failed to write state to file");
+        } else {
+            tracing::trace!(path = ?dump_path, "Dumped state successfully");
+        }
+    }
+}
+
+// An endless future that periodically dumps the state to disk if configured.
+// Implementation adapted from: https://github.com/foundry-rs/foundry/blob/206dab285437bd6889463ab006b6a5fb984079d8/crates/anvil/src/cmd.rs#L658
+impl Future for PeriodicStateDumper {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+        if this.dump_state.is_none() {
+            return Poll::Pending;
+        }
+
+        loop {
+            if let Some(mut flush) = this.in_progress_dump.take() {
+                match flush.poll_unpin(cx) {
+                    Poll::Ready(_) => {
+                        this.interval.reset();
+                    }
+                    Poll::Pending => {
+                        this.in_progress_dump = Some(flush);
+                        return Poll::Pending;
+                    }
+                }
+            }
+
+            if this.interval.poll_tick(cx).is_ready() {
+                let api = this.node.clone();
+                let path = this.dump_state.clone().expect("exists; see above");
+                this.in_progress_dump = Some(Box::pin(Self::dump_state(
+                    api,
+                    path,
+                    this.preserve_historical_states,
+                )));
+            } else {
+                break;
+            }
+        }
+
+        Poll::Pending
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::cli::PeriodicStateDumper;
+
     use super::Cli;
+    use anvil_zksync_core::node::{
+        BlockSealer, BlockSealerMode, ImpersonationManager, InMemoryNode, TimestampManager, TxPool,
+    };
     use clap::Parser;
     use std::{
         env,
@@ -521,5 +660,57 @@ mod tests {
                 .map(|ip| ip.parse::<IpAddr>().unwrap())
                 .to_vec()
         );
+    }
+
+    #[tokio::test]
+    async fn test_dump_state() -> anyhow::Result<()> {
+        use serde_json::Value;
+        use tempfile::tempdir;
+
+        let temp_dir = tempdir()?;
+        let dump_path = temp_dir.path().join("state.json");
+
+        let mut config = anvil_zksync_config::TestNodeConfig::default();
+        config.dump_state = Some(dump_path.clone());
+        config.state_interval = Some(1);
+        config.preserve_historical_states = true;
+
+        let node = InMemoryNode::new(
+            None,
+            None,
+            &config,
+            TimestampManager::default(),
+            ImpersonationManager::default(),
+            TxPool::new(ImpersonationManager::default()),
+            BlockSealer::new(BlockSealerMode::noop()),
+        );
+        let test_address = zksync_types::H160::random();
+        node.set_rich_account(test_address, 1000000u64.into());
+
+        let mut state_dumper = PeriodicStateDumper::new(
+            node.clone(),
+            config.dump_state.clone(),
+            std::time::Duration::from_secs(1),
+            config.preserve_historical_states,
+        );
+
+        // Spawn the state dumper as a task:
+        let dumper_handle = tokio::spawn(async move {
+            tokio::select! {
+                _ = &mut state_dumper => {}
+            }
+            state_dumper.dump().await;
+        });
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+
+        dumper_handle.abort();
+        let _ = dumper_handle.await;
+
+        let dumped_data =
+            std::fs::read_to_string(&dump_path).expect("Expected state file to be created");
+        let _: Value =
+            serde_json::from_str(&dumped_data).expect("Failed to parse dumped state as JSON");
+
+        Ok(())
     }
 }
