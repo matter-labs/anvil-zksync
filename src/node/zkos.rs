@@ -9,7 +9,7 @@ use ruint::aliases::B160;
 use zk_ee::{common_structs::derive_flat_storage_key, utils::Bytes32};
 use zksync_multivm::interface::{
     storage::{StoragePtr, WriteStorage},
-    ExecutionResult, VmExecutionResultAndLogs,
+    ExecutionResult, VmExecutionResultAndLogs, VmRevertReason,
 };
 use zksync_types::{AccountTreeId, Address, StorageKey, Transaction, H160, H256};
 
@@ -110,6 +110,14 @@ pub fn create_tree_from_full_state(
     println!("Preimage size is: {}", preimage_source.inner.len());
 
     (tree, preimage_source)
+}
+
+pub fn add_elem_to_tree(tree: &mut InMemoryTree, k: &StorageKey, v: &H256) {
+    let kk = derive_flat_storage_key(&h160_to_b160(k.address()), &h256_to_bytes32(k.key()));
+    let vv = h256_to_bytes32(v);
+
+    tree.storage_tree.insert(&kk, &vv);
+    tree.cold_storage.insert(kk, vv);
 }
 
 pub fn execute_tx_in_zkos<W: WriteStorage>(
@@ -261,21 +269,36 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
         tx_source,
     )
     .unwrap();
-    let tx_output = match &batch_output.tx_results[0]
-        .as_ref()
-        .unwrap()
-        .execution_result
-    {
-        forward_system::run::output::ExecutionResult::Success(output) => match &output {
-            forward_system::run::output::ExecutionOutput::Call(data) => data,
-            forward_system::run::output::ExecutionOutput::Create(data, address) => {
-                dbg!(address);
-                // TODO - pass it to the output somehow.
-                println!("Deployed to {:?}", address);
-                data
+
+    let tx_output = match batch_output.tx_results[0].as_ref() {
+        Ok(tx_output) => {
+            match &tx_output.execution_result {
+                forward_system::run::output::ExecutionResult::Success(output) => match &output {
+                    forward_system::run::output::ExecutionOutput::Call(data) => data,
+                    forward_system::run::output::ExecutionOutput::Create(data, address) => {
+                        dbg!(address);
+                        // TODO - pass it to the output somehow.
+                        println!("Deployed to {:?}", address);
+                        data
+                    }
+                },
+                _ => panic!("TX failed"),
             }
-        },
-        _ => panic!("TX failed"),
+        }
+        Err(invalid_tx) => {
+            return VmExecutionResultAndLogs {
+                result: ExecutionResult::Revert {
+                    output: VmRevertReason::General {
+                        msg: format!("{:?}", invalid_tx),
+                        data: vec![],
+                    },
+                },
+                logs: Default::default(),
+                statistics: Default::default(),
+                refunds: Default::default(),
+                new_known_factory_deps: None,
+            }
+        }
     };
 
     let mut storage_ptr = storage.borrow_mut();

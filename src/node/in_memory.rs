@@ -59,7 +59,7 @@ use zksync_web3_decl::error::Web3Error;
 
 use crate::node::impersonate::{ImpersonationManager, ImpersonationState};
 use crate::node::time::{AdvanceTime, ReadTime, TimestampManager};
-use crate::node::zkos::execute_tx_in_zkos;
+use crate::node::zkos::{add_elem_to_tree, execute_tx_in_zkos};
 use crate::node::{BlockSealer, TxPool};
 use crate::{
     bootloader_debug::{BootloaderDebug, BootloaderDebugTracer},
@@ -864,9 +864,27 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage.clone());
 
         let tx: Transaction = l2_tx.into();
-        vm.push_transaction(tx);
+        //vm.push_transaction(tx);
 
-        vm.execute(InspectExecutionMode::OneTx)
+        //vm.execute(InspectExecutionMode::OneTx)
+
+        let tx_result = {
+            let (mut tree, mut preimage) = {
+                let reader = fork_storage
+                    .inner
+                    .read()
+                    .map_err(|e| format!("Failed to acquire read lock: {}", e))
+                    .unwrap();
+
+                create_tree_from_full_state(&reader.raw_storage)
+            };
+            add_elem_to_tree(&mut tree, &nonce_key, &u256_to_h256(enforced_full_nonce));
+            add_elem_to_tree(&mut tree, &balance_key, &u256_to_h256(current_balance));
+
+            execute_tx_in_zkos(&tx, &mut tree, &mut preimage, &mut vm.storage)
+        };
+
+        tx_result
     }
 
     /// Archives the current state for later queries.
