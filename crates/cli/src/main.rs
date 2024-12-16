@@ -298,13 +298,6 @@ async fn main() -> anyhow::Result<()> {
         block_sealer.clone(),
     );
 
-    let dump_state = config.dump_state.clone(); // Option<PathBuf>
-    let dump_interval = config
-        .state_interval
-        .map(Duration::from_secs)
-        .unwrap_or(Duration::from_secs(60));
-    let preserve_historical_states = config.preserve_historical_states;
-
     if let Some(ref bytecodes_dir) = config.override_bytecodes_dir {
         override_bytecodes(&node, bytecodes_dir.to_string()).unwrap();
     }
@@ -344,6 +337,13 @@ async fn main() -> anyhow::Result<()> {
         )
     }))
     .await;
+
+    let dump_state = config.dump_state.clone();
+    let dump_interval = config
+        .state_interval
+        .map(Duration::from_secs)
+        .unwrap_or(Duration::from_secs(60)); // Default to 60 seconds
+    let preserve_historical_states = config.preserve_historical_states;
 
     // If user provided a dump state path, spawn the periodic dumper
     if let Some(dump_path) = dump_state {

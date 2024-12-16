@@ -116,9 +116,11 @@ pub struct TestNodeConfig {
     pub allow_origin: String,
     /// Disable CORS if true
     pub no_cors: bool,
-    /// State configuration
+    /// Path to dump the state to
     pub dump_state: Option<PathBuf>,
+    /// Interval to dump the state
     pub state_interval: Option<u64>,
+    /// Preserve historical states
     pub preserve_historical_states: bool,
 }
 
@@ -184,6 +186,7 @@ impl Default for TestNodeConfig {
             // Server configuration
             allow_origin: "*".to_string(),
             no_cors: false,
+
             // state configuration
             dump_state: None,
             state_interval: None,
@@ -887,14 +890,14 @@ impl TestNodeConfig {
         self
     }
 
-    // Set allow_origin CORS header
+    /// Set allow_origin CORS header
     #[must_use]
     pub fn with_allow_origin(mut self, allow_origin: String) -> Self {
         self.allow_origin = allow_origin;
         self
     }
 
-    // Enable or disable CORS
+    /// Enable or disable CORS
     #[must_use]
     pub fn with_no_cors(mut self, no_cors: Option<bool>) -> Self {
         if let Some(no_cors) = no_cors {
@@ -903,21 +906,21 @@ impl TestNodeConfig {
         self
     }
 
-    // Set the state dump path
+    /// Set the state dump path
     #[must_use]
     pub fn with_dump_state(mut self, dump_state: Option<PathBuf>) -> Self {
         self.dump_state = dump_state;
         self
     }
 
-    // Set the state dump interval
+    /// Set the state dump interval
     #[must_use]
     pub fn with_state_interval(mut self, state_interval: Option<u64>) -> Self {
         self.state_interval = state_interval;
         self
     }
 
-    // Set preserve historical states
+    /// Set preserve historical states
     #[must_use]
     pub fn with_preserve_historical_states(mut self, preserve_historical_states: bool) -> Self {
         self.preserve_historical_states = preserve_historical_states;

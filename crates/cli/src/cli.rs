@@ -47,6 +47,8 @@ pub struct Cli {
 
     #[arg(long, help_heading = "General Options")]
     /// Enable health check endpoint.
+    /// It will be available for GET requests at /health.
+    /// The endpoint will return 200 OK if the node is healthy.
     pub health_check_endpoint: bool,
 
     /// Writes output of `anvil-zksync` as json to user-specified file.
