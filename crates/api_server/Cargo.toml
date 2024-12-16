@@ -1,0 +1,23 @@
+[package]
+name = "anvil_zksync_api_server"
+description = "anvil-zksync API server"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+anvil_zksync_api_decl.workspace = true
+anvil_zksync_core.workspace = true
+anvil_zksync_types.workspace = true
+
+zksync_types.workspace = true
+
+anyhow.workspace = true
+jsonrpsee.workspace = true
+thiserror.workspace = true
+tracing.workspace = true

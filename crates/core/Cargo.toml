@@ -10,6 +10,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+anvil_zksync_types.workspace = true
 anvil_zksync_config.workspace = true
 
 zksync_multivm.workspace = true

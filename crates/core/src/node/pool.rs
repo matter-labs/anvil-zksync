@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use zksync_types::l2::L2Tx;
 use zksync_types::{Address, H256};
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct TxPool {
     inner: Arc<RwLock<Vec<L2Tx>>>,
     /// Listeners for new transactions' hashes

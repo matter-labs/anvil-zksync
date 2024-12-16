@@ -5,6 +5,7 @@ use crate::node::impersonate::{ImpersonationManager, ImpersonationState};
 use crate::node::state::{StateV1, VersionedState};
 use crate::node::time::{AdvanceTime, ReadTime, TimestampManager};
 use crate::node::{BlockSealer, BlockSealerMode, TxPool};
+use crate::utils::to_real_block_number;
 use crate::{
     bootloader_debug::{BootloaderDebug, BootloaderDebugTracer},
     console_log::ConsoleLogHandler,
@@ -21,7 +22,7 @@ use crate::{
     utils::{bytecode_to_factory_dep, create_debug_output, into_jsrpc_error},
 };
 use anvil_zksync_config::constants::{
-    LEGACY_RICH_WALLETS, NON_FORK_FIRST_BLOCK_TIMESTAMP, RICH_WALLETS,
+    LEGACY_RICH_WALLETS, NON_FORK_FIRST_BLOCK_TIMESTAMP, RICH_WALLETS, TEST_NODE_NETWORK_ID,
 };
 use anvil_zksync_config::types::{
     CacheConfig, Genesis, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails,
@@ -33,6 +34,7 @@ use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use indexmap::IndexMap;
+use itertools::Itertools;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use std::io::{Read, Write};
@@ -44,6 +46,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 use zksync_contracts::BaseSystemContracts;
+use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use zksync_multivm::vm_latest::HistoryEnabled;
 use zksync_multivm::{
     interface::{
@@ -64,6 +67,10 @@ use zksync_multivm::{
     },
     HistoryMode, VmVersion,
 };
+use zksync_types::api::{
+    BlockId, BlockNumber, CallTracerBlockResult, CallTracerResult, ResultDebugCall, TracerConfig,
+};
+use zksync_types::transaction_request::CallRequest;
 use zksync_types::{
     api::{Block, DebugCall, Log, TransactionReceipt, TransactionVariant},
     block::{build_bloom, unpack_block_info, L2BlockHasher},
@@ -1983,6 +1990,145 @@ impl InMemoryNode {
             .write()
             .map_err(|_| anyhow::anyhow!("Failed to acquire write lock"))?
             .load_state(time, state)
+    }
+
+    pub fn get_chain_id(&self) -> anyhow::Result<u32> {
+        Ok(self
+            .read_inner()?
+            .config
+            .chain_id
+            .unwrap_or(TEST_NODE_NETWORK_ID))
+    }
+
+    pub async fn trace_block_by_number(
+        &self,
+        block: BlockNumber,
+        options: Option<TracerConfig>,
+    ) -> anyhow::Result<CallTracerBlockResult> {
+        let current_miniblock = self.read_inner()?.current_miniblock;
+        let number = to_real_block_number(block, U64::from(current_miniblock)).as_u64();
+        let block_hash = *self
+            .read_inner()?
+            .block_hashes
+            .get(&number)
+            .ok_or_else(|| anyhow::anyhow!("Block (id={block}) not found"))?;
+
+        self.trace_block_by_hash(block_hash, options).await
+    }
+
+    pub async fn trace_block_by_hash(
+        &self,
+        hash: H256,
+        options: Option<TracerConfig>,
+    ) -> anyhow::Result<CallTracerBlockResult> {
+        let only_top = options.is_some_and(|o| o.tracer_config.only_top_call);
+
+        let tx_hashes = self
+            .read_inner()?
+            .blocks
+            .get(&hash)
+            .ok_or_else(|| anyhow::anyhow!("Block (hash={hash}) not found"))?
+            .transactions
+            .iter()
+            .map(|tx| match tx {
+                TransactionVariant::Full(tx) => tx.hash,
+                TransactionVariant::Hash(hash) => *hash,
+            })
+            .collect_vec();
+
+        let debug_calls = tx_hashes
+            .into_iter()
+            .map(|tx_hash| {
+                Ok(self
+                    .read_inner()?
+                    .tx_results
+                    .get(&tx_hash)
+                    .ok_or_else(|| anyhow::anyhow!("Transaction (hash={tx_hash}) not found"))?
+                    .debug_info(only_top))
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?
+            .into_iter()
+            .map(|result| ResultDebugCall { result })
+            .collect_vec();
+
+        Ok(CallTracerBlockResult::CallTrace(debug_calls))
+    }
+
+    pub async fn trace_call(
+        &self,
+        request: CallRequest,
+        block: Option<BlockId>,
+        options: Option<TracerConfig>,
+    ) -> anyhow::Result<CallTracerResult> {
+        let only_top = options.is_some_and(|o| o.tracer_config.only_top_call);
+        let inner = self.read_inner()?;
+        let system_contracts = self.system_contracts.contracts_for_l2_call();
+        if block.is_some() && !matches!(block, Some(BlockId::Number(BlockNumber::Latest))) {
+            anyhow::bail!("tracing only supported at `latest` block",);
+        }
+
+        let allow_no_target = system_contracts.evm_emulator.is_some();
+        let mut l2_tx = L2Tx::from_request(request.into(), MAX_TX_SIZE, allow_no_target)
+            .map_err(|err| into_jsrpc_error(Web3Error::SerializationError(err)))?;
+        let execution_mode = zksync_multivm::interface::TxExecutionMode::EthCall;
+        let storage = StorageView::new(&inner.fork_storage).into_rc_ptr();
+
+        // init vm
+        let (mut l1_batch_env, _block_context) =
+            inner.create_l1_batch_env(&self.time, storage.clone());
+
+        // update the enforced_base_fee within l1_batch_env to match the logic in zksync_core
+        l1_batch_env.enforced_base_fee = Some(l2_tx.common_data.fee.max_fee_per_gas.as_u64());
+        let system_env = inner.create_system_env(system_contracts.clone(), execution_mode);
+        let mut vm: Vm<_, HistoryDisabled> = Vm::new(l1_batch_env, system_env, storage);
+
+        // We must inject *some* signature (otherwise bootloader code fails to generate hash).
+        if l2_tx.common_data.signature.is_empty() {
+            l2_tx.common_data.signature = PackedEthSignature::default().serialize_packed().into();
+        }
+
+        // Match behavior of zksync_core:
+        // Protection against infinite-loop eth_calls and alike:
+        // limiting the amount of gas the call can use.
+        l2_tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
+
+        let tx: Transaction = l2_tx.clone().into();
+        vm.push_transaction(tx);
+
+        let call_tracer_result = Arc::new(OnceCell::default());
+        let tracer = CallTracer::new(call_tracer_result.clone()).into_tracer_pointer();
+
+        let tx_result = vm.inspect(
+            &mut tracer.into(),
+            zksync_multivm::interface::InspectExecutionMode::OneTx,
+        );
+        let call_traces = if only_top {
+            vec![]
+        } else {
+            Arc::try_unwrap(call_tracer_result)
+                .unwrap()
+                .take()
+                .unwrap_or_default()
+        };
+
+        let debug =
+            create_debug_output(&l2_tx, &tx_result, call_traces).map_err(into_jsrpc_error)?;
+
+        Ok(CallTracerResult::CallTrace(debug))
+    }
+
+    pub async fn trace_transaction(
+        &self,
+        tx_hash: H256,
+        options: Option<TracerConfig>,
+    ) -> anyhow::Result<Option<CallTracerResult>> {
+        let only_top = options.is_some_and(|o| o.tracer_config.only_top_call);
+        let inner = self.read_inner()?;
+
+        Ok(inner
+            .tx_results
+            .get(&tx_hash)
+            .map(|tx| CallTracerResult::CallTrace(tx.debug_info(only_top))))
     }
 }
 

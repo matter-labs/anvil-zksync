@@ -2,8 +2,6 @@ use anyhow::Context;
 use chrono::{DateTime, Utc};
 use futures::Future;
 use jsonrpc_core::{Error, ErrorCode};
-use serde::{Deserialize, Serialize};
-use std::convert::TryFrom;
 use std::{convert::TryInto, fmt, pin::Pin};
 use zksync_multivm::interface::{Call, CallType, ExecutionResult, VmExecutionResultAndLogs};
 use zksync_types::{
@@ -257,38 +255,6 @@ pub fn internal_error(method_name: &'static str, error: impl fmt::Display) -> We
 pub fn h256_to_u64(value: H256) -> u64 {
     let be_u64_bytes: [u8; 8] = value[24..].try_into().unwrap();
     u64::from_be_bytes(be_u64_bytes)
-}
-
-/// Helper type to be able to parse both `u64` and `U256` depending on the user input
-#[derive(Copy, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum Numeric {
-    /// A [U256] value.
-    U256(U256),
-    /// A `u64` value.
-    Num(u64),
-}
-
-impl From<u64> for Numeric {
-    fn from(value: u64) -> Self {
-        Numeric::Num(value)
-    }
-}
-
-impl TryFrom<Numeric> for u64 {
-    type Error = anyhow::Error;
-
-    fn try_from(value: Numeric) -> Result<Self, Self::Error> {
-        match value {
-            Numeric::U256(n) => {
-                if n >= U256::from(u64::MAX) {
-                    return Err(anyhow::anyhow!("Number is too big"));
-                }
-                Ok(n.as_u64())
-            }
-            Numeric::Num(n) => Ok(n),
-        }
-    }
 }
 
 /// Calculates the cost of a transaction in ETH.

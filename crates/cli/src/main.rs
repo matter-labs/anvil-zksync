@@ -1,6 +1,8 @@
 use crate::bytecode_override::override_bytecodes;
 use crate::cli::{Cli, Command};
 use crate::utils::update_with_fork_details;
+use anvil_zksync_api_decl::{AnvilNamespaceServer, EvmNamespaceServer, Web3NamespaceServer};
+use anvil_zksync_api_server::{AnvilNamespace, EvmNamespace, Web3Namespace};
 use anvil_zksync_config::constants::{
     DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
     DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L1_GAS_PRICE, DEFAULT_L2_GAS_PRICE, LEGACY_RICH_WALLETS,
@@ -10,9 +12,7 @@ use anvil_zksync_config::types::SystemContractsOptions;
 use anvil_zksync_config::ForkPrintInfo;
 use anvil_zksync_core::fork::ForkDetails;
 use anvil_zksync_core::namespaces::{
-    AnvilNamespaceT, ConfigurationApiNamespaceT, DebugNamespaceT, EthNamespaceT,
-    EthTestNodeNamespaceT, EvmNamespaceT, HardhatNamespaceT, NetNamespaceT, Web3NamespaceT,
-    ZksNamespaceT,
+    ConfigurationApiNamespaceT, EthNamespaceT, EthTestNodeNamespaceT, ZksNamespaceT,
 };
 use anvil_zksync_core::node::{
     BlockProducer, BlockSealer, BlockSealerMode, ImpersonationManager, InMemoryNode,
@@ -28,13 +28,14 @@ use futures::{
     FutureExt,
 };
 use jsonrpc_core::MetaIoHandler;
-use jsonrpc_http_server::DomainsValidation;
+use jsonrpsee::server::ServerBuilder;
 use logging_middleware::LoggingMiddleware;
 use std::fs::File;
 use std::{env, net::SocketAddr, str::FromStr};
 use tracing_subscriber::filter::LevelFilter;
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
 use zksync_types::H160;
+use zksync_web3_decl::jsonrpsee::RpcModule;
 use zksync_web3_decl::namespaces::ZksNamespaceClient;
 
 mod bytecode_override;
@@ -56,15 +57,9 @@ async fn build_json_http(
     let io_handler = {
         let mut io = MetaIoHandler::with_middleware(LoggingMiddleware::new(log_level_filter));
 
-        io.extend_with(NetNamespaceT::to_delegate(node.clone()));
-        io.extend_with(Web3NamespaceT::to_delegate(node.clone()));
         io.extend_with(ConfigurationApiNamespaceT::to_delegate(node.clone()));
-        io.extend_with(DebugNamespaceT::to_delegate(node.clone()));
         io.extend_with(EthNamespaceT::to_delegate(node.clone()));
         io.extend_with(EthTestNodeNamespaceT::to_delegate(node.clone()));
-        io.extend_with(AnvilNamespaceT::to_delegate(node.clone()));
-        io.extend_with(EvmNamespaceT::to_delegate(node.clone()));
-        io.extend_with(HardhatNamespaceT::to_delegate(node.clone()));
         io.extend_with(ZksNamespaceT::to_delegate(node));
         io
     };
@@ -339,12 +334,33 @@ async fn main() -> anyhow::Result<()> {
     let system_contracts =
         SystemContracts::from_options(&config.system_contracts_options, config.use_evm_emulator);
     let block_producer_handle = tokio::task::spawn(BlockProducer::new(
-        node,
+        node.clone(),
         pool,
         block_sealer,
         system_contracts,
     ));
     threads.push(block_producer_handle);
+
+    threads.extend(config.host.iter().map(|host| {
+        let mut rpc = RpcModule::new(());
+        rpc.merge(AnvilNamespace::new(node.clone()).into_rpc())
+            .unwrap();
+        rpc.merge(EvmNamespace::new(node.clone()).into_rpc())
+            .unwrap();
+        rpc.merge(Web3Namespace.into_rpc()).unwrap();
+
+        let host = *host;
+        tokio::spawn(async move {
+            let server = ServerBuilder::default()
+                .http_only()
+                .build(SocketAddr::new(host, 8012))
+                .await
+                .unwrap();
+            let server_handle = server.start(rpc);
+
+            server_handle.stopped().await;
+        })
+    }));
 
     config.print(fork_print_info.as_ref());
 

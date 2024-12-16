@@ -1,12 +1,8 @@
-use crate::namespaces::DetailedTransaction;
 use crate::node::pool::TxBatch;
 use crate::node::sealer::BlockSealerMode;
-use crate::utils::Numeric;
-use crate::{
-    fork::ForkDetails, namespaces::ResetRequest, node::InMemoryNode, utils::bytecode_to_factory_dep,
-};
-use anyhow::{anyhow, Context};
-use std::convert::TryInto;
+use crate::{fork::ForkDetails, node::InMemoryNode, utils::bytecode_to_factory_dep};
+use anvil_zksync_types::api::{DetailedTransaction, ResetRequest};
+use anyhow::anyhow;
 use std::time::Duration;
 use zksync_multivm::interface::TxExecutionMode;
 use zksync_types::api::{Block, TransactionVariant};
@@ -32,10 +28,7 @@ impl InMemoryNode {
     ///
     /// # Returns
     /// The applied time delta to `current_timestamp` value for the InMemoryNodeInner.
-    pub fn increase_time(&self, time_delta_seconds: Numeric) -> Result<u64> {
-        let time_delta_seconds = time_delta_seconds
-            .try_into()
-            .context("The time delta is too big")?;
+    pub fn increase_time(&self, time_delta_seconds: u64) -> Result<u64> {
         self.time.increase_time(time_delta_seconds);
         Ok(time_delta_seconds)
     }
@@ -47,8 +40,7 @@ impl InMemoryNode {
     ///
     /// # Returns
     /// The new timestamp value for the InMemoryNodeInner.
-    pub fn set_next_block_timestamp(&self, timestamp: Numeric) -> Result<()> {
-        let timestamp: u64 = timestamp.try_into().context("The timestamp is too big")?;
+    pub fn set_next_block_timestamp(&self, timestamp: u64) -> Result<()> {
         self.time.enforce_next_timestamp(timestamp)
     }
 
@@ -61,10 +53,8 @@ impl InMemoryNode {
     ///
     /// # Returns
     /// The difference between the `current_timestamp` and the new timestamp for the InMemoryNodeInner.
-    pub fn set_time(&self, timestamp: Numeric) -> Result<i128> {
-        Ok(self.time.set_current_timestamp_unchecked(
-            timestamp.try_into().context("The timestamp is too big")?,
-        ))
+    pub fn set_time(&self, timestamp: u64) -> Result<i128> {
+        Ok(self.time.set_current_timestamp_unchecked(timestamp))
     }
 
     /// Force a single block to be mined.
@@ -393,6 +383,15 @@ impl InMemoryNode {
 
     pub fn get_immediate_sealing(&self) -> Result<bool> {
         Ok(self.sealer.is_immediate())
+    }
+
+    pub fn set_block_timestamp_interval(&self, seconds: u64) -> Result<()> {
+        self.time.set_block_timestamp_interval(seconds);
+        Ok(())
+    }
+
+    pub fn remove_block_timestamp_interval(&self) -> Result<bool> {
+        Ok(self.time.remove_block_timestamp_interval())
     }
 
     pub fn set_immediate_sealing(&self, enable: bool) -> Result<()> {
