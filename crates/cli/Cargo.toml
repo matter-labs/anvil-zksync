@@ -1,5 +1,5 @@
 [package]
-name = "anvil-zksync"            # Compatible with the legacy bin crate name
+name = "anvil-zksync" # Compatible with the legacy bin crate name
 description = "anvil-zksync CLI"
 version.workspace = true
 edition.workspace = true
