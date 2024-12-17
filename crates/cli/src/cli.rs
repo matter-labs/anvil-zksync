@@ -8,8 +8,7 @@ use anvil_zksync_config::types::{
     ShowStorageLogs, ShowVMDetails, SystemContractsOptions,
 };
 use anvil_zksync_config::TestNodeConfig;
-use anvil_zksync_core::node::state::VersionedState;
-use anvil_zksync_core::node::InMemoryNode;
+use anvil_zksync_core::node::{InMemoryNode, VersionedState};
 use anyhow::Result;
 use clap::{arg, command, Parser, Subcommand};
 use flate2::read::GzDecoder;
