@@ -567,7 +567,7 @@ impl EthNamespaceT for InMemoryNode {
 
             let maybe_result = {
                 // try retrieving transaction from memory, and if unavailable subsequently from the fork
-                reader.tx_results.get(&hash).and_then(|TransactionResult { info, .. }| {
+                reader.tx_results.get(&hash).and_then(|TransactionResult { info, receipt, .. }| {
                     let input_data = info.tx.common_data.input.clone().or(None)?;
                     let chain_id = info.tx.common_data.extract_chain_id().or(None)?;
                     Some(zksync_types::api::Transaction {
@@ -575,7 +575,7 @@ impl EthNamespaceT for InMemoryNode {
                         nonce: U256::from(info.tx.common_data.nonce.0),
                         block_hash: Some(hash),
                         block_number: Some(U64::from(info.miniblock_number)),
-                        transaction_index: Some(U64::from(0)),
+                        transaction_index: Some(receipt.transaction_index),
                         from: Some(info.tx.initiator_account()),
                         to: info.tx.recipient_account(),
                         value: info.tx.execute.value,
