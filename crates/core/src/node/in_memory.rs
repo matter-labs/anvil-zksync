@@ -1265,7 +1265,7 @@ impl InMemoryNode {
         // Create a temporary tx pool (i.e. state is not shared with the node mempool).
         let pool = TxPool::new(
             self.impersonation.clone(),
-            self.read_inner()?.config.transactions_order,
+            self.read_inner()?.config.transaction_order,
         );
         pool.add_txs(txs);
 

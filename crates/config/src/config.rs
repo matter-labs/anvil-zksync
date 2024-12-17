@@ -116,7 +116,7 @@ pub struct TestNodeConfig {
     /// Disable CORS if true
     pub no_cors: bool,
     /// How transactions are sorted in the mempool
-    pub transactions_order: TransactionOrder,
+    pub transaction_order: TransactionOrder,
 }
 
 impl Default for TestNodeConfig {
@@ -177,7 +177,7 @@ impl Default for TestNodeConfig {
             no_mining: false,
 
             max_transactions: 1000,
-            transactions_order: TransactionOrder::Fifo,
+            transaction_order: TransactionOrder::Fifo,
 
             // Server configuration
             allow_origin: "*".to_string(),
@@ -883,8 +883,8 @@ impl TestNodeConfig {
 
     // Set transactions order in the mempool
     #[must_use]
-    pub fn with_transactions_order(mut self, transactions_order: TransactionOrder) -> Self {
-        self.transactions_order = transactions_order;
+    pub fn with_transaction_order(mut self, transaction_order: TransactionOrder) -> Self {
+        self.transaction_order = transaction_order;
         self
     }
 

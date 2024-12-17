@@ -10,8 +10,8 @@ use zksync_types::H256;
 #[derive(Clone)]
 pub struct TxPool {
     inner: Arc<RwLock<BTreeSet<PoolTransaction>>>,
-    /// How transactions are ordered in the pool
-    transactions_order: Arc<RwLock<TransactionOrder>>,
+    /// Transaction ordering in the mempool.
+    transaction_order: Arc<RwLock<TransactionOrder>>,
     /// Used to preserve transactions submission order in the pool
     submission_number: Arc<Mutex<u64>>,
     /// Listeners for new transactions' hashes
@@ -20,13 +20,13 @@ pub struct TxPool {
 }
 
 impl TxPool {
-    pub fn new(impersonation: ImpersonationManager, transactions_order: TransactionOrder) -> Self {
+    pub fn new(impersonation: ImpersonationManager, transaction_order: TransactionOrder) -> Self {
         Self {
             inner: Arc::new(RwLock::new(BTreeSet::new())),
             submission_number: Arc::new(Mutex::new(0)),
             tx_listeners: Arc::new(Mutex::new(Vec::new())),
             impersonation,
-            transactions_order: Arc::new(RwLock::new(transactions_order)),
+            transaction_order: Arc::new(RwLock::new(transaction_order)),
         }
     }
 
@@ -36,15 +36,15 @@ impl TxPool {
             .expect("submission_number lock is poisoned")
     }
 
-    fn read_transactions_order(&self) -> RwLockReadGuard<'_, TransactionOrder> {
-        self.transactions_order
+    fn read_transaction_order(&self) -> RwLockReadGuard<'_, TransactionOrder> {
+        self.transaction_order
             .read()
-            .expect("transactions_order lock is poisoned")
+            .expect("transaction_order lock is poisoned")
     }
 
     pub fn add_tx(&self, tx: L2Tx) {
         let hash = tx.hash();
-        let priority = self.read_transactions_order().priority(&tx);
+        let priority = self.read_transaction_order().priority(&tx);
         let mut submission_number = self.lock_submission_number();
         *submission_number = submission_number.wrapping_add(1);
 
@@ -58,13 +58,13 @@ impl TxPool {
     }
 
     pub fn add_txs(&self, txs: Vec<L2Tx>) {
-        let transactions_order = self.read_transactions_order();
+        let transaction_order = self.read_transaction_order();
         let mut submission_number = self.lock_submission_number();
 
         let mut guard = self.inner.write().expect("TxPool lock is poisoned");
         for tx in txs {
             let hash = tx.hash();
-            let priority = transactions_order.priority(&tx);
+            let priority = transaction_order.priority(&tx);
             *submission_number = submission_number.wrapping_add(1);
             guard.insert(PoolTransaction {
                 transaction: tx,
@@ -500,7 +500,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn take_uses_transactions_order() {
+    async fn take_uses_transaction_order() {
         let impersonation = ImpersonationManager::default();
         let pool_fifo = TxPool::new(impersonation.clone(), TransactionOrder::Fifo);
         let pool_fees = TxPool::new(impersonation.clone(), TransactionOrder::Fees);
