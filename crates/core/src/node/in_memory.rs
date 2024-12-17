@@ -1263,7 +1263,10 @@ impl InMemoryNode {
         tracing::debug!(count = txs.len(), "applying transactions");
 
         // Create a temporary tx pool (i.e. state is not shared with the node mempool).
-        let pool = TxPool::new(self.impersonation.clone(), self.read_inner()?.config.transactions_order);
+        let pool = TxPool::new(
+            self.impersonation.clone(),
+            self.read_inner()?.config.transactions_order,
+        );
         pool.add_txs(txs);
 
         // Lock time so that the produced blocks are guaranteed to be sequential in time.
