@@ -2,6 +2,7 @@ use crate::fork::{SerializableForkStorage, SerializableStorage};
 use crate::node::TransactionResult;
 use serde::{Deserialize, Serialize};
 use zksync_types::api::{Block, TransactionVariant};
+use zksync_types::web3::Bytes;
 use zksync_types::H256;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

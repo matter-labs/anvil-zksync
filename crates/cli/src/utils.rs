@@ -17,23 +17,6 @@ pub fn parse_genesis_file(path: &str) -> Result<Genesis, String> {
     serde_json::from_str(&file_content).map_err(|err| format!("Failed to parse JSON: {err}"))
 }
 
-// TODO: Consider introducing foundry::common and make use of the existing json utilities.
-/// Writes the given serializable object as JSON to the specified file path using pretty printing.
-/// Returns an error if the file cannot be created or if serialization/writing fails.
-pub fn write_json_file<T: Serialize>(path: &Path, obj: &T) -> anyhow::Result<()> {
-    let file = File::create(path)
-        .with_context(|| format!("Failed to create file '{}'", path.display()))?;
-    let mut writer = BufWriter::new(file);
-    // Note: intentionally using pretty printing for better readability.
-    serde_json::to_writer_pretty(&mut writer, obj)
-        .with_context(|| format!("Failed to write JSON to '{}'", path.display()))?;
-    writer
-        .flush()
-        .with_context(|| format!("Failed to flush writer for '{}'", path.display()))?;
-
-    Ok(())
-}
-
 /// Updates the configuration from fork details.
 pub async fn update_with_fork_details(
     config: &mut TestNodeConfig,

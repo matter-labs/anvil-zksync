@@ -25,8 +25,8 @@ use alloy_zksync::network::header_response::HeaderResponse;
 use alloy_zksync::network::receipt_response::ReceiptResponse;
 use alloy_zksync::network::transaction_response::TransactionResponse;
 use alloy_zksync::network::Zksync;
-use alloy_zksync::node_bindings::{EraTestNode,EraTestNodeError::NoKeysAvailable};
-use alloy_zksync::provider::{zksync_provider, ProviderBuilderExt, layers::era_test_node::EraTestNodeLayer};
+use alloy_zksync::node_bindings::{AnvilZKsync, AnvilZKsyncError::NoKeysAvailable};
+use alloy_zksync::provider::{zksync_provider, ProviderBuilderExt, layers::anvil_zksync::AnvilZKsyncLayer};
 use alloy_zksync::wallet::ZksyncWallet;
 use anyhow::Context as _;
 use itertools::Itertools;
@@ -73,14 +73,14 @@ where
 
 // Outside of `TestingProvider` to avoid specifying `P`
 pub async fn init_testing_provider(
-    f: impl FnOnce(EraTestNode) -> EraTestNode,
+    f: impl FnOnce(AnvilZKsync) -> AnvilZKsync,
 ) -> anyhow::Result<
     TestingProvider<impl FullZksyncProvider<Http<reqwest::Client>>, Http<reqwest::Client>>,
 > {
     let locked_port = LockedPort::acquire_unused().await?;
     let provider = zksync_provider()
         .with_recommended_fillers()
-        .on_era_test_node_with_wallet_and_config(|node| {
+        .on_anvil_zksync_with_wallet_and_config(|node| {
             f(node
                 .path(get_node_binary_path())
                 .port(locked_port.port))
@@ -105,16 +105,16 @@ pub async fn init_testing_provider(
 // Outside of `TestingProvider` to avoid specifying `P`
 pub async fn init_testing_provider_with_http_headers(
     headers: HeaderMap,
-    f: impl FnOnce(EraTestNode) -> EraTestNode,
+    f: impl FnOnce(AnvilZKsync) -> AnvilZKsync,
 ) -> anyhow::Result<
     TestingProvider<impl FullZksyncProvider<Http<reqwest::Client>>, Http<reqwest::Client>>,
 > {
     use alloy::signers::Signer;
 
     let locked_port = LockedPort::acquire_unused().await?;
-    let node_layer = EraTestNodeLayer::from(
+    let node_layer = AnvilZKsyncLayer::from(
         f(
-            EraTestNode::new()
+            AnvilZKsync::new()
                 .path(get_node_binary_path())
                 .port(locked_port.port)
         )

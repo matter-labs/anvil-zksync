@@ -790,7 +790,7 @@ impl ForkDetails {
 }
 
 /// Serializable representation of [`ForkStorage`]'s state.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct SerializableForkStorage {
     /// Node's current key-value storage state (contains both local and cached fork data if applicable).
     pub storage: SerializableStorage,
@@ -801,7 +801,7 @@ pub struct SerializableForkStorage {
 /// Wrapper for [`BTreeMap<StorageKey, StorageValue>`] to avoid serializing [`StorageKey`] as a struct.
 /// JSON does not support non-string keys so we use conversion to [`Bytes`] via [`crate::node::state::SerializableStorageKey`]
 /// instead.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[serde(
     into = "BTreeMap<serde_from::SerializableStorageKey, StorageValue>",
     from = "BTreeMap<serde_from::SerializableStorageKey, StorageValue>"

@@ -361,42 +361,36 @@ async fn main() -> anyhow::Result<()> {
         .map(Duration::from_secs)
         .unwrap_or(Duration::from_secs(60)); // Default to 60 seconds
     let preserve_historical_states = config.preserve_historical_states;
-
-    // If user provided a dump state path, spawn the periodic dumper
-    if let Some(dump_path) = dump_path {
-        let node_for_dumper = node.clone();
-        let mut state_dumper = PeriodicStateDumper::new(
-            node_for_dumper,
-            Some(dump_path),
-            dump_interval,
-            preserve_historical_states,
-        );
-
-        // Spawn a task to handle periodic dumping and final dump on shutdown
-        let dumper_handle = tokio::spawn(async move {
-            tokio::select! {
-                _ = signal::ctrl_c() => {
-                    tracing::trace!("received shutdown signal, shutting down");
-                },
-                _ = &mut state_dumper => {}
-            }
-
-            state_dumper.dump().await;
-
-            std::process::exit(0);
-        });
-        threads.push(dumper_handle);
-    }
-
+    let node_for_dumper = node.clone();
+    let mut state_dumper = PeriodicStateDumper::new(
+        node_for_dumper,
+        dump_path,
+        dump_interval,
+        preserve_historical_states,
+    );
+    // Start the block producer
     let system_contracts =
         SystemContracts::from_options(&config.system_contracts_options, config.use_evm_emulator);
-    let block_producer_handle = tokio::task::spawn(BlockProducer::new(
-        node,
-        pool,
-        block_sealer,
-        system_contracts,
-    ));
-    threads.push(block_producer_handle);
+    let block_producer = BlockProducer::new(node, pool, block_sealer, system_contracts);
+
+    // Spawn a task to handle periodic dumping, block producer, and final dump on shutdown
+    let handle = tokio::spawn(async move {
+        tokio::select! {
+            _ = signal::ctrl_c() => {
+                tracing::trace!("received shutdown signal, shutting down");
+            },
+            _ = &mut state_dumper => {
+                tracing::trace!("State dumper completed");
+            },
+           _ = block_producer => {
+                tracing::trace!("Block producer completed");
+           }
+        }
+        state_dumper.dump().await;
+
+        std::process::exit(0);
+    });
+    threads.push(handle);
 
     config.print(fork_print_info.as_ref());
 

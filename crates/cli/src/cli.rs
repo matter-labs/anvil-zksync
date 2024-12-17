@@ -8,8 +8,7 @@ use anvil_zksync_config::types::{
     ShowStorageLogs, ShowVMDetails, SystemContractsOptions,
 };
 use anvil_zksync_config::TestNodeConfig;
-use anvil_zksync_core::node::state::VersionedState;
-use anvil_zksync_core::node::InMemoryNode;
+use anvil_zksync_core::node::{InMemoryNode, VersionedState};
 use anyhow::Result;
 use clap::{arg, command, Parser, Subcommand};
 use flate2::read::GzDecoder;
@@ -690,10 +689,12 @@ mod tests {
         let temp_dir = tempdir()?;
         let dump_path = temp_dir.path().join("state.json");
 
-        let mut config = anvil_zksync_config::TestNodeConfig::default();
-        config.dump_state = Some(dump_path.clone());
-        config.state_interval = Some(1);
-        config.preserve_historical_states = true;
+        let config = anvil_zksync_config::TestNodeConfig {
+            dump_state: Some(dump_path.clone()),
+            state_interval: Some(1),
+            preserve_historical_states: true,
+            ..Default::default()
+        };
 
         let node = InMemoryNode::new(
             None,

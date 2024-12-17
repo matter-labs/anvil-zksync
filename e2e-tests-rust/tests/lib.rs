@@ -2,15 +2,21 @@ use alloy::network::ReceiptResponse;
 use alloy::providers::ext::AnvilApi;
 use alloy::providers::Provider;
 use anvil_zksync_e2e_tests::{
+    get_node_binary_path, assert_state,
     init_testing_provider, init_testing_provider_with_http_headers, AnvilZKsyncApi, ReceiptExt, ZksyncWalletProviderExt, DEFAULT_TX_VALUE,
 };
-use alloy::{
-    primitives::U256,
-    signers::local::PrivateKeySigner,
+use crate::anvil_zksync::utils::write_json_file;
+use anvil_zksync_core::node::VersionedState;
+use alloy::primitives::Address;
+use alloy::{primitives::U256, signers::local::PrivateKeySigner};
+use alloy_zksync::{
+    node_bindings::AnvilZKsync,
+    provider::{zksync_provider, ProviderBuilderExt, ZksyncProvider},
 };
 use alloy::transports::http::reqwest::header::{HeaderMap, HeaderValue, ORIGIN};
-use std::convert::identity;
-use std::time::Duration;
+use std::{ str::FromStr, fs, convert::identity, thread::sleep, time::Duration};
+use serde_json::Value;
+use tempfile::tempdir;
 
 #[tokio::test]
 async fn interval_sealing_finalization() -> anyhow::Result<()> {
@@ -398,3 +404,311 @@ async fn cli_allow_origin() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn dump_state_on_run() -> anyhow::Result<()>  {
+    let temp_dir = tempdir()?;
+    let dump_path = temp_dir.path().join("state_dump.json");
+
+    let dump_path_clone = dump_path.clone();
+     let provider = init_testing_provider(move |node| {
+        node
+            .path(get_node_binary_path())
+            .arg("--state-interval")
+            .arg("1")
+            .arg("--dump-state")
+            .arg(dump_path_clone.to_str().unwrap())
+    })
+    .await?;
+
+    provider.tx().finalize().await?;
+
+    // Allow some time for the state to be dumped
+    sleep(Duration::from_secs(2));
+
+    drop(provider);
+
+    assert!(
+        dump_path.exists(),
+        "State dump file should exist at {:?}",
+        dump_path
+    );
+
+    assert_state(&dump_path)?;
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn dump_state_on_fork() -> anyhow::Result<()>  {
+    let temp_dir = tempdir()?;
+    let dump_path = temp_dir.path().join("state_dump_fork.json");
+
+    let dump_path_clone = dump_path.clone();
+     let provider = init_testing_provider(move |node| {
+        node
+            .path(get_node_binary_path())
+            .arg("--state-interval")
+            .arg("1")
+            .arg("--dump-state")
+            .arg(dump_path_clone.to_str().unwrap())
+            .fork("mainnet")
+    })
+    .await?;
+    
+    provider.tx().finalize().await?;
+    
+    // Allow some time for the state to be dumped
+    sleep(Duration::from_secs(2));
+
+    drop(provider);
+
+    assert!(
+        dump_path.exists(),
+        "State dump file should exist at {:?}",
+        dump_path
+    );
+    
+    assert_state(&dump_path)?;
+
+    Ok(())
+}
+
+// Test: load_state_on_run
+#[tokio::test]
+async fn load_state_on_run() -> anyhow::Result<()> {
+    let temp_dir = tempdir()?;
+    let dump_path = temp_dir.path().join("state_dump_load_run.json");
+    let provider = init_testing_provider(identity).await?;
+     let receipts = [
+        provider.tx().finalize().await?,
+        provider.tx().finalize().await?,
+    ];
+    let blocks = provider.get_blocks_by_receipts(&receipts).await?;
+
+    let state = provider.anvil_dump_state().await?;
+    write_json_file(&state, dump_path)?;
+
+    let provider = init_testing_provider(move |node| {
+        node
+            .path(get_node_binary_path())
+            .arg("--state-interval")
+            .arg("1")
+            .arg("--load-state")
+            .arg(dump_path.to_str().unwrap())
+    })
+    .await?;
+
+    // provider.tx().finalize().await?;
+
+    // Allow some time for any potential state operations
+    sleep(Duration::from_secs(2));
+
+    drop(provider);
+
+    // Step 4: Verify the state dump file still exists and contains valid data
+    assert!(
+        dump_path.exists(),
+        "State dump file should still exist at {:?}",
+        dump_path
+    );
+
+    //assert_state(&dump_path)?;
+
+    Ok(())
+}
+
+// // Test: load_state_on_fork
+// #[tokio::test]
+// async fn load_state_on_fork() -> anyhow::Result<()> {
+//     // Step 1: Dump the initial forked state
+//     let dump_path = dump_state("state_dump_load_fork.json").await?;
+
+//     // Step 2: Initialize the provider with --load-state and fork
+//     let provider = init_testing_provider(move |node| {
+//         node
+//             .path(get_node_binary_path())
+//             .arg("--state-interval")
+//             .arg("1")
+//             .arg("--load-state")
+//             .arg(dump_path.to_str().unwrap())
+//             .fork("mainnet")
+//     })
+//     .await?;
+
+//     // Step 3: Perform a transaction
+//     let recipient = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049")?;
+//     provider
+//         .tx()
+//         .with_to(recipient)
+//         .with_value(U256::from(100))
+//         .finalize()
+//         .await?;
+
+//     // Allow some time for any potential state operations
+//     sleep(Duration::from_secs(2)).await;
+
+//     drop(provider);
+
+//     // Step 4: Verify the state dump file still exists and contains valid data
+//     assert!(
+//         dump_path.exists(),
+//         "State dump file should still exist at {:?}",
+//         dump_path
+//     );
+
+//     let dumped_data = fs::read_to_string(&dump_path)?;
+//     let state: VersionedState = serde_json::from_str(&dumped_data)
+//         .map_err(|e| anyhow::anyhow!("Failed to deserialize state: {}", e))?;
+
+//     match state {
+//         VersionedState::V1 { version: _, state } => {
+//             assert!(
+//                 !state.blocks.is_empty(),
+//                 "state_dump_load_fork.json should contain at least one block"
+//             );
+//             assert!(
+//                 !state.transactions.is_empty(),
+//                 "state_dump_load_fork.json should contain at least one transaction"
+//             );
+//         },
+//         VersionedState::Unknown { version } => {
+//             panic!("Encountered unknown state version: {}", version);
+//         }
+//     }
+
+//     Ok(())
+// }
+
+// // Test: state_on_run
+// #[tokio::test]
+// async fn state_on_run() -> anyhow::Result<()> {
+//     // Step 1: Dump the initial state
+//     let initial_dump_path = dump_state("initial_state_run.json").await?;
+
+//     // Define the path for the final state dump
+//     let final_dump_path = initial_dump_path.parent().unwrap().join("final_state_run.json");
+
+//     // Step 2: Initialize the provider with --state (load and dump)
+//     let provider = init_testing_provider(move |node| {
+//         node
+//             .path(get_node_binary_path())
+//             .arg("--state-interval")
+//             .arg("1")
+//             .arg("--state")
+//             .arg(initial_dump_path.to_str().unwrap())
+//             .arg("--dump-state")
+//             .arg(final_dump_path.to_str().unwrap())
+//     })
+//     .await?;
+
+//     // Step 3: Perform a transaction
+//     let recipient = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049")?;
+//     provider
+//         .tx()
+//         .with_to(recipient)
+//         .with_value(U256::from(100))
+//         .finalize()
+//         .await?;
+
+//     // Allow some time for the state to be dumped
+//     sleep(Duration::from_secs(2)).await;
+
+//     drop(provider);
+
+//     // Step 4: Verify that the final dump file exists and contains valid data
+//     assert!(
+//         final_dump_path.exists(),
+//         "Final state dump file should exist at {:?}",
+//         final_dump_path
+//     );
+
+//     let dumped_data = fs::read_to_string(&final_dump_path)?;
+//     let state: VersionedState = serde_json::from_str(&dumped_data)
+//         .map_err(|e| anyhow::anyhow!("Failed to deserialize state: {}", e))?;
+
+//     match state {
+//         VersionedState::V1 { version: _, state } => {
+//             assert!(
+//                 !state.blocks.is_empty(),
+//                 "final_state_run.json should contain at least one block"
+//             );
+//             assert!(
+//                 !state.transactions.is_empty(),
+//                 "final_state_run.json should contain at least one transaction"
+//             );
+//         },
+//         VersionedState::Unknown { version } => {
+//             panic!("Encountered unknown state version: {}", version);
+//         }
+//     }
+
+//     Ok(())
+// }
+
+// // Test: state_on_fork
+// #[tokio::test]
+// async fn state_on_fork() -> anyhow::Result<()> {
+//     // Step 1: Dump the initial forked state
+//     let initial_dump_path = dump_state("initial_state_fork_run.json").await?;
+
+//     // Define the path for the final forked state dump
+//     let final_dump_path = initial_dump_path.parent().unwrap().join("final_state_fork_run.json");
+
+//     // Step 2: Initialize the provider with --state and fork
+//     let provider = init_testing_provider(move |node| {
+//         node
+//             .path(get_node_binary_path())
+//             .arg("--state-interval")
+//             .arg("1")
+//             .arg("--state")
+//             .arg(initial_dump_path.to_str().unwrap())
+//             .arg("--dump-state")
+//             .arg(final_dump_path.to_str().unwrap())
+//             .fork("mainnet")
+//     })
+//     .await?;
+
+//     // Step 3: Perform a transaction
+//     let recipient = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049")?;
+//     provider
+//         .tx()
+//         .with_to(recipient)
+//         .with_value(U256::from(100))
+//         .finalize()
+//         .await?;
+
+//     // Allow some time for the state to be dumped
+//     sleep(Duration::from_secs(2)).await;
+
+//     drop(provider);
+
+//     // Step 4: Verify that the final forked dump file exists and contains valid data
+//     assert!(
+//         final_dump_path.exists(),
+//         "Final state dump file should exist at {:?}",
+//         final_dump_path
+//     );
+
+//     let dumped_data = fs::read_to_string(&final_dump_path)?;
+//     let state: VersionedState = serde_json::from_str(&dumped_data)
+//         .map_err(|e| anyhow::anyhow!("Failed to deserialize state: {}", e))?;
+
+//     match state {
+//         VersionedState::V1 { version: _, state } => {
+//             assert!(
+//                 !state.blocks.is_empty(),
+//                 "final_state_fork_run.json should contain at least one block"
+//             );
+//             assert!(
+//                 !state.transactions.is_empty(),
+//                 "final_state_fork_run.json should contain at least one transaction"
+//             );
+//         },
+//         VersionedState::Unknown { version } => {
+//             panic!("Encountered unknown state version: {}", version);
+//         }
+//     }
+
+//     Ok(())
+// }

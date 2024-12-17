@@ -2,10 +2,15 @@
 use anyhow::Context;
 use fs2::FileExt;
 use std::{
+    fs,
     fs::File,
     net::{Ipv4Addr, SocketAddrV4},
+    path::PathBuf,
+    path::Path
 };
 use tokio::net::TcpListener;
+use anvil_zksync_core::node::VersionedState;
+use tempfile::tempdir;
 
 pub struct LockedPort {
     pub port: u16,
@@ -75,4 +80,35 @@ impl Drop for LockedPort {
 pub fn get_node_binary_path() -> String {
     std::env::var("ANVIL_ZKSYNC_BINARY_PATH")
         .unwrap_or("../target/release/anvil-zksync".to_string())
+}
+
+// Verifies that the dumped state file exists and contains valid data.
+pub fn assert_state(dump_path: &Path) -> anyhow::Result<VersionedState> {
+    assert!(
+        dump_path.exists(),
+        "State dump file should exist at {:?}",
+        dump_path
+    );
+    
+    let dumped_data = fs::read_to_string(&dump_path)?;
+    let state: VersionedState = serde_json::from_str(&dumped_data)
+        .map_err(|e| anyhow::anyhow!("Failed to deserialize state: {}", e))?;
+    
+    match state {
+        VersionedState::V1 { version: _, state: ref v1 } => {
+            assert!(
+                !v1.blocks.is_empty(),
+                "state should contain at least one block"
+            );
+            assert!(
+                !v1.transactions.is_empty(),
+                "state should contain at least one transaction"
+            );
+        },
+        VersionedState::Unknown { version } => {
+            panic!("Encountered unknown state version: {}", version);
+        }
+    }
+    
+    Ok(state)
 }
