@@ -1,8 +1,6 @@
 use anvil_zksync_config::types::Genesis;
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_core::fork::ForkDetails;
-use anyhow::Context;
-use serde::Serialize;
 use std::fs;
 
 /// Parses the genesis file from the given path.
@@ -11,7 +9,6 @@ pub fn parse_genesis_file(path: &str) -> Result<Genesis, String> {
         fs::read_to_string(path).map_err(|err| format!("Failed to read file: {err}"))?;
     serde_json::from_str(&file_content).map_err(|err| format!("Failed to parse JSON: {err}"))
 }
-
 
 /// Updates the configuration from fork details.
 pub async fn update_with_fork_details(

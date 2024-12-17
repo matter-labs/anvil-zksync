@@ -10,7 +10,7 @@ use anvil_zksync_config::types::{
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_core::{
     node::{InMemoryNode, VersionedState},
-    utils::write_json_file
+    utils::write_json_file,
 };
 use anyhow::Result;
 use clap::{arg, command, Parser, Subcommand};

@@ -324,7 +324,6 @@ pub fn write_json_file<T: Serialize>(path: &Path, obj: &T) -> anyhow::Result<()>
     Ok(())
 }
 
-
 #[cfg(test)]
 mod tests {
     use zksync_types::U256;
