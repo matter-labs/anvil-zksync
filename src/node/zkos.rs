@@ -14,10 +14,17 @@ use zksync_multivm::interface::{
     storage::{StoragePtr, WriteStorage},
     ExecutionResult, VmExecutionResultAndLogs, VmRevertReason,
 };
-use zksync_types::{web3::keccak256, AccountTreeId, Address, StorageKey, Transaction, H160, H256};
-use zksync_utils::address_to_h256;
+use zksync_types::{
+    block::{pack_block_info, unpack_block_info},
+    web3::keccak256,
+    AccountTreeId, Address, StorageKey, Transaction, H160, H256, SYSTEM_CONTEXT_ADDRESS,
+    SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
+};
+use zksync_utils::{address_to_h256, h256_to_u256, u256_to_h256};
 
 use crate::deps::InMemoryStorage;
+
+use super::vm_interface::TestNodeVMInterface;
 
 pub fn bytes32_to_h256(data: Bytes32) -> H256 {
     H256::from(data.as_u8_array_ref())
@@ -126,8 +133,8 @@ pub fn add_elem_to_tree(tree: &mut InMemoryTree, k: &StorageKey, v: &H256) {
 
 pub fn execute_tx_in_zkos<W: WriteStorage>(
     tx: &Transaction,
-    tree: &mut InMemoryTree,
-    preimage_source: &mut InMemoryPreimageSource,
+    tree: &InMemoryTree,
+    preimage_source: &InMemoryPreimageSource,
     storage: &mut StoragePtr<W>,
     simulate_only: bool,
 ) -> VmExecutionResultAndLogs {
@@ -383,4 +390,47 @@ pub fn zkos_storage_key_for_eth_balance(address: &Address) -> StorageKey {
         AccountTreeId::new(b160_to_h160(NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS)),
         address,
     )
+}
+
+pub struct ZKOsVM<S: WriteStorage> {
+    pub storage: StoragePtr<S>,
+    tree: InMemoryTree,
+    preimage: InMemoryPreimageSource,
+}
+
+impl<S: WriteStorage> ZKOsVM<S> {
+    pub fn new(storage: StoragePtr<S>, raw_storage: &InMemoryStorage) -> Self {
+        let (tree, preimage) = { create_tree_from_full_state(raw_storage) };
+        ZKOsVM {
+            storage,
+            tree,
+            preimage,
+        }
+    }
+}
+
+impl<S: WriteStorage> TestNodeVMInterface for ZKOsVM<S> {
+    fn execute_tx(&mut self, tx: Transaction) -> VmExecutionResultAndLogs {
+        {
+            let mut storage_ptr = self.storage.borrow_mut();
+            let current_l1_batch_info_key = StorageKey::new(
+                AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
+                SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
+            );
+            let current_l1_batch_info = storage_ptr.read_value(&current_l1_batch_info_key);
+            let (batch_number, batch_timestamp) =
+                unpack_block_info(h256_to_u256(current_l1_batch_info));
+
+            dbg!(batch_number);
+            dbg!(batch_timestamp);
+
+            // TODO: move this somewhere
+            let aa = pack_block_info(batch_number + 1, batch_timestamp + 1);
+            storage_ptr.set_value(current_l1_batch_info_key, u256_to_h256(aa));
+        }
+
+        let tx_result =
+            { execute_tx_in_zkos(&tx, &self.tree, &self.preimage, &mut self.storage, false) };
+        tx_result
+    }
 }

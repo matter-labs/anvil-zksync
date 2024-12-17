@@ -17,6 +17,7 @@ mod pool;
 mod sealer;
 mod storage_logs;
 mod time;
+mod vm_interface;
 mod web3;
 mod zkos;
 mod zks;

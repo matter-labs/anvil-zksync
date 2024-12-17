@@ -83,8 +83,9 @@ use crate::{
     utils::{bytecode_to_factory_dep, create_debug_output, into_jsrpc_error},
 };
 
+use super::vm_interface::TestNodeVMInterface;
 use super::zkos::{
-    create_tree_from_full_state, zkos_get_nonce_key, zkos_storage_key_for_eth_balance,
+    create_tree_from_full_state, zkos_get_nonce_key, zkos_storage_key_for_eth_balance, ZKOsVM,
 };
 
 /// Max possible size of an ABI encoded tx (in bytes).
@@ -866,12 +867,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             .borrow_mut()
             .set_value(balance_key, u256_to_h256(current_balance));
 
-        let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage.clone());
-
         let tx: Transaction = l2_tx.into();
-        //vm.push_transaction(tx);
-
-        //vm.execute(InspectExecutionMode::OneTx)
 
         let tx_result = {
             let (mut tree, mut preimage) = {
@@ -886,7 +882,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             add_elem_to_tree(&mut tree, &nonce_key, &u256_to_h256(enforced_full_nonce));
             add_elem_to_tree(&mut tree, &balance_key, &u256_to_h256(current_balance));
 
-            execute_tx_in_zkos(&tx, &mut tree, &mut preimage, &mut vm.storage, true)
+            execute_tx_in_zkos(&tx, &mut tree, &mut preimage, &mut storage.clone(), true)
         };
 
         tx_result
@@ -1367,7 +1363,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         let (batch_env, _) = inner.create_l1_batch_env(&self.time, storage.clone());
         let system_env = inner.create_system_env(base_contracts, execution_mode);
 
-        let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage.clone());
+        //let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage.clone());
 
         // We must inject *some* signature (otherwise bootloader code fails to generate hash).
         if l2_tx.common_data.signature.is_empty() {
@@ -1397,7 +1393,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 create_tree_from_full_state(&reader.raw_storage)
             };
 
-            execute_tx_in_zkos(&tx, &mut tree, &mut preimage, &mut vm.storage, true)
+            execute_tx_in_zkos(&tx, &mut tree, &mut preimage, &mut storage.clone(), true)
         };
 
         let call_traces = Arc::try_unwrap(call_tracer_result)
@@ -1538,10 +1534,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     /// VM operation (optionally without bootloader execution) with an external storage and get the results back.
     /// So any data populated in [Self::run_l2_tx] will not be available for the next invocation.
     // MMZK
-    pub fn run_l2_tx_raw<W: WriteStorage, H: HistoryMode>(
+    pub fn run_l2_tx_raw<VM: TestNodeVMInterface>(
         &self,
         l2_tx: L2Tx,
-        vm: &mut Vm<W, H>,
+        vm: &mut VM,
     ) -> anyhow::Result<TxExecutionOutput> {
         let inner = self
             .inner
@@ -1567,8 +1563,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         //    .into_owned();
         //let tx_result = vm.inspect(&mut tracers.into(), InspectExecutionMode::OneTx);
 
-        {
-            let mut storage_ptr = vm.storage.borrow_mut();
+        /*         {
+            let mut storage_ptr = vm.storage().borrow_mut();
             let current_l1_batch_info_key = StorageKey::new(
                 AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
                 SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
@@ -1599,8 +1595,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 create_tree_from_full_state(&reader.raw_storage)
             };
 
-            execute_tx_in_zkos(&tx, &mut tree, &mut preimage, &mut vm.storage, false)
-        };
+            execute_tx_in_zkos(&tx, &mut tree, &mut preimage, &mut vm.storage(), false)
+        };*/
+
+        let tx_result = vm.execute_tx(tx.clone());
 
         let call_traces: &Vec<Call> = &vec![]; //call_tracer_result.get().unwrap();
 
@@ -1698,12 +1696,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     }
 
     /// Runs L2 transaction and commits it to a new block.
-    pub fn run_l2_tx<W: WriteStorage, H: HistoryMode>(
+    //pub fn run_l2_tx<W: WriteStorage, H: HistoryMode>(
+    pub fn run_l2_tx<VM: TestNodeVMInterface>(
         &self,
         l2_tx: L2Tx,
         block_ctx: &BlockContext,
         batch_env: &L1BatchEnv,
-        vm: &mut Vm<W, H>,
+        vm: &mut VM,
     ) -> anyhow::Result<()> {
         let tx_hash = l2_tx.hash();
         let transaction_type = l2_tx.common_data.transaction_type;
@@ -1850,9 +1849,14 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         let storage = StorageView::new(inner.fork_storage.clone()).into_rc_ptr();
         let system_env = inner.create_system_env(system_contracts, TxExecutionMode::VerifyExecute);
         let (batch_env, mut block_ctx) = inner.create_l1_batch_env(time, storage.clone());
+
+        let mut vm = ZKOsVM::new(
+            storage.clone(),
+            &inner.fork_storage.inner.read().unwrap().raw_storage,
+        );
         drop(inner);
 
-        let mut vm: Vm<_, HistoryEnabled> = Vm::new(batch_env.clone(), system_env, storage.clone());
+        //let mut vm: Vm<_, HistoryEnabled> = Vm::new(batch_env.clone(), system_env, storage.clone());
 
         // Compute block hash. Note that the computed block hash here will be different than that in production.
         let tx_hashes = txs.iter().map(|t| t.hash()).collect::<Vec<_>>();
@@ -1864,13 +1868,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         for tx in txs {
             // Executing a next transaction means that a previous transaction was either rolled back (in which case its snapshot
             // was already removed), or that we build on top of it (in which case, it can be removed now).
-            vm.pop_snapshot_no_rollback();
+            //vm.pop_snapshot_no_rollback();
             // Save pre-execution VM snapshot.
-            vm.make_snapshot();
+            //vm.make_snapshot();
             let hash = tx.hash();
             if let Err(e) = self.run_l2_tx(tx, &block_ctx, &batch_env, &mut vm) {
                 tracing::error!("Error while executing transaction: {e}");
-                vm.rollback_to_the_latest_snapshot();
+                //vm.rollback_to_the_latest_snapshot();
             } else {
                 executed_tx_hashes.push(hash);
             }
