@@ -97,5 +97,12 @@ test-log = "0.2.16"
 fs2 = "0.4.3"
 test-case = "3.3.1"
 
+
+[features]
+
+zkos = []
+
+default = ["zkos"]
+
 [profile.dev]
 debug = 2

@@ -1,7 +1,6 @@
 use crate::namespaces::DetailedTransaction;
 use crate::node::pool::TxBatch;
 use crate::node::sealer::BlockSealerMode;
-use crate::node::zkos::{zkos_get_nonce_key, zkos_storage_key_for_eth_balance};
 use crate::utils::Numeric;
 use crate::{
     fork::{ForkDetails, ForkSource},
@@ -14,11 +13,7 @@ use std::convert::TryInto;
 use std::time::Duration;
 use zksync_multivm::interface::{ExecutionResult, TxExecutionMode};
 use zksync_types::api::{Block, TransactionVariant};
-use zksync_types::{
-    get_code_key, get_nonce_key,
-    utils::{nonces_to_full_nonce, storage_key_for_eth_balance},
-    L2BlockNumber, StorageKey,
-};
+use zksync_types::{get_code_key, utils::nonces_to_full_nonce, L2BlockNumber, StorageKey};
 use zksync_types::{AccountTreeId, Address, H256, U256, U64};
 use zksync_utils::u256_to_h256;
 
@@ -213,8 +208,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
 
     pub fn set_balance(&self, address: Address, balance: U256) -> Result<bool> {
         self.write_inner().map(|mut writer| {
-            //let balance_key = storage_key_for_eth_balance(&address);
-            let balance_key = zkos_storage_key_for_eth_balance(&address);
+            #[cfg(not(feature = "zkos"))]
+            let balance_key = zksync_types::storage_key_for_eth_balance(&address);
+            #[cfg(feature = "zkos")]
+            let balance_key = crate::node::zkos::zkos_storage_key_for_eth_balance(&address);
             writer
                 .fork_storage
                 .set_value(balance_key, u256_to_h256(balance));
@@ -229,8 +226,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
 
     pub fn set_nonce(&self, address: Address, nonce: U256) -> Result<bool> {
         self.write_inner().map(|mut writer| {
-            //let nonce_key = get_nonce_key(&address);
-            let nonce_key = zkos_get_nonce_key(&address);
+            #[cfg(not(feature = "zkos"))]
+            let nonce_key = zksync_types::get_nonce_key(&address);
+            #[cfg(feature = "zkos")]
+            let nonce_key = crate::node::zkos::zkos_get_nonce_key(&address);
             let enforced_full_nonce = nonces_to_full_nonce(nonce, nonce);
             tracing::info!(
                 "👷 Nonces for address {:?} have been set to {}",

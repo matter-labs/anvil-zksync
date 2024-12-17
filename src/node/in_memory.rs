@@ -7,7 +7,6 @@ use forward_system::run::StorageCommitment;
 use indexmap::IndexMap;
 use once_cell::sync::OnceCell;
 use ruint::aliases::B160;
-use std::alloc::Global;
 use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 use std::{
     collections::{HashMap, HashSet},

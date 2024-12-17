@@ -9,7 +9,7 @@ use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use zksync_types::{
     api::{Block, BlockIdVariant, BlockNumber, TransactionVariant},
     fee::Fee,
-    get_code_key, get_nonce_key,
+    get_code_key,
     l2::L2Tx,
     transaction_request::TransactionRequest,
     PackedEthSignature, StorageKey, MAX_L1_TRANSACTION_GAS_LIMIT,
@@ -93,7 +93,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
         let system_contracts = self
             .system_contracts
             .contracts(TxExecutionMode::VerifyExecute, false);
-        //let allow_no_target = system_contracts.evm_emulator.is_some();
+        #[cfg(not(feature = "zkos"))]
+        let allow_no_target = system_contracts.evm_emulator.is_some();
+        #[cfg(feature = "zkos")]
         let allow_no_target = true;
         let mut l2_tx = L2Tx::from_request(tx_req, MAX_TX_SIZE, allow_no_target)?;
 
@@ -238,7 +240,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
         let inner = self.get_inner().clone();
 
         Box::pin(async move {
-            //let balance_key = storage_key_for_eth_balance(&address);
+            #[cfg(not(feature = "zkos"))]
+            let balance_key = storage_key_for_eth_balance(&address);
+            #[cfg(feature = "zkos")]
             let balance_key = super::zkos::zkos_storage_key_for_eth_balance(&address);
 
             match inner.write() {
@@ -403,7 +407,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
         let inner = self.get_inner().clone();
 
         Box::pin(async move {
-            //let nonce_key = get_nonce_key(&address);
+            #[cfg(not(feature = "zkos"))]
+            let nonce_key = zksync_types::get_nonce_key(&address);
+            #[cfg(feature = "zkos")]
             let nonce_key = super::zkos::zkos_get_nonce_key(&address);
 
             match inner.write() {
