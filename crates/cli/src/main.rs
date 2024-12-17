@@ -355,12 +355,7 @@ async fn main() -> anyhow::Result<()> {
     // Start the block producer
     let system_contracts =
         SystemContracts::from_options(&config.system_contracts_options, config.use_evm_emulator);
-    let block_producer = BlockProducer::new(
-        node,
-        pool,
-        block_sealer,
-        system_contracts,
-    );
+    let block_producer = BlockProducer::new(node, pool, block_sealer, system_contracts);
 
     // Spawn a task to handle periodic dumping, block producer, and final dump on shutdown
     let handle = tokio::spawn(async move {
