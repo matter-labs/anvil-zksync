@@ -181,6 +181,9 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
 
     let mut reserved = [0u64; 4];
 
+    // Should check chain_id
+    reserved[0] = 1;
+
     if tx.execute.contract_address.is_none() {
         reserved[1] = 1;
     }
