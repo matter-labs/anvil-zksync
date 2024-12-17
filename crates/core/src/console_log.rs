@@ -41,7 +41,7 @@ impl ConsoleLogHandler {
             self.handle_call_recursive(call, &mut messages);
         }
 
-        if messages.len() > 0 {
+        if !messages.is_empty() {
             tracing::info!("");
             tracing::info!("==== Console logs: ");
         }
