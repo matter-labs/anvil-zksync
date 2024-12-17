@@ -19,7 +19,7 @@ use zk_ee::utils::Bytes32;
 use zksync_types::block::pack_block_info;
 
 use zksync_contracts::BaseSystemContracts;
-use zksync_multivm::vm_latest::HistoryEnabled;
+use zksync_multivm::vm_latest::{HistoryEnabled, VmTracer};
 use zksync_multivm::{
     interface::{
         storage::{ReadStorage, StoragePtr, WriteStorage},
@@ -95,65 +95,6 @@ pub const ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION: u64 = 1_000;
 pub const MAX_PREVIOUS_STATES: u16 = 128;
 /// The zks protocol version.
 pub const PROTOCOL_VERSION: &str = "zks/1";
-
-pub fn bytes32_to_h256(data: Bytes32) -> H256 {
-    H256::from(data.as_u8_array_ref())
-}
-
-pub fn h256_to_bytes32(data: &H256) -> Bytes32 {
-    Bytes32::from(data.as_fixed_bytes().clone())
-}
-
-pub fn b160_to_h160(data: B160) -> H160 {
-    H160::from_slice(&data.to_be_bytes_vec())
-}
-
-pub fn pad_to_word(input: &Vec<u8>) -> Vec<u8> {
-    let mut data = input.clone();
-    let remainder = input.len().div_ceil(32) * 32 - input.len();
-    for _ in 0..remainder {
-        data.push(0u8);
-    }
-    data
-}
-
-// TODO: check endinanness
-pub fn h160_to_b160(data: &H160) -> B160 {
-    B160::from_be_bytes(data.as_fixed_bytes().clone())
-}
-
-pub fn append_address(data: &mut Vec<u8>, address: &H160) {
-    let mut pp = vec![0u8; 32];
-    let ap1 = address.as_fixed_bytes();
-    for i in 0..20 {
-        pp[i + 12] = ap1[i];
-    }
-    data.append(&mut pp);
-}
-
-pub fn append_u256(data: &mut Vec<u8>, payload: &zksync_types::U256) {
-    let mut pp = [0u8; 32];
-    payload.to_big_endian(&mut pp);
-
-    data.append(&mut pp.to_vec());
-}
-pub fn append_u64(data: &mut Vec<u8>, payload: u64) {
-    let mut pp = [0u8; 32];
-    let pp1 = payload.to_be_bytes();
-    for i in 0..8 {
-        pp[24 + i] = pp1[i];
-    }
-    data.append(&mut pp.to_vec());
-}
-
-pub fn append_usize(data: &mut Vec<u8>, payload: usize) {
-    let mut pp = [0u8; 32];
-    let pp1 = payload.to_be_bytes();
-    for i in 0..8 {
-        pp[24 + i] = pp1[i];
-    }
-    data.append(&mut pp.to_vec());
-}
 
 pub fn compute_hash<'a>(block_number: u64, tx_hashes: impl IntoIterator<Item = &'a H256>) -> H256 {
     let tx_bytes = tx_hashes
@@ -1076,26 +1017,6 @@ fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) 
     None
 }
 
-pub fn address_into_special_storage_key(address: &B160) -> Bytes32 {
-    let mut key = Bytes32::zero();
-    key.as_u8_array_mut()[12..].copy_from_slice(&address.to_be_bytes::<{ B160::BYTES }>());
-
-    key
-}
-
-pub const NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS: B160 = B160::from_limbs([0x8009, 0, 0]);
-
-fn add_funds_to_address(address: B160, balance: ruint::aliases::U256, tree: &mut InMemoryTree) {
-    // We are updating both cold storage (hash map) and our storage tree.
-    let key = address_into_special_storage_key(&address);
-    let balance = Bytes32::from_u256_be(balance);
-    let flat_key = derive_flat_storage_key(&NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS, &key);
-
-    tree.cold_storage.insert(flat_key, balance);
-
-    tree.storage_tree.insert(&flat_key, &balance);
-}
-
 impl<S: ForkSource + std::fmt::Debug + Clone> Default for InMemoryNode<S> {
     fn default() -> Self {
         let impersonation = ImpersonationManager::default();
@@ -1301,7 +1222,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
     /// Adds a lot of tokens to a given account with a specified balance.
     pub fn set_rich_account(&self, address: H160, balance: U256) {
-        // let key = storage_key_for_eth_balance(&address);
+        #[cfg(not(feature = "zkos"))]
+        let key = storage_key_for_eth_balance(&address);
+        #[cfg(feature = "zkos")]
         let key = zkos_storage_key_for_eth_balance(&address);
 
         let mut inner = match self.inner.write() {
@@ -1532,8 +1455,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     /// This is because external users of the library may call this function to perform an isolated
     /// VM operation (optionally without bootloader execution) with an external storage and get the results back.
     /// So any data populated in [Self::run_l2_tx] will not be available for the next invocation.
-    // MMZK
-    pub fn run_l2_tx_raw<VM: TestNodeVMInterface>(
+    pub fn run_l2_tx_raw<VM: VmInterface>(
         &self,
         l2_tx: L2Tx,
         vm: &mut VM,
@@ -1545,61 +1467,28 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
         let tx: Transaction = l2_tx.into();
 
-        let call_tracer_result: Arc<OnceCell<Vec<Call>>> = Arc::new(OnceCell::default());
+        let call_tracer_result = Arc::new(OnceCell::default());
         let bootloader_debug_result = Arc::new(OnceCell::default());
 
-        /*let tracers = vec![
+        #[cfg(not(feature = "zkos"))]
+        let tracers: Vec<Box<dyn VmTracer<_, _>>> = vec![
             CallErrorTracer::new().into_tracer_pointer(),
             CallTracer::new(call_tracer_result.clone()).into_tracer_pointer(),
             BootloaderDebugTracer {
                 result: bootloader_debug_result.clone(),
             }
             .into_tracer_pointer(),
-        ];*/
-        //let compressed_bytecodes = vm
-        //    .push_transaction(tx.clone())
-        //    .compressed_bytecodes
-        //    .into_owned();
-        //let tx_result = vm.inspect(&mut tracers.into(), InspectExecutionMode::OneTx);
+        ];
+        let compressed_bytecodes = vm
+            .push_transaction(tx.clone())
+            .compressed_bytecodes
+            .into_owned();
+        #[cfg(not(feature = "zkos"))]
+        let tx_result = vm.inspect(&mut tracers.into(), InspectExecutionMode::OneTx);
+        #[cfg(feature = "zkos")]
+        let tx_result = vm.inspect(&mut Default::default(), InspectExecutionMode::OneTx);
 
-        /*         {
-            let mut storage_ptr = vm.storage().borrow_mut();
-            let current_l1_batch_info_key = StorageKey::new(
-                AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
-                SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
-            );
-            let current_l1_batch_info = storage_ptr.read_value(&current_l1_batch_info_key);
-            let (batch_number, batch_timestamp) =
-                unpack_block_info(h256_to_u256(current_l1_batch_info));
-
-            dbg!(batch_number);
-            dbg!(batch_timestamp);
-
-            // TODO: move this somewhere
-            let aa = pack_block_info(batch_number + 1, batch_timestamp + 1);
-            storage_ptr.set_value(current_l1_batch_info_key, u256_to_h256(aa));
-        }
-
-        //let bb = storage_ptr.borrow();
-
-        let tx_result = {
-            let (mut tree, mut preimage) = {
-                let reader = inner
-                    .fork_storage
-                    .inner
-                    .read()
-                    .map_err(|e| format!("Failed to acquire read lock: {}", e))
-                    .unwrap();
-
-                create_tree_from_full_state(&reader.raw_storage)
-            };
-
-            execute_tx_in_zkos(&tx, &mut tree, &mut preimage, &mut vm.storage(), false)
-        };*/
-
-        let tx_result = vm.execute_tx(tx.clone());
-
-        let call_traces: &Vec<Call> = &vec![]; //call_tracer_result.get().unwrap();
+        let call_traces = call_tracer_result.get();
 
         let spent_on_pubdata =
             tx_result.statistics.gas_used - tx_result.statistics.computational_gas_used as u64;
@@ -1638,31 +1527,33 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             formatter.print_vm_details(&tx_result);
         }
 
-        if !inner.config.disable_console_log {
-            inner
-                .console_log_handler
-                .handle_calls_recursive(call_traces);
-        }
+        if let Some(call_traces) = call_traces {
+            if !inner.config.disable_console_log {
+                inner
+                    .console_log_handler
+                    .handle_calls_recursive(call_traces);
+            }
 
-        if inner.config.show_calls != ShowCalls::None {
-            tracing::info!("");
-            tracing::info!(
-                "[Transaction Execution] ({} calls)",
-                call_traces[0].calls.len()
-            );
-            let num_calls = call_traces.len();
-            for (i, call) in call_traces.iter().enumerate() {
-                let is_last_sibling = i == num_calls - 1;
-                let mut formatter = formatter::Formatter::new();
-                formatter.print_call(
-                    tx.initiator_account(),
-                    tx.execute.contract_address,
-                    call,
-                    is_last_sibling,
-                    &inner.config.show_calls,
-                    inner.config.show_outputs,
-                    inner.config.resolve_hashes,
+            if inner.config.show_calls != ShowCalls::None {
+                tracing::info!("");
+                tracing::info!(
+                    "[Transaction Execution] ({} calls)",
+                    call_traces[0].calls.len()
                 );
+                let num_calls = call_traces.len();
+                for (i, call) in call_traces.iter().enumerate() {
+                    let is_last_sibling = i == num_calls - 1;
+                    let mut formatter = formatter::Formatter::new();
+                    formatter.print_call(
+                        tx.initiator_account(),
+                        tx.execute.contract_address,
+                        call,
+                        is_last_sibling,
+                        &inner.config.show_calls,
+                        inner.config.show_outputs,
+                        inner.config.resolve_hashes,
+                    );
+                }
             }
         }
         // Print event logs if enabled
@@ -1689,14 +1580,14 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
         Ok(TxExecutionOutput {
             result: tx_result.clone(),
-            call_traces: call_traces.clone(),
+            call_traces: call_traces.cloned().unwrap_or_default(),
             bytecodes: tx_result.new_known_factory_deps.unwrap().clone(),
         })
     }
 
     /// Runs L2 transaction and commits it to a new block.
     //pub fn run_l2_tx<W: WriteStorage, H: HistoryMode>(
-    pub fn run_l2_tx<VM: TestNodeVMInterface>(
+    pub fn run_l2_tx<VM: VmInterface>(
         &self,
         l2_tx: L2Tx,
         block_ctx: &BlockContext,
@@ -1849,13 +1740,15 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         let system_env = inner.create_system_env(system_contracts, TxExecutionMode::VerifyExecute);
         let (batch_env, mut block_ctx) = inner.create_l1_batch_env(time, storage.clone());
 
+        #[cfg(feature = "zkos")]
         let mut vm = ZKOsVM::new(
             storage.clone(),
             &inner.fork_storage.inner.read().unwrap().raw_storage,
         );
         drop(inner);
 
-        //let mut vm: Vm<_, HistoryEnabled> = Vm::new(batch_env.clone(), system_env, storage.clone());
+        #[cfg(not(feature = "zkos"))]
+        let mut vm: Vm<_, HistoryEnabled> = Vm::new(batch_env.clone(), system_env, storage.clone());
 
         // Compute block hash. Note that the computed block hash here will be different than that in production.
         let tx_hashes = txs.iter().map(|t| t.hash()).collect::<Vec<_>>();
@@ -1867,18 +1760,18 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         for tx in txs {
             // Executing a next transaction means that a previous transaction was either rolled back (in which case its snapshot
             // was already removed), or that we build on top of it (in which case, it can be removed now).
-            //vm.pop_snapshot_no_rollback();
+            vm.pop_snapshot_no_rollback();
             // Save pre-execution VM snapshot.
-            //vm.make_snapshot();
+            vm.make_snapshot();
             let hash = tx.hash();
             if let Err(e) = self.run_l2_tx(tx, &block_ctx, &batch_env, &mut vm) {
                 tracing::error!("Error while executing transaction: {e}");
-                //vm.rollback_to_the_latest_snapshot();
+                vm.rollback_to_the_latest_snapshot();
             } else {
                 executed_tx_hashes.push(hash);
             }
         }
-        //vm.execute(InspectExecutionMode::Bootloader);
+        vm.execute(InspectExecutionMode::Bootloader);
 
         // Write all the mutated keys (storage slots).
         let mut inner = self

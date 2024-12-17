@@ -10,9 +10,15 @@ use system_hooks::addresses_constants::{
     NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS, NONCE_HOLDER_HOOK_ADDRESS,
 };
 use zk_ee::{common_structs::derive_flat_storage_key, utils::Bytes32};
-use zksync_multivm::interface::{
-    storage::{StoragePtr, WriteStorage},
-    ExecutionResult, VmExecutionResultAndLogs, VmRevertReason,
+use zksync_multivm::{
+    interface::{
+        storage::{StoragePtr, WriteStorage},
+        ExecutionResult, PushTransactionResult, VmExecutionResultAndLogs, VmInterface,
+        VmInterfaceHistoryEnabled, VmRevertReason,
+    },
+    tracers::TracerDispatcher,
+    vm_latest::HistoryEnabled,
+    HistoryMode,
 };
 use zksync_types::{
     block::{pack_block_info, unpack_block_info},
@@ -396,6 +402,7 @@ pub struct ZKOsVM<S: WriteStorage> {
     pub storage: StoragePtr<S>,
     tree: InMemoryTree,
     preimage: InMemoryPreimageSource,
+    transactions: Vec<Transaction>,
 }
 
 impl<S: WriteStorage> ZKOsVM<S> {
@@ -405,6 +412,7 @@ impl<S: WriteStorage> ZKOsVM<S> {
             storage,
             tree,
             preimage,
+            transactions: vec![],
         }
     }
 }
@@ -433,4 +441,64 @@ impl<S: WriteStorage> TestNodeVMInterface for ZKOsVM<S> {
             { execute_tx_in_zkos(&tx, &self.tree, &self.preimage, &mut self.storage, false) };
         tx_result
     }
+}
+
+#[derive(Default)]
+pub struct ZkOsTracerDispatcher {}
+
+impl<S: WriteStorage> VmInterface for ZKOsVM<S> {
+    type TracerDispatcher = ZkOsTracerDispatcher;
+
+    fn push_transaction(
+        &mut self,
+        tx: Transaction,
+    ) -> zksync_multivm::interface::PushTransactionResult<'_> {
+        self.transactions.push(tx);
+        PushTransactionResult {
+            compressed_bytecodes: Default::default(),
+        }
+    }
+
+    fn inspect(
+        &mut self,
+        dispatcher: &mut Self::TracerDispatcher,
+        execution_mode: zksync_multivm::interface::InspectExecutionMode,
+    ) -> VmExecutionResultAndLogs {
+        // FIXME.
+        let tx = self.transactions[0].clone();
+        execute_tx_in_zkos(&tx, &self.tree, &self.preimage, &mut self.storage, false)
+    }
+
+    fn start_new_l2_block(&mut self, l2_block_env: zksync_multivm::interface::L2BlockEnv) {
+        todo!()
+    }
+
+    fn inspect_transaction_with_bytecode_compression(
+        &mut self,
+        tracer: &mut Self::TracerDispatcher,
+        tx: Transaction,
+        with_compression: bool,
+    ) -> (
+        zksync_multivm::interface::BytecodeCompressionResult<'_>,
+        VmExecutionResultAndLogs,
+    ) {
+        todo!()
+    }
+
+    fn finish_batch(
+        &mut self,
+        pubdata_builder: std::rc::Rc<dyn zksync_multivm::interface::pubdata::PubdataBuilder>,
+    ) -> zksync_multivm::interface::FinishedL1Batch {
+        todo!()
+    }
+}
+
+impl<S: WriteStorage> VmInterfaceHistoryEnabled for ZKOsVM<S> {
+    fn make_snapshot(&mut self) {}
+
+    fn rollback_to_the_latest_snapshot(&mut self) {
+        panic!("Not implemented for zkos");
+    }
+
+    fn pop_snapshot_no_rollback(&mut self) {}
 }
