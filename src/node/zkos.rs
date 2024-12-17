@@ -1,4 +1,4 @@
-use std::{alloc::Global, cell::RefMut, collections::HashMap};
+use std::{alloc::Global, collections::HashMap};
 
 use basic_system::basic_system::simple_growable_storage::TestingTree;
 use forward_system::run::{
@@ -6,17 +6,14 @@ use forward_system::run::{
     PreimageType, StorageCommitment,
 };
 use ruint::aliases::B160;
-use zk_ee::{
-    common_structs::derive_flat_storage_key,
-    utils::{is_proper_size_and_alignment_for_kv, Bytes32},
-};
+use zk_ee::{common_structs::derive_flat_storage_key, utils::Bytes32};
 use zksync_multivm::interface::{
     storage::{StoragePtr, WriteStorage},
     ExecutionResult, VmExecutionResultAndLogs, VmRevertReason,
 };
 use zksync_types::{AccountTreeId, Address, StorageKey, Transaction, H160, H256};
 
-use crate::deps::{storage_view::StorageView, InMemoryStorage};
+use crate::deps::InMemoryStorage;
 
 pub fn bytes32_to_h256(data: Bytes32) -> H256 {
     H256::from(data.as_u8_array_ref())
@@ -140,40 +137,16 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
 
     println!("Tree size is: {}", tree.cold_storage.len());
 
-    /*tree.storage_tree
-    .insert(&zk_ee::utils::Bytes32::ZERO, &zk_ee::utils::Bytes32::MAX);*/
-
     let aa1 = match &tx.common_data {
-        zksync_types::ExecuteTransactionCommon::L1(l1_tx_common_data) => todo!(),
+        zksync_types::ExecuteTransactionCommon::L1(_) => todo!(),
         zksync_types::ExecuteTransactionCommon::L2(l2_tx_common_data) => l2_tx_common_data,
-        zksync_types::ExecuteTransactionCommon::ProtocolUpgrade(
-            protocol_upgrade_tx_common_data,
-        ) => todo!(),
+        zksync_types::ExecuteTransactionCommon::ProtocolUpgrade(_) => todo!(),
     };
-
-    /*add_funds_to_address(
-        B160::from_be_bytes(aa1.initiator_address.0),
-        ruint::aliases::U256::from(1_000_000_000_000_000_u64),
-        &mut tree,
-    );*/
 
     let storage_commitment = StorageCommitment {
         root: *tree.storage_tree.root(),
         next_free_slot: tree.storage_tree.next_free_slot,
     };
-
-    //let foo = ethereum_types::H160::repeat_byte(3);
-    //ethereum_types::H160::
-    // aa1.initiator_address
-
-    /*let bb = Token::Tuple(vec![
-        Token::Uint(ethereum_types::U256::zero()),
-        Token::Address(foo),
-    ])
-    .to_vec();*/
-    // FIXME: this might be wrong..
-    //let aa = tx.raw_bytes.as_ref().unwrap();
-    //println!("Tx raw bytes: {:?}", aa);
 
     let mut tx_raw: Vec<u8> = vec![];
     tx_raw.append(&mut vec![0u8; 32]);
@@ -196,7 +169,6 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
     let fee_per_gas = aa1.fee.max_fee_per_gas;
 
     append_u256(&mut tx_raw, &fee_per_gas);
-    //append_u256(&mut tx_raw, &aa1.fee.max_priority_fee_per_gas);
     // hack for legacy tx.
     append_u256(&mut tx_raw, &fee_per_gas);
 
@@ -258,13 +230,6 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
     // reserved
     append_u64(&mut tx_raw, 0);
 
-    /*let mut pp = vec![0u8; 32];
-    let ap1 = aa1.initiator_address.as_fixed_bytes();
-    for i in 0..20 {
-        pp[i + 12] = ap1[i];
-    }
-    tx_raw.append(&mut pp);*/
-
     let (output, new_known_factory_deps) = if simulate_only {
         (
             forward_system::run::simulate_tx(
@@ -306,8 +271,6 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
             dbg!(&ab);
             storage_ptr.set_value(ab, H256::from(write.value.as_u8_array_ref()));
         }
-        // TODO - update newknown fcatory deps with batch_output.published_preimages..
-
         let mut f_deps = HashMap::new();
 
         println!(
