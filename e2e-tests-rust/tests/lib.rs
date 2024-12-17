@@ -506,11 +506,11 @@ async fn dump_state_on_fork() -> anyhow::Result<()>  {
         VersionedState::V1 { version: _, state } => {
             assert!(
                 !state.blocks.is_empty(),
-                "state_dump.json should contain at least one block"
+                "state_dump_fork.json should contain at least one block"
             );
             assert!(
                 !state.transactions.is_empty(),
-                "state_dump.json should contain at least one transaction"
+                "state_dump_fork.json should contain at least one transaction"
             );
         },
         VersionedState::Unknown { version } => {

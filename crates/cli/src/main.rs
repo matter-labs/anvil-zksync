@@ -356,9 +356,9 @@ async fn main() -> anyhow::Result<()> {
     let system_contracts =
         SystemContracts::from_options(&config.system_contracts_options, config.use_evm_emulator);
     let block_producer = BlockProducer::new(
-        node.clone(),
-        pool.clone(),
-        block_sealer.clone(),
+        node,
+        pool,
+        block_sealer,
         system_contracts,
     );
 
