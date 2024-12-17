@@ -11,7 +11,7 @@ mod in_memory;
 mod in_memory_ext;
 mod pool;
 mod sealer;
-pub mod state;
+mod state;
 mod storage_logs;
 mod time;
 mod zks;

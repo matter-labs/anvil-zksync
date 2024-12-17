@@ -478,6 +478,62 @@ async fn pool_txs_order_fifo() -> anyhow::Result<()> {
     assert_eq!(&tx_hashes[0], pending_tx0.tx_hash());
     assert_eq!(&tx_hashes[1], pending_tx1.tx_hash());
     assert_eq!(&tx_hashes[2], pending_tx2.tx_hash());
+}
+
+async fn dump_state_on_run() -> anyhow::Result<()>  {
+    let temp_dir = tempdir()?;
+    let dump_path = temp_dir.path().join("state_dump.json");
+
+    let dump_path_clone = dump_path.clone();
+     let provider = init_testing_provider(move |node| {
+        node
+            .path(get_node_binary_path())
+            .arg("--state-interval")
+            .arg("1")
+            .arg("--dump-state")
+            .arg(dump_path_clone.to_str().unwrap())
+    })
+    .await?;
+
+    let recipient = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049")?;
+    let receipt = provider
+        .tx()
+        .with_to(recipient)
+        .with_value(U256::from(100))
+        .finalize()
+        .await?;
+
+    // Allow some time for the state to be dumped
+    sleep(Duration::from_secs(2));
+
+    drop(provider);
+
+    assert!(
+        dump_path.exists(),
+        "State dump file should exist at {:?}",
+        dump_path
+    );
+    
+    let dumped_data = fs::read_to_string(&dump_path)?;
+    let state: VersionedState = serde_json::from_str(&dumped_data)
+        .map_err(|e| anyhow::anyhow!("Failed to deserialize state: {}", e))?;
+    
+    match state {
+        VersionedState::V1 { version: _, state } => {
+            assert!(
+                !state.blocks.is_empty(),
+                "state_dump.json should contain at least one block"
+            );
+            assert!(
+                !state.transactions.is_empty(),
+                "state_dump.json should contain at least one transaction"
+            );
+        },
+        VersionedState::Unknown { version } => {
+            panic!("Encountered unknown state version: {}", version);
+        }
+    }
+
     Ok(())
 }
 
@@ -512,6 +568,64 @@ async fn transactions_have_index() -> anyhow::Result<()> {
 
     assert_eq!(receipt1.transaction_index(), 0.into());
     assert_eq!(receipt2.transaction_index(), 1.into());
+}
+
+#[tokio::test]
+async fn dump_state_on_fork() -> anyhow::Result<()>  {
+    let temp_dir = tempdir()?;
+    let dump_path = temp_dir.path().join("state_dump_fork.json");
+
+    let dump_path_clone = dump_path.clone();
+     let provider = init_testing_provider(move |node| {
+        node
+            .path(get_node_binary_path())
+            .arg("--state-interval")
+            .arg("1")
+            .arg("--dump-state")
+            .arg(dump_path_clone.to_str().unwrap())
+            .fork("mainnet")
+    })
+    .await?;
+
+    let recipient = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049")?;
+    let receipt = provider
+        .tx()
+        .with_to(recipient)
+        .with_value(U256::from(100))
+        .finalize()
+        .await?;
+
+    // Allow some time for the state to be dumped
+    sleep(Duration::from_secs(2));
+
+    drop(provider);
+
+    assert!(
+        dump_path.exists(),
+        "State dump file should exist at {:?}",
+        dump_path
+    );
+    
+    let dumped_data = fs::read_to_string(&dump_path)?;
+    let state: VersionedState = serde_json::from_str(&dumped_data)
+        .map_err(|e| anyhow::anyhow!("Failed to deserialize state: {}", e))?;
+    
+    match state {
+        VersionedState::V1 { version: _, state } => {
+            assert!(
+                !state.blocks.is_empty(),
+                "state_dump.json should contain at least one block"
+            );
+            assert!(
+                !state.transactions.is_empty(),
+                "state_dump.json should contain at least one transaction"
+            );
+        },
+        VersionedState::Unknown { version } => {
+            panic!("Encountered unknown state version: {}", version);
+        }
+    }
+
     Ok(())
 }
 

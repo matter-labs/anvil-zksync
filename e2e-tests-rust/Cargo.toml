@@ -27,5 +27,8 @@ anvil_zksync_core = { path = "../crates/core" }
 tempdir = "0.3.7"
 
 [dev-dependencies]
+serde_json = "1.0"
+anvil_zksync_core = { path = "../crates/core" }
+tempfile = "3"
 
 [workspace] # ignore higher-level workspace
