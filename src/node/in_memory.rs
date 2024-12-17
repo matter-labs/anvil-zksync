@@ -83,7 +83,9 @@ use crate::{
     utils::{bytecode_to_factory_dep, create_debug_output, into_jsrpc_error},
 };
 
-use super::zkos::create_tree_from_full_state;
+use super::zkos::{
+    create_tree_from_full_state, zkos_get_nonce_key, zkos_storage_key_for_eth_balance,
+};
 
 /// Max possible size of an ABI encoded tx (in bytes).
 pub const MAX_TX_SIZE: usize = 1_000_000;
@@ -843,7 +845,8 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
         // The nonce needs to be updated
         let nonce = l2_tx.nonce();
-        let nonce_key = get_nonce_key(&l2_tx.initiator_account());
+        //let nonce_key = get_nonce_key(&l2_tx.initiator_account());
+        let nonce_key = zkos_get_nonce_key(&l2_tx.initiator_account());
         let full_nonce = storage.borrow_mut().read_value(&nonce_key);
         let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
         let enforced_full_nonce = nonces_to_full_nonce(U256::from(nonce.0), deployment_nonce);
@@ -853,7 +856,9 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
         // We need to explicitly put enough balance into the account of the users
         let payer = l2_tx.payer();
-        let balance_key = storage_key_for_eth_balance(&payer);
+        //let balance_key = storage_key_for_eth_balance(&payer);
+        let balance_key = zkos_storage_key_for_eth_balance(&payer);
+
         let mut current_balance = h256_to_u256(storage.borrow_mut().read_value(&balance_key));
         let added_balance = l2_tx.common_data.fee.gas_limit * l2_tx.common_data.fee.max_fee_per_gas;
         current_balance += added_balance;
@@ -1301,7 +1306,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
     /// Adds a lot of tokens to a given account with a specified balance.
     pub fn set_rich_account(&self, address: H160, balance: U256) {
-        let key = storage_key_for_eth_balance(&address);
+        // let key = storage_key_for_eth_balance(&address);
+        let key = zkos_storage_key_for_eth_balance(&address);
 
         let mut inner = match self.inner.write() {
             Ok(guard) => guard,

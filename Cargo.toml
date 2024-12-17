@@ -73,7 +73,7 @@ forward_system = { path = "../zk_ee/forward_system"}
 basic_system = { path = "../zk_ee/basic_system"}
 ruint = { version = "1.12.3", default-features = false, features = ["alloc"] }
 zk_ee = { path = "../zk_ee/zk_ee" }
-
+system_hooks = { path = "../zk_ee/system_hooks" }
 
 [dev-dependencies]
 httptest = "0.15.4"

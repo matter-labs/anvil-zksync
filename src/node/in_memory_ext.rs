@@ -1,6 +1,7 @@
 use crate::namespaces::DetailedTransaction;
 use crate::node::pool::TxBatch;
 use crate::node::sealer::BlockSealerMode;
+use crate::node::zkos::{zkos_get_nonce_key, zkos_storage_key_for_eth_balance};
 use crate::utils::Numeric;
 use crate::{
     fork::{ForkDetails, ForkSource},
@@ -212,7 +213,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
 
     pub fn set_balance(&self, address: Address, balance: U256) -> Result<bool> {
         self.write_inner().map(|mut writer| {
-            let balance_key = storage_key_for_eth_balance(&address);
+            //let balance_key = storage_key_for_eth_balance(&address);
+            let balance_key = zkos_storage_key_for_eth_balance(&address);
             writer
                 .fork_storage
                 .set_value(balance_key, u256_to_h256(balance));
@@ -227,7 +229,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNo
 
     pub fn set_nonce(&self, address: Address, nonce: U256) -> Result<bool> {
         self.write_inner().map(|mut writer| {
-            let nonce_key = get_nonce_key(&address);
+            //let nonce_key = get_nonce_key(&address);
+            let nonce_key = zkos_get_nonce_key(&address);
             let enforced_full_nonce = nonces_to_full_nonce(nonce, nonce);
             tracing::info!(
                 "👷 Nonces for address {:?} have been set to {}",

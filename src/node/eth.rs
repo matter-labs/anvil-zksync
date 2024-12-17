@@ -12,8 +12,7 @@ use zksync_types::{
     get_code_key, get_nonce_key,
     l2::L2Tx,
     transaction_request::TransactionRequest,
-    utils::storage_key_for_standard_token_balance,
-    PackedEthSignature, StorageKey, L2_BASE_TOKEN_ADDRESS, MAX_L1_TRANSACTION_GAS_LIMIT,
+    PackedEthSignature, StorageKey, MAX_L1_TRANSACTION_GAS_LIMIT,
 };
 use zksync_types::{
     web3::{self, Bytes},
@@ -239,11 +238,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
         let inner = self.get_inner().clone();
 
         Box::pin(async move {
-            let balance_key = storage_key_for_standard_token_balance(
-                AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
-                &address,
-            );
-            dbg!(&balance_key);
+            //let balance_key = storage_key_for_eth_balance(&address);
+            let balance_key = super::zkos::zkos_storage_key_for_eth_balance(&address);
 
             match inner.write() {
                 Ok(inner_guard) => {
@@ -407,7 +403,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
         let inner = self.get_inner().clone();
 
         Box::pin(async move {
-            let nonce_key = get_nonce_key(&address);
+            //let nonce_key = get_nonce_key(&address);
+            let nonce_key = super::zkos::zkos_get_nonce_key(&address);
 
             match inner.write() {
                 Ok(guard) => match guard.fork_storage.read_value_internal(&nonce_key) {

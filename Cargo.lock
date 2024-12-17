@@ -2816,6 +2816,7 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
+ "system_hooks",
  "tempdir",
  "test-case",
  "test-log",

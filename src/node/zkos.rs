@@ -6,12 +6,16 @@ use forward_system::run::{
     PreimageType, StorageCommitment,
 };
 use ruint::aliases::B160;
+use system_hooks::addresses_constants::{
+    NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS, NONCE_HOLDER_HOOK_ADDRESS,
+};
 use zk_ee::{common_structs::derive_flat_storage_key, utils::Bytes32};
 use zksync_multivm::interface::{
     storage::{StoragePtr, WriteStorage},
     ExecutionResult, VmExecutionResultAndLogs, VmRevertReason,
 };
-use zksync_types::{AccountTreeId, Address, StorageKey, Transaction, H160, H256};
+use zksync_types::{web3::keccak256, AccountTreeId, Address, StorageKey, Transaction, H160, H256};
+use zksync_utils::address_to_h256;
 
 use crate::deps::InMemoryStorage;
 
@@ -329,4 +333,53 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
         refunds: Default::default(),
         new_known_factory_deps,
     }
+}
+
+pub fn zkos_get_nonce_key(account: &Address) -> StorageKey {
+    let nonce_manager = AccountTreeId::new(b160_to_h160(NONCE_HOLDER_HOOK_ADDRESS));
+
+    // The `minNonce` (used as nonce for EOAs) is stored in a mapping inside the `NONCE_HOLDER` system contract
+    //let key = get_address_mapping_key(account, H256::zero());
+    let key = address_to_h256(account);
+
+    StorageKey::new(nonce_manager, key)
+}
+
+pub fn zkos_key_for_eth_balance(address: &Address) -> H256 {
+    address_to_h256(address)
+}
+
+/// Create a `key` part of `StorageKey` to access the balance from ERC20 contract balances
+fn zkos_key_for_erc20_balance(address: &Address) -> H256 {
+    let address_h256 = address_to_h256(address);
+
+    // 20 bytes address first gets aligned to 32 bytes with index of `balanceOf` storage slot
+    // of default ERC20 contract and to then to 64 bytes.
+    let slot_index = H256::from_low_u64_be(51);
+    let mut bytes = [0_u8; 64];
+    bytes[..32].copy_from_slice(address_h256.as_bytes());
+    bytes[32..].copy_from_slice(slot_index.as_bytes());
+    H256(keccak256(&bytes))
+}
+
+pub fn zkos_storage_key_for_standard_token_balance(
+    token_contract: AccountTreeId,
+    address: &Address,
+) -> StorageKey {
+    // We have different implementation of the standard ERC20 contract and native
+    // eth contract. The key for the balance is different for each.
+    let key = if token_contract.address() == &b160_to_h160(NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS) {
+        zkos_key_for_eth_balance(address)
+    } else {
+        zkos_key_for_erc20_balance(address)
+    };
+
+    StorageKey::new(token_contract, key)
+}
+
+pub fn zkos_storage_key_for_eth_balance(address: &Address) -> StorageKey {
+    zkos_storage_key_for_standard_token_balance(
+        AccountTreeId::new(b160_to_h160(NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS)),
+        address,
+    )
 }
