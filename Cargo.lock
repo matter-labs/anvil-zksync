@@ -1222,6 +1222,8 @@ dependencies = [
  "ark-ff 0.5.0",
  "ark-serialize 0.5.0",
  "arrayvec 0.7.6",
+ "cfg-if 1.0.0",
+ "const_for",
  "crypto",
  "either",
  "evm_interpreter",
@@ -1230,6 +1232,8 @@ dependencies = [
  "iwasm_interpreter",
  "miniz_nostd_compression",
  "ruint",
+ "secp256k1 0.1.0",
+ "serde",
  "storage_models",
  "system_hooks",
  "zk_ee",
@@ -2026,6 +2030,12 @@ name = "const-oid"
 version = "0.9.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2459377285ad874054d797f3ccebf984978aa39129f6eafde5cdc8315b612f8"
+
+[[package]]
+name = "const_for"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d9c50fcfdf972929aff202c16b80086aa3cfc6a3a820af714096c58c7c1d0582"
 
 [[package]]
 name = "const_format"
@@ -3413,12 +3423,14 @@ dependencies = [
  "arrayvec 0.7.6",
  "basic_bootloader",
  "basic_system",
+ "bincode",
  "crypto",
  "either",
  "evm_interpreter",
  "hex",
  "ruint",
  "seq-macro",
+ "serde",
  "system_hooks",
  "zk_ee",
 ]
@@ -7103,6 +7115,15 @@ dependencies = [
 
 [[package]]
 name = "secp256k1"
+version = "0.1.0"
+dependencies = [
+ "cfg-if 1.0.0",
+ "const_for",
+ "crypto",
+]
+
+[[package]]
+name = "secp256k1"
 version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25996b82292a7a57ed3508f052cfff8640d38d32018784acd714758b43da9c8f"
@@ -9346,6 +9367,7 @@ dependencies = [
  "crypto",
  "derivative",
  "ruint",
+ "serde",
 ]
 
 [[package]]
@@ -9855,7 +9877,7 @@ dependencies = [
  "blake2",
  "hex",
  "rand 0.8.5",
- "secp256k1",
+ "secp256k1 0.27.0",
  "serde",
  "serde_json",
  "sha2 0.10.8",

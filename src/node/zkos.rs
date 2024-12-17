@@ -137,6 +137,7 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
         // FIXME
         block_number: 1,
         timestamp: 42,
+        gas_per_pubdata: ruint::aliases::U256::from(1u64),
     };
 
     println!("Tree size is: {}", tree.cold_storage.len());
@@ -296,9 +297,9 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
     let tx_output = match output.as_ref() {
         Ok(tx_output) => {
             match &tx_output.execution_result {
-                forward_system::run::output::ExecutionResult::Success(output) => match &output {
-                    forward_system::run::output::ExecutionOutput::Call(data) => data,
-                    forward_system::run::output::ExecutionOutput::Create(data, address) => {
+                forward_system::run::ExecutionResult::Success(output) => match &output {
+                    forward_system::run::ExecutionOutput::Call(data) => data,
+                    forward_system::run::ExecutionOutput::Create(data, address) => {
                         dbg!(address);
                         // TODO - pass it to the output somehow.
                         println!("Deployed to {:?}", address);
