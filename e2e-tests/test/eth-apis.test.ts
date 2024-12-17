@@ -3,7 +3,7 @@ import { Wallet } from "zksync-ethers";
 import { expectThrowsAsync, getTestProvider } from "../helpers/utils";
 import { RichAccounts } from "../helpers/constants";
 import { ethers } from "ethers";
-import {TransactionResponse} from "zksync-ethers/build/types";
+import { TransactionResponse } from "zksync-ethers/build/types";
 
 const provider = getTestProvider();
 
@@ -98,7 +98,7 @@ describe("eth_sendTransaction", function () {
     // Wait for the transaction to be mined and get the receipt. Used via `TransactionResponse`
     // as the upstream implementation of `Provider::waitForTransaction` has a known race condition:
     // https://github.com/ethers-io/ethers.js/issues/4224.
-    const txResponse = new TransactionResponse({ hash, ...transaction}, provider);
+    const txResponse = new TransactionResponse({ hash, ...transaction }, provider);
     const receipt = await txResponse.wait();
 
     await provider.send("hardhat_stopImpersonatingAccount", [fromAddr]);
