@@ -19,14 +19,22 @@ publish = false                                             # We don't want to p
 #    "server",
 #] }
 
-zksync_multivm = { path = "../zksync-era/core/lib/multivm" }
-zksync_contracts = { path = "../zksync-era/core/lib/contracts" }
-zksync_basic_types = { path = "../zksync-era/core/lib/basic_types" }
-zksync_types = { path = "../zksync-era/core/lib/types" }
-zksync_utils = { path = "../zksync-era/core/lib/utils" }
-zksync_web3_decl = { path = "../zksync-era/core/lib/web3_decl" , features = [
+zksync_multivm = { git = "https://github.com/matter-labs/zksync-era.git", branch = "mmzk_1204_era_stable" }
+zksync_contracts = { git = "https://github.com/matter-labs/zksync-era.git", branch = "mmzk_1204_era_stable" }
+zksync_types = { git = "https://github.com/matter-labs/zksync-era.git", branch = "mmzk_1204_era_stable" }
+zksync_utils = { git = "https://github.com/matter-labs/zksync-era.git", branch = "mmzk_1204_era_stable" }
+zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era.git", branch = "mmzk_1204_era_stable", features = [
     "server",
 ] }
+
+#zksync_multivm = { path = "../zksync-era/core/lib/multivm" }
+#zksync_contracts = { path = "../zksync-era/core/lib/contracts" }
+#zksync_basic_types = { path = "../zksync-era/core/lib/basic_types" }
+#zksync_types = { path = "../zksync-era/core/lib/types" }
+#zksync_utils = { path = "../zksync-era/core/lib/utils" }
+#zksync_web3_decl = { path = "../zksync-era/core/lib/web3_decl" , features = [
+#    "server",
+#] }
 
 # alloy
 alloy-signer-local = { version = "0.5.4", features = ["mnemonic"] }

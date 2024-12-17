@@ -2846,7 +2846,6 @@ dependencies = [
  "tracing-subscriber",
  "zk_ee",
  "zksync-web3-rs",
- "zksync_basic_types",
  "zksync_contracts",
  "zksync_multivm",
  "zksync_types",
@@ -9712,6 +9711,7 @@ dependencies = [
 [[package]]
 name = "zksync_basic_types"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/zksync-era.git?branch=mmzk_1204_era_stable#662fc9f9e440882200d4a116185404c1437284cf"
 dependencies = [
  "anyhow",
  "chrono",
@@ -9773,6 +9773,7 @@ dependencies = [
 [[package]]
 name = "zksync_config"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/zksync-era.git?branch=mmzk_1204_era_stable#662fc9f9e440882200d4a116185404c1437284cf"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -9804,6 +9805,7 @@ dependencies = [
 [[package]]
 name = "zksync_contracts"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/zksync-era.git?branch=mmzk_1204_era_stable#662fc9f9e440882200d4a116185404c1437284cf"
 dependencies = [
  "envy",
  "ethabi 18.0.0",
@@ -9817,6 +9819,7 @@ dependencies = [
 [[package]]
 name = "zksync_crypto_primitives"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/zksync-era.git?branch=mmzk_1204_era_stable#662fc9f9e440882200d4a116185404c1437284cf"
 dependencies = [
  "anyhow",
  "blake2",
@@ -9874,6 +9877,7 @@ dependencies = [
 [[package]]
 name = "zksync_mini_merkle_tree"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/zksync-era.git?branch=mmzk_1204_era_stable#662fc9f9e440882200d4a116185404c1437284cf"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -9883,6 +9887,7 @@ dependencies = [
 [[package]]
 name = "zksync_multivm"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/zksync-era.git?branch=mmzk_1204_era_stable#662fc9f9e440882200d4a116185404c1437284cf"
 dependencies = [
  "anyhow",
  "circuit_sequencer_api 0.133.1",
@@ -9965,6 +9970,7 @@ dependencies = [
 [[package]]
 name = "zksync_system_constants"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/zksync-era.git?branch=mmzk_1204_era_stable#662fc9f9e440882200d4a116185404c1437284cf"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -9974,6 +9980,7 @@ dependencies = [
 [[package]]
 name = "zksync_types"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/zksync-era.git?branch=mmzk_1204_era_stable#662fc9f9e440882200d4a116185404c1437284cf"
 dependencies = [
  "anyhow",
  "bigdecimal 0.4.7",
@@ -10006,6 +10013,7 @@ dependencies = [
 [[package]]
 name = "zksync_utils"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/zksync-era.git?branch=mmzk_1204_era_stable#662fc9f9e440882200d4a116185404c1437284cf"
 dependencies = [
  "anyhow",
  "bigdecimal 0.4.7",
@@ -10027,6 +10035,7 @@ dependencies = [
 [[package]]
 name = "zksync_vlog"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/zksync-era.git?branch=mmzk_1204_era_stable#662fc9f9e440882200d4a116185404c1437284cf"
 dependencies = [
  "anyhow",
  "chrono",
@@ -10072,6 +10081,7 @@ dependencies = [
 [[package]]
 name = "zksync_vm_interface"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/zksync-era.git?branch=mmzk_1204_era_stable#662fc9f9e440882200d4a116185404c1437284cf"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10088,6 +10098,7 @@ dependencies = [
 [[package]]
 name = "zksync_web3_decl"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/zksync-era.git?branch=mmzk_1204_era_stable#662fc9f9e440882200d4a116185404c1437284cf"
 dependencies = [
  "anyhow",
  "async-trait",
