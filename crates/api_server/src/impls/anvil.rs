@@ -168,17 +168,19 @@ impl AnvilNamespaceServer for AnvilNamespace {
             .map_err(RpcError::from)?)
     }
 
-    fn impersonate_account(&self, address: Address) -> RpcResult<bool> {
+    fn impersonate_account(&self, address: Address) -> RpcResult<()> {
         Ok(self
             .node
             .impersonate_account(address)
+            .map(|_| ())
             .map_err(RpcError::from)?)
     }
 
-    fn stop_impersonating_account(&self, address: Address) -> RpcResult<bool> {
+    fn stop_impersonating_account(&self, address: Address) -> RpcResult<()> {
         Ok(self
             .node
             .stop_impersonating_account(address)
+            .map(|_| ())
             .map_err(RpcError::from)?)
     }
 
