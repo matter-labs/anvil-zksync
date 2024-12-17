@@ -1,12 +1,7 @@
 //! In-memory node, that supports forking other networks.
-use basic_system::basic_system::simple_growable_storage::TestingTree;
 use colored::Colorize;
-use ethabi::{ethereum_types, Token};
-use forward_system::run::test_impl::{InMemoryPreimageSource, InMemoryTree, TxListSource};
-use forward_system::run::StorageCommitment;
 use indexmap::IndexMap;
 use once_cell::sync::OnceCell;
-use ruint::aliases::B160;
 use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 use std::{
     collections::{HashMap, HashSet},
@@ -14,9 +9,6 @@ use std::{
     str::FromStr,
     sync::{Arc, RwLock},
 };
-use zk_ee::common_structs::derive_flat_storage_key;
-use zk_ee::utils::Bytes32;
-use zksync_types::block::pack_block_info;
 
 use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::vm_latest::{HistoryEnabled, VmTracer};
@@ -44,9 +36,9 @@ use zksync_types::{
     block::{build_bloom, unpack_block_info, L2BlockHasher},
     fee::Fee,
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
-    get_code_key, get_nonce_key,
+    get_code_key,
     l2::{L2Tx, TransactionType},
-    utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
+    utils::{decompose_full_nonce, nonces_to_full_nonce},
     web3::{keccak256, Bytes, Index},
     AccountTreeId, Address, Bloom, BloomInput, L1BatchNumber, L2BlockNumber, PackedEthSignature,
     StorageKey, StorageValue, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS, EMPTY_UNCLES_HASH, H160,
@@ -786,7 +778,9 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
         // The nonce needs to be updated
         let nonce = l2_tx.nonce();
-        //let nonce_key = get_nonce_key(&l2_tx.initiator_account());
+        #[cfg(not(feature = "zkos"))]
+        let nonce_key = get_nonce_key(&l2_tx.initiator_account());
+        #[cfg(feature = "zkos")]
         let nonce_key = zkos_get_nonce_key(&l2_tx.initiator_account());
         let full_nonce = storage.borrow_mut().read_value(&nonce_key);
         let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
@@ -797,7 +791,9 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
         // We need to explicitly put enough balance into the account of the users
         let payer = l2_tx.payer();
-        //let balance_key = storage_key_for_eth_balance(&payer);
+        #[cfg(not(feature = "zkos"))]
+        let balance_key = storage_key_for_eth_balance(&payer);
+        #[cfg(feature = "zkos")]
         let balance_key = zkos_storage_key_for_eth_balance(&payer);
 
         let mut current_balance = h256_to_u256(storage.borrow_mut().read_value(&balance_key));
@@ -807,25 +803,25 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             .borrow_mut()
             .set_value(balance_key, u256_to_h256(current_balance));
 
+        #[cfg(not(feature = "zkos"))]
+        let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage.clone());
+        #[cfg(feature = "zkos")]
+        let mut vm = ZKOsVM::new(
+            storage.clone(),
+            &fork_storage.inner.read().unwrap().raw_storage,
+            system_env.execution_mode,
+        );
+        #[cfg(feature = "zkos")]
+        {
+            // Temporary hack - as we update the 'storage' just above, but zkos loads its full
+            // state from fork_storage (that is not updated).
+            add_elem_to_tree(&mut vm.tree, &nonce_key, &u256_to_h256(enforced_full_nonce));
+            add_elem_to_tree(&mut vm.tree, &balance_key, &u256_to_h256(current_balance));
+        }
         let tx: Transaction = l2_tx.into();
+        vm.push_transaction(tx);
 
-        let tx_result = {
-            let (mut tree, mut preimage) = {
-                let reader = fork_storage
-                    .inner
-                    .read()
-                    .map_err(|e| format!("Failed to acquire read lock: {}", e))
-                    .unwrap();
-
-                create_tree_from_full_state(&reader.raw_storage)
-            };
-            add_elem_to_tree(&mut tree, &nonce_key, &u256_to_h256(enforced_full_nonce));
-            add_elem_to_tree(&mut tree, &balance_key, &u256_to_h256(current_balance));
-
-            execute_tx_in_zkos(&tx, &mut tree, &mut preimage, &mut storage.clone(), true)
-        };
-
-        tx_result
+        vm.execute(InspectExecutionMode::OneTx)
     }
 
     /// Archives the current state for later queries.
@@ -1265,7 +1261,6 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     }
 
     /// Runs L2 'eth call' method - that doesn't commit to a block.
-    /// MMZK
     pub fn run_l2_call(
         &self,
         mut l2_tx: L2Tx,
@@ -1285,38 +1280,33 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         let (batch_env, _) = inner.create_l1_batch_env(&self.time, storage.clone());
         let system_env = inner.create_system_env(base_contracts, execution_mode);
 
-        //let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage.clone());
-
+        #[cfg(not(feature = "zkos"))]
+        let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage.clone());
+        #[cfg(feature = "zkos")]
+        let mut vm = ZKOsVM::new(
+            storage.clone(),
+            &inner.fork_storage.inner.read().unwrap().raw_storage,
+            execution_mode,
+        );
         // We must inject *some* signature (otherwise bootloader code fails to generate hash).
         if l2_tx.common_data.signature.is_empty() {
             l2_tx.common_data.signature = PackedEthSignature::default().serialize_packed().into();
         }
 
         let tx: Transaction = l2_tx.into();
-        //vm.push_transaction(tx.clone());
+        vm.push_transaction(tx.clone());
 
         let call_tracer_result = Arc::new(OnceCell::default());
 
-        //let tracers = vec![
-        //CallErrorTracer::new().into_tracer_pointer(),
-        //CallTracer::new(call_tracer_result.clone()).into_tracer_pointer(),
-        //];
-        //let tx_result = vm.inspect(&mut tracers.into(), InspectExecutionMode::OneTx);
-
-        let tx_result = {
-            let (mut tree, mut preimage) = {
-                let reader = inner
-                    .fork_storage
-                    .inner
-                    .read()
-                    .map_err(|e| format!("Failed to acquire read lock: {}", e))
-                    .unwrap();
-
-                create_tree_from_full_state(&reader.raw_storage)
-            };
-
-            execute_tx_in_zkos(&tx, &mut tree, &mut preimage, &mut storage.clone(), true)
-        };
+        #[cfg(not(feature = "zkos"))]
+        let tracers = vec![
+            CallErrorTracer::new().into_tracer_pointer(),
+            CallTracer::new(call_tracer_result.clone()).into_tracer_pointer(),
+        ];
+        #[cfg(not(feature = "zkos"))]
+        let tx_result = vm.inspect(&mut tracers.into(), InspectExecutionMode::OneTx);
+        #[cfg(feature = "zkos")]
+        let tx_result = vm.inspect(&mut Default::default(), InspectExecutionMode::OneTx);
 
         let call_traces = Arc::try_unwrap(call_tracer_result)
             .unwrap()
@@ -1744,6 +1734,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         let mut vm = ZKOsVM::new(
             storage.clone(),
             &inner.fork_storage.inner.read().unwrap().raw_storage,
+            TxExecutionMode::VerifyExecute,
         );
         drop(inner);
 

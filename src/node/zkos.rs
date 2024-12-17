@@ -13,8 +13,8 @@ use zk_ee::{common_structs::derive_flat_storage_key, utils::Bytes32};
 use zksync_multivm::{
     interface::{
         storage::{StoragePtr, WriteStorage},
-        ExecutionResult, PushTransactionResult, VmExecutionResultAndLogs, VmInterface,
-        VmInterfaceHistoryEnabled, VmRevertReason,
+        ExecutionResult, PushTransactionResult, TxExecutionMode, VmExecutionResultAndLogs,
+        VmInterface, VmInterfaceHistoryEnabled, VmRevertReason,
     },
     tracers::TracerDispatcher,
     vm_latest::HistoryEnabled,
@@ -400,19 +400,25 @@ pub fn zkos_storage_key_for_eth_balance(address: &Address) -> StorageKey {
 
 pub struct ZKOsVM<S: WriteStorage> {
     pub storage: StoragePtr<S>,
-    tree: InMemoryTree,
+    pub tree: InMemoryTree,
     preimage: InMemoryPreimageSource,
     transactions: Vec<Transaction>,
+    execution_mode: TxExecutionMode,
 }
 
 impl<S: WriteStorage> ZKOsVM<S> {
-    pub fn new(storage: StoragePtr<S>, raw_storage: &InMemoryStorage) -> Self {
+    pub fn new(
+        storage: StoragePtr<S>,
+        raw_storage: &InMemoryStorage,
+        execution_mode: TxExecutionMode,
+    ) -> Self {
         let (tree, preimage) = { create_tree_from_full_state(raw_storage) };
         ZKOsVM {
             storage,
             tree,
             preimage,
             transactions: vec![],
+            execution_mode,
         }
     }
 }
@@ -437,8 +443,20 @@ impl<S: WriteStorage> TestNodeVMInterface for ZKOsVM<S> {
             storage_ptr.set_value(current_l1_batch_info_key, u256_to_h256(aa));
         }
 
-        let tx_result =
-            { execute_tx_in_zkos(&tx, &self.tree, &self.preimage, &mut self.storage, false) };
+        let simulate_only = match self.execution_mode {
+            TxExecutionMode::VerifyExecute => false,
+            TxExecutionMode::EstimateFee => true,
+            TxExecutionMode::EthCall => true,
+        };
+        let tx_result = {
+            execute_tx_in_zkos(
+                &tx,
+                &self.tree,
+                &self.preimage,
+                &mut self.storage,
+                simulate_only,
+            )
+        };
         tx_result
     }
 }

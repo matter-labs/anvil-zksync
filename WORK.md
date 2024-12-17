@@ -8,6 +8,26 @@
 [ ] - update to latest era and zk_ee
 
 
+## Testing
+
+```shell
+cargo run -- --chain-id 37
+
+cast send -r http://localhost:8011 0x8B31b1F39Cc7dD799405E232327dcf0e71909020 --value 1 --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --gas-limit 10000000 --legacy
+
+cast balance -r http://localhost:8011 0x8B31b1F39Cc7dD799405E232327dcf0e71909020
+
+
+forge create --gas-limit 30000000 --private-key 0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6 --rpc-url http://localhost:8011 Counter --legacy
+('fails' - but stuff actually gets deployed).
+
+
+cast call -r http://localhost:8011 0x700b6a60ce7eaaea56f065753d8dcb9653dbad35 "number()"
+
+cast send -r http://localhost:8011 0x700b6a60ce7eaaea56f065753d8dcb9653dbad35 "setNumber(uint256)" 11 --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --gas-limit 10000000 
+
+```
+
 ## Issues:
 
 ### Ecrecover issue
@@ -79,16 +99,11 @@ Simulate works now, but still the gas estimate doesn't properly handle the cost 
 
 [TODO] - Support 1559 - and add better libraries for this in zk_ee
 [TODO] - return address from create call.
-
-## Testing
-
-cast send -r http://localhost:8011 0x8B31b1F39Cc7dD799405E232327dcf0e71909020 --value 1 --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --gas-limit 10000000 && cast balance -r http://localhost:8011 0x8B31b1F39Cc7dD799405E232327dcf0e71909020
+[TODO] - pass the block id / timestamp.
 
 
-orge create --gas-limit 30000000 --private-key 0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6 --rpc-url http://localhost:8011 Counter
-('fails' - but stuff actually gets deployed).
 
+## Work log
 
-cast call -r http://localhost:8011 0x700b6a60ce7eaaea56f065753d8dcb9653dbad35 "number()"
-
-cast send -r http://localhost:8011 0x700b6a60ce7eaaea56f065753d8dcb9653dbad35 "setNumber(uint256)" 11 --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --gas-limit 10000000 
+Cleaned up the diff - so now we have nice interface.
+The main issue currently is with the tracers - as they require a different 'flow' for old VM vs new.
