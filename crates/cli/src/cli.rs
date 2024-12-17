@@ -1,4 +1,4 @@
-use crate::utils::{parse_genesis_file, write_json_file};
+use crate::utils::parse_genesis_file;
 use alloy_signer_local::coins_bip39::{English, Mnemonic};
 use anvil_zksync_config::constants::{
     DEFAULT_DISK_CACHE_DIR, DEFAULT_MNEMONIC, TEST_NODE_NETWORK_ID,
@@ -436,6 +436,7 @@ impl Cli {
             .with_allow_origin(self.allow_origin)
             .with_no_cors(self.no_cors)
             .with_transaction_order(self.order)
+            .with_state_interval(self.state_interval)
             .with_dump_state(self.dump_state)
             return Err(eyre::eyre!(
                 "EVM emulation requires the 'local' system contracts option."
