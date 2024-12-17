@@ -1,6 +1,5 @@
 use std::fs;
 
-use anvil_zksync_core::fork::ForkSource;
 use anvil_zksync_core::node::InMemoryNode;
 use eyre::Context;
 use hex::FromHex;
@@ -20,10 +19,7 @@ struct Bytecode {
 
 // Loads a list of bytecodes and addresses from the directory and then inserts them directly
 // into the Node's storage.
-pub fn override_bytecodes<T: Clone + ForkSource + std::fmt::Debug>(
-    node: &InMemoryNode<T>,
-    bytecodes_dir: String,
-) -> eyre::Result<()> {
+pub fn override_bytecodes(node: &InMemoryNode, bytecodes_dir: String) -> eyre::Result<()> {
     for entry in fs::read_dir(bytecodes_dir)? {
         let entry = entry?;
         let path = entry.path();

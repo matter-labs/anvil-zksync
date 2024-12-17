@@ -111,6 +111,10 @@ pub struct TestNodeConfig {
     pub max_transactions: usize,
     /// Disable automatic sealing mode and use `BlockSealer::Noop` instead
     pub no_mining: bool,
+    /// The cors `allow_origin` header
+    pub allow_origin: String,
+    /// Disable CORS if true
+    pub no_cors: bool,
     /// How transactions are sorted in the mempool
     pub transactions_order: TransactionOrder,
 }
@@ -174,6 +178,10 @@ impl Default for TestNodeConfig {
 
             max_transactions: 1000,
             transactions_order: TransactionOrder::Fees,
+
+            // Server configuration
+            allow_origin: "*".to_string(),
+            no_cors: false,
         }
     }
 }
@@ -872,10 +880,27 @@ impl TestNodeConfig {
         self.no_mining = no_mining;
         self
     }
+
     // Set transactions order in the mempool
     #[must_use]
     pub fn with_transactions_order(mut self, transactions_order: TransactionOrder) -> Self {
         self.transactions_order = transactions_order;
+        self
+    }
+
+    // Set allow_origin CORS header
+    #[must_use]
+    pub fn with_allow_origin(mut self, allow_origin: String) -> Self {
+        self.allow_origin = allow_origin;
+        self
+    }
+
+    // Enable or disable CORS
+    #[must_use]
+    pub fn with_no_cors(mut self, no_cors: Option<bool>) -> Self {
+        if let Some(no_cors) = no_cors {
+            self.no_cors = no_cors;
+        }
         self
     }
 }

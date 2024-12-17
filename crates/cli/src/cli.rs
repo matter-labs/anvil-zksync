@@ -244,6 +244,14 @@ pub struct Cli {
     #[arg(long, visible_alias = "no-mine", conflicts_with = "block_time")]
     pub no_mining: bool,
 
+    /// The cors `allow_origin` header
+    #[arg(long, default_value = "*", help_heading = "Server options")]
+    pub allow_origin: String,
+
+    /// Disable CORS.
+    #[arg(long, default_missing_value = "true", num_args(0..=1), conflicts_with = "allow_origin", help_heading = "Server options")]
+    pub no_cors: Option<bool>,
+
     /// How transactions are sorted in the mempool.
     #[arg(long, default_value = "fees")]
     pub order: TransactionOrder,
@@ -386,6 +394,8 @@ impl Cli {
             })
             .with_block_time(self.block_time)
             .with_no_mining(self.no_mining)
+            .with_allow_origin(self.allow_origin)
+            .with_no_cors(self.no_cors)
             .with_transactions_order(self.order);
 
         if self.emulate_evm && self.dev_system_contracts != Some(SystemContractsOptions::Local) {

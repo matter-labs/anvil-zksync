@@ -8,8 +8,7 @@ use anvil_zksync_config::constants::{
 };
 use anvil_zksync_config::types::SystemContractsOptions;
 use anvil_zksync_config::ForkPrintInfo;
-use anvil_zksync_core::fork::{ForkDetails, ForkSource};
-use anvil_zksync_core::http_fork_source::HttpForkSource;
+use anvil_zksync_core::fork::ForkDetails;
 use anvil_zksync_core::namespaces::{
     AnvilNamespaceT, ConfigurationApiNamespaceT, DebugNamespaceT, EthNamespaceT,
     EthTestNodeNamespaceT, EvmNamespaceT, HardhatNamespaceT, NetNamespaceT, Web3NamespaceT,
@@ -29,6 +28,7 @@ use futures::{
     FutureExt,
 };
 use jsonrpc_core::MetaIoHandler;
+use jsonrpc_http_server::DomainsValidation;
 use logging_middleware::LoggingMiddleware;
 use std::fs::File;
 use std::{env, net::SocketAddr, str::FromStr};
@@ -43,13 +43,13 @@ mod logging_middleware;
 mod utils;
 
 #[allow(clippy::too_many_arguments)]
-async fn build_json_http<
-    S: std::marker::Sync + std::marker::Send + 'static + ForkSource + std::fmt::Debug + Clone,
->(
+async fn build_json_http(
     addr: SocketAddr,
     log_level_filter: LevelFilter,
-    node: InMemoryNode<S>,
+    node: InMemoryNode,
     enable_health_api: bool,
+    cors_allow_origin: String,
+    disable_cors: bool,
 ) -> tokio::task::JoinHandle<()> {
     let (sender, recv) = oneshot::channel::<()>();
 
@@ -76,9 +76,15 @@ async fn build_json_http<
             .build()
             .unwrap();
 
+        let allow_origin = if disable_cors {
+            "null"
+        } else {
+            &cors_allow_origin
+        };
         let mut builder = jsonrpc_http_server::ServerBuilder::new(io_handler)
             .threads(1)
-            .event_loop_executor(runtime.handle().clone());
+            .event_loop_executor(runtime.handle().clone())
+            .cors(DomainsValidation::AllowOnly(vec![allow_origin.into()]));
 
         if enable_health_api {
             builder = builder.health_api(("/health", "web3_clientVersion"));
@@ -280,7 +286,7 @@ async fn main() -> anyhow::Result<()> {
     };
     let block_sealer = BlockSealer::new(sealing_mode);
 
-    let node: InMemoryNode<HttpForkSource> = InMemoryNode::new(
+    let node: InMemoryNode = InMemoryNode::new(
         fork_details,
         Some(observability),
         &config,
@@ -324,6 +330,8 @@ async fn main() -> anyhow::Result<()> {
             log_level_filter,
             node.clone(),
             config.health_check_endpoint,
+            config.allow_origin.clone(),
+            config.no_cors,
         )
     }))
     .await;

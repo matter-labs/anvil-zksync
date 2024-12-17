@@ -71,3 +71,8 @@ impl Drop for LockedPort {
             .unwrap();
     }
 }
+
+pub fn get_node_binary_path() -> String {
+    std::env::var("ANVIL_ZKSYNC_BINARY_PATH")
+        .unwrap_or("../target/release/anvil-zksync".to_string())
+}

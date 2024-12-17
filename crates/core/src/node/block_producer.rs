@@ -1,24 +1,22 @@
-use crate::fork::ForkSource;
 use crate::node::pool::{TxBatch, TxPool};
 use crate::node::sealer::BlockSealer;
 use crate::node::InMemoryNode;
 use crate::system_contracts::SystemContracts;
-use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use zksync_multivm::interface::TxExecutionMode;
 
-pub struct BlockProducer<S: Clone> {
-    node: InMemoryNode<S>,
+pub struct BlockProducer {
+    node: InMemoryNode,
     pool: TxPool,
     block_sealer: BlockSealer,
     system_contracts: SystemContracts,
 }
 
-impl<S: Clone> BlockProducer<S> {
+impl BlockProducer {
     pub fn new(
-        node: InMemoryNode<S>,
+        node: InMemoryNode,
         pool: TxPool,
         block_sealer: BlockSealer,
         system_contracts: SystemContracts,
@@ -32,7 +30,7 @@ impl<S: Clone> BlockProducer<S> {
     }
 }
 
-impl<S: ForkSource + Clone + fmt::Debug> Future for BlockProducer<S> {
+impl Future for BlockProducer {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
