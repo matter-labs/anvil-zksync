@@ -13,6 +13,10 @@ pub const DEFAULT_ESTIMATE_GAS_SCALE_FACTOR: f32 = 1.3;
 /// Default port for the test node server
 pub const NODE_PORT: u16 = 8011;
 /// Network ID for the test node
+#[cfg(feature = "zkos")]
+// For ZK os - hardcoded to 37 for now.
+pub const TEST_NODE_NETWORK_ID: u32 = 37;
+#[cfg(not(feature = "zkos"))]
 pub const TEST_NODE_NETWORK_ID: u32 = 260;
 /// Default derivation path for the test node
 pub const DERIVATION_PATH: &str = "m/44'/60'/0'/0/0";
