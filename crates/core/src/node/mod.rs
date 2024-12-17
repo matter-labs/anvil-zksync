@@ -11,7 +11,7 @@ mod in_memory;
 mod in_memory_ext;
 mod pool;
 mod sealer;
-pub mod state;
+mod state;
 mod storage_logs;
 mod time;
 mod zks;
@@ -21,3 +21,4 @@ pub use self::{
     sealer::BlockSealer, sealer::BlockSealerMode, time::TimestampManager,
 };
 pub use in_memory::*;
+pub use state::VersionedState;

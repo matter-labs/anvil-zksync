@@ -19,8 +19,8 @@ use alloy_zksync::network::header_response::HeaderResponse;
 use alloy_zksync::network::receipt_response::ReceiptResponse;
 use alloy_zksync::network::transaction_response::TransactionResponse;
 use alloy_zksync::network::Zksync;
-use alloy_zksync::node_bindings::{EraTestNode, EraTestNodeError::NoKeysAvailable};
-use alloy_zksync::provider::{layers::era_test_node::EraTestNodeLayer, zksync_provider};
+use alloy_zksync::node_bindings::{AnvilZKsync, AnvilZKsyncError::NoKeysAvailable};
+use alloy_zksync::provider::{zksync_provider, ProviderBuilderExt, layers::anvil_zksync::AnvilZKsyncLayer};
 use alloy_zksync::wallet::ZksyncWallet;
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -78,20 +78,20 @@ where
 
 // TODO: Consider creating a builder pattern
 pub async fn init_testing_provider(
-    node_fn: impl FnOnce(EraTestNode) -> EraTestNode,
+    node_fn: impl FnOnce(AnvilZKsync) -> AnvilZKsync,
 ) -> anyhow::Result<TestingProvider<impl FullZksyncProvider<HttpWithMiddleware>, HttpWithMiddleware>>
 {
     init_testing_provider_with_client(node_fn, identity).await
 }
 
 pub async fn init_testing_provider_with_client(
-    node_fn: impl FnOnce(EraTestNode) -> EraTestNode,
+    node_fn: impl FnOnce(AnvilZKsync) -> AnvilZKsync,
     client_fn: impl FnOnce(reqwest::ClientBuilder) -> reqwest::ClientBuilder,
 ) -> anyhow::Result<TestingProvider<impl FullZksyncProvider<HttpWithMiddleware>, HttpWithMiddleware>>
 {
     let locked_port = LockedPort::acquire_unused().await?;
-    let node_layer = EraTestNodeLayer::from(node_fn(
-        EraTestNode::new()
+    let node_layer = AnvilZKsyncLayer::from(node_fn(
+        AnvilZKsync::new()
             .path(get_node_binary_path())
             .port(locked_port.port),
     ));

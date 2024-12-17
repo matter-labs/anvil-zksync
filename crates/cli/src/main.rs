@@ -279,47 +279,61 @@ async fn main() -> anyhow::Result<()> {
     let any_server_stopped =
         futures::future::select_all(server_handles.into_iter().map(|h| Box::pin(h.stopped())));
 
+     let mut threads = futures::future::join_all(config.host.iter().map(|host| {
+        let addr = SocketAddr::new(*host, config.port);
+        build_json_http(
+            addr,
+            log_level_filter,
+            node.clone(),
+            config.health_check_endpoint,
+            config.allow_origin.clone(),
+            config.no_cors,
+        )
+    }))
+    .await;
+
+    // Start the state dumper
     let dump_state = config.dump_state.clone();
     let dump_interval = config
         .state_interval
         .map(Duration::from_secs)
         .unwrap_or(Duration::from_secs(60)); // Default to 60 seconds
     let preserve_historical_states = config.preserve_historical_states;
-
-    // If user provided a dump state path, spawn the periodic dumper
-    if let Some(dump_path) = dump_state {
-        let node_for_dumper = node.clone();
-        let mut state_dumper = PeriodicStateDumper::new(
-            node_for_dumper,
-            Some(dump_path),
-            dump_interval,
-            preserve_historical_states,
-        );
-
-        // Spawn a task to handle periodic dumping and final dump on shutdown
-        let dumper_handle = tokio::spawn(async move {
-            tokio::select! {
-                _ = signal::ctrl_c() => {
-                    tracing::trace!("received shutdown signal, shutting down");
-                },
-                _ = &mut state_dumper => {}
-            }
-
-            state_dumper.dump().await;
-
-            std::process::exit(0);
-        });
-        threads.push(dumper_handle);
-    }
-
+    let node_for_dumper = node.clone();
+    let mut state_dumper = PeriodicStateDumper::new(
+        node_for_dumper,
+        dump_state,
+        dump_interval,
+        preserve_historical_states,
+    );
+    // Start the block producer
     let system_contracts =
         SystemContracts::from_options(&config.system_contracts_options, config.use_evm_emulator);
-    let block_producer_handle = tokio::task::spawn(BlockProducer::new(
-        node,
-        pool,
-        block_sealer,
+    let block_producer = BlockProducer::new(
+        node.clone(),
+        pool.clone(),
+        block_sealer.clone(),
         system_contracts,
-    ));
+    );
+
+    // Spawn a task to handle periodic dumping, block producer, and final dump on shutdown
+    let handle = tokio::spawn(async move {
+        tokio::select! {
+            _ = signal::ctrl_c() => {
+                tracing::trace!("received shutdown signal, shutting down");
+            },
+            _ = &mut state_dumper => {
+                tracing::trace!("State dumper completed");
+            },
+           _ = block_producer => {
+                tracing::trace!("Block producer completed");
+           }
+        }
+        state_dumper.dump().await;
+
+        std::process::exit(0);
+    });
+    threads.push(handle);
 
     config.print(fork_print_info.as_ref());
 
