@@ -1262,10 +1262,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     /// some txs have been applied while others have not).
     pub fn apply_txs(&self, txs: Vec<L2Tx>, max_transactions: usize) -> anyhow::Result<()> {
         tracing::debug!(count = txs.len(), "applying transactions");
-        let inner = self.read_inner()?;
 
         // Create a temporary tx pool (i.e. state is not shared with the node mempool).
-        let pool = TxPool::new(self.impersonation.clone(), inner.config.transactions_order);
+        let pool = TxPool::new(self.impersonation.clone(), self.read_inner()?.config.transactions_order);
         pool.add_txs(txs);
 
         // Lock time so that the produced blocks are guaranteed to be sequential in time.
@@ -1285,6 +1284,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             let block_numer = self.seal_block(&mut time, tx_batch.txs, system_contracts)?;
 
             // Fetch the block that was just sealed
+            let inner = self.read_inner()?;
             let block = inner
                 .get_block(block_numer)
                 .expect("freshly sealed block could not be found in storage");
