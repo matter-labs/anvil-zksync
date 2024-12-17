@@ -3,9 +3,9 @@ use anvil_zksync_config::types::{TransactionOrder, TransactionPriority};
 use futures::channel::mpsc::{channel, Receiver, Sender};
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard};
 use zksync_types::l2::L2Tx;
-use zksync_types::{Address, H256};
+use zksync_types::H256;
 
 #[derive(Clone)]
 pub struct TxPool {
@@ -30,50 +30,45 @@ impl TxPool {
         }
     }
 
-    pub fn add_tx(&self, tx: L2Tx) {
-        let mut submission_number_guard = self
-            .submission_number
+    fn lock_submission_number(&self) -> MutexGuard<'_, u64> {
+        self.submission_number
             .lock()
-            .expect("submission_number lock is poisoned");
-        *submission_number_guard = submission_number_guard.wrapping_add(1);
-        let submission_number = *submission_number_guard;
+            .expect("submission_number lock is poisoned")
+    }
 
-        let priority = self
-            .transactions_order
+    fn read_transactions_order(&self) -> RwLockReadGuard<'_, TransactionOrder> {
+        self.transactions_order
             .read()
             .expect("transactions_order lock is poisoned")
-            .priority(&tx);
+    }
+
+    pub fn add_tx(&self, tx: L2Tx) {
         let hash = tx.hash();
+        let priority = self.read_transactions_order().priority(&tx);
+        let mut submission_number = self.lock_submission_number();
+        *submission_number = submission_number.wrapping_add(1);
+
         let mut guard = self.inner.write().expect("TxPool lock is poisoned");
         guard.insert(PoolTransaction {
             transaction: tx,
-            submission_number,
+            submission_number: *submission_number,
             priority,
         });
         self.notify_listeners(hash);
     }
 
     pub fn add_txs(&self, txs: Vec<L2Tx>) {
-        let mut submission_number_guard = self
-            .submission_number
-            .lock()
-            .expect("submission_number lock is poisoned");
-        let txs_count: u64 = txs.len().try_into().unwrap();
-        let current_submission_number = *submission_number_guard;
-        *submission_number_guard = submission_number_guard.wrapping_add(txs_count);
+        let transactions_order = self.read_transactions_order();
+        let mut submission_number = self.lock_submission_number();
 
-        let transactions_order = self
-            .transactions_order
-            .read()
-            .expect("transactions_order lock is poisoned");
         let mut guard = self.inner.write().expect("TxPool lock is poisoned");
-
         for tx in txs {
-            let priority = transactions_order.priority(&tx);
             let hash = tx.hash();
+            let priority = transactions_order.priority(&tx);
+            *submission_number = submission_number.wrapping_add(1);
             guard.insert(PoolTransaction {
                 transaction: tx,
-                submission_number: current_submission_number.wrapping_add(1),
+                submission_number: *submission_number,
                 priority,
             });
             self.notify_listeners(hash);
@@ -82,22 +77,20 @@ impl TxPool {
 
     /// Removes a single transaction from the pool
     pub fn drop_transaction(&self, hash: H256) -> Option<L2Tx> {
-        let inner = self.inner.read().expect("TxPool lock is poisoned");
-        let found = inner.iter().find(|p| p.transaction.hash() == hash);
-        let mut guard = self.inner.write().expect("TxPool lock is poisoned");
-
-        found.map(|item| guard.take(item).unwrap().transaction)
+        let dropped = self.drop_transactions(|tx| tx.transaction.hash() == hash);
+        dropped.first().cloned()
     }
 
-    /// Remove transactions by sender
-    pub fn drop_transactions_by_sender(&self, sender: Address) -> Vec<L2Tx> {
+    /// Remove transactions matching the specified condition
+    pub fn drop_transactions<F>(&self, f: F) -> Vec<L2Tx>
+    where
+        F: Fn(&PoolTransaction) -> bool,
+    {
         let mut guard = self.inner.write().expect("TxPool lock is poisoned");
         let txs = std::mem::take(&mut *guard);
-        let (sender_txs, other_txs) = txs
-            .into_iter()
-            .partition(|tx| tx.transaction.common_data.initiator_address == sender);
+        let (matching_txs, other_txs) = txs.into_iter().partition(f);
         *guard = other_txs;
-        sender_txs.into_iter().map(|tx| tx.transaction).collect()
+        matching_txs.into_iter().map(|tx| tx.transaction).collect()
     }
 
     /// Removes all transactions from the pool

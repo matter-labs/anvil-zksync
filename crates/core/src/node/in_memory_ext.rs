@@ -441,7 +441,8 @@ impl InMemoryNode {
     }
 
     pub fn remove_pool_transactions(&self, address: Address) -> Result<()> {
-        self.pool.drop_transactions_by_sender(address);
+        self.pool
+            .drop_transactions(|tx| tx.transaction.common_data.initiator_address == address);
         Ok(())
     }
 
