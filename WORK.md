@@ -1,3 +1,4 @@
+
 [x] - Apply stuff to storage
 [x] - actually udpate the storage slot for load_last_l2_block (as currently it crashes)
 [x] - update rich accounts correctly.
@@ -11,7 +12,7 @@
 ## Testing
 
 ```shell
-cargo run -- --chain-id 37
+cargo run 
 
 cast send -r http://localhost:8011 0x8B31b1F39Cc7dD799405E232327dcf0e71909020 --value 1 --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --gas-limit 10000000 --legacy
 
