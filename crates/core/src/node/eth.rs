@@ -475,27 +475,24 @@ impl InMemoryNode {
                     }
                 })
         }
-        Ok(self
-            .write_inner()?
+        self.write_inner()?
             .filters
             .add_log_filter(from_block, to_block, addresses, topics)
-            .map_err(anyhow::Error::msg)?)
+            .map_err(anyhow::Error::msg)
     }
 
     pub async fn new_block_filter_impl(&self) -> anyhow::Result<U256> {
-        Ok(self
-            .write_inner()?
+        self.write_inner()?
             .filters
             .add_block_filter()
-            .map_err(anyhow::Error::msg)?)
+            .map_err(anyhow::Error::msg)
     }
 
     pub async fn new_pending_transaction_filter_impl(&self) -> anyhow::Result<U256> {
-        Ok(self
-            .write_inner()?
+        self.write_inner()?
             .filters
             .add_pending_transaction_filter()
-            .map_err(anyhow::Error::msg)?)
+            .map_err(anyhow::Error::msg)
     }
 
     pub async fn uninstall_filter_impl(&self, id: U256) -> anyhow::Result<bool> {
@@ -568,11 +565,10 @@ impl InMemoryNode {
     }
 
     pub async fn get_filter_changes_impl(&self, id: U256) -> anyhow::Result<FilterChanges> {
-        Ok(self
-            .write_inner()?
+        self.write_inner()?
             .filters
             .get_new_changes(id)
-            .map_err(anyhow::Error::msg)?)
+            .map_err(anyhow::Error::msg)
     }
 
     pub async fn get_block_transaction_count_by_number_impl(

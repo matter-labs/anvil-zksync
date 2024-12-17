@@ -502,7 +502,7 @@ impl InMemoryNodeInner {
             MAX_TX_SIZE,
             allow_no_target,
         )
-        .map_err(|err| Web3Error::SerializationError(err))?;
+        .map_err(Web3Error::SerializationError)?;
 
         let tx: Transaction = l2_tx.clone().into();
 
