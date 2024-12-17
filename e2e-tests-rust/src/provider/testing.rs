@@ -20,7 +20,7 @@ use alloy_zksync::network::receipt_response::ReceiptResponse;
 use alloy_zksync::network::transaction_response::TransactionResponse;
 use alloy_zksync::network::Zksync;
 use alloy_zksync::node_bindings::{AnvilZKsync, AnvilZKsyncError::NoKeysAvailable};
-use alloy_zksync::provider::{zksync_provider, ProviderBuilderExt, layers::anvil_zksync::AnvilZKsyncLayer};
+use alloy_zksync::provider::{zksync_provider, layers::anvil_zksync::AnvilZKsyncLayer};
 use alloy_zksync::wallet::ZksyncWallet;
 use anyhow::Context as _;
 use async_trait::async_trait;

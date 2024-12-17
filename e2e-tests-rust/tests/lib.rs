@@ -8,18 +8,20 @@ use alloy::{
 };
 use anvil_zksync_e2e_tests::{
     init_testing_provider, init_testing_provider_with_client, AnvilZKsyncApi, ReceiptExt,
-    ZksyncWalletProviderExt, DEFAULT_TX_VALUE,
+    ZksyncWalletProviderExt, DEFAULT_TX_VALUE, get_node_binary_path
 };
 use http::header::{
     HeaderMap, HeaderValue, ACCESS_CONTROL_ALLOW_HEADERS, ACCESS_CONTROL_ALLOW_METHODS,
     ACCESS_CONTROL_ALLOW_ORIGIN, ORIGIN,
 };
-use std::convert::identity;
-use std::time::Duration;
 
 const SOME_ORIGIN: HeaderValue = HeaderValue::from_static("http://some.origin");
 const OTHER_ORIGIN: HeaderValue = HeaderValue::from_static("http://other.origin");
 const ANY_ORIGIN: HeaderValue = HeaderValue::from_static("*");
+
+use anvil_zksync_core::node::VersionedState;
+use std::{ fs, convert::identity, thread::sleep, time::Duration };
+use tempdir::TempDir;
 
 #[tokio::test]
 async fn interval_sealing_finalization() -> anyhow::Result<()> {
@@ -476,10 +478,46 @@ async fn pool_txs_order_fifo() -> anyhow::Result<()> {
     assert_eq!(&tx_hashes[0], pending_tx0.tx_hash());
     assert_eq!(&tx_hashes[1], pending_tx1.tx_hash());
     assert_eq!(&tx_hashes[2], pending_tx2.tx_hash());
+    Ok(())
 }
 
+#[tokio::test]
+async fn pool_txs_order_fees() -> anyhow::Result<()> {
+    let provider_fees = init_testing_provider(|node| node.no_mine().arg("--order=fees")).await?;
+
+    let pending_tx0 = provider_fees.tx().with_rich_from(0).with_max_fee_per_gas(50_000_000).register().await?;
+    let pending_tx1 = provider_fees.tx().with_rich_from(1).with_max_fee_per_gas(100_000_000).register().await?;
+    let pending_tx2 = provider_fees.tx().with_rich_from(2).with_max_fee_per_gas(150_000_000).register().await?;
+
+    provider_fees.anvil_mine(Some(U256::from(1)), None).await?;
+
+    let block = provider_fees.get_block(1.into(), BlockTransactionsKind::Hashes).await?.unwrap();
+    let tx_hashes = block.transactions.as_hashes().unwrap();
+    assert_eq!(&tx_hashes[0], pending_tx2.tx_hash());
+    assert_eq!(&tx_hashes[1], pending_tx1.tx_hash());
+    assert_eq!(&tx_hashes[2], pending_tx0.tx_hash());
+    Ok(())
+}
+
+#[tokio::test]
+async fn transactions_have_index() -> anyhow::Result<()> {
+    let provider = init_testing_provider(|node| node.no_mine()).await?;
+    let tx1 = provider.tx().with_rich_from(0).register().await?;
+    let tx2 = provider.tx().with_rich_from(1).register().await?;
+
+    provider.anvil_mine(Some(U256::from(1)), None).await?;
+
+    let receipt1 = tx1.wait_until_finalized().await?;
+    let receipt2 = tx2.wait_until_finalized().await?;
+
+    assert_eq!(receipt1.transaction_index(), 0.into());
+    assert_eq!(receipt2.transaction_index(), 1.into());
+    Ok(())
+}
+
+#[tokio::test]
 async fn dump_state_on_run() -> anyhow::Result<()>  {
-    let temp_dir = tempdir()?;
+    let temp_dir = TempDir::new("state-test").expect("failed creating temporary dir");
     let dump_path = temp_dir.path().join("state_dump.json");
 
     let dump_path_clone = dump_path.clone();
@@ -493,13 +531,7 @@ async fn dump_state_on_run() -> anyhow::Result<()>  {
     })
     .await?;
 
-    let recipient = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049")?;
-    let receipt = provider
-        .tx()
-        .with_to(recipient)
-        .with_value(U256::from(100))
-        .finalize()
-        .await?;
+    provider.tx().finalize().await?;
 
     // Allow some time for the state to be dumped
     sleep(Duration::from_secs(2));
@@ -536,45 +568,12 @@ async fn dump_state_on_run() -> anyhow::Result<()>  {
 }
 
 #[tokio::test]
-async fn pool_txs_order_fees() -> anyhow::Result<()> {
-    let provider_fees = init_testing_provider(|node| node.no_mine().arg("--order=fees")).await?;
-
-    let pending_tx0 = provider_fees.tx().with_rich_from(0).with_max_fee_per_gas(50_000_000).register().await?;
-    let pending_tx1 = provider_fees.tx().with_rich_from(1).with_max_fee_per_gas(100_000_000).register().await?;
-    let pending_tx2 = provider_fees.tx().with_rich_from(2).with_max_fee_per_gas(150_000_000).register().await?;
-
-    provider_fees.anvil_mine(Some(U256::from(1)), None).await?;
-
-    let block = provider_fees.get_block(1.into(), BlockTransactionsKind::Hashes).await?.unwrap();
-    let tx_hashes = block.transactions.as_hashes().unwrap();
-    assert_eq!(&tx_hashes[0], pending_tx2.tx_hash());
-    assert_eq!(&tx_hashes[1], pending_tx1.tx_hash());
-    assert_eq!(&tx_hashes[2], pending_tx0.tx_hash());
-    Ok(())
-}
-
-#[tokio::test]
-async fn transactions_have_index() -> anyhow::Result<()> {
-    let provider = init_testing_provider(|node| node.no_mine()).await?;
-    let tx1 = provider.tx().with_rich_from(0).register().await?;
-    let tx2 = provider.tx().with_rich_from(1).register().await?;
-
-    provider.anvil_mine(Some(U256::from(1)), None).await?;
-
-    let receipt1 = tx1.wait_until_finalized().await?;
-    let receipt2 = tx2.wait_until_finalized().await?;
-
-    assert_eq!(receipt1.transaction_index(), 0.into());
-    assert_eq!(receipt2.transaction_index(), 1.into());
-}
-
-#[tokio::test]
 async fn dump_state_on_fork() -> anyhow::Result<()>  {
-    let temp_dir = tempdir()?;
+    let temp_dir = TempDir::new("state-fork-test").expect("failed creating temporary dir");
     let dump_path = temp_dir.path().join("state_dump_fork.json");
 
     let dump_path_clone = dump_path.clone();
-     let provider = init_testing_provider(move |node| {
+    let provider = init_testing_provider(move |node| {
         node
             .path(get_node_binary_path())
             .arg("--state-interval")
@@ -585,13 +584,7 @@ async fn dump_state_on_fork() -> anyhow::Result<()>  {
     })
     .await?;
 
-    let recipient = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049")?;
-    let receipt = provider
-        .tx()
-        .with_to(recipient)
-        .with_value(U256::from(100))
-        .finalize()
-        .await?;
+    provider.tx().finalize().await?;
 
     // Allow some time for the state to be dumped
     sleep(Duration::from_secs(2));
@@ -612,11 +605,11 @@ async fn dump_state_on_fork() -> anyhow::Result<()>  {
         VersionedState::V1 { version: _, state } => {
             assert!(
                 !state.blocks.is_empty(),
-                "state_dump.json should contain at least one block"
+                "state_dump_fork.json should contain at least one block"
             );
             assert!(
                 !state.transactions.is_empty(),
-                "state_dump.json should contain at least one transaction"
+                "state_dump_fork.json should contain at least one transaction"
             );
         },
         VersionedState::Unknown { version } => {

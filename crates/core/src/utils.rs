@@ -1,6 +1,12 @@
 use anyhow::Context;
 use chrono::{DateTime, Utc};
+use serde::Serialize;
 use std::{convert::TryInto, fmt};
+use std::{
+    fs::File,
+    io::{BufWriter, Write},
+    path::Path,
+};
 use zksync_multivm::interface::{Call, CallType, ExecutionResult, VmExecutionResultAndLogs};
 use zksync_types::{
     api::{BlockNumber, DebugCall, DebugCallType},
@@ -186,6 +192,22 @@ pub fn calculate_eth_cost(gas_price_in_wei_per_gas: u64, gas_used: u64) -> f64 {
 
     // Convert total cost from gwei to ETH
     total_cost_in_gwei / 1e9
+}
+
+/// Writes the given serializable object as JSON to the specified file path using pretty printing.
+/// Returns an error if the file cannot be created or if serialization/writing fails.
+pub fn write_json_file<T: Serialize>(path: &Path, obj: &T) -> anyhow::Result<()> {
+    let file = File::create(path)
+        .with_context(|| format!("Failed to create file '{}'", path.display()))?;
+    let mut writer = BufWriter::new(file);
+    // Note: intentionally using pretty printing for better readability.
+    serde_json::to_writer_pretty(&mut writer, obj)
+        .with_context(|| format!("Failed to write JSON to '{}'", path.display()))?;
+    writer
+        .flush()
+        .with_context(|| format!("Failed to flush writer for '{}'", path.display()))?;
+
+    Ok(())
 }
 
 #[cfg(test)]

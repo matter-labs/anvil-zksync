@@ -1,4 +1,4 @@
-use crate::utils::{parse_genesis_file, write_json_file};
+use crate::utils::parse_genesis_file;
 use alloy_signer_local::coins_bip39::{English, Mnemonic};
 use anvil_zksync_config::constants::{
     DEFAULT_DISK_CACHE_DIR, DEFAULT_MNEMONIC, TEST_NODE_NETWORK_ID,
@@ -7,11 +7,13 @@ use anvil_zksync_config::types::{
     AccountGenerator, CacheConfig, CacheType, Genesis, SystemContractsOptions,
 };
 use anvil_zksync_config::TestNodeConfig;
+use anvil_zksync_core::{
+    node::{InMemoryNode, VersionedState},
+    utils::write_json_file,
+};
 use anvil_zksync_types::{
     LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails, TransactionOrder,
 };
-use anvil_zksync_core::node::state::VersionedState;
-use anvil_zksync_core::node::InMemoryNode;
 use anyhow::Result;
 use clap::{arg, command, Parser, Subcommand};
 use flate2::read::GzDecoder;
@@ -433,7 +435,7 @@ impl Cli {
             .with_no_mining(self.no_mining)
             .with_allow_origin(self.allow_origin)
             .with_no_cors(self.no_cors)
-            .with_transaction_order(self.order);
+            .with_transaction_order(self.order)
             .with_state_interval(self.state_interval)
             .with_dump_state(self.dump_state)
             .with_preserve_historical_states(self.preserve_historical_states);
@@ -615,10 +617,12 @@ mod tests {
         BlockSealer, BlockSealerMode, ImpersonationManager, InMemoryNode, TimestampManager, TxPool,
     };
     use clap::Parser;
+    use serde_json::Value;
     use std::{
         env,
         net::{IpAddr, Ipv4Addr},
     };
+    use tempdir::TempDir;
 
     #[test]
     fn can_parse_host() {
@@ -666,10 +670,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_dump_state() -> anyhow::Result<()> {
-        use serde_json::Value;
-        use tempfile::tempdir;
-
-        let temp_dir = tempdir()?;
+        let temp_dir = TempDir::new("state-test").expect("failed creating temporary dir");
         let dump_path = temp_dir.path().join("state.json");
 
         let config = anvil_zksync_config::TestNodeConfig {
@@ -685,7 +686,7 @@ mod tests {
             &config,
             TimestampManager::default(),
             ImpersonationManager::default(),
-            TxPool::new(ImpersonationManager::default()),
+            TxPool::new(ImpersonationManager::default(), config.transaction_order),
             BlockSealer::new(BlockSealerMode::noop()),
         );
         let test_address = zksync_types::H160::random();
