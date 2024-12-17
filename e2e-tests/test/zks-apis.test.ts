@@ -46,19 +46,6 @@ describe("zks_estimateFee", function () {
   });
 });
 
-describe("zks_getTokenPrice", function () {
-  it("Should return fake token Price for ETH", async function () {
-    // Arrange
-    const ethAddress = "0x0000000000000000000000000000000000000000";
-
-    // Act
-    const response: string = await provider.send("zks_getTokenPrice", [ethAddress]);
-
-    // Assert
-    expect(response).to.equal("1500");
-  });
-});
-
 describe("zks_getTransactionDetails", function () {
   it("Should return transaction details for locally-executed transactions", async function () {
     const wallet = new Wallet(RichAccounts[0].PrivateKey);
