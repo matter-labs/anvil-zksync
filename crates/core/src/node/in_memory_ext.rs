@@ -628,7 +628,7 @@ mod tests {
             rich_accounts: Default::default(),
             previous_states: Default::default(),
         };
-        let pool = TxPool::new(impersonation.clone(), TransactionOrder::Fees);
+        let pool = TxPool::new(impersonation.clone(), TransactionOrder::Fifo);
         let sealer = BlockSealer::new(BlockSealerMode::immediate(1000, pool.add_tx_listener()));
 
         let node = InMemoryNode {

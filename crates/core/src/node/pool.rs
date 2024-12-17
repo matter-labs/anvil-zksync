@@ -251,7 +251,7 @@ mod tests {
     #[test]
     fn take_from_empty() {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation, TransactionOrder::Fees);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
         assert_eq!(pool.take_uniform(1), None);
     }
 
@@ -259,7 +259,7 @@ mod tests {
     #[test_case(true  ; "is impersonated")]
     fn take_zero(imp: bool) {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation, TransactionOrder::Fees);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
 
         pool.populate_impersonate([imp]);
         assert_eq!(pool.take_uniform(0), None);
@@ -269,7 +269,7 @@ mod tests {
     #[test_case(true  ; "is impersonated")]
     fn take_exactly_one(imp: bool) {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation, TransactionOrder::Fees);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
 
         let [tx0, ..] = pool.populate_impersonate([imp, false]);
         assert_eq!(
@@ -285,7 +285,7 @@ mod tests {
     #[test_case(true  ; "is impersonated")]
     fn take_exactly_two(imp: bool) {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation, TransactionOrder::Fees);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
 
         let [tx0, tx1, ..] = pool.populate_impersonate([imp, imp, false]);
         assert_eq!(
@@ -301,7 +301,7 @@ mod tests {
     #[test_case(true  ; "is impersonated")]
     fn take_one_eligible(imp: bool) {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation, TransactionOrder::Fees);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
 
         let [tx0, ..] = pool.populate_impersonate([imp, !imp, !imp, !imp]);
         assert_eq!(
@@ -319,7 +319,7 @@ mod tests {
     #[test_case(true  ; "is impersonated")]
     fn take_two_when_third_is_not_uniform(imp: bool) {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation, TransactionOrder::Fees);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
 
         let [tx0, tx1, ..] = pool.populate_impersonate([imp, imp, !imp]);
         assert_eq!(
@@ -337,7 +337,7 @@ mod tests {
     #[test_case(true  ; "is impersonated")]
     fn take_interrupted_by_non_uniformness(imp: bool) {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation, TransactionOrder::Fees);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
 
         let [tx0, tx1, ..] = pool.populate_impersonate([imp, imp, !imp, imp]);
         assert_eq!(
@@ -353,7 +353,7 @@ mod tests {
     #[test_case(true  ; "is impersonated")]
     fn take_multiple(imp: bool) {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation, TransactionOrder::Fees);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
 
         let [tx0, tx1, tx2, tx3] = pool.populate_impersonate([imp, !imp, !imp, imp]);
         assert_eq!(
@@ -383,7 +383,7 @@ mod tests {
     #[test_case(true  ; "is impersonated")]
     fn pool_clones_share_state(imp: bool) {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation, TransactionOrder::Fees);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
 
         let txs = {
             let pool_clone = pool.clone();
@@ -402,7 +402,7 @@ mod tests {
     #[test_case(true  ; "is impersonated")]
     fn take_multiple_from_clones(imp: bool) {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation, TransactionOrder::Fees);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
 
         let [tx0, tx1, tx2, tx3] = {
             let pool_clone = pool.clone();
@@ -439,7 +439,7 @@ mod tests {
     #[test_case(true  ; "is impersonated")]
     fn take_respects_impersonation_change(imp: bool) {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation, TransactionOrder::Fees);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
 
         let [tx0, tx1, tx2, tx3] = pool.populate_impersonate([imp, imp, !imp, imp]);
         assert_eq!(
@@ -471,7 +471,7 @@ mod tests {
     #[tokio::test]
     async fn take_uses_consistent_impersonation() {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation.clone(), TransactionOrder::Fees);
+        let pool = TxPool::new(impersonation.clone(), TransactionOrder::Fifo);
 
         for _ in 0..4096 {
             let tx = testing::TransactionBuilder::new().build();

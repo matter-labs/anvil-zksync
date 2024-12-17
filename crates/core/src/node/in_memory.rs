@@ -1108,7 +1108,7 @@ fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) 
 impl Default for InMemoryNode {
     fn default() -> Self {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation.clone(), TransactionOrder::Fees);
+        let pool = TxPool::new(impersonation.clone(), TransactionOrder::Fifo);
         let tx_listener = pool.add_tx_listener();
         InMemoryNode::new(
             None,
@@ -1161,7 +1161,7 @@ impl InMemoryNode {
     // TODO: Refactor InMemoryNode with a builder pattern
     pub fn default_fork(fork: Option<ForkDetails>) -> Self {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation.clone(), TransactionOrder::Fees);
+        let pool = TxPool::new(impersonation.clone(), TransactionOrder::Fifo);
         let tx_listener = pool.add_tx_listener();
         Self::new(
             fork,
@@ -2160,7 +2160,7 @@ mod tests {
             raw_storage: external_storage.inner.read().unwrap().raw_storage.clone(),
         };
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation.clone(), TransactionOrder::Fees);
+        let pool = TxPool::new(impersonation.clone(), TransactionOrder::Fifo);
         let sealer = BlockSealer::new(BlockSealerMode::immediate(1000, pool.add_tx_listener()));
         let node = InMemoryNode::new(
             Some(ForkDetails {
@@ -2200,7 +2200,7 @@ mod tests {
     #[tokio::test]
     async fn test_transact_returns_data_in_built_in_without_security_mode() {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation.clone(), TransactionOrder::Fees);
+        let pool = TxPool::new(impersonation.clone(), TransactionOrder::Fifo);
         let sealer = BlockSealer::new(BlockSealerMode::immediate(1000, pool.add_tx_listener()));
         let node = InMemoryNode::new(
             None,

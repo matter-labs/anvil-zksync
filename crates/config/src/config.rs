@@ -177,7 +177,7 @@ impl Default for TestNodeConfig {
             no_mining: false,
 
             max_transactions: 1000,
-            transactions_order: TransactionOrder::Fees,
+            transactions_order: TransactionOrder::Fifo,
 
             // Server configuration
             allow_origin: "*".to_string(),

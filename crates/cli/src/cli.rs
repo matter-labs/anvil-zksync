@@ -253,7 +253,7 @@ pub struct Cli {
     pub no_cors: Option<bool>,
 
     /// How transactions are sorted in the mempool.
-    #[arg(long, default_value = "fees")]
+    #[arg(long, default_value = "fifo")]
     pub order: TransactionOrder,
 }
 
