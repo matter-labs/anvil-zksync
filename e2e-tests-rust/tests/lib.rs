@@ -398,3 +398,19 @@ async fn cli_allow_origin() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn transactions_have_index() -> anyhow::Result<()> {
+    let provider = init_testing_provider(|node| node.no_mine()).await?;
+    let tx1 = provider.tx().with_rich_from(0).register().await?;
+    let tx2 = provider.tx().with_rich_from(1).register().await?;
+
+    provider.anvil_mine(Some(U256::from(1)), None).await?;
+
+    let receipt1 = tx1.wait_until_finalized().await?;
+    let receipt2 = tx2.wait_until_finalized().await?;
+
+    assert_eq!(receipt1.transaction_index(), 0.into());
+    assert_eq!(receipt2.transaction_index(), 1.into());
+    Ok(())
+}
