@@ -247,6 +247,7 @@ mod tests {
     use crate::testing;
     use anvil_zksync_config::types::TransactionOrder;
     use test_case::test_case;
+    use zksync_types::{l2::L2Tx, U256};
 
     #[test]
     fn take_from_empty() {
@@ -434,7 +435,6 @@ mod tests {
         );
     }
 
-    // Test
     #[test_case(false ; "not impersonated")]
     #[test_case(true  ; "is impersonated")]
     fn take_respects_impersonation_change(imp: bool) {
@@ -497,5 +497,40 @@ mod tests {
         // transactions should always be a complete set - in other words, `TxPool` should not see
         // a change in impersonation state partway through iterating the transactions.
         assert_eq!(tx_batch.txs.len(), 4096);
+    }
+
+    #[tokio::test]
+    async fn take_uses_transactions_order() {
+        let impersonation = ImpersonationManager::default();
+        let pool_fifo = TxPool::new(impersonation.clone(), TransactionOrder::Fifo);
+        let pool_fees = TxPool::new(impersonation.clone(), TransactionOrder::Fees);
+
+        let txs: Vec<L2Tx> = [1, 2, 3]
+            .iter()
+            .map(|index| {
+                let tx = testing::TransactionBuilder::new()
+                    .set_max_fee_per_gas(U256::from(50_000_000 + index))
+                    .build();
+                pool_fifo.add_tx(tx.clone());
+                pool_fees.add_tx(tx.clone());
+                tx
+            })
+            .collect();
+
+        assert_eq!(
+            pool_fifo.take_uniform(3),
+            Some(TxBatch {
+                impersonating: false,
+                txs: vec![txs[0].clone(), txs[1].clone(), txs[2].clone()]
+            })
+        );
+
+        assert_eq!(
+            pool_fees.take_uniform(3),
+            Some(TxBatch {
+                impersonating: false,
+                txs: vec![txs[2].clone(), txs[1].clone(), txs[0].clone()]
+            })
+        );
     }
 }

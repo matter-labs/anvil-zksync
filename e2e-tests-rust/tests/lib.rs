@@ -5,6 +5,7 @@ use anvil_zksync_e2e_tests::{
     init_testing_provider, init_testing_provider_with_http_headers, AnvilZKsyncApi, ReceiptExt, ZksyncWalletProviderExt, DEFAULT_TX_VALUE,
 };
 use alloy::{
+    network::primitives::BlockTransactionsKind,
     primitives::U256,
     signers::local::PrivateKeySigner,
 };
@@ -396,5 +397,41 @@ async fn cli_allow_origin() -> anyhow::Result<()> {
     let error_resp = provider_with_not_allowed_origin.get_chain_id().await.unwrap_err();
     assert_eq!(error_resp.to_string().contains("Origin of the request is not whitelisted"), true);
 
+    Ok(())
+}
+
+#[tokio::test]
+async fn pool_txs_order_fifo() -> anyhow::Result<()> {
+    let provider_fifo = init_testing_provider(|node| node.no_mine()).await?;
+
+    let pending_tx0 = provider_fifo.tx().with_rich_from(0).with_max_fee_per_gas(50_000_000).register().await?;
+    let pending_tx1 = provider_fifo.tx().with_rich_from(1).with_max_fee_per_gas(100_000_000).register().await?;
+    let pending_tx2 = provider_fifo.tx().with_rich_from(2).with_max_fee_per_gas(150_000_000).register().await?;
+
+    provider_fifo.anvil_mine(Some(U256::from(1)), None).await?;
+
+    let block = provider_fifo.get_block(1.into(), BlockTransactionsKind::Hashes).await?.unwrap();
+    let tx_hashes = block.transactions.as_hashes().unwrap();
+    assert_eq!(&tx_hashes[0], pending_tx0.tx_hash());
+    assert_eq!(&tx_hashes[1], pending_tx1.tx_hash());
+    assert_eq!(&tx_hashes[2], pending_tx2.tx_hash());
+    Ok(())
+}
+
+#[tokio::test]
+async fn pool_txs_order_fees() -> anyhow::Result<()> {
+    let provider_fees = init_testing_provider(|node| node.no_mine().arg("--order=fees")).await?;
+
+    let pending_tx0 = provider_fees.tx().with_rich_from(0).with_max_fee_per_gas(50_000_000).register().await?;
+    let pending_tx1 = provider_fees.tx().with_rich_from(1).with_max_fee_per_gas(100_000_000).register().await?;
+    let pending_tx2 = provider_fees.tx().with_rich_from(2).with_max_fee_per_gas(150_000_000).register().await?;
+
+    provider_fees.anvil_mine(Some(U256::from(1)), None).await?;
+
+    let block = provider_fees.get_block(1.into(), BlockTransactionsKind::Hashes).await?.unwrap();
+    let tx_hashes = block.transactions.as_hashes().unwrap();
+    assert_eq!(&tx_hashes[0], pending_tx2.tx_hash());
+    assert_eq!(&tx_hashes[1], pending_tx1.tx_hash());
+    assert_eq!(&tx_hashes[2], pending_tx0.tx_hash());
     Ok(())
 }
