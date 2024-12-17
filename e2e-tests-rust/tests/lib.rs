@@ -6,15 +6,9 @@ use anvil_zksync_e2e_tests::{
     init_testing_provider, init_testing_provider_with_http_headers, AnvilZKsyncApi, ReceiptExt, ZksyncWalletProviderExt, DEFAULT_TX_VALUE,
 };
 use anvil_zksync_core::node::VersionedState;
-use alloy::primitives::Address;
 use alloy::{primitives::U256, signers::local::PrivateKeySigner};
-use alloy_zksync::{
-    node_bindings::AnvilZKsync,
-    provider::{zksync_provider, ProviderBuilderExt, ZksyncProvider},
-};
 use alloy::transports::http::reqwest::header::{HeaderMap, HeaderValue, ORIGIN};
-use std::{ str::FromStr, fs, convert::identity, thread::sleep, time::Duration};
-use serde_json::Value;
+use std::{ fs, convert::identity, thread::sleep, time::Duration};
 use tempfile::tempdir;
 
 #[tokio::test]
@@ -420,13 +414,7 @@ async fn dump_state_on_run() -> anyhow::Result<()>  {
     })
     .await?;
 
-    let recipient = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049")?;
-    let receipt = provider
-        .tx()
-        .with_to(recipient)
-        .with_value(U256::from(100))
-        .finalize()
-        .await?;
+    provider.tx().finalize().await?;
 
     // Allow some time for the state to be dumped
     sleep(Duration::from_secs(2));
@@ -479,13 +467,7 @@ async fn dump_state_on_fork() -> anyhow::Result<()>  {
     })
     .await?;
 
-    let recipient = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049")?;
-    let receipt = provider
-        .tx()
-        .with_to(recipient)
-        .with_value(U256::from(100))
-        .finalize()
-        .await?;
+    provider.tx().finalize().await?;
 
     // Allow some time for the state to be dumped
     sleep(Duration::from_secs(2));

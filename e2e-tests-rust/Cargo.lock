@@ -807,7 +807,7 @@ dependencies = [
 [[package]]
 name = "alloy-zksync"
 version = "0.6.1"
-source = "git+https://github.com/popzxc/alloy-zksync.git?rev=03ce1b31be0622a2d3fdcccdcbbc76212c2bb0da#03ce1b31be0622a2d3fdcccdcbbc76212c2bb0da"
+source = "git+https://github.com/popzxc/alloy-zksync.git?rev=6a2e3cfe41cae9f92dc6672dbd0ce56ccc37e9b3#6a2e3cfe41cae9f92dc6672dbd0ce56ccc37e9b3"
 dependencies = [
  "alloy",
  "async-trait",
@@ -901,7 +901,6 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tokio",
- "zksync_types",
 ]
 
 [[package]]
