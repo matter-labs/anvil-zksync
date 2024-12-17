@@ -494,7 +494,6 @@ impl InMemoryNode {
 mod tests {
     use super::*;
     use crate::fork::ForkStorage;
-    use crate::namespaces::EthNamespaceT;
     use crate::node::time::{ReadTime, TimestampManager};
     use crate::node::InMemoryNode;
     use crate::node::{BlockSealer, ImpersonationManager, InMemoryNodeInner, Snapshot, TxPool};
@@ -510,12 +509,12 @@ mod tests {
         let address = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap();
         let node = InMemoryNode::default();
 
-        let balance_before = node.get_balance(address, None).await.unwrap();
+        let balance_before = node.get_balance_impl(address, None).await.unwrap();
 
         let result = node.set_balance(address, U256::from(1337)).unwrap();
         assert!(result);
 
-        let balance_after = node.get_balance(address, None).await.unwrap();
+        let balance_after = node.get_balance_impl(address, None).await.unwrap();
         assert_eq!(balance_after, U256::from(1337));
         assert_ne!(balance_before, balance_after);
     }
@@ -525,19 +524,28 @@ mod tests {
         let address = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap();
         let node = InMemoryNode::default();
 
-        let nonce_before = node.get_transaction_count(address, None).await.unwrap();
+        let nonce_before = node
+            .get_transaction_count_impl(address, None)
+            .await
+            .unwrap();
 
         let result = node.set_nonce(address, U256::from(1337)).unwrap();
         assert!(result);
 
-        let nonce_after = node.get_transaction_count(address, None).await.unwrap();
+        let nonce_after = node
+            .get_transaction_count_impl(address, None)
+            .await
+            .unwrap();
         assert_eq!(nonce_after, U256::from(1337));
         assert_ne!(nonce_before, nonce_after);
 
         let result = node.set_nonce(address, U256::from(1336)).unwrap();
         assert!(result);
 
-        let nonce_after = node.get_transaction_count(address, None).await.unwrap();
+        let nonce_after = node
+            .get_transaction_count_impl(address, None)
+            .await
+            .unwrap();
         assert_eq!(nonce_after, U256::from(1336));
     }
 
@@ -546,7 +554,7 @@ mod tests {
         let node = InMemoryNode::default();
 
         let start_block = node
-            .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
+            .get_block_by_number_impl(zksync_types::api::BlockNumber::Latest, false)
             .await
             .unwrap()
             .expect("block exists");
@@ -555,7 +563,7 @@ mod tests {
         node.mine_blocks(None, None).expect("mine_blocks");
 
         let current_block = node
-            .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
+            .get_block_by_number_impl(zksync_types::api::BlockNumber::Latest, false)
             .await
             .unwrap()
             .expect("block exists");
@@ -565,7 +573,7 @@ mod tests {
         node.mine_blocks(None, None).expect("mine_blocks");
 
         let current_block = node
-            .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
+            .get_block_by_number_impl(zksync_types::api::BlockNumber::Latest, false)
             .await
             .unwrap()
             .expect("block exists");
@@ -579,7 +587,7 @@ mod tests {
         let node = InMemoryNode::default();
 
         let start_block = node
-            .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
+            .get_block_by_number_impl(zksync_types::api::BlockNumber::Latest, false)
             .await
             .unwrap()
             .expect("block exists");
@@ -593,7 +601,7 @@ mod tests {
 
         for i in 0..num_blocks {
             let current_block = node
-                .get_block_by_number(BlockNumber::Number(start_block.number + i + 1), false)
+                .get_block_by_number_impl(BlockNumber::Number(start_block.number + i + 1), false)
                 .await
                 .unwrap()
                 .expect("block exists");
@@ -641,7 +649,10 @@ mod tests {
         };
 
         let address = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap();
-        let nonce_before = node.get_transaction_count(address, None).await.unwrap();
+        let nonce_before = node
+            .get_transaction_count_impl(address, None)
+            .await
+            .unwrap();
 
         let set_result = node.set_nonce(address, U256::from(1337)).unwrap();
         assert!(set_result);
@@ -649,7 +660,10 @@ mod tests {
         let reset_result = node.reset_network(None).unwrap();
         assert!(reset_result);
 
-        let nonce_after = node.get_transaction_count(address, None).await.unwrap();
+        let nonce_after = node
+            .get_transaction_count_impl(address, None)
+            .await
+            .unwrap();
         assert_eq!(nonce_before, nonce_after);
 
         assert_eq!(node.snapshots.read().unwrap().len(), 0);
@@ -737,7 +751,7 @@ mod tests {
         let new_code = vec![0x1u8; 32];
 
         let code_before = node
-            .get_code(address, None)
+            .get_code_impl(address, None)
             .await
             .expect("failed getting code")
             .0;
@@ -747,7 +761,7 @@ mod tests {
             .expect("failed setting code");
 
         let code_after = node
-            .get_code(address, None)
+            .get_code_impl(address, None)
             .await
             .expect("failed getting code")
             .0;
@@ -985,7 +999,7 @@ mod tests {
         let node = InMemoryNode::default();
 
         let start_block = node
-            .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
+            .get_block_by_number_impl(zksync_types::api::BlockNumber::Latest, false)
             .await
             .unwrap()
             .expect("block exists");
@@ -993,7 +1007,7 @@ mod tests {
         assert_eq!(result, L2BlockNumber(1));
 
         let current_block = node
-            .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
+            .get_block_by_number_impl(zksync_types::api::BlockNumber::Latest, false)
             .await
             .unwrap()
             .expect("block exists");
@@ -1005,7 +1019,7 @@ mod tests {
         assert_eq!(result, L2BlockNumber(start_block.number.as_u32() + 2));
 
         let current_block = node
-            .get_block_by_number(zksync_types::api::BlockNumber::Latest, false)
+            .get_block_by_number_impl(BlockNumber::Latest, false)
             .await
             .unwrap()
             .expect("block exists");
@@ -1030,13 +1044,13 @@ mod tests {
         let node = InMemoryNode::default();
 
         let initial_block = node
-            .get_block_number()
+            .get_block_number_impl()
             .await
             .expect("failed fetching block number");
         let snapshot_id = node.snapshot().expect("failed creating snapshot");
         node.mine_block().expect("mine_block");
         let current_block = node
-            .get_block_number()
+            .get_block_number_impl()
             .await
             .expect("failed fetching block number");
         assert_eq!(current_block, initial_block + 1);
@@ -1047,7 +1061,7 @@ mod tests {
         assert!(reverted);
 
         let restored_block = node
-            .get_block_number()
+            .get_block_number_impl()
             .await
             .expect("failed fetching block number");
         assert_eq!(restored_block, initial_block);

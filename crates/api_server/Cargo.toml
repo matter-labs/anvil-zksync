@@ -19,6 +19,7 @@ zksync_types.workspace = true
 zksync_web3_decl.workspace = true
 
 anyhow.workspace = true
+hex.workspace = true
 jsonrpsee.workspace = true
 thiserror.workspace = true
 tracing.workspace = true

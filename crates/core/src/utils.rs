@@ -1,8 +1,6 @@
 use anyhow::Context;
 use chrono::{DateTime, Utc};
-use futures::Future;
-use jsonrpc_core::{Error, ErrorCode};
-use std::{convert::TryInto, fmt, pin::Pin};
+use std::{convert::TryInto, fmt};
 use zksync_multivm::interface::{Call, CallType, ExecutionResult, VmExecutionResultAndLogs};
 use zksync_types::{
     api::{BlockNumber, DebugCall, DebugCallType},
@@ -12,19 +10,6 @@ use zksync_types::{
 };
 use zksync_utils::bytes_to_be_words;
 use zksync_web3_decl::error::Web3Error;
-
-pub(crate) trait IntoBoxedFuture: Sized + Send + 'static {
-    fn into_boxed_future(self) -> Pin<Box<dyn Future<Output = Self> + Send>> {
-        Box::pin(async { self })
-    }
-}
-
-impl<T, U> IntoBoxedFuture for Result<T, U>
-where
-    T: Send + 'static,
-    U: Send + 'static,
-{
-}
 
 /// Takes long integers and returns them in human friendly format with "_".
 /// For example: 12_334_093
@@ -75,19 +60,6 @@ pub fn to_real_block_number(block_number: BlockNumber, latest_block_number: U64)
         BlockNumber::Earliest => U64::zero(),
         BlockNumber::Number(n) => n,
     }
-}
-
-/// Returns a [jsonrpc_core::Error] indicating that the method is not implemented.
-pub fn not_implemented<T: Send + 'static>(
-    method_name: &str,
-) -> jsonrpc_core::BoxFuture<Result<T, jsonrpc_core::Error>> {
-    tracing::warn!("Method {} is not implemented", method_name);
-    Err(jsonrpc_core::Error {
-        data: None,
-        code: jsonrpc_core::ErrorCode::MethodNotFound,
-        message: format!("Method {} is not implemented", method_name),
-    })
-    .into_boxed_future()
 }
 
 /// Creates a [DebugCall] from a [L2Tx], [VmExecutionResultAndLogs] and a list of [Call]s.
@@ -169,51 +141,6 @@ pub fn utc_datetime_from_epoch_ms(millis: u64) -> DateTime<Utc> {
     DateTime::<Utc>::from_timestamp(secs as i64, nanos as u32).expect("valid timestamp")
 }
 
-pub fn report_into_jsrpc_error(error: eyre::Report) -> Error {
-    into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
-        error.to_string(),
-    )))
-}
-
-pub fn into_jsrpc_error(err: Web3Error) -> Error {
-    Error {
-        code: match err {
-            Web3Error::InternalError(_) | Web3Error::MethodNotImplemented => {
-                ErrorCode::InternalError
-            }
-            Web3Error::NoBlock
-            | Web3Error::PrunedBlock(_)
-            | Web3Error::PrunedL1Batch(_)
-            | Web3Error::ProxyError(_)
-            | Web3Error::TooManyTopics
-            | Web3Error::FilterNotFound
-            | Web3Error::LogsLimitExceeded(_, _, _)
-            | Web3Error::InvalidFilterBlockHash
-            | Web3Error::TreeApiUnavailable => ErrorCode::InvalidParams,
-            Web3Error::SubmitTransactionError(_, _) | Web3Error::SerializationError(_) => {
-                ErrorCode::ServerError(3)
-            }
-        },
-        message: match &err {
-            Web3Error::SubmitTransactionError(_, _) => err.to_string(),
-            Web3Error::InternalError(err) => {
-                if let Some(TransparentError(message)) = err.downcast_ref() {
-                    message.clone()
-                } else {
-                    err.to_string()
-                }
-            }
-            _ => err.to_string(),
-        },
-        data: match err {
-            Web3Error::SubmitTransactionError(_, data) => {
-                Some(format!("0x{}", hex::encode(data)).into())
-            }
-            _ => None,
-        },
-    }
-}
-
 /// Error that can be converted to a [`Web3Error`] and has transparent JSON-RPC error message (unlike `anyhow::Error` conversions).
 #[derive(Debug)]
 pub(crate) struct TransparentError(pub String);
@@ -229,14 +156,6 @@ impl std::error::Error for TransparentError {}
 impl From<TransparentError> for Web3Error {
     fn from(err: TransparentError) -> Self {
         Self::InternalError(err.into())
-    }
-}
-
-pub fn into_jsrpc_error_message(msg: String) -> Error {
-    Error {
-        code: ErrorCode::InternalError,
-        message: msg,
-        data: None,
     }
 }
 

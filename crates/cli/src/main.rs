@@ -2,12 +2,13 @@ use crate::bytecode_override::override_bytecodes;
 use crate::cli::{Cli, Command};
 use crate::utils::update_with_fork_details;
 use anvil_zksync_api_decl::{
-    AnvilNamespaceServer, ConfigNamespaceServer, DebugNamespaceServer, EvmNamespaceServer,
-    NetNamespaceServer, Web3NamespaceServer, ZksNamespaceServer,
+    AnvilNamespaceServer, ConfigNamespaceServer, DebugNamespaceServer, EthNamespaceServer,
+    EthTestNamespaceServer, EvmNamespaceServer, NetNamespaceServer, Web3NamespaceServer,
+    ZksNamespaceServer,
 };
 use anvil_zksync_api_server::{
-    AnvilNamespace, ConfigNamespace, DebugNamespace, EvmNamespace, NetNamespace, Web3Namespace,
-    ZksNamespace,
+    AnvilNamespace, ConfigNamespace, DebugNamespace, EthNamespace, EthTestNamespace, EvmNamespace,
+    NetNamespace, Web3Namespace, ZksNamespace,
 };
 use anvil_zksync_config::constants::{
     DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
@@ -17,7 +18,6 @@ use anvil_zksync_config::constants::{
 use anvil_zksync_config::types::SystemContractsOptions;
 use anvil_zksync_config::ForkPrintInfo;
 use anvil_zksync_core::fork::ForkDetails;
-use anvil_zksync_core::namespaces::{EthNamespaceT, EthTestNodeNamespaceT};
 use anvil_zksync_core::node::{
     BlockProducer, BlockSealer, BlockSealerMode, ImpersonationManager, InMemoryNode,
     TimestampManager, TxPool,
@@ -31,9 +31,8 @@ use futures::{
     future::{self},
     FutureExt,
 };
-use jsonrpc_core::MetaIoHandler;
-use jsonrpsee::server::ServerBuilder;
-use logging_middleware::LoggingMiddleware;
+use jsonrpsee::server::middleware::http::ProxyGetRequestLayer;
+use jsonrpsee::server::{RpcServiceBuilder, ServerBuilder};
 use std::fs::File;
 use std::{env, net::SocketAddr, str::FromStr};
 use tracing_subscriber::filter::LevelFilter;
@@ -44,13 +43,11 @@ use zksync_web3_decl::namespaces::ZksNamespaceClient;
 
 mod bytecode_override;
 mod cli;
-mod logging_middleware;
 mod utils;
 
 #[allow(clippy::too_many_arguments)]
 async fn build_json_http(
     addr: SocketAddr,
-    log_level_filter: LevelFilter,
     node: InMemoryNode,
     enable_health_api: bool,
     cors_allow_origin: String,
@@ -58,38 +55,47 @@ async fn build_json_http(
 ) -> tokio::task::JoinHandle<()> {
     let (sender, recv) = oneshot::channel::<()>();
 
-    let io_handler = {
-        let mut io = MetaIoHandler::with_middleware(LoggingMiddleware::new(log_level_filter));
+    let mut rpc = RpcModule::new(());
+    rpc.merge(EthNamespace::new(node.clone()).into_rpc())
+        .unwrap();
+    rpc.merge(EthTestNamespace::new(node.clone()).into_rpc())
+        .unwrap();
+    rpc.merge(AnvilNamespace::new(node.clone()).into_rpc())
+        .unwrap();
+    rpc.merge(EvmNamespace::new(node.clone()).into_rpc())
+        .unwrap();
+    rpc.merge(DebugNamespace::new(node.clone()).into_rpc())
+        .unwrap();
+    rpc.merge(NetNamespace::new(node.clone()).into_rpc())
+        .unwrap();
+    rpc.merge(ConfigNamespace::new(node.clone()).into_rpc())
+        .unwrap();
+    rpc.merge(ZksNamespace::new(node.clone()).into_rpc())
+        .unwrap();
+    rpc.merge(Web3Namespace.into_rpc()).unwrap();
 
-        io.extend_with(EthNamespaceT::to_delegate(node.clone()));
-        io.extend_with(EthTestNodeNamespaceT::to_delegate(node.clone()));
-        io
-    };
-
-    std::thread::spawn(move || {
-        let runtime = tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .worker_threads(1)
-            .build()
-            .unwrap();
-
-        let allow_origin = if disable_cors {
+    let allow_origin = if disable_cors {
             "null"
         } else {
             &cors_allow_origin
         };
-        let mut builder = jsonrpc_http_server::ServerBuilder::new(io_handler)
-            .threads(1)
-            .event_loop_executor(runtime.handle().clone())
+        let health_api_layer = tower::util::option_layer(if enable_health_api {
+        Some(ProxyGetRequestLayer::new("/health", "web3_clientVersion").unwrap())
+    } else {
+        None
+    });
+    let server_builder = ServerBuilder::default()
+        .http_only()
+        .set_http_middleware(tower::ServiceBuilder::new().layer(health_api_layer))
+        .set_rpc_middleware(RpcServiceBuilder::new().rpc_logger(100))
             .cors(DomainsValidation::AllowOnly(vec![allow_origin.into()]));
 
-        if enable_health_api {
-            builder = builder.health_api(("/health", "web3_clientVersion"));
-        }
+    let server = server_builder.build(addr).await.unwrap();
 
-        let server = builder.start_http(&addr).unwrap();
+    tokio::spawn(async move {
+        let server_handle = server.start(rpc);
 
-        server.wait();
+        server_handle.stopped().await;
         drop(sender);
     });
 
@@ -324,7 +330,6 @@ async fn main() -> anyhow::Result<()> {
         let addr = SocketAddr::new(*host, config.port);
         build_json_http(
             addr,
-            log_level_filter,
             node.clone(),
             config.health_check_endpoint,
             config.allow_origin.clone(),
@@ -342,35 +347,6 @@ async fn main() -> anyhow::Result<()> {
         system_contracts,
     ));
     threads.push(block_producer_handle);
-
-    threads.extend(config.host.iter().map(|host| {
-        let mut rpc = RpcModule::new(());
-        rpc.merge(AnvilNamespace::new(node.clone()).into_rpc())
-            .unwrap();
-        rpc.merge(EvmNamespace::new(node.clone()).into_rpc())
-            .unwrap();
-        rpc.merge(DebugNamespace::new(node.clone()).into_rpc())
-            .unwrap();
-        rpc.merge(NetNamespace::new(node.clone()).into_rpc())
-            .unwrap();
-        rpc.merge(ConfigNamespace::new(node.clone()).into_rpc())
-            .unwrap();
-        rpc.merge(ZksNamespace::new(node.clone()).into_rpc())
-            .unwrap();
-        rpc.merge(Web3Namespace.into_rpc()).unwrap();
-
-        let host = *host;
-        tokio::spawn(async move {
-            let server = ServerBuilder::default()
-                .http_only()
-                .build(SocketAddr::new(host, 8012))
-                .await
-                .unwrap();
-            let server_handle = server.start(rpc);
-
-            server_handle.stopped().await;
-        })
-    }));
 
     config.print(fork_print_info.as_ref());
 

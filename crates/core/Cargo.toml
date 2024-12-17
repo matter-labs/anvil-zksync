@@ -24,10 +24,6 @@ tokio.workspace = true
 futures.workspace = true
 once_cell.workspace = true
 
-jsonrpc-core.workspace = true
-jsonrpc-core-client.workspace = true
-jsonrpc-derive.workspace = true
-
 reqwest.workspace = true
 serde.workspace = true
 tracing.workspace = true
@@ -36,7 +32,6 @@ colored.workspace = true
 lazy_static.workspace = true
 eyre.workspace = true
 serde_json.workspace = true
-bigdecimal.workspace = true
 hex.workspace = true
 ethabi.workspace = true
 itertools.workspace = true

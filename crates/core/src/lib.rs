@@ -48,7 +48,6 @@ pub mod filters;
 pub mod fork;
 pub mod formatter;
 pub mod http_fork_source;
-pub mod namespaces;
 pub mod node;
 pub mod observability;
 pub mod resolver;
