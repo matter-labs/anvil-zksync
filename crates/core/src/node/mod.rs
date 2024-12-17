@@ -2,6 +2,7 @@
 
 mod block_producer;
 mod call_error_tracer;
+mod debug;
 pub mod error;
 mod eth;
 mod fee_model;
@@ -12,8 +13,6 @@ mod pool;
 mod sealer;
 mod state;
 mod storage_logs;
-#[cfg(test)]
-mod tests;
 mod time;
 mod zks;
 

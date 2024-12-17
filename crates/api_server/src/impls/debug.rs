@@ -27,7 +27,7 @@ impl DebugNamespaceServer for DebugNamespace {
     ) -> RpcResult<CallTracerBlockResult> {
         Ok(self
             .node
-            .trace_block_by_number(block, options)
+            .trace_block_by_number_impl(block, options)
             .await
             .map_err(RpcError::from)?)
     }
@@ -39,7 +39,7 @@ impl DebugNamespaceServer for DebugNamespace {
     ) -> RpcResult<CallTracerBlockResult> {
         Ok(self
             .node
-            .trace_block_by_hash(hash, options)
+            .trace_block_by_hash_impl(hash, options)
             .await
             .map_err(RpcError::from)?)
     }
@@ -52,7 +52,7 @@ impl DebugNamespaceServer for DebugNamespace {
     ) -> RpcResult<CallTracerResult> {
         Ok(self
             .node
-            .trace_call(request, block, options)
+            .trace_call_impl(request, block, options)
             .await
             .map_err(RpcError::from)?)
     }
@@ -64,7 +64,7 @@ impl DebugNamespaceServer for DebugNamespace {
     ) -> RpcResult<Option<CallTracerResult>> {
         Ok(self
             .node
-            .trace_transaction(tx_hash, options)
+            .trace_transaction_impl(tx_hash, options)
             .await
             .map_err(RpcError::from)?)
     }
