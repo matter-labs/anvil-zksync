@@ -1,14 +1,12 @@
 use alloy::network::ReceiptResponse;
 use alloy::providers::ext::AnvilApi;
 use alloy::providers::Provider;
+use alloy::transports::http::reqwest::header::{HeaderMap, HeaderValue, HOST, ORIGIN};
+use alloy::{primitives::U256, signers::local::PrivateKeySigner};
 use anvil_zksync_e2e_tests::{
-    init_testing_provider, init_testing_provider_with_http_headers, AnvilZKsyncApi, ReceiptExt, ZksyncWalletProviderExt, DEFAULT_TX_VALUE,
+    init_testing_provider, init_testing_provider_with_http_headers, AnvilZKsyncApi, ReceiptExt,
+    ZksyncWalletProviderExt, DEFAULT_TX_VALUE,
 };
-use alloy::{
-    primitives::U256,
-    signers::local::PrivateKeySigner,
-};
-use alloy::transports::http::reqwest::header::{HeaderMap, HeaderValue, ORIGIN};
 use std::convert::identity;
 use std::time::Duration;
 
@@ -348,7 +346,12 @@ async fn set_chain_id() -> anyhow::Result<()> {
     let random_signer_address = random_signer.address();
 
     // Send transaction before changing chain id
-    provider.tx().with_to(random_signer_address).with_value(U256::from(1e18 as u64)).finalize().await?;
+    provider
+        .tx()
+        .with_to(random_signer_address)
+        .with_value(U256::from(1e18 as u64))
+        .finalize()
+        .await?;
 
     // Change chain id
     let new_chain_id = 123;
@@ -360,7 +363,12 @@ async fn set_chain_id() -> anyhow::Result<()> {
     // Verify transactions can be executed after chain id change
     // Registering and using new signer to get new chain id applied
     provider.register_signer(random_signer);
-    provider.tx().with_from(random_signer_address).with_chain_id(new_chain_id).finalize().await?;
+    provider
+        .tx()
+        .with_from(random_signer_address)
+        .with_chain_id(new_chain_id)
+        .finalize()
+        .await?;
 
     Ok(())
 }
@@ -369,15 +377,28 @@ async fn set_chain_id() -> anyhow::Result<()> {
 async fn cli_no_cors() -> anyhow::Result<()> {
     let mut headers = HeaderMap::new();
     headers.insert(ORIGIN, HeaderValue::from_static("http://some.origin"));
-    
-    // Verify all origins are allowed by default
+    headers.insert(HOST, HeaderValue::from_static("http://some.origin"));
+
+    // Verify cors is disabled by default
     let provider = init_testing_provider_with_http_headers(headers.clone(), identity).await?;
     provider.get_chain_id().await?;
 
-    // Verify no origins are allowed with --no-cors
-    let provider_with_no_cors = init_testing_provider_with_http_headers(headers.clone(), |node| node.arg("--no-cors=true")).await?;
+    // Verify all origins are allowed by default
+    let provider = init_testing_provider_with_http_headers(headers.clone(), |node| {
+        node.arg("--no-cors=false")
+    })
+    .await?;
+    provider.get_chain_id().await?;
+
+    // Verify requests fail with enabled cors and `null` allowed origins
+    let provider_with_no_cors = init_testing_provider_with_http_headers(headers.clone(), |node| {
+        node.arg("--no-cors=false").arg("--allow-origin=null")
+    })
+    .await?;
     let error_resp = provider_with_no_cors.get_chain_id().await.unwrap_err();
-    assert_eq!(error_resp.to_string().contains("Origin of the request is not whitelisted"), true);
+    assert!(error_resp
+        .to_string()
+        .contains("Provided Host header is not whitelisted"),);
 
     Ok(())
 }
@@ -386,15 +407,31 @@ async fn cli_no_cors() -> anyhow::Result<()> {
 async fn cli_allow_origin() -> anyhow::Result<()> {
     let mut headers = HeaderMap::new();
     headers.insert(ORIGIN, HeaderValue::from_static("http://some.origin"));
+    headers.insert(HOST, HeaderValue::from_static("http://some.origin"));
 
     // Verify allowed origin can make requests
-    let provider_with_allowed_origin = init_testing_provider_with_http_headers(headers.clone(), |node| node.arg("--allow-origin=http://some.origin")).await?;
+    let provider_with_allowed_origin =
+        init_testing_provider_with_http_headers(headers.clone(), |node| {
+            node.arg("--no-cors=false")
+                .arg("--allow-origin=http://some.origin")
+        })
+        .await?;
     provider_with_allowed_origin.get_chain_id().await?;
 
     // Verify different origin is not allowed
-    let provider_with_not_allowed_origin = init_testing_provider_with_http_headers(headers.clone(), |node| node.arg("--allow-origin=http://other.origin")).await?;
-    let error_resp = provider_with_not_allowed_origin.get_chain_id().await.unwrap_err();
-    assert_eq!(error_resp.to_string().contains("Origin of the request is not whitelisted"), true);
+    let provider_with_not_allowed_origin =
+        init_testing_provider_with_http_headers(headers.clone(), |node| {
+            node.arg("--no-cors=false")
+                .arg("--allow-origin=http://other.origin")
+        })
+        .await?;
+    let error_resp = provider_with_not_allowed_origin
+        .get_chain_id()
+        .await
+        .unwrap_err();
+    assert!(error_resp
+        .to_string()
+        .contains("Provided Host header is not whitelisted"),);
 
     Ok(())
 }

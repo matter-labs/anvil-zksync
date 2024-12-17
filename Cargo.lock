@@ -401,12 +401,14 @@ dependencies = [
  "eyre",
  "futures 0.3.31",
  "hex",
+ "http 1.1.0",
  "jsonrpsee",
  "rand 0.8.5",
  "serde",
  "serde_json",
  "tokio",
  "tower 0.4.13",
+ "tower-http",
  "tracing",
  "tracing-subscriber",
  "zksync_types",
@@ -6973,6 +6975,20 @@ dependencies = [
  "futures-util",
  "pin-project-lite",
  "sync_wrapper 0.1.2",
+ "tower-layer",
+ "tower-service",
+]
+
+[[package]]
+name = "tower-http"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "403fa3b783d4b626a8ad51d766ab03cb6d2dbfc46b1c5d4448395e6628dc9697"
+dependencies = [
+ "bitflags 2.6.0",
+ "bytes",
+ "http 1.1.0",
+ "pin-project-lite",
  "tower-layer",
  "tower-service",
 ]

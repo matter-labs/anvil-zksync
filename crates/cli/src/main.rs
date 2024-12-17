@@ -31,10 +31,12 @@ use futures::{
     future::{self},
     FutureExt,
 };
-use jsonrpsee::server::middleware::http::ProxyGetRequestLayer;
+use http::Method;
+use jsonrpsee::server::middleware::http::{HostFilterLayer, ProxyGetRequestLayer};
 use jsonrpsee::server::{RpcServiceBuilder, ServerBuilder};
 use std::fs::File;
 use std::{env, net::SocketAddr, str::FromStr};
+use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 use tracing_subscriber::filter::LevelFilter;
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
 use zksync_types::H160;
@@ -74,21 +76,38 @@ async fn build_json_http(
         .unwrap();
     rpc.merge(Web3Namespace.into_rpc()).unwrap();
 
-    let allow_origin = if disable_cors {
-            "null"
+    let cors_layers = tower::util::option_layer(if !disable_cors {
+        // `CorsLayer` adds CORS-specific headers to responses but does not do filtering by itself
+        let cors_layer = CorsLayer::new()
+            .allow_origin(AllowOrigin::exact(
+                cors_allow_origin.parse().expect("malformed allow origin"),
+            ))
+            .allow_headers([http::header::CONTENT_TYPE])
+            .allow_methods([Method::GET, Method::POST])
+            .expose_headers(Any);
+        // `HostFilterLayer` filters requests based on "Host" header
+        let host_filter_layer = if cors_allow_origin == "*" {
+            HostFilterLayer::disable()
         } else {
-            &cors_allow_origin
+            HostFilterLayer::new([cors_allow_origin]).expect("malformed allow origin")
         };
-        let health_api_layer = tower::util::option_layer(if enable_health_api {
+        Some((cors_layer, host_filter_layer))
+    } else {
+        None
+    });
+    let health_api_layer = tower::util::option_layer(if enable_health_api {
         Some(ProxyGetRequestLayer::new("/health", "web3_clientVersion").unwrap())
     } else {
         None
     });
     let server_builder = ServerBuilder::default()
         .http_only()
-        .set_http_middleware(tower::ServiceBuilder::new().layer(health_api_layer))
-        .set_rpc_middleware(RpcServiceBuilder::new().rpc_logger(100))
-            .cors(DomainsValidation::AllowOnly(vec![allow_origin.into()]));
+        .set_http_middleware(
+            tower::ServiceBuilder::new()
+                .layer(cors_layers)
+                .layer(health_api_layer),
+        )
+        .set_rpc_middleware(RpcServiceBuilder::new().rpc_logger(100));
 
     let server = server_builder.build(addr).await.unwrap();
 
