@@ -131,8 +131,9 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
     simulate_only: bool,
 ) -> VmExecutionResultAndLogs {
     let batch_context = basic_system::basic_system::BasicBlockMetadataFromOracle {
-        eip1559_basefee: ruint::aliases::U256::from(1000u64),
+        eip1559_basefee: ruint::aliases::U256::from(if simulate_only { 0u64 } else { 1000u64 }),
         ergs_price: ruint::aliases::U256::from(1u64),
+        // FIXME
         block_number: 1,
         timestamp: 42,
     };
@@ -192,11 +193,7 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
     append_u256(&mut tx_raw, &gas_limit);
     append_u256(&mut tx_raw, &aa1.fee.gas_per_pubdata_limit);
 
-    let mut fee_per_gas = aa1.fee.max_fee_per_gas;
-    // HACK - for 'call' calls.
-    if fee_per_gas.is_zero() {
-        fee_per_gas = 1000.into();
-    }
+    let fee_per_gas = aa1.fee.max_fee_per_gas;
 
     append_u256(&mut tx_raw, &fee_per_gas);
     //append_u256(&mut tx_raw, &aa1.fee.max_priority_fee_per_gas);
