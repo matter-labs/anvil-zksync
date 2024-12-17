@@ -8,6 +8,11 @@ use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
 use std::{convert::TryInto, fmt, pin::Pin};
+use std::{
+    fs::File,
+    io::{BufWriter, Write},
+    path::Path,
+};
 use zksync_multivm::interface::{Call, CallType, ExecutionResult, VmExecutionResultAndLogs};
 use zksync_types::{
     api::{BlockNumber, DebugCall, DebugCallType},

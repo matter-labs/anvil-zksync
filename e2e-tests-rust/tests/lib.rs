@@ -5,17 +5,10 @@ use anvil_zksync_e2e_tests::{
     get_node_binary_path, assert_state,
     init_testing_provider, init_testing_provider_with_http_headers, AnvilZKsyncApi, ReceiptExt, ZksyncWalletProviderExt, DEFAULT_TX_VALUE,
 };
-use crate::anvil_zksync::utils::write_json_file;
-use anvil_zksync_core::node::VersionedState;
-use alloy::primitives::Address;
+use anvil_zksync_core::{ node::VersionedState, utils::write_json_file };
 use alloy::{primitives::U256, signers::local::PrivateKeySigner};
-use alloy_zksync::{
-    node_bindings::AnvilZKsync,
-    provider::{zksync_provider, ProviderBuilderExt, ZksyncProvider},
-};
 use alloy::transports::http::reqwest::header::{HeaderMap, HeaderValue, ORIGIN};
-use std::{ str::FromStr, fs, convert::identity, thread::sleep, time::Duration};
-use serde_json::Value;
+use std::{ fs, convert::identity, thread::sleep, time::Duration};
 use tempfile::tempdir;
 
 #[tokio::test]
@@ -499,21 +492,27 @@ async fn load_state_on_run() -> anyhow::Result<()> {
     })
     .await?;
 
-    // provider.tx().finalize().await?;
+
 
     // Allow some time for any potential state operations
     sleep(Duration::from_secs(2));
 
+    provider.assert_has_receipts(&new_receipts).await?;
+    provider.assert_has_blocks(&new_blocks).await?;
+    provider
+        .assert_balance(new_receipts[0].sender()?, DEFAULT_TX_VALUE)
+        .await?;
+    provider
+        .assert_balance(new_receipts[1].sender()?, DEFAULT_TX_VALUE)
+        .await?;
+
     drop(provider);
 
-    // Step 4: Verify the state dump file still exists and contains valid data
     assert!(
         dump_path.exists(),
         "State dump file should still exist at {:?}",
         dump_path
     );
-
-    //assert_state(&dump_path)?;
 
     Ok(())
 }

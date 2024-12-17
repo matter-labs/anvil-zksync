@@ -1,14 +1,7 @@
 use anvil_zksync_config::types::Genesis;
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_core::fork::ForkDetails;
-use anyhow::Context;
-use serde::Serialize;
 use std::fs;
-use std::{
-    fs::File,
-    io::{BufWriter, Write},
-    path::Path,
-};
 
 /// Parses the genesis file from the given path.
 pub fn parse_genesis_file(path: &str) -> Result<Genesis, String> {

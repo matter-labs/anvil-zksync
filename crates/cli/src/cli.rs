@@ -1,4 +1,4 @@
-use crate::utils::{parse_genesis_file, write_json_file};
+use crate::utils::parse_genesis_file;
 use alloy_signer_local::coins_bip39::{English, Mnemonic};
 use anvil_zksync_config::constants::{
     DEFAULT_DISK_CACHE_DIR, DEFAULT_MNEMONIC, TEST_NODE_NETWORK_ID,
@@ -8,7 +8,10 @@ use anvil_zksync_config::types::{
     ShowStorageLogs, ShowVMDetails, SystemContractsOptions,
 };
 use anvil_zksync_config::TestNodeConfig;
-use anvil_zksync_core::node::{InMemoryNode, VersionedState};
+use anvil_zksync_core::{
+    node::{InMemoryNode, VersionedState},
+    utils::write_json_file,
+};
 use anyhow::Result;
 use clap::{arg, command, Parser, Subcommand};
 use flate2::read::GzDecoder;
