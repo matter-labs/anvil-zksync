@@ -896,6 +896,7 @@ dependencies = [
  "anvil_zksync_core",
  "anyhow",
  "async-trait",
+ "flate2",
  "fs2",
  "futures 0.3.31",
  "http 1.1.0",

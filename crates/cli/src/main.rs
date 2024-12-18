@@ -278,7 +278,19 @@ async fn main() -> anyhow::Result<()> {
     let any_server_stopped =
         futures::future::select_all(server_handles.into_iter().map(|h| Box::pin(h.stopped())));
 
-    let dump_state = config.dump_state.clone();
+    // Load state from `--load-state` if provided
+    if let Some(ref load_state_path) = config.load_state {
+        let bytes = std::fs::read(load_state_path).expect("Failed to read load state file");
+        node.load_state(zksync_types::web3::Bytes(bytes))?;
+    }
+
+    // Load state from `--state` if provided and contains a saved state
+    if let Some(ref state_path) = config.state {
+        let bytes = std::fs::read(state_path).expect("Failed to read load state file");
+        node.load_state(zksync_types::web3::Bytes(bytes))?;
+    }
+
+    let state_path = config.dump_state.clone().or_else(|| config.state.clone());
     let dump_interval = config
         .state_interval
         .map(Duration::from_secs)
@@ -287,7 +299,7 @@ async fn main() -> anyhow::Result<()> {
     let node_for_dumper = node.clone();
     let state_dumper = tokio::task::spawn(PeriodicStateDumper::new(
         node_for_dumper,
-        dump_state,
+        state_path,
         dump_interval,
         preserve_historical_states,
     ));

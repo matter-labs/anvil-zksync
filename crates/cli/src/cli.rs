@@ -220,6 +220,21 @@ pub struct Cli {
     #[arg(long, value_name = "PATH", value_parser= parse_genesis_file)]
     pub init: Option<Genesis>,
 
+    /// This is an alias for both --load-state and --dump-state.
+    ///
+    /// It initializes the chain with the state and block environment stored at the file, if it
+    /// exists, and dumps the chain's state on exit.
+    #[arg(
+        long,
+        value_name = "PATH",
+        conflicts_with_all = &[
+            "init",
+            "dump_state",
+            "load_state"
+        ]
+    )]
+    pub state: Option<PathBuf>,
+
     /// Interval in seconds at which the state and block environment is to be dumped to disk.
     ///
     /// See --state and --dump-state
@@ -240,6 +255,10 @@ pub struct Cli {
     /// aids in RPC calls beyond the block at which state was dumped.
     #[arg(long, conflicts_with = "init", default_value = "false")]
     pub preserve_historical_states: bool,
+
+    /// Initialize the chain from a previously saved state snapshot.
+    #[arg(long, value_name = "PATH", conflicts_with = "init")]
+    pub load_state: Option<PathBuf>,
 
     /// BIP39 mnemonic phrase used for generating accounts.
     /// Cannot be used if `mnemonic_random` or `mnemonic_seed` are used.
@@ -436,8 +455,13 @@ impl Cli {
             .with_allow_origin(self.allow_origin)
             .with_no_cors(self.no_cors)
             .with_transaction_order(self.order)
+            .with_state(self.state)
             .with_state_interval(self.state_interval)
             .with_dump_state(self.dump_state)
+            .with_preserve_historical_states(self.preserve_historical_states)
+            .with_load_state(self.load_state);
+
+        if self.emulate_evm && self.dev_system_contracts != Some(SystemContractsOptions::Local) {
             return Err(eyre::eyre!(
                 "EVM emulation requires the 'local' system contracts option."
             ));
@@ -620,6 +644,7 @@ mod tests {
         net::{IpAddr, Ipv4Addr},
     };
     use tempdir::TempDir;
+    use zksync_types::{H160, U256};
 
     #[test]
     fn can_parse_host() {
@@ -686,8 +711,6 @@ mod tests {
             TxPool::new(ImpersonationManager::default(), config.transaction_order),
             BlockSealer::new(BlockSealerMode::noop()),
         );
-        let test_address = zksync_types::H160::random();
-        node.set_rich_account(test_address, 1000000u64.into());
 
         let mut state_dumper = PeriodicStateDumper::new(
             node.clone(),
@@ -712,6 +735,72 @@ mod tests {
             std::fs::read_to_string(&dump_path).expect("Expected state file to be created");
         let _: Value =
             serde_json::from_str(&dumped_data).expect("Failed to parse dumped state as JSON");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_load_state() -> anyhow::Result<()> {
+        let temp_dir = TempDir::new("state-load-test").expect("failed creating temporary dir");
+        let state_path = temp_dir.path().join("state.json");
+
+        let config = anvil_zksync_config::TestNodeConfig {
+            dump_state: Some(state_path.clone()),
+            state_interval: Some(1),
+            preserve_historical_states: true,
+            ..Default::default()
+        };
+
+        let node = InMemoryNode::new(
+            None,
+            None,
+            &config,
+            TimestampManager::default(),
+            ImpersonationManager::default(),
+            TxPool::new(ImpersonationManager::default(), config.transaction_order),
+            BlockSealer::new(BlockSealerMode::noop()),
+        );
+        let test_address = H160::from_low_u64_be(12345);
+        node.set_rich_account(test_address, U256::from(1000000u64));
+
+        let mut state_dumper = PeriodicStateDumper::new(
+            node.clone(),
+            config.dump_state.clone(),
+            std::time::Duration::from_secs(1),
+            config.preserve_historical_states,
+        );
+
+        let dumper_handle = tokio::spawn(async move {
+            tokio::select! {
+                _ = &mut state_dumper => {}
+            }
+            state_dumper.dump().await;
+        });
+
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+
+        dumper_handle.abort();
+        let _ = dumper_handle.await;
+
+        // assert the state json file was created
+        std::fs::read_to_string(&state_path).expect("Expected state file to be created");
+
+        let new_config = anvil_zksync_config::TestNodeConfig::default();
+        let new_node = InMemoryNode::new(
+            None,
+            None,
+            &new_config,
+            TimestampManager::default(),
+            ImpersonationManager::default(),
+            TxPool::new(ImpersonationManager::default(), config.transaction_order),
+            BlockSealer::new(BlockSealerMode::noop()),
+        );
+
+        new_node.load_state(zksync_types::web3::Bytes(std::fs::read(&state_path)?))?;
+
+        // assert the balance from the loaded state is correctly applied
+        let balance = new_node.get_balance_impl(test_address, None).await.unwrap();
+        assert_eq!(balance, U256::from(1000000u64));
 
         Ok(())
     }

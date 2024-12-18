@@ -10,6 +10,7 @@ use anvil_zksync_e2e_tests::{
     init_testing_provider, init_testing_provider_with_client, AnvilZKsyncApi, ReceiptExt,
     ZksyncWalletProviderExt, DEFAULT_TX_VALUE, get_node_binary_path
 };
+use anvil_zksync_core::utils::write_json_file;
 use http::header::{
     HeaderMap, HeaderValue, ACCESS_CONTROL_ALLOW_HEADERS, ACCESS_CONTROL_ALLOW_METHODS,
     ACCESS_CONTROL_ALLOW_ORIGIN, ORIGIN,
@@ -22,6 +23,8 @@ const ANY_ORIGIN: HeaderValue = HeaderValue::from_static("*");
 use anvil_zksync_core::node::VersionedState;
 use std::{ fs, convert::identity, thread::sleep, time::Duration };
 use tempdir::TempDir;
+use flate2::read::GzDecoder;
+use std::io::Read;
 
 #[tokio::test]
 async fn interval_sealing_finalization() -> anyhow::Result<()> {
@@ -668,6 +671,112 @@ async fn dump_state_on_fork() -> anyhow::Result<()>  {
             panic!("Encountered unknown state version: {}", version);
         }
     }
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn load_state_on_run() -> anyhow::Result<()> {
+    let temp_dir = TempDir::new("load-state-test").expect("failed creating temporary dir");
+    let dump_path = temp_dir.path().join("load_state_run.json");
+    let provider = init_testing_provider(identity).await?;
+    let receipts = [
+        provider.tx().finalize().await?,
+        provider.tx().finalize().await?,
+    ];
+    let blocks = provider.get_blocks_by_receipts(&receipts).await?;
+    let state_bytes = provider.anvil_dump_state().await?;
+    drop(provider);
+
+    let mut decoder = GzDecoder::new(&state_bytes.0[..]);
+    let mut json_str = String::new();
+    decoder.read_to_string(&mut json_str).unwrap();
+    let state: VersionedState = serde_json::from_str(&json_str).unwrap();
+    write_json_file(&dump_path, &state)?;
+
+    let dump_path_clone = dump_path.clone();
+    let new_provider = init_testing_provider(move |node| {
+        node
+            .path(get_node_binary_path())
+            .arg("--state-interval")
+            .arg("1")
+            .arg("--load-state")
+            .arg(dump_path_clone.to_str().unwrap())
+    })
+    .await?;
+
+    sleep(Duration::from_secs(2));
+
+    new_provider.assert_has_receipts(&receipts).await?;
+    new_provider.assert_has_blocks(&blocks).await?;
+    new_provider
+        .assert_balance(receipts[0].sender()?, DEFAULT_TX_VALUE)
+        .await?;
+    new_provider
+        .assert_balance(receipts[1].sender()?, DEFAULT_TX_VALUE)
+        .await?;
+
+    drop(new_provider);
+
+    assert!(
+        dump_path.exists(),
+        "State dump file should still exist at {:?}",
+        dump_path
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore]
+async fn load_state_on_fork() -> anyhow::Result<()> {
+    let temp_dir = TempDir::new("load-state-fork-test").expect("failed creating temporary dir");
+    let dump_path = temp_dir.path().join("load_state_fork.json");
+    let provider = init_testing_provider(identity).await?;
+    let receipts = [
+        provider.tx().finalize().await?,
+        provider.tx().finalize().await?,
+    ];
+    let blocks = provider.get_blocks_by_receipts(&receipts).await?;
+    let state_bytes = provider.anvil_dump_state().await?;
+    drop(provider);
+    
+    let mut decoder = GzDecoder::new(&state_bytes.0[..]);
+    let mut json_str = String::new();
+    decoder.read_to_string(&mut json_str).unwrap();
+    let state: VersionedState = serde_json::from_str(&json_str).unwrap();
+    write_json_file(&dump_path, &state)?;
+
+    let dump_path_clone = dump_path.clone();
+    let new_provider = init_testing_provider(move |node| {
+        node
+            .path(get_node_binary_path())
+            .arg("--state-interval")
+            .arg("1")
+            .arg("--load-state")
+            .arg(dump_path_clone.to_str().unwrap())
+            .fork("mainnet")
+    })
+    .await?;
+
+    sleep(Duration::from_secs(2));
+
+    new_provider.assert_has_receipts(&receipts).await?;
+    new_provider.assert_has_blocks(&blocks).await?;
+    new_provider
+        .assert_balance(receipts[0].sender()?, DEFAULT_TX_VALUE)
+        .await?;
+    new_provider
+        .assert_balance(receipts[1].sender()?, DEFAULT_TX_VALUE)
+        .await?;
+
+    drop(new_provider);
+
+    assert!(
+        dump_path.exists(),
+        "State dump file should still exist at {:?}",
+        dump_path
+    );
 
     Ok(())
 }
