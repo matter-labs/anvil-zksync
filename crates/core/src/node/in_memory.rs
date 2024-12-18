@@ -1101,7 +1101,7 @@ fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) 
 impl Default for InMemoryNode {
     fn default() -> Self {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation.clone());
+        let pool = TxPool::new(impersonation.clone(), TransactionOrder::Fifo);
         let tx_listener = pool.add_tx_listener();
         InMemoryNode::new(
             None,
@@ -1154,7 +1154,7 @@ impl InMemoryNode {
     // TODO: Refactor InMemoryNode with a builder pattern
     pub fn default_fork(fork: Option<ForkDetails>) -> Self {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation.clone());
+        let pool = TxPool::new(impersonation.clone(), TransactionOrder::Fifo);
         let tx_listener = pool.add_tx_listener();
         Self::new(
             fork,
@@ -1256,7 +1256,10 @@ impl InMemoryNode {
         tracing::debug!(count = txs.len(), "applying transactions");
 
         // Create a temporary tx pool (i.e. state is not shared with the node mempool).
-        let pool = TxPool::new(self.impersonation.clone());
+        let pool = TxPool::new(
+            self.impersonation.clone(),
+            self.read_inner()?.config.transaction_order,
+        );
         pool.add_txs(txs);
 
         // Lock time so that the produced blocks are guaranteed to be sequential in time.
@@ -1648,6 +1651,7 @@ impl InMemoryNode {
     pub fn run_l2_tx<W: WriteStorage, H: HistoryMode>(
         &self,
         l2_tx: L2Tx,
+        l2_tx_index: U64,
         block_ctx: &BlockContext,
         batch_env: &L1BatchEnv,
         vm: &mut Vm<W, H>,
@@ -1723,7 +1727,7 @@ impl InMemoryNode {
                 block_number: Some(block_ctx.miniblock.into()),
                 l1_batch_number: Some(U64::from(batch_env.number.0)),
                 transaction_hash: Some(tx_hash),
-                transaction_index: Some(U64::zero()),
+                transaction_index: Some(l2_tx_index),
                 log_index: Some(U256::from(log_idx)),
                 transaction_log_index: Some(U256::from(log_idx)),
                 log_type: None,
@@ -1738,7 +1742,7 @@ impl InMemoryNode {
         }
         let tx_receipt = TransactionReceipt {
             transaction_hash: tx_hash,
-            transaction_index: U64::from(0),
+            transaction_index: l2_tx_index,
             block_hash: block_ctx.hash,
             block_number: block_ctx.miniblock.into(),
             l1_batch_tx_index: None,
@@ -1804,6 +1808,7 @@ impl InMemoryNode {
 
         // Execute transactions and bootloader
         let mut executed_tx_hashes = Vec::with_capacity(tx_hashes.len());
+        let mut tx_index = U64::from(0);
         for tx in txs {
             // Executing a next transaction means that a previous transaction was either rolled back (in which case its snapshot
             // was already removed), or that we build on top of it (in which case, it can be removed now).
@@ -1811,11 +1816,12 @@ impl InMemoryNode {
             // Save pre-execution VM snapshot.
             vm.make_snapshot();
             let hash = tx.hash();
-            if let Err(e) = self.run_l2_tx(tx, &block_ctx, &batch_env, &mut vm) {
+            if let Err(e) = self.run_l2_tx(tx, tx_index, &block_ctx, &batch_env, &mut vm) {
                 tracing::error!("Error while executing transaction: {e}");
                 vm.rollback_to_the_latest_snapshot();
             } else {
                 executed_tx_hashes.push(hash);
+                tx_index += U64::from(1);
             }
         }
         vm.execute(InspectExecutionMode::Bootloader);
@@ -1832,7 +1838,7 @@ impl InMemoryNode {
         let mut transactions = Vec::new();
         let mut tx_receipts = Vec::new();
         let mut debug_calls = Vec::new();
-        for tx_hash in &executed_tx_hashes {
+        for (index, tx_hash) in executed_tx_hashes.iter().enumerate() {
             let Some(tx_result) = inner.tx_results.get(tx_hash) else {
                 // Skipping halted transaction
                 continue;
@@ -1843,7 +1849,7 @@ impl InMemoryNode {
             let mut transaction = zksync_types::api::Transaction::from(tx_result.info.tx.clone());
             transaction.block_hash = Some(block_ctx.hash);
             transaction.block_number = Some(U64::from(block_ctx.miniblock));
-            transaction.transaction_index = Some(Index::zero());
+            transaction.transaction_index = Some(index.into());
             transaction.l1_batch_number = Some(U64::from(batch_env.number.0));
             transaction.l1_batch_tx_index = Some(Index::zero());
             if transaction.transaction_type == Some(U64::zero())
@@ -2116,7 +2122,7 @@ mod tests {
         DEFAULT_ESTIMATE_GAS_SCALE_FACTOR, DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L2_GAS_PRICE,
         TEST_NODE_NETWORK_ID,
     };
-    use anvil_zksync_config::types::SystemContractsOptions;
+    use anvil_zksync_config::types::{SystemContractsOptions, TransactionOrder};
     use anvil_zksync_config::TestNodeConfig;
     use ethabi::{Token, Uint};
     use zksync_types::{utils::deployed_address_create, K256PrivateKey, Nonce};
@@ -2157,7 +2163,7 @@ mod tests {
             .unwrap();
         let (block_ctx, batch_env, mut vm) = test_vm(&node, system_contracts.clone());
         let err = node
-            .run_l2_tx(tx, &block_ctx, &batch_env, &mut vm)
+            .run_l2_tx(tx, U64::from(0), &block_ctx, &batch_env, &mut vm)
             .unwrap_err();
         assert_eq!(err.to_string(), "exceeds block gas limit");
     }
@@ -2178,7 +2184,7 @@ mod tests {
             .unwrap();
         let (block_ctx, batch_env, mut vm) = test_vm(&node, system_contracts.clone());
         let err = node
-            .run_l2_tx(tx, &block_ctx, &batch_env, &mut vm)
+            .run_l2_tx(tx, U64::from(0), &block_ctx, &batch_env, &mut vm)
             .unwrap_err();
 
         assert_eq!(
@@ -2203,7 +2209,7 @@ mod tests {
             .unwrap();
         let (block_ctx, batch_env, mut vm) = test_vm(&node, system_contracts.clone());
         let err = node
-            .run_l2_tx(tx, &block_ctx, &batch_env, &mut vm)
+            .run_l2_tx(tx, U64::from(0), &block_ctx, &batch_env, &mut vm)
             .unwrap_err();
 
         assert_eq!(
@@ -2241,7 +2247,7 @@ mod tests {
             raw_storage: external_storage.inner.read().unwrap().raw_storage.clone(),
         };
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation.clone());
+        let pool = TxPool::new(impersonation.clone(), TransactionOrder::Fifo);
         let sealer = BlockSealer::new(BlockSealerMode::immediate(1000, pool.add_tx_listener()));
         let node = InMemoryNode::new(
             Some(ForkDetails {
@@ -2281,7 +2287,7 @@ mod tests {
     #[tokio::test]
     async fn test_transact_returns_data_in_built_in_without_security_mode() {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation.clone());
+        let pool = TxPool::new(impersonation.clone(), TransactionOrder::Fifo);
         let sealer = BlockSealer::new(BlockSealerMode::immediate(1000, pool.add_tx_listener()));
         let node = InMemoryNode::new(
             None,

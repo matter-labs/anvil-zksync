@@ -6,7 +6,7 @@ use anvil_zksync_config::constants::{
 use anvil_zksync_config::types::{
     AccountGenerator, CacheConfig, CacheType, Genesis, SystemContractsOptions,
 };
-use anvil_zksync_config::TestNodeConfig;
+use anvil_zksync_config::{types::TransactionOrder, TestNodeConfig};
 use anvil_zksync_types::{LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
 use clap::{arg, command, Parser, Subcommand};
 use rand::{rngs::StdRng, SeedableRng};
@@ -251,6 +251,10 @@ pub struct Cli {
     /// Disable CORS.
     #[arg(long, conflicts_with = "allow_origin", help_heading = "Server options")]
     pub no_cors: bool,
+
+    /// Transaction ordering in the mempool.
+    #[arg(long, default_value = "fifo")]
+    pub order: TransactionOrder,
 }
 
 #[derive(Debug, Subcommand, Clone)]
@@ -391,7 +395,8 @@ impl Cli {
             .with_block_time(self.block_time)
             .with_no_mining(self.no_mining)
             .with_allow_origin(self.allow_origin)
-            .with_no_cors(self.no_cors);
+            .with_no_cors(self.no_cors)
+            .with_transaction_order(self.order);
 
         if self.emulate_evm && self.dev_system_contracts != Some(SystemContractsOptions::Local) {
             return Err(eyre::eyre!(

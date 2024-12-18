@@ -36,25 +36,33 @@ impl Default for ConsoleLogHandler {
 
 impl ConsoleLogHandler {
     pub fn handle_calls_recursive(&self, calls: &Vec<Call>) {
-        tracing::info!("");
-        tracing::info!("==== Console logs: ");
-
+        let mut messages: Vec<String> = vec![];
         for call in calls {
-            self.handle_call_recursive(call);
+            self.handle_call_recursive(call, &mut messages);
+        }
+
+        if !messages.is_empty() {
+            tracing::info!("");
+            tracing::info!("==== Console logs: ");
+        }
+        for message in messages {
+            tracing::info!("{}", message.cyan());
         }
     }
-    pub fn handle_call_recursive(&self, current_call: &Call) {
-        self.handle_call(current_call);
+    pub fn handle_call_recursive(&self, current_call: &Call, messages: &mut Vec<String>) {
+        if let Some(message) = self.handle_call(current_call) {
+            messages.push(message);
+        };
         for call in &current_call.calls {
-            self.handle_call_recursive(call);
+            self.handle_call_recursive(call, messages);
         }
     }
-    pub fn handle_call(&self, current_call: &Call) {
+    pub fn handle_call(&self, current_call: &Call) -> Option<String> {
         if current_call.to != self.target_contract {
-            return;
+            return None;
         }
         if current_call.input.len() < 4 {
-            return;
+            return None;
         }
         let signature = &current_call.input[..4];
         let message =
@@ -67,7 +75,7 @@ impl ConsoleLogHandler {
                         tokens.iter().map(|t| format!("{}", t)).join(" ")
                     })
                 });
-        tracing::info!("{}", message.cyan());
+        Some(message)
     }
 }
 

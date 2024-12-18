@@ -1,59 +1,96 @@
 use crate::node::impersonate::ImpersonationManager;
+use anvil_zksync_config::types::{TransactionOrder, TransactionPriority};
 use futures::channel::mpsc::{channel, Receiver, Sender};
-use itertools::Itertools;
-use std::sync::{Arc, Mutex, RwLock};
+use std::cmp::Ordering;
+use std::collections::BTreeSet;
+use std::sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard};
 use zksync_types::l2::L2Tx;
-use zksync_types::{Address, H256};
+use zksync_types::H256;
 
 #[derive(Debug, Clone)]
 pub struct TxPool {
-    inner: Arc<RwLock<Vec<L2Tx>>>,
+    inner: Arc<RwLock<BTreeSet<PoolTransaction>>>,
+    /// Transaction ordering in the mempool.
+    transaction_order: Arc<RwLock<TransactionOrder>>,
+    /// Used to preserve transactions submission order in the pool
+    submission_number: Arc<Mutex<u64>>,
     /// Listeners for new transactions' hashes
     tx_listeners: Arc<Mutex<Vec<Sender<H256>>>>,
     pub(crate) impersonation: ImpersonationManager,
 }
 
 impl TxPool {
-    pub fn new(impersonation: ImpersonationManager) -> Self {
+    pub fn new(impersonation: ImpersonationManager, transaction_order: TransactionOrder) -> Self {
         Self {
-            inner: Arc::new(RwLock::new(Vec::new())),
+            inner: Arc::new(RwLock::new(BTreeSet::new())),
+            submission_number: Arc::new(Mutex::new(0)),
             tx_listeners: Arc::new(Mutex::new(Vec::new())),
             impersonation,
+            transaction_order: Arc::new(RwLock::new(transaction_order)),
         }
     }
 
+    fn lock_submission_number(&self) -> MutexGuard<'_, u64> {
+        self.submission_number
+            .lock()
+            .expect("submission_number lock is poisoned")
+    }
+
+    fn read_transaction_order(&self) -> RwLockReadGuard<'_, TransactionOrder> {
+        self.transaction_order
+            .read()
+            .expect("transaction_order lock is poisoned")
+    }
+
     pub fn add_tx(&self, tx: L2Tx) {
-        let mut guard = self.inner.write().expect("TxPool lock is poisoned");
         let hash = tx.hash();
-        guard.push(tx);
+        let priority = self.read_transaction_order().priority(&tx);
+        let mut submission_number = self.lock_submission_number();
+        *submission_number = submission_number.wrapping_add(1);
+
+        let mut guard = self.inner.write().expect("TxPool lock is poisoned");
+        guard.insert(PoolTransaction {
+            transaction: tx,
+            submission_number: *submission_number,
+            priority,
+        });
         self.notify_listeners(hash);
     }
 
-    pub fn add_txs(&self, txs: impl IntoIterator<Item = L2Tx>) {
+    pub fn add_txs(&self, txs: Vec<L2Tx>) {
+        let transaction_order = self.read_transaction_order();
+        let mut submission_number = self.lock_submission_number();
+
         let mut guard = self.inner.write().expect("TxPool lock is poisoned");
         for tx in txs {
             let hash = tx.hash();
-            guard.push(tx);
+            let priority = transaction_order.priority(&tx);
+            *submission_number = submission_number.wrapping_add(1);
+            guard.insert(PoolTransaction {
+                transaction: tx,
+                submission_number: *submission_number,
+                priority,
+            });
             self.notify_listeners(hash);
         }
     }
 
     /// Removes a single transaction from the pool
     pub fn drop_transaction(&self, hash: H256) -> Option<L2Tx> {
-        let mut guard = self.inner.write().expect("TxPool lock is poisoned");
-        let (position, _) = guard.iter_mut().find_position(|tx| tx.hash() == hash)?;
-        Some(guard.remove(position))
+        let dropped = self.drop_transactions(|tx| tx.transaction.hash() == hash);
+        dropped.first().cloned()
     }
 
-    /// Remove transactions by sender
-    pub fn drop_transactions_by_sender(&self, sender: Address) -> Vec<L2Tx> {
+    /// Remove transactions matching the specified condition
+    pub fn drop_transactions<F>(&self, f: F) -> Vec<L2Tx>
+    where
+        F: Fn(&PoolTransaction) -> bool,
+    {
         let mut guard = self.inner.write().expect("TxPool lock is poisoned");
         let txs = std::mem::take(&mut *guard);
-        let (sender_txs, other_txs) = txs
-            .into_iter()
-            .partition(|tx| tx.common_data.initiator_address == sender);
+        let (matching_txs, other_txs) = txs.into_iter().partition(f);
         *guard = other_txs;
-        sender_txs
+        matching_txs.into_iter().map(|tx| tx.transaction).collect()
     }
 
     /// Removes all transactions from the pool
@@ -70,27 +107,38 @@ impl TxPool {
             return None;
         }
         let mut guard = self.inner.write().expect("TxPool lock is poisoned");
-        let mut iter = guard.iter();
-        let Some(head_tx) = iter.next() else {
+        let Some(head_tx) = guard.pop_last() else {
             // Pool is empty
             return None;
         };
-        let (impersonating, tx_count) = self.impersonation.inspect(|state| {
+        let mut taken_txs = vec![];
+        let impersonating = self.impersonation.inspect(|state| {
             // First tx's impersonation status decides what all other txs' impersonation status is
             // expected to be.
-            let impersonating = state.is_impersonating(&head_tx.common_data.initiator_address);
-            let tail_txs = iter
-                // Guaranteed to be non-zero
-                .take(n - 1)
-                .take_while(|tx| {
-                    impersonating == state.is_impersonating(&tx.common_data.initiator_address)
-                });
-            // The amount of transactions that can be taken from the pool; `+1` accounts for `head_tx`.
-            (impersonating, tail_txs.count() + 1)
+            let impersonating =
+                state.is_impersonating(&head_tx.transaction.common_data.initiator_address);
+            taken_txs.insert(0, head_tx.transaction);
+            let mut taken_txs_number = 1;
+
+            while taken_txs_number < n {
+                let Some(next_tx) = guard.last() else {
+                    break;
+                };
+                if impersonating
+                    != state.is_impersonating(&next_tx.transaction.common_data.initiator_address)
+                {
+                    break;
+                }
+                taken_txs.insert(taken_txs_number, guard.pop_last().unwrap().transaction);
+                taken_txs_number += 1;
+            }
+            impersonating
         });
 
-        let txs = guard.drain(0..tx_count).collect();
-        Some(TxBatch { impersonating, txs })
+        Some(TxBatch {
+            impersonating,
+            txs: taken_txs,
+        })
     }
 
     /// Adds a new transaction listener to the pool that gets notified about every new transaction.
@@ -158,18 +206,53 @@ pub struct TxBatch {
     pub txs: Vec<L2Tx>,
 }
 
+/// A reference to a transaction in the pool
+#[derive(Clone, Debug)]
+pub struct PoolTransaction {
+    /// actual transaction
+    pub transaction: L2Tx,
+    /// Used to internally compare the transaction in the pool
+    pub submission_number: u64,
+    /// priority of the transaction
+    pub priority: TransactionPriority,
+}
+
+impl Eq for PoolTransaction {}
+
+impl PartialEq<Self> for PoolTransaction {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
+}
+
+impl PartialOrd<Self> for PoolTransaction {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for PoolTransaction {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.priority
+            .cmp(&other.priority)
+            .then_with(|| other.submission_number.cmp(&self.submission_number))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::node::impersonate::ImpersonationState;
     use crate::node::pool::TxBatch;
     use crate::node::{ImpersonationManager, TxPool};
     use crate::testing;
+    use anvil_zksync_config::types::TransactionOrder;
     use test_case::test_case;
+    use zksync_types::{l2::L2Tx, U256};
 
     #[test]
     fn take_from_empty() {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
         assert_eq!(pool.take_uniform(1), None);
     }
 
@@ -177,7 +260,7 @@ mod tests {
     #[test_case(true  ; "is impersonated")]
     fn take_zero(imp: bool) {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
 
         pool.populate_impersonate([imp]);
         assert_eq!(pool.take_uniform(0), None);
@@ -187,7 +270,7 @@ mod tests {
     #[test_case(true  ; "is impersonated")]
     fn take_exactly_one(imp: bool) {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
 
         let [tx0, ..] = pool.populate_impersonate([imp, false]);
         assert_eq!(
@@ -203,7 +286,7 @@ mod tests {
     #[test_case(true  ; "is impersonated")]
     fn take_exactly_two(imp: bool) {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
 
         let [tx0, tx1, ..] = pool.populate_impersonate([imp, imp, false]);
         assert_eq!(
@@ -219,7 +302,7 @@ mod tests {
     #[test_case(true  ; "is impersonated")]
     fn take_one_eligible(imp: bool) {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
 
         let [tx0, ..] = pool.populate_impersonate([imp, !imp, !imp, !imp]);
         assert_eq!(
@@ -237,7 +320,7 @@ mod tests {
     #[test_case(true  ; "is impersonated")]
     fn take_two_when_third_is_not_uniform(imp: bool) {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
 
         let [tx0, tx1, ..] = pool.populate_impersonate([imp, imp, !imp]);
         assert_eq!(
@@ -255,7 +338,7 @@ mod tests {
     #[test_case(true  ; "is impersonated")]
     fn take_interrupted_by_non_uniformness(imp: bool) {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
 
         let [tx0, tx1, ..] = pool.populate_impersonate([imp, imp, !imp, imp]);
         assert_eq!(
@@ -271,7 +354,7 @@ mod tests {
     #[test_case(true  ; "is impersonated")]
     fn take_multiple(imp: bool) {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
 
         let [tx0, tx1, tx2, tx3] = pool.populate_impersonate([imp, !imp, !imp, imp]);
         assert_eq!(
@@ -301,7 +384,7 @@ mod tests {
     #[test_case(true  ; "is impersonated")]
     fn pool_clones_share_state(imp: bool) {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
 
         let txs = {
             let pool_clone = pool.clone();
@@ -320,7 +403,7 @@ mod tests {
     #[test_case(true  ; "is impersonated")]
     fn take_multiple_from_clones(imp: bool) {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
 
         let [tx0, tx1, tx2, tx3] = {
             let pool_clone = pool.clone();
@@ -356,7 +439,7 @@ mod tests {
     #[test_case(true  ; "is impersonated")]
     fn take_respects_impersonation_change(imp: bool) {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
 
         let [tx0, tx1, tx2, tx3] = pool.populate_impersonate([imp, imp, !imp, imp]);
         assert_eq!(
@@ -388,7 +471,7 @@ mod tests {
     #[tokio::test]
     async fn take_uses_consistent_impersonation() {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation.clone());
+        let pool = TxPool::new(impersonation.clone(), TransactionOrder::Fifo);
 
         for _ in 0..4096 {
             let tx = testing::TransactionBuilder::new().build();
@@ -414,5 +497,40 @@ mod tests {
         // transactions should always be a complete set - in other words, `TxPool` should not see
         // a change in impersonation state partway through iterating the transactions.
         assert_eq!(tx_batch.txs.len(), 4096);
+    }
+
+    #[tokio::test]
+    async fn take_uses_transaction_order() {
+        let impersonation = ImpersonationManager::default();
+        let pool_fifo = TxPool::new(impersonation.clone(), TransactionOrder::Fifo);
+        let pool_fees = TxPool::new(impersonation.clone(), TransactionOrder::Fees);
+
+        let txs: Vec<L2Tx> = [1, 2, 3]
+            .iter()
+            .map(|index| {
+                let tx = testing::TransactionBuilder::new()
+                    .set_max_fee_per_gas(U256::from(50_000_000 + index))
+                    .build();
+                pool_fifo.add_tx(tx.clone());
+                pool_fees.add_tx(tx.clone());
+                tx
+            })
+            .collect();
+
+        assert_eq!(
+            pool_fifo.take_uniform(3),
+            Some(TxBatch {
+                impersonating: false,
+                txs: vec![txs[0].clone(), txs[1].clone(), txs[2].clone()]
+            })
+        );
+
+        assert_eq!(
+            pool_fees.take_uniform(3),
+            Some(TxBatch {
+                impersonating: false,
+                txs: vec![txs[2].clone(), txs[1].clone(), txs[0].clone()]
+            })
+        );
     }
 }

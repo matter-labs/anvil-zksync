@@ -458,6 +458,12 @@ where
         self
     }
 
+    /// Builder-pattern method for setting max fee per gas.
+    pub fn with_max_fee_per_gas(mut self, max_fee_per_gas: u128) -> Self {
+        self.inner = self.inner.with_max_fee_per_gas(max_fee_per_gas);
+        self
+    }
+
     /// Submits transaction to the node.
     ///
     /// This does not wait for the transaction to be confirmed, but returns a [`PendingTransactionFinalizable`]

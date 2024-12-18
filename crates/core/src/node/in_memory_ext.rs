@@ -440,7 +440,8 @@ impl InMemoryNode {
     }
 
     pub fn remove_pool_transactions(&self, address: Address) -> Result<()> {
-        self.pool.drop_transactions_by_sender(address);
+        self.pool
+            .drop_transactions(|tx| tx.transaction.common_data.initiator_address == address);
         Ok(())
     }
 
@@ -497,6 +498,7 @@ mod tests {
     use crate::node::time::{ReadTime, TimestampManager};
     use crate::node::InMemoryNode;
     use crate::node::{BlockSealer, ImpersonationManager, InMemoryNodeInner, Snapshot, TxPool};
+    use anvil_zksync_config::types::TransactionOrder;
     use std::str::FromStr;
     use std::sync::{Arc, RwLock};
     use zksync_multivm::interface::storage::ReadStorage;
@@ -633,7 +635,7 @@ mod tests {
             rich_accounts: Default::default(),
             previous_states: Default::default(),
         };
-        let pool = TxPool::new(impersonation.clone());
+        let pool = TxPool::new(impersonation.clone(), TransactionOrder::Fifo);
         let sealer = BlockSealer::new(BlockSealerMode::immediate(1000, pool.add_tx_listener()));
 
         let node = InMemoryNode {
