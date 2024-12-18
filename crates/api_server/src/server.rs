@@ -88,6 +88,8 @@ impl NodeServerBuilder {
 
         let server = server_builder.build(addr).await.unwrap();
         let rpc = Self::default_rpc(self.node);
+        // `jsonrpsee` does `tokio::spawn` within `start` method, so we cannot invoke it here, as this method
+        // should only build the server. This way we delay the launch until the `NodeServer::run` is invoked.
         NodeServer(Box::new(move || server.start(rpc)))
     }
 }
@@ -98,6 +100,8 @@ impl NodeServer {
     /// Start responding to connections requests.
     ///
     /// This will run on the tokio runtime until the server is stopped or the `ServerHandle` is dropped.
+    ///
+    /// See [`ServerHandle`](https://docs.rs/jsonrpsee-server/latest/jsonrpsee_server/struct.ServerHandle.html) docs for more details.
     pub fn run(self) -> ServerHandle {
         self.0()
     }
