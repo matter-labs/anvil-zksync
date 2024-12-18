@@ -81,13 +81,12 @@ async fn build_json_http(
         // CORS relies on browsers respecting server's access list response headers.
         // See [`tower_http::cors`](https://docs.rs/tower-http/latest/tower_http/cors/index.html)
         // for more details.
-        let cors_layer = CorsLayer::new()
+        CorsLayer::new()
             .allow_origin(AllowOrigin::exact(
                 cors_allow_origin.parse().expect("malformed allow origin"),
             ))
             .allow_headers([http::header::CONTENT_TYPE])
-            .allow_methods([Method::GET, Method::POST]);
-        cors_layer
+            .allow_methods([Method::GET, Method::POST])
     }));
     let health_api_layer = tower::util::option_layer(if enable_health_api {
         Some(ProxyGetRequestLayer::new("/health", "web3_clientVersion").unwrap())
