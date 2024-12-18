@@ -9,7 +9,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ ubuntu-latest, macos-latest ]
-    name: spec
+    name: e2e-rust
     steps:
       - uses: actions/checkout@v3
         with:
