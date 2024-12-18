@@ -128,7 +128,7 @@ pub struct NodeServerHandle {
 impl NodeServerHandle {
     /// Tell the server to stop without waiting for the server to stop.
     pub fn stop(&self) -> Result<(), AlreadyStoppedError> {
-        self.handles.iter().map(|handle| handle.stop()).collect()
+        self.handles.iter().try_for_each(|handle| handle.stop())
     }
 
     /// Wait for the server to stop.
