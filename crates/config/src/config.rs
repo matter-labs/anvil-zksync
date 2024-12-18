@@ -2,7 +2,9 @@ use crate::constants::*;
 use crate::types::*;
 use crate::utils::{format_eth, format_gwei};
 use alloy_signer_local::PrivateKeySigner;
-use anvil_zksync_types::{LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
+use anvil_zksync_types::{
+    LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails, TransactionOrder,
+};
 use colored::{Colorize, CustomColor};
 use serde_json::{json, to_writer, Value};
 use std::collections::HashMap;

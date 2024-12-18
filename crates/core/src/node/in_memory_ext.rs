@@ -498,7 +498,7 @@ mod tests {
     use crate::node::time::{ReadTime, TimestampManager};
     use crate::node::InMemoryNode;
     use crate::node::{BlockSealer, ImpersonationManager, InMemoryNodeInner, Snapshot, TxPool};
-    use anvil_zksync_config::types::TransactionOrder;
+    use anvil_zksync_types::TransactionOrder;
     use std::str::FromStr;
     use std::sync::{Arc, RwLock};
     use zksync_multivm::interface::storage::ReadStorage;

@@ -25,7 +25,9 @@ use anvil_zksync_config::constants::{
 };
 use anvil_zksync_config::types::{CacheConfig, Genesis, SystemContractsOptions};
 use anvil_zksync_config::TestNodeConfig;
-use anvil_zksync_types::{LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
+use anvil_zksync_types::{
+    LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails, TransactionOrder,
+};
 use colored::Colorize;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
@@ -2122,8 +2124,9 @@ mod tests {
         DEFAULT_ESTIMATE_GAS_SCALE_FACTOR, DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L2_GAS_PRICE,
         TEST_NODE_NETWORK_ID,
     };
-    use anvil_zksync_config::types::{SystemContractsOptions, TransactionOrder};
+    use anvil_zksync_config::types::SystemContractsOptions;
     use anvil_zksync_config::TestNodeConfig;
+    use anvil_zksync_types::TransactionOrder;
     use ethabi::{Token, Uint};
     use zksync_types::{utils::deployed_address_create, K256PrivateKey, Nonce};
 

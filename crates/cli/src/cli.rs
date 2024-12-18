@@ -6,8 +6,10 @@ use anvil_zksync_config::constants::{
 use anvil_zksync_config::types::{
     AccountGenerator, CacheConfig, CacheType, Genesis, SystemContractsOptions,
 };
-use anvil_zksync_config::{types::TransactionOrder, TestNodeConfig};
-use anvil_zksync_types::{LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
+use anvil_zksync_config::TestNodeConfig;
+use anvil_zksync_types::{
+    LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails, TransactionOrder,
+};
 use clap::{arg, command, Parser, Subcommand};
 use rand::{rngs::StdRng, SeedableRng};
 use std::env;

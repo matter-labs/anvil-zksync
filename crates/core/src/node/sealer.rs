@@ -154,7 +154,7 @@ mod tests {
     use crate::node::pool::TxBatch;
     use crate::node::sealer::BlockSealerMode;
     use crate::node::{BlockSealer, ImpersonationManager, TxPool};
-    use anvil_zksync_config::types::TransactionOrder;
+    use anvil_zksync_types::TransactionOrder;
     use std::ptr;
     use std::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
     use std::time::Duration;

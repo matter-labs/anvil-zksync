@@ -1,5 +1,5 @@
 use crate::node::impersonate::ImpersonationManager;
-use anvil_zksync_config::types::{TransactionOrder, TransactionPriority};
+use anvil_zksync_types::{TransactionOrder, TransactionPriority};
 use futures::channel::mpsc::{channel, Receiver, Sender};
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
@@ -245,7 +245,7 @@ mod tests {
     use crate::node::pool::TxBatch;
     use crate::node::{ImpersonationManager, TxPool};
     use crate::testing;
-    use anvil_zksync_config::types::TransactionOrder;
+    use anvil_zksync_types::TransactionOrder;
     use test_case::test_case;
     use zksync_types::{l2::L2Tx, U256};
 
