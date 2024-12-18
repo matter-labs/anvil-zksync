@@ -1,41 +1,41 @@
-use crate::utils::{LockedPort,get_node_binary_path};
+use crate::http_middleware::HttpWithMiddleware;
+use crate::utils::{get_node_binary_path, LockedPort};
 use crate::ReceiptExt;
 use alloy::network::primitives::{BlockTransactionsKind, HeaderResponse as _};
 use alloy::network::{Network, ReceiptResponse as _, TransactionBuilder};
 use alloy::primitives::{Address, U256};
-use alloy::signers::local::LocalSigner;
 use alloy::providers::{
     PendingTransaction, PendingTransactionBuilder, PendingTransactionError, Provider, RootProvider,
     SendableTx, WalletProvider,
 };
 use alloy::rpc::{
-    types::{Block, TransactionRequest},
     client::RpcClient,
+    types::{Block, TransactionRequest},
 };
-use alloy::transports::http::{
-    reqwest,
-    reqwest::{
-        header::HeaderMap,
-        Client,
-    },
-    Http
-};
+use alloy::signers::local::LocalSigner;
+use alloy::signers::Signer;
 use alloy::transports::{RpcError, Transport, TransportErrorKind, TransportResult};
 use alloy_zksync::network::header_response::HeaderResponse;
 use alloy_zksync::network::receipt_response::ReceiptResponse;
 use alloy_zksync::network::transaction_response::TransactionResponse;
 use alloy_zksync::network::Zksync;
-use alloy_zksync::node_bindings::{EraTestNode,EraTestNodeError::NoKeysAvailable};
-use alloy_zksync::provider::{zksync_provider, ProviderBuilderExt, layers::era_test_node::EraTestNodeLayer};
+use alloy_zksync::node_bindings::{EraTestNode, EraTestNodeError::NoKeysAvailable};
+use alloy_zksync::provider::{layers::era_test_node::EraTestNodeLayer, zksync_provider};
 use alloy_zksync::wallet::ZksyncWallet;
 use anyhow::Context as _;
+use async_trait::async_trait;
+use http::HeaderMap;
 use itertools::Itertools;
+use reqwest_middleware::{Middleware, Next};
+use std::convert::identity;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
+use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
 pub const DEFAULT_TX_VALUE: u64 = 100;
@@ -68,67 +68,46 @@ where
 {
     inner: P,
     rich_accounts: Vec<Address>,
+    /// Last seen response headers
+    last_response_headers: Arc<RwLock<Option<HeaderMap>>>,
     _pd: PhantomData<T>,
+
+    /// Underlying anvil-zksync instance's URL
+    pub url: reqwest::Url,
 }
 
-// Outside of `TestingProvider` to avoid specifying `P`
+// TODO: Consider creating a builder pattern
 pub async fn init_testing_provider(
-    f: impl FnOnce(EraTestNode) -> EraTestNode,
-) -> anyhow::Result<
-    TestingProvider<impl FullZksyncProvider<Http<reqwest::Client>>, Http<reqwest::Client>>,
-> {
-    let locked_port = LockedPort::acquire_unused().await?;
-    let provider = zksync_provider()
-        .with_recommended_fillers()
-        .on_era_test_node_with_wallet_and_config(|node| {
-            f(node
-                .path(get_node_binary_path())
-                .port(locked_port.port))
-        });
-
-    // Grab default rich accounts right after init. Note that subsequent calls to this method
-    // might return different value as wallet's signers are dynamic and can be changed by the user.
-    let rich_accounts = provider.signer_addresses().collect::<Vec<_>>();
-    // Wait for anvil-zksync to get up and be able to respond
-    provider.get_chain_id().await?;
-    // Explicitly unlock the port to showcase why we waited above
-    drop(locked_port);
-
-    Ok(TestingProvider {
-        inner: provider,
-        rich_accounts,
-        _pd: Default::default(),
-    })
+    node_fn: impl FnOnce(EraTestNode) -> EraTestNode,
+) -> anyhow::Result<TestingProvider<impl FullZksyncProvider<HttpWithMiddleware>, HttpWithMiddleware>>
+{
+    init_testing_provider_with_client(node_fn, identity).await
 }
 
-// Init testing provider which sends specified HTTP headers e.g. for authentication
-// Outside of `TestingProvider` to avoid specifying `P`
-pub async fn init_testing_provider_with_http_headers(
-    headers: HeaderMap,
-    f: impl FnOnce(EraTestNode) -> EraTestNode,
-) -> anyhow::Result<
-    TestingProvider<impl FullZksyncProvider<Http<reqwest::Client>>, Http<reqwest::Client>>,
-> {
-    use alloy::signers::Signer;
-
+pub async fn init_testing_provider_with_client(
+    node_fn: impl FnOnce(EraTestNode) -> EraTestNode,
+    client_fn: impl FnOnce(reqwest::ClientBuilder) -> reqwest::ClientBuilder,
+) -> anyhow::Result<TestingProvider<impl FullZksyncProvider<HttpWithMiddleware>, HttpWithMiddleware>>
+{
     let locked_port = LockedPort::acquire_unused().await?;
-    let node_layer = EraTestNodeLayer::from(
-        f(
-            EraTestNode::new()
-                .path(get_node_binary_path())
-                .port(locked_port.port)
-        )
-    );
+    let node_layer = EraTestNodeLayer::from(node_fn(
+        EraTestNode::new()
+            .path(get_node_binary_path())
+            .port(locked_port.port),
+    ));
 
-    let client_with_headers = Client::builder().default_headers(headers).build()?;
-    let rpc_url = node_layer.endpoint_url();
-    let http = Http::with_client(client_with_headers, rpc_url);
+    let last_response_headers = Arc::new(RwLock::new(None));
+    let client =
+        reqwest_middleware::ClientBuilder::new(client_fn(reqwest::Client::builder()).build()?)
+            .with(ResponseHeadersInspector(last_response_headers.clone()))
+            .build();
+    let url = node_layer.endpoint_url();
+    let http = HttpWithMiddleware::with_client(client, url.clone());
     let rpc_client = RpcClient::new(http, true);
 
+    let rich_accounts = node_layer.instance().addresses().iter().cloned().collect();
     let default_keys = node_layer.instance().keys().to_vec();
-    let (default_key, remaining_keys) = default_keys
-        .split_first()
-        .ok_or(NoKeysAvailable)?;
+    let (default_key, remaining_keys) = default_keys.split_first().ok_or(NoKeysAvailable)?;
 
     let default_signer = LocalSigner::from(default_key.clone())
         .with_chain_id(Some(node_layer.instance().chain_id()));
@@ -138,18 +117,16 @@ pub async fn init_testing_provider_with_http_headers(
         let signer = LocalSigner::from(key.clone());
         wallet.register_signer(signer)
     }
-    
+
     let provider = zksync_provider()
         .with_recommended_fillers()
         .wallet(wallet)
         .layer(node_layer)
         .on_client(rpc_client);
 
-    // Grab default rich accounts right after init. Note that subsequent calls to this method
-    // might return different value as wallet's signers are dynamic and can be changed by the user.
-    let rich_accounts = provider.signer_addresses().collect::<Vec<_>>();
-    // Wait for anvil-zksync to get up and be able to respond
-    // Ignore error response (should not fail here if provider is used with intentionally wrong origin for testing purposes)
+    // Wait for anvil-zksync to get up and be able to respond.
+    // Ignore error response (should not fail here if provider is used with intentionally wrong
+    // configuration for testing purposes).
     let _ = provider.get_chain_id().await;
     // Explicitly unlock the port to showcase why we waited above
     drop(locked_port);
@@ -157,7 +134,10 @@ pub async fn init_testing_provider_with_http_headers(
     Ok(TestingProvider {
         inner: provider,
         rich_accounts,
+        last_response_headers,
         _pd: Default::default(),
+
+        url,
     })
 }
 
@@ -173,6 +153,15 @@ where
             .rich_accounts
             .get(index)
             .unwrap_or_else(|| panic!("not enough rich accounts (#{} was requested)", index,))
+    }
+
+    /// Returns last seen response headers. Panics if there is none.
+    pub async fn last_response_headers_unwrap(&self) -> HeaderMap {
+        self.last_response_headers
+            .read()
+            .await
+            .clone()
+            .expect("no headers found")
     }
 }
 
@@ -598,5 +587,22 @@ impl<const N: usize> RacedReceipts<N> {
         }
 
         Ok(self)
+    }
+}
+
+/// A [`reqwest_middleware`]-compliant middleware that allows to inspect last seen response headers.
+struct ResponseHeadersInspector(Arc<RwLock<Option<HeaderMap>>>);
+
+#[async_trait]
+impl Middleware for ResponseHeadersInspector {
+    async fn handle(
+        &self,
+        req: reqwest::Request,
+        extensions: &mut http::Extensions,
+        next: Next<'_>,
+    ) -> reqwest_middleware::Result<reqwest::Response> {
+        let resp = next.run(req, extensions).await?;
+        *self.0.write().await = Some(resp.headers().clone());
+        Ok(resp)
     }
 }

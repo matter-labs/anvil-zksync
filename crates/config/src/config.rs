@@ -888,10 +888,8 @@ impl TestNodeConfig {
 
     // Enable or disable CORS
     #[must_use]
-    pub fn with_no_cors(mut self, no_cors: Option<bool>) -> Self {
-        if let Some(no_cors) = no_cors {
-            self.no_cors = no_cors;
-        }
+    pub fn with_no_cors(mut self, no_cors: bool) -> Self {
+        self.no_cors = no_cors;
         self
     }
 }

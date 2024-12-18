@@ -1,14 +1,21 @@
 use alloy::network::ReceiptResponse;
 use alloy::providers::ext::AnvilApi;
 use alloy::providers::Provider;
-use alloy::transports::http::reqwest::header::{HeaderMap, HeaderValue, HOST, ORIGIN};
 use alloy::{primitives::U256, signers::local::PrivateKeySigner};
 use anvil_zksync_e2e_tests::{
-    init_testing_provider, init_testing_provider_with_http_headers, AnvilZKsyncApi, ReceiptExt,
+    init_testing_provider, init_testing_provider_with_client, AnvilZKsyncApi, ReceiptExt,
     ZksyncWalletProviderExt, DEFAULT_TX_VALUE,
+};
+use http::header::{
+    HeaderMap, HeaderValue, ACCESS_CONTROL_ALLOW_HEADERS, ACCESS_CONTROL_ALLOW_METHODS,
+    ACCESS_CONTROL_ALLOW_ORIGIN, ORIGIN,
 };
 use std::convert::identity;
 use std::time::Duration;
+
+const SOME_ORIGIN: HeaderValue = HeaderValue::from_static("http://some.origin");
+const OTHER_ORIGIN: HeaderValue = HeaderValue::from_static("http://other.origin");
+const ANY_ORIGIN: HeaderValue = HeaderValue::from_static("*");
 
 #[tokio::test]
 async fn interval_sealing_finalization() -> anyhow::Result<()> {
@@ -375,63 +382,77 @@ async fn set_chain_id() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn cli_no_cors() -> anyhow::Result<()> {
-    let mut headers = HeaderMap::new();
-    headers.insert(ORIGIN, HeaderValue::from_static("http://some.origin"));
-    headers.insert(HOST, HeaderValue::from_static("http://some.origin"));
-
-    // Verify cors is disabled by default
-    let provider = init_testing_provider_with_http_headers(headers.clone(), identity).await?;
-    provider.get_chain_id().await?;
-
     // Verify all origins are allowed by default
-    let provider = init_testing_provider_with_http_headers(headers.clone(), |node| {
-        node.arg("--no-cors=false")
-    })
-    .await?;
+    let provider = init_testing_provider(identity).await?;
     provider.get_chain_id().await?;
+    let resp_headers = provider.last_response_headers_unwrap().await;
+    assert_eq!(
+        resp_headers.get(ACCESS_CONTROL_ALLOW_ORIGIN),
+        Some(&ANY_ORIGIN)
+    );
 
-    // Verify requests fail with enabled cors and `null` allowed origins
-    let provider_with_no_cors = init_testing_provider_with_http_headers(headers.clone(), |node| {
-        node.arg("--no-cors=false").arg("--allow-origin=null")
-    })
-    .await?;
-    let error_resp = provider_with_no_cors.get_chain_id().await.unwrap_err();
-    assert!(error_resp
-        .to_string()
-        .contains("Provided Host header is not whitelisted"),);
+    // Making OPTIONS request reveals all access control settings
+    let client = reqwest::Client::new();
+    let url = provider.url.clone();
+    let resp = client.request(reqwest::Method::OPTIONS, url).send().await?;
+    assert_eq!(
+        resp.headers().get(ACCESS_CONTROL_ALLOW_METHODS),
+        Some(&HeaderValue::from_static("GET,POST"))
+    );
+    assert_eq!(
+        resp.headers().get(ACCESS_CONTROL_ALLOW_HEADERS),
+        Some(&HeaderValue::from_static("content-type"))
+    );
+    assert_eq!(
+        resp.headers().get(ACCESS_CONTROL_ALLOW_ORIGIN),
+        Some(&ANY_ORIGIN)
+    );
+    drop(provider);
+
+    // Verify access control is disabled with --no-cors
+    let provider_no_cors = init_testing_provider(|node| node.arg("--no-cors")).await?;
+    provider_no_cors.get_chain_id().await?;
+    let resp_headers = provider_no_cors.last_response_headers_unwrap().await;
+    assert_eq!(resp_headers.get(ACCESS_CONTROL_ALLOW_ORIGIN), None);
 
     Ok(())
 }
 
 #[tokio::test]
 async fn cli_allow_origin() -> anyhow::Result<()> {
-    let mut headers = HeaderMap::new();
-    headers.insert(ORIGIN, HeaderValue::from_static("http://some.origin"));
-    headers.insert(HOST, HeaderValue::from_static("http://some.origin"));
+    let req_headers = HeaderMap::from_iter([(ORIGIN, SOME_ORIGIN)]);
 
     // Verify allowed origin can make requests
-    let provider_with_allowed_origin =
-        init_testing_provider_with_http_headers(headers.clone(), |node| {
-            node.arg("--no-cors=false")
-                .arg("--allow-origin=http://some.origin")
-        })
-        .await?;
+    let provider_with_allowed_origin = init_testing_provider_with_client(
+        |node| node.arg(format!("--allow-origin={}", SOME_ORIGIN.to_str().unwrap())),
+        |client| client.default_headers(req_headers.clone()),
+    )
+    .await?;
     provider_with_allowed_origin.get_chain_id().await?;
+    let resp_headers = provider_with_allowed_origin
+        .last_response_headers_unwrap()
+        .await;
+    assert_eq!(
+        resp_headers.get(ACCESS_CONTROL_ALLOW_ORIGIN),
+        Some(&SOME_ORIGIN)
+    );
+    drop(provider_with_allowed_origin);
 
-    // Verify different origin is not allowed
-    let provider_with_not_allowed_origin =
-        init_testing_provider_with_http_headers(headers.clone(), |node| {
-            node.arg("--no-cors=false")
-                .arg("--allow-origin=http://other.origin")
-        })
-        .await?;
-    let error_resp = provider_with_not_allowed_origin
-        .get_chain_id()
-        .await
-        .unwrap_err();
-    assert!(error_resp
-        .to_string()
-        .contains("Provided Host header is not whitelisted"),);
+    // Verify different origin are also allowed to make requests. CORS is reliant on the browser
+    // to respect access control headers reported by the server.
+    let provider_with_not_allowed_origin = init_testing_provider_with_client(
+        |node| node.arg(format!("--allow-origin={}", OTHER_ORIGIN.to_str().unwrap())),
+        |client| client.default_headers(req_headers),
+    )
+    .await?;
+    provider_with_not_allowed_origin.get_chain_id().await?;
+    let resp_headers = provider_with_not_allowed_origin
+        .last_response_headers_unwrap()
+        .await;
+    assert_eq!(
+        resp_headers.get(ACCESS_CONTROL_ALLOW_ORIGIN),
+        Some(&OTHER_ORIGIN)
+    );
 
     Ok(())
 }

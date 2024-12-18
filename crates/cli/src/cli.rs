@@ -249,8 +249,8 @@ pub struct Cli {
     pub allow_origin: String,
 
     /// Disable CORS.
-    #[arg(long, default_missing_value = "true", num_args(0..=1), help_heading = "Server options")]
-    pub no_cors: Option<bool>,
+    #[arg(long, conflicts_with = "allow_origin", help_heading = "Server options")]
+    pub no_cors: bool,
 }
 
 #[derive(Debug, Subcommand, Clone)]
