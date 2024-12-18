@@ -1,15 +1,7 @@
 use crate::bytecode_override::override_bytecodes;
 use crate::cli::{Cli, Command};
 use crate::utils::update_with_fork_details;
-use anvil_zksync_api_decl::{
-    AnvilNamespaceServer, ConfigNamespaceServer, DebugNamespaceServer, EthNamespaceServer,
-    EthTestNamespaceServer, EvmNamespaceServer, NetNamespaceServer, Web3NamespaceServer,
-    ZksNamespaceServer,
-};
-use anvil_zksync_api_server::{
-    AnvilNamespace, ConfigNamespace, DebugNamespace, EthNamespace, EthTestNamespace, EvmNamespace,
-    NetNamespace, Web3Namespace, ZksNamespace,
-};
+use anvil_zksync_api_server::NodeServerOptions;
 use anvil_zksync_config::constants::{
     DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
     DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L1_GAS_PRICE, DEFAULT_L2_GAS_PRICE, LEGACY_RICH_WALLETS,
@@ -24,95 +16,19 @@ use anvil_zksync_core::node::{
 };
 use anvil_zksync_core::observability::Observability;
 use anvil_zksync_core::system_contracts::SystemContracts;
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use clap::Parser;
-use futures::{
-    channel::oneshot,
-    future::{self},
-    FutureExt,
-};
-use http::Method;
-use jsonrpsee::server::middleware::http::ProxyGetRequestLayer;
-use jsonrpsee::server::{RpcServiceBuilder, ServerBuilder};
 use std::fs::File;
 use std::{env, net::SocketAddr, str::FromStr};
-use tower_http::cors::{AllowOrigin, CorsLayer};
+use tower_http::cors::AllowOrigin;
 use tracing_subscriber::filter::LevelFilter;
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
 use zksync_types::H160;
-use zksync_web3_decl::jsonrpsee::RpcModule;
 use zksync_web3_decl::namespaces::ZksNamespaceClient;
 
 mod bytecode_override;
 mod cli;
 mod utils;
-
-#[allow(clippy::too_many_arguments)]
-async fn build_json_http(
-    addr: SocketAddr,
-    node: InMemoryNode,
-    enable_health_api: bool,
-    cors_allow_origin: String,
-    enable_cors: bool,
-) -> tokio::task::JoinHandle<()> {
-    let (sender, recv) = oneshot::channel::<()>();
-
-    let mut rpc = RpcModule::new(());
-    rpc.merge(EthNamespace::new(node.clone()).into_rpc())
-        .unwrap();
-    rpc.merge(EthTestNamespace::new(node.clone()).into_rpc())
-        .unwrap();
-    rpc.merge(AnvilNamespace::new(node.clone()).into_rpc())
-        .unwrap();
-    rpc.merge(EvmNamespace::new(node.clone()).into_rpc())
-        .unwrap();
-    rpc.merge(DebugNamespace::new(node.clone()).into_rpc())
-        .unwrap();
-    rpc.merge(NetNamespace::new(node.clone()).into_rpc())
-        .unwrap();
-    rpc.merge(ConfigNamespace::new(node.clone()).into_rpc())
-        .unwrap();
-    rpc.merge(ZksNamespace::new(node.clone()).into_rpc())
-        .unwrap();
-    rpc.merge(Web3Namespace.into_rpc()).unwrap();
-
-    let cors_layers = tower::util::option_layer(enable_cors.then(|| {
-        // `CorsLayer` adds CORS-specific headers to responses but does not do filtering by itself.
-        // CORS relies on browsers respecting server's access list response headers.
-        // See [`tower_http::cors`](https://docs.rs/tower-http/latest/tower_http/cors/index.html)
-        // for more details.
-        CorsLayer::new()
-            .allow_origin(AllowOrigin::exact(
-                cors_allow_origin.parse().expect("malformed allow origin"),
-            ))
-            .allow_headers([http::header::CONTENT_TYPE])
-            .allow_methods([Method::GET, Method::POST])
-    }));
-    let health_api_layer = tower::util::option_layer(if enable_health_api {
-        Some(ProxyGetRequestLayer::new("/health", "web3_clientVersion").unwrap())
-    } else {
-        None
-    });
-    let server_builder = ServerBuilder::default()
-        .http_only()
-        .set_http_middleware(
-            tower::ServiceBuilder::new()
-                .layer(cors_layers)
-                .layer(health_api_layer),
-        )
-        .set_rpc_middleware(RpcServiceBuilder::new().rpc_logger(1024));
-
-    let server = server_builder.build(addr).await.unwrap();
-
-    tokio::spawn(async move {
-        let server_handle = server.start(rpc);
-
-        server_handle.stopped().await;
-        drop(sender);
-    });
-
-    tokio::spawn(recv.map(drop))
-}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -338,31 +254,48 @@ async fn main() -> anyhow::Result<()> {
         node.set_rich_account(H160::from_str(address).unwrap(), config.genesis_balance);
     }
 
-    let mut threads = future::join_all(config.host.iter().map(|host| {
+    let mut server_options = NodeServerOptions::default();
+    server_options.set_allow_origin(AllowOrigin::exact(
+        config
+            .allow_origin
+            .parse()
+            .context("allow origin is malformed")?,
+    ));
+    if config.health_check_endpoint {
+        server_options.enable_health_api()
+    }
+    if !config.no_cors {
+        server_options.enable_cors();
+    }
+    let mut server_builder = server_options.to_builder(node.clone());
+    for host in &config.host {
         let addr = SocketAddr::new(*host, config.port);
-        build_json_http(
-            addr,
-            node.clone(),
-            config.health_check_endpoint,
-            config.allow_origin.clone(),
-            !config.no_cors,
-        )
-    }))
-    .await;
+        server_builder.serve(addr).await;
+    }
+    let server_handle = server_builder.run().await;
 
     let system_contracts =
         SystemContracts::from_options(&config.system_contracts_options, config.use_evm_emulator);
     let block_producer_handle = tokio::task::spawn(BlockProducer::new(
-        node.clone(),
+        node,
         pool,
         block_sealer,
         system_contracts,
     ));
-    threads.push(block_producer_handle);
 
     config.print(fork_print_info.as_ref());
 
-    future::select_all(threads).await.0.unwrap();
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {
+            tracing::trace!("received shutdown signal, shutting down");
+        },
+        _ = server_handle.stopped() => {
+            tracing::trace!("node server was stopped")
+        },
+        _ = block_producer_handle => {
+            tracing::trace!("block producer was stopped")
+        }
+    }
 
     Ok(())
 }
