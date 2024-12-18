@@ -539,7 +539,7 @@ impl ForkDetails {
             .get_block_by_hash(root_hash, true)
             .await
             .map_err(|error| eyre!(error))?;
-        let block = opt_block.ok_or_else(|| {
+        let mut block = opt_block.ok_or_else(|| {
             eyre!(
                 "Could not find block #{:?} ({:#x}) in {:?}",
                 miniblock,
@@ -548,6 +548,7 @@ impl ForkDetails {
             )
         })?;
         let l1_batch_number = block_details.l1_batch_number;
+        block.l1_batch_number = Some(l1_batch_number.0.into());
 
         if !block_details
             .protocol_version

@@ -728,7 +728,6 @@ async fn load_state_on_run() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
-#[ignore]
 async fn load_state_on_fork() -> anyhow::Result<()> {
     let temp_dir = TempDir::new("load-state-fork-test").expect("failed creating temporary dir");
     let dump_path = temp_dir.path().join("load_state_fork.json");
