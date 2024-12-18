@@ -1,7 +1,7 @@
 use crate::bytecode_override::override_bytecodes;
 use crate::cli::{Cli, Command};
 use crate::utils::update_with_fork_details;
-use anvil_zksync_api_server::NodeServerOptions;
+use anvil_zksync_api_server::NodeServerBuilder;
 use anvil_zksync_config::constants::{
     DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
     DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L1_GAS_PRICE, DEFAULT_L2_GAS_PRICE, LEGACY_RICH_WALLETS,
@@ -254,25 +254,28 @@ async fn main() -> anyhow::Result<()> {
         node.set_rich_account(H160::from_str(address).unwrap(), config.genesis_balance);
     }
 
-    let mut server_options = NodeServerOptions::default();
-    server_options.set_allow_origin(AllowOrigin::exact(
-        config
-            .allow_origin
-            .parse()
-            .context("allow origin is malformed")?,
-    ));
+    let mut server_builder = NodeServerBuilder::new(
+        node.clone(),
+        AllowOrigin::exact(
+            config
+                .allow_origin
+                .parse()
+                .context("allow origin is malformed")?,
+        ),
+    );
     if config.health_check_endpoint {
-        server_options.enable_health_api()
+        server_builder.enable_health_api()
     }
     if !config.no_cors {
-        server_options.enable_cors();
+        server_builder.enable_cors();
     }
-    let mut server_builder = server_options.to_builder(node.clone());
+    let mut server_handles = Vec::with_capacity(config.host.len());
     for host in &config.host {
         let addr = SocketAddr::new(*host, config.port);
-        server_builder.serve(addr).await;
+        server_handles.push(server_builder.clone().build(addr).await.run());
     }
-    let server_handle = server_builder.run().await;
+    let any_server_stopped =
+        futures::future::select_all(server_handles.into_iter().map(|h| Box::pin(h.stopped())));
 
     let system_contracts =
         SystemContracts::from_options(&config.system_contracts_options, config.use_evm_emulator);
@@ -289,7 +292,7 @@ async fn main() -> anyhow::Result<()> {
         _ = tokio::signal::ctrl_c() => {
             tracing::trace!("received shutdown signal, shutting down");
         },
-        _ = server_handle.stopped() => {
+        _ = any_server_stopped => {
             tracing::trace!("node server was stopped")
         },
         _ = block_producer_handle => {

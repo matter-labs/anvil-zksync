@@ -10,52 +10,35 @@ use anvil_zksync_api_decl::{
 use anvil_zksync_core::node::InMemoryNode;
 use http::Method;
 use jsonrpsee::server::middleware::http::ProxyGetRequestLayer;
-use jsonrpsee::server::{AlreadyStoppedError, RpcServiceBuilder, ServerBuilder, ServerHandle};
+use jsonrpsee::server::{RpcServiceBuilder, ServerBuilder, ServerHandle};
 use jsonrpsee::RpcModule;
-use std::future::Future;
 use std::net::SocketAddr;
-use std::pin::Pin;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
-#[derive(Debug, Default)]
-pub struct NodeServerOptions {
+#[derive(Clone)]
+pub struct NodeServerBuilder {
+    node: InMemoryNode,
     health_api_enabled: bool,
     cors_enabled: bool,
     allow_origin: AllowOrigin,
 }
 
-impl NodeServerOptions {
+impl NodeServerBuilder {
+    pub fn new(node: InMemoryNode, allow_origin: AllowOrigin) -> Self {
+        Self {
+            node,
+            health_api_enabled: false,
+            cors_enabled: false,
+            allow_origin,
+        }
+    }
+
     pub fn enable_health_api(&mut self) {
         self.health_api_enabled = true;
     }
 
     pub fn enable_cors(&mut self) {
-        self.health_api_enabled = true;
-    }
-
-    pub fn set_allow_origin(&mut self, allow_origin: AllowOrigin) {
-        self.allow_origin = allow_origin;
-    }
-
-    pub fn to_builder(self, node: InMemoryNode) -> NodeServerBuilder {
-        NodeServerBuilder::new(self, node)
-    }
-}
-
-pub struct NodeServerBuilder {
-    options: NodeServerOptions,
-    rpc: RpcModule<()>,
-    server_futs: Vec<Pin<Box<dyn Future<Output = ServerHandle>>>>,
-}
-
-impl NodeServerBuilder {
-    fn new(options: NodeServerOptions, node: InMemoryNode) -> Self {
-        let rpc = Self::default_rpc(node);
-        Self {
-            options,
-            rpc,
-            server_futs: Vec::new(),
-        }
+        self.cors_enabled = true;
     }
 
     fn default_rpc(node: InMemoryNode) -> RpcModule<()> {
@@ -79,20 +62,19 @@ impl NodeServerBuilder {
         rpc
     }
 
-    pub async fn serve(&mut self, addr: SocketAddr) {
-        let cors_layers = tower::util::option_layer(self.options.cors_enabled.then(|| {
+    pub async fn build(self, addr: SocketAddr) -> NodeServer {
+        let cors_layers = tower::util::option_layer(self.cors_enabled.then(|| {
             // `CorsLayer` adds CORS-specific headers to responses but does not do filtering by itself.
             // CORS relies on browsers respecting server's access list response headers.
             // See [`tower_http::cors`](https://docs.rs/tower-http/latest/tower_http/cors/index.html)
             // for more details.
             CorsLayer::new()
-                .allow_origin(self.options.allow_origin.clone())
+                .allow_origin(self.allow_origin.clone())
                 .allow_headers([http::header::CONTENT_TYPE])
                 .allow_methods([Method::GET, Method::POST])
         }));
         let health_api_layer = tower::util::option_layer(
-            self.options
-                .health_api_enabled
+            self.health_api_enabled
                 .then(|| ProxyGetRequestLayer::new("/health", "web3_clientVersion").unwrap()),
         );
         let server_builder = ServerBuilder::default()
@@ -105,34 +87,18 @@ impl NodeServerBuilder {
             .set_rpc_middleware(RpcServiceBuilder::new().rpc_logger(100));
 
         let server = server_builder.build(addr).await.unwrap();
-        let rpc = self.rpc.clone();
-        self.server_futs
-            .push(Box::pin(async move { server.start(rpc) }));
-    }
-
-    pub async fn run(self) -> NodeServerHandle {
-        let handles = futures::future::join_all(self.server_futs).await;
-        NodeServerHandle { handles }
+        let rpc = Self::default_rpc(self.node);
+        NodeServer(Box::new(move || server.start(rpc)))
     }
 }
 
-/// Node's server handle.
-///
-/// When all [`NodeServerHandle`]'s have been `dropped` or `stop` has been called
-/// the server will be stopped.
-#[derive(Debug, Clone)]
-pub struct NodeServerHandle {
-    handles: Vec<ServerHandle>,
-}
+pub struct NodeServer(Box<dyn FnOnce() -> ServerHandle>);
 
-impl NodeServerHandle {
-    /// Tell the server to stop without waiting for the server to stop.
-    pub fn stop(&self) -> Result<(), AlreadyStoppedError> {
-        self.handles.iter().try_for_each(|handle| handle.stop())
-    }
-
-    /// Wait for the server to stop.
-    pub async fn stopped(self) {
-        futures::future::join_all(self.handles.into_iter().map(|handle| handle.stopped())).await;
+impl NodeServer {
+    /// Start responding to connections requests.
+    ///
+    /// This will run on the tokio runtime until the server is stopped or the `ServerHandle` is dropped.
+    pub fn run(self) -> ServerHandle {
+        self.0()
     }
 }
