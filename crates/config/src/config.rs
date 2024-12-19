@@ -121,13 +121,16 @@ pub struct TestNodeConfig {
     pub no_cors: bool,
     /// How transactions are sorted in the mempool
     pub transaction_order: TransactionOrder,
-    /// State configuration
+    /// Path to load/dump the state from
+    pub state: Option<PathBuf>,
     /// Path to dump the state to
     pub dump_state: Option<PathBuf>,
     /// Interval to dump the state
     pub state_interval: Option<u64>,
     /// Preserve historical states
     pub preserve_historical_states: bool,
+    /// State to load
+    pub load_state: Option<PathBuf>,
 }
 
 impl Default for TestNodeConfig {
@@ -195,9 +198,11 @@ impl Default for TestNodeConfig {
             no_cors: false,
 
             // state configuration
+            state: None,
             dump_state: None,
             state_interval: None,
             preserve_historical_states: false,
+            load_state: None,
         }
     }
 }
@@ -918,6 +923,13 @@ impl TestNodeConfig {
         self
     }
 
+    /// Set the state
+    #[must_use]
+    pub fn with_state(mut self, state: Option<PathBuf>) -> Self {
+        self.state = state;
+        self
+    }
+
     /// Set the state dump path
     #[must_use]
     pub fn with_dump_state(mut self, dump_state: Option<PathBuf>) -> Self {
@@ -936,6 +948,13 @@ impl TestNodeConfig {
     #[must_use]
     pub fn with_preserve_historical_states(mut self, preserve_historical_states: bool) -> Self {
         self.preserve_historical_states = preserve_historical_states;
+        self
+    }
+
+    /// Set the state to load
+    #[must_use]
+    pub fn with_load_state(mut self, load_state: Option<PathBuf>) -> Self {
+        self.load_state = load_state;
         self
     }
 }

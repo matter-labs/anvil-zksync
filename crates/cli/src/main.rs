@@ -278,28 +278,33 @@ async fn main() -> anyhow::Result<()> {
     let any_server_stopped =
         futures::future::select_all(server_handles.into_iter().map(|h| Box::pin(h.stopped())));
 
-    let dump_state = config.dump_state.clone();
+    // Load state from `--load-state` if provided
+    if let Some(ref load_state_path) = config.load_state {
+        let bytes = std::fs::read(load_state_path).expect("Failed to read load state file");
+        node.load_state(zksync_types::web3::Bytes(bytes))?;
+    }
+    if let Some(ref state_path) = config.state {
+        let bytes = std::fs::read(state_path).expect("Failed to read load state file");
+        node.load_state(zksync_types::web3::Bytes(bytes))?;
+    }
+
+    let state_path = config.dump_state.clone().or_else(|| config.state.clone());
     let dump_interval = config
         .state_interval
         .map(Duration::from_secs)
         .unwrap_or(Duration::from_secs(60)); // Default to 60 seconds
     let preserve_historical_states = config.preserve_historical_states;
     let node_for_dumper = node.clone();
-    let state_dumper = tokio::task::spawn(PeriodicStateDumper::new(
+    let state_dumper = PeriodicStateDumper::new(
         node_for_dumper,
-        dump_state,
+        state_path,
         dump_interval,
         preserve_historical_states,
-    ));
+    );
 
     let system_contracts =
         SystemContracts::from_options(&config.system_contracts_options, config.use_evm_emulator);
-    let block_producer_handle = tokio::task::spawn(BlockProducer::new(
-        node,
-        pool,
-        block_sealer,
-        system_contracts,
-    ));
+    let block_producer_handle = BlockProducer::new(node, pool, block_sealer, system_contracts);
 
     config.print(fork_print_info.as_ref());
 

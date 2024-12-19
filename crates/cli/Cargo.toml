@@ -37,3 +37,4 @@ flate2.workspace = true
 
 [dev-dependencies]
 tempdir.workspace = true
+anvil_zksync_core.workspace = true
