@@ -56,6 +56,14 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Cache Docker Layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: buildx-cache-${{ github.sha }}
+          restore-keys: |
+            buildx-cache-
+
       - name: Build and push Docker image
         id: docker_build
         uses: docker/build-push-action@v6
@@ -63,6 +71,8 @@ jobs:
           context: .
           push: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) }}
           platforms: ${{ matrix.platform }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           tags: |
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/era-test-node:${{ steps.docker_tag.outputs.tag }}
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/era-test-node:latest
