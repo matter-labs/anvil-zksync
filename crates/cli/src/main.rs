@@ -283,8 +283,6 @@ async fn main() -> anyhow::Result<()> {
         let bytes = std::fs::read(load_state_path).expect("Failed to read load state file");
         node.load_state(zksync_types::web3::Bytes(bytes))?;
     }
-
-    // Load state from `--state` if provided and contains a saved state
     if let Some(ref state_path) = config.state {
         let bytes = std::fs::read(state_path).expect("Failed to read load state file");
         node.load_state(zksync_types::web3::Bytes(bytes))?;
