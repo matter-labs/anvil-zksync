@@ -6,18 +6,20 @@ use alloy::{
 };
 use anvil_zksync_e2e_tests::{
     init_testing_provider, init_testing_provider_with_client, AnvilZKsyncApi, ReceiptExt,
-    ZksyncWalletProviderExt, DEFAULT_TX_VALUE,
+    ZksyncWalletProviderExt, DEFAULT_TX_VALUE, get_node_binary_path
 };
 use http::header::{
     HeaderMap, HeaderValue, ACCESS_CONTROL_ALLOW_HEADERS, ACCESS_CONTROL_ALLOW_METHODS,
     ACCESS_CONTROL_ALLOW_ORIGIN, ORIGIN,
 };
-use std::convert::identity;
-use std::time::Duration;
 
 const SOME_ORIGIN: HeaderValue = HeaderValue::from_static("http://some.origin");
 const OTHER_ORIGIN: HeaderValue = HeaderValue::from_static("http://other.origin");
 const ANY_ORIGIN: HeaderValue = HeaderValue::from_static("*");
+
+use anvil_zksync_core::node::VersionedState;
+use std::{ fs, convert::identity, thread::sleep, time::Duration };
+use tempdir::TempDir;
 
 #[tokio::test]
 async fn interval_sealing_finalization() -> anyhow::Result<()> {
@@ -544,5 +546,110 @@ async fn transactions_have_index() -> anyhow::Result<()> {
 
     assert_eq!(receipt1.transaction_index(), 0.into());
     assert_eq!(receipt2.transaction_index(), 1.into());
+    Ok(())
+}
+
+#[tokio::test]
+async fn dump_state_on_run() -> anyhow::Result<()>  {
+    let temp_dir = TempDir::new("state-test").expect("failed creating temporary dir");
+    let dump_path = temp_dir.path().join("state_dump.json");
+
+    let dump_path_clone = dump_path.clone();
+     let provider = init_testing_provider(move |node| {
+        node
+            .path(get_node_binary_path())
+            .arg("--state-interval")
+            .arg("1")
+            .arg("--dump-state")
+            .arg(dump_path_clone.to_str().unwrap())
+    })
+    .await?;
+
+    provider.tx().finalize().await?;
+
+    // Allow some time for the state to be dumped
+    sleep(Duration::from_secs(2));
+
+    drop(provider);
+
+    assert!(
+        dump_path.exists(),
+        "State dump file should exist at {:?}",
+        dump_path
+    );
+    
+    let dumped_data = fs::read_to_string(&dump_path)?;
+    let state: VersionedState = serde_json::from_str(&dumped_data)
+        .map_err(|e| anyhow::anyhow!("Failed to deserialize state: {}", e))?;
+    
+    match state {
+        VersionedState::V1 { version: _, state } => {
+            assert!(
+                !state.blocks.is_empty(),
+                "state_dump.json should contain at least one block"
+            );
+            assert!(
+                !state.transactions.is_empty(),
+                "state_dump.json should contain at least one transaction"
+            );
+        },
+        VersionedState::Unknown { version } => {
+            panic!("Encountered unknown state version: {}", version);
+        }
+    }
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn dump_state_on_fork() -> anyhow::Result<()>  {
+    let temp_dir = TempDir::new("state-fork-test").expect("failed creating temporary dir");
+    let dump_path = temp_dir.path().join("state_dump_fork.json");
+
+    let dump_path_clone = dump_path.clone();
+    let provider = init_testing_provider(move |node| {
+        node
+            .path(get_node_binary_path())
+            .arg("--state-interval")
+            .arg("1")
+            .arg("--dump-state")
+            .arg(dump_path_clone.to_str().unwrap())
+            .fork("mainnet")
+    })
+    .await?;
+
+    provider.tx().finalize().await?;
+
+    // Allow some time for the state to be dumped
+    sleep(Duration::from_secs(2));
+
+    drop(provider);
+
+    assert!(
+        dump_path.exists(),
+        "State dump file should exist at {:?}",
+        dump_path
+    );
+    
+    let dumped_data = fs::read_to_string(&dump_path)?;
+    let state: VersionedState = serde_json::from_str(&dumped_data)
+        .map_err(|e| anyhow::anyhow!("Failed to deserialize state: {}", e))?;
+    
+    match state {
+        VersionedState::V1 { version: _, state } => {
+            assert!(
+                !state.blocks.is_empty(),
+                "state_dump_fork.json should contain at least one block"
+            );
+            assert!(
+                !state.transactions.is_empty(),
+                "state_dump_fork.json should contain at least one transaction"
+            );
+        },
+        VersionedState::Unknown { version } => {
+            panic!("Encountered unknown state version: {}", version);
+        }
+    }
+
     Ok(())
 }
