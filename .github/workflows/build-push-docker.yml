@@ -71,7 +71,9 @@ jobs:
             echo "tags=none" >> $GITHUB_OUTPUT
             exit 0
           fi
-          echo -e "tags=us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/anvil-zksync:${base_tag}-${arch}\nghcr.io/${repo_owner}/anvil-zksync:${base_tag}-${arch}\nus-docker.pkg.dev/matterlabs-infra/matterlabs-docker/anvil-zksync:${base_tag}\nghcr.io/${repo_owner}/anvil-zksync:${base_tag}\nus-docker.pkg.dev/matterlabs-infra/matterlabs-docker/anvil-zksync:latest\nghcr.io/${repo_owner}/anvil-zksync:latest" >> $GITHUB_OUTPUT
+          full_tags="ghcr.io/${repo_owner}/anvil-zksync:${base_tag}-${arch}"
+          full_tags="$full_tags us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/anvil-zksync:${base_tag}-${arch}"
+          echo "tags=${full_tags}" >> $GITHUB_OUTPUT
 
       - name: Login to Internal Registry
         run: |
