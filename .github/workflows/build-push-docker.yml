@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - main
+      - db/multi-platform-docker # just to test
     tags:
       - "*"
 
@@ -74,8 +75,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           tags: |
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/era-test-node:${{ steps.docker_tag.outputs.tag }}
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/era-test-node:latest
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/anvil-zksync:${{ steps.docker_tag.outputs.tag }}
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/anvil-zksync:latest
             ghcr.io/${{ github.repository_owner }}/anvil-zksync:${{ steps.docker_tag.outputs.tag }}
             ghcr.io/${{ github.repository_owner }}/anvil-zksync:latest
 
