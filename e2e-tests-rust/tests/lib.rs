@@ -5,8 +5,8 @@ use alloy::{
     network::primitives::BlockTransactionsKind, primitives::U256, signers::local::PrivateKeySigner,
 };
 use anvil_zksync_e2e_tests::{
-    init_testing_provider, init_testing_provider_with_client, AnvilZKsyncApi, ReceiptExt,
-    ZksyncWalletProviderExt, DEFAULT_TX_VALUE, get_node_binary_path
+    get_node_binary_path, init_testing_provider, init_testing_provider_with_client, AnvilZKsyncApi,
+    ReceiptExt, ZksyncWalletProviderExt, DEFAULT_TX_VALUE,
 };
 use http::header::{
     HeaderMap, HeaderValue, ACCESS_CONTROL_ALLOW_HEADERS, ACCESS_CONTROL_ALLOW_METHODS,
@@ -18,7 +18,7 @@ const OTHER_ORIGIN: HeaderValue = HeaderValue::from_static("http://other.origin"
 const ANY_ORIGIN: HeaderValue = HeaderValue::from_static("*");
 
 use anvil_zksync_core::node::VersionedState;
-use std::{ fs, convert::identity, thread::sleep, time::Duration };
+use std::{convert::identity, fs, thread::sleep, time::Duration};
 use tempdir::TempDir;
 
 #[tokio::test]
@@ -550,14 +550,13 @@ async fn transactions_have_index() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
-async fn dump_state_on_run() -> anyhow::Result<()>  {
+async fn dump_state_on_run() -> anyhow::Result<()> {
     let temp_dir = TempDir::new("state-test").expect("failed creating temporary dir");
     let dump_path = temp_dir.path().join("state_dump.json");
 
     let dump_path_clone = dump_path.clone();
-     let provider = init_testing_provider(move |node| {
-        node
-            .path(get_node_binary_path())
+    let provider = init_testing_provider(move |node| {
+        node.path(get_node_binary_path())
             .arg("--state-interval")
             .arg("1")
             .arg("--dump-state")
@@ -577,11 +576,11 @@ async fn dump_state_on_run() -> anyhow::Result<()>  {
         "State dump file should exist at {:?}",
         dump_path
     );
-    
+
     let dumped_data = fs::read_to_string(&dump_path)?;
     let state: VersionedState = serde_json::from_str(&dumped_data)
         .map_err(|e| anyhow::anyhow!("Failed to deserialize state: {}", e))?;
-    
+
     match state {
         VersionedState::V1 { version: _, state } => {
             assert!(
@@ -592,7 +591,7 @@ async fn dump_state_on_run() -> anyhow::Result<()>  {
                 !state.transactions.is_empty(),
                 "state_dump.json should contain at least one transaction"
             );
-        },
+        }
         VersionedState::Unknown { version } => {
             panic!("Encountered unknown state version: {}", version);
         }
@@ -602,14 +601,13 @@ async fn dump_state_on_run() -> anyhow::Result<()>  {
 }
 
 #[tokio::test]
-async fn dump_state_on_fork() -> anyhow::Result<()>  {
+async fn dump_state_on_fork() -> anyhow::Result<()> {
     let temp_dir = TempDir::new("state-fork-test").expect("failed creating temporary dir");
     let dump_path = temp_dir.path().join("state_dump_fork.json");
 
     let dump_path_clone = dump_path.clone();
     let provider = init_testing_provider(move |node| {
-        node
-            .path(get_node_binary_path())
+        node.path(get_node_binary_path())
             .arg("--state-interval")
             .arg("1")
             .arg("--dump-state")
@@ -630,11 +628,11 @@ async fn dump_state_on_fork() -> anyhow::Result<()>  {
         "State dump file should exist at {:?}",
         dump_path
     );
-    
+
     let dumped_data = fs::read_to_string(&dump_path)?;
     let state: VersionedState = serde_json::from_str(&dumped_data)
         .map_err(|e| anyhow::anyhow!("Failed to deserialize state: {}", e))?;
-    
+
     match state {
         VersionedState::V1 { version: _, state } => {
             assert!(
@@ -645,7 +643,7 @@ async fn dump_state_on_fork() -> anyhow::Result<()>  {
                 !state.transactions.is_empty(),
                 "state_dump_fork.json should contain at least one transaction"
             );
-        },
+        }
         VersionedState::Unknown { version } => {
             panic!("Encountered unknown state version: {}", version);
         }
