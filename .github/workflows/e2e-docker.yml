@@ -67,10 +67,11 @@ jobs:
 
       - name: Compile contracts and run e2e tests
         working-directory: ./e2e-tests
+        env:
+          ANVIL_LOG_PATH: "${{ github.workspace }}/logs/anvil-zksync.log"
         run: |
           echo "Compiling contracts and running e2e tests..."
           yarn hardhat compile
-          export ANVIL_LOG_PATH=/logs/anvil-zksync.log
           yarn test
 
       - name: Stop Docker container
