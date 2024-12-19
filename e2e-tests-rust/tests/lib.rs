@@ -2,25 +2,23 @@ use alloy::network::ReceiptResponse;
 use alloy::providers::ext::AnvilApi;
 use alloy::providers::Provider;
 use alloy::{
-    network::primitives::BlockTransactionsKind,
-    primitives::U256,
-    signers::local::PrivateKeySigner,
+    network::primitives::BlockTransactionsKind, primitives::U256, signers::local::PrivateKeySigner,
+};
+use anvil_zksync_core::node::VersionedState;
+use anvil_zksync_core::utils::write_json_file;
+use anvil_zksync_e2e_tests::{
+    get_node_binary_path, init_testing_provider, init_testing_provider_with_client, AnvilZKsyncApi,
+    ReceiptExt, ZksyncWalletProviderExt, DEFAULT_TX_VALUE,
 };
 use anyhow::Context;
-use anvil_zksync_e2e_tests::{
-    init_testing_provider, init_testing_provider_with_client, AnvilZKsyncApi, ReceiptExt,
-    ZksyncWalletProviderExt, DEFAULT_TX_VALUE, get_node_binary_path
-};
-use anvil_zksync_core::utils::write_json_file;
+use flate2::read::GzDecoder;
 use http::header::{
     HeaderMap, HeaderValue, ACCESS_CONTROL_ALLOW_HEADERS, ACCESS_CONTROL_ALLOW_METHODS,
     ACCESS_CONTROL_ALLOW_ORIGIN, ORIGIN,
 };
-use anvil_zksync_core::node::VersionedState;
-use std::{ fs, convert::identity, thread::sleep, time::Duration };
-use tempdir::TempDir;
-use flate2::read::GzDecoder;
 use std::io::Read;
+use std::{convert::identity, fs, thread::sleep, time::Duration};
+use tempdir::TempDir;
 
 const SOME_ORIGIN: HeaderValue = HeaderValue::from_static("http://some.origin");
 const OTHER_ORIGIN: HeaderValue = HeaderValue::from_static("http://other.origin");
@@ -470,13 +468,31 @@ async fn cli_allow_origin() -> anyhow::Result<()> {
 async fn pool_txs_order_fifo() -> anyhow::Result<()> {
     let provider_fifo = init_testing_provider(|node| node.no_mine()).await?;
 
-    let pending_tx0 = provider_fifo.tx().with_rich_from(0).with_max_fee_per_gas(50_000_000).register().await?;
-    let pending_tx1 = provider_fifo.tx().with_rich_from(1).with_max_fee_per_gas(100_000_000).register().await?;
-    let pending_tx2 = provider_fifo.tx().with_rich_from(2).with_max_fee_per_gas(150_000_000).register().await?;
+    let pending_tx0 = provider_fifo
+        .tx()
+        .with_rich_from(0)
+        .with_max_fee_per_gas(50_000_000)
+        .register()
+        .await?;
+    let pending_tx1 = provider_fifo
+        .tx()
+        .with_rich_from(1)
+        .with_max_fee_per_gas(100_000_000)
+        .register()
+        .await?;
+    let pending_tx2 = provider_fifo
+        .tx()
+        .with_rich_from(2)
+        .with_max_fee_per_gas(150_000_000)
+        .register()
+        .await?;
 
     provider_fifo.anvil_mine(Some(U256::from(1)), None).await?;
 
-    let block = provider_fifo.get_block(1.into(), BlockTransactionsKind::Hashes).await?.unwrap();
+    let block = provider_fifo
+        .get_block(1.into(), BlockTransactionsKind::Hashes)
+        .await?
+        .unwrap();
     let tx_hashes = block.transactions.as_hashes().unwrap();
     assert_eq!(&tx_hashes[0], pending_tx0.tx_hash());
     assert_eq!(&tx_hashes[1], pending_tx1.tx_hash());
@@ -488,13 +504,31 @@ async fn pool_txs_order_fifo() -> anyhow::Result<()> {
 async fn pool_txs_order_fees() -> anyhow::Result<()> {
     let provider_fees = init_testing_provider(|node| node.no_mine().arg("--order=fees")).await?;
 
-    let pending_tx0 = provider_fees.tx().with_rich_from(0).with_max_fee_per_gas(50_000_000).register().await?;
-    let pending_tx1 = provider_fees.tx().with_rich_from(1).with_max_fee_per_gas(100_000_000).register().await?;
-    let pending_tx2 = provider_fees.tx().with_rich_from(2).with_max_fee_per_gas(150_000_000).register().await?;
+    let pending_tx0 = provider_fees
+        .tx()
+        .with_rich_from(0)
+        .with_max_fee_per_gas(50_000_000)
+        .register()
+        .await?;
+    let pending_tx1 = provider_fees
+        .tx()
+        .with_rich_from(1)
+        .with_max_fee_per_gas(100_000_000)
+        .register()
+        .await?;
+    let pending_tx2 = provider_fees
+        .tx()
+        .with_rich_from(2)
+        .with_max_fee_per_gas(150_000_000)
+        .register()
+        .await?;
 
     provider_fees.anvil_mine(Some(U256::from(1)), None).await?;
 
-    let block = provider_fees.get_block(1.into(), BlockTransactionsKind::Hashes).await?.unwrap();
+    let block = provider_fees
+        .get_block(1.into(), BlockTransactionsKind::Hashes)
+        .await?
+        .unwrap();
     let tx_hashes = block.transactions.as_hashes().unwrap();
     assert_eq!(&tx_hashes[0], pending_tx2.tx_hash());
     assert_eq!(&tx_hashes[1], pending_tx1.tx_hash());
@@ -519,14 +553,13 @@ async fn transactions_have_index() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
-async fn dump_state_on_run() -> anyhow::Result<()>  {
+async fn dump_state_on_run() -> anyhow::Result<()> {
     let temp_dir = TempDir::new("state-test").expect("failed creating temporary dir");
     let dump_path = temp_dir.path().join("state_dump.json");
 
     let dump_path_clone = dump_path.clone();
-     let provider = init_testing_provider(move |node| {
-        node
-            .path(get_node_binary_path())
+    let provider = init_testing_provider(move |node| {
+        node.path(get_node_binary_path())
             .arg("--state-interval")
             .arg("1")
             .arg("--dump-state")
@@ -538,7 +571,7 @@ async fn dump_state_on_run() -> anyhow::Result<()>  {
     let tx_hash = receipt.transaction_hash().to_string();
 
     sleep(Duration::from_secs(2));
-    
+
     drop(provider);
 
     assert!(
@@ -546,10 +579,10 @@ async fn dump_state_on_run() -> anyhow::Result<()>  {
         "State dump file should exist at {:?}",
         dump_path
     );
-    
+
     let dumped_data = fs::read_to_string(&dump_path)?;
-    let state: VersionedState = serde_json::from_str(&dumped_data)
-        .context("Failed to deserialize state")?;
+    let state: VersionedState =
+        serde_json::from_str(&dumped_data).context("Failed to deserialize state")?;
 
     match state {
         VersionedState::V1 { version: _, state } => {
@@ -562,16 +595,17 @@ async fn dump_state_on_run() -> anyhow::Result<()>  {
                 "state_dump.json should contain at least one transaction"
             );
             let tx_exists = state.transactions.iter().any(|tx| {
-                let tx_hash_full = format!("0x{}", hex::encode(tx.receipt.transaction_hash.as_bytes()));
+                let tx_hash_full =
+                    format!("0x{}", hex::encode(tx.receipt.transaction_hash.as_bytes()));
                 tx_hash_full == tx_hash
             });
-            
+
             assert!(
                 tx_exists,
                 "The state dump should contain the transaction with hash: {:?}",
                 tx_hash
             );
-        },
+        }
         VersionedState::Unknown { version } => {
             panic!("Encountered unknown state version: {}", version);
         }
@@ -581,14 +615,13 @@ async fn dump_state_on_run() -> anyhow::Result<()>  {
 }
 
 #[tokio::test]
-async fn dump_state_on_fork() -> anyhow::Result<()>  {
+async fn dump_state_on_fork() -> anyhow::Result<()> {
     let temp_dir = TempDir::new("state-fork-test").expect("failed creating temporary dir");
     let dump_path = temp_dir.path().join("state_dump_fork.json");
 
     let dump_path_clone = dump_path.clone();
     let provider = init_testing_provider(move |node| {
-        node
-            .path(get_node_binary_path())
+        node.path(get_node_binary_path())
             .arg("--state-interval")
             .arg("1")
             .arg("--dump-state")
@@ -601,7 +634,7 @@ async fn dump_state_on_fork() -> anyhow::Result<()>  {
     let tx_hash = receipt.transaction_hash().to_string();
 
     sleep(Duration::from_secs(2));
-    
+
     drop(provider);
 
     assert!(
@@ -609,10 +642,10 @@ async fn dump_state_on_fork() -> anyhow::Result<()>  {
         "State dump file should exist at {:?}",
         dump_path
     );
-    
+
     let dumped_data = fs::read_to_string(&dump_path)?;
-    let state: VersionedState = serde_json::from_str(&dumped_data)
-        .context("Failed to deserialize state")?;
+    let state: VersionedState =
+        serde_json::from_str(&dumped_data).context("Failed to deserialize state")?;
 
     match state {
         VersionedState::V1 { version: _, state } => {
@@ -625,7 +658,8 @@ async fn dump_state_on_fork() -> anyhow::Result<()>  {
                 "state_dump_fork.json should contain at least one transaction"
             );
             let tx_exists = state.transactions.iter().any(|tx| {
-                let tx_hash_full = format!("0x{}", hex::encode(tx.receipt.transaction_hash.as_bytes()));
+                let tx_hash_full =
+                    format!("0x{}", hex::encode(tx.receipt.transaction_hash.as_bytes()));
                 tx_hash_full == tx_hash
             });
             assert!(
@@ -633,7 +667,7 @@ async fn dump_state_on_fork() -> anyhow::Result<()>  {
                 "The state dump should contain the transaction with hash: {:?}",
                 tx_hash
             );
-        },
+        }
         VersionedState::Unknown { version } => {
             panic!("Encountered unknown state version: {}", version);
         }
@@ -663,8 +697,7 @@ async fn load_state_on_run() -> anyhow::Result<()> {
 
     let dump_path_clone = dump_path.clone();
     let new_provider = init_testing_provider(move |node| {
-        node
-            .path(get_node_binary_path())
+        node.path(get_node_binary_path())
             .arg("--state-interval")
             .arg("1")
             .arg("--load-state")
@@ -704,7 +737,7 @@ async fn load_state_on_fork() -> anyhow::Result<()> {
     let blocks = provider.get_blocks_by_receipts(&receipts).await?;
     let state_bytes = provider.anvil_dump_state().await?;
     drop(provider);
-    
+
     let mut decoder = GzDecoder::new(&state_bytes.0[..]);
     let mut json_str = String::new();
     decoder.read_to_string(&mut json_str).unwrap();
@@ -713,8 +746,7 @@ async fn load_state_on_fork() -> anyhow::Result<()> {
 
     let dump_path_clone = dump_path.clone();
     let new_provider = init_testing_provider(move |node| {
-        node
-            .path(get_node_binary_path())
+        node.path(get_node_binary_path())
             .arg("--state-interval")
             .arg("1")
             .arg("--load-state")
