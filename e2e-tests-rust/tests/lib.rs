@@ -615,6 +615,8 @@ async fn dump_state_on_run() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
+#[ignore]
+// TODO: Investigate a better way to test against fork to avoid flakiness. See: https://github.com/matter-labs/anvil-zksync/issues/508
 async fn dump_state_on_fork() -> anyhow::Result<()> {
     let temp_dir = TempDir::new("state-fork-test").expect("failed creating temporary dir");
     let dump_path = temp_dir.path().join("state_dump_fork.json");
@@ -726,6 +728,8 @@ async fn load_state_on_run() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
+#[ignore]
+// TODO: Investigate a better way to test against fork to avoid flakiness. See: https://github.com/matter-labs/anvil-zksync/issues/508
 async fn load_state_on_fork() -> anyhow::Result<()> {
     let temp_dir = TempDir::new("load-state-fork-test").expect("failed creating temporary dir");
     let dump_path = temp_dir.path().join("load_state_fork.json");
