@@ -38,7 +38,8 @@ jobs:
             echo "base_tag=none" >> $GITHUB_OUTPUT
           else
             echo "Unsupported event ${GITHUB_EVENT_NAME} or ref ${GITHUB_REF}. Only refs/heads/main, refs/tags/*, and pull_request are supported."
-            echo "base_tag=none" >> $GITHUB_OUTPUT
+            exit 1
+          fi
 
   build-push-image:
     name: Build and Push Docker Image for ${{ matrix.arch }}
