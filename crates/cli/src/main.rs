@@ -1,5 +1,5 @@
 use crate::bytecode_override::override_bytecodes;
-use crate::cli::{Cli, Command};
+use crate::cli::{Cli, Command, PeriodicStateDumper};
 use crate::utils::update_with_fork_details;
 use anvil_zksync_api_server::NodeServerBuilder;
 use anvil_zksync_config::constants::{
@@ -19,6 +19,7 @@ use anvil_zksync_core::system_contracts::SystemContracts;
 use anyhow::{anyhow, Context};
 use clap::Parser;
 use std::fs::File;
+use std::time::Duration;
 use std::{env, net::SocketAddr, str::FromStr};
 use tower_http::cors::AllowOrigin;
 use tracing_subscriber::filter::LevelFilter;
@@ -277,6 +278,20 @@ async fn main() -> anyhow::Result<()> {
     let any_server_stopped =
         futures::future::select_all(server_handles.into_iter().map(|h| Box::pin(h.stopped())));
 
+    let dump_state = config.dump_state.clone();
+    let dump_interval = config
+        .state_interval
+        .map(Duration::from_secs)
+        .unwrap_or(Duration::from_secs(60)); // Default to 60 seconds
+    let preserve_historical_states = config.preserve_historical_states;
+    let node_for_dumper = node.clone();
+    let state_dumper = tokio::task::spawn(PeriodicStateDumper::new(
+        node_for_dumper,
+        dump_state,
+        dump_interval,
+        preserve_historical_states,
+    ));
+
     let system_contracts =
         SystemContracts::from_options(&config.system_contracts_options, config.use_evm_emulator);
     let block_producer_handle = tokio::task::spawn(BlockProducer::new(
@@ -297,7 +312,10 @@ async fn main() -> anyhow::Result<()> {
         },
         _ = block_producer_handle => {
             tracing::trace!("block producer was stopped")
-        }
+        },
+        _ = state_dumper => {
+            tracing::trace!("state dumper was stopped")
+        },
     }
 
     Ok(())
