@@ -581,58 +581,6 @@ async fn dump_state_on_run() -> anyhow::Result<()>  {
 }
 
 #[tokio::test]
-async fn dump_state_on_run() -> anyhow::Result<()>  {
-    let temp_dir = TempDir::new("state-test").expect("failed creating temporary dir");
-    let dump_path = temp_dir.path().join("state_dump.json");
-
-    let dump_path_clone = dump_path.clone();
-     let provider = init_testing_provider(move |node| {
-        node
-            .path(get_node_binary_path())
-            .arg("--state-interval")
-            .arg("1")
-            .arg("--dump-state")
-            .arg(dump_path_clone.to_str().unwrap())
-    })
-    .await?;
-
-    provider.tx().finalize().await?;
-
-    // Allow some time for the state to be dumped
-    sleep(Duration::from_secs(2));
-
-    drop(provider);
-
-    assert!(
-        dump_path.exists(),
-        "State dump file should exist at {:?}",
-        dump_path
-    );
-    
-    let dumped_data = fs::read_to_string(&dump_path)?;
-    let state: VersionedState = serde_json::from_str(&dumped_data)
-        .map_err(|e| anyhow::anyhow!("Failed to deserialize state: {}", e))?;
-    
-    match state {
-        VersionedState::V1 { version: _, state } => {
-            assert!(
-                !state.blocks.is_empty(),
-                "state_dump.json should contain at least one block"
-            );
-            assert!(
-                !state.transactions.is_empty(),
-                "state_dump.json should contain at least one transaction"
-            );
-        },
-        VersionedState::Unknown { version } => {
-            panic!("Encountered unknown state version: {}", version);
-        }
-    }
-
-    Ok(())
-}
-
-#[tokio::test]
 async fn dump_state_on_fork() -> anyhow::Result<()>  {
     let temp_dir = TempDir::new("state-fork-test").expect("failed creating temporary dir");
     let dump_path = temp_dir.path().join("state_dump_fork.json");
@@ -645,7 +593,7 @@ async fn dump_state_on_fork() -> anyhow::Result<()>  {
             .arg("1")
             .arg("--dump-state")
             .arg(dump_path_clone.to_str().unwrap())
-            .fork("mainnet")
+            .fork("sepolia-testnet")
     })
     .await?;
 
@@ -771,7 +719,7 @@ async fn load_state_on_fork() -> anyhow::Result<()> {
             .arg("1")
             .arg("--load-state")
             .arg(dump_path_clone.to_str().unwrap())
-            .fork("mainnet")
+            .fork("sepolia-testnet")
     })
     .await?;
 
