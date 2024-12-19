@@ -1,4 +1,4 @@
-name: Running e2e tests against Docker image
+name: Run e2e tests against Docker node
 
 on:
   workflow_call:
@@ -9,7 +9,7 @@ on:
 
 jobs:
   test-docker-image:
-    name: Test Docker Image
+    name: e2e tests on Docker node
     runs-on: ubuntu-latest
 
     steps:
