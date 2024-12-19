@@ -43,7 +43,7 @@ jobs:
 
   build-push-image:
     name: Build and Push Docker Image for ${{ matrix.arch }}
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [matterlabs-ci-runner-high-performance]
     needs: set-tags
     strategy:
       matrix:
@@ -75,9 +75,9 @@ jobs:
           full_tags="$full_tags us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/anvil-zksync:${base_tag}-${arch}"
           echo "tags=${full_tags}" >> $GITHUB_OUTPUT
 
-      - name: Login to Internal Registry
+      - name: Login to GAR
         run: |
-          echo ${{ secrets.GCP_SA_KEY }} | docker login us-docker.pkg.dev -u _json_key --password-stdin
+          gcloud auth configure-docker us-docker.pkg.dev -q
 
       - name: Login to GHCR
         uses: docker/login-action@v3
