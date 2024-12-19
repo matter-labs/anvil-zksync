@@ -91,7 +91,6 @@ describe("anvil_setBlockTimestampInterval & anvil_removeBlockTimestampInterval",
 
 describe("anvil_setLoggingEnabled", function () {
   it("Should disable and enable logging", async function () {
-
     const logFilePath = process.env.ANVIL_LOG_PATH || path.resolve("../anvil-zksync.log");
 
     // Arrange
