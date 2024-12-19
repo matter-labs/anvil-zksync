@@ -134,7 +134,6 @@ jobs:
 
       - name: Create and Push Docker Manifest
         run: |
-          # Create a multi-platform manifest with the "latest" tag
           docker buildx imagetools create \
             ghcr.io/${{ env.REPO_OWNER }}/anvil-zksync:${{ needs.set-tags.outputs.base_tag }}-amd64 \
             ghcr.io/${{ env.REPO_OWNER }}/anvil-zksync:${{ needs.set-tags.outputs.base_tag }}-arm64 \
