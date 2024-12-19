@@ -6,6 +6,7 @@ use alloy::{
     primitives::U256,
     signers::local::PrivateKeySigner,
 };
+use anyhow::Context;
 use anvil_zksync_e2e_tests::{
     init_testing_provider, init_testing_provider_with_client, AnvilZKsyncApi, ReceiptExt,
     ZksyncWalletProviderExt, DEFAULT_TX_VALUE, get_node_binary_path
@@ -15,16 +16,15 @@ use http::header::{
     HeaderMap, HeaderValue, ACCESS_CONTROL_ALLOW_HEADERS, ACCESS_CONTROL_ALLOW_METHODS,
     ACCESS_CONTROL_ALLOW_ORIGIN, ORIGIN,
 };
-
-const SOME_ORIGIN: HeaderValue = HeaderValue::from_static("http://some.origin");
-const OTHER_ORIGIN: HeaderValue = HeaderValue::from_static("http://other.origin");
-const ANY_ORIGIN: HeaderValue = HeaderValue::from_static("*");
-
 use anvil_zksync_core::node::VersionedState;
 use std::{ fs, convert::identity, thread::sleep, time::Duration };
 use tempdir::TempDir;
 use flate2::read::GzDecoder;
 use std::io::Read;
+
+const SOME_ORIGIN: HeaderValue = HeaderValue::from_static("http://some.origin");
+const OTHER_ORIGIN: HeaderValue = HeaderValue::from_static("http://other.origin");
+const ANY_ORIGIN: HeaderValue = HeaderValue::from_static("*");
 
 #[tokio::test]
 async fn interval_sealing_finalization() -> anyhow::Result<()> {
@@ -534,11 +534,11 @@ async fn dump_state_on_run() -> anyhow::Result<()>  {
     })
     .await?;
 
-    provider.tx().finalize().await?;
+    let receipt = provider.tx().finalize().await?;
+    let tx_hash = receipt.transaction_hash().to_string();
 
-    // Allow some time for the state to be dumped
     sleep(Duration::from_secs(2));
-
+    
     drop(provider);
 
     assert!(
@@ -549,8 +549,8 @@ async fn dump_state_on_run() -> anyhow::Result<()>  {
     
     let dumped_data = fs::read_to_string(&dump_path)?;
     let state: VersionedState = serde_json::from_str(&dumped_data)
-        .map_err(|e| anyhow::anyhow!("Failed to deserialize state: {}", e))?;
-    
+        .context("Failed to deserialize state")?;
+
     match state {
         VersionedState::V1 { version: _, state } => {
             assert!(
@@ -560,6 +560,16 @@ async fn dump_state_on_run() -> anyhow::Result<()>  {
             assert!(
                 !state.transactions.is_empty(),
                 "state_dump.json should contain at least one transaction"
+            );
+            let tx_exists = state.transactions.iter().any(|tx| {
+                let tx_hash_full = format!("0x{}", hex::encode(tx.receipt.transaction_hash.as_bytes()));
+                tx_hash_full == tx_hash
+            });
+            
+            assert!(
+                tx_exists,
+                "The state dump should contain the transaction with hash: {:?}",
+                tx_hash
             );
         },
         VersionedState::Unknown { version } => {
@@ -639,11 +649,11 @@ async fn dump_state_on_fork() -> anyhow::Result<()>  {
     })
     .await?;
 
-    provider.tx().finalize().await?;
+    let receipt = provider.tx().finalize().await?;
+    let tx_hash = receipt.transaction_hash().to_string();
 
-    // Allow some time for the state to be dumped
     sleep(Duration::from_secs(2));
-
+    
     drop(provider);
 
     assert!(
@@ -654,8 +664,8 @@ async fn dump_state_on_fork() -> anyhow::Result<()>  {
     
     let dumped_data = fs::read_to_string(&dump_path)?;
     let state: VersionedState = serde_json::from_str(&dumped_data)
-        .map_err(|e| anyhow::anyhow!("Failed to deserialize state: {}", e))?;
-    
+        .context("Failed to deserialize state")?;
+
     match state {
         VersionedState::V1 { version: _, state } => {
             assert!(
@@ -665,6 +675,15 @@ async fn dump_state_on_fork() -> anyhow::Result<()>  {
             assert!(
                 !state.transactions.is_empty(),
                 "state_dump_fork.json should contain at least one transaction"
+            );
+            let tx_exists = state.transactions.iter().any(|tx| {
+                let tx_hash_full = format!("0x{}", hex::encode(tx.receipt.transaction_hash.as_bytes()));
+                tx_hash_full == tx_hash
+            });
+            assert!(
+                tx_exists,
+                "The state dump should contain the transaction with hash: {:?}",
+                tx_hash
             );
         },
         VersionedState::Unknown { version } => {
@@ -704,8 +723,6 @@ async fn load_state_on_run() -> anyhow::Result<()> {
             .arg(dump_path_clone.to_str().unwrap())
     })
     .await?;
-
-    sleep(Duration::from_secs(2));
 
     new_provider.assert_has_receipts(&receipts).await?;
     new_provider.assert_has_blocks(&blocks).await?;
@@ -757,8 +774,6 @@ async fn load_state_on_fork() -> anyhow::Result<()> {
             .fork("mainnet")
     })
     .await?;
-
-    sleep(Duration::from_secs(2));
 
     new_provider.assert_has_receipts(&receipts).await?;
     new_provider.assert_has_blocks(&blocks).await?;

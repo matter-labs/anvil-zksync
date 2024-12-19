@@ -297,21 +297,16 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or(Duration::from_secs(60)); // Default to 60 seconds
     let preserve_historical_states = config.preserve_historical_states;
     let node_for_dumper = node.clone();
-    let state_dumper = tokio::task::spawn(PeriodicStateDumper::new(
+    let state_dumper = PeriodicStateDumper::new(
         node_for_dumper,
         state_path,
         dump_interval,
         preserve_historical_states,
-    ));
+    );
 
     let system_contracts =
         SystemContracts::from_options(&config.system_contracts_options, config.use_evm_emulator);
-    let block_producer_handle = tokio::task::spawn(BlockProducer::new(
-        node,
-        pool,
-        block_sealer,
-        system_contracts,
-    ));
+    let block_producer_handle = BlockProducer::new(node, pool, block_sealer, system_contracts);
 
     config.print(fork_print_info.as_ref());
 
