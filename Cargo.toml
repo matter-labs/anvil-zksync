@@ -75,6 +75,16 @@ tracing-subscriber = { version = "0.3", features = [
 ] }
 
 #########################
+# Test dependencies    #
+#########################
+httptest = "0.15.4"
+tempdir = "0.3.7"
+maplit = "1.0.2"
+zksync-web3-rs = "0.1.1"
+ethers = { version = "2.0.4", features = ["rustls"] }
+test-case = "3.3.1"
+
+#########################
 # Local dependencies    #
 #########################
 anvil_zksync_api_decl = { path = "crates/api_decl" }

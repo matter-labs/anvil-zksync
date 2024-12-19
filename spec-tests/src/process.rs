@@ -128,7 +128,7 @@ impl AnvilZKsyncRunner {
         let path = match self.path {
             Some(path) => path,
             None => {
-                if let Some(path) = std::env::var("ANVIL_ZKSYNC_BINARY_PATH").ok() {
+                if let Ok(path) = std::env::var("ANVIL_ZKSYNC_BINARY_PATH") {
                     path
                 } else {
                     // Default to the binary taken from the target directory
@@ -140,7 +140,7 @@ impl AnvilZKsyncRunner {
         let rpc_port_lock = match self.rpc_port {
             Some(rpc_port) => LockedPort::acquire(rpc_port).await?,
             None => {
-                if let Some(rpc_port) = std::env::var("ANVIL_ZKSYNC_RPC_PORT").ok() {
+                if let Ok(rpc_port) = std::env::var("ANVIL_ZKSYNC_RPC_PORT") {
                     LockedPort::acquire(rpc_port.parse().context(
                         "failed to parse `ANVIL_ZKSYNC_RPC_PORT` var as a valid port number",
                     )?)
