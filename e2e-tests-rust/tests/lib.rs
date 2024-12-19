@@ -76,11 +76,11 @@ async fn no_sealing_timeout() -> anyhow::Result<()> {
 async fn dynamic_sealing_mode() -> anyhow::Result<()> {
     // Test that we can successfully switch between different sealing modes
     let provider = init_testing_provider(|node| node.no_mine()).await?;
-    assert_eq!(provider.anvil_get_auto_mine().await?, false);
+    assert!(!(provider.anvil_get_auto_mine().await?));
 
     // Enable immediate block sealing
     provider.anvil_set_auto_mine(true).await?;
-    assert_eq!(provider.anvil_get_auto_mine().await?, true);
+    assert!(provider.anvil_get_auto_mine().await?);
 
     // Check that we can finalize transactions now
     let receipt = provider.tx().finalize().await?;
@@ -88,7 +88,7 @@ async fn dynamic_sealing_mode() -> anyhow::Result<()> {
 
     // Enable interval block sealing
     provider.anvil_set_interval_mining(3).await?;
-    assert_eq!(provider.anvil_get_auto_mine().await?, false);
+    assert!(!(provider.anvil_get_auto_mine().await?));
 
     // Check that we can finalize two txs in the same block now
     provider
@@ -99,7 +99,7 @@ async fn dynamic_sealing_mode() -> anyhow::Result<()> {
 
     // Disable block sealing entirely
     provider.anvil_set_auto_mine(false).await?;
-    assert_eq!(provider.anvil_get_auto_mine().await?, false);
+    assert!(!(provider.anvil_get_auto_mine().await?));
 
     // Check that transactions do not get finalized now
     provider

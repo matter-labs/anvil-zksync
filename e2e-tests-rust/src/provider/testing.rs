@@ -105,7 +105,7 @@ pub async fn init_testing_provider_with_client(
     let http = HttpWithMiddleware::with_client(client, url.clone());
     let rpc_client = RpcClient::new(http, true);
 
-    let rich_accounts = node_layer.instance().addresses().iter().cloned().collect();
+    let rich_accounts = node_layer.instance().addresses().to_vec();
     let default_keys = node_layer.instance().keys().to_vec();
     let (default_key, remaining_keys) = default_keys.split_first().ok_or(NoKeysAvailable)?;
 
