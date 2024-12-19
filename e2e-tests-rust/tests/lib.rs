@@ -2,9 +2,7 @@ use alloy::network::ReceiptResponse;
 use alloy::providers::ext::AnvilApi;
 use alloy::providers::Provider;
 use alloy::{
-    network::primitives::BlockTransactionsKind,
-    primitives::U256,
-    signers::local::PrivateKeySigner,
+    network::primitives::BlockTransactionsKind, primitives::U256, signers::local::PrivateKeySigner,
 };
 use anvil_zksync_e2e_tests::{
     init_testing_provider, init_testing_provider_with_client, AnvilZKsyncApi, ReceiptExt,
@@ -73,11 +71,11 @@ async fn no_sealing_timeout() -> anyhow::Result<()> {
 async fn dynamic_sealing_mode() -> anyhow::Result<()> {
     // Test that we can successfully switch between different sealing modes
     let provider = init_testing_provider(|node| node.no_mine()).await?;
-    assert_eq!(provider.anvil_get_auto_mine().await?, false);
+    assert!(!(provider.anvil_get_auto_mine().await?));
 
     // Enable immediate block sealing
     provider.anvil_set_auto_mine(true).await?;
-    assert_eq!(provider.anvil_get_auto_mine().await?, true);
+    assert!(provider.anvil_get_auto_mine().await?);
 
     // Check that we can finalize transactions now
     let receipt = provider.tx().finalize().await?;
@@ -85,7 +83,7 @@ async fn dynamic_sealing_mode() -> anyhow::Result<()> {
 
     // Enable interval block sealing
     provider.anvil_set_interval_mining(3).await?;
-    assert_eq!(provider.anvil_get_auto_mine().await?, false);
+    assert!(!(provider.anvil_get_auto_mine().await?));
 
     // Check that we can finalize two txs in the same block now
     provider
@@ -96,7 +94,7 @@ async fn dynamic_sealing_mode() -> anyhow::Result<()> {
 
     // Disable block sealing entirely
     provider.anvil_set_auto_mine(false).await?;
-    assert_eq!(provider.anvil_get_auto_mine().await?, false);
+    assert!(!(provider.anvil_get_auto_mine().await?));
 
     // Check that transactions do not get finalized now
     provider
@@ -465,13 +463,31 @@ async fn cli_allow_origin() -> anyhow::Result<()> {
 async fn pool_txs_order_fifo() -> anyhow::Result<()> {
     let provider_fifo = init_testing_provider(|node| node.no_mine()).await?;
 
-    let pending_tx0 = provider_fifo.tx().with_rich_from(0).with_max_fee_per_gas(50_000_000).register().await?;
-    let pending_tx1 = provider_fifo.tx().with_rich_from(1).with_max_fee_per_gas(100_000_000).register().await?;
-    let pending_tx2 = provider_fifo.tx().with_rich_from(2).with_max_fee_per_gas(150_000_000).register().await?;
+    let pending_tx0 = provider_fifo
+        .tx()
+        .with_rich_from(0)
+        .with_max_fee_per_gas(50_000_000)
+        .register()
+        .await?;
+    let pending_tx1 = provider_fifo
+        .tx()
+        .with_rich_from(1)
+        .with_max_fee_per_gas(100_000_000)
+        .register()
+        .await?;
+    let pending_tx2 = provider_fifo
+        .tx()
+        .with_rich_from(2)
+        .with_max_fee_per_gas(150_000_000)
+        .register()
+        .await?;
 
     provider_fifo.anvil_mine(Some(U256::from(1)), None).await?;
 
-    let block = provider_fifo.get_block(1.into(), BlockTransactionsKind::Hashes).await?.unwrap();
+    let block = provider_fifo
+        .get_block(1.into(), BlockTransactionsKind::Hashes)
+        .await?
+        .unwrap();
     let tx_hashes = block.transactions.as_hashes().unwrap();
     assert_eq!(&tx_hashes[0], pending_tx0.tx_hash());
     assert_eq!(&tx_hashes[1], pending_tx1.tx_hash());
@@ -483,13 +499,31 @@ async fn pool_txs_order_fifo() -> anyhow::Result<()> {
 async fn pool_txs_order_fees() -> anyhow::Result<()> {
     let provider_fees = init_testing_provider(|node| node.no_mine().arg("--order=fees")).await?;
 
-    let pending_tx0 = provider_fees.tx().with_rich_from(0).with_max_fee_per_gas(50_000_000).register().await?;
-    let pending_tx1 = provider_fees.tx().with_rich_from(1).with_max_fee_per_gas(100_000_000).register().await?;
-    let pending_tx2 = provider_fees.tx().with_rich_from(2).with_max_fee_per_gas(150_000_000).register().await?;
+    let pending_tx0 = provider_fees
+        .tx()
+        .with_rich_from(0)
+        .with_max_fee_per_gas(50_000_000)
+        .register()
+        .await?;
+    let pending_tx1 = provider_fees
+        .tx()
+        .with_rich_from(1)
+        .with_max_fee_per_gas(100_000_000)
+        .register()
+        .await?;
+    let pending_tx2 = provider_fees
+        .tx()
+        .with_rich_from(2)
+        .with_max_fee_per_gas(150_000_000)
+        .register()
+        .await?;
 
     provider_fees.anvil_mine(Some(U256::from(1)), None).await?;
 
-    let block = provider_fees.get_block(1.into(), BlockTransactionsKind::Hashes).await?.unwrap();
+    let block = provider_fees
+        .get_block(1.into(), BlockTransactionsKind::Hashes)
+        .await?
+        .unwrap();
     let tx_hashes = block.transactions.as_hashes().unwrap();
     assert_eq!(&tx_hashes[0], pending_tx2.tx_hash());
     assert_eq!(&tx_hashes[1], pending_tx1.tx_hash());

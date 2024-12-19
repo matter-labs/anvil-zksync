@@ -6,6 +6,7 @@ use alloy::transports::Transport;
 use alloy_zksync::network::Zksync;
 
 /// RPC interface that gives access to methods specific to anvil-zksync.
+#[allow(clippy::type_complexity)]
 pub trait AnvilZKsyncApi<T>: Provider<T, Zksync>
 where
     T: Transport + Clone,
