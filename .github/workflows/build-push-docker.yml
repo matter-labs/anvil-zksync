@@ -39,7 +39,6 @@ jobs:
           else
             echo "Unsupported event ${GITHUB_EVENT_NAME} or ref ${GITHUB_REF}. Only refs/heads/main, refs/tags/*, and pull_request are supported."
             echo "base_tag=none" >> $GITHUB_OUTPUT
-          fi
 
   build-push-image:
     name: Build and Push Docker Image for ${{ matrix.arch }}
@@ -71,9 +70,9 @@ jobs:
             echo "tags=none" >> $GITHUB_OUTPUT
             exit 0
           fi
-          full_tags="ghcr.io/${repo_owner}/anvil-zksync:${base_tag}-${arch}"
-          full_tags="$full_tags us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/anvil-zksync:${base_tag}-${arch}"
-          echo "tags=${full_tags}" >> $GITHUB_OUTPUT
+          echo "ghcr.io/${repo_owner}/anvil-zksync:${base_tag}-${arch}" >> tags.txt
+          echo "us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/anvil-zksync:${base_tag}-${arch}" >> tags.txt
+          echo "tags=$(cat tags.txt | tr '\n' ',')" >> $GITHUB_OUTPUT
 
       - name: Login to GAR
         run: |
@@ -98,8 +97,11 @@ jobs:
           platforms: ${{ matrix.platform }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          tags: ${{ steps.full_tags.outputs.tags }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/anvil-zksync:${{ env.BASE_TAG }}-${{ matrix.arch }}
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/anvil-zksync:${{ env.BASE_TAG }}-${{ matrix.arch }}
 
       - name: Print image digest to summary
         run: |
-          echo "Image tags: ${{ steps.full_tags.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo "Image tags: ghcr.io/${{ github.repository_owner }}/anvil-zksync:${{ env.BASE_TAG }}-${{ matrix.arch }}" >> $GITHUB_STEP_SUMMARY
+          echo "Image tags: us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/anvil-zksync:${{ env.BASE_TAG }}-${{ matrix.arch }}" >> $GITHUB_STEP_SUMMARY
