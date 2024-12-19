@@ -294,12 +294,7 @@ async fn main() -> anyhow::Result<()> {
 
     let system_contracts =
         SystemContracts::from_options(&config.system_contracts_options, config.use_evm_emulator);
-    let block_producer_handle = tokio::task::spawn(BlockProducer::new(
-        node,
-        pool,
-        block_sealer,
-        system_contracts,
-    ));
+    let (block_producer, block_producer_handle) = BlockProducer::new(node, system_contracts);
 
     config.print(fork_print_info.as_ref());
 
@@ -310,7 +305,7 @@ async fn main() -> anyhow::Result<()> {
         _ = any_server_stopped => {
             tracing::trace!("node server was stopped")
         },
-        _ = block_producer_handle => {
+        _ = block_producer => {
             tracing::trace!("block producer was stopped")
         },
         _ = state_dumper => {
