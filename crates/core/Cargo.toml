@@ -43,9 +43,9 @@ flate2.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
-httptest = "0.15.4"
-tempdir = "0.3.7"
-maplit = "1.0.2"
-zksync-web3-rs = "0.1.1"
-ethers = { version = "2.0.4", features = ["rustls"] }
-test-case = "3.3.1"
+maplit.workspace = true
+ethers.workspace = true
+httptest.workspace = true
+tempdir.workspace = true
+zksync-web3-rs.workspace = true
+test-case.workspace = true

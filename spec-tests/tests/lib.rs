@@ -34,7 +34,7 @@ fn resolve_method_spec(method_name: &str) -> anyhow::Result<Method> {
                 None
             }
         })
-        .expect(&format!("method '{method_name}' not found"));
+        .unwrap_or_else(|| panic!("method '{method_name}' not found"));
     Ok(method)
 }
 

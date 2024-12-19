@@ -10,6 +10,7 @@ use serde_json::{json, to_writer, Value};
 use std::collections::HashMap;
 use std::fs::File;
 use std::net::{IpAddr, Ipv4Addr};
+use std::path::PathBuf;
 use std::time::Duration;
 use zksync_types::fee_model::FeeModelConfigV2;
 use zksync_types::U256;
@@ -120,6 +121,13 @@ pub struct TestNodeConfig {
     pub no_cors: bool,
     /// How transactions are sorted in the mempool
     pub transaction_order: TransactionOrder,
+    /// State configuration
+    /// Path to dump the state to
+    pub dump_state: Option<PathBuf>,
+    /// Interval to dump the state
+    pub state_interval: Option<u64>,
+    /// Preserve historical states
+    pub preserve_historical_states: bool,
 }
 
 impl Default for TestNodeConfig {
@@ -185,6 +193,11 @@ impl Default for TestNodeConfig {
             // Server configuration
             allow_origin: "*".to_string(),
             no_cors: false,
+
+            // state configuration
+            dump_state: None,
+            state_interval: None,
+            preserve_historical_states: false,
         }
     }
 }
@@ -891,17 +904,38 @@ impl TestNodeConfig {
         self
     }
 
-    // Set allow_origin CORS header
+    /// Set allow_origin CORS header
     #[must_use]
     pub fn with_allow_origin(mut self, allow_origin: String) -> Self {
         self.allow_origin = allow_origin;
         self
     }
 
-    // Enable or disable CORS
+    /// Enable or disable CORS
     #[must_use]
     pub fn with_no_cors(mut self, no_cors: bool) -> Self {
         self.no_cors = no_cors;
+        self
+    }
+
+    /// Set the state dump path
+    #[must_use]
+    pub fn with_dump_state(mut self, dump_state: Option<PathBuf>) -> Self {
+        self.dump_state = dump_state;
+        self
+    }
+
+    /// Set the state dump interval
+    #[must_use]
+    pub fn with_state_interval(mut self, state_interval: Option<u64>) -> Self {
+        self.state_interval = state_interval;
+        self
+    }
+
+    /// Set preserve historical states
+    #[must_use]
+    pub fn with_preserve_historical_states(mut self, preserve_historical_states: bool) -> Self {
+        self.preserve_historical_states = preserve_historical_states;
         self
     }
 }

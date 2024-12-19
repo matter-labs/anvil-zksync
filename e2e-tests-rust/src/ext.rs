@@ -1,7 +1,7 @@
 //! Module containing extensions of existing alloy abstractions.
 
-use alloy::network::{ReceiptResponse,TxSigner};
-use alloy::primitives::{Address,BlockHash,PrimitiveSignature};
+use alloy::network::{ReceiptResponse, TxSigner};
+use alloy::primitives::{Address, BlockHash, PrimitiveSignature};
 use alloy::providers::WalletProvider;
 use alloy::signers::local::PrivateKeySigner;
 use alloy_zksync::network::Zksync;
@@ -80,7 +80,10 @@ pub trait ZksyncWalletProviderExt: WalletProvider<Zksync, Wallet = ZksyncWallet>
     }
 
     /// Registers provider signer.
-    fn register_signer<T: TxSigner<PrimitiveSignature> + Send + Sync + 'static>(&mut self, signer: T) {
+    fn register_signer<T: TxSigner<PrimitiveSignature> + Send + Sync + 'static>(
+        &mut self,
+        signer: T,
+    ) {
         self.wallet_mut().register_signer(signer);
     }
 }

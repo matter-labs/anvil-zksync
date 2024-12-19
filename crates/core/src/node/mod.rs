@@ -21,3 +21,4 @@ pub use self::{
     sealer::BlockSealer, sealer::BlockSealerMode, time::TimestampManager,
 };
 pub use in_memory::*;
+pub use state::VersionedState;
