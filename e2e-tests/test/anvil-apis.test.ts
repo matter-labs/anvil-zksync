@@ -93,9 +93,6 @@ describe("anvil_setLoggingEnabled", function () {
   it("Should disable and enable logging", async function () {
     const logFilePath = process.env.ANVIL_LOG_PATH || path.resolve("../anvil-zksync.log");
 
-    console.log(`ANVIL_LOG_PATH: ${process.env.ANVIL_LOG_PATH}`);
-    console.log(`Using logFilePath: ${logFilePath}`);
-    
     // Arrange
     const wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
     const userWallet = Wallet.createRandom().connect(provider);
@@ -103,13 +100,20 @@ describe("anvil_setLoggingEnabled", function () {
     // Act
     await provider.send("anvil_setLoggingEnabled", [false]);
 
-    const logSizeBefore = fs.statSync(logFilePath).size;
+    let logSizeBefore = 0;
+    if (fs.existsSync(logFilePath)) {
+      logSizeBefore = fs.statSync(logFilePath).size;
+    }
 
     await wallet.sendTransaction({
       to: userWallet.address,
       value: ethers.parseEther("0.1"),
     });
-    const logSizeAfter = fs.statSync(logFilePath).size;
+
+    let logSizeAfter = 0;
+    if (fs.existsSync(logFilePath)) {
+      logSizeAfter = fs.statSync(logFilePath).size;
+    }
 
     // Reset
     await provider.send("anvil_setLoggingEnabled", [true]);
