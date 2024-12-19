@@ -72,15 +72,12 @@ jobs:
             echo "tags=none" >> $GITHUB_OUTPUT
             exit 0
           fi
-          
           full_tags="us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/anvil-zksync:${base_tag}-${arch}
           ghcr.io/${repo_owner}/anvil-zksync:${base_tag}-${arch}
           us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/anvil-zksync:${base_tag}
-          
           ghcr.io/${repo_owner}/anvil-zksync:${base_tag}
           us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/anvil-zksync:latest
           ghcr.io/${repo_owner}/anvil-zksync:latest"
-          
           echo "tags=${full_tags}" >> $GITHUB_OUTPUT
 
       - name: Login to GAR
