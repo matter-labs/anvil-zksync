@@ -38,10 +38,9 @@ jobs:
             echo "base_tag=none" >> $GITHUB_OUTPUT
           else
             echo "Unsupported event ${GITHUB_EVENT_NAME} or ref ${GITHUB_REF}. Only refs/heads/main, refs/tags/*, and pull_request are supported."
-            exit 1
+            echo "base_tag=none" >> $GITHUB_OUTPUT
           fi
 
-  # 2. Build and Push Docker Images for Each Architecture
   build-push-image:
     name: Build and Push Docker Image for ${{ matrix.arch }}
     runs-on: [matterlabs-ci-runner-high-performance]
@@ -72,24 +71,18 @@ jobs:
             echo "tags=none" >> $GITHUB_OUTPUT
             exit 0
           fi
-          full_tags="us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/anvil-zksync:${base_tag}-${arch}
-          ghcr.io/${repo_owner}/anvil-zksync:${base_tag}-${arch}
-          us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/anvil-zksync:${base_tag}
-          ghcr.io/${repo_owner}/anvil-zksync:${base_tag}
-          us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/anvil-zksync:latest
-          ghcr.io/${repo_owner}/anvil-zksync:latest"
-          echo "tags=${full_tags}" >> $GITHUB_OUTPUT
+          echo -e "tags=us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/anvil-zksync:${base_tag}-${arch}\nghcr.io/${repo_owner}/anvil-zksync:${base_tag}-${arch}\nus-docker.pkg.dev/matterlabs-infra/matterlabs-docker/anvil-zksync:${base_tag}\nghcr.io/${repo_owner}/anvil-zksync:${base_tag}\nus-docker.pkg.dev/matterlabs-infra/matterlabs-docker/anvil-zksync:latest\nghcr.io/${repo_owner}/anvil-zksync:latest" >> $GITHUB_OUTPUT
 
-      - name: Login to GAR
+      - name: Login to Internal Registry
         run: |
-          gcloud auth configure-docker us-docker.pkg.dev -q
+          echo ${{ secrets.GCP_SA_KEY }} | docker login us-docker.pkg.dev -u _json_key --password-stdin
 
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.GH_DOCKER }}
 
       - name: Set Up Docker Buildx
         uses: docker/setup-buildx-action@v3
