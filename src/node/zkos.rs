@@ -166,90 +166,100 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
         next_free_slot: tree.storage_tree.next_free_slot,
     };
 
-    let mut tx_raw: Vec<u8> = vec![];
-    tx_raw.append(&mut vec![0u8; 32]);
-    append_address(&mut tx_raw, &aa1.initiator_address);
-    append_address(
-        &mut tx_raw,
-        &tx.execute.contract_address.unwrap_or(H160::zero()),
-    );
+    let tx_raw = match tx.tx_format() {
+        zksync_types::l2::TransactionType::LegacyTransaction => {
+            let mut tx_raw: Vec<u8> = vec![];
+            tx_raw.append(&mut vec![0u8; 32]);
+            append_address(&mut tx_raw, &aa1.initiator_address);
+            append_address(
+                &mut tx_raw,
+                &tx.execute.contract_address.unwrap_or(H160::zero()),
+            );
 
-    let mut gas_limit = aa1.fee.gas_limit;
-    // HACK
-    if simulate_only {
-        gas_limit = gas_limit.saturating_sub(3_000_000.into())
-    }
+            let mut gas_limit = aa1.fee.gas_limit;
+            // HACK
+            if simulate_only {
+                gas_limit = gas_limit.saturating_sub(3_000_000.into())
+            }
 
-    println!("=== Gas limit: {}", gas_limit);
-    append_u256(&mut tx_raw, &gas_limit);
-    append_u256(&mut tx_raw, &aa1.fee.gas_per_pubdata_limit);
+            println!("=== Gas limit: {}", gas_limit);
+            append_u256(&mut tx_raw, &gas_limit);
+            append_u256(&mut tx_raw, &aa1.fee.gas_per_pubdata_limit);
 
-    let fee_per_gas = aa1.fee.max_fee_per_gas;
+            let fee_per_gas = aa1.fee.max_fee_per_gas;
 
-    append_u256(&mut tx_raw, &fee_per_gas);
-    // hack for legacy tx.
-    append_u256(&mut tx_raw, &fee_per_gas);
+            append_u256(&mut tx_raw, &fee_per_gas);
+            // hack for legacy tx.
+            append_u256(&mut tx_raw, &fee_per_gas);
 
-    // paymaster
-    append_u64(&mut tx_raw, 0);
+            // paymaster
+            append_u64(&mut tx_raw, 0);
 
-    append_u64(&mut tx_raw, aa1.nonce.0.into());
+            append_u64(&mut tx_raw, aa1.nonce.0.into());
 
-    append_u256(&mut tx_raw, &tx.execute.value);
+            append_u256(&mut tx_raw, &tx.execute.value);
 
-    let mut reserved = [0u64; 4];
+            let mut reserved = [0u64; 4];
 
-    // Should check chain_id
-    reserved[0] = 1;
+            // Should check chain_id
+            reserved[0] = 1;
 
-    if tx.execute.contract_address.is_none() {
-        reserved[1] = 1;
-    }
+            if tx.execute.contract_address.is_none() {
+                reserved[1] = 1;
+            }
 
-    for i in 0..4 {
-        // reserved
-        append_u64(&mut tx_raw, reserved[i]);
-    }
+            for i in 0..4 {
+                // reserved
+                append_u64(&mut tx_raw, reserved[i]);
+            }
 
-    let signature_u256 = aa1.signature.len().div_ceil(32) as u64;
+            let signature_u256 = aa1.signature.len().div_ceil(32) as u64;
 
-    let execute_calldata_words = tx.execute.calldata.len().div_ceil(32) as u64;
-    dbg!(execute_calldata_words);
+            let execute_calldata_words = tx.execute.calldata.len().div_ceil(32) as u64;
+            dbg!(execute_calldata_words);
 
-    let mut current_offset = 19;
+            let mut current_offset = 19;
 
-    // data offset
-    append_u64(&mut tx_raw, current_offset * 32);
-    // lent
-    current_offset += 1 + execute_calldata_words;
-    // signature offset (stupid -- this doesn't include the padding!!)
-    append_u64(&mut tx_raw, current_offset * 32);
-    current_offset += 1 + signature_u256;
+            // data offset
+            append_u64(&mut tx_raw, current_offset * 32);
+            // lent
+            current_offset += 1 + execute_calldata_words;
+            // signature offset (stupid -- this doesn't include the padding!!)
+            append_u64(&mut tx_raw, current_offset * 32);
+            current_offset += 1 + signature_u256;
 
-    // factory deps
-    append_u64(&mut tx_raw, current_offset * 32);
-    current_offset += 1;
-    // paymater
-    append_u64(&mut tx_raw, current_offset * 32);
-    current_offset += 1;
-    // reserved
-    append_u64(&mut tx_raw, current_offset * 32);
-    current_offset += 1;
+            // factory deps
+            append_u64(&mut tx_raw, current_offset * 32);
+            current_offset += 1;
+            // paymater
+            append_u64(&mut tx_raw, current_offset * 32);
+            current_offset += 1;
+            // reserved
+            append_u64(&mut tx_raw, current_offset * 32);
+            current_offset += 1;
 
-    // len - data.
-    append_usize(&mut tx_raw, tx.execute.calldata.len());
-    tx_raw.append(&mut pad_to_word(&tx.execute.calldata));
+            // len - data.
+            append_usize(&mut tx_raw, tx.execute.calldata.len());
+            tx_raw.append(&mut pad_to_word(&tx.execute.calldata));
 
-    // len - signature.
-    append_usize(&mut tx_raw, aa1.signature.len());
-    tx_raw.append(&mut pad_to_word(&aa1.signature));
+            // len - signature.
+            append_usize(&mut tx_raw, aa1.signature.len());
+            tx_raw.append(&mut pad_to_word(&aa1.signature));
 
-    // factory deps
-    append_u64(&mut tx_raw, 0);
-    // paymater
-    append_u64(&mut tx_raw, 0);
-    // reserved
-    append_u64(&mut tx_raw, 0);
+            // factory deps
+            append_u64(&mut tx_raw, 0);
+            // paymater
+            append_u64(&mut tx_raw, 0);
+            // reserved
+            append_u64(&mut tx_raw, 0);
+            tx_raw
+        }
+        zksync_types::l2::TransactionType::EIP2930Transaction => todo!(),
+        zksync_types::l2::TransactionType::EIP1559Transaction => todo!(),
+        zksync_types::l2::TransactionType::EIP712Transaction => todo!(),
+        zksync_types::l2::TransactionType::PriorityOpTransaction => todo!(),
+        zksync_types::l2::TransactionType::ProtocolUpgradeTransaction => todo!(),
+    };
 
     let (output, new_known_factory_deps) = if simulate_only {
         (
