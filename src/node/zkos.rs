@@ -10,21 +10,16 @@ use system_hooks::addresses_constants::{
     NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS, NONCE_HOLDER_HOOK_ADDRESS,
 };
 use zk_ee::{common_structs::derive_flat_storage_key, utils::Bytes32};
-use zksync_multivm::{
-    interface::{
-        storage::{StoragePtr, WriteStorage},
-        ExecutionResult, PushTransactionResult, TxExecutionMode, VmExecutionResultAndLogs,
-        VmInterface, VmInterfaceHistoryEnabled, VmRevertReason,
-    },
-    tracers::TracerDispatcher,
-    vm_latest::HistoryEnabled,
-    HistoryMode,
+use zksync_multivm::interface::{
+    storage::{StoragePtr, WriteStorage},
+    ExecutionResult, PushTransactionResult, TxExecutionMode, VmExecutionLogs,
+    VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled, VmRevertReason,
 };
 use zksync_types::{
     block::{pack_block_info, unpack_block_info},
     web3::keccak256,
-    AccountTreeId, Address, StorageKey, Transaction, H160, H256, SYSTEM_CONTEXT_ADDRESS,
-    SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
+    AccountTreeId, Address, StorageKey, StorageLog, StorageLogWithPreviousValue, Transaction, H160,
+    H256, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
 };
 use zksync_utils::{address_to_h256, h256_to_u256, u256_to_h256};
 
@@ -264,12 +259,6 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
 
     println!("Tree size is: {}", tree.cold_storage.len());
 
-    let aa1 = match &tx.common_data {
-        zksync_types::ExecuteTransactionCommon::L1(_) => todo!(),
-        zksync_types::ExecuteTransactionCommon::L2(l2_tx_common_data) => l2_tx_common_data,
-        zksync_types::ExecuteTransactionCommon::ProtocolUpgrade(_) => todo!(),
-    };
-
     let storage_commitment = StorageCommitment {
         root: *tree.storage_tree.root(),
         next_free_slot: tree.storage_tree.next_free_slot,
@@ -277,7 +266,7 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
 
     let tx_raw = transaction_to_zkos_vec(tx);
 
-    let (output, new_known_factory_deps) = if simulate_only {
+    let (output, new_known_factory_deps, storage_logs) = if simulate_only {
         (
             forward_system::run::simulate_tx(
                 tx_raw,
@@ -288,6 +277,7 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
             )
             .unwrap(),
             None,
+            vec![], // storage logs
         )
     } else {
         let tx_source = TxListSource {
@@ -306,17 +296,31 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
 
         let mut storage_ptr = storage.borrow_mut();
 
+        let mut storage_logs = vec![];
+
         // apply storage writes..
         for write in batch_output.storage_writes {
             //let ab = write.key.as_u8_array_ref();
             //let ac = H256::from(ab);
 
-            let ab = StorageKey::new(
+            let storage_key = StorageKey::new(
                 AccountTreeId::new(Address::from_slice(&write.account.to_be_bytes_vec())),
                 H256::from(write.account_key.as_u8_array_ref()),
             );
-            dbg!(&ab);
-            storage_ptr.set_value(ab, H256::from(write.value.as_u8_array_ref()));
+            dbg!(&storage_key);
+            let storage_value = H256::from(write.value.as_u8_array_ref());
+            let prev_value = storage_ptr.set_value(storage_key, storage_value);
+
+            let storage_log = StorageLog {
+                // FIXME - should distinguish between initial write and repeated write.
+                kind: zksync_types::StorageLogKind::InitialWrite,
+                key: storage_key,
+                value: storage_value,
+            };
+            storage_logs.push(StorageLogWithPreviousValue {
+                log: storage_log,
+                previous_value: prev_value,
+            });
         }
         let mut f_deps = HashMap::new();
 
@@ -330,7 +334,11 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
             f_deps.insert(bytes32_to_h256(factory_dep.0), factory_dep.1);
         }
 
-        (batch_output.tx_results[0].clone(), Some(f_deps))
+        (
+            batch_output.tx_results[0].clone(),
+            Some(f_deps),
+            storage_logs,
+        )
     };
 
     let tx_output = match output.as_ref() {
@@ -368,7 +376,13 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
         result: ExecutionResult::Success {
             output: tx_output.clone(),
         },
-        logs: Default::default(),
+        logs: VmExecutionLogs {
+            storage_logs,
+            events: Default::default(),
+            user_l2_to_l1_logs: Default::default(),
+            system_l2_to_l1_logs: Default::default(),
+            total_log_queries_count: Default::default(),
+        },
         statistics: Default::default(),
         refunds: Default::default(),
         new_known_factory_deps,
