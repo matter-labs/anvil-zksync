@@ -25,7 +25,7 @@ forge create --gas-limit 30000000 --private-key 0x2a871d0798f97d79848a013d4936a7
 
 cast call -r http://localhost:8011 0x700b6a60ce7eaaea56f065753d8dcb9653dbad35 "number()"
 
-cast send -r http://localhost:8011 0x700b6a60ce7eaaea56f065753d8dcb9653dbad35 "setNumber(uint256)" 11 --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --gas-limit 10000000 
+cast send -r http://localhost:8011 0x700b6a60ce7eaaea56f065753d8dcb9653dbad35 "setNumber(uint256)" 11 --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --gas-limit 10000000
 
 ```
 
@@ -46,7 +46,7 @@ cast send -r http://localhost:8011 0x8B31b1F39Cc7dD799405E232327dcf0e71909020 --
 ```
 (otherwise cast sends 1559 type).
 
-[TODO] - pass this chain id somehow.
+[FIXED] - pass this chain id somehow.
 
 
 ### Balances address
@@ -95,13 +95,14 @@ Simulate works now, but still the gas estimate doesn't properly handle the cost 
 
 [TODO] - execution must return 'raw' account + key in StorageWrites
 [TODO] - verify and apply batch must support writing only a single element
+[FIXED] - nonce underflow when 'call' to deploy.
+
 
 ## Library issues
 
-[TODO] - Support 1559 - and add better libraries for this in zk_ee
-[TODO] - return address from create call.
+[FIXED] - Support 1559 - and add better libraries for this in zk_ee
+[FIXED] - return address from create call.
 [TODO] - pass the block id / timestamp.
-
 
 
 ## Work log

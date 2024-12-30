@@ -353,7 +353,20 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
                         data
                     }
                 },
-                _ => panic!("TX failed"),
+                forward_system::run::ExecutionResult::Revert(data) => {
+                    return VmExecutionResultAndLogs {
+                        result: ExecutionResult::Revert {
+                            output: VmRevertReason::General {
+                                msg: "Transaction reverted".to_string(),
+                                data: data.clone(),
+                            },
+                        },
+                        logs: Default::default(),
+                        statistics: Default::default(),
+                        refunds: Default::default(),
+                        new_known_factory_deps: None,
+                    }
+                }
             }
         }
         Err(invalid_tx) => {
