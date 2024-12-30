@@ -159,7 +159,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> DebugNames
                 )))
             })?;
 
-            let allow_no_target = system_contracts.evm_emulator.is_some();
+            let allow_no_target = true; //system_contracts.evm_emulator.is_some();
             let mut l2_tx = L2Tx::from_request(request.into(), MAX_TX_SIZE, allow_no_target)
                 .map_err(|err| into_jsrpc_error(Web3Error::SerializationError(err)))?;
             let execution_mode = zksync_multivm::interface::TxExecutionMode::EthCall;

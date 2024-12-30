@@ -482,9 +482,21 @@ impl<S: WriteStorage> VmInterface for ZKOsVM<S> {
         dispatcher: &mut Self::TracerDispatcher,
         execution_mode: zksync_multivm::interface::InspectExecutionMode,
     ) -> VmExecutionResultAndLogs {
+        let simulate_only = match self.execution_mode {
+            TxExecutionMode::VerifyExecute => false,
+            TxExecutionMode::EstimateFee => true,
+            TxExecutionMode::EthCall => true,
+        };
+
         // FIXME.
         let tx = self.transactions[0].clone();
-        execute_tx_in_zkos(&tx, &self.tree, &self.preimage, &mut self.storage, false)
+        execute_tx_in_zkos(
+            &tx,
+            &self.tree,
+            &self.preimage,
+            &mut self.storage,
+            simulate_only,
+        )
     }
 
     fn start_new_l2_block(&mut self, l2_block_env: zksync_multivm::interface::L2BlockEnv) {

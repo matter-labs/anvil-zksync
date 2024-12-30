@@ -497,7 +497,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             .system_contracts
             .contracts_for_fee_estimate(impersonating)
             .clone();
-        let allow_no_target = system_contracts.evm_emulator.is_some();
+        let allow_no_target = true; //system_contracts.evm_emulator.is_some();
 
         let mut l2_tx = L2Tx::from_request(
             request_with_gas_per_pubdata_overridden.into(),
