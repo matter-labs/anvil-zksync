@@ -5,7 +5,7 @@ use zksync_contracts::{
     BaseSystemContractsHashes, ContractLanguage, SystemContractCode,
 };
 use zksync_multivm::interface::TxExecutionMode;
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words};
+use zksync_types::bytecode::BytecodeHash;
 
 /// Holds the system contracts (and bootloader) that are used by the in-memory node.
 #[derive(Debug, Clone)]
@@ -84,11 +84,11 @@ fn bsc_load_with_bootloader(
     options: &SystemContractsOptions,
     use_evm_emulator: bool,
 ) -> BaseSystemContracts {
-    let hash = hash_bytecode(&bootloader_bytecode);
+    let hash = BytecodeHash::for_bytecode(&bootloader_bytecode);
 
     let bootloader = SystemContractCode {
-        code: bytes_to_be_words(bootloader_bytecode),
-        hash,
+        code: bootloader_bytecode,
+        hash: hash.value(),
     };
 
     let aa_bytecode = match options {
@@ -105,10 +105,10 @@ fn bsc_load_with_bootloader(
         ),
     };
 
-    let aa_hash = hash_bytecode(&aa_bytecode);
+    let aa_hash = BytecodeHash::for_bytecode(&aa_bytecode);
     let default_aa = SystemContractCode {
-        code: bytes_to_be_words(aa_bytecode),
-        hash: aa_hash,
+        code: aa_bytecode,
+        hash: aa_hash.value(),
     };
 
     let evm_emulator = if use_evm_emulator {
@@ -120,10 +120,10 @@ fn bsc_load_with_bootloader(
                 panic!("no built-in EVM emulator yet")
             }
         };
-        let evm_emulator_hash = hash_bytecode(&evm_emulator_bytecode);
+        let evm_emulator_hash = BytecodeHash::for_bytecode(&evm_emulator_bytecode);
         Some(SystemContractCode {
-            code: bytes_to_be_words(evm_emulator_bytecode),
-            hash: evm_emulator_hash,
+            code: evm_emulator_bytecode,
+            hash: evm_emulator_hash.value(),
         })
     } else {
         None

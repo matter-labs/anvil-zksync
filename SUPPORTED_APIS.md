@@ -171,6 +171,7 @@ The `status` options are:
 | `ZKS` | `zks_L1BatchNumber` | `NOT IMPLEMENTED` | Returns the latest L1 batch number |
 | [`ZKS`](#zks-namespace) | [`zks_L1ChainId`](#zks_l1chainid) | `IMPLEMENTED` | Returns the chain id of the underlying L1 |
 | `ZKS` | `zks_sendRawTransactionWithDetailedOutput` | `NOT IMPLEMENTED` | Executes a transaction with detailed output |
+| `ZKS` | `zks_getTimestampAsserter` | `NOT IMPLEMENTED` | Returns an address of timestamp asserter contract |
 
 ## `CONFIG NAMESPACE`
 

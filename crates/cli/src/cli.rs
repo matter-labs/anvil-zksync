@@ -541,6 +541,7 @@ impl PeriodicStateDumper {
         }
     }
 
+    #[allow(dead_code)] // TODO: Remove this once the method is used
     pub async fn dump(&self) {
         if let Some(state) = self.dump_state.clone() {
             Self::dump_state(self.node.clone(), state, self.preserve_historical_states).await

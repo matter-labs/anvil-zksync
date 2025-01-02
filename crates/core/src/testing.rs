@@ -23,10 +23,10 @@ use zksync_types::api::{
     BlockDetailsBase, BlockIdVariant, BlockStatus, BridgeAddresses, DebugCall, DebugCallType, Log,
 };
 use zksync_types::block::pack_block_info;
+use zksync_types::u256_to_h256;
 use zksync_types::{fee::Fee, l2::L2Tx, Address, L2ChainId, Nonce, ProtocolVersionId, H256, U256};
 use zksync_types::{AccountTreeId, L1BatchNumber, L2BlockNumber, H160, U64};
 use zksync_types::{K256PrivateKey, StorageKey};
-use zksync_utils::u256_to_h256;
 
 /// Configuration for the [MockServer]'s initial block.
 #[derive(Default, Debug, Clone)]
@@ -821,10 +821,13 @@ impl ForkSource for ExternalStorage {
                 status: BlockStatus::Sealed,
                 commit_tx_hash: None,
                 committed_at: None,
+                commit_chain_id: None,
                 prove_tx_hash: None,
                 proven_at: None,
+                prove_chain_id: None,
                 execute_tx_hash: None,
                 executed_at: None,
+                execute_chain_id: None,
                 l1_gas_price: 123,
                 l2_fair_gas_price: 234,
                 fair_pubdata_price: Some(345),
@@ -882,7 +885,7 @@ impl ForkSource for ExternalStorage {
 mod test {
     use maplit::hashmap;
     use zksync_types::block::unpack_block_info;
-    use zksync_utils::h256_to_u256;
+    use zksync_types::h256_to_u256;
 
     use super::*;
 

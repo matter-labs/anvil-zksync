@@ -12,8 +12,8 @@ ENV RUSTUP_HOME=/usr/local/rustup \
     PATH=/usr/local/cargo/bin:$PATH
 
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
-    rustup install nightly-2024-08-01 && \
-    rustup default nightly-2024-08-01
+    rustup install stable && \
+    rustup default stable
 
 WORKDIR /usr/src/anvil-zksync
 COPY . .

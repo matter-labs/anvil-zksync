@@ -4,6 +4,7 @@ use crate::formatter::{self, PubdataBytesInfo};
 
 use anvil_zksync_types::ShowStorageLogs;
 use zksync_multivm::interface::VmExecutionResultAndLogs;
+use zksync_types::h256_to_u256;
 use zksync_types::{
     utils::storage_key_for_eth_balance,
     writes::{
@@ -13,7 +14,6 @@ use zksync_types::{
     StorageKey, BOOTLOADER_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
 };
 use zksync_types::{StorageLogKind, StorageLogWithPreviousValue};
-use zksync_utils::h256_to_u256;
 
 fn is_storage_key_free(key: &StorageKey) -> bool {
     key.address() == &SYSTEM_CONTEXT_ADDRESS

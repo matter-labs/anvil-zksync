@@ -35,10 +35,10 @@ use zksync_types::{
     url::SensitiveUrl,
     ProtocolVersionId, StorageKey, SYSTEM_CONTEXT_CHAIN_ID_POSITION,
 };
+use zksync_types::{bytecode::BytecodeHash, h256_to_u256};
 use zksync_types::{
     Address, L1BatchNumber, L2BlockNumber, L2ChainId, StorageValue, H256, U256, U64,
 };
-use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 use zksync_web3_decl::{
     client::{Client, L2},
     namespaces::ZksNamespaceClient,
@@ -135,7 +135,7 @@ impl ForkStorage {
             inner: Arc::new(RwLock::new(ForkStorageInner {
                 raw_storage: InMemoryStorage::with_system_contracts_and_chain_id(
                     chain_id,
-                    hash_bytecode,
+                    |b| BytecodeHash::for_bytecode(b).value(),
                     system_contracts_options,
                     use_evm_emulator,
                 ),
