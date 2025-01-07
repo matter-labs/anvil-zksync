@@ -273,7 +273,9 @@ async fn main() -> anyhow::Result<()> {
     let mut server_handles = Vec::with_capacity(config.host.len());
     for host in &config.host {
         let addr = SocketAddr::new(*host, config.port);
-        server_handles.push(server_builder.clone().build(addr).await.run());
+        let server = server_builder.clone().build(addr).await;
+        config.port = server.local_addr().port();
+        server_handles.push(server.run());
     }
     let any_server_stopped =
         futures::future::select_all(server_handles.into_iter().map(|h| Box::pin(h.stopped())));
