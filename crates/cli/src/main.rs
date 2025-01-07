@@ -9,18 +9,21 @@ use anvil_zksync_config::constants::{
 };
 use anvil_zksync_config::types::SystemContractsOptions;
 use anvil_zksync_config::ForkPrintInfo;
-use anvil_zksync_core::fork::ForkDetails;
+use anvil_zksync_core::filters::EthFilters;
+use anvil_zksync_core::node::fork::ForkDetails;
 use anvil_zksync_core::node::{
     BlockProducer, BlockSealer, BlockSealerMode, ImpersonationManager, InMemoryNode,
-    TimestampManager, TxPool,
+    InMemoryNodeInner, TestNodeFeeInputProvider, TxPool,
 };
 use anvil_zksync_core::observability::Observability;
 use anvil_zksync_core::system_contracts::SystemContracts;
 use anyhow::{anyhow, Context};
 use clap::Parser;
 use std::fs::File;
+use std::sync::Arc;
 use std::time::Duration;
 use std::{env, net::SocketAddr, str::FromStr};
+use tokio::sync::RwLock;
 use tower_http::cors::AllowOrigin;
 use tracing_subscriber::filter::LevelFilter;
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
@@ -206,9 +209,29 @@ async fn main() -> anyhow::Result<()> {
         None
     };
 
-    let time = TimestampManager::default();
     let impersonation = ImpersonationManager::default();
+    if config.enable_auto_impersonate {
+        // Enable auto impersonation if configured
+        impersonation.set_auto_impersonation(true);
+    }
     let pool = TxPool::new(impersonation.clone(), config.transaction_order);
+
+    let fee_input_provider = TestNodeFeeInputProvider::from_fork(fork_details.as_ref());
+    let filters = Arc::new(RwLock::new(EthFilters::default()));
+    let system_contracts =
+        SystemContracts::from_options(&config.system_contracts_options, config.use_evm_emulator);
+
+    let (node_inner, _fork_storage, blockchain, time) = InMemoryNodeInner::init(
+        fork_details,
+        fee_input_provider.clone(),
+        filters,
+        config.clone(),
+        impersonation.clone(),
+        system_contracts.clone(),
+    );
+
+    let (block_producer, block_producer_handle) =
+        BlockProducer::new(node_inner.clone(), system_contracts.clone());
     let sealing_mode = if config.no_mining {
         BlockSealerMode::noop()
     } else if let Some(block_time) = config.block_time {
@@ -216,20 +239,25 @@ async fn main() -> anyhow::Result<()> {
     } else {
         BlockSealerMode::immediate(config.max_transactions, pool.add_tx_listener())
     };
-    let block_sealer = BlockSealer::new(sealing_mode);
+    let (block_sealer, block_sealer_state) =
+        BlockSealer::new(sealing_mode, pool.clone(), block_producer_handle.clone());
 
     let node: InMemoryNode = InMemoryNode::new(
-        fork_details,
+        node_inner,
+        blockchain,
+        block_producer_handle,
         Some(observability),
-        &config,
-        time.clone(),
+        time,
         impersonation,
-        pool.clone(),
-        block_sealer.clone(),
+        pool,
+        block_sealer_state,
+        system_contracts,
     );
 
     if let Some(ref bytecodes_dir) = config.override_bytecodes_dir {
-        override_bytecodes(&node, bytecodes_dir.to_string()).unwrap();
+        override_bytecodes(&node, bytecodes_dir.to_string())
+            .await
+            .unwrap();
     }
 
     if !transactions_to_replay.is_empty() {
@@ -238,21 +266,23 @@ async fn main() -> anyhow::Result<()> {
 
     for signer in config.genesis_accounts.iter() {
         let address = H160::from_slice(signer.address().as_ref());
-        node.set_rich_account(address, config.genesis_balance);
+        node.set_rich_account(address, config.genesis_balance).await;
     }
     for signer in config.signer_accounts.iter() {
         let address = H160::from_slice(signer.address().as_ref());
-        node.set_rich_account(address, config.genesis_balance);
+        node.set_rich_account(address, config.genesis_balance).await;
     }
     // sets legacy rich wallets
     for wallet in LEGACY_RICH_WALLETS.iter() {
         let address = wallet.0;
-        node.set_rich_account(H160::from_str(address).unwrap(), config.genesis_balance);
+        node.set_rich_account(H160::from_str(address).unwrap(), config.genesis_balance)
+            .await;
     }
     // sets additional legacy rich wallets
     for wallet in RICH_WALLETS.iter() {
         let address = wallet.0;
-        node.set_rich_account(H160::from_str(address).unwrap(), config.genesis_balance);
+        node.set_rich_account(H160::from_str(address).unwrap(), config.genesis_balance)
+            .await;
     }
 
     let mut server_builder = NodeServerBuilder::new(
@@ -292,10 +322,6 @@ async fn main() -> anyhow::Result<()> {
         preserve_historical_states,
     ));
 
-    let system_contracts =
-        SystemContracts::from_options(&config.system_contracts_options, config.use_evm_emulator);
-    let (block_producer, block_producer_handle) = BlockProducer::new(node, system_contracts);
-
     config.print(fork_print_info.as_ref());
 
     tokio::select! {
@@ -307,6 +333,9 @@ async fn main() -> anyhow::Result<()> {
         },
         _ = block_producer => {
             tracing::trace!("block producer was stopped")
+        },
+        _ = block_sealer => {
+            tracing::trace!("block sealer was stopped")
         },
         _ = state_dumper => {
             tracing::trace!("state dumper was stopped")

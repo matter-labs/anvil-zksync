@@ -1,31 +1,113 @@
+use crate::node::block_producer::{BlockProducerHandle, Command};
 use crate::node::pool::{TxBatch, TxPool};
 use futures::channel::mpsc::Receiver;
+use futures::future::LocalBoxFuture;
 use futures::stream::{Fuse, StreamExt};
 use futures::task::AtomicWaker;
 use futures::Stream;
+use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, RwLock};
 use std::task::{Context, Poll};
 use std::time::Duration;
+use tokio::sync::mpsc;
 use tokio::time::{Interval, MissedTickBehavior};
 use zksync_types::H256;
 
-#[derive(Clone, Debug)]
+// TODO: `BlockSealer` is probably a bad name as this doesn't actually seal blocks, just decides
+//       that certain tx batch needs to be sealed. The actual sealing is handled in `BlockProducer`.
+//       Consider renaming.
+#[pin_project::pin_project]
 pub struct BlockSealer {
+    /// Block sealer state (externally mutable).
+    state: BlockSealerState,
+    /// Pool where block sealer is sourcing transactions from.
+    pool: TxPool,
+    /// Block producer to be used when a block needs to be sealed.
+    block_producer_handle: BlockProducerHandle,
+    /// Future that is sending the next seal command to [`super::BlockProducer`]
+    #[pin]
+    future: Option<LocalBoxFuture<'static, Result<(), mpsc::error::SendError<Command>>>>,
+}
+
+impl BlockSealer {
+    pub fn new(
+        mode: BlockSealerMode,
+        pool: TxPool,
+        block_producer_handle: BlockProducerHandle,
+    ) -> (Self, BlockSealerState) {
+        let state = BlockSealerState {
+            mode: Arc::new(RwLock::new(mode)),
+            waker: Arc::new(AtomicWaker::new()),
+        };
+        (
+            Self {
+                state: state.clone(),
+                pool,
+                block_producer_handle,
+                future: None,
+            },
+            state,
+        )
+    }
+}
+
+impl Future for BlockSealer {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut this = self.project();
+        this.state.waker.register(cx.waker());
+        if this.future.is_none() {
+            tracing::debug!("no pending messages to block producer, polling for a new tx batch");
+            let mut mode = this
+                .state
+                .mode
+                .write()
+                .expect("BlockSealer lock is poisoned");
+            let tx_batch = futures::ready!(match &mut *mode {
+                BlockSealerMode::Noop => Poll::Pending,
+                BlockSealerMode::Immediate(immediate) => immediate.poll(&this.pool, cx),
+                BlockSealerMode::FixedTime(fixed) => fixed.poll(&this.pool, cx),
+            });
+            tracing::debug!(
+                impersonating = tx_batch.impersonating,
+                txs = tx_batch.txs.len(),
+                "new tx batch found"
+            );
+            let handle = this.block_producer_handle.clone();
+            *this.future = Some(Box::pin(async move { handle.seal_block(tx_batch).await }));
+        }
+
+        if let Some(future) = this.future.as_mut().as_pin_mut() {
+            match futures::ready!(future.poll(cx)) {
+                Ok(()) => {
+                    // Clear pending future if it completed successfully
+                    *this.future = None;
+                    Poll::Pending
+                }
+                Err(_) => {
+                    tracing::error!(
+                        "failed to seal a block as block producer is dropped; shutting down"
+                    );
+                    Poll::Ready(())
+                }
+            }
+        } else {
+            Poll::Pending
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct BlockSealerState {
     /// The mode this sealer currently operates in
     mode: Arc<RwLock<BlockSealerMode>>,
     /// Used for task wake up when the sealing mode was forcefully changed
     waker: Arc<AtomicWaker>,
 }
 
-impl BlockSealer {
-    pub fn new(mode: BlockSealerMode) -> Self {
-        Self {
-            mode: Arc::new(RwLock::new(mode)),
-            waker: Arc::new(AtomicWaker::new()),
-        }
-    }
-
+impl BlockSealerState {
     pub fn is_immediate(&self) -> bool {
         matches!(
             *self.mode.read().expect("BlockSealer lock is poisoned"),
@@ -37,16 +119,6 @@ impl BlockSealer {
         *self.mode.write().expect("BlockSealer lock is poisoned") = mode;
         // Notify last used waker that the mode might have changed
         self.waker.wake();
-    }
-
-    pub fn poll(&mut self, pool: &TxPool, cx: &mut Context<'_>) -> Poll<TxBatch> {
-        self.waker.register(cx.waker());
-        let mut mode = self.mode.write().expect("BlockSealer lock is poisoned");
-        match &mut *mode {
-            BlockSealerMode::Noop => Poll::Pending,
-            BlockSealerMode::Immediate(immediate) => immediate.poll(pool, cx),
-            BlockSealerMode::FixedTime(fixed) => fixed.poll(pool, cx),
-        }
     }
 }
 

@@ -59,7 +59,7 @@ fn compute_and_update_pubdata_cost(
 }
 
 pub fn print_storage_logs_details(
-    show_storage_logs: &ShowStorageLogs,
+    show_storage_logs: ShowStorageLogs,
     result: &VmExecutionResultAndLogs,
 ) {
     tracing::info!("");

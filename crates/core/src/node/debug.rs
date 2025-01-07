@@ -1,6 +1,6 @@
 use crate::deps::storage_view::StorageView;
 use crate::node::{InMemoryNode, MAX_TX_SIZE};
-use crate::utils::{create_debug_output, to_real_block_number};
+use crate::utils::create_debug_output;
 use itertools::Itertools;
 use once_cell::sync::OnceCell;
 use std::sync::Arc;
@@ -14,60 +14,43 @@ use zksync_types::api::{
 };
 use zksync_types::l2::L2Tx;
 use zksync_types::transaction_request::CallRequest;
-use zksync_types::{PackedEthSignature, Transaction, H256, U64};
+use zksync_types::{api, PackedEthSignature, Transaction, H256};
 use zksync_web3_decl::error::Web3Error;
 
 impl InMemoryNode {
-    pub async fn trace_block_by_number_impl(
+    pub async fn trace_block_impl(
         &self,
-        block: BlockNumber,
-        options: Option<TracerConfig>,
-    ) -> anyhow::Result<CallTracerBlockResult> {
-        let current_miniblock = self.read_inner()?.current_miniblock;
-        let number = to_real_block_number(block, U64::from(current_miniblock)).as_u64();
-        let block_hash = *self
-            .read_inner()?
-            .block_hashes
-            .get(&number)
-            .ok_or_else(|| anyhow::anyhow!("Block (id={block}) not found"))?;
-
-        self.trace_block_by_hash_impl(block_hash, options).await
-    }
-
-    pub async fn trace_block_by_hash_impl(
-        &self,
-        hash: H256,
+        block_id: api::BlockId,
         options: Option<TracerConfig>,
     ) -> anyhow::Result<CallTracerBlockResult> {
         let only_top = options.is_some_and(|o| o.tracer_config.only_top_call);
-
         let tx_hashes = self
-            .read_inner()?
-            .blocks
-            .get(&hash)
-            .ok_or_else(|| anyhow::anyhow!("Block (hash={hash}) not found"))?
-            .transactions
-            .iter()
-            .map(|tx| match tx {
-                TransactionVariant::Full(tx) => tx.hash,
-                TransactionVariant::Hash(hash) => *hash,
+            .blockchain
+            .inspect_block_by_id(block_id, |block| {
+                block
+                    .transactions
+                    .iter()
+                    .map(|tx| match tx {
+                        TransactionVariant::Full(tx) => tx.hash,
+                        TransactionVariant::Hash(hash) => *hash,
+                    })
+                    .collect_vec()
             })
-            .collect_vec();
+            .await
+            .ok_or_else(|| anyhow::anyhow!("Block (id={block_id}) not found"))?;
 
-        let debug_calls = tx_hashes
-            .into_iter()
-            .map(|tx_hash| {
-                Ok(self
-                    .read_inner()?
-                    .tx_results
-                    .get(&tx_hash)
-                    .ok_or_else(|| anyhow::anyhow!("Transaction (hash={tx_hash}) not found"))?
-                    .debug_info(only_top))
-            })
-            .collect::<anyhow::Result<Vec<_>>>()?
-            .into_iter()
-            .map(|result| ResultDebugCall { result })
-            .collect_vec();
+        let mut debug_calls = Vec::with_capacity(tx_hashes.len());
+        for tx_hash in tx_hashes {
+            let result = self.blockchain
+                .get_tx_debug_info(&tx_hash, only_top)
+                .await
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "Unexpectedly transaction (hash={tx_hash}) belongs to a block but could not be found"
+                    )
+                })?;
+            debug_calls.push(ResultDebugCall { result });
+        }
 
         Ok(CallTracerBlockResult::CallTrace(debug_calls))
     }
@@ -79,7 +62,7 @@ impl InMemoryNode {
         options: Option<TracerConfig>,
     ) -> Result<CallTracerResult, Web3Error> {
         let only_top = options.is_some_and(|o| o.tracer_config.only_top_call);
-        let inner = self.read_inner()?;
+        let inner = self.inner.read().await;
         let system_contracts = self.system_contracts.contracts_for_l2_call();
         if block.is_some() && !matches!(block, Some(BlockId::Number(BlockNumber::Latest))) {
             return Err(Web3Error::InternalError(anyhow::anyhow!(
@@ -91,15 +74,14 @@ impl InMemoryNode {
         let mut l2_tx = L2Tx::from_request(request.into(), MAX_TX_SIZE, allow_no_target)
             .map_err(Web3Error::SerializationError)?;
         let execution_mode = zksync_multivm::interface::TxExecutionMode::EthCall;
-        let storage = StorageView::new(&inner.fork_storage).into_rc_ptr();
 
         // init vm
-        let (mut l1_batch_env, _block_context) =
-            inner.create_l1_batch_env(&self.time, storage.clone());
+        let (mut l1_batch_env, _block_context) = inner.create_l1_batch_env().await;
 
         // update the enforced_base_fee within l1_batch_env to match the logic in zksync_core
         l1_batch_env.enforced_base_fee = Some(l2_tx.common_data.fee.max_fee_per_gas.as_u64());
         let system_env = inner.create_system_env(system_contracts.clone(), execution_mode);
+        let storage = StorageView::new(&inner.fork_storage).into_rc_ptr();
         let mut vm: Vm<_, HistoryDisabled> = Vm::new(l1_batch_env, system_env, storage);
 
         // We must inject *some* signature (otherwise bootloader code fails to generate hash).
@@ -142,12 +124,11 @@ impl InMemoryNode {
         options: Option<TracerConfig>,
     ) -> anyhow::Result<Option<CallTracerResult>> {
         let only_top = options.is_some_and(|o| o.tracer_config.only_top_call);
-        let inner = self.read_inner()?;
-
-        Ok(inner
-            .tx_results
-            .get(&tx_hash)
-            .map(|tx| CallTracerResult::CallTrace(tx.debug_info(only_top))))
+        Ok(self
+            .blockchain
+            .get_tx_debug_info(&tx_hash, only_top)
+            .await
+            .map(CallTracerResult::CallTrace))
     }
 }
 

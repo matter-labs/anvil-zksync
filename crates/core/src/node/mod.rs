@@ -9,16 +9,20 @@ mod fee_model;
 mod impersonate;
 mod in_memory;
 mod in_memory_ext;
+mod inner;
 mod pool;
 mod sealer;
 mod state;
 mod storage_logs;
-mod time;
 mod zks;
 
 pub use self::{
-    block_producer::BlockProducer, impersonate::ImpersonationManager, pool::TxPool,
-    sealer::BlockSealer, sealer::BlockSealerMode, time::TimestampManager,
+    block_producer::BlockProducer, fee_model::TestNodeFeeInputProvider,
+    impersonate::ImpersonationManager, pool::TxPool, sealer::BlockSealer, sealer::BlockSealerMode,
+    state::VersionedState,
 };
 pub use in_memory::*;
-pub use state::VersionedState;
+pub use inner::blockchain;
+pub use inner::fork;
+pub use inner::time;
+pub use inner::{InMemoryNodeInner, TxExecutionOutput};

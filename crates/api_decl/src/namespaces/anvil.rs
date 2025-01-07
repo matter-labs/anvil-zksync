@@ -18,7 +18,7 @@ pub trait AnvilNamespace {
     /// # Returns
     /// Buffer representing the chain state.
     #[method(name = "dumpState", aliases = ["hardhat_dumpState"])]
-    fn dump_state(&self, preserve_historical_states: Option<bool>) -> RpcResult<Bytes>;
+    async fn dump_state(&self, preserve_historical_states: Option<bool>) -> RpcResult<Bytes>;
 
     /// Append chain state buffer to current chain. Will overwrite any conflicting addresses or
     /// storage.
@@ -30,14 +30,14 @@ pub trait AnvilNamespace {
     /// # Returns
     /// `true` if a snapshot was reverted, otherwise `false`.
     #[method(name = "loadState", aliases = ["hardhat_loadState"])]
-    fn load_state(&self, bytes: Bytes) -> RpcResult<bool>;
+    async fn load_state(&self, bytes: Bytes) -> RpcResult<bool>;
 
     /// Mines a single block in the same way as `evm_mine` but returns extra fields.
     ///
     /// # Returns
     /// Freshly mined block's representation along with extra fields.
     #[method(name = "mine_detailed", aliases = ["evm_mine_detailed"])]
-    fn mine_detailed(&self) -> RpcResult<Block<DetailedTransaction>>;
+    async fn mine_detailed(&self) -> RpcResult<Block<DetailedTransaction>>;
 
     /// Sets the fork RPC url. Assumes the underlying chain is the same as before.
     ///
@@ -45,7 +45,7 @@ pub trait AnvilNamespace {
     ///
     /// * `url` - Fork's new URL
     #[method(name = "setRpcUrl")]
-    fn set_rpc_url(&self, url: String) -> RpcResult<()>;
+    async fn set_rpc_url(&self, url: String) -> RpcResult<()>;
 
     /// Sets the base fee of the next block.
     ///
@@ -53,7 +53,7 @@ pub trait AnvilNamespace {
     ///
     /// * `base_fee` - Value to be set as base fee for the next block
     #[method(name = "setNextBlockBaseFeePerGas", aliases = ["hardhat_setNextBlockBaseFeePerGas"])]
-    fn set_next_block_base_fee_per_gas(&self, base_fee: U256) -> RpcResult<()>;
+    async fn set_next_block_base_fee_per_gas(&self, base_fee: U256) -> RpcResult<()>;
 
     /// Removes a transaction from the pool.
     ///
@@ -64,11 +64,11 @@ pub trait AnvilNamespace {
     /// # Returns
     /// `Some(hash)` if transaction was in the pool before being removed, `None` otherwise
     #[method(name = "dropTransaction", aliases = ["hardhat_dropTransaction"])]
-    fn drop_transaction(&self, hash: H256) -> RpcResult<Option<H256>>;
+    async fn drop_transaction(&self, hash: H256) -> RpcResult<Option<H256>>;
 
     /// Remove all transactions from the pool.
     #[method(name = "dropAllTransactions", aliases = ["hardhat_dropAllTransactions"])]
-    fn drop_all_transactions(&self) -> RpcResult<()>;
+    async fn drop_all_transactions(&self) -> RpcResult<()>;
 
     /// Remove all transactions from the pool by sender address.
     ///
@@ -76,14 +76,14 @@ pub trait AnvilNamespace {
     ///
     /// * `address` - Sender which transactions should be removed from the pool
     #[method(name = "removePoolTransactions")]
-    fn remove_pool_transactions(&self, address: Address) -> RpcResult<()>;
+    async fn remove_pool_transactions(&self, address: Address) -> RpcResult<()>;
 
     /// Gets node's auto mining status.
     ///
     /// # Returns
     /// `true` if auto mining is enabled, `false` otherwise
     #[method(name = "getAutomine", aliases = ["hardhat_getAutomine"])]
-    fn get_auto_mine(&self) -> RpcResult<bool>;
+    async fn get_auto_mine(&self) -> RpcResult<bool>;
 
     /// Enables or disables, based on the single boolean argument, the automatic mining of new
     /// blocks with each new transaction submitted to the network.
@@ -92,7 +92,7 @@ pub trait AnvilNamespace {
     ///
     /// * `enable` - if `true` automatic mining will be enabled, disabled otherwise
     #[method(name = "setAutomine", aliases = ["evm_setAutomine"])]
-    fn set_auto_mine(&self, enable: bool) -> RpcResult<()>;
+    async fn set_auto_mine(&self, enable: bool) -> RpcResult<()>;
 
     /// Sets the mining behavior to interval with the given interval (seconds).
     ///
@@ -100,7 +100,7 @@ pub trait AnvilNamespace {
     ///
     /// * `seconds` - Frequency of automatic block production (in seconds)
     #[method(name = "setIntervalMining", aliases = ["evm_setIntervalMining"])]
-    fn set_interval_mining(&self, seconds: u64) -> RpcResult<()>;
+    async fn set_interval_mining(&self, seconds: u64) -> RpcResult<()>;
 
     /// Sets the block timestamp interval. All future blocks' timestamps will
     /// have the provided amount of seconds in-between of them. Does not affect
@@ -110,14 +110,14 @@ pub trait AnvilNamespace {
     ///
     /// * `seconds` - The interval between two consecutive blocks (in seconds)
     #[method(name = "setBlockTimestampInterval")]
-    fn set_block_timestamp_interval(&self, seconds: u64) -> RpcResult<()>;
+    async fn set_block_timestamp_interval(&self, seconds: u64) -> RpcResult<()>;
 
     /// Removes the block timestamp interval if it exists.
     ///
     /// # Returns
     /// `true` if an existing interval was removed, `false` otherwise
     #[method(name = "removeBlockTimestampInterval")]
-    fn remove_block_timestamp_interval(&self) -> RpcResult<bool>;
+    async fn remove_block_timestamp_interval(&self) -> RpcResult<bool>;
 
     /// Set the minimum gas price for the node. Unsupported for ZKsync as it is only relevant for
     /// pre-EIP1559 chains.
@@ -126,7 +126,7 @@ pub trait AnvilNamespace {
     ///
     /// * `gas` - The minimum gas price to be set
     #[method(name = "setMinGasPrice", aliases = ["hardhat_setMinGasPrice"])]
-    fn set_min_gas_price(&self, gas: U256) -> RpcResult<()>;
+    async fn set_min_gas_price(&self, gas: U256) -> RpcResult<()>;
 
     /// Enable or disable logging.
     ///
@@ -134,7 +134,7 @@ pub trait AnvilNamespace {
     ///
     /// * `enable` - if `true` logging will be enabled, disabled otherwise
     #[method(name = "setLoggingEnabled", aliases = ["hardhat_setLoggingEnabled"])]
-    fn set_logging_enabled(&self, enable: bool) -> RpcResult<()>;
+    async fn set_logging_enabled(&self, enable: bool) -> RpcResult<()>;
 
     /// Snapshot the state of the blockchain at the current block. Takes no parameters. Returns the id of the snapshot
     /// that was created. A snapshot can only be reverted once. After a successful `anvil_revert`, the same snapshot id cannot
@@ -144,7 +144,7 @@ pub trait AnvilNamespace {
     /// # Returns
     /// The `U64` identifier for this snapshot.
     #[method(name = "snapshot", aliases = ["evm_snapshot"])]
-    fn snapshot(&self) -> RpcResult<U64>;
+    async fn snapshot(&self) -> RpcResult<U64>;
 
     /// Revert the state of the blockchain to a previous snapshot. Takes a single parameter,
     /// which is the snapshot id to revert to. This deletes the given snapshot, as well as any snapshots
@@ -157,7 +157,7 @@ pub trait AnvilNamespace {
     /// # Returns
     /// `true` if a snapshot was reverted, otherwise `false`.
     #[method(name = "revert", aliases = ["evm_revert"])]
-    fn revert(&self, id: U64) -> RpcResult<bool>;
+    async fn revert(&self, id: U64) -> RpcResult<bool>;
 
     /// Set the current timestamp for the node.
     /// Warning: This will allow you to move backwards in time, which may cause new blocks to appear to be
@@ -170,7 +170,7 @@ pub trait AnvilNamespace {
     /// # Returns
     /// The difference between the current timestamp and the new timestamp.
     #[method(name = "setTime", aliases = ["evm_setTime"])]
-    fn set_time(&self, timestamp: Numeric) -> RpcResult<i128>;
+    async fn set_time(&self, timestamp: Numeric) -> RpcResult<i128>;
 
     /// Increase the current timestamp for the node
     ///
@@ -181,7 +181,7 @@ pub trait AnvilNamespace {
     /// # Returns
     /// The applied time delta to the current timestamp in seconds.
     #[method(name = "increaseTime", aliases = ["evm_increaseTime"])]
-    fn increase_time(&self, seconds: Numeric) -> RpcResult<u64>;
+    async fn increase_time(&self, seconds: Numeric) -> RpcResult<u64>;
 
     /// Set timestamp for the next block. The timestamp must be in future.
     ///
@@ -189,7 +189,7 @@ pub trait AnvilNamespace {
     ///
     /// * `timestamp` - The timestamp to set the time to
     #[method(name = "setNextBlockTimestamp", aliases = ["evm_setNextBlockTimestamp"])]
-    fn set_next_block_timestamp(&self, timestamp: Numeric) -> RpcResult<()>;
+    async fn set_next_block_timestamp(&self, timestamp: Numeric) -> RpcResult<()>;
 
     /// Sets auto impersonation status.
     ///
@@ -201,7 +201,7 @@ pub trait AnvilNamespace {
     ///
     /// A `BoxFuture` containing a `Result` representing the success of the operation.
     #[method(name = "autoImpersonateAccount", aliases = ["hardhat_autoImpersonateAccount"])]
-    fn auto_impersonate_account(&self, enabled: bool) -> RpcResult<()>;
+    async fn auto_impersonate_account(&self, enabled: bool) -> RpcResult<()>;
 
     /// Sets the balance of the given address to the given balance.
     ///
@@ -214,7 +214,7 @@ pub trait AnvilNamespace {
     ///
     /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
     #[method(name = "setBalance", aliases = ["hardhat_setBalance"])]
-    fn set_balance(&self, address: Address, balance: U256) -> RpcResult<bool>;
+    async fn set_balance(&self, address: Address, balance: U256) -> RpcResult<bool>;
 
     /// Modifies an account's nonce by overwriting it.
     ///
@@ -227,7 +227,7 @@ pub trait AnvilNamespace {
     ///
     /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
     #[method(name = "setNonce", aliases = ["hardhat_setNonce", "evm_setAccountNonce"])]
-    fn set_nonce(&self, address: Address, nonce: U256) -> RpcResult<bool>;
+    async fn set_nonce(&self, address: Address, nonce: U256) -> RpcResult<bool>;
 
     /// Sometimes you may want to advance the latest block number of the network by a large number of blocks.
     /// One way to do this would be to call the evm_mine RPC method multiple times, but this is too slow if you want to mine thousands of blocks.
@@ -242,7 +242,7 @@ pub trait AnvilNamespace {
     ///
     /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
     #[method(name = "mine", aliases = ["hardhat_mine"])]
-    fn anvil_mine(&self, num_blocks: Option<U64>, interval: Option<U64>) -> RpcResult<()>;
+    async fn anvil_mine(&self, num_blocks: Option<U64>, interval: Option<U64>) -> RpcResult<()>;
 
     /// Reset the state of the network back to a fresh forked state, or disable forking.
     ///
@@ -254,7 +254,7 @@ pub trait AnvilNamespace {
     ///
     /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
     #[method(name = "reset", aliases = ["hardhat_reset"])]
-    fn reset_network(&self, reset_spec: Option<ResetRequest>) -> RpcResult<bool>;
+    async fn reset_network(&self, reset_spec: Option<ResetRequest>) -> RpcResult<bool>;
 
     /// anvil-zksync allows transactions impersonating specific account and contract addresses.
     /// To impersonate an account use this method, passing the address to impersonate as its parameter.
@@ -269,7 +269,7 @@ pub trait AnvilNamespace {
     ///
     /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
     #[method(name = "impersonateAccount", aliases = ["hardhat_impersonateAccount"])]
-    fn impersonate_account(&self, address: Address) -> RpcResult<()>;
+    async fn impersonate_account(&self, address: Address) -> RpcResult<()>;
 
     /// Use this method to stop impersonating an account after having previously used `anvil_impersonateAccount`
     /// The method returns `true` if the account was being impersonated and `false` otherwise.
@@ -282,7 +282,7 @@ pub trait AnvilNamespace {
     ///
     /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
     #[method(name = "stopImpersonatingAccount", aliases = ["hardhat_stopImpersonatingAccount"])]
-    fn stop_impersonating_account(&self, address: Address) -> RpcResult<()>;
+    async fn stop_impersonating_account(&self, address: Address) -> RpcResult<()>;
 
     /// Modifies the bytecode stored at an account's address.
     ///
@@ -295,7 +295,7 @@ pub trait AnvilNamespace {
     ///
     /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
     #[method(name = "setCode", aliases = ["hardhat_setCode"])]
-    fn set_code(&self, address: Address, code: String) -> RpcResult<()>;
+    async fn set_code(&self, address: Address, code: String) -> RpcResult<()>;
 
     /// Directly modifies the storage of a contract at a specified slot.
     ///
@@ -309,7 +309,7 @@ pub trait AnvilNamespace {
     ///
     /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
     #[method(name = "setStorageAt", aliases = ["hardhat_setStorageAt"])]
-    fn set_storage_at(&self, address: Address, slot: U256, value: U256) -> RpcResult<bool>;
+    async fn set_storage_at(&self, address: Address, slot: U256, value: U256) -> RpcResult<bool>;
 
     /// Sets the chain id.
     ///
@@ -317,5 +317,5 @@ pub trait AnvilNamespace {
     ///
     /// * `id` - The chain id to be set.
     #[method(name = "setChainId")]
-    fn set_chain_id(&self, id: u32) -> RpcResult<()>;
+    async fn set_chain_id(&self, id: u32) -> RpcResult<()>;
 }

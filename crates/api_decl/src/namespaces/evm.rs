@@ -10,5 +10,5 @@ pub trait EvmNamespace {
     /// # Returns
     /// The string "0x0".
     #[method(name = "mine")]
-    fn mine(&self) -> RpcResult<String>;
+    async fn mine(&self) -> RpcResult<String>;
 }

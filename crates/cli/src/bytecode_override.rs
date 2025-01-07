@@ -19,7 +19,7 @@ struct Bytecode {
 
 // Loads a list of bytecodes and addresses from the directory and then inserts them directly
 // into the Node's storage.
-pub fn override_bytecodes(node: &InMemoryNode, bytecodes_dir: String) -> eyre::Result<()> {
+pub async fn override_bytecodes(node: &InMemoryNode, bytecodes_dir: String) -> eyre::Result<()> {
     for entry in fs::read_dir(bytecodes_dir)? {
         let entry = entry?;
         let path = entry.path();
@@ -43,6 +43,7 @@ pub fn override_bytecodes(node: &InMemoryNode, bytecodes_dir: String) -> eyre::R
                     .wrap_err(format!("Failed to parse hex from {:?}", path))?;
 
                 node.override_bytecode(&address, &bytecode)
+                    .await
                     .expect("Failed to override bytecode");
                 tracing::info!("+++++ Replacing bytecode at address {:?} +++++", address);
             }

@@ -2,11 +2,9 @@ use crate::error::RpcError;
 use anvil_zksync_api_decl::DebugNamespaceServer;
 use anvil_zksync_core::node::InMemoryNode;
 use jsonrpsee::core::{async_trait, RpcResult};
-use zksync_types::api::{
-    BlockId, BlockNumber, CallTracerBlockResult, CallTracerResult, TracerConfig,
-};
+use zksync_types::api::{BlockNumber, CallTracerBlockResult, CallTracerResult, TracerConfig};
 use zksync_types::transaction_request::CallRequest;
-use zksync_types::H256;
+use zksync_types::{api, H256};
 
 pub struct DebugNamespace {
     node: InMemoryNode,
@@ -27,7 +25,7 @@ impl DebugNamespaceServer for DebugNamespace {
     ) -> RpcResult<CallTracerBlockResult> {
         Ok(self
             .node
-            .trace_block_by_number_impl(block, options)
+            .trace_block_impl(api::BlockId::Number(block), options)
             .await
             .map_err(RpcError::from)?)
     }
@@ -39,7 +37,7 @@ impl DebugNamespaceServer for DebugNamespace {
     ) -> RpcResult<CallTracerBlockResult> {
         Ok(self
             .node
-            .trace_block_by_hash_impl(hash, options)
+            .trace_block_impl(api::BlockId::Hash(hash), options)
             .await
             .map_err(RpcError::from)?)
     }
@@ -47,7 +45,7 @@ impl DebugNamespaceServer for DebugNamespace {
     async fn trace_call(
         &self,
         request: CallRequest,
-        block: Option<BlockId>,
+        block: Option<api::BlockId>,
         options: Option<TracerConfig>,
     ) -> RpcResult<CallTracerResult> {
         Ok(self

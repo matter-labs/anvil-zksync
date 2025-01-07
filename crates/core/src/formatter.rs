@@ -1,7 +1,7 @@
 //! Helper methods to display transaction data in more human readable way.
 use crate::bootloader_debug::BootloaderDebug;
-use crate::fork::block_on;
 use crate::resolver;
+use crate::utils::block_on;
 use crate::utils::{calculate_eth_cost, to_human_size};
 use anvil_zksync_config::utils::format_gwei;
 use anvil_zksync_types::ShowCalls;
@@ -413,7 +413,7 @@ impl Formatter {
         contract_address: Option<H160>,
         call: &Call,
         is_last_sibling: bool,
-        show_calls: &ShowCalls,
+        show_calls: ShowCalls,
         show_outputs: bool,
         resolve_hashes: bool,
     ) {

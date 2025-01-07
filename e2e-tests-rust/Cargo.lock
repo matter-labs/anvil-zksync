@@ -944,6 +944,7 @@ dependencies = [
  "itertools 0.13.0",
  "lazy_static",
  "once_cell",
+ "pin-project",
  "reqwest 0.11.27",
  "rustc-hash 1.1.0",
  "serde",

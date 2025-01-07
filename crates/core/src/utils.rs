@@ -1,12 +1,16 @@
 use anyhow::Context;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
+use std::future::Future;
+use std::sync::Arc;
 use std::{convert::TryInto, fmt};
 use std::{
     fs::File,
     io::{BufWriter, Write},
     path::Path,
 };
+use tokio::runtime::Builder;
+use tokio::sync::{RwLock, RwLockReadGuard};
 use zksync_multivm::interface::{Call, CallType, ExecutionResult, VmExecutionResultAndLogs};
 use zksync_types::{
     api::{BlockNumber, DebugCall, DebugCallType},
@@ -208,6 +212,38 @@ pub fn write_json_file<T: Serialize>(path: &Path, obj: &T) -> anyhow::Result<()>
         .with_context(|| format!("Failed to flush writer for '{}'", path.display()))?;
 
     Ok(())
+}
+
+pub fn block_on<F: Future + Send + 'static>(future: F) -> F::Output
+where
+    F::Output: Send,
+{
+    std::thread::spawn(move || {
+        let runtime = Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("tokio runtime creation failed");
+        runtime.block_on(future)
+    })
+    .join()
+    .unwrap()
+}
+
+/// A special version of `Arc<RwLock<T>>` that can only be read from.
+#[derive(Debug, Clone)]
+pub struct ArcRLock<T>(Arc<RwLock<T>>);
+
+impl<T> ArcRLock<T> {
+    /// Wrap writeable `Arc<RwLock<T>>` into a read-only `ArcRLock<T>`.
+    pub fn wrap(inner: Arc<RwLock<T>>) -> Self {
+        Self(inner)
+    }
+
+    /// Locks this `ArcRLock` with shared read access, causing the current task
+    /// to yield until the lock has been acquired.
+    pub async fn read(&self) -> RwLockReadGuard<T> {
+        self.0.read().await
+    }
 }
 
 #[cfg(test)]

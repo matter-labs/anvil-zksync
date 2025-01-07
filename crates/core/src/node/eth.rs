@@ -6,18 +6,19 @@ use itertools::Itertools;
 use zksync_multivm::interface::{ExecutionResult, TxExecutionMode};
 use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use zksync_types::{
+    api,
     api::{Block, BlockIdVariant, BlockNumber, TransactionVariant},
     get_code_key, get_nonce_key,
     l2::L2Tx,
     transaction_request::TransactionRequest,
     utils::storage_key_for_standard_token_balance,
-    PackedEthSignature, StorageKey, L2_BASE_TOKEN_ADDRESS, MAX_L1_TRANSACTION_GAS_LIMIT,
+    PackedEthSignature, L2_BASE_TOKEN_ADDRESS, MAX_L1_TRANSACTION_GAS_LIMIT,
 };
 use zksync_types::{
     web3::{self, Bytes},
     AccountTreeId, Address, H160, H256, U256, U64,
 };
-use zksync_utils::{h256_to_u256, u256_to_h256};
+use zksync_utils::h256_to_u256;
 use zksync_web3_decl::{
     error::Web3Error,
     types::{FeeHistory, Filter, FilterChanges, SyncState},
@@ -26,11 +27,11 @@ use zksync_web3_decl::{
 use crate::{
     filters::{FilterType, LogFilter},
     node::{InMemoryNode, TransactionResult, MAX_TX_SIZE, PROTOCOL_VERSION},
-    utils::{self, h256_to_u64, TransparentError},
+    utils::{h256_to_u64, TransparentError},
 };
 
 impl InMemoryNode {
-    pub fn call_impl(
+    pub async fn call_impl(
         &self,
         req: zksync_types::transaction_request::CallRequest,
     ) -> Result<Bytes, Web3Error> {
@@ -41,6 +42,7 @@ impl InMemoryNode {
         tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
         let call_result = self
             .run_l2_call(tx, system_contracts)
+            .await
             .context("Invalid data due to invalid name")?;
 
         match call_result {
@@ -74,12 +76,7 @@ impl InMemoryNode {
     }
 
     pub async fn send_raw_transaction_impl(&self, tx_bytes: Bytes) -> Result<H256, Web3Error> {
-        let chain_id = self
-            .get_inner()
-            .read()
-            .map_err(|_| anyhow::anyhow!("Failed to acquire read lock for chain ID retrieval"))?
-            .fork_storage
-            .chain_id;
+        let chain_id = self.inner.read().await.fork_storage.chain_id;
 
         let (tx_req, hash) = TransactionRequest::from_bytes(&tx_bytes.0, chain_id)?;
         // Impersonation does not matter in this context so we assume the tx is not impersonated:
@@ -107,7 +104,7 @@ impl InMemoryNode {
         tx: zksync_types::transaction_request::CallRequest,
     ) -> Result<H256, Web3Error> {
         let (chain_id, l2_gas_price) = {
-            let reader = self.read_inner()?;
+            let reader = self.inner.read().await;
             (
                 reader.fork_storage.chain_id,
                 reader.fee_input_provider.gas_price(),
@@ -192,51 +189,38 @@ impl InMemoryNode {
             &address,
         );
 
-        let inner_guard = self.read_inner()?;
+        let inner_guard = self.inner.read().await;
         match inner_guard.fork_storage.read_value_internal(&balance_key) {
             Ok(balance) => Ok(h256_to_u256(balance)),
             Err(error) => Err(anyhow::anyhow!("failed to read account balance: {error}")),
         }
     }
 
-    pub async fn get_block_by_number_impl(
+    pub async fn get_block_impl(
         &self,
-        block_number: BlockNumber,
+        block_id: api::BlockId,
         full_transactions: bool,
     ) -> anyhow::Result<Option<Block<TransactionVariant>>> {
-        let inner = self.get_inner().clone();
-
         let maybe_block = {
-            let reader = match inner.read() {
-                Ok(r) => r,
-                Err(_) => {
-                    anyhow::bail!("Failed to acquire read lock for block retrieval")
-                }
-            };
-            let number =
-                utils::to_real_block_number(block_number, U64::from(reader.current_miniblock))
-                    .as_u64();
-
-            reader
-                .block_hashes
-                .get(&number)
-                .and_then(|hash| reader.blocks.get(hash))
-                .cloned()
-                .or_else(|| {
-                    reader
-                        .fork_storage
-                        .inner
-                        .read()
-                        .expect("failed reading fork storage")
-                        .fork
-                        .as_ref()
-                        .and_then(|fork| {
-                            fork.fork_source
-                                .get_block_by_number(block_number, true)
-                                .ok()
-                                .flatten()
-                        })
-                })
+            if let Some(block) = self.blockchain.get_block_by_id(block_id).await {
+                Some(block)
+            } else {
+                self.inner
+                    .read()
+                    .await
+                    .fork_storage
+                    .inner
+                    .read()
+                    .expect("failed reading fork storage")
+                    .fork
+                    .as_ref()
+                    .and_then(|fork| {
+                        fork.fork_source
+                            .get_block_by_id(block_id, true)
+                            .ok()
+                            .flatten()
+                    })
+            }
         };
 
         match maybe_block {
@@ -275,7 +259,7 @@ impl InMemoryNode {
         // TODO: Support
         _block: Option<BlockIdVariant>,
     ) -> anyhow::Result<Bytes> {
-        let inner = self.write_inner()?;
+        let inner = self.inner.write().await;
 
         let code_key = get_code_key(&address);
 
@@ -297,7 +281,7 @@ impl InMemoryNode {
         // TODO: Support
         _block: Option<BlockIdVariant>,
     ) -> anyhow::Result<U256> {
-        let inner = self.read_inner()?;
+        let inner = self.inner.read().await;
         let nonce_key = get_nonce_key(&address);
 
         match inner.fork_storage.read_value_internal(&nonce_key) {
@@ -309,81 +293,31 @@ impl InMemoryNode {
     pub async fn get_transaction_receipt_impl(
         &self,
         hash: H256,
-    ) -> anyhow::Result<Option<zksync_types::api::TransactionReceipt>> {
-        let inner = self.read_inner()?;
-
-        let receipt = inner.tx_results.get(&hash).map(|info| info.receipt.clone());
-        Ok(receipt)
-    }
-
-    pub async fn get_block_by_hash_impl(
-        &self,
-        hash: H256,
-        full_transactions: bool,
-    ) -> anyhow::Result<Option<Block<TransactionVariant>>> {
-        let reader = self.read_inner()?;
-
-        // try retrieving block from memory, and if unavailable subsequently from the fork
-        let maybe_block = reader.blocks.get(&hash).cloned().or_else(|| {
-            reader
-                .fork_storage
-                .inner
-                .read()
-                .expect("failed reading fork storage")
-                .fork
-                .as_ref()
-                .and_then(|fork| {
-                    fork.fork_source
-                        .get_block_by_hash(hash, true)
-                        .ok()
-                        .flatten()
-                })
-        });
-
-        match maybe_block {
-            Some(mut block) => {
-                let block_hash = block.hash;
-                block.transactions = block
-                    .transactions
-                    .into_iter()
-                    .map(|transaction| match &transaction {
-                        TransactionVariant::Full(inner) => {
-                            if full_transactions {
-                                transaction
-                            } else {
-                                TransactionVariant::Hash(inner.hash)
-                            }
-                        }
-                        TransactionVariant::Hash(_) => {
-                            if full_transactions {
-                                panic!("unexpected non full transaction for block {}", block_hash)
-                            } else {
-                                transaction
-                            }
-                        }
-                    })
-                    .collect();
-
-                Ok(Some(block))
-            }
-            None => Ok(None),
-        }
+    ) -> anyhow::Result<Option<api::TransactionReceipt>> {
+        // TODO: Call fork if not found
+        Ok(self.blockchain.get_tx_receipt(&hash).await)
     }
 
     pub async fn get_transaction_by_hash_impl(
         &self,
         hash: H256,
-    ) -> anyhow::Result<Option<zksync_types::api::Transaction>> {
-        let reader = self.read_inner()?;
-
+    ) -> anyhow::Result<Option<api::Transaction>> {
         // try retrieving transaction from memory, and if unavailable subsequently from the fork
-        Ok(reader
-            .tx_results
-            .get(&hash)
-            .and_then(|TransactionResult { info, receipt, .. }| {
-                let input_data = info.tx.common_data.input.clone().or(None)?;
-                let chain_id = info.tx.common_data.extract_chain_id().or(None)?;
-                Some(zksync_types::api::Transaction {
+        let tx = self
+            .blockchain
+            .inspect_tx(&hash, |TransactionResult { info, receipt, .. }| {
+                let input_data = info
+                    .tx
+                    .common_data
+                    .input
+                    .clone()
+                    .context("tx is missing input data")?;
+                let chain_id = info
+                    .tx
+                    .common_data
+                    .extract_chain_id()
+                    .context("tx has malformed chain id")?;
+                anyhow::Ok(api::Transaction {
                     hash,
                     nonce: U256::from(info.tx.common_data.nonce.0),
                     block_hash: Some(hash),
@@ -420,25 +354,31 @@ impl InMemoryNode {
                     l1_batch_tx_index: None,
                 })
             })
-            .or_else(|| {
-                reader
-                    .fork_storage
-                    .inner
-                    .read()
-                    .expect("failed reading fork storage")
-                    .fork
-                    .as_ref()
-                    .and_then(|fork| {
-                        fork.fork_source
-                            .get_transaction_by_hash(hash)
-                            .ok()
-                            .flatten()
-                    })
-            }))
+            .await
+            .transpose()?;
+        match tx {
+            Some(tx) => Ok(Some(tx)),
+            None => Ok(self
+                .inner
+                .read()
+                .await
+                .fork_storage
+                .inner
+                .read()
+                .expect("failed reading fork storage")
+                .fork
+                .as_ref()
+                .and_then(|fork| {
+                    fork.fork_source
+                        .get_transaction_by_hash(hash)
+                        .ok()
+                        .flatten()
+                })),
+        }
     }
 
     pub async fn get_block_number_impl(&self) -> anyhow::Result<U64> {
-        Ok(U64::from(self.read_inner()?.current_miniblock))
+        Ok(U64::from(self.blockchain.current_block_number().await.0))
     }
 
     pub async fn estimate_gas_impl(
@@ -447,14 +387,12 @@ impl InMemoryNode {
         // TODO: Support
         _block: Option<BlockNumber>,
     ) -> Result<U256, Web3Error> {
-        // TODO: Burn with fire
-        let time = self.time.lock();
-        let fee = self.read_inner()?.estimate_gas_impl(&time, req)?;
+        let fee = self.inner.read().await.estimate_gas_impl(req).await?;
         Ok(fee.gas_limit)
     }
 
     pub async fn gas_price_impl(&self) -> anyhow::Result<U256> {
-        let fair_l2_gas_price: u64 = self.read_inner()?.fee_input_provider.gas_price();
+        let fair_l2_gas_price: u64 = self.inner.read().await.fee_input_provider.gas_price();
         Ok(U256::from(fair_l2_gas_price))
     }
 
@@ -475,28 +413,47 @@ impl InMemoryNode {
                     }
                 })
         }
-        self.write_inner()?
+        self.inner
+            .write()
+            .await
             .filters
+            .write()
+            .await
             .add_log_filter(from_block, to_block, addresses, topics)
             .map_err(anyhow::Error::msg)
     }
 
     pub async fn new_block_filter_impl(&self) -> anyhow::Result<U256> {
-        self.write_inner()?
+        self.inner
+            .write()
+            .await
             .filters
+            .write()
+            .await
             .add_block_filter()
             .map_err(anyhow::Error::msg)
     }
 
     pub async fn new_pending_transaction_filter_impl(&self) -> anyhow::Result<U256> {
-        self.write_inner()?
+        self.inner
+            .write()
+            .await
             .filters
+            .write()
+            .await
             .add_pending_transaction_filter()
             .map_err(anyhow::Error::msg)
     }
 
     pub async fn uninstall_filter_impl(&self, id: U256) -> anyhow::Result<bool> {
-        Ok(self.write_inner()?.filters.remove_filter(id))
+        Ok(self
+            .inner
+            .write()
+            .await
+            .filters
+            .write()
+            .await
+            .remove_filter(id))
     }
 
     pub async fn get_logs_impl(
@@ -520,42 +477,50 @@ impl InMemoryNode {
                 })
         }
 
+        // TODO: LogFilter should really resolve `from_block` and `to_block` during init and not
+        //       on every `matches` call.
         let log_filter = LogFilter::new(from_block, to_block, addresses, topics);
-
-        let reader = self.read_inner()?;
-        let latest_block_number = U64::from(reader.current_miniblock);
-        let logs = reader
-            .tx_results
-            .values()
-            .flat_map(|tx_result| {
-                tx_result
-                    .receipt
-                    .logs
-                    .iter()
-                    .filter(|log| log_filter.matches(log, latest_block_number))
-                    .cloned()
+        let latest_block_number = self.blockchain.current_block_number().await;
+        let logs = self
+            .blockchain
+            .inspect_all_txs(|tx_results| {
+                tx_results
+                    .values()
+                    .flat_map(|tx_result| {
+                        tx_result
+                            .receipt
+                            .logs
+                            .iter()
+                            .filter(|log| log_filter.matches(log, U64::from(latest_block_number.0)))
+                            .cloned()
+                    })
+                    .collect_vec()
             })
-            .collect_vec();
+            .await;
 
         Ok(logs)
     }
 
     pub async fn get_filter_logs_impl(&self, id: U256) -> anyhow::Result<FilterChanges> {
-        let reader = self.read_inner()?;
-        let latest_block_number = U64::from(reader.current_miniblock);
-        let logs = match reader.filters.get_filter(id) {
-            Some(FilterType::Log(f)) => reader
-                .tx_results
-                .values()
-                .flat_map(|tx_result| {
-                    tx_result
-                        .receipt
-                        .logs
-                        .iter()
-                        .filter(|log| f.matches(log, latest_block_number))
-                        .cloned()
-                })
-                .collect_vec(),
+        let latest_block_number = self.blockchain.current_block_number().await;
+        let logs = match self.inner.read().await.filters.read().await.get_filter(id) {
+            Some(FilterType::Log(f)) => {
+                self.blockchain
+                    .inspect_all_txs(|tx_results| {
+                        tx_results
+                            .values()
+                            .flat_map(|tx_result| {
+                                tx_result
+                                    .receipt
+                                    .logs
+                                    .iter()
+                                    .filter(|log| f.matches(log, U64::from(latest_block_number.0)))
+                                    .cloned()
+                            })
+                            .collect_vec()
+                    })
+                    .await
+            }
             _ => {
                 anyhow::bail!("Failed to acquire read lock for filter logs.")
             }
@@ -565,75 +530,46 @@ impl InMemoryNode {
     }
 
     pub async fn get_filter_changes_impl(&self, id: U256) -> anyhow::Result<FilterChanges> {
-        self.write_inner()?
+        self.inner
+            .write()
+            .await
             .filters
+            .write()
+            .await
             .get_new_changes(id)
             .map_err(anyhow::Error::msg)
     }
 
-    pub async fn get_block_transaction_count_by_number_impl(
+    pub async fn get_block_transaction_count_impl(
         &self,
-        block_number: BlockNumber,
+        block_id: api::BlockId,
     ) -> Result<Option<U256>, Web3Error> {
-        let reader = self.read_inner()?;
-        let number =
-            utils::to_real_block_number(block_number, U64::from(reader.current_miniblock)).as_u64();
+        let result = self
+            .blockchain
+            .inspect_block_by_id(block_id, |block| block.transactions.len())
+            .await;
+        let result = match result {
+            Some(result) => Some(U256::from(result)),
+            None => self
+                .inner
+                .read()
+                .await
+                .fork_storage
+                .inner
+                .read()
+                .expect("failed reading fork storage")
+                .fork
+                .as_ref()
+                .and_then(|fork| {
+                    fork.fork_source
+                        .get_block_transaction_count_by_id(block_id)
+                        .ok()
+                        .flatten()
+                }),
+        };
 
-        let maybe_result = reader
-            .block_hashes
-            .get(&number)
-            .and_then(|hash| reader.blocks.get(hash))
-            .map(|block| U256::from(block.transactions.len()))
-            .or_else(|| {
-                reader
-                    .fork_storage
-                    .inner
-                    .read()
-                    .expect("failed reading fork storage")
-                    .fork
-                    .as_ref()
-                    .and_then(|fork| {
-                        fork.fork_source
-                            .get_block_transaction_count_by_number(block_number)
-                            .ok()
-                            .flatten()
-                    })
-            });
-
-        match maybe_result {
-            Some(value) => Ok(Some(value)),
-            None => Err(Web3Error::NoBlock),
-        }
-    }
-
-    pub async fn get_block_transaction_count_by_hash_impl(
-        &self,
-        block_hash: H256,
-    ) -> Result<Option<U256>, Web3Error> {
-        let reader = self.read_inner()?;
-
-        // try retrieving block from memory, and if unavailable subsequently from the fork
-        let maybe_result = reader
-            .blocks
-            .get(&block_hash)
-            .map(|block| U256::from(block.transactions.len()))
-            .or_else(|| {
-                reader
-                    .fork_storage
-                    .inner
-                    .read()
-                    .expect("failed reading fork storage")
-                    .fork
-                    .as_ref()
-                    .and_then(|fork| {
-                        fork.fork_source
-                            .get_block_transaction_count_by_hash(block_hash)
-                            .ok()
-                            .flatten()
-                    })
-            });
-
-        match maybe_result {
+        // TODO: Is this right? What is the purpose of having `Option` here then?
+        match result {
             Some(value) => Ok(Some(value)),
             None => Err(Web3Error::NoBlock),
         }
@@ -643,175 +579,49 @@ impl InMemoryNode {
         &self,
         address: Address,
         idx: U256,
-        block: Option<BlockIdVariant>,
+        block: Option<api::BlockIdVariant>,
     ) -> Result<H256, Web3Error> {
-        let writer = self.write_inner()?;
+        self.inner
+            .read()
+            .await
+            .get_storage_at_block(address, idx, block)
+            .await
+    }
 
-        let storage_key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(idx));
-
-        let block_number = block
-            .map(|block| match block {
-                BlockIdVariant::BlockNumber(block_number) => Ok(utils::to_real_block_number(
-                    block_number,
-                    U64::from(writer.current_miniblock),
-                )),
-                BlockIdVariant::BlockNumberObject(o) => Ok(utils::to_real_block_number(
-                    o.block_number,
-                    U64::from(writer.current_miniblock),
-                )),
-                BlockIdVariant::BlockHashObject(o) => writer
-                    .blocks
-                    .get(&o.block_hash)
-                    .map(|block| block.number)
-                    .ok_or_else(|| {
-                        tracing::error!("unable to map block number to hash #{:#x}", o.block_hash);
-                        Web3Error::InternalError(anyhow::Error::msg(
-                            "Failed to map block number to hash.",
-                        ))
-                    }),
+    pub async fn get_transaction_by_block_and_index_impl(
+        &self,
+        block_id: api::BlockId,
+        index: web3::Index,
+    ) -> anyhow::Result<Option<zksync_types::api::Transaction>> {
+        let tx = self
+            .blockchain
+            .inspect_block_by_id(block_id, |b| {
+                b.transactions.get(index.as_usize()).map(|tv| match tv {
+                    TransactionVariant::Full(tx) => tx.clone(),
+                    TransactionVariant::Hash(_) => unreachable!("we only store full txs in blocks"),
+                })
             })
-            .unwrap_or_else(|| Ok(U64::from(writer.current_miniblock)))?;
-
-        if block_number.as_u64() == writer.current_miniblock {
-            match writer.fork_storage.read_value_internal(&storage_key) {
-                Ok(value) => Ok(H256(value.0)),
-                Err(error) => Err(Web3Error::InternalError(anyhow::anyhow!(
-                    "failed to read storage: {}",
-                    error
-                ))),
-            }
-        } else if writer.block_hashes.contains_key(&block_number.as_u64()) {
-            let value = writer
-                .block_hashes
-                .get(&block_number.as_u64())
-                .and_then(|block_hash| writer.previous_states.get(block_hash))
-                .and_then(|state| state.get(&storage_key))
-                .cloned()
-                .unwrap_or_default();
-
-            if value.is_zero() {
-                match writer.fork_storage.read_value_internal(&storage_key) {
-                    Ok(value) => Ok(H256(value.0)),
-                    Err(error) => Err(Web3Error::InternalError(anyhow::anyhow!(
-                        "failed to read storage: {}",
-                        error
-                    ))),
-                }
-            } else {
-                Ok(value)
-            }
-        } else {
-            writer
+            .await
+            .flatten();
+        let maybe_tx = match tx {
+            Some(tx) => Some(tx),
+            None => self
+                .inner
+                .read()
+                .await
                 .fork_storage
                 .inner
                 .read()
                 .expect("failed reading fork storage")
                 .fork
                 .as_ref()
-                .and_then(|fork| fork.fork_source.get_storage_at(address, idx, block).ok())
-                .ok_or_else(|| {
-                    tracing::error!(
-                        "unable to get storage at address {:?}, index {:?} for block {:?}",
-                        address,
-                        idx,
-                        block
-                    );
-                    Web3Error::InternalError(anyhow::Error::msg("Failed to get storage."))
+                .and_then(|fork| {
+                    fork.fork_source
+                        .get_transaction_by_block_id_and_index(block_id, index)
+                        .ok()
                 })
-        }
-    }
-
-    pub async fn get_transaction_by_block_hash_and_index_impl(
-        &self,
-        block_hash: H256,
-        index: web3::Index,
-    ) -> anyhow::Result<Option<zksync_types::api::Transaction>> {
-        let reader = self.read_inner()?;
-
-        let maybe_tx = reader
-            .blocks
-            .get(&block_hash)
-            .and_then(|block| block.transactions.get(index.as_usize()))
-            .and_then(|tx| match tx {
-                TransactionVariant::Full(tx) => Some(tx.clone()),
-                TransactionVariant::Hash(tx_hash) => reader
-                    .fork_storage
-                    .inner
-                    .read()
-                    .expect("failed reading fork storage")
-                    .fork
-                    .as_ref()
-                    .and_then(|fork| {
-                        fork.fork_source
-                            .get_transaction_by_hash(*tx_hash)
-                            .ok()
-                            .flatten()
-                    }),
-            })
-            .or_else(|| {
-                reader
-                    .fork_storage
-                    .inner
-                    .read()
-                    .expect("failed reading fork storage")
-                    .fork
-                    .as_ref()
-                    .and_then(|fork| {
-                        fork.fork_source
-                            .get_transaction_by_block_hash_and_index(block_hash, index)
-                            .ok()
-                    })
-                    .flatten()
-            });
-
-        Ok(maybe_tx)
-    }
-
-    pub async fn get_transaction_by_block_number_and_index_impl(
-        &self,
-        block_number: BlockNumber,
-        index: web3::Index,
-    ) -> anyhow::Result<Option<zksync_types::api::Transaction>> {
-        let reader = self.read_inner()?;
-
-        let real_block_number =
-            utils::to_real_block_number(block_number, U64::from(reader.current_miniblock));
-        let maybe_tx = reader
-            .block_hashes
-            .get(&real_block_number.as_u64())
-            .and_then(|block_hash| reader.blocks.get(block_hash))
-            .and_then(|block| block.transactions.get(index.as_usize()))
-            .and_then(|tx| match tx {
-                TransactionVariant::Full(tx) => Some(tx.clone()),
-                TransactionVariant::Hash(tx_hash) => reader
-                    .fork_storage
-                    .inner
-                    .read()
-                    .expect("failed reading fork storage")
-                    .fork
-                    .as_ref()
-                    .and_then(|fork| {
-                        fork.fork_source
-                            .get_transaction_by_hash(*tx_hash)
-                            .ok()
-                            .flatten()
-                    }),
-            })
-            .or_else(|| {
-                reader
-                    .fork_storage
-                    .inner
-                    .read()
-                    .expect("failed reading fork storage")
-                    .fork
-                    .as_ref()
-                    .and_then(|fork| {
-                        fork.fork_source
-                            .get_transaction_by_block_number_and_index(block_number, index)
-                            .ok()
-                    })
-                    .flatten()
-            });
+                .flatten(),
+        };
 
         Ok(maybe_tx)
     }
@@ -826,7 +636,9 @@ impl InMemoryNode {
 
     pub async fn accounts_impl(&self) -> anyhow::Result<Vec<H160>> {
         Ok(self
-            .read_inner()?
+            .inner
+            .read()
+            .await
             .rich_accounts
             .clone()
             .into_iter()
@@ -840,17 +652,17 @@ impl InMemoryNode {
         _newest_block: BlockNumber,
         reward_percentiles: Vec<f32>,
     ) -> anyhow::Result<zksync_types::api::FeeHistory> {
-        let reader = self.read_inner()?;
+        let current_block = self.blockchain.current_block_number().await;
 
-        let block_count = block_count
+        let block_count = (block_count as usize)
             .min(1024)
             // Can't be more than the total number of blocks
-            .clamp(1, reader.current_miniblock + 1);
+            .clamp(1, current_block.0 as usize + 1);
 
         let mut base_fee_per_gas =
-            vec![U256::from(reader.fee_input_provider.gas_price()); block_count as usize];
+            vec![U256::from(self.inner.read().await.fee_input_provider.gas_price()); block_count];
 
-        let oldest_block = reader.current_miniblock + 1 - base_fee_per_gas.len() as u64;
+        let oldest_block = current_block + 1 - base_fee_per_gas.len() as u32;
         // We do not store gas used ratio for blocks, returns array of zeroes as a placeholder.
         let gas_used_ratio = vec![0.0; base_fee_per_gas.len()];
         // Effective priority gas price is currently 0.
@@ -864,7 +676,7 @@ impl InMemoryNode {
 
         Ok(zksync_types::api::FeeHistory {
             inner: FeeHistory {
-                oldest_block: web3::BlockNumber::Number(oldest_block.into()),
+                oldest_block: web3::BlockNumber::Number(oldest_block.0.into()),
                 base_fee_per_gas,
                 gas_used_ratio,
                 reward,

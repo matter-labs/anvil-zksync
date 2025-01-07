@@ -3,6 +3,7 @@
 //! There is ForkStorage (that is a wrapper over InMemoryStorage)
 //! And ForkDetails - that parses network address and fork height from arguments.
 
+use crate::utils::block_on;
 use crate::{deps::InMemoryStorage, http_fork_source::HttpForkSource};
 use anvil_zksync_config::constants::{
     DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
@@ -17,14 +18,14 @@ use std::{
     collections::HashMap,
     convert::{TryFrom, TryInto},
     fmt,
-    future::Future,
     str::FromStr,
     sync::{Arc, RwLock},
 };
-use tokio::runtime::Builder;
 use zksync_multivm::interface::storage::ReadStorage;
+use zksync_types::api::BlockId;
 use zksync_types::web3::Bytes;
 use zksync_types::{
+    api,
     api::{
         Block, BlockDetails, BlockIdVariant, BlockNumber, BridgeAddresses, Transaction,
         TransactionDetails, TransactionVariant,
@@ -44,21 +45,6 @@ use zksync_web3_decl::{
     namespaces::ZksNamespaceClient,
 };
 use zksync_web3_decl::{namespaces::EthNamespaceClient, types::Index};
-
-pub fn block_on<F: Future + Send + 'static>(future: F) -> F::Output
-where
-    F::Output: Send,
-{
-    std::thread::spawn(move || {
-        let runtime = Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("tokio runtime creation failed");
-        runtime.block_on(future)
-    })
-    .join()
-    .unwrap()
-}
 
 /// The possible networks to fork from.
 #[derive(Debug, Clone)]
@@ -103,21 +89,22 @@ pub struct ForkStorage {
     pub chain_id: L2ChainId,
 }
 
+// TODO: Hide mutable state and mark everything with `pub(super)`
 #[derive(Debug)]
 pub struct ForkStorageInner {
     // Underlying local storage
-    pub raw_storage: InMemoryStorage,
+    pub(super) raw_storage: InMemoryStorage,
     // Cache of data that was read from remote location.
-    pub value_read_cache: HashMap<StorageKey, H256>,
+    pub(super) value_read_cache: HashMap<StorageKey, H256>,
     // Cache of factory deps that were read from remote location.
-    pub factory_dep_cache: HashMap<H256, Option<Vec<u8>>>,
+    pub(super) factory_dep_cache: HashMap<H256, Option<Vec<u8>>>,
     // If set - it hold the necessary information on where to fetch the data.
     // If not set - it will simply read from underlying storage.
     pub fork: Option<Box<ForkDetails>>,
 }
 
 impl ForkStorage {
-    pub fn new(
+    pub(super) fn new(
         fork: Option<ForkDetails>,
         system_contracts_options: &SystemContractsOptions,
         use_evm_emulator: bool,
@@ -337,11 +324,11 @@ impl ReadStorage for &ForkStorage {
 }
 
 impl ForkStorage {
-    pub fn set_value(&mut self, key: StorageKey, value: zksync_types::StorageValue) {
+    pub fn set_value(&self, key: StorageKey, value: zksync_types::StorageValue) {
         let mut mutator = self.inner.write().unwrap();
         mutator.raw_storage.set_value(key, value)
     }
-    pub fn store_factory_dep(&mut self, hash: H256, bytecode: Vec<u8>) {
+    pub fn store_factory_dep(&self, hash: H256, bytecode: Vec<u8>) {
         let mut mutator = self.inner.write().unwrap();
         mutator.raw_storage.store_factory_dep(hash, bytecode)
     }
@@ -402,6 +389,17 @@ pub trait ForkSource {
         full_transactions: bool,
     ) -> eyre::Result<Option<Block<TransactionVariant>>>;
 
+    fn get_block_by_id(
+        &self,
+        block_id: zksync_types::api::BlockId,
+        full_transactions: bool,
+    ) -> eyre::Result<Option<Block<TransactionVariant>>> {
+        match block_id {
+            BlockId::Hash(hash) => self.get_block_by_hash(hash, full_transactions),
+            BlockId::Number(number) => self.get_block_by_number(number, full_transactions),
+        }
+    }
+
     /// Returns the block details for a given miniblock number.
     fn get_block_details(&self, miniblock: L2BlockNumber) -> eyre::Result<Option<BlockDetails>>;
 
@@ -417,6 +415,16 @@ pub trait ForkSource {
         block_number: zksync_types::api::BlockNumber,
     ) -> eyre::Result<Option<U256>>;
 
+    fn get_block_transaction_count_by_id(
+        &self,
+        block_id: api::BlockId,
+    ) -> eyre::Result<Option<U256>> {
+        match block_id {
+            BlockId::Hash(hash) => self.get_block_transaction_count_by_hash(hash),
+            BlockId::Number(number) => self.get_block_transaction_count_by_number(number),
+        }
+    }
+
     /// Returns information about a transaction by block hash and transaction index position.
     fn get_transaction_by_block_hash_and_index(
         &self,
@@ -430,6 +438,19 @@ pub trait ForkSource {
         block_number: BlockNumber,
         index: Index,
     ) -> eyre::Result<Option<Transaction>>;
+
+    fn get_transaction_by_block_id_and_index(
+        &self,
+        block_id: api::BlockId,
+        index: Index,
+    ) -> eyre::Result<Option<Transaction>> {
+        match block_id {
+            BlockId::Hash(hash) => self.get_transaction_by_block_hash_and_index(hash, index),
+            BlockId::Number(number) => {
+                self.get_transaction_by_block_number_and_index(number, index)
+            }
+        }
+    }
 
     /// Returns addresses of the default bridge contracts.
     fn get_bridge_contracts(&self) -> eyre::Result<BridgeAddresses>;
@@ -809,7 +830,7 @@ pub struct SerializableForkStorage {
 pub struct SerializableStorage(pub BTreeMap<StorageKey, StorageValue>);
 
 mod serde_from {
-    use crate::fork::SerializableStorage;
+    use super::SerializableStorage;
     use serde::{Deserialize, Serialize};
     use std::collections::BTreeMap;
     use std::convert::TryFrom;

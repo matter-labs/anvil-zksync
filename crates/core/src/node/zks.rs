@@ -1,5 +1,7 @@
 use crate::node::{InMemoryNode, TransactionResult};
 use crate::utils::{internal_error, utc_datetime_from_epoch_ms};
+use anyhow::Context;
+use itertools::Itertools;
 use std::collections::HashMap;
 use zksync_types::api::{
     BlockDetails, BlockDetailsBase, BlockStatus, BridgeAddresses, TransactionDetails,
@@ -17,69 +19,64 @@ use zksync_web3_decl::error::Web3Error;
 
 impl InMemoryNode {
     pub async fn estimate_fee_impl(&self, req: CallRequest) -> Result<Fee, Web3Error> {
-        // TODO: Burn with fire
-        let time = self.time.lock();
-        self.read_inner()?.estimate_gas_impl(&time, req)
+        self.inner.read().await.estimate_gas_impl(req).await
     }
 
     pub async fn get_raw_block_transactions_impl(
         &self,
         block_number: L2BlockNumber,
     ) -> Result<Vec<Transaction>, Web3Error> {
-        let reader = self.read_inner()?;
-
-        let maybe_transactions = reader
-            .block_hashes
-            .get(&(block_number.0 as u64))
-            .and_then(|hash| reader.blocks.get(hash))
-            .map(|block| {
+        let tx_hashes = self
+            .blockchain
+            .inspect_block_by_number(block_number, |block| {
                 block
                     .transactions
                     .iter()
                     .map(|tx| match tx {
-                        TransactionVariant::Full(tx) => &tx.hash,
-                        TransactionVariant::Hash(hash) => hash,
+                        TransactionVariant::Full(tx) => tx.hash,
+                        TransactionVariant::Hash(hash) => *hash,
                     })
-                    .flat_map(|tx_hash| {
-                        reader
-                            .tx_results
-                            .get(tx_hash)
-                            .map(|TransactionResult { info, .. }| Transaction {
-                                common_data: ExecuteTransactionCommon::L2(
-                                    info.tx.common_data.clone(),
-                                ),
-                                execute: info.tx.execute.clone(),
-                                received_timestamp_ms: info.tx.received_timestamp_ms,
-                                raw_bytes: info.tx.raw_bytes.clone(),
-                            })
+                    .collect_vec()
+            })
+            .await;
+        let transactions = if let Some(tx_hashes) = tx_hashes {
+            let mut transactions = Vec::with_capacity(tx_hashes.len());
+            for tx_hash in tx_hashes {
+                let transaction = self
+                    .blockchain
+                    .inspect_tx(&tx_hash, |TransactionResult { info, .. }| Transaction {
+                        common_data: ExecuteTransactionCommon::L2(info.tx.common_data.clone()),
+                        execute: info.tx.execute.clone(),
+                        received_timestamp_ms: info.tx.received_timestamp_ms,
+                        raw_bytes: info.tx.raw_bytes.clone(),
                     })
-                    .collect()
-            });
-
-        let transactions = match maybe_transactions {
-            Some(txns) => Ok(txns),
-            None => {
-                let fork_storage_read = reader
-                    .fork_storage
-                    .inner
-                    .read()
-                    .expect("failed reading fork storage");
-
-                match fork_storage_read.fork.as_ref() {
-                    Some(fork) => fork
-                        .fork_source
-                        .get_raw_block_transactions(block_number)
-                        .map_err(|e| internal_error("get_raw_block_transactions", e)),
-                    None => Ok(vec![]),
-                }
+                    .await
+                    .with_context(|| anyhow::anyhow!("Unexpectedly transaction (hash={tx_hash}) belongs to a block but could not be found"))?;
+                transactions.push(transaction);
             }
-        }?;
+            transactions
+        } else {
+            let reader = self.inner.read().await;
+            let fork_storage_read = reader
+                .fork_storage
+                .inner
+                .read()
+                .expect("failed reading fork storage");
+
+            match fork_storage_read.fork.as_ref() {
+                Some(fork) => fork
+                    .fork_source
+                    .get_raw_block_transactions(block_number)
+                    .map_err(|e| internal_error("get_raw_block_transactions", e))?,
+                None => return Err(Web3Error::NoBlock),
+            }
+        };
 
         Ok(transactions)
     }
 
     pub async fn get_bridge_contracts_impl(&self) -> Result<BridgeAddresses, Web3Error> {
-        let reader = self.read_inner()?;
+        let reader = self.inner.read().await;
 
         let result = match reader
             .fork_storage
@@ -115,7 +112,7 @@ impl InMemoryNode {
         from: u32,
         limit: u8,
     ) -> anyhow::Result<Vec<zksync_web3_decl::types::Token>> {
-        let reader = self.read_inner()?;
+        let reader = self.inner.read().await;
 
         let fork_storage_read = reader
             .fork_storage
@@ -144,14 +141,10 @@ impl InMemoryNode {
         &self,
         address: Address,
     ) -> Result<HashMap<Address, U256>, Web3Error> {
-        let inner = self.get_inner().clone();
         let tokens = self.get_confirmed_tokens_impl(0, 100).await?;
 
         let balances = {
-            let writer = inner.write().map_err(|_e| {
-                let error_message = "Failed to acquire lock. Please ensure the lock is not being held by another process or thread.".to_string();
-                Web3Error::InternalError(anyhow::Error::msg(error_message))
-            })?;
+            let writer = self.inner.write().await;
             let mut balances = HashMap::new();
             for token in tokens {
                 let balance_key = storage_key_for_standard_token_balance(
@@ -182,13 +175,14 @@ impl InMemoryNode {
         block_number: L2BlockNumber,
     ) -> anyhow::Result<Option<BlockDetails>> {
         let base_system_contracts_hashes = self.system_contracts.base_system_contracts_hashes();
-        let reader = self.read_inner()?;
+        let reader = self.inner.read().await;
+        let l2_fair_gas_price = reader.fee_input_provider.gas_price();
+        let fair_pubdata_price = Some(reader.fee_input_provider.fair_pubdata_price());
+        drop(reader);
 
-        let maybe_block = reader
-            .block_hashes
-            .get(&(block_number.0 as u64))
-            .and_then(|hash| reader.blocks.get(hash))
-            .map(|block| BlockDetails {
+        let block_details = self
+            .blockchain
+            .inspect_block_by_number(block_number, |block| BlockDetails {
                 number: L2BlockNumber(block.number.as_u32()),
                 l1_batch_number: L1BatchNumber(block.l1_batch_number.unwrap_or_default().as_u32()),
                 base: BlockDetailsBase {
@@ -204,79 +198,85 @@ impl InMemoryNode {
                     execute_tx_hash: None,
                     executed_at: None,
                     l1_gas_price: 0,
-                    l2_fair_gas_price: reader.fee_input_provider.gas_price(),
-                    fair_pubdata_price: Some(reader.fee_input_provider.fair_pubdata_price()),
+                    l2_fair_gas_price,
+                    fair_pubdata_price,
                     base_system_contracts_hashes,
                 },
                 operator_address: Address::zero(),
                 protocol_version: Some(ProtocolVersionId::latest()),
             })
-            .or_else(|| {
-                reader
-                    .fork_storage
-                    .inner
-                    .read()
-                    .expect("failed reading fork storage")
-                    .fork
-                    .as_ref()
-                    .and_then(|fork| {
-                        fork.fork_source
-                            .get_block_details(block_number)
-                            .ok()
-                            .flatten()
-                    })
-            });
+            .await;
 
-        Ok(maybe_block)
+        let maybe_block_details = match block_details {
+            Some(block_details) => Some(block_details),
+            None => self
+                .inner
+                .read()
+                .await
+                .fork_storage
+                .inner
+                .read()
+                .expect("failed reading fork storage")
+                .fork
+                .as_ref()
+                .and_then(|fork| {
+                    fork.fork_source
+                        .get_block_details(block_number)
+                        .ok()
+                        .flatten()
+                }),
+        };
+
+        Ok(maybe_block_details)
     }
 
     pub async fn get_transaction_details_impl(
         &self,
         hash: H256,
     ) -> anyhow::Result<Option<TransactionDetails>> {
-        let reader = self.read_inner()?;
-
-        let maybe_result = {
-            reader
-                .tx_results
-                .get(&hash)
-                .map(|TransactionResult { info, receipt, .. }| {
-                    TransactionDetails {
-                        is_l1_originated: false,
-                        status: TransactionStatus::Included,
-                        // if these are not set, fee is effectively 0
-                        fee: receipt.effective_gas_price.unwrap_or_default()
-                            * receipt.gas_used.unwrap_or_default(),
-                        gas_per_pubdata: info.tx.common_data.fee.gas_per_pubdata_limit,
-                        initiator_address: info.tx.initiator_account(),
-                        received_at: utc_datetime_from_epoch_ms(info.tx.received_timestamp_ms),
-                        eth_commit_tx_hash: None,
-                        eth_prove_tx_hash: None,
-                        eth_execute_tx_hash: None,
-                    }
-                })
-                .or_else(|| {
-                    reader
-                        .fork_storage
-                        .inner
-                        .read()
-                        .expect("failed reading fork storage")
-                        .fork
-                        .as_ref()
-                        .and_then(|fork| {
-                            fork.fork_source
-                                .get_transaction_details(hash)
-                                .ok()
-                                .flatten()
-                        })
-                })
+        let tx_details = self
+            .blockchain
+            .inspect_tx(&hash, |TransactionResult { info, receipt, .. }| {
+                TransactionDetails {
+                    is_l1_originated: false,
+                    status: TransactionStatus::Included,
+                    // if these are not set, fee is effectively 0
+                    fee: receipt.effective_gas_price.unwrap_or_default()
+                        * receipt.gas_used.unwrap_or_default(),
+                    gas_per_pubdata: info.tx.common_data.fee.gas_per_pubdata_limit,
+                    initiator_address: info.tx.initiator_account(),
+                    received_at: utc_datetime_from_epoch_ms(info.tx.received_timestamp_ms),
+                    eth_commit_tx_hash: None,
+                    eth_prove_tx_hash: None,
+                    eth_execute_tx_hash: None,
+                }
+            })
+            .await;
+        let maybe_tx_details = match tx_details {
+            Some(tx_details) => Some(tx_details),
+            None => self
+                .inner
+                .read()
+                .await
+                .fork_storage
+                .inner
+                .read()
+                .expect("failed reading fork storage")
+                .fork
+                .as_ref()
+                .and_then(|fork| {
+                    fork.fork_source
+                        .get_transaction_details(hash)
+                        .ok()
+                        .flatten()
+                }),
         };
 
-        Ok(maybe_result)
+        Ok(maybe_tx_details)
     }
 
     pub async fn get_bytecode_by_hash_impl(&self, hash: H256) -> anyhow::Result<Option<Vec<u8>>> {
-        let writer = self.write_inner()?;
+        let writer = self.inner.write().await;
 
         let maybe_bytecode = match writer.fork_storage.load_factory_dep_internal(hash) {
             Ok(maybe_bytecode) => maybe_bytecode,

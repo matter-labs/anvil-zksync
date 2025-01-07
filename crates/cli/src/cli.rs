@@ -29,7 +29,6 @@ use std::{
     pin::Pin,
     task::{Context, Poll},
 };
-use tokio::task::spawn_blocking;
 use tokio::time::{Instant, Interval};
 use zksync_types::{H256, U256};
 
@@ -531,18 +530,13 @@ impl PeriodicStateDumper {
         tracing::trace!(path=?dump_path, "Dumping state");
 
         // Spawn a blocking task for state dumping
-        let state_bytes =
-            match spawn_blocking(move || node.dump_state(preserve_historical_states)).await {
-                Ok(Ok(bytes)) => bytes,
-                Ok(Err(err)) => {
-                    tracing::error!("Failed to dump state: {:?}", err);
-                    return;
-                }
-                Err(err) => {
-                    tracing::error!("Failed to join blocking task: {:?}", err);
-                    return;
-                }
-            };
+        let state_bytes = match node.dump_state(preserve_historical_states).await {
+            Ok(bytes) => bytes,
+            Err(err) => {
+                tracing::error!("Failed to dump state: {:?}", err);
+                return;
+            }
+        };
 
         let mut decoder = GzDecoder::new(&state_bytes.0[..]);
         let mut json_str = String::new();
