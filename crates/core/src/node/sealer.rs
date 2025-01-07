@@ -1,7 +1,7 @@
 use crate::node::block_producer::{BlockProducerHandle, Command};
 use crate::node::pool::{TxBatch, TxPool};
 use futures::channel::mpsc::Receiver;
-use futures::future::LocalBoxFuture;
+use futures::future::BoxFuture;
 use futures::stream::{Fuse, StreamExt};
 use futures::task::AtomicWaker;
 use futures::Stream;
@@ -27,7 +27,7 @@ pub struct BlockSealer {
     block_producer_handle: BlockProducerHandle,
     /// Future that is sending the next seal command to [`super::BlockProducer`]
     #[pin]
-    future: Option<LocalBoxFuture<'static, Result<(), mpsc::error::SendError<Command>>>>,
+    future: Option<BoxFuture<'static, Result<(), mpsc::error::SendError<Command>>>>,
 }
 
 impl BlockSealer {

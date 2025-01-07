@@ -6,11 +6,9 @@
 #![cfg(test)]
 
 use crate::deps::InMemoryStorage;
+use crate::node::fork::ForkSource;
 use crate::node::{InMemoryNode, TxExecutionInfo};
-use crate::{fork::ForkSource, node::compute_hash};
 
-use ethabi::{ParamType, Token};
-use ethers::contract;
 use eyre::eyre;
 use httptest::{
     matchers::{eq, json_decoded, request},
@@ -473,28 +471,12 @@ impl TransactionBuilder {
 }
 
 /// Applies a transaction with a given hash to the node and returns the block hash.
-pub fn apply_tx(node: &InMemoryNode, tx_hash: H256) -> (H256, U64, L2Tx) {
-    let next_miniblock = node
-        .get_inner()
-        .read()
-        .map(|reader| reader.current_miniblock.saturating_add(1))
-        .expect("failed getting current batch number");
-    let produced_block_hash = compute_hash(next_miniblock, [&tx_hash]);
-
-    let tx = TransactionBuilder::new().set_hash(tx_hash).build();
-
-    node.set_rich_account(
-        tx.common_data.initiator_address,
-        U256::from(100u128 * 10u128.pow(18)),
-    );
-    node.apply_txs(vec![tx.clone()], 1)
-        .expect("failed applying tx");
-
-    (produced_block_hash, U64::from(next_miniblock), tx)
+pub async fn apply_tx(node: &InMemoryNode, tx_hash: H256) -> (H256, U64, L2Tx) {
+    node.inner.write().await.apply_tx(tx_hash).await
 }
 
 /// Deploys a contract with the given bytecode.
-pub fn deploy_contract(
+pub async fn deploy_contract(
     node: &InMemoryNode,
     tx_hash: H256,
     private_key: &K256PrivateKey,
@@ -502,78 +484,11 @@ pub fn deploy_contract(
     calldata: Option<Vec<u8>>,
     nonce: Nonce,
 ) -> H256 {
-    use ethers::abi::Function;
-    use ethers::types::Bytes;
-    use zksync_web3_rs::eip712;
-
-    let next_miniblock = node
-        .get_inner()
-        .read()
-        .map(|reader| reader.current_miniblock.saturating_add(1))
-        .expect("failed getting current batch number");
-    let produced_block_hash = compute_hash(next_miniblock, [&tx_hash]);
-
-    let salt = [0u8; 32];
-    let bytecode_hash = eip712::hash_bytecode(&bytecode).expect("invalid bytecode");
-    let call_data: Bytes = calldata.unwrap_or_default().into();
-    let create: Function = serde_json::from_str(
-        r#"{
-            "inputs": [
-              {
-                "internalType": "bytes32",
-                "name": "_salt",
-                "type": "bytes32"
-              },
-              {
-                "internalType": "bytes32",
-                "name": "_bytecodeHash",
-                "type": "bytes32"
-              },
-              {
-                "internalType": "bytes",
-                "name": "_input",
-                "type": "bytes"
-              }
-            ],
-            "name": "create",
-            "outputs": [
-              {
-                "internalType": "address",
-                "name": "",
-                "type": "address"
-              }
-            ],
-            "stateMutability": "payable",
-            "type": "function"
-          }"#,
-    )
-    .unwrap();
-
-    let data = contract::encode_function_data(&create, (salt, bytecode_hash, call_data))
-        .expect("failed encoding function data");
-
-    let mut tx = L2Tx::new_signed(
-        Some(zksync_types::CONTRACT_DEPLOYER_ADDRESS),
-        data.to_vec(),
-        nonce,
-        Fee {
-            gas_limit: U256::from(400_000_000),
-            max_fee_per_gas: U256::from(50_000_000),
-            max_priority_fee_per_gas: U256::from(50_000_000),
-            gas_per_pubdata_limit: U256::from(50000),
-        },
-        U256::from(0),
-        zksync_types::L2ChainId::from(260),
-        private_key,
-        vec![bytecode],
-        Default::default(),
-    )
-    .expect("failed signing tx");
-    tx.set_input(vec![], tx_hash);
-    node.apply_txs(vec![tx], 1)
-        .expect("failed deploying contract");
-
-    produced_block_hash
+    node.inner
+        .write()
+        .await
+        .deploy_contract(tx_hash, private_key, bytecode, calldata, nonce)
+        .await
 }
 
 /// Builds transaction logs
@@ -695,25 +610,6 @@ pub fn default_tx_debug_info() -> DebugCall {
             calls: vec![],
         }],
     }
-}
-
-/// Decodes a `bytes` tx result to its concrete parameter type.
-pub fn decode_tx_result(output: &[u8], param_type: ParamType) -> Token {
-    let result = ethabi::decode(&[ParamType::Bytes], output).expect("failed decoding output");
-    if result.is_empty() {
-        panic!("result was empty");
-    }
-
-    let result_bytes = result[0]
-        .clone()
-        .into_bytes()
-        .expect("failed converting result to bytes");
-    let result = ethabi::decode(&[param_type], &result_bytes).expect("failed converting output");
-    if result.is_empty() {
-        panic!("decoded result was empty");
-    }
-
-    result[0].clone()
 }
 
 /// Asserts that two instances of [BridgeAddresses] are equal
@@ -972,8 +868,9 @@ mod test {
 
     #[tokio::test]
     async fn test_apply_tx() {
-        let node = InMemoryNode::default();
-        let (actual_block_hash, actual_block_number, _) = apply_tx(&node, H256::repeat_byte(0x01));
+        let node = InMemoryNode::test(None);
+        let (actual_block_hash, actual_block_number, _) =
+            apply_tx(&node, H256::repeat_byte(0x01)).await;
 
         assert_eq!(
             H256::from_str("0xd97ba6a5ab0f2d7fbfc697251321cce20bff3da2b0ddaf12c80f80f0ab270b15")
@@ -983,10 +880,10 @@ mod test {
         assert_eq!(U64::from(1), actual_block_number);
 
         assert!(
-            node.get_inner()
-                .read()
-                .map(|inner| inner.blocks.contains_key(&actual_block_hash))
-                .unwrap(),
+            node.blockchain
+                .get_block_by_hash(&actual_block_hash)
+                .await
+                .is_some(),
             "block was not produced"
         );
     }

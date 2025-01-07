@@ -432,7 +432,7 @@ impl InMemoryNodeInner {
     }
 
     /// Runs L2 transaction and commits it to a new block.
-    async fn run_l2_tx<W: WriteStorage, H: HistoryMode>(
+    fn run_l2_tx<W: WriteStorage, H: HistoryMode>(
         &mut self,
         l2_tx: L2Tx,
         l2_tx_index: u64,
@@ -453,12 +453,6 @@ impl InMemoryNodeInner {
         if self.config.show_tx_summary {
             tracing::info!("Executing {}", format!("{:?}", tx_hash).bold());
         }
-
-        // TODO: Is this the right place to notify about new pending txs?
-        self.filters
-            .write()
-            .await
-            .notify_new_pending_transaction(tx_hash);
 
         let TxExecutionOutput {
             result,
@@ -508,12 +502,6 @@ impl InMemoryNodeInner {
                 block_timestamp: Some(block_ctx.timestamp.into()),
             })
             .collect();
-        for log in &logs {
-            self.filters
-                .write()
-                .await
-                .notify_new_log(log, block_ctx.miniblock.into());
-        }
         let tx_receipt = api::TransactionReceipt {
             transaction_hash: tx_hash,
             transaction_index: U64::from(l2_tx_index),
@@ -550,20 +538,13 @@ impl InMemoryNodeInner {
         })
     }
 
-    pub async fn seal_block(
+    pub fn run_l2_txs(
         &mut self,
         txs: Vec<L2Tx>,
-        system_contracts: BaseSystemContracts,
-    ) -> anyhow::Result<L2BlockNumber> {
-        // Prepare a new block context and a new batch env
-        let system_env = self.create_system_env(system_contracts, TxExecutionMode::VerifyExecute);
-        let (batch_env, mut block_ctx) = self.create_l1_batch_env().await;
-        // Advance clock as we are consuming next timestamp for this block
-        anyhow::ensure!(
-            self.time_writer.advance_timestamp() == block_ctx.timestamp,
-            "advancing clock produced different timestamp than expected"
-        );
-
+        batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        block_ctx: &mut BlockContext,
+    ) -> Vec<TransactionResult> {
         let storage = StorageView::new(self.fork_storage.clone()).into_rc_ptr();
         let mut vm: Vm<_, HistoryEnabled> = Vm::new(batch_env.clone(), system_env, storage.clone());
 
@@ -581,10 +562,7 @@ impl InMemoryNodeInner {
             vm.pop_snapshot_no_rollback();
             // Save pre-execution VM snapshot.
             vm.make_snapshot();
-            match self
-                .run_l2_tx(tx, tx_index, &block_ctx, &batch_env, &mut vm)
-                .await
-            {
+            match self.run_l2_tx(tx, tx_index, &block_ctx, &batch_env, &mut vm) {
                 Ok(tx_result) => {
                     tx_results.push(tx_result);
                     tx_index += 1;
@@ -601,6 +579,34 @@ impl InMemoryNodeInner {
         for (key, value) in storage.borrow().modified_storage_keys() {
             self.fork_storage.set_value(*key, *value);
         }
+        tx_results
+    }
+
+    pub async fn seal_block(
+        &mut self,
+        txs: Vec<L2Tx>,
+        system_contracts: BaseSystemContracts,
+    ) -> anyhow::Result<L2BlockNumber> {
+        // Prepare a new block context and a new batch env
+        let system_env = self.create_system_env(system_contracts, TxExecutionMode::VerifyExecute);
+        let (batch_env, mut block_ctx) = self.create_l1_batch_env().await;
+        // Advance clock as we are consuming next timestamp for this block
+        anyhow::ensure!(
+            self.time_writer.advance_timestamp() == block_ctx.timestamp,
+            "advancing clock produced different timestamp than expected"
+        );
+
+        let tx_results = self.run_l2_txs(txs, batch_env.clone(), system_env, &mut block_ctx);
+
+        let mut filters = self.filters.write().await;
+        for tx_result in &tx_results {
+            // TODO: Is this the right place to notify about new pending txs?
+            filters.notify_new_pending_transaction(tx_result.receipt.transaction_hash);
+            for log in &tx_result.receipt.logs {
+                filters.notify_new_log(log, block_ctx.miniblock.into());
+            }
+        }
+        drop(filters);
 
         let mut transactions = Vec::new();
         for (index, tx_result) in tx_results.iter().enumerate() {
@@ -648,7 +654,7 @@ impl InMemoryNodeInner {
             .unwrap_or_default();
         let mut blocks = vec![create_block(
             &batch_env,
-            hash,
+            block_ctx.hash,
             parent_block_hash,
             block_ctx.miniblock,
             block_ctx.timestamp,
@@ -1266,6 +1272,24 @@ impl InMemoryNodeInner {
         self.previous_states.clear();
     }
 
+    /// Adds a lot of tokens to a given account with a specified balance.
+    pub fn set_rich_account(&mut self, address: H160, balance: U256) {
+        let key = storage_key_for_eth_balance(&address);
+
+        let keys = {
+            let mut storage_view = StorageView::new(&self.fork_storage);
+            // Set balance to the specified amount
+            storage_view.set_value(key, u256_to_h256(balance));
+            storage_view.modified_storage_keys().clone()
+        };
+
+        for (key, value) in keys.iter() {
+            self.fork_storage.set_value(*key, *value);
+        }
+        self.rich_accounts.insert(address);
+    }
+
+    // TODO: remove all methods below
     pub fn increase_time(&mut self, delta: u64) -> u64 {
         self.time_writer.increase_time(delta)
     }
@@ -1327,4 +1351,672 @@ fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) 
         }
     }
     None
+}
+
+// Test utils
+#[cfg(test)]
+impl InMemoryNodeInner {
+    pub fn test_config(config: TestNodeConfig) -> Arc<RwLock<Self>> {
+        let fee_provider = TestNodeFeeInputProvider::default();
+        let impersonation = ImpersonationManager::default();
+        let system_contracts = SystemContracts::from_options(
+            &config.system_contracts_options,
+            config.use_evm_emulator,
+        );
+        let (inner, _, _, _) = InMemoryNodeInner::init(
+            None,
+            fee_provider,
+            Arc::new(RwLock::new(Default::default())),
+            config,
+            impersonation.clone(),
+            system_contracts.clone(),
+        );
+        inner
+    }
+
+    pub fn test() -> Arc<RwLock<Self>> {
+        Self::test_config(TestNodeConfig::default())
+    }
+
+    /// Deploys a contract with the given bytecode.
+    pub async fn deploy_contract(
+        &mut self,
+        tx_hash: H256,
+        private_key: &zksync_types::K256PrivateKey,
+        bytecode: Vec<u8>,
+        calldata: Option<Vec<u8>>,
+        nonce: zksync_types::Nonce,
+    ) -> H256 {
+        use ethers::abi::Function;
+        use ethers::types::Bytes;
+        use zksync_web3_rs::eip712;
+
+        let salt = [0u8; 32];
+        let bytecode_hash = eip712::hash_bytecode(&bytecode).expect("invalid bytecode");
+        let call_data: Bytes = calldata.unwrap_or_default().into();
+        let create: Function = serde_json::from_str(
+            r#"{
+            "inputs": [
+              {
+                "internalType": "bytes32",
+                "name": "_salt",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "_bytecodeHash",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "bytes",
+                "name": "_input",
+                "type": "bytes"
+              }
+            ],
+            "name": "create",
+            "outputs": [
+              {
+                "internalType": "address",
+                "name": "",
+                "type": "address"
+              }
+            ],
+            "stateMutability": "payable",
+            "type": "function"
+          }"#,
+        )
+        .unwrap();
+
+        let data =
+            ethers::contract::encode_function_data(&create, (salt, bytecode_hash, call_data))
+                .expect("failed encoding function data");
+
+        let mut tx = L2Tx::new_signed(
+            Some(zksync_types::CONTRACT_DEPLOYER_ADDRESS),
+            data.to_vec(),
+            nonce,
+            Fee {
+                gas_limit: U256::from(400_000_000),
+                max_fee_per_gas: U256::from(50_000_000),
+                max_priority_fee_per_gas: U256::from(50_000_000),
+                gas_per_pubdata_limit: U256::from(50000),
+            },
+            U256::from(0),
+            zksync_types::L2ChainId::from(260),
+            private_key,
+            vec![bytecode],
+            Default::default(),
+        )
+        .expect("failed signing tx");
+        tx.set_input(vec![], tx_hash);
+
+        let system_contracts = self
+            .system_contracts
+            .system_contracts_for_initiator(&self.impersonation, &tx.initiator_account());
+        let block_number = self
+            .seal_block(vec![tx], system_contracts)
+            .await
+            .expect("failed deploying contract");
+
+        self.blockchain_writer
+            .read()
+            .await
+            .get_block_hash_by_number(block_number)
+            .unwrap()
+    }
+
+    // TODO: Return L2BlockNumber
+    /// Applies a transaction with a given hash to the node and returns the block hash.
+    pub async fn apply_tx(&mut self, tx_hash: H256) -> (H256, U64, L2Tx) {
+        let tx = crate::testing::TransactionBuilder::new()
+            .set_hash(tx_hash)
+            .build();
+
+        self.set_rich_account(
+            tx.common_data.initiator_address,
+            U256::from(100u128 * 10u128.pow(18)),
+        );
+        let system_contracts = self
+            .system_contracts
+            .system_contracts_for_initiator(&self.impersonation, &tx.initiator_account());
+        let block_number = self
+            .seal_block(vec![tx.clone()], system_contracts)
+            .await
+            .expect("failed applying tx");
+
+        let block_hash = self
+            .blockchain_writer
+            .read()
+            .await
+            .get_block_hash_by_number(block_number)
+            .unwrap();
+
+        (block_hash, U64::from(block_number.0), tx)
+    }
+
+    pub async fn insert_block(&mut self, hash: H256, block: api::Block<TransactionVariant>) {
+        self.blockchain_writer
+            .write()
+            .await
+            .blocks
+            .insert(hash, block);
+    }
+
+    pub async fn insert_block_hash(&mut self, number: L2BlockNumber, hash: H256) {
+        self.blockchain_writer
+            .write()
+            .await
+            .hashes
+            .insert(number, hash);
+    }
+
+    pub async fn insert_tx_result(&mut self, hash: H256, tx_result: TransactionResult) {
+        self.blockchain_writer
+            .write()
+            .await
+            .tx_results
+            .insert(hash, tx_result);
+    }
+
+    pub fn insert_previous_state(&mut self, hash: H256, state: HashMap<StorageKey, StorageValue>) {
+        self.previous_states.insert(hash, state);
+    }
+
+    pub fn get_previous_state(&self, hash: H256) -> Option<HashMap<StorageKey, StorageValue>> {
+        self.previous_states.get(&hash).cloned()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::node::create_genesis;
+    use crate::node::fork::ForkStorage;
+    use crate::testing;
+    use crate::testing::{ExternalStorage, TransactionBuilder, STORAGE_CONTRACT_BYTECODE};
+    use anvil_zksync_config::constants::{
+        DEFAULT_ACCOUNT_BALANCE, DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
+        DEFAULT_ESTIMATE_GAS_SCALE_FACTOR, DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L2_GAS_PRICE,
+        TEST_NODE_NETWORK_ID,
+    };
+    use anvil_zksync_config::types::{CacheConfig, SystemContractsOptions};
+    use anvil_zksync_config::TestNodeConfig;
+    use ethabi::{ParamType, Token, Uint};
+    use itertools::Itertools;
+    use zksync_types::{utils::deployed_address_create, K256PrivateKey, Nonce};
+
+    async fn test_vm(
+        node: &mut InMemoryNodeInner,
+        system_contracts: BaseSystemContracts,
+    ) -> (
+        BlockContext,
+        L1BatchEnv,
+        Vm<StorageView<ForkStorage>, HistoryDisabled>,
+    ) {
+        let storage = StorageView::new(node.fork_storage.clone()).into_rc_ptr();
+        let system_env = node.create_system_env(system_contracts, TxExecutionMode::VerifyExecute);
+        let (batch_env, block_ctx) = node.create_l1_batch_env().await;
+        let vm: Vm<_, HistoryDisabled> = Vm::new(batch_env.clone(), system_env, storage);
+
+        (block_ctx, batch_env, vm)
+    }
+
+    /// Decodes a `bytes` tx result to its concrete parameter type.
+    fn decode_tx_result(output: &[u8], param_type: ParamType) -> Token {
+        let result = ethabi::decode(&[ParamType::Bytes], output).expect("failed decoding output");
+        if result.is_empty() {
+            panic!("result was empty");
+        }
+
+        let result_bytes = result[0]
+            .clone()
+            .into_bytes()
+            .expect("failed converting result to bytes");
+        let result =
+            ethabi::decode(&[param_type], &result_bytes).expect("failed converting output");
+        if result.is_empty() {
+            panic!("decoded result was empty");
+        }
+
+        result[0].clone()
+    }
+
+    #[tokio::test]
+    async fn test_run_l2_tx_validates_tx_gas_limit_too_high() {
+        let inner = InMemoryNodeInner::test();
+        let mut node = inner.write().await;
+        let tx = TransactionBuilder::new()
+            .set_gas_limit(U256::from(u64::MAX) + 1)
+            .build();
+        node.set_rich_account(tx.initiator_account(), U256::from(100u128 * 10u128.pow(18)));
+
+        let system_contracts = node
+            .system_contracts
+            .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
+        let (block_ctx, batch_env, mut vm) = test_vm(&mut *node, system_contracts).await;
+        let err = node
+            .run_l2_tx(tx, 0, &block_ctx, &batch_env, &mut vm)
+            .unwrap_err();
+        assert_eq!(err.to_string(), "exceeds block gas limit");
+    }
+
+    #[tokio::test]
+    async fn test_run_l2_tx_validates_tx_max_fee_per_gas_too_low() {
+        let inner = InMemoryNodeInner::test();
+        let mut node = inner.write().await;
+        let tx = TransactionBuilder::new()
+            .set_max_fee_per_gas(U256::from(DEFAULT_L2_GAS_PRICE - 1))
+            .build();
+        node.set_rich_account(tx.initiator_account(), U256::from(100u128 * 10u128.pow(18)));
+
+        let system_contracts = node
+            .system_contracts
+            .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
+        let (block_ctx, batch_env, mut vm) = test_vm(&mut *node, system_contracts).await;
+        let err = node
+            .run_l2_tx(tx, 0, &block_ctx, &batch_env, &mut vm)
+            .unwrap_err();
+
+        assert_eq!(
+            err.to_string(),
+            "block base fee higher than max fee per gas"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_l2_tx_validates_tx_max_priority_fee_per_gas_higher_than_max_fee_per_gas() {
+        let inner = InMemoryNodeInner::test();
+        let mut node = inner.write().await;
+        let tx = TransactionBuilder::new()
+            .set_max_priority_fee_per_gas(U256::from(250_000_000 + 1))
+            .build();
+        node.set_rich_account(tx.initiator_account(), U256::from(100u128 * 10u128.pow(18)));
+
+        let system_contracts = node
+            .system_contracts
+            .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
+        let (block_ctx, batch_env, mut vm) = test_vm(&mut *node, system_contracts).await;
+        let err = node
+            .run_l2_tx(tx, 0, &block_ctx, &batch_env, &mut vm)
+            .unwrap_err();
+
+        assert_eq!(
+            err.to_string(),
+            "max priority fee per gas higher than max fee per gas"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_create_genesis_creates_block_with_hash_and_zero_parent_hash() {
+        let first_block = create_genesis::<TransactionVariant>(Some(1000));
+
+        assert_eq!(first_block.hash, compute_hash(0, []));
+        assert_eq!(first_block.parent_hash, H256::zero());
+    }
+
+    #[tokio::test]
+    async fn test_run_l2_tx_raw_does_not_panic_on_external_storage_call() {
+        // Perform a transaction to get storage to an intermediate state
+        let inner = InMemoryNodeInner::test();
+        let mut node = inner.write().await;
+        let tx = TransactionBuilder::new().build();
+        node.set_rich_account(tx.initiator_account(), U256::from(100u128 * 10u128.pow(18)));
+
+        let system_contracts = node
+            .system_contracts
+            .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
+        node.seal_block(vec![tx], system_contracts).await.unwrap();
+        let external_storage = node.fork_storage.clone();
+
+        // Execute next transaction using a fresh in-memory node and the external fork storage
+        let mock_db = ExternalStorage {
+            raw_storage: external_storage.inner.read().unwrap().raw_storage.clone(),
+        };
+        let impersonation = ImpersonationManager::default();
+        let (node, _, _, _) = InMemoryNodeInner::init(
+            Some(ForkDetails {
+                fork_source: Box::new(mock_db),
+                chain_id: TEST_NODE_NETWORK_ID.into(),
+                l1_block: L1BatchNumber(1),
+                l2_block: api::Block::default(),
+                l2_miniblock: 2,
+                l2_miniblock_hash: Default::default(),
+                block_timestamp: 1002,
+                overwrite_chain_id: None,
+                l1_gas_price: 1000,
+                l2_fair_gas_price: DEFAULT_L2_GAS_PRICE,
+                fair_pubdata_price: DEFAULT_FAIR_PUBDATA_PRICE,
+                fee_params: None,
+                estimate_gas_price_scale_factor: DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
+                estimate_gas_scale_factor: DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
+                cache_config: CacheConfig::default(),
+            }),
+            TestNodeFeeInputProvider::default(),
+            Arc::new(RwLock::new(Default::default())),
+            TestNodeConfig::default(),
+            impersonation,
+            node.system_contracts.clone(),
+        );
+        let mut node = node.write().await;
+
+        let tx = TransactionBuilder::new().build();
+
+        let system_contracts = node
+            .system_contracts
+            .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
+        let (_, _, mut vm) = test_vm(&mut *node, system_contracts).await;
+        node.run_l2_tx_raw(tx, &mut vm)
+            .expect("transaction must pass with external storage");
+    }
+
+    #[tokio::test]
+    async fn test_transact_returns_data_in_built_in_without_security_mode() {
+        let inner = InMemoryNodeInner::test_config(TestNodeConfig {
+            system_contracts_options: SystemContractsOptions::BuiltInWithoutSecurity,
+            ..Default::default()
+        });
+        let mut node = inner.write().await;
+
+        let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(0xef)).unwrap();
+        let from_account = private_key.address();
+        node.set_rich_account(from_account, U256::from(DEFAULT_ACCOUNT_BALANCE));
+
+        let deployed_address = deployed_address_create(from_account, U256::zero());
+        node.deploy_contract(
+            H256::repeat_byte(0x1),
+            &private_key,
+            hex::decode(STORAGE_CONTRACT_BYTECODE).unwrap(),
+            None,
+            Nonce(0),
+        )
+        .await;
+
+        let mut tx = L2Tx::new_signed(
+            Some(deployed_address),
+            hex::decode("bbf55335").unwrap(), // keccak selector for "transact_retrieve1()"
+            Nonce(1),
+            Fee {
+                gas_limit: U256::from(4_000_000),
+                max_fee_per_gas: U256::from(250_000_000),
+                max_priority_fee_per_gas: U256::from(250_000_000),
+                gas_per_pubdata_limit: U256::from(50000),
+            },
+            U256::from(0),
+            zksync_types::L2ChainId::from(260),
+            &private_key,
+            vec![],
+            Default::default(),
+        )
+        .expect("failed signing tx");
+        tx.common_data.transaction_type = TransactionType::LegacyTransaction;
+        tx.set_input(vec![], H256::repeat_byte(0x2));
+
+        let system_contracts = node
+            .system_contracts
+            .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
+        let (_, _, mut vm) = test_vm(&mut *node, system_contracts).await;
+        let TxExecutionOutput { result, .. } = node.run_l2_tx_raw(tx, &mut vm).expect("failed tx");
+
+        match result.result {
+            ExecutionResult::Success { output } => {
+                let actual = decode_tx_result(&output, ethabi::ParamType::Uint(256));
+                let expected = Token::Uint(Uint::from(1024u64));
+                assert_eq!(expected, actual, "invalid result");
+            }
+            _ => panic!("invalid result {:?}", result.result),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_snapshot() {
+        let node = InMemoryNodeInner::test();
+        let mut writer = node.write().await;
+
+        {
+            let mut blockchain = writer.blockchain_writer.write().await;
+            blockchain
+                .blocks
+                .insert(H256::repeat_byte(0x1), Default::default());
+            blockchain
+                .hashes
+                .insert(L2BlockNumber(1), H256::repeat_byte(0x1));
+            blockchain.tx_results.insert(
+                H256::repeat_byte(0x1),
+                TransactionResult {
+                    info: testing::default_tx_execution_info(),
+                    receipt: Default::default(),
+                    debug: testing::default_tx_debug_info(),
+                },
+            );
+            blockchain.current_batch = L1BatchNumber(1);
+            blockchain.current_block = L2BlockNumber(1);
+            blockchain.current_block_hash = H256::repeat_byte(0x1);
+        }
+        writer.time_writer.set_current_timestamp_unchecked(1);
+        writer
+            .filters
+            .write()
+            .await
+            .add_block_filter()
+            .expect("failed adding block filter");
+        writer.impersonation.impersonate(H160::repeat_byte(0x1));
+        writer.rich_accounts.insert(H160::repeat_byte(0x1));
+        writer
+            .previous_states
+            .insert(H256::repeat_byte(0x1), Default::default());
+        writer.fork_storage.set_value(
+            StorageKey::new(AccountTreeId::new(H160::repeat_byte(0x1)), H256::zero()),
+            H256::repeat_byte(0x1),
+        );
+
+        let storage = writer.fork_storage.inner.read().unwrap();
+        let blockchain = writer.blockchain_writer.read().await;
+        let expected_snapshot = Snapshot {
+            current_batch: blockchain.current_batch,
+            current_block: blockchain.current_block,
+            current_block_hash: blockchain.current_block_hash,
+            fee_input_provider: writer.fee_input_provider.clone(),
+            tx_results: blockchain.tx_results.clone(),
+            blocks: blockchain.blocks.clone(),
+            hashes: blockchain.hashes.clone(),
+            filters: writer.filters.read().await.clone(),
+            impersonation_state: writer.impersonation.state(),
+            rich_accounts: writer.rich_accounts.clone(),
+            previous_states: writer.previous_states.clone(),
+            raw_storage: storage.raw_storage.clone(),
+            value_read_cache: storage.value_read_cache.clone(),
+            factory_dep_cache: storage.factory_dep_cache.clone(),
+        };
+        drop(blockchain);
+        let actual_snapshot = writer.snapshot().await.expect("failed taking snapshot");
+
+        assert_eq!(
+            expected_snapshot.current_batch,
+            actual_snapshot.current_batch
+        );
+        assert_eq!(
+            expected_snapshot.current_block,
+            actual_snapshot.current_block
+        );
+        assert_eq!(
+            expected_snapshot.current_block_hash,
+            actual_snapshot.current_block_hash
+        );
+        assert_eq!(
+            expected_snapshot.fee_input_provider,
+            actual_snapshot.fee_input_provider
+        );
+        assert_eq!(
+            expected_snapshot.tx_results.keys().collect_vec(),
+            actual_snapshot.tx_results.keys().collect_vec()
+        );
+        assert_eq!(expected_snapshot.blocks, actual_snapshot.blocks);
+        assert_eq!(expected_snapshot.hashes, actual_snapshot.hashes);
+        assert_eq!(expected_snapshot.filters, actual_snapshot.filters);
+        assert_eq!(
+            expected_snapshot.impersonation_state,
+            actual_snapshot.impersonation_state
+        );
+        assert_eq!(
+            expected_snapshot.rich_accounts,
+            actual_snapshot.rich_accounts
+        );
+        assert_eq!(
+            expected_snapshot.previous_states,
+            actual_snapshot.previous_states
+        );
+        assert_eq!(expected_snapshot.raw_storage, actual_snapshot.raw_storage);
+        assert_eq!(
+            expected_snapshot.value_read_cache,
+            actual_snapshot.value_read_cache
+        );
+        assert_eq!(
+            expected_snapshot.factory_dep_cache,
+            actual_snapshot.factory_dep_cache
+        );
+    }
+
+    #[tokio::test]
+    async fn test_snapshot_restore() {
+        let node = InMemoryNodeInner::test();
+        let mut writer = node.write().await;
+
+        {
+            let mut blockchain = writer.blockchain_writer.write().await;
+            blockchain
+                .blocks
+                .insert(H256::repeat_byte(0x1), Default::default());
+            blockchain
+                .hashes
+                .insert(L2BlockNumber(1), H256::repeat_byte(0x1));
+            blockchain.tx_results.insert(
+                H256::repeat_byte(0x1),
+                TransactionResult {
+                    info: testing::default_tx_execution_info(),
+                    receipt: Default::default(),
+                    debug: testing::default_tx_debug_info(),
+                },
+            );
+            blockchain.current_batch = L1BatchNumber(1);
+            blockchain.current_block = L2BlockNumber(1);
+            blockchain.current_block_hash = H256::repeat_byte(0x1);
+        }
+        writer.time_writer.set_current_timestamp_unchecked(1);
+        writer
+            .filters
+            .write()
+            .await
+            .add_block_filter()
+            .expect("failed adding block filter");
+        writer.impersonation.impersonate(H160::repeat_byte(0x1));
+        writer.rich_accounts.insert(H160::repeat_byte(0x1));
+        writer
+            .previous_states
+            .insert(H256::repeat_byte(0x1), Default::default());
+        writer.fork_storage.set_value(
+            StorageKey::new(AccountTreeId::new(H160::repeat_byte(0x1)), H256::zero()),
+            H256::repeat_byte(0x1),
+        );
+
+        let blockchain = writer.blockchain_writer.read().await;
+        let expected_snapshot = {
+            let storage = writer.fork_storage.inner.read().unwrap();
+            Snapshot {
+                current_batch: blockchain.current_batch,
+                current_block: blockchain.current_block,
+                current_block_hash: blockchain.current_block_hash,
+                fee_input_provider: writer.fee_input_provider.clone(),
+                tx_results: blockchain.tx_results.clone(),
+                blocks: blockchain.blocks.clone(),
+                hashes: blockchain.hashes.clone(),
+                filters: writer.filters.read().await.clone(),
+                impersonation_state: writer.impersonation.state(),
+                rich_accounts: writer.rich_accounts.clone(),
+                previous_states: writer.previous_states.clone(),
+                raw_storage: storage.raw_storage.clone(),
+                value_read_cache: storage.value_read_cache.clone(),
+                factory_dep_cache: storage.factory_dep_cache.clone(),
+            }
+        };
+        drop(blockchain);
+
+        // snapshot and modify node state
+        let snapshot = writer.snapshot().await.expect("failed taking snapshot");
+
+        {
+            let mut blockchain = writer.blockchain_writer.write().await;
+            blockchain
+                .blocks
+                .insert(H256::repeat_byte(0x2), Default::default());
+            blockchain
+                .hashes
+                .insert(L2BlockNumber(2), H256::repeat_byte(0x2));
+            blockchain.tx_results.insert(
+                H256::repeat_byte(0x2),
+                TransactionResult {
+                    info: testing::default_tx_execution_info(),
+                    receipt: Default::default(),
+                    debug: testing::default_tx_debug_info(),
+                },
+            );
+            blockchain.current_batch = L1BatchNumber(2);
+            blockchain.current_block = L2BlockNumber(2);
+            blockchain.current_block_hash = H256::repeat_byte(0x2);
+        }
+        writer.time_writer.set_current_timestamp_unchecked(2);
+        writer
+            .filters
+            .write()
+            .await
+            .add_pending_transaction_filter()
+            .expect("failed adding pending transaction filter");
+        writer.impersonation.impersonate(H160::repeat_byte(0x2));
+        writer.rich_accounts.insert(H160::repeat_byte(0x2));
+        writer
+            .previous_states
+            .insert(H256::repeat_byte(0x2), Default::default());
+        writer.fork_storage.set_value(
+            StorageKey::new(AccountTreeId::new(H160::repeat_byte(0x2)), H256::zero()),
+            H256::repeat_byte(0x2),
+        );
+
+        // restore
+        writer
+            .restore_snapshot(snapshot)
+            .await
+            .expect("failed restoring snapshot");
+
+        let storage = writer.fork_storage.inner.read().unwrap();
+        let blockchain = writer.blockchain_writer.read().await;
+        assert_eq!(expected_snapshot.current_batch, blockchain.current_batch);
+        assert_eq!(expected_snapshot.current_block, blockchain.current_block);
+        assert_eq!(
+            expected_snapshot.current_block_hash,
+            blockchain.current_block_hash
+        );
+
+        assert_eq!(
+            expected_snapshot.fee_input_provider,
+            writer.fee_input_provider
+        );
+        assert_eq!(
+            expected_snapshot.tx_results.keys().collect_vec(),
+            blockchain.tx_results.keys().collect_vec()
+        );
+        assert_eq!(expected_snapshot.blocks, blockchain.blocks);
+        assert_eq!(expected_snapshot.hashes, blockchain.hashes);
+        assert_eq!(expected_snapshot.filters, *writer.filters.read().await);
+        assert_eq!(
+            expected_snapshot.impersonation_state,
+            writer.impersonation.state()
+        );
+        assert_eq!(expected_snapshot.rich_accounts, writer.rich_accounts);
+        assert_eq!(expected_snapshot.previous_states, writer.previous_states);
+        assert_eq!(expected_snapshot.raw_storage, storage.raw_storage);
+        assert_eq!(expected_snapshot.value_read_cache, storage.value_read_cache);
+        assert_eq!(
+            expected_snapshot.factory_dep_cache,
+            storage.factory_dep_cache
+        );
+    }
 }

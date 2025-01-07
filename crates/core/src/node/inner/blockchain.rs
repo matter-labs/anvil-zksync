@@ -69,8 +69,16 @@ impl BlockchainReader {
         )
     }
 
+    pub async fn current_batch(&self) -> L1BatchNumber {
+        self.inner.read().await.current_batch
+    }
+
     pub async fn current_block_number(&self) -> L2BlockNumber {
         self.inner.read().await.current_block
+    }
+
+    pub async fn current_block_hash(&self) -> H256 {
+        self.inner.read().await.current_block_hash
     }
 
     pub async fn get_block_by_hash(

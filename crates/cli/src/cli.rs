@@ -607,9 +607,7 @@ mod tests {
     use crate::cli::PeriodicStateDumper;
 
     use super::Cli;
-    use anvil_zksync_core::node::{
-        BlockSealer, BlockSealerMode, ImpersonationManager, InMemoryNode, TimestampManager, TxPool,
-    };
+    use anvil_zksync_core::node::InMemoryNode;
     use clap::Parser;
     use serde_json::Value;
     use std::{
@@ -674,17 +672,9 @@ mod tests {
             ..Default::default()
         };
 
-        let node = InMemoryNode::new(
-            None,
-            None,
-            &config,
-            TimestampManager::default(),
-            ImpersonationManager::default(),
-            TxPool::new(ImpersonationManager::default(), config.transaction_order),
-            BlockSealer::new(BlockSealerMode::noop()),
-        );
+        let node = InMemoryNode::test_config(None, config.clone());
         let test_address = zksync_types::H160::random();
-        node.set_rich_account(test_address, 1000000u64.into());
+        node.set_rich_account(test_address, 1000000u64.into()).await;
 
         let mut state_dumper = PeriodicStateDumper::new(
             node.clone(),

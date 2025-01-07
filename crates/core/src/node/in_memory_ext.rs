@@ -32,7 +32,7 @@ impl InMemoryNode {
     /// The applied time delta to `current_timestamp` value for the InMemoryNodeInner.
     pub async fn increase_time(&self, time_delta_seconds: u64) -> Result<u64> {
         self.block_producer_handle
-            .increase_time(time_delta_seconds)
+            .increase_time_sync(time_delta_seconds)
             .await?;
         Ok(time_delta_seconds)
     }
@@ -471,26 +471,22 @@ impl InMemoryNode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fork::ForkStorage;
-    use crate::node::time::{ReadTime, TimestampManager};
+    use crate::node::time::ReadTime;
     use crate::node::InMemoryNode;
-    use crate::node::{BlockSealer, ImpersonationManager, InMemoryNodeInner, Snapshot, TxPool};
-    use anvil_zksync_types::TransactionOrder;
     use std::str::FromStr;
-    use std::sync::{Arc, RwLock};
     use zksync_multivm::interface::storage::ReadStorage;
-    use zksync_types::{api::BlockNumber, fee::Fee, l2::L2Tx, PackedEthSignature};
+    use zksync_types::{api, fee::Fee, l2::L2Tx, L1BatchNumber, PackedEthSignature};
     use zksync_types::{L2ChainId, Nonce, H256};
     use zksync_utils::h256_to_u256;
 
     #[tokio::test]
     async fn test_set_balance() {
         let address = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap();
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let balance_before = node.get_balance_impl(address, None).await.unwrap();
 
-        let result = node.set_balance(address, U256::from(1337)).unwrap();
+        let result = node.set_balance(address, U256::from(1337)).await;
         assert!(result);
 
         let balance_after = node.get_balance_impl(address, None).await.unwrap();
@@ -501,14 +497,14 @@ mod tests {
     #[tokio::test]
     async fn test_set_nonce() {
         let address = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap();
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let nonce_before = node
             .get_transaction_count_impl(address, None)
             .await
             .unwrap();
 
-        let result = node.set_nonce(address, U256::from(1337)).unwrap();
+        let result = node.set_nonce(address, U256::from(1337)).await;
         assert!(result);
 
         let nonce_after = node
@@ -518,7 +514,7 @@ mod tests {
         assert_eq!(nonce_after, U256::from(1337));
         assert_ne!(nonce_before, nonce_after);
 
-        let result = node.set_nonce(address, U256::from(1336)).unwrap();
+        let result = node.set_nonce(address, U256::from(1336)).await;
         assert!(result);
 
         let nonce_after = node
@@ -530,29 +526,29 @@ mod tests {
 
     #[tokio::test]
     async fn test_mine_blocks_default() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let start_block = node
-            .get_block_by_number_impl(zksync_types::api::BlockNumber::Latest, false)
+            .get_block_impl(api::BlockId::Number(api::BlockNumber::Latest), false)
             .await
             .unwrap()
             .expect("block exists");
 
         // test with defaults
-        node.mine_blocks(None, None).expect("mine_blocks");
+        node.mine_blocks(None, None).await.expect("mine_blocks");
 
         let current_block = node
-            .get_block_by_number_impl(zksync_types::api::BlockNumber::Latest, false)
+            .get_block_impl(api::BlockId::Number(api::BlockNumber::Latest), false)
             .await
             .unwrap()
             .expect("block exists");
 
         assert_eq!(start_block.number + 1, current_block.number);
         assert_eq!(start_block.timestamp + 1, current_block.timestamp);
-        node.mine_blocks(None, None).expect("mine_blocks");
+        node.mine_blocks(None, None).await.expect("mine_blocks");
 
         let current_block = node
-            .get_block_by_number_impl(zksync_types::api::BlockNumber::Latest, false)
+            .get_block_impl(api::BlockId::Number(api::BlockNumber::Latest), false)
             .await
             .unwrap()
             .expect("block exists");
@@ -563,10 +559,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_mine_blocks() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let start_block = node
-            .get_block_by_number_impl(zksync_types::api::BlockNumber::Latest, false)
+            .get_block_impl(api::BlockId::Number(api::BlockNumber::Latest), false)
             .await
             .unwrap()
             .expect("block exists");
@@ -576,11 +572,15 @@ mod tests {
         let start_timestamp = start_block.timestamp + 1;
 
         node.mine_blocks(Some(U64::from(num_blocks)), Some(U64::from(interval)))
+            .await
             .expect("mine blocks");
 
         for i in 0..num_blocks {
             let current_block = node
-                .get_block_by_number_impl(BlockNumber::Number(start_block.number + i + 1), false)
+                .get_block_impl(
+                    api::BlockId::Number(api::BlockNumber::Number(start_block.number + i + 1)),
+                    false,
+                )
                 .await
                 .unwrap()
                 .expect("block exists");
@@ -591,53 +591,26 @@ mod tests {
 
     #[tokio::test]
     async fn test_reset() {
-        let old_snapshots = Arc::new(RwLock::new(vec![Snapshot::default()]));
-        let old_system_contracts_options = Default::default();
-        let time = TimestampManager::new(123);
-        let impersonation = ImpersonationManager::default();
-        let old_inner = InMemoryNodeInner {
-            current_batch: 100,
-            current_miniblock: 300,
-            current_miniblock_hash: H256::random(),
-            fee_input_provider: Default::default(),
-            tx_results: Default::default(),
-            blocks: Default::default(),
-            block_hashes: Default::default(),
-            filters: Default::default(),
-            fork_storage: ForkStorage::new(None, &old_system_contracts_options, false, None),
-            config: Default::default(),
-            console_log_handler: Default::default(),
-            system_contracts: Default::default(),
-            impersonation: impersonation.clone(),
-            rich_accounts: Default::default(),
-            previous_states: Default::default(),
-        };
-        let pool = TxPool::new(impersonation.clone(), TransactionOrder::Fifo);
-        let sealer = BlockSealer::new(BlockSealerMode::immediate(1000, pool.add_tx_listener()));
-
-        let node = InMemoryNode {
-            inner: Arc::new(RwLock::new(old_inner)),
-            snapshots: old_snapshots,
-            system_contracts_options: old_system_contracts_options,
-            time,
-            impersonation,
-            observability: None,
-            pool,
-            sealer,
-            system_contracts: Default::default(),
-        };
+        let node = InMemoryNode::test(None);
+        // Seal a few blocks to create non-trivial local state
+        for _ in 0..10 {
+            node.block_producer_handle
+                .seal_block_sync(TxBatch {
+                    impersonating: false,
+                    txs: vec![],
+                })
+                .await
+                .unwrap();
+        }
 
         let address = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap();
         let nonce_before = node
             .get_transaction_count_impl(address, None)
             .await
             .unwrap();
+        assert!(node.set_nonce(address, U256::from(1337)).await);
 
-        let set_result = node.set_nonce(address, U256::from(1337)).unwrap();
-        assert!(set_result);
-
-        let reset_result = node.reset_network(None).unwrap();
-        assert!(reset_result);
+        assert!(node.reset_network(None).await.unwrap());
 
         let nonce_after = node
             .get_transaction_count_impl(address, None)
@@ -645,23 +618,24 @@ mod tests {
             .unwrap();
         assert_eq!(nonce_before, nonce_after);
 
-        assert_eq!(node.snapshots.read().unwrap().len(), 0);
-
-        let inner = node.inner.read().unwrap();
+        assert_eq!(node.snapshots.read().await.len(), 0);
         assert_eq!(node.time.current_timestamp(), 1000);
-        assert_eq!(inner.current_batch, 0);
-        assert_eq!(inner.current_miniblock, 0);
-        assert_ne!(inner.current_miniblock_hash, H256::random());
+        assert_eq!(node.blockchain.current_batch().await, L1BatchNumber(0));
+        assert_eq!(
+            node.blockchain.current_block_number().await,
+            L2BlockNumber(0)
+        );
+        assert_ne!(node.blockchain.current_block_hash().await, H256::random());
     }
 
     #[tokio::test]
     async fn test_impersonate_account() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
         let to_impersonate =
             Address::from_str("0xd8da6bf26964af9d7eed9e03e53415d37aa96045").unwrap();
 
         // give impersonated account some balance
-        let result = node.set_balance(to_impersonate, U256::exp10(18)).unwrap();
+        let result = node.set_balance(to_impersonate, U256::exp10(18)).await;
         assert!(result);
 
         // construct a tx
@@ -686,7 +660,7 @@ mod tests {
         }
 
         // try to execute the tx- should fail without signature
-        assert!(node.apply_txs(vec![tx.clone()], 1).is_err());
+        assert!(node.apply_txs(vec![tx.clone()], 1).await.is_err());
 
         // impersonate the account
         let result = node
@@ -703,7 +677,7 @@ mod tests {
         assert!(!result);
 
         // execution should now succeed
-        assert!(node.apply_txs(vec![tx.clone()], 1).is_ok());
+        assert!(node.apply_txs(vec![tx.clone()], 1).await.is_ok());
 
         // stop impersonating the account
         let result = node
@@ -720,13 +694,13 @@ mod tests {
         assert!(!result);
 
         // execution should now fail again
-        assert!(node.apply_txs(vec![tx], 1).is_err());
+        assert!(node.apply_txs(vec![tx], 1).await.is_err());
     }
 
     #[tokio::test]
     async fn test_set_code() {
         let address = Address::repeat_byte(0x1);
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
         let new_code = vec![0x1u8; 32];
 
         let code_before = node
@@ -737,6 +711,7 @@ mod tests {
         assert_eq!(Vec::<u8>::default(), code_before);
 
         node.set_code(address, format!("0x{}", hex::encode(new_code.clone())))
+            .await
             .expect("failed setting code");
 
         let code_after = node
@@ -749,27 +724,25 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_storage_at() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
         let address = Address::repeat_byte(0x1);
         let slot = U256::from(37);
         let value = U256::from(42);
 
         let key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(slot));
-        let value_before = node.write_inner().unwrap().fork_storage.read_value(&key);
+        let value_before = node.inner.write().await.fork_storage.read_value(&key);
         assert_eq!(H256::default(), value_before);
 
-        let result = node
-            .set_storage_at(address, slot, value)
-            .expect("failed setting value");
+        let result = node.set_storage_at(address, slot, value).await;
         assert!(result);
 
-        let value_after = node.write_inner().unwrap().fork_storage.read_value(&key);
+        let value_after = node.inner.write().await.fork_storage.read_value(&key);
         assert_eq!(value, h256_to_u256(value_after));
     }
 
     #[tokio::test]
     async fn test_increase_time_zero_value() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let increase_value_seconds = 0u64;
         let timestamp_before = node.time.current_timestamp();
@@ -777,6 +750,7 @@ mod tests {
 
         let actual_response = node
             .increase_time(increase_value_seconds.into())
+            .await
             .expect("failed increasing timestamp");
         let timestamp_after = node.time.current_timestamp();
 
@@ -790,7 +764,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_increase_time_max_value() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let increase_value_seconds = u64::MAX;
         let timestamp_before = node.time.current_timestamp();
@@ -799,6 +773,7 @@ mod tests {
 
         let actual_response = node
             .increase_time(increase_value_seconds.into())
+            .await
             .expect("failed increasing timestamp");
         let timestamp_after = node.time.current_timestamp();
 
@@ -810,9 +785,9 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
     async fn test_increase_time() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let increase_value_seconds = 100u64;
         let timestamp_before = node.time.current_timestamp();
@@ -820,6 +795,7 @@ mod tests {
 
         let actual_response = node
             .increase_time(increase_value_seconds.into())
+            .await
             .expect("failed increasing timestamp");
         let timestamp_after = node.time.current_timestamp();
 
@@ -833,7 +809,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_next_block_timestamp_future() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let new_timestamp = 10_000u64;
         let timestamp_before = node.time.current_timestamp();
@@ -843,8 +819,9 @@ mod tests {
         );
 
         node.set_next_block_timestamp(new_timestamp.into())
+            .await
             .expect("failed setting timestamp");
-        node.mine_block().expect("failed to mine a block");
+        node.mine_block().await.expect("failed to mine a block");
         let timestamp_after = node.time.current_timestamp();
 
         assert_eq!(
@@ -855,30 +832,31 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_next_block_timestamp_past_fails() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let timestamp_before = node.time.current_timestamp();
 
         let new_timestamp = timestamp_before + 500;
         node.set_next_block_timestamp(new_timestamp.into())
+            .await
             .expect("failed setting timestamp");
 
-        node.mine_block().expect("failed to mine a block");
+        node.mine_block().await.expect("failed to mine a block");
 
-        let result = node.set_next_block_timestamp(timestamp_before.into());
+        let result = node.set_next_block_timestamp(timestamp_before.into()).await;
 
         assert!(result.is_err(), "expected an error for timestamp in past");
     }
 
     #[tokio::test]
     async fn test_set_next_block_timestamp_same_value() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let new_timestamp = 1000u64;
         let timestamp_before = node.time.current_timestamp();
         assert_eq!(timestamp_before, new_timestamp, "timestamps must be same");
 
-        let response = node.set_next_block_timestamp(new_timestamp.into());
+        let response = node.set_next_block_timestamp(new_timestamp.into()).await;
         assert!(response.is_err());
 
         let timestamp_after = node.time.current_timestamp();
@@ -890,7 +868,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_time_future() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let new_time = 10_000u64;
         let timestamp_before = node.time.current_timestamp();
@@ -899,6 +877,7 @@ mod tests {
 
         let actual_response = node
             .set_time(new_time.into())
+            .await
             .expect("failed setting timestamp");
         let timestamp_after = node.time.current_timestamp();
 
@@ -908,7 +887,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_time_past() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let new_time = 10u64;
         let timestamp_before = node.time.current_timestamp();
@@ -917,6 +896,7 @@ mod tests {
 
         let actual_response = node
             .set_time(new_time.into())
+            .await
             .expect("failed setting timestamp");
         let timestamp_after = node.time.current_timestamp();
 
@@ -926,7 +906,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_time_same_value() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let new_time = 1000u64;
         let timestamp_before = node.time.current_timestamp();
@@ -935,6 +915,7 @@ mod tests {
 
         let actual_response = node
             .set_time(new_time.into())
+            .await
             .expect("failed setting timestamp");
         let timestamp_after = node.time.current_timestamp();
 
@@ -947,7 +928,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_time_edges() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         for new_time in [0, u64::MAX] {
             let timestamp_before = node.time.current_timestamp();
@@ -959,6 +940,7 @@ mod tests {
 
             let actual_response = node
                 .set_time(new_time.into())
+                .await
                 .expect("failed setting timestamp");
             let timestamp_after = node.time.current_timestamp();
 
@@ -975,18 +957,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_mine_block() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let start_block = node
-            .get_block_by_number_impl(zksync_types::api::BlockNumber::Latest, false)
+            .get_block_impl(api::BlockId::Number(api::BlockNumber::Latest), false)
             .await
             .unwrap()
             .expect("block exists");
-        let result = node.mine_block().expect("mine_block");
+        let result = node.mine_block().await.expect("mine_block");
         assert_eq!(result, L2BlockNumber(1));
 
         let current_block = node
-            .get_block_by_number_impl(zksync_types::api::BlockNumber::Latest, false)
+            .get_block_impl(api::BlockId::Number(api::BlockNumber::Latest), false)
             .await
             .unwrap()
             .expect("block exists");
@@ -994,11 +976,11 @@ mod tests {
         assert_eq!(start_block.number + 1, current_block.number);
         assert_eq!(start_block.timestamp + 1, current_block.timestamp);
 
-        let result = node.mine_block().expect("mine_block");
+        let result = node.mine_block().await.expect("mine_block");
         assert_eq!(result, L2BlockNumber(start_block.number.as_u32() + 2));
 
         let current_block = node
-            .get_block_by_number_impl(BlockNumber::Latest, false)
+            .get_block_impl(api::BlockId::Number(api::BlockNumber::Latest), false)
             .await
             .unwrap()
             .expect("block exists");
@@ -1009,10 +991,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_evm_snapshot_creates_incrementing_ids() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
-        let snapshot_id_1 = node.snapshot().expect("failed creating snapshot 1");
-        let snapshot_id_2 = node.snapshot().expect("failed creating snapshot 2");
+        let snapshot_id_1 = node.snapshot().await.expect("failed creating snapshot 1");
+        let snapshot_id_2 = node.snapshot().await.expect("failed creating snapshot 2");
 
         assert_eq!(snapshot_id_1, U64::from(1));
         assert_eq!(snapshot_id_2, U64::from(2));
@@ -1020,14 +1002,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_evm_revert_snapshot_restores_state() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let initial_block = node
             .get_block_number_impl()
             .await
             .expect("failed fetching block number");
-        let snapshot_id = node.snapshot().expect("failed creating snapshot");
-        node.mine_block().expect("mine_block");
+        let snapshot_id = node.snapshot().await.expect("failed creating snapshot");
+        node.mine_block().await.expect("mine_block");
         let current_block = node
             .get_block_number_impl()
             .await
@@ -1036,6 +1018,7 @@ mod tests {
 
         let reverted = node
             .revert_snapshot(snapshot_id)
+            .await
             .expect("failed reverting snapshot");
         assert!(reverted);
 
@@ -1048,37 +1031,38 @@ mod tests {
 
     #[tokio::test]
     async fn test_evm_revert_snapshot_removes_all_snapshots_following_the_reverted_one() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
-        let _snapshot_id_1 = node.snapshot().expect("failed creating snapshot");
-        let snapshot_id_2 = node.snapshot().expect("failed creating snapshot");
-        let _snapshot_id_3 = node.snapshot().expect("failed creating snapshot");
-        assert_eq!(3, node.snapshots.read().unwrap().len());
+        let _snapshot_id_1 = node.snapshot().await.expect("failed creating snapshot");
+        let snapshot_id_2 = node.snapshot().await.expect("failed creating snapshot");
+        let _snapshot_id_3 = node.snapshot().await.expect("failed creating snapshot");
+        assert_eq!(3, node.snapshots.read().await.len());
 
         let reverted = node
             .revert_snapshot(snapshot_id_2)
+            .await
             .expect("failed reverting snapshot");
         assert!(reverted);
 
-        assert_eq!(1, node.snapshots.read().unwrap().len());
+        assert_eq!(1, node.snapshots.read().await.len());
     }
 
     #[tokio::test]
     async fn test_evm_revert_snapshot_fails_for_invalid_snapshot_id() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
-        let result = node.revert_snapshot(U64::from(100));
+        let result = node.revert_snapshot(U64::from(100)).await;
         assert!(result.is_err());
     }
 
     #[tokio::test]
     async fn test_node_set_chain_id() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
         let new_chain_id = 261;
 
-        let _ = node.set_chain_id(new_chain_id);
+        let _ = node.set_chain_id(new_chain_id).await;
 
-        let node_inner = node.inner.read().unwrap();
+        let node_inner = node.inner.read().await;
         assert_eq!(new_chain_id, node_inner.config.chain_id.unwrap());
         assert_eq!(
             L2ChainId::from(new_chain_id),

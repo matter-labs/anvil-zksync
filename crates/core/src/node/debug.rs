@@ -8,10 +8,6 @@ use zksync_multivm::interface::{VmFactory, VmInterface};
 use zksync_multivm::tracers::CallTracer;
 use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use zksync_multivm::vm_latest::{HistoryDisabled, ToTracerPointer, Vm};
-use zksync_types::api::{
-    BlockId, BlockNumber, CallTracerBlockResult, CallTracerResult, ResultDebugCall, TracerConfig,
-    TransactionVariant,
-};
 use zksync_types::l2::L2Tx;
 use zksync_types::transaction_request::CallRequest;
 use zksync_types::{api, PackedEthSignature, Transaction, H256};
@@ -21,8 +17,8 @@ impl InMemoryNode {
     pub async fn trace_block_impl(
         &self,
         block_id: api::BlockId,
-        options: Option<TracerConfig>,
-    ) -> anyhow::Result<CallTracerBlockResult> {
+        options: Option<api::TracerConfig>,
+    ) -> anyhow::Result<api::CallTracerBlockResult> {
         let only_top = options.is_some_and(|o| o.tracer_config.only_top_call);
         let tx_hashes = self
             .blockchain
@@ -31,8 +27,8 @@ impl InMemoryNode {
                     .transactions
                     .iter()
                     .map(|tx| match tx {
-                        TransactionVariant::Full(tx) => tx.hash,
-                        TransactionVariant::Hash(hash) => *hash,
+                        api::TransactionVariant::Full(tx) => tx.hash,
+                        api::TransactionVariant::Hash(hash) => *hash,
                     })
                     .collect_vec()
             })
@@ -49,22 +45,23 @@ impl InMemoryNode {
                         "Unexpectedly transaction (hash={tx_hash}) belongs to a block but could not be found"
                     )
                 })?;
-            debug_calls.push(ResultDebugCall { result });
+            debug_calls.push(api::ResultDebugCall { result });
         }
 
-        Ok(CallTracerBlockResult::CallTrace(debug_calls))
+        Ok(api::CallTracerBlockResult::CallTrace(debug_calls))
     }
 
     pub async fn trace_call_impl(
         &self,
         request: CallRequest,
-        block: Option<BlockId>,
-        options: Option<TracerConfig>,
-    ) -> Result<CallTracerResult, Web3Error> {
+        block: Option<api::BlockId>,
+        options: Option<api::TracerConfig>,
+    ) -> Result<api::CallTracerResult, Web3Error> {
         let only_top = options.is_some_and(|o| o.tracer_config.only_top_call);
         let inner = self.inner.read().await;
         let system_contracts = self.system_contracts.contracts_for_l2_call();
-        if block.is_some() && !matches!(block, Some(BlockId::Number(BlockNumber::Latest))) {
+        if block.is_some() && !matches!(block, Some(api::BlockId::Number(api::BlockNumber::Latest)))
+        {
             return Err(Web3Error::InternalError(anyhow::anyhow!(
                 "tracing only supported at `latest` block"
             )));
@@ -115,20 +112,20 @@ impl InMemoryNode {
 
         let debug = create_debug_output(&l2_tx, &tx_result, call_traces)?;
 
-        Ok(CallTracerResult::CallTrace(debug))
+        Ok(api::CallTracerResult::CallTrace(debug))
     }
 
     pub async fn trace_transaction_impl(
         &self,
         tx_hash: H256,
-        options: Option<TracerConfig>,
-    ) -> anyhow::Result<Option<CallTracerResult>> {
+        options: Option<api::TracerConfig>,
+    ) -> anyhow::Result<Option<api::CallTracerResult>> {
         let only_top = options.is_some_and(|o| o.tracer_config.only_top_call);
         Ok(self
             .blockchain
             .get_tx_debug_info(&tx_hash, only_top)
             .await
-            .map(CallTracerResult::CallTrace))
+            .map(api::CallTracerResult::CallTrace))
     }
 }
 
@@ -137,10 +134,8 @@ mod tests {
     use anvil_zksync_config::constants::DEFAULT_ACCOUNT_BALANCE;
     use ethers::abi::{short_signature, AbiEncode, HumanReadableParser, ParamType, Token};
     use zksync_types::{
-        api::{Block, CallTracerConfig, SupportedTracers, TransactionReceipt},
-        transaction_request::CallRequestBuilder,
-        utils::deployed_address_create,
-        Address, K256PrivateKey, Nonce, H160, U256,
+        transaction_request::CallRequestBuilder, utils::deployed_address_create, Address,
+        K256PrivateKey, L2BlockNumber, Nonce, H160, U256,
     };
 
     use super::*;
@@ -150,10 +145,11 @@ mod tests {
         testing::{self, LogBuilder},
     };
 
-    fn deploy_test_contracts(node: &InMemoryNode) -> (Address, Address) {
+    async fn deploy_test_contracts(node: &InMemoryNode) -> (Address, Address) {
         let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(0xee)).unwrap();
         let from_account = private_key.address();
-        node.set_rich_account(from_account, U256::from(DEFAULT_ACCOUNT_BALANCE));
+        node.set_rich_account(from_account, U256::from(DEFAULT_ACCOUNT_BALANCE))
+            .await;
 
         // first, deploy secondary contract
         let secondary_bytecode = bytecode_from_slice(
@@ -168,7 +164,8 @@ mod tests {
             secondary_bytecode,
             Some((U256::from(2),).encode()),
             Nonce(0),
-        );
+        )
+        .await;
 
         // deploy primary contract using the secondary contract address as a constructor parameter
         let primary_bytecode = bytecode_from_slice(
@@ -183,15 +180,17 @@ mod tests {
             primary_bytecode,
             Some((secondary_deployed_address).encode()),
             Nonce(1),
-        );
+        )
+        .await;
         (primary_deployed_address, secondary_deployed_address)
     }
 
     #[tokio::test]
     async fn test_trace_deployed_contract() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
-        let (primary_deployed_address, secondary_deployed_address) = deploy_test_contracts(&node);
+        let (primary_deployed_address, secondary_deployed_address) =
+            deploy_test_contracts(&node).await;
         // trace a call to the primary contract
         let func = HumanReadableParser::parse_function("calculate(uint)").unwrap();
         let calldata = func.encode_input(&[Token::Uint(U256::from(42))]).unwrap();
@@ -239,9 +238,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_trace_only_top() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
-        let (primary_deployed_address, _) = deploy_test_contracts(&node);
+        let (primary_deployed_address, _) = deploy_test_contracts(&node).await;
 
         // trace a call to the primary contract
         let func = HumanReadableParser::parse_function("calculate(uint)").unwrap();
@@ -257,9 +256,9 @@ mod tests {
             .trace_call_impl(
                 request,
                 None,
-                Some(TracerConfig {
-                    tracer: SupportedTracers::CallTracer,
-                    tracer_config: CallTracerConfig {
+                Some(api::TracerConfig {
+                    tracer: api::SupportedTracers::CallTracer,
+                    tracer_config: api::CallTracerConfig {
                         only_top_call: true,
                     },
                 }),
@@ -277,9 +276,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_trace_reverts() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
-        let (primary_deployed_address, _) = deploy_test_contracts(&node);
+        let (primary_deployed_address, _) = deploy_test_contracts(&node).await;
 
         // trace a call to the primary contract
         let request = CallRequestBuilder::default()
@@ -313,23 +312,24 @@ mod tests {
 
     #[tokio::test]
     async fn test_trace_transaction_impl() {
-        let node = InMemoryNode::default();
-        let inner = node.get_inner();
+        let node = InMemoryNode::test(None);
         {
-            let mut writer = inner.write().unwrap();
-            writer.tx_results.insert(
-                H256::repeat_byte(0x1),
-                TransactionResult {
-                    info: testing::default_tx_execution_info(),
-                    receipt: TransactionReceipt {
-                        logs: vec![LogBuilder::new()
-                            .set_address(H160::repeat_byte(0xa1))
-                            .build()],
-                        ..Default::default()
+            let mut writer = node.inner.write().await;
+            writer
+                .insert_tx_result(
+                    H256::repeat_byte(0x1),
+                    TransactionResult {
+                        info: testing::default_tx_execution_info(),
+                        receipt: api::TransactionReceipt {
+                            logs: vec![LogBuilder::new()
+                                .set_address(H160::repeat_byte(0xa1))
+                                .build()],
+                            ..Default::default()
+                        },
+                        debug: testing::default_tx_debug_info(),
                     },
-                    debug: testing::default_tx_debug_info(),
-                },
-            );
+                )
+                .await;
         }
         let result = node
             .trace_transaction_impl(H256::repeat_byte(0x1), None)
@@ -342,15 +342,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_trace_transaction_only_top() {
-        let node = InMemoryNode::default();
-        let inner = node.get_inner();
-        {
-            let mut writer = inner.write().unwrap();
-            writer.tx_results.insert(
+        let node = InMemoryNode::test(None);
+        node.inner
+            .write()
+            .await
+            .insert_tx_result(
                 H256::repeat_byte(0x1),
                 TransactionResult {
                     info: testing::default_tx_execution_info(),
-                    receipt: TransactionReceipt {
+                    receipt: api::TransactionReceipt {
                         logs: vec![LogBuilder::new()
                             .set_address(H160::repeat_byte(0xa1))
                             .build()],
@@ -358,14 +358,14 @@ mod tests {
                     },
                     debug: testing::default_tx_debug_info(),
                 },
-            );
-        }
+            )
+            .await;
         let result = node
             .trace_transaction_impl(
                 H256::repeat_byte(0x1),
-                Some(TracerConfig {
-                    tracer: SupportedTracers::CallTracer,
-                    tracer_config: CallTracerConfig {
+                Some(api::TracerConfig {
+                    tracer: api::SupportedTracers::CallTracer,
+                    tracer_config: api::CallTracerConfig {
                         only_top_call: true,
                     },
                 }),
@@ -379,7 +379,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_trace_transaction_not_found() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
         let result = node
             .trace_transaction_impl(H256::repeat_byte(0x1), None)
             .await
@@ -389,15 +389,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_trace_block_by_hash_empty() {
-        let node = InMemoryNode::default();
-        let inner = node.get_inner();
-        {
-            let mut writer = inner.write().unwrap();
-            let block = Block::<TransactionVariant>::default();
-            writer.blocks.insert(H256::repeat_byte(0x1), block);
-        }
+        let node = InMemoryNode::test(None);
+        let block = api::Block::<api::TransactionVariant>::default();
+        node.inner
+            .write()
+            .await
+            .insert_block(H256::repeat_byte(0x1), block)
+            .await;
         let result = node
-            .trace_block_by_hash_impl(H256::repeat_byte(0x1), None)
+            .trace_block_impl(api::BlockId::Hash(H256::repeat_byte(0x1)), None)
             .await
             .unwrap()
             .unwrap_default();
@@ -406,26 +406,27 @@ mod tests {
 
     #[tokio::test]
     async fn test_trace_block_by_hash_impl() {
-        let node = InMemoryNode::default();
-        let inner = node.get_inner();
+        let node = InMemoryNode::test(None);
+        let tx = api::Transaction::default();
+        let tx_hash = tx.hash;
+        let mut block = api::Block::<api::TransactionVariant>::default();
+        block.transactions.push(api::TransactionVariant::Full(tx));
         {
-            let mut writer = inner.write().unwrap();
-            let tx = zksync_types::api::Transaction::default();
-            let tx_hash = tx.hash;
-            let mut block = Block::<TransactionVariant>::default();
-            block.transactions.push(TransactionVariant::Full(tx));
-            writer.blocks.insert(H256::repeat_byte(0x1), block);
-            writer.tx_results.insert(
-                tx_hash,
-                TransactionResult {
-                    info: testing::default_tx_execution_info(),
-                    receipt: TransactionReceipt::default(),
-                    debug: testing::default_tx_debug_info(),
-                },
-            );
+            let mut writer = node.inner.write().await;
+            writer.insert_block(H256::repeat_byte(0x1), block).await;
+            writer
+                .insert_tx_result(
+                    tx_hash,
+                    TransactionResult {
+                        info: testing::default_tx_execution_info(),
+                        receipt: api::TransactionReceipt::default(),
+                        debug: testing::default_tx_debug_info(),
+                    },
+                )
+                .await;
         }
         let result = node
-            .trace_block_by_hash_impl(H256::repeat_byte(0x1), None)
+            .trace_block_impl(api::BlockId::Hash(H256::repeat_byte(0x1)), None)
             .await
             .unwrap()
             .unwrap_default();
@@ -435,28 +436,31 @@ mod tests {
 
     #[tokio::test]
     async fn test_trace_block_by_number_impl() {
-        let node = InMemoryNode::default();
-        let inner = node.get_inner();
+        let node = InMemoryNode::test(None);
+        let tx = api::Transaction::default();
+        let tx_hash = tx.hash;
+        let mut block = api::Block::<api::TransactionVariant>::default();
+        block.transactions.push(api::TransactionVariant::Full(tx));
         {
-            let mut writer = inner.write().unwrap();
-            let tx = zksync_types::api::Transaction::default();
-            let tx_hash = tx.hash;
-            let mut block = Block::<TransactionVariant>::default();
-            block.transactions.push(TransactionVariant::Full(tx));
-            writer.blocks.insert(H256::repeat_byte(0x1), block);
-            writer.block_hashes.insert(0, H256::repeat_byte(0x1));
-            writer.tx_results.insert(
-                tx_hash,
-                TransactionResult {
-                    info: testing::default_tx_execution_info(),
-                    receipt: TransactionReceipt::default(),
-                    debug: testing::default_tx_debug_info(),
-                },
-            );
+            let mut writer = node.inner.write().await;
+            writer.insert_block(H256::repeat_byte(0x1), block).await;
+            writer
+                .insert_block_hash(L2BlockNumber(0), H256::repeat_byte(0x1))
+                .await;
+            writer
+                .insert_tx_result(
+                    tx_hash,
+                    TransactionResult {
+                        info: testing::default_tx_execution_info(),
+                        receipt: api::TransactionReceipt::default(),
+                        debug: testing::default_tx_debug_info(),
+                    },
+                )
+                .await;
         }
         // check `latest` alias
         let result = node
-            .trace_block_by_number_impl(BlockNumber::Latest, None)
+            .trace_block_impl(api::BlockId::Number(api::BlockNumber::Latest), None)
             .await
             .unwrap()
             .unwrap_default();
@@ -465,7 +469,10 @@ mod tests {
 
         // check block number
         let result = node
-            .trace_block_by_number_impl(BlockNumber::Number(0.into()), None)
+            .trace_block_impl(
+                api::BlockId::Number(api::BlockNumber::Number(0.into())),
+                None,
+            )
             .await
             .unwrap()
             .unwrap_default();

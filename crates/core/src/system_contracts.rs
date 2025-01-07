@@ -1,10 +1,12 @@
 use crate::deps::system_contracts::bytecode_from_slice;
+use crate::node::ImpersonationManager;
 use anvil_zksync_config::types::SystemContractsOptions;
 use zksync_contracts::{
     read_bootloader_code, read_sys_contract_bytecode, BaseSystemContracts,
     BaseSystemContractsHashes, ContractLanguage, SystemContractCode,
 };
 use zksync_multivm::interface::TxExecutionMode;
+use zksync_types::Address;
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words};
 
 /// Holds the system contracts (and bootloader) that are used by the in-memory node.
@@ -75,6 +77,20 @@ impl SystemContracts {
 
     pub fn base_system_contracts_hashes(&self) -> BaseSystemContractsHashes {
         self.baseline_contracts.hashes()
+    }
+
+    pub fn system_contracts_for_initiator(
+        &self,
+        impersonation: &ImpersonationManager,
+        initiator: &Address,
+    ) -> BaseSystemContracts {
+        if impersonation.is_impersonating(initiator) {
+            tracing::info!("🕵️ Executing tx from impersonated account {initiator:?}");
+            self.contracts(TxExecutionMode::VerifyExecute, true).clone()
+        } else {
+            self.contracts(TxExecutionMode::VerifyExecute, false)
+                .clone()
+        }
     }
 }
 

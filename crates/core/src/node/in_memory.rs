@@ -34,7 +34,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use zksync_contracts::BaseSystemContracts;
-use zksync_multivm::interface::storage::{ReadStorage, StoragePtr, WriteStorage};
+use zksync_multivm::interface::storage::{ReadStorage, StoragePtr};
 use zksync_multivm::interface::{
     ExecutionResult, InspectExecutionMode, L1BatchEnv, L2BlockEnv, TxExecutionMode, VmFactory,
     VmInterface,
@@ -51,13 +51,12 @@ use zksync_types::l2::L2Tx;
 use zksync_types::storage::{
     EMPTY_UNCLES_HASH, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
 };
-use zksync_types::utils::storage_key_for_eth_balance;
 use zksync_types::web3::{keccak256, Bytes};
 use zksync_types::{
     AccountTreeId, Address, Bloom, L1BatchNumber, L2BlockNumber, PackedEthSignature, StorageKey,
     StorageValue, Transaction, H160, H256, H64, U256, U64,
 };
-use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
+use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 
 /// Max possible size of an ABI encoded tx (in bytes).
 pub const MAX_TX_SIZE: usize = 1_000_000;
@@ -68,6 +67,7 @@ pub const MAX_PREVIOUS_STATES: u16 = 128;
 /// The zks protocol version.
 pub const PROTOCOL_VERSION: &str = "zks/1";
 
+// TODO: Use L2BlockNumber
 pub fn compute_hash<'a>(block_number: u64, tx_hashes: impl IntoIterator<Item = &'a H256>) -> H256 {
     let tx_bytes = tx_hashes
         .into_iter()
@@ -360,37 +360,7 @@ impl InMemoryNode {
 
     /// Adds a lot of tokens to a given account with a specified balance.
     pub async fn set_rich_account(&self, address: H160, balance: U256) {
-        let key = storage_key_for_eth_balance(&address);
-
-        let mut inner = self.inner.write().await;
-
-        let keys = {
-            let mut storage_view = StorageView::new(&inner.fork_storage);
-            // Set balance to the specified amount
-            storage_view.set_value(key, u256_to_h256(balance));
-            storage_view.modified_storage_keys().clone()
-        };
-
-        for (key, value) in keys.iter() {
-            inner.fork_storage.set_value(*key, *value);
-        }
-        inner.rich_accounts.insert(address);
-    }
-
-    pub fn system_contracts_for_tx(
-        &self,
-        tx_initiator: Address,
-    ) -> anyhow::Result<BaseSystemContracts> {
-        Ok(if self.impersonation.is_impersonating(&tx_initiator) {
-            tracing::info!("🕵️ Executing tx from impersonated account {tx_initiator:?}");
-            self.system_contracts
-                .contracts(TxExecutionMode::VerifyExecute, true)
-                .clone()
-        } else {
-            self.system_contracts
-                .contracts(TxExecutionMode::VerifyExecute, false)
-                .clone()
-        })
+        self.inner.write().await.set_rich_account(address, balance)
     }
 
     /// Runs L2 'eth call' method - that doesn't commit to a block.
@@ -652,241 +622,58 @@ pub fn load_last_l1_batch<S: ReadStorage>(storage: StoragePtr<S>) -> Option<(u64
     Some((batch_number, batch_timestamp))
 }
 
-#[cfg(test)]
-mod tests {
-    use anvil_zksync_config::constants::{
-        DEFAULT_ACCOUNT_BALANCE, DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
-        DEFAULT_ESTIMATE_GAS_SCALE_FACTOR, DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L2_GAS_PRICE,
-        TEST_NODE_NETWORK_ID,
-    };
-    use anvil_zksync_config::types::SystemContractsOptions;
-    use anvil_zksync_config::TestNodeConfig;
-    use anvil_zksync_types::TransactionOrder;
-    use ethabi::{Token, Uint};
-    use zksync_types::{utils::deployed_address_create, K256PrivateKey, Nonce};
-
-    use super::*;
-    use crate::{node::InMemoryNode, testing};
-
-    fn test_vm(
-        node: &InMemoryNode,
-        system_contracts: BaseSystemContracts,
-    ) -> (
-        BlockContext,
-        L1BatchEnv,
-        Vm<StorageView<ForkStorage>, HistoryDisabled>,
-    ) {
-        let inner = node.inner.read().unwrap();
-        let storage = StorageView::new(inner.fork_storage.clone()).into_rc_ptr();
-        let system_env = inner.create_system_env(system_contracts, TxExecutionMode::VerifyExecute);
-        let (batch_env, block_ctx) = inner.create_l1_batch_env(&node.time, storage.clone());
-        let vm: Vm<_, HistoryDisabled> = Vm::new(batch_env.clone(), system_env, storage);
-
-        (block_ctx, batch_env, vm)
-    }
-
-    #[tokio::test]
-    async fn test_run_l2_tx_validates_tx_gas_limit_too_high() {
-        let node = InMemoryNode::default();
-        let tx = testing::TransactionBuilder::new()
-            .set_gas_limit(U256::from(u64::MAX) + 1)
-            .build();
-        node.set_rich_account(
-            tx.common_data.initiator_address,
-            U256::from(100u128 * 10u128.pow(18)),
-        );
-
-        let system_contracts = node
-            .system_contracts_for_tx(tx.initiator_account())
-            .unwrap();
-        let (block_ctx, batch_env, mut vm) = test_vm(&node, system_contracts.clone());
-        let err = node
-            .run_l2_tx(tx, U64::from(0), &block_ctx, &batch_env, &mut vm)
-            .unwrap_err();
-        assert_eq!(err.to_string(), "exceeds block gas limit");
-    }
-
-    #[tokio::test]
-    async fn test_run_l2_tx_validates_tx_max_fee_per_gas_too_low() {
-        let node = InMemoryNode::default();
-        let tx = testing::TransactionBuilder::new()
-            .set_max_fee_per_gas(U256::from(DEFAULT_L2_GAS_PRICE - 1))
-            .build();
-        node.set_rich_account(
-            tx.common_data.initiator_address,
-            U256::from(100u128 * 10u128.pow(18)),
-        );
-
-        let system_contracts = node
-            .system_contracts_for_tx(tx.initiator_account())
-            .unwrap();
-        let (block_ctx, batch_env, mut vm) = test_vm(&node, system_contracts.clone());
-        let err = node
-            .run_l2_tx(tx, U64::from(0), &block_ctx, &batch_env, &mut vm)
-            .unwrap_err();
-
-        assert_eq!(
-            err.to_string(),
-            "block base fee higher than max fee per gas"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_run_l2_tx_validates_tx_max_priority_fee_per_gas_higher_than_max_fee_per_gas() {
-        let node = InMemoryNode::default();
-        let tx = testing::TransactionBuilder::new()
-            .set_max_priority_fee_per_gas(U256::from(250_000_000 + 1))
-            .build();
-        node.set_rich_account(
-            tx.common_data.initiator_address,
-            U256::from(100u128 * 10u128.pow(18)),
-        );
-
-        let system_contracts = node
-            .system_contracts_for_tx(tx.initiator_account())
-            .unwrap();
-        let (block_ctx, batch_env, mut vm) = test_vm(&node, system_contracts.clone());
-        let err = node
-            .run_l2_tx(tx, U64::from(0), &block_ctx, &batch_env, &mut vm)
-            .unwrap_err();
-
-        assert_eq!(
-            err.to_string(),
-            "max priority fee per gas higher than max fee per gas"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_create_genesis_creates_block_with_hash_and_zero_parent_hash() {
-        let first_block = create_genesis::<TransactionVariant>(Some(1000));
-
-        assert_eq!(first_block.hash, compute_hash(0, []));
-        assert_eq!(first_block.parent_hash, H256::zero());
-    }
-
-    #[tokio::test]
-    async fn test_run_l2_tx_raw_does_not_panic_on_external_storage_call() {
-        // Perform a transaction to get storage to an intermediate state
-        let node = InMemoryNode::default();
-        let tx = testing::TransactionBuilder::new().build();
-        node.set_rich_account(
-            tx.common_data.initiator_address,
-            U256::from(100u128 * 10u128.pow(18)),
-        );
-        let system_contracts = node
-            .system_contracts_for_tx(tx.initiator_account())
-            .unwrap();
-        node.seal_block(&mut node.time.lock(), vec![tx], system_contracts)
-            .unwrap();
-        let external_storage = node.inner.read().unwrap().fork_storage.clone();
-
-        // Execute next transaction using a fresh in-memory node and the external fork storage
-        let mock_db = testing::ExternalStorage {
-            raw_storage: external_storage.inner.read().unwrap().raw_storage.clone(),
-        };
+// Test utils
+// TODO: Consider builder pattern with sensible defaults
+// #[cfg(test)]
+// TODO: Mark with #[cfg(test)] once it is not used in other modules
+impl InMemoryNode {
+    pub fn test_config(
+        fork: Option<ForkDetails>,
+        config: anvil_zksync_config::TestNodeConfig,
+    ) -> Self {
+        let fee_provider = TestNodeFeeInputProvider::from_fork(fork.as_ref());
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation.clone(), TransactionOrder::Fifo);
-        let sealer = BlockSealer::new(BlockSealerMode::immediate(1000, pool.add_tx_listener()));
-        let node = InMemoryNode::new(
-            Some(ForkDetails {
-                fork_source: Box::new(mock_db),
-                chain_id: TEST_NODE_NETWORK_ID.into(),
-                l1_block: L1BatchNumber(1),
-                l2_block: Block::default(),
-                l2_miniblock: 2,
-                l2_miniblock_hash: Default::default(),
-                block_timestamp: 1002,
-                overwrite_chain_id: None,
-                l1_gas_price: 1000,
-                l2_fair_gas_price: DEFAULT_L2_GAS_PRICE,
-                fair_pubdata_price: DEFAULT_FAIR_PUBDATA_PRICE,
-                fee_params: None,
-                estimate_gas_price_scale_factor: DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
-                estimate_gas_scale_factor: DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
-                cache_config: CacheConfig::default(),
-            }),
+        let system_contracts = SystemContracts::from_options(
+            &config.system_contracts_options,
+            config.use_evm_emulator,
+        );
+        let (inner, _, blockchain, time) = InMemoryNodeInner::init(
+            fork,
+            fee_provider,
+            Arc::new(RwLock::new(Default::default())),
+            config,
+            impersonation.clone(),
+            system_contracts.clone(),
+        );
+        let (block_producer, block_producer_handle) =
+            crate::node::BlockProducer::new(inner.clone(), system_contracts.clone());
+        let pool = TxPool::new(
+            impersonation.clone(),
+            anvil_zksync_types::TransactionOrder::Fifo,
+        );
+        let tx_listener = pool.add_tx_listener();
+        let (block_sealer, block_sealer_state) = crate::node::BlockSealer::new(
+            crate::node::BlockSealerMode::immediate(1000, tx_listener),
+            pool.clone(),
+            block_producer_handle.clone(),
+        );
+        let _ = tokio::spawn(block_producer);
+        let _ = tokio::spawn(block_sealer);
+        Self::new(
+            inner,
+            blockchain,
+            block_producer_handle,
             None,
-            &Default::default(),
-            TimestampManager::default(),
+            time,
             impersonation,
             pool,
-            sealer,
-        );
-
-        let tx = testing::TransactionBuilder::new().build();
-        let system_contracts = node
-            .system_contracts_for_tx(tx.initiator_account())
-            .unwrap();
-        let (_, _, mut vm) = test_vm(&node, system_contracts);
-        node.run_l2_tx_raw(tx, &mut vm)
-            .expect("transaction must pass with external storage");
-    }
-
-    #[tokio::test]
-    async fn test_transact_returns_data_in_built_in_without_security_mode() {
-        let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation.clone(), TransactionOrder::Fifo);
-        let sealer = BlockSealer::new(BlockSealerMode::immediate(1000, pool.add_tx_listener()));
-        let node = InMemoryNode::new(
-            None,
-            None,
-            &TestNodeConfig {
-                system_contracts_options: SystemContractsOptions::BuiltInWithoutSecurity,
-                ..Default::default()
-            },
-            TimestampManager::default(),
-            impersonation,
-            pool,
-            sealer,
-        );
-
-        let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(0xef)).unwrap();
-        let from_account = private_key.address();
-        node.set_rich_account(from_account, U256::from(DEFAULT_ACCOUNT_BALANCE));
-
-        let deployed_address = deployed_address_create(from_account, U256::zero());
-        testing::deploy_contract(
-            &node,
-            H256::repeat_byte(0x1),
-            &private_key,
-            hex::decode(testing::STORAGE_CONTRACT_BYTECODE).unwrap(),
-            None,
-            Nonce(0),
-        );
-
-        let mut tx = L2Tx::new_signed(
-            Some(deployed_address),
-            hex::decode("bbf55335").unwrap(), // keccak selector for "transact_retrieve1()"
-            Nonce(1),
-            Fee {
-                gas_limit: U256::from(4_000_000),
-                max_fee_per_gas: U256::from(250_000_000),
-                max_priority_fee_per_gas: U256::from(250_000_000),
-                gas_per_pubdata_limit: U256::from(50000),
-            },
-            U256::from(0),
-            zksync_types::L2ChainId::from(260),
-            &private_key,
-            vec![],
-            Default::default(),
+            block_sealer_state,
+            system_contracts,
         )
-        .expect("failed signing tx");
-        tx.common_data.transaction_type = TransactionType::LegacyTransaction;
-        tx.set_input(vec![], H256::repeat_byte(0x2));
+    }
 
-        let system_contracts = node
-            .system_contracts_for_tx(tx.initiator_account())
-            .unwrap();
-        let (_, _, mut vm) = test_vm(&node, system_contracts);
-        let TxExecutionOutput { result, .. } = node.run_l2_tx_raw(tx, &mut vm).expect("failed tx");
-
-        match result.result {
-            ExecutionResult::Success { output } => {
-                let actual = testing::decode_tx_result(&output, ethabi::ParamType::Uint(256));
-                let expected = Token::Uint(Uint::from(1024u64));
-                assert_eq!(expected, actual, "invalid result");
-            }
-            _ => panic!("invalid result {:?}", result.result),
-        }
+    pub fn test(fork: Option<ForkDetails>) -> Self {
+        let config = anvil_zksync_config::TestNodeConfig::default();
+        Self::test_config(fork, config)
     }
 }

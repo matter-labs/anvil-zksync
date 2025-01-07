@@ -1,7 +1,7 @@
 use super::inner::InMemoryNodeInner;
 use crate::node::pool::TxBatch;
 use crate::system_contracts::SystemContracts;
-use futures::future::LocalBoxFuture;
+use futures::future::BoxFuture;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -19,7 +19,7 @@ pub struct BlockProducer {
     command_receiver: mpsc::Receiver<Command>,
     /// Future that is processing the next command
     #[pin]
-    future: Option<LocalBoxFuture<'static, ()>>,
+    future: Option<BoxFuture<'static, ()>>,
 }
 
 impl BlockProducer {
@@ -114,8 +114,18 @@ impl BlockProducer {
         }
     }
 
-    async fn increase_time(node_inner: Arc<RwLock<InMemoryNodeInner>>, delta: u64) {
+    async fn increase_time(
+        node_inner: Arc<RwLock<InMemoryNodeInner>>,
+        delta: u64,
+        reply: oneshot::Sender<()>,
+    ) {
         node_inner.write().await.increase_time(delta);
+        // Reply to sender if we can
+        if let Err(_) = reply.send(()) {
+            tracing::info!("failed to reply as receiver has been dropped");
+        } else {
+            return;
+        }
     }
 
     async fn enforce_next_timestamp(
@@ -204,9 +214,9 @@ impl Future for BlockProducer {
                         reply,
                     )));
                 }
-                Command::IncreaseTime(delta) => {
+                Command::IncreaseTime(delta, reply) => {
                     let node_inner = this.node_inner.clone();
-                    *this.future = Some(Box::pin(Self::increase_time(node_inner, delta)));
+                    *this.future = Some(Box::pin(Self::increase_time(node_inner, delta, reply)));
                 }
                 Command::EnforceNextTimestamp(timestamp, reply) => {
                     let node_inner = this.node_inner.clone();
@@ -302,8 +312,18 @@ impl BlockProducerHandle {
         }
     }
 
-    pub async fn increase_time(&self, delta: u64) -> Result<(), mpsc::error::SendError<Command>> {
-        self.command_sender.send(Command::IncreaseTime(delta)).await
+    pub async fn increase_time_sync(&self, delta: u64) -> anyhow::Result<()> {
+        let (response_sender, response_receiver) = oneshot::channel();
+        self.command_sender
+            .send(Command::IncreaseTime(delta, response_sender))
+            .await
+            .map_err(|_| anyhow::anyhow!("failed to increase time as block producer is dropped"))?;
+        match response_receiver.await {
+            Ok(()) => Ok(()),
+            Err(_) => {
+                anyhow::bail!("failed to increase time as block producer is dropped")
+            }
+        }
     }
 
     pub async fn enforce_next_timestamp_sync(&self, timestamp: u64) -> anyhow::Result<()> {
@@ -376,7 +396,7 @@ pub enum Command {
     ),
     // Time manipulation commands. Caveat: reply-able commands can hold user connections alive for
     // a long time (until the command is processed).
-    IncreaseTime(u64),
+    IncreaseTime(u64, oneshot::Sender<()>),
     EnforceNextTimestamp(u64, oneshot::Sender<anyhow::Result<()>>),
     SetCurrentTimestamp(u64, oneshot::Sender<i128>),
     SetTimestampInterval(u64),

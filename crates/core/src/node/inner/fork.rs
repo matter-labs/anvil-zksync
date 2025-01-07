@@ -93,7 +93,7 @@ pub struct ForkStorage {
 #[derive(Debug)]
 pub struct ForkStorageInner {
     // Underlying local storage
-    pub(super) raw_storage: InMemoryStorage,
+    pub raw_storage: InMemoryStorage,
     // Cache of data that was read from remote location.
     pub(super) value_read_cache: HashMap<StorageKey, H256>,
     // Cache of factory deps that were read from remote location.
