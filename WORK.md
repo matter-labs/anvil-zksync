@@ -109,3 +109,24 @@ Simulate works now, but still the gas estimate doesn't properly handle the cost 
 
 Cleaned up the diff - so now we have nice interface.
 The main issue currently is with the tracers - as they require a different 'flow' for old VM vs new.
+
+
+## AAve issues
+
+[TODO]- 'call' to deployment should return the bytecode.
+
+
+
+Issues found:
+* EIP161 - nonce for create should start with '1'
+* should increase nonce on Create2 too.
+* issues with bad 'frame' rollbacks on preimages (when we failed in constructor)
+* out of gas - had to add -g 400 to increase the multiplier
+* bad ordering - had to add '--slow' to make it run one-by-one
+* delegateStatic issue - when 'static' method was doing delegation call (we read from wrong place).
+* not closing frame - causing error
+
+
+
+
+call methods creating a 'deadlock' in era test node.

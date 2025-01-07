@@ -9,13 +9,13 @@ pub const DEFAULT_FAIR_PUBDATA_PRICE: u64 = 13_607_659_111;
 /// Scale factor for estimating L1 gas prices
 pub const DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR: f64 = 2.0;
 /// Scale factor for estimating gas limits
-pub const DEFAULT_ESTIMATE_GAS_SCALE_FACTOR: f32 = 1.3;
+pub const DEFAULT_ESTIMATE_GAS_SCALE_FACTOR: f32 = 5.3;
 /// Default port for the test node server
 pub const NODE_PORT: u16 = 8011;
 /// Network ID for the test node
 #[cfg(feature = "zkos")]
 // For ZK os - hardcoded to 37 for now.
-pub const TEST_NODE_NETWORK_ID: u32 = 37;
+pub const TEST_NODE_NETWORK_ID: u32 = 31337;
 #[cfg(not(feature = "zkos"))]
 pub const TEST_NODE_NETWORK_ID: u32 = 260;
 /// Default derivation path for the test node

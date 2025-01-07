@@ -1,10 +1,11 @@
-use std::{alloc::Global, collections::HashMap};
+use std::{alloc::Global, collections::HashMap, vec};
 
 use basic_system::basic_system::simple_growable_storage::TestingTree;
 use forward_system::run::{
     test_impl::{InMemoryPreimageSource, InMemoryTree, TxListSource},
     PreimageType, StorageCommitment,
 };
+use hex::ToHex;
 use ruint::aliases::B160;
 use system_hooks::addresses_constants::{
     NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS, NONCE_HOLDER_HOOK_ADDRESS,
@@ -12,7 +13,7 @@ use system_hooks::addresses_constants::{
 use zk_ee::{common_structs::derive_flat_storage_key, utils::Bytes32};
 use zksync_multivm::interface::{
     storage::{StoragePtr, WriteStorage},
-    ExecutionResult, PushTransactionResult, TxExecutionMode, VmExecutionLogs,
+    ExecutionResult, InspectExecutionMode, PushTransactionResult, TxExecutionMode, VmExecutionLogs,
     VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled, VmRevertReason,
 };
 use zksync_types::{
@@ -347,9 +348,11 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
                 forward_system::run::ExecutionResult::Success(output) => match &output {
                     forward_system::run::ExecutionOutput::Call(data) => data,
                     forward_system::run::ExecutionOutput::Create(data, address) => {
-                        dbg!(address);
                         // TODO - pass it to the output somehow.
-                        println!("Deployed to {:?}", address);
+                        println!(
+                            "Deployed to {}",
+                            address.to_be_bytes_vec().encode_hex::<String>()
+                        );
                         data
                     }
                 },
@@ -535,11 +538,22 @@ impl<S: WriteStorage> VmInterface for ZKOsVM<S> {
         dispatcher: &mut Self::TracerDispatcher,
         execution_mode: zksync_multivm::interface::InspectExecutionMode,
     ) -> VmExecutionResultAndLogs {
+        if let InspectExecutionMode::Bootloader = execution_mode {
+            return VmExecutionResultAndLogs {
+                result: ExecutionResult::Success { output: vec![] },
+                logs: Default::default(),
+                statistics: Default::default(),
+                refunds: Default::default(),
+                new_known_factory_deps: Default::default(),
+            };
+        }
         let simulate_only = match self.execution_mode {
             TxExecutionMode::VerifyExecute => false,
             TxExecutionMode::EstimateFee => true,
             TxExecutionMode::EthCall => true,
         };
+
+        assert_eq!(1, self.transactions.len());
 
         // FIXME.
         let tx = self.transactions[0].clone();

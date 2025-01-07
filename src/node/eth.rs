@@ -276,6 +276,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
         block_number: BlockNumber,
         full_transactions: bool,
     ) -> RpcResult<Option<Block<TransactionVariant>>> {
+        tracing::warn!("get_block_by_number: {:?}", block_number);
         let inner = self.get_inner().clone();
 
         Box::pin(async move {
@@ -314,7 +315,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
                     })
             };
 
-            match maybe_block {
+            let res = match maybe_block {
                 Some(mut block) => {
                     let block_hash = block.hash;
                     block.transactions = block
@@ -344,7 +345,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
                     Ok(Some(block))
                 }
                 None => Ok(None),
-            }
+            };
+            //tracing::warn!("get_block_by_number: {:?}", res);
+            res
         })
     }
 
@@ -412,7 +415,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
             #[cfg(feature = "zkos")]
             let nonce_key = super::zkos::zkos_get_nonce_key(&address);
 
-            match inner.write() {
+            let res = match inner.write() {
                 Ok(guard) => match guard.fork_storage.read_value_internal(&nonce_key) {
                     Ok(result) => Ok(h256_to_u64(result).into()),
                     Err(error) => Err(report_into_jsrpc_error(error)),
@@ -420,7 +423,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
                 Err(_) => Err(into_jsrpc_error(Web3Error::InternalError(
                     anyhow::Error::msg("Failed to acquire write lock for nonce retrieval"),
                 ))),
-            }
+            };
+            tracing::warn!("get_transaction_count: {:?}", res);
+            res
         })
     }
 
@@ -455,6 +460,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
                 .tx_results
                 .get(&hash)
                 .map(|info| info.receipt.clone());
+            tracing::warn!("get_transaction_receipt for {:?}: {:?}", hash, receipt);
             Ok(receipt)
         })
     }
@@ -489,6 +495,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
         hash: zksync_types::H256,
         full_transactions: bool,
     ) -> RpcResult<Option<Block<TransactionVariant>>> {
+        tracing::warn!("get_block_by_hash: {:?}", hash);
         let inner = self.get_inner().clone();
 
         Box::pin(async move {

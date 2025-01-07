@@ -1277,7 +1277,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
         // init vm
 
-        let (batch_env, _) = inner.create_l1_batch_env(&self.time, storage.clone());
+        //let (batch_env, _) = inner.create_l1_batch_env(&self.time, storage.clone());
         let system_env = inner.create_system_env(base_contracts, execution_mode);
 
         #[cfg(not(feature = "zkos"))]
@@ -1571,7 +1571,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         Ok(TxExecutionOutput {
             result: tx_result.clone(),
             call_traces: call_traces.cloned().unwrap_or_default(),
-            bytecodes: tx_result.new_known_factory_deps.unwrap().clone(),
+            bytecodes: tx_result.new_known_factory_deps.unwrap_or_default().clone(),
         })
     }
 
@@ -1748,6 +1748,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
         // Execute transactions and bootloader
         let mut executed_tx_hashes = Vec::with_capacity(tx_hashes.len());
+        tracing::error!("==== Starting seal block ==== {:?}", block_ctx);
         for tx in txs {
             // Executing a next transaction means that a previous transaction was either rolled back (in which case its snapshot
             // was already removed), or that we build on top of it (in which case, it can be removed now).
@@ -1762,7 +1763,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                 executed_tx_hashes.push(hash);
             }
         }
+        tracing::error!("==== Finished seal block ====");
         vm.execute(InspectExecutionMode::Bootloader);
+        tracing::error!("==== Finished running bootloader mode ====");
 
         // Write all the mutated keys (storage slots).
         let mut inner = self

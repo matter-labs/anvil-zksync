@@ -844,6 +844,7 @@ pub fn print_transaction_summary(
 
     tracing::info!("{}  [{}] Hash: {:?}", emoji, status, tx.hash());
     tracing::info!("Initiator: {:?}", tx.initiator_account());
+    tracing::info!("Nonce: {:?}", tx.nonce());
     tracing::info!("Payer: {:?}", tx.payer());
     tracing::info!(
         "Gas Limit: {} | Used: {} | Refunded: {}",

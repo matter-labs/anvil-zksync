@@ -30,6 +30,31 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug era_test_node at 8545",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=era_test_node",
+                    "--package=era_test_node"
+                ],
+                "filter": {
+                    "name": "era_test_node",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "--port",
+                "8545",
+                "run",
+            ],
+            "env": {
+                "CARGO_PROFILE_DEV": "true"
+            },
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug era_test_node w/ system-contracts",
             "cargo": {
                 "args": [
