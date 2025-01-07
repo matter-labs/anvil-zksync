@@ -26,6 +26,9 @@ jobs:
       VERSION: ${{ steps.extract_version.outputs.VERSION }}
 
   build:
+    permissions:
+      id-token: write
+      attestations: write
     name: build release
     strategy:
       matrix:
@@ -96,6 +99,11 @@ jobs:
         with:
           name: anvil-zksync-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.arch }}.tar.gz
           path: anvil-zksync-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.arch }}.tar.gz
+
+      - name: Binaries attestation
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: target/release/anvil-zksync
 
   draft-release:
     name: draft release
