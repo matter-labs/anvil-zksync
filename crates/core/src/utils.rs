@@ -243,8 +243,14 @@ where
 }
 
 /// A special version of `Arc<RwLock<T>>` that can only be read from.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ArcRLock<T>(Arc<RwLock<T>>);
+
+impl<T> Clone for ArcRLock<T> {
+    fn clone(&self) -> Self {
+        ArcRLock(self.0.clone())
+    }
+}
 
 impl<T> ArcRLock<T> {
     /// Wrap writeable `Arc<RwLock<T>>` into a read-only `ArcRLock<T>`.
