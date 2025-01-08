@@ -215,7 +215,7 @@ pub(super) struct Blockchain {
 
 impl Blockchain {
     pub(super) fn get_block_hash_by_number(&self, number: L2BlockNumber) -> Option<H256> {
-        self.hashes.get(&number).map(|hash| *hash)
+        self.hashes.get(&number).copied()
     }
 
     pub(super) fn get_block_hash_by_id(&self, block_id: api::BlockId) -> Option<H256> {
@@ -230,7 +230,7 @@ impl Blockchain {
                     api::BlockNumber::Earliest => L2BlockNumber(0),
                     api::BlockNumber::Number(n) => L2BlockNumber(n.as_u32()),
                 };
-                self.hashes.get(&number).map(|hash| *hash)
+                self.hashes.get(&number).copied()
             }
             api::BlockId::Hash(hash) => Some(hash),
         }
@@ -257,7 +257,7 @@ impl Blockchain {
 
     pub(super) fn apply_block(&mut self, block: api::Block<api::TransactionVariant>, index: u32) {
         let latest_block = self.blocks.get(&self.current_block_hash).unwrap();
-        self.current_block = self.current_block + 1;
+        self.current_block += 1;
 
         let actual_l1_batch_number = block
             .l1_batch_number

@@ -30,7 +30,7 @@ impl TimeReader {
 
     /// Returns timestamp (in seconds) that the clock is currently on.
     pub fn current_timestamp(&self) -> u64 {
-        (*self.get()).current_timestamp
+        self.get().current_timestamp
     }
 }
 
@@ -109,7 +109,7 @@ impl TimeWriter {
 
     /// Returns timestamp (in seconds) that the clock is currently on.
     pub(super) fn current_timestamp(&self) -> u64 {
-        (*self.get()).current_timestamp
+        self.get().current_timestamp
     }
 
     /// Peek at what the next call to `advance_timestamp` will return.

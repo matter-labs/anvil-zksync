@@ -6,8 +6,8 @@ use zksync_contracts::{
     BaseSystemContractsHashes, ContractLanguage, SystemContractCode,
 };
 use zksync_multivm::interface::TxExecutionMode;
-use zksync_types::Address;
 use zksync_types::bytecode::BytecodeHash;
+use zksync_types::Address;
 
 /// Holds the system contracts (and bootloader) that are used by the in-memory node.
 #[derive(Debug, Clone)]

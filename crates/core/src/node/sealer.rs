@@ -67,8 +67,8 @@ impl Future for BlockSealer {
                 .expect("BlockSealer lock is poisoned");
             let tx_batch = futures::ready!(match &mut *mode {
                 BlockSealerMode::Noop => Poll::Pending,
-                BlockSealerMode::Immediate(immediate) => immediate.poll(&this.pool, cx),
-                BlockSealerMode::FixedTime(fixed) => fixed.poll(&this.pool, cx),
+                BlockSealerMode::Immediate(immediate) => immediate.poll(this.pool, cx),
+                BlockSealerMode::FixedTime(fixed) => fixed.poll(this.pool, cx),
             });
             tracing::debug!(
                 impersonating = tx_batch.impersonating,

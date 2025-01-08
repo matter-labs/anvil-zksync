@@ -85,6 +85,7 @@ pub struct InMemoryNodeInner {
 
 impl InMemoryNodeInner {
     /// Create the state to be used implementing [InMemoryNode].
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
         blockchain_writer: BlockchainWriter,
         time_writer: TimeWriter,
@@ -220,8 +221,7 @@ impl InMemoryNodeInner {
                 .into_iter()
                 .map(|r| (r.receipt.transaction_hash, r)),
         );
-        let mut index = 0;
-        for block in blocks {
+        for (index, block) in blocks.into_iter().enumerate() {
             // archive current state before we produce new batch/blocks
             archive_state(
                 &mut self.previous_states,
@@ -235,8 +235,7 @@ impl InMemoryNodeInner {
                 storage.current_block,
                 storage.current_block_hash,
             );
-            storage.apply_block(block, index);
-            index += 1;
+            storage.apply_block(block, index as u32);
         }
     }
 
@@ -561,7 +560,7 @@ impl InMemoryNodeInner {
             vm.pop_snapshot_no_rollback();
             // Save pre-execution VM snapshot.
             vm.make_snapshot();
-            match self.run_l2_tx(tx, tx_index, &block_ctx, &batch_env, &mut vm) {
+            match self.run_l2_tx(tx, tx_index, block_ctx, &batch_env, &mut vm) {
                 Ok(tx_result) => {
                     tx_results.push(tx_result);
                     tx_index += 1;
@@ -1246,10 +1245,7 @@ impl InMemoryNodeInner {
                 .unwrap_or(NON_FORK_FIRST_BLOCK_TIMESTAMP),
         );
 
-        drop(std::mem::replace(
-            &mut *self.filters.write().await,
-            EthFilters::default(),
-        ));
+        drop(std::mem::take(&mut *self.filters.write().await));
 
         let fork_storage = ForkStorage::new(
             fork,

@@ -79,7 +79,7 @@ impl NodeExecutor {
 
         // Save old interval to restore later: it might get replaced with `interval` below
         let old_interval = node_inner.time_writer.get_block_timestamp_interval();
-        let result = (|| async {
+        let result = async {
             let mut block_numbers = Vec::with_capacity(tx_batches.len());
             // Processing the entire vector is essentially atomic here because `NodeExecutor` is
             // the only component that seals blocks.
@@ -98,7 +98,7 @@ impl NodeExecutor {
                 block_numbers.push(number);
             }
             anyhow::Ok(block_numbers)
-        })()
+        }
         .await;
         // Restore old interval
         node_inner
@@ -125,10 +125,8 @@ impl NodeExecutor {
     ) {
         node_inner.write().await.time_writer.increase_time(delta);
         // Reply to sender if we can
-        if let Err(_) = reply.send(()) {
+        if reply.send(()).is_err() {
             tracing::info!("failed to reply as receiver has been dropped");
-        } else {
-            return;
         }
     }
 
@@ -166,7 +164,7 @@ impl NodeExecutor {
             .time_writer
             .set_current_timestamp_unchecked(timestamp);
         // Reply to sender if we can
-        if let Err(_) = reply.send(result) {
+        if reply.send(result).is_err() {
             tracing::info!("failed to reply as receiver has been dropped");
         }
     }
@@ -189,7 +187,7 @@ impl NodeExecutor {
             .time_writer
             .remove_block_timestamp_interval();
         // Reply to sender if we can
-        if let Err(_) = reply.send(result) {
+        if reply.send(result).is_err() {
             tracing::info!("failed to reply as receiver has been dropped");
         }
     }

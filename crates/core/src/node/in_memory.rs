@@ -257,6 +257,7 @@ pub struct InMemoryNode {
 }
 
 impl InMemoryNode {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         inner: Arc<RwLock<InMemoryNodeInner>>,
         blockchain: BlockchainReader,
@@ -655,8 +656,8 @@ impl InMemoryNode {
             pool.clone(),
             node_handle.clone(),
         );
-        let _ = tokio::spawn(node_executor);
-        let _ = tokio::spawn(block_sealer);
+        tokio::spawn(node_executor);
+        tokio::spawn(block_sealer);
         Self::new(
             inner,
             blockchain,
