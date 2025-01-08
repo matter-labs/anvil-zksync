@@ -382,6 +382,14 @@ impl BlockProducerHandle {
     }
 }
 
+#[cfg(test)]
+impl BlockProducerHandle {
+    pub fn test() -> (Self, mpsc::Receiver<Command>) {
+        let (command_sender, command_receiver) = mpsc::channel(128);
+        (BlockProducerHandle { command_sender }, command_receiver)
+    }
+}
+
 #[derive(Debug)]
 pub enum Command {
     // Block sealing commands
