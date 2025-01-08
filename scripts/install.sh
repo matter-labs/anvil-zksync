@@ -86,6 +86,10 @@ function get_os_info() {
         "Darwin")
             os="apple-darwin"
             arch=$(arch)
+            if [[ "$arch" == "i386" ]]; then
+                # Rosetta reports as i386, but we treat it as x86_64
+                arch="x86_64"
+            fi
             ;;
         *)
             echo "ERROR: anvil-zksync only supports Linux and MacOS! Detected OS: $unamestr"
@@ -101,6 +105,8 @@ function get_os_info() {
             architecture="aarch64"
             ;;
         *)
+            echo "Operating system: $os"
+            echo "Architecture: $arch"
             echo "ERROR: Unsupported architecture detected!"
             exit 1
             ;;
