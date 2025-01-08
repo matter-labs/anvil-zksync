@@ -8,10 +8,11 @@
 //! advance the time without holding a lock to [`InMemoryNodeInner`].
 //!
 //! FIXME: The above is not 100% true yet (there are some internal parts of InMemoryNodeInner that
-//!        are available outside of this module
+//!        are available outside of this module)
 pub mod blockchain;
 pub mod fork;
 mod in_memory_inner;
+pub mod node_executor;
 pub mod time;
 
 pub use in_memory_inner::{InMemoryNodeInner, TxExecutionOutput};

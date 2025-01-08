@@ -1,5 +1,5 @@
-use crate::node::block_producer::{BlockProducerHandle, Command};
-use crate::node::pool::{TxBatch, TxPool};
+use super::inner::node_executor::{Command, NodeExecutorHandle};
+use super::pool::{TxBatch, TxPool};
 use futures::channel::mpsc::Receiver;
 use futures::future::BoxFuture;
 use futures::stream::{Fuse, StreamExt};
@@ -15,7 +15,7 @@ use tokio::time::{Interval, MissedTickBehavior};
 use zksync_types::H256;
 
 // TODO: `BlockSealer` is probably a bad name as this doesn't actually seal blocks, just decides
-//       that certain tx batch needs to be sealed. The actual sealing is handled in `BlockProducer`.
+//       that certain tx batch needs to be sealed. The actual sealing is handled in `NodeExecutor`.
 //       Consider renaming.
 #[pin_project::pin_project]
 pub struct BlockSealer {
@@ -23,9 +23,9 @@ pub struct BlockSealer {
     state: BlockSealerState,
     /// Pool where block sealer is sourcing transactions from.
     pool: TxPool,
-    /// Block producer to be used when a block needs to be sealed.
-    block_producer_handle: BlockProducerHandle,
-    /// Future that is sending the next seal command to [`super::BlockProducer`]
+    /// Node handle to be used when a block needs to be sealed.
+    node_handle: NodeExecutorHandle,
+    /// Future that is sending the next seal command to [`super::NodeExecutor`]
     #[pin]
     future: Option<BoxFuture<'static, Result<(), mpsc::error::SendError<Command>>>>,
 }
@@ -34,7 +34,7 @@ impl BlockSealer {
     pub fn new(
         mode: BlockSealerMode,
         pool: TxPool,
-        block_producer_handle: BlockProducerHandle,
+        node_handle: NodeExecutorHandle,
     ) -> (Self, BlockSealerState) {
         let state = BlockSealerState {
             mode: Arc::new(RwLock::new(mode)),
@@ -44,7 +44,7 @@ impl BlockSealer {
             Self {
                 state: state.clone(),
                 pool,
-                block_producer_handle,
+                node_handle,
                 future: None,
             },
             state,
@@ -59,7 +59,7 @@ impl Future for BlockSealer {
         let mut this = self.project();
         this.state.waker.register(cx.waker());
         if this.future.is_none() {
-            tracing::debug!("no pending messages to block producer, polling for a new tx batch");
+            tracing::debug!("no pending messages to node executor, polling for a new tx batch");
             let mut mode = this
                 .state
                 .mode
@@ -75,7 +75,7 @@ impl Future for BlockSealer {
                 txs = tx_batch.txs.len(),
                 "new tx batch found"
             );
-            let handle = this.block_producer_handle.clone();
+            let handle = this.node_handle.clone();
             *this.future = Some(Box::pin(async move { handle.seal_block(tx_batch).await }));
         }
 
@@ -90,7 +90,7 @@ impl Future for BlockSealer {
                 }
                 Err(_) => {
                     tracing::error!(
-                        "failed to seal a block as block producer is dropped; shutting down"
+                        "failed to seal a block as node executor is dropped; shutting down"
                     );
                     Poll::Ready(())
                 }
@@ -225,7 +225,7 @@ impl FixedTimeBlockSealer {
 
 #[cfg(test)]
 mod tests {
-    use crate::node::block_producer::{BlockProducerHandle, Command};
+    use crate::node::node_executor::{Command, NodeExecutorHandle};
     use crate::node::pool::TxBatch;
     use crate::node::sealer::BlockSealerMode;
     use crate::node::{BlockSealer, ImpersonationManager, TxPool};
@@ -245,10 +245,10 @@ mod tests {
 
     impl Tester {
         fn new(sealer_mode_fn: impl FnOnce(&TxPool) -> BlockSealerMode) -> (Self, TxPool) {
-            let (block_producer_handle, receiver) = BlockProducerHandle::test();
+            let (node_handle, receiver) = NodeExecutorHandle::test();
             let pool = TxPool::new(ImpersonationManager::default(), TransactionOrder::Fifo);
             let (block_sealer, _) =
-                BlockSealer::new(sealer_mode_fn(&pool), pool.clone(), block_producer_handle);
+                BlockSealer::new(sealer_mode_fn(&pool), pool.clone(), node_handle);
             let _handle = tokio::spawn(block_sealer);
             let receiver = Arc::new(RwLock::new(receiver));
 

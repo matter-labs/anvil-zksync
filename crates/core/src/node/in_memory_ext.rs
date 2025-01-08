@@ -31,7 +31,7 @@ impl InMemoryNode {
     /// # Returns
     /// The applied time delta to `current_timestamp` value for the InMemoryNodeInner.
     pub async fn increase_time(&self, time_delta_seconds: u64) -> Result<u64> {
-        self.block_producer_handle
+        self.node_handle
             .increase_time_sync(time_delta_seconds)
             .await?;
         Ok(time_delta_seconds)
@@ -45,7 +45,7 @@ impl InMemoryNode {
     /// # Returns
     /// The new timestamp value for the InMemoryNodeInner.
     pub async fn set_next_block_timestamp(&self, timestamp: u64) -> Result<()> {
-        self.block_producer_handle
+        self.node_handle
             .enforce_next_timestamp_sync(timestamp)
             .await?;
         Ok(())
@@ -61,9 +61,7 @@ impl InMemoryNode {
     /// # Returns
     /// The difference between the `current_timestamp` and the new timestamp for the InMemoryNodeInner.
     pub async fn set_time(&self, timestamp: u64) -> Result<i128> {
-        self.block_producer_handle
-            .set_current_timestamp_sync(timestamp)
-            .await
+        self.node_handle.set_current_timestamp_sync(timestamp).await
     }
 
     /// Force a single block to be mined.
@@ -80,7 +78,7 @@ impl InMemoryNode {
             txs: Vec::new(),
         });
 
-        let block_number = self.block_producer_handle.seal_block_sync(tx_batch).await?;
+        let block_number = self.node_handle.seal_block_sync(tx_batch).await?;
         tracing::info!("👷 Mined block #{}", block_number);
         Ok(block_number)
     }
@@ -232,7 +230,7 @@ impl InMemoryNode {
             });
             tx_batches.push(tx_batch);
         }
-        self.block_producer_handle
+        self.node_handle
             .seal_blocks_sync(tx_batches, interval_sec)
             .await?;
         tracing::info!("👷 Mined {} blocks", num_blocks);
@@ -376,14 +374,14 @@ impl InMemoryNode {
     }
 
     pub async fn set_block_timestamp_interval(&self, seconds: u64) -> Result<()> {
-        self.block_producer_handle
+        self.node_handle
             .set_block_timestamp_interval(seconds)
             .await?;
         Ok(())
     }
 
     pub async fn remove_block_timestamp_interval(&self) -> Result<bool> {
-        self.block_producer_handle
+        self.node_handle
             .remove_block_timestamp_interval_sync()
             .await
     }
@@ -593,7 +591,7 @@ mod tests {
         let node = InMemoryNode::test(None);
         // Seal a few blocks to create non-trivial local state
         for _ in 0..10 {
-            node.block_producer_handle
+            node.node_handle
                 .seal_block_sync(TxBatch {
                     impersonating: false,
                     txs: vec![],
@@ -874,7 +872,9 @@ mod tests {
         assert_ne!(timestamp_before, new_time, "timestamps must be different");
         let expected_response = 9000;
 
-        let actual_response = node.set_time(new_time).await
+        let actual_response = node
+            .set_time(new_time)
+            .await
             .expect("failed setting timestamp");
         let timestamp_after = node.time.current_timestamp();
 
@@ -891,7 +891,9 @@ mod tests {
         assert_ne!(timestamp_before, new_time, "timestamps must be different");
         let expected_response = -990;
 
-        let actual_response = node.set_time(new_time).await
+        let actual_response = node
+            .set_time(new_time)
+            .await
             .expect("failed setting timestamp");
         let timestamp_after = node.time.current_timestamp();
 
@@ -908,7 +910,9 @@ mod tests {
         assert_eq!(timestamp_before, new_time, "timestamps must be same");
         let expected_response = 0;
 
-        let actual_response = node.set_time(new_time).await
+        let actual_response = node
+            .set_time(new_time)
+            .await
             .expect("failed setting timestamp");
         let timestamp_after = node.time.current_timestamp();
 
@@ -931,7 +935,9 @@ mod tests {
             );
             let expected_response = (new_time as i128).saturating_sub(timestamp_before as i128);
 
-            let actual_response = node.set_time(new_time).await
+            let actual_response = node
+                .set_time(new_time)
+                .await
                 .expect("failed setting timestamp");
             let timestamp_after = node.time.current_timestamp();
 

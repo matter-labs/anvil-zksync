@@ -65,7 +65,7 @@ use zksync_web3_decl::error::Web3Error;
 pub struct InMemoryNodeInner {
     // Special right to write into blockchain as opposed to [`Blockchain`]
     blockchain_writer: BlockchainWriter,
-    time_writer: TimestampWriter,
+    pub(super) time_writer: TimestampWriter,
     /// The fee input provider.
     pub fee_input_provider: TestNodeFeeInputProvider,
     // Map from filter_id to the eth filter
@@ -191,7 +191,7 @@ impl InMemoryNodeInner {
         (batch_env, block_ctx)
     }
 
-    pub async fn apply_batch(
+    async fn apply_batch(
         &mut self,
         blocks: impl IntoIterator<Item = api::Block<api::TransactionVariant>>,
         tx_results: impl IntoIterator<Item = TransactionResult>,
@@ -537,7 +537,7 @@ impl InMemoryNodeInner {
         })
     }
 
-    pub fn run_l2_txs(
+    fn run_l2_txs(
         &mut self,
         txs: Vec<L2Tx>,
         batch_env: L1BatchEnv,
@@ -581,7 +581,7 @@ impl InMemoryNodeInner {
         tx_results
     }
 
-    pub async fn seal_block(
+    pub(super) async fn seal_block(
         &mut self,
         txs: Vec<L2Tx>,
         system_contracts: BaseSystemContracts,
@@ -1286,31 +1286,6 @@ impl InMemoryNodeInner {
             self.fork_storage.set_value(*key, *value);
         }
         self.rich_accounts.insert(address);
-    }
-
-    // TODO: remove all methods below
-    pub fn increase_time(&mut self, delta: u64) -> u64 {
-        self.time_writer.increase_time(delta)
-    }
-
-    pub fn enforce_next_timestamp(&mut self, timestamp: u64) -> anyhow::Result<()> {
-        self.time_writer.enforce_next_timestamp(timestamp)
-    }
-
-    pub fn set_current_timestamp(&mut self, timestamp: u64) -> i128 {
-        self.time_writer.set_current_timestamp_unchecked(timestamp)
-    }
-
-    pub fn get_timestamp_interval(&mut self) -> Option<u64> {
-        self.time_writer.get_block_timestamp_interval()
-    }
-
-    pub fn set_timestamp_interval(&mut self, seconds: Option<u64>) {
-        self.time_writer.set_block_timestamp_interval(seconds)
-    }
-
-    pub fn remove_timestamp_interval(&mut self) -> bool {
-        self.time_writer.remove_block_timestamp_interval()
     }
 }
 

@@ -12,8 +12,8 @@ use anvil_zksync_config::ForkPrintInfo;
 use anvil_zksync_core::filters::EthFilters;
 use anvil_zksync_core::node::fork::ForkDetails;
 use anvil_zksync_core::node::{
-    BlockProducer, BlockSealer, BlockSealerMode, ImpersonationManager, InMemoryNode,
-    InMemoryNodeInner, TestNodeFeeInputProvider, TxPool,
+    BlockSealer, BlockSealerMode, ImpersonationManager, InMemoryNode, InMemoryNodeInner,
+    NodeExecutor, TestNodeFeeInputProvider, TxPool,
 };
 use anvil_zksync_core::observability::Observability;
 use anvil_zksync_core::system_contracts::SystemContracts;
@@ -230,8 +230,8 @@ async fn main() -> anyhow::Result<()> {
         system_contracts.clone(),
     );
 
-    let (block_producer, block_producer_handle) =
-        BlockProducer::new(node_inner.clone(), system_contracts.clone());
+    let (node_executor, node_handle) =
+        NodeExecutor::new(node_inner.clone(), system_contracts.clone());
     let sealing_mode = if config.no_mining {
         BlockSealerMode::noop()
     } else if let Some(block_time) = config.block_time {
@@ -240,12 +240,12 @@ async fn main() -> anyhow::Result<()> {
         BlockSealerMode::immediate(config.max_transactions, pool.add_tx_listener())
     };
     let (block_sealer, block_sealer_state) =
-        BlockSealer::new(sealing_mode, pool.clone(), block_producer_handle.clone());
+        BlockSealer::new(sealing_mode, pool.clone(), node_handle.clone());
 
     let node: InMemoryNode = InMemoryNode::new(
         node_inner,
         blockchain,
-        block_producer_handle,
+        node_handle,
         Some(observability),
         time,
         impersonation,
@@ -343,8 +343,8 @@ async fn main() -> anyhow::Result<()> {
         _ = any_server_stopped => {
             tracing::trace!("node server was stopped")
         },
-        _ = block_producer => {
-            tracing::trace!("block producer was stopped")
+        _ = node_executor => {
+            tracing::trace!("node executor was stopped")
         },
         _ = block_sealer => {
             tracing::trace!("block sealer was stopped")

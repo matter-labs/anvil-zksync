@@ -1,10 +1,10 @@
 //! In-memory node, that supports forking other networks.
 use super::inner::fork::ForkDetails;
+use super::inner::node_executor::NodeExecutorHandle;
 use super::inner::InMemoryNodeInner;
 use crate::deps::{storage_view::StorageView, InMemoryStorage};
 use crate::filters::EthFilters;
 use crate::formatter;
-use crate::node::block_producer::BlockProducerHandle;
 use crate::node::call_error_tracer::CallErrorTracer;
 use crate::node::error::LoadStateError;
 use crate::node::fee_model::TestNodeFeeInputProvider;
@@ -13,13 +13,14 @@ use crate::node::inner::blockchain::BlockchainReader;
 use crate::node::inner::time::{ReadTime, TimestampManager};
 use crate::node::sealer::BlockSealerState;
 use crate::node::state::VersionedState;
-use crate::node::TxPool;
+use crate::node::{BlockSealer, BlockSealerMode, NodeExecutor, TxPool};
 use crate::observability::Observability;
 use crate::system_contracts::SystemContracts;
 use anvil_zksync_config::constants::{
     LEGACY_RICH_WALLETS, NON_FORK_FIRST_BLOCK_TIMESTAMP, RICH_WALLETS, TEST_NODE_NETWORK_ID,
 };
 use anvil_zksync_config::types::Genesis;
+use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_types::{LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
 use colored::Colorize;
 use flate2::read::GzDecoder;
@@ -243,7 +244,7 @@ pub struct InMemoryNode {
     /// A thread safe reference to the [InMemoryNodeInner].
     pub(crate) inner: Arc<RwLock<InMemoryNodeInner>>,
     pub(crate) blockchain: BlockchainReader,
-    pub(crate) block_producer_handle: BlockProducerHandle,
+    pub(crate) node_handle: NodeExecutorHandle,
     /// List of snapshots of the [InMemoryNodeInner]. This is bounded at runtime by [MAX_SNAPSHOTS].
     pub(crate) snapshots: Arc<RwLock<Vec<Snapshot>>>,
     pub(crate) time: TimestampManager,
@@ -259,7 +260,7 @@ impl InMemoryNode {
     pub fn new(
         inner: Arc<RwLock<InMemoryNodeInner>>,
         blockchain: BlockchainReader,
-        block_producer_handle: BlockProducerHandle,
+        node_handle: NodeExecutorHandle,
         observability: Option<Observability>,
         time: TimestampManager,
         impersonation: ImpersonationManager,
@@ -270,7 +271,7 @@ impl InMemoryNode {
         InMemoryNode {
             inner,
             blockchain,
-            block_producer_handle,
+            node_handle,
             snapshots: Default::default(),
             time,
             impersonation,
@@ -325,7 +326,7 @@ impl InMemoryNode {
                 .iter()
                 .map(|tx| tx.hash())
                 .collect::<HashSet<_>>();
-            let block_numer = self.block_producer_handle.seal_block_sync(tx_batch).await?;
+            let block_numer = self.node_handle.seal_block_sync(tx_batch).await?;
 
             // Fetch the block that was just sealed
             let block = self
@@ -627,10 +628,7 @@ pub fn load_last_l1_batch<S: ReadStorage>(storage: StoragePtr<S>) -> Option<(u64
 // #[cfg(test)]
 // TODO: Mark with #[cfg(test)] once it is not used in other modules
 impl InMemoryNode {
-    pub fn test_config(
-        fork: Option<ForkDetails>,
-        config: anvil_zksync_config::TestNodeConfig,
-    ) -> Self {
+    pub fn test_config(fork: Option<ForkDetails>, config: TestNodeConfig) -> Self {
         let fee_provider = TestNodeFeeInputProvider::from_fork(fork.as_ref());
         let impersonation = ImpersonationManager::default();
         let system_contracts = SystemContracts::from_options(
@@ -645,24 +643,24 @@ impl InMemoryNode {
             impersonation.clone(),
             system_contracts.clone(),
         );
-        let (block_producer, block_producer_handle) =
-            crate::node::BlockProducer::new(inner.clone(), system_contracts.clone());
+        let (node_executor, node_handle) =
+            NodeExecutor::new(inner.clone(), system_contracts.clone());
         let pool = TxPool::new(
             impersonation.clone(),
             anvil_zksync_types::TransactionOrder::Fifo,
         );
         let tx_listener = pool.add_tx_listener();
-        let (block_sealer, block_sealer_state) = crate::node::BlockSealer::new(
-            crate::node::BlockSealerMode::immediate(1000, tx_listener),
+        let (block_sealer, block_sealer_state) = BlockSealer::new(
+            BlockSealerMode::immediate(1000, tx_listener),
             pool.clone(),
-            block_producer_handle.clone(),
+            node_handle.clone(),
         );
-        let _ = tokio::spawn(block_producer);
+        let _ = tokio::spawn(node_executor);
         let _ = tokio::spawn(block_sealer);
         Self::new(
             inner,
             blockchain,
-            block_producer_handle,
+            node_handle,
             None,
             time,
             impersonation,
@@ -673,7 +671,7 @@ impl InMemoryNode {
     }
 
     pub fn test(fork: Option<ForkDetails>) -> Self {
-        let config = anvil_zksync_config::TestNodeConfig::default();
+        let config = TestNodeConfig::default();
         Self::test_config(fork, config)
     }
 }
