@@ -5,13 +5,13 @@ use itertools::Itertools;
 use std::collections::HashMap;
 use zksync_types::api;
 use zksync_types::fee::Fee;
+use zksync_types::h256_to_u256;
 use zksync_types::transaction_request::CallRequest;
 use zksync_types::utils::storage_key_for_standard_token_balance;
 use zksync_types::{
     AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber, L2BlockNumber,
     ProtocolVersionId, Transaction, H160, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
-use zksync_utils::h256_to_u256;
 use zksync_web3_decl::error::Web3Error;
 
 impl InMemoryNode {
@@ -189,10 +189,13 @@ impl InMemoryNode {
                     root_hash: Some(block.hash),
                     status: api::BlockStatus::Verified,
                     commit_tx_hash: None,
+                    commit_chain_id: None,
                     committed_at: None,
                     prove_tx_hash: None,
+                    prove_chain_id: None,
                     proven_at: None,
                     execute_tx_hash: None,
+                    execute_chain_id: None,
                     executed_at: None,
                     l1_gas_price: 0,
                     l2_fair_gas_price,
@@ -316,8 +319,8 @@ mod tests {
     use std::str::FromStr;
 
     use anvil_zksync_config::types::CacheConfig;
+    use zksync_types::u256_to_h256;
     use zksync_types::{api, transaction_request::CallRequest, Address, H160, H256};
-    use zksync_utils::u256_to_h256;
 
     use super::*;
     use crate::node::fork::ForkDetails;

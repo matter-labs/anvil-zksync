@@ -10,8 +10,8 @@ categories = ["cryptography"]
 publish = false
 
 [dependencies]
-alloy-zksync = { git = "https://github.com/popzxc/alloy-zksync.git", rev = "6a2e3cfe41cae9f92dc6672dbd0ce56ccc37e9b3" }
-alloy = { version = "0.6", features = ["full", "rlp", "serde", "sol-types", "getrandom", "provider-anvil-api", "json-rpc"] }
+alloy-zksync = "0.8.0"
+alloy = { version = "0.8.0", features = ["full", "rlp", "serde", "sol-types", "getrandom", "provider-anvil-api", "json-rpc"] }
 anyhow = "1.0"
 fs2 = "0.4.3"
 tokio = { version = "1", features = ["time", "rt", "process"] }
@@ -25,6 +25,8 @@ tower = "0.5"
 http = "1.1.0"
 anvil_zksync_core = { path = "../crates/core" }
 tempdir = "0.3.7"
+flate2 = "1.0"
+hex = "0.4"
 
 [dev-dependencies]
 

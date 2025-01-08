@@ -49,6 +49,7 @@ impl LockedPort {
 
     /// Acquire the requested port and lock it (meaning no other competing callers of this method
     /// can take this lock). Lock lasts until the returned `LockedPort` instance is dropped.
+    #[allow(dead_code)] // TODO: Is it needed?
     pub async fn acquire(port: u16) -> anyhow::Result<Self> {
         let port = Self::check_port_is_unused(port).await?;
         let lockpath = std::env::temp_dir().join(format!("anvil-zksync-port{}.lock", port));

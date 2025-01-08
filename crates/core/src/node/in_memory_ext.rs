@@ -8,13 +8,13 @@ use anvil_zksync_types::api::{DetailedTransaction, ResetRequest};
 use anyhow::anyhow;
 use std::time::Duration;
 use zksync_types::api::{Block, TransactionVariant};
+use zksync_types::u256_to_h256;
 use zksync_types::{
     get_code_key, get_nonce_key,
     utils::{nonces_to_full_nonce, storage_key_for_eth_balance},
     L2BlockNumber, StorageKey,
 };
 use zksync_types::{AccountTreeId, Address, H256, U256, U64};
-use zksync_utils::u256_to_h256;
 
 type Result<T> = anyhow::Result<T>;
 
@@ -476,8 +476,7 @@ mod tests {
     use std::str::FromStr;
     use zksync_multivm::interface::storage::ReadStorage;
     use zksync_types::{api, fee::Fee, l2::L2Tx, L1BatchNumber, PackedEthSignature};
-    use zksync_types::{L2ChainId, Nonce, H256};
-    use zksync_utils::h256_to_u256;
+    use zksync_types::{h256_to_u256, L2ChainId, Nonce, H256};
 
     #[tokio::test]
     async fn test_set_balance() {
@@ -749,7 +748,7 @@ mod tests {
         let expected_response = increase_value_seconds;
 
         let actual_response = node
-            .increase_time(increase_value_seconds.into())
+            .increase_time(increase_value_seconds)
             .await
             .expect("failed increasing timestamp");
         let timestamp_after = node.time.current_timestamp();
@@ -772,7 +771,7 @@ mod tests {
         let expected_response = increase_value_seconds;
 
         let actual_response = node
-            .increase_time(increase_value_seconds.into())
+            .increase_time(increase_value_seconds)
             .await
             .expect("failed increasing timestamp");
         let timestamp_after = node.time.current_timestamp();
@@ -794,7 +793,7 @@ mod tests {
         let expected_response = increase_value_seconds;
 
         let actual_response = node
-            .increase_time(increase_value_seconds.into())
+            .increase_time(increase_value_seconds)
             .await
             .expect("failed increasing timestamp");
         let timestamp_after = node.time.current_timestamp();
@@ -818,7 +817,7 @@ mod tests {
             "timestamps must be different"
         );
 
-        node.set_next_block_timestamp(new_timestamp.into())
+        node.set_next_block_timestamp(new_timestamp)
             .await
             .expect("failed setting timestamp");
         node.mine_block().await.expect("failed to mine a block");
@@ -837,13 +836,13 @@ mod tests {
         let timestamp_before = node.time.current_timestamp();
 
         let new_timestamp = timestamp_before + 500;
-        node.set_next_block_timestamp(new_timestamp.into())
+        node.set_next_block_timestamp(new_timestamp)
             .await
             .expect("failed setting timestamp");
 
         node.mine_block().await.expect("failed to mine a block");
 
-        let result = node.set_next_block_timestamp(timestamp_before.into()).await;
+        let result = node.set_next_block_timestamp(timestamp_before).await;
 
         assert!(result.is_err(), "expected an error for timestamp in past");
     }
@@ -856,7 +855,7 @@ mod tests {
         let timestamp_before = node.time.current_timestamp();
         assert_eq!(timestamp_before, new_timestamp, "timestamps must be same");
 
-        let response = node.set_next_block_timestamp(new_timestamp.into()).await;
+        let response = node.set_next_block_timestamp(new_timestamp).await;
         assert!(response.is_err());
 
         let timestamp_after = node.time.current_timestamp();
@@ -875,9 +874,7 @@ mod tests {
         assert_ne!(timestamp_before, new_time, "timestamps must be different");
         let expected_response = 9000;
 
-        let actual_response = node
-            .set_time(new_time.into())
-            .await
+        let actual_response = node.set_time(new_time).await
             .expect("failed setting timestamp");
         let timestamp_after = node.time.current_timestamp();
 
@@ -894,9 +891,7 @@ mod tests {
         assert_ne!(timestamp_before, new_time, "timestamps must be different");
         let expected_response = -990;
 
-        let actual_response = node
-            .set_time(new_time.into())
-            .await
+        let actual_response = node.set_time(new_time).await
             .expect("failed setting timestamp");
         let timestamp_after = node.time.current_timestamp();
 
@@ -913,9 +908,7 @@ mod tests {
         assert_eq!(timestamp_before, new_time, "timestamps must be same");
         let expected_response = 0;
 
-        let actual_response = node
-            .set_time(new_time.into())
-            .await
+        let actual_response = node.set_time(new_time).await
             .expect("failed setting timestamp");
         let timestamp_after = node.time.current_timestamp();
 
@@ -938,9 +931,7 @@ mod tests {
             );
             let expected_response = (new_time as i128).saturating_sub(timestamp_before as i128);
 
-            let actual_response = node
-                .set_time(new_time.into())
-                .await
+            let actual_response = node.set_time(new_time).await
                 .expect("failed setting timestamp");
             let timestamp_after = node.time.current_timestamp();
 

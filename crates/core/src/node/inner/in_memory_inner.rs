@@ -54,11 +54,10 @@ use zksync_types::utils::{
 };
 use zksync_types::web3::{Bytes, Index};
 use zksync_types::{
-    api, get_nonce_key, AccountTreeId, Address, Bloom, BloomInput, L1BatchNumber, L2BlockNumber,
-    StorageKey, StorageValue, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS, H160, H256,
-    MAX_L2_TX_GAS_LIMIT, U256, U64,
+    api, get_nonce_key, h256_to_address, h256_to_u256, u256_to_h256, AccountTreeId, Address, Bloom,
+    BloomInput, L1BatchNumber, L2BlockNumber, StorageKey, StorageValue, Transaction,
+    ACCOUNT_CODE_STORAGE_ADDRESS, H160, H256, MAX_L2_TX_GAS_LIMIT, U256, U64,
 };
-use zksync_utils::{h256_to_account_address, h256_to_u256, u256_to_h256};
 use zksync_web3_decl::error::Web3Error;
 
 // TODO: Rename `InMemoryNodeInner` to something more sensible
@@ -1347,7 +1346,7 @@ impl BlockContext {
 fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) -> Option<H160> {
     for query in execution_result.logs.storage_logs.iter().rev() {
         if query.log.is_write() && query.log.key.address() == &ACCOUNT_CODE_STORAGE_ADDRESS {
-            return Some(h256_to_account_address(query.log.key.key()));
+            return Some(h256_to_address(query.log.key.key()));
         }
     }
     None

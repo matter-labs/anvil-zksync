@@ -45,18 +45,18 @@ use zksync_multivm::vm_latest::{HistoryDisabled, ToTracerPointer, Vm};
 use zksync_multivm::VmVersion;
 use zksync_types::api::{Block, DebugCall, TransactionReceipt, TransactionVariant};
 use zksync_types::block::unpack_block_info;
+use zksync_types::bytecode::BytecodeHash;
 use zksync_types::fee_model::BatchFeeInput;
-use zksync_types::get_code_key;
 use zksync_types::l2::L2Tx;
 use zksync_types::storage::{
     EMPTY_UNCLES_HASH, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
 };
 use zksync_types::web3::{keccak256, Bytes};
+use zksync_types::{get_code_key, h256_to_u256};
 use zksync_types::{
     AccountTreeId, Address, Bloom, L1BatchNumber, L2BlockNumber, PackedEthSignature, StorageKey,
     StorageValue, Transaction, H160, H256, H64, U256, U64,
 };
-use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 
 /// Max possible size of an ABI encoded tx (in bytes).
 pub const MAX_TX_SIZE: usize = 1_000_000;
@@ -460,7 +460,7 @@ impl InMemoryNode {
 
         let code_key = get_code_key(address);
 
-        let bytecode_hash = hash_bytecode(bytecode);
+        let bytecode_hash = BytecodeHash::for_bytecode(bytecode).value();
 
         inner
             .fork_storage

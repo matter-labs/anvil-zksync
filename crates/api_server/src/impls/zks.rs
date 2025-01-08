@@ -209,4 +209,8 @@ impl ZksNamespaceServer for ZksNamespace {
     ) -> RpcResult<TransactionDetailedResult> {
         Err(RpcError::Unsupported.into())
     }
+
+    async fn get_timestamp_asserter(&self) -> RpcResult<Option<Address>> {
+        Err(RpcError::Unsupported.into())
+    }
 }

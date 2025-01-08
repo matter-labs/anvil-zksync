@@ -5,6 +5,7 @@ use colored::Colorize;
 use itertools::Itertools;
 use zksync_multivm::interface::{ExecutionResult, TxExecutionMode};
 use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
+use zksync_types::h256_to_u256;
 use zksync_types::{
     api,
     api::{Block, BlockIdVariant, BlockNumber, TransactionVariant},
@@ -18,7 +19,6 @@ use zksync_types::{
     web3::{self, Bytes},
     AccountTreeId, Address, H160, H256, U256, U64,
 };
-use zksync_utils::h256_to_u256;
 use zksync_web3_decl::{
     error::Web3Error,
     types::{FeeHistory, Filter, FilterChanges, SyncState},
@@ -330,8 +330,9 @@ impl InMemoryNode {
                     gas: Default::default(),
                     input: input_data.data.into(),
                     v: Some(chain_id.into()),
-                    r: Some(U256::zero()),
-                    s: Some(U256::zero()),
+                    r: Some(U256::zero()), // TODO: Shouldn't we set the signature?
+                    s: Some(U256::zero()), // TODO: Shouldn't we set the signature?
+                    y_parity: Some(U64::zero()), // TODO: Shouldn't we set the signature?
                     raw: None,
                     transaction_type: {
                         let tx_type = match info.tx.common_data.transaction_type {
@@ -650,7 +651,7 @@ impl InMemoryNode {
         block_count: u64,
         // TODO: Support
         _newest_block: BlockNumber,
-        reward_percentiles: Vec<f32>,
+        reward_percentiles: Option<Vec<f32>>,
     ) -> anyhow::Result<zksync_types::api::FeeHistory> {
         let current_block = self.blockchain.current_block_number().await;
 
@@ -667,7 +668,10 @@ impl InMemoryNode {
         let gas_used_ratio = vec![0.0; base_fee_per_gas.len()];
         // Effective priority gas price is currently 0.
         let reward = Some(vec![
-            vec![U256::zero(); reward_percentiles.len()];
+            vec![
+                U256::zero();
+                reward_percentiles.map_or(0, |v| v.len())
+            ];
             base_fee_per_gas.len()
         ]);
 
@@ -713,8 +717,7 @@ mod tests {
         utils::deployed_address_create,
         Bloom, K256PrivateKey, L2BlockNumber, StorageKey, EMPTY_UNCLES_HASH,
     };
-    use zksync_types::{web3, Nonce};
-    use zksync_utils::u256_to_h256;
+    use zksync_types::{u256_to_h256, web3, Nonce};
     use zksync_web3_decl::types::{SyncState, ValueOrArray};
 
     async fn test_node(url: &str) -> InMemoryNode {
@@ -737,7 +740,7 @@ mod tests {
         let node = InMemoryNode::test(None);
 
         let fee_history = node
-            .fee_history_impl(1, BlockNumber::Latest, vec![25.0, 50.0, 75.0])
+            .fee_history_impl(1, BlockNumber::Latest, Some(vec![25.0, 50.0, 75.0]))
             .await
             .expect("fee_history failed")
             .inner;
@@ -759,7 +762,7 @@ mod tests {
         let node = InMemoryNode::test(None);
 
         let fee_history = node
-            .fee_history_impl(1, BlockNumber::Latest, vec![])
+            .fee_history_impl(1, BlockNumber::Latest, Some(vec![]))
             .await
             .expect("fee_history failed")
             .inner;
@@ -788,7 +791,7 @@ mod tests {
             .await
             .expect("Block number fetch failed");
         let fee_history = node
-            .fee_history_impl(2, BlockNumber::Latest, vec![25.0, 50.0, 75.0])
+            .fee_history_impl(2, BlockNumber::Latest, Some(vec![25.0, 50.0, 75.0]))
             .await
             .expect("fee_history failed")
             .inner;
@@ -1089,9 +1092,10 @@ mod tests {
             gas_price: Some(tx.common_data.fee.max_fee_per_gas),
             gas: tx.common_data.fee.gas_limit,
             input: Default::default(),
-            v: actual_tx.v, // Checked separately, see below
-            r: actual_tx.r, // Checked separately, see below
-            s: actual_tx.s, // Checked separately, see below
+            v: actual_tx.v,               // Checked separately, see below
+            r: actual_tx.r,               // Checked separately, see below
+            s: actual_tx.s,               // Checked separately, see below
+            y_parity: actual_tx.y_parity, // Checked separately, see below
             raw: None,
             transaction_type: Some(U64::from(TransactionType::EIP712Transaction as u32)),
             access_list: None,

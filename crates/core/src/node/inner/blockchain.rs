@@ -12,10 +12,9 @@ use zksync_multivm::interface::L2Block;
 use zksync_multivm::vm_latest::utils::l2_blocks::load_last_l2_block;
 use zksync_types::block::{unpack_block_info, L2BlockHasher};
 use zksync_types::{
-    api, AccountTreeId, L1BatchNumber, L2BlockNumber, StorageKey, H256, SYSTEM_CONTEXT_ADDRESS,
-    SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
+    api, h256_to_u256, AccountTreeId, L1BatchNumber, L2BlockNumber, StorageKey, H256,
+    SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
 };
-use zksync_utils::h256_to_u256;
 
 /// A read-only blockchain representation. All clones agree on the internal state.
 #[derive(Clone)]

@@ -315,7 +315,7 @@ impl EthNamespaceServer for EthNamespace {
         &self,
         block_count: U64Number,
         newest_block: BlockNumber,
-        reward_percentiles: Vec<f32>,
+        reward_percentiles: Option<Vec<f32>>,
     ) -> RpcResult<FeeHistory> {
         Ok(self
             .node

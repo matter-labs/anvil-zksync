@@ -36,10 +36,10 @@ use zksync_types::{
     url::SensitiveUrl,
     ProtocolVersionId, StorageKey, SYSTEM_CONTEXT_CHAIN_ID_POSITION,
 };
+use zksync_types::{bytecode::BytecodeHash, h256_to_u256};
 use zksync_types::{
     Address, L1BatchNumber, L2BlockNumber, L2ChainId, StorageValue, H256, U256, U64,
 };
-use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 use zksync_web3_decl::{
     client::{Client, L2},
     namespaces::ZksNamespaceClient,
@@ -122,7 +122,7 @@ impl ForkStorage {
             inner: Arc::new(RwLock::new(ForkStorageInner {
                 raw_storage: InMemoryStorage::with_system_contracts_and_chain_id(
                     chain_id,
-                    hash_bytecode,
+                    |b| BytecodeHash::for_bytecode(b).value(),
                     system_contracts_options,
                     use_evm_emulator,
                 ),
@@ -560,7 +560,7 @@ impl ForkDetails {
             .get_block_by_hash(root_hash, true)
             .await
             .map_err(|error| eyre!(error))?;
-        let block = opt_block.ok_or_else(|| {
+        let mut block = opt_block.ok_or_else(|| {
             eyre!(
                 "Could not find block #{:?} ({:#x}) in {:?}",
                 miniblock,
@@ -569,6 +569,7 @@ impl ForkDetails {
             )
         })?;
         let l1_batch_number = block_details.l1_batch_number;
+        block.l1_batch_number = Some(l1_batch_number.0.into());
 
         if !block_details
             .protocol_version

@@ -61,9 +61,8 @@ pub struct BootloaderDebug {
     /// Fixed amount of gas for each transaction.
     pub intrinsic_overhead: U256,
 
-    /// Closing a block has a non-trivial cost for the operator (they have to run the prover, and commit results to L1).
-    /// That's why we have to judge how much a given transaction is contributing the operator closer to sealing the block.
-
+    // Closing a block has a non-trivial cost for the operator (they have to run the prover, and commit results to L1).
+    // That's why we have to judge how much a given transaction is contributing the operator closer to sealing the block.
     /// The maximum amount that operator could have requested.
     pub required_overhead: U256,
 
