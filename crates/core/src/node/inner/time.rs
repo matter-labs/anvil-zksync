@@ -1,37 +1,14 @@
 use anyhow::anyhow;
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-/// Shared readable view on time.
-pub trait ReadTime {
-    /// Returns timestamp (in seconds) that the clock is currently on.
-    fn current_timestamp(&self) -> u64;
-
-    /// Peek at what the next call to `advance_timestamp` will return.
-    fn peek_next_timestamp(&self) -> u64;
-}
-
-/// Writeable view on time management. The owner of this view should be able to treat it as
-/// exclusive access to the underlying clock.
-pub(super) trait AdvanceTime: ReadTime {
-    /// Advances clock to the next timestamp and returns that timestamp in seconds.
-    ///
-    /// Subsequent calls to this method return monotonically increasing values. Time difference
-    /// between calls is implementation-specific.
-    fn advance_timestamp(&self) -> u64;
-
-    fn reset_to(&self, timestamp: u64);
-}
-
-/// Manages timestamps (in seconds) across the system.
-///
-/// Clones always agree on the underlying timestamp and updating one affects all other instances.
+/// Read-only view on system's time (in seconds). Clones always agree on the underlying time.
 #[derive(Clone, Debug, Default)]
-pub struct TimestampManager {
+pub struct TimeReader {
     internal: Arc<RwLock<TimestampManagerInternal>>,
 }
 
-impl TimestampManager {
-    pub(super) fn new(current_timestamp: u64) -> (Self, TimestampWriter) {
+impl TimeReader {
+    pub(super) fn new(current_timestamp: u64) -> (Self, TimeWriter) {
         let internal = Arc::new(RwLock::new(TimestampManagerInternal {
             current_timestamp,
             next_timestamp: None,
@@ -41,7 +18,7 @@ impl TimestampManager {
             Self {
                 internal: internal.clone(),
             },
-            TimestampWriter { internal },
+            TimeWriter { internal },
         )
     }
 
@@ -50,30 +27,20 @@ impl TimestampManager {
             .read()
             .expect("TimestampManager lock is poisoned")
     }
-}
 
-impl ReadTime for TimestampManager {
-    fn current_timestamp(&self) -> u64 {
+    /// Returns timestamp (in seconds) that the clock is currently on.
+    pub fn current_timestamp(&self) -> u64 {
         (*self.get()).current_timestamp
     }
-
-    fn peek_next_timestamp(&self) -> u64 {
-        let internal = self.get();
-        internal.next_timestamp.unwrap_or_else(|| {
-            internal
-                .current_timestamp
-                .saturating_add(internal.interval())
-        })
-    }
 }
 
-/// Exclusive access to advancing timestamps (only supposed to be owned by [`super::InMemoryNodeInner`]).
+/// Exclusive access to mutable time (only supposed to be owned by [`super::InMemoryNodeInner`]).
 #[derive(Debug)]
-pub(super) struct TimestampWriter {
+pub(super) struct TimeWriter {
     internal: Arc<RwLock<TimestampManagerInternal>>,
 }
 
-impl TimestampWriter {
+impl TimeWriter {
     fn get(&self) -> RwLockReadGuard<TimestampManagerInternal> {
         self.internal
             .read()
@@ -139,14 +106,14 @@ impl TimestampWriter {
     pub(super) fn remove_block_timestamp_interval(&self) -> bool {
         self.get_mut().interval.take().is_some()
     }
-}
 
-impl ReadTime for TimestampWriter {
-    fn current_timestamp(&self) -> u64 {
+    /// Returns timestamp (in seconds) that the clock is currently on.
+    pub(super) fn current_timestamp(&self) -> u64 {
         (*self.get()).current_timestamp
     }
 
-    fn peek_next_timestamp(&self) -> u64 {
+    /// Peek at what the next call to `advance_timestamp` will return.
+    pub(super) fn peek_next_timestamp(&self) -> u64 {
         let internal = self.get();
         internal.next_timestamp.unwrap_or_else(|| {
             internal
@@ -154,10 +121,12 @@ impl ReadTime for TimestampWriter {
                 .saturating_add(internal.interval())
         })
     }
-}
 
-impl AdvanceTime for TimestampWriter {
-    fn advance_timestamp(&self) -> u64 {
+    /// Advances clock to the next timestamp and returns that timestamp in seconds.
+    ///
+    /// Subsequent calls to this method return monotonically increasing values. Time difference
+    /// between calls is implementation-specific.
+    pub(super) fn advance_timestamp(&self) -> u64 {
         let mut internal = self.get_mut();
         let next_timestamp = match internal.next_timestamp.take() {
             Some(next_timestamp) => next_timestamp,
@@ -170,7 +139,9 @@ impl AdvanceTime for TimestampWriter {
         next_timestamp
     }
 
-    fn reset_to(&self, timestamp: u64) {
+    /// Reset current timestamp to the provided value. WARNING: Moving clock to the past can cause
+    /// unexpected behavior.
+    pub(super) fn reset_to(&self, timestamp: u64) {
         let mut internal = self.get_mut();
         internal.next_timestamp.take();
         internal.current_timestamp = timestamp;

@@ -469,7 +469,6 @@ impl InMemoryNode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::node::time::ReadTime;
     use crate::node::InMemoryNode;
     use std::str::FromStr;
     use zksync_multivm::interface::storage::ReadStorage;

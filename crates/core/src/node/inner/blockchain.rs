@@ -1,6 +1,5 @@
 use super::fork::ForkDetails;
-use super::time::{AdvanceTime, ReadTime};
-use crate::node::time::TimestampWriter;
+use crate::node::time::TimeWriter;
 use crate::node::{compute_hash, create_genesis, create_genesis_from_json, TransactionResult};
 use crate::utils::ArcRLock;
 use anvil_zksync_config::types::Genesis;
@@ -240,7 +239,7 @@ impl Blockchain {
     pub(super) fn last_env<S: ReadStorage>(
         &self,
         storage: &StoragePtr<S>,
-        time: &TimestampWriter,
+        time_writer: &TimeWriter,
     ) -> (L1BatchNumber, L2Block) {
         // TODO: This whole logic seems off to me, reconsider if we need it at all.
         //       Specifically it is weird that we might not have our latest block in the storage.
@@ -251,7 +250,7 @@ impl Blockchain {
         let last_l2_block = load_last_l2_block(storage).unwrap_or_else(|| L2Block {
             number: self.current_block.0,
             hash: L2BlockHasher::legacy_hash(self.current_block),
-            timestamp: time.current_timestamp(),
+            timestamp: time_writer.current_timestamp(),
         });
         (last_l1_batch_number, last_l2_block)
     }
@@ -294,9 +293,9 @@ impl Blockchain {
         self.blocks.insert(block.hash, block);
     }
 
-    pub(super) fn load_blocks<T: AdvanceTime>(
+    pub(super) fn load_blocks(
         &mut self,
-        time: &mut T,
+        time_writer: &mut TimeWriter,
         blocks: Vec<api::Block<api::TransactionVariant>>,
     ) {
         tracing::trace!(
@@ -333,7 +332,7 @@ impl Blockchain {
         self.current_block = L2BlockNumber(latest_number as u32);
         self.current_block_hash = latest_hash;
         self.current_batch = L1BatchNumber(latest_batch_number);
-        time.reset_to(latest_timestamp);
+        time_writer.reset_to(latest_timestamp);
     }
 
     pub(super) fn load_transactions(&mut self, transactions: Vec<TransactionResult>) {

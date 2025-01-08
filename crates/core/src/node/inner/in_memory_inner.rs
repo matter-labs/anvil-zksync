@@ -1,6 +1,6 @@
 use super::blockchain::{BlockchainReader, BlockchainWriter};
 use super::fork::{ForkDetails, ForkStorage, SerializableStorage};
-use super::time::{AdvanceTime, ReadTime, TimestampWriter};
+use super::time::TimeWriter;
 use crate::bootloader_debug::{BootloaderDebug, BootloaderDebugTracer};
 use crate::console_log::ConsoleLogHandler;
 use crate::deps::storage_view::StorageView;
@@ -65,7 +65,7 @@ use zksync_web3_decl::error::Web3Error;
 pub struct InMemoryNodeInner {
     // Special right to write into blockchain as opposed to [`Blockchain`]
     blockchain_writer: BlockchainWriter,
-    pub(super) time_writer: TimestampWriter,
+    pub(super) time_writer: TimeWriter,
     /// The fee input provider.
     pub fee_input_provider: TestNodeFeeInputProvider,
     // Map from filter_id to the eth filter
@@ -87,7 +87,7 @@ impl InMemoryNodeInner {
     /// Create the state to be used implementing [InMemoryNode].
     pub(super) fn new(
         blockchain_writer: BlockchainWriter,
-        time_writer: TimestampWriter,
+        time_writer: TimeWriter,
         fork_storage: ForkStorage,
         fee_input_provider: TestNodeFeeInputProvider,
         filters: Arc<RwLock<EthFilters>>,
@@ -1308,7 +1308,7 @@ pub struct BlockContext {
 
 impl BlockContext {
     /// Create the next batch instance that uses the same batch number, and has all other parameters incremented by `1`.
-    fn new_block<T: AdvanceTime>(&self, time: &mut T) -> BlockContext {
+    fn new_block(&self, time: &mut TimeWriter) -> BlockContext {
         Self {
             hash: H256::zero(),
             batch: self.batch,

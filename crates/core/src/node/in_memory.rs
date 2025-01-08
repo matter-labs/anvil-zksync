@@ -10,7 +10,7 @@ use crate::node::error::LoadStateError;
 use crate::node::fee_model::TestNodeFeeInputProvider;
 use crate::node::impersonate::{ImpersonationManager, ImpersonationState};
 use crate::node::inner::blockchain::BlockchainReader;
-use crate::node::inner::time::{ReadTime, TimestampManager};
+use crate::node::inner::time::TimeReader;
 use crate::node::sealer::BlockSealerState;
 use crate::node::state::VersionedState;
 use crate::node::{BlockSealer, BlockSealerMode, NodeExecutor, TxPool};
@@ -247,7 +247,7 @@ pub struct InMemoryNode {
     pub(crate) node_handle: NodeExecutorHandle,
     /// List of snapshots of the [InMemoryNodeInner]. This is bounded at runtime by [MAX_SNAPSHOTS].
     pub(crate) snapshots: Arc<RwLock<Vec<Snapshot>>>,
-    pub(crate) time: TimestampManager,
+    pub(crate) time: TimeReader,
     pub(crate) impersonation: ImpersonationManager,
     /// An optional handle to the observability stack
     pub(crate) observability: Option<Observability>,
@@ -262,7 +262,7 @@ impl InMemoryNode {
         blockchain: BlockchainReader,
         node_handle: NodeExecutorHandle,
         observability: Option<Observability>,
-        time: TimestampManager,
+        time: TimeReader,
         impersonation: ImpersonationManager,
         pool: TxPool,
         sealer_state: BlockSealerState,
