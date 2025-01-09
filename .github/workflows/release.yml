@@ -77,7 +77,11 @@ jobs:
 
       - name: Build anvil-zksync for ${{ matrix.arch }}
         run: |
-          make build-${{ matrix.arch }}
+          if [[ "${{ matrix.arch }}" == *"linux"* ]]; then
+            make build-static-${{ matrix.arch }}
+          else
+            make build-${{ matrix.arch }}
+          fi
 
       - name: Rename and move binary
         run: |

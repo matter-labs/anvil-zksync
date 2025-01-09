@@ -1,14 +1,14 @@
-# Cross.toml
-
 [target.x86_64-unknown-linux-gnu]
+image = "ubuntu:22.04"
 pre-build = [
     "export DEBIAN_FRONTEND=noninteractive",
     "export TZ=Etc/UTC",
     "dpkg --add-architecture $CROSS_DEB_ARCH",
-    "apt update -q && apt upgrade -yq && apt install --assume-yes --no-install-recommends libclang-10-dev clang-10 cmake build-essential pkg-config libssl-dev:$CROSS_DEB_ARCH libsasl2-dev llvm-dev gnutls-bin",
-    "apt install -y gcc-10 g++-10",
-    "update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 10",
-    "update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-10 10"
+    "apt update -q && apt upgrade -yq",
+    "apt install --assume-yes --no-install-recommends libclang-14-dev clang-14 cmake build-essential pkg-config libssl-dev:$CROSS_DEB_ARCH libsasl2-dev llvm-14-dev gnutls-bin",
+    "apt install -y gcc-11 g++-11",
+    "update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-11 11",
+    "update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-11 11"
 ]
 
 [target.aarch64-unknown-linux-gnu]
