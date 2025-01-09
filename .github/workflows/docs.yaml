@@ -33,7 +33,7 @@ jobs:
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          toolchain: nightly-2024-08-01
+          toolchain: stable
       - name: Setup Pages
         uses: actions/configure-pages@v3
 

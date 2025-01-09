@@ -1,19 +1,20 @@
 import { expect } from "chai";
-import { Wallet } from "zksync-web3";
+import { Wallet } from "zksync-ethers";
 import { expectThrowsAsync, getTestProvider } from "../helpers/utils";
 import { RichAccounts } from "../helpers/constants";
 import { ethers } from "ethers";
+import { TransactionResponse } from "zksync-ethers/build/types";
 
 const provider = getTestProvider();
 
 describe("eth_accounts", function () {
   it("Should return legacy rich accounts", async function () {
     // Arrange
-    const richAccounts = RichAccounts.map((ra) => ethers.utils.getAddress(ra.Account)).sort();
+    const richAccounts = RichAccounts.map((ra) => ethers.getAddress(ra.Account)).sort();
 
     // Act
     const response: string[] = await provider.send("eth_accounts", []);
-    const accounts = response.map((addr) => ethers.utils.getAddress(addr)).sort();
+    const accounts = response.map((addr) => ethers.getAddress(addr)).sort();
 
     // Assert
     expect(accounts).to.include.members(richAccounts);
@@ -33,11 +34,11 @@ describe("eth_accounts", function () {
       "0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f",
       "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
     ];
-    const expectedBalance = ethers.utils.parseEther("10000");
+    const expectedBalance = ethers.parseEther("10000");
 
     // Act
     const response: string[] = await provider.send("eth_accounts", []);
-    const accounts = response.map((addr) => ethers.utils.getAddress(addr));
+    const accounts = response.map((addr) => ethers.getAddress(addr));
 
     // Assert
     expect(accounts).to.include.members(genesisAccounts);
@@ -54,10 +55,10 @@ describe("eth_accounts", function () {
     const wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
     const tx = await wallet.sendTransaction({
       to: wallet.address,
-      value: ethers.utils.parseEther("3"),
+      value: ethers.parseEther("3"),
     });
     const response = await tx.wait();
-    const txHash = response.transactionHash;
+    const txHash = response.hash;
 
     // Act
     const receipt = await provider.send("eth_getTransactionReceipt", [txHash]);
@@ -94,13 +95,16 @@ describe("eth_sendTransaction", function () {
 
     const hash = await provider.send("eth_sendTransaction", [transaction]);
 
-    // Wait for the transaction to be mined and get the receipt
-    const receipt = await provider.waitForTransaction(hash);
+    // Wait for the transaction to be mined and get the receipt. Used via `TransactionResponse`
+    // as the upstream implementation of `Provider::waitForTransaction` has a known race condition:
+    // https://github.com/ethers-io/ethers.js/issues/4224.
+    const txResponse = new TransactionResponse({ hash, ...transaction }, provider);
+    const receipt = await txResponse.wait();
 
     await provider.send("hardhat_stopImpersonatingAccount", [fromAddr]);
 
     // Assert
-    expect(receipt["from"]).to.equal(fromAddr);
+    expect(receipt?.["from"]).to.equal(fromAddr);
   });
 
   it("Should fail without impersonation", async function () {

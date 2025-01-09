@@ -1,10 +1,28 @@
 use alloy::network::ReceiptResponse;
 use alloy::providers::ext::AnvilApi;
-use anvil_zksync_e2e_tests::{
-    init_testing_provider, AnvilZKsyncApi, ReceiptExt, ZksyncWalletProviderExt, DEFAULT_TX_VALUE,
+use alloy::providers::Provider;
+use alloy::{
+    network::primitives::BlockTransactionsKind, primitives::U256, signers::local::PrivateKeySigner,
 };
-use std::convert::identity;
-use std::time::Duration;
+use anvil_zksync_core::node::VersionedState;
+use anvil_zksync_core::utils::write_json_file;
+use anvil_zksync_e2e_tests::{
+    get_node_binary_path, init_testing_provider, init_testing_provider_with_client, AnvilZKsyncApi,
+    ReceiptExt, ZksyncWalletProviderExt, DEFAULT_TX_VALUE,
+};
+use anyhow::Context;
+use flate2::read::GzDecoder;
+use http::header::{
+    HeaderMap, HeaderValue, ACCESS_CONTROL_ALLOW_HEADERS, ACCESS_CONTROL_ALLOW_METHODS,
+    ACCESS_CONTROL_ALLOW_ORIGIN, ORIGIN,
+};
+use std::io::Read;
+use std::{convert::identity, fs, thread::sleep, time::Duration};
+use tempdir::TempDir;
+
+const SOME_ORIGIN: HeaderValue = HeaderValue::from_static("http://some.origin");
+const OTHER_ORIGIN: HeaderValue = HeaderValue::from_static("http://other.origin");
+const ANY_ORIGIN: HeaderValue = HeaderValue::from_static("*");
 
 #[tokio::test]
 async fn interval_sealing_finalization() -> anyhow::Result<()> {
@@ -58,11 +76,11 @@ async fn no_sealing_timeout() -> anyhow::Result<()> {
 async fn dynamic_sealing_mode() -> anyhow::Result<()> {
     // Test that we can successfully switch between different sealing modes
     let provider = init_testing_provider(|node| node.no_mine()).await?;
-    assert_eq!(provider.anvil_get_auto_mine().await?, false);
+    assert!(!(provider.anvil_get_auto_mine().await?));
 
     // Enable immediate block sealing
     provider.anvil_set_auto_mine(true).await?;
-    assert_eq!(provider.anvil_get_auto_mine().await?, true);
+    assert!(provider.anvil_get_auto_mine().await?);
 
     // Check that we can finalize transactions now
     let receipt = provider.tx().finalize().await?;
@@ -70,7 +88,7 @@ async fn dynamic_sealing_mode() -> anyhow::Result<()> {
 
     // Enable interval block sealing
     provider.anvil_set_interval_mining(3).await?;
-    assert_eq!(provider.anvil_get_auto_mine().await?, false);
+    assert!(!(provider.anvil_get_auto_mine().await?));
 
     // Check that we can finalize two txs in the same block now
     provider
@@ -81,7 +99,7 @@ async fn dynamic_sealing_mode() -> anyhow::Result<()> {
 
     // Disable block sealing entirely
     provider.anvil_set_auto_mine(false).await?;
-    assert_eq!(provider.anvil_get_auto_mine().await?, false);
+    assert!(!(provider.anvil_get_auto_mine().await?));
 
     // Check that transactions do not get finalized now
     provider
@@ -330,6 +348,433 @@ async fn cant_load_into_existing_state() -> anyhow::Result<()> {
     provider
         .assert_balance(old_receipts[1].sender()?, 0)
         .await?;
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn set_chain_id() -> anyhow::Result<()> {
+    let mut provider = init_testing_provider(identity).await?;
+
+    let random_signer = PrivateKeySigner::random();
+    let random_signer_address = random_signer.address();
+
+    // Send transaction before changing chain id
+    provider
+        .tx()
+        .with_to(random_signer_address)
+        .with_value(U256::from(1e18 as u64))
+        .finalize()
+        .await?;
+
+    // Change chain id
+    let new_chain_id = 123;
+    provider.anvil_set_chain_id(new_chain_id).await?;
+
+    // Verify new chain id
+    assert_eq!(new_chain_id, provider.get_chain_id().await?);
+
+    // Verify transactions can be executed after chain id change
+    // Registering and using new signer to get new chain id applied
+    provider.register_signer(random_signer);
+    provider
+        .tx()
+        .with_from(random_signer_address)
+        .with_chain_id(new_chain_id)
+        .finalize()
+        .await?;
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn cli_no_cors() -> anyhow::Result<()> {
+    // Verify all origins are allowed by default
+    let provider = init_testing_provider(identity).await?;
+    provider.get_chain_id().await?;
+    let resp_headers = provider.last_response_headers_unwrap().await;
+    assert_eq!(
+        resp_headers.get(ACCESS_CONTROL_ALLOW_ORIGIN),
+        Some(&ANY_ORIGIN)
+    );
+
+    // Making OPTIONS request reveals all access control settings
+    let client = reqwest::Client::new();
+    let url = provider.url.clone();
+    let resp = client.request(reqwest::Method::OPTIONS, url).send().await?;
+    assert_eq!(
+        resp.headers().get(ACCESS_CONTROL_ALLOW_METHODS),
+        Some(&HeaderValue::from_static("GET,POST"))
+    );
+    assert_eq!(
+        resp.headers().get(ACCESS_CONTROL_ALLOW_HEADERS),
+        Some(&HeaderValue::from_static("content-type"))
+    );
+    assert_eq!(
+        resp.headers().get(ACCESS_CONTROL_ALLOW_ORIGIN),
+        Some(&ANY_ORIGIN)
+    );
+    drop(provider);
+
+    // Verify access control is disabled with --no-cors
+    let provider_no_cors = init_testing_provider(|node| node.arg("--no-cors")).await?;
+    provider_no_cors.get_chain_id().await?;
+    let resp_headers = provider_no_cors.last_response_headers_unwrap().await;
+    assert_eq!(resp_headers.get(ACCESS_CONTROL_ALLOW_ORIGIN), None);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn cli_allow_origin() -> anyhow::Result<()> {
+    let req_headers = HeaderMap::from_iter([(ORIGIN, SOME_ORIGIN)]);
+
+    // Verify allowed origin can make requests
+    let provider_with_allowed_origin = init_testing_provider_with_client(
+        |node| node.arg(format!("--allow-origin={}", SOME_ORIGIN.to_str().unwrap())),
+        |client| client.default_headers(req_headers.clone()),
+    )
+    .await?;
+    provider_with_allowed_origin.get_chain_id().await?;
+    let resp_headers = provider_with_allowed_origin
+        .last_response_headers_unwrap()
+        .await;
+    assert_eq!(
+        resp_headers.get(ACCESS_CONTROL_ALLOW_ORIGIN),
+        Some(&SOME_ORIGIN)
+    );
+    drop(provider_with_allowed_origin);
+
+    // Verify different origin are also allowed to make requests. CORS is reliant on the browser
+    // to respect access control headers reported by the server.
+    let provider_with_not_allowed_origin = init_testing_provider_with_client(
+        |node| node.arg(format!("--allow-origin={}", OTHER_ORIGIN.to_str().unwrap())),
+        |client| client.default_headers(req_headers),
+    )
+    .await?;
+    provider_with_not_allowed_origin.get_chain_id().await?;
+    let resp_headers = provider_with_not_allowed_origin
+        .last_response_headers_unwrap()
+        .await;
+    assert_eq!(
+        resp_headers.get(ACCESS_CONTROL_ALLOW_ORIGIN),
+        Some(&OTHER_ORIGIN)
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn pool_txs_order_fifo() -> anyhow::Result<()> {
+    let provider_fifo = init_testing_provider(|node| node.no_mine()).await?;
+
+    let pending_tx0 = provider_fifo
+        .tx()
+        .with_rich_from(0)
+        .with_max_fee_per_gas(50_000_000)
+        .register()
+        .await?;
+    let pending_tx1 = provider_fifo
+        .tx()
+        .with_rich_from(1)
+        .with_max_fee_per_gas(100_000_000)
+        .register()
+        .await?;
+    let pending_tx2 = provider_fifo
+        .tx()
+        .with_rich_from(2)
+        .with_max_fee_per_gas(150_000_000)
+        .register()
+        .await?;
+
+    provider_fifo.anvil_mine(Some(U256::from(1)), None).await?;
+
+    let block = provider_fifo
+        .get_block(1.into(), BlockTransactionsKind::Hashes)
+        .await?
+        .unwrap();
+    let tx_hashes = block.transactions.as_hashes().unwrap();
+    assert_eq!(&tx_hashes[0], pending_tx0.tx_hash());
+    assert_eq!(&tx_hashes[1], pending_tx1.tx_hash());
+    assert_eq!(&tx_hashes[2], pending_tx2.tx_hash());
+    Ok(())
+}
+
+#[tokio::test]
+async fn pool_txs_order_fees() -> anyhow::Result<()> {
+    let provider_fees = init_testing_provider(|node| node.no_mine().arg("--order=fees")).await?;
+
+    let pending_tx0 = provider_fees
+        .tx()
+        .with_rich_from(0)
+        .with_max_fee_per_gas(50_000_000)
+        .register()
+        .await?;
+    let pending_tx1 = provider_fees
+        .tx()
+        .with_rich_from(1)
+        .with_max_fee_per_gas(100_000_000)
+        .register()
+        .await?;
+    let pending_tx2 = provider_fees
+        .tx()
+        .with_rich_from(2)
+        .with_max_fee_per_gas(150_000_000)
+        .register()
+        .await?;
+
+    provider_fees.anvil_mine(Some(U256::from(1)), None).await?;
+
+    let block = provider_fees
+        .get_block(1.into(), BlockTransactionsKind::Hashes)
+        .await?
+        .unwrap();
+    let tx_hashes = block.transactions.as_hashes().unwrap();
+    assert_eq!(&tx_hashes[0], pending_tx2.tx_hash());
+    assert_eq!(&tx_hashes[1], pending_tx1.tx_hash());
+    assert_eq!(&tx_hashes[2], pending_tx0.tx_hash());
+    Ok(())
+}
+
+#[tokio::test]
+async fn transactions_have_index() -> anyhow::Result<()> {
+    let provider = init_testing_provider(|node| node.no_mine()).await?;
+    let tx1 = provider.tx().with_rich_from(0).register().await?;
+    let tx2 = provider.tx().with_rich_from(1).register().await?;
+
+    provider.anvil_mine(Some(U256::from(1)), None).await?;
+
+    let receipt1 = tx1.wait_until_finalized().await?;
+    let receipt2 = tx2.wait_until_finalized().await?;
+
+    assert_eq!(receipt1.transaction_index(), 0.into());
+    assert_eq!(receipt2.transaction_index(), 1.into());
+    Ok(())
+}
+
+#[tokio::test]
+async fn dump_state_on_run() -> anyhow::Result<()> {
+    let temp_dir = TempDir::new("state-test").expect("failed creating temporary dir");
+    let dump_path = temp_dir.path().join("state_dump.json");
+
+    let dump_path_clone = dump_path.clone();
+    let provider = init_testing_provider(move |node| {
+        node.path(get_node_binary_path())
+            .arg("--state-interval")
+            .arg("1")
+            .arg("--dump-state")
+            .arg(dump_path_clone.to_str().unwrap())
+    })
+    .await?;
+
+    let receipt = provider.tx().finalize().await?;
+    let tx_hash = receipt.transaction_hash().to_string();
+
+    sleep(Duration::from_secs(2));
+
+    drop(provider);
+
+    assert!(
+        dump_path.exists(),
+        "State dump file should exist at {:?}",
+        dump_path
+    );
+
+    let dumped_data = fs::read_to_string(&dump_path)?;
+    let state: VersionedState =
+        serde_json::from_str(&dumped_data).context("Failed to deserialize state")?;
+
+    match state {
+        VersionedState::V1 { version: _, state } => {
+            assert!(
+                !state.blocks.is_empty(),
+                "state_dump.json should contain at least one block"
+            );
+            assert!(
+                !state.transactions.is_empty(),
+                "state_dump.json should contain at least one transaction"
+            );
+            let tx_exists = state.transactions.iter().any(|tx| {
+                let tx_hash_full =
+                    format!("0x{}", hex::encode(tx.receipt.transaction_hash.as_bytes()));
+                tx_hash_full == tx_hash
+            });
+
+            assert!(
+                tx_exists,
+                "The state dump should contain the transaction with hash: {:?}",
+                tx_hash
+            );
+        }
+        VersionedState::Unknown { version } => {
+            panic!("Encountered unknown state version: {}", version);
+        }
+    }
+
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore]
+// TODO: Investigate a better way to test against fork to avoid flakiness. See: https://github.com/matter-labs/anvil-zksync/issues/508
+async fn dump_state_on_fork() -> anyhow::Result<()> {
+    let temp_dir = TempDir::new("state-fork-test").expect("failed creating temporary dir");
+    let dump_path = temp_dir.path().join("state_dump_fork.json");
+
+    let dump_path_clone = dump_path.clone();
+    let provider = init_testing_provider(move |node| {
+        node.path(get_node_binary_path())
+            .arg("--state-interval")
+            .arg("1")
+            .arg("--dump-state")
+            .arg(dump_path_clone.to_str().unwrap())
+            .fork("sepolia-testnet")
+    })
+    .await?;
+
+    let receipt = provider.tx().finalize().await?;
+    let tx_hash = receipt.transaction_hash().to_string();
+
+    sleep(Duration::from_secs(2));
+
+    drop(provider);
+
+    assert!(
+        dump_path.exists(),
+        "State dump file should exist at {:?}",
+        dump_path
+    );
+
+    let dumped_data = fs::read_to_string(&dump_path)?;
+    let state: VersionedState =
+        serde_json::from_str(&dumped_data).context("Failed to deserialize state")?;
+
+    match state {
+        VersionedState::V1 { version: _, state } => {
+            assert!(
+                !state.blocks.is_empty(),
+                "state_dump_fork.json should contain at least one block"
+            );
+            assert!(
+                !state.transactions.is_empty(),
+                "state_dump_fork.json should contain at least one transaction"
+            );
+            let tx_exists = state.transactions.iter().any(|tx| {
+                let tx_hash_full =
+                    format!("0x{}", hex::encode(tx.receipt.transaction_hash.as_bytes()));
+                tx_hash_full == tx_hash
+            });
+            assert!(
+                tx_exists,
+                "The state dump should contain the transaction with hash: {:?}",
+                tx_hash
+            );
+        }
+        VersionedState::Unknown { version } => {
+            panic!("Encountered unknown state version: {}", version);
+        }
+    }
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn load_state_on_run() -> anyhow::Result<()> {
+    let temp_dir = TempDir::new("load-state-test").expect("failed creating temporary dir");
+    let dump_path = temp_dir.path().join("load_state_run.json");
+    let provider = init_testing_provider(identity).await?;
+    let receipts = [
+        provider.tx().finalize().await?,
+        provider.tx().finalize().await?,
+    ];
+    let blocks = provider.get_blocks_by_receipts(&receipts).await?;
+    let state_bytes = provider.anvil_dump_state().await?;
+    drop(provider);
+
+    let mut decoder = GzDecoder::new(&state_bytes.0[..]);
+    let mut json_str = String::new();
+    decoder.read_to_string(&mut json_str).unwrap();
+    let state: VersionedState = serde_json::from_str(&json_str).unwrap();
+    write_json_file(&dump_path, &state)?;
+
+    let dump_path_clone = dump_path.clone();
+    let new_provider = init_testing_provider(move |node| {
+        node.path(get_node_binary_path())
+            .arg("--state-interval")
+            .arg("1")
+            .arg("--load-state")
+            .arg(dump_path_clone.to_str().unwrap())
+    })
+    .await?;
+
+    new_provider.assert_has_receipts(&receipts).await?;
+    new_provider.assert_has_blocks(&blocks).await?;
+    new_provider
+        .assert_balance(receipts[0].sender()?, DEFAULT_TX_VALUE)
+        .await?;
+    new_provider
+        .assert_balance(receipts[1].sender()?, DEFAULT_TX_VALUE)
+        .await?;
+
+    drop(new_provider);
+
+    assert!(
+        dump_path.exists(),
+        "State dump file should still exist at {:?}",
+        dump_path
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore]
+// TODO: Investigate a better way to test against fork to avoid flakiness. See: https://github.com/matter-labs/anvil-zksync/issues/508
+async fn load_state_on_fork() -> anyhow::Result<()> {
+    let temp_dir = TempDir::new("load-state-fork-test").expect("failed creating temporary dir");
+    let dump_path = temp_dir.path().join("load_state_fork.json");
+    let provider = init_testing_provider(identity).await?;
+    let receipts = [
+        provider.tx().finalize().await?,
+        provider.tx().finalize().await?,
+    ];
+    let blocks = provider.get_blocks_by_receipts(&receipts).await?;
+    let state_bytes = provider.anvil_dump_state().await?;
+    drop(provider);
+
+    let mut decoder = GzDecoder::new(&state_bytes.0[..]);
+    let mut json_str = String::new();
+    decoder.read_to_string(&mut json_str).unwrap();
+    let state: VersionedState = serde_json::from_str(&json_str).unwrap();
+    write_json_file(&dump_path, &state)?;
+
+    let dump_path_clone = dump_path.clone();
+    let new_provider = init_testing_provider(move |node| {
+        node.path(get_node_binary_path())
+            .arg("--state-interval")
+            .arg("1")
+            .arg("--load-state")
+            .arg(dump_path_clone.to_str().unwrap())
+            .fork("sepolia-testnet")
+    })
+    .await?;
+
+    new_provider.assert_has_receipts(&receipts).await?;
+    new_provider.assert_has_blocks(&blocks).await?;
+    new_provider
+        .assert_balance(receipts[0].sender()?, DEFAULT_TX_VALUE)
+        .await?;
+    new_provider
+        .assert_balance(receipts[1].sender()?, DEFAULT_TX_VALUE)
+        .await?;
+
+    drop(new_provider);
+
+    assert!(
+        dump_path.exists(),
+        "State dump file should still exist at {:?}",
+        dump_path
+    );
 
     Ok(())
 }

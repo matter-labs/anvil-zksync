@@ -1,27 +1,25 @@
 import { expect } from "chai";
-import { Wallet } from "zksync-web3";
+import { Wallet } from "zksync-ethers";
 import { deployContract, expectThrowsAsync, getTestProvider } from "../helpers/utils";
 import { RichAccounts } from "../helpers/constants";
 import { ethers } from "hardhat";
 import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
 import * as hre from "hardhat";
-import { keccak256 } from "ethers/lib/utils";
-import { BigNumber } from "ethers";
 
 const provider = getTestProvider();
 
 describe("hardhat_setBalance", function () {
   it("Should update the balance of an account", async function () {
     // Arrange
-    const userWallet = Wallet.createRandom().connect(provider);
-    const newBalance = ethers.utils.parseEther("42");
+    const userWallet = new Wallet(Wallet.createRandom().privateKey).connect(provider);
+    const newBalance = ethers.parseEther("42");
 
     // Act
-    await provider.send("hardhat_setBalance", [userWallet.address, newBalance._hex]);
+    await provider.send("hardhat_setBalance", [userWallet.address, ethers.toBeHex(newBalance)]);
 
     // Assert
     const balance = await userWallet.getBalance();
-    expect(balance.eq(newBalance)).to.true;
+    expect(balance).to.eq(newBalance);
   });
 });
 
@@ -32,7 +30,7 @@ describe("hardhat_setNonce", function () {
     const newNonce = 42;
 
     // Act
-    await provider.send("hardhat_setNonce", [userWallet.address, ethers.utils.hexlify(newNonce)]);
+    await provider.send("hardhat_setNonce", [userWallet.address, ethers.toBeHex(newNonce)]);
 
     // Assert
     const nonce = await userWallet.getNonce();
@@ -49,10 +47,7 @@ describe("hardhat_mine", function () {
     const startingTimestamp: number = await provider.send("config_getCurrentTimestamp", []);
 
     // Act
-    await provider.send("hardhat_mine", [
-      ethers.utils.hexlify(numberOfBlocks),
-      ethers.utils.hexlify(intervalInSeconds),
-    ]);
+    await provider.send("hardhat_mine", [ethers.toBeHex(numberOfBlocks), ethers.toBeHex(intervalInSeconds)]);
 
     // Assert
     const latestBlock = await provider.getBlock("latest");
@@ -67,7 +62,7 @@ describe("hardhat_mine", function () {
 describe("hardhat_impersonateAccount & hardhat_stopImpersonatingAccount", function () {
   it("Should allow transfers of funds without knowing the Private Key", async function () {
     // Arrange
-    const userWallet = Wallet.createRandom().connect(provider);
+    const userWallet = new Wallet(Wallet.createRandom().privateKey).connect(provider);
     const beforeBalance = await provider.getBalance(RichAccounts[5].Account);
 
     // Act
@@ -76,7 +71,7 @@ describe("hardhat_impersonateAccount & hardhat_stopImpersonatingAccount", functi
     const signer = await ethers.getSigner(RichAccounts[5].Account);
     const tx = {
       to: userWallet.address,
-      value: ethers.utils.parseEther("0.42"),
+      value: ethers.parseEther("0.42"),
     };
 
     const recieptTx = await signer.sendTransaction(tx);
@@ -85,9 +80,8 @@ describe("hardhat_impersonateAccount & hardhat_stopImpersonatingAccount", functi
     await provider.send("hardhat_stopImpersonatingAccount", [RichAccounts[5].Account]);
 
     // Assert
-    expect((await userWallet.getBalance()).eq(ethers.utils.parseEther("0.42"))).to.true;
-    expect((await provider.getBalance(RichAccounts[5].Account)).eq(beforeBalance.sub(ethers.utils.parseEther("0.42"))))
-      .to.true;
+    expect(await userWallet.getBalance()).to.eq(ethers.parseEther("0.42"));
+    expect(await provider.getBalance(RichAccounts[5].Account)).to.eq(beforeBalance - ethers.parseEther("0.42"));
   });
 });
 
@@ -108,7 +102,7 @@ describe("hardhat_setCode", function () {
     const result = await provider.send("eth_call", [
       {
         to: address,
-        data: keccak256(ethers.utils.toUtf8Bytes("value()")).substring(0, 10),
+        data: ethers.keccak256(ethers.toUtf8Bytes("value()")).substring(0, 10),
         from: wallet.address,
         gas: "0x1000",
         gasPrice: "0x0ee6b280",
@@ -117,7 +111,7 @@ describe("hardhat_setCode", function () {
       },
       "latest",
     ]);
-    expect(BigNumber.from(result).toNumber()).to.eq(5);
+    expect(BigInt(result)).to.eq(5n);
   });
 
   it("Should reject invalid code", async function () {
@@ -149,13 +143,13 @@ describe("hardhat_setCode", function () {
     const newContractCode = artifact.deployedBytecode;
 
     // Act
-    await provider.send("hardhat_setCode", [greeter.address, newContractCode]);
+    await provider.send("hardhat_setCode", [await greeter.getAddress(), newContractCode]);
 
     // Assert
     const result = await provider.send("eth_call", [
       {
-        to: greeter.address,
-        data: keccak256(ethers.utils.toUtf8Bytes("value()")).substring(0, 10),
+        to: await greeter.getAddress(),
+        data: ethers.keccak256(ethers.toUtf8Bytes("value()")).substring(0, 10),
         from: wallet.address,
         gas: "0x1000",
         gasPrice: "0x0ee6b280",
@@ -164,7 +158,7 @@ describe("hardhat_setCode", function () {
       },
       "latest",
     ]);
-    expect(BigNumber.from(result).toNumber()).to.eq(5);
+    expect(BigInt(result)).to.eq(5n);
   });
 });
 
@@ -176,34 +170,34 @@ describe("hardhat_reset", function () {
     await provider.send("evm_mine", []);
 
     const blockNumber = await provider.send("eth_blockNumber", []);
-    expect(BigNumber.from(blockNumber).toNumber()).to.be.eq(BigNumber.from(oldBlockNumber).toNumber() + 2);
+    expect(BigInt(blockNumber)).to.eq(BigInt(oldBlockNumber) + 2n);
 
     await provider.send("hardhat_reset", []);
     const newBlockNumber = await provider.send("eth_blockNumber", []);
-    expect(BigNumber.from(newBlockNumber).toNumber()).to.be.eq(0);
+    expect(BigInt(newBlockNumber)).to.eq(0n);
   });
 });
 
 describe("hardhat_setStorageAt", function () {
   it("Should set storage at an address", async function () {
     const wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
-    const userWallet = Wallet.createRandom().connect(provider);
+    const userWallet = new Wallet(Wallet.createRandom().privateKey).connect(provider);
     await wallet.sendTransaction({
       to: userWallet.address,
-      value: ethers.utils.parseEther("3"),
+      value: ethers.parseEther("3"),
     });
 
     const deployer = new Deployer(hre, userWallet);
     const artifact = await deployer.loadArtifact("MyERC20");
     const token = await deployer.deploy(artifact, ["MyToken", "MyToken", 18]);
 
-    const before = await provider.send("eth_getStorageAt", [token.address, "0x0", "latest"]);
-    expect(BigNumber.from(before).toNumber()).to.eq(0);
+    const before = await provider.send("eth_getStorageAt", [await token.getAddress(), "0x0", "latest"]);
+    expect(BigInt(before)).to.eq(0n);
 
-    const value = ethers.utils.hexlify(ethers.utils.zeroPad("0x10", 32));
-    await provider.send("hardhat_setStorageAt", [token.address, "0x0", value]);
+    const value = ethers.hexlify(ethers.zeroPadValue("0x10", 32));
+    await provider.send("hardhat_setStorageAt", [await token.getAddress(), "0x0", value]);
 
-    const after = await provider.send("eth_getStorageAt", [token.address, "0x0", "latest"]);
-    expect(BigNumber.from(after).toNumber()).to.eq(16);
+    const after = await provider.send("eth_getStorageAt", [await token.getAddress(), "0x0", "latest"]);
+    expect(BigInt(after)).to.eq(16n);
   });
 });

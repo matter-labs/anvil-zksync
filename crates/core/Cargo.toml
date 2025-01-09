@@ -1,0 +1,50 @@
+[package]
+name = "anvil_zksync_core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+anvil_zksync_types.workspace = true
+anvil_zksync_config.workspace = true
+
+zksync_multivm.workspace = true
+zksync_contracts.workspace = true
+zksync_types.workspace = true
+zksync_web3_decl.workspace = true
+
+anyhow.workspace = true
+tokio.workspace = true
+futures.workspace = true
+once_cell.workspace = true
+
+reqwest.workspace = true
+serde.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+colored.workspace = true
+lazy_static.workspace = true
+eyre.workspace = true
+serde_json.workspace = true
+hex.workspace = true
+ethabi.workspace = true
+itertools.workspace = true
+rustc-hash.workspace = true
+indexmap.workspace = true
+chrono.workspace = true
+time.workspace = true
+flate2.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+maplit.workspace = true
+ethers.workspace = true
+httptest.workspace = true
+tempdir.workspace = true
+zksync-web3-rs.workspace = true
+test-case.workspace = true

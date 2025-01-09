@@ -39,8 +39,12 @@ rust-doc:
 # Lint checks for Rust code
 lint:
 	cd e2e-tests && yarn && yarn lint && yarn fmt && yarn typecheck
+	cd e2e-tests-rust && cargo fmt --all -- --check
+	cd spec-tests && cargo fmt --all -- --check
 	cargo fmt --all -- --check
-	cargo clippy --tests -p anvil-zksync -Zunstable-options -- -D warnings --allow clippy::unwrap_used
+	cargo clippy --tests -p anvil-zksync -- -D warnings --allow clippy::unwrap_used
+	cd e2e-tests-rust && cargo clippy --tests -- -D warnings --allow clippy::unwrap_used
+	cd spec-tests && cargo clippy --tests -- -D warnings --allow clippy::unwrap_used
 
 # Fix lint errors for Rust code
 lint-fix:

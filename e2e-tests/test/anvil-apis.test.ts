@@ -1,51 +1,50 @@
 import { expect } from "chai";
-import { Wallet } from "zksync-web3";
+import { Wallet } from "zksync-ethers";
 import { deployContract, expectThrowsAsync, getTestProvider } from "../helpers/utils";
 import { RichAccounts } from "../helpers/constants";
 import { ethers } from "hardhat";
 import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
 import * as hre from "hardhat";
-import { keccak256 } from "ethers/lib/utils";
-import { BigNumber } from "ethers";
 import * as fs from "node:fs";
+import * as path from "node:path";
 
 const provider = getTestProvider();
 
 describe("anvil_setNextBlockBaseFeePerGas", function () {
   it("Should change gas price", async function () {
-    const oldBaseFee = (await provider.getGasPrice()).toNumber();
-    const expectedNewBaseFee = oldBaseFee + 42;
+    const oldBaseFee = await provider.getGasPrice();
+    const expectedNewBaseFee = oldBaseFee + 42n;
 
     // Act
-    await provider.send("anvil_setNextBlockBaseFeePerGas", [ethers.utils.hexlify(expectedNewBaseFee)]);
+    await provider.send("anvil_setNextBlockBaseFeePerGas", [ethers.toBeHex(expectedNewBaseFee)]);
 
     // Assert
-    const newBaseFee = (await provider.getGasPrice()).toNumber();
+    const newBaseFee = await provider.getGasPrice();
     expect(newBaseFee).to.equal(expectedNewBaseFee);
 
     // Revert
-    await provider.send("anvil_setNextBlockBaseFeePerGas", [ethers.utils.hexlify(oldBaseFee)]);
+    await provider.send("anvil_setNextBlockBaseFeePerGas", [ethers.toBeHex(oldBaseFee)]);
   });
 
   it("Should produce a block with new gas price", async function () {
     const wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
     const userWallet = Wallet.createRandom().connect(provider);
-    const oldBaseFee = (await provider.getGasPrice()).toNumber();
-    const expectedNewBaseFee = oldBaseFee + 42;
+    const oldBaseFee = await provider.getGasPrice();
+    const expectedNewBaseFee = oldBaseFee + 42n;
 
     // Act
-    await provider.send("anvil_setNextBlockBaseFeePerGas", [ethers.utils.hexlify(expectedNewBaseFee)]);
+    await provider.send("anvil_setNextBlockBaseFeePerGas", [ethers.toBeHex(expectedNewBaseFee)]);
 
     const txResponse = await wallet.sendTransaction({
       to: userWallet.address,
-      value: ethers.utils.parseEther("0.1"),
+      value: ethers.parseEther("0.1"),
     });
     const txReceipt = await txResponse.wait();
     const newBlock = await provider.getBlock(txReceipt.blockNumber);
-    expect(newBlock.baseFeePerGas?.toNumber()).to.equal(expectedNewBaseFee);
+    expect(newBlock.baseFeePerGas).to.equal(expectedNewBaseFee);
 
     // Revert
-    await provider.send("anvil_setNextBlockBaseFeePerGas", [ethers.utils.hexlify(oldBaseFee)]);
+    await provider.send("anvil_setNextBlockBaseFeePerGas", [ethers.toBeHex(oldBaseFee)]);
   });
 });
 
@@ -63,7 +62,7 @@ describe("anvil_setBlockTimestampInterval & anvil_removeBlockTimestampInterval",
 
     const txResponse = await wallet.sendTransaction({
       to: userWallet.address,
-      value: ethers.utils.parseEther("0.1"),
+      value: ethers.parseEther("0.1"),
     });
     const txReceipt = await txResponse.wait();
 
@@ -80,7 +79,7 @@ describe("anvil_setBlockTimestampInterval & anvil_removeBlockTimestampInterval",
 
     const txResponse2 = await wallet.sendTransaction({
       to: userWallet.address,
-      value: ethers.utils.parseEther("0.1"),
+      value: ethers.parseEther("0.1"),
     });
     const txReceipt2 = await txResponse2.wait();
 
@@ -92,19 +91,29 @@ describe("anvil_setBlockTimestampInterval & anvil_removeBlockTimestampInterval",
 
 describe("anvil_setLoggingEnabled", function () {
   it("Should disable and enable logging", async function () {
+    const logFilePath = process.env.ANVIL_LOG_PATH || path.resolve("../anvil-zksync.log");
+
     // Arrange
     const wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
     const userWallet = Wallet.createRandom().connect(provider);
 
     // Act
     await provider.send("anvil_setLoggingEnabled", [false]);
-    const logSizeBefore = fs.statSync("../anvil-zksync.log").size;
+
+    let logSizeBefore = 0;
+    if (fs.existsSync(logFilePath)) {
+      logSizeBefore = fs.statSync(logFilePath).size;
+    }
 
     await wallet.sendTransaction({
       to: userWallet.address,
-      value: ethers.utils.parseEther("0.1"),
+      value: ethers.parseEther("0.1"),
     });
-    const logSizeAfter = fs.statSync("../anvil-zksync.log").size;
+
+    let logSizeAfter = 0;
+    if (fs.existsSync(logFilePath)) {
+      logSizeAfter = fs.statSync(logFilePath).size;
+    }
 
     // Reset
     await provider.send("anvil_setLoggingEnabled", [true]);
@@ -127,7 +136,7 @@ describe("anvil_snapshot", function () {
 
     // Assert
     expect(await greeter.greet()).to.eq("Hi");
-    expect(BigNumber.from(snapshotId2).toString()).to.eq(BigNumber.from(snapshotId1).add(1).toString());
+    expect(BigInt(snapshotId2)).to.eq(BigInt(snapshotId1) + 1n);
   });
 });
 
@@ -165,7 +174,7 @@ describe("anvil_increaseTime", function () {
 
     const txResponse = await wallet.sendTransaction({
       to: userWallet.address,
-      value: ethers.utils.parseEther("0.1"),
+      value: ethers.parseEther("0.1"),
     });
     await txResponse.wait();
     expectedTimestamp += 2; // New transaction will add two blocks
@@ -190,7 +199,7 @@ describe("anvil_setNextBlockTimestamp", function () {
 
     const txResponse = await wallet.sendTransaction({
       to: userWallet.address,
-      value: ethers.utils.parseEther("0.1"),
+      value: ethers.parseEther("0.1"),
     });
     await txResponse.wait();
     expectedTimestamp += 1; // After executing a transaction, the node puts it into a block and increases its current timestamp
@@ -215,7 +224,7 @@ describe("anvil_setTime", function () {
 
     const txResponse = await wallet.sendTransaction({
       to: userWallet.address,
-      value: ethers.utils.parseEther("0.1"),
+      value: ethers.parseEther("0.1"),
     });
     await txResponse.wait();
     expectedTimestamp += 2; // New transaction will add two blocks
@@ -229,15 +238,15 @@ describe("anvil_setTime", function () {
 describe("anvil_setBalance", function () {
   it("Should update the balance of an account", async function () {
     // Arrange
-    const userWallet = Wallet.createRandom().connect(provider);
-    const newBalance = ethers.utils.parseEther("42");
+    const userWallet = new Wallet(Wallet.createRandom().privateKey).connect(provider);
+    const newBalance = ethers.parseEther("42");
 
     // Act
-    await provider.send("anvil_setBalance", [userWallet.address, newBalance._hex]);
+    await provider.send("anvil_setBalance", [userWallet.address, ethers.toBeHex(newBalance)]);
 
     // Assert
     const balance = await userWallet.getBalance();
-    expect(balance.eq(newBalance)).to.true;
+    expect(balance).to.eq(newBalance);
   });
 });
 
@@ -251,7 +260,7 @@ describe("anvil_setNonce", function () {
     async function assertCanSendTx() {
       const tx = {
         to: userWallet.address,
-        value: ethers.utils.parseEther("0.42"),
+        value: ethers.parseEther("0.42"),
       };
 
       const txResponse = await richWallet.sendTransaction(tx);
@@ -262,14 +271,14 @@ describe("anvil_setNonce", function () {
     const newNonce = 42;
 
     // Advance nonce to 42
-    await provider.send("anvil_setNonce", [richWallet.address, ethers.utils.hexlify(newNonce)]);
+    await provider.send("anvil_setNonce", [richWallet.address, ethers.toBeHex(newNonce)]);
 
     // Assert
     expect(await richWallet.getNonce()).to.equal(newNonce);
     await assertCanSendTx();
 
     // Rollback nonce to 0
-    await provider.send("anvil_setNonce", [richWallet.address, ethers.utils.hexlify(0)]);
+    await provider.send("anvil_setNonce", [richWallet.address, ethers.toBeHex(0)]);
 
     // Assert
     expect(await richWallet.getNonce()).to.equal(0);
@@ -286,7 +295,7 @@ describe("anvil_mine", function () {
     const startingTimestamp: number = await provider.send("config_getCurrentTimestamp", []);
 
     // Act
-    await provider.send("anvil_mine", [ethers.utils.hexlify(numberOfBlocks), ethers.utils.hexlify(intervalInSeconds)]);
+    await provider.send("anvil_mine", [ethers.toBeHex(numberOfBlocks), ethers.toBeHex(intervalInSeconds)]);
 
     // Assert
     const latestBlock = await provider.getBlock("latest");
@@ -301,7 +310,7 @@ describe("anvil_mine", function () {
 describe("anvil_impersonateAccount & anvil_stopImpersonatingAccount", function () {
   it("Should allow transfers of funds without knowing the Private Key", async function () {
     // Arrange
-    const userWallet = Wallet.createRandom().connect(provider);
+    const userWallet = new Wallet(Wallet.createRandom().privateKey).connect(provider);
     const richAccount = RichAccounts[5].Account;
     const beforeBalance = await provider.getBalance(richAccount);
 
@@ -311,7 +320,7 @@ describe("anvil_impersonateAccount & anvil_stopImpersonatingAccount", function (
     const signer = await ethers.getSigner(richAccount);
     const tx = {
       to: userWallet.address,
-      value: ethers.utils.parseEther("0.42"),
+      value: ethers.parseEther("0.42"),
     };
 
     const recieptTx = await signer.sendTransaction(tx);
@@ -320,15 +329,15 @@ describe("anvil_impersonateAccount & anvil_stopImpersonatingAccount", function (
     await provider.send("anvil_stopImpersonatingAccount", [richAccount]);
 
     // Assert
-    expect((await userWallet.getBalance()).eq(ethers.utils.parseEther("0.42"))).to.true;
-    expect((await provider.getBalance(richAccount)).eq(beforeBalance.sub(ethers.utils.parseEther("0.42")))).to.true;
+    expect(await userWallet.getBalance()).to.eq(ethers.parseEther("0.42"));
+    expect(await provider.getBalance(richAccount)).to.eq(beforeBalance - ethers.parseEther("0.42"));
   });
 });
 
 describe("anvil_autoImpersonateAccount", function () {
   it("Should allow transfers of funds without knowing the Private Key", async function () {
     // Arrange
-    const userWallet = Wallet.createRandom().connect(provider);
+    const userWallet = new Wallet(Wallet.createRandom().privateKey).connect(provider);
     const richAccount = RichAccounts[6].Account;
     const beforeBalance = await provider.getBalance(richAccount);
 
@@ -338,7 +347,7 @@ describe("anvil_autoImpersonateAccount", function () {
     const signer = await ethers.getSigner(richAccount);
     const tx = {
       to: userWallet.address,
-      value: ethers.utils.parseEther("0.42"),
+      value: ethers.parseEther("0.42"),
     };
 
     const recieptTx = await signer.sendTransaction(tx);
@@ -347,8 +356,8 @@ describe("anvil_autoImpersonateAccount", function () {
     await provider.send("anvil_autoImpersonateAccount", [false]);
 
     // Assert
-    expect((await userWallet.getBalance()).eq(ethers.utils.parseEther("0.42"))).to.true;
-    expect((await provider.getBalance(richAccount)).eq(beforeBalance.sub(ethers.utils.parseEther("0.42")))).to.true;
+    expect(await userWallet.getBalance()).to.eq(ethers.parseEther("0.42"));
+    expect(await provider.getBalance(richAccount)).to.eq(beforeBalance - ethers.parseEther("0.42"));
   });
 });
 
@@ -370,7 +379,7 @@ describe("anvil_setCode", function () {
     const result = await provider.send("eth_call", [
       {
         to: address,
-        data: keccak256(ethers.utils.toUtf8Bytes("value()")).substring(0, 10),
+        data: ethers.keccak256(ethers.toUtf8Bytes("value()")).substring(0, 10),
         from: wallet.address,
         gas: "0x1000",
         gasPrice: "0x0ee6b280",
@@ -379,7 +388,7 @@ describe("anvil_setCode", function () {
       },
       "latest",
     ]);
-    expect(BigNumber.from(result).toNumber()).to.eq(5);
+    expect(BigInt(result)).to.eq(5n);
   });
 
   it("Should reject invalid code", async function () {
@@ -411,13 +420,13 @@ describe("anvil_setCode", function () {
     const newContractCode = artifact.deployedBytecode;
 
     // Act
-    await provider.send("anvil_setCode", [greeter.address, newContractCode]);
+    await provider.send("anvil_setCode", [await greeter.getAddress(), newContractCode]);
 
     // Assert
     const result = await provider.send("eth_call", [
       {
-        to: greeter.address,
-        data: keccak256(ethers.utils.toUtf8Bytes("value()")).substring(0, 10),
+        to: await greeter.getAddress(),
+        data: ethers.keccak256(ethers.toUtf8Bytes("value()")).substring(0, 10),
         from: wallet.address,
         gas: "0x1000",
         gasPrice: "0x0ee6b280",
@@ -426,30 +435,30 @@ describe("anvil_setCode", function () {
       },
       "latest",
     ]);
-    expect(BigNumber.from(result).toNumber()).to.eq(5);
+    expect(BigInt(result)).to.eq(5n);
   });
 });
 
 describe("anvil_setStorageAt", function () {
   it("Should set storage at an address", async function () {
     const wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
-    const userWallet = Wallet.createRandom().connect(provider);
+    const userWallet = new Wallet(Wallet.createRandom().privateKey).connect(provider);
     await wallet.sendTransaction({
       to: userWallet.address,
-      value: ethers.utils.parseEther("3"),
+      value: ethers.parseEther("3"),
     });
 
     const deployer = new Deployer(hre, userWallet);
     const artifact = await deployer.loadArtifact("MyERC20");
     const token = await deployer.deploy(artifact, ["MyToken", "MyToken", 18]);
 
-    const before = await provider.send("eth_getStorageAt", [token.address, "0x0", "latest"]);
-    expect(BigNumber.from(before).toNumber()).to.eq(0);
+    const before = await provider.send("eth_getStorageAt", [await token.getAddress(), "0x0", "latest"]);
+    expect(BigInt(before)).to.eq(0n);
 
-    const value = ethers.utils.hexlify(ethers.utils.zeroPad("0x10", 32));
-    await provider.send("anvil_setStorageAt", [token.address, "0x0", value]);
+    const value = ethers.hexlify(ethers.zeroPadValue("0x10", 32));
+    await provider.send("anvil_setStorageAt", [await token.getAddress(), "0x0", value]);
 
-    const after = await provider.send("eth_getStorageAt", [token.address, "0x0", "latest"]);
-    expect(BigNumber.from(after).toNumber()).to.eq(16);
+    const after = await provider.send("eth_getStorageAt", [await token.getAddress(), "0x0", "latest"]);
+    expect(BigInt(after)).to.eq(16n);
   });
 });
