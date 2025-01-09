@@ -41,9 +41,9 @@ jobs:
           ]
         include:
           - arch: x86_64-unknown-linux-gnu
-            platform: ubuntu-20.04
+            platform: ubuntu-latest
           - arch: aarch64-unknown-linux-gnu
-            platform: ubuntu-20.04
+            platform: ubuntu-latest
           - arch: x86_64-apple-darwin
             platform: macos-latest
           - arch: aarch64-apple-darwin
