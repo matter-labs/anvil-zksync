@@ -1,5 +1,5 @@
 [target.x86_64-unknown-linux-gnu]
-image = "ubuntu:22.04"
+image = "ubuntu:24.04"
 pre-build = [
     "export DEBIAN_FRONTEND=noninteractive",
     "export TZ=Etc/UTC",
