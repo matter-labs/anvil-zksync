@@ -551,8 +551,7 @@ impl ForkDetails {
         block.l1_batch_number = Some(l1_batch_number.0.into());
 
         if !block_details
-            .protocol_version
-            .map_or(false, supported_protocol_versions)
+            .protocol_version.is_some_and(supported_protocol_versions)
         {
             return Err(eyre!("This block is using the unsupported protocol version: {:?}. This binary supports versions {}.",
                              block_details.protocol_version,
