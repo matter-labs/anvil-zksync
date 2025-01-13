@@ -2,7 +2,6 @@ use std::collections::HashSet;
 
 use anyhow::Context as _;
 use colored::Colorize;
-use itertools::Itertools;
 use zksync_multivm::interface::{ExecutionResult, TxExecutionMode};
 use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use zksync_types::h256_to_u256;
@@ -26,7 +25,7 @@ use zksync_web3_decl::{
 
 use crate::{
     filters::{FilterType, LogFilter},
-    node::{InMemoryNode, TransactionResult, MAX_TX_SIZE, PROTOCOL_VERSION},
+    node::{InMemoryNode, MAX_TX_SIZE, PROTOCOL_VERSION},
     utils::{h256_to_u64, TransparentError},
 };
 
@@ -303,61 +302,7 @@ impl InMemoryNode {
         hash: H256,
     ) -> anyhow::Result<Option<api::Transaction>> {
         // try retrieving transaction from memory, and if unavailable subsequently from the fork
-        let tx = self
-            .blockchain
-            .inspect_tx(&hash, |TransactionResult { info, receipt, .. }| {
-                let input_data = info
-                    .tx
-                    .common_data
-                    .input
-                    .clone()
-                    .context("tx is missing input data")?;
-                let chain_id = info
-                    .tx
-                    .common_data
-                    .extract_chain_id()
-                    .context("tx has malformed chain id")?;
-                anyhow::Ok(api::Transaction {
-                    hash,
-                    nonce: U256::from(info.tx.common_data.nonce.0),
-                    block_hash: Some(hash),
-                    block_number: Some(U64::from(info.miniblock_number)),
-                    transaction_index: Some(receipt.transaction_index),
-                    from: Some(info.tx.initiator_account()),
-                    to: info.tx.recipient_account(),
-                    value: info.tx.execute.value,
-                    gas_price: Some(U256::from(0)),
-                    gas: Default::default(),
-                    input: input_data.data.into(),
-                    v: Some(chain_id.into()),
-                    r: Some(U256::zero()), // TODO: Shouldn't we set the signature?
-                    s: Some(U256::zero()), // TODO: Shouldn't we set the signature?
-                    y_parity: Some(U64::zero()), // TODO: Shouldn't we set the signature?
-                    raw: None,
-                    transaction_type: {
-                        let tx_type = match info.tx.common_data.transaction_type {
-                            zksync_types::l2::TransactionType::LegacyTransaction => 0,
-                            zksync_types::l2::TransactionType::EIP2930Transaction => 1,
-                            zksync_types::l2::TransactionType::EIP1559Transaction => 2,
-                            zksync_types::l2::TransactionType::EIP712Transaction => 113,
-                            zksync_types::l2::TransactionType::PriorityOpTransaction => 255,
-                            zksync_types::l2::TransactionType::ProtocolUpgradeTransaction => 254,
-                        };
-                        Some(tx_type.into())
-                    },
-                    access_list: None,
-                    max_fee_per_gas: Some(info.tx.common_data.fee.max_fee_per_gas),
-                    max_priority_fee_per_gas: Some(
-                        info.tx.common_data.fee.max_priority_fee_per_gas,
-                    ),
-                    chain_id: U256::from(chain_id),
-                    l1_batch_number: Some(U64::from(info.batch_number as u64)),
-                    l1_batch_tx_index: None,
-                })
-            })
-            .await
-            .transpose()?;
-        match tx {
+        match self.blockchain.get_tx_api(&hash).await? {
             Some(tx) => Ok(Some(tx)),
             None => Ok(self
                 .inner
@@ -481,47 +426,12 @@ impl InMemoryNode {
         // TODO: LogFilter should really resolve `from_block` and `to_block` during init and not
         //       on every `matches` call.
         let log_filter = LogFilter::new(from_block, to_block, addresses, topics);
-        let latest_block_number = self.blockchain.current_block_number().await;
-        let logs = self
-            .blockchain
-            .inspect_all_txs(|tx_results| {
-                tx_results
-                    .values()
-                    .flat_map(|tx_result| {
-                        tx_result
-                            .receipt
-                            .logs
-                            .iter()
-                            .filter(|log| log_filter.matches(log, U64::from(latest_block_number.0)))
-                            .cloned()
-                    })
-                    .collect_vec()
-            })
-            .await;
-
-        Ok(logs)
+        Ok(self.blockchain.get_filter_logs(&log_filter).await)
     }
 
     pub async fn get_filter_logs_impl(&self, id: U256) -> anyhow::Result<FilterChanges> {
-        let latest_block_number = self.blockchain.current_block_number().await;
         let logs = match self.inner.read().await.filters.read().await.get_filter(id) {
-            Some(FilterType::Log(f)) => {
-                self.blockchain
-                    .inspect_all_txs(|tx_results| {
-                        tx_results
-                            .values()
-                            .flat_map(|tx_result| {
-                                tx_result
-                                    .receipt
-                                    .logs
-                                    .iter()
-                                    .filter(|log| f.matches(log, U64::from(latest_block_number.0)))
-                                    .cloned()
-                            })
-                            .collect_vec()
-                    })
-                    .await
-            }
+            Some(FilterType::Log(log_filter)) => self.blockchain.get_filter_logs(log_filter).await,
             _ => {
                 anyhow::bail!("Failed to acquire read lock for filter logs.")
             }
@@ -545,10 +455,7 @@ impl InMemoryNode {
         &self,
         block_id: api::BlockId,
     ) -> Result<Option<U256>, Web3Error> {
-        let result = self
-            .blockchain
-            .inspect_block_by_id(block_id, |block| block.transactions.len())
-            .await;
+        let result = self.blockchain.get_block_tx_count_by_id(block_id).await;
         let result = match result {
             Some(result) => Some(U256::from(result)),
             None => self
@@ -596,14 +503,8 @@ impl InMemoryNode {
     ) -> anyhow::Result<Option<api::Transaction>> {
         let tx = self
             .blockchain
-            .inspect_block_by_id(block_id, |b| {
-                b.transactions.get(index.as_usize()).map(|tv| match tv {
-                    TransactionVariant::Full(tx) => tx.clone(),
-                    TransactionVariant::Hash(_) => unreachable!("we only store full txs in blocks"),
-                })
-            })
-            .await
-            .flatten();
+            .get_block_tx_by_id(block_id, index.as_usize())
+            .await;
         let maybe_tx = match tx {
             Some(tx) => Some(tx),
             None => self
@@ -696,6 +597,7 @@ impl InMemoryNode {
 mod tests {
     use super::*;
     use crate::node::fork::ForkDetails;
+    use crate::node::TransactionResult;
     use crate::{
         node::{compute_hash, InMemoryNode},
         testing::{

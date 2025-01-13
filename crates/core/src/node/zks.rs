@@ -1,7 +1,6 @@
-use crate::node::{InMemoryNode, TransactionResult};
-use crate::utils::{internal_error, utc_datetime_from_epoch_ms};
+use crate::node::InMemoryNode;
+use crate::utils::internal_error;
 use anyhow::Context;
-use itertools::Itertools;
 use std::collections::HashMap;
 use zksync_types::api;
 use zksync_types::fee::Fee;
@@ -9,8 +8,7 @@ use zksync_types::h256_to_u256;
 use zksync_types::transaction_request::CallRequest;
 use zksync_types::utils::storage_key_for_standard_token_balance;
 use zksync_types::{
-    AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber, L2BlockNumber,
-    ProtocolVersionId, Transaction, H160, H256, L2_BASE_TOKEN_ADDRESS, U256,
+    AccountTreeId, Address, L2BlockNumber, Transaction, H160, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_web3_decl::error::Web3Error;
 
@@ -25,28 +23,14 @@ impl InMemoryNode {
     ) -> Result<Vec<Transaction>, Web3Error> {
         let tx_hashes = self
             .blockchain
-            .inspect_block_by_number(block_number, |block| {
-                block
-                    .transactions
-                    .iter()
-                    .map(|tx| match tx {
-                        api::TransactionVariant::Full(tx) => tx.hash,
-                        api::TransactionVariant::Hash(hash) => *hash,
-                    })
-                    .collect_vec()
-            })
+            .get_block_tx_hashes_by_number(block_number)
             .await;
         let transactions = if let Some(tx_hashes) = tx_hashes {
             let mut transactions = Vec::with_capacity(tx_hashes.len());
             for tx_hash in tx_hashes {
                 let transaction = self
                     .blockchain
-                    .inspect_tx(&tx_hash, |TransactionResult { info, .. }| Transaction {
-                        common_data: ExecuteTransactionCommon::L2(info.tx.common_data.clone()),
-                        execute: info.tx.execute.clone(),
-                        received_timestamp_ms: info.tx.received_timestamp_ms,
-                        raw_bytes: info.tx.raw_bytes.clone(),
-                    })
+                    .get_zksync_tx(&tx_hash)
                     .await
                     .with_context(|| anyhow::anyhow!("Unexpectedly transaction (hash={tx_hash}) belongs to a block but could not be found"))?;
                 transactions.push(transaction);
@@ -179,32 +163,12 @@ impl InMemoryNode {
 
         let block_details = self
             .blockchain
-            .inspect_block_by_number(block_number, |block| api::BlockDetails {
-                number: L2BlockNumber(block.number.as_u32()),
-                l1_batch_number: L1BatchNumber(block.l1_batch_number.unwrap_or_default().as_u32()),
-                base: api::BlockDetailsBase {
-                    timestamp: block.timestamp.as_u64(),
-                    l1_tx_count: 1,
-                    l2_tx_count: block.transactions.len(),
-                    root_hash: Some(block.hash),
-                    status: api::BlockStatus::Verified,
-                    commit_tx_hash: None,
-                    commit_chain_id: None,
-                    committed_at: None,
-                    prove_tx_hash: None,
-                    prove_chain_id: None,
-                    proven_at: None,
-                    execute_tx_hash: None,
-                    execute_chain_id: None,
-                    executed_at: None,
-                    l1_gas_price: 0,
-                    l2_fair_gas_price,
-                    fair_pubdata_price,
-                    base_system_contracts_hashes,
-                },
-                operator_address: Address::zero(),
-                protocol_version: Some(ProtocolVersionId::latest()),
-            })
+            .get_block_details_by_number(
+                block_number,
+                l2_fair_gas_price,
+                fair_pubdata_price,
+                base_system_contracts_hashes,
+            )
             .await;
 
         let maybe_block_details = match block_details {
@@ -234,24 +198,7 @@ impl InMemoryNode {
         &self,
         hash: H256,
     ) -> anyhow::Result<Option<api::TransactionDetails>> {
-        let tx_details = self
-            .blockchain
-            .inspect_tx(&hash, |TransactionResult { info, receipt, .. }| {
-                api::TransactionDetails {
-                    is_l1_originated: false,
-                    status: api::TransactionStatus::Included,
-                    // if these are not set, fee is effectively 0
-                    fee: receipt.effective_gas_price.unwrap_or_default()
-                        * receipt.gas_used.unwrap_or_default(),
-                    gas_per_pubdata: info.tx.common_data.fee.gas_per_pubdata_limit,
-                    initiator_address: info.tx.initiator_account(),
-                    received_at: utc_datetime_from_epoch_ms(info.tx.received_timestamp_ms),
-                    eth_commit_tx_hash: None,
-                    eth_prove_tx_hash: None,
-                    eth_execute_tx_hash: None,
-                }
-            })
-            .await;
+        let tx_details = self.blockchain.get_tx_details(&hash).await;
         let maybe_tx_details = match tx_details {
             Some(tx_details) => Some(tx_details),
             None => self
@@ -319,11 +266,12 @@ mod tests {
     use std::str::FromStr;
 
     use anvil_zksync_config::types::CacheConfig;
-    use zksync_types::u256_to_h256;
     use zksync_types::{api, transaction_request::CallRequest, Address, H160, H256};
+    use zksync_types::{u256_to_h256, L1BatchNumber};
 
     use super::*;
     use crate::node::fork::ForkDetails;
+    use crate::node::TransactionResult;
     use crate::{
         node::InMemoryNode,
         testing,

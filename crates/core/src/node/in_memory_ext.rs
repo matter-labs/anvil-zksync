@@ -2,7 +2,6 @@ use super::inner::fork::ForkDetails;
 use super::pool::TxBatch;
 use super::sealer::BlockSealerMode;
 use super::InMemoryNode;
-use super::TransactionResult;
 use crate::utils::bytecode_to_factory_dep;
 use anvil_zksync_types::api::{DetailedTransaction, ResetRequest};
 use anyhow::anyhow;
@@ -95,18 +94,7 @@ impl InMemoryNode {
             let detailed_tx = match tx {
                 TransactionVariant::Full(tx) => self
                     .blockchain
-                    .inspect_tx(
-                        &tx.hash.clone(),
-                        |TransactionResult { ref debug, .. }| {
-                            let output = Some(debug.output.clone());
-                            let revert_reason = debug.revert_reason.clone();
-                            DetailedTransaction {
-                                inner: tx,
-                                output,
-                                revert_reason,
-                            }
-                        },
-                    )
+                    .get_detailed_tx(tx)
                     .await
                     .expect("freshly executed tx is missing from storage"),
                 TransactionVariant::Hash(_) => {

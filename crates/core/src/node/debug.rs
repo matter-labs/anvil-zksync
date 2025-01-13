@@ -1,7 +1,6 @@
 use crate::deps::storage_view::StorageView;
 use crate::node::{InMemoryNode, MAX_TX_SIZE};
 use crate::utils::create_debug_output;
-use itertools::Itertools;
 use once_cell::sync::OnceCell;
 use std::sync::Arc;
 use zksync_multivm::interface::{VmFactory, VmInterface};
@@ -22,16 +21,7 @@ impl InMemoryNode {
         let only_top = options.is_some_and(|o| o.tracer_config.only_top_call);
         let tx_hashes = self
             .blockchain
-            .inspect_block_by_id(block_id, |block| {
-                block
-                    .transactions
-                    .iter()
-                    .map(|tx| match tx {
-                        api::TransactionVariant::Full(tx) => tx.hash,
-                        api::TransactionVariant::Hash(hash) => *hash,
-                    })
-                    .collect_vec()
-            })
+            .get_block_tx_hashes_by_id(block_id)
             .await
             .ok_or_else(|| anyhow::anyhow!("Block (id={block_id}) not found"))?;
 

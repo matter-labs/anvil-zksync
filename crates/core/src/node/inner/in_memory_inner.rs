@@ -1,4 +1,4 @@
-use super::blockchain::{BlockchainReader, BlockchainWriter};
+use super::blockchain::{Blockchain, ReadBlockchain};
 use super::fork::{ForkDetails, ForkStorage, SerializableStorage};
 use super::time::TimeWriter;
 use crate::bootloader_debug::{BootloaderDebug, BootloaderDebugTracer};
@@ -63,8 +63,8 @@ use zksync_web3_decl::error::Web3Error;
 // TODO: Rename `InMemoryNodeInner` to something more sensible
 /// Helper struct for InMemoryNode.
 pub struct InMemoryNodeInner {
-    // Special right to write into blockchain as opposed to [`Blockchain`]
-    blockchain_writer: BlockchainWriter,
+    /// Writeable blockchain state.
+    blockchain: Blockchain,
     pub(super) time_writer: TimeWriter,
     /// The fee input provider.
     pub fee_input_provider: TestNodeFeeInputProvider,
@@ -87,7 +87,7 @@ impl InMemoryNodeInner {
     /// Create the state to be used implementing [InMemoryNode].
     #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
-        blockchain_writer: BlockchainWriter,
+        blockchain: Blockchain,
         time_writer: TimeWriter,
         fork_storage: ForkStorage,
         fee_input_provider: TestNodeFeeInputProvider,
@@ -97,7 +97,7 @@ impl InMemoryNodeInner {
         system_contracts: SystemContracts,
     ) -> Self {
         InMemoryNodeInner {
-            blockchain_writer,
+            blockchain,
             time_writer,
             fee_input_provider,
             filters,
@@ -136,7 +136,7 @@ impl InMemoryNodeInner {
     pub async fn create_l1_batch_env(&self) -> (L1BatchEnv, BlockContext) {
         tracing::debug!("creating L1 batch env");
 
-        let (last_l1_batch_number, last_l2_block) = self.blockchain_writer.read().await.last_env(
+        let (last_l1_batch_number, last_l2_block) = self.blockchain.read().await.last_env(
             &StorageView::new(&self.fork_storage).into_rc_ptr(),
             &self.time_writer,
         );
@@ -214,7 +214,7 @@ impl InMemoryNodeInner {
             previous_states.insert(block_hash, state);
         }
 
-        let mut storage = self.blockchain_writer.write().await;
+        let mut storage = self.blockchain.write().await;
         storage.current_batch += 1;
         storage.tx_results.extend(
             tx_results
@@ -645,10 +645,9 @@ impl InMemoryNodeInner {
 
         // Construct the block
         let parent_block_hash = self
-            .blockchain_writer
-            .read()
-            .await
+            .blockchain
             .get_block_hash_by_number(L2BlockNumber(block_ctx.miniblock as u32 - 1))
+            .await
             .unwrap_or_default();
         let mut blocks = vec![create_block(
             &batch_env,
@@ -1026,7 +1025,7 @@ impl InMemoryNodeInner {
 
     /// Creates a [Snapshot] of the current state of the node.
     pub async fn snapshot(&self) -> Result<Snapshot, String> {
-        let blockchain = self.blockchain_writer.read().await;
+        let blockchain = self.blockchain.read().await;
         let filters = self.filters.read().await.clone();
         let storage = self
             .fork_storage
@@ -1054,7 +1053,7 @@ impl InMemoryNodeInner {
 
     /// Restores a previously created [Snapshot] of the node.
     pub async fn restore_snapshot(&mut self, snapshot: Snapshot) -> Result<(), String> {
-        let mut blockchain = self.blockchain_writer.write().await;
+        let mut blockchain = self.blockchain.write().await;
         let mut storage = self
             .fork_storage
             .inner
@@ -1085,7 +1084,7 @@ impl InMemoryNodeInner {
         &self,
         preserve_historical_states: bool,
     ) -> anyhow::Result<VersionedState> {
-        let blockchain = self.blockchain_writer.read().await;
+        let blockchain = self.blockchain.read().await;
         let blocks = blockchain.blocks.values().cloned().collect();
         let transactions = blockchain.tx_results.values().cloned().collect();
         drop(blockchain);
@@ -1108,7 +1107,7 @@ impl InMemoryNodeInner {
     }
 
     pub async fn load_state(&mut self, state: VersionedState) -> Result<bool, LoadStateError> {
-        let mut storage = self.blockchain_writer.write().await;
+        let mut storage = self.blockchain.write().await;
         if storage.blocks.len() > 1 {
             tracing::debug!(
                 blocks = storage.blocks.len(),
@@ -1152,7 +1151,7 @@ impl InMemoryNodeInner {
         block: Option<api::BlockIdVariant>,
     ) -> Result<H256, Web3Error> {
         let storage_key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(idx));
-        let storage = self.blockchain_writer.read().await;
+        let storage = self.blockchain.read().await;
 
         let block_number = block
             .map(|block| match block {
@@ -1228,14 +1227,14 @@ impl InMemoryNodeInner {
     }
 
     pub async fn reset(&mut self, fork: Option<ForkDetails>) {
-        let (_, blockchain_writer) = BlockchainReader::new(
+        let blockchain = Blockchain::new(
             fork.as_ref(),
             self.config.genesis.as_ref(),
             self.config.genesis_timestamp,
         );
-        let blockchain_storage = blockchain_writer.inner.read().await.clone();
+        let blockchain_storage = blockchain.read().await.clone();
         drop(std::mem::replace(
-            &mut *self.blockchain_writer.write().await,
+            &mut *self.blockchain.write().await,
             blockchain_storage,
         ));
 
@@ -1428,7 +1427,7 @@ impl InMemoryNodeInner {
             .await
             .expect("failed deploying contract");
 
-        self.blockchain_writer
+        self.blockchain
             .read()
             .await
             .get_block_hash_by_number(block_number)
@@ -1455,7 +1454,7 @@ impl InMemoryNodeInner {
             .expect("failed applying tx");
 
         let block_hash = self
-            .blockchain_writer
+            .blockchain
             .read()
             .await
             .get_block_hash_by_number(block_number)
@@ -1465,23 +1464,15 @@ impl InMemoryNodeInner {
     }
 
     pub async fn insert_block(&mut self, hash: H256, block: api::Block<TransactionVariant>) {
-        self.blockchain_writer
-            .write()
-            .await
-            .blocks
-            .insert(hash, block);
+        self.blockchain.write().await.blocks.insert(hash, block);
     }
 
     pub async fn insert_block_hash(&mut self, number: L2BlockNumber, hash: H256) {
-        self.blockchain_writer
-            .write()
-            .await
-            .hashes
-            .insert(number, hash);
+        self.blockchain.write().await.hashes.insert(number, hash);
     }
 
     pub async fn insert_tx_result(&mut self, hash: H256, tx_result: TransactionResult) {
-        self.blockchain_writer
+        self.blockchain
             .write()
             .await
             .tx_results
@@ -1743,7 +1734,7 @@ mod tests {
         let mut writer = node.write().await;
 
         {
-            let mut blockchain = writer.blockchain_writer.write().await;
+            let mut blockchain = writer.blockchain.write().await;
             blockchain
                 .blocks
                 .insert(H256::repeat_byte(0x1), Default::default());
@@ -1780,7 +1771,7 @@ mod tests {
         );
 
         let storage = writer.fork_storage.inner.read().unwrap();
-        let blockchain = writer.blockchain_writer.read().await;
+        let blockchain = writer.blockchain.read().await;
         let expected_snapshot = Snapshot {
             current_batch: blockchain.current_batch,
             current_block: blockchain.current_block,
@@ -1852,7 +1843,7 @@ mod tests {
         let mut writer = node.write().await;
 
         {
-            let mut blockchain = writer.blockchain_writer.write().await;
+            let mut blockchain = writer.blockchain.write().await;
             blockchain
                 .blocks
                 .insert(H256::repeat_byte(0x1), Default::default());
@@ -1888,7 +1879,7 @@ mod tests {
             H256::repeat_byte(0x1),
         );
 
-        let blockchain = writer.blockchain_writer.read().await;
+        let blockchain = writer.blockchain.read().await;
         let expected_snapshot = {
             let storage = writer.fork_storage.inner.read().unwrap();
             Snapshot {
@@ -1914,7 +1905,7 @@ mod tests {
         let snapshot = writer.snapshot().await.expect("failed taking snapshot");
 
         {
-            let mut blockchain = writer.blockchain_writer.write().await;
+            let mut blockchain = writer.blockchain.write().await;
             blockchain
                 .blocks
                 .insert(H256::repeat_byte(0x2), Default::default());
@@ -1957,7 +1948,7 @@ mod tests {
             .expect("failed restoring snapshot");
 
         let storage = writer.fork_storage.inner.read().unwrap();
-        let blockchain = writer.blockchain_writer.read().await;
+        let blockchain = writer.blockchain.read().await;
         assert_eq!(expected_snapshot.current_batch, blockchain.current_batch);
         assert_eq!(expected_snapshot.current_block, blockchain.current_block);
         assert_eq!(

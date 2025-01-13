@@ -18,11 +18,12 @@ pub mod time;
 pub use in_memory_inner::{InMemoryNodeInner, TxExecutionOutput};
 
 use crate::filters::EthFilters;
+use crate::node::blockchain::Blockchain;
 use crate::node::{ImpersonationManager, TestNodeFeeInputProvider};
 use crate::system_contracts::SystemContracts;
 use anvil_zksync_config::constants::NON_FORK_FIRST_BLOCK_TIMESTAMP;
 use anvil_zksync_config::TestNodeConfig;
-use blockchain::BlockchainReader;
+use blockchain::ReadBlockchain;
 use fork::{ForkDetails, ForkStorage};
 use std::sync::Arc;
 use time::TimeReader;
@@ -37,13 +38,18 @@ impl InMemoryNodeInner {
         config: TestNodeConfig,
         impersonation: ImpersonationManager,
         system_contracts: SystemContracts,
-    ) -> (Arc<RwLock<Self>>, ForkStorage, BlockchainReader, TimeReader) {
+    ) -> (
+        Arc<RwLock<Self>>,
+        ForkStorage,
+        Arc<dyn ReadBlockchain>,
+        TimeReader,
+    ) {
         let (time, time_writer) = TimeReader::new(
             fork.as_ref()
                 .map(|f| f.block_timestamp)
                 .unwrap_or(NON_FORK_FIRST_BLOCK_TIMESTAMP),
         );
-        let (blockchain, blockchain_storage) = BlockchainReader::new(
+        let blockchain = Blockchain::new(
             fork.as_ref(),
             config.genesis.as_ref(),
             config.genesis_timestamp,
@@ -57,7 +63,7 @@ impl InMemoryNodeInner {
         );
 
         let node_inner = InMemoryNodeInner::new(
-            blockchain_storage,
+            blockchain.clone(),
             time_writer,
             fork_storage.clone(),
             fee_input_provider.clone(),
@@ -70,7 +76,7 @@ impl InMemoryNodeInner {
         (
             Arc::new(RwLock::new(node_inner)),
             fork_storage,
-            blockchain,
+            Arc::new(blockchain),
             time,
         )
     }

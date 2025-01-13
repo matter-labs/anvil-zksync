@@ -9,7 +9,7 @@ use crate::node::call_error_tracer::CallErrorTracer;
 use crate::node::error::LoadStateError;
 use crate::node::fee_model::TestNodeFeeInputProvider;
 use crate::node::impersonate::{ImpersonationManager, ImpersonationState};
-use crate::node::inner::blockchain::BlockchainReader;
+use crate::node::inner::blockchain::ReadBlockchain;
 use crate::node::inner::time::TimeReader;
 use crate::node::sealer::BlockSealerState;
 use crate::node::state::VersionedState;
@@ -243,7 +243,7 @@ pub struct Snapshot {
 pub struct InMemoryNode {
     /// A thread safe reference to the [InMemoryNodeInner].
     pub(crate) inner: Arc<RwLock<InMemoryNodeInner>>,
-    pub(crate) blockchain: BlockchainReader,
+    pub(crate) blockchain: Arc<dyn ReadBlockchain>,
     pub(crate) node_handle: NodeExecutorHandle,
     /// List of snapshots of the [InMemoryNodeInner]. This is bounded at runtime by [MAX_SNAPSHOTS].
     pub(crate) snapshots: Arc<RwLock<Vec<Snapshot>>>,
@@ -260,7 +260,7 @@ impl InMemoryNode {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         inner: Arc<RwLock<InMemoryNodeInner>>,
-        blockchain: BlockchainReader,
+        blockchain: Arc<dyn ReadBlockchain>,
         node_handle: NodeExecutorHandle,
         observability: Option<Observability>,
         time: TimeReader,
