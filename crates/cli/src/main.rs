@@ -113,7 +113,7 @@ async fn main() -> anyhow::Result<()> {
                             .with_l1_pubdata_price(
                                 config.l1_pubdata_price.or(Some(fee_v2.l1_pubdata_price())),
                             )
-                            .with_chain_id(Some(TEST_NODE_NETWORK_ID));
+                            .with_chain_id(config.chain_id.or(Some(TEST_NODE_NETWORK_ID)));
                     }
                     FeeParams::V1(_) => {
                         return Err(anyhow!("Unsupported FeeParams::V1 in this context"));
