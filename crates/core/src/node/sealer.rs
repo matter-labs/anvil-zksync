@@ -1,11 +1,9 @@
 use super::inner::node_executor::NodeExecutorHandle;
 use super::pool::{TxBatch, TxPool};
 use futures::channel::mpsc::Receiver;
-use futures::future::BoxFuture;
 use futures::stream::{Fuse, StreamExt};
 use futures::task::AtomicWaker;
 use futures::Stream;
-use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, RwLock};
 use std::task::{Context, Poll};
@@ -16,7 +14,6 @@ use zksync_types::H256;
 // TODO: `BlockSealer` is probably a bad name as this doesn't actually seal blocks, just decides
 //       that certain tx batch needs to be sealed. The actual sealing is handled in `NodeExecutor`.
 //       Consider renaming.
-#[pin_project::pin_project]
 pub struct BlockSealer {
     /// Block sealer state (externally mutable).
     state: BlockSealerState,
@@ -24,9 +21,6 @@ pub struct BlockSealer {
     pool: TxPool,
     /// Node handle to be used when a block needs to be sealed.
     node_handle: NodeExecutorHandle,
-    /// Future that is sending the next seal command to [`super::NodeExecutor`]
-    #[pin]
-    future: Option<BoxFuture<'static, anyhow::Result<()>>>,
 }
 
 impl BlockSealer {
@@ -44,58 +38,35 @@ impl BlockSealer {
                 state: state.clone(),
                 pool,
                 node_handle,
-                future: None,
             },
             state,
         )
     }
-}
 
-impl Future for BlockSealer {
-    type Output = ();
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut this = self.project();
-        this.state.waker.register(cx.waker());
-        if this.future.is_none() {
-            tracing::debug!("no pending messages to node executor, polling for a new tx batch");
-            let mut mode = this
-                .state
-                .mode
-                .write()
-                .expect("BlockSealer lock is poisoned");
-            let tx_batch = futures::ready!(match &mut *mode {
-                BlockSealerMode::Noop => Poll::Pending,
-                BlockSealerMode::Immediate(immediate) => immediate.poll(this.pool, cx),
-                BlockSealerMode::FixedTime(fixed) => fixed.poll(this.pool, cx),
-            });
+    pub async fn run(self) -> anyhow::Result<()> {
+        loop {
+            tracing::debug!("polling for a new tx batch");
+            let tx_batch = futures::future::poll_fn(|cx| {
+                // Register to be woken up when sealer mode changes
+                self.state.waker.register(cx.waker());
+                let mut mode = self
+                    .state
+                    .mode
+                    .write()
+                    .expect("BlockSealer lock is poisoned");
+                match &mut *mode {
+                    BlockSealerMode::Noop => Poll::Pending,
+                    BlockSealerMode::Immediate(immediate) => immediate.poll(&self.pool, cx),
+                    BlockSealerMode::FixedTime(fixed) => fixed.poll(&self.pool, cx),
+                }
+            })
+            .await;
             tracing::debug!(
                 impersonating = tx_batch.impersonating,
                 txs = tx_batch.txs.len(),
                 "new tx batch found"
             );
-            let handle = this.node_handle.clone();
-            *this.future = Some(Box::pin(async move { handle.seal_block(tx_batch).await }));
-        }
-
-        if let Some(future) = this.future.as_mut().as_pin_mut() {
-            match futures::ready!(future.poll(cx)) {
-                Ok(()) => {
-                    // Clear pending future if it completed successfully
-                    *this.future = None;
-                    // Wake yourself up as we might have some unprocessed txs in the pool left
-                    cx.waker().wake_by_ref();
-                    Poll::Pending
-                }
-                Err(_) => {
-                    tracing::error!(
-                        "failed to seal a block as node executor is dropped; shutting down"
-                    );
-                    Poll::Ready(())
-                }
-            }
-        } else {
-            Poll::Pending
+            self.node_handle.seal_block(tx_batch).await?;
         }
     }
 }
@@ -233,7 +204,7 @@ mod tests {
     use tokio::task::JoinHandle;
 
     struct BlockSealerTester {
-        _handle: JoinHandle<()>,
+        _handle: JoinHandle<anyhow::Result<()>>,
         node_executor_tester: NodeExecutorTester,
     }
 
@@ -243,7 +214,7 @@ mod tests {
             let pool = TxPool::new(ImpersonationManager::default(), TransactionOrder::Fifo);
             let (block_sealer, _) =
                 BlockSealer::new(sealer_mode_fn(&pool), pool.clone(), node_handle);
-            let _handle = tokio::spawn(block_sealer);
+            let _handle = tokio::spawn(block_sealer.run());
 
             (
                 Self {

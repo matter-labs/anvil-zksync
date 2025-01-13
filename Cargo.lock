@@ -484,7 +484,6 @@ dependencies = [
  "lazy_static",
  "maplit",
  "once_cell",
- "pin-project",
  "reqwest 0.11.27",
  "rustc-hash 1.1.0",
  "serde",

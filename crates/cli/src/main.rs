@@ -344,10 +344,10 @@ async fn main() -> anyhow::Result<()> {
         _ = any_server_stopped => {
             tracing::trace!("node server was stopped")
         },
-        _ = node_executor => {
+        _ = node_executor.run() => {
             tracing::trace!("node executor was stopped")
         },
-        _ = block_sealer => {
+        _ = block_sealer.run() => {
             tracing::trace!("block sealer was stopped")
         },
         _ = state_dumper => {

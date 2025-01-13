@@ -656,8 +656,8 @@ impl InMemoryNode {
             pool.clone(),
             node_handle.clone(),
         );
-        tokio::spawn(node_executor);
-        tokio::spawn(block_sealer);
+        tokio::spawn(node_executor.run());
+        tokio::spawn(block_sealer.run());
         Self::new(
             inner,
             blockchain,
