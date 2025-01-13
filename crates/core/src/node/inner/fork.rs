@@ -573,7 +573,7 @@ impl ForkDetails {
 
         if !block_details
             .protocol_version
-            .map_or(false, supported_protocol_versions)
+            .is_some_and(supported_protocol_versions)
         {
             return Err(eyre!("This block is using the unsupported protocol version: {:?}. This binary supports versions {}.",
                              block_details.protocol_version,
