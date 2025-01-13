@@ -14,6 +14,7 @@ impl NetNamespace {
     }
 }
 
+// TODO: Make this namespace async in zksync-era
 impl NetNamespaceServer for NetNamespace {
     fn version(&self) -> RpcResult<String> {
         let chain_id = tokio::runtime::Handle::current()
