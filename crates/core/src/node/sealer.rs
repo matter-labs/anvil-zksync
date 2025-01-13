@@ -1,4 +1,4 @@
-use super::inner::node_executor::{Command, NodeExecutorHandle};
+use super::inner::node_executor::NodeExecutorHandle;
 use super::pool::{TxBatch, TxPool};
 use futures::channel::mpsc::Receiver;
 use futures::future::BoxFuture;
@@ -10,7 +10,6 @@ use std::pin::Pin;
 use std::sync::{Arc, RwLock};
 use std::task::{Context, Poll};
 use std::time::Duration;
-use tokio::sync::mpsc;
 use tokio::time::{Interval, MissedTickBehavior};
 use zksync_types::H256;
 
@@ -27,7 +26,7 @@ pub struct BlockSealer {
     node_handle: NodeExecutorHandle,
     /// Future that is sending the next seal command to [`super::NodeExecutor`]
     #[pin]
-    future: Option<BoxFuture<'static, Result<(), mpsc::error::SendError<Command>>>>,
+    future: Option<BoxFuture<'static, anyhow::Result<()>>>,
 }
 
 impl BlockSealer {
@@ -225,122 +224,54 @@ impl FixedTimeBlockSealer {
 
 #[cfg(test)]
 mod tests {
-    use crate::node::node_executor::{Command, NodeExecutorHandle};
+    use crate::node::node_executor::testing::NodeExecutorTester;
     use crate::node::pool::TxBatch;
     use crate::node::sealer::BlockSealerMode;
     use crate::node::{BlockSealer, ImpersonationManager, TxPool};
     use anvil_zksync_types::TransactionOrder;
-    use backon::Retryable;
-    use backon::{ConstantBuilder, ExponentialBuilder};
-    use std::sync::Arc;
     use std::time::Duration;
-    use tokio::sync::mpsc::error::TryRecvError;
-    use tokio::sync::{mpsc, RwLock};
     use tokio::task::JoinHandle;
 
-    struct Tester {
+    struct BlockSealerTester {
         _handle: JoinHandle<()>,
-        receiver: Arc<RwLock<mpsc::Receiver<Command>>>,
+        node_executor_tester: NodeExecutorTester,
     }
 
-    impl Tester {
+    impl BlockSealerTester {
         fn new(sealer_mode_fn: impl FnOnce(&TxPool) -> BlockSealerMode) -> (Self, TxPool) {
-            let (node_handle, receiver) = NodeExecutorHandle::test();
+            let (node_executor_tester, node_handle) = NodeExecutorTester::new();
             let pool = TxPool::new(ImpersonationManager::default(), TransactionOrder::Fifo);
             let (block_sealer, _) =
                 BlockSealer::new(sealer_mode_fn(&pool), pool.clone(), node_handle);
             let _handle = tokio::spawn(block_sealer);
-            let receiver = Arc::new(RwLock::new(receiver));
 
-            (Self { _handle, receiver }, pool)
-        }
-
-        async fn recv(&self) -> anyhow::Result<Command> {
-            let mut receiver = self.receiver.write().await;
-            tokio::time::timeout(Duration::from_millis(100), receiver.recv())
-                .await
-                .map_err(|_| anyhow::anyhow!("no command received"))
-                .and_then(|res| res.ok_or(anyhow::anyhow!("disconnected")))
-        }
-
-        async fn expect_tx_batch(&self, expected_tx_batch: TxBatch) -> anyhow::Result<()> {
-            let command = (|| self.recv())
-                .retry(ExponentialBuilder::default())
-                .await?;
-            match command {
-                Command::SealBlock(actual_tx_batch, _) if actual_tx_batch == expected_tx_batch => {
-                    Ok(())
-                }
-                _ => anyhow::bail!("unexpected command: {:?}", command),
-            }
-        }
-
-        /// Assert that the next command is sealing provided tx batch. Unlike `expect_tx_batch`
-        /// this method does not retry.
-        async fn expect_immediate_tx_batch(
-            &self,
-            expected_tx_batch: TxBatch,
-        ) -> anyhow::Result<()> {
-            let result = self.receiver.write().await.try_recv();
-            match result {
-                Ok(Command::SealBlock(actual_tx_batch, _))
-                    if actual_tx_batch == expected_tx_batch =>
-                {
-                    Ok(())
-                }
-                Ok(command) => anyhow::bail!("unexpected command: {:?}", command),
-                Err(TryRecvError::Empty) => anyhow::bail!("no command received"),
-                Err(TryRecvError::Disconnected) => anyhow::bail!("disconnected"),
-            }
-        }
-
-        async fn expect_no_tx_batch(&self) -> anyhow::Result<()> {
-            let result = (|| self.recv())
-                .retry(
-                    ConstantBuilder::default()
-                        .with_delay(Duration::from_millis(100))
-                        .with_max_times(3),
-                )
-                .await;
-            match result {
-                Ok(command) => {
-                    anyhow::bail!("unexpected command: {:?}", command)
-                }
-                Err(err) if err.to_string().contains("no command received") => Ok(()),
-                Err(err) => anyhow::bail!("unexpected error: {:?}", err),
-            }
-        }
-
-        /// Assert that there are no command currently in receiver queue. Unlike `expect_no_tx_batch`
-        /// this method does not retry.
-        async fn expect_no_immediate_tx_batch(&self) -> anyhow::Result<()> {
-            let result = self.receiver.write().await.try_recv();
-            match result {
-                Ok(command) => {
-                    anyhow::bail!("unexpected command: {:?}", command)
-                }
-                Err(TryRecvError::Empty) => Ok(()),
-                Err(TryRecvError::Disconnected) => anyhow::bail!("disconnected"),
-            }
+            (
+                Self {
+                    _handle,
+                    node_executor_tester,
+                },
+                pool,
+            )
         }
     }
 
     #[tokio::test]
     async fn immediate_empty() -> anyhow::Result<()> {
         let (tester, _pool) =
-            Tester::new(|pool| BlockSealerMode::immediate(1000, pool.add_tx_listener()));
+            BlockSealerTester::new(|pool| BlockSealerMode::immediate(1000, pool.add_tx_listener()));
 
-        tester.expect_no_tx_batch().await
+        tester.node_executor_tester.expect_empty().await
     }
 
     #[tokio::test]
     async fn immediate_one_tx() -> anyhow::Result<()> {
         let (tester, pool) =
-            Tester::new(|pool| BlockSealerMode::immediate(1000, pool.add_tx_listener()));
+            BlockSealerTester::new(|pool| BlockSealerMode::immediate(1000, pool.add_tx_listener()));
 
         let [tx] = pool.populate::<1>();
         tester
-            .expect_tx_batch(TxBatch {
+            .node_executor_tester
+            .expect_seal_block(TxBatch {
                 impersonating: false,
                 txs: vec![tx],
             })
@@ -350,11 +281,12 @@ mod tests {
     #[tokio::test]
     async fn immediate_several_txs() -> anyhow::Result<()> {
         let (tester, pool) =
-            Tester::new(|pool| BlockSealerMode::immediate(1000, pool.add_tx_listener()));
+            BlockSealerTester::new(|pool| BlockSealerMode::immediate(1000, pool.add_tx_listener()));
 
         let txs = pool.populate::<10>();
         tester
-            .expect_tx_batch(TxBatch {
+            .node_executor_tester
+            .expect_seal_block(TxBatch {
                 impersonating: false,
                 txs: txs.to_vec(),
             })
@@ -364,12 +296,13 @@ mod tests {
     #[tokio::test]
     async fn immediate_respect_max_txs() -> anyhow::Result<()> {
         let (tester, pool) =
-            Tester::new(|pool| BlockSealerMode::immediate(3, pool.add_tx_listener()));
+            BlockSealerTester::new(|pool| BlockSealerMode::immediate(3, pool.add_tx_listener()));
 
         let txs = pool.populate::<10>();
         for txs in txs.chunks(3) {
             tester
-                .expect_tx_batch(TxBatch {
+                .node_executor_tester
+                .expect_seal_block(TxBatch {
                     impersonating: false,
                     txs: txs.to_vec(),
                 })
@@ -381,7 +314,7 @@ mod tests {
     #[tokio::test]
     async fn immediate_gradual_txs() -> anyhow::Result<()> {
         let (tester, pool) =
-            Tester::new(|pool| BlockSealerMode::immediate(1000, pool.add_tx_listener()));
+            BlockSealerTester::new(|pool| BlockSealerMode::immediate(1000, pool.add_tx_listener()));
 
         // Txs are added to the pool in small chunks
         let txs0 = pool.populate::<3>();
@@ -393,7 +326,8 @@ mod tests {
         txs.extend(txs2);
 
         tester
-            .expect_tx_batch(TxBatch {
+            .node_executor_tester
+            .expect_seal_block(TxBatch {
                 impersonating: false,
                 txs,
             })
@@ -402,7 +336,8 @@ mod tests {
         // Txs added after the first poll should be available for sealing
         let txs = pool.populate::<10>().to_vec();
         tester
-            .expect_tx_batch(TxBatch {
+            .node_executor_tester
+            .expect_seal_block(TxBatch {
                 impersonating: false,
                 txs,
             })
@@ -411,35 +346,39 @@ mod tests {
 
     #[tokio::test]
     async fn fixed_time_very_long() -> anyhow::Result<()> {
-        let (tester, _pool) =
-            Tester::new(|_| BlockSealerMode::fixed_time(1000, Duration::from_secs(10000)));
+        let (tester, _pool) = BlockSealerTester::new(|_| {
+            BlockSealerMode::fixed_time(1000, Duration::from_secs(10000))
+        });
 
-        tester.expect_no_tx_batch().await
+        tester.node_executor_tester.expect_empty().await
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn fixed_time_seal_empty() -> anyhow::Result<()> {
-        let (tester, _pool) =
-            Tester::new(|_| BlockSealerMode::fixed_time(1000, Duration::from_millis(100)));
+        let (tester, _pool) = BlockSealerTester::new(|_| {
+            BlockSealerMode::fixed_time(1000, Duration::from_millis(100))
+        });
 
         // Sleep enough time to produce exactly 1 block
         tokio::time::sleep(Duration::from_millis(150)).await;
 
         // Sealer should have sealed exactly one empty block by now
         tester
-            .expect_immediate_tx_batch(TxBatch {
+            .node_executor_tester
+            .expect_seal_block_immediate(TxBatch {
                 impersonating: false,
                 txs: vec![],
             })
             .await?;
-        tester.expect_no_immediate_tx_batch().await?;
+        tester.node_executor_tester.expect_empty_immediate().await?;
 
         // Sleep enough time to produce one more block
         tokio::time::sleep(Duration::from_millis(150)).await;
 
         // Next block should be sealable
         tester
-            .expect_immediate_tx_batch(TxBatch {
+            .node_executor_tester
+            .expect_seal_block_immediate(TxBatch {
                 impersonating: false,
                 txs: vec![],
             })
@@ -448,8 +387,9 @@ mod tests {
 
     #[tokio::test]
     async fn fixed_time_seal_with_txs() -> anyhow::Result<()> {
-        let (tester, pool) =
-            Tester::new(|_| BlockSealerMode::fixed_time(1000, Duration::from_millis(100)));
+        let (tester, pool) = BlockSealerTester::new(|_| {
+            BlockSealerMode::fixed_time(1000, Duration::from_millis(100))
+        });
 
         let txs = pool.populate::<3>();
 
@@ -457,7 +397,8 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(150)).await;
 
         tester
-            .expect_immediate_tx_batch(TxBatch {
+            .node_executor_tester
+            .expect_seal_block_immediate(TxBatch {
                 impersonating: false,
                 txs: txs.to_vec(),
             })
@@ -467,7 +408,7 @@ mod tests {
     #[tokio::test]
     async fn fixed_time_respect_max_txs() -> anyhow::Result<()> {
         let (tester, pool) =
-            Tester::new(|_| BlockSealerMode::fixed_time(3, Duration::from_millis(100)));
+            BlockSealerTester::new(|_| BlockSealerMode::fixed_time(3, Duration::from_millis(100)));
 
         let txs = pool.populate::<10>();
 
@@ -476,7 +417,8 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(150)).await;
 
             tester
-                .expect_immediate_tx_batch(TxBatch {
+                .node_executor_tester
+                .expect_seal_block_immediate(TxBatch {
                     impersonating: false,
                     txs: txs.to_vec(),
                 })

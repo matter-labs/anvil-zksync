@@ -286,13 +286,11 @@ impl NodeExecutorHandle {
     ///
     /// It is sender's responsibility to make sure [`TxBatch`] is constructed correctly (see its
     /// docs).
-    pub async fn seal_block(
-        &self,
-        tx_batch: TxBatch,
-    ) -> Result<(), mpsc::error::SendError<Command>> {
-        self.command_sender
+    pub async fn seal_block(&self, tx_batch: TxBatch) -> anyhow::Result<()> {
+        Ok(self
+            .command_sender
             .send(Command::SealBlock(tx_batch, None))
-            .await
+            .await?)
     }
 
     /// Request [`NodeExecutor`] to seal a new block from the provided transaction batch. Waits for
@@ -392,13 +390,11 @@ impl NodeExecutorHandle {
 
     /// Request [`NodeExecutor`] to set block timestamp interval (in seconds). Does not wait for the
     /// change to take place.
-    pub async fn set_block_timestamp_interval(
-        &self,
-        seconds: u64,
-    ) -> Result<(), mpsc::error::SendError<Command>> {
-        self.command_sender
+    pub async fn set_block_timestamp_interval(&self, seconds: u64) -> anyhow::Result<()> {
+        Ok(self
+            .command_sender
             .send(Command::SetTimestampInterval(seconds))
-            .await
+            .await?)
     }
 
     /// Request [`NodeExecutor`] to remove block timestamp interval. Waits for the change to take
@@ -419,16 +415,8 @@ impl NodeExecutorHandle {
     }
 }
 
-#[cfg(test)]
-impl NodeExecutorHandle {
-    pub fn test() -> (Self, mpsc::Receiver<Command>) {
-        let (command_sender, command_receiver) = mpsc::channel(128);
-        (NodeExecutorHandle { command_sender }, command_receiver)
-    }
-}
-
 #[derive(Debug)]
-pub enum Command {
+enum Command {
     // Block sealing commands
     SealBlock(
         TxBatch,
@@ -446,4 +434,101 @@ pub enum Command {
     SetCurrentTimestamp(u64, oneshot::Sender<i128>),
     SetTimestampInterval(u64),
     RemoveTimestampInterval(oneshot::Sender<bool>),
+}
+
+#[cfg(test)]
+pub mod testing {
+    use super::*;
+    use backon::{ConstantBuilder, ExponentialBuilder, Retryable};
+    use std::time::Duration;
+    use tokio::sync::mpsc::error::TryRecvError;
+
+    pub struct NodeExecutorTester {
+        receiver: Arc<RwLock<mpsc::Receiver<Command>>>,
+    }
+
+    impl NodeExecutorTester {
+        pub fn new() -> (Self, NodeExecutorHandle) {
+            let (command_sender, command_receiver) = mpsc::channel(128);
+            (
+                Self {
+                    receiver: Arc::new(RwLock::new(command_receiver)),
+                },
+                NodeExecutorHandle { command_sender },
+            )
+        }
+
+        async fn recv(&self) -> anyhow::Result<Command> {
+            let mut receiver = self.receiver.write().await;
+            tokio::time::timeout(Duration::from_millis(100), receiver.recv())
+                .await
+                .map_err(|_| anyhow::anyhow!("no command received"))
+                .and_then(|res| res.ok_or(anyhow::anyhow!("disconnected")))
+        }
+
+        /// Assert that the next command is sealing provided tx batch. Waits with a timeout for the
+        /// next command to arrive if the command queue is empty.
+        pub async fn expect_seal_block(&self, expected_tx_batch: TxBatch) -> anyhow::Result<()> {
+            let command = (|| self.recv())
+                .retry(ExponentialBuilder::default())
+                .await?;
+            match command {
+                Command::SealBlock(actual_tx_batch, _) if actual_tx_batch == expected_tx_batch => {
+                    Ok(())
+                }
+                _ => anyhow::bail!("unexpected command: {:?}", command),
+            }
+        }
+
+        /// Assert that the next command is sealing provided tx batch. Unlike `expect_seal_block`
+        /// this method does not retry.
+        pub async fn expect_seal_block_immediate(
+            &self,
+            expected_tx_batch: TxBatch,
+        ) -> anyhow::Result<()> {
+            let result = self.receiver.write().await.try_recv();
+            match result {
+                Ok(Command::SealBlock(actual_tx_batch, _))
+                    if actual_tx_batch == expected_tx_batch =>
+                {
+                    Ok(())
+                }
+                Ok(command) => anyhow::bail!("unexpected command: {:?}", command),
+                Err(TryRecvError::Empty) => anyhow::bail!("no command received"),
+                Err(TryRecvError::Disconnected) => anyhow::bail!("disconnected"),
+            }
+        }
+
+        /// Assert that there are no command currently in receiver queue. Waits up to a timeout for
+        /// the next command to potentially arrive.
+        pub async fn expect_empty(&self) -> anyhow::Result<()> {
+            let result = (|| self.recv())
+                .retry(
+                    ConstantBuilder::default()
+                        .with_delay(Duration::from_millis(100))
+                        .with_max_times(3),
+                )
+                .await;
+            match result {
+                Ok(command) => {
+                    anyhow::bail!("unexpected command: {:?}", command)
+                }
+                Err(err) if err.to_string().contains("no command received") => Ok(()),
+                Err(err) => anyhow::bail!("unexpected error: {:?}", err),
+            }
+        }
+
+        /// Assert that there are no command currently in receiver queue. Unlike `expect_empty`
+        /// this method does not retry.
+        pub async fn expect_empty_immediate(&self) -> anyhow::Result<()> {
+            let result = self.receiver.write().await.try_recv();
+            match result {
+                Ok(command) => {
+                    anyhow::bail!("unexpected command: {:?}", command)
+                }
+                Err(TryRecvError::Empty) => Ok(()),
+                Err(TryRecvError::Disconnected) => anyhow::bail!("disconnected"),
+            }
+        }
+    }
 }
