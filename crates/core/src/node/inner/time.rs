@@ -3,8 +3,17 @@ use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 /// Read-only view on time.
 pub trait ReadTime: Send + Sync {
+    /// Alternative for [`Clone::clone`] that is object safe.
+    fn dyn_cloned(&self) -> Box<dyn ReadTime>;
+
     /// Returns timestamp (in seconds) that the clock is currently on.
     fn current_timestamp(&self) -> u64;
+}
+
+impl Clone for Box<dyn ReadTime> {
+    fn clone(&self) -> Self {
+        self.dyn_cloned()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -13,6 +22,10 @@ pub(super) struct Time {
 }
 
 impl ReadTime for Time {
+    fn dyn_cloned(&self) -> Box<dyn ReadTime> {
+        Box::new(self.clone())
+    }
+
     fn current_timestamp(&self) -> u64 {
         self.get().current_timestamp
     }

@@ -243,11 +243,11 @@ pub struct Snapshot {
 pub struct InMemoryNode {
     /// A thread safe reference to the [InMemoryNodeInner].
     pub(crate) inner: Arc<RwLock<InMemoryNodeInner>>,
-    pub(crate) blockchain: Arc<dyn ReadBlockchain>,
+    pub(crate) blockchain: Box<dyn ReadBlockchain>,
     pub(crate) node_handle: NodeExecutorHandle,
     /// List of snapshots of the [InMemoryNodeInner]. This is bounded at runtime by [MAX_SNAPSHOTS].
     pub(crate) snapshots: Arc<RwLock<Vec<Snapshot>>>,
-    pub(crate) time: Arc<dyn ReadTime>,
+    pub(crate) time: Box<dyn ReadTime>,
     pub(crate) impersonation: ImpersonationManager,
     /// An optional handle to the observability stack
     pub(crate) observability: Option<Observability>,
@@ -260,10 +260,10 @@ impl InMemoryNode {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         inner: Arc<RwLock<InMemoryNodeInner>>,
-        blockchain: Arc<dyn ReadBlockchain>,
+        blockchain: Box<dyn ReadBlockchain>,
         node_handle: NodeExecutorHandle,
         observability: Option<Observability>,
-        time: Arc<dyn ReadTime>,
+        time: Box<dyn ReadTime>,
         impersonation: ImpersonationManager,
         pool: TxPool,
         sealer_state: BlockSealerState,

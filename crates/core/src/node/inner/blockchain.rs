@@ -22,48 +22,86 @@ use zksync_types::{
     SYSTEM_CONTEXT_BLOCK_INFO_POSITION, U256, U64,
 };
 
-// TODO: Write rustdocs for methods
 /// Read-only view on blockchain state.
 #[async_trait]
 pub trait ReadBlockchain: Send + Sync {
+    /// Alternative for [`Clone::clone`] that is object safe.
+    fn dyn_cloned(&self) -> Box<dyn ReadBlockchain>;
+
+    /// Returns last sealed batch's number. At least one sealed batch is guaranteed to be present
+    /// in the storage at any given time.
     async fn current_batch(&self) -> L1BatchNumber;
 
+    /// Returns last sealed block's number. At least one sealed block is guaranteed to be present
+    /// in the storage at any given time.
     async fn current_block_number(&self) -> L2BlockNumber;
 
+    /// Returns last sealed block's hash. At least one sealed block is guaranteed to be present
+    /// in the storage at any given time.
     async fn current_block_hash(&self) -> H256;
 
+    /// Retrieve full block by its hash. Returns `None` if no block was found. Note that the block
+    /// might still be a part of the chain but is available in the fork instead.
     async fn get_block_by_hash(&self, hash: &H256) -> Option<api::Block<api::TransactionVariant>>;
 
+    /// Retrieve full block by its number. Returns `None` if no block was found. Note that the block
+    /// might still be a part of the chain but is available in the fork instead.
     async fn get_block_by_number(
         &self,
         number: L2BlockNumber,
     ) -> Option<api::Block<api::TransactionVariant>>;
 
+    /// Retrieve full block by id. Returns `None` if no block was found. Note that the block
+    /// might still be a part of the chain but is available in the fork instead.
     async fn get_block_by_id(
         &self,
         block_id: api::BlockId,
     ) -> Option<api::Block<api::TransactionVariant>>;
 
+    /// Retrieve block hash by its number. Returns `None` if no block was found. Note that the block
+    /// might still be a part of the chain but is available in the fork instead.
     async fn get_block_hash_by_number(&self, number: L2BlockNumber) -> Option<H256>;
 
+    /// Retrieve block hash by id. Returns `None` if no block was found. Note that the block
+    /// might still be a part of the chain but is available in the fork instead.
     async fn get_block_hash_by_id(&self, block_id: api::BlockId) -> Option<H256>;
 
+    /// Retrieve block number by its hash. Returns `None` if no block was found. Note that the block
+    /// might still be a part of the chain but is available in the fork instead.
     async fn get_block_number_by_hash(&self, hash: &H256) -> Option<L2BlockNumber>;
 
+    /// Retrieve block number by id. Returns `None` if no block was found. Note that the block
+    /// might still be a part of the chain but is available in the fork instead.
     async fn get_block_number_by_id(&self, block_id: api::BlockId) -> Option<L2BlockNumber>;
 
+    /// Retrieve all transactions hashes from a block by its number. Returns `None` if no block was
+    /// found. Note that the block might still be a part of the chain but is available in the fork
+    /// instead.
     async fn get_block_tx_hashes_by_number(&self, number: L2BlockNumber) -> Option<Vec<H256>>;
 
+    /// Retrieve all transactions hashes from a block by id. Returns `None` if no block was
+    /// found. Note that the block might still be a part of the chain but is available in the fork
+    /// instead.
     async fn get_block_tx_hashes_by_id(&self, block_id: api::BlockId) -> Option<Vec<H256>>;
 
+    // TODO: Distinguish between block not found and tx not found
+    /// Retrieve a transaction from a block by id and index of the transaction. Returns `None` if
+    /// either no block was found or no transaction exists in the block under that index. Note that
+    /// the block might still be a part of the chain but is available in the fork instead.
     async fn get_block_tx_by_id(
         &self,
         block_id: api::BlockId,
         index: usize,
     ) -> Option<api::Transaction>;
 
+    /// Retrieve number of transactions in a block by id. Returns `None` if no block was
+    /// found. Note that the block might still be a part of the chain but is available in the fork
+    /// instead.
     async fn get_block_tx_count_by_id(&self, block_id: api::BlockId) -> Option<usize>;
 
+    /// Retrieve block details (as defined in `zks_getBlockDetails`) by id. Returns `None` if no
+    /// block was found. Note that the block might still be a part of the chain but is available in
+    /// the fork instead.
     async fn get_block_details_by_number(
         &self,
         number: L2BlockNumber,
@@ -73,19 +111,44 @@ pub trait ReadBlockchain: Send + Sync {
         base_system_contracts_hashes: BaseSystemContractsHashes,
     ) -> Option<api::BlockDetails>;
 
+    /// Retrieve transaction receipt by transaction's hash. Returns `None` if no transaction was
+    /// found. Note that the transaction might still be a part of the chain but is available in the
+    /// fork instead.
     async fn get_tx_receipt(&self, tx_hash: &H256) -> Option<api::TransactionReceipt>;
 
+    /// Retrieve transaction debug information by transaction's hash. Returns `None` if no transaction was
+    /// found. Note that the transaction might still be a part of the chain but is available in the
+    /// fork instead.
     async fn get_tx_debug_info(&self, tx_hash: &H256, only_top: bool) -> Option<api::DebugCall>;
 
+    /// Retrieve transaction in API format by transaction's hash. Returns `None` if no transaction was
+    /// found. Note that the transaction might still be a part of the chain but is available in the
+    /// fork instead.
     async fn get_tx_api(&self, tx_hash: &H256) -> anyhow::Result<Option<api::Transaction>>;
 
+    /// Retrieve detailed transaction (as defined in `anvil_mine_detailed`) by API transaction.
+    /// Returns `None` if no transaction was found. Note that the transaction might still be a part
+    /// of the chain but is available in the fork instead.
     async fn get_detailed_tx(&self, tx: api::Transaction) -> Option<DetailedTransaction>;
 
+    /// Retrieve detailed transaction (as defined in `zks_getTransactionDetails`) by transaction's hash.
+    /// Returns `None` if no transaction was found. Note that the transaction might still be a part
+    /// of the chain but is available in the fork instead.
     async fn get_tx_details(&self, tx_hash: &H256) -> Option<api::TransactionDetails>;
 
+    /// Retrieve ZKsync transaction (as defined in `zks_getRawBlockTransactions`) by transaction's hash.
+    /// Returns `None` if no transaction was found. Note that the transaction might still be a part
+    /// of the chain but is available in the fork instead.
     async fn get_zksync_tx(&self, tx_hash: &H256) -> Option<zksync_types::Transaction>;
 
+    /// Retrieve all logs matching given filter. Does not return matching logs from pre-fork blocks.
     async fn get_filter_logs(&self, log_filter: &LogFilter) -> Vec<api::Log>;
+}
+
+impl Clone for Box<dyn ReadBlockchain> {
+    fn clone(&self) -> Self {
+        self.dyn_cloned()
+    }
 }
 
 #[derive(Clone)]
@@ -130,8 +193,7 @@ impl Blockchain {
         Some(f(self.inner.read().await.tx_results.get(tx_hash)?))
     }
 
-    // FIXME: Seems like a strange pattern to allow this, likely places where this is used can be
-    //        reworked
+    // FIXME: Do not use for new functionality and delete once its only usage is migrated away.
     async fn inspect_all_txs<T>(
         &self,
         f: impl FnOnce(&HashMap<H256, TransactionResult>) -> T,
@@ -142,6 +204,10 @@ impl Blockchain {
 
 #[async_trait]
 impl ReadBlockchain for Blockchain {
+    fn dyn_cloned(&self) -> Box<dyn ReadBlockchain> {
+        Box::new(self.clone())
+    }
+
     async fn current_batch(&self) -> L1BatchNumber {
         self.inner.read().await.current_batch
     }
@@ -384,6 +450,9 @@ impl ReadBlockchain for Blockchain {
 
     async fn get_filter_logs(&self, log_filter: &LogFilter) -> Vec<api::Log> {
         let latest_block_number = self.current_block_number().await;
+        // FIXME: This should traverse blocks from `log_filter.from_block` to `log_filter.to_block`
+        //        instead. This way we can drastically reduce search scope and avoid holding the
+        //        lock for prolonged amounts of time.
         self.inspect_all_txs(|tx_results| {
             tx_results
                 .values()

@@ -42,8 +42,8 @@ impl InMemoryNodeInner {
     ) -> (
         Arc<RwLock<Self>>,
         ForkStorage,
-        Arc<dyn ReadBlockchain>,
-        Arc<dyn ReadTime>,
+        Box<dyn ReadBlockchain>,
+        Box<dyn ReadTime>,
     ) {
         let time = Time::new(
             fork.as_ref()
@@ -77,8 +77,8 @@ impl InMemoryNodeInner {
         (
             Arc::new(RwLock::new(node_inner)),
             fork_storage,
-            Arc::new(blockchain),
-            Arc::new(time),
+            Box::new(blockchain),
+            Box::new(time),
         )
     }
 }
