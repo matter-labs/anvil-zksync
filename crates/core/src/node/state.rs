@@ -1,5 +1,5 @@
-use crate::fork::{SerializableForkStorage, SerializableStorage};
-use crate::node::TransactionResult;
+use super::inner::fork::{SerializableForkStorage, SerializableStorage};
+use super::TransactionResult;
 use serde::{Deserialize, Serialize};
 use zksync_types::api::{Block, TransactionVariant};
 use zksync_types::H256;

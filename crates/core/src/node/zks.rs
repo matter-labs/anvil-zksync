@@ -1,85 +1,63 @@
-use crate::node::{InMemoryNode, TransactionResult};
-use crate::utils::{internal_error, utc_datetime_from_epoch_ms};
+use crate::node::InMemoryNode;
+use crate::utils::internal_error;
+use anyhow::Context;
 use std::collections::HashMap;
-use zksync_types::api::{
-    BlockDetails, BlockDetailsBase, BlockStatus, BridgeAddresses, TransactionDetails,
-    TransactionStatus, TransactionVariant,
-};
+use zksync_types::api;
 use zksync_types::fee::Fee;
 use zksync_types::h256_to_u256;
 use zksync_types::transaction_request::CallRequest;
 use zksync_types::utils::storage_key_for_standard_token_balance;
 use zksync_types::{
-    AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber, L2BlockNumber,
-    ProtocolVersionId, Transaction, H160, H256, L2_BASE_TOKEN_ADDRESS, U256,
+    AccountTreeId, Address, L2BlockNumber, Transaction, H160, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_web3_decl::error::Web3Error;
 
 impl InMemoryNode {
     pub async fn estimate_fee_impl(&self, req: CallRequest) -> Result<Fee, Web3Error> {
-        // TODO: Burn with fire
-        let time = self.time.lock();
-        self.read_inner()?.estimate_gas_impl(&time, req)
+        self.inner.read().await.estimate_gas_impl(req).await
     }
 
     pub async fn get_raw_block_transactions_impl(
         &self,
         block_number: L2BlockNumber,
     ) -> Result<Vec<Transaction>, Web3Error> {
-        let reader = self.read_inner()?;
-
-        let maybe_transactions = reader
-            .block_hashes
-            .get(&(block_number.0 as u64))
-            .and_then(|hash| reader.blocks.get(hash))
-            .map(|block| {
-                block
-                    .transactions
-                    .iter()
-                    .map(|tx| match tx {
-                        TransactionVariant::Full(tx) => &tx.hash,
-                        TransactionVariant::Hash(hash) => hash,
-                    })
-                    .flat_map(|tx_hash| {
-                        reader
-                            .tx_results
-                            .get(tx_hash)
-                            .map(|TransactionResult { info, .. }| Transaction {
-                                common_data: ExecuteTransactionCommon::L2(
-                                    info.tx.common_data.clone(),
-                                ),
-                                execute: info.tx.execute.clone(),
-                                received_timestamp_ms: info.tx.received_timestamp_ms,
-                                raw_bytes: info.tx.raw_bytes.clone(),
-                            })
-                    })
-                    .collect()
-            });
-
-        let transactions = match maybe_transactions {
-            Some(txns) => Ok(txns),
-            None => {
-                let fork_storage_read = reader
-                    .fork_storage
-                    .inner
-                    .read()
-                    .expect("failed reading fork storage");
-
-                match fork_storage_read.fork.as_ref() {
-                    Some(fork) => fork
-                        .fork_source
-                        .get_raw_block_transactions(block_number)
-                        .map_err(|e| internal_error("get_raw_block_transactions", e)),
-                    None => Ok(vec![]),
-                }
+        let tx_hashes = self
+            .blockchain
+            .get_block_tx_hashes_by_number(block_number)
+            .await;
+        let transactions = if let Some(tx_hashes) = tx_hashes {
+            let mut transactions = Vec::with_capacity(tx_hashes.len());
+            for tx_hash in tx_hashes {
+                let transaction = self
+                    .blockchain
+                    .get_zksync_tx(&tx_hash)
+                    .await
+                    .with_context(|| anyhow::anyhow!("Unexpectedly transaction (hash={tx_hash}) belongs to a block but could not be found"))?;
+                transactions.push(transaction);
             }
-        }?;
+            transactions
+        } else {
+            let reader = self.inner.read().await;
+            let fork_storage_read = reader
+                .fork_storage
+                .inner
+                .read()
+                .expect("failed reading fork storage");
+
+            match fork_storage_read.fork.as_ref() {
+                Some(fork) => fork
+                    .fork_source
+                    .get_raw_block_transactions(block_number)
+                    .map_err(|e| internal_error("get_raw_block_transactions", e))?,
+                None => return Err(Web3Error::NoBlock),
+            }
+        };
 
         Ok(transactions)
     }
 
-    pub async fn get_bridge_contracts_impl(&self) -> Result<BridgeAddresses, Web3Error> {
-        let reader = self.read_inner()?;
+    pub async fn get_bridge_contracts_impl(&self) -> Result<api::BridgeAddresses, Web3Error> {
+        let reader = self.inner.read().await;
 
         let result = match reader
             .fork_storage
@@ -96,7 +74,7 @@ impl InMemoryNode {
                     err
                 )))
             })?,
-            None => BridgeAddresses {
+            None => api::BridgeAddresses {
                 l1_shared_default_bridge: Default::default(),
                 l2_shared_default_bridge: Default::default(),
                 l1_erc20_default_bridge: Default::default(),
@@ -115,7 +93,7 @@ impl InMemoryNode {
         from: u32,
         limit: u8,
     ) -> anyhow::Result<Vec<zksync_web3_decl::types::Token>> {
-        let reader = self.read_inner()?;
+        let reader = self.inner.read().await;
 
         let fork_storage_read = reader
             .fork_storage
@@ -144,14 +122,10 @@ impl InMemoryNode {
         &self,
         address: Address,
     ) -> Result<HashMap<Address, U256>, Web3Error> {
-        let inner = self.get_inner().clone();
         let tokens = self.get_confirmed_tokens_impl(0, 100).await?;
 
         let balances = {
-            let writer = inner.write().map_err(|_e| {
-                let error_message = "Failed to acquire lock. Please ensure the lock is not being held by another process or thread.".to_string();
-                Web3Error::InternalError(anyhow::Error::msg(error_message))
-            })?;
+            let writer = self.inner.write().await;
             let mut balances = HashMap::new();
             for token in tokens {
                 let balance_key = storage_key_for_standard_token_balance(
@@ -180,106 +154,76 @@ impl InMemoryNode {
     pub async fn get_block_details_impl(
         &self,
         block_number: L2BlockNumber,
-    ) -> anyhow::Result<Option<BlockDetails>> {
+    ) -> anyhow::Result<Option<api::BlockDetails>> {
         let base_system_contracts_hashes = self.system_contracts.base_system_contracts_hashes();
-        let reader = self.read_inner()?;
+        let reader = self.inner.read().await;
+        let l2_fair_gas_price = reader.fee_input_provider.gas_price();
+        let fair_pubdata_price = Some(reader.fee_input_provider.fair_pubdata_price());
+        drop(reader);
 
-        let maybe_block = reader
-            .block_hashes
-            .get(&(block_number.0 as u64))
-            .and_then(|hash| reader.blocks.get(hash))
-            .map(|block| BlockDetails {
-                number: L2BlockNumber(block.number.as_u32()),
-                l1_batch_number: L1BatchNumber(block.l1_batch_number.unwrap_or_default().as_u32()),
-                base: BlockDetailsBase {
-                    timestamp: block.timestamp.as_u64(),
-                    l1_tx_count: 1,
-                    l2_tx_count: block.transactions.len(),
-                    root_hash: Some(block.hash),
-                    status: BlockStatus::Verified,
-                    commit_tx_hash: None,
-                    commit_chain_id: None,
-                    committed_at: None,
-                    prove_tx_hash: None,
-                    prove_chain_id: None,
-                    proven_at: None,
-                    execute_tx_hash: None,
-                    execute_chain_id: None,
-                    executed_at: None,
-                    l1_gas_price: 0,
-                    l2_fair_gas_price: reader.fee_input_provider.gas_price(),
-                    fair_pubdata_price: Some(reader.fee_input_provider.fair_pubdata_price()),
-                    base_system_contracts_hashes,
-                },
-                operator_address: Address::zero(),
-                protocol_version: Some(ProtocolVersionId::latest()),
-            })
-            .or_else(|| {
-                reader
-                    .fork_storage
-                    .inner
-                    .read()
-                    .expect("failed reading fork storage")
-                    .fork
-                    .as_ref()
-                    .and_then(|fork| {
-                        fork.fork_source
-                            .get_block_details(block_number)
-                            .ok()
-                            .flatten()
-                    })
-            });
+        let block_details = self
+            .blockchain
+            .get_block_details_by_number(
+                block_number,
+                l2_fair_gas_price,
+                fair_pubdata_price,
+                base_system_contracts_hashes,
+            )
+            .await;
 
-        Ok(maybe_block)
+        let maybe_block_details = match block_details {
+            Some(block_details) => Some(block_details),
+            None => self
+                .inner
+                .read()
+                .await
+                .fork_storage
+                .inner
+                .read()
+                .expect("failed reading fork storage")
+                .fork
+                .as_ref()
+                .and_then(|fork| {
+                    fork.fork_source
+                        .get_block_details(block_number)
+                        .ok()
+                        .flatten()
+                }),
+        };
+
+        Ok(maybe_block_details)
     }
 
     pub async fn get_transaction_details_impl(
         &self,
         hash: H256,
-    ) -> anyhow::Result<Option<TransactionDetails>> {
-        let reader = self.read_inner()?;
-
-        let maybe_result = {
-            reader
-                .tx_results
-                .get(&hash)
-                .map(|TransactionResult { info, receipt, .. }| {
-                    TransactionDetails {
-                        is_l1_originated: false,
-                        status: TransactionStatus::Included,
-                        // if these are not set, fee is effectively 0
-                        fee: receipt.effective_gas_price.unwrap_or_default()
-                            * receipt.gas_used.unwrap_or_default(),
-                        gas_per_pubdata: info.tx.common_data.fee.gas_per_pubdata_limit,
-                        initiator_address: info.tx.initiator_account(),
-                        received_at: utc_datetime_from_epoch_ms(info.tx.received_timestamp_ms),
-                        eth_commit_tx_hash: None,
-                        eth_prove_tx_hash: None,
-                        eth_execute_tx_hash: None,
-                    }
-                })
-                .or_else(|| {
-                    reader
-                        .fork_storage
-                        .inner
-                        .read()
-                        .expect("failed reading fork storage")
-                        .fork
-                        .as_ref()
-                        .and_then(|fork| {
-                            fork.fork_source
-                                .get_transaction_details(hash)
-                                .ok()
-                                .flatten()
-                        })
-                })
+    ) -> anyhow::Result<Option<api::TransactionDetails>> {
+        let tx_details = self.blockchain.get_tx_details(&hash).await;
+        let maybe_tx_details = match tx_details {
+            Some(tx_details) => Some(tx_details),
+            None => self
+                .inner
+                .read()
+                .await
+                .fork_storage
+                .inner
+                .read()
+                .expect("failed reading fork storage")
+                .fork
+                .as_ref()
+                .and_then(|fork| {
+                    fork.fork_source
+                        .get_transaction_details(hash)
+                        .ok()
+                        .flatten()
+                }),
         };
 
-        Ok(maybe_result)
+        Ok(maybe_tx_details)
     }
 
     pub async fn get_bytecode_by_hash_impl(&self, hash: H256) -> anyhow::Result<Option<Vec<u8>>> {
-        let writer = self.write_inner()?;
+        let writer = self.inner.write().await;
 
         let maybe_bytecode = match writer.fork_storage.load_factory_dep_internal(hash) {
             Ok(maybe_bytecode) => maybe_bytecode,
@@ -322,16 +266,13 @@ mod tests {
     use std::str::FromStr;
 
     use anvil_zksync_config::types::CacheConfig;
-    use zksync_types::u256_to_h256;
-    use zksync_types::{
-        api::{self, Block, TransactionReceipt, TransactionVariant},
-        transaction_request::CallRequest,
-        Address, H160, H256,
-    };
+    use zksync_types::{api, transaction_request::CallRequest, Address, H160, H256};
+    use zksync_types::{u256_to_h256, L1BatchNumber};
 
     use super::*;
+    use crate::node::fork::ForkDetails;
+    use crate::node::TransactionResult;
     use crate::{
-        fork::ForkDetails,
         node::InMemoryNode,
         testing,
         testing::{ForkBlockConfig, MockServer},
@@ -339,7 +280,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_estimate_fee() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let mock_request = CallRequest {
             from: Some(
@@ -376,23 +317,24 @@ mod tests {
     #[tokio::test]
     async fn test_get_transaction_details_local() {
         // Arrange
-        let node = InMemoryNode::default();
-        let inner = node.get_inner();
+        let node = InMemoryNode::test(None);
         {
-            let mut writer = inner.write().unwrap();
-            writer.tx_results.insert(
-                H256::repeat_byte(0x1),
-                TransactionResult {
-                    info: testing::default_tx_execution_info(),
-                    receipt: TransactionReceipt {
-                        logs: vec![],
-                        gas_used: Some(U256::from(10_000)),
-                        effective_gas_price: Some(U256::from(1_000_000_000)),
-                        ..Default::default()
+            let mut writer = node.inner.write().await;
+            writer
+                .insert_tx_result(
+                    H256::repeat_byte(0x1),
+                    TransactionResult {
+                        info: testing::default_tx_execution_info(),
+                        receipt: api::TransactionReceipt {
+                            logs: vec![],
+                            gas_used: Some(U256::from(10_000)),
+                            effective_gas_price: Some(U256::from(1_000_000_000)),
+                            ..Default::default()
+                        },
+                        debug: testing::default_tx_debug_info(),
                     },
-                    debug: testing::default_tx_debug_info(),
-                },
-            );
+                )
+                .await;
         }
         let result = node
             .get_transaction_details_impl(H256::repeat_byte(0x1))
@@ -401,7 +343,7 @@ mod tests {
             .expect("transaction details");
 
         // Assert
-        assert!(matches!(result.status, TransactionStatus::Included));
+        assert!(matches!(result.status, api::TransactionStatus::Included));
         assert_eq!(result.fee, U256::from(10_000_000_000_000u64));
     }
 
@@ -439,7 +381,7 @@ mod tests {
             }),
         );
 
-        let node = InMemoryNode::default_fork(Some(
+        let node = InMemoryNode::test(Some(
             ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
                 .await
                 .unwrap(),
@@ -451,20 +393,21 @@ mod tests {
             .expect("get transaction details")
             .expect("transaction details");
 
-        assert!(matches!(result.status, TransactionStatus::Included));
+        assert!(matches!(result.status, api::TransactionStatus::Included));
         assert_eq!(result.fee, U256::from(127_720_500_000_000u64));
     }
 
     #[tokio::test]
     async fn test_get_block_details_local() {
         // Arrange
-        let node = InMemoryNode::default();
-        let inner = node.get_inner();
+        let node = InMemoryNode::test(None);
         {
-            let mut writer = inner.write().unwrap();
-            let block = Block::<TransactionVariant>::default();
-            writer.blocks.insert(H256::repeat_byte(0x1), block);
-            writer.block_hashes.insert(0, H256::repeat_byte(0x1));
+            let mut writer = node.inner.write().await;
+            let block = api::Block::<api::TransactionVariant>::default();
+            writer.insert_block(H256::repeat_byte(0x1), block).await;
+            writer
+                .insert_block_hash(L2BlockNumber(0), H256::repeat_byte(0x1))
+                .await;
         }
         let result = node
             .get_block_details_impl(L2BlockNumber(0))
@@ -525,7 +468,7 @@ mod tests {
               }),
         );
 
-        let node = InMemoryNode::default_fork(Some(
+        let node = InMemoryNode::test(Some(
             ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
                 .await
                 .unwrap(),
@@ -546,8 +489,8 @@ mod tests {
     #[tokio::test]
     async fn test_get_bridge_contracts_uses_default_values_if_local() {
         // Arrange
-        let node = InMemoryNode::default();
-        let expected_bridge_addresses = BridgeAddresses {
+        let node = InMemoryNode::test(None);
+        let expected_bridge_addresses = api::BridgeAddresses {
             l1_shared_default_bridge: Default::default(),
             l2_shared_default_bridge: Default::default(),
             l1_erc20_default_bridge: Default::default(),
@@ -574,7 +517,7 @@ mod tests {
             transaction_count: 0,
             hash: H256::repeat_byte(0xab),
         });
-        let input_bridge_addresses = BridgeAddresses {
+        let input_bridge_addresses = api::BridgeAddresses {
             l1_shared_default_bridge: Some(H160::repeat_byte(0x1)),
             l2_shared_default_bridge: Some(H160::repeat_byte(0x2)),
             l1_erc20_default_bridge: Some(H160::repeat_byte(0x1)),
@@ -603,7 +546,7 @@ mod tests {
             }),
         );
 
-        let node = InMemoryNode::default_fork(Some(
+        let node = InMemoryNode::test(Some(
             ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
                 .await
                 .unwrap(),
@@ -621,12 +564,12 @@ mod tests {
     #[tokio::test]
     async fn test_get_bytecode_by_hash_returns_local_value_if_available() {
         // Arrange
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
         let input_hash = H256::repeat_byte(0x1);
         let input_bytecode = vec![0x1];
-        node.get_inner()
+        node.inner
             .write()
-            .unwrap()
+            .await
             .fork_storage
             .store_factory_dep(input_hash, input_bytecode.clone());
 
@@ -666,7 +609,7 @@ mod tests {
             }),
         );
 
-        let node = InMemoryNode::default_fork(Some(
+        let node = InMemoryNode::test(Some(
             ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
                 .await
                 .unwrap(),
@@ -685,28 +628,31 @@ mod tests {
     #[tokio::test]
     async fn test_get_raw_block_transactions_local() {
         // Arrange
-        let node = InMemoryNode::default();
-        let inner = node.get_inner();
+        let node = InMemoryNode::test(None);
         {
-            let mut writer = inner.write().unwrap();
-            let mut block = Block::<TransactionVariant>::default();
+            let mut writer = node.inner.write().await;
+            let mut block = api::Block::<api::TransactionVariant>::default();
             let txn = api::Transaction::default();
-            writer.tx_results.insert(
-                txn.hash,
-                TransactionResult {
-                    info: testing::default_tx_execution_info(),
-                    receipt: TransactionReceipt {
-                        logs: vec![],
-                        gas_used: Some(U256::from(10_000)),
-                        effective_gas_price: Some(U256::from(1_000_000_000)),
-                        ..Default::default()
+            writer
+                .insert_tx_result(
+                    txn.hash,
+                    TransactionResult {
+                        info: testing::default_tx_execution_info(),
+                        receipt: api::TransactionReceipt {
+                            logs: vec![],
+                            gas_used: Some(U256::from(10_000)),
+                            effective_gas_price: Some(U256::from(1_000_000_000)),
+                            ..Default::default()
+                        },
+                        debug: testing::default_tx_debug_info(),
                     },
-                    debug: testing::default_tx_debug_info(),
-                },
-            );
-            block.transactions.push(TransactionVariant::Full(txn));
-            writer.blocks.insert(H256::repeat_byte(0x1), block);
-            writer.block_hashes.insert(0, H256::repeat_byte(0x1));
+                )
+                .await;
+            block.transactions.push(api::TransactionVariant::Full(txn));
+            writer.insert_block(H256::repeat_byte(0x1), block).await;
+            writer
+                .insert_block_hash(L2BlockNumber(0), H256::repeat_byte(0x1))
+                .await;
         }
 
         let txns = node
@@ -787,7 +733,7 @@ mod tests {
               }),
         );
 
-        let node = InMemoryNode::default_fork(Some(
+        let node = InMemoryNode::test(Some(
             ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
                 .await
                 .unwrap(),
@@ -802,7 +748,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_all_account_balances_empty() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
         let balances = node
             .get_all_account_balances_impl(Address::zero())
             .await
@@ -812,7 +758,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_confirmed_tokens_eth() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
         let balances = node
             .get_confirmed_tokens_impl(0, 100)
             .await
@@ -959,15 +905,14 @@ mod tests {
             }),
         );
 
-        let node = InMemoryNode::default_fork(Some(
+        let node = InMemoryNode::test(Some(
             ForkDetails::from_network(&mock_server.url(), Some(1), &CacheConfig::None)
                 .await
                 .unwrap(),
         ));
 
         {
-            let inner = node.get_inner();
-            let writer = inner.write().unwrap();
+            let writer = node.inner.write().await;
             let mut fork = writer.fork_storage.inner.write().unwrap();
             fork.raw_storage.set_value(
                 storage_key_for_standard_token_balance(
@@ -987,7 +932,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_base_token_l1_address() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
         let token_address = node
             .get_base_token_l1_address_impl()
             .await

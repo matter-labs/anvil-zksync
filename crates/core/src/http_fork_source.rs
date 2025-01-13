@@ -3,10 +3,9 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::{
-    cache::Cache,
-    fork::{block_on, ForkSource},
-};
+use crate::cache::Cache;
+use crate::node::fork::ForkSource;
+use crate::utils::block_on;
 use anvil_zksync_config::types::CacheConfig;
 use eyre::Context;
 use zksync_types::{

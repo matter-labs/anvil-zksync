@@ -29,7 +29,6 @@ use std::{
     pin::Pin,
     task::{Context, Poll},
 };
-use tokio::task::spawn_blocking;
 use tokio::time::{Instant, Interval};
 use zksync_types::{H256, U256};
 
@@ -553,18 +552,13 @@ impl PeriodicStateDumper {
         tracing::trace!(path=?dump_path, "Dumping state");
 
         // Spawn a blocking task for state dumping
-        let state_bytes =
-            match spawn_blocking(move || node.dump_state(preserve_historical_states)).await {
-                Ok(Ok(bytes)) => bytes,
-                Ok(Err(err)) => {
-                    tracing::error!("Failed to dump state: {:?}", err);
-                    return;
-                }
-                Err(err) => {
-                    tracing::error!("Failed to join blocking task: {:?}", err);
-                    return;
-                }
-            };
+        let state_bytes = match node.dump_state(preserve_historical_states).await {
+            Ok(bytes) => bytes,
+            Err(err) => {
+                tracing::error!("Failed to dump state: {:?}", err);
+                return;
+            }
+        };
 
         let mut decoder = GzDecoder::new(&state_bytes.0[..]);
         let mut json_str = String::new();
@@ -635,9 +629,7 @@ mod tests {
     use crate::cli::PeriodicStateDumper;
 
     use super::Cli;
-    use anvil_zksync_core::node::{
-        BlockSealer, BlockSealerMode, ImpersonationManager, InMemoryNode, TimestampManager, TxPool,
-    };
+    use anvil_zksync_core::node::InMemoryNode;
     use clap::Parser;
     use serde_json::Value;
     use std::{
@@ -703,15 +695,7 @@ mod tests {
             ..Default::default()
         };
 
-        let node = InMemoryNode::new(
-            None,
-            None,
-            &config,
-            TimestampManager::default(),
-            ImpersonationManager::default(),
-            TxPool::new(ImpersonationManager::default(), config.transaction_order),
-            BlockSealer::new(BlockSealerMode::noop()),
-        );
+        let node = InMemoryNode::test_config(None, config.clone());
 
         let mut state_dumper = PeriodicStateDumper::new(
             node.clone(),
@@ -752,17 +736,10 @@ mod tests {
             ..Default::default()
         };
 
-        let node = InMemoryNode::new(
-            None,
-            None,
-            &config,
-            TimestampManager::default(),
-            ImpersonationManager::default(),
-            TxPool::new(ImpersonationManager::default(), config.transaction_order),
-            BlockSealer::new(BlockSealerMode::noop()),
-        );
+        let node = InMemoryNode::test_config(None, config.clone());
         let test_address = H160::from_low_u64_be(12345);
-        node.set_rich_account(test_address, U256::from(1000000u64));
+        node.set_rich_account(test_address, U256::from(1000000u64))
+            .await;
 
         let mut state_dumper = PeriodicStateDumper::new(
             node.clone(),
@@ -787,20 +764,14 @@ mod tests {
         std::fs::read_to_string(&state_path).expect("Expected state file to be created");
 
         let new_config = anvil_zksync_config::TestNodeConfig::default();
-        let new_node = InMemoryNode::new(
-            None,
-            None,
-            &new_config,
-            TimestampManager::default(),
-            ImpersonationManager::default(),
-            TxPool::new(ImpersonationManager::default(), config.transaction_order),
-            BlockSealer::new(BlockSealerMode::noop()),
-        );
+        let new_node = InMemoryNode::test_config(None, new_config.clone());
 
-        new_node.load_state(zksync_types::web3::Bytes(std::fs::read(&state_path)?))?;
+        new_node
+            .load_state(zksync_types::web3::Bytes(std::fs::read(&state_path)?))
+            .await?;
 
         // assert the balance from the loaded state is correctly applied
-        let balance = new_node.get_balance_impl(test_address, None).await.unwrap();
+        let balance = new_node.get_balance_impl(test_address, None).await?;
         assert_eq!(balance, U256::from(1000000u64));
 
         Ok(())

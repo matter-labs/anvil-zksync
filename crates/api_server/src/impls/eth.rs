@@ -4,12 +4,12 @@ use anvil_zksync_core::node::InMemoryNode;
 use jsonrpsee::core::{async_trait, RpcResult};
 use zksync_types::api::state_override::StateOverride;
 use zksync_types::api::{
-    Block, BlockId, BlockIdVariant, BlockNumber, FeeHistory, Log, Transaction, TransactionReceipt,
+    Block, BlockIdVariant, BlockNumber, FeeHistory, Log, Transaction, TransactionReceipt,
     TransactionVariant,
 };
 use zksync_types::transaction_request::CallRequest;
 use zksync_types::web3::{Bytes, Index, SyncState, U64Number};
-use zksync_types::{Address, H256, U256, U64};
+use zksync_types::{api, Address, H256, U256, U64};
 use zksync_web3_decl::types::{Filter, FilterChanges};
 
 pub struct EthNamespace {
@@ -36,6 +36,7 @@ impl EthNamespaceServer for EthNamespace {
         Ok(self
             .node
             .get_chain_id()
+            .await
             .map(U64::from)
             .map_err(RpcError::from)?)
     }
@@ -48,7 +49,7 @@ impl EthNamespaceServer for EthNamespace {
         // TODO: Support
         _state_override: Option<StateOverride>,
     ) -> RpcResult<Bytes> {
-        Ok(self.node.call_impl(req).map_err(RpcError::from)?)
+        Ok(self.node.call_impl(req).await.map_err(RpcError::from)?)
     }
 
     async fn estimate_gas(
@@ -144,7 +145,7 @@ impl EthNamespaceServer for EthNamespace {
     ) -> RpcResult<Option<Block<TransactionVariant>>> {
         Ok(self
             .node
-            .get_block_by_number_impl(block_number, full_transactions)
+            .get_block_impl(api::BlockId::Number(block_number), full_transactions)
             .await
             .map_err(RpcError::from)?)
     }
@@ -156,7 +157,7 @@ impl EthNamespaceServer for EthNamespace {
     ) -> RpcResult<Option<Block<TransactionVariant>>> {
         Ok(self
             .node
-            .get_block_by_hash_impl(hash, full_transactions)
+            .get_block_impl(api::BlockId::Hash(hash), full_transactions)
             .await
             .map_err(RpcError::from)?)
     }
@@ -167,14 +168,14 @@ impl EthNamespaceServer for EthNamespace {
     ) -> RpcResult<Option<U256>> {
         Ok(self
             .node
-            .get_block_transaction_count_by_number_impl(block_number)
+            .get_block_transaction_count_impl(api::BlockId::Number(block_number))
             .await
             .map_err(RpcError::from)?)
     }
 
     async fn get_block_receipts(
         &self,
-        _block_id: BlockId,
+        _block_id: api::BlockId,
     ) -> RpcResult<Option<Vec<TransactionReceipt>>> {
         Err(RpcError::Unsupported.into())
     }
@@ -185,7 +186,7 @@ impl EthNamespaceServer for EthNamespace {
     ) -> RpcResult<Option<U256>> {
         Ok(self
             .node
-            .get_block_transaction_count_by_hash_impl(block_hash)
+            .get_block_transaction_count_impl(api::BlockId::Hash(block_hash))
             .await
             .map_err(RpcError::from)?)
     }
@@ -238,7 +239,7 @@ impl EthNamespaceServer for EthNamespace {
     ) -> RpcResult<Option<Transaction>> {
         Ok(self
             .node
-            .get_transaction_by_block_hash_and_index_impl(block_hash, index)
+            .get_transaction_by_block_and_index_impl(api::BlockId::Hash(block_hash), index)
             .await
             .map_err(RpcError::from)?)
     }
@@ -250,7 +251,7 @@ impl EthNamespaceServer for EthNamespace {
     ) -> RpcResult<Option<Transaction>> {
         Ok(self
             .node
-            .get_transaction_by_block_number_and_index_impl(block_number, index)
+            .get_transaction_by_block_and_index_impl(api::BlockId::Number(block_number), index)
             .await
             .map_err(RpcError::from)?)
     }

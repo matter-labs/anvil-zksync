@@ -64,8 +64,7 @@ impl LockedPort {
 /// or is not needed anymore.
 impl Drop for LockedPort {
     fn drop(&mut self) {
-        self.lockfile
-            .unlock()
+        fs2::FileExt::unlock(&self.lockfile)
             .with_context(|| format!("failed to unlock lockfile for port={}", self.port))
             .unwrap();
     }
