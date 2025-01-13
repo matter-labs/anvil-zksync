@@ -13,7 +13,7 @@ resolver = "2"
 debug = 0
 
 [workspace.package]
-version = "0.2.2"
+version = "0.2.3"
 edition = "2021"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
