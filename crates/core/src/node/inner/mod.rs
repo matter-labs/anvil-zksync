@@ -26,7 +26,7 @@ use anvil_zksync_config::TestNodeConfig;
 use blockchain::ReadBlockchain;
 use fork::{ForkDetails, ForkStorage};
 use std::sync::Arc;
-use time::TimeReader;
+use time::{ReadTime, Time};
 use tokio::sync::RwLock;
 
 impl InMemoryNodeInner {
@@ -42,9 +42,9 @@ impl InMemoryNodeInner {
         Arc<RwLock<Self>>,
         ForkStorage,
         Arc<dyn ReadBlockchain>,
-        TimeReader,
+        Arc<dyn ReadTime>,
     ) {
-        let (time, time_writer) = TimeReader::new(
+        let time = Time::new(
             fork.as_ref()
                 .map(|f| f.block_timestamp)
                 .unwrap_or(NON_FORK_FIRST_BLOCK_TIMESTAMP),
@@ -64,7 +64,7 @@ impl InMemoryNodeInner {
 
         let node_inner = InMemoryNodeInner::new(
             blockchain.clone(),
-            time_writer,
+            time.clone(),
             fork_storage.clone(),
             fee_input_provider.clone(),
             filters,
@@ -77,7 +77,7 @@ impl InMemoryNodeInner {
             Arc::new(RwLock::new(node_inner)),
             fork_storage,
             Arc::new(blockchain),
-            time,
+            Arc::new(time),
         )
     }
 }

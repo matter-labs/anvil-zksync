@@ -1,6 +1,6 @@
 use super::blockchain::{Blockchain, ReadBlockchain};
 use super::fork::{ForkDetails, ForkStorage, SerializableStorage};
-use super::time::TimeWriter;
+use super::time::Time;
 use crate::bootloader_debug::{BootloaderDebug, BootloaderDebugTracer};
 use crate::console_log::ConsoleLogHandler;
 use crate::deps::storage_view::StorageView;
@@ -65,7 +65,7 @@ use zksync_web3_decl::error::Web3Error;
 pub struct InMemoryNodeInner {
     /// Writeable blockchain state.
     blockchain: Blockchain,
-    pub(super) time_writer: TimeWriter,
+    pub(super) time: Time,
     /// The fee input provider.
     pub fee_input_provider: TestNodeFeeInputProvider,
     // Map from filter_id to the eth filter
@@ -88,7 +88,7 @@ impl InMemoryNodeInner {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
         blockchain: Blockchain,
-        time_writer: TimeWriter,
+        time: Time,
         fork_storage: ForkStorage,
         fee_input_provider: TestNodeFeeInputProvider,
         filters: Arc<RwLock<EthFilters>>,
@@ -98,7 +98,7 @@ impl InMemoryNodeInner {
     ) -> Self {
         InMemoryNodeInner {
             blockchain,
-            time_writer,
+            time,
             fee_input_provider,
             filters,
             fork_storage,
@@ -138,14 +138,14 @@ impl InMemoryNodeInner {
 
         let (last_l1_batch_number, last_l2_block) = self.blockchain.read().await.last_env(
             &StorageView::new(&self.fork_storage).into_rc_ptr(),
-            &self.time_writer,
+            &self.time,
         );
 
         let block_ctx = BlockContext {
             hash: H256::zero(),
             batch: (last_l1_batch_number + 1).0,
             miniblock: last_l2_block.number as u64 + 1,
-            timestamp: self.time_writer.peek_next_timestamp(),
+            timestamp: self.time.peek_next_timestamp(),
         };
 
         let fee_input = if let Some(fork) = &self
@@ -590,7 +590,7 @@ impl InMemoryNodeInner {
         let (batch_env, mut block_ctx) = self.create_l1_batch_env().await;
         // Advance clock as we are consuming next timestamp for this block
         anyhow::ensure!(
-            self.time_writer.advance_timestamp() == block_ctx.timestamp,
+            self.time.advance_timestamp() == block_ctx.timestamp,
             "advancing clock produced different timestamp than expected"
         );
 
@@ -668,7 +668,7 @@ impl InMemoryNodeInner {
             // we are adding one l2 block at the end of each batch (to handle things like remaining events etc).
             // You can look at insert_fictive_l2_block function in VM to see how this fake block is inserted.
             let parent_block_hash = block_ctx.hash;
-            let block_ctx = block_ctx.new_block(&mut self.time_writer);
+            let block_ctx = block_ctx.new_block(&mut self.time);
             let hash = compute_hash(block_ctx.miniblock, []);
 
             let virtual_block = create_block(
@@ -1126,7 +1126,7 @@ impl InMemoryNodeInner {
             return Err(LoadStateError::EmptyState);
         }
 
-        storage.load_blocks(&mut self.time_writer, state.blocks);
+        storage.load_blocks(&mut self.time, state.blocks);
         storage.load_transactions(state.transactions);
         self.fork_storage.load_state(state.fork_storage);
 
@@ -1238,7 +1238,7 @@ impl InMemoryNodeInner {
             blockchain_storage,
         ));
 
-        self.time_writer.set_current_timestamp_unchecked(
+        self.time.set_current_timestamp_unchecked(
             fork.as_ref()
                 .map(|f| f.block_timestamp)
                 .unwrap_or(NON_FORK_FIRST_BLOCK_TIMESTAMP),
@@ -1303,7 +1303,7 @@ pub struct BlockContext {
 
 impl BlockContext {
     /// Create the next batch instance that uses the same batch number, and has all other parameters incremented by `1`.
-    fn new_block(&self, time: &mut TimeWriter) -> BlockContext {
+    fn new_block(&self, time: &mut Time) -> BlockContext {
         Self {
             hash: H256::zero(),
             batch: self.batch,
@@ -1753,7 +1753,7 @@ mod tests {
             blockchain.current_block = L2BlockNumber(1);
             blockchain.current_block_hash = H256::repeat_byte(0x1);
         }
-        writer.time_writer.set_current_timestamp_unchecked(1);
+        writer.time.set_current_timestamp_unchecked(1);
         writer
             .filters
             .write()
@@ -1862,7 +1862,7 @@ mod tests {
             blockchain.current_block = L2BlockNumber(1);
             blockchain.current_block_hash = H256::repeat_byte(0x1);
         }
-        writer.time_writer.set_current_timestamp_unchecked(1);
+        writer.time.set_current_timestamp_unchecked(1);
         writer
             .filters
             .write()
@@ -1924,7 +1924,7 @@ mod tests {
             blockchain.current_block = L2BlockNumber(2);
             blockchain.current_block_hash = H256::repeat_byte(0x2);
         }
-        writer.time_writer.set_current_timestamp_unchecked(2);
+        writer.time.set_current_timestamp_unchecked(2);
         writer
             .filters
             .write()

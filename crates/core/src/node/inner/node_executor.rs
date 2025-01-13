@@ -101,7 +101,7 @@ impl NodeExecutor {
         let mut node_inner = self.node_inner.write().await;
 
         // Save old interval to restore later: it might get replaced with `interval` below
-        let old_interval = node_inner.time_writer.get_block_timestamp_interval();
+        let old_interval = node_inner.time.get_block_timestamp_interval();
         let result = async {
             let mut block_numbers = Vec::with_capacity(tx_batches.len());
             // Processing the entire vector is essentially atomic here because `NodeExecutor` is
@@ -110,9 +110,7 @@ impl NodeExecutor {
                 // Enforce provided interval starting from the second block (i.e. first block should
                 // use the existing interval).
                 if i == 1 {
-                    node_inner
-                        .time_writer
-                        .set_block_timestamp_interval(Some(interval));
+                    node_inner.time.set_block_timestamp_interval(Some(interval));
                 }
                 let base_system_contracts = self
                     .system_contracts
@@ -125,9 +123,7 @@ impl NodeExecutor {
         }
         .await;
         // Restore old interval
-        node_inner
-            .time_writer
-            .set_block_timestamp_interval(old_interval);
+        node_inner.time.set_block_timestamp_interval(old_interval);
 
         // Reply to sender if we can, otherwise hold result for further processing
         let result = if let Err(result) = reply.send(result) {
@@ -143,11 +139,7 @@ impl NodeExecutor {
     }
 
     async fn increase_time(&self, delta: u64, reply: oneshot::Sender<()>) {
-        self.node_inner
-            .write()
-            .await
-            .time_writer
-            .increase_time(delta);
+        self.node_inner.write().await.time.increase_time(delta);
         // Reply to sender if we can
         if reply.send(()).is_err() {
             tracing::info!("failed to reply as receiver has been dropped");
@@ -163,7 +155,7 @@ impl NodeExecutor {
             .node_inner
             .write()
             .await
-            .time_writer
+            .time
             .enforce_next_timestamp(timestamp);
         // Reply to sender if we can, otherwise hold result for further processing
         let result = if let Err(result) = reply.send(result) {
@@ -183,7 +175,7 @@ impl NodeExecutor {
             .node_inner
             .write()
             .await
-            .time_writer
+            .time
             .set_current_timestamp_unchecked(timestamp);
         // Reply to sender if we can
         if reply.send(result).is_err() {
@@ -195,7 +187,7 @@ impl NodeExecutor {
         self.node_inner
             .write()
             .await
-            .time_writer
+            .time
             .set_block_timestamp_interval(Some(delta));
     }
 
@@ -204,7 +196,7 @@ impl NodeExecutor {
             .node_inner
             .write()
             .await
-            .time_writer
+            .time
             .remove_block_timestamp_interval();
         // Reply to sender if we can
         if reply.send(result).is_err() {

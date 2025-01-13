@@ -1,53 +1,41 @@
 use anyhow::anyhow;
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-/// Read-only view on system's time (in seconds). Clones always agree on the underlying time.
-#[derive(Clone, Debug, Default)]
-pub struct TimeReader {
-    internal: Arc<RwLock<TimestampManagerInternal>>,
+/// Read-only view on time.
+pub trait ReadTime: Send + Sync {
+    /// Returns timestamp (in seconds) that the clock is currently on.
+    fn current_timestamp(&self) -> u64;
 }
 
-impl TimeReader {
-    pub(super) fn new(current_timestamp: u64) -> (Self, TimeWriter) {
-        let internal = Arc::new(RwLock::new(TimestampManagerInternal {
-            current_timestamp,
-            next_timestamp: None,
-            interval: None,
-        }));
-        (
-            Self {
-                internal: internal.clone(),
-            },
-            TimeWriter { internal },
-        )
-    }
+#[derive(Debug, Clone)]
+pub(super) struct Time {
+    internal: Arc<RwLock<TimeState>>,
+}
 
-    fn get(&self) -> RwLockReadGuard<TimestampManagerInternal> {
-        self.internal
-            .read()
-            .expect("TimestampManager lock is poisoned")
-    }
-
-    /// Returns timestamp (in seconds) that the clock is currently on.
-    pub fn current_timestamp(&self) -> u64 {
+impl ReadTime for Time {
+    fn current_timestamp(&self) -> u64 {
         self.get().current_timestamp
     }
 }
 
-/// Exclusive access to mutable time (only supposed to be owned by [`super::InMemoryNodeInner`]).
-#[derive(Debug)]
-pub(super) struct TimeWriter {
-    internal: Arc<RwLock<TimestampManagerInternal>>,
-}
+impl Time {
+    pub(super) fn new(current_timestamp: u64) -> Self {
+        let internal = Arc::new(RwLock::new(TimeState {
+            current_timestamp,
+            next_timestamp: None,
+            interval: None,
+        }));
 
-impl TimeWriter {
-    fn get(&self) -> RwLockReadGuard<TimestampManagerInternal> {
+        Self { internal }
+    }
+
+    fn get(&self) -> RwLockReadGuard<TimeState> {
         self.internal
             .read()
             .expect("TimestampWriter lock is poisoned")
     }
 
-    fn get_mut(&self) -> RwLockWriteGuard<TimestampManagerInternal> {
+    fn get_mut(&self) -> RwLockWriteGuard<TimeState> {
         self.internal
             .write()
             .expect("TimestampWriter lock is poisoned")
@@ -107,11 +95,6 @@ impl TimeWriter {
         self.get_mut().interval.take().is_some()
     }
 
-    /// Returns timestamp (in seconds) that the clock is currently on.
-    pub(super) fn current_timestamp(&self) -> u64 {
-        self.get().current_timestamp
-    }
-
     /// Peek at what the next call to `advance_timestamp` will return.
     pub(super) fn peek_next_timestamp(&self) -> u64 {
         let internal = self.get();
@@ -149,7 +132,7 @@ impl TimeWriter {
 }
 
 #[derive(Debug, Default)]
-struct TimestampManagerInternal {
+struct TimeState {
     /// The current timestamp (in seconds). This timestamp is considered to be used already: there
     /// might be a logical event that already happened on that timestamp (e.g. a block was sealed
     /// with this timestamp).
@@ -160,7 +143,7 @@ struct TimestampManagerInternal {
     interval: Option<u64>,
 }
 
-impl TimestampManagerInternal {
+impl TimeState {
     fn interval(&self) -> u64 {
         self.interval.unwrap_or(1)
     }
