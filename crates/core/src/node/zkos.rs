@@ -18,8 +18,7 @@ use zksync_multivm::{
         TxExecutionMode, VmExecutionLogs, VmExecutionResultAndLogs, VmInterface,
         VmInterfaceHistoryEnabled, VmRevertReason,
     },
-    vm_latest::{TracerDispatcher, TracerPointer},
-    HistoryMode,
+    vm_latest::{HistoryMode, TracerDispatcher, TracerPointer},
 };
 use zksync_types::{
     address_to_h256,
@@ -455,15 +454,16 @@ pub fn zkos_storage_key_for_eth_balance(address: &Address) -> StorageKey {
     )
 }
 
-pub struct ZKOsVM<S: WriteStorage> {
+pub struct ZKOsVM<S: WriteStorage, H: HistoryMode> {
     pub storage: StoragePtr<S>,
     pub tree: InMemoryTree,
     preimage: InMemoryPreimageSource,
     transactions: Vec<Transaction>,
     execution_mode: TxExecutionMode,
+    _phantom: std::marker::PhantomData<H>,
 }
 
-impl<S: WriteStorage> ZKOsVM<S> {
+impl<S: WriteStorage, H: HistoryMode> ZKOsVM<S, H> {
     pub fn new(
         _batch_env: L1BatchEnv,
         system_env: SystemEnv,
@@ -478,6 +478,7 @@ impl<S: WriteStorage> ZKOsVM<S> {
             preimage,
             transactions: vec![],
             execution_mode,
+            _phantom: Default::default(),
         }
     }
 
@@ -528,31 +529,33 @@ impl<S: WriteStorage> TestNodeVMInterface for ZKOsVM<S> {
     }
 }*/
 
-pub struct ZkOsTracerDispatcher<S: WriteStorage> {
+pub struct ZkOsTracerDispatcher<S: WriteStorage, H: HistoryMode> {
     tracers: Vec<S>,
-    //_marker: PhantomData<S>,
+    _marker: std::marker::PhantomData<H>,
 }
 
-impl<S: WriteStorage> Default for ZkOsTracerDispatcher<S> {
+impl<S: WriteStorage, H: HistoryMode> Default for ZkOsTracerDispatcher<S, H> {
     fn default() -> Self {
         Self {
             tracers: Default::default(),
-            //_marker: Default::default(),
+            _marker: Default::default(),
         }
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> From<Vec<TracerPointer<S, H>>> for ZkOsTracerDispatcher<S> {
+impl<S: WriteStorage, H: HistoryMode> From<Vec<TracerPointer<S, H>>>
+    for ZkOsTracerDispatcher<S, H>
+{
     fn from(_value: Vec<TracerPointer<S, H>>) -> Self {
         Self {
             tracers: Default::default(),
-            //_marker: Default::default(),
+            _marker: Default::default(),
         }
     }
 }
 
-impl<S: WriteStorage> VmInterface for ZKOsVM<S> {
-    type TracerDispatcher = ZkOsTracerDispatcher<S>;
+impl<S: WriteStorage, H: HistoryMode> VmInterface for ZKOsVM<S, H> {
+    type TracerDispatcher = ZkOsTracerDispatcher<S, H>;
 
     fn push_transaction(
         &mut self,
@@ -621,7 +624,7 @@ impl<S: WriteStorage> VmInterface for ZKOsVM<S> {
     }
 }
 
-impl<S: WriteStorage> VmInterfaceHistoryEnabled for ZKOsVM<S> {
+impl<S: WriteStorage, H: HistoryMode> VmInterfaceHistoryEnabled for ZKOsVM<S, H> {
     fn make_snapshot(&mut self) {}
 
     fn rollback_to_the_latest_snapshot(&mut self) {

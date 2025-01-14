@@ -4,7 +4,6 @@ use crate::node::error::LoadStateError;
 use crate::node::impersonate::{ImpersonationManager, ImpersonationState};
 use crate::node::state::{StateV1, VersionedState};
 use crate::node::time::{AdvanceTime, ReadTime, TimestampManager};
-use crate::node::zkos::add_elem_to_tree;
 use crate::node::{BlockSealer, BlockSealerMode, TxPool};
 use crate::{
     bootloader_debug::{BootloaderDebug, BootloaderDebugTracer},
@@ -45,7 +44,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 use zksync_contracts::BaseSystemContracts;
-use zksync_multivm::vm_latest::{HistoryEnabled, TracerPointer, VmTracer};
+use zksync_multivm::vm_latest::{HistoryEnabled, HistoryMode, TracerPointer, VmTracer};
 use zksync_multivm::{
     interface::{
         storage::{ReadStorage, StoragePtr, WriteStorage},
@@ -63,7 +62,7 @@ use zksync_multivm::{
         utils::l2_blocks::load_last_l2_block,
         HistoryDisabled, ToTracerPointer, Vm,
     },
-    HistoryMode, VmVersion,
+    VmVersion,
 };
 use zksync_types::bytecode::BytecodeHash;
 use zksync_types::transaction_request::CallRequest;
@@ -505,7 +504,10 @@ impl InMemoryNodeInner {
             .system_contracts
             .contracts_for_fee_estimate(impersonating)
             .clone();
-        let allow_no_target = true; // system_contracts.evm_emulator.is_some();
+        #[cfg(feature = "zkos")]
+        let allow_no_target = true;
+        #[cfg(not(feature = "zkos"))]
+        let allow_no_target = system_contracts.evm_emulator.is_some();
 
         let mut l2_tx = L2Tx::from_request(
             request_with_gas_per_pubdata_overridden.into(),
@@ -798,12 +800,10 @@ impl InMemoryNodeInner {
             .borrow_mut()
             .set_value(balance_key, u256_to_h256(current_balance));
 
-        //let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage.clone());
-
         #[cfg(not(feature = "zkos"))]
         let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage.clone());
         #[cfg(feature = "zkos")]
-        let mut vm = ZKOsVM::new(
+        let mut vm: ZKOsVM<_, HistoryDisabled> = ZKOsVM::new(
             batch_env,
             system_env,
             storage.clone(),
@@ -1410,7 +1410,7 @@ impl InMemoryNode {
         #[cfg(not(feature = "zkos"))]
         let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage.clone());
         #[cfg(feature = "zkos")]
-        let mut vm = ZKOsVM::new(
+        let mut vm: ZKOsVM<_, HistoryDisabled> = ZKOsVM::new(
             batch_env,
             system_env,
             storage.clone(),
@@ -1428,14 +1428,10 @@ impl InMemoryNode {
 
         let call_tracer_result = Arc::new(OnceCell::default());
 
-        //#[cfg(not(feature = "zkos"))]
-        let tracers: Vec<Box<dyn VmTracer<_, HistoryDisabled>>> = vec![
+        let tracers = vec![
             CallErrorTracer::new().into_tracer_pointer(),
             CallTracer::new(call_tracer_result.clone()).into_tracer_pointer(),
         ];
-        //#[cfg(feature = "zkos")]
-        //let tracers: Vec<u64> = vec![];
-
         let tx_result = vm.inspect(&mut tracers.into(), InspectExecutionMode::OneTx);
 
         let call_traces = Arc::try_unwrap(call_tracer_result)
@@ -1575,13 +1571,13 @@ impl InMemoryNode {
     /// This is because external users of the library may call this function to perform an isolated
     /// VM operation (optionally without bootloader execution) with an external storage and get the results back.
     /// So any data populated in [Self::run_l2_tx] will not be available for the next invocation.
-    pub fn run_l2_tx_raw<VM: VmInterface, S: WriteStorage>(
+    pub fn run_l2_tx_raw<VM: VmInterface, W: WriteStorage, H: HistoryMode>(
         &self,
         l2_tx: L2Tx,
         vm: &mut VM,
     ) -> anyhow::Result<TxExecutionOutput>
     where
-        <VM as VmInterface>::TracerDispatcher: From<Vec<TracerPointer<S, HistoryEnabled>>>,
+        <VM as VmInterface>::TracerDispatcher: From<Vec<TracerPointer<W, H>>>,
     {
         let inner = self
             .inner
@@ -1593,8 +1589,6 @@ impl InMemoryNode {
         let call_tracer_result = Arc::new(OnceCell::default());
         let bootloader_debug_result = Arc::new(OnceCell::default());
 
-        #[cfg(not(feature = "zkos"))]
-        //let tracers: Vec<Box<dyn zksync_multivm::vm_latest::VmTracer<_, _>>> = vec![
         let tracers = vec![
             CallErrorTracer::new().into_tracer_pointer(),
             CallTracer::new(call_tracer_result.clone()).into_tracer_pointer(),
@@ -1603,19 +1597,11 @@ impl InMemoryNode {
             }
             .into_tracer_pointer(),
         ];
-        //#[cfg(feature = "zkos")]
-        //let tracers: Vec<u64> = vec![];
         let compressed_bytecodes = vm
             .push_transaction(tx.clone())
             .compressed_bytecodes
             .into_owned();
-
-        #[cfg(not(feature = "zkos"))]
         let tx_result = vm.inspect(&mut tracers.into(), InspectExecutionMode::OneTx);
-        //let tx_result = vm.inspect(&mut Default::default(), InspectExecutionMode::OneTx);
-
-        #[cfg(feature = "zkos")]
-        let tx_result = vm.inspect(&mut Default::default(), InspectExecutionMode::OneTx);
 
         let call_traces = call_tracer_result.get();
 
@@ -1715,7 +1701,7 @@ impl InMemoryNode {
     }
 
     /// Runs L2 transaction and commits it to a new block.
-    pub fn run_l2_tx<VM: VmInterface, S: WriteStorage>(
+    pub fn run_l2_tx<VM: VmInterface, W: WriteStorage, H: HistoryMode>(
         &self,
         l2_tx: L2Tx,
         l2_tx_index: U64,
@@ -1724,7 +1710,7 @@ impl InMemoryNode {
         vm: &mut VM,
     ) -> anyhow::Result<()>
     where
-        <VM as VmInterface>::TracerDispatcher: From<Vec<TracerPointer<S, HistoryEnabled>>>,
+        <VM as VmInterface>::TracerDispatcher: From<Vec<TracerPointer<W, H>>>,
     {
         let tx_hash = l2_tx.hash();
         let transaction_type = l2_tx.common_data.transaction_type;
@@ -1872,7 +1858,7 @@ impl InMemoryNode {
         let (batch_env, mut block_ctx) = inner.create_l1_batch_env(time, storage.clone());
 
         #[cfg(feature = "zkos")]
-        let mut vm = ZKOsVM::new(
+        let mut vm: ZKOsVM<StorageView<ForkStorage>, HistoryEnabled> = ZKOsVM::new(
             batch_env.clone(),
             system_env,
             storage.clone(),
@@ -2220,13 +2206,13 @@ mod tests {
     ) -> (
         BlockContext,
         L1BatchEnv,
-        Vm<StorageView<ForkStorage>, HistoryEnabled>,
+        Vm<StorageView<ForkStorage>, HistoryDisabled>,
     ) {
         let inner = node.inner.read().unwrap();
         let storage = StorageView::new(inner.fork_storage.clone()).into_rc_ptr();
         let system_env = inner.create_system_env(system_contracts, TxExecutionMode::VerifyExecute);
         let (batch_env, block_ctx) = inner.create_l1_batch_env(&node.time, storage.clone());
-        let vm: Vm<_, HistoryEnabled> = Vm::new(batch_env.clone(), system_env, storage);
+        let vm: Vm<_, HistoryDisabled> = Vm::new(batch_env.clone(), system_env, storage);
 
         (block_ctx, batch_env, vm)
     }
