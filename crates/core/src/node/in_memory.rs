@@ -84,6 +84,7 @@ use zksync_types::{
 use zksync_types::{h256_to_address, h256_to_u256, u256_to_h256};
 use zksync_web3_decl::error::Web3Error;
 
+use super::keys::StorageKeyLayout;
 use super::zkos::{zkos_get_nonce_key, zkos_storage_key_for_eth_balance, ZKOsVM};
 
 /// Max possible size of an ABI encoded tx (in bytes).
@@ -777,11 +778,7 @@ impl InMemoryNodeInner {
 
         // The nonce needs to be updated
         let nonce = l2_tx.nonce();
-        //let nonce_key = get_nonce_key(&l2_tx.initiator_account());
-        #[cfg(not(feature = "zkos"))]
-        let nonce_key = get_nonce_key(&l2_tx.initiator_account());
-        #[cfg(feature = "zkos")]
-        let nonce_key = zkos_get_nonce_key(&l2_tx.initiator_account());
+        let nonce_key = StorageKeyLayout::get_nonce_key(&l2_tx.initiator_account());
         let full_nonce = storage.borrow_mut().read_value(&nonce_key);
         let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
         let enforced_full_nonce = nonces_to_full_nonce(U256::from(nonce.0), deployment_nonce);
@@ -791,11 +788,7 @@ impl InMemoryNodeInner {
 
         // We need to explicitly put enough balance into the account of the users
         let payer = l2_tx.payer();
-
-        #[cfg(not(feature = "zkos"))]
-        let balance_key = storage_key_for_eth_balance(&payer);
-        #[cfg(feature = "zkos")]
-        let balance_key = zkos_storage_key_for_eth_balance(&payer);
+        let balance_key = StorageKeyLayout::get_storage_key_for_base_token(&payer);
         let mut current_balance = h256_to_u256(storage.borrow_mut().read_value(&balance_key));
         let added_balance = l2_tx.common_data.fee.gas_limit * l2_tx.common_data.fee.max_fee_per_gas;
         current_balance += added_balance;
@@ -1341,10 +1334,7 @@ impl InMemoryNode {
 
     /// Adds a lot of tokens to a given account with a specified balance.
     pub fn set_rich_account(&self, address: H160, balance: U256) {
-        #[cfg(not(feature = "zkos"))]
-        let key = storage_key_for_eth_balance(&address);
-        #[cfg(feature = "zkos")]
-        let key = zkos_storage_key_for_eth_balance(&address);
+        let key = StorageKeyLayout::get_storage_key_for_base_token(&address)
 
         let mut inner = match self.inner.write() {
             Ok(guard) => guard,

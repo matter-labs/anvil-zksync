@@ -7,11 +7,10 @@ use zksync_multivm::interface::{ExecutionResult, TxExecutionMode};
 use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use zksync_types::{
     api::{Block, BlockIdVariant, BlockNumber, TransactionVariant},
-    get_code_key, get_nonce_key,
+    get_code_key,
     l2::L2Tx,
     transaction_request::TransactionRequest,
-    utils::storage_key_for_standard_token_balance,
-    PackedEthSignature, StorageKey, L2_BASE_TOKEN_ADDRESS, MAX_L1_TRANSACTION_GAS_LIMIT,
+    PackedEthSignature, StorageKey, MAX_L1_TRANSACTION_GAS_LIMIT,
 };
 use zksync_types::{h256_to_u256, u256_to_h256};
 use zksync_types::{
@@ -25,7 +24,9 @@ use zksync_web3_decl::{
 
 use crate::{
     filters::{FilterType, LogFilter},
-    node::{InMemoryNode, TransactionResult, MAX_TX_SIZE, PROTOCOL_VERSION},
+    node::{
+        keys::StorageKeyLayout, InMemoryNode, TransactionResult, MAX_TX_SIZE, PROTOCOL_VERSION,
+    },
     utils::{self, h256_to_u64, TransparentError},
 };
 
@@ -187,11 +188,7 @@ impl InMemoryNode {
         // TODO: Support
         _block: Option<BlockIdVariant>,
     ) -> anyhow::Result<U256> {
-        // FIXHERE
-        let balance_key = storage_key_for_standard_token_balance(
-            AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
-            &address,
-        );
+        let balance_key = StorageKeyLayout::get_storage_key_for_base_token(&address);
 
         let inner_guard = self.read_inner()?;
         match inner_guard.fork_storage.read_value_internal(&balance_key) {
@@ -299,8 +296,7 @@ impl InMemoryNode {
         _block: Option<BlockIdVariant>,
     ) -> anyhow::Result<U256> {
         let inner = self.read_inner()?;
-        // FIXHERE
-        let nonce_key = get_nonce_key(&address);
+        let nonce_key = StorageKeyLayout::get_nonce_key(&address);
 
         match inner.fork_storage.read_value_internal(&nonce_key) {
             Ok(result) => Ok(h256_to_u64(result).into()),

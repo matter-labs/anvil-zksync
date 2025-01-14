@@ -9,6 +9,7 @@ mod fee_model;
 mod impersonate;
 mod in_memory;
 mod in_memory_ext;
+mod keys;
 mod pool;
 mod sealer;
 mod state;

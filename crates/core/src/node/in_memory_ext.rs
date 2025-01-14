@@ -1,3 +1,4 @@
+use crate::node::keys::StorageKeyLayout;
 use crate::node::pool::TxBatch;
 use crate::node::sealer::BlockSealerMode;
 use crate::{fork::ForkDetails, node::InMemoryNode, utils::bytecode_to_factory_dep};
@@ -7,11 +8,7 @@ use std::time::Duration;
 use zksync_multivm::interface::TxExecutionMode;
 use zksync_types::api::{Block, TransactionVariant};
 use zksync_types::u256_to_h256;
-use zksync_types::{
-    get_code_key, get_nonce_key,
-    utils::{nonces_to_full_nonce, storage_key_for_eth_balance},
-    L2BlockNumber, StorageKey,
-};
+use zksync_types::{get_code_key, utils::nonces_to_full_nonce, L2BlockNumber, StorageKey};
 use zksync_types::{AccountTreeId, Address, H256, U256, U64};
 
 type Result<T> = anyhow::Result<T>;
@@ -192,8 +189,7 @@ impl InMemoryNode {
 
     pub fn set_balance(&self, address: Address, balance: U256) -> Result<bool> {
         self.write_inner().map(|mut writer| {
-            // FIXHERE
-            let balance_key = storage_key_for_eth_balance(&address);
+            let balance_key = StorageKeyLayout::get_storage_key_for_base_token(&address);
             writer
                 .fork_storage
                 .set_value(balance_key, u256_to_h256(balance));
@@ -208,8 +204,7 @@ impl InMemoryNode {
 
     pub fn set_nonce(&self, address: Address, nonce: U256) -> Result<bool> {
         self.write_inner().map(|mut writer| {
-            // FIXHERE
-            let nonce_key = get_nonce_key(&address);
+            let nonce_key = StorageKeyLayout::get_nonce_key(&address);
             let enforced_full_nonce = nonces_to_full_nonce(nonce, nonce);
             tracing::info!(
                 "👷 Nonces for address {:?} have been set to {}",
