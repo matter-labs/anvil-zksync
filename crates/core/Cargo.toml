@@ -44,11 +44,14 @@ thiserror.workspace = true
 async-trait.workspace = true
 
 
-forward_system = { workspace = true, optional = true }
-basic_system = { workspace = true, optional = true } 
-zk_ee = { workspace = true, optional = true }
-system_hooks = { workspace = true, optional = true }
-ruint = { workspace = true, optional = true }
+# ZK os dependencies
+
+forward_system = { git = "https://github.com/matter-labs/zk_ee.git", branch = "zkos_anvil_v241217" , optional = true}
+basic_system = { git = "https://github.com/matter-labs/zk_ee.git", branch = "zkos_anvil_v241217", optional = true }
+zk_ee = { git = "https://github.com/matter-labs/zk_ee.git", branch = "zkos_anvil_v241217", optional = true }
+system_hooks = { git = "https://github.com/matter-labs/zk_ee.git", branch = "zkos_anvil_v241217", optional = true }
+ruint = { version = "1.12.3", default-features = false, features = ["alloc"] }
+
 
 [dev-dependencies]
 maplit.workspace = true
