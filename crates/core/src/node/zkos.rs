@@ -444,6 +444,7 @@ impl<S: WriteStorage, H: HistoryMode> ZKOsVM<S, H> {
     ) -> Self {
         let execution_mode = system_env.execution_mode;
         let (tree, preimage) = { create_tree_from_full_state(raw_storage) };
+        // TODO: get chain_id from system_env and pass to ZKOS.
         ZKOsVM {
             storage,
             tree,

@@ -362,6 +362,9 @@ impl TestNodeConfig {
                 "Disabled".red()
             }
         );
+        #[cfg(feature = "zkos")]
+        tracing::info!("ZK OS:              {}", "Enabled".green());
+
         println!("\n");
         tracing::info!("========================================");
         for host in &self.host {

@@ -35,11 +35,12 @@ zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era.git", rev 
     "server",
 ] }
 
+# ZK os dependencies
 
-forward_system = { git = "https://github.com/matter-labs/zk_ee.git", branch = "mmzk_1217_zkee_for_test_node" }
-basic_system = { git = "https://github.com/matter-labs/zk_ee.git", branch = "mmzk_1217_zkee_for_test_node" }
-zk_ee = { git = "https://github.com/matter-labs/zk_ee.git", branch = "mmzk_1217_zkee_for_test_node" }
-system_hooks = { git = "https://github.com/matter-labs/zk_ee.git", branch = "mmzk_1217_zkee_for_test_node" }
+forward_system = { git = "https://github.com/matter-labs/zk_ee.git", branch = "zkos_anvil_v241217" }
+basic_system = { git = "https://github.com/matter-labs/zk_ee.git", branch = "zkos_anvil_v241217" }
+zk_ee = { git = "https://github.com/matter-labs/zk_ee.git", branch = "zkos_anvil_v241217" }
+system_hooks = { git = "https://github.com/matter-labs/zk_ee.git", branch = "zkos_anvil_v241217" }
 ruint = { version = "1.12.3", default-features = false, features = ["alloc"] }
 
 #########################

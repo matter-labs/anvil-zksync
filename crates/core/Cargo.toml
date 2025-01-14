@@ -43,11 +43,11 @@ flate2.workspace = true
 thiserror.workspace = true
 
 
-forward_system.workspace = true
-basic_system.workspace = true
-zk_ee.workspace = true
-system_hooks.workspace = true
-ruint.workspace = true
+forward_system = { workspace = true, optional = true }
+basic_system = { workspace = true, optional = true } 
+zk_ee = { workspace = true, optional = true }
+system_hooks = { workspace = true, optional = true }
+ruint = { workspace = true, optional = true }
 
 [dev-dependencies]
 maplit.workspace = true
@@ -60,5 +60,5 @@ test-case.workspace = true
 
 
 [features]
-zkos = []
+zkos = ["forward_system", "basic_system", "zk_ee", "system_hooks", "ruint", "anvil_zksync_config/zkos"]
 default = []
