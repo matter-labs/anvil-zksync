@@ -14,7 +14,6 @@ mod pool;
 mod sealer;
 mod state;
 mod storage_logs;
-mod time;
 #[cfg(feature = "zkos")]
 mod zkos;
 mod zks;

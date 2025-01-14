@@ -2,6 +2,7 @@ use super::inner::fork::ForkDetails;
 use super::pool::TxBatch;
 use super::sealer::BlockSealerMode;
 use super::InMemoryNode;
+use crate::node::keys::StorageKeyLayout;
 use crate::utils::bytecode_to_factory_dep;
 use anvil_zksync_types::api::{DetailedTransaction, ResetRequest};
 use anyhow::anyhow;

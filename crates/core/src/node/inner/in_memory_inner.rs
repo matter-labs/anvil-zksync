@@ -7,13 +7,17 @@ use crate::deps::storage_view::StorageView;
 use crate::filters::EthFilters;
 use crate::node::call_error_tracer::CallErrorTracer;
 use crate::node::error::LoadStateError;
+use crate::node::keys::StorageKeyLayout;
 use crate::node::state::StateV1;
 use crate::node::storage_logs::print_storage_logs_details;
+#[cfg(feature = "zkos")]
+use crate::node::zkos::ZKOsVM;
 use crate::node::{
     compute_hash, create_block, ImpersonationManager, Snapshot, TestNodeFeeInputProvider,
     TransactionResult, TxExecutionInfo, VersionedState, ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION,
     MAX_PREVIOUS_STATES, MAX_TX_SIZE,
 };
+
 use crate::system_contracts::SystemContracts;
 use crate::utils::{bytecode_to_factory_dep, create_debug_output};
 use crate::{formatter, utils};
@@ -28,11 +32,16 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::interface::storage::{ReadStorage, WriteStorage};
+#[cfg(not(feature = "zkos"))]
+use zksync_multivm::interface::VmFactory;
 use zksync_multivm::interface::{
     Call, ExecutionResult, InspectExecutionMode, L1BatchEnv, L2BlockEnv, SystemEnv,
-    TxExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt,
+    TxExecutionMode, VmExecutionResultAndLogs, VmInterface, VmInterfaceExt,
     VmInterfaceHistoryEnabled,
 };
+#[cfg(not(feature = "zkos"))]
+use zksync_multivm::vm_latest::Vm;
+
 use zksync_multivm::tracers::CallTracer;
 use zksync_multivm::utils::{
     adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
@@ -41,21 +50,21 @@ use zksync_multivm::utils::{
 use zksync_multivm::vm_latest::constants::{
     BATCH_COMPUTATIONAL_GAS_LIMIT, BATCH_GAS_LIMIT, MAX_VM_PUBDATA_PER_BATCH,
 };
-use zksync_multivm::vm_latest::{HistoryDisabled, HistoryEnabled, ToTracerPointer, Vm};
-use zksync_multivm::{HistoryMode, VmVersion};
+use zksync_multivm::vm_latest::{
+    HistoryDisabled, HistoryEnabled, HistoryMode, ToTracerPointer, TracerPointer,
+};
+use zksync_multivm::VmVersion;
 use zksync_types::api::{BlockIdVariant, TransactionVariant};
 use zksync_types::block::build_bloom;
 use zksync_types::fee::Fee;
 use zksync_types::fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput};
 use zksync_types::l2::{L2Tx, TransactionType};
 use zksync_types::transaction_request::CallRequest;
-use zksync_types::utils::{
-    decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance,
-};
+use zksync_types::utils::{decompose_full_nonce, nonces_to_full_nonce};
 use zksync_types::web3::{Bytes, Index};
 use zksync_types::{
-    api, get_nonce_key, h256_to_address, h256_to_u256, u256_to_h256, AccountTreeId, Address, Bloom,
-    BloomInput, L1BatchNumber, L2BlockNumber, StorageKey, StorageValue, Transaction,
+    api, h256_to_address, h256_to_u256, u256_to_h256, AccountTreeId, Address, Bloom, BloomInput,
+    L1BatchNumber, L2BlockNumber, StorageKey, StorageValue, Transaction,
     ACCOUNT_CODE_STORAGE_ADDRESS, H160, H256, MAX_L2_TX_GAS_LIMIT, U256, U64,
 };
 use zksync_web3_decl::error::Web3Error;
@@ -313,11 +322,14 @@ impl InMemoryNodeInner {
     /// This is because external users of the library may call this function to perform an isolated
     /// VM operation (optionally without bootloader execution) with an external storage and get the results back.
     /// So any data populated in [Self::run_l2_tx] will not be available for the next invocation.
-    fn run_l2_tx_raw<W: WriteStorage, H: HistoryMode>(
+    fn run_l2_tx_raw<VM: VmInterface, W: WriteStorage, H: HistoryMode>(
         &self,
         l2_tx: L2Tx,
-        vm: &mut Vm<W, H>,
-    ) -> anyhow::Result<TxExecutionOutput> {
+        vm: &mut VM,
+    ) -> anyhow::Result<TxExecutionOutput>
+    where
+        <VM as VmInterface>::TracerDispatcher: From<Vec<TracerPointer<W, H>>>,
+    {
         let tx: Transaction = l2_tx.into();
 
         let call_tracer_result = Arc::new(OnceCell::default());
@@ -337,7 +349,7 @@ impl InMemoryNodeInner {
             .into_owned();
         let tx_result = vm.inspect(&mut tracers.into(), InspectExecutionMode::OneTx);
 
-        let call_traces = call_tracer_result.get().unwrap();
+        let call_traces = call_tracer_result.get();
 
         let spent_on_pubdata =
             tx_result.statistics.gas_used - tx_result.statistics.computational_gas_used as u64;
@@ -376,29 +388,31 @@ impl InMemoryNodeInner {
             formatter.print_vm_details(&tx_result);
         }
 
-        if !self.config.disable_console_log {
-            self.console_log_handler.handle_calls_recursive(call_traces);
-        }
+        if let Some(call_traces) = call_traces {
+            if !self.config.disable_console_log {
+                self.console_log_handler.handle_calls_recursive(call_traces);
+            }
 
-        if self.config.show_calls != ShowCalls::None {
-            tracing::info!("");
-            tracing::info!(
-                "[Transaction Execution] ({} calls)",
-                call_traces[0].calls.len()
-            );
-            let num_calls = call_traces.len();
-            for (i, call) in call_traces.iter().enumerate() {
-                let is_last_sibling = i == num_calls - 1;
-                let mut formatter = formatter::Formatter::new();
-                formatter.print_call(
-                    tx.initiator_account(),
-                    tx.execute.contract_address,
-                    call,
-                    is_last_sibling,
-                    self.config.show_calls,
-                    self.config.show_outputs,
-                    self.config.resolve_hashes,
+            if self.config.show_calls != ShowCalls::None {
+                tracing::info!("");
+                tracing::info!(
+                    "[Transaction Execution] ({} calls)",
+                    call_traces[0].calls.len()
                 );
+                let num_calls = call_traces.len();
+                for (i, call) in call_traces.iter().enumerate() {
+                    let is_last_sibling = i == num_calls - 1;
+                    let mut formatter = formatter::Formatter::new();
+                    formatter.print_call(
+                        tx.initiator_account(),
+                        tx.execute.contract_address,
+                        call,
+                        is_last_sibling,
+                        self.config.show_calls,
+                        self.config.show_outputs,
+                        self.config.resolve_hashes,
+                    );
+                }
             }
         }
         // Print event logs if enabled
@@ -421,23 +435,30 @@ impl InMemoryNodeInner {
             })?;
             bytecodes.insert(hash, bytecode);
         }
+        // Also add bytecodes that were created by EVM.
+        for entry in &tx_result.dynamic_factory_deps {
+            bytecodes.insert(entry.0.clone(), entry.1.clone());
+        }
 
         Ok(TxExecutionOutput {
             result: tx_result,
-            call_traces: call_traces.clone(),
+            call_traces: call_traces.cloned().unwrap_or_default(),
             bytecodes,
         })
     }
 
     /// Runs L2 transaction and commits it to a new block.
-    fn run_l2_tx<W: WriteStorage, H: HistoryMode>(
+    fn run_l2_tx<VM: VmInterface, W: WriteStorage, H: HistoryMode>(
         &mut self,
         l2_tx: L2Tx,
         l2_tx_index: u64,
         block_ctx: &BlockContext,
         batch_env: &L1BatchEnv,
-        vm: &mut Vm<W, H>,
-    ) -> anyhow::Result<TransactionResult> {
+        vm: &mut VM,
+    ) -> anyhow::Result<TransactionResult>
+    where
+        <VM as VmInterface>::TracerDispatcher: From<Vec<TracerPointer<W, H>>>,
+    {
         let tx_hash = l2_tx.hash();
         let transaction_type = l2_tx.common_data.transaction_type;
 
@@ -467,16 +488,8 @@ impl InMemoryNodeInner {
 
         // Write all the factory deps.
         for (hash, code) in bytecodes.iter() {
-            self.fork_storage.store_factory_dep(
-                u256_to_h256(*hash),
-                code.iter()
-                    .flat_map(|entry| {
-                        let mut bytes = vec![0u8; 32];
-                        entry.to_big_endian(&mut bytes);
-                        bytes.to_vec()
-                    })
-                    .collect(),
-            )
+            self.fork_storage
+                .store_factory_dep(hash.clone(), code.clone())
         }
 
         let logs = result
@@ -544,6 +557,16 @@ impl InMemoryNodeInner {
         block_ctx: &mut BlockContext,
     ) -> Vec<TransactionResult> {
         let storage = StorageView::new(self.fork_storage.clone()).into_rc_ptr();
+
+        #[cfg(feature = "zkos")]
+        let mut vm: ZKOsVM<_, HistoryEnabled> = ZKOsVM::new(
+            batch_env.clone(),
+            system_env,
+            storage.clone(),
+            &self.fork_storage.inner.read().unwrap().raw_storage,
+        );
+
+        #[cfg(not(feature = "zkos"))]
         let mut vm: Vm<_, HistoryEnabled> = Vm::new(batch_env.clone(), system_env, storage.clone());
 
         // Compute block hash. Note that the computed block hash here will be different than that in production.
@@ -725,6 +748,9 @@ impl InMemoryNodeInner {
             .system_contracts
             .contracts_for_fee_estimate(impersonating)
             .clone();
+        #[cfg(feature = "zkos")]
+        let allow_no_target = true;
+        #[cfg(not(feature = "zkos"))]
         let allow_no_target = system_contracts.evm_emulator.is_some();
 
         let mut l2_tx = L2Tx::from_request(
@@ -997,7 +1023,7 @@ impl InMemoryNodeInner {
 
         // The nonce needs to be updated
         let nonce = l2_tx.nonce();
-        let nonce_key = get_nonce_key(&l2_tx.initiator_account());
+        let nonce_key = StorageKeyLayout::get_nonce_key(&l2_tx.initiator_account());
         let full_nonce = storage.borrow_mut().read_value(&nonce_key);
         let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
         let enforced_full_nonce = nonces_to_full_nonce(U256::from(nonce.0), deployment_nonce);
@@ -1007,7 +1033,7 @@ impl InMemoryNodeInner {
 
         // We need to explicitly put enough balance into the account of the users
         let payer = l2_tx.payer();
-        let balance_key = storage_key_for_eth_balance(&payer);
+        let balance_key = StorageKeyLayout::get_storage_key_for_base_token(&payer);
         let mut current_balance = h256_to_u256(storage.borrow_mut().read_value(&balance_key));
         let added_balance = l2_tx.common_data.fee.gas_limit * l2_tx.common_data.fee.max_fee_per_gas;
         current_balance += added_balance;
@@ -1015,7 +1041,23 @@ impl InMemoryNodeInner {
             .borrow_mut()
             .set_value(balance_key, u256_to_h256(current_balance));
 
-        let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage.clone());
+        #[cfg(not(feature = "zkos"))]
+        let mut vm: zksync_multivm::vm_latest::Vm<_, HistoryDisabled> =
+            zksync_multivm::vm_latest::Vm::new(batch_env, system_env, storage.clone());
+
+        #[cfg(feature = "zkos")]
+        let mut vm: ZKOsVM<_, HistoryDisabled> = ZKOsVM::new(
+            batch_env,
+            system_env,
+            storage.clone(),
+            &fork_storage.inner.read().unwrap().raw_storage,
+        );
+        #[cfg(feature = "zkos")]
+        {
+            // Temporary hack - as we update the 'storage' just above, but zkos loads its full
+            // state from fork_storage (that is not updated).
+            vm.update_inconsistent_keys(&[&nonce_key, &balance_key]);
+        }
 
         let tx: Transaction = l2_tx.into();
         vm.push_transaction(tx);
@@ -1268,7 +1310,7 @@ impl InMemoryNodeInner {
 
     /// Adds a lot of tokens to a given account with a specified balance.
     pub fn set_rich_account(&mut self, address: H160, balance: U256) {
-        let key = storage_key_for_eth_balance(&address);
+        let key = StorageKeyLayout::get_storage_key_for_base_token(&address);
 
         let keys = {
             let mut storage_view = StorageView::new(&self.fork_storage);
@@ -1288,7 +1330,7 @@ impl InMemoryNodeInner {
 pub struct TxExecutionOutput {
     result: VmExecutionResultAndLogs,
     call_traces: Vec<Call>,
-    bytecodes: HashMap<U256, Vec<U256>>,
+    bytecodes: HashMap<H256, Vec<u8>>,
 }
 
 /// Keeps track of a block's batch number, miniblock number and timestamp.

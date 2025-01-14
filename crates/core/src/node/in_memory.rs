@@ -36,13 +36,17 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::interface::storage::{ReadStorage, StoragePtr};
+#[cfg(not(feature = "zkos"))]
+use zksync_multivm::interface::VmFactory;
 use zksync_multivm::interface::{
-    ExecutionResult, InspectExecutionMode, L1BatchEnv, L2BlockEnv, TxExecutionMode, VmFactory,
-    VmInterface,
+    ExecutionResult, InspectExecutionMode, L1BatchEnv, L2BlockEnv, TxExecutionMode, VmInterface,
 };
 use zksync_multivm::tracers::CallTracer;
 use zksync_multivm::utils::{get_batch_base_fee, get_max_batch_gas_limit};
-use zksync_multivm::vm_latest::{HistoryDisabled, ToTracerPointer, Vm};
+#[cfg(not(feature = "zkos"))]
+use zksync_multivm::vm_latest::Vm;
+
+use zksync_multivm::vm_latest::{HistoryDisabled, ToTracerPointer};
 use zksync_multivm::VmVersion;
 use zksync_types::api::{Block, DebugCall, TransactionReceipt, TransactionVariant};
 use zksync_types::block::unpack_block_info;
@@ -58,8 +62,6 @@ use zksync_types::{
     AccountTreeId, Address, Bloom, L1BatchNumber, L2BlockNumber, PackedEthSignature, StorageKey,
     StorageValue, Transaction, H160, H256, H64, U256, U64,
 };
-
-use super::keys::StorageKeyLayout;
 
 /// Max possible size of an ABI encoded tx (in bytes).
 pub const MAX_TX_SIZE: usize = 1_000_000;
@@ -397,8 +399,7 @@ impl InMemoryNode {
         let storage = StorageView::new(&inner.fork_storage).into_rc_ptr();
 
         #[cfg(not(feature = "zkos"))]
-        let mut vm: zksync_multivm::vm_latest::Vm<_, HistoryDisabled> =
-            zksync_multivm::vm_latest::Vm::new(batch_env, system_env, storage);
+        let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage);
         #[cfg(feature = "zkos")]
         let mut vm: super::zkos::ZKOsVM<_, HistoryDisabled> = super::zkos::ZKOsVM::new(
             batch_env,

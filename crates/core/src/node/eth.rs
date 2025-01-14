@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use anyhow::Context as _;
 use colored::Colorize;
-use zksync_multivm::interface::{ExecutionResult, TxExecutionMode};
+use zksync_multivm::interface::ExecutionResult;
 use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use zksync_types::h256_to_u256;
 use zksync_types::{
@@ -11,12 +11,11 @@ use zksync_types::{
     get_code_key,
     l2::L2Tx,
     transaction_request::TransactionRequest,
-    utils::storage_key_for_standard_token_balance,
-    PackedEthSignature, L2_BASE_TOKEN_ADDRESS, MAX_L1_TRANSACTION_GAS_LIMIT,
+    PackedEthSignature, MAX_L1_TRANSACTION_GAS_LIMIT,
 };
 use zksync_types::{
     web3::{self, Bytes},
-    AccountTreeId, Address, H160, H256, U256, U64,
+    Address, H160, H256, U256, U64,
 };
 use zksync_web3_decl::{
     error::Web3Error,
@@ -28,6 +27,8 @@ use crate::{
     node::{InMemoryNode, MAX_TX_SIZE, PROTOCOL_VERSION},
     utils::{h256_to_u64, TransparentError},
 };
+
+use super::keys::StorageKeyLayout;
 
 impl InMemoryNode {
     pub async fn call_impl(
@@ -602,7 +603,7 @@ mod tests {
         utils::deployed_address_create,
         Bloom, K256PrivateKey, L2BlockNumber, StorageKey, EMPTY_UNCLES_HASH,
     };
-    use zksync_types::{u256_to_h256, web3, Nonce};
+    use zksync_types::{u256_to_h256, web3, AccountTreeId, Nonce};
     use zksync_web3_decl::types::{SyncState, ValueOrArray};
 
     async fn test_node(url: &str) -> InMemoryNode {
