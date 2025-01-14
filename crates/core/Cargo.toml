@@ -50,8 +50,7 @@ forward_system = { git = "https://github.com/matter-labs/zk_ee.git", branch = "z
 basic_system = { git = "https://github.com/matter-labs/zk_ee.git", branch = "zkos_anvil_v241217", optional = true }
 zk_ee = { git = "https://github.com/matter-labs/zk_ee.git", branch = "zkos_anvil_v241217", optional = true }
 system_hooks = { git = "https://github.com/matter-labs/zk_ee.git", branch = "zkos_anvil_v241217", optional = true }
-ruint = { version = "1.12.3", default-features = false, features = ["alloc"] }
-
+ruint = { version = "1.12.3", default-features = false, features = ["alloc"], optional = true }
 
 [dev-dependencies]
 maplit.workspace = true
