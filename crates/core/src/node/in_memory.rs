@@ -1232,6 +1232,15 @@ impl InMemoryNode {
         Ok(inner.config.clone())
     }
 
+    /// Whether it accepts the transactions that have 'null' as target.
+    /// This is used only when EVM emulator is enabled, or we're running in zkos mode.
+    pub fn allow_no_target(&self) -> bool {
+        #[cfg(feature = "zkos")]
+        return true;
+        #[cfg(not(feature = "zkos"))]
+        self.system_contracts.evm_emulator.is_some()
+    }
+
     pub fn reset(&self, fork: Option<ForkDetails>) -> Result<(), String> {
         let config = self.get_config()?;
         let inner = InMemoryNodeInner::new(
@@ -1334,7 +1343,7 @@ impl InMemoryNode {
 
     /// Adds a lot of tokens to a given account with a specified balance.
     pub fn set_rich_account(&self, address: H160, balance: U256) {
-        let key = StorageKeyLayout::get_storage_key_for_base_token(&address)
+        let key = StorageKeyLayout::get_storage_key_for_base_token(&address);
 
         let mut inner = match self.inner.write() {
             Ok(guard) => guard,

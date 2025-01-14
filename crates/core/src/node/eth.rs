@@ -83,13 +83,7 @@ impl InMemoryNode {
             .chain_id;
 
         let (tx_req, hash) = TransactionRequest::from_bytes(&tx_bytes.0, chain_id)?;
-        // Impersonation does not matter in this context so we assume the tx is not impersonated:
-        // system contracts here are fetched solely to check for EVM emulator.
-        let system_contracts = self
-            .system_contracts
-            .contracts(TxExecutionMode::VerifyExecute, false);
-        let allow_no_target = true; //system_contracts.evm_emulator.is_some();
-        let mut l2_tx = L2Tx::from_request(tx_req, MAX_TX_SIZE, allow_no_target)?;
+        let mut l2_tx = L2Tx::from_request(tx_req, MAX_TX_SIZE, self.allow_no_target())?;
 
         l2_tx.set_input(tx_bytes.0, hash);
         if hash != l2_tx.hash() {
@@ -149,13 +143,7 @@ impl InMemoryNode {
             27,
         ))?;
 
-        // Impersonation does not matter in this context so we assume the tx is not impersonated:
-        // system contracts here are fetched solely to check for EVM emulator.
-        let system_contracts = self
-            .system_contracts
-            .contracts(TxExecutionMode::VerifyExecute, false);
-        let allow_no_target = true; //system_contracts.evm_emulator.is_some();
-        let mut l2_tx: L2Tx = L2Tx::from_request(tx_req, MAX_TX_SIZE, allow_no_target)?;
+        let mut l2_tx: L2Tx = L2Tx::from_request(tx_req, MAX_TX_SIZE, self.allow_no_target())?;
 
         // `v` was overwritten with 0 during converting into l2 tx
         let mut signature = vec![0u8; 65];
