@@ -45,7 +45,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 use zksync_contracts::BaseSystemContracts;
-use zksync_multivm::vm_latest::HistoryEnabled;
+use zksync_multivm::vm_latest::{HistoryEnabled, TracerPointer, VmTracer};
 use zksync_multivm::{
     interface::{
         storage::{ReadStorage, StoragePtr, WriteStorage},
@@ -85,7 +85,9 @@ use zksync_types::{h256_to_address, h256_to_u256, u256_to_h256};
 use zksync_web3_decl::error::Web3Error;
 
 use super::keys::StorageKeyLayout;
-use super::zkos::{zkos_get_nonce_key, zkos_storage_key_for_eth_balance, ZKOsVM};
+use super::zkos::{
+    zkos_get_nonce_key, zkos_storage_key_for_eth_balance, ZKOsVM, ZkOsTracerDispatcher,
+};
 
 /// Max possible size of an ABI encoded tx (in bytes).
 pub const MAX_TX_SIZE: usize = 1_000_000;
@@ -1238,7 +1240,10 @@ impl InMemoryNode {
         #[cfg(feature = "zkos")]
         return true;
         #[cfg(not(feature = "zkos"))]
-        self.system_contracts.evm_emulator.is_some()
+        self.system_contracts
+            .contracts_for_l2_call()
+            .evm_emulator
+            .is_some()
     }
 
     pub fn reset(&self, fork: Option<ForkDetails>) -> Result<(), String> {
@@ -1423,15 +1428,15 @@ impl InMemoryNode {
 
         let call_tracer_result = Arc::new(OnceCell::default());
 
-        #[cfg(not(feature = "zkos"))]
-        let tracers = vec![
+        //#[cfg(not(feature = "zkos"))]
+        let tracers: Vec<Box<dyn VmTracer<_, HistoryDisabled>>> = vec![
             CallErrorTracer::new().into_tracer_pointer(),
             CallTracer::new(call_tracer_result.clone()).into_tracer_pointer(),
         ];
-        #[cfg(not(feature = "zkos"))]
+        //#[cfg(feature = "zkos")]
+        //let tracers: Vec<u64> = vec![];
+
         let tx_result = vm.inspect(&mut tracers.into(), InspectExecutionMode::OneTx);
-        #[cfg(feature = "zkos")]
-        let tx_result = vm.inspect(&mut Default::default(), InspectExecutionMode::OneTx);
 
         let call_traces = Arc::try_unwrap(call_tracer_result)
             .unwrap()
@@ -1570,11 +1575,14 @@ impl InMemoryNode {
     /// This is because external users of the library may call this function to perform an isolated
     /// VM operation (optionally without bootloader execution) with an external storage and get the results back.
     /// So any data populated in [Self::run_l2_tx] will not be available for the next invocation.
-    pub fn run_l2_tx_raw<VM: VmInterface>(
+    pub fn run_l2_tx_raw<VM: VmInterface, S: WriteStorage>(
         &self,
         l2_tx: L2Tx,
         vm: &mut VM,
-    ) -> anyhow::Result<TxExecutionOutput> {
+    ) -> anyhow::Result<TxExecutionOutput>
+    where
+        <VM as VmInterface>::TracerDispatcher: From<Vec<TracerPointer<S, HistoryEnabled>>>,
+    {
         let inner = self
             .inner
             .read()
@@ -1586,7 +1594,8 @@ impl InMemoryNode {
         let bootloader_debug_result = Arc::new(OnceCell::default());
 
         #[cfg(not(feature = "zkos"))]
-        let tracers: Vec<Box<dyn VmTracer<_, _>>> = vec![
+        //let tracers: Vec<Box<dyn zksync_multivm::vm_latest::VmTracer<_, _>>> = vec![
+        let tracers = vec![
             CallErrorTracer::new().into_tracer_pointer(),
             CallTracer::new(call_tracer_result.clone()).into_tracer_pointer(),
             BootloaderDebugTracer {
@@ -1594,6 +1603,8 @@ impl InMemoryNode {
             }
             .into_tracer_pointer(),
         ];
+        //#[cfg(feature = "zkos")]
+        //let tracers: Vec<u64> = vec![];
         let compressed_bytecodes = vm
             .push_transaction(tx.clone())
             .compressed_bytecodes
@@ -1601,6 +1612,8 @@ impl InMemoryNode {
 
         #[cfg(not(feature = "zkos"))]
         let tx_result = vm.inspect(&mut tracers.into(), InspectExecutionMode::OneTx);
+        //let tx_result = vm.inspect(&mut Default::default(), InspectExecutionMode::OneTx);
+
         #[cfg(feature = "zkos")]
         let tx_result = vm.inspect(&mut Default::default(), InspectExecutionMode::OneTx);
 
@@ -1702,14 +1715,17 @@ impl InMemoryNode {
     }
 
     /// Runs L2 transaction and commits it to a new block.
-    pub fn run_l2_tx<VM: VmInterface>(
+    pub fn run_l2_tx<VM: VmInterface, S: WriteStorage>(
         &self,
         l2_tx: L2Tx,
         l2_tx_index: U64,
         block_ctx: &BlockContext,
         batch_env: &L1BatchEnv,
         vm: &mut VM,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<()>
+    where
+        <VM as VmInterface>::TracerDispatcher: From<Vec<TracerPointer<S, HistoryEnabled>>>,
+    {
         let tx_hash = l2_tx.hash();
         let transaction_type = l2_tx.common_data.transaction_type;
 
@@ -2204,13 +2220,13 @@ mod tests {
     ) -> (
         BlockContext,
         L1BatchEnv,
-        Vm<StorageView<ForkStorage>, HistoryDisabled>,
+        Vm<StorageView<ForkStorage>, HistoryEnabled>,
     ) {
         let inner = node.inner.read().unwrap();
         let storage = StorageView::new(inner.fork_storage.clone()).into_rc_ptr();
         let system_env = inner.create_system_env(system_contracts, TxExecutionMode::VerifyExecute);
         let (batch_env, block_ctx) = inner.create_l1_batch_env(&node.time, storage.clone());
-        let vm: Vm<_, HistoryDisabled> = Vm::new(batch_env.clone(), system_env, storage);
+        let vm: Vm<_, HistoryEnabled> = Vm::new(batch_env.clone(), system_env, storage);
 
         (block_ctx, batch_env, vm)
     }

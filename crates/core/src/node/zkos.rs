@@ -1,9 +1,9 @@
-use std::{alloc::Global, collections::HashMap, vec};
+use std::{alloc::Global, collections::HashMap, fmt::Write, vec};
 
 use basic_system::basic_system::simple_growable_storage::TestingTree;
 use forward_system::run::{
     test_impl::{InMemoryPreimageSource, InMemoryTree, TxListSource},
-    PreimageType, StorageCommitment,
+    PreimageType, ReadStorage, StorageCommitment,
 };
 use hex::ToHex;
 use ruint::aliases::B160;
@@ -11,11 +11,15 @@ use system_hooks::addresses_constants::{
     NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS, NONCE_HOLDER_HOOK_ADDRESS,
 };
 use zk_ee::{common_structs::derive_flat_storage_key, utils::Bytes32};
-use zksync_multivm::interface::{
-    storage::{StoragePtr, WriteStorage},
-    ExecutionResult, InspectExecutionMode, L1BatchEnv, PushTransactionResult, SystemEnv,
-    TxExecutionMode, VmExecutionLogs, VmExecutionResultAndLogs, VmInterface,
-    VmInterfaceHistoryEnabled, VmRevertReason,
+use zksync_multivm::{
+    interface::{
+        storage::{StoragePtr, WriteStorage},
+        ExecutionResult, InspectExecutionMode, L1BatchEnv, PushTransactionResult, SystemEnv,
+        TxExecutionMode, VmExecutionLogs, VmExecutionResultAndLogs, VmInterface,
+        VmInterfaceHistoryEnabled, VmRevertReason,
+    },
+    vm_latest::{TracerDispatcher, TracerPointer},
+    HistoryMode,
 };
 use zksync_types::{
     address_to_h256,
@@ -524,11 +528,31 @@ impl<S: WriteStorage> TestNodeVMInterface for ZKOsVM<S> {
     }
 }*/
 
-#[derive(Default)]
-pub struct ZkOsTracerDispatcher {}
+pub struct ZkOsTracerDispatcher<S: WriteStorage> {
+    tracers: Vec<S>,
+    //_marker: PhantomData<S>,
+}
+
+impl<S: WriteStorage> Default for ZkOsTracerDispatcher<S> {
+    fn default() -> Self {
+        Self {
+            tracers: Default::default(),
+            //_marker: Default::default(),
+        }
+    }
+}
+
+impl<S: WriteStorage, H: HistoryMode> From<Vec<TracerPointer<S, H>>> for ZkOsTracerDispatcher<S> {
+    fn from(_value: Vec<TracerPointer<S, H>>) -> Self {
+        Self {
+            tracers: Default::default(),
+            //_marker: Default::default(),
+        }
+    }
+}
 
 impl<S: WriteStorage> VmInterface for ZKOsVM<S> {
-    type TracerDispatcher = ZkOsTracerDispatcher;
+    type TracerDispatcher = ZkOsTracerDispatcher<S>;
 
     fn push_transaction(
         &mut self,

@@ -60,7 +60,5 @@ test-case.workspace = true
 
 
 [features]
-
 zkos = []
-
-default = ["zkos"]
+default = []
