@@ -42,4 +42,4 @@ tempdir.workspace = true
 
 zkos = ["anvil_zksync_core/zkos"]
 
-default = ["zkos"]
+default = []

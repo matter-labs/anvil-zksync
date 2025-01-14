@@ -342,17 +342,7 @@ impl InMemoryNode {
                 .strip_prefix("0x")
                 .ok_or_else(|| anyhow!("code must be 0x-prefixed"))?;
             let code_bytes = hex::decode(code_slice)?;
-            let hashcode = bytecode_to_factory_dep(code_bytes)?;
-            let hash = u256_to_h256(hashcode.0);
-            let code = hashcode
-                .1
-                .iter()
-                .flat_map(|entry| {
-                    let mut bytes = vec![0u8; 32];
-                    entry.to_big_endian(&mut bytes);
-                    bytes.to_vec()
-                })
-                .collect();
+            let (hash, code) = bytecode_to_factory_dep(code_bytes)?;
             writer.fork_storage.store_factory_dep(hash, code);
             writer.fork_storage.set_value(code_key, hash);
             Ok(())

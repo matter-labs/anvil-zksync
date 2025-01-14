@@ -44,12 +44,14 @@ use std::{
     sync::{Arc, RwLock},
 };
 use zksync_contracts::BaseSystemContracts;
-use zksync_multivm::vm_latest::{HistoryEnabled, HistoryMode, TracerPointer, VmTracer};
+#[cfg(not(feature = "zkos"))]
+use zksync_multivm::interface::VmFactory;
+use zksync_multivm::vm_latest::{HistoryEnabled, HistoryMode, TracerPointer};
 use zksync_multivm::{
     interface::{
         storage::{ReadStorage, StoragePtr, WriteStorage},
         Call, ExecutionResult, InspectExecutionMode, L1BatchEnv, L2Block, L2BlockEnv, SystemEnv,
-        TxExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt,
+        TxExecutionMode, VmExecutionResultAndLogs, VmInterface, VmInterfaceExt,
         VmInterfaceHistoryEnabled,
     },
     tracers::CallTracer,
@@ -60,7 +62,7 @@ use zksync_multivm::{
     vm_latest::{
         constants::{BATCH_COMPUTATIONAL_GAS_LIMIT, BATCH_GAS_LIMIT, MAX_VM_PUBDATA_PER_BATCH},
         utils::l2_blocks::load_last_l2_block,
-        HistoryDisabled, ToTracerPointer, Vm,
+        HistoryDisabled, ToTracerPointer,
     },
     VmVersion,
 };
@@ -71,9 +73,9 @@ use zksync_types::{
     block::{build_bloom, unpack_block_info, L2BlockHasher},
     fee::Fee,
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
-    get_code_key, get_nonce_key,
+    get_code_key,
     l2::{L2Tx, TransactionType},
-    utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
+    utils::{decompose_full_nonce, nonces_to_full_nonce},
     web3::{keccak256, Bytes, Index},
     AccountTreeId, Address, Bloom, BloomInput, L1BatchNumber, L2BlockNumber, PackedEthSignature,
     StorageKey, StorageValue, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS, EMPTY_UNCLES_HASH, H160,
@@ -84,9 +86,6 @@ use zksync_types::{h256_to_address, h256_to_u256, u256_to_h256};
 use zksync_web3_decl::error::Web3Error;
 
 use super::keys::StorageKeyLayout;
-use super::zkos::{
-    zkos_get_nonce_key, zkos_storage_key_for_eth_balance, ZKOsVM, ZkOsTracerDispatcher,
-};
 
 /// Max possible size of an ABI encoded tx (in bytes).
 pub const MAX_TX_SIZE: usize = 1_000_000;
@@ -280,7 +279,6 @@ pub struct TxExecutionOutput {
     result: VmExecutionResultAndLogs,
     call_traces: Vec<Call>,
     bytecodes: HashMap<H256, Vec<u8>>,
-    //bytecodes: HashMap<U256, Vec<U256>>,
 }
 
 impl InMemoryNodeInner {
@@ -801,9 +799,11 @@ impl InMemoryNodeInner {
             .set_value(balance_key, u256_to_h256(current_balance));
 
         #[cfg(not(feature = "zkos"))]
-        let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage.clone());
+        let mut vm: zksync_multivm::vm_latest::Vm<_, HistoryDisabled> =
+            zksync_multivm::vm_latest::Vm::new(batch_env, system_env, storage.clone());
+
         #[cfg(feature = "zkos")]
-        let mut vm: ZKOsVM<_, HistoryDisabled> = ZKOsVM::new(
+        let mut vm: super::zkos::ZKOsVM<_, HistoryDisabled> = super::zkos::ZKOsVM::new(
             batch_env,
             system_env,
             storage.clone(),
@@ -1408,9 +1408,10 @@ impl InMemoryNode {
         let system_env = inner.create_system_env(base_contracts, execution_mode);
 
         #[cfg(not(feature = "zkos"))]
-        let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage.clone());
+        let mut vm: zksync_multivm::vm_latest::Vm<_, HistoryDisabled> =
+            zksync_multivm::vm_latest::Vm::new(batch_env, system_env, storage.clone());
         #[cfg(feature = "zkos")]
-        let mut vm: ZKOsVM<_, HistoryDisabled> = ZKOsVM::new(
+        let mut vm: super::zkos::ZKOsVM<_, HistoryDisabled> = super::zkos::ZKOsVM::new(
             batch_env,
             system_env,
             storage.clone(),
@@ -1683,20 +1684,24 @@ impl InMemoryNode {
             tracing::info!("");
         }
 
-        //let bytecodes = HashMap::new();
-        // HERE
-        /*for b in &*compressed_bytecodes {
+        let mut bytecodes = HashMap::new();
+        for b in &*compressed_bytecodes {
             let (hash, bytecode) = bytecode_to_factory_dep(b.original.clone()).map_err(|err| {
                 tracing::error!("{}", format!("cannot convert bytecode: {err}").on_red());
                 err
             })?;
             bytecodes.insert(hash, bytecode);
-        }*/
+        }
+
+        // Also add bytecodes that were created by EVM.
+        for entry in &tx_result.dynamic_factory_deps {
+            bytecodes.insert(entry.0.clone(), entry.1.clone());
+        }
 
         Ok(TxExecutionOutput {
-            result: tx_result.clone(),
+            result: tx_result,
             call_traces: call_traces.cloned().unwrap_or_default(),
-            bytecodes: tx_result.dynamic_factory_deps.clone(),
+            bytecodes,
         })
     }
 
@@ -1761,16 +1766,6 @@ impl InMemoryNode {
             inner
                 .fork_storage
                 .store_factory_dep(hash.clone(), code.clone());
-            /*inner.fork_storage.store_factory_dep(
-                u256_to_h256(*hash),
-                code.iter()
-                    .flat_map(|entry| {
-                        let mut bytes = vec![0u8; 32];
-                        entry.to_big_endian(&mut bytes);
-                        bytes.to_vec()
-                    })
-                    .collect(),
-            )*/
         }
 
         let logs = result
@@ -1858,7 +1853,7 @@ impl InMemoryNode {
         let (batch_env, mut block_ctx) = inner.create_l1_batch_env(time, storage.clone());
 
         #[cfg(feature = "zkos")]
-        let mut vm: ZKOsVM<StorageView<ForkStorage>, HistoryEnabled> = ZKOsVM::new(
+        let mut vm: super::zkos::ZKOsVM<_, HistoryEnabled> = super::zkos::ZKOsVM::new(
             batch_env.clone(),
             system_env,
             storage.clone(),
@@ -1868,7 +1863,8 @@ impl InMemoryNode {
         drop(inner);
 
         #[cfg(not(feature = "zkos"))]
-        let mut vm: Vm<_, HistoryEnabled> = Vm::new(batch_env.clone(), system_env, storage.clone());
+        let mut vm: zksync_multivm::vm_latest::Vm<_, HistoryEnabled> =
+            zksync_multivm::vm_latest::Vm::new(batch_env.clone(), system_env, storage.clone());
 
         // Compute block hash. Note that the computed block hash here will be different than that in production.
         let tx_hashes = txs.iter().map(|t| t.hash()).collect::<Vec<_>>();
@@ -2195,6 +2191,8 @@ mod tests {
     use anvil_zksync_config::TestNodeConfig;
     use anvil_zksync_types::TransactionOrder;
     use ethabi::{Token, Uint};
+    use zksync_multivm::interface::VmFactory;
+    use zksync_multivm::vm_latest::Vm;
     use zksync_types::{utils::deployed_address_create, K256PrivateKey, Nonce};
 
     use super::*;

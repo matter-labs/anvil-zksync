@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use anyhow::Context as _;
 use colored::Colorize;
 use itertools::Itertools;
-use zksync_multivm::interface::{ExecutionResult, TxExecutionMode};
+use zksync_multivm::interface::ExecutionResult;
 use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use zksync_types::{
     api::{Block, BlockIdVariant, BlockNumber, TransactionVariant},
@@ -36,9 +36,7 @@ impl InMemoryNode {
         req: zksync_types::transaction_request::CallRequest,
     ) -> Result<Bytes, Web3Error> {
         let system_contracts = self.system_contracts.contracts_for_l2_call().clone();
-        let allow_no_target = true; //system_contracts.evm_emulator.is_some();
-
-        let mut tx = L2Tx::from_request(req.into(), MAX_TX_SIZE, allow_no_target)?;
+        let mut tx = L2Tx::from_request(req.into(), MAX_TX_SIZE, self.allow_no_target())?;
         tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
         let call_result = self
             .run_l2_call(tx, system_contracts)

@@ -24,7 +24,6 @@ use zksync_types::{
     address_to_h256, web3::keccak256, AccountTreeId, Address, StorageKey, StorageLog,
     StorageLogWithPreviousValue, Transaction, H160, H256,
 };
-//use zksync_utils::{address_to_h256, h256_to_u256, u256_to_h256};
 
 use crate::deps::InMemoryStorage;
 
@@ -223,7 +222,6 @@ pub fn transaction_to_zkos_vec(tx: &Transaction) -> Vec<u8> {
     current_offset += 1;
     // reserved
     append_u64(&mut tx_raw, current_offset * 32);
-    current_offset += 1;
 
     // len - data.
     append_usize(&mut tx_raw, tx.execute.calldata.len());
@@ -488,14 +486,14 @@ impl<S: WriteStorage, H: HistoryMode> ZKOsVM<S, H> {
 }
 
 pub struct ZkOsTracerDispatcher<S: WriteStorage, H: HistoryMode> {
-    tracers: Vec<S>,
+    _tracers: Vec<S>,
     _marker: std::marker::PhantomData<H>,
 }
 
 impl<S: WriteStorage, H: HistoryMode> Default for ZkOsTracerDispatcher<S, H> {
     fn default() -> Self {
         Self {
-            tracers: Default::default(),
+            _tracers: Default::default(),
             _marker: Default::default(),
         }
     }
@@ -506,7 +504,7 @@ impl<S: WriteStorage, H: HistoryMode> From<Vec<TracerPointer<S, H>>>
 {
     fn from(_value: Vec<TracerPointer<S, H>>) -> Self {
         Self {
-            tracers: Default::default(),
+            _tracers: Default::default(),
             _marker: Default::default(),
         }
     }
@@ -527,7 +525,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for ZKOsVM<S, H> {
 
     fn inspect(
         &mut self,
-        dispatcher: &mut Self::TracerDispatcher,
+        _dispatcher: &mut Self::TracerDispatcher,
         execution_mode: zksync_multivm::interface::InspectExecutionMode,
     ) -> VmExecutionResultAndLogs {
         if let InspectExecutionMode::Bootloader = execution_mode {
@@ -558,15 +556,15 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for ZKOsVM<S, H> {
         )
     }
 
-    fn start_new_l2_block(&mut self, l2_block_env: zksync_multivm::interface::L2BlockEnv) {
+    fn start_new_l2_block(&mut self, _l2_block_env: zksync_multivm::interface::L2BlockEnv) {
         todo!()
     }
 
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        tracer: &mut Self::TracerDispatcher,
-        tx: Transaction,
-        with_compression: bool,
+        _tracer: &mut Self::TracerDispatcher,
+        _tx: Transaction,
+        _with_compression: bool,
     ) -> (
         zksync_multivm::interface::BytecodeCompressionResult<'_>,
         VmExecutionResultAndLogs,
@@ -576,7 +574,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for ZKOsVM<S, H> {
 
     fn finish_batch(
         &mut self,
-        pubdata_builder: std::rc::Rc<dyn zksync_multivm::interface::pubdata::PubdataBuilder>,
+        _pubdata_builder: std::rc::Rc<dyn zksync_multivm::interface::pubdata::PubdataBuilder>,
     ) -> zksync_multivm::interface::FinishedL1Batch {
         todo!()
     }
