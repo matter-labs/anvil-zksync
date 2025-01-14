@@ -1,4 +1,5 @@
-use crate::node::pool::{TxBatch, TxPool};
+use super::inner::node_executor::NodeExecutorHandle;
+use super::pool::{TxBatch, TxPool};
 use futures::channel::mpsc::Receiver;
 use futures::stream::{Fuse, StreamExt};
 use futures::task::AtomicWaker;
@@ -10,22 +11,75 @@ use std::time::Duration;
 use tokio::time::{Interval, MissedTickBehavior};
 use zksync_types::H256;
 
-#[derive(Clone, Debug)]
+// TODO: `BlockSealer` is probably a bad name as this doesn't actually seal blocks, just decides
+//       that certain tx batch needs to be sealed. The actual sealing is handled in `NodeExecutor`.
+//       Consider renaming.
 pub struct BlockSealer {
+    /// Block sealer state (externally mutable).
+    state: BlockSealerState,
+    /// Pool where block sealer is sourcing transactions from.
+    pool: TxPool,
+    /// Node handle to be used when a block needs to be sealed.
+    node_handle: NodeExecutorHandle,
+}
+
+impl BlockSealer {
+    pub fn new(
+        mode: BlockSealerMode,
+        pool: TxPool,
+        node_handle: NodeExecutorHandle,
+    ) -> (Self, BlockSealerState) {
+        let state = BlockSealerState {
+            mode: Arc::new(RwLock::new(mode)),
+            waker: Arc::new(AtomicWaker::new()),
+        };
+        (
+            Self {
+                state: state.clone(),
+                pool,
+                node_handle,
+            },
+            state,
+        )
+    }
+
+    pub async fn run(self) -> anyhow::Result<()> {
+        loop {
+            tracing::debug!("polling for a new tx batch");
+            let tx_batch = futures::future::poll_fn(|cx| {
+                // Register to be woken up when sealer mode changes
+                self.state.waker.register(cx.waker());
+                let mut mode = self
+                    .state
+                    .mode
+                    .write()
+                    .expect("BlockSealer lock is poisoned");
+                match &mut *mode {
+                    BlockSealerMode::Noop => Poll::Pending,
+                    BlockSealerMode::Immediate(immediate) => immediate.poll(&self.pool, cx),
+                    BlockSealerMode::FixedTime(fixed) => fixed.poll(&self.pool, cx),
+                }
+            })
+            .await;
+            tracing::debug!(
+                impersonating = tx_batch.impersonating,
+                txs = tx_batch.txs.len(),
+                "new tx batch found"
+            );
+            self.node_handle.seal_block(tx_batch).await?;
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct BlockSealerState {
     /// The mode this sealer currently operates in
     mode: Arc<RwLock<BlockSealerMode>>,
     /// Used for task wake up when the sealing mode was forcefully changed
     waker: Arc<AtomicWaker>,
 }
 
-impl BlockSealer {
-    pub fn new(mode: BlockSealerMode) -> Self {
-        Self {
-            mode: Arc::new(RwLock::new(mode)),
-            waker: Arc::new(AtomicWaker::new()),
-        }
-    }
-
+impl BlockSealerState {
     pub fn is_immediate(&self) -> bool {
         matches!(
             *self.mode.read().expect("BlockSealer lock is poisoned"),
@@ -37,16 +91,6 @@ impl BlockSealer {
         *self.mode.write().expect("BlockSealer lock is poisoned") = mode;
         // Notify last used waker that the mode might have changed
         self.waker.wake();
-    }
-
-    pub fn poll(&mut self, pool: &TxPool, cx: &mut Context<'_>) -> Poll<TxBatch> {
-        self.waker.register(cx.waker());
-        let mut mode = self.mode.write().expect("BlockSealer lock is poisoned");
-        match &mut *mode {
-            BlockSealerMode::Noop => Poll::Pending,
-            BlockSealerMode::Immediate(immediate) => immediate.poll(pool, cx),
-            BlockSealerMode::FixedTime(fixed) => fixed.poll(pool, cx),
-        }
     }
 }
 
@@ -151,108 +195,97 @@ impl FixedTimeBlockSealer {
 
 #[cfg(test)]
 mod tests {
+    use crate::node::node_executor::testing::NodeExecutorTester;
     use crate::node::pool::TxBatch;
     use crate::node::sealer::BlockSealerMode;
     use crate::node::{BlockSealer, ImpersonationManager, TxPool};
     use anvil_zksync_types::TransactionOrder;
-    use std::ptr;
-    use std::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
     use std::time::Duration;
+    use tokio::task::JoinHandle;
 
-    const NOOP: RawWaker = {
-        const VTABLE: RawWakerVTable = RawWakerVTable::new(
-            // Cloning just returns a new no-op raw waker
-            |_| NOOP,
-            // `wake` does nothing
-            |_| {},
-            // `wake_by_ref` does nothing
-            |_| {},
-            // Dropping does nothing as we don't allocate anything
-            |_| {},
-        );
-        RawWaker::new(ptr::null(), &VTABLE)
-    };
-    const WAKER_NOOP: Waker = unsafe { Waker::from_raw(NOOP) };
-
-    #[test]
-    fn immediate_empty() {
-        let pool = TxPool::new(ImpersonationManager::default(), TransactionOrder::Fifo);
-        let mut block_sealer =
-            BlockSealer::new(BlockSealerMode::immediate(1000, pool.add_tx_listener()));
-        let waker = &WAKER_NOOP;
-        let mut cx = Context::from_waker(waker);
-
-        assert_eq!(block_sealer.poll(&pool, &mut cx), Poll::Pending);
+    struct BlockSealerTester {
+        _handle: JoinHandle<anyhow::Result<()>>,
+        node_executor_tester: NodeExecutorTester,
     }
 
-    #[test]
-    fn immediate_one_tx() {
-        let pool = TxPool::new(ImpersonationManager::default(), TransactionOrder::Fifo);
-        let mut block_sealer =
-            BlockSealer::new(BlockSealerMode::immediate(1000, pool.add_tx_listener()));
-        let waker = &WAKER_NOOP;
-        let mut cx = Context::from_waker(waker);
+    impl BlockSealerTester {
+        fn new(sealer_mode_fn: impl FnOnce(&TxPool) -> BlockSealerMode) -> (Self, TxPool) {
+            let (node_executor_tester, node_handle) = NodeExecutorTester::new();
+            let pool = TxPool::new(ImpersonationManager::default(), TransactionOrder::Fifo);
+            let (block_sealer, _) =
+                BlockSealer::new(sealer_mode_fn(&pool), pool.clone(), node_handle);
+            let _handle = tokio::spawn(block_sealer.run());
 
-        let [tx] = pool.populate::<1>();
-
-        assert_eq!(
-            block_sealer.poll(&pool, &mut cx),
-            Poll::Ready(TxBatch {
-                impersonating: false,
-                txs: vec![tx]
-            })
-        );
-        assert_eq!(block_sealer.poll(&pool, &mut cx), Poll::Pending);
-    }
-
-    #[test]
-    fn immediate_several_txs() {
-        let pool = TxPool::new(ImpersonationManager::default(), TransactionOrder::Fifo);
-        let mut block_sealer =
-            BlockSealer::new(BlockSealerMode::immediate(1000, pool.add_tx_listener()));
-        let waker = &WAKER_NOOP;
-        let mut cx = Context::from_waker(waker);
-
-        let txs = pool.populate::<10>();
-
-        assert_eq!(
-            block_sealer.poll(&pool, &mut cx),
-            Poll::Ready(TxBatch {
-                impersonating: false,
-                txs: txs.to_vec()
-            })
-        );
-        assert_eq!(block_sealer.poll(&pool, &mut cx), Poll::Pending);
-    }
-
-    #[test]
-    fn immediate_respect_max_txs() {
-        let pool = TxPool::new(ImpersonationManager::default(), TransactionOrder::Fifo);
-        let mut block_sealer =
-            BlockSealer::new(BlockSealerMode::immediate(3, pool.add_tx_listener()));
-        let waker = &WAKER_NOOP;
-        let mut cx = Context::from_waker(waker);
-
-        let txs = pool.populate::<10>();
-
-        for txs in txs.chunks(3) {
-            assert_eq!(
-                block_sealer.poll(&pool, &mut cx),
-                Poll::Ready(TxBatch {
-                    impersonating: false,
-                    txs: txs.to_vec()
-                })
-            );
+            (
+                Self {
+                    _handle,
+                    node_executor_tester,
+                },
+                pool,
+            )
         }
     }
 
-    #[test]
-    fn immediate_gradual_txs() {
-        let pool = TxPool::new(ImpersonationManager::default(), TransactionOrder::Fifo);
-        let mut block_sealer =
-            BlockSealer::new(BlockSealerMode::immediate(1000, pool.add_tx_listener()));
-        let waker = &WAKER_NOOP;
-        let mut cx = Context::from_waker(waker);
+    #[tokio::test]
+    async fn immediate_empty() -> anyhow::Result<()> {
+        let (tester, _pool) =
+            BlockSealerTester::new(|pool| BlockSealerMode::immediate(1000, pool.add_tx_listener()));
+
+        tester.node_executor_tester.expect_empty().await
+    }
+
+    #[tokio::test]
+    async fn immediate_one_tx() -> anyhow::Result<()> {
+        let (tester, pool) =
+            BlockSealerTester::new(|pool| BlockSealerMode::immediate(1000, pool.add_tx_listener()));
+
+        let [tx] = pool.populate::<1>();
+        tester
+            .node_executor_tester
+            .expect_seal_block(TxBatch {
+                impersonating: false,
+                txs: vec![tx],
+            })
+            .await
+    }
+
+    #[tokio::test]
+    async fn immediate_several_txs() -> anyhow::Result<()> {
+        let (tester, pool) =
+            BlockSealerTester::new(|pool| BlockSealerMode::immediate(1000, pool.add_tx_listener()));
+
+        let txs = pool.populate::<10>();
+        tester
+            .node_executor_tester
+            .expect_seal_block(TxBatch {
+                impersonating: false,
+                txs: txs.to_vec(),
+            })
+            .await
+    }
+
+    #[tokio::test]
+    async fn immediate_respect_max_txs() -> anyhow::Result<()> {
+        let (tester, pool) =
+            BlockSealerTester::new(|pool| BlockSealerMode::immediate(3, pool.add_tx_listener()));
+
+        let txs = pool.populate::<10>();
+        for txs in txs.chunks(3) {
+            tester
+                .node_executor_tester
+                .expect_seal_block(TxBatch {
+                    impersonating: false,
+                    txs: txs.to_vec(),
+                })
+                .await?;
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn immediate_gradual_txs() -> anyhow::Result<()> {
+        let (tester, pool) =
+            BlockSealerTester::new(|pool| BlockSealerMode::immediate(1000, pool.add_tx_listener()));
 
         // Txs are added to the pool in small chunks
         let txs0 = pool.populate::<3>();
@@ -263,108 +296,90 @@ mod tests {
         txs.extend(txs1);
         txs.extend(txs2);
 
-        assert_eq!(
-            block_sealer.poll(&pool, &mut cx),
-            Poll::Ready(TxBatch {
+        tester
+            .node_executor_tester
+            .expect_seal_block(TxBatch {
                 impersonating: false,
                 txs,
             })
-        );
-        assert_eq!(block_sealer.poll(&pool, &mut cx), Poll::Pending);
+            .await?;
 
         // Txs added after the first poll should be available for sealing
         let txs = pool.populate::<10>().to_vec();
-        assert_eq!(
-            block_sealer.poll(&pool, &mut cx),
-            Poll::Ready(TxBatch {
+        tester
+            .node_executor_tester
+            .expect_seal_block(TxBatch {
                 impersonating: false,
                 txs,
             })
-        );
-        assert_eq!(block_sealer.poll(&pool, &mut cx), Poll::Pending);
+            .await
     }
 
     #[tokio::test]
-    async fn fixed_time_very_long() {
-        let pool = TxPool::new(ImpersonationManager::default(), TransactionOrder::Fifo);
-        let mut block_sealer = BlockSealer::new(BlockSealerMode::fixed_time(
-            1000,
-            Duration::from_secs(10000),
-        ));
-        let waker = &WAKER_NOOP;
-        let mut cx = Context::from_waker(waker);
+    async fn fixed_time_very_long() -> anyhow::Result<()> {
+        let (tester, _pool) = BlockSealerTester::new(|_| {
+            BlockSealerMode::fixed_time(1000, Duration::from_secs(10000))
+        });
 
-        assert_eq!(block_sealer.poll(&pool, &mut cx), Poll::Pending);
+        tester.node_executor_tester.expect_empty().await
     }
 
-    #[tokio::test]
-    async fn fixed_time_seal_empty() {
-        let pool = TxPool::new(ImpersonationManager::default(), TransactionOrder::Fifo);
-        let mut block_sealer = BlockSealer::new(BlockSealerMode::fixed_time(
-            1000,
-            Duration::from_millis(100),
-        ));
-        let waker = &WAKER_NOOP;
-        let mut cx = Context::from_waker(waker);
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn fixed_time_seal_empty() -> anyhow::Result<()> {
+        let (tester, _pool) = BlockSealerTester::new(|_| {
+            BlockSealerMode::fixed_time(1000, Duration::from_millis(100))
+        });
 
-        // Sleep enough time to (theoretically) produce at least 2 blocks
-        tokio::time::sleep(Duration::from_millis(250)).await;
+        // Sleep enough time to produce exactly 1 block
+        tokio::time::sleep(Duration::from_millis(150)).await;
 
-        // Sealer should seal one empty block when polled and then refuse to seal another one
-        // shortly after as it ensures enough time passes in-between of blocks.
-        assert_eq!(
-            block_sealer.poll(&pool, &mut cx),
-            Poll::Ready(TxBatch {
+        // Sealer should have sealed exactly one empty block by now
+        tester
+            .node_executor_tester
+            .expect_seal_block_immediate(TxBatch {
                 impersonating: false,
-                txs: vec![]
+                txs: vec![],
             })
-        );
-        assert_eq!(block_sealer.poll(&pool, &mut cx), Poll::Pending);
+            .await?;
+        tester.node_executor_tester.expect_empty_immediate().await?;
 
-        // Sleep enough time to produce one block
+        // Sleep enough time to produce one more block
         tokio::time::sleep(Duration::from_millis(150)).await;
 
         // Next block should be sealable
-        assert_eq!(
-            block_sealer.poll(&pool, &mut cx),
-            Poll::Ready(TxBatch {
+        tester
+            .node_executor_tester
+            .expect_seal_block_immediate(TxBatch {
                 impersonating: false,
-                txs: vec![]
+                txs: vec![],
             })
-        );
+            .await
     }
 
     #[tokio::test]
-    async fn fixed_time_seal_with_txs() {
-        let pool = TxPool::new(ImpersonationManager::default(), TransactionOrder::Fifo);
-        let mut block_sealer = BlockSealer::new(BlockSealerMode::fixed_time(
-            1000,
-            Duration::from_millis(100),
-        ));
-        let waker = &WAKER_NOOP;
-        let mut cx = Context::from_waker(waker);
+    async fn fixed_time_seal_with_txs() -> anyhow::Result<()> {
+        let (tester, pool) = BlockSealerTester::new(|_| {
+            BlockSealerMode::fixed_time(1000, Duration::from_millis(100))
+        });
 
         let txs = pool.populate::<3>();
 
         // Sleep enough time to produce one block
         tokio::time::sleep(Duration::from_millis(150)).await;
 
-        assert_eq!(
-            block_sealer.poll(&pool, &mut cx),
-            Poll::Ready(TxBatch {
+        tester
+            .node_executor_tester
+            .expect_seal_block_immediate(TxBatch {
                 impersonating: false,
-                txs: txs.to_vec()
+                txs: txs.to_vec(),
             })
-        );
+            .await
     }
 
     #[tokio::test]
-    async fn fixed_time_respect_max_txs() {
-        let pool = TxPool::new(ImpersonationManager::default(), TransactionOrder::Fifo);
-        let mut block_sealer =
-            BlockSealer::new(BlockSealerMode::fixed_time(3, Duration::from_millis(100)));
-        let waker = &WAKER_NOOP;
-        let mut cx = Context::from_waker(waker);
+    async fn fixed_time_respect_max_txs() -> anyhow::Result<()> {
+        let (tester, pool) =
+            BlockSealerTester::new(|_| BlockSealerMode::fixed_time(3, Duration::from_millis(100)));
 
         let txs = pool.populate::<10>();
 
@@ -372,13 +387,15 @@ mod tests {
             // Sleep enough time to produce one block
             tokio::time::sleep(Duration::from_millis(150)).await;
 
-            assert_eq!(
-                block_sealer.poll(&pool, &mut cx),
-                Poll::Ready(TxBatch {
+            tester
+                .node_executor_tester
+                .expect_seal_block_immediate(TxBatch {
                     impersonating: false,
-                    txs: txs.to_vec()
+                    txs: txs.to_vec(),
                 })
-            );
+                .await?;
         }
+
+        Ok(())
     }
 }

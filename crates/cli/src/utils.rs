@@ -1,6 +1,6 @@
 use anvil_zksync_config::types::Genesis;
 use anvil_zksync_config::TestNodeConfig;
-use anvil_zksync_core::fork::ForkDetails;
+use anvil_zksync_core::node::fork::ForkDetails;
 use std::fs;
 
 /// Parses the genesis file from the given path.

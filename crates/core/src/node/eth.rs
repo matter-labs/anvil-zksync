@@ -2,17 +2,18 @@ use std::collections::HashSet;
 
 use anyhow::Context as _;
 use colored::Colorize;
-use itertools::Itertools;
-use zksync_multivm::interface::ExecutionResult;
+use zksync_multivm::interface::{ExecutionResult, TxExecutionMode};
 use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
+use zksync_types::h256_to_u256;
 use zksync_types::{
+    api,
     api::{Block, BlockIdVariant, BlockNumber, TransactionVariant},
     get_code_key,
     l2::L2Tx,
     transaction_request::TransactionRequest,
-    PackedEthSignature, StorageKey, MAX_L1_TRANSACTION_GAS_LIMIT,
+    utils::storage_key_for_standard_token_balance,
+    PackedEthSignature, L2_BASE_TOKEN_ADDRESS, MAX_L1_TRANSACTION_GAS_LIMIT,
 };
-use zksync_types::{h256_to_u256, u256_to_h256};
 use zksync_types::{
     web3::{self, Bytes},
     AccountTreeId, Address, H160, H256, U256, U64,
@@ -24,14 +25,12 @@ use zksync_web3_decl::{
 
 use crate::{
     filters::{FilterType, LogFilter},
-    node::{
-        keys::StorageKeyLayout, InMemoryNode, TransactionResult, MAX_TX_SIZE, PROTOCOL_VERSION,
-    },
-    utils::{self, h256_to_u64, TransparentError},
+    node::{InMemoryNode, MAX_TX_SIZE, PROTOCOL_VERSION},
+    utils::{h256_to_u64, TransparentError},
 };
 
 impl InMemoryNode {
-    pub fn call_impl(
+    pub async fn call_impl(
         &self,
         req: zksync_types::transaction_request::CallRequest,
     ) -> Result<Bytes, Web3Error> {
@@ -40,6 +39,7 @@ impl InMemoryNode {
         tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
         let call_result = self
             .run_l2_call(tx, system_contracts)
+            .await
             .context("Invalid data due to invalid name")?;
 
         match call_result {
@@ -73,12 +73,7 @@ impl InMemoryNode {
     }
 
     pub async fn send_raw_transaction_impl(&self, tx_bytes: Bytes) -> Result<H256, Web3Error> {
-        let chain_id = self
-            .get_inner()
-            .read()
-            .map_err(|_| anyhow::anyhow!("Failed to acquire read lock for chain ID retrieval"))?
-            .fork_storage
-            .chain_id;
+        let chain_id = self.inner.read().await.fork_storage.chain_id;
 
         let (tx_req, hash) = TransactionRequest::from_bytes(&tx_bytes.0, chain_id)?;
         let mut l2_tx = L2Tx::from_request(tx_req, MAX_TX_SIZE, self.allow_no_target())?;
@@ -100,7 +95,7 @@ impl InMemoryNode {
         tx: zksync_types::transaction_request::CallRequest,
     ) -> Result<H256, Web3Error> {
         let (chain_id, l2_gas_price) = {
-            let reader = self.read_inner()?;
+            let reader = self.inner.read().await;
             (
                 reader.fork_storage.chain_id,
                 reader.fee_input_provider.gas_price(),
@@ -176,51 +171,38 @@ impl InMemoryNode {
     ) -> anyhow::Result<U256> {
         let balance_key = StorageKeyLayout::get_storage_key_for_base_token(&address);
 
-        let inner_guard = self.read_inner()?;
+        let inner_guard = self.inner.read().await;
         match inner_guard.fork_storage.read_value_internal(&balance_key) {
             Ok(balance) => Ok(h256_to_u256(balance)),
             Err(error) => Err(anyhow::anyhow!("failed to read account balance: {error}")),
         }
     }
 
-    pub async fn get_block_by_number_impl(
+    pub async fn get_block_impl(
         &self,
-        block_number: BlockNumber,
+        block_id: api::BlockId,
         full_transactions: bool,
     ) -> anyhow::Result<Option<Block<TransactionVariant>>> {
-        let inner = self.get_inner().clone();
-
         let maybe_block = {
-            let reader = match inner.read() {
-                Ok(r) => r,
-                Err(_) => {
-                    anyhow::bail!("Failed to acquire read lock for block retrieval")
-                }
-            };
-            let number =
-                utils::to_real_block_number(block_number, U64::from(reader.current_miniblock))
-                    .as_u64();
-
-            reader
-                .block_hashes
-                .get(&number)
-                .and_then(|hash| reader.blocks.get(hash))
-                .cloned()
-                .or_else(|| {
-                    reader
-                        .fork_storage
-                        .inner
-                        .read()
-                        .expect("failed reading fork storage")
-                        .fork
-                        .as_ref()
-                        .and_then(|fork| {
-                            fork.fork_source
-                                .get_block_by_number(block_number, true)
-                                .ok()
-                                .flatten()
-                        })
-                })
+            if let Some(block) = self.blockchain.get_block_by_id(block_id).await {
+                Some(block)
+            } else {
+                self.inner
+                    .read()
+                    .await
+                    .fork_storage
+                    .inner
+                    .read()
+                    .expect("failed reading fork storage")
+                    .fork
+                    .as_ref()
+                    .and_then(|fork| {
+                        fork.fork_source
+                            .get_block_by_id(block_id, true)
+                            .ok()
+                            .flatten()
+                    })
+            }
         };
 
         match maybe_block {
@@ -259,7 +241,7 @@ impl InMemoryNode {
         // TODO: Support
         _block: Option<BlockIdVariant>,
     ) -> anyhow::Result<Bytes> {
-        let inner = self.write_inner()?;
+        let inner = self.inner.write().await;
 
         let code_key = get_code_key(&address);
 
@@ -281,7 +263,7 @@ impl InMemoryNode {
         // TODO: Support
         _block: Option<BlockIdVariant>,
     ) -> anyhow::Result<U256> {
-        let inner = self.read_inner()?;
+        let inner = self.inner.read().await;
         let nonce_key = StorageKeyLayout::get_nonce_key(&address);
 
         match inner.fork_storage.read_value_internal(&nonce_key) {
@@ -293,23 +275,22 @@ impl InMemoryNode {
     pub async fn get_transaction_receipt_impl(
         &self,
         hash: H256,
-    ) -> anyhow::Result<Option<zksync_types::api::TransactionReceipt>> {
-        let inner = self.read_inner()?;
-
-        let receipt = inner.tx_results.get(&hash).map(|info| info.receipt.clone());
-        Ok(receipt)
+    ) -> anyhow::Result<Option<api::TransactionReceipt>> {
+        // TODO: Call fork if not found
+        Ok(self.blockchain.get_tx_receipt(&hash).await)
     }
 
-    pub async fn get_block_by_hash_impl(
+    pub async fn get_transaction_by_hash_impl(
         &self,
         hash: H256,
-        full_transactions: bool,
-    ) -> anyhow::Result<Option<Block<TransactionVariant>>> {
-        let reader = self.read_inner()?;
-
-        // try retrieving block from memory, and if unavailable subsequently from the fork
-        let maybe_block = reader.blocks.get(&hash).cloned().or_else(|| {
-            reader
+    ) -> anyhow::Result<Option<api::Transaction>> {
+        // try retrieving transaction from memory, and if unavailable subsequently from the fork
+        match self.blockchain.get_tx_api(&hash).await? {
+            Some(tx) => Ok(Some(tx)),
+            None => Ok(self
+                .inner
+                .read()
+                .await
                 .fork_storage
                 .inner
                 .read()
@@ -318,112 +299,15 @@ impl InMemoryNode {
                 .as_ref()
                 .and_then(|fork| {
                     fork.fork_source
-                        .get_block_by_hash(hash, true)
+                        .get_transaction_by_hash(hash)
                         .ok()
                         .flatten()
-                })
-        });
-
-        match maybe_block {
-            Some(mut block) => {
-                let block_hash = block.hash;
-                block.transactions = block
-                    .transactions
-                    .into_iter()
-                    .map(|transaction| match &transaction {
-                        TransactionVariant::Full(inner) => {
-                            if full_transactions {
-                                transaction
-                            } else {
-                                TransactionVariant::Hash(inner.hash)
-                            }
-                        }
-                        TransactionVariant::Hash(_) => {
-                            if full_transactions {
-                                panic!("unexpected non full transaction for block {}", block_hash)
-                            } else {
-                                transaction
-                            }
-                        }
-                    })
-                    .collect();
-
-                Ok(Some(block))
-            }
-            None => Ok(None),
+                })),
         }
     }
 
-    pub async fn get_transaction_by_hash_impl(
-        &self,
-        hash: H256,
-    ) -> anyhow::Result<Option<zksync_types::api::Transaction>> {
-        let reader = self.read_inner()?;
-
-        // try retrieving transaction from memory, and if unavailable subsequently from the fork
-        Ok(reader
-            .tx_results
-            .get(&hash)
-            .and_then(|TransactionResult { info, receipt, .. }| {
-                let input_data = info.tx.common_data.input.clone().or(None)?;
-                let chain_id = info.tx.common_data.extract_chain_id().or(None)?;
-                Some(zksync_types::api::Transaction {
-                    hash,
-                    nonce: U256::from(info.tx.common_data.nonce.0),
-                    block_hash: Some(hash),
-                    block_number: Some(U64::from(info.miniblock_number)),
-                    transaction_index: Some(receipt.transaction_index),
-                    from: Some(info.tx.initiator_account()),
-                    to: info.tx.recipient_account(),
-                    value: info.tx.execute.value,
-                    gas_price: Some(U256::from(0)),
-                    gas: Default::default(),
-                    input: input_data.data.into(),
-                    v: Some(chain_id.into()),
-                    r: Some(U256::zero()), // TODO: Shouldn't we set the signature?
-                    s: Some(U256::zero()), // TODO: Shouldn't we set the signature?
-                    y_parity: Some(U64::zero()), // TODO: Shouldn't we set the signature?
-                    raw: None,
-                    transaction_type: {
-                        let tx_type = match info.tx.common_data.transaction_type {
-                            zksync_types::l2::TransactionType::LegacyTransaction => 0,
-                            zksync_types::l2::TransactionType::EIP2930Transaction => 1,
-                            zksync_types::l2::TransactionType::EIP1559Transaction => 2,
-                            zksync_types::l2::TransactionType::EIP712Transaction => 113,
-                            zksync_types::l2::TransactionType::PriorityOpTransaction => 255,
-                            zksync_types::l2::TransactionType::ProtocolUpgradeTransaction => 254,
-                        };
-                        Some(tx_type.into())
-                    },
-                    access_list: None,
-                    max_fee_per_gas: Some(info.tx.common_data.fee.max_fee_per_gas),
-                    max_priority_fee_per_gas: Some(
-                        info.tx.common_data.fee.max_priority_fee_per_gas,
-                    ),
-                    chain_id: U256::from(chain_id),
-                    l1_batch_number: Some(U64::from(info.batch_number as u64)),
-                    l1_batch_tx_index: None,
-                })
-            })
-            .or_else(|| {
-                reader
-                    .fork_storage
-                    .inner
-                    .read()
-                    .expect("failed reading fork storage")
-                    .fork
-                    .as_ref()
-                    .and_then(|fork| {
-                        fork.fork_source
-                            .get_transaction_by_hash(hash)
-                            .ok()
-                            .flatten()
-                    })
-            }))
-    }
-
     pub async fn get_block_number_impl(&self) -> anyhow::Result<U64> {
-        Ok(U64::from(self.read_inner()?.current_miniblock))
+        Ok(U64::from(self.blockchain.current_block_number().await.0))
     }
 
     pub async fn estimate_gas_impl(
@@ -432,14 +316,12 @@ impl InMemoryNode {
         // TODO: Support
         _block: Option<BlockNumber>,
     ) -> Result<U256, Web3Error> {
-        // TODO: Burn with fire
-        let time = self.time.lock();
-        let fee = self.read_inner()?.estimate_gas_impl(&time, req)?;
+        let fee = self.inner.read().await.estimate_gas_impl(req).await?;
         Ok(fee.gas_limit)
     }
 
     pub async fn gas_price_impl(&self) -> anyhow::Result<U256> {
-        let fair_l2_gas_price: u64 = self.read_inner()?.fee_input_provider.gas_price();
+        let fair_l2_gas_price: u64 = self.inner.read().await.fee_input_provider.gas_price();
         Ok(U256::from(fair_l2_gas_price))
     }
 
@@ -460,28 +342,47 @@ impl InMemoryNode {
                     }
                 })
         }
-        self.write_inner()?
+        self.inner
+            .write()
+            .await
             .filters
+            .write()
+            .await
             .add_log_filter(from_block, to_block, addresses, topics)
             .map_err(anyhow::Error::msg)
     }
 
     pub async fn new_block_filter_impl(&self) -> anyhow::Result<U256> {
-        self.write_inner()?
+        self.inner
+            .write()
+            .await
             .filters
+            .write()
+            .await
             .add_block_filter()
             .map_err(anyhow::Error::msg)
     }
 
     pub async fn new_pending_transaction_filter_impl(&self) -> anyhow::Result<U256> {
-        self.write_inner()?
+        self.inner
+            .write()
+            .await
             .filters
+            .write()
+            .await
             .add_pending_transaction_filter()
             .map_err(anyhow::Error::msg)
     }
 
     pub async fn uninstall_filter_impl(&self, id: U256) -> anyhow::Result<bool> {
-        Ok(self.write_inner()?.filters.remove_filter(id))
+        Ok(self
+            .inner
+            .write()
+            .await
+            .filters
+            .write()
+            .await
+            .remove_filter(id))
     }
 
     pub async fn get_logs_impl(
@@ -505,42 +406,15 @@ impl InMemoryNode {
                 })
         }
 
+        // TODO: LogFilter should really resolve `from_block` and `to_block` during init and not
+        //       on every `matches` call.
         let log_filter = LogFilter::new(from_block, to_block, addresses, topics);
-
-        let reader = self.read_inner()?;
-        let latest_block_number = U64::from(reader.current_miniblock);
-        let logs = reader
-            .tx_results
-            .values()
-            .flat_map(|tx_result| {
-                tx_result
-                    .receipt
-                    .logs
-                    .iter()
-                    .filter(|log| log_filter.matches(log, latest_block_number))
-                    .cloned()
-            })
-            .collect_vec();
-
-        Ok(logs)
+        Ok(self.blockchain.get_filter_logs(&log_filter).await)
     }
 
     pub async fn get_filter_logs_impl(&self, id: U256) -> anyhow::Result<FilterChanges> {
-        let reader = self.read_inner()?;
-        let latest_block_number = U64::from(reader.current_miniblock);
-        let logs = match reader.filters.get_filter(id) {
-            Some(FilterType::Log(f)) => reader
-                .tx_results
-                .values()
-                .flat_map(|tx_result| {
-                    tx_result
-                        .receipt
-                        .logs
-                        .iter()
-                        .filter(|log| f.matches(log, latest_block_number))
-                        .cloned()
-                })
-                .collect_vec(),
+        let logs = match self.inner.read().await.filters.read().await.get_filter(id) {
+            Some(FilterType::Log(log_filter)) => self.blockchain.get_filter_logs(log_filter).await,
             _ => {
                 anyhow::bail!("Failed to acquire read lock for filter logs.")
             }
@@ -550,75 +424,43 @@ impl InMemoryNode {
     }
 
     pub async fn get_filter_changes_impl(&self, id: U256) -> anyhow::Result<FilterChanges> {
-        self.write_inner()?
+        self.inner
+            .write()
+            .await
             .filters
+            .write()
+            .await
             .get_new_changes(id)
             .map_err(anyhow::Error::msg)
     }
 
-    pub async fn get_block_transaction_count_by_number_impl(
+    pub async fn get_block_transaction_count_impl(
         &self,
-        block_number: BlockNumber,
+        block_id: api::BlockId,
     ) -> Result<Option<U256>, Web3Error> {
-        let reader = self.read_inner()?;
-        let number =
-            utils::to_real_block_number(block_number, U64::from(reader.current_miniblock)).as_u64();
+        let result = self.blockchain.get_block_tx_count_by_id(block_id).await;
+        let result = match result {
+            Some(result) => Some(U256::from(result)),
+            None => self
+                .inner
+                .read()
+                .await
+                .fork_storage
+                .inner
+                .read()
+                .expect("failed reading fork storage")
+                .fork
+                .as_ref()
+                .and_then(|fork| {
+                    fork.fork_source
+                        .get_block_transaction_count_by_id(block_id)
+                        .ok()
+                        .flatten()
+                }),
+        };
 
-        let maybe_result = reader
-            .block_hashes
-            .get(&number)
-            .and_then(|hash| reader.blocks.get(hash))
-            .map(|block| U256::from(block.transactions.len()))
-            .or_else(|| {
-                reader
-                    .fork_storage
-                    .inner
-                    .read()
-                    .expect("failed reading fork storage")
-                    .fork
-                    .as_ref()
-                    .and_then(|fork| {
-                        fork.fork_source
-                            .get_block_transaction_count_by_number(block_number)
-                            .ok()
-                            .flatten()
-                    })
-            });
-
-        match maybe_result {
-            Some(value) => Ok(Some(value)),
-            None => Err(Web3Error::NoBlock),
-        }
-    }
-
-    pub async fn get_block_transaction_count_by_hash_impl(
-        &self,
-        block_hash: H256,
-    ) -> Result<Option<U256>, Web3Error> {
-        let reader = self.read_inner()?;
-
-        // try retrieving block from memory, and if unavailable subsequently from the fork
-        let maybe_result = reader
-            .blocks
-            .get(&block_hash)
-            .map(|block| U256::from(block.transactions.len()))
-            .or_else(|| {
-                reader
-                    .fork_storage
-                    .inner
-                    .read()
-                    .expect("failed reading fork storage")
-                    .fork
-                    .as_ref()
-                    .and_then(|fork| {
-                        fork.fork_source
-                            .get_block_transaction_count_by_hash(block_hash)
-                            .ok()
-                            .flatten()
-                    })
-            });
-
-        match maybe_result {
+        // TODO: Is this right? What is the purpose of having `Option` here then?
+        match result {
             Some(value) => Ok(Some(value)),
             None => Err(Web3Error::NoBlock),
         }
@@ -628,175 +470,43 @@ impl InMemoryNode {
         &self,
         address: Address,
         idx: U256,
-        block: Option<BlockIdVariant>,
+        block: Option<api::BlockIdVariant>,
     ) -> Result<H256, Web3Error> {
-        let writer = self.write_inner()?;
+        self.inner
+            .read()
+            .await
+            .get_storage_at_block(address, idx, block)
+            .await
+    }
 
-        let storage_key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(idx));
-
-        let block_number = block
-            .map(|block| match block {
-                BlockIdVariant::BlockNumber(block_number) => Ok(utils::to_real_block_number(
-                    block_number,
-                    U64::from(writer.current_miniblock),
-                )),
-                BlockIdVariant::BlockNumberObject(o) => Ok(utils::to_real_block_number(
-                    o.block_number,
-                    U64::from(writer.current_miniblock),
-                )),
-                BlockIdVariant::BlockHashObject(o) => writer
-                    .blocks
-                    .get(&o.block_hash)
-                    .map(|block| block.number)
-                    .ok_or_else(|| {
-                        tracing::error!("unable to map block number to hash #{:#x}", o.block_hash);
-                        Web3Error::InternalError(anyhow::Error::msg(
-                            "Failed to map block number to hash.",
-                        ))
-                    }),
-            })
-            .unwrap_or_else(|| Ok(U64::from(writer.current_miniblock)))?;
-
-        if block_number.as_u64() == writer.current_miniblock {
-            match writer.fork_storage.read_value_internal(&storage_key) {
-                Ok(value) => Ok(H256(value.0)),
-                Err(error) => Err(Web3Error::InternalError(anyhow::anyhow!(
-                    "failed to read storage: {}",
-                    error
-                ))),
-            }
-        } else if writer.block_hashes.contains_key(&block_number.as_u64()) {
-            let value = writer
-                .block_hashes
-                .get(&block_number.as_u64())
-                .and_then(|block_hash| writer.previous_states.get(block_hash))
-                .and_then(|state| state.get(&storage_key))
-                .cloned()
-                .unwrap_or_default();
-
-            if value.is_zero() {
-                match writer.fork_storage.read_value_internal(&storage_key) {
-                    Ok(value) => Ok(H256(value.0)),
-                    Err(error) => Err(Web3Error::InternalError(anyhow::anyhow!(
-                        "failed to read storage: {}",
-                        error
-                    ))),
-                }
-            } else {
-                Ok(value)
-            }
-        } else {
-            writer
+    pub async fn get_transaction_by_block_and_index_impl(
+        &self,
+        block_id: api::BlockId,
+        index: web3::Index,
+    ) -> anyhow::Result<Option<api::Transaction>> {
+        let tx = self
+            .blockchain
+            .get_block_tx_by_id(block_id, index.as_usize())
+            .await;
+        let maybe_tx = match tx {
+            Some(tx) => Some(tx),
+            None => self
+                .inner
+                .read()
+                .await
                 .fork_storage
                 .inner
                 .read()
                 .expect("failed reading fork storage")
                 .fork
                 .as_ref()
-                .and_then(|fork| fork.fork_source.get_storage_at(address, idx, block).ok())
-                .ok_or_else(|| {
-                    tracing::error!(
-                        "unable to get storage at address {:?}, index {:?} for block {:?}",
-                        address,
-                        idx,
-                        block
-                    );
-                    Web3Error::InternalError(anyhow::Error::msg("Failed to get storage."))
+                .and_then(|fork| {
+                    fork.fork_source
+                        .get_transaction_by_block_id_and_index(block_id, index)
+                        .ok()
                 })
-        }
-    }
-
-    pub async fn get_transaction_by_block_hash_and_index_impl(
-        &self,
-        block_hash: H256,
-        index: web3::Index,
-    ) -> anyhow::Result<Option<zksync_types::api::Transaction>> {
-        let reader = self.read_inner()?;
-
-        let maybe_tx = reader
-            .blocks
-            .get(&block_hash)
-            .and_then(|block| block.transactions.get(index.as_usize()))
-            .and_then(|tx| match tx {
-                TransactionVariant::Full(tx) => Some(tx.clone()),
-                TransactionVariant::Hash(tx_hash) => reader
-                    .fork_storage
-                    .inner
-                    .read()
-                    .expect("failed reading fork storage")
-                    .fork
-                    .as_ref()
-                    .and_then(|fork| {
-                        fork.fork_source
-                            .get_transaction_by_hash(*tx_hash)
-                            .ok()
-                            .flatten()
-                    }),
-            })
-            .or_else(|| {
-                reader
-                    .fork_storage
-                    .inner
-                    .read()
-                    .expect("failed reading fork storage")
-                    .fork
-                    .as_ref()
-                    .and_then(|fork| {
-                        fork.fork_source
-                            .get_transaction_by_block_hash_and_index(block_hash, index)
-                            .ok()
-                    })
-                    .flatten()
-            });
-
-        Ok(maybe_tx)
-    }
-
-    pub async fn get_transaction_by_block_number_and_index_impl(
-        &self,
-        block_number: BlockNumber,
-        index: web3::Index,
-    ) -> anyhow::Result<Option<zksync_types::api::Transaction>> {
-        let reader = self.read_inner()?;
-
-        let real_block_number =
-            utils::to_real_block_number(block_number, U64::from(reader.current_miniblock));
-        let maybe_tx = reader
-            .block_hashes
-            .get(&real_block_number.as_u64())
-            .and_then(|block_hash| reader.blocks.get(block_hash))
-            .and_then(|block| block.transactions.get(index.as_usize()))
-            .and_then(|tx| match tx {
-                TransactionVariant::Full(tx) => Some(tx.clone()),
-                TransactionVariant::Hash(tx_hash) => reader
-                    .fork_storage
-                    .inner
-                    .read()
-                    .expect("failed reading fork storage")
-                    .fork
-                    .as_ref()
-                    .and_then(|fork| {
-                        fork.fork_source
-                            .get_transaction_by_hash(*tx_hash)
-                            .ok()
-                            .flatten()
-                    }),
-            })
-            .or_else(|| {
-                reader
-                    .fork_storage
-                    .inner
-                    .read()
-                    .expect("failed reading fork storage")
-                    .fork
-                    .as_ref()
-                    .and_then(|fork| {
-                        fork.fork_source
-                            .get_transaction_by_block_number_and_index(block_number, index)
-                            .ok()
-                    })
-                    .flatten()
-            });
+                .flatten(),
+        };
 
         Ok(maybe_tx)
     }
@@ -811,7 +521,9 @@ impl InMemoryNode {
 
     pub async fn accounts_impl(&self) -> anyhow::Result<Vec<H160>> {
         Ok(self
-            .read_inner()?
+            .inner
+            .read()
+            .await
             .rich_accounts
             .clone()
             .into_iter()
@@ -825,17 +537,17 @@ impl InMemoryNode {
         _newest_block: BlockNumber,
         reward_percentiles: Option<Vec<f32>>,
     ) -> anyhow::Result<zksync_types::api::FeeHistory> {
-        let reader = self.read_inner()?;
+        let current_block = self.blockchain.current_block_number().await;
 
-        let block_count = block_count
+        let block_count = (block_count as usize)
             .min(1024)
             // Can't be more than the total number of blocks
-            .clamp(1, reader.current_miniblock + 1);
+            .clamp(1, current_block.0 as usize + 1);
 
         let mut base_fee_per_gas =
-            vec![U256::from(reader.fee_input_provider.gas_price()); block_count as usize];
+            vec![U256::from(self.inner.read().await.fee_input_provider.gas_price()); block_count];
 
-        let oldest_block = reader.current_miniblock + 1 - base_fee_per_gas.len() as u64;
+        let oldest_block = current_block + 1 - base_fee_per_gas.len() as u32;
         // We do not store gas used ratio for blocks, returns array of zeroes as a placeholder.
         let gas_used_ratio = vec![0.0; base_fee_per_gas.len()];
         // Effective priority gas price is currently 0.
@@ -852,7 +564,7 @@ impl InMemoryNode {
 
         Ok(zksync_types::api::FeeHistory {
             inner: FeeHistory {
-                oldest_block: web3::BlockNumber::Number(oldest_block.into()),
+                oldest_block: web3::BlockNumber::Number(oldest_block.0.into()),
                 base_fee_per_gas,
                 gas_used_ratio,
                 reward,
@@ -867,9 +579,10 @@ impl InMemoryNode {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::node::fork::ForkDetails;
+    use crate::node::TransactionResult;
     use crate::{
-        fork::ForkDetails,
-        node::{compute_hash, InMemoryNode, Snapshot},
+        node::{compute_hash, InMemoryNode},
         testing::{
             self, default_tx_debug_info, ForkBlockConfig, LogBuilder, MockServer,
             TransactionResponseBuilder,
@@ -887,13 +600,13 @@ mod tests {
         api,
         api::{BlockHashObject, BlockNumber, BlockNumberObject, TransactionReceipt},
         utils::deployed_address_create,
-        Bloom, K256PrivateKey, EMPTY_UNCLES_HASH,
+        Bloom, K256PrivateKey, L2BlockNumber, StorageKey, EMPTY_UNCLES_HASH,
     };
-    use zksync_types::{web3, Nonce};
+    use zksync_types::{u256_to_h256, web3, Nonce};
     use zksync_web3_decl::types::{SyncState, ValueOrArray};
 
     async fn test_node(url: &str) -> InMemoryNode {
-        InMemoryNode::default_fork(Some(
+        InMemoryNode::test(Some(
             ForkDetails::from_network(url, None, &CacheConfig::None)
                 .await
                 .unwrap(),
@@ -902,14 +615,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_eth_syncing() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
         let syncing = node.syncing_impl();
         assert!(matches!(syncing, SyncState::NotSyncing));
     }
 
     #[tokio::test]
     async fn test_get_fee_history_with_1_block() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let fee_history = node
             .fee_history_impl(1, BlockNumber::Latest, Some(vec![25.0, 50.0, 75.0]))
@@ -931,7 +644,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_fee_history_with_no_reward_percentiles() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let fee_history = node
             .fee_history_impl(1, BlockNumber::Latest, Some(vec![]))
@@ -954,8 +667,8 @@ mod tests {
     #[tokio::test]
     async fn test_get_fee_history_with_multiple_blocks() {
         // Arrange
-        let node = InMemoryNode::default();
-        testing::apply_tx(&node, H256::repeat_byte(0x01));
+        let node = InMemoryNode::test(None);
+        testing::apply_tx(&node, H256::repeat_byte(0x01)).await;
 
         // Act
         let latest_block = node
@@ -985,10 +698,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_block_by_hash_returns_none_for_non_existing_block() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let result = node
-            .get_block_by_hash_impl(H256::repeat_byte(0x01), false)
+            .get_block_impl(api::BlockId::Hash(H256::repeat_byte(0x01)), false)
             .await
             .expect("failed fetching block by hash");
 
@@ -997,10 +710,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_node_has_genesis_block() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let block = node
-            .get_block_by_number_impl(BlockNumber::Latest, false)
+            .get_block_impl(api::BlockId::Number(BlockNumber::Latest), false)
             .await
             .expect("failed fetching block by number")
             .expect("no block");
@@ -1011,10 +724,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_node_creates_genesis_block_with_hash_and_zero_parent_hash() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let block = node
-            .get_block_by_hash_impl(compute_hash(0, []), false)
+            .get_block_impl(api::BlockId::Hash(compute_hash(0, [])), false)
             .await
             .expect("failed fetching block by hash")
             .expect("no block");
@@ -1024,21 +737,21 @@ mod tests {
 
     #[tokio::test]
     async fn test_node_produces_blocks_with_parent_hash_links() {
-        let node = InMemoryNode::default();
-        testing::apply_tx(&node, H256::repeat_byte(0x01));
+        let node = InMemoryNode::test(None);
+        testing::apply_tx(&node, H256::repeat_byte(0x01)).await;
 
         let genesis_block = node
-            .get_block_by_number_impl(BlockNumber::from(0), false)
+            .get_block_impl(api::BlockId::Number(BlockNumber::from(0)), false)
             .await
             .expect("failed fetching block by number")
             .expect("no block");
         let first_block = node
-            .get_block_by_number_impl(BlockNumber::from(1), false)
+            .get_block_impl(api::BlockId::Number(BlockNumber::from(1)), false)
             .await
             .expect("failed fetching block by number")
             .expect("no block");
         let second_block = node
-            .get_block_by_number_impl(BlockNumber::from(2), false)
+            .get_block_impl(api::BlockId::Number(BlockNumber::from(2)), false)
             .await
             .expect("failed fetching block by number")
             .expect("no block");
@@ -1049,17 +762,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_block_by_hash_for_produced_block() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
         let tx_hash = H256::repeat_byte(0x01);
-        let (expected_block_hash, _, _) = testing::apply_tx(&node, tx_hash);
+        let (expected_block_hash, _, _) = testing::apply_tx(&node, tx_hash).await;
         let genesis_block = node
-            .get_block_by_number_impl(BlockNumber::from(0), false)
+            .get_block_impl(api::BlockId::Number(BlockNumber::from(0)), false)
             .await
             .expect("failed fetching block by number")
             .expect("no block");
 
         let actual_block = node
-            .get_block_by_hash_impl(expected_block_hash, false)
+            .get_block_impl(api::BlockId::Hash(expected_block_hash), false)
             .await
             .expect("failed fetching block by hash")
             .expect("no block");
@@ -1111,16 +824,12 @@ mod tests {
         });
 
         let node = test_node(&mock_server.url()).await;
-
-        let inner = node.get_inner();
-        let inner = inner.read().unwrap();
         assert!(
-            inner.blocks.contains_key(&input_block_hash),
+            node.blockchain
+                .get_block_by_hash(&input_block_hash)
+                .await
+                .is_some(),
             "block wasn't cached"
-        );
-        assert!(
-            inner.block_hashes.contains_key(&input_block_number),
-            "block number wasn't cached"
         );
     }
 
@@ -1153,7 +862,7 @@ mod tests {
         let node = test_node(&mock_server.url()).await;
 
         let actual_block = node
-            .get_block_by_hash_impl(input_block_hash, false)
+            .get_block_impl(api::BlockId::Hash(input_block_hash), false)
             .await
             .expect("failed fetching block by hash")
             .expect("no block");
@@ -1165,10 +874,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_block_by_number_returns_none_for_non_existing_block() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let result = node
-            .get_block_by_number_impl(BlockNumber::Number(U64::from(42)), false)
+            .get_block_impl(
+                api::BlockId::Number(BlockNumber::Number(U64::from(42))),
+                false,
+            )
             .await
             .expect("failed fetching block by number");
 
@@ -1177,18 +889,21 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_block_by_number_for_produced_block() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
         let tx_hash = H256::repeat_byte(0x01);
-        let (expected_block_hash, _, _) = testing::apply_tx(&node, tx_hash);
+        let (expected_block_hash, _, _) = testing::apply_tx(&node, tx_hash).await;
         let expected_block_number = 1;
         let genesis_block = node
-            .get_block_by_number_impl(BlockNumber::from(0), false)
+            .get_block_impl(api::BlockId::Number(BlockNumber::from(0)), false)
             .await
             .expect("failed fetching block by number")
             .expect("no block");
 
         let actual_block = node
-            .get_block_by_number_impl(BlockNumber::Number(U64::from(expected_block_number)), false)
+            .get_block_impl(
+                api::BlockId::Number(BlockNumber::Number(U64::from(expected_block_number))),
+                false,
+            )
             .await
             .expect("failed fetching block by number")
             .expect("no block");
@@ -1231,13 +946,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_block_by_number_for_produced_block_full_txs() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
         let tx_hash = H256::repeat_byte(0x01);
-        let (block_hash, _, tx) = testing::apply_tx(&node, tx_hash);
+        let (block_hash, _, tx) = testing::apply_tx(&node, tx_hash).await;
         let expected_block_number = 1;
 
         let mut actual_block = node
-            .get_block_by_number_impl(BlockNumber::Number(U64::from(expected_block_number)), true)
+            .get_block_impl(
+                api::BlockId::Number(BlockNumber::Number(U64::from(expected_block_number))),
+                true,
+            )
             .await
             .expect("failed fetching block by number")
             .expect("no block");
@@ -1303,7 +1021,10 @@ mod tests {
         let node = test_node(&mock_server.url()).await;
 
         let actual_block = node
-            .get_block_by_number_impl(BlockNumber::Number(U64::from(8)), false)
+            .get_block_impl(
+                api::BlockId::Number(BlockNumber::Number(U64::from(8))),
+                false,
+            )
             .await
             .expect("failed fetching block by hash")
             .expect("no block");
@@ -1312,12 +1033,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_block_by_number_for_latest_block_produced_locally() {
-        let node = InMemoryNode::default();
-        testing::apply_tx(&node, H256::repeat_byte(0x01));
+        let node = InMemoryNode::test(None);
+        testing::apply_tx(&node, H256::repeat_byte(0x01)).await;
 
         // The latest block, will be the 'virtual' one with 0 transactions (block 2).
         let virtual_block = node
-            .get_block_by_number_impl(BlockNumber::Latest, true)
+            .get_block_impl(api::BlockId::Number(BlockNumber::Latest), true)
             .await
             .expect("failed fetching block by hash")
             .expect("no block");
@@ -1326,7 +1047,10 @@ mod tests {
         assert_eq!(0, virtual_block.transactions.len());
 
         let actual_block = node
-            .get_block_by_number_impl(BlockNumber::Number(U64::from(1)), true)
+            .get_block_impl(
+                api::BlockId::Number(BlockNumber::Number(U64::from(1))),
+                true,
+            )
             .await
             .expect("failed fetching block by hash")
             .expect("no block");
@@ -1347,7 +1071,7 @@ mod tests {
         let node = test_node(&mock_server.url()).await;
 
         let actual_block = node
-            .get_block_by_number_impl(BlockNumber::Latest, false)
+            .get_block_impl(api::BlockId::Number(BlockNumber::Latest), false)
             .await
             .expect("failed fetching block by hash")
             .expect("no block");
@@ -1379,7 +1103,7 @@ mod tests {
         let node = test_node(&mock_server.url()).await;
 
         let actual_block = node
-            .get_block_by_number_impl(BlockNumber::Earliest, false)
+            .get_block_impl(api::BlockId::Number(BlockNumber::Earliest), false)
             .await
             .expect("failed fetching block by hash")
             .expect("no block");
@@ -1402,7 +1126,7 @@ mod tests {
             let node = test_node(&mock_server.url()).await;
 
             let actual_block = node
-                .get_block_by_number_impl(block_number, false)
+                .get_block_impl(api::BlockId::Number(block_number), false)
                 .await
                 .expect("failed fetching block by hash")
                 .expect("no block");
@@ -1417,11 +1141,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_block_transaction_count_by_hash_for_produced_block() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
-        let (expected_block_hash, _, _) = testing::apply_tx(&node, H256::repeat_byte(0x01));
+        let (expected_block_hash, _, _) = testing::apply_tx(&node, H256::repeat_byte(0x01)).await;
         let actual_transaction_count = node
-            .get_block_transaction_count_by_hash_impl(expected_block_hash)
+            .get_block_transaction_count_impl(api::BlockId::Hash(expected_block_hash))
             .await
             .expect("failed fetching block by hash")
             .expect("no result");
@@ -1456,7 +1180,7 @@ mod tests {
         let node = test_node(&mock_server.url()).await;
 
         let actual_transaction_count = node
-            .get_block_transaction_count_by_hash_impl(input_block_hash)
+            .get_block_transaction_count_impl(api::BlockId::Hash(input_block_hash))
             .await
             .expect("failed fetching block by hash")
             .expect("no result");
@@ -1469,11 +1193,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_block_transaction_count_by_number_for_produced_block() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
-        testing::apply_tx(&node, H256::repeat_byte(0x01));
+        testing::apply_tx(&node, H256::repeat_byte(0x01)).await;
         let actual_transaction_count = node
-            .get_block_transaction_count_by_number_impl(BlockNumber::Number(U64::from(1)))
+            .get_block_transaction_count_impl(api::BlockId::Number(api::BlockNumber::Number(
+                U64::from(1),
+            )))
             .await
             .expect("failed fetching block by hash")
             .expect("no result");
@@ -1509,7 +1235,9 @@ mod tests {
         let node = test_node(&mock_server.url()).await;
 
         let actual_transaction_count = node
-            .get_block_transaction_count_by_number_impl(BlockNumber::Number(U64::from(1)))
+            .get_block_transaction_count_impl(api::BlockId::Number(BlockNumber::Number(U64::from(
+                1,
+            ))))
             .await
             .expect("failed fetching block by hash")
             .expect("no result");
@@ -1547,7 +1275,7 @@ mod tests {
         let node = test_node(&mock_server.url()).await;
 
         let actual_transaction_count = node
-            .get_block_transaction_count_by_number_impl(BlockNumber::Earliest)
+            .get_block_transaction_count_impl(api::BlockId::Number(BlockNumber::Earliest))
             .await
             .expect("failed fetching block by hash")
             .expect("no result");
@@ -1576,7 +1304,7 @@ mod tests {
             let node = test_node(&mock_server.url()).await;
 
             let actual_transaction_count = node
-                .get_block_transaction_count_by_number_impl(block_number)
+                .get_block_transaction_count_impl(api::BlockId::Number(block_number))
                 .await
                 .expect("failed fetching block by hash")
                 .expect("no result");
@@ -1592,9 +1320,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_transaction_receipt_uses_produced_block_hash() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
         let tx_hash = H256::repeat_byte(0x01);
-        let (expected_block_hash, _, _) = testing::apply_tx(&node, tx_hash);
+        let (expected_block_hash, _, _) = testing::apply_tx(&node, tx_hash).await;
 
         let actual_tx_receipt = node
             .get_transaction_receipt_impl(tx_hash)
@@ -1607,7 +1335,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_new_block_filter_returns_filter_id() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let actual_filter_id = node
             .new_block_filter_impl()
@@ -1619,7 +1347,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_new_filter_returns_filter_id() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let actual_filter_id = node
             .new_filter_impl(Filter::default())
@@ -1631,7 +1359,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_new_pending_transaction_filter_returns_filter_id() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let actual_filter_id = node
             .new_pending_transaction_filter_impl()
@@ -1643,7 +1371,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_uninstall_filter_returns_true_if_filter_exists() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
         let filter_id = node
             .new_block_filter_impl()
             .await
@@ -1659,7 +1387,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_uninstall_filter_returns_false_if_filter_does_not_exist() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let actual_result = node
             .uninstall_filter_impl(U256::from(100))
@@ -1671,12 +1399,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_filter_changes_returns_block_hash_updates_only_once() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
         let filter_id = node
             .new_block_filter_impl()
             .await
             .expect("failed creating filter");
-        let (block_hash, _, _) = testing::apply_tx(&node, H256::repeat_byte(0x1));
+        let (block_hash, _, _) = testing::apply_tx(&node, H256::repeat_byte(0x1)).await;
 
         match node
             .get_filter_changes_impl(filter_id)
@@ -1703,7 +1431,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_filter_changes_returns_log_updates_only_once() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
         let filter_id = node
             .new_filter_impl(Filter {
                 from_block: None,
@@ -1714,7 +1442,7 @@ mod tests {
             })
             .await
             .expect("failed creating filter");
-        testing::apply_tx(&node, H256::repeat_byte(0x1));
+        testing::apply_tx(&node, H256::repeat_byte(0x1)).await;
 
         match node
             .get_filter_changes_impl(filter_id)
@@ -1737,12 +1465,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_filter_changes_returns_pending_transaction_updates_only_once() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
         let filter_id = node
             .new_pending_transaction_filter_impl()
             .await
             .expect("failed creating filter");
-        testing::apply_tx(&node, H256::repeat_byte(0x1));
+        testing::apply_tx(&node, H256::repeat_byte(0x1)).await;
 
         match node
             .get_filter_changes_impl(filter_id)
@@ -1765,37 +1493,31 @@ mod tests {
 
     #[tokio::test]
     async fn test_produced_block_archives_previous_blocks() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let input_storage_key = StorageKey::new(
             AccountTreeId::new(H160::repeat_byte(0x1)),
             u256_to_h256(U256::zero()),
         );
         let input_storage_value = H256::repeat_byte(0xcd);
-        node.get_inner()
+        node.inner
             .write()
-            .unwrap()
+            .await
             .fork_storage
             .set_value(input_storage_key, input_storage_value);
-        let initial_miniblock = node.get_inner().read().unwrap().current_miniblock;
+        let initial_miniblock = node.blockchain.current_block_number().await;
 
-        testing::apply_tx(&node, H256::repeat_byte(0x1));
-        let current_miniblock = node.get_inner().read().unwrap().current_miniblock;
+        testing::apply_tx(&node, H256::repeat_byte(0x1)).await;
+        let current_miniblock = node.blockchain.current_block_number().await;
 
-        let inner = node.get_inner();
-        let reader = inner.read().unwrap();
-        for miniblock in initial_miniblock..current_miniblock {
-            let actual_cached_value = reader
-                .block_hashes
-                .get(&miniblock)
-                .map(|hash| {
-                    reader
-                        .previous_states
-                        .get(hash)
-                        .unwrap_or_else(|| panic!("state was not cached for block {}", miniblock))
-                })
-                .and_then(|state| state.get(&input_storage_key))
-                .copied();
+        for miniblock in initial_miniblock.0..current_miniblock.0 {
+            let hash = node
+                .blockchain
+                .get_block_hash_by_number(L2BlockNumber(miniblock))
+                .await
+                .unwrap();
+            let previous_state = node.inner.read().await.get_previous_state(hash).unwrap();
+            let actual_cached_value = previous_state.get(&input_storage_key).copied();
 
             assert_eq!(
                 Some(input_storage_value),
@@ -1808,7 +1530,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_storage_fetches_zero_value_for_non_existent_key() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let value = node
             .get_storage_impl(H160::repeat_byte(0xf1), U256::from(1024), None)
@@ -1870,28 +1592,28 @@ mod tests {
         );
         let input_storage_value = H256::repeat_byte(0xcd);
 
-        let node = InMemoryNode::default();
-        node.get_inner()
-            .write()
-            .map(|mut writer| {
-                let historical_block = Block::<TransactionVariant> {
-                    hash: H256::repeat_byte(0x2),
-                    number: U64::from(2),
-                    ..Default::default()
-                };
-                writer.block_hashes.insert(2, historical_block.hash);
+        let node = InMemoryNode::test(None);
+        {
+            let mut writer = node.inner.write().await;
+            let historical_block = Block::<TransactionVariant> {
+                hash: H256::repeat_byte(0x2),
+                number: U64::from(2),
+                ..Default::default()
+            };
+            writer
+                .insert_block_hash(L2BlockNumber(2), historical_block.hash)
+                .await;
 
-                writer.previous_states.insert(
-                    historical_block.hash,
-                    hashmap! {
-                        input_storage_key => input_storage_value,
-                    },
-                );
-                writer
-                    .blocks
-                    .insert(historical_block.hash, historical_block);
-            })
-            .expect("failed setting storage for historical block");
+            writer.insert_previous_state(
+                historical_block.hash,
+                hashmap! {
+                    input_storage_key => input_storage_value,
+                },
+            );
+            writer
+                .insert_block(historical_block.hash, historical_block)
+                .await;
+        }
 
         let actual_value = node
             .get_storage_impl(
@@ -1936,23 +1658,21 @@ mod tests {
         );
 
         let node = test_node(&mock_server.url()).await;
-        node.get_inner()
-            .write()
-            .map(|mut writer| {
-                let historical_block = Block::<TransactionVariant> {
-                    hash: H256::repeat_byte(0x2),
-                    number: U64::from(2),
-                    ..Default::default()
-                };
-                writer.block_hashes.insert(2, historical_block.hash);
-                writer
-                    .previous_states
-                    .insert(historical_block.hash, Default::default());
-                writer
-                    .blocks
-                    .insert(historical_block.hash, historical_block);
-            })
-            .expect("failed setting storage for historical block");
+        {
+            let mut writer = node.inner.write().await;
+            let historical_block = Block::<TransactionVariant> {
+                hash: H256::repeat_byte(0x2),
+                number: U64::from(2),
+                ..Default::default()
+            };
+            writer
+                .insert_block_hash(L2BlockNumber(2), historical_block.hash)
+                .await;
+            writer.insert_previous_state(historical_block.hash, Default::default());
+            writer
+                .insert_block(historical_block.hash, historical_block)
+                .await;
+        };
 
         let actual_value = node
             .get_storage_impl(
@@ -1971,11 +1691,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_storage_fetches_state_for_deployed_smart_contract_in_current_block() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(0xef)).unwrap();
         let from_account = private_key.address();
-        node.set_rich_account(from_account, U256::from(DEFAULT_ACCOUNT_BALANCE));
+        node.set_rich_account(from_account, U256::from(DEFAULT_ACCOUNT_BALANCE))
+            .await;
 
         let deployed_address = deployed_address_create(from_account, U256::zero());
 
@@ -1986,7 +1707,8 @@ mod tests {
             hex::decode(testing::STORAGE_CONTRACT_BYTECODE).unwrap(),
             None,
             Nonce(0),
-        );
+        )
+        .await;
 
         let number1 = node
             .get_storage_impl(deployed_address, U256::from(0), None)
@@ -2003,11 +1725,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_storage_fetches_state_for_deployed_smart_contract_in_old_block() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(0xef)).unwrap();
         let from_account = private_key.address();
-        node.set_rich_account(from_account, U256::from(DEFAULT_ACCOUNT_BALANCE));
+        node.set_rich_account(from_account, U256::from(DEFAULT_ACCOUNT_BALANCE))
+            .await;
 
         let deployed_address = deployed_address_create(from_account, U256::zero());
 
@@ -2018,17 +1741,18 @@ mod tests {
             hex::decode(testing::STORAGE_CONTRACT_BYTECODE).unwrap(),
             None,
             Nonce(0),
-        );
+        )
+        .await;
 
         // simulate a tx modifying the storage
-        testing::apply_tx(&node, H256::repeat_byte(0x2));
+        testing::apply_tx(&node, H256::repeat_byte(0x2)).await;
         let key = StorageKey::new(
             AccountTreeId::new(deployed_address),
             u256_to_h256(U256::from(0)),
         );
-        node.get_inner()
+        node.inner
             .write()
-            .unwrap()
+            .await
             .fork_storage
             .inner
             .write()
@@ -2047,11 +1771,9 @@ mod tests {
             .get_storage_impl(
                 deployed_address,
                 U256::from(0),
-                Some(zksync_types::api::BlockIdVariant::BlockHashObject(
-                    BlockHashObject {
-                        block_hash: initial_block_hash,
-                    },
-                )),
+                Some(api::BlockIdVariant::BlockHashObject(BlockHashObject {
+                    block_hash: initial_block_hash,
+                })),
             )
             .await
             .expect("failed retrieving storage at slot 0");
@@ -2060,43 +1782,46 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_filter_logs_returns_matching_logs_for_valid_id() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         // populate tx receipts with 2 tx each having logs
         {
-            let inner = node.get_inner();
-            let mut writer = inner.write().unwrap();
-            writer.tx_results.insert(
-                H256::repeat_byte(0x1),
-                TransactionResult {
-                    info: testing::default_tx_execution_info(),
-                    receipt: TransactionReceipt {
-                        logs: vec![LogBuilder::new()
-                            .set_address(H160::repeat_byte(0xa1))
-                            .build()],
-                        ..Default::default()
-                    },
-                    debug: default_tx_debug_info(),
-                },
-            );
-            writer.tx_results.insert(
-                H256::repeat_byte(0x2),
-                TransactionResult {
-                    info: testing::default_tx_execution_info(),
-                    receipt: TransactionReceipt {
-                        logs: vec![
-                            LogBuilder::new()
+            let mut writer = node.inner.write().await;
+            writer
+                .insert_tx_result(
+                    H256::repeat_byte(0x1),
+                    TransactionResult {
+                        info: testing::default_tx_execution_info(),
+                        receipt: TransactionReceipt {
+                            logs: vec![LogBuilder::new()
                                 .set_address(H160::repeat_byte(0xa1))
-                                .build(),
-                            LogBuilder::new()
-                                .set_address(H160::repeat_byte(0xa2))
-                                .build(),
-                        ],
-                        ..Default::default()
+                                .build()],
+                            ..Default::default()
+                        },
+                        debug: default_tx_debug_info(),
                     },
-                    debug: default_tx_debug_info(),
-                },
-            );
+                )
+                .await;
+            writer
+                .insert_tx_result(
+                    H256::repeat_byte(0x2),
+                    TransactionResult {
+                        info: testing::default_tx_execution_info(),
+                        receipt: TransactionReceipt {
+                            logs: vec![
+                                LogBuilder::new()
+                                    .set_address(H160::repeat_byte(0xa1))
+                                    .build(),
+                                LogBuilder::new()
+                                    .set_address(H160::repeat_byte(0xa2))
+                                    .build(),
+                            ],
+                            ..Default::default()
+                        },
+                        debug: default_tx_debug_info(),
+                    },
+                )
+                .await;
         }
 
         let filter_id = node
@@ -2119,25 +1844,26 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_filter_logs_returns_error_for_invalid_id() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         // populate tx receipts with 2 tx each having logs
         {
-            let inner = node.get_inner();
-            let mut writer = inner.write().unwrap();
-            writer.tx_results.insert(
-                H256::repeat_byte(0x1),
-                TransactionResult {
-                    info: testing::default_tx_execution_info(),
-                    receipt: TransactionReceipt {
-                        logs: vec![LogBuilder::new()
-                            .set_address(H160::repeat_byte(0xa1))
-                            .build()],
-                        ..Default::default()
+            let mut writer = node.inner.write().await;
+            writer
+                .insert_tx_result(
+                    H256::repeat_byte(0x1),
+                    TransactionResult {
+                        info: testing::default_tx_execution_info(),
+                        receipt: TransactionReceipt {
+                            logs: vec![LogBuilder::new()
+                                .set_address(H160::repeat_byte(0xa1))
+                                .build()],
+                            ..Default::default()
+                        },
+                        debug: default_tx_debug_info(),
                     },
-                    debug: default_tx_debug_info(),
-                },
-            );
+                )
+                .await;
         }
 
         let invalid_filter_id = U256::from(100);
@@ -2148,43 +1874,46 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_logs_returns_matching_logs() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         // populate tx receipts with 2 tx each having logs
         {
-            let inner = node.get_inner();
-            let mut writer = inner.write().unwrap();
-            writer.tx_results.insert(
-                H256::repeat_byte(0x1),
-                TransactionResult {
-                    info: testing::default_tx_execution_info(),
-                    receipt: TransactionReceipt {
-                        logs: vec![LogBuilder::new()
-                            .set_address(H160::repeat_byte(0xa1))
-                            .build()],
-                        ..Default::default()
-                    },
-                    debug: testing::default_tx_debug_info(),
-                },
-            );
-            writer.tx_results.insert(
-                H256::repeat_byte(0x2),
-                TransactionResult {
-                    info: testing::default_tx_execution_info(),
-                    receipt: TransactionReceipt {
-                        logs: vec![
-                            LogBuilder::new()
+            let mut writer = node.inner.write().await;
+            writer
+                .insert_tx_result(
+                    H256::repeat_byte(0x1),
+                    TransactionResult {
+                        info: testing::default_tx_execution_info(),
+                        receipt: TransactionReceipt {
+                            logs: vec![LogBuilder::new()
                                 .set_address(H160::repeat_byte(0xa1))
-                                .build(),
-                            LogBuilder::new()
-                                .set_address(H160::repeat_byte(0xa2))
-                                .build(),
-                        ],
-                        ..Default::default()
+                                .build()],
+                            ..Default::default()
+                        },
+                        debug: testing::default_tx_debug_info(),
                     },
-                    debug: testing::default_tx_debug_info(),
-                },
-            );
+                )
+                .await;
+            writer
+                .insert_tx_result(
+                    H256::repeat_byte(0x2),
+                    TransactionResult {
+                        info: testing::default_tx_execution_info(),
+                        receipt: TransactionReceipt {
+                            logs: vec![
+                                LogBuilder::new()
+                                    .set_address(H160::repeat_byte(0xa1))
+                                    .build(),
+                                LogBuilder::new()
+                                    .set_address(H160::repeat_byte(0xa2))
+                                    .build(),
+                            ],
+                            ..Default::default()
+                        },
+                        debug: testing::default_tx_debug_info(),
+                    },
+                )
+                .await;
         }
 
         let result = node
@@ -2217,11 +1946,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_accounts_impl() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let private_key = H256::repeat_byte(0x01);
         let from_account = K256PrivateKey::from_bytes(private_key).unwrap().address();
-        node.set_rich_account(from_account, U256::from(DEFAULT_ACCOUNT_BALANCE));
+        node.set_rich_account(from_account, U256::from(DEFAULT_ACCOUNT_BALANCE))
+            .await;
 
         let account_result = node.accounts_impl().await;
         let expected_accounts: Vec<H160> = vec![from_account];
@@ -2237,242 +1967,18 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_snapshot() {
-        let node = InMemoryNode::default();
-        let inner = node.get_inner();
-        let mut inner = inner.write().unwrap();
-
-        inner
-            .blocks
-            .insert(H256::repeat_byte(0x1), Default::default());
-        inner.block_hashes.insert(1, H256::repeat_byte(0x1));
-        inner.tx_results.insert(
-            H256::repeat_byte(0x1),
-            TransactionResult {
-                info: testing::default_tx_execution_info(),
-                receipt: Default::default(),
-                debug: testing::default_tx_debug_info(),
-            },
-        );
-        inner.current_batch = 1;
-        inner.current_miniblock = 1;
-        inner.current_miniblock_hash = H256::repeat_byte(0x1);
-        node.time.set_current_timestamp_unchecked(1);
-        inner
-            .filters
-            .add_block_filter()
-            .expect("failed adding block filter");
-        inner.impersonation.impersonate(H160::repeat_byte(0x1));
-        inner.rich_accounts.insert(H160::repeat_byte(0x1));
-        inner
-            .previous_states
-            .insert(H256::repeat_byte(0x1), Default::default());
-        inner.fork_storage.set_value(
-            StorageKey::new(AccountTreeId::new(H160::repeat_byte(0x1)), H256::zero()),
-            H256::repeat_byte(0x1),
-        );
-
-        let storage = inner.fork_storage.inner.read().unwrap();
-        let expected_snapshot = Snapshot {
-            current_batch: inner.current_batch,
-            current_miniblock: inner.current_miniblock,
-            current_miniblock_hash: inner.current_miniblock_hash,
-            fee_input_provider: inner.fee_input_provider.clone(),
-            tx_results: inner.tx_results.clone(),
-            blocks: inner.blocks.clone(),
-            block_hashes: inner.block_hashes.clone(),
-            filters: inner.filters.clone(),
-            impersonation_state: inner.impersonation.state(),
-            rich_accounts: inner.rich_accounts.clone(),
-            previous_states: inner.previous_states.clone(),
-            raw_storage: storage.raw_storage.clone(),
-            value_read_cache: storage.value_read_cache.clone(),
-            factory_dep_cache: storage.factory_dep_cache.clone(),
-        };
-        let actual_snapshot = inner.snapshot().expect("failed taking snapshot");
-
-        assert_eq!(
-            expected_snapshot.current_batch,
-            actual_snapshot.current_batch
-        );
-        assert_eq!(
-            expected_snapshot.current_miniblock,
-            actual_snapshot.current_miniblock
-        );
-        assert_eq!(
-            expected_snapshot.current_miniblock_hash,
-            actual_snapshot.current_miniblock_hash
-        );
-        assert_eq!(
-            expected_snapshot.fee_input_provider,
-            actual_snapshot.fee_input_provider
-        );
-        assert_eq!(
-            expected_snapshot.tx_results.keys().collect_vec(),
-            actual_snapshot.tx_results.keys().collect_vec()
-        );
-        assert_eq!(expected_snapshot.blocks, actual_snapshot.blocks);
-        assert_eq!(expected_snapshot.block_hashes, actual_snapshot.block_hashes);
-        assert_eq!(expected_snapshot.filters, actual_snapshot.filters);
-        assert_eq!(
-            expected_snapshot.impersonation_state,
-            actual_snapshot.impersonation_state
-        );
-        assert_eq!(
-            expected_snapshot.rich_accounts,
-            actual_snapshot.rich_accounts
-        );
-        assert_eq!(
-            expected_snapshot.previous_states,
-            actual_snapshot.previous_states
-        );
-        assert_eq!(expected_snapshot.raw_storage, actual_snapshot.raw_storage);
-        assert_eq!(
-            expected_snapshot.value_read_cache,
-            actual_snapshot.value_read_cache
-        );
-        assert_eq!(
-            expected_snapshot.factory_dep_cache,
-            actual_snapshot.factory_dep_cache
-        );
-    }
-
-    #[tokio::test]
-    async fn test_snapshot_restore() {
-        let node = InMemoryNode::default();
-        let inner = node.get_inner();
-        let mut inner = inner.write().unwrap();
-
-        inner
-            .blocks
-            .insert(H256::repeat_byte(0x1), Default::default());
-        inner.block_hashes.insert(1, H256::repeat_byte(0x1));
-        inner.tx_results.insert(
-            H256::repeat_byte(0x1),
-            TransactionResult {
-                info: testing::default_tx_execution_info(),
-                receipt: Default::default(),
-                debug: testing::default_tx_debug_info(),
-            },
-        );
-        inner.current_batch = 1;
-        inner.current_miniblock = 1;
-        inner.current_miniblock_hash = H256::repeat_byte(0x1);
-        node.time.set_current_timestamp_unchecked(1);
-        inner
-            .filters
-            .add_block_filter()
-            .expect("failed adding block filter");
-        inner.impersonation.impersonate(H160::repeat_byte(0x1));
-        inner.rich_accounts.insert(H160::repeat_byte(0x1));
-        inner
-            .previous_states
-            .insert(H256::repeat_byte(0x1), Default::default());
-        inner.fork_storage.set_value(
-            StorageKey::new(AccountTreeId::new(H160::repeat_byte(0x1)), H256::zero()),
-            H256::repeat_byte(0x1),
-        );
-
-        let expected_snapshot = {
-            let storage = inner.fork_storage.inner.read().unwrap();
-            Snapshot {
-                current_batch: inner.current_batch,
-                current_miniblock: inner.current_miniblock,
-                current_miniblock_hash: inner.current_miniblock_hash,
-                fee_input_provider: inner.fee_input_provider.clone(),
-                tx_results: inner.tx_results.clone(),
-                blocks: inner.blocks.clone(),
-                block_hashes: inner.block_hashes.clone(),
-                filters: inner.filters.clone(),
-                impersonation_state: inner.impersonation.state(),
-                rich_accounts: inner.rich_accounts.clone(),
-                previous_states: inner.previous_states.clone(),
-                raw_storage: storage.raw_storage.clone(),
-                value_read_cache: storage.value_read_cache.clone(),
-                factory_dep_cache: storage.factory_dep_cache.clone(),
-            }
-        };
-
-        // snapshot and modify node state
-        let snapshot = inner.snapshot().expect("failed taking snapshot");
-        inner
-            .blocks
-            .insert(H256::repeat_byte(0x2), Default::default());
-        inner.block_hashes.insert(2, H256::repeat_byte(0x2));
-        inner.tx_results.insert(
-            H256::repeat_byte(0x2),
-            TransactionResult {
-                info: testing::default_tx_execution_info(),
-                receipt: Default::default(),
-                debug: default_tx_debug_info(),
-            },
-        );
-        inner.current_batch = 2;
-        inner.current_miniblock = 2;
-        inner.current_miniblock_hash = H256::repeat_byte(0x2);
-        node.time.set_current_timestamp_unchecked(2);
-        inner
-            .filters
-            .add_pending_transaction_filter()
-            .expect("failed adding pending transaction filter");
-        inner.impersonation.impersonate(H160::repeat_byte(0x2));
-        inner.rich_accounts.insert(H160::repeat_byte(0x2));
-        inner
-            .previous_states
-            .insert(H256::repeat_byte(0x2), Default::default());
-        inner.fork_storage.set_value(
-            StorageKey::new(AccountTreeId::new(H160::repeat_byte(0x2)), H256::zero()),
-            H256::repeat_byte(0x2),
-        );
-
-        // restore
-        inner
-            .restore_snapshot(snapshot)
-            .expect("failed restoring snapshot");
-
-        let storage = inner.fork_storage.inner.read().unwrap();
-        assert_eq!(expected_snapshot.current_batch, inner.current_batch);
-        assert_eq!(expected_snapshot.current_miniblock, inner.current_miniblock);
-        assert_eq!(
-            expected_snapshot.current_miniblock_hash,
-            inner.current_miniblock_hash
-        );
-
-        assert_eq!(
-            expected_snapshot.fee_input_provider,
-            inner.fee_input_provider
-        );
-        assert_eq!(
-            expected_snapshot.tx_results.keys().collect_vec(),
-            inner.tx_results.keys().collect_vec()
-        );
-        assert_eq!(expected_snapshot.blocks, inner.blocks);
-        assert_eq!(expected_snapshot.block_hashes, inner.block_hashes);
-        assert_eq!(expected_snapshot.filters, inner.filters);
-        assert_eq!(
-            expected_snapshot.impersonation_state,
-            inner.impersonation.state()
-        );
-        assert_eq!(expected_snapshot.rich_accounts, inner.rich_accounts);
-        assert_eq!(expected_snapshot.previous_states, inner.previous_states);
-        assert_eq!(expected_snapshot.raw_storage, storage.raw_storage);
-        assert_eq!(expected_snapshot.value_read_cache, storage.value_read_cache);
-        assert_eq!(
-            expected_snapshot.factory_dep_cache,
-            storage.factory_dep_cache
-        );
-    }
-
-    #[tokio::test]
     async fn test_get_transaction_by_block_hash_and_index_returns_none_for_invalid_block_hash() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
         let input_tx_hash = H256::repeat_byte(0x01);
-        let (input_block_hash, _, _) = testing::apply_tx(&node, input_tx_hash);
+        let (input_block_hash, _, _) = testing::apply_tx(&node, input_tx_hash).await;
         let invalid_block_hash = H256::repeat_byte(0xab);
         assert_ne!(input_block_hash, invalid_block_hash);
 
         let result = node
-            .get_transaction_by_block_hash_and_index_impl(invalid_block_hash, U64::from(0))
+            .get_transaction_by_block_and_index_impl(
+                api::BlockId::Hash(invalid_block_hash),
+                U64::from(0),
+            )
             .await
             .expect("failed fetching transaction");
 
@@ -2481,12 +1987,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_transaction_by_block_hash_and_index_returns_none_for_invalid_index() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
         let input_tx_hash = H256::repeat_byte(0x01);
-        let (input_block_hash, _, _) = testing::apply_tx(&node, input_tx_hash);
+        let (input_block_hash, _, _) = testing::apply_tx(&node, input_tx_hash).await;
 
         let result = node
-            .get_transaction_by_block_hash_and_index_impl(input_block_hash, U64::from(10))
+            .get_transaction_by_block_and_index_impl(
+                api::BlockId::Hash(input_block_hash),
+                U64::from(10),
+            )
             .await
             .expect("failed fetching transaction");
 
@@ -2495,68 +2004,20 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_transaction_by_block_hash_and_index_returns_transaction_for_valid_input() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
         let input_tx_hash = H256::repeat_byte(0x01);
-        let (input_block_hash, _, _) = testing::apply_tx(&node, input_tx_hash);
+        let (input_block_hash, _, _) = testing::apply_tx(&node, input_tx_hash).await;
 
         let actual_tx = node
-            .get_transaction_by_block_hash_and_index_impl(input_block_hash, U64::from(0))
+            .get_transaction_by_block_and_index_impl(
+                api::BlockId::Hash(input_block_hash),
+                U64::from(0),
+            )
             .await
             .expect("failed fetching transaction")
             .expect("no transaction");
 
         assert_eq!(input_tx_hash, actual_tx.hash);
-    }
-
-    #[tokio::test]
-    async fn test_get_transaction_by_block_hash_and_index_fetches_full_transaction_for_hash_from_fork(
-    ) {
-        let mock_server = MockServer::run_with_config(ForkBlockConfig {
-            number: 10,
-            transaction_count: 0,
-            hash: H256::repeat_byte(0xab),
-        });
-        let input_block_hash = H256::repeat_byte(0x01);
-        let input_tx_hash = H256::repeat_byte(0x02);
-        mock_server.expect(
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 0,
-                "method": "eth_getTransactionByHash",
-                "params": [
-                    format!("{:#x}", input_tx_hash),
-                ],
-            }),
-            TransactionResponseBuilder::new()
-                .set_hash(input_tx_hash)
-                .set_block_hash(input_block_hash)
-                .set_block_number(U64::from(1))
-                .build(),
-        );
-
-        let node = test_node(&mock_server.url()).await;
-
-        // store the block info with just the tx hash invariant
-        {
-            let inner = node.get_inner();
-            let mut writer = inner.write().unwrap();
-            writer.blocks.insert(
-                input_block_hash,
-                Block {
-                    transactions: vec![TransactionVariant::Hash(input_tx_hash)],
-                    ..Default::default()
-                },
-            );
-        }
-
-        let actual_tx = node
-            .get_transaction_by_block_hash_and_index_impl(input_block_hash, U64::from(0))
-            .await
-            .expect("failed fetching transaction")
-            .expect("no transaction");
-
-        assert_eq!(input_tx_hash, actual_tx.hash);
-        assert_eq!(Some(U64::from(1)), actual_tx.block_number);
     }
 
     #[tokio::test]
@@ -2588,7 +2049,10 @@ mod tests {
         let node = test_node(&mock_server.url()).await;
 
         let actual_tx = node
-            .get_transaction_by_block_hash_and_index_impl(input_block_hash, U64::from(1))
+            .get_transaction_by_block_and_index_impl(
+                api::BlockId::Hash(input_block_hash),
+                U64::from(1),
+            )
             .await
             .expect("failed fetching transaction")
             .expect("no transaction");
@@ -2600,15 +2064,15 @@ mod tests {
     #[tokio::test]
     async fn test_get_transaction_by_block_number_and_index_returns_none_for_invalid_block_number()
     {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
         let input_tx_hash = H256::repeat_byte(0x01);
-        let (input_block_hash, _, _) = testing::apply_tx(&node, input_tx_hash);
+        let (input_block_hash, _, _) = testing::apply_tx(&node, input_tx_hash).await;
         let invalid_block_hash = H256::repeat_byte(0xab);
         assert_ne!(input_block_hash, invalid_block_hash);
 
         let result = node
-            .get_transaction_by_block_number_and_index_impl(
-                BlockNumber::Number(U64::from(100)),
+            .get_transaction_by_block_and_index_impl(
+                api::BlockId::Number(BlockNumber::Number(U64::from(100))),
                 U64::from(0),
             )
             .await
@@ -2619,12 +2083,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_transaction_by_block_number_and_index_returns_none_for_invalid_index() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
         let input_tx_hash = H256::repeat_byte(0x01);
-        testing::apply_tx(&node, input_tx_hash);
+        testing::apply_tx(&node, input_tx_hash).await;
 
         let result = node
-            .get_transaction_by_block_number_and_index_impl(BlockNumber::Latest, U64::from(10))
+            .get_transaction_by_block_and_index_impl(
+                api::BlockId::Number(BlockNumber::Latest),
+                U64::from(10),
+            )
             .await
             .expect("failed fetching transaction");
 
@@ -2633,13 +2100,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_transaction_by_block_number_and_index_returns_transaction_for_valid_input() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
         let input_tx_hash = H256::repeat_byte(0x01);
-        let (_, input_block_number, _) = testing::apply_tx(&node, input_tx_hash);
+        let (_, input_block_number, _) = testing::apply_tx(&node, input_tx_hash).await;
 
         let actual_tx = node
-            .get_transaction_by_block_number_and_index_impl(
-                BlockNumber::Number(input_block_number),
+            .get_transaction_by_block_and_index_impl(
+                api::BlockId::Number(BlockNumber::Number(input_block_number)),
                 U64::from(0),
             )
             .await
@@ -2647,64 +2114,6 @@ mod tests {
             .expect("no transaction");
 
         assert_eq!(input_tx_hash, actual_tx.hash);
-    }
-
-    #[tokio::test]
-    async fn test_get_transaction_by_block_number_and_index_fetches_full_transaction_for_hash_from_fork(
-    ) {
-        let mock_server = MockServer::run_with_config(ForkBlockConfig {
-            number: 10,
-            transaction_count: 0,
-            hash: H256::repeat_byte(0xab),
-        });
-        let input_block_hash = H256::repeat_byte(0x01);
-        let input_block_number = U64::from(100);
-        let input_tx_hash = H256::repeat_byte(0x02);
-        mock_server.expect(
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 0,
-                "method": "eth_getTransactionByHash",
-                "params": [
-                    format!("{:#x}", input_tx_hash),
-                ],
-            }),
-            TransactionResponseBuilder::new()
-                .set_hash(input_tx_hash)
-                .set_block_hash(input_block_hash)
-                .set_block_number(input_block_number)
-                .build(),
-        );
-
-        let node = test_node(&mock_server.url()).await;
-
-        // store the block info with just the tx hash invariant
-        {
-            let inner = node.get_inner();
-            let mut writer = inner.write().unwrap();
-            writer
-                .block_hashes
-                .insert(input_block_number.as_u64(), input_block_hash);
-            writer.blocks.insert(
-                input_block_hash,
-                Block {
-                    transactions: vec![TransactionVariant::Hash(input_tx_hash)],
-                    ..Default::default()
-                },
-            );
-        }
-
-        let actual_tx = node
-            .get_transaction_by_block_number_and_index_impl(
-                BlockNumber::Number(input_block_number),
-                U64::from(0),
-            )
-            .await
-            .expect("failed fetching transaction")
-            .expect("no transaction");
-
-        assert_eq!(input_tx_hash, actual_tx.hash);
-        assert_eq!(Some(input_block_number), actual_tx.block_number);
     }
 
     #[tokio::test]
@@ -2737,8 +2146,8 @@ mod tests {
         let node = test_node(&mock_server.url()).await;
 
         let actual_tx = node
-            .get_transaction_by_block_number_and_index_impl(
-                BlockNumber::Number(input_block_number),
+            .get_transaction_by_block_and_index_impl(
+                api::BlockId::Number(BlockNumber::Number(input_block_number)),
                 U64::from(1),
             )
             .await
@@ -2751,7 +2160,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_protocol_version_returns_currently_supported_version() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let expected_version = String::from(PROTOCOL_VERSION);
         let actual_version = node.protocol_version_impl();

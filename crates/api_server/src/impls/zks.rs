@@ -80,6 +80,7 @@ impl ZksNamespaceServer for ZksNamespace {
         Ok(self
             .node
             .get_chain_id()
+            .await
             .map(U64::from)
             .map_err(RpcError::from)?)
     }

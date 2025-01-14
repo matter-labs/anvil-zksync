@@ -1,11 +1,11 @@
-use crate::node::keys::StorageKeyLayout;
-use crate::node::pool::TxBatch;
-use crate::node::sealer::BlockSealerMode;
-use crate::{fork::ForkDetails, node::InMemoryNode, utils::bytecode_to_factory_dep};
+use super::inner::fork::ForkDetails;
+use super::pool::TxBatch;
+use super::sealer::BlockSealerMode;
+use super::InMemoryNode;
+use crate::utils::bytecode_to_factory_dep;
 use anvil_zksync_types::api::{DetailedTransaction, ResetRequest};
 use anyhow::anyhow;
 use std::time::Duration;
-use zksync_multivm::interface::TxExecutionMode;
 use zksync_types::api::{Block, TransactionVariant};
 use zksync_types::u256_to_h256;
 use zksync_types::{get_code_key, utils::nonces_to_full_nonce, L2BlockNumber, StorageKey};
@@ -25,20 +25,25 @@ impl InMemoryNode {
     ///
     /// # Returns
     /// The applied time delta to `current_timestamp` value for the InMemoryNodeInner.
-    pub fn increase_time(&self, time_delta_seconds: u64) -> Result<u64> {
-        self.time.increase_time(time_delta_seconds);
+    pub async fn increase_time(&self, time_delta_seconds: u64) -> Result<u64> {
+        self.node_handle
+            .increase_time_sync(time_delta_seconds)
+            .await?;
         Ok(time_delta_seconds)
     }
 
-    /// Set the current timestamp for the node. The timestamp must be in future.
+    /// Set the current timestamp for the node. The timestamp must be in the future.
     ///
     /// # Parameters
     /// - `timestamp`: The timestamp to set the time to
     ///
     /// # Returns
     /// The new timestamp value for the InMemoryNodeInner.
-    pub fn set_next_block_timestamp(&self, timestamp: u64) -> Result<()> {
-        self.time.enforce_next_timestamp(timestamp)
+    pub async fn set_next_block_timestamp(&self, timestamp: u64) -> Result<()> {
+        self.node_handle
+            .enforce_next_timestamp_sync(timestamp)
+            .await?;
+        Ok(())
     }
 
     /// Set the current timestamp for the node.
@@ -50,8 +55,8 @@ impl InMemoryNode {
     ///
     /// # Returns
     /// The difference between the `current_timestamp` and the new timestamp for the InMemoryNodeInner.
-    pub fn set_time(&self, timestamp: u64) -> Result<i128> {
-        Ok(self.time.set_current_timestamp_unchecked(timestamp))
+    pub async fn set_time(&self, timestamp: u64) -> Result<i128> {
+        self.node_handle.set_current_timestamp_sync(timestamp).await
     }
 
     /// Force a single block to be mined.
@@ -60,54 +65,40 @@ impl InMemoryNode {
     ///
     /// # Returns
     /// The string "0x0".
-    pub fn mine_block(&self) -> Result<L2BlockNumber> {
+    pub async fn mine_block(&self) -> Result<L2BlockNumber> {
         // TODO: Remove locking once `TestNodeConfig` is refactored into mutable/immutable components
-        let max_transactions = self.read_inner()?.config.max_transactions;
-        let TxBatch { impersonating, txs } =
-            self.pool.take_uniform(max_transactions).unwrap_or(TxBatch {
-                impersonating: false,
-                txs: Vec::new(),
-            });
-        let base_system_contracts = self
-            .system_contracts
-            .contracts(TxExecutionMode::VerifyExecute, impersonating)
-            .clone();
+        let max_transactions = self.inner.read().await.config.max_transactions;
+        let tx_batch = self.pool.take_uniform(max_transactions).unwrap_or(TxBatch {
+            impersonating: false,
+            txs: Vec::new(),
+        });
 
-        let block_number = self.seal_block(&mut self.time.lock(), txs, base_system_contracts)?;
+        let block_number = self.node_handle.seal_block_sync(tx_batch).await?;
         tracing::info!("👷 Mined block #{}", block_number);
         Ok(block_number)
     }
 
-    pub fn mine_detailed(&self) -> Result<Block<DetailedTransaction>> {
-        let block_number = self.mine_block()?;
-        let inner = self.read_inner()?;
-        let mut block = inner
-            .block_hashes
-            .get(&(block_number.0 as u64))
-            .and_then(|hash| inner.blocks.get(hash))
-            .expect("freshly mined block is missing from storage")
-            .clone();
-        let detailed_txs = std::mem::take(&mut block.transactions)
-            .into_iter()
-            .map(|tx| match tx {
-                TransactionVariant::Full(tx) => {
-                    let tx_result = inner
-                        .tx_results
-                        .get(&tx.hash)
-                        .expect("freshly executed tx is missing from storage");
-                    let output = Some(tx_result.debug.output.clone());
-                    let revert_reason = tx_result.debug.revert_reason.clone();
-                    DetailedTransaction {
-                        inner: tx,
-                        output,
-                        revert_reason,
-                    }
-                }
+    pub async fn mine_detailed(&self) -> Result<Block<DetailedTransaction>> {
+        let block_number = self.mine_block().await?;
+        let mut block = self
+            .blockchain
+            .get_block_by_number(block_number)
+            .await
+            .expect("freshly mined block is missing from storage");
+        let mut detailed_txs = Vec::with_capacity(block.transactions.len());
+        for tx in std::mem::take(&mut block.transactions) {
+            let detailed_tx = match tx {
+                TransactionVariant::Full(tx) => self
+                    .blockchain
+                    .get_detailed_tx(tx)
+                    .await
+                    .expect("freshly executed tx is missing from storage"),
                 TransactionVariant::Hash(_) => {
-                    unreachable!()
+                    unreachable!("we only store full txs in blocks")
                 }
-            })
-            .collect();
+            };
+            detailed_txs.push(detailed_tx);
+        }
         Ok(block.with_transactions(detailed_txs))
     }
 
@@ -118,36 +109,24 @@ impl InMemoryNode {
     ///
     /// # Returns
     /// The `U64` identifier for this snapshot.
-    pub fn snapshot(&self) -> Result<U64> {
+    pub async fn snapshot(&self) -> Result<U64> {
         let snapshots = self.snapshots.clone();
-        self.read_inner().and_then(|writer| {
-            // validate max snapshots
-            snapshots
-                .read()
-                .map_err(|err| anyhow!("failed acquiring read lock for snapshot: {:?}", err))
-                .and_then(|snapshots| {
-                    if snapshots.len() >= MAX_SNAPSHOTS as usize {
-                        return Err(anyhow!(
-                            "maximum number of '{}' snapshots exceeded",
-                            MAX_SNAPSHOTS
-                        ));
-                    }
+        let reader = self.inner.read().await;
+        // FIXME: TOCTOU with below
+        // validate max snapshots
+        if snapshots.read().await.len() >= MAX_SNAPSHOTS as usize {
+            return Err(anyhow!(
+                "maximum number of '{}' snapshots exceeded",
+                MAX_SNAPSHOTS
+            ));
+        };
 
-                    Ok(())
-                })?;
-
-            // snapshot the node
-            let snapshot = writer.snapshot().map_err(|err| anyhow!("{}", err))?;
-            snapshots
-                .write()
-                .map(|mut snapshots| {
-                    snapshots.push(snapshot);
-                    tracing::info!("Created snapshot '{}'", snapshots.len());
-                    snapshots.len()
-                })
-                .map_err(|err| anyhow!("failed storing snapshot: {:?}", err))
-                .map(U64::from)
-        })
+        // snapshot the node
+        let snapshot = reader.snapshot().await.map_err(|err| anyhow!("{}", err))?;
+        let mut snapshots = snapshots.write().await;
+        snapshots.push(snapshot);
+        tracing::info!("Created snapshot '{}'", snapshots.len());
+        Ok(U64::from(snapshots.len()))
     }
 
     /// Revert the state of the blockchain to a previous snapshot. Takes a single parameter,
@@ -159,66 +138,62 @@ impl InMemoryNode {
     ///
     /// # Returns
     /// `true` if a snapshot was reverted, otherwise `false`.
-    pub fn revert_snapshot(&self, snapshot_id: U64) -> Result<bool> {
+    pub async fn revert_snapshot(&self, snapshot_id: U64) -> Result<bool> {
         let snapshots = self.snapshots.clone();
-        self.write_inner().and_then(|mut writer| {
-            let mut snapshots = snapshots
-                .write()
-                .map_err(|err| anyhow!("failed acquiring read lock for snapshots: {:?}", err))?;
-            let snapshot_id_index = snapshot_id.as_usize().saturating_sub(1);
-            if snapshot_id_index >= snapshots.len() {
-                return Err(anyhow!("no snapshot exists for the id '{}'", snapshot_id));
-            }
+        let mut writer = self.inner.write().await;
+        let mut snapshots = snapshots.write().await;
+        let snapshot_id_index = snapshot_id.as_usize().saturating_sub(1);
+        if snapshot_id_index >= snapshots.len() {
+            return Err(anyhow!("no snapshot exists for the id '{}'", snapshot_id));
+        }
 
-            // remove all snapshots following the index and use the first snapshot for restore
-            let selected_snapshot = snapshots
-                .drain(snapshot_id_index..)
-                .next()
-                .expect("unexpected failure, value must exist");
+        // remove all snapshots following the index and use the first snapshot for restore
+        let selected_snapshot = snapshots
+            .drain(snapshot_id_index..)
+            .next()
+            .expect("unexpected failure, value must exist");
 
-            tracing::info!("Reverting node to snapshot '{snapshot_id:?}'");
-            writer
-                .restore_snapshot(selected_snapshot)
-                .map(|_| {
-                    tracing::info!("Reverting node to snapshot '{snapshot_id:?}'");
-                    true
-                })
-                .map_err(|err| anyhow!("{}", err))
-        })
+        tracing::info!("Reverting node to snapshot '{snapshot_id:?}'");
+        writer
+            .restore_snapshot(selected_snapshot)
+            .await
+            .map(|_| {
+                tracing::info!("Reverting node to snapshot '{snapshot_id:?}'");
+                true
+            })
+            .map_err(|err| anyhow!("{}", err))
     }
 
-    pub fn set_balance(&self, address: Address, balance: U256) -> Result<bool> {
-        self.write_inner().map(|mut writer| {
-            let balance_key = StorageKeyLayout::get_storage_key_for_base_token(&address);
-            writer
-                .fork_storage
-                .set_value(balance_key, u256_to_h256(balance));
-            tracing::info!(
-                "👷 Balance for address {:?} has been manually set to {} Wei",
-                address,
-                balance
-            );
-            true
-        })
+    pub async fn set_balance(&self, address: Address, balance: U256) -> bool {
+        let writer = self.inner.write().await;
+        let balance_key = StorageKeyLayout::get_storage_key_for_base_token(&address);
+        writer
+            .fork_storage
+            .set_value(balance_key, u256_to_h256(balance));
+        tracing::info!(
+            "👷 Balance for address {:?} has been manually set to {} Wei",
+            address,
+            balance
+        );
+        true
     }
 
-    pub fn set_nonce(&self, address: Address, nonce: U256) -> Result<bool> {
-        self.write_inner().map(|mut writer| {
-            let nonce_key = StorageKeyLayout::get_nonce_key(&address);
-            let enforced_full_nonce = nonces_to_full_nonce(nonce, nonce);
-            tracing::info!(
-                "👷 Nonces for address {:?} have been set to {}",
-                address,
-                nonce
-            );
-            writer
-                .fork_storage
-                .set_value(nonce_key, u256_to_h256(enforced_full_nonce));
-            true
-        })
+    pub async fn set_nonce(&self, address: Address, nonce: U256) -> bool {
+        let writer = self.inner.write().await;
+        let nonce_key = StorageKeyLayout::get_nonce_key(&address);
+        let enforced_full_nonce = nonces_to_full_nonce(nonce, nonce);
+        tracing::info!(
+            "👷 Nonces for address {:?} have been set to {}",
+            address,
+            nonce
+        );
+        writer
+            .fork_storage
+            .set_value(nonce_key, u256_to_h256(enforced_full_nonce));
+        true
     }
 
-    pub fn mine_blocks(&self, num_blocks: Option<U64>, interval: Option<U64>) -> Result<()> {
+    pub async fn mine_blocks(&self, num_blocks: Option<U64>, interval: Option<U64>) -> Result<()> {
         let num_blocks = num_blocks.map_or(1, |x| x.as_u64());
         let interval_sec = interval.map_or(1, |x| x.as_u64());
 
@@ -230,22 +205,18 @@ impl InMemoryNode {
         }
 
         // TODO: Remove locking once `TestNodeConfig` is refactored into mutable/immutable components
-        let max_transactions = self.read_inner()?.config.max_transactions;
-        let mut time = self
-            .time
-            .lock_with_offsets((0..num_blocks).map(|i| i * interval_sec));
+        let max_transactions = self.inner.read().await.config.max_transactions;
+        let mut tx_batches = Vec::with_capacity(num_blocks as usize);
         for _ in 0..num_blocks {
-            let TxBatch { impersonating, txs } =
-                self.pool.take_uniform(max_transactions).unwrap_or(TxBatch {
-                    impersonating: false,
-                    txs: Vec::new(),
-                });
-            let base_system_contracts = self
-                .system_contracts
-                .contracts(TxExecutionMode::VerifyExecute, impersonating)
-                .clone();
-            self.seal_block(&mut time, txs, base_system_contracts)?;
+            let tx_batch = self.pool.take_uniform(max_transactions).unwrap_or(TxBatch {
+                impersonating: false,
+                txs: Vec::new(),
+            });
+            tx_batches.push(tx_batch);
         }
+        self.node_handle
+            .seal_blocks_sync(tx_batches, interval_sec)
+            .await?;
         tracing::info!("👷 Mined {} blocks", num_blocks);
 
         Ok(())
@@ -260,7 +231,7 @@ impl InMemoryNode {
         Ok(true)
     }
 
-    pub fn reset_network(&self, reset_spec: Option<ResetRequest>) -> Result<bool> {
+    pub async fn reset_network(&self, reset_spec: Option<ResetRequest>) -> Result<bool> {
         let (opt_url, block_number) = if let Some(spec) = reset_spec {
             if let Some(to) = spec.to {
                 if spec.forking.is_some() {
@@ -268,7 +239,7 @@ impl InMemoryNode {
                         "Only one of 'to' and 'forking' attributes can be specified"
                     ));
                 }
-                let url = match self.get_fork_url() {
+                let url = match self.inner.read().await.fork_storage.get_fork_url() {
                     Ok(url) => url,
                     Err(error) => {
                         tracing::error!("For returning to past local state, mark it with `evm_snapshot`, then revert to it with `evm_revert`.");
@@ -287,7 +258,13 @@ impl InMemoryNode {
         };
 
         let fork_details = if let Some(url) = opt_url {
-            let cache_config = self.get_cache_config().map_err(|err| anyhow!(err))?;
+            let cache_config = self
+                .inner
+                .read()
+                .await
+                .fork_storage
+                .get_cache_config()
+                .map_err(|err| anyhow!(err))?;
             match ForkDetails::from_url(url, block_number, cache_config) {
                 Ok(fd) => Some(fd),
                 Err(error) => {
@@ -298,7 +275,7 @@ impl InMemoryNode {
             None
         };
 
-        match self.reset(fork_details) {
+        match self.reset(fork_details).await {
             Ok(()) => {
                 tracing::info!("👷 Network reset");
                 Ok(true)
@@ -334,27 +311,25 @@ impl InMemoryNode {
         }
     }
 
-    pub fn set_code(&self, address: Address, code: String) -> Result<()> {
-        self.write_inner().and_then(|mut writer| {
-            let code_key = get_code_key(&address);
-            tracing::info!("set code for address {address:#x}");
-            let code_slice = code
-                .strip_prefix("0x")
-                .ok_or_else(|| anyhow!("code must be 0x-prefixed"))?;
-            let code_bytes = hex::decode(code_slice)?;
-            let (hash, code) = bytecode_to_factory_dep(code_bytes)?;
-            writer.fork_storage.store_factory_dep(hash, code);
-            writer.fork_storage.set_value(code_key, hash);
-            Ok(())
-        })
+    pub async fn set_code(&self, address: Address, code: String) -> Result<()> {
+        let writer = self.inner.write().await;
+        let code_key = get_code_key(&address);
+        tracing::info!("set code for address {address:#x}");
+        let code_slice = code
+            .strip_prefix("0x")
+            .ok_or_else(|| anyhow!("code must be 0x-prefixed"))?;
+        let code_bytes = hex::decode(code_slice)?;
+        let (hash, code) = bytecode_to_factory_dep(code_bytes)?;
+        writer.fork_storage.store_factory_dep(hash, code);
+        writer.fork_storage.set_value(code_key, hash);
+        Ok(())
     }
 
-    pub fn set_storage_at(&self, address: Address, slot: U256, value: U256) -> Result<bool> {
-        self.write_inner().map(|mut writer| {
-            let key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(slot));
-            writer.fork_storage.set_value(key, u256_to_h256(value));
-            true
-        })
+    pub async fn set_storage_at(&self, address: Address, slot: U256, value: U256) -> bool {
+        let writer = self.inner.write().await;
+        let key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(slot));
+        writer.fork_storage.set_value(key, u256_to_h256(value));
+        true
     }
 
     pub fn set_logging_enabled(&self, enable: bool) -> Result<()> {
@@ -369,51 +344,44 @@ impl InMemoryNode {
     }
 
     pub fn get_immediate_sealing(&self) -> Result<bool> {
-        Ok(self.sealer.is_immediate())
+        Ok(self.sealer_state.is_immediate())
     }
 
-    pub fn set_block_timestamp_interval(&self, seconds: u64) -> Result<()> {
-        self.time.set_block_timestamp_interval(seconds);
+    pub async fn set_block_timestamp_interval(&self, seconds: u64) -> Result<()> {
+        self.node_handle
+            .set_block_timestamp_interval(seconds)
+            .await?;
         Ok(())
     }
 
-    pub fn remove_block_timestamp_interval(&self) -> Result<bool> {
-        Ok(self.time.remove_block_timestamp_interval())
+    pub async fn remove_block_timestamp_interval(&self) -> Result<bool> {
+        self.node_handle
+            .remove_block_timestamp_interval_sync()
+            .await
     }
 
-    pub fn set_immediate_sealing(&self, enable: bool) -> Result<()> {
+    pub async fn set_immediate_sealing(&self, enable: bool) -> Result<()> {
         if enable {
             let listener = self.pool.add_tx_listener();
-            self.sealer.set_mode(BlockSealerMode::immediate(
-                self.inner
-                    .read()
-                    .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))?
-                    .config
-                    .max_transactions,
+            self.sealer_state.set_mode(BlockSealerMode::immediate(
+                self.inner.read().await.config.max_transactions,
                 listener,
             ))
         } else {
-            self.sealer.set_mode(BlockSealerMode::Noop)
+            self.sealer_state.set_mode(BlockSealerMode::Noop)
         }
         Ok(())
     }
 
-    pub fn set_interval_sealing(&self, seconds: u64) -> Result<()> {
+    pub async fn set_interval_sealing(&self, seconds: u64) -> Result<()> {
         let sealing_mode = if seconds == 0 {
             BlockSealerMode::noop()
         } else {
             let block_time = Duration::from_secs(seconds);
 
-            BlockSealerMode::fixed_time(
-                self.inner
-                    .read()
-                    .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))?
-                    .config
-                    .max_transactions,
-                block_time,
-            )
+            BlockSealerMode::fixed_time(self.inner.read().await.config.max_transactions, block_time)
         };
-        self.sealer.set_mode(sealing_mode);
+        self.sealer_state.set_mode(sealing_mode);
         Ok(())
     }
 
@@ -432,20 +400,17 @@ impl InMemoryNode {
         Ok(())
     }
 
-    pub fn set_next_block_base_fee_per_gas(&self, base_fee: U256) -> Result<()> {
+    pub async fn set_next_block_base_fee_per_gas(&self, base_fee: U256) -> Result<()> {
         self.inner
             .write()
-            .expect("")
+            .await
             .fee_input_provider
             .set_base_fee(base_fee.as_u64());
         Ok(())
     }
 
-    pub fn set_rpc_url(&self, url: String) -> Result<()> {
-        let inner = self
-            .inner
-            .read()
-            .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))?;
+    pub async fn set_rpc_url(&self, url: String) -> Result<()> {
+        let inner = self.inner.read().await;
         let mut fork_storage = inner
             .fork_storage
             .inner
@@ -466,11 +431,8 @@ impl InMemoryNode {
         Ok(())
     }
 
-    pub fn set_chain_id(&self, id: u32) -> Result<()> {
-        let mut inner = self
-            .inner
-            .write()
-            .map_err(|_| anyhow::anyhow!("Failed to acquire write lock"))?;
+    pub async fn set_chain_id(&self, id: u32) -> Result<()> {
+        let mut inner = self.inner.write().await;
 
         inner.config.update_chain_id(Some(id));
         inner.fork_storage.set_chain_id(id.into());
@@ -481,25 +443,20 @@ impl InMemoryNode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fork::ForkStorage;
-    use crate::node::time::{ReadTime, TimestampManager};
     use crate::node::InMemoryNode;
-    use crate::node::{BlockSealer, ImpersonationManager, InMemoryNodeInner, Snapshot, TxPool};
-    use anvil_zksync_types::TransactionOrder;
     use std::str::FromStr;
-    use std::sync::{Arc, RwLock};
     use zksync_multivm::interface::storage::ReadStorage;
-    use zksync_types::{api::BlockNumber, fee::Fee, l2::L2Tx, PackedEthSignature};
+    use zksync_types::{api, fee::Fee, l2::L2Tx, L1BatchNumber, PackedEthSignature};
     use zksync_types::{h256_to_u256, L2ChainId, Nonce, H256};
 
     #[tokio::test]
     async fn test_set_balance() {
         let address = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap();
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let balance_before = node.get_balance_impl(address, None).await.unwrap();
 
-        let result = node.set_balance(address, U256::from(1337)).unwrap();
+        let result = node.set_balance(address, U256::from(1337)).await;
         assert!(result);
 
         let balance_after = node.get_balance_impl(address, None).await.unwrap();
@@ -510,14 +467,14 @@ mod tests {
     #[tokio::test]
     async fn test_set_nonce() {
         let address = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap();
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let nonce_before = node
             .get_transaction_count_impl(address, None)
             .await
             .unwrap();
 
-        let result = node.set_nonce(address, U256::from(1337)).unwrap();
+        let result = node.set_nonce(address, U256::from(1337)).await;
         assert!(result);
 
         let nonce_after = node
@@ -527,7 +484,7 @@ mod tests {
         assert_eq!(nonce_after, U256::from(1337));
         assert_ne!(nonce_before, nonce_after);
 
-        let result = node.set_nonce(address, U256::from(1336)).unwrap();
+        let result = node.set_nonce(address, U256::from(1336)).await;
         assert!(result);
 
         let nonce_after = node
@@ -539,29 +496,29 @@ mod tests {
 
     #[tokio::test]
     async fn test_mine_blocks_default() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let start_block = node
-            .get_block_by_number_impl(zksync_types::api::BlockNumber::Latest, false)
+            .get_block_impl(api::BlockId::Number(api::BlockNumber::Latest), false)
             .await
             .unwrap()
             .expect("block exists");
 
         // test with defaults
-        node.mine_blocks(None, None).expect("mine_blocks");
+        node.mine_blocks(None, None).await.expect("mine_blocks");
 
         let current_block = node
-            .get_block_by_number_impl(zksync_types::api::BlockNumber::Latest, false)
+            .get_block_impl(api::BlockId::Number(api::BlockNumber::Latest), false)
             .await
             .unwrap()
             .expect("block exists");
 
         assert_eq!(start_block.number + 1, current_block.number);
         assert_eq!(start_block.timestamp + 1, current_block.timestamp);
-        node.mine_blocks(None, None).expect("mine_blocks");
+        node.mine_blocks(None, None).await.expect("mine_blocks");
 
         let current_block = node
-            .get_block_by_number_impl(zksync_types::api::BlockNumber::Latest, false)
+            .get_block_impl(api::BlockId::Number(api::BlockNumber::Latest), false)
             .await
             .unwrap()
             .expect("block exists");
@@ -572,10 +529,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_mine_blocks() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let start_block = node
-            .get_block_by_number_impl(zksync_types::api::BlockNumber::Latest, false)
+            .get_block_impl(api::BlockId::Number(api::BlockNumber::Latest), false)
             .await
             .unwrap()
             .expect("block exists");
@@ -585,11 +542,15 @@ mod tests {
         let start_timestamp = start_block.timestamp + 1;
 
         node.mine_blocks(Some(U64::from(num_blocks)), Some(U64::from(interval)))
+            .await
             .expect("mine blocks");
 
         for i in 0..num_blocks {
             let current_block = node
-                .get_block_by_number_impl(BlockNumber::Number(start_block.number + i + 1), false)
+                .get_block_impl(
+                    api::BlockId::Number(api::BlockNumber::Number(start_block.number + i + 1)),
+                    false,
+                )
                 .await
                 .unwrap()
                 .expect("block exists");
@@ -600,53 +561,26 @@ mod tests {
 
     #[tokio::test]
     async fn test_reset() {
-        let old_snapshots = Arc::new(RwLock::new(vec![Snapshot::default()]));
-        let old_system_contracts_options = Default::default();
-        let time = TimestampManager::new(123);
-        let impersonation = ImpersonationManager::default();
-        let old_inner = InMemoryNodeInner {
-            current_batch: 100,
-            current_miniblock: 300,
-            current_miniblock_hash: H256::random(),
-            fee_input_provider: Default::default(),
-            tx_results: Default::default(),
-            blocks: Default::default(),
-            block_hashes: Default::default(),
-            filters: Default::default(),
-            fork_storage: ForkStorage::new(None, &old_system_contracts_options, false, None),
-            config: Default::default(),
-            console_log_handler: Default::default(),
-            system_contracts: Default::default(),
-            impersonation: impersonation.clone(),
-            rich_accounts: Default::default(),
-            previous_states: Default::default(),
-        };
-        let pool = TxPool::new(impersonation.clone(), TransactionOrder::Fifo);
-        let sealer = BlockSealer::new(BlockSealerMode::immediate(1000, pool.add_tx_listener()));
-
-        let node = InMemoryNode {
-            inner: Arc::new(RwLock::new(old_inner)),
-            snapshots: old_snapshots,
-            system_contracts_options: old_system_contracts_options,
-            time,
-            impersonation,
-            observability: None,
-            pool,
-            sealer,
-            system_contracts: Default::default(),
-        };
+        let node = InMemoryNode::test(None);
+        // Seal a few blocks to create non-trivial local state
+        for _ in 0..10 {
+            node.node_handle
+                .seal_block_sync(TxBatch {
+                    impersonating: false,
+                    txs: vec![],
+                })
+                .await
+                .unwrap();
+        }
 
         let address = Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap();
         let nonce_before = node
             .get_transaction_count_impl(address, None)
             .await
             .unwrap();
+        assert!(node.set_nonce(address, U256::from(1337)).await);
 
-        let set_result = node.set_nonce(address, U256::from(1337)).unwrap();
-        assert!(set_result);
-
-        let reset_result = node.reset_network(None).unwrap();
-        assert!(reset_result);
+        assert!(node.reset_network(None).await.unwrap());
 
         let nonce_after = node
             .get_transaction_count_impl(address, None)
@@ -654,23 +588,24 @@ mod tests {
             .unwrap();
         assert_eq!(nonce_before, nonce_after);
 
-        assert_eq!(node.snapshots.read().unwrap().len(), 0);
-
-        let inner = node.inner.read().unwrap();
+        assert_eq!(node.snapshots.read().await.len(), 0);
         assert_eq!(node.time.current_timestamp(), 1000);
-        assert_eq!(inner.current_batch, 0);
-        assert_eq!(inner.current_miniblock, 0);
-        assert_ne!(inner.current_miniblock_hash, H256::random());
+        assert_eq!(node.blockchain.current_batch().await, L1BatchNumber(0));
+        assert_eq!(
+            node.blockchain.current_block_number().await,
+            L2BlockNumber(0)
+        );
+        assert_ne!(node.blockchain.current_block_hash().await, H256::random());
     }
 
     #[tokio::test]
     async fn test_impersonate_account() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
         let to_impersonate =
             Address::from_str("0xd8da6bf26964af9d7eed9e03e53415d37aa96045").unwrap();
 
         // give impersonated account some balance
-        let result = node.set_balance(to_impersonate, U256::exp10(18)).unwrap();
+        let result = node.set_balance(to_impersonate, U256::exp10(18)).await;
         assert!(result);
 
         // construct a tx
@@ -695,7 +630,7 @@ mod tests {
         }
 
         // try to execute the tx- should fail without signature
-        assert!(node.apply_txs(vec![tx.clone()], 1).is_err());
+        assert!(node.apply_txs(vec![tx.clone()], 1).await.is_err());
 
         // impersonate the account
         let result = node
@@ -712,7 +647,7 @@ mod tests {
         assert!(!result);
 
         // execution should now succeed
-        assert!(node.apply_txs(vec![tx.clone()], 1).is_ok());
+        assert!(node.apply_txs(vec![tx.clone()], 1).await.is_ok());
 
         // stop impersonating the account
         let result = node
@@ -729,13 +664,13 @@ mod tests {
         assert!(!result);
 
         // execution should now fail again
-        assert!(node.apply_txs(vec![tx], 1).is_err());
+        assert!(node.apply_txs(vec![tx], 1).await.is_err());
     }
 
     #[tokio::test]
     async fn test_set_code() {
         let address = Address::repeat_byte(0x1);
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
         let new_code = vec![0x1u8; 32];
 
         let code_before = node
@@ -746,6 +681,7 @@ mod tests {
         assert_eq!(Vec::<u8>::default(), code_before);
 
         node.set_code(address, format!("0x{}", hex::encode(new_code.clone())))
+            .await
             .expect("failed setting code");
 
         let code_after = node
@@ -758,27 +694,25 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_storage_at() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
         let address = Address::repeat_byte(0x1);
         let slot = U256::from(37);
         let value = U256::from(42);
 
         let key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(slot));
-        let value_before = node.write_inner().unwrap().fork_storage.read_value(&key);
+        let value_before = node.inner.write().await.fork_storage.read_value(&key);
         assert_eq!(H256::default(), value_before);
 
-        let result = node
-            .set_storage_at(address, slot, value)
-            .expect("failed setting value");
+        let result = node.set_storage_at(address, slot, value).await;
         assert!(result);
 
-        let value_after = node.write_inner().unwrap().fork_storage.read_value(&key);
+        let value_after = node.inner.write().await.fork_storage.read_value(&key);
         assert_eq!(value, h256_to_u256(value_after));
     }
 
     #[tokio::test]
     async fn test_increase_time_zero_value() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let increase_value_seconds = 0u64;
         let timestamp_before = node.time.current_timestamp();
@@ -786,6 +720,7 @@ mod tests {
 
         let actual_response = node
             .increase_time(increase_value_seconds)
+            .await
             .expect("failed increasing timestamp");
         let timestamp_after = node.time.current_timestamp();
 
@@ -799,7 +734,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_increase_time_max_value() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let increase_value_seconds = u64::MAX;
         let timestamp_before = node.time.current_timestamp();
@@ -808,6 +743,7 @@ mod tests {
 
         let actual_response = node
             .increase_time(increase_value_seconds)
+            .await
             .expect("failed increasing timestamp");
         let timestamp_after = node.time.current_timestamp();
 
@@ -819,9 +755,9 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
     async fn test_increase_time() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let increase_value_seconds = 100u64;
         let timestamp_before = node.time.current_timestamp();
@@ -829,6 +765,7 @@ mod tests {
 
         let actual_response = node
             .increase_time(increase_value_seconds)
+            .await
             .expect("failed increasing timestamp");
         let timestamp_after = node.time.current_timestamp();
 
@@ -842,7 +779,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_next_block_timestamp_future() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let new_timestamp = 10_000u64;
         let timestamp_before = node.time.current_timestamp();
@@ -852,8 +789,9 @@ mod tests {
         );
 
         node.set_next_block_timestamp(new_timestamp)
+            .await
             .expect("failed setting timestamp");
-        node.mine_block().expect("failed to mine a block");
+        node.mine_block().await.expect("failed to mine a block");
         let timestamp_after = node.time.current_timestamp();
 
         assert_eq!(
@@ -864,30 +802,31 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_next_block_timestamp_past_fails() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let timestamp_before = node.time.current_timestamp();
 
         let new_timestamp = timestamp_before + 500;
         node.set_next_block_timestamp(new_timestamp)
+            .await
             .expect("failed setting timestamp");
 
-        node.mine_block().expect("failed to mine a block");
+        node.mine_block().await.expect("failed to mine a block");
 
-        let result = node.set_next_block_timestamp(timestamp_before);
+        let result = node.set_next_block_timestamp(timestamp_before).await;
 
         assert!(result.is_err(), "expected an error for timestamp in past");
     }
 
     #[tokio::test]
     async fn test_set_next_block_timestamp_same_value() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let new_timestamp = 1000u64;
         let timestamp_before = node.time.current_timestamp();
         assert_eq!(timestamp_before, new_timestamp, "timestamps must be same");
 
-        let response = node.set_next_block_timestamp(new_timestamp);
+        let response = node.set_next_block_timestamp(new_timestamp).await;
         assert!(response.is_err());
 
         let timestamp_after = node.time.current_timestamp();
@@ -899,14 +838,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_time_future() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let new_time = 10_000u64;
         let timestamp_before = node.time.current_timestamp();
         assert_ne!(timestamp_before, new_time, "timestamps must be different");
         let expected_response = 9000;
 
-        let actual_response = node.set_time(new_time).expect("failed setting timestamp");
+        let actual_response = node
+            .set_time(new_time)
+            .await
+            .expect("failed setting timestamp");
         let timestamp_after = node.time.current_timestamp();
 
         assert_eq!(expected_response, actual_response, "erroneous response");
@@ -915,14 +857,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_time_past() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let new_time = 10u64;
         let timestamp_before = node.time.current_timestamp();
         assert_ne!(timestamp_before, new_time, "timestamps must be different");
         let expected_response = -990;
 
-        let actual_response = node.set_time(new_time).expect("failed setting timestamp");
+        let actual_response = node
+            .set_time(new_time)
+            .await
+            .expect("failed setting timestamp");
         let timestamp_after = node.time.current_timestamp();
 
         assert_eq!(expected_response, actual_response, "erroneous response");
@@ -931,14 +876,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_time_same_value() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let new_time = 1000u64;
         let timestamp_before = node.time.current_timestamp();
         assert_eq!(timestamp_before, new_time, "timestamps must be same");
         let expected_response = 0;
 
-        let actual_response = node.set_time(new_time).expect("failed setting timestamp");
+        let actual_response = node
+            .set_time(new_time)
+            .await
+            .expect("failed setting timestamp");
         let timestamp_after = node.time.current_timestamp();
 
         assert_eq!(expected_response, actual_response, "erroneous response");
@@ -950,7 +898,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_time_edges() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         for new_time in [0, u64::MAX] {
             let timestamp_before = node.time.current_timestamp();
@@ -960,7 +908,10 @@ mod tests {
             );
             let expected_response = (new_time as i128).saturating_sub(timestamp_before as i128);
 
-            let actual_response = node.set_time(new_time).expect("failed setting timestamp");
+            let actual_response = node
+                .set_time(new_time)
+                .await
+                .expect("failed setting timestamp");
             let timestamp_after = node.time.current_timestamp();
 
             assert_eq!(
@@ -976,18 +927,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_mine_block() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let start_block = node
-            .get_block_by_number_impl(zksync_types::api::BlockNumber::Latest, false)
+            .get_block_impl(api::BlockId::Number(api::BlockNumber::Latest), false)
             .await
             .unwrap()
             .expect("block exists");
-        let result = node.mine_block().expect("mine_block");
+        let result = node.mine_block().await.expect("mine_block");
         assert_eq!(result, L2BlockNumber(1));
 
         let current_block = node
-            .get_block_by_number_impl(zksync_types::api::BlockNumber::Latest, false)
+            .get_block_impl(api::BlockId::Number(api::BlockNumber::Latest), false)
             .await
             .unwrap()
             .expect("block exists");
@@ -995,11 +946,11 @@ mod tests {
         assert_eq!(start_block.number + 1, current_block.number);
         assert_eq!(start_block.timestamp + 1, current_block.timestamp);
 
-        let result = node.mine_block().expect("mine_block");
+        let result = node.mine_block().await.expect("mine_block");
         assert_eq!(result, L2BlockNumber(start_block.number.as_u32() + 2));
 
         let current_block = node
-            .get_block_by_number_impl(BlockNumber::Latest, false)
+            .get_block_impl(api::BlockId::Number(api::BlockNumber::Latest), false)
             .await
             .unwrap()
             .expect("block exists");
@@ -1010,10 +961,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_evm_snapshot_creates_incrementing_ids() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
-        let snapshot_id_1 = node.snapshot().expect("failed creating snapshot 1");
-        let snapshot_id_2 = node.snapshot().expect("failed creating snapshot 2");
+        let snapshot_id_1 = node.snapshot().await.expect("failed creating snapshot 1");
+        let snapshot_id_2 = node.snapshot().await.expect("failed creating snapshot 2");
 
         assert_eq!(snapshot_id_1, U64::from(1));
         assert_eq!(snapshot_id_2, U64::from(2));
@@ -1021,14 +972,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_evm_revert_snapshot_restores_state() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
         let initial_block = node
             .get_block_number_impl()
             .await
             .expect("failed fetching block number");
-        let snapshot_id = node.snapshot().expect("failed creating snapshot");
-        node.mine_block().expect("mine_block");
+        let snapshot_id = node.snapshot().await.expect("failed creating snapshot");
+        node.mine_block().await.expect("mine_block");
         let current_block = node
             .get_block_number_impl()
             .await
@@ -1037,6 +988,7 @@ mod tests {
 
         let reverted = node
             .revert_snapshot(snapshot_id)
+            .await
             .expect("failed reverting snapshot");
         assert!(reverted);
 
@@ -1049,37 +1001,38 @@ mod tests {
 
     #[tokio::test]
     async fn test_evm_revert_snapshot_removes_all_snapshots_following_the_reverted_one() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
-        let _snapshot_id_1 = node.snapshot().expect("failed creating snapshot");
-        let snapshot_id_2 = node.snapshot().expect("failed creating snapshot");
-        let _snapshot_id_3 = node.snapshot().expect("failed creating snapshot");
-        assert_eq!(3, node.snapshots.read().unwrap().len());
+        let _snapshot_id_1 = node.snapshot().await.expect("failed creating snapshot");
+        let snapshot_id_2 = node.snapshot().await.expect("failed creating snapshot");
+        let _snapshot_id_3 = node.snapshot().await.expect("failed creating snapshot");
+        assert_eq!(3, node.snapshots.read().await.len());
 
         let reverted = node
             .revert_snapshot(snapshot_id_2)
+            .await
             .expect("failed reverting snapshot");
         assert!(reverted);
 
-        assert_eq!(1, node.snapshots.read().unwrap().len());
+        assert_eq!(1, node.snapshots.read().await.len());
     }
 
     #[tokio::test]
     async fn test_evm_revert_snapshot_fails_for_invalid_snapshot_id() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
 
-        let result = node.revert_snapshot(U64::from(100));
+        let result = node.revert_snapshot(U64::from(100)).await;
         assert!(result.is_err());
     }
 
     #[tokio::test]
     async fn test_node_set_chain_id() {
-        let node = InMemoryNode::default();
+        let node = InMemoryNode::test(None);
         let new_chain_id = 261;
 
-        let _ = node.set_chain_id(new_chain_id);
+        let _ = node.set_chain_id(new_chain_id).await;
 
-        let node_inner = node.inner.read().unwrap();
+        let node_inner = node.inner.read().await;
         assert_eq!(new_chain_id, node_inner.config.chain_id.unwrap());
         assert_eq!(
             L2ChainId::from(new_chain_id),

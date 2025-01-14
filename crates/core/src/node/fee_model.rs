@@ -4,10 +4,12 @@ use zksync_types::fee_model::{
     BaseTokenConversionRatio, BatchFeeInput, FeeModelConfigV2, FeeParams, FeeParamsV2,
 };
 
+use super::inner::fork::ForkDetails;
 use anvil_zksync_config::constants::{
     DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
     DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L1_GAS_PRICE, DEFAULT_L2_GAS_PRICE,
 };
+
 #[derive(Debug, Clone)]
 pub struct TestNodeFeeInputProvider {
     /// L1 Gas Price Scale Factor for gas estimation.
@@ -40,6 +42,25 @@ impl PartialEq for TestNodeFeeInputProvider {
 }
 
 impl TestNodeFeeInputProvider {
+    pub fn from_fork(fork: Option<&ForkDetails>) -> Self {
+        if let Some(fork) = fork {
+            if let Some(params) = fork.fee_params {
+                TestNodeFeeInputProvider::from_fee_params_and_estimate_scale_factors(
+                    params,
+                    fork.estimate_gas_price_scale_factor,
+                    fork.estimate_gas_scale_factor,
+                )
+            } else {
+                TestNodeFeeInputProvider::from_estimate_scale_factors(
+                    fork.estimate_gas_price_scale_factor,
+                    fork.estimate_gas_scale_factor,
+                )
+            }
+        } else {
+            TestNodeFeeInputProvider::default()
+        }
+    }
+
     pub fn from_fee_params_and_estimate_scale_factors(
         fee_params: FeeParams,
         estimate_gas_price_scale_factor: f64,

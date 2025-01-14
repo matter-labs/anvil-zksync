@@ -199,7 +199,18 @@ impl TxPool {
     }
 }
 
-/// A batch of transactions sharing the same impersonation status.
+/// A batch of transactions meant to be sealed as a block. All transactions in the batch share the
+/// same impersonation status on the moment of the batch's creation.
+///
+/// A block produced from this batch is guaranteed to:
+/// * Not contain any transactions outside of this transaction batch
+/// * Use contracts matching `impersonating` mode of this transaction batch.
+///
+/// Potential caveats:
+/// * The impersonation status of transactions' initiators (as defined by [`ImpersonationManager`])
+///   is not guaranteed to be the same by the time the batch gets executed
+/// * The resulting block is not guaranteed to contain all transactions as some of them could be
+///   non-executable.
 #[derive(PartialEq, Debug)]
 pub struct TxBatch {
     pub impersonating: bool,
