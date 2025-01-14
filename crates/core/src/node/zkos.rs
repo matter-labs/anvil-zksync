@@ -13,8 +13,9 @@ use system_hooks::addresses_constants::{
 use zk_ee::{common_structs::derive_flat_storage_key, utils::Bytes32};
 use zksync_multivm::interface::{
     storage::{StoragePtr, WriteStorage},
-    ExecutionResult, InspectExecutionMode, PushTransactionResult, TxExecutionMode, VmExecutionLogs,
-    VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled, VmRevertReason,
+    ExecutionResult, InspectExecutionMode, L1BatchEnv, PushTransactionResult, SystemEnv,
+    TxExecutionMode, VmExecutionLogs, VmExecutionResultAndLogs, VmInterface,
+    VmInterfaceHistoryEnabled, VmRevertReason,
 };
 use zksync_types::{
     address_to_h256,
@@ -460,10 +461,12 @@ pub struct ZKOsVM<S: WriteStorage> {
 
 impl<S: WriteStorage> ZKOsVM<S> {
     pub fn new(
+        _batch_env: L1BatchEnv,
+        system_env: SystemEnv,
         storage: StoragePtr<S>,
         raw_storage: &InMemoryStorage,
-        execution_mode: TxExecutionMode,
     ) -> Self {
+        let execution_mode = system_env.execution_mode;
         let (tree, preimage) = { create_tree_from_full_state(raw_storage) };
         ZKOsVM {
             storage,
@@ -471,6 +474,14 @@ impl<S: WriteStorage> ZKOsVM<S> {
             preimage,
             transactions: vec![],
             execution_mode,
+        }
+    }
+
+    /// If any keys are updated in storage externally, but not reflected in internal tree.
+    pub fn update_inconsistent_keys(&mut self, inconsistent_nodes: &[&StorageKey]) {
+        for key in inconsistent_nodes {
+            let value = self.storage.borrow_mut().read_value(key);
+            add_elem_to_tree(&mut self.tree, key, &value);
         }
     }
 }

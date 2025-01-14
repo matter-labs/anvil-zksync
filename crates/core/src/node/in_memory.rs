@@ -802,16 +802,16 @@ impl InMemoryNodeInner {
         let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage.clone());
         #[cfg(feature = "zkos")]
         let mut vm = ZKOsVM::new(
+            batch_env,
+            system_env,
             storage.clone(),
             &fork_storage.inner.read().unwrap().raw_storage,
-            system_env.execution_mode,
         );
         #[cfg(feature = "zkos")]
         {
             // Temporary hack - as we update the 'storage' just above, but zkos loads its full
             // state from fork_storage (that is not updated).
-            add_elem_to_tree(&mut vm.tree, &nonce_key, &u256_to_h256(enforced_full_nonce));
-            add_elem_to_tree(&mut vm.tree, &balance_key, &u256_to_h256(current_balance));
+            vm.update_inconsistent_keys(&[&nonce_key, &balance_key]);
         }
 
         let tx: Transaction = l2_tx.into();
@@ -1399,16 +1399,18 @@ impl InMemoryNode {
 
         // init vm
 
-        // let (batch_env, _) = inner.create_l1_batch_env(&self.time, storage.clone());
+        let (batch_env, _) = inner.create_l1_batch_env(&self.time, storage.clone());
         let system_env = inner.create_system_env(base_contracts, execution_mode);
 
         #[cfg(not(feature = "zkos"))]
         let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage.clone());
         #[cfg(feature = "zkos")]
         let mut vm = ZKOsVM::new(
+            batch_env,
+            system_env,
             storage.clone(),
+            // TODO: this might be causing a deadlock.. check..
             &inner.fork_storage.inner.read().unwrap().raw_storage,
-            execution_mode,
         );
 
         // We must inject *some* signature (otherwise bootloader code fails to generate hash).
@@ -1855,9 +1857,10 @@ impl InMemoryNode {
 
         #[cfg(feature = "zkos")]
         let mut vm = ZKOsVM::new(
+            batch_env.clone(),
+            system_env,
             storage.clone(),
             &inner.fork_storage.inner.read().unwrap().raw_storage,
-            TxExecutionMode::VerifyExecute,
         );
 
         drop(inner);
