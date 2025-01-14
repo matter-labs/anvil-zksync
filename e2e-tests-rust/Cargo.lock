@@ -960,7 +960,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_config"
-version = "0.2.2"
+version = "0.2.4"
 dependencies = [
  "alloy-signer 0.5.4",
  "alloy-signer-local 0.5.4",
@@ -978,7 +978,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_core"
-version = "0.2.2"
+version = "0.2.4"
 dependencies = [
  "anvil_zksync_config",
  "anvil_zksync_types",
@@ -1012,7 +1012,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_types"
-version = "0.2.2"
+version = "0.2.4"
 dependencies = [
  "clap",
  "serde",
