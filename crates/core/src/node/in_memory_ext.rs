@@ -192,6 +192,7 @@ impl InMemoryNode {
 
     pub fn set_balance(&self, address: Address, balance: U256) -> Result<bool> {
         self.write_inner().map(|mut writer| {
+            // FIXHERE
             let balance_key = storage_key_for_eth_balance(&address);
             writer
                 .fork_storage
@@ -207,6 +208,7 @@ impl InMemoryNode {
 
     pub fn set_nonce(&self, address: Address, nonce: U256) -> Result<bool> {
         self.write_inner().map(|mut writer| {
+            // FIXHERE
             let nonce_key = get_nonce_key(&address);
             let enforced_full_nonce = nonces_to_full_nonce(nonce, nonce);
             tracing::info!(

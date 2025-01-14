@@ -22,6 +22,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "adler"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
+
+[[package]]
 name = "adler2"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -39,6 +45,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "ahash"
+version = "0.8.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e89da841a80418a9b391ebaea17f5c112ffaaa96f621d2c285b5174da76b9011"
+dependencies = [
+ "cfg-if",
+ "once_cell",
+ "version_check",
+ "zerocopy",
+]
+
+[[package]]
 name = "aho-corasick"
 version = "1.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -46,6 +64,12 @@ checksum = "8e60d3430d3a69478ad0993f19238d2df97c507009a52b3c10addcd7f6bcb916"
 dependencies = [
  "memchr",
 ]
+
+[[package]]
+name = "allocator-api2"
+version = "0.2.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 
 [[package]]
 name = "alloy-consensus"
@@ -468,12 +492,14 @@ dependencies = [
  "anvil_zksync_config",
  "anvil_zksync_types",
  "anyhow",
+ "basic_system",
  "chrono",
  "colored",
  "ethabi 16.0.0",
  "ethers",
  "eyre",
  "flate2",
+ "forward_system",
  "futures 0.3.31",
  "hex",
  "httptest",
@@ -483,9 +509,11 @@ dependencies = [
  "maplit",
  "once_cell",
  "reqwest 0.11.27",
+ "ruint",
  "rustc-hash 1.1.0",
  "serde",
  "serde_json",
+ "system_hooks",
  "tempdir",
  "test-case",
  "thiserror",
@@ -493,7 +521,9 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "zk_ee",
  "zksync-web3-rs",
+ "zksync_basic_types",
  "zksync_contracts",
  "zksync_multivm",
  "zksync_types",
@@ -516,6 +546,38 @@ name = "anyhow"
 version = "1.0.93"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4c95c10ba0b00a02636238b814946408b1322d5ac4760326e6fb8ec956d85775"
+
+[[package]]
+name = "ark-bn254"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d69eab57e8d2663efa5c63135b2af4f396d66424f88954c21104125ab6b3e6bc"
+dependencies = [
+ "ark-ec",
+ "ark-ff 0.5.0",
+ "ark-std 0.5.0",
+]
+
+[[package]]
+name = "ark-ec"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43d68f2d516162846c1238e755a7c4d131b892b70cc70c471a8e3ca3ed818fce"
+dependencies = [
+ "ahash",
+ "ark-ff 0.5.0",
+ "ark-poly",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
+ "educe",
+ "fnv",
+ "hashbrown 0.15.2",
+ "itertools 0.13.0",
+ "num-bigint",
+ "num-integer",
+ "num-traits",
+ "zeroize",
+]
 
 [[package]]
 name = "ark-ff"
@@ -556,6 +618,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "ark-ff"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a177aba0ed1e0fbb62aa9f6d0502e9b46dad8c2eab04c14258a1212d2557ea70"
+dependencies = [
+ "ark-ff-asm 0.5.0",
+ "ark-ff-macros 0.5.0",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
+ "arrayvec 0.7.6",
+ "digest 0.10.7",
+ "educe",
+ "itertools 0.13.0",
+ "num-bigint",
+ "num-traits",
+ "paste",
+ "zeroize",
+]
+
+[[package]]
 name = "ark-ff-asm"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -573,6 +655,16 @@ checksum = "3ed4aa4fe255d0bc6d79373f7e31d2ea147bcf486cba1be5ba7ea85abdb92348"
 dependencies = [
  "quote",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "ark-ff-asm"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62945a2f7e6de02a31fe400aa489f0e0f5b2502e69f95f853adb82a96c7a6b60"
+dependencies = [
+ "quote",
+ "syn 2.0.89",
 ]
 
 [[package]]
@@ -601,6 +693,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "ark-ff-macros"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09be120733ee33f7693ceaa202ca41accd5653b779563608f1234f78ae07c4b3"
+dependencies = [
+ "num-bigint",
+ "num-traits",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.89",
+]
+
+[[package]]
+name = "ark-poly"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "579305839da207f02b89cd1679e50e67b4331e2f9294a57693e5051b7703fe27"
+dependencies = [
+ "ahash",
+ "ark-ff 0.5.0",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
+ "educe",
+ "fnv",
+ "hashbrown 0.15.2",
+]
+
+[[package]]
 name = "ark-serialize"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -622,6 +742,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "ark-serialize"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f4d068aaf107ebcd7dfb52bc748f8030e0fc930ac8e360146ca54c1203088f7"
+dependencies = [
+ "ark-serialize-derive",
+ "ark-std 0.5.0",
+ "arrayvec 0.7.6",
+ "digest 0.10.7",
+ "num-bigint",
+]
+
+[[package]]
+name = "ark-serialize-derive"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "213888f660fddcca0d257e88e54ac05bca01885f258ccdf695bafd77031bb69d"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.89",
+]
+
+[[package]]
 name = "ark-std"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -636,6 +780,16 @@ name = "ark-std"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94893f1e0c6eeab764ade8dc4c0db24caf4fe7cbbaafc0eba0a9030f447b5185"
+dependencies = [
+ "num-traits",
+ "rand 0.8.5",
+]
+
+[[package]]
+name = "ark-std"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "246a225cc6131e9ee4f24619af0f19d67761fff15d7ccc22e42b80846e69449a"
 dependencies = [
  "num-traits",
  "rand 0.8.5",
@@ -860,6 +1014,51 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8c3c1a368f70d6cf7302d78f8f7093da241fb8e8807c05cc9e51a125895a6d5b"
 
 [[package]]
+name = "basic_bootloader"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=mmzk_1217_zkee_for_test_node#5aa07d27ab201ee6bbcfbfc39991737acc2dbd8b"
+dependencies = [
+ "arrayvec 0.7.6",
+ "crypto",
+ "either",
+ "evm_interpreter",
+ "hex",
+ "iwasm_ee",
+ "iwasm_interpreter",
+ "ruint",
+ "seq-macro",
+ "system_hooks",
+ "zk_ee",
+]
+
+[[package]]
+name = "basic_system"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=mmzk_1217_zkee_for_test_node#5aa07d27ab201ee6bbcfbfc39991737acc2dbd8b"
+dependencies = [
+ "ark-bn254",
+ "ark-ec",
+ "ark-ff 0.5.0",
+ "ark-serialize 0.5.0",
+ "arrayvec 0.7.6",
+ "cfg-if",
+ "const_for",
+ "crypto",
+ "either",
+ "evm_interpreter",
+ "hex",
+ "iwasm_ee",
+ "iwasm_interpreter",
+ "miniz_nostd_compression",
+ "ruint",
+ "secp256k1 0.1.0",
+ "serde",
+ "storage_models",
+ "system_hooks",
+ "zk_ee",
+]
+
+[[package]]
 name = "bech32"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -885,6 +1084,15 @@ dependencies = [
  "num-bigint",
  "num-integer",
  "num-traits",
+]
+
+[[package]]
+name = "bincode"
+version = "1.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1f45e9417d87227c7a56d22e471c6206462cba514c7590c09aff4cf6d1ddcad"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
@@ -1440,6 +1648,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2459377285ad874054d797f3ccebf984978aa39129f6eafde5cdc8315b612f8"
 
 [[package]]
+name = "const_for"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d9c50fcfdf972929aff202c16b80086aa3cfc6a3a820af714096c58c7c1d0582"
+
+[[package]]
 name = "constant_time_eq"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1540,6 +1754,18 @@ name = "crunchy"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
+
+[[package]]
+name = "crypto"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=mmzk_1217_zkee_for_test_node#5aa07d27ab201ee6bbcfbfc39991737acc2dbd8b"
+dependencies = [
+ "blake2",
+ "k256 0.13.4",
+ "p256",
+ "sha2 0.10.8",
+ "sha3 0.10.8",
+]
 
 [[package]]
 name = "crypto-bigint"
@@ -1826,6 +2052,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "educe"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d7bc049e1bd8cdeb31b68bbd586a9464ecf9f3944af3958a7a9d0f8b9799417"
+dependencies = [
+ "enum-ordinalize",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.89",
+]
+
+[[package]]
 name = "either"
 version = "1.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1914,6 +2152,26 @@ dependencies = [
  "serde",
  "sha3 0.10.8",
  "zeroize",
+]
+
+[[package]]
+name = "enum-ordinalize"
+version = "4.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fea0dcfa4e54eeb516fe454635a95753ddd39acda650ce703031c6973e315dd5"
+dependencies = [
+ "enum-ordinalize-derive",
+]
+
+[[package]]
+name = "enum-ordinalize-derive"
+version = "4.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d28318a75d4aead5c4db25382e8ef717932d0346600cacae6357eb5941bc5ff"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.89",
 ]
 
 [[package]]
@@ -2327,6 +2585,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "evm_interpreter"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=mmzk_1217_zkee_for_test_node#5aa07d27ab201ee6bbcfbfc39991737acc2dbd8b"
+dependencies = [
+ "arrayvec 0.7.6",
+ "crypto",
+ "either",
+ "hex",
+ "ruint",
+ "zk_ee",
+]
+
+[[package]]
 name = "eyre"
 version = "0.6.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2459,6 +2730,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e13624c2627564efccf4934284bdd98cbaa14e79b0b5a141218e507b3a823456"
 dependencies = [
  "percent-encoding",
+]
+
+[[package]]
+name = "forward_system"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=mmzk_1217_zkee_for_test_node#5aa07d27ab201ee6bbcfbfc39991737acc2dbd8b"
+dependencies = [
+ "arrayvec 0.7.6",
+ "basic_bootloader",
+ "basic_system",
+ "bincode",
+ "crypto",
+ "either",
+ "evm_interpreter",
+ "hex",
+ "ruint",
+ "seq-macro",
+ "serde",
+ "system_hooks",
+ "zk_ee",
 ]
 
 [[package]]
@@ -2779,6 +3070,7 @@ version = "0.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf151400ff0baff5465007dd2f3e717f3fe502074ca563069ce3a6629d07b289"
 dependencies = [
+ "allocator-api2",
  "foldhash",
  "serde",
 ]
@@ -3423,6 +3715,36 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d75a2a4b1b190afb6f5425f10f6a8f959d2ea0b9c2b1d79553551850539e4674"
 
 [[package]]
+name = "iwasm_ee"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=mmzk_1217_zkee_for_test_node#5aa07d27ab201ee6bbcfbfc39991737acc2dbd8b"
+dependencies = [
+ "arrayvec 0.7.6",
+ "crypto",
+ "iwasm_interpreter",
+ "iwasm_specification",
+ "ruint",
+ "zk_ee",
+]
+
+[[package]]
+name = "iwasm_interpreter"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=mmzk_1217_zkee_for_test_node#5aa07d27ab201ee6bbcfbfc39991737acc2dbd8b"
+dependencies = [
+ "arrayvec 0.7.6",
+]
+
+[[package]]
+name = "iwasm_specification"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=mmzk_1217_zkee_for_test_node#5aa07d27ab201ee6bbcfbfc39991737acc2dbd8b"
+dependencies = [
+ "num-derive",
+ "num-traits",
+]
+
+[[package]]
 name = "jni"
 version = "0.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3907,6 +4229,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
 
 [[package]]
+name = "miniz_nostd_compression"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=mmzk_1217_zkee_for_test_node#5aa07d27ab201ee6bbcfbfc39991737acc2dbd8b"
+dependencies = [
+ "adler",
+]
+
+[[package]]
 name = "miniz_oxide"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4016,6 +4346,17 @@ name = "num-conv"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51d515d32fb182ee37cda2ccdcb92950d6a3c2893aa280e540671c2cd0f3b1d9"
+
+[[package]]
+name = "num-derive"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed3955f1a9c7c0c15e092f9c887db08b1fc683305fdf6eb6684f22555355e202"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.89",
+]
 
 [[package]]
 name = "num-integer"
@@ -5640,6 +5981,16 @@ dependencies = [
 
 [[package]]
 name = "secp256k1"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=mmzk_1217_zkee_for_test_node#5aa07d27ab201ee6bbcfbfc39991737acc2dbd8b"
+dependencies = [
+ "cfg-if",
+ "const_for",
+ "crypto",
+]
+
+[[package]]
+name = "secp256k1"
 version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25996b82292a7a57ed3508f052cfff8640d38d32018784acd714758b43da9c8f"
@@ -5835,6 +6186,12 @@ dependencies = [
  "url",
  "uuid 1.11.0",
 ]
+
+[[package]]
+name = "seq-macro"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a3f0bf26fd526d2a95683cd0f87bf103b8539e2ca1ef48ce002d67aad59aa0b4"
 
 [[package]]
 name = "serde"
@@ -6185,6 +6542,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
+name = "storage_models"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=mmzk_1217_zkee_for_test_node#5aa07d27ab201ee6bbcfbfc39991737acc2dbd8b"
+dependencies = [
+ "arrayvec 0.7.6",
+ "either",
+ "ruint",
+ "zk_ee",
+]
+
+[[package]]
 name = "string_cache"
 version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6357,6 +6725,16 @@ checksum = "8e1d1b10ced5ca923a1fcb8d03e96b8d3268065d724548c0211415ff6ac6bac4"
 dependencies = [
  "core-foundation-sys",
  "libc",
+]
+
+[[package]]
+name = "system_hooks"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=mmzk_1217_zkee_for_test_node#5aa07d27ab201ee6bbcfbfc39991737acc2dbd8b"
+dependencies = [
+ "crypto",
+ "ruint",
+ "zk_ee",
 ]
 
 [[package]]
@@ -7703,6 +8081,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "zk_ee"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=mmzk_1217_zkee_for_test_node#5aa07d27ab201ee6bbcfbfc39991737acc2dbd8b"
+dependencies = [
+ "arrayvec 0.7.6",
+ "bitflags 2.6.0",
+ "cfg-if",
+ "crypto",
+ "derivative",
+ "ruint",
+ "serde",
+]
+
+[[package]]
 name = "zk_evm"
 version = "0.131.0-rc.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8016,7 +8408,7 @@ dependencies = [
  "blake2",
  "hex",
  "rand 0.8.5",
- "secp256k1",
+ "secp256k1 0.27.0",
  "serde",
  "serde_json",
  "sha2 0.10.8",

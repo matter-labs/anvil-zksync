@@ -14,6 +14,7 @@ mod sealer;
 mod state;
 mod storage_logs;
 mod time;
+mod zkos;
 mod zks;
 
 pub use self::{

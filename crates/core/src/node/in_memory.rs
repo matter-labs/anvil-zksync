@@ -4,6 +4,7 @@ use crate::node::error::LoadStateError;
 use crate::node::impersonate::{ImpersonationManager, ImpersonationState};
 use crate::node::state::{StateV1, VersionedState};
 use crate::node::time::{AdvanceTime, ReadTime, TimestampManager};
+use crate::node::zkos::add_elem_to_tree;
 use crate::node::{BlockSealer, BlockSealerMode, TxPool};
 use crate::{
     bootloader_debug::{BootloaderDebug, BootloaderDebugTracer},
@@ -82,6 +83,8 @@ use zksync_types::{
 };
 use zksync_types::{h256_to_address, h256_to_u256, u256_to_h256};
 use zksync_web3_decl::error::Web3Error;
+
+use super::zkos::{zkos_get_nonce_key, zkos_storage_key_for_eth_balance, ZKOsVM};
 
 /// Max possible size of an ABI encoded tx (in bytes).
 pub const MAX_TX_SIZE: usize = 1_000_000;
@@ -274,7 +277,8 @@ pub struct InMemoryNodeInner {
 pub struct TxExecutionOutput {
     result: VmExecutionResultAndLogs,
     call_traces: Vec<Call>,
-    bytecodes: HashMap<U256, Vec<U256>>,
+    bytecodes: HashMap<H256, Vec<u8>>,
+    //bytecodes: HashMap<U256, Vec<U256>>,
 }
 
 impl InMemoryNodeInner {
@@ -498,7 +502,7 @@ impl InMemoryNodeInner {
             .system_contracts
             .contracts_for_fee_estimate(impersonating)
             .clone();
-        let allow_no_target = system_contracts.evm_emulator.is_some();
+        let allow_no_target = true; // system_contracts.evm_emulator.is_some();
 
         let mut l2_tx = L2Tx::from_request(
             request_with_gas_per_pubdata_overridden.into(),
@@ -773,7 +777,11 @@ impl InMemoryNodeInner {
 
         // The nonce needs to be updated
         let nonce = l2_tx.nonce();
+        //let nonce_key = get_nonce_key(&l2_tx.initiator_account());
+        #[cfg(not(feature = "zkos"))]
         let nonce_key = get_nonce_key(&l2_tx.initiator_account());
+        #[cfg(feature = "zkos")]
+        let nonce_key = zkos_get_nonce_key(&l2_tx.initiator_account());
         let full_nonce = storage.borrow_mut().read_value(&nonce_key);
         let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
         let enforced_full_nonce = nonces_to_full_nonce(U256::from(nonce.0), deployment_nonce);
@@ -783,7 +791,11 @@ impl InMemoryNodeInner {
 
         // We need to explicitly put enough balance into the account of the users
         let payer = l2_tx.payer();
+
+        #[cfg(not(feature = "zkos"))]
         let balance_key = storage_key_for_eth_balance(&payer);
+        #[cfg(feature = "zkos")]
+        let balance_key = zkos_storage_key_for_eth_balance(&payer);
         let mut current_balance = h256_to_u256(storage.borrow_mut().read_value(&balance_key));
         let added_balance = l2_tx.common_data.fee.gas_limit * l2_tx.common_data.fee.max_fee_per_gas;
         current_balance += added_balance;
@@ -791,7 +803,23 @@ impl InMemoryNodeInner {
             .borrow_mut()
             .set_value(balance_key, u256_to_h256(current_balance));
 
+        //let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage.clone());
+
+        #[cfg(not(feature = "zkos"))]
         let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage.clone());
+        #[cfg(feature = "zkos")]
+        let mut vm = ZKOsVM::new(
+            storage.clone(),
+            &fork_storage.inner.read().unwrap().raw_storage,
+            system_env.execution_mode,
+        );
+        #[cfg(feature = "zkos")]
+        {
+            // Temporary hack - as we update the 'storage' just above, but zkos loads its full
+            // state from fork_storage (that is not updated).
+            add_elem_to_tree(&mut vm.tree, &nonce_key, &u256_to_h256(enforced_full_nonce));
+            add_elem_to_tree(&mut vm.tree, &balance_key, &u256_to_h256(current_balance));
+        }
 
         let tx: Transaction = l2_tx.into();
         vm.push_transaction(tx);
@@ -1313,7 +1341,10 @@ impl InMemoryNode {
 
     /// Adds a lot of tokens to a given account with a specified balance.
     pub fn set_rich_account(&self, address: H160, balance: U256) {
+        #[cfg(not(feature = "zkos"))]
         let key = storage_key_for_eth_balance(&address);
+        #[cfg(feature = "zkos")]
+        let key = zkos_storage_key_for_eth_balance(&address);
 
         let mut inner = match self.inner.write() {
             Ok(guard) => guard,
@@ -1369,10 +1400,17 @@ impl InMemoryNode {
 
         // init vm
 
-        let (batch_env, _) = inner.create_l1_batch_env(&self.time, storage.clone());
+        // let (batch_env, _) = inner.create_l1_batch_env(&self.time, storage.clone());
         let system_env = inner.create_system_env(base_contracts, execution_mode);
 
+        #[cfg(not(feature = "zkos"))]
         let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage.clone());
+        #[cfg(feature = "zkos")]
+        let mut vm = ZKOsVM::new(
+            storage.clone(),
+            &inner.fork_storage.inner.read().unwrap().raw_storage,
+            execution_mode,
+        );
 
         // We must inject *some* signature (otherwise bootloader code fails to generate hash).
         if l2_tx.common_data.signature.is_empty() {
@@ -1384,11 +1422,15 @@ impl InMemoryNode {
 
         let call_tracer_result = Arc::new(OnceCell::default());
 
+        #[cfg(not(feature = "zkos"))]
         let tracers = vec![
             CallErrorTracer::new().into_tracer_pointer(),
             CallTracer::new(call_tracer_result.clone()).into_tracer_pointer(),
         ];
+        #[cfg(not(feature = "zkos"))]
         let tx_result = vm.inspect(&mut tracers.into(), InspectExecutionMode::OneTx);
+        #[cfg(feature = "zkos")]
+        let tx_result = vm.inspect(&mut Default::default(), InspectExecutionMode::OneTx);
 
         let call_traces = Arc::try_unwrap(call_tracer_result)
             .unwrap()
@@ -1527,10 +1569,10 @@ impl InMemoryNode {
     /// This is because external users of the library may call this function to perform an isolated
     /// VM operation (optionally without bootloader execution) with an external storage and get the results back.
     /// So any data populated in [Self::run_l2_tx] will not be available for the next invocation.
-    pub fn run_l2_tx_raw<W: WriteStorage, H: HistoryMode>(
+    pub fn run_l2_tx_raw<VM: VmInterface>(
         &self,
         l2_tx: L2Tx,
-        vm: &mut Vm<W, H>,
+        vm: &mut VM,
     ) -> anyhow::Result<TxExecutionOutput> {
         let inner = self
             .inner
@@ -1542,7 +1584,8 @@ impl InMemoryNode {
         let call_tracer_result = Arc::new(OnceCell::default());
         let bootloader_debug_result = Arc::new(OnceCell::default());
 
-        let tracers = vec![
+        #[cfg(not(feature = "zkos"))]
+        let tracers: Vec<Box<dyn VmTracer<_, _>>> = vec![
             CallErrorTracer::new().into_tracer_pointer(),
             CallTracer::new(call_tracer_result.clone()).into_tracer_pointer(),
             BootloaderDebugTracer {
@@ -1554,9 +1597,13 @@ impl InMemoryNode {
             .push_transaction(tx.clone())
             .compressed_bytecodes
             .into_owned();
-        let tx_result = vm.inspect(&mut tracers.into(), InspectExecutionMode::OneTx);
 
-        let call_traces = call_tracer_result.get().unwrap();
+        #[cfg(not(feature = "zkos"))]
+        let tx_result = vm.inspect(&mut tracers.into(), InspectExecutionMode::OneTx);
+        #[cfg(feature = "zkos")]
+        let tx_result = vm.inspect(&mut Default::default(), InspectExecutionMode::OneTx);
+
+        let call_traces = call_tracer_result.get();
 
         let spent_on_pubdata =
             tx_result.statistics.gas_used - tx_result.statistics.computational_gas_used as u64;
@@ -1595,31 +1642,33 @@ impl InMemoryNode {
             formatter.print_vm_details(&tx_result);
         }
 
-        if !inner.config.disable_console_log {
-            inner
-                .console_log_handler
-                .handle_calls_recursive(call_traces);
-        }
+        if let Some(call_traces) = call_traces {
+            if !inner.config.disable_console_log {
+                inner
+                    .console_log_handler
+                    .handle_calls_recursive(call_traces);
+            }
 
-        if inner.config.show_calls != ShowCalls::None {
-            tracing::info!("");
-            tracing::info!(
-                "[Transaction Execution] ({} calls)",
-                call_traces[0].calls.len()
-            );
-            let num_calls = call_traces.len();
-            for (i, call) in call_traces.iter().enumerate() {
-                let is_last_sibling = i == num_calls - 1;
-                let mut formatter = formatter::Formatter::new();
-                formatter.print_call(
-                    tx.initiator_account(),
-                    tx.execute.contract_address,
-                    call,
-                    is_last_sibling,
-                    &inner.config.show_calls,
-                    inner.config.show_outputs,
-                    inner.config.resolve_hashes,
+            if inner.config.show_calls != ShowCalls::None {
+                tracing::info!("");
+                tracing::info!(
+                    "[Transaction Execution] ({} calls)",
+                    call_traces[0].calls.len()
                 );
+                let num_calls = call_traces.len();
+                for (i, call) in call_traces.iter().enumerate() {
+                    let is_last_sibling = i == num_calls - 1;
+                    let mut formatter = formatter::Formatter::new();
+                    formatter.print_call(
+                        tx.initiator_account(),
+                        tx.execute.contract_address,
+                        call,
+                        is_last_sibling,
+                        &inner.config.show_calls,
+                        inner.config.show_outputs,
+                        inner.config.resolve_hashes,
+                    );
+                }
             }
         }
         // Print event logs if enabled
@@ -1634,30 +1683,31 @@ impl InMemoryNode {
             tracing::info!("");
         }
 
-        let mut bytecodes = HashMap::new();
-        for b in &*compressed_bytecodes {
+        //let bytecodes = HashMap::new();
+        // HERE
+        /*for b in &*compressed_bytecodes {
             let (hash, bytecode) = bytecode_to_factory_dep(b.original.clone()).map_err(|err| {
                 tracing::error!("{}", format!("cannot convert bytecode: {err}").on_red());
                 err
             })?;
             bytecodes.insert(hash, bytecode);
-        }
+        }*/
 
         Ok(TxExecutionOutput {
-            result: tx_result,
-            call_traces: call_traces.clone(),
-            bytecodes,
+            result: tx_result.clone(),
+            call_traces: call_traces.cloned().unwrap_or_default(),
+            bytecodes: tx_result.dynamic_factory_deps.clone(),
         })
     }
 
     /// Runs L2 transaction and commits it to a new block.
-    pub fn run_l2_tx<W: WriteStorage, H: HistoryMode>(
+    pub fn run_l2_tx<VM: VmInterface>(
         &self,
         l2_tx: L2Tx,
         l2_tx_index: U64,
         block_ctx: &BlockContext,
         batch_env: &L1BatchEnv,
-        vm: &mut Vm<W, H>,
+        vm: &mut VM,
     ) -> anyhow::Result<()> {
         let tx_hash = l2_tx.hash();
         let transaction_type = l2_tx.common_data.transaction_type;
@@ -1705,7 +1755,10 @@ impl InMemoryNode {
             .write()
             .map_err(|_| anyhow::anyhow!("Failed to acquire write lock"))?;
         for (hash, code) in bytecodes.iter() {
-            inner.fork_storage.store_factory_dep(
+            inner
+                .fork_storage
+                .store_factory_dep(hash.clone(), code.clone());
+            /*inner.fork_storage.store_factory_dep(
                 u256_to_h256(*hash),
                 code.iter()
                     .flat_map(|entry| {
@@ -1714,7 +1767,7 @@ impl InMemoryNode {
                         bytes.to_vec()
                     })
                     .collect(),
-            )
+            )*/
         }
 
         let logs = result
@@ -1800,8 +1853,17 @@ impl InMemoryNode {
         let storage = StorageView::new(inner.fork_storage.clone()).into_rc_ptr();
         let system_env = inner.create_system_env(system_contracts, TxExecutionMode::VerifyExecute);
         let (batch_env, mut block_ctx) = inner.create_l1_batch_env(time, storage.clone());
+
+        #[cfg(feature = "zkos")]
+        let mut vm = ZKOsVM::new(
+            storage.clone(),
+            &inner.fork_storage.inner.read().unwrap().raw_storage,
+            TxExecutionMode::VerifyExecute,
+        );
+
         drop(inner);
 
+        #[cfg(not(feature = "zkos"))]
         let mut vm: Vm<_, HistoryEnabled> = Vm::new(batch_env.clone(), system_env, storage.clone());
 
         // Compute block hash. Note that the computed block hash here will be different than that in production.

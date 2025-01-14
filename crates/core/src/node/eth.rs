@@ -35,7 +35,7 @@ impl InMemoryNode {
         req: zksync_types::transaction_request::CallRequest,
     ) -> Result<Bytes, Web3Error> {
         let system_contracts = self.system_contracts.contracts_for_l2_call().clone();
-        let allow_no_target = system_contracts.evm_emulator.is_some();
+        let allow_no_target = true; //system_contracts.evm_emulator.is_some();
 
         let mut tx = L2Tx::from_request(req.into(), MAX_TX_SIZE, allow_no_target)?;
         tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
@@ -87,7 +87,7 @@ impl InMemoryNode {
         let system_contracts = self
             .system_contracts
             .contracts(TxExecutionMode::VerifyExecute, false);
-        let allow_no_target = system_contracts.evm_emulator.is_some();
+        let allow_no_target = true; //system_contracts.evm_emulator.is_some();
         let mut l2_tx = L2Tx::from_request(tx_req, MAX_TX_SIZE, allow_no_target)?;
 
         l2_tx.set_input(tx_bytes.0, hash);
@@ -153,7 +153,7 @@ impl InMemoryNode {
         let system_contracts = self
             .system_contracts
             .contracts(TxExecutionMode::VerifyExecute, false);
-        let allow_no_target = system_contracts.evm_emulator.is_some();
+        let allow_no_target = true; //system_contracts.evm_emulator.is_some();
         let mut l2_tx: L2Tx = L2Tx::from_request(tx_req, MAX_TX_SIZE, allow_no_target)?;
 
         // `v` was overwritten with 0 during converting into l2 tx
@@ -187,6 +187,7 @@ impl InMemoryNode {
         // TODO: Support
         _block: Option<BlockIdVariant>,
     ) -> anyhow::Result<U256> {
+        // FIXHERE
         let balance_key = storage_key_for_standard_token_balance(
             AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
             &address,
@@ -298,6 +299,7 @@ impl InMemoryNode {
         _block: Option<BlockIdVariant>,
     ) -> anyhow::Result<U256> {
         let inner = self.read_inner()?;
+        // FIXHERE
         let nonce_key = get_nonce_key(&address);
 
         match inner.fork_storage.read_value_internal(&nonce_key) {
