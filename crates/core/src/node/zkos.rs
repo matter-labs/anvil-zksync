@@ -1,9 +1,9 @@
-use std::{alloc::Global, collections::HashMap, fmt::Write, vec};
+use std::{alloc::Global, collections::HashMap, vec};
 
 use basic_system::basic_system::simple_growable_storage::TestingTree;
 use forward_system::run::{
     test_impl::{InMemoryPreimageSource, InMemoryTree, TxListSource},
-    PreimageType, ReadStorage, StorageCommitment,
+    PreimageType, StorageCommitment,
 };
 use hex::ToHex;
 use ruint::aliases::B160;
@@ -18,15 +18,11 @@ use zksync_multivm::{
         TxExecutionMode, VmExecutionLogs, VmExecutionResultAndLogs, VmInterface,
         VmInterfaceHistoryEnabled, VmRevertReason,
     },
-    vm_latest::{HistoryMode, TracerDispatcher, TracerPointer},
+    vm_latest::{HistoryMode, TracerPointer},
 };
 use zksync_types::{
-    address_to_h256,
-    block::{pack_block_info, unpack_block_info},
-    h256_to_u256,
-    web3::keccak256,
-    AccountTreeId, Address, StorageKey, StorageLog, StorageLogWithPreviousValue, Transaction, H160,
-    H256, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
+    address_to_h256, web3::keccak256, AccountTreeId, Address, StorageKey, StorageLog,
+    StorageLogWithPreviousValue, Transaction, H160, H256,
 };
 //use zksync_utils::{address_to_h256, h256_to_u256, u256_to_h256};
 
@@ -490,44 +486,6 @@ impl<S: WriteStorage, H: HistoryMode> ZKOsVM<S, H> {
         }
     }
 }
-/*
-impl<S: WriteStorage> TestNodeVMInterface for ZKOsVM<S> {
-    fn execute_tx(&mut self, tx: Transaction) -> VmExecutionResultAndLogs {
-        {
-            let mut storage_ptr = self.storage.borrow_mut();
-            let current_l1_batch_info_key = StorageKey::new(
-                AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
-                SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
-            );
-            let current_l1_batch_info = storage_ptr.read_value(&current_l1_batch_info_key);
-            let (batch_number, batch_timestamp) =
-                unpack_block_info(h256_to_u256(current_l1_batch_info));
-
-            dbg!(batch_number);
-            dbg!(batch_timestamp);
-
-            // TODO: move this somewhere
-            let aa = pack_block_info(batch_number + 1, batch_timestamp + 1);
-            storage_ptr.set_value(current_l1_batch_info_key, u256_to_h256(aa));
-        }
-
-        let simulate_only = match self.execution_mode {
-            TxExecutionMode::VerifyExecute => false,
-            TxExecutionMode::EstimateFee => true,
-            TxExecutionMode::EthCall => true,
-        };
-        let tx_result = {
-            execute_tx_in_zkos(
-                &tx,
-                &self.tree,
-                &self.preimage,
-                &mut self.storage,
-                simulate_only,
-            )
-        };
-        tx_result
-    }
-}*/
 
 pub struct ZkOsTracerDispatcher<S: WriteStorage, H: HistoryMode> {
     tracers: Vec<S>,
