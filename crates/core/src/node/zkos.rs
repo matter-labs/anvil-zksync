@@ -1,3 +1,5 @@
+//! Interfaces that use zkos for VM execution.
+//! This is still experimental code.
 use std::{alloc::Global, collections::HashMap, vec};
 
 use basic_system::basic_system::simple_growable_storage::TestingTree;
@@ -5,7 +7,6 @@ use forward_system::run::{
     test_impl::{InMemoryPreimageSource, InMemoryTree, TxListSource},
     PreimageType, StorageCommitment,
 };
-use hex::ToHex;
 use ruint::aliases::B160;
 use system_hooks::addresses_constants::{
     NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS, NONCE_HOLDER_HOOK_ADDRESS,
@@ -27,6 +28,7 @@ use zksync_types::{
 
 use crate::deps::InMemoryStorage;
 
+// Helper methods for different convertions.
 pub fn bytes32_to_h256(data: Bytes32) -> H256 {
     H256::from(data.as_u8_array_ref())
 }
@@ -48,11 +50,11 @@ pub fn pad_to_word(input: &Vec<u8>) -> Vec<u8> {
     data
 }
 
-// TODO: check endinanness
 pub fn h160_to_b160(data: &H160) -> B160 {
     B160::from_be_bytes(data.as_fixed_bytes().clone())
 }
 
+// Helper methods to add data to the Vec<u8> in the format expected by ZKOS.
 pub fn append_address(data: &mut Vec<u8>, address: &H160) {
     let mut pp = vec![0u8; 32];
     let ap1 = address.as_fixed_bytes();
@@ -86,6 +88,7 @@ pub fn append_usize(data: &mut Vec<u8>, payload: usize) {
     data.append(&mut pp.to_vec());
 }
 
+/// Iterates over raw storage and creates a tree from it.
 pub fn create_tree_from_full_state(
     raw_storage: &InMemoryStorage,
 ) -> (InMemoryTree, InMemoryPreimageSource) {
@@ -118,9 +121,6 @@ pub fn create_tree_from_full_state(
             entry.1.clone(),
         );
     }
-    println!("Tree size is: {}", tree.cold_storage.len());
-    println!("Preimage size is: {}", preimage_source.inner.len());
-
     (tree, preimage_source)
 }
 
@@ -133,7 +133,7 @@ pub fn add_elem_to_tree(tree: &mut InMemoryTree, k: &StorageKey, v: &H256) {
 }
 
 // Serialize Transaction to ZKOS format.
-// Should match the code in basic_bootlaoder/src/bootloader/transaction/mod.rs
+// Should match the code in basic_bootloader/src/bootloader/transaction/mod.rs
 pub fn transaction_to_zkos_vec(tx: &Transaction) -> Vec<u8> {
     let mut tx_raw: Vec<u8> = vec![];
     let tx_type_id = match tx.tx_format() {
@@ -151,7 +151,6 @@ pub fn transaction_to_zkos_vec(tx: &Transaction) -> Vec<u8> {
     };
     // tx_type
     tx_raw.append(&mut vec![0u8; 31]);
-
     tx_raw.append(&mut vec![tx_type_id; 1]);
 
     // from
@@ -246,17 +245,16 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
     preimage_source: &InMemoryPreimageSource,
     storage: &mut StoragePtr<W>,
     simulate_only: bool,
+    batch_env: &L1BatchEnv,
 ) -> VmExecutionResultAndLogs {
     let batch_context = basic_system::basic_system::BasicBlockMetadataFromOracle {
+        // TODO: get fee from batch_env.
         eip1559_basefee: ruint::aliases::U256::from(if simulate_only { 0u64 } else { 1000u64 }),
         ergs_price: ruint::aliases::U256::from(1u64),
-        // FIXME
-        block_number: 1,
-        timestamp: 42,
+        block_number: batch_env.number.0 as u64,
+        timestamp: batch_env.timestamp,
         gas_per_pubdata: ruint::aliases::U256::from(1u64),
     };
-
-    println!("Tree size is: {}", tree.cold_storage.len());
 
     let storage_commitment = StorageCommitment {
         root: *tree.storage_tree.root(),
@@ -280,7 +278,6 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
         )
     } else {
         let tx_source = TxListSource {
-            // transactions: vec![encoded_iwasm_tx].into(),
             transactions: vec![tx_raw].into(),
         };
         let batch_output = forward_system::run::run_batch(
@@ -299,14 +296,10 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
 
         // apply storage writes..
         for write in batch_output.storage_writes {
-            //let ab = write.key.as_u8_array_ref();
-            //let ac = H256::from(ab);
-
             let storage_key = StorageKey::new(
                 AccountTreeId::new(Address::from_slice(&write.account.to_be_bytes_vec())),
                 H256::from(write.account_key.as_u8_array_ref()),
             );
-            dbg!(&storage_key);
             let storage_value = H256::from(write.value.as_u8_array_ref());
             let prev_value = storage_ptr.set_value(storage_key, storage_value);
 
@@ -323,13 +316,7 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
         }
         let mut f_deps = HashMap::new();
 
-        println!(
-            "Adding {} preimages:",
-            batch_output.published_preimages.len()
-        );
-
         for factory_dep in batch_output.published_preimages {
-            println!("    {:?}", factory_dep.0);
             f_deps.insert(bytes32_to_h256(factory_dep.0), factory_dep.1);
         }
 
@@ -337,35 +324,26 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
     };
 
     let tx_output = match output.as_ref() {
-        Ok(tx_output) => {
-            match &tx_output.execution_result {
-                forward_system::run::ExecutionResult::Success(output) => match &output {
-                    forward_system::run::ExecutionOutput::Call(data) => data,
-                    forward_system::run::ExecutionOutput::Create(data, address) => {
-                        // TODO - pass it to the output somehow.
-                        println!(
-                            "Deployed to {}",
-                            address.to_be_bytes_vec().encode_hex::<String>()
-                        );
-                        data
-                    }
-                },
-                forward_system::run::ExecutionResult::Revert(data) => {
-                    return VmExecutionResultAndLogs {
-                        result: ExecutionResult::Revert {
-                            output: VmRevertReason::General {
-                                msg: "Transaction reverted".to_string(),
-                                data: data.clone(),
-                            },
+        Ok(tx_output) => match &tx_output.execution_result {
+            forward_system::run::ExecutionResult::Success(output) => match &output {
+                forward_system::run::ExecutionOutput::Call(data) => data,
+                forward_system::run::ExecutionOutput::Create(data, _) => data,
+            },
+            forward_system::run::ExecutionResult::Revert(data) => {
+                return VmExecutionResultAndLogs {
+                    result: ExecutionResult::Revert {
+                        output: VmRevertReason::General {
+                            msg: "Transaction reverted".to_string(),
+                            data: data.clone(),
                         },
-                        logs: Default::default(),
-                        statistics: Default::default(),
-                        refunds: Default::default(),
-                        dynamic_factory_deps: Default::default(),
-                    }
+                    },
+                    logs: Default::default(),
+                    statistics: Default::default(),
+                    refunds: Default::default(),
+                    dynamic_factory_deps: Default::default(),
                 }
             }
-        }
+        },
         Err(invalid_tx) => {
             return VmExecutionResultAndLogs {
                 result: ExecutionResult::Revert {
@@ -403,7 +381,6 @@ pub fn zkos_get_nonce_key(account: &Address) -> StorageKey {
     let nonce_manager = AccountTreeId::new(b160_to_h160(NONCE_HOLDER_HOOK_ADDRESS));
 
     // The `minNonce` (used as nonce for EOAs) is stored in a mapping inside the `NONCE_HOLDER` system contract
-    //let key = get_address_mapping_key(account, H256::zero());
     let key = address_to_h256(account);
 
     StorageKey::new(nonce_manager, key)
@@ -454,12 +431,13 @@ pub struct ZKOsVM<S: WriteStorage, H: HistoryMode> {
     preimage: InMemoryPreimageSource,
     transactions: Vec<Transaction>,
     execution_mode: TxExecutionMode,
+    batch_env: L1BatchEnv,
     _phantom: std::marker::PhantomData<H>,
 }
 
 impl<S: WriteStorage, H: HistoryMode> ZKOsVM<S, H> {
     pub fn new(
-        _batch_env: L1BatchEnv,
+        batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage: StoragePtr<S>,
         raw_storage: &InMemoryStorage,
@@ -472,6 +450,7 @@ impl<S: WriteStorage, H: HistoryMode> ZKOsVM<S, H> {
             preimage,
             transactions: vec![],
             execution_mode,
+            batch_env,
             _phantom: Default::default(),
         }
     }
@@ -543,9 +522,14 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for ZKOsVM<S, H> {
             TxExecutionMode::EthCall => true,
         };
 
-        assert_eq!(1, self.transactions.len());
+        // For now we only support one transaction.
+        assert_eq!(
+            1,
+            self.transactions.len(),
+            "only one tx per batch supported for now"
+        );
 
-        // FIXME.
+        // TODO: add support for multiple transactions.
         let tx = self.transactions[0].clone();
         execute_tx_in_zkos(
             &tx,
@@ -553,6 +537,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for ZKOsVM<S, H> {
             &self.preimage,
             &mut self.storage,
             simulate_only,
+            &self.batch_env,
         )
     }
 
