@@ -166,6 +166,10 @@ pub struct Cli {
     /// Enables EVM emulation. Requires local system contracts.
     pub emulate_evm: bool,
 
+    #[arg(long, help_heading = "System Configuration")]
+    /// Enables zkos (experimental).
+    pub use_zkos: bool,
+
     // Logging Configuration
     #[arg(long, help_heading = "Logging Configuration")]
     /// Log level (default: info).
@@ -444,6 +448,7 @@ impl Cli {
             .set_config_out(self.config_out)
             .with_host(self.host)
             .with_evm_emulator(if self.emulate_evm { Some(true) } else { None })
+            .with_zkos(if self.use_zkos { Some(true) } else { None })
             .with_health_check_endpoint(if self.health_check_endpoint {
                 Some(true)
             } else {

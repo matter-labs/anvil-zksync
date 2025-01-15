@@ -515,6 +515,15 @@ impl TestNodeConfig {
         self
     }
 
+    /// Enable or disable zkos
+    #[must_use]
+    pub fn with_zkos(mut self, enable: Option<bool>) -> Self {
+        if let Some(enable) = enable {
+            self.use_zkos = enable;
+        }
+        self
+    }
+
     /// Get the EVM emulation status
     pub fn is_evm_emulator_enabled(&self) -> bool {
         self.use_evm_emulator
