@@ -508,6 +508,7 @@ dependencies = [
  "httptest",
  "indexmap 2.6.0",
  "itertools 0.13.0",
+ "jsonrpsee",
  "lazy_static",
  "maplit",
  "once_cell",

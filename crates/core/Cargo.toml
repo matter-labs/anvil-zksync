@@ -55,6 +55,8 @@ system_hooks = { git = "https://github.com/matter-labs/zk_ee.git", branch = "mai
 #basic_system = { path = "../../../zk_ee/basic_system" }
 #zk_ee = { path = "../../../zk_ee/zk_ee" }
 #system_hooks = { path = "../../../zk_ee/system_hooks" }
+jsonrpsee.workspace = true
+
 
 ruint = { version = "1.12.3", default-features = false, features = ["alloc"]}
 
