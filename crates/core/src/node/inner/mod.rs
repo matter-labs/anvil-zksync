@@ -21,6 +21,7 @@ pub use in_memory_inner::{InMemoryNodeInner, TxExecutionOutput};
 use crate::filters::EthFilters;
 use crate::node::blockchain::Blockchain;
 use crate::node::inner::storage::ReadStorageDyn;
+use crate::node::keys::StorageKeyLayout;
 use crate::node::{ImpersonationManager, TestNodeFeeInputProvider};
 use crate::system_contracts::SystemContracts;
 use anvil_zksync_config::constants::NON_FORK_FIRST_BLOCK_TIMESTAMP;
@@ -41,6 +42,7 @@ impl InMemoryNodeInner {
         config: TestNodeConfig,
         impersonation: ImpersonationManager,
         system_contracts: SystemContracts,
+        storage_key_layout: StorageKeyLayout,
     ) -> (
         Arc<RwLock<Self>>,
         Box<dyn ReadStorageDyn>,
@@ -74,6 +76,7 @@ impl InMemoryNodeInner {
             config.clone(),
             impersonation.clone(),
             system_contracts.clone(),
+            storage_key_layout,
         );
 
         (

@@ -90,6 +90,7 @@ pub struct InMemoryNodeInner {
     pub rich_accounts: HashSet<H160>,
     /// Keeps track of historical states indexed via block hash. Limited to [MAX_PREVIOUS_STATES].
     previous_states: IndexMap<H256, HashMap<StorageKey, StorageValue>>,
+    storage_key_layout: StorageKeyLayout,
 }
 
 impl InMemoryNodeInner {
@@ -104,6 +105,7 @@ impl InMemoryNodeInner {
         config: TestNodeConfig,
         impersonation: ImpersonationManager,
         system_contracts: SystemContracts,
+        storage_key_layout: StorageKeyLayout,
     ) -> Self {
         InMemoryNodeInner {
             blockchain,
@@ -117,6 +119,7 @@ impl InMemoryNodeInner {
             impersonation,
             rich_accounts: HashSet::new(),
             previous_states: Default::default(),
+            storage_key_layout,
         }
     }
 
@@ -820,7 +823,7 @@ impl InMemoryNodeInner {
 
             // In theory, if the transaction has failed with such large gas limit, we could have returned an API error here right away,
             // but doing it later on keeps the code more lean.
-            let result = InMemoryNodeInner::estimate_gas_step(
+            let result = self.estimate_gas_step(
                 l2_tx.clone(),
                 gas_per_pubdata_byte,
                 BATCH_GAS_LIMIT,
@@ -858,7 +861,7 @@ impl InMemoryNodeInner {
             );
             let try_gas_limit = additional_gas_for_pubdata + mid;
 
-            let estimate_gas_result = InMemoryNodeInner::estimate_gas_step(
+            let estimate_gas_result = self.estimate_gas_step(
                 l2_tx.clone(),
                 gas_per_pubdata_byte,
                 try_gas_limit,
@@ -890,7 +893,7 @@ impl InMemoryNodeInner {
             * self.fee_input_provider.estimate_gas_scale_factor)
             as u64;
 
-        let estimate_gas_result = InMemoryNodeInner::estimate_gas_step(
+        let estimate_gas_result = self.estimate_gas_step(
             l2_tx.clone(),
             gas_per_pubdata_byte,
             suggested_gas_limit,
@@ -1006,6 +1009,7 @@ impl InMemoryNodeInner {
     /// Runs fee estimation against a sandbox vm with the given gas_limit.
     #[allow(clippy::too_many_arguments)]
     fn estimate_gas_step(
+        &self,
         mut l2_tx: L2Tx,
         gas_per_pubdata_byte: u64,
         tx_gas_limit: u64,
@@ -1031,7 +1035,9 @@ impl InMemoryNodeInner {
 
         // The nonce needs to be updated
         let nonce = l2_tx.nonce();
-        let nonce_key = StorageKeyLayout::get_nonce_key(is_zkos, &l2_tx.initiator_account());
+        let nonce_key = self
+            .storage_key_layout
+            .get_nonce_key(&l2_tx.initiator_account());
         let full_nonce = storage.borrow_mut().read_value(&nonce_key);
         let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
         let enforced_full_nonce = nonces_to_full_nonce(U256::from(nonce.0), deployment_nonce);
@@ -1041,7 +1047,9 @@ impl InMemoryNodeInner {
 
         // We need to explicitly put enough balance into the account of the users
         let payer = l2_tx.payer();
-        let balance_key = StorageKeyLayout::get_storage_key_for_base_token(is_zkos, &payer);
+        let balance_key = self
+            .storage_key_layout
+            .get_storage_key_for_base_token(&payer);
         let mut current_balance = h256_to_u256(storage.borrow_mut().read_value(&balance_key));
         let added_balance = l2_tx.common_data.fee.gas_limit * l2_tx.common_data.fee.max_fee_per_gas;
         current_balance += added_balance;
@@ -1316,10 +1324,9 @@ impl InMemoryNodeInner {
 
     /// Adds a lot of tokens to a given account with a specified balance.
     pub fn set_rich_account(&mut self, address: H160, balance: U256) {
-        let key = StorageKeyLayout::get_storage_key_for_base_token(
-            self.system_contracts.use_zkos,
-            &address,
-        );
+        let key = self
+            .storage_key_layout
+            .get_storage_key_for_base_token(&address);
 
         let keys = {
             let mut storage_view = StorageView::new(&self.fork_storage);
@@ -1393,6 +1400,11 @@ impl InMemoryNodeInner {
             config.use_evm_emulator,
             config.use_zkos,
         );
+        let storage_key_layout = if config.use_zkos {
+            StorageKeyLayout::ZkOs
+        } else {
+            StorageKeyLayout::ZkEra
+        };
         let (inner, _, _, _) = InMemoryNodeInner::init(
             None,
             fee_provider,
@@ -1400,6 +1412,7 @@ impl InMemoryNodeInner {
             config,
             impersonation.clone(),
             system_contracts.clone(),
+            storage_key_layout,
         );
         inner
     }
@@ -1718,6 +1731,7 @@ mod tests {
             TestNodeConfig::default(),
             impersonation,
             node.system_contracts.clone(),
+            node.storage_key_layout,
         );
         let mut node = node.write().await;
 

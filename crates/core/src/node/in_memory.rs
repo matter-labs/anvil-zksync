@@ -47,6 +47,7 @@ use zksync_multivm::tracers::CallTracer;
 use zksync_multivm::utils::{get_batch_base_fee, get_max_batch_gas_limit};
 use zksync_multivm::vm_latest::Vm;
 
+use crate::node::keys::StorageKeyLayout;
 use zksync_multivm::vm_latest::{HistoryDisabled, ToTracerPointer};
 use zksync_multivm::VmVersion;
 use zksync_types::api::{Block, DebugCall, TransactionReceipt, TransactionVariant};
@@ -258,6 +259,7 @@ pub struct InMemoryNode {
     pub(crate) pool: TxPool,
     pub(crate) sealer_state: BlockSealerState,
     pub(crate) system_contracts: SystemContracts,
+    pub(crate) storage_key_layout: StorageKeyLayout,
 }
 
 impl InMemoryNode {
@@ -273,6 +275,7 @@ impl InMemoryNode {
         pool: TxPool,
         sealer_state: BlockSealerState,
         system_contracts: SystemContracts,
+        storage_key_layout: StorageKeyLayout,
     ) -> Self {
         InMemoryNode {
             inner,
@@ -286,6 +289,7 @@ impl InMemoryNode {
             pool,
             sealer_state,
             system_contracts,
+            storage_key_layout,
         }
     }
 
@@ -649,6 +653,11 @@ impl InMemoryNode {
             config.use_evm_emulator,
             config.use_zkos,
         );
+        let storage_key_layout = if config.use_zkos {
+            StorageKeyLayout::ZkOs
+        } else {
+            StorageKeyLayout::ZkEra
+        };
         let (inner, storage, blockchain, time) = InMemoryNodeInner::init(
             fork,
             fee_provider,
@@ -656,9 +665,10 @@ impl InMemoryNode {
             config,
             impersonation.clone(),
             system_contracts.clone(),
+            storage_key_layout,
         );
         let (node_executor, node_handle) =
-            NodeExecutor::new(inner.clone(), system_contracts.clone());
+            NodeExecutor::new(inner.clone(), system_contracts.clone(), storage_key_layout);
         let pool = TxPool::new(
             impersonation.clone(),
             anvil_zksync_types::TransactionOrder::Fifo,
@@ -682,6 +692,7 @@ impl InMemoryNode {
             pool,
             block_sealer_state,
             system_contracts,
+            storage_key_layout,
         )
     }
 

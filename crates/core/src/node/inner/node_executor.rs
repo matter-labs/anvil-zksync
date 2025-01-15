@@ -1,31 +1,33 @@
 use super::InMemoryNodeInner;
+use crate::node::keys::StorageKeyLayout;
 use crate::node::pool::TxBatch;
 use crate::system_contracts::SystemContracts;
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot, RwLock};
 use zksync_multivm::interface::TxExecutionMode;
 use zksync_types::bytecode::BytecodeHash;
-use zksync_types::utils::{nonces_to_full_nonce, storage_key_for_eth_balance};
-use zksync_types::{
-    get_code_key, get_nonce_key, u256_to_h256, Address, L2BlockNumber, StorageKey, U256,
-};
+use zksync_types::utils::nonces_to_full_nonce;
+use zksync_types::{get_code_key, u256_to_h256, Address, L2BlockNumber, StorageKey, U256};
 
 pub struct NodeExecutor {
     node_inner: Arc<RwLock<InMemoryNodeInner>>,
     system_contracts: SystemContracts,
     command_receiver: mpsc::Receiver<Command>,
+    storage_key_layout: StorageKeyLayout,
 }
 
 impl NodeExecutor {
     pub fn new(
         node_inner: Arc<RwLock<InMemoryNodeInner>>,
         system_contracts: SystemContracts,
+        storage_key_layout: StorageKeyLayout,
     ) -> (Self, NodeExecutorHandle) {
         let (command_sender, command_receiver) = mpsc::channel(128);
         let this = Self {
             node_inner,
             system_contracts,
             command_receiver,
+            storage_key_layout,
         };
         let handle = NodeExecutorHandle { command_sender };
         (this, handle)
@@ -184,7 +186,9 @@ impl NodeExecutor {
     }
 
     async fn set_balance(&self, address: Address, balance: U256, reply: oneshot::Sender<()>) {
-        let balance_key = storage_key_for_eth_balance(&address);
+        let balance_key = self
+            .storage_key_layout
+            .get_storage_key_for_base_token(&address);
         // TODO: Likely fork_storage can be moved to `NodeExecutor` instead
         self.node_inner
             .read()
@@ -198,7 +202,7 @@ impl NodeExecutor {
     }
 
     async fn set_nonce(&self, address: Address, nonce: U256, reply: oneshot::Sender<()>) {
-        let nonce_key = get_nonce_key(&address);
+        let nonce_key = self.storage_key_layout.get_nonce_key(&address);
         let enforced_full_nonce = nonces_to_full_nonce(nonce, nonce);
         // TODO: Likely fork_storage can be moved to `NodeExecutor` instead
         self.node_inner

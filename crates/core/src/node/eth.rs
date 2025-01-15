@@ -28,8 +28,6 @@ use crate::{
     utils::{h256_to_u64, TransparentError},
 };
 
-use super::keys::StorageKeyLayout;
-
 impl InMemoryNode {
     pub async fn call_impl(
         &self,
@@ -173,10 +171,9 @@ impl InMemoryNode {
         // TODO: Support
         _block: Option<BlockIdVariant>,
     ) -> anyhow::Result<U256> {
-        let balance_key = StorageKeyLayout::get_storage_key_for_base_token(
-            self.system_contracts.use_zkos,
-            &address,
-        );
+        let balance_key = self
+            .storage_key_layout
+            .get_storage_key_for_base_token(&address);
         match self.storage.read_value_alt(&balance_key).await {
             Ok(balance) => Ok(h256_to_u256(balance)),
             Err(error) => Err(anyhow::anyhow!("failed to read account balance: {error}")),
@@ -265,7 +262,7 @@ impl InMemoryNode {
         // TODO: Support
         _block: Option<BlockIdVariant>,
     ) -> anyhow::Result<U256> {
-        let nonce_key = StorageKeyLayout::get_nonce_key(self.system_contracts.use_zkos, &address);
+        let nonce_key = self.storage_key_layout.get_nonce_key(&address);
         match self.storage.read_value_alt(&nonce_key).await {
             Ok(result) => Ok(h256_to_u64(result).into()),
             Err(error) => Err(anyhow::anyhow!("failed to read nonce storage: {error}")),

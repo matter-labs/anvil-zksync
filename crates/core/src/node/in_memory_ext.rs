@@ -2,16 +2,13 @@ use super::inner::fork::ForkDetails;
 use super::pool::TxBatch;
 use super::sealer::BlockSealerMode;
 use super::InMemoryNode;
-use crate::node::keys::StorageKeyLayout;
 use anvil_zksync_types::api::{DetailedTransaction, ResetRequest};
 use anyhow::{anyhow, Context};
 use std::time::Duration;
 use zksync_types::api::{Block, TransactionVariant};
 use zksync_types::bytecode::BytecodeHash;
 use zksync_types::u256_to_h256;
-use zksync_types::{get_code_key, utils::nonces_to_full_nonce, L2BlockNumber, StorageKey};
-use zksync_types::{AccountTreeId, Address, H256, U256, U64};
-use zksync_types::{L2BlockNumber, StorageKey};
+use zksync_types::{AccountTreeId, Address, L2BlockNumber, StorageKey, H256, U256, U64};
 
 type Result<T> = anyhow::Result<T>;
 

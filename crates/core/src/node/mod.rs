@@ -19,7 +19,7 @@ mod zkos;
 mod zks;
 
 pub use self::{
-    fee_model::TestNodeFeeInputProvider, impersonate::ImpersonationManager,
+    fee_model::TestNodeFeeInputProvider, impersonate::ImpersonationManager, keys::StorageKeyLayout,
     node_executor::NodeExecutor, pool::TxPool, sealer::BlockSealer, sealer::BlockSealerMode,
     state::VersionedState,
 };

@@ -13,7 +13,7 @@ use anvil_zksync_core::filters::EthFilters;
 use anvil_zksync_core::node::fork::ForkDetails;
 use anvil_zksync_core::node::{
     BlockSealer, BlockSealerMode, ImpersonationManager, InMemoryNode, InMemoryNodeInner,
-    NodeExecutor, TestNodeFeeInputProvider, TxPool,
+    NodeExecutor, StorageKeyLayout, TestNodeFeeInputProvider, TxPool,
 };
 use anvil_zksync_core::observability::Observability;
 use anvil_zksync_core::system_contracts::SystemContracts;
@@ -223,6 +223,11 @@ async fn main() -> anyhow::Result<()> {
         config.use_evm_emulator,
         config.use_zkos,
     );
+    let storage_key_layout = if config.use_zkos {
+        StorageKeyLayout::ZkOs
+    } else {
+        StorageKeyLayout::ZkEra
+    };
 
     let (node_inner, storage, blockchain, time) = InMemoryNodeInner::init(
         fork_details,
@@ -231,10 +236,14 @@ async fn main() -> anyhow::Result<()> {
         config.clone(),
         impersonation.clone(),
         system_contracts.clone(),
+        storage_key_layout,
     );
 
-    let (node_executor, node_handle) =
-        NodeExecutor::new(node_inner.clone(), system_contracts.clone());
+    let (node_executor, node_handle) = NodeExecutor::new(
+        node_inner.clone(),
+        system_contracts.clone(),
+        storage_key_layout,
+    );
     let sealing_mode = if config.no_mining {
         BlockSealerMode::noop()
     } else if let Some(block_time) = config.block_time {
@@ -256,6 +265,7 @@ async fn main() -> anyhow::Result<()> {
         pool,
         block_sealer_state,
         system_contracts,
+        storage_key_layout,
     );
 
     if let Some(ref bytecodes_dir) = config.override_bytecodes_dir {
