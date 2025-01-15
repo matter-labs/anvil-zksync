@@ -20,15 +20,6 @@ use zksync_types::{
 };
 use zksync_web3_decl::error::Web3Error;
 
-pub(crate) fn bytes_to_be_words(bytes: &[u8]) -> Vec<U256> {
-    assert_eq!(
-        bytes.len() % 32,
-        0,
-        "Bytes must be divisible by 32 to split into chunks"
-    );
-    bytes.chunks(32).map(U256::from_big_endian).collect()
-}
-
 /// Takes long integers and returns them in human friendly format with "_".
 /// For example: 12_334_093
 pub fn to_human_size(input: U256) -> String {
@@ -46,21 +37,6 @@ pub fn to_human_size(input: U256) -> String {
         })
         .collect();
     tmp.iter().rev().collect()
-}
-
-// TODO: Approach to encoding bytecode has changed in the core, so this function is likely no
-// longer needed. See `zksync_contracts::SystemContractCode` for general approach.
-//
-// Use of `bytecode_to_factory_dep` needs to be refactored and vendored `bytes_to_be_words`
-// should be removed.
-pub fn bytecode_to_factory_dep(bytecode: Vec<u8>) -> Result<(U256, Vec<U256>), anyhow::Error> {
-    zksync_types::bytecode::validate_bytecode(&bytecode).context("Invalid bytecode")?;
-    let bytecode_hash = zksync_types::bytecode::BytecodeHash::for_bytecode(&bytecode).value();
-    let bytecode_hash = U256::from_big_endian(bytecode_hash.as_bytes());
-
-    let bytecode_words = bytes_to_be_words(&bytecode);
-
-    Ok((bytecode_hash, bytecode_words))
 }
 
 /// Returns the actual [U64] block number from [BlockNumber].

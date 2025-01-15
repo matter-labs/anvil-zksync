@@ -75,7 +75,7 @@ impl InMemoryNode {
     }
 
     pub async fn send_raw_transaction_impl(&self, tx_bytes: Bytes) -> Result<H256, Web3Error> {
-        let chain_id = self.inner.read().await.fork_storage.chain_id;
+        let chain_id = self.chain_id().await;
 
         let (tx_req, hash) = TransactionRequest::from_bytes(&tx_bytes.0, chain_id)?;
         // Impersonation does not matter in this context so we assume the tx is not impersonated:
@@ -104,10 +104,7 @@ impl InMemoryNode {
     ) -> Result<H256, Web3Error> {
         let (chain_id, l2_gas_price) = {
             let reader = self.inner.read().await;
-            (
-                reader.fork_storage.chain_id,
-                reader.fee_input_provider.gas_price(),
-            )
+            (self.chain_id().await, reader.fee_input_provider.gas_price())
         };
 
         let mut tx_req = TransactionRequest::from(tx.clone());
@@ -187,9 +184,7 @@ impl InMemoryNode {
             AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
             &address,
         );
-
-        let inner_guard = self.inner.read().await;
-        match inner_guard.fork_storage.read_value_internal(&balance_key) {
+        match self.storage.read_value_alt(&balance_key).await {
             Ok(balance) => Ok(h256_to_u256(balance)),
             Err(error) => Err(anyhow::anyhow!("failed to read account balance: {error}")),
         }
@@ -258,12 +253,9 @@ impl InMemoryNode {
         // TODO: Support
         _block: Option<BlockIdVariant>,
     ) -> anyhow::Result<Bytes> {
-        let inner = self.inner.write().await;
-
         let code_key = get_code_key(&address);
-
-        match inner.fork_storage.read_value_internal(&code_key) {
-            Ok(code_hash) => match inner.fork_storage.load_factory_dep_internal(code_hash) {
+        match self.storage.read_value_alt(&code_key).await {
+            Ok(code_hash) => match self.storage.load_factory_dep_alt(code_hash).await {
                 Ok(raw_code) => {
                     let code = raw_code.unwrap_or_default();
                     Ok(Bytes::from(code))
@@ -280,10 +272,8 @@ impl InMemoryNode {
         // TODO: Support
         _block: Option<BlockIdVariant>,
     ) -> anyhow::Result<U256> {
-        let inner = self.inner.read().await;
         let nonce_key = get_nonce_key(&address);
-
-        match inner.fork_storage.read_value_internal(&nonce_key) {
+        match self.storage.read_value_alt(&nonce_key).await {
             Ok(result) => Ok(h256_to_u64(result).into()),
             Err(error) => Err(anyhow::anyhow!("failed to read nonce storage: {error}")),
         }

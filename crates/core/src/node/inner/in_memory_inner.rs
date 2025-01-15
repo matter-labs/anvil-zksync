@@ -15,11 +15,12 @@ use crate::node::{
     MAX_PREVIOUS_STATES, MAX_TX_SIZE,
 };
 use crate::system_contracts::SystemContracts;
-use crate::utils::{bytecode_to_factory_dep, create_debug_output};
+use crate::utils::create_debug_output;
 use crate::{formatter, utils};
 use anvil_zksync_config::constants::NON_FORK_FIRST_BLOCK_TIMESTAMP;
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_types::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
+use anyhow::Context;
 use colored::Colorize;
 use indexmap::IndexMap;
 use once_cell::sync::OnceCell;
@@ -45,6 +46,7 @@ use zksync_multivm::vm_latest::{HistoryDisabled, HistoryEnabled, ToTracerPointer
 use zksync_multivm::{HistoryMode, VmVersion};
 use zksync_types::api::{BlockIdVariant, TransactionVariant};
 use zksync_types::block::build_bloom;
+use zksync_types::bytecode::BytecodeHash;
 use zksync_types::fee::Fee;
 use zksync_types::fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput};
 use zksync_types::l2::{L2Tx, TransactionType};
@@ -55,7 +57,7 @@ use zksync_types::utils::{
 use zksync_types::web3::{Bytes, Index};
 use zksync_types::{
     api, get_nonce_key, h256_to_address, h256_to_u256, u256_to_h256, AccountTreeId, Address, Bloom,
-    BloomInput, L1BatchNumber, L2BlockNumber, StorageKey, StorageValue, Transaction,
+    BloomInput, L1BatchNumber, L2BlockNumber, L2ChainId, StorageKey, StorageValue, Transaction,
     ACCOUNT_CODE_STORAGE_ADDRESS, H160, H256, MAX_L2_TX_GAS_LIMIT, U256, U64,
 };
 use zksync_web3_decl::error::Web3Error;
@@ -415,11 +417,9 @@ impl InMemoryNodeInner {
 
         let mut bytecodes = HashMap::new();
         for b in &*compressed_bytecodes {
-            let (hash, bytecode) = bytecode_to_factory_dep(b.original.clone()).map_err(|err| {
-                tracing::error!("{}", format!("cannot convert bytecode: {err}").on_red());
-                err
-            })?;
-            bytecodes.insert(hash, bytecode);
+            zksync_types::bytecode::validate_bytecode(&b.original).context("Invalid bytecode")?;
+            let hash = BytecodeHash::for_bytecode(&b.original).value();
+            bytecodes.insert(hash, b.original.clone());
         }
 
         Ok(TxExecutionOutput {
@@ -466,17 +466,8 @@ impl InMemoryNodeInner {
         }
 
         // Write all the factory deps.
-        for (hash, code) in bytecodes.iter() {
-            self.fork_storage.store_factory_dep(
-                u256_to_h256(*hash),
-                code.iter()
-                    .flat_map(|entry| {
-                        let mut bytes = vec![0u8; 32];
-                        entry.to_big_endian(&mut bytes);
-                        bytes.to_vec()
-                    })
-                    .collect(),
-            )
+        for (hash, code) in bytecodes {
+            self.fork_storage.store_factory_dep(hash, code)
         }
 
         let logs = result
@@ -1282,13 +1273,22 @@ impl InMemoryNodeInner {
         }
         self.rich_accounts.insert(address);
     }
+
+    pub fn read_storage(&self) -> Box<dyn ReadStorage + '_> {
+        Box::new(&self.fork_storage)
+    }
+
+    // TODO: Remove, this should also be made available from somewhere else
+    pub fn chain_id(&self) -> L2ChainId {
+        self.fork_storage.chain_id
+    }
 }
 
 #[derive(Debug)]
 pub struct TxExecutionOutput {
     result: VmExecutionResultAndLogs,
     call_traces: Vec<Call>,
-    bytecodes: HashMap<U256, Vec<U256>>,
+    bytecodes: HashMap<H256, Vec<u8>>,
 }
 
 /// Keeps track of a block's batch number, miniblock number and timestamp.

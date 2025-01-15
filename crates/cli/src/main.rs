@@ -221,7 +221,7 @@ async fn main() -> anyhow::Result<()> {
     let system_contracts =
         SystemContracts::from_options(&config.system_contracts_options, config.use_evm_emulator);
 
-    let (node_inner, _fork_storage, blockchain, time) = InMemoryNodeInner::init(
+    let (node_inner, storage, blockchain, time) = InMemoryNodeInner::init(
         fork_details,
         fee_input_provider.clone(),
         filters,
@@ -245,6 +245,7 @@ async fn main() -> anyhow::Result<()> {
     let node: InMemoryNode = InMemoryNode::new(
         node_inner,
         blockchain,
+        storage,
         node_handle,
         Some(observability),
         time,

@@ -13,12 +13,14 @@ pub mod blockchain;
 pub mod fork;
 mod in_memory_inner;
 pub mod node_executor;
+pub mod storage;
 pub mod time;
 
 pub use in_memory_inner::{InMemoryNodeInner, TxExecutionOutput};
 
 use crate::filters::EthFilters;
 use crate::node::blockchain::Blockchain;
+use crate::node::inner::storage::ReadStorageDyn;
 use crate::node::{ImpersonationManager, TestNodeFeeInputProvider};
 use crate::system_contracts::SystemContracts;
 use anvil_zksync_config::constants::NON_FORK_FIRST_BLOCK_TIMESTAMP;
@@ -41,7 +43,7 @@ impl InMemoryNodeInner {
         system_contracts: SystemContracts,
     ) -> (
         Arc<RwLock<Self>>,
-        ForkStorage,
+        Box<dyn ReadStorageDyn>,
         Box<dyn ReadBlockchain>,
         Box<dyn ReadTime>,
     ) {
@@ -76,7 +78,7 @@ impl InMemoryNodeInner {
 
         (
             Arc::new(RwLock::new(node_inner)),
-            fork_storage,
+            Box::new(fork_storage),
             Box::new(blockchain),
             Box::new(time),
         )

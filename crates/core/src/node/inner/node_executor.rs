@@ -4,7 +4,11 @@ use crate::system_contracts::SystemContracts;
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot, RwLock};
 use zksync_multivm::interface::TxExecutionMode;
-use zksync_types::L2BlockNumber;
+use zksync_types::bytecode::BytecodeHash;
+use zksync_types::utils::{nonces_to_full_nonce, storage_key_for_eth_balance};
+use zksync_types::{
+    get_code_key, get_nonce_key, u256_to_h256, Address, L2BlockNumber, StorageKey, U256,
+};
 
 pub struct NodeExecutor {
     node_inner: Arc<RwLock<InMemoryNodeInner>>,
@@ -35,6 +39,18 @@ impl NodeExecutor {
                 }
                 Command::SealBlocks(tx_batches, interval, reply) => {
                     self.seal_blocks(tx_batches, interval, reply).await;
+                }
+                Command::SetCode(address, code, reply) => {
+                    self.set_code(address, code, reply).await;
+                }
+                Command::SetStorage(key, value, reply) => {
+                    self.set_storage(key, value, reply).await;
+                }
+                Command::SetBalance(address, balance, reply) => {
+                    self.set_balance(address, balance, reply).await;
+                }
+                Command::SetNonce(address, nonce, reply) => {
+                    self.set_nonce(address, nonce, reply).await;
                 }
                 Command::IncreaseTime(delta, reply) => {
                     self.increase_time(delta, reply).await;
@@ -135,6 +151,64 @@ impl NodeExecutor {
         // Not much we can do with an error at this level so we just print it
         if let Err(err) = result {
             tracing::error!("failed to seal blocks: {:#?}", err);
+        }
+    }
+
+    async fn set_code(&self, address: Address, bytecode: Vec<u8>, reply: oneshot::Sender<()>) {
+        let code_key = get_code_key(&address);
+        let bytecode_hash = BytecodeHash::for_bytecode(&bytecode).value();
+        // TODO: Likely fork_storage can be moved to `NodeExecutor` instead
+        let node_inner = self.node_inner.read().await;
+        node_inner
+            .fork_storage
+            .store_factory_dep(bytecode_hash, bytecode);
+        node_inner.fork_storage.set_value(code_key, bytecode_hash);
+        drop(node_inner);
+        // Reply to sender if we can
+        if reply.send(()).is_err() {
+            tracing::info!("failed to reply as receiver has been dropped");
+        }
+    }
+
+    async fn set_storage(&self, key: StorageKey, value: U256, reply: oneshot::Sender<()>) {
+        // TODO: Likely fork_storage can be moved to `NodeExecutor` instead
+        self.node_inner
+            .read()
+            .await
+            .fork_storage
+            .set_value(key, u256_to_h256(value));
+        // Reply to sender if we can
+        if reply.send(()).is_err() {
+            tracing::info!("failed to reply as receiver has been dropped");
+        }
+    }
+
+    async fn set_balance(&self, address: Address, balance: U256, reply: oneshot::Sender<()>) {
+        let balance_key = storage_key_for_eth_balance(&address);
+        // TODO: Likely fork_storage can be moved to `NodeExecutor` instead
+        self.node_inner
+            .read()
+            .await
+            .fork_storage
+            .set_value(balance_key, u256_to_h256(balance));
+        // Reply to sender if we can
+        if reply.send(()).is_err() {
+            tracing::info!("failed to reply as receiver has been dropped");
+        }
+    }
+
+    async fn set_nonce(&self, address: Address, nonce: U256, reply: oneshot::Sender<()>) {
+        let nonce_key = get_nonce_key(&address);
+        let enforced_full_nonce = nonces_to_full_nonce(nonce, nonce);
+        // TODO: Likely fork_storage can be moved to `NodeExecutor` instead
+        self.node_inner
+            .read()
+            .await
+            .fork_storage
+            .set_value(nonce_key, u256_to_h256(enforced_full_nonce));
+        // Reply to sender if we can
+        if reply.send(()).is_err() {
+            tracing::info!("failed to reply as receiver has been dropped");
         }
     }
 
@@ -267,6 +341,68 @@ impl NodeExecutorHandle {
         }
     }
 
+    /// Request [`NodeExecutor`] to set bytecode for given address. Waits for the change to take place.
+    pub async fn set_code_sync(&self, address: Address, bytecode: Vec<u8>) -> anyhow::Result<()> {
+        let (response_sender, response_receiver) = oneshot::channel();
+        self.command_sender
+            .send(Command::SetCode(address, bytecode, response_sender))
+            .await
+            .map_err(|_| anyhow::anyhow!("failed to set code as node executor is dropped"))?;
+        match response_receiver.await {
+            Ok(()) => Ok(()),
+            Err(_) => {
+                anyhow::bail!("failed to set code as node executor is dropped")
+            }
+        }
+    }
+
+    /// Request [`NodeExecutor`] to set storage key-value pair. Waits for the change to take place.
+    pub async fn set_storage_sync(&self, key: StorageKey, value: U256) -> anyhow::Result<()> {
+        let (response_sender, response_receiver) = oneshot::channel();
+        self.command_sender
+            .send(Command::SetStorage(key, value, response_sender))
+            .await
+            .map_err(|_| anyhow::anyhow!("failed to set storage as node executor is dropped"))?;
+        match response_receiver.await {
+            Ok(()) => Ok(()),
+            Err(_) => {
+                anyhow::bail!("failed to set storage as node executor is dropped")
+            }
+        }
+    }
+
+    /// Request [`NodeExecutor`] to set account's balance to the given value. Waits for the change
+    /// to take place.
+    pub async fn set_balance_sync(&self, address: Address, balance: U256) -> anyhow::Result<()> {
+        let (response_sender, response_receiver) = oneshot::channel();
+        self.command_sender
+            .send(Command::SetBalance(address, balance, response_sender))
+            .await
+            .map_err(|_| anyhow::anyhow!("failed to set balance as node executor is dropped"))?;
+        match response_receiver.await {
+            Ok(()) => Ok(()),
+            Err(_) => {
+                anyhow::bail!("failed to set balance as node executor is dropped")
+            }
+        }
+    }
+
+    /// Request [`NodeExecutor`] to set account's nonce to the given value. Waits for the change
+    /// to take place.
+    pub async fn set_nonce_sync(&self, address: Address, nonce: U256) -> anyhow::Result<()> {
+        let (response_sender, response_receiver) = oneshot::channel();
+        self.command_sender
+            .send(Command::SetNonce(address, nonce, response_sender))
+            .await
+            .map_err(|_| anyhow::anyhow!("failed to set nonce as node executor is dropped"))?;
+        match response_receiver.await {
+            Ok(()) => Ok(()),
+            Err(_) => {
+                anyhow::bail!("failed to set nonce as node executor is dropped")
+            }
+        }
+    }
+
     /// Request [`NodeExecutor`] to increase time by the given delta (in seconds). Waits for the
     /// change to take place.
     pub async fn increase_time_sync(&self, delta: u64) -> anyhow::Result<()> {
@@ -357,6 +493,11 @@ enum Command {
         u64,
         oneshot::Sender<anyhow::Result<Vec<L2BlockNumber>>>,
     ),
+    // Storage manipulation commands
+    SetCode(Address, Vec<u8>, oneshot::Sender<()>),
+    SetStorage(StorageKey, U256, oneshot::Sender<()>),
+    SetBalance(Address, U256, oneshot::Sender<()>),
+    SetNonce(Address, U256, oneshot::Sender<()>),
     // Time manipulation commands. Caveat: reply-able commands can hold user connections alive for
     // a long time (until the command is processed).
     IncreaseTime(u64, oneshot::Sender<()>),

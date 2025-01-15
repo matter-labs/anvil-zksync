@@ -2,7 +2,8 @@
 use super::inner::fork::ForkDetails;
 use super::inner::node_executor::NodeExecutorHandle;
 use super::inner::InMemoryNodeInner;
-use crate::deps::{storage_view::StorageView, InMemoryStorage};
+use crate::deps::storage_view::StorageView;
+use crate::deps::InMemoryStorage;
 use crate::filters::EthFilters;
 use crate::formatter;
 use crate::node::call_error_tracer::CallErrorTracer;
@@ -10,6 +11,7 @@ use crate::node::error::LoadStateError;
 use crate::node::fee_model::TestNodeFeeInputProvider;
 use crate::node::impersonate::{ImpersonationManager, ImpersonationState};
 use crate::node::inner::blockchain::ReadBlockchain;
+use crate::node::inner::storage::ReadStorageDyn;
 use crate::node::inner::time::ReadTime;
 use crate::node::sealer::BlockSealerState;
 use crate::node::state::VersionedState;
@@ -46,17 +48,15 @@ use zksync_multivm::vm_latest::{HistoryDisabled, ToTracerPointer, Vm};
 use zksync_multivm::VmVersion;
 use zksync_types::api::{Block, DebugCall, TransactionReceipt, TransactionVariant};
 use zksync_types::block::unpack_block_info;
-use zksync_types::bytecode::BytecodeHash;
 use zksync_types::fee_model::BatchFeeInput;
 use zksync_types::l2::L2Tx;
 use zksync_types::storage::{
     EMPTY_UNCLES_HASH, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
 };
 use zksync_types::web3::{keccak256, Bytes};
-use zksync_types::{get_code_key, h256_to_u256};
 use zksync_types::{
-    AccountTreeId, Address, Bloom, L1BatchNumber, L2BlockNumber, PackedEthSignature, StorageKey,
-    StorageValue, Transaction, H160, H256, H64, U256, U64,
+    h256_to_u256, AccountTreeId, Address, Bloom, L1BatchNumber, L2BlockNumber, L2ChainId,
+    PackedEthSignature, StorageKey, StorageValue, Transaction, H160, H256, H64, U256, U64,
 };
 
 /// Max possible size of an ABI encoded tx (in bytes).
@@ -244,6 +244,7 @@ pub struct InMemoryNode {
     /// A thread safe reference to the [InMemoryNodeInner].
     pub(crate) inner: Arc<RwLock<InMemoryNodeInner>>,
     pub(crate) blockchain: Box<dyn ReadBlockchain>,
+    pub(crate) storage: Box<dyn ReadStorageDyn>,
     pub(crate) node_handle: NodeExecutorHandle,
     /// List of snapshots of the [InMemoryNodeInner]. This is bounded at runtime by [MAX_SNAPSHOTS].
     pub(crate) snapshots: Arc<RwLock<Vec<Snapshot>>>,
@@ -261,6 +262,7 @@ impl InMemoryNode {
     pub fn new(
         inner: Arc<RwLock<InMemoryNodeInner>>,
         blockchain: Box<dyn ReadBlockchain>,
+        storage: Box<dyn ReadStorageDyn>,
         node_handle: NodeExecutorHandle,
         observability: Option<Observability>,
         time: Box<dyn ReadTime>,
@@ -272,6 +274,7 @@ impl InMemoryNode {
         InMemoryNode {
             inner,
             blockchain,
+            storage,
             node_handle,
             snapshots: Default::default(),
             time,
@@ -380,7 +383,7 @@ impl InMemoryNode {
         let (batch_env, _) = inner.create_l1_batch_env().await;
         let system_env = inner.create_system_env(base_contracts, execution_mode);
 
-        let storage = StorageView::new(&inner.fork_storage).into_rc_ptr();
+        let storage = StorageView::new(inner.read_storage()).into_rc_ptr();
         let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage);
 
         // We must inject *some* signature (otherwise bootloader code fails to generate hash).
@@ -455,22 +458,10 @@ impl InMemoryNode {
     // Forcefully stores the given bytecode at a given account.
     pub async fn override_bytecode(
         &self,
-        address: &Address,
-        bytecode: &[u8],
-    ) -> Result<(), String> {
-        let inner = self.inner.write().await;
-
-        let code_key = get_code_key(address);
-
-        let bytecode_hash = BytecodeHash::for_bytecode(bytecode).value();
-
-        inner
-            .fork_storage
-            .store_factory_dep(bytecode_hash, bytecode.to_owned());
-
-        inner.fork_storage.set_value(code_key, bytecode_hash);
-
-        Ok(())
+        address: Address,
+        bytecode: Vec<u8>,
+    ) -> anyhow::Result<()> {
+        self.node_handle.set_code_sync(address, bytecode).await
     }
 
     pub async fn dump_state(&self, preserve_historical_states: bool) -> anyhow::Result<Bytes> {
@@ -605,6 +596,10 @@ impl InMemoryNode {
         observability.set_logging(directive)?;
         Ok(true)
     }
+
+    pub async fn chain_id(&self) -> L2ChainId {
+        self.inner.read().await.chain_id()
+    }
 }
 
 pub fn load_last_l1_batch<S: ReadStorage>(storage: StoragePtr<S>) -> Option<(u64, u64)> {
@@ -636,7 +631,7 @@ impl InMemoryNode {
             &config.system_contracts_options,
             config.use_evm_emulator,
         );
-        let (inner, _, blockchain, time) = InMemoryNodeInner::init(
+        let (inner, storage, blockchain, time) = InMemoryNodeInner::init(
             fork,
             fee_provider,
             Arc::new(RwLock::new(Default::default())),
@@ -661,6 +656,7 @@ impl InMemoryNode {
         Self::new(
             inner,
             blockchain,
+            storage,
             node_handle,
             None,
             time,
