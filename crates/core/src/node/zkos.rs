@@ -15,16 +15,16 @@ use zk_ee::{common_structs::derive_flat_storage_key, utils::Bytes32};
 use zksync_multivm::{
     interface::{
         storage::{StoragePtr, WriteStorage},
-        ExecutionResult, InspectExecutionMode, L1BatchEnv, PushTransactionResult, SystemEnv,
-        TxExecutionMode, VmExecutionLogs, VmExecutionResultAndLogs, VmInterface,
+        ExecutionResult, InspectExecutionMode, L1BatchEnv, PushTransactionResult, Refunds,
+        SystemEnv, TxExecutionMode, VmExecutionLogs, VmExecutionResultAndLogs, VmInterface,
         VmInterfaceHistoryEnabled, VmRevertReason,
     },
     vm_latest::TracerPointer,
     HistoryMode,
 };
 use zksync_types::{
-    address_to_h256, web3::keccak256, AccountTreeId, Address, StorageKey, StorageLog,
-    StorageLogWithPreviousValue, Transaction, H160, H256,
+    address_to_h256, web3::keccak256, AccountTreeId, Address, ExecuteTransactionCommon, StorageKey,
+    StorageLog, StorageLogWithPreviousValue, Transaction, H160, H256, U256,
 };
 
 use crate::deps::InMemoryStorage;
@@ -247,6 +247,7 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
     storage: &mut StoragePtr<W>,
     simulate_only: bool,
     batch_env: &L1BatchEnv,
+    chain_id: u64,
 ) -> VmExecutionResultAndLogs {
     let batch_context = basic_system::basic_system::BasicBlockMetadataFromOracle {
         // TODO: get fee from batch_env.
@@ -255,6 +256,7 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
         block_number: batch_env.number.0 as u64,
         timestamp: batch_env.timestamp,
         gas_per_pubdata: ruint::aliases::U256::from(1u64),
+        chain_id,
     };
 
     let storage_commitment = StorageCommitment {
@@ -262,7 +264,22 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
         next_free_slot: tree.storage_tree.next_free_slot,
     };
 
-    let tx_raw = transaction_to_zkos_vec(tx);
+    let mut tx = tx.clone();
+    if simulate_only {
+        // Currently zkos doesn't do validation when running a simulated transaction.
+        // This results in lower gas estimation - which might cause issues for the user.
+        const ZKOS_EXPECTED_VALIDATION_COST: u64 = 6_000;
+        let new_gas_limit = tx
+            .gas_limit()
+            .saturating_sub(U256::from(ZKOS_EXPECTED_VALIDATION_COST));
+        match &mut tx.common_data {
+            ExecuteTransactionCommon::L1(data) => data.gas_limit = new_gas_limit,
+            ExecuteTransactionCommon::L2(data) => data.fee.gas_limit = new_gas_limit,
+            ExecuteTransactionCommon::ProtocolUpgrade(data) => data.gas_limit = new_gas_limit,
+        };
+    }
+
+    let tx_raw = transaction_to_zkos_vec(&tx);
 
     let (output, dynamic_factory_deps, storage_logs) = if simulate_only {
         (
@@ -324,11 +341,13 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
         (batch_output.tx_results[0].clone(), f_deps, storage_logs)
     };
 
-    let tx_output = match output.as_ref() {
+    let (tx_output, gas_refunded) = match output.as_ref() {
         Ok(tx_output) => match &tx_output.execution_result {
             forward_system::run::ExecutionResult::Success(output) => match &output {
-                forward_system::run::ExecutionOutput::Call(data) => data,
-                forward_system::run::ExecutionOutput::Create(data, _) => data,
+                forward_system::run::ExecutionOutput::Call(data) => (data, tx_output.gas_refunded),
+                forward_system::run::ExecutionOutput::Create(data, _) => {
+                    (data, tx_output.gas_refunded)
+                }
             },
             forward_system::run::ExecutionResult::Revert(data) => {
                 return VmExecutionResultAndLogs {
@@ -340,7 +359,10 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
                     },
                     logs: Default::default(),
                     statistics: Default::default(),
-                    refunds: Default::default(),
+                    refunds: Refunds {
+                        gas_refunded: tx_output.gas_refunded,
+                        operator_suggested_refund: tx_output.gas_refunded,
+                    },
                     dynamic_factory_deps: Default::default(),
                 }
             }
@@ -373,7 +395,10 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
             total_log_queries_count: Default::default(),
         },
         statistics: Default::default(),
-        refunds: Default::default(),
+        refunds: Refunds {
+            gas_refunded,
+            operator_suggested_refund: gas_refunded,
+        },
         dynamic_factory_deps,
     }
 }
@@ -431,7 +456,7 @@ pub struct ZKOsVM<S: WriteStorage, H: HistoryMode> {
     pub tree: InMemoryTree,
     preimage: InMemoryPreimageSource,
     transactions: Vec<Transaction>,
-    execution_mode: TxExecutionMode,
+    system_env: SystemEnv,
     batch_env: L1BatchEnv,
     _phantom: std::marker::PhantomData<H>,
 }
@@ -443,15 +468,13 @@ impl<S: WriteStorage, H: HistoryMode> ZKOsVM<S, H> {
         storage: StoragePtr<S>,
         raw_storage: &InMemoryStorage,
     ) -> Self {
-        let execution_mode = system_env.execution_mode;
         let (tree, preimage) = { create_tree_from_full_state(raw_storage) };
-        // TODO: get chain_id from system_env and pass to ZKOS.
         ZKOsVM {
             storage,
             tree,
             preimage,
             transactions: vec![],
-            execution_mode,
+            system_env,
             batch_env,
             _phantom: Default::default(),
         }
@@ -518,7 +541,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for ZKOsVM<S, H> {
                 dynamic_factory_deps: Default::default(),
             };
         }
-        let simulate_only = match self.execution_mode {
+        let simulate_only = match self.system_env.execution_mode {
             TxExecutionMode::VerifyExecute => false,
             TxExecutionMode::EstimateFee => true,
             TxExecutionMode::EthCall => true,
@@ -540,6 +563,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for ZKOsVM<S, H> {
             &mut self.storage,
             simulate_only,
             &self.batch_env,
+            self.system_env.chain_id.as_u64(),
         )
     }
 
