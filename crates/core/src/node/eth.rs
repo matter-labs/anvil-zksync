@@ -2,21 +2,20 @@ use std::collections::HashSet;
 
 use anyhow::Context as _;
 use colored::Colorize;
-use zksync_multivm::interface::{ExecutionResult, TxExecutionMode};
+use zksync_multivm::interface::ExecutionResult;
 use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use zksync_types::h256_to_u256;
 use zksync_types::{
     api,
     api::{Block, BlockIdVariant, BlockNumber, TransactionVariant},
-    get_code_key, get_nonce_key,
+    get_code_key,
     l2::L2Tx,
     transaction_request::TransactionRequest,
-    utils::storage_key_for_standard_token_balance,
-    PackedEthSignature, L2_BASE_TOKEN_ADDRESS, MAX_L1_TRANSACTION_GAS_LIMIT,
+    PackedEthSignature, MAX_L1_TRANSACTION_GAS_LIMIT,
 };
 use zksync_types::{
     web3::{self, Bytes},
-    AccountTreeId, Address, H160, H256, U256, U64,
+    Address, H160, H256, U256, U64,
 };
 use zksync_web3_decl::{
     error::Web3Error,
@@ -29,15 +28,19 @@ use crate::{
     utils::{h256_to_u64, TransparentError},
 };
 
+use super::keys::StorageKeyLayout;
+
 impl InMemoryNode {
     pub async fn call_impl(
         &self,
         req: zksync_types::transaction_request::CallRequest,
     ) -> Result<Bytes, Web3Error> {
         let system_contracts = self.system_contracts.contracts_for_l2_call().clone();
-        let allow_no_target = system_contracts.evm_emulator.is_some();
-
-        let mut tx = L2Tx::from_request(req.into(), MAX_TX_SIZE, allow_no_target)?;
+        let mut tx = L2Tx::from_request(
+            req.into(),
+            MAX_TX_SIZE,
+            self.system_contracts.allow_no_target(),
+        )?;
         tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
         let call_result = self
             .run_l2_call(tx, system_contracts)
@@ -78,13 +81,8 @@ impl InMemoryNode {
         let chain_id = self.chain_id().await;
 
         let (tx_req, hash) = TransactionRequest::from_bytes(&tx_bytes.0, chain_id)?;
-        // Impersonation does not matter in this context so we assume the tx is not impersonated:
-        // system contracts here are fetched solely to check for EVM emulator.
-        let system_contracts = self
-            .system_contracts
-            .contracts(TxExecutionMode::VerifyExecute, false);
-        let allow_no_target = system_contracts.evm_emulator.is_some();
-        let mut l2_tx = L2Tx::from_request(tx_req, MAX_TX_SIZE, allow_no_target)?;
+        let mut l2_tx =
+            L2Tx::from_request(tx_req, MAX_TX_SIZE, self.system_contracts.allow_no_target())?;
 
         l2_tx.set_input(tx_bytes.0, hash);
         if hash != l2_tx.hash() {
@@ -141,13 +139,8 @@ impl InMemoryNode {
             27,
         ))?;
 
-        // Impersonation does not matter in this context so we assume the tx is not impersonated:
-        // system contracts here are fetched solely to check for EVM emulator.
-        let system_contracts = self
-            .system_contracts
-            .contracts(TxExecutionMode::VerifyExecute, false);
-        let allow_no_target = system_contracts.evm_emulator.is_some();
-        let mut l2_tx: L2Tx = L2Tx::from_request(tx_req, MAX_TX_SIZE, allow_no_target)?;
+        let mut l2_tx: L2Tx =
+            L2Tx::from_request(tx_req, MAX_TX_SIZE, self.system_contracts.allow_no_target())?;
 
         // `v` was overwritten with 0 during converting into l2 tx
         let mut signature = vec![0u8; 65];
@@ -180,8 +173,8 @@ impl InMemoryNode {
         // TODO: Support
         _block: Option<BlockIdVariant>,
     ) -> anyhow::Result<U256> {
-        let balance_key = storage_key_for_standard_token_balance(
-            AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
+        let balance_key = StorageKeyLayout::get_storage_key_for_base_token(
+            self.system_contracts.use_zkos,
             &address,
         );
         match self.storage.read_value_alt(&balance_key).await {
@@ -272,7 +265,7 @@ impl InMemoryNode {
         // TODO: Support
         _block: Option<BlockIdVariant>,
     ) -> anyhow::Result<U256> {
-        let nonce_key = get_nonce_key(&address);
+        let nonce_key = StorageKeyLayout::get_nonce_key(self.system_contracts.use_zkos, &address);
         match self.storage.read_value_alt(&nonce_key).await {
             Ok(result) => Ok(h256_to_u64(result).into()),
             Err(error) => Err(anyhow::anyhow!("failed to read nonce storage: {error}")),
@@ -609,7 +602,7 @@ mod tests {
         utils::deployed_address_create,
         Bloom, K256PrivateKey, L2BlockNumber, StorageKey, EMPTY_UNCLES_HASH,
     };
-    use zksync_types::{u256_to_h256, web3, Nonce};
+    use zksync_types::{u256_to_h256, web3, AccountTreeId, Nonce};
     use zksync_web3_decl::types::{SyncState, ValueOrArray};
 
     async fn test_node(url: &str) -> InMemoryNode {

@@ -9,10 +9,13 @@ mod impersonate;
 mod in_memory;
 mod in_memory_ext;
 mod inner;
+mod keys;
 mod pool;
 mod sealer;
 mod state;
 mod storage_logs;
+mod vm;
+mod zkos;
 mod zks;
 
 pub use self::{
