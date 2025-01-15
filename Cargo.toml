@@ -34,7 +34,6 @@ zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era.git", rev 
     "server",
 ] }
 
-
 #########################
 # External dependencies #
 #########################

@@ -70,6 +70,8 @@ pub struct TestNodeConfig {
     pub override_bytecodes_dir: Option<String>,
     /// Enables EVM emulation mode
     pub use_evm_emulator: bool,
+    /// Enables ZKOS mode (experimental)
+    pub use_zkos: bool,
     /// Optional chain ID for the node
     pub chain_id: Option<u32>,
     /// L1 gas price (optional override)
@@ -155,6 +157,7 @@ impl Default for TestNodeConfig {
             system_contracts_options: Default::default(),
             override_bytecodes_dir: None,
             use_evm_emulator: false,
+            use_zkos: false,
             chain_id: None,
 
             // Gas configuration defaults
@@ -362,8 +365,14 @@ impl TestNodeConfig {
                 "Disabled".red()
             }
         );
-        #[cfg(feature = "zkos")]
-        tracing::info!("ZK OS:              {}", "Enabled".green());
+        tracing::info!(
+            "ZK OS:              {}",
+            if self.use_zkos {
+                "Enabled".green()
+            } else {
+                "Disabled".red()
+            }
+        );
 
         println!("\n");
         tracing::info!("========================================");

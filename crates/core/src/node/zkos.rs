@@ -8,7 +8,8 @@ use zksync_multivm::{
         storage::{StoragePtr, WriteStorage},
         L1BatchEnv, SystemEnv, VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled,
     },
-    vm_latest::{HistoryMode, TracerPointer},
+    vm_latest::TracerPointer,
+    HistoryMode,
 };
 use zksync_types::{Address, StorageKey, Transaction};
 

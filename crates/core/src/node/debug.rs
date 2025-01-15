@@ -57,8 +57,12 @@ impl InMemoryNode {
             )));
         }
 
-        let mut l2_tx = L2Tx::from_request(request.into(), MAX_TX_SIZE, self.allow_no_target())
-            .map_err(Web3Error::SerializationError)?;
+        let mut l2_tx = L2Tx::from_request(
+            request.into(),
+            MAX_TX_SIZE,
+            self.system_contracts.allow_no_target(),
+        )
+        .map_err(Web3Error::SerializationError)?;
         let execution_mode = zksync_multivm::interface::TxExecutionMode::EthCall;
 
         // init vm

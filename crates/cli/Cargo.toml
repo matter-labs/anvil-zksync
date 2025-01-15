@@ -37,9 +37,3 @@ flate2.workspace = true
 
 [dev-dependencies]
 tempdir.workspace = true
-
-[features]
-
-zkos = ["anvil_zksync_core/zkos"]
-
-default = []

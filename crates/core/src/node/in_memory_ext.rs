@@ -167,7 +167,10 @@ impl InMemoryNode {
 
     pub async fn set_balance(&self, address: Address, balance: U256) -> bool {
         let writer = self.inner.write().await;
-        let balance_key = StorageKeyLayout::get_storage_key_for_base_token(&address);
+        let balance_key = StorageKeyLayout::get_storage_key_for_base_token(
+            self.system_contracts.use_zkos,
+            &address,
+        );
         writer
             .fork_storage
             .set_value(balance_key, u256_to_h256(balance));
@@ -181,7 +184,7 @@ impl InMemoryNode {
 
     pub async fn set_nonce(&self, address: Address, nonce: U256) -> bool {
         let writer = self.inner.write().await;
-        let nonce_key = StorageKeyLayout::get_nonce_key(&address);
+        let nonce_key = StorageKeyLayout::get_nonce_key(self.system_contracts.use_zkos, &address);
         let enforced_full_nonce = nonces_to_full_nonce(nonce, nonce);
         tracing::info!(
             "👷 Nonces for address {:?} have been set to {}",

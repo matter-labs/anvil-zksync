@@ -36,7 +36,11 @@ impl InMemoryNode {
         req: zksync_types::transaction_request::CallRequest,
     ) -> Result<Bytes, Web3Error> {
         let system_contracts = self.system_contracts.contracts_for_l2_call().clone();
-        let mut tx = L2Tx::from_request(req.into(), MAX_TX_SIZE, self.allow_no_target())?;
+        let mut tx = L2Tx::from_request(
+            req.into(),
+            MAX_TX_SIZE,
+            self.system_contracts.allow_no_target(),
+        )?;
         tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
         let call_result = self
             .run_l2_call(tx, system_contracts)
@@ -77,7 +81,8 @@ impl InMemoryNode {
         let chain_id = self.inner.read().await.fork_storage.chain_id;
 
         let (tx_req, hash) = TransactionRequest::from_bytes(&tx_bytes.0, chain_id)?;
-        let mut l2_tx = L2Tx::from_request(tx_req, MAX_TX_SIZE, self.allow_no_target())?;
+        let mut l2_tx =
+            L2Tx::from_request(tx_req, MAX_TX_SIZE, self.system_contracts.allow_no_target())?;
 
         l2_tx.set_input(tx_bytes.0, hash);
         if hash != l2_tx.hash() {
@@ -137,7 +142,8 @@ impl InMemoryNode {
             27,
         ))?;
 
-        let mut l2_tx: L2Tx = L2Tx::from_request(tx_req, MAX_TX_SIZE, self.allow_no_target())?;
+        let mut l2_tx: L2Tx =
+            L2Tx::from_request(tx_req, MAX_TX_SIZE, self.system_contracts.allow_no_target())?;
 
         // `v` was overwritten with 0 during converting into l2 tx
         let mut signature = vec![0u8; 65];
@@ -170,7 +176,10 @@ impl InMemoryNode {
         // TODO: Support
         _block: Option<BlockIdVariant>,
     ) -> anyhow::Result<U256> {
-        let balance_key = StorageKeyLayout::get_storage_key_for_base_token(&address);
+        let balance_key = StorageKeyLayout::get_storage_key_for_base_token(
+            self.system_contracts.use_zkos,
+            &address,
+        );
 
         let inner_guard = self.inner.read().await;
         match inner_guard.fork_storage.read_value_internal(&balance_key) {
@@ -265,7 +274,7 @@ impl InMemoryNode {
         _block: Option<BlockIdVariant>,
     ) -> anyhow::Result<U256> {
         let inner = self.inner.read().await;
-        let nonce_key = StorageKeyLayout::get_nonce_key(&address);
+        let nonce_key = StorageKeyLayout::get_nonce_key(self.system_contracts.use_zkos, &address);
 
         match inner.fork_storage.read_value_internal(&nonce_key) {
             Ok(result) => Ok(h256_to_u64(result).into()),

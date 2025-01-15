@@ -17,19 +17,28 @@ pub struct SystemContracts {
     fee_estimate_contracts: BaseSystemContracts,
     baseline_impersonating_contracts: BaseSystemContracts,
     fee_estimate_impersonating_contracts: BaseSystemContracts,
+    use_evm_emulator: bool,
+    // For now, store the zkos switch flag here.
+    // Long term, we should probably refactor this code, and add another struct ('System')
+    // that would hold separate things for ZKOS and for EraVM. (but that's too early for now).
+    pub use_zkos: bool,
 }
 
 impl Default for SystemContracts {
     /// Creates SystemContracts that use compiled-in contracts.
     fn default() -> Self {
-        SystemContracts::from_options(&SystemContractsOptions::BuiltIn, false)
+        SystemContracts::from_options(&SystemContractsOptions::BuiltIn, false, false)
     }
 }
 
 impl SystemContracts {
     /// Creates the SystemContracts that use the complied contracts from ZKSYNC_HOME path.
     /// These are loaded at binary runtime.
-    pub fn from_options(options: &SystemContractsOptions, use_evm_emulator: bool) -> Self {
+    pub fn from_options(
+        options: &SystemContractsOptions,
+        use_evm_emulator: bool,
+        use_zkos: bool,
+    ) -> Self {
         Self {
             baseline_contracts: baseline_contracts(options, use_evm_emulator),
             playground_contracts: playground(options, use_evm_emulator),
@@ -42,7 +51,15 @@ impl SystemContracts {
                 options,
                 use_evm_emulator,
             ),
+            use_evm_emulator,
+            use_zkos,
         }
+    }
+
+    /// Whether it accepts the transactions that have 'null' as target.
+    /// This is used only when EVM emulator is enabled, or we're running in zkos mode.
+    pub fn allow_no_target(&self) -> bool {
+        self.use_zkos || self.use_evm_emulator
     }
 
     pub fn contracts_for_l2_call(&self) -> &BaseSystemContracts {

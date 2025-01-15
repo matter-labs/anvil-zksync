@@ -2,9 +2,9 @@
 use super::inner::fork::ForkDetails;
 use super::inner::node_executor::NodeExecutorHandle;
 use super::inner::InMemoryNodeInner;
+use super::vm::AnvilVM;
 use crate::deps::{storage_view::StorageView, InMemoryStorage};
 use crate::filters::EthFilters;
-use crate::formatter;
 use crate::node::call_error_tracer::CallErrorTracer;
 use crate::node::error::LoadStateError;
 use crate::node::fee_model::TestNodeFeeInputProvider;
@@ -16,6 +16,7 @@ use crate::node::state::VersionedState;
 use crate::node::{BlockSealer, BlockSealerMode, NodeExecutor, TxPool};
 use crate::observability::Observability;
 use crate::system_contracts::SystemContracts;
+use crate::{delegate_vm, formatter};
 use anvil_zksync_config::constants::{
     LEGACY_RICH_WALLETS, NON_FORK_FIRST_BLOCK_TIMESTAMP, RICH_WALLETS, TEST_NODE_NETWORK_ID,
 };
@@ -36,14 +37,12 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::interface::storage::{ReadStorage, StoragePtr};
-#[cfg(not(feature = "zkos"))]
 use zksync_multivm::interface::VmFactory;
 use zksync_multivm::interface::{
     ExecutionResult, InspectExecutionMode, L1BatchEnv, L2BlockEnv, TxExecutionMode, VmInterface,
 };
 use zksync_multivm::tracers::CallTracer;
 use zksync_multivm::utils::{get_batch_base_fee, get_max_batch_gas_limit};
-#[cfg(not(feature = "zkos"))]
 use zksync_multivm::vm_latest::Vm;
 
 use zksync_multivm::vm_latest::{HistoryDisabled, ToTracerPointer};
@@ -310,18 +309,6 @@ impl InMemoryNode {
         Ok(())
     }
 
-    /// Whether it accepts the transactions that have 'null' as target.
-    /// This is used only when EVM emulator is enabled, or we're running in zkos mode.
-    pub fn allow_no_target(&self) -> bool {
-        #[cfg(feature = "zkos")]
-        return true;
-        #[cfg(not(feature = "zkos"))]
-        self.system_contracts
-            .contracts_for_l2_call()
-            .evm_emulator
-            .is_some()
-    }
-
     /// Applies multiple transactions across multiple blocks. All transactions are expected to be
     /// executable. Note that on error this method may leave node in partially applied state (i.e.
     /// some txs have been applied while others have not).
@@ -398,16 +385,17 @@ impl InMemoryNode {
 
         let storage = StorageView::new(&inner.fork_storage).into_rc_ptr();
 
-        #[cfg(not(feature = "zkos"))]
-        let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage);
-        #[cfg(feature = "zkos")]
-        let mut vm: super::zkos::ZKOsVM<_, HistoryDisabled> = super::zkos::ZKOsVM::new(
-            batch_env,
-            system_env,
-            storage,
-            // TODO: this might be causing a deadlock.. check..
-            &inner.fork_storage.inner.read().unwrap().raw_storage,
-        );
+        let mut vm = if self.system_contracts.use_zkos {
+            AnvilVM::ZKOs(super::zkos::ZKOsVM::<_, HistoryDisabled>::new(
+                batch_env,
+                system_env,
+                storage,
+                // TODO: this might be causing a deadlock.. check..
+                &inner.fork_storage.inner.read().unwrap().raw_storage,
+            ))
+        } else {
+            AnvilVM::ZKSync(Vm::new(batch_env, system_env, storage))
+        };
 
         // We must inject *some* signature (otherwise bootloader code fails to generate hash).
         if l2_tx.common_data.signature.is_empty() {
@@ -415,7 +403,7 @@ impl InMemoryNode {
         }
 
         let tx: Transaction = l2_tx.into();
-        vm.push_transaction(tx.clone());
+        delegate_vm!(vm, push_transaction(tx.clone()));
 
         let call_tracer_result = Arc::new(OnceCell::default());
 
@@ -423,7 +411,10 @@ impl InMemoryNode {
             CallErrorTracer::new().into_tracer_pointer(),
             CallTracer::new(call_tracer_result.clone()).into_tracer_pointer(),
         ];
-        let tx_result = vm.inspect(&mut tracers.into(), InspectExecutionMode::OneTx);
+        let tx_result = delegate_vm!(
+            vm,
+            inspect(&mut tracers.into(), InspectExecutionMode::OneTx)
+        );
 
         let call_traces = Arc::try_unwrap(call_tracer_result)
             .unwrap()
@@ -661,6 +652,7 @@ impl InMemoryNode {
         let system_contracts = SystemContracts::from_options(
             &config.system_contracts_options,
             config.use_evm_emulator,
+            config.use_zkos,
         );
         let (inner, _, blockchain, time) = InMemoryNodeInner::init(
             fork,

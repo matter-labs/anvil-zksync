@@ -218,8 +218,11 @@ async fn main() -> anyhow::Result<()> {
 
     let fee_input_provider = TestNodeFeeInputProvider::from_fork(fork_details.as_ref());
     let filters = Arc::new(RwLock::new(EthFilters::default()));
-    let system_contracts =
-        SystemContracts::from_options(&config.system_contracts_options, config.use_evm_emulator);
+    let system_contracts = SystemContracts::from_options(
+        &config.system_contracts_options,
+        config.use_evm_emulator,
+        config.use_zkos,
+    );
 
     let (node_inner, _fork_storage, blockchain, time) = InMemoryNodeInner::init(
         fork_details,

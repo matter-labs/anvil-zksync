@@ -42,7 +42,6 @@ flate2.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true
 
-
 [dev-dependencies]
 maplit.workspace = true
 ethers.workspace = true
@@ -51,8 +50,3 @@ tempdir.workspace = true
 zksync-web3-rs.workspace = true
 test-case.workspace = true
 backon.workspace = true
-
-
-[features]
-zkos = []
-default = []

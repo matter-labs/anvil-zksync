@@ -10,7 +10,7 @@ use crate::node::error::LoadStateError;
 use crate::node::keys::StorageKeyLayout;
 use crate::node::state::StateV1;
 use crate::node::storage_logs::print_storage_logs_details;
-#[cfg(feature = "zkos")]
+use crate::node::vm::AnvilVM;
 use crate::node::zkos::ZKOsVM;
 use crate::node::{
     compute_hash, create_block, ImpersonationManager, Snapshot, TestNodeFeeInputProvider,
@@ -20,7 +20,7 @@ use crate::node::{
 
 use crate::system_contracts::SystemContracts;
 use crate::utils::{bytecode_to_factory_dep, create_debug_output};
-use crate::{formatter, utils};
+use crate::{delegate_vm, formatter, utils};
 use anvil_zksync_config::constants::NON_FORK_FIRST_BLOCK_TIMESTAMP;
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_types::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
@@ -32,14 +32,12 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::interface::storage::{ReadStorage, WriteStorage};
-#[cfg(not(feature = "zkos"))]
 use zksync_multivm::interface::VmFactory;
 use zksync_multivm::interface::{
     Call, ExecutionResult, InspectExecutionMode, L1BatchEnv, L2BlockEnv, SystemEnv,
     TxExecutionMode, VmExecutionResultAndLogs, VmInterface, VmInterfaceExt,
     VmInterfaceHistoryEnabled,
 };
-#[cfg(not(feature = "zkos"))]
 use zksync_multivm::vm_latest::Vm;
 
 use zksync_multivm::tracers::CallTracer;
@@ -557,16 +555,17 @@ impl InMemoryNodeInner {
     ) -> Vec<TransactionResult> {
         let storage = StorageView::new(self.fork_storage.clone()).into_rc_ptr();
 
-        #[cfg(feature = "zkos")]
-        let mut vm: ZKOsVM<_, HistoryEnabled> = ZKOsVM::new(
-            batch_env.clone(),
-            system_env,
-            storage.clone(),
-            &self.fork_storage.inner.read().unwrap().raw_storage,
-        );
-
-        #[cfg(not(feature = "zkos"))]
-        let mut vm: Vm<_, HistoryEnabled> = Vm::new(batch_env.clone(), system_env, storage.clone());
+        let mut vm = if self.system_contracts.use_zkos {
+            AnvilVM::ZKOs(ZKOsVM::<_, HistoryEnabled>::new(
+                batch_env.clone(),
+                system_env,
+                storage.clone(),
+                // TODO: this might be causing a deadlock.. check..
+                &self.fork_storage.inner.read().unwrap().raw_storage,
+            ))
+        } else {
+            AnvilVM::ZKSync(Vm::new(batch_env.clone(), system_env, storage.clone()))
+        };
 
         // Compute block hash. Note that the computed block hash here will be different than that in production.
         let tx_hashes = txs.iter().map(|t| t.hash()).collect::<Vec<_>>();
@@ -579,21 +578,31 @@ impl InMemoryNodeInner {
         for tx in txs {
             // Executing a next transaction means that a previous transaction was either rolled back (in which case its snapshot
             // was already removed), or that we build on top of it (in which case, it can be removed now).
-            vm.pop_snapshot_no_rollback();
+            delegate_vm!(vm, pop_snapshot_no_rollback());
             // Save pre-execution VM snapshot.
-            vm.make_snapshot();
-            match self.run_l2_tx(tx, tx_index, block_ctx, &batch_env, &mut vm) {
+            delegate_vm!(vm, make_snapshot());
+            let result = match vm {
+                AnvilVM::ZKSync(ref mut vm) => {
+                    self.run_l2_tx(tx, tx_index, block_ctx, &batch_env, vm)
+                }
+                AnvilVM::ZKOs(ref mut vm) => {
+                    self.run_l2_tx(tx, tx_index, block_ctx, &batch_env, vm)
+                }
+            };
+
+            match result {
+                //self.run_l2_tx(tx, tx_index, block_ctx, &batch_env, &mut vm) {
                 Ok(tx_result) => {
                     tx_results.push(tx_result);
                     tx_index += 1;
                 }
                 Err(e) => {
                     tracing::error!("Error while executing transaction: {e}");
-                    vm.rollback_to_the_latest_snapshot();
+                    delegate_vm!(vm, rollback_to_the_latest_snapshot());
                 }
             }
         }
-        vm.execute(InspectExecutionMode::Bootloader);
+        delegate_vm!(vm, execute(InspectExecutionMode::Bootloader));
 
         // Write all the mutated keys (storage slots).
         for (key, value) in storage.borrow().modified_storage_keys() {
@@ -747,15 +756,11 @@ impl InMemoryNodeInner {
             .system_contracts
             .contracts_for_fee_estimate(impersonating)
             .clone();
-        #[cfg(feature = "zkos")]
-        let allow_no_target = true;
-        #[cfg(not(feature = "zkos"))]
-        let allow_no_target = system_contracts.evm_emulator.is_some();
 
         let mut l2_tx = L2Tx::from_request(
             request_with_gas_per_pubdata_overridden.into(),
             MAX_TX_SIZE,
-            allow_no_target,
+            self.system_contracts.allow_no_target(),
         )
         .map_err(Web3Error::SerializationError)?;
 
@@ -822,6 +827,7 @@ impl InMemoryNodeInner {
                 batch_env.clone(),
                 system_env.clone(),
                 &self.fork_storage,
+                self.system_contracts.use_zkos,
             );
 
             if result.statistics.pubdata_published > MAX_VM_PUBDATA_PER_BATCH.try_into().unwrap() {
@@ -859,6 +865,7 @@ impl InMemoryNodeInner {
                 batch_env.clone(),
                 system_env.clone(),
                 &self.fork_storage,
+                self.system_contracts.use_zkos,
             );
 
             if estimate_gas_result.result.is_failed() {
@@ -890,6 +897,7 @@ impl InMemoryNodeInner {
             batch_env,
             system_env,
             &self.fork_storage,
+            self.system_contracts.use_zkos,
         );
 
         let overhead = derive_overhead(
@@ -1004,6 +1012,7 @@ impl InMemoryNodeInner {
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         fork_storage: &ForkStorage,
+        is_zkos: bool,
     ) -> VmExecutionResultAndLogs {
         let tx: Transaction = l2_tx.clone().into();
 
@@ -1022,7 +1031,7 @@ impl InMemoryNodeInner {
 
         // The nonce needs to be updated
         let nonce = l2_tx.nonce();
-        let nonce_key = StorageKeyLayout::get_nonce_key(&l2_tx.initiator_account());
+        let nonce_key = StorageKeyLayout::get_nonce_key(is_zkos, &l2_tx.initiator_account());
         let full_nonce = storage.borrow_mut().read_value(&nonce_key);
         let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
         let enforced_full_nonce = nonces_to_full_nonce(U256::from(nonce.0), deployment_nonce);
@@ -1032,7 +1041,7 @@ impl InMemoryNodeInner {
 
         // We need to explicitly put enough balance into the account of the users
         let payer = l2_tx.payer();
-        let balance_key = StorageKeyLayout::get_storage_key_for_base_token(&payer);
+        let balance_key = StorageKeyLayout::get_storage_key_for_base_token(is_zkos, &payer);
         let mut current_balance = h256_to_u256(storage.borrow_mut().read_value(&balance_key));
         let added_balance = l2_tx.common_data.fee.gas_limit * l2_tx.common_data.fee.max_fee_per_gas;
         current_balance += added_balance;
@@ -1040,28 +1049,26 @@ impl InMemoryNodeInner {
             .borrow_mut()
             .set_value(balance_key, u256_to_h256(current_balance));
 
-        #[cfg(not(feature = "zkos"))]
-        let mut vm: zksync_multivm::vm_latest::Vm<_, HistoryDisabled> =
-            zksync_multivm::vm_latest::Vm::new(batch_env, system_env, storage.clone());
-
-        #[cfg(feature = "zkos")]
-        let mut vm: ZKOsVM<_, HistoryDisabled> = ZKOsVM::new(
-            batch_env,
-            system_env,
-            storage.clone(),
-            &fork_storage.inner.read().unwrap().raw_storage,
-        );
-        #[cfg(feature = "zkos")]
-        {
+        let mut vm = if is_zkos {
+            let mut vm = ZKOsVM::<_, HistoryDisabled>::new(
+                batch_env,
+                system_env,
+                storage,
+                // TODO: this might be causing a deadlock.. check..
+                &fork_storage.inner.read().unwrap().raw_storage,
+            );
             // Temporary hack - as we update the 'storage' just above, but zkos loads its full
             // state from fork_storage (that is not updated).
             vm.update_inconsistent_keys(&[&nonce_key, &balance_key]);
-        }
+            AnvilVM::ZKOs(vm)
+        } else {
+            AnvilVM::ZKSync(Vm::new(batch_env, system_env, storage))
+        };
 
         let tx: Transaction = l2_tx.into();
-        vm.push_transaction(tx);
+        delegate_vm!(vm, push_transaction(tx));
 
-        vm.execute(InspectExecutionMode::OneTx)
+        delegate_vm!(vm, execute(InspectExecutionMode::OneTx))
     }
 
     /// Creates a [Snapshot] of the current state of the node.
@@ -1309,7 +1316,10 @@ impl InMemoryNodeInner {
 
     /// Adds a lot of tokens to a given account with a specified balance.
     pub fn set_rich_account(&mut self, address: H160, balance: U256) {
-        let key = StorageKeyLayout::get_storage_key_for_base_token(&address);
+        let key = StorageKeyLayout::get_storage_key_for_base_token(
+            self.system_contracts.use_zkos,
+            &address,
+        );
 
         let keys = {
             let mut storage_view = StorageView::new(&self.fork_storage);
@@ -1372,6 +1382,7 @@ impl InMemoryNodeInner {
         let system_contracts = SystemContracts::from_options(
             &config.system_contracts_options,
             config.use_evm_emulator,
+            config.use_zkos,
         );
         let (inner, _, _, _) = InMemoryNodeInner::init(
             None,
