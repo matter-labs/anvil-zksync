@@ -497,7 +497,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "zksync-web3-rs",
- "zksync_basic_types",
  "zksync_contracts",
  "zksync_multivm",
  "zksync_types",
