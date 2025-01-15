@@ -437,7 +437,7 @@ impl InMemoryNodeInner {
         }
         // Also add bytecodes that were created by EVM.
         for entry in &tx_result.dynamic_factory_deps {
-            bytecodes.insert(entry.0.clone(), entry.1.clone());
+            bytecodes.insert(*entry.0, entry.1.clone());
         }
 
         Ok(TxExecutionOutput {
@@ -488,8 +488,7 @@ impl InMemoryNodeInner {
 
         // Write all the factory deps.
         for (hash, code) in bytecodes.iter() {
-            self.fork_storage
-                .store_factory_dep(hash.clone(), code.clone())
+            self.fork_storage.store_factory_dep(*hash, code.clone())
         }
 
         let logs = result

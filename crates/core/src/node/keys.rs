@@ -14,7 +14,7 @@ impl StorageKeyLayout {
         #[cfg(not(feature = "zkos"))]
         return zksync_types::utils::storage_key_for_standard_token_balance(
             zksync_types::AccountTreeId::new(zksync_types::L2_BASE_TOKEN_ADDRESS),
-            &address,
+            address,
         );
         #[cfg(feature = "zkos")]
         return crate::node::zkos::zkos_storage_key_for_eth_balance(address);
