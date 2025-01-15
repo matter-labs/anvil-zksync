@@ -44,14 +44,6 @@ thiserror.workspace = true
 async-trait.workspace = true
 
 
-# ZK os dependencies
-
-forward_system = { git = "https://github.com/matter-labs/zk_ee.git", branch = "zkos_anvil_v241217" , optional = true}
-basic_system = { git = "https://github.com/matter-labs/zk_ee.git", branch = "zkos_anvil_v241217", optional = true }
-zk_ee = { git = "https://github.com/matter-labs/zk_ee.git", branch = "zkos_anvil_v241217", optional = true }
-system_hooks = { git = "https://github.com/matter-labs/zk_ee.git", branch = "zkos_anvil_v241217", optional = true }
-ruint = { version = "1.12.3", default-features = false, features = ["alloc"], optional = true }
-
 [dev-dependencies]
 maplit.workspace = true
 ethers.workspace = true
@@ -63,5 +55,5 @@ backon.workspace = true
 
 
 [features]
-zkos = ["forward_system", "basic_system", "zk_ee", "system_hooks", "ruint", "anvil_zksync_config/zkos"]
+zkos = []
 default = []
