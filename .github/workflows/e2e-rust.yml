@@ -11,12 +11,12 @@ jobs:
         os: [ ubuntu-latest, macos-latest ]
     name: e2e-rust
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Download artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: anvil-zksync-${{ matrix.os }}.tar.gz
 
