@@ -337,12 +337,12 @@ impl InMemoryNode {
                 .iter()
                 .map(|tx| tx.hash())
                 .collect::<HashSet<_>>();
-            let block_numer = self.node_handle.seal_block_sync(tx_batch).await?;
+            let block_number = self.node_handle.seal_block_sync(tx_batch).await?;
 
             // Fetch the block that was just sealed
             let block = self
                 .blockchain
-                .get_block_by_number(block_numer)
+                .get_block_by_number(block_number)
                 .await
                 .expect("freshly sealed block could not be found in storage");
 

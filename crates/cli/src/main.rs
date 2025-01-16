@@ -268,6 +268,14 @@ async fn main() -> anyhow::Result<()> {
         storage_key_layout,
     );
 
+    // We start the node executor now so it can receive and handle commands
+    // during replay. Otherwise, replay would send commands and hang.
+    tokio::spawn(async move {
+        if let Err(err) = node_executor.run().await {
+            tracing::error!("node executor ended with error: {:?}", err);
+        }
+    });
+
     if let Some(ref bytecodes_dir) = config.override_bytecodes_dir {
         override_bytecodes(&node, bytecodes_dir.to_string())
             .await
@@ -390,9 +398,6 @@ async fn main() -> anyhow::Result<()> {
         },
         _ = any_server_stopped => {
             tracing::trace!("node server was stopped")
-        },
-        _ = node_executor.run() => {
-            tracing::trace!("node executor was stopped")
         },
         _ = block_sealer.run() => {
             tracing::trace!("block sealer was stopped")
