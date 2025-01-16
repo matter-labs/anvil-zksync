@@ -941,8 +941,6 @@ version = "0.0.0"
 dependencies = [
  "alloy",
  "alloy-zksync",
- "anvil_zksync_api_server",
- "anvil_zksync_config",
  "anvil_zksync_core",
  "anyhow",
  "async-trait",
@@ -959,36 +957,6 @@ dependencies = [
  "tokio",
  "tower 0.5.1",
  "tower-http",
-]
-
-[[package]]
-name = "anvil_zksync_api_decl"
-version = "0.2.4"
-dependencies = [
- "anvil_zksync_types",
- "jsonrpsee",
- "zksync_types",
- "zksync_web3_decl",
-]
-
-[[package]]
-name = "anvil_zksync_api_server"
-version = "0.2.4"
-dependencies = [
- "anvil_zksync_api_decl",
- "anvil_zksync_core",
- "anvil_zksync_types",
- "anyhow",
- "hex",
- "http 1.1.0",
- "jsonrpsee",
- "thiserror 1.0.69",
- "tokio",
- "tower 0.4.13",
- "tower-http",
- "tracing",
- "zksync_types",
- "zksync_web3_decl",
 ]
 
 [[package]]

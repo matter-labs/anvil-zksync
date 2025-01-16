@@ -25,8 +25,6 @@ tower = "0.5"
 http = "1.1.0"
 tower-http = { version = "0.6.2", features = ["cors"] }
 anvil_zksync_core = { path = "../crates/core" }
-anvil_zksync_api_server = { path = "../crates/api_server" }
-anvil_zksync_config = { path = "../crates/config" }
 tempdir = "0.3.7"
 flate2 = "1.0"
 hex = "0.4"

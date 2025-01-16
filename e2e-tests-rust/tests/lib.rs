@@ -5,9 +5,7 @@ use alloy::{
     network::primitives::BlockTransactionsKind, primitives::U256, signers::local::PrivateKeySigner,
 };
 use alloy_zksync::node_bindings::AnvilZKsync;
-use anvil_zksync_api_server::NodeServerBuilder;
-use anvil_zksync_config::TestNodeConfig;
-use anvil_zksync_core::node::{InMemoryNode, VersionedState};
+use anvil_zksync_core::node::VersionedState;
 use anvil_zksync_core::utils::write_json_file;
 use anvil_zksync_e2e_tests::{
     get_node_binary_path, init_testing_provider, init_testing_provider_with_client, AnvilZKsyncApi,
@@ -20,10 +18,8 @@ use http::header::{
     ACCESS_CONTROL_ALLOW_ORIGIN, ORIGIN,
 };
 use std::io::Read;
-use std::net::SocketAddr;
 use std::{convert::identity, fs, thread::sleep, time::Duration};
 use tempdir::TempDir;
-use tower_http::cors::AllowOrigin;
 
 const SOME_ORIGIN: HeaderValue = HeaderValue::from_static("http://some.origin");
 const OTHER_ORIGIN: HeaderValue = HeaderValue::from_static("http://other.origin");
