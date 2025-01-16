@@ -4,13 +4,14 @@ use alloy::providers::Provider;
 use alloy::{
     network::primitives::BlockTransactionsKind, primitives::U256, signers::local::PrivateKeySigner,
 };
+use alloy_zksync::node_bindings::AnvilZKsync;
 use anvil_zksync_api_server::NodeServerBuilder;
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_core::node::{InMemoryNode, VersionedState};
 use anvil_zksync_core::utils::write_json_file;
 use anvil_zksync_e2e_tests::{
     get_node_binary_path, init_testing_provider, init_testing_provider_with_client, AnvilZKsyncApi,
-    ReceiptExt, ZksyncWalletProviderExt, DEFAULT_TX_VALUE,
+    LockedPort, ReceiptExt, ZksyncWalletProviderExt, DEFAULT_TX_VALUE,
 };
 use anyhow::Context;
 use flate2::read::GzDecoder;
@@ -782,55 +783,30 @@ async fn load_state_on_fork() -> anyhow::Result<()> {
 
     Ok(())
 }
-// TODO:
-// Inquire if this is the optimal approach to test the server port fallback from main.rs
-// Seems we should really start two instances `AnvilZKsync::new()` and then check if the second one is on a different port?
-// Dont think its suitable to use existing `init_testing_provider` given it handles locked ports
+
 #[tokio::test]
 async fn test_server_port_fallback() -> anyhow::Result<()> {
-    let mut config = TestNodeConfig::default();
+    let locked_port = LockedPort::acquire_unused().await?;
 
-    let mut server_handles = Vec::new();
-    let server_builder = NodeServerBuilder::new(InMemoryNode::test(None), AllowOrigin::any());
+    let node1 = AnvilZKsync::new()
+        .path(get_node_binary_path())
+        .port(locked_port.port)
+        .spawn();
+    let port1 = node1.port();
 
-    // Start the first server on a fixed port
-    let addr = SocketAddr::new(config.host[0], config.port);
-    let server = server_builder
-        .clone()
-        .build(addr)
-        .await
-        .map_err(|err| println!("Failed to start server on {}, error: {}", addr, err))
-        .unwrap();
-    config.port = server.local_addr().port();
-    server_handles.push(server.run());
+    let node2 = AnvilZKsync::new()
+        .path(get_node_binary_path())
+        .port(locked_port.port)
+        .spawn();
+    let port2 = node2.port();
 
-    let mut conflicting_addr = addr;
-    let fallback_result = match server_builder.clone().build(conflicting_addr).await {
-        Ok(_) => panic!("Expected port conflict, but server started on the same port."),
-        Err(_) => {
-            conflicting_addr.set_port(0);
-            server_builder.clone().build(conflicting_addr).await
-        }
-    };
+    assert_ne!(
+        port1, port2,
+        "The second instance should have a different port due to fallback"
+    );
 
-    match fallback_result {
-        Ok(fallback_server) => {
-            let fallback_port = fallback_server.local_addr().port();
-            assert_ne!(
-                fallback_port, config.port,
-                "Fallback port must be different from the initial port"
-            );
-            server_handles.push(fallback_server.run());
-        }
-        Err(err) => panic!(
-            "Failed to start server with different port fallback: {}",
-            err
-        ),
-    }
-
-    assert_eq!(server_handles.len(), 2, "Two servers should be running.");
-
-    drop(server_handles);
+    drop(node1);
+    drop(node2);
 
     Ok(())
 }
