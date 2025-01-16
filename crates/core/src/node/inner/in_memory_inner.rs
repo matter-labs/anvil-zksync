@@ -1628,7 +1628,7 @@ mod tests {
         let system_contracts = node
             .system_contracts
             .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
-        let (block_ctx, batch_env, mut vm) = test_vm(&mut *node, system_contracts).await;
+        let (block_ctx, batch_env, mut vm) = test_vm(&mut node, system_contracts).await;
         let err = node
             .run_l2_tx(tx, 0, &block_ctx, &batch_env, &mut vm)
             .unwrap_err();
@@ -1647,7 +1647,7 @@ mod tests {
         let system_contracts = node
             .system_contracts
             .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
-        let (block_ctx, batch_env, mut vm) = test_vm(&mut *node, system_contracts).await;
+        let (block_ctx, batch_env, mut vm) = test_vm(&mut node, system_contracts).await;
         let err = node
             .run_l2_tx(tx, 0, &block_ctx, &batch_env, &mut vm)
             .unwrap_err();
@@ -1670,7 +1670,7 @@ mod tests {
         let system_contracts = node
             .system_contracts
             .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
-        let (block_ctx, batch_env, mut vm) = test_vm(&mut *node, system_contracts).await;
+        let (block_ctx, batch_env, mut vm) = test_vm(&mut node, system_contracts).await;
         let err = node
             .run_l2_tx(tx, 0, &block_ctx, &batch_env, &mut vm)
             .unwrap_err();
@@ -1740,7 +1740,7 @@ mod tests {
         let system_contracts = node
             .system_contracts
             .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
-        let (_, _, mut vm) = test_vm(&mut *node, system_contracts).await;
+        let (_, _, mut vm) = test_vm(&mut node, system_contracts).await;
         node.run_l2_tx_raw(tx, &mut vm)
             .expect("transaction must pass with external storage");
     }
@@ -1790,7 +1790,7 @@ mod tests {
         let system_contracts = node
             .system_contracts
             .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
-        let (_, _, mut vm) = test_vm(&mut *node, system_contracts).await;
+        let (_, _, mut vm) = test_vm(&mut node, system_contracts).await;
         let TxExecutionOutput { result, .. } = node.run_l2_tx_raw(tx, &mut vm).expect("failed tx");
 
         match result.result {

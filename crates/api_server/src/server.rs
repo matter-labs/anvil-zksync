@@ -62,7 +62,7 @@ impl NodeServerBuilder {
         rpc
     }
 
-    pub async fn build(self, addr: SocketAddr) -> Result<NodeServer, String>  {
+    pub async fn build(self, addr: SocketAddr) -> Result<NodeServer, String> {
         let cors_layers = tower::util::option_layer(self.cors_enabled.then(|| {
             // `CorsLayer` adds CORS-specific headers to responses but does not do filtering by itself.
             // CORS relies on browsers respecting server's access list response headers.
@@ -86,7 +86,6 @@ impl NodeServerBuilder {
             )
             .set_rpc_middleware(RpcServiceBuilder::new().rpc_logger(100));
 
-
         match server_builder.build(addr).await {
             Ok(server) => {
                 let local_addr = server.local_addr().unwrap();
@@ -98,10 +97,7 @@ impl NodeServerBuilder {
                     run_fn: Box::new(move || server.start(rpc)),
                 })
             }
-            Err(e) => Err(format!(
-                "Failed to bind to address {}: {}",
-                addr, e
-            )),
+            Err(e) => Err(format!("Failed to bind to address {}: {}", addr, e)),
         }
     }
 }

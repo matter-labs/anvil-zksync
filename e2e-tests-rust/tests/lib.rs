@@ -4,14 +4,14 @@ use alloy::providers::Provider;
 use alloy::{
     network::primitives::BlockTransactionsKind, primitives::U256, signers::local::PrivateKeySigner,
 };
-use anvil_zksync_core::node::{VersionedState, InMemoryNode};
+use anvil_zksync_api_server::NodeServerBuilder;
+use anvil_zksync_config::TestNodeConfig;
+use anvil_zksync_core::node::{InMemoryNode, VersionedState};
 use anvil_zksync_core::utils::write_json_file;
 use anvil_zksync_e2e_tests::{
     get_node_binary_path, init_testing_provider, init_testing_provider_with_client, AnvilZKsyncApi,
     ReceiptExt, ZksyncWalletProviderExt, DEFAULT_TX_VALUE,
 };
-use anvil_zksync_api_server::NodeServerBuilder;
-use anvil_zksync_config::TestNodeConfig;
 use anyhow::Context;
 use flate2::read::GzDecoder;
 use http::header::{
@@ -19,8 +19,8 @@ use http::header::{
     ACCESS_CONTROL_ALLOW_ORIGIN, ORIGIN,
 };
 use std::io::Read;
-use std::{convert::identity, fs, thread::sleep, time::Duration};
 use std::net::SocketAddr;
+use std::{convert::identity, fs, thread::sleep, time::Duration};
 use tempdir::TempDir;
 use tower_http::cors::AllowOrigin;
 
@@ -782,7 +782,7 @@ async fn load_state_on_fork() -> anyhow::Result<()> {
 
     Ok(())
 }
-// TODO: 
+// TODO:
 // Inquire if this is the optimal approach to test the server port fallback from main.rs
 // Seems we should really start two instances `AnvilZKsync::new()` and then check if the second one is on a different port?
 // Dont think its suitable to use existing `init_testing_provider` given it handles locked ports
@@ -791,26 +791,23 @@ async fn test_server_port_fallback() -> anyhow::Result<()> {
     let mut config = TestNodeConfig::default();
 
     let mut server_handles = Vec::new();
-    let server_builder = NodeServerBuilder::new(
-        InMemoryNode::test(None),
-        AllowOrigin::any(),
-    );
+    let server_builder = NodeServerBuilder::new(InMemoryNode::test(None), AllowOrigin::any());
 
     // Start the first server on a fixed port
     let addr = SocketAddr::new(config.host[0], config.port);
-        let server = server_builder
+    let server = server_builder
         .clone()
         .build(addr)
         .await
-        .map_err(|err| println!("Failed to start server on {}", addr))
+        .map_err(|err| println!("Failed to start server on {}, error: {}", addr, err))
         .unwrap();
     config.port = server.local_addr().port();
     server_handles.push(server.run());
 
     let mut conflicting_addr = addr;
     let fallback_result = match server_builder.clone().build(conflicting_addr).await {
-        Ok(_) =>  panic!("Expected port conflict, but server started on the same port."),
-        Err(err) => {
+        Ok(_) => panic!("Expected port conflict, but server started on the same port."),
+        Err(_) => {
             conflicting_addr.set_port(0);
             server_builder.clone().build(conflicting_addr).await
         }
@@ -819,10 +816,16 @@ async fn test_server_port_fallback() -> anyhow::Result<()> {
     match fallback_result {
         Ok(fallback_server) => {
             let fallback_port = fallback_server.local_addr().port();
-            assert_ne!(fallback_port, config.port, "Fallback port must be different from the initial port");
+            assert_ne!(
+                fallback_port, config.port,
+                "Fallback port must be different from the initial port"
+            );
             server_handles.push(fallback_server.run());
         }
-        Err(err) => panic!("Failed to start server with different port fallback: {}", err),
+        Err(err) => panic!(
+            "Failed to start server with different port fallback: {}",
+            err
+        ),
     }
 
     assert_eq!(server_handles.len(), 2, "Two servers should be running.");
@@ -831,4 +834,3 @@ async fn test_server_port_fallback() -> anyhow::Result<()> {
 
     Ok(())
 }
-
