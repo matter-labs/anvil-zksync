@@ -941,6 +941,8 @@ version = "0.0.0"
 dependencies = [
  "alloy",
  "alloy-zksync",
+ "anvil_zksync_api_server",
+ "anvil_zksync_config",
  "anvil_zksync_core",
  "anyhow",
  "async-trait",
@@ -956,6 +958,37 @@ dependencies = [
  "tempdir",
  "tokio",
  "tower 0.5.1",
+ "tower-http",
+]
+
+[[package]]
+name = "anvil_zksync_api_decl"
+version = "0.2.4"
+dependencies = [
+ "anvil_zksync_types",
+ "jsonrpsee",
+ "zksync_types",
+ "zksync_web3_decl",
+]
+
+[[package]]
+name = "anvil_zksync_api_server"
+version = "0.2.4"
+dependencies = [
+ "anvil_zksync_api_decl",
+ "anvil_zksync_core",
+ "anvil_zksync_types",
+ "anyhow",
+ "hex",
+ "http 1.1.0",
+ "jsonrpsee",
+ "thiserror 1.0.69",
+ "tokio",
+ "tower 0.4.13",
+ "tower-http",
+ "tracing",
+ "zksync_types",
+ "zksync_web3_decl",
 ]
 
 [[package]]
@@ -6281,6 +6314,20 @@ dependencies = [
  "futures-util",
  "pin-project-lite",
  "sync_wrapper 0.1.2",
+ "tower-layer",
+ "tower-service",
+]
+
+[[package]]
+name = "tower-http"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "403fa3b783d4b626a8ad51d766ab03cb6d2dbfc46b1c5d4448395e6628dc9697"
+dependencies = [
+ "bitflags 2.6.0",
+ "bytes",
+ "http 1.1.0",
+ "pin-project-lite",
  "tower-layer",
  "tower-service",
 ]
