@@ -143,7 +143,7 @@ anvil-zksync fork fork-url mainnet
 If you wish to replay a remote transaction locally for deep debugging, use the following command:
 
 ```bash
-anvil-zksync replay_tx <network> <transaction_hash>
+anvil-zksync replay_tx --fork-url <network> <transaction_hash>
 ```
 
 Example:
