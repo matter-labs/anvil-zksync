@@ -9,5 +9,5 @@ pub trait ZKOSNamespace {
     /// # Returns
     /// Bytes with the witness that can be passed to proving system.
     #[method(name = "getWitness")]
-    async fn get_witness(&self, batch: u32) -> RpcResult<Option<Vec<u8>>>;
+    async fn get_witness(&self, batch: u32) -> RpcResult<Option<String>>;
 }
