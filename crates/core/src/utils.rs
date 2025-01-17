@@ -39,14 +39,6 @@ pub fn to_human_size(input: U256) -> String {
     tmp.iter().rev().collect()
 }
 
-// TODO: Approach to encoding bytecode has changed in the core, so this function is likely no
-// longer needed. See `zksync_contracts::SystemContractCode` for general approach.
-pub fn bytecode_to_factory_dep(bytecode: Vec<u8>) -> Result<(H256, Vec<u8>), anyhow::Error> {
-    zksync_types::bytecode::validate_bytecode(&bytecode).context("Invalid bytecode")?;
-    let bytecode_hash = zksync_types::bytecode::BytecodeHash::for_bytecode(&bytecode).value();
-    Ok((bytecode_hash, bytecode))
-}
-
 /// Returns the actual [U64] block number from [BlockNumber].
 ///
 /// # Arguments

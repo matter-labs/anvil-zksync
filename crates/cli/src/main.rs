@@ -13,7 +13,7 @@ use anvil_zksync_core::filters::EthFilters;
 use anvil_zksync_core::node::fork::ForkDetails;
 use anvil_zksync_core::node::{
     BlockSealer, BlockSealerMode, ImpersonationManager, InMemoryNode, InMemoryNodeInner,
-    NodeExecutor, TestNodeFeeInputProvider, TxPool,
+    NodeExecutor, StorageKeyLayout, TestNodeFeeInputProvider, TxPool,
 };
 use anvil_zksync_core::observability::Observability;
 use anvil_zksync_core::system_contracts::SystemContracts;
@@ -223,18 +223,27 @@ async fn main() -> anyhow::Result<()> {
         config.use_evm_emulator,
         config.zkos_config.clone(),
     );
+    let storage_key_layout = if config.zkos_config.use_zkos {
+        StorageKeyLayout::ZkOs
+    } else {
+        StorageKeyLayout::ZkEra
+    };
 
-    let (node_inner, _fork_storage, blockchain, time) = InMemoryNodeInner::init(
+    let (node_inner, storage, blockchain, time) = InMemoryNodeInner::init(
         fork_details,
         fee_input_provider.clone(),
         filters,
         config.clone(),
         impersonation.clone(),
         system_contracts.clone(),
+        storage_key_layout,
     );
 
-    let (node_executor, node_handle) =
-        NodeExecutor::new(node_inner.clone(), system_contracts.clone());
+    let (node_executor, node_handle) = NodeExecutor::new(
+        node_inner.clone(),
+        system_contracts.clone(),
+        storage_key_layout,
+    );
     let sealing_mode = if config.no_mining {
         BlockSealerMode::noop()
     } else if let Some(block_time) = config.block_time {
@@ -248,6 +257,7 @@ async fn main() -> anyhow::Result<()> {
     let node: InMemoryNode = InMemoryNode::new(
         node_inner,
         blockchain,
+        storage,
         node_handle,
         Some(observability),
         time,
@@ -255,6 +265,7 @@ async fn main() -> anyhow::Result<()> {
         pool,
         block_sealer_state,
         system_contracts,
+        storage_key_layout,
     );
 
     if let Some(ref bytecodes_dir) = config.override_bytecodes_dir {
@@ -306,10 +317,43 @@ async fn main() -> anyhow::Result<()> {
     }
     let mut server_handles = Vec::with_capacity(config.host.len());
     for host in &config.host {
-        let addr = SocketAddr::new(*host, config.port);
-        let server = server_builder.clone().build(addr).await;
-        config.port = server.local_addr().port();
-        server_handles.push(server.run());
+        let mut addr = SocketAddr::new(*host, config.port);
+
+        match server_builder.clone().build(addr).await {
+            Ok(server) => {
+                config.port = server.local_addr().port();
+                server_handles.push(server.run());
+            }
+            Err(err) => {
+                tracing::info!(
+                    "Failed to bind to address {}:{}: {}. Retrying with a different port...",
+                    host,
+                    config.port,
+                    err
+                );
+
+                // Attempt to bind to a dynamic port
+                addr.set_port(0);
+                match server_builder.clone().build(addr).await {
+                    Ok(server) => {
+                        config.port = server.local_addr().port();
+                        tracing::info!(
+                            "Successfully started server on port {} for host {}",
+                            config.port,
+                            host
+                        );
+                        server_handles.push(server.run());
+                    }
+                    Err(err) => {
+                        return Err(anyhow!(
+                            "Failed to start server on host {} with port: {}",
+                            host,
+                            err
+                        ));
+                    }
+                }
+            }
+        }
     }
     let any_server_stopped =
         futures::future::select_all(server_handles.into_iter().map(|h| Box::pin(h.stopped())));

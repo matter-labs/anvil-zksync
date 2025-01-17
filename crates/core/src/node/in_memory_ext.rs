@@ -2,15 +2,13 @@ use super::inner::fork::ForkDetails;
 use super::pool::TxBatch;
 use super::sealer::BlockSealerMode;
 use super::InMemoryNode;
-use crate::node::keys::StorageKeyLayout;
-use crate::utils::bytecode_to_factory_dep;
 use anvil_zksync_types::api::{DetailedTransaction, ResetRequest};
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use std::time::Duration;
 use zksync_types::api::{Block, TransactionVariant};
+use zksync_types::bytecode::BytecodeHash;
 use zksync_types::u256_to_h256;
-use zksync_types::{get_code_key, utils::nonces_to_full_nonce, L2BlockNumber, StorageKey};
-use zksync_types::{AccountTreeId, Address, H256, U256, U64};
+use zksync_types::{AccountTreeId, Address, L2BlockNumber, StorageKey, H256, U256, U64};
 
 type Result<T> = anyhow::Result<T>;
 
@@ -165,36 +163,24 @@ impl InMemoryNode {
             .map_err(|err| anyhow!("{}", err))
     }
 
-    pub async fn set_balance(&self, address: Address, balance: U256) -> bool {
-        let writer = self.inner.write().await;
-        let balance_key = StorageKeyLayout::get_storage_key_for_base_token(
-            self.system_contracts.use_zkos(),
-            &address,
-        );
-        writer
-            .fork_storage
-            .set_value(balance_key, u256_to_h256(balance));
+    pub async fn set_balance(&self, address: Address, balance: U256) -> anyhow::Result<bool> {
+        self.node_handle.set_balance_sync(address, balance).await?;
         tracing::info!(
             "👷 Balance for address {:?} has been manually set to {} Wei",
             address,
             balance
         );
-        true
+        Ok(true)
     }
 
-    pub async fn set_nonce(&self, address: Address, nonce: U256) -> bool {
-        let writer = self.inner.write().await;
-        let nonce_key = StorageKeyLayout::get_nonce_key(self.system_contracts.use_zkos(), &address);
-        let enforced_full_nonce = nonces_to_full_nonce(nonce, nonce);
+    pub async fn set_nonce(&self, address: Address, nonce: U256) -> anyhow::Result<bool> {
+        self.node_handle.set_nonce_sync(address, nonce).await?;
         tracing::info!(
             "👷 Nonces for address {:?} have been set to {}",
             address,
             nonce
         );
-        writer
-            .fork_storage
-            .set_value(nonce_key, u256_to_h256(enforced_full_nonce));
-        true
+        Ok(true)
     }
 
     pub async fn mine_blocks(&self, num_blocks: Option<U64>, interval: Option<U64>) -> Result<()> {
@@ -316,24 +302,24 @@ impl InMemoryNode {
     }
 
     pub async fn set_code(&self, address: Address, code: String) -> Result<()> {
-        let writer = self.inner.write().await;
-        let code_key = get_code_key(&address);
-        tracing::info!("set code for address {address:#x}");
         let code_slice = code
             .strip_prefix("0x")
             .ok_or_else(|| anyhow!("code must be 0x-prefixed"))?;
-        let code_bytes = hex::decode(code_slice)?;
-        let (hash, code) = bytecode_to_factory_dep(code_bytes)?;
-        writer.fork_storage.store_factory_dep(hash, code);
-        writer.fork_storage.set_value(code_key, hash);
+        let bytecode = hex::decode(code_slice)?;
+        zksync_types::bytecode::validate_bytecode(&bytecode).context("Invalid bytecode")?;
+        tracing::info!(
+            ?address,
+            bytecode_hash = ?BytecodeHash::for_bytecode(&bytecode).value(),
+            "set code"
+        );
+        self.node_handle.set_code_sync(address, bytecode).await?;
         Ok(())
     }
 
-    pub async fn set_storage_at(&self, address: Address, slot: U256, value: U256) -> bool {
-        let writer = self.inner.write().await;
+    pub async fn set_storage_at(&self, address: Address, slot: U256, value: U256) -> Result<bool> {
         let key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(slot));
-        writer.fork_storage.set_value(key, u256_to_h256(value));
-        true
+        self.node_handle.set_storage_sync(key, value).await?;
+        Ok(true)
     }
 
     pub fn set_logging_enabled(&self, enable: bool) -> Result<()> {
@@ -460,7 +446,7 @@ mod tests {
 
         let balance_before = node.get_balance_impl(address, None).await.unwrap();
 
-        let result = node.set_balance(address, U256::from(1337)).await;
+        let result = node.set_balance(address, U256::from(1337)).await.unwrap();
         assert!(result);
 
         let balance_after = node.get_balance_impl(address, None).await.unwrap();
@@ -478,7 +464,7 @@ mod tests {
             .await
             .unwrap();
 
-        let result = node.set_nonce(address, U256::from(1337)).await;
+        let result = node.set_nonce(address, U256::from(1337)).await.unwrap();
         assert!(result);
 
         let nonce_after = node
@@ -488,7 +474,7 @@ mod tests {
         assert_eq!(nonce_after, U256::from(1337));
         assert_ne!(nonce_before, nonce_after);
 
-        let result = node.set_nonce(address, U256::from(1336)).await;
+        let result = node.set_nonce(address, U256::from(1336)).await.unwrap();
         assert!(result);
 
         let nonce_after = node
@@ -582,7 +568,7 @@ mod tests {
             .get_transaction_count_impl(address, None)
             .await
             .unwrap();
-        assert!(node.set_nonce(address, U256::from(1337)).await);
+        assert!(node.set_nonce(address, U256::from(1337)).await.unwrap());
 
         assert!(node.reset_network(None).await.unwrap());
 
@@ -609,7 +595,10 @@ mod tests {
             Address::from_str("0xd8da6bf26964af9d7eed9e03e53415d37aa96045").unwrap();
 
         // give impersonated account some balance
-        let result = node.set_balance(to_impersonate, U256::exp10(18)).await;
+        let result = node
+            .set_balance(to_impersonate, U256::exp10(18))
+            .await
+            .unwrap();
         assert!(result);
 
         // construct a tx
@@ -707,7 +696,7 @@ mod tests {
         let value_before = node.inner.write().await.fork_storage.read_value(&key);
         assert_eq!(H256::default(), value_before);
 
-        let result = node.set_storage_at(address, slot, value).await;
+        let result = node.set_storage_at(address, slot, value).await.unwrap();
         assert!(result);
 
         let value_after = node.inner.write().await.fork_storage.read_value(&key);

@@ -41,7 +41,7 @@ pub async fn override_bytecodes(node: &InMemoryNode, bytecodes_dir: String) -> a
                 let bytecode = Vec::from_hex(contract.bytecode.object)
                     .with_context(|| format!("Failed to parse hex from {:?}", path))?;
 
-                node.override_bytecode(&address, &bytecode)
+                node.override_bytecode(address, bytecode)
                     .await
                     .expect("Failed to override bytecode");
                 tracing::info!("+++++ Replacing bytecode at address {:?} +++++", address);

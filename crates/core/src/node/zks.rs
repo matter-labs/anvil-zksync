@@ -125,22 +125,14 @@ impl InMemoryNode {
         let tokens = self.get_confirmed_tokens_impl(0, 100).await?;
 
         let balances = {
-            let writer = self.inner.write().await;
             let mut balances = HashMap::new();
             for token in tokens {
+                // TODO: Use StorageKeyLayout once zkos can lookup other tokens
                 let balance_key = storage_key_for_standard_token_balance(
                     AccountTreeId::new(token.l2_address),
                     &address,
                 );
-                let balance = match writer.fork_storage.read_value_internal(&balance_key) {
-                    Ok(balance) => balance,
-                    Err(error) => {
-                        return Err(Web3Error::InternalError(anyhow::anyhow!(
-                            "failed reading value: {:?}",
-                            error
-                        )));
-                    }
-                };
+                let balance = self.storage.read_value_alt(&balance_key).await?;
                 if !balance.is_zero() {
                     balances.insert(token.l2_address, h256_to_u256(balance));
                 }
@@ -223,19 +215,11 @@ impl InMemoryNode {
     }
 
     pub async fn get_bytecode_by_hash_impl(&self, hash: H256) -> anyhow::Result<Option<Vec<u8>>> {
-        let writer = self.inner.write().await;
-
-        let maybe_bytecode = match writer.fork_storage.load_factory_dep_internal(hash) {
-            Ok(maybe_bytecode) => maybe_bytecode,
-            Err(error) => {
-                return Err(anyhow::anyhow!("failed to load factory dep: {:?}", error));
-            }
-        };
-
-        if maybe_bytecode.is_some() {
-            return Ok(maybe_bytecode);
+        if let Some(bytecode) = self.storage.load_factory_dep_alt(hash).await? {
+            return Ok(Some(bytecode));
         }
 
+        let writer = self.inner.write().await;
         let maybe_fork_details = &writer
             .fork_storage
             .inner

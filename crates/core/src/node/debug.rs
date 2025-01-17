@@ -71,7 +71,7 @@ impl InMemoryNode {
         // update the enforced_base_fee within l1_batch_env to match the logic in zksync_core
         l1_batch_env.enforced_base_fee = Some(l2_tx.common_data.fee.max_fee_per_gas.as_u64());
         let system_env = inner.create_system_env(system_contracts.clone(), execution_mode);
-        let storage = StorageView::new(&inner.fork_storage).into_rc_ptr();
+        let storage = StorageView::new(inner.read_storage()).into_rc_ptr();
         let mut vm: Vm<_, HistoryDisabled> = Vm::new(l1_batch_env, system_env, storage);
 
         // We must inject *some* signature (otherwise bootloader code fails to generate hash).

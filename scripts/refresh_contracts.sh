@@ -3,7 +3,7 @@ set -xe
 
 SRC_DIR=contracts/system-contracts/artifacts-zk/contracts-preprocessed
 DEV_CONTRACTS_SRC_DIR=contracts/l2-contracts/artifacts-zk/contracts/dev-contracts/
-DST_DIR=src/deps/contracts/
+DST_DIR=crates/core/src/deps/contracts/
 
 mkdir -p $DST_DIR
 
