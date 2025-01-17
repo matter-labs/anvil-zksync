@@ -385,7 +385,7 @@ impl InMemoryNode {
 
         let storage = StorageView::new(&inner.fork_storage).into_rc_ptr();
 
-        let mut vm = if self.system_contracts.use_zkos {
+        let mut vm = if self.system_contracts.use_zkos() {
             AnvilVM::ZKOs(super::zkos::ZKOsVM::<_, HistoryDisabled>::new(
                 batch_env,
                 system_env,
@@ -653,7 +653,6 @@ impl InMemoryNode {
         let system_contracts = SystemContracts::from_options(
             &config.system_contracts_options,
             config.use_evm_emulator,
-            config.use_zkos,
             config.zkos_config.clone(),
         );
         let (inner, _, blockchain, time) = InMemoryNodeInner::init(

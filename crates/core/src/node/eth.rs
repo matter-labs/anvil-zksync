@@ -177,7 +177,7 @@ impl InMemoryNode {
         _block: Option<BlockIdVariant>,
     ) -> anyhow::Result<U256> {
         let balance_key = StorageKeyLayout::get_storage_key_for_base_token(
-            self.system_contracts.use_zkos,
+            self.system_contracts.use_zkos(),
             &address,
         );
 
@@ -274,7 +274,7 @@ impl InMemoryNode {
         _block: Option<BlockIdVariant>,
     ) -> anyhow::Result<U256> {
         let inner = self.inner.read().await;
-        let nonce_key = StorageKeyLayout::get_nonce_key(self.system_contracts.use_zkos, &address);
+        let nonce_key = StorageKeyLayout::get_nonce_key(self.system_contracts.use_zkos(), &address);
 
         match inner.fork_storage.read_value_internal(&nonce_key) {
             Ok(result) => Ok(h256_to_u64(result).into()),

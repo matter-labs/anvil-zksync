@@ -527,7 +527,7 @@ pub struct ZKOsVM<S: WriteStorage, H: HistoryMode> {
     transactions: Vec<Transaction>,
     system_env: SystemEnv,
     batch_env: L1BatchEnv,
-    config: Option<ZKOSConfig>,
+    config: ZKOSConfig,
     witness: Option<Vec<u8>>,
     _phantom: std::marker::PhantomData<H>,
 }
@@ -538,7 +538,7 @@ impl<S: WriteStorage, H: HistoryMode> ZKOsVM<S, H> {
         system_env: SystemEnv,
         storage: StoragePtr<S>,
         raw_storage: &InMemoryStorage,
-        config: &Option<ZKOSConfig>,
+        config: &ZKOSConfig,
     ) -> Self {
         let (tree, preimage) = { create_tree_from_full_state(raw_storage) };
         ZKOsVM {
@@ -647,11 +647,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for ZKOsVM<S, H> {
             simulate_only,
             &self.batch_env,
             self.system_env.chain_id.as_u64(),
-            self.config
-                .as_ref()
-                .map(|x| x.zkos_bin_path.clone())
-                .unwrap_or_default()
-                .clone(),
+            self.config.zkos_bin_path.clone(),
         );
 
         self.witness = witness;
