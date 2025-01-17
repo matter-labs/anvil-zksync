@@ -72,6 +72,8 @@ pub struct TestNodeConfig {
     pub use_evm_emulator: bool,
     /// Enables ZKOS mode (experimental)
     pub use_zkos: bool,
+    /// ZKOS configuration
+    pub zkos_config: Option<ZKOSConfig>,
     /// Optional chain ID for the node
     pub chain_id: Option<u32>,
     /// L1 gas price (optional override)
@@ -158,6 +160,7 @@ impl Default for TestNodeConfig {
             override_bytecodes_dir: None,
             use_evm_emulator: false,
             use_zkos: false,
+            zkos_config: None,
             chain_id: None,
 
             // Gas configuration defaults
@@ -520,6 +523,14 @@ impl TestNodeConfig {
     pub fn with_zkos(mut self, enable: Option<bool>) -> Self {
         if let Some(enable) = enable {
             self.use_zkos = enable;
+        }
+        self
+    }
+    /// ZKOS configuration
+    #[must_use]
+    pub fn with_zkos_config(mut self, config: Option<ZKOSConfig>) -> Self {
+        if let Some(zkos_config) = config {
+            self.zkos_config = Some(zkos_config);
         }
         self
     }

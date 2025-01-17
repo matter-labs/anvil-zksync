@@ -562,6 +562,7 @@ impl InMemoryNodeInner {
                 storage.clone(),
                 // TODO: this might be causing a deadlock.. check..
                 &self.fork_storage.inner.read().unwrap().raw_storage,
+                &self.system_contracts.zkos_config,
             ))
         } else {
             AnvilVM::ZKSync(Vm::new(batch_env.clone(), system_env, storage.clone()))
@@ -1056,6 +1057,8 @@ impl InMemoryNodeInner {
                 storage,
                 // TODO: this might be causing a deadlock.. check..
                 &fork_storage.inner.read().unwrap().raw_storage,
+                // TODO: fixme.
+                &None,
             );
             // Temporary hack - as we update the 'storage' just above, but zkos loads its full
             // state from fork_storage (that is not updated).
@@ -1383,6 +1386,7 @@ impl InMemoryNodeInner {
             &config.system_contracts_options,
             config.use_evm_emulator,
             config.use_zkos,
+            config.zkos_config.clone(),
         );
         let (inner, _, _, _) = InMemoryNodeInner::init(
             None,

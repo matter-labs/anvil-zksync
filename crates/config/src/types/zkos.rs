@@ -1,0 +1,10 @@
+use clap::Parser;
+use serde::Deserialize;
+
+/// Genesis
+#[derive(Deserialize, Clone, Debug, Parser)]
+pub struct ZKOSConfig {
+    #[arg(long, help_heading = "Experimental Configuration")]
+    /// Path to zkos binary (if you need to compute witnesses).
+    pub zkos_bin_path: Option<String>,
+}

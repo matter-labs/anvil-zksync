@@ -4,7 +4,7 @@ use anvil_zksync_config::constants::{
     DEFAULT_DISK_CACHE_DIR, DEFAULT_MNEMONIC, TEST_NODE_NETWORK_ID,
 };
 use anvil_zksync_config::types::{
-    AccountGenerator, CacheConfig, CacheType, Genesis, SystemContractsOptions,
+    AccountGenerator, CacheConfig, CacheType, Genesis, SystemContractsOptions, ZKOSConfig,
 };
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_core::{
@@ -166,9 +166,13 @@ pub struct Cli {
     /// Enables EVM emulation. Requires local system contracts.
     pub emulate_evm: bool,
 
-    #[arg(long, help_heading = "System Configuration")]
+    #[arg(long, help_heading = "Experimental Configuration")]
     /// Enables zkos (experimental).
     pub use_zkos: bool,
+
+    #[clap(flatten)]
+    /// ZKOS detailed config.
+    pub zkos_config: Option<ZKOSConfig>,
 
     // Logging Configuration
     #[arg(long, help_heading = "Logging Configuration")]
@@ -449,6 +453,7 @@ impl Cli {
             .with_host(self.host)
             .with_evm_emulator(if self.emulate_evm { Some(true) } else { None })
             .with_zkos(if self.use_zkos { Some(true) } else { None })
+            .with_zkos_config(self.zkos_config)
             .with_health_check_endpoint(if self.health_check_endpoint {
                 Some(true)
             } else {

@@ -2,6 +2,7 @@
 //! This is still experimental code.
 use std::{alloc::Global, collections::HashMap, vec};
 
+use anvil_zksync_config::types::ZKOSConfig;
 use basic_system::basic_system::simple_growable_storage::TestingTree;
 use forward_system::run::{
     test_impl::{InMemoryPreimageSource, InMemoryTree, TxListSource},
@@ -526,6 +527,7 @@ pub struct ZKOsVM<S: WriteStorage, H: HistoryMode> {
     transactions: Vec<Transaction>,
     system_env: SystemEnv,
     batch_env: L1BatchEnv,
+    config: Option<ZKOSConfig>,
     witness: Option<Vec<u8>>,
     _phantom: std::marker::PhantomData<H>,
 }
@@ -536,6 +538,7 @@ impl<S: WriteStorage, H: HistoryMode> ZKOsVM<S, H> {
         system_env: SystemEnv,
         storage: StoragePtr<S>,
         raw_storage: &InMemoryStorage,
+        config: &Option<ZKOSConfig>,
     ) -> Self {
         let (tree, preimage) = { create_tree_from_full_state(raw_storage) };
         ZKOsVM {
@@ -546,6 +549,7 @@ impl<S: WriteStorage, H: HistoryMode> ZKOsVM<S, H> {
             system_env,
             batch_env,
             witness: None,
+            config: config.clone(),
             _phantom: Default::default(),
         }
     }
@@ -643,7 +647,11 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for ZKOsVM<S, H> {
             simulate_only,
             &self.batch_env,
             self.system_env.chain_id.as_u64(),
-            Some("../zk_ee/zk_os/app.bin".to_string()),
+            self.config
+                .as_ref()
+                .map(|x| x.zkos_bin_path.clone())
+                .unwrap_or_default()
+                .clone(),
         );
 
         self.witness = witness;
