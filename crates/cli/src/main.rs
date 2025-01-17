@@ -223,7 +223,7 @@ async fn main() -> anyhow::Result<()> {
         config.use_evm_emulator,
         config.zkos_config.clone(),
     );
-    let storage_key_layout = if config.use_zkos {
+    let storage_key_layout = if config.zkos_config.use_zkos {
         StorageKeyLayout::ZkOs
     } else {
         StorageKeyLayout::ZkEra
