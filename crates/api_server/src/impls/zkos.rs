@@ -13,7 +13,7 @@ impl ZKOSNamespace {
 
 #[async_trait]
 impl ZKOSNamespaceServer for ZKOSNamespace {
-    async fn get_witness(&self, batch: u32) -> RpcResult<Option<Vec<u8>>> {
-        Ok(zkos_get_batch_witness(&batch))
+    async fn get_witness(&self, batch: u32) -> RpcResult<Option<String>> {
+        Ok(zkos_get_batch_witness(&batch).map(|data| hex::encode(data)))
     }
 }
