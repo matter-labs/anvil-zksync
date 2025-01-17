@@ -155,11 +155,19 @@ impl AnvilNamespaceServer for AnvilNamespace {
     }
 
     async fn set_balance(&self, address: Address, balance: U256) -> RpcResult<bool> {
-        Ok(self.node.set_balance(address, balance).await)
+        Ok(self
+            .node
+            .set_balance(address, balance)
+            .await
+            .map_err(RpcError::from)?)
     }
 
     async fn set_nonce(&self, address: Address, nonce: U256) -> RpcResult<bool> {
-        Ok(self.node.set_nonce(address, nonce).await)
+        Ok(self
+            .node
+            .set_nonce(address, nonce)
+            .await
+            .map_err(RpcError::from)?)
     }
 
     async fn anvil_mine(&self, num_blocks: Option<U64>, interval: Option<U64>) -> RpcResult<()> {
@@ -203,7 +211,11 @@ impl AnvilNamespaceServer for AnvilNamespace {
     }
 
     async fn set_storage_at(&self, address: Address, slot: U256, value: U256) -> RpcResult<bool> {
-        Ok(self.node.set_storage_at(address, slot, value).await)
+        Ok(self
+            .node
+            .set_storage_at(address, slot, value)
+            .await
+            .map_err(RpcError::from)?)
     }
 
     async fn set_chain_id(&self, id: u32) -> RpcResult<()> {

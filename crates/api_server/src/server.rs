@@ -64,7 +64,7 @@ impl NodeServerBuilder {
         rpc
     }
 
-    pub async fn build(self, addr: SocketAddr) -> NodeServer {
+    pub async fn build(self, addr: SocketAddr) -> Result<NodeServer, String> {
         let cors_layers = tower::util::option_layer(self.cors_enabled.then(|| {
             // `CorsLayer` adds CORS-specific headers to responses but does not do filtering by itself.
             // CORS relies on browsers respecting server's access list response headers.
@@ -88,14 +88,18 @@ impl NodeServerBuilder {
             )
             .set_rpc_middleware(RpcServiceBuilder::new().rpc_logger(100));
 
-        let server = server_builder.build(addr).await.unwrap();
-        let local_addr = server.local_addr().unwrap();
-        let rpc = Self::default_rpc(self.node);
-        // `jsonrpsee` does `tokio::spawn` within `start` method, so we cannot invoke it here, as this method
-        // should only build the server. This way we delay the launch until the `NodeServer::run` is invoked.
-        NodeServer {
-            local_addr,
-            run_fn: Box::new(move || server.start(rpc)),
+        match server_builder.build(addr).await {
+            Ok(server) => {
+                let local_addr = server.local_addr().unwrap();
+                let rpc = Self::default_rpc(self.node);
+                // `jsonrpsee` does `tokio::spawn` within `start` method, so we cannot invoke it here, as this method
+                // should only build the server. This way we delay the launch until the `NodeServer::run` is invoked.
+                Ok(NodeServer {
+                    local_addr,
+                    run_fn: Box::new(move || server.start(rpc)),
+                })
+            }
+            Err(e) => Err(format!("Failed to bind to address {}: {}", addr, e)),
         }
     }
 }

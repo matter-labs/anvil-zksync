@@ -3,6 +3,7 @@
 //! There is ForkStorage (that is a wrapper over InMemoryStorage)
 //! And ForkDetails - that parses network address and fork height from arguments.
 
+use crate::node::inner::storage::ReadStorageDyn;
 use crate::utils::block_on;
 use crate::{deps::InMemoryStorage, http_fork_source::HttpForkSource};
 use anvil_zksync_config::constants::{
@@ -10,6 +11,7 @@ use anvil_zksync_config::constants::{
     DEFAULT_FAIR_PUBDATA_PRICE, TEST_NODE_NETWORK_ID,
 };
 use anvil_zksync_config::types::{CacheConfig, SystemContractsOptions};
+use async_trait::async_trait;
 use eyre::eyre;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -320,6 +322,25 @@ impl ReadStorage for &ForkStorage {
 
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
         self.get_enumeration_index_internal(key)
+    }
+}
+
+#[async_trait]
+impl ReadStorageDyn for ForkStorage {
+    fn dyn_cloned(&self) -> Box<dyn ReadStorageDyn> {
+        Box::new(self.clone())
+    }
+
+    async fn read_value_alt(&self, key: &StorageKey) -> anyhow::Result<StorageValue> {
+        // TODO: Get rid of `block_on` inside to propagate asynchronous execution up to this level
+        self.read_value_internal(key)
+            .map_err(|e| anyhow::anyhow!("failed reading value: {:?}", e))
+    }
+
+    async fn load_factory_dep_alt(&self, hash: H256) -> anyhow::Result<Option<Vec<u8>>> {
+        // TODO: Get rid of `block_on` inside to propagate asynchronous execution up to this level
+        self.load_factory_dep_internal(hash)
+            .map_err(|e| anyhow::anyhow!("failed to load factory dep: {:?}", e))
     }
 }
 
