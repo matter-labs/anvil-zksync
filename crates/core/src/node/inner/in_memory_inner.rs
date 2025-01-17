@@ -22,6 +22,7 @@ use crate::system_contracts::SystemContracts;
 use crate::utils::{bytecode_to_factory_dep, create_debug_output};
 use crate::{delegate_vm, formatter, utils};
 use anvil_zksync_config::constants::NON_FORK_FIRST_BLOCK_TIMESTAMP;
+use anvil_zksync_config::types::ZKOSConfig;
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_types::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
 use colored::Colorize;
@@ -555,13 +556,14 @@ impl InMemoryNodeInner {
     ) -> Vec<TransactionResult> {
         let storage = StorageView::new(self.fork_storage.clone()).into_rc_ptr();
 
-        let mut vm = if self.system_contracts.use_zkos {
+        let mut vm = if self.system_contracts.use_zkos() {
             AnvilVM::ZKOs(ZKOsVM::<_, HistoryEnabled>::new(
                 batch_env.clone(),
                 system_env,
                 storage.clone(),
                 // TODO: this might be causing a deadlock.. check..
                 &self.fork_storage.inner.read().unwrap().raw_storage,
+                &self.system_contracts.zkos_config,
             ))
         } else {
             AnvilVM::ZKSync(Vm::new(batch_env.clone(), system_env, storage.clone()))
@@ -827,7 +829,7 @@ impl InMemoryNodeInner {
                 batch_env.clone(),
                 system_env.clone(),
                 &self.fork_storage,
-                self.system_contracts.use_zkos,
+                &self.system_contracts.zkos_config,
             );
 
             if result.statistics.pubdata_published > MAX_VM_PUBDATA_PER_BATCH.try_into().unwrap() {
@@ -865,7 +867,7 @@ impl InMemoryNodeInner {
                 batch_env.clone(),
                 system_env.clone(),
                 &self.fork_storage,
-                self.system_contracts.use_zkos,
+                &self.system_contracts.zkos_config,
             );
 
             if estimate_gas_result.result.is_failed() {
@@ -897,7 +899,7 @@ impl InMemoryNodeInner {
             batch_env,
             system_env,
             &self.fork_storage,
-            self.system_contracts.use_zkos,
+            &self.system_contracts.zkos_config,
         );
 
         let overhead = derive_overhead(
@@ -1012,7 +1014,7 @@ impl InMemoryNodeInner {
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         fork_storage: &ForkStorage,
-        is_zkos: bool,
+        zkos_config: &ZKOSConfig,
     ) -> VmExecutionResultAndLogs {
         let tx: Transaction = l2_tx.clone().into();
 
@@ -1031,7 +1033,8 @@ impl InMemoryNodeInner {
 
         // The nonce needs to be updated
         let nonce = l2_tx.nonce();
-        let nonce_key = StorageKeyLayout::get_nonce_key(is_zkos, &l2_tx.initiator_account());
+        let nonce_key =
+            StorageKeyLayout::get_nonce_key(zkos_config.use_zkos, &l2_tx.initiator_account());
         let full_nonce = storage.borrow_mut().read_value(&nonce_key);
         let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
         let enforced_full_nonce = nonces_to_full_nonce(U256::from(nonce.0), deployment_nonce);
@@ -1041,7 +1044,8 @@ impl InMemoryNodeInner {
 
         // We need to explicitly put enough balance into the account of the users
         let payer = l2_tx.payer();
-        let balance_key = StorageKeyLayout::get_storage_key_for_base_token(is_zkos, &payer);
+        let balance_key =
+            StorageKeyLayout::get_storage_key_for_base_token(zkos_config.use_zkos, &payer);
         let mut current_balance = h256_to_u256(storage.borrow_mut().read_value(&balance_key));
         let added_balance = l2_tx.common_data.fee.gas_limit * l2_tx.common_data.fee.max_fee_per_gas;
         current_balance += added_balance;
@@ -1049,13 +1053,14 @@ impl InMemoryNodeInner {
             .borrow_mut()
             .set_value(balance_key, u256_to_h256(current_balance));
 
-        let mut vm = if is_zkos {
+        let mut vm = if zkos_config.use_zkos {
             let mut vm = ZKOsVM::<_, HistoryDisabled>::new(
                 batch_env,
                 system_env,
                 storage,
                 // TODO: this might be causing a deadlock.. check..
                 &fork_storage.inner.read().unwrap().raw_storage,
+                zkos_config,
             );
             // Temporary hack - as we update the 'storage' just above, but zkos loads its full
             // state from fork_storage (that is not updated).
@@ -1317,7 +1322,7 @@ impl InMemoryNodeInner {
     /// Adds a lot of tokens to a given account with a specified balance.
     pub fn set_rich_account(&mut self, address: H160, balance: U256) {
         let key = StorageKeyLayout::get_storage_key_for_base_token(
-            self.system_contracts.use_zkos,
+            self.system_contracts.use_zkos(),
             &address,
         );
 
@@ -1382,7 +1387,7 @@ impl InMemoryNodeInner {
         let system_contracts = SystemContracts::from_options(
             &config.system_contracts_options,
             config.use_evm_emulator,
-            config.use_zkos,
+            config.zkos_config.clone(),
         );
         let (inner, _, _, _) = InMemoryNodeInner::init(
             None,

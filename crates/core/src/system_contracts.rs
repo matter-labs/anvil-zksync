@@ -1,6 +1,6 @@
 use crate::deps::system_contracts::bytecode_from_slice;
 use crate::node::ImpersonationManager;
-use anvil_zksync_config::types::SystemContractsOptions;
+use anvil_zksync_config::types::{SystemContractsOptions, ZKOSConfig};
 use zksync_contracts::{
     read_bootloader_code, read_sys_contract_bytecode, BaseSystemContracts,
     BaseSystemContractsHashes, ContractLanguage, SystemContractCode,
@@ -21,13 +21,13 @@ pub struct SystemContracts {
     // For now, store the zkos switch flag here.
     // Long term, we should probably refactor this code, and add another struct ('System')
     // that would hold separate things for ZKOS and for EraVM. (but that's too early for now).
-    pub use_zkos: bool,
+    pub zkos_config: ZKOSConfig,
 }
 
 impl Default for SystemContracts {
     /// Creates SystemContracts that use compiled-in contracts.
     fn default() -> Self {
-        SystemContracts::from_options(&SystemContractsOptions::BuiltIn, false, false)
+        SystemContracts::from_options(&SystemContractsOptions::BuiltIn, false, Default::default())
     }
 }
 
@@ -37,7 +37,7 @@ impl SystemContracts {
     pub fn from_options(
         options: &SystemContractsOptions,
         use_evm_emulator: bool,
-        use_zkos: bool,
+        zkos_config: ZKOSConfig,
     ) -> Self {
         Self {
             baseline_contracts: baseline_contracts(options, use_evm_emulator),
@@ -52,14 +52,18 @@ impl SystemContracts {
                 use_evm_emulator,
             ),
             use_evm_emulator,
-            use_zkos,
+            zkos_config,
         }
     }
 
     /// Whether it accepts the transactions that have 'null' as target.
     /// This is used only when EVM emulator is enabled, or we're running in zkos mode.
     pub fn allow_no_target(&self) -> bool {
-        self.use_zkos || self.use_evm_emulator
+        self.zkos_config.use_zkos || self.use_evm_emulator
+    }
+
+    pub fn use_zkos(&self) -> bool {
+        self.zkos_config.use_zkos
     }
 
     pub fn contracts_for_l2_call(&self) -> &BaseSystemContracts {

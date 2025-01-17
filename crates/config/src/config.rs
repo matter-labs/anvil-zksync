@@ -70,8 +70,8 @@ pub struct TestNodeConfig {
     pub override_bytecodes_dir: Option<String>,
     /// Enables EVM emulation mode
     pub use_evm_emulator: bool,
-    /// Enables ZKOS mode (experimental)
-    pub use_zkos: bool,
+    /// ZKOS configuration
+    pub zkos_config: ZKOSConfig,
     /// Optional chain ID for the node
     pub chain_id: Option<u32>,
     /// L1 gas price (optional override)
@@ -157,7 +157,7 @@ impl Default for TestNodeConfig {
             system_contracts_options: Default::default(),
             override_bytecodes_dir: None,
             use_evm_emulator: false,
-            use_zkos: false,
+            zkos_config: Default::default(),
             chain_id: None,
 
             // Gas configuration defaults
@@ -367,12 +367,22 @@ impl TestNodeConfig {
         );
         tracing::info!(
             "ZK OS:              {}",
-            if self.use_zkos {
+            if self.zkos_config.use_zkos {
                 "Enabled".green()
             } else {
                 "Disabled".red()
             }
         );
+        if self.zkos_config.use_zkos {
+            tracing::info!(
+                "ZK bin:             {}",
+                if let Some(path) = self.zkos_config.zkos_bin_path.as_ref() {
+                    path.green()
+                } else {
+                    "Not set".red()
+                }
+            );
+        }
 
         println!("\n");
         tracing::info!("========================================");
@@ -515,12 +525,10 @@ impl TestNodeConfig {
         self
     }
 
-    /// Enable or disable zkos
+    /// ZKOS configuration
     #[must_use]
-    pub fn with_zkos(mut self, enable: Option<bool>) -> Self {
-        if let Some(enable) = enable {
-            self.use_zkos = enable;
-        }
+    pub fn with_zkos_config(mut self, config: ZKOSConfig) -> Self {
+        self.zkos_config = config;
         self
     }
 

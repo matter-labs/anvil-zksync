@@ -1,12 +1,14 @@
 mod account_generator;
 mod cache;
 mod genesis;
+mod zkos;
 
 pub use account_generator::AccountGenerator;
 pub use cache::{CacheConfig, CacheType};
 use clap::ValueEnum;
 pub use genesis::Genesis;
 use serde::Deserialize;
+pub use zkos::ZKOSConfig;
 
 #[derive(Deserialize, Default, Debug, Copy, Clone, PartialEq, ValueEnum)]
 pub enum SystemContractsOptions {

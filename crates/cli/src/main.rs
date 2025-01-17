@@ -221,7 +221,7 @@ async fn main() -> anyhow::Result<()> {
     let system_contracts = SystemContracts::from_options(
         &config.system_contracts_options,
         config.use_evm_emulator,
-        config.use_zkos,
+        config.zkos_config.clone(),
     );
 
     let (node_inner, _fork_storage, blockchain, time) = InMemoryNodeInner::init(

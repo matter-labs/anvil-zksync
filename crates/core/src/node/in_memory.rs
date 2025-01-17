@@ -385,13 +385,14 @@ impl InMemoryNode {
 
         let storage = StorageView::new(&inner.fork_storage).into_rc_ptr();
 
-        let mut vm = if self.system_contracts.use_zkos {
+        let mut vm = if self.system_contracts.use_zkos() {
             AnvilVM::ZKOs(super::zkos::ZKOsVM::<_, HistoryDisabled>::new(
                 batch_env,
                 system_env,
                 storage,
                 // TODO: this might be causing a deadlock.. check..
                 &inner.fork_storage.inner.read().unwrap().raw_storage,
+                &self.system_contracts.zkos_config,
             ))
         } else {
             AnvilVM::ZKSync(Vm::new(batch_env, system_env, storage))
@@ -652,7 +653,7 @@ impl InMemoryNode {
         let system_contracts = SystemContracts::from_options(
             &config.system_contracts_options,
             config.use_evm_emulator,
-            config.use_zkos,
+            config.zkos_config.clone(),
         );
         let (inner, _, blockchain, time) = InMemoryNodeInner::init(
             fork,
