@@ -56,7 +56,6 @@ basic_system = { path = "../../../zk_ee/basic_system" }
 zk_ee = { path = "../../../zk_ee/zk_ee" }
 system_hooks = { path = "../../../zk_ee/system_hooks" }
 zkos_api = { path = "../../../zk_ee/api" }
-jsonrpsee.workspace = true
 
 
 ruint = { version = "1.12.3", default-features = false, features = ["alloc"]}

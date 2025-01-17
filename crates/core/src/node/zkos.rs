@@ -32,30 +32,6 @@ use crate::deps::InMemoryStorage;
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
 
-use jsonrpsee::core::{async_trait, RpcResult};
-use jsonrpsee::proc_macros::rpc;
-
-#[rpc(server, client, namespace = "zkos")]
-pub trait ZkOsNamespace {
-    #[method(name = "getWitness")]
-    async fn get_witness(&self, batch: u32) -> RpcResult<Option<Vec<u8>>>;
-}
-
-pub struct ZkOsServer {}
-
-impl ZkOsServer {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-#[async_trait]
-impl ZkOsNamespaceServer for ZkOsServer {
-    async fn get_witness(&self, batch: u32) -> RpcResult<Option<Vec<u8>>> {
-        Ok(get_batch_witness(&batch))
-    }
-}
-
 static BATCH_WITNESS: Lazy<Mutex<HashMap<u32, Vec<u8>>>> = Lazy::new(|| {
     let m = HashMap::new();
     Mutex::new(m)
@@ -66,7 +42,7 @@ pub fn set_batch_witness(key: u32, value: Vec<u8>) {
     map.insert(key, value);
 }
 
-pub fn get_batch_witness(key: &u32) -> Option<Vec<u8>> {
+pub fn zkos_get_batch_witness(key: &u32) -> Option<Vec<u8>> {
     let map = BATCH_WITNESS.lock().unwrap();
     map.get(key).cloned()
 }

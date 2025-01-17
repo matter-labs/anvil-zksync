@@ -1,3 +1,4 @@
+use crate::impls::ZKOSNamespace;
 use crate::{
     AnvilNamespace, ConfigNamespace, DebugNamespace, EthNamespace, EthTestNamespace, EvmNamespace,
     NetNamespace, Web3Namespace, ZksNamespace,
@@ -5,9 +6,9 @@ use crate::{
 use anvil_zksync_api_decl::{
     AnvilNamespaceServer, ConfigNamespaceServer, DebugNamespaceServer, EthNamespaceServer,
     EthTestNamespaceServer, EvmNamespaceServer, NetNamespaceServer, Web3NamespaceServer,
-    ZksNamespaceServer,
+    ZKOSNamespaceServer, ZksNamespaceServer,
 };
-use anvil_zksync_core::node::{InMemoryNode, ZkOsNamespaceServer, ZkOsServer};
+use anvil_zksync_core::node::InMemoryNode;
 use http::Method;
 use jsonrpsee::server::middleware::http::ProxyGetRequestLayer;
 use jsonrpsee::server::{RpcServiceBuilder, ServerBuilder, ServerHandle};
@@ -58,7 +59,7 @@ impl NodeServerBuilder {
         rpc.merge(ConfigNamespace::new(node.clone()).into_rpc())
             .unwrap();
         rpc.merge(ZksNamespace::new(node).into_rpc()).unwrap();
-        rpc.merge(ZkOsServer::new().into_rpc()).unwrap();
+        rpc.merge(ZKOSNamespace::new().into_rpc()).unwrap();
         rpc.merge(Web3Namespace.into_rpc()).unwrap();
         rpc
     }

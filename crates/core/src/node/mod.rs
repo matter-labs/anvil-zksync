@@ -26,4 +26,4 @@ pub use self::{
 pub use in_memory::*;
 pub use inner::{blockchain, fork, node_executor, time};
 pub use inner::{InMemoryNodeInner, TxExecutionOutput};
-pub use zkos::{ZkOsNamespaceServer, ZkOsServer};
+pub use zkos::zkos_get_batch_witness;
