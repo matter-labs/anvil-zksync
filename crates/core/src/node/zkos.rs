@@ -289,7 +289,9 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
     simulate_only: bool,
     batch_env: &L1BatchEnv,
     chain_id: u64,
-) -> VmExecutionResultAndLogs {
+    // if zkos_path is passed, it will also compute witness.
+    zkos_path: Option<String>,
+) -> (VmExecutionResultAndLogs, Option<Vec<u8>>) {
     let batch_context = basic_system::basic_system::BasicBlockMetadataFromOracle {
         // TODO: get fee from batch_env.
         eip1559_basefee: ruint::aliases::U256::from(if simulate_only { 0u64 } else { 1000u64 }),
@@ -322,6 +324,8 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
 
     let tx_raw = transaction_to_zkos_vec(&tx);
 
+    let mut witness = None;
+
     let (output, dynamic_factory_deps, storage_logs) = if simulate_only {
         (
             forward_system::run::simulate_tx(
@@ -345,9 +349,23 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
             // FIXME
             tree.clone(),
             preimage_source.clone(),
-            tx_source,
+            tx_source.clone(),
         )
         .unwrap();
+
+        if let Some(zkos_path) = zkos_path {
+            let result = zkos_api::run_batch_generate_witness(
+                batch_context,
+                tree.clone(),
+                preimage_source.clone(),
+                tx_source,
+                storage_commitment,
+                &zkos_path,
+            );
+
+            witness = Some(result.iter().map(|x| x.to_be_bytes()).flatten().collect());
+            //set_batch_witness(batch_env.number.0, witness);
+        }
 
         let mut storage_ptr = storage.borrow_mut();
 
@@ -391,57 +409,66 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
                 }
             },
             forward_system::run::ExecutionResult::Revert(data) => {
-                return VmExecutionResultAndLogs {
+                return (
+                    VmExecutionResultAndLogs {
+                        result: ExecutionResult::Revert {
+                            output: VmRevertReason::General {
+                                msg: "Transaction reverted".to_string(),
+                                data: data.clone(),
+                            },
+                        },
+                        logs: Default::default(),
+                        statistics: Default::default(),
+                        refunds: Refunds {
+                            gas_refunded: tx_output.gas_refunded,
+                            operator_suggested_refund: tx_output.gas_refunded,
+                        },
+                        dynamic_factory_deps: Default::default(),
+                    },
+                    witness,
+                )
+            }
+        },
+        Err(invalid_tx) => {
+            return (
+                VmExecutionResultAndLogs {
                     result: ExecutionResult::Revert {
                         output: VmRevertReason::General {
-                            msg: "Transaction reverted".to_string(),
-                            data: data.clone(),
+                            msg: format!("{:?}", invalid_tx),
+                            data: vec![],
                         },
                     },
                     logs: Default::default(),
                     statistics: Default::default(),
-                    refunds: Refunds {
-                        gas_refunded: tx_output.gas_refunded,
-                        operator_suggested_refund: tx_output.gas_refunded,
-                    },
+                    refunds: Default::default(),
                     dynamic_factory_deps: Default::default(),
-                }
-            }
-        },
-        Err(invalid_tx) => {
-            return VmExecutionResultAndLogs {
-                result: ExecutionResult::Revert {
-                    output: VmRevertReason::General {
-                        msg: format!("{:?}", invalid_tx),
-                        data: vec![],
-                    },
                 },
-                logs: Default::default(),
-                statistics: Default::default(),
-                refunds: Default::default(),
-                dynamic_factory_deps: Default::default(),
-            }
+                witness,
+            )
         }
     };
 
-    VmExecutionResultAndLogs {
-        result: ExecutionResult::Success {
-            output: tx_output.clone(),
+    (
+        VmExecutionResultAndLogs {
+            result: ExecutionResult::Success {
+                output: tx_output.clone(),
+            },
+            logs: VmExecutionLogs {
+                storage_logs,
+                events: Default::default(),
+                user_l2_to_l1_logs: Default::default(),
+                system_l2_to_l1_logs: Default::default(),
+                total_log_queries_count: Default::default(),
+            },
+            statistics: Default::default(),
+            refunds: Refunds {
+                gas_refunded,
+                operator_suggested_refund: gas_refunded,
+            },
+            dynamic_factory_deps,
         },
-        logs: VmExecutionLogs {
-            storage_logs,
-            events: Default::default(),
-            user_l2_to_l1_logs: Default::default(),
-            system_l2_to_l1_logs: Default::default(),
-            total_log_queries_count: Default::default(),
-        },
-        statistics: Default::default(),
-        refunds: Refunds {
-            gas_refunded,
-            operator_suggested_refund: gas_refunded,
-        },
-        dynamic_factory_deps,
-    }
+        witness,
+    )
 }
 
 pub fn zkos_get_nonce_key(account: &Address) -> StorageKey {
@@ -499,6 +526,7 @@ pub struct ZKOsVM<S: WriteStorage, H: HistoryMode> {
     transactions: Vec<Transaction>,
     system_env: SystemEnv,
     batch_env: L1BatchEnv,
+    witness: Option<Vec<u8>>,
     _phantom: std::marker::PhantomData<H>,
 }
 
@@ -517,6 +545,7 @@ impl<S: WriteStorage, H: HistoryMode> ZKOsVM<S, H> {
             transactions: vec![],
             system_env,
             batch_env,
+            witness: None,
             _phantom: Default::default(),
         }
     }
@@ -577,8 +606,12 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for ZKOsVM<S, H> {
             // This is called at the end of seal block.
             // Now is the moment to collect the witness and store it.
 
-            // TODO: set correct witness.
-            set_batch_witness(self.batch_env.number.0, vec![]);
+            // TODO: add support for multiple transactions.
+
+            if let Some(witness) = self.witness.clone() {
+                set_batch_witness(self.batch_env.number.0, witness);
+            }
+
             return VmExecutionResultAndLogs {
                 result: ExecutionResult::Success { output: vec![] },
                 logs: Default::default(),
@@ -602,7 +635,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for ZKOsVM<S, H> {
 
         // TODO: add support for multiple transactions.
         let tx = self.transactions[0].clone();
-        execute_tx_in_zkos(
+        let (result, witness) = execute_tx_in_zkos(
             &tx,
             &self.tree,
             &self.preimage,
@@ -610,7 +643,11 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for ZKOsVM<S, H> {
             simulate_only,
             &self.batch_env,
             self.system_env.chain_id.as_u64(),
-        )
+            Some("../zk_ee/zk_os/app.bin".to_string()),
+        );
+
+        self.witness = witness;
+        result
     }
 
     fn start_new_l2_block(&mut self, _l2_block_env: zksync_multivm::interface::L2BlockEnv) {
