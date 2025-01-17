@@ -1,14 +1,18 @@
+use crate::system_contracts::Options;
 use once_cell::sync::Lazy;
 use serde_json::Value;
-use zksync_basic_types::{AccountTreeId, Address, H160};
+use zksync_types::system_contracts::get_system_smart_contracts;
 use zksync_types::{
     block::DeployedContract, ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS,
-    BOOTLOADER_UTILITIES_ADDRESS, COMPRESSOR_ADDRESS, CONTRACT_DEPLOYER_ADDRESS,
-    ECRECOVER_PRECOMPILE_ADDRESS, EVENT_WRITER_ADDRESS, IMMUTABLE_SIMULATOR_STORAGE_ADDRESS,
+    BOOTLOADER_UTILITIES_ADDRESS, CODE_ORACLE_ADDRESS, COMPRESSOR_ADDRESS,
+    CONTRACT_DEPLOYER_ADDRESS, CREATE2_FACTORY_ADDRESS, ECRECOVER_PRECOMPILE_ADDRESS,
+    EC_PAIRING_PRECOMPILE_ADDRESS, EVENT_WRITER_ADDRESS, IMMUTABLE_SIMULATOR_STORAGE_ADDRESS,
     KECCAK256_PRECOMPILE_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
-    L2_ETH_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS, NONCE_HOLDER_ADDRESS,
-    PUBDATA_CHUNK_PUBLISHER_ADDRESS, SHA256_PRECOMPILE_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
+    L2_BASE_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS, NONCE_HOLDER_ADDRESS,
+    P256VERIFY_PRECOMPILE_ADDRESS, PUBDATA_CHUNK_PUBLISHER_ADDRESS, SHA256_PRECOMPILE_ADDRESS,
+    SYSTEM_CONTEXT_ADDRESS,
 };
+use zksync_types::{AccountTreeId, Address, H160};
 
 /// The `ecAdd` system contract address.
 pub const ECADD_PRECOMPILE_ADDRESS: Address = H160([
@@ -20,6 +24,11 @@ pub const ECADD_PRECOMPILE_ADDRESS: Address = H160([
 pub const ECMUL_PRECOMPILE_ADDRESS: Address = H160([
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x07,
+]);
+
+pub const TIMESTAMP_ASSERTER_ADDRESS: Address = H160([
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x80, 0x80, 0x12,
 ]);
 
 pub fn bytecode_from_slice(artifact_name: &str, contents: &[u8]) -> Vec<u8> {
@@ -72,9 +81,9 @@ pub static COMPILED_IN_SYSTEM_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new
             include_bytes!("contracts/MsgValueSimulator.json").to_vec(),
         ),
         (
-            "L2EthToken",
-            L2_ETH_TOKEN_ADDRESS,
-            include_bytes!("contracts/L2EthToken.json").to_vec(),
+            "L2BaseToken",
+            L2_BASE_TOKEN_ADDRESS,
+            include_bytes!("contracts/L2BaseToken.json").to_vec(),
         ),
         (
             "SystemContext",
@@ -95,6 +104,16 @@ pub static COMPILED_IN_SYSTEM_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new
             "PubdataChunkPublisher",
             PUBDATA_CHUNK_PUBLISHER_ADDRESS,
             include_bytes!("contracts/PubdataChunkPublisher.json").to_vec(),
+        ),
+        (
+            "Create2Factory",
+            CREATE2_FACTORY_ADDRESS,
+            include_bytes!("contracts/Create2Factory.json").to_vec(),
+        ),
+        (
+            "TimestampAsserter",
+            TIMESTAMP_ASSERTER_ADDRESS,
+            include_bytes!("contracts/TimestampAsserter.json").to_vec(),
         ),
     ]
     .map(|(pname, address, contents)| DeployedContract {
@@ -126,14 +145,29 @@ pub static COMPILED_IN_SYSTEM_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new
             include_bytes!("contracts/EventWriter.yul.zbin").to_vec(),
         ),
         (
-            "ECADD_PRECOMPILE_ADDRESS",
+            "EcAdd",
             ECADD_PRECOMPILE_ADDRESS,
             include_bytes!("contracts/EcAdd.yul.zbin").to_vec(),
         ),
         (
-            "ECMUL_PRECOMPILE_ADDRESS",
+            "EcMul",
             ECMUL_PRECOMPILE_ADDRESS,
             include_bytes!("contracts/EcMul.yul.zbin").to_vec(),
+        ),
+        (
+            "EcPairing",
+            EC_PAIRING_PRECOMPILE_ADDRESS,
+            include_bytes!("contracts/EcPairing.yul.zbin").to_vec(),
+        ),
+        (
+            "CodeOracle",
+            CODE_ORACLE_ADDRESS,
+            include_bytes!("contracts/CodeOracle.yul.zbin").to_vec(),
+        ),
+        (
+            "P256Verify",
+            P256VERIFY_PRECOMPILE_ADDRESS,
+            include_bytes!("contracts/P256Verify.yul.zbin").to_vec(),
         ),
     ]
     .map(|(_pname, address, contents)| DeployedContract {
@@ -158,3 +192,13 @@ pub static COMPILED_IN_SYSTEM_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new
     deployed_system_contracts.extend(empty_system_contracts);
     deployed_system_contracts
 });
+
+pub fn get_deployed_contracts(
+    options: &Options,
+    use_evm_emulator: bool,
+) -> Vec<zksync_types::block::DeployedContract> {
+    match options {
+        Options::BuiltIn | Options::BuiltInWithoutSecurity => COMPILED_IN_SYSTEM_CONTRACTS.clone(),
+        Options::Local => get_system_smart_contracts(use_evm_emulator),
+    }
+}

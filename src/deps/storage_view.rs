@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::HashMap, fmt, rc::Rc};
 
-use zksync_state::{ReadStorage, WriteStorage};
+use zksync_multivm::interface::storage::{ReadStorage, WriteStorage};
 use zksync_types::{StorageKey, StorageValue, H256};
 
 /// `StorageView` is a buffer for `StorageLog`s between storage and transaction execution code.
@@ -111,6 +111,10 @@ impl<S: ReadStorage + fmt::Debug> WriteStorage for StorageView<S> {
         self.modified_storage_keys.insert(key, value);
 
         original
+    }
+
+    fn read_storage_keys(&self) -> &HashMap<StorageKey, StorageValue> {
+        &self.read_storage_keys
     }
 
     fn modified_storage_keys(&self) -> &HashMap<StorageKey, StorageValue> {

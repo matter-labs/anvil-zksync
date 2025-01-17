@@ -11,19 +11,21 @@ use crate::{fork::ForkSource, node::compute_hash};
 
 use ethabi::{ParamType, Token};
 use ethers::contract;
+use eyre::eyre;
 use httptest::{
     matchers::{eq, json_decoded, request},
     responders::json_encoded,
     Expectation, Server,
 };
 use itertools::Itertools;
-use multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
 use std::str::FromStr;
-use zksync_basic_types::{AccountTreeId, MiniblockNumber, H160, U64};
-use zksync_types::api::{BlockIdVariant, BridgeAddresses, DebugCall, DebugCallType, Log};
+use zksync_types::api::{
+    BlockDetailsBase, BlockIdVariant, BlockStatus, BridgeAddresses, DebugCall, DebugCallType, Log,
+};
 use zksync_types::block::pack_block_info;
-use zksync_types::StorageKey;
 use zksync_types::{fee::Fee, l2::L2Tx, Address, L2ChainId, Nonce, ProtocolVersionId, H256, U256};
+use zksync_types::{AccountTreeId, L1BatchNumber, L2BlockNumber, H160, U64};
+use zksync_types::{K256PrivateKey, StorageKey};
 use zksync_utils::u256_to_h256;
 
 /// Configuration for the [MockServer]'s initial block.
@@ -58,24 +60,37 @@ impl MockServer {
             Expectation::matching(request::body(json_decoded(eq(serde_json::json!({
                 "jsonrpc": "2.0",
                 "id": 0,
-                "method": "eth_blockNumber",
+                "method": "eth_chainId",
             })))))
             .respond_with(json_encoded(serde_json::json!({
                 "jsonrpc": "2.0",
                 "id": 0,
+                "result": "0x104",
+            }))),
+        );
+
+        server.expect(
+            Expectation::matching(request::body(json_decoded(eq(serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "eth_blockNumber",
+            })))))
+            .respond_with(json_encoded(serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
                 "result": format!("{:#x}", block_config.number),
             }))),
         );
         server.expect(
             Expectation::matching(request::body(json_decoded(eq(serde_json::json!({
                 "jsonrpc": "2.0",
-                "id": 1,
+                "id": 2,
                 "method": "zks_getBlockDetails",
                 "params": [ block_config.number ],
             })))))
             .respond_with(json_encoded(serde_json::json!({
                 "jsonrpc": "2.0",
-                "id": 1,
+                "id": 2,
                 "result": {
                     "number": block_config.number,
                     "l1BatchNumber": 1,
@@ -104,13 +119,13 @@ impl MockServer {
         server.expect(
             Expectation::matching(request::body(json_decoded(eq(serde_json::json!({
                 "jsonrpc": "2.0",
-                "id": 2,
+                "id": 3,
                 "method": "eth_getBlockByHash",
                 "params": [format!("{:#x}", block_config.hash), true],
             }))))).times(0..)
             .respond_with(json_encoded(serde_json::json!({
                 "jsonrpc": "2.0",
-                "id": 2,
+                "id": 3,
                 "result": {
                     "hash": format!("{:#x}", block_config.hash),
                     "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
@@ -143,6 +158,32 @@ impl MockServer {
                     "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
                     "nonce": "0x0000000000000000"
                 }
+            }))),
+        );
+        server.expect(
+            Expectation::matching(request::body(json_decoded(eq(serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "zks_getFeeParams",
+            })))))
+            .respond_with(json_encoded(serde_json::json!(
+            {
+              "jsonrpc": "2.0",
+              "result": {
+                "V2": {
+                  "config": {
+                    "minimal_l2_gas_price": 25000000,
+                    "compute_overhead_part": 0,
+                    "pubdata_overhead_part": 1,
+                    "batch_overhead_l1_gas": 800000,
+                    "max_gas_per_batch": 200000000,
+                    "max_pubdata_per_batch": 240000
+                  },
+                  "l1_gas_price": 46226388803u64,
+                  "l1_pubdata_price": 100780475095u64
+                }
+              },
+              "id": 4
             }))),
         );
 
@@ -362,7 +403,7 @@ impl RawTransactionsResponseBuilder {
 #[derive(Debug, Clone)]
 pub struct TransactionBuilder {
     tx_hash: H256,
-    from_account_private_key: H256,
+    from_account_private_key: K256PrivateKey,
     gas_limit: U256,
     max_fee_per_gas: U256,
     max_priority_fee_per_gas: U256,
@@ -372,8 +413,8 @@ impl Default for TransactionBuilder {
     fn default() -> Self {
         Self {
             tx_hash: H256::repeat_byte(0x01),
-            from_account_private_key: H256::random(),
-            gas_limit: U256::from(2_000_000),
+            from_account_private_key: K256PrivateKey::from_bytes(H256::random()).unwrap(),
+            gas_limit: U256::from(4_000_000),
             max_fee_per_gas: U256::from(50_000_000),
             max_priority_fee_per_gas: U256::from(50_000_000),
         }
@@ -407,23 +448,26 @@ impl TransactionBuilder {
 
     pub fn build(&mut self) -> L2Tx {
         let mut tx = L2Tx::new_signed(
-            Address::random(),
+            Some(Address::random()),
             vec![],
             Nonce(0),
             Fee {
                 gas_limit: self.gas_limit,
                 max_fee_per_gas: self.max_fee_per_gas,
                 max_priority_fee_per_gas: self.max_priority_fee_per_gas,
-                gas_per_pubdata_limit: U256::from(25000),
+                gas_per_pubdata_limit: U256::from(50000),
             },
             U256::from(1),
             L2ChainId::from(260),
             &self.from_account_private_key,
-            None,
+            vec![],
             Default::default(),
         )
         .unwrap();
-        tx.set_input(vec![], self.tx_hash);
+        tx.set_input(
+            tx.common_data.input_data().unwrap_or_default().into(),
+            self.tx_hash,
+        );
         tx
     }
 }
@@ -432,27 +476,31 @@ impl TransactionBuilder {
 pub fn apply_tx<T: ForkSource + std::fmt::Debug + Clone>(
     node: &InMemoryNode<T>,
     tx_hash: H256,
-) -> (H256, U64) {
+) -> (H256, U64, L2Tx) {
     let next_miniblock = node
         .get_inner()
         .read()
         .map(|reader| reader.current_miniblock.saturating_add(1))
         .expect("failed getting current batch number");
-    let produced_block_hash = compute_hash(next_miniblock, tx_hash);
+    let produced_block_hash = compute_hash(next_miniblock, [&tx_hash]);
 
     let tx = TransactionBuilder::new().set_hash(tx_hash).build();
 
-    node.set_rich_account(tx.common_data.initiator_address);
-    node.apply_txs(vec![tx]).expect("failed applying tx");
+    node.set_rich_account(
+        tx.common_data.initiator_address,
+        U256::from(100u128 * 10u128.pow(18)),
+    );
+    node.apply_txs(vec![tx.clone()], 1)
+        .expect("failed applying tx");
 
-    (produced_block_hash, U64::from(next_miniblock))
+    (produced_block_hash, U64::from(next_miniblock), tx)
 }
 
 /// Deploys a contract with the given bytecode.
 pub fn deploy_contract<T: ForkSource + std::fmt::Debug + Clone>(
     node: &InMemoryNode<T>,
     tx_hash: H256,
-    private_key: H256,
+    private_key: &K256PrivateKey,
     bytecode: Vec<u8>,
     calldata: Option<Vec<u8>>,
     nonce: Nonce,
@@ -466,7 +514,7 @@ pub fn deploy_contract<T: ForkSource + std::fmt::Debug + Clone>(
         .read()
         .map(|reader| reader.current_miniblock.saturating_add(1))
         .expect("failed getting current batch number");
-    let produced_block_hash = compute_hash(next_miniblock, tx_hash);
+    let produced_block_hash = compute_hash(next_miniblock, [&tx_hash]);
 
     let salt = [0u8; 32];
     let bytecode_hash = eip712::hash_bytecode(&bytecode).expect("invalid bytecode");
@@ -508,24 +556,25 @@ pub fn deploy_contract<T: ForkSource + std::fmt::Debug + Clone>(
         .expect("failed encoding function data");
 
     let mut tx = L2Tx::new_signed(
-        zksync_types::CONTRACT_DEPLOYER_ADDRESS,
+        Some(zksync_types::CONTRACT_DEPLOYER_ADDRESS),
         data.to_vec(),
         nonce,
         Fee {
-            gas_limit: U256::from(92511299),
+            gas_limit: U256::from(400_000_000),
             max_fee_per_gas: U256::from(50_000_000),
             max_priority_fee_per_gas: U256::from(50_000_000),
             gas_per_pubdata_limit: U256::from(50000),
         },
         U256::from(0),
-        zksync_basic_types::L2ChainId::from(260),
-        &private_key,
-        Some(vec![bytecode]),
+        zksync_types::L2ChainId::from(260),
+        private_key,
+        vec![bytecode],
         Default::default(),
     )
     .expect("failed signing tx");
     tx.set_input(vec![], tx_hash);
-    node.apply_txs(vec![tx]).expect("failed deploying contract");
+    node.apply_txs(vec![tx], 1)
+        .expect("failed deploying contract");
 
     produced_block_hash
 }
@@ -534,6 +583,7 @@ pub fn deploy_contract<T: ForkSource + std::fmt::Debug + Clone>(
 #[derive(Debug, Default, Clone)]
 pub struct LogBuilder {
     block_number: U64,
+    block_timestamp: U64,
     address: Option<H160>,
     topics: Option<Vec<H256>>,
 }
@@ -577,6 +627,7 @@ impl LogBuilder {
             transaction_log_index: Default::default(),
             log_type: Default::default(),
             removed: Some(false),
+            block_timestamp: Some(self.block_timestamp),
         }
     }
 }
@@ -617,12 +668,6 @@ pub fn default_tx_execution_info() -> TxExecutionInfo {
         },
         batch_number: Default::default(),
         miniblock_number: Default::default(),
-        result: VmExecutionResultAndLogs {
-            result: ExecutionResult::Success { output: vec![] },
-            logs: Default::default(),
-            statistics: Default::default(),
-            refunds: Default::default(),
-        },
     }
 }
 
@@ -703,7 +748,11 @@ pub struct ExternalStorage {
     pub raw_storage: InMemoryStorage,
 }
 
-impl ForkSource for &ExternalStorage {
+impl ForkSource for ExternalStorage {
+    fn get_fork_url(&self) -> eyre::Result<String> {
+        Err(eyre!("Not implemented"))
+    }
+
     fn get_storage_at(
         &self,
         address: H160,
@@ -721,7 +770,7 @@ impl ForkSource for &ExternalStorage {
 
     fn get_raw_block_transactions(
         &self,
-        _block_number: MiniblockNumber,
+        _block_number: L2BlockNumber,
     ) -> eyre::Result<Vec<zksync_types::Transaction>> {
         todo!()
     }
@@ -762,8 +811,34 @@ impl ForkSource for &ExternalStorage {
 
     fn get_block_details(
         &self,
-        _miniblock: MiniblockNumber,
+        miniblock: L2BlockNumber,
     ) -> eyre::Result<Option<zksync_types::api::BlockDetails>> {
+        Ok(Some(zksync_types::api::BlockDetails {
+            number: miniblock,
+            l1_batch_number: L1BatchNumber(123),
+            base: BlockDetailsBase {
+                timestamp: 0,
+                l1_tx_count: 0,
+                l2_tx_count: 0,
+                root_hash: None,
+                status: BlockStatus::Sealed,
+                commit_tx_hash: None,
+                committed_at: None,
+                prove_tx_hash: None,
+                proven_at: None,
+                execute_tx_hash: None,
+                executed_at: None,
+                l1_gas_price: 123,
+                l2_fair_gas_price: 234,
+                fair_pubdata_price: Some(345),
+                base_system_contracts_hashes: Default::default(),
+            },
+            operator_address: H160::zero(),
+            protocol_version: None,
+        }))
+    }
+
+    fn get_fee_params(&self) -> eyre::Result<zksync_types::fee_model::FeeParams> {
         todo!()
     }
 
@@ -781,7 +856,7 @@ impl ForkSource for &ExternalStorage {
     fn get_transaction_by_block_hash_and_index(
         &self,
         _block_hash: H256,
-        _index: zksync_basic_types::web3::types::Index,
+        _index: zksync_types::web3::Index,
     ) -> eyre::Result<Option<zksync_types::api::Transaction>> {
         todo!()
     }
@@ -789,7 +864,7 @@ impl ForkSource for &ExternalStorage {
     fn get_transaction_by_block_number_and_index(
         &self,
         _block_number: zksync_types::api::BlockNumber,
-        _index: zksync_basic_types::web3::types::Index,
+        _index: zksync_types::web3::Index,
     ) -> eyre::Result<Option<zksync_types::api::Transaction>> {
         todo!()
     }
@@ -902,7 +977,7 @@ mod test {
     #[tokio::test]
     async fn test_apply_tx() {
         let node = InMemoryNode::<HttpForkSource>::default();
-        let (actual_block_hash, actual_block_number) = apply_tx(&node, H256::repeat_byte(0x01));
+        let (actual_block_hash, actual_block_number, _) = apply_tx(&node, H256::repeat_byte(0x01));
 
         assert_eq!(
             H256::from_str("0xd97ba6a5ab0f2d7fbfc697251321cce20bff3da2b0ddaf12c80f80f0ab270b15")
@@ -1021,7 +1096,6 @@ mod test {
 
         let actual_bytecode = storage
             .get_bytecode_by_hash(H256::repeat_byte(0x1))
-            .ok()
             .expect("failed getting bytecode")
             .expect("missing bytecode");
         assert_eq!(input_bytecode, actual_bytecode);

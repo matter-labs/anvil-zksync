@@ -1,3 +1,4 @@
+mod anvil;
 mod config;
 mod debug;
 mod eth;
@@ -8,12 +9,13 @@ mod net;
 mod web3;
 mod zks;
 
+pub use anvil::{AnvilNamespaceT, DetailedTransaction};
 pub use config::ConfigurationApiNamespaceT;
 pub use debug::DebugNamespaceT;
 pub use eth::EthNamespaceT;
 pub use eth_test::EthTestNodeNamespaceT;
 pub use evm::EvmNamespaceT;
-pub use hardhat::HardhatNamespaceT;
+pub use hardhat::{HardhatNamespaceT, ResetRequest};
 pub use net::NetNamespaceT;
 pub use web3::Web3NamespaceT;
 pub use zks::ZksNamespaceT;

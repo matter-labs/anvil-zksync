@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 pub mod system_contracts;
 use zksync_types::{
-    get_code_key, get_system_context_init_logs, L2ChainId, StorageKey, StorageLog, StorageLogKind,
-    StorageValue, H256,
+    get_code_key, get_system_context_init_logs, L2ChainId, StorageKey, StorageLog, StorageValue,
+    H256,
 };
 pub mod storage_view;
-use zksync_state::ReadStorage;
+use zksync_multivm::interface::storage::ReadStorage;
 
 /// In-memory storage.
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -20,8 +20,10 @@ impl InMemoryStorage {
         chain_id: L2ChainId,
         bytecode_hasher: impl Fn(&[u8]) -> H256,
         system_contracts_options: &crate::system_contracts::Options,
+        use_evm_emulator: bool,
     ) -> Self {
-        let contracts = crate::system_contracts::get_deployed_contracts(system_contracts_options);
+        let contracts =
+            system_contracts::get_deployed_contracts(system_contracts_options, use_evm_emulator);
 
         let system_context_init_log = get_system_context_init_logs(chain_id);
 
@@ -32,7 +34,7 @@ impl InMemoryStorage {
                 StorageLog::new_write_log(deployer_code_key, bytecode_hasher(&contract.bytecode))
             })
             .chain(system_context_init_log)
-            .filter_map(|log| (log.kind == StorageLogKind::Write).then_some((log.key, log.value)))
+            .filter_map(|log| (log.is_write()).then_some((log.key, log.value)))
             .collect();
 
         let factory_deps = contracts

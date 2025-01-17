@@ -1,18 +1,25 @@
-use std::sync::{Arc, RwLock};
+use std::{
+    str::FromStr,
+    sync::{Arc, RwLock},
+};
 
 use crate::{
-    cache::{Cache, CacheConfig},
+    cache::Cache,
+    config::cache::CacheConfig,
     fork::{block_on, ForkSource},
 };
 use eyre::Context;
-use zksync_basic_types::{H256, U256};
-use zksync_types::api::{BridgeAddresses, Transaction};
-use zksync_web3_decl::types::Token;
+use zksync_types::{
+    api::{BridgeAddresses, Transaction},
+    url::SensitiveUrl,
+};
+use zksync_types::{H256, U256};
 use zksync_web3_decl::{
-    jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
+    client::Client,
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
     types::Index,
 };
+use zksync_web3_decl::{client::L2, types::Token};
 
 #[derive(Debug, Clone)]
 /// Fork source that gets the data via HTTP requests.
@@ -31,29 +38,32 @@ impl HttpForkSource {
         }
     }
 
-    pub fn create_client(&self) -> HttpClient {
-        HttpClientBuilder::default()
-            .build(self.fork_url.clone())
+    pub fn create_client(&self) -> Client<L2> {
+        let url = SensitiveUrl::from_str(&self.fork_url)
+            .unwrap_or_else(|_| panic!("Unable to parse client URL: {}", &self.fork_url));
+        Client::http(url)
             .unwrap_or_else(|_| panic!("Unable to create a client for fork: {}", self.fork_url))
+            .build()
     }
 }
 
 impl ForkSource for HttpForkSource {
+    fn get_fork_url(&self) -> eyre::Result<String> {
+        Ok(self.fork_url.clone())
+    }
+
     fn get_storage_at(
         &self,
-        address: zksync_basic_types::Address,
-        idx: zksync_basic_types::U256,
+        address: zksync_types::Address,
+        idx: zksync_types::U256,
         block: Option<zksync_types::api::BlockIdVariant>,
-    ) -> eyre::Result<zksync_basic_types::H256> {
+    ) -> eyre::Result<zksync_types::H256> {
         let client = self.create_client();
         block_on(async move { client.get_storage_at(address, idx, block).await })
             .wrap_err("fork http client failed")
     }
 
-    fn get_bytecode_by_hash(
-        &self,
-        hash: zksync_basic_types::H256,
-    ) -> eyre::Result<Option<Vec<u8>>> {
+    fn get_bytecode_by_hash(&self, hash: zksync_types::H256) -> eyre::Result<Option<Vec<u8>>> {
         let client = self.create_client();
         block_on(async move { client.get_bytecode_by_hash(hash).await })
             .wrap_err("fork http client failed")
@@ -61,7 +71,7 @@ impl ForkSource for HttpForkSource {
 
     fn get_transaction_by_hash(
         &self,
-        hash: zksync_basic_types::H256,
+        hash: zksync_types::H256,
     ) -> eyre::Result<Option<zksync_types::api::Transaction>> {
         if let Ok(Some(transaction)) = self
             .cache
@@ -74,7 +84,7 @@ impl ForkSource for HttpForkSource {
 
         let client = self.create_client();
         block_on(async move { client.get_transaction_by_hash(hash).await })
-            .map(|maybe_transaction| {
+            .inspect(|maybe_transaction| {
                 if let Some(transaction) = &maybe_transaction {
                     self.cache
                         .write()
@@ -86,7 +96,6 @@ impl ForkSource for HttpForkSource {
                             )
                         });
                 }
-                maybe_transaction
             })
             .wrap_err("fork http client failed")
     }
@@ -105,7 +114,7 @@ impl ForkSource for HttpForkSource {
 
     fn get_raw_block_transactions(
         &self,
-        block_number: zksync_basic_types::MiniblockNumber,
+        block_number: zksync_types::L2BlockNumber,
     ) -> eyre::Result<Vec<zksync_types::Transaction>> {
         let number = block_number.0 as u64;
         if let Ok(Some(transaction)) = self
@@ -120,7 +129,7 @@ impl ForkSource for HttpForkSource {
         let client = self.create_client();
         block_on(async move { client.get_raw_block_transactions(block_number).await })
             .wrap_err("fork http client failed")
-            .map(|transactions| {
+            .inspect(|transactions| {
                 if !transactions.is_empty() {
                     self.cache
                         .write()
@@ -134,13 +143,12 @@ impl ForkSource for HttpForkSource {
                             )
                         });
                 }
-                transactions
             })
     }
 
     fn get_block_by_hash(
         &self,
-        hash: zksync_basic_types::H256,
+        hash: zksync_types::H256,
         full_transactions: bool,
     ) -> eyre::Result<Option<zksync_types::api::Block<zksync_types::api::TransactionVariant>>> {
         if let Ok(Some(block)) = self
@@ -154,7 +162,7 @@ impl ForkSource for HttpForkSource {
 
         let client = self.create_client();
         block_on(async move { client.get_block_by_hash(hash, full_transactions).await })
-            .map(|block| {
+            .inspect(|block| {
                 if let Some(block) = &block {
                     self.cache
                         .write()
@@ -166,7 +174,6 @@ impl ForkSource for HttpForkSource {
                             )
                         });
                 }
-                block
             })
             .wrap_err("fork http client failed")
     }
@@ -198,7 +205,7 @@ impl ForkSource for HttpForkSource {
                 .get_block_by_number(block_number, full_transactions)
                 .await
         })
-        .map(|block| {
+        .inspect(|block| {
             if let Some(block) = &block {
                 self.cache
                     .write()
@@ -212,7 +219,6 @@ impl ForkSource for HttpForkSource {
                         )
                     });
             }
-            block
         })
         .wrap_err("fork http client failed")
     }
@@ -271,11 +277,19 @@ impl ForkSource for HttpForkSource {
     /// Returns details of a block, given miniblock number
     fn get_block_details(
         &self,
-        miniblock: zksync_basic_types::MiniblockNumber,
+        miniblock: zksync_types::L2BlockNumber,
     ) -> eyre::Result<Option<zksync_types::api::BlockDetails>> {
         let client = self.create_client();
-        block_on(async move { client.get_block_details(miniblock).await })
-            .wrap_err("fork http client failed")
+        block_on(async move { client.get_block_details(miniblock).await }).wrap_err(format!(
+            "Failed to get block details for {} l2 block in fork http client",
+            miniblock
+        ))
+    }
+
+    /// Returns fee parameters for the give source.
+    fn get_fee_params(&self) -> eyre::Result<zksync_types::fee_model::FeeParams> {
+        let client = self.create_client();
+        block_on(async move { client.get_fee_params().await }).wrap_err("fork http client failed")
     }
 
     /// Returns addresses of the default bridge contracts.
@@ -292,7 +306,7 @@ impl ForkSource for HttpForkSource {
 
         let client = self.create_client();
         block_on(async move { client.get_bridge_contracts().await })
-            .map(|bridge_addresses| {
+            .inspect(|bridge_addresses| {
                 self.cache
                     .write()
                     .map(|mut guard| guard.set_bridge_addresses(bridge_addresses.clone()))
@@ -302,7 +316,6 @@ impl ForkSource for HttpForkSource {
                             err
                         )
                     });
-                bridge_addresses
             })
             .wrap_err("fork http client failed")
     }
@@ -321,7 +334,7 @@ impl ForkSource for HttpForkSource {
 
         let client = self.create_client();
         block_on(async move { client.get_confirmed_tokens(from, limit).await })
-            .map(|confirmed_tokens| {
+            .inspect(|confirmed_tokens| {
                 self.cache
                     .write()
                     .map(|mut guard| {
@@ -333,7 +346,6 @@ impl ForkSource for HttpForkSource {
                             err
                         )
                     });
-                confirmed_tokens
             })
             .wrap_err("fork http client failed")
     }
@@ -343,8 +355,8 @@ impl ForkSource for HttpForkSource {
 mod tests {
     use std::str::FromStr;
 
-    use zksync_basic_types::{Address, MiniblockNumber, H160, H256, U64};
     use zksync_types::api::BlockNumber;
+    use zksync_types::{Address, L2BlockNumber, H160, H256, U64};
 
     use crate::testing;
 
@@ -542,12 +554,12 @@ mod tests {
         let fork_source = HttpForkSource::new(mock_server.url(), CacheConfig::Memory);
 
         let actual_raw_transactions = fork_source
-            .get_raw_block_transactions(MiniblockNumber(input_block_number))
+            .get_raw_block_transactions(L2BlockNumber(input_block_number))
             .expect("failed fetching block raw transactions");
         assert_eq!(1, actual_raw_transactions.len());
 
         let actual_raw_transactions = fork_source
-            .get_raw_block_transactions(MiniblockNumber(input_block_number))
+            .get_raw_block_transactions(L2BlockNumber(input_block_number))
             .expect("failed fetching cached block raw transactions");
         assert_eq!(1, actual_raw_transactions.len());
     }
@@ -629,7 +641,7 @@ mod tests {
 
     #[test]
     fn test_get_block_details() {
-        let miniblock = MiniblockNumber::from(16474138);
+        let miniblock = L2BlockNumber::from(16474138);
         let mock_server = testing::MockServer::run();
         mock_server.expect(
             serde_json::json!({
@@ -658,12 +670,13 @@ mod tests {
                   "executedAt": null,
                   "l1GasPrice": 6156252068u64,
                   "l2FairGasPrice": 50000000u64,
+                  "fairPubdataPrice": 100u64,
                   "baseSystemContractsHashes": {
                     "bootloader": "0x0100089b8a2f2e6a20ba28f02c9e0ed0c13d702932364561a0ea61621f65f0a8",
                     "default_aa": "0x0100067d16a5485875b4249040bf421f53e869337fe118ec747cf40a4c777e5f"
                   },
                   "operatorAddress": "0xa9232040bf0e0aea2578a5b2243f2916dbfc0a69",
-                  "protocolVersion": "Version15"
+                  "protocolVersion": "Version15",
                 },
                 "id": 0
               }),
@@ -683,10 +696,13 @@ mod tests {
     #[test]
     fn test_get_bridge_contracts_is_cached() {
         let input_bridge_addresses = BridgeAddresses {
-            l1_erc20_default_bridge: H160::repeat_byte(0x1),
-            l2_erc20_default_bridge: H160::repeat_byte(0x2),
+            l1_erc20_default_bridge: Some(H160::repeat_byte(0x1)),
+            l2_erc20_default_bridge: Some(H160::repeat_byte(0x2)),
+            l1_shared_default_bridge: Some(H160::repeat_byte(0x5)),
+            l2_shared_default_bridge: Some(H160::repeat_byte(0x2)),
             l1_weth_bridge: Some(H160::repeat_byte(0x3)),
             l2_weth_bridge: Some(H160::repeat_byte(0x4)),
+            l2_legacy_shared_bridge: Some(H160::repeat_byte(0x6)),
         };
         let mock_server = testing::MockServer::run();
         mock_server.expect(
@@ -698,8 +714,10 @@ mod tests {
             serde_json::json!({
                 "jsonrpc": "2.0",
                 "result": {
-                    "l1Erc20DefaultBridge": format!("{:#x}", input_bridge_addresses.l1_erc20_default_bridge),
-                    "l2Erc20DefaultBridge": format!("{:#x}", input_bridge_addresses.l2_erc20_default_bridge),
+                    "l1Erc20SharedBridge": format!("{:#x}", input_bridge_addresses.l1_shared_default_bridge.unwrap()),
+                    "l2Erc20SharedBridge": format!("{:#x}", input_bridge_addresses.l2_shared_default_bridge.unwrap()),
+                    "l1Erc20DefaultBridge": format!("{:#x}", input_bridge_addresses.l1_erc20_default_bridge.unwrap()),
+                    "l2Erc20DefaultBridge": format!("{:#x}", input_bridge_addresses.l2_erc20_default_bridge.unwrap()),
                     "l1WethBridge": format!("{:#x}", input_bridge_addresses.l1_weth_bridge.unwrap()),
                     "l2WethBridge": format!("{:#x}", input_bridge_addresses.l2_weth_bridge.unwrap())
                 },

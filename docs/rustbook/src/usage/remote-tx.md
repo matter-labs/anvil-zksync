@@ -3,21 +3,21 @@
 If you wish to replay a remote transaction locally for deep debugging, use the following command:
 
 ```sh
-# Usage: era_test_node replay_tx <NETWORK> <TX>
-era_test_node replay_tx sepolia-testnet 0x7119045573862797257e4441ff48bf5a3bc4d133a00d167c18dc955eda12cfac
+# Usage: anvil-zksync replay_tx <NETWORK> <TX>
+anvil-zksync replay_tx sepolia-testnet 0x7119045573862797257e4441ff48bf5a3bc4d133a00d167c18dc955eda12cfac
 ```
 
 For more detailed transaction information, such as call traces, add the `--show-calls` flag. If you want to see ABI names, add the `--resolve-hashes` flag. Here's an example:
 
 ```sh
-# Usage: era_test_node replay_tx <NETWORK> <TX>
-era_test_node --show-calls=user --resolve-hashes replay_tx sepolia-testnet 0x7119045573862797257e4441ff48bf5a3bc4d133a00d167c18dc955eda12cfac
+# Usage: anvil-zksync replay_tx <NETWORK> <TX>
+anvil-zksync --show-calls=user --resolve-hashes replay_tx sepolia-testnet 0x7119045573862797257e4441ff48bf5a3bc4d133a00d167c18dc955eda12cfac
 ```
 
 Alternatively (if your node is already running) you can use `config_setShowCalls` and `config_setResolveHashes` RPC endpoints to configure these values. Here's an example:
 
 ```sh
-# era_test_node already running...
+# anvil-zksync already running...
 
 # Set show-calls to User
 curl --request POST \

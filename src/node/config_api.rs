@@ -1,14 +1,14 @@
 use zksync_web3_decl::error::Web3Error;
 
+use crate::node::time::ReadTime;
 use crate::{
+    config::show_details::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails},
     fork::ForkSource,
     namespaces::{ConfigurationApiNamespaceT, Result},
     node::InMemoryNode,
     observability::LogLevel,
     utils::into_jsrpc_error,
 };
-
-use super::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
 
 impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ConfigurationApiNamespaceT
     for InMemoryNode<S>
@@ -22,7 +22,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
                     "Failed to acquire read lock for inner node state.",
                 )))
             })
-            .map(|reader| reader.show_calls.to_string())
+            .map(|reader| reader.config.show_calls.to_string())
     }
 
     fn config_get_show_outputs(&self) -> Result<bool> {
@@ -34,19 +34,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
                     "Failed to acquire read lock for inner node state.",
                 )))
             })
-            .map(|reader| reader.show_outputs)
+            .map(|reader| reader.config.show_outputs)
     }
 
     fn config_get_current_timestamp(&self) -> Result<u64> {
-        self.get_inner()
-            .read()
-            .map_err(|err| {
-                tracing::error!("failed acquiring lock: {:?}", err);
-                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
-                    "Failed to acquire read lock for inner node state.",
-                )))
-            })
-            .map(|reader| reader.current_timestamp)
+        Ok(self.time.current_timestamp())
     }
 
     fn config_set_show_calls(&self, value: String) -> Result<String> {
@@ -64,8 +56,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
                 )))
             })
             .map(|mut writer| {
-                writer.show_calls = show_calls;
-                writer.show_calls.to_string()
+                writer.config.show_calls = show_calls;
+                writer.config.show_calls.to_string()
             })
     }
 
@@ -79,8 +71,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
                 )))
             })
             .map(|mut writer| {
-                writer.show_outputs = value;
-                writer.show_outputs
+                writer.config.show_outputs = value;
+                writer.config.show_outputs
             })
     }
 
@@ -97,7 +89,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
                             "Failed to acquire read lock for inner node state.",
                         )))
                     })
-                    .map(|reader| reader.show_storage_logs.to_string())
+                    .map(|reader| reader.config.show_storage_logs.to_string())
             }
         };
 
@@ -110,8 +102,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
                 )))
             })
             .map(|mut writer| {
-                writer.show_storage_logs = show_storage_logs;
-                writer.show_storage_logs.to_string()
+                writer.config.show_storage_logs = show_storage_logs;
+                writer.config.show_storage_logs.to_string()
             })
     }
 
@@ -128,7 +120,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
                             "Failed to acquire read lock for inner node state.",
                         )))
                     })
-                    .map(|reader| reader.show_vm_details.to_string())
+                    .map(|reader| reader.config.show_vm_details.to_string())
             }
         };
 
@@ -141,8 +133,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
                 )))
             })
             .map(|mut writer| {
-                writer.show_vm_details = show_vm_details;
-                writer.show_vm_details.to_string()
+                writer.config.show_vm_details = show_vm_details;
+                writer.config.show_vm_details.to_string()
             })
     }
 
@@ -159,7 +151,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
                             "Failed to acquire read lock for inner node state.",
                         )))
                     })
-                    .map(|reader| reader.show_gas_details.to_string())
+                    .map(|reader| reader.config.show_gas_details.to_string())
             }
         };
 
@@ -172,8 +164,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
                 )))
             })
             .map(|mut writer| {
-                writer.show_gas_details = show_gas_details;
-                writer.show_gas_details.to_string()
+                writer.config.show_gas_details = show_gas_details;
+                writer.config.show_gas_details.to_string()
             })
     }
 
@@ -187,54 +179,112 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> Configurat
                 )))
             })
             .map(|mut writer| {
-                writer.resolve_hashes = value;
-                writer.resolve_hashes
+                writer.config.resolve_hashes = value;
+                writer.config.resolve_hashes
+            })
+    }
+
+    fn config_set_show_node_config(&self, value: bool) -> Result<bool> {
+        self.get_inner()
+            .write()
+            .map_err(|err| {
+                tracing::error!("failed acquiring lock: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire write lock for inner node state.",
+                )))
+            })
+            .map(|mut writer| {
+                writer.config.show_node_config = value;
+                writer.config.show_node_config
+            })
+    }
+
+    fn config_set_show_tx_summary(&self, value: bool) -> Result<bool> {
+        self.get_inner()
+            .write()
+            .map_err(|err| {
+                tracing::error!("failed acquiring lock: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire write lock for inner node state.",
+                )))
+            })
+            .map(|mut writer| {
+                writer.config.show_tx_summary = value;
+                writer.config.show_tx_summary
+            })
+    }
+
+    fn config_set_show_event_logs(&self, value: bool) -> Result<bool> {
+        self.get_inner()
+            .write()
+            .map_err(|err| {
+                tracing::error!("failed acquiring lock: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire write lock for inner node state.",
+                )))
+            })
+            .map(|mut writer| {
+                writer.config.show_event_logs = value;
+                writer.config.show_event_logs
+            })
+    }
+
+    fn config_set_disable_console_log(&self, value: bool) -> Result<bool> {
+        self.get_inner()
+            .write()
+            .map_err(|err| {
+                tracing::error!("failed acquiring lock: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                    "Failed to acquire write lock for inner node state.",
+                )))
+            })
+            .map(|mut writer| {
+                writer.config.disable_console_log = value;
+                writer.config.disable_console_log
             })
     }
 
     fn config_set_log_level(&self, level: LogLevel) -> Result<bool> {
-        if let Some(observability) = &self
-            .get_inner()
-            .read()
-            .map_err(|err| {
-                tracing::error!("failed acquiring lock: {:?}", err);
-                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
-                    "Failed to acquire read lock for inner node state.",
-                )))
-            })?
-            .observability
-        {
-            match observability.set_log_level(level.clone()) {
-                Ok(_) => tracing::info!("set log level to '{}'", level),
-                Err(err) => {
-                    tracing::error!("failed setting log level {:?}", err);
-                    return Ok(false);
-                }
+        let Some(observability) = &self.observability else {
+            return Err(into_jsrpc_error(Web3Error::InternalError(
+                anyhow::Error::msg("Node's logging is not set up."),
+            )));
+        };
+        match observability.set_log_level(level) {
+            Ok(_) => {
+                tracing::info!("set log level to '{}'", level);
+                self.get_inner()
+                    .write()
+                    .map_err(|err| {
+                        tracing::error!("failed acquiring lock: {:?}", err);
+                        into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+                            "Failed to acquire write lock for inner node state.",
+                        )))
+                    })?
+                    .config
+                    .log_level = level;
+                Ok(true)
+            }
+            Err(err) => {
+                tracing::error!("failed setting log level {:?}", err);
+                Ok(false)
             }
         }
-        Ok(true)
     }
 
     fn config_set_logging(&self, directive: String) -> Result<bool> {
-        if let Some(observability) = &self
-            .get_inner()
-            .read()
-            .map_err(|err| {
-                tracing::error!("failed acquiring lock: {:?}", err);
-                into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
-                    "Failed to acquire read lock for inner node state.",
-                )))
-            })?
-            .observability
-        {
-            match observability.set_logging(&directive) {
-                Ok(_) => tracing::info!("set logging to '{}'", directive),
-                Err(err) => {
-                    tracing::error!("failed setting logging to '{}': {:?}", directive, err);
-                    return Ok(false);
-                }
+        let Some(observability) = &self.observability else {
+            return Err(into_jsrpc_error(Web3Error::InternalError(
+                anyhow::Error::msg("Node's logging is not set up."),
+            )));
+        };
+        match observability.set_logging(directive.clone()) {
+            Ok(_) => tracing::info!("set logging to '{}'", directive),
+            Err(err) => {
+                tracing::error!("failed setting logging to '{}': {:?}", directive, err);
+                return Ok(false);
             }
-        }
+        };
         Ok(true)
     }
 }

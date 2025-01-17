@@ -1,5 +1,5 @@
 {
-  "name": "era-test-node-e2e-tests",
+  "name": "anvil-zksync-e2e-tests",
   "private": true,
   "version": "1.0.0",
   "main": "index.js",

@@ -33,7 +33,7 @@ jobs:
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          toolchain: nightly-2024-01-01
+          toolchain: nightly-2024-08-01
       - name: Setup Pages
         uses: actions/configure-pages@v3
 
@@ -50,14 +50,14 @@ jobs:
           <html lang="en-US">
               <head>
                   <meta charset="UTF-8">
-                  <meta http-equiv="refresh" content="0; url=./era_test_node/index.html">
+                  <meta http-equiv="refresh" content="0; url=./anvil-zksync/index.html">
                   <script type="text/javascript">
-                      window.location.href = "./era_test_node/index.html"
+                      window.location.href = "./anvil-zksync/index.html"
                   </script>
                   <title>Page Redirection</title>
               </head>
               <body>
-                  If you are not redirected automatically, follow this <a href='./era_test_node/index.html'>link to example</a>.
+                  If you are not redirected automatically, follow this <a href='./anvil-zksync/index.html'>link to example</a>.
               </body>
           </html>' > ./target/doc/index.html
       - name: Generate rustbook

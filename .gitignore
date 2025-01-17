@@ -17,3 +17,7 @@ etc/**/*.zbin
 
 *.log
 .cache
+
+zkout/
+cache/
+example.json

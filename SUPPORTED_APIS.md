@@ -1,6 +1,6 @@
-# 🔧 Supported APIs for In-Memory Node 🔧
+# 🔧 Supported APIs for anvil-zksync 🔧
 
-> ⚠️ **WORK IN PROGRESS**: This list is non-comprehensive and being updated. If there is an API that requires additional support, please start by [creating a GitHub Issue](https://github.com/matter-labs/era-test-node/issues/new/choose).
+> ⚠️ **WORK IN PROGRESS**: This list is non-comprehensive and being updated. If there is an API that requires additional support, please start by [creating a GitHub Issue](https://github.com/matter-labs/anvil-zksync/issues/new/choose).
 
 ## Key
 
@@ -14,6 +14,33 @@ The `status` options are:
 
 | Namespace | API | <div style="width:130px">Status</div> | Description |
 | --- | --- | --- | --- |
+| `ANVIL` | `anvil_mine_detailed` | `SUPPORTED` | Mines a single block in the same way as `evm_mine` but returns extra fields |
+| `ANVIL` | `anvil_setRpcUrl` | `SUPPORTED` | Sets the fork RPC url. Assumes the underlying chain is the same as before |
+| `ANVIL` | `anvil_setNextBlockBaseFeePerGas` | `SUPPORTED` | Sets the base fee of the next block |
+| `ANVIL` | `anvil_dropTransaction` | `SUPPORTED` | Removes a transaction from the pool |
+| `ANVIL` | `anvil_dropAllTransactions` | `SUPPORTED` | Remove all transactions from the pool |
+| `ANVIL` | `anvil_removePoolTransactions` | `SUPPORTED` | Remove all transactions from the pool by sender address |
+| `ANVIL` | `anvil_getAutomine` | `SUPPORTED` | Get node's auto mining status |
+| `ANVIL` | `anvil_setAutomine` | `SUPPORTED` | Enable or disables auto mining of new blocks |
+| `ANVIL` | `anvil_setIntervalMining` | `SUPPORTED` | Set the mining behavior to interval with the given interval |
+| `ANVIL` | `anvil_setBlockTimestampInterval` | `SUPPORTED` | Sets the block timestamp interval |
+| `ANVIL` | `anvil_removeBlockTimestampInterval` | `SUPPORTED` | Removes the block timestamp interval |
+| `ANVIL` | `anvil_setMinGasPrice` | `NOT IMPLEMENTED` | Set the minimum gas price for the node. Unsupported for ZKsync as it is only relevant for pre-EIP1559 chains |
+| `ANVIL` | `anvil_setLoggingEnabled` | `SUPPORTED` | Enables or disables logging |
+| `ANVIL` | `anvil_snapshot` | `SUPPORTED` | Snapshot the state of the blockchain at the current block |
+| `ANVIL` | `anvil_revert` | `SUPPORTED` | Revert the state of the blockchain to a previous snapshot |
+| `ANVIL` | `anvil_setTime` | `SUPPORTED` | Sets the internal clock time to the given timestamp |
+| `ANVIL` | `anvil_increaseTime` | `SUPPORTED` | Jump forward in time by the given amount of time, in seconds |
+| `ANVIL` | `anvil_setNextBlockTimestamp` | `SUPPORTED` | Works like `anvil_increaseTime`, but takes the exact timestamp that you want in the next block, and increases the time accordingly |
+| `ANVIL` | `anvil_autoImpersonateAccount` | `SUPPORTED` | Sets auto impersonation status.|
+| `ANVIL` | `anvil_setNonce` | `SUPPORTED` | Sets the nonce of an address.|
+| `ANVIL` | `anvil_impersonateAccount` | `SUPPORTED` | Impersonate an account |
+| `ANVIL` | `anvil_stopImpersonatingAccount` | `SUPPORTED` | Stop impersonating an account after having previously used `anvil_impersonateAccount` |
+| `ANVIL` | `anvil_reset` | `SUPPORTED` | Resets the state of the network; cannot revert to past block numbers, unless they're in a fork |
+| `ANVIL` | `anvil_mine` | `SUPPORTED` | Mine any number of blocks at once, in constant time |
+| `ANVIL` | `anvil_setBalance` | `SUPPORTED` | Modifies the balance of an account |
+| `ANVIL` | `anvil_setCode` | `SUPPORTED` | Sets the bytecode of a given account |
+| `ANVIL` | `anvil_setStorageAt` | `SUPPORTED` | Sets the storage value at a given key for a given account |
 | [`CONFIG`](#config-namespace) | [`config_getShowCalls`](#config_getshowcalls) | `SUPPORTED` | Gets the current value of `show_calls` that's originally set with `--show-calls` option |
 | [`CONFIG`](#config-namespace) | [`config_getShowOutputs`](#config_getshowoutputs) | `SUPPORTED` | Gets the current value of `show_outputs` that's originally set with `--show-outputs` option |
 | [`CONFIG`](#config-namespace) | [`config_getCurrentTimestamp`](#config_getcurrenttimestamp) | `SUPPORTED` | Gets the value of `current_timestamp` for the node |
@@ -23,6 +50,10 @@ The `status` options are:
 | [`CONFIG`](#config-namespace) | [`config_setShowStorageLogs`](#config_setshowstoragelogs) | `SUPPORTED` | Updates `show_storage_logs` to print storage log reads/writes |
 | [`CONFIG`](#config-namespace) | [`config_setShowVmDetails`](#config_setshowvmdetails) | `SUPPORTED` | Updates `show_vm_details` to print more detailed results from vm execution |
 | [`CONFIG`](#config-namespace) | [`config_setShowGasDetails`](#config_setshowgasdetails) | `SUPPORTED` | Updates `show_gas_details` to print more details about gas estimation and usage |
+| [`CONFIG`](#config-namespace) | [`config_setShowNodeConfig`](#config_setshownodeconfig) | `SUPPORTED` | Updates `show_node_config` to print node config on startup |
+| [`CONFIG`](#config-namespace) | [`config_setShowTxSummary`](#config_setshowtxsummary) | `SUPPORTED` | Updates `show_tx_summary` to print transactions and calls summary |
+| [`CONFIG`](#config-namespace) | [`config_setDisableConsoleLog`](#config_setdisableconsolelog) | `SUPPORTED` | Updates `disable_console_log` to disable printing of `console.log` invocations to stdout |
+| [`CONFIG`](#config-namespace) | [`config_setShowEventLogs`](#config_setshoweventlogs) | `SUPPORTED` | Updates `show_event_logs` to log events |
 | [`CONFIG`](#config-namespace) | [`config_setLogLevel`](#config_setloglevel) | `SUPPORTED` | Sets the logging level for the node and only displays the node logs. |
 | [`CONFIG`](#config-namespace) | [`config_setLogging`](#config_setlogging) | `SUPPORTED` | Sets the fine-tuned logging levels for the node and any of its dependencies |
 | [`DEBUG`](#debug-namespace) | [`debug_traceCall`](#debug_tracecall) | `SUPPORTED` | Performs a call and returns structured traces of the execution |
@@ -85,7 +116,7 @@ The `status` options are:
 | [`EVM`](#evm-namespace) | [`evm_revert`](#evm_revert) | `SUPPORTED` | Revert the state of the blockchain to a previous snapshot |
 | `EVM` | `evm_setAccountBalance` | `NOT IMPLEMENTED` | Sets the given account's balance to the specified WEI value |
 | `EVM` | `evm_setAccountCode` | `NOT IMPLEMENTED` | Sets the given account's code to the specified data |
-| `EVM` | `evm_setAccountNonce` | `NOT IMPLEMENTED` | Sets the given account's nonce to the specified value |
+| [`EVM`](#evm-namespace) | [`evm_setAccountNonce`](#evm_setaccountnonce) | `SUPPORTED` | Sets the given account's nonce to the specified value |
 | `EVM` | `evm_setAccountStorageAt` | `NOT IMPLEMENTED` | Sets the given account's storage slot to the specified data |
 | `EVM` | `evm_setAutomine` | `NOT IMPLEMENTED` | Enables or disables the automatic mining of new blocks with each new transaction submitted to the network |
 | `EVM` | `evm_setBlockGasLimit` | `NOT IMPLEMENTED` | Sets the Block Gas Limit of the network |
@@ -96,10 +127,10 @@ The `status` options are:
 | `HARDHAT` | `hardhat_addCompilationResult` | `NOT IMPLEMENTED` | Add information about compiled contracts |
 | `HARDHAT` | `hardhat_dropTransaction` | `NOT IMPLEMENTED` | Remove a transaction from the mempool |
 | [`HARDHAT`](#hardhat-namespace) | [`hardhat_impersonateAccount`](#hardhat_impersonateaccount) | `SUPPORTED` | Impersonate an account |
-| `HARDHAT` | `hardhat_getAutomine` | `NOT IMPLEMENTED` | Returns `true` if automatic mining is enabled, and `false` otherwise |
+| [`HARDHAT`](#hardhat-namespace) | [`hardhat_getAutomine`](#hardhat_getautomine) | `PARTIAL` | Currently always returns `true` as anvil-zksync by default mines new blocks with each new transaction. |
 | `HARDHAT` | `hardhat_metadata` | `NOT IMPLEMENTED` | Returns the metadata of the current network |
 | [`HARDHAT`](#hardhat-namespace) | [`hardhat_mine`](#hardhat_mine) | Mine any number of blocks at once, in constant time |
-| `HARDHAT` | `hardhat_reset` | `NOT IMPLEMENTED` | Resets the state of the network |
+| [`HARDHAT`](#hardhat-namespace) | [`hardhat_reset`](#hardhat_reset) | `PARTIALLY` | Resets the state of the network; cannot revert to past block numbers, unless they're in a fork |
 | [`HARDHAT`](#hardhat-namespace) | [`hardhat_setBalance`](#hardhat_setbalance) | `SUPPORTED` | Modifies the balance of an account |
 | [`HARDHAT`](#hardhat-namespace) | [`hardhat_setCode`](#hardhat_setcode) | `SUPPORTED` | Sets the bytecode of a given account |
 | `HARDHAT` | `hardhat_setCoinbase` | `NOT IMPLEMENTED` | Sets the coinbase address |
@@ -108,7 +139,7 @@ The `status` options are:
 | `HARDHAT` | `hardhat_setNextBlockBaseFeePerGas` | `NOT IMPLEMENTED` | Sets the base fee per gas for the next block |
 | `HARDHAT` | `hardhat_setPrevRandao` | `NOT IMPLEMENTED` | Sets the PREVRANDAO value of the next block |
 | [`HARDHAT`](#hardhat-namespace) | [`hardhat_setNonce`](#hardhat_setnonce) | `SUPPORTED` | Sets the nonce of a given account |
-| `HARDHAT` | `hardhat_setStorageAt` | `NOT IMPLEMENTED` | Sets the storage value at a given key for a given account |
+| [`HARDHAT`](#hardhat-namespace) | [`hardhat_setStorageAt`](#hardhat_setstorageat) | `SUPPORTED` | Sets the storage value at a given key for a given account |
 | [`HARDHAT`](#hardhat-namespace) | [`hardhat_stopImpersonatingAccount`](#hardhat_stopimpersonatingaccount) | `SUPPORTED` | Stop impersonating an account after having previously used `hardhat_impersonateAccount` |
 | [`NETWORK`](#network-namespace) | [`net_version`](#net_version) | `SUPPORTED` | Returns the current network id <br />_(default is `260`)_ |
 | [`NETWORK`](#network-namespace) | [`net_peerCount`](#net_peercount) | `SUPPORTED` | Returns the number of peers currently connected to the client <br/>_(hard-coded to `0`)_ |
@@ -121,6 +152,7 @@ The `status` options are:
 | [`ZKS`](#zks-namespace) | [`zks_getBlockDetails`](#zks_getblockdetails) | `SUPPORTED` | Returns additional zkSync-specific information about the L2 block |
 | `ZKS` | `zks_getBytecodeByHash` | `NOT IMPLEMENTED` | Returns bytecode of a transaction given by its hash |
 | [`ZKS`](#zks-namespace) | [`zks_getConfirmedTokens`](#zks_getconfirmedtokens) | `SUPPORTED` | Returns [address, symbol, name, and decimal] information of all tokens within a range of ids given by parameters `from` and `limit` |
+| [`ZKS`](#zks-namespace) | [`zks_getBaseTokenL1Address`](#zks_getBaseTokenL1Address) | `SUPPORTED` | Returns the L1 base token address <br/>_(hard-coded to `0x0000000000000000000000000000000000000001`)_ |
 | `ZKS` | `zks_getL1BatchBlockRange` | `NOT IMPLEMENTED` | Returns the range of blocks contained within a batch given by batch number |
 | `ZKS` | `zks_getL1BatchDetails` | `NOT IMPLEMENTED` | Returns data pertaining to a given batch |
 | `ZKS` | `zks_getL2ToL1LogProof` | `NOT IMPLEMENTED` | Given a transaction hash, and an index of the L2 to L1 log produced within the transaction, it returns the proof for the corresponding L2 to L1 log |
@@ -137,7 +169,7 @@ The `status` options are:
 
 ### `config_getShowCalls`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Gets the current value of `show_calls` that's originally set with `--show-calls` option
 
@@ -160,7 +192,7 @@ curl --request POST \
 
 ### `config_getShowOutputs`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Gets the current value of `show_outputs` that's originally set with `--show-outputs` option
 
@@ -183,7 +215,7 @@ curl --request POST \
 
 ### `config_getCurrentTimestamp`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Gets the value of `current_timestamp` for the node
 
@@ -206,7 +238,7 @@ curl --request POST \
 
 ### `config_setShowCalls`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Updates `show_calls` to print more detailed call traces
 
@@ -229,7 +261,7 @@ curl --request POST \
 
 ### `config_setShowOutputs`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Updates `show_outputs` to print calls outputs
 
@@ -252,7 +284,7 @@ curl --request POST \
 
 ### `config_setShowStorageLogs`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Updates `show_storage_logs` to print storage log reads/writes
 
@@ -275,7 +307,7 @@ curl --request POST \
 
 ### `config_setShowVmDetails`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Updates `show_vm_details` to print more detailed results from vm execution
 
@@ -298,7 +330,7 @@ curl --request POST \
 
 ### `config_setShowGasDetails`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Updates `show_gas_details` to print more details about gas estimation and usage
 
@@ -321,7 +353,7 @@ curl --request POST \
 
 ### `config_setResolveHashes`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Updates `resolve-hashes` to call OpenChain for human-readable ABI names in call traces
 
@@ -342,9 +374,93 @@ curl --request POST \
   --data '{"jsonrpc": "2.0","id": "1","method": "config_setResolveHashes","params": [true]}'
 ```
 
+### `config_setShowNodeConfig`
+
+[source](src/node/config_api.rs)
+
+Updates `show_node_config` to print node config on startup
+#### Arguments
+
++ `value: boolean`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "config_setShowNodeConfig","params": [true]}'
+```
+
+### `config_setShowTxSummary`
+
+[source](src/node/config_api.rs)
+
+Updates `show_tx_summary` to print transactions and calls summary
+#### Arguments
+
++ `value: boolean`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "config_setShowTxSummary","params": [true]}'
+```
+
+### `config_setDisableConsoleLog`
+
+[source](src/node/config_api.rs)
+
+Updates `disable_console_log` to disable printing of `console.log` invocations to stdout
+#### Arguments
+
++ `value: boolean`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "config_setDisableConsoleLog","params": [true]}'
+```
+
+Updates `show_event_logs` to log events to stdout
+#### Arguments
+
++ `value: boolean`
+
+#### Status
+
+`SUPPORTED`
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{"jsonrpc": "2.0","id": "1","method": "config_setShowEventLogs","params": [true]}'
+```
+
 ### `config_setLogLevel`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Sets the logging level for the node and only displays the node logs.
 
@@ -367,7 +483,7 @@ curl --request POST \
 
 ### `config_setLogging`
 
-[source](src/node/config.rs)
+[source](src/node/config_api.rs)
 
 Sets the fine-tuned logging levels for the node and any of its dependencies. 
 The directive format is comma-separated `module=level` for any number of modules.
@@ -386,7 +502,7 @@ The directive format is comma-separated `module=level` for any number of modules
 curl --request POST \
   --url http://localhost:8011/ \
   --header 'content-type: application/json' \
-  --data '{"jsonrpc": "2.0","id": "1","method": "config_setLogging","params": ["era_test_node=trace,hyper=debug"]}'
+  --data '{"jsonrpc": "2.0","id": "1","method": "config_setLogging","params": ["anvil-zksync=trace,hyper=debug"]}'
 ```
 
 ## `DEBUG NAMESPACE`
@@ -1561,6 +1677,65 @@ curl --request POST \
 }'
 
 ```
+
+### `hardhat_getAutomine`
+
+[source](src/node/hardhat.rs)
+
+This method retrieves the current automine status of the network. Automine mode mines a new block automatically with each transaction, ensuring that transactions are processed immediately. By default, automine is enabled, returning `true` for each call.
+
+Disabling automine to allow for pending transactions in the mempool and manual or interval mining is not currently supported. Thus, `hardhat_getAutomine` will always return true.
+
+#### Arguments
+
+This RPC method does not accept any arguments.
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "hardhat_getAutomine",
+    "params": []
+}'
+```
+
+#### Response
+
+A boolean value indicating the automine status:
+
+- `true`: Automine is enabled (the default state).
+- `false`: Automine is disabled (not currently supported).
+
+### `hardhat_reset`
+
+[source](src/node/hardhat.rs)
+
+Resets the state of the network; cannot revert to past block numbers, unless they're in a fork
+
+#### Arguments
+
++ `reset_spec` - The requested state, defaults to resetting the current network.
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "2",
+    "method": "hardhat_mine",
+    "params": []
+}'
+
+```
+
 ### `hardhat_impersonateAccount`
 
 [source](src/node/hardhat.rs)
@@ -1667,6 +1842,35 @@ curl --request POST \
   --header 'content-type: application/json' \
   --data '{"jsonrpc": "2.0","id": "1","method": "evm_mine","params": []
 }'
+```
+
+### `evm_setAccountNonce`
+
+[source](src/node/evm.rs)
+
+Modifies an account's nonce by overwriting it.
+The new nonce must be greater than the existing nonce.
+
+#### Arguments
+
++ `address: Address` - The `Address` whose nonce is to be changed
++ `nonce: U256` - The new nonce
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+      "id": "1",
+      "method": "evm_setAccountNonce",
+      "params": [
+        "0x36615Cf349d7F6344891B1e7CA7C72883F5dc049",
+        "0x1337"
+      ]
+  }'
 ```
 
 ### `evm_increaseTime`
@@ -1997,6 +2201,30 @@ curl --request POST \
     "id": "1",
     "method": "zks_getConfirmedTokens",
     "params": [0, 100]
+}'
+```
+
+### `zks_getBaseTokenL1Address`
+
+[source](src/zks.rs)
+
+Retrieves the L1 base token address.
+
+#### Arguments
+
++ _NONE_
+
+#### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:8011/ \
+  --header 'content-type: application/json' \
+  --data '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "zks_getBaseTokenL1Address",
+    "params": []
 }'
 ```
 

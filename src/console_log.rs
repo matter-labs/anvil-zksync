@@ -4,7 +4,7 @@ use colored::Colorize;
 use ethabi::param_type::Reader;
 use ethabi::{Function, Param, StateMutability};
 use itertools::Itertools;
-use zksync_types::vm_trace::Call;
+use zksync_multivm::interface::Call;
 use zksync_types::H160;
 
 /// ConsoleLogHandler is responsible for printing the logs, that are created when contract calls 'console.log' method.
@@ -35,6 +35,14 @@ impl Default for ConsoleLogHandler {
 }
 
 impl ConsoleLogHandler {
+    pub fn handle_calls_recursive(&self, calls: &Vec<Call>) {
+        tracing::info!("");
+        tracing::info!("==== Console logs: ");
+
+        for call in calls {
+            self.handle_call_recursive(call);
+        }
+    }
     pub fn handle_call_recursive(&self, current_call: &Call) {
         self.handle_call(current_call);
         for call in &current_call.calls {

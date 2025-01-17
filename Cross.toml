@@ -5,5 +5,8 @@ pre-build = [
     "export DEBIAN_FRONTEND=noninteractive",
     "export TZ=Etc/UTC",
     "dpkg --add-architecture $CROSS_DEB_ARCH",
-    "apt update -q && apt upgrade -yq && apt install --assume-yes --no-install-recommends libclang-10-dev clang-10 cmake build-essential pkg-config libssl-dev:$CROSS_DEB_ARCH libsasl2-dev llvm-dev gnutls-bin"
+    "apt update -q && apt upgrade -yq && apt install --assume-yes --no-install-recommends libclang-10-dev clang-10 cmake build-essential pkg-config libssl-dev:$CROSS_DEB_ARCH libsasl2-dev llvm-dev gnutls-bin",
+    "apt install -y gcc-10 g++-10",
+    "update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 10",
+    "update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-10 10"
 ]

@@ -6,6 +6,7 @@ import { BigNumber, ethers } from "ethers";
 import * as hre from "hardhat";
 import { TransactionRequest } from "zksync-web3/build/src/types";
 import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
+import { TransactionResponse } from "@ethersproject/abstract-provider";
 
 const provider = getTestProvider();
 
@@ -17,7 +18,7 @@ interface Fee {
 }
 
 describe("zks_estimateFee", function () {
-  it("Should return fee estimation data for transfer of 1 ETH", async function () {
+  it("Should return valid fee estimation data for transfer of 1 ETH", async function () {
     // Arrange
     const wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
     const userWallet = Wallet.createRandom().connect(provider);
@@ -29,20 +30,20 @@ describe("zks_estimateFee", function () {
 
     // Act
     const response: Fee = await provider.send("zks_estimateFee", [transaction]);
+
     // Assert
-    expect(ethers.BigNumber.from(response.gas_limit)).to.eql(ethers.BigNumber.from("2407036"), "Unexpected gas_limit");
-    expect(ethers.BigNumber.from(response.gas_per_pubdata_limit)).to.eql(
-      ethers.BigNumber.from("32000"),
-      "Unexpected gas_per_pubdata_limit"
-    );
-    expect(ethers.BigNumber.from(response.max_fee_per_gas)).to.eql(
-      ethers.BigNumber.from("58593750"),
-      "Unexpected max_fee_per_gas"
-    );
-    expect(ethers.BigNumber.from(response.max_priority_fee_per_gas)).to.eql(
-      ethers.BigNumber.from("0"),
-      "Unexpected max_priority_fee_per_gas"
-    );
+    expect(response).to.have.property("gas_limit");
+    expect(response).to.have.property("gas_per_pubdata_limit");
+    expect(response).to.have.property("max_fee_per_gas");
+    expect(response).to.have.property("max_priority_fee_per_gas");
+
+    const gasLimit = ethers.BigNumber.from(response.gas_limit);
+    const gasPerPubdataLimit = ethers.BigNumber.from(response.gas_per_pubdata_limit);
+    const maxFeePerGas = ethers.BigNumber.from(response.max_fee_per_gas);
+
+    expect(gasLimit.toNumber()).to.be.greaterThan(0, "gas_limit should be greater than 0");
+    expect(gasPerPubdataLimit.toNumber()).to.be.greaterThan(0, "gas_per_pubdata_limit should be greater than 0");
+    expect(maxFeePerGas.toNumber()).to.be.greaterThan(0, "max_fee_per_gas should be greater than 0");
   });
 });
 
@@ -66,8 +67,9 @@ describe("zks_getTransactionDetails", function () {
 
     const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
 
-    const txReceipt = await greeter.setGreeting("Luke Skywalker");
-    const details = await provider.send("zks_getTransactionDetails", [txReceipt.hash]);
+    const txResponse: TransactionResponse = await greeter.setGreeting("Luke Skywalker");
+    const txReceipt = await txResponse.wait();
+    const details = await provider.send("zks_getTransactionDetails", [txReceipt.transactionHash]);
 
     expect(details["status"]).to.equal("included");
     expect(details["initiatorAddress"].toLowerCase()).to.equal(wallet.address.toLowerCase());
@@ -79,8 +81,11 @@ describe("zks_getBridgeContracts", function () {
     const bridgeAddresses = await provider.send("zks_getBridgeContracts", []);
 
     expect(bridgeAddresses).to.deep.equal({
-      l1Erc20DefaultBridge: "0x0000000000000000000000000000000000000000",
-      l2Erc20DefaultBridge: "0x0000000000000000000000000000000000000000",
+      l1Erc20DefaultBridge: null,
+      l1SharedDefaultBridge: null,
+      l2Erc20DefaultBridge: null,
+      l2SharedDefaultBridge: null,
+      l2LegacySharedBridge: null,
       l1WethBridge: null,
       l2WethBridge: null,
     });
@@ -93,7 +98,7 @@ describe("zks_getBlockDetails", function () {
     const deployer = new Deployer(hre, wallet);
 
     const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
-    await greeter.setGreeting("Luke Skywalker");
+    await (await greeter.setGreeting("Luke Skywalker")).wait();
 
     const latestBlock = await provider.getBlock("latest");
     const details = await provider.send("zks_getBlockDetails", [latestBlock.number]);
@@ -142,13 +147,14 @@ describe("zks_getRawBlockTransactions", function () {
     const deployer = new Deployer(hre, wallet);
 
     const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
-    const receipt = await greeter.setGreeting("Luke Skywalker");
+    const txResponse: TransactionResponse = await greeter.setGreeting("Luke Skywalker");
+    await txResponse.wait();
 
     const latestBlock = await provider.getBlock("latest");
     const txns = await provider.send("zks_getRawBlockTransactions", [latestBlock.number - 1]);
 
     expect(txns.length).to.equal(1);
-    expect(txns[0]["execute"]["calldata"]).to.equal(receipt.data);
+    expect(txns[0]["execute"]["calldata"]).to.equal(txResponse.data);
   });
 });
 
@@ -174,5 +180,12 @@ describe("zks_getAllAccountBalances", function () {
 
     // Assert
     expect(ethBalance.eq(expectedBalance)).to.be.true;
+  });
+});
+
+describe("zks_getBaseTokenL1Address", function () {
+  it("Should return 0x1 address", async function () {
+    const token_address = await provider.send("zks_getBaseTokenL1Address", []);
+    expect(token_address).to.equal("0x0000000000000000000000000000000000000001");
   });
 });

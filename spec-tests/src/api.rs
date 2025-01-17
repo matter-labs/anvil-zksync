@@ -1,0 +1,88 @@
+use std::{str::FromStr, time::Duration};
+
+use alloy::{
+    network::{EthereumWallet, TransactionBuilder},
+    primitives::Address,
+    providers::{Provider, ProviderBuilder},
+    rpc::types::TransactionRequest,
+    signers::local::PrivateKeySigner,
+};
+use anyhow::Context;
+use itertools::Itertools;
+use serde_json::Value;
+use zksync_basic_types::U256;
+
+pub struct EraApi {
+    client: reqwest::Client,
+    url: String,
+}
+
+impl EraApi {
+    pub fn local(port: u16) -> anyhow::Result<Self> {
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(5))
+            .build()?;
+        let url = format!("http://127.0.0.1:{}", port);
+        Ok(Self { client, url })
+    }
+
+    pub async fn make_request(
+        &self,
+        method_name: &str,
+        params: Vec<Value>,
+    ) -> anyhow::Result<Value> {
+        let body = format!(
+            r#"{{"jsonrpc": "2.0", "id": 1, "method": "{}", "params": [{}]}}"#,
+            method_name,
+            &params.into_iter().map(|p| p.to_string()).join(","),
+        );
+        let response = self
+            .client
+            .post(&self.url)
+            .header("Content-Type", "application/json")
+            .body(body)
+            .send()
+            .await?
+            // Return early if response code is 4XX/5XX
+            .error_for_status()?;
+        let data = response.bytes().await?;
+        let mut response: Value = serde_json::from_slice(data.as_ref())?;
+        let response = response
+            .as_object_mut()
+            .context("root response object is not a JSON object")?;
+        if let Some(error) = response.get("error") {
+            anyhow::bail!("request failed with '{}'", error);
+        }
+        if let Some(result) = response.remove("result") {
+            return Ok(result);
+        }
+
+        anyhow::bail!("failed to parse response: {:?}", response);
+    }
+
+    pub async fn transfer_eth_legacy(&self, value: U256) -> anyhow::Result<()> {
+        // TODO: Make signer configurable, leave taking a random rich wallet as the default option
+        let signer = PrivateKeySigner::from_str(
+            "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110",
+        )?;
+        let wallet = EthereumWallet::from(signer);
+        let provider = ProviderBuilder::new()
+            .with_recommended_fillers()
+            .wallet(wallet)
+            .on_http(self.url.clone().parse()?);
+
+        // TODO: Make `to` configurable, leave taking a random wallet as the default option
+        let tx = TransactionRequest::default()
+            .to(Address::from_str(
+                "0x36615Cf349d7F6344891B1e7CA7C72883F5dc049",
+            )?)
+            .value(value.to_string().parse()?)
+            .with_gas_price(100000000000);
+
+        // FIXME: this does not work yet because we include pre EIP-98/EIP-658 `root` field in tx
+        // receipts.
+        provider.send_transaction(tx).await?.watch().await?;
+
+        Ok(())
+    }
+}

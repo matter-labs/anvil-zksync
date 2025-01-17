@@ -1,11 +1,11 @@
-use zksync_basic_types::{Address, U256, U64};
+use zksync_types::{Address, U256, U64};
 use zksync_web3_decl::error::Web3Error;
 
 use crate::{
     fork::ForkSource,
-    namespaces::{HardhatNamespaceT, RpcResult},
+    namespaces::{HardhatNamespaceT, ResetRequest, RpcResult},
     node::InMemoryNode,
-    utils::{into_jsrpc_error, IntoBoxedFuture},
+    utils::{into_jsrpc_error, into_jsrpc_error_message, IntoBoxedFuture},
 };
 
 impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> HardhatNamespaceT
@@ -29,10 +29,28 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> HardhatNam
             .into_boxed_future()
     }
 
-    fn hardhat_mine(&self, num_blocks: Option<U64>, interval: Option<U64>) -> RpcResult<bool> {
+    fn hardhat_mine(&self, num_blocks: Option<U64>, interval: Option<U64>) -> RpcResult<()> {
         self.mine_blocks(num_blocks, interval)
             .map_err(|err| {
                 tracing::error!("failed mining blocks: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(err))
+            })
+            .into_boxed_future()
+    }
+
+    fn hardhat_get_automine(&self) -> RpcResult<bool> {
+        self.get_automine()
+            .map_err(|err| {
+                tracing::error!("failed getting automine: {:?}", err);
+                into_jsrpc_error(Web3Error::InternalError(err))
+            })
+            .into_boxed_future()
+    }
+
+    fn reset_network(&self, reset_spec: Option<ResetRequest>) -> RpcResult<bool> {
+        self.reset_network(reset_spec)
+            .map_err(|err| {
+                tracing::error!("failed reset: {:?}", err);
                 into_jsrpc_error(Web3Error::InternalError(err))
             })
             .into_boxed_future()
@@ -56,10 +74,19 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> HardhatNam
             .into_boxed_future()
     }
 
-    fn set_code(&self, address: Address, code: Vec<u8>) -> RpcResult<()> {
+    fn set_code(&self, address: Address, code: String) -> RpcResult<()> {
         self.set_code(address, code)
             .map_err(|err| {
                 tracing::error!("failed setting code: {:?}", err);
+                into_jsrpc_error_message(err.to_string())
+            })
+            .into_boxed_future()
+    }
+
+    fn set_storage_at(&self, address: Address, slot: U256, value: U256) -> RpcResult<bool> {
+        self.set_storage_at(address, slot, value)
+            .map_err(|err| {
+                tracing::error!("failed setting storage: {:?}", err);
                 into_jsrpc_error(Web3Error::InternalError(err))
             })
             .into_boxed_future()

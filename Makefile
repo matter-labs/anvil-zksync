@@ -4,7 +4,8 @@ fetch-contracts:
 
 # Build the system contracts
 build-contracts:
-	cd contracts/system-contracts && yarn; yarn install; yarn build
+	cd contracts/system-contracts && yarn install --frozen-lockfile; yarn build;
+	cd contracts/l2-contracts && yarn install --frozen-lockfile; yarn build;
 	./scripts/refresh_contracts.sh
 
 # Clean the system contracts
@@ -14,7 +15,8 @@ clean-contracts:
 
 # Rebuild the system contracts
 rebuild-contracts:
-	cd contracts/system-contracts && yarn build
+	cd contracts/system-contracts && yarn build;
+	cd contracts/l2-contracts && yarn build;
 	./scripts/refresh_contracts.sh
 	./scripts/refresh_test_contracts.sh
 
@@ -24,11 +26,11 @@ rust-build:
 
 # Run local after building everything
 run: all
-	./target/release/era_test_node run
+	./target/release/anvil-zksync run
 
 # Build the Rust project for a specific target. Primarily used for CI.
 build-%:
-	cross build --bin era_test_node --target $* --release
+	cross build --bin anvil-zksync --target $* --release
 
 # Build the Rust documentation
 rust-doc:
@@ -38,7 +40,7 @@ rust-doc:
 lint:
 	cd e2e-tests && yarn && yarn lint && yarn fmt && yarn typecheck
 	cargo fmt --all -- --check
-	cargo clippy -p era_test_node -Zunstable-options -- -D warnings --allow clippy::unwrap_used
+	cargo clippy --tests -p anvil-zksync -Zunstable-options -- -D warnings --allow clippy::unwrap_used
 
 # Fix lint errors for Rust code
 lint-fix:
@@ -50,7 +52,7 @@ lint-fix:
 test:
 	cargo test
 
-# Run e2e tests against running era_test_node
+# Run e2e tests against running anvil-zksync
 test-e2e:
 	./scripts/execute-e2e-tests.sh
 

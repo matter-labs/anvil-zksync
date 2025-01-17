@@ -1,27 +1,21 @@
-use std::collections::HashMap;
-use std::convert::TryInto;
-use std::fmt;
-use std::pin::Pin;
-
+use crate::config::Genesis;
+use anyhow::Context;
 use chrono::{DateTime, Utc};
 use futures::Future;
 use jsonrpc_core::{Error, ErrorCode};
-use multivm::interface::{ExecutionResult, VmExecutionResultAndLogs, VmInterface};
-use multivm::vm_latest::HistoryDisabled;
-use multivm::vm_latest::Vm;
-use zksync_basic_types::{H256, U256, U64};
-use zksync_state::WriteStorage;
-use zksync_types::api::{BlockNumber, DebugCall, DebugCallType};
-use zksync_types::l2::L2Tx;
-use zksync_types::vm_trace::Call;
-use zksync_types::CONTRACT_DEPLOYER_ADDRESS;
-use zksync_utils::u256_to_h256;
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words};
+use serde::{Deserialize, Serialize};
+use std::convert::TryFrom;
+use std::fs;
+use std::{convert::TryInto, fmt, pin::Pin};
+use zksync_multivm::interface::{Call, CallType, ExecutionResult, VmExecutionResultAndLogs};
+use zksync_types::{
+    api::{BlockNumber, DebugCall, DebugCallType},
+    l2::L2Tx,
+    web3::Bytes,
+    CONTRACT_DEPLOYER_ADDRESS, H256, U256, U64,
+};
+use zksync_utils::bytes_to_be_words;
 use zksync_web3_decl::error::Web3Error;
-
-use crate::deps::storage_view::StorageView;
-use crate::node::create_empty_block;
-use crate::{fork::ForkSource, node::InMemoryNodeInner};
 
 pub(crate) trait IntoBoxedFuture: Sized + Send + 'static {
     fn into_boxed_future(self) -> Pin<Box<dyn Future<Output = Self> + Send>> {
@@ -34,6 +28,13 @@ where
     T: Send + 'static,
     U: Send + 'static,
 {
+}
+
+/// Parses the genesis file from the given path.
+pub fn parse_genesis_file(path: &str) -> Result<Genesis, String> {
+    let file_content =
+        fs::read_to_string(path).map_err(|err| format!("Failed to read file: {err}"))?;
+    serde_json::from_str(&file_content).map_err(|err| format!("Failed to parse JSON: {err}"))
 }
 
 /// Takes long integers and returns them in human friendly format with "_".
@@ -55,91 +56,14 @@ pub fn to_human_size(input: U256) -> String {
     tmp.iter().rev().collect()
 }
 
-pub fn bytecode_to_factory_dep(bytecode: Vec<u8>) -> (U256, Vec<U256>) {
-    let bytecode_hash = hash_bytecode(&bytecode);
+pub fn bytecode_to_factory_dep(bytecode: Vec<u8>) -> Result<(U256, Vec<U256>), anyhow::Error> {
+    zksync_utils::bytecode::validate_bytecode(&bytecode).context("Invalid bytecode")?;
+    let bytecode_hash = zksync_utils::bytecode::hash_bytecode(&bytecode);
     let bytecode_hash = U256::from_big_endian(bytecode_hash.as_bytes());
 
     let bytecode_words = bytes_to_be_words(bytecode);
 
-    (bytecode_hash, bytecode_words)
-}
-
-/// Creates and inserts a given number of empty blocks into the node, with a given interval between them.
-/// The blocks will be empty (contain no transactions).
-/// Currently this is quite slow - as we invoke the VM for each operation, in the future we might want to optimise it
-/// by adding a way to set state via some system contract call.
-pub fn mine_empty_blocks<S: std::fmt::Debug + ForkSource>(
-    node: &mut InMemoryNodeInner<S>,
-    num_blocks: u64,
-    interval_ms: u64,
-) {
-    // build and insert new blocks
-    for i in 0..num_blocks {
-        // roll the vm
-        let (keys, bytecodes, block_ctx) = {
-            let storage = StorageView::new(&node.fork_storage).into_rc_ptr();
-
-            // system_contract.contracts_for_l2_call() will give playground contracts
-            // we need these to use the unsafeOverrideBlock method in SystemContext.sol
-            let bootloader_code = node.system_contracts.contracts_for_l2_call();
-            let (batch_env, mut block_ctx) = node.create_l1_batch_env(storage.clone());
-            // override the next block's timestamp to match up with interval for subsequent blocks
-            if i != 0 {
-                block_ctx.timestamp = node.current_timestamp.saturating_add(interval_ms);
-            }
-
-            // init vm
-            let system_env = node.create_system_env(
-                bootloader_code.clone(),
-                multivm::interface::TxExecutionMode::VerifyExecute,
-            );
-
-            let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage.clone());
-
-            vm.execute(multivm::interface::VmExecutionMode::Bootloader);
-
-            let bytecodes: HashMap<U256, Vec<U256>> = vm
-                .get_last_tx_compressed_bytecodes()
-                .iter()
-                .map(|b| bytecode_to_factory_dep(b.original.clone()))
-                .collect();
-            let modified_keys = storage.borrow().modified_storage_keys().clone();
-            (modified_keys, bytecodes, block_ctx)
-        };
-
-        for (key, value) in keys.iter() {
-            node.fork_storage.set_value(*key, *value);
-        }
-
-        // Write all the factory deps.
-        for (hash, code) in bytecodes.iter() {
-            node.fork_storage.store_factory_dep(
-                u256_to_h256(*hash),
-                code.iter()
-                    .flat_map(|entry| {
-                        let mut bytes = vec![0u8; 32];
-                        entry.to_big_endian(&mut bytes);
-                        bytes.to_vec()
-                    })
-                    .collect(),
-            )
-        }
-
-        let block = create_empty_block(
-            block_ctx.miniblock,
-            block_ctx.timestamp,
-            block_ctx.batch,
-            None,
-        );
-
-        node.block_hashes.insert(block.number.as_u64(), block.hash);
-        node.blocks.insert(block.hash, block);
-
-        // leave node state ready for next interaction
-        node.current_batch = block_ctx.batch;
-        node.current_miniblock = block_ctx.miniblock;
-        node.current_timestamp = block_ctx.timestamp;
-    }
+    Ok((bytecode_hash, bytecode_words))
 }
 
 /// Returns the actual [U64] block number from [BlockNumber].
@@ -157,6 +81,7 @@ pub fn to_real_block_number(block_number: BlockNumber, latest_block_number: U64)
         BlockNumber::Finalized
         | BlockNumber::Pending
         | BlockNumber::Committed
+        | BlockNumber::L1Committed
         | BlockNumber::Latest => latest_block_number,
         BlockNumber::Earliest => U64::zero(),
         BlockNumber::Number(n) => n,
@@ -182,7 +107,11 @@ pub fn create_debug_output(
     result: &VmExecutionResultAndLogs,
     traces: Vec<Call>,
 ) -> Result<DebugCall, Web3Error> {
-    let calltype = if l2_tx.recipient_account() == CONTRACT_DEPLOYER_ADDRESS {
+    let calltype = if l2_tx
+        .recipient_account()
+        .map(|addr| addr == CONTRACT_DEPLOYER_ADDRESS)
+        .unwrap_or_default()
+    {
         DebugCallType::Create
     } else {
         DebugCallType::Call
@@ -193,31 +122,53 @@ pub fn create_debug_output(
             output: output.clone().into(),
             r#type: calltype,
             from: l2_tx.initiator_account(),
-            to: l2_tx.recipient_account(),
+            to: l2_tx.recipient_account().unwrap_or_default(),
             gas: l2_tx.common_data.fee.gas_limit,
             value: l2_tx.execute.value,
             input: l2_tx.execute.calldata().into(),
             error: None,
             revert_reason: None,
-            calls: traces.into_iter().map(Into::into).collect(),
+            calls: traces.into_iter().map(call_to_debug_call).collect(),
         }),
         ExecutionResult::Revert { output } => Ok(DebugCall {
             gas_used: result.statistics.gas_used.into(),
-            output: Default::default(),
+            output: output.encoded_data().into(),
             r#type: calltype,
             from: l2_tx.initiator_account(),
-            to: l2_tx.recipient_account(),
+            to: l2_tx.recipient_account().unwrap_or_default(),
             gas: l2_tx.common_data.fee.gas_limit,
             value: l2_tx.execute.value,
             input: l2_tx.execute.calldata().into(),
             error: None,
             revert_reason: Some(output.to_string()),
-            calls: traces.into_iter().map(Into::into).collect(),
+            calls: traces.into_iter().map(call_to_debug_call).collect(),
         }),
         ExecutionResult::Halt { reason } => Err(Web3Error::SubmitTransactionError(
             reason.to_string(),
             vec![],
         )),
+    }
+}
+
+fn call_to_debug_call(value: Call) -> DebugCall {
+    let calls = value.calls.into_iter().map(call_to_debug_call).collect();
+    let debug_type = match value.r#type {
+        CallType::Call(_) => DebugCallType::Call,
+        CallType::Create => DebugCallType::Create,
+        CallType::NearCall => unreachable!("We have to filter our near calls before"),
+    };
+    DebugCall {
+        r#type: debug_type,
+        from: value.from,
+        to: value.to,
+        gas: U256::from(value.gas),
+        gas_used: U256::from(value.gas_used),
+        value: value.value,
+        output: Bytes::from(value.output.clone()),
+        input: Bytes::from(value.input.clone()),
+        error: value.error.clone(),
+        revert_reason: value.revert_reason,
+        calls,
     }
 }
 
@@ -229,10 +180,18 @@ pub fn utc_datetime_from_epoch_ms(millis: u64) -> DateTime<Utc> {
     DateTime::<Utc>::from_timestamp(secs as i64, nanos as u32).expect("valid timestamp")
 }
 
+pub fn report_into_jsrpc_error(error: eyre::Report) -> Error {
+    into_jsrpc_error(Web3Error::InternalError(anyhow::Error::msg(
+        error.to_string(),
+    )))
+}
+
 pub fn into_jsrpc_error(err: Web3Error) -> Error {
     Error {
         code: match err {
-            Web3Error::InternalError(_) | Web3Error::NotImplemented => ErrorCode::InternalError,
+            Web3Error::InternalError(_) | Web3Error::MethodNotImplemented => {
+                ErrorCode::InternalError
+            }
             Web3Error::NoBlock
             | Web3Error::PrunedBlock(_)
             | Web3Error::PrunedL1Batch(_)
@@ -246,8 +205,15 @@ pub fn into_jsrpc_error(err: Web3Error) -> Error {
                 ErrorCode::ServerError(3)
             }
         },
-        message: match err {
+        message: match &err {
             Web3Error::SubmitTransactionError(_, _) => err.to_string(),
+            Web3Error::InternalError(err) => {
+                if let Some(TransparentError(message)) = err.downcast_ref() {
+                    message.clone()
+                } else {
+                    err.to_string()
+                }
+            }
             _ => err.to_string(),
         },
         data: match err {
@@ -259,29 +225,125 @@ pub fn into_jsrpc_error(err: Web3Error) -> Error {
     }
 }
 
+/// Error that can be converted to a [`Web3Error`] and has transparent JSON-RPC error message (unlike `anyhow::Error` conversions).
+#[derive(Debug)]
+pub(crate) struct TransparentError(pub String);
+
+impl fmt::Display for TransparentError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for TransparentError {}
+
+impl From<TransparentError> for Web3Error {
+    fn from(err: TransparentError) -> Self {
+        Self::InternalError(err.into())
+    }
+}
+
+pub fn into_jsrpc_error_message(msg: String) -> Error {
+    Error {
+        code: ErrorCode::InternalError,
+        message: msg,
+        data: None,
+    }
+}
+
 pub fn internal_error(method_name: &'static str, error: impl fmt::Display) -> Web3Error {
     tracing::error!("Internal error in method {method_name}: {error}");
     Web3Error::InternalError(anyhow::Error::msg(error.to_string()))
 }
 
+// pub fn addresss_from_private_key(private_key: &K256PrivateKey) {
+//     let private_key = H256::from_slice(&private_key.0);
+//     let address = KeyPair::from_secret(private_key)?.address();
+//     Ok(Address::from(address.0))
+// }
+
+/// Converts `h256` value as BE into the u64
+pub fn h256_to_u64(value: H256) -> u64 {
+    let be_u64_bytes: [u8; 8] = value[24..].try_into().unwrap();
+    u64::from_be_bytes(be_u64_bytes)
+}
+
+// TODO: look to remove in favour of alloy-primitives utils
+/// Formats a `U256` value as Ether without capping decimal points.
+pub fn format_eth(value: U256) -> String {
+    let wei_per_eth = U256::from(10).pow(U256::from(18));
+    let whole_eth = value / wei_per_eth;
+    let remainder_wei = value % wei_per_eth;
+    let fractional_eth = remainder_wei.as_u128() as f64 / 1e18;
+
+    format!("{} ETH", whole_eth.as_u128() as f64 + fractional_eth)
+}
+// TODO: look to remove in favour of alloy-primitives utils
+/// Formats a `U256` value as Gwei without capping decimal points.
+pub fn format_gwei(value: U256) -> String {
+    let gwei_value = value / U256::exp10(9);
+    let fractional = value % U256::exp10(9);
+
+    let fractional_part = fractional.as_u128() as f64 / 1e9;
+    let full_gwei = gwei_value.as_u128() as f64 + fractional_part;
+
+    format!("{:.8} gwei", full_gwei)
+}
+
+/// Helper type to be able to parse both `u64` and `U256` depending on the user input
+#[derive(Copy, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Numeric {
+    /// A [U256] value.
+    U256(U256),
+    /// A `u64` value.
+    Num(u64),
+}
+
+impl From<u64> for Numeric {
+    fn from(value: u64) -> Self {
+        Numeric::Num(value)
+    }
+}
+
+impl TryFrom<Numeric> for u64 {
+    type Error = anyhow::Error;
+
+    fn try_from(value: Numeric) -> Result<Self, Self::Error> {
+        match value {
+            Numeric::U256(n) => {
+                if n >= U256::from(u64::MAX) {
+                    return Err(anyhow::anyhow!("Number is too big"));
+                }
+                Ok(n.as_u64())
+            }
+            Numeric::Num(n) => Ok(n),
+        }
+    }
+}
+
+/// Calculates the cost of a transaction in ETH.
+pub fn calculate_eth_cost(gas_price_in_wei_per_gas: u64, gas_used: u64) -> f64 {
+    // Convert gas price from wei to gwei
+    let gas_price_in_gwei = gas_price_in_wei_per_gas as f64 / 1e9;
+
+    // Calculate total cost in gwei
+    let total_cost_in_gwei = gas_price_in_gwei * gas_used as f64;
+
+    // Convert total cost from gwei to ETH
+    total_cost_in_gwei / 1e9
+}
+
 #[cfg(test)]
 mod tests {
-    use zksync_basic_types::{H256, U256};
-
-    use crate::{http_fork_source::HttpForkSource, node::InMemoryNode, testing};
+    use zksync_types::U256;
 
     use super::*;
 
     #[test]
     fn test_utc_datetime_from_epoch_ms() {
         let actual = utc_datetime_from_epoch_ms(1623931200000);
-        assert_eq!(
-            DateTime::<Utc>::from_naive_utc_and_offset(
-                chrono::NaiveDateTime::from_timestamp_opt(1623931200, 0).unwrap(),
-                Utc
-            ),
-            actual
-        );
+        assert_eq!(DateTime::from_timestamp(1623931200, 0).unwrap(), actual);
     }
 
     #[test]
@@ -329,145 +391,4 @@ mod tests {
         let actual = to_real_block_number(BlockNumber::Number(U64::from(5)), U64::from(10));
         assert_eq!(U64::from(5), actual);
     }
-
-    #[test]
-    fn test_mine_empty_blocks_mines_the_first_block_immediately() {
-        let node = InMemoryNode::<HttpForkSource>::default();
-        let inner = node.get_inner();
-
-        let starting_block = {
-            let reader = inner.read().expect("failed acquiring reader");
-            reader
-                .block_hashes
-                .get(&reader.current_miniblock)
-                .and_then(|hash| reader.blocks.get(hash))
-                .expect("failed finding block")
-                .clone()
-        };
-        assert_eq!(U64::from(0), starting_block.number);
-        assert_eq!(Some(U64::from(0)), starting_block.l1_batch_number);
-        assert_eq!(U256::from(1000), starting_block.timestamp);
-
-        {
-            let mut writer = inner.write().expect("failed acquiring write lock");
-            mine_empty_blocks(&mut writer, 1, 1000);
-        }
-
-        let reader = inner.read().expect("failed acquiring reader");
-        let mined_block = reader
-            .block_hashes
-            .get(&1)
-            .and_then(|hash| reader.blocks.get(hash))
-            .expect("failed finding block");
-        assert_eq!(U64::from(1), mined_block.number);
-        assert_eq!(Some(U64::from(1)), mined_block.l1_batch_number);
-        assert_eq!(U256::from(1001), mined_block.timestamp);
-    }
-
-    #[test]
-    fn test_mine_empty_blocks_mines_2_blocks_with_interval() {
-        let node = InMemoryNode::<HttpForkSource>::default();
-        let inner = node.get_inner();
-
-        let starting_block = {
-            let reader = inner.read().expect("failed acquiring reader");
-            reader
-                .block_hashes
-                .get(&reader.current_miniblock)
-                .and_then(|hash| reader.blocks.get(hash))
-                .expect("failed finding block")
-                .clone()
-        };
-        assert_eq!(U64::from(0), starting_block.number);
-        assert_eq!(Some(U64::from(0)), starting_block.l1_batch_number);
-        assert_eq!(U256::from(1000), starting_block.timestamp);
-
-        {
-            let mut writer = inner.write().expect("failed acquiring write lock");
-            mine_empty_blocks(&mut writer, 2, 1000);
-        }
-
-        let reader = inner.read().expect("failed acquiring reader");
-        let mined_block_1 = reader
-            .block_hashes
-            .get(&1)
-            .and_then(|hash| reader.blocks.get(hash))
-            .expect("failed finding block 1");
-        assert_eq!(U64::from(1), mined_block_1.number);
-        assert_eq!(Some(U64::from(1)), mined_block_1.l1_batch_number);
-        assert_eq!(U256::from(1001), mined_block_1.timestamp);
-
-        let mined_block_2 = reader
-            .block_hashes
-            .get(&2)
-            .and_then(|hash| reader.blocks.get(hash))
-            .expect("failed finding block 2");
-        assert_eq!(U64::from(2), mined_block_2.number);
-        assert_eq!(Some(U64::from(2)), mined_block_2.l1_batch_number);
-        assert_eq!(U256::from(2001), mined_block_2.timestamp);
-    }
-
-    #[test]
-    fn test_mine_empty_blocks_mines_2_blocks_with_interval_and_next_block_immediately() {
-        let node = InMemoryNode::<HttpForkSource>::default();
-        let inner = node.get_inner();
-
-        let starting_block = {
-            let reader = inner.read().expect("failed acquiring reader");
-            reader
-                .block_hashes
-                .get(&reader.current_miniblock)
-                .and_then(|hash| reader.blocks.get(hash))
-                .expect("failed finding block")
-                .clone()
-        };
-        assert_eq!(U64::from(0), starting_block.number);
-        assert_eq!(Some(U64::from(0)), starting_block.l1_batch_number);
-        assert_eq!(U256::from(1000), starting_block.timestamp);
-
-        {
-            let mut writer = inner.write().expect("failed acquiring write lock");
-            mine_empty_blocks(&mut writer, 2, 1000);
-        }
-
-        {
-            let reader = inner.read().expect("failed acquiring reader");
-            let mined_block_1 = reader
-                .block_hashes
-                .get(&1)
-                .and_then(|hash| reader.blocks.get(hash))
-                .expect("failed finding block 1");
-            assert_eq!(U64::from(1), mined_block_1.number);
-            assert_eq!(Some(U64::from(1)), mined_block_1.l1_batch_number);
-            assert_eq!(U256::from(1001), mined_block_1.timestamp);
-
-            let mined_block_2 = reader
-                .block_hashes
-                .get(&2)
-                .and_then(|hash| reader.blocks.get(hash))
-                .expect("failed finding block 2");
-            assert_eq!(U64::from(2), mined_block_2.number);
-            assert_eq!(Some(U64::from(2)), mined_block_2.l1_batch_number);
-            assert_eq!(U256::from(2001), mined_block_2.timestamp);
-        }
-
-        {
-            testing::apply_tx(&node, H256::repeat_byte(0x1));
-            let reader = inner.read().expect("failed acquiring reader");
-            let tx_block_3 = reader
-                .block_hashes
-                .get(&3)
-                .and_then(|hash| reader.blocks.get(hash))
-                .expect("failed finding block 2");
-            assert_eq!(U64::from(3), tx_block_3.number);
-            assert_eq!(Some(U64::from(3)), tx_block_3.l1_batch_number);
-            assert_eq!(U256::from(2002), tx_block_3.timestamp);
-        }
-    }
-}
-
-/// Converts `h256` value as BE into the u64
-pub fn h256_to_u64(value: H256) -> u64 {
-    let be_u64_bytes: [u8; 8] = value[24..].try_into().unwrap();
-    u64::from_be_bytes(be_u64_bytes)
 }

@@ -32,10 +32,11 @@ describe("Greeter Smart Contract", function () {
 
       // setup user wallet with 3 ETH
       const userWallet = Wallet.createRandom().connect(provider);
-      await wallet.sendTransaction({
+      const txResponse = await wallet.sendTransaction({
         to: userWallet.address,
         value: ethers.utils.parseEther("3"),
       });
+      await txResponse.wait();
 
       // deploy Greeter contract
       const artifact = await deployer.loadArtifact("Greeter");
@@ -62,11 +63,13 @@ describe("Greeter Smart Contract", function () {
 
     // Validate log is created
     expect(receipt.logs.length).to.greaterThanOrEqual(1);
-    const setGreetingLog = receipt.logs[0];
-    expect(setGreetingLog.address).to.equal(greeter.address);
+    const setGreetingLog = receipt.logs.find((log) => log.address === greeter.address);
+    expect(setGreetingLog).not.to.equal(null);
 
     const eventInterface = new ethers.utils.Interface(["event LogString(string value)"]);
-    expect(eventInterface.parseLog(setGreetingLog).args[0]).to.equal("Greeting is being updated to Luke Skywalker");
+    const parsedLog = eventInterface.parseLog(setGreetingLog!);
+    const parsedLogArg = parsedLog.args[0].toString();
+    expect(parsedLogArg).to.equal("Greeting is being updated to Luke Skywalker");
   });
 
   it("Should filter event logs", async function () {
@@ -78,8 +81,12 @@ describe("Greeter Smart Contract", function () {
     const setGreetingTx = await greeter.setGreeting("Luke Skywalker");
     let receipt: TransactionReceipt = await setGreetingTx.wait();
 
+    expect(receipt.logs.length).to.greaterThanOrEqual(1);
+    const setGreetingLog = receipt.logs.find((log) => log.address === greeter.address);
+    expect(setGreetingLog).not.to.equal(null);
+
     // Create filter
-    const topic = receipt.logs[0].topics[0];
+    const topic = setGreetingLog!.topics[0];
     const filterId = await provider.send("eth_newFilter", [
       {
         fromBlock: "earliest",

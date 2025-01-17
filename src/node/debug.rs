@@ -1,23 +1,22 @@
-use itertools::Itertools;
-use once_cell::sync::OnceCell;
 use std::sync::Arc;
 
-use multivm::interface::VmInterface;
-use multivm::tracers::CallTracer;
-use multivm::vm_latest::HistoryDisabled;
-use multivm::vm_latest::{constants::ETH_CALL_GAS_LIMIT, ToTracerPointer, Vm};
-
-use zksync_basic_types::H256;
+use itertools::Itertools;
+use once_cell::sync::OnceCell;
+use zksync_multivm::{
+    interface::{VmFactory, VmInterface},
+    tracers::CallTracer,
+    vm_latest::{constants::ETH_CALL_GAS_LIMIT, HistoryDisabled, ToTracerPointer, Vm},
+};
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig, TransactionVariant},
     l2::L2Tx,
     transaction_request::CallRequest,
-    PackedEthSignature, Transaction, U64,
+    PackedEthSignature, Transaction, H256, U64,
 };
 use zksync_web3_decl::error::Web3Error;
 
-use crate::deps::storage_view::StorageView;
 use crate::{
+    deps::storage_view::StorageView,
     fork::ForkSource,
     namespaces::{DebugNamespaceT, Result, RpcResult},
     node::{InMemoryNode, MAX_TX_SIZE},
@@ -145,6 +144,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> DebugNames
     ) -> RpcResult<DebugCall> {
         let only_top = options.is_some_and(|o| o.tracer_config.only_top_call);
         let inner = self.get_inner().clone();
+        let time = self.time.clone();
+        let system_contracts = self.system_contracts.contracts_for_l2_call().clone();
         Box::pin(async move {
             if block.is_some() && !matches!(block, Some(BlockId::Number(BlockNumber::Latest))) {
                 return Err(jsonrpc_core::Error::invalid_params(
@@ -158,24 +159,19 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> DebugNames
                 )))
             })?;
 
-            let mut l2_tx = match L2Tx::from_request(request.into(), MAX_TX_SIZE) {
-                Ok(tx) => tx,
-                Err(e) => {
-                    let error = Web3Error::SerializationError(e);
-                    return Err(into_jsrpc_error(error));
-                }
-            };
-            let execution_mode = multivm::interface::TxExecutionMode::EthCall;
+            let allow_no_target = system_contracts.evm_emulator.is_some();
+            let mut l2_tx = L2Tx::from_request(request.into(), MAX_TX_SIZE, allow_no_target)
+                .map_err(|err| into_jsrpc_error(Web3Error::SerializationError(err)))?;
+            let execution_mode = zksync_multivm::interface::TxExecutionMode::EthCall;
             let storage = StorageView::new(&inner.fork_storage).into_rc_ptr();
 
-            let bootloader_code = inner.system_contracts.contracts_for_l2_call();
-
             // init vm
-            let (mut l1_batch_env, _block_context) = inner.create_l1_batch_env(storage.clone());
+            let (mut l1_batch_env, _block_context) =
+                inner.create_l1_batch_env(&time, storage.clone());
 
             // update the enforced_base_fee within l1_batch_env to match the logic in zksync_core
             l1_batch_env.enforced_base_fee = Some(l2_tx.common_data.fee.max_fee_per_gas.as_u64());
-            let system_env = inner.create_system_env(bootloader_code.clone(), execution_mode);
+            let system_env = inner.create_system_env(system_contracts.clone(), execution_mode);
             let mut vm: Vm<_, HistoryDisabled> = Vm::new(l1_batch_env, system_env, storage);
 
             // We must inject *some* signature (otherwise bootloader code fails to generate hash).
@@ -195,7 +191,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> DebugNames
             let call_tracer_result = Arc::new(OnceCell::default());
             let tracer = CallTracer::new(call_tracer_result.clone()).into_tracer_pointer();
 
-            let tx_result = vm.inspect(tracer.into(), multivm::interface::VmExecutionMode::OneTx);
+            let tx_result = vm.inspect(
+                &mut tracer.into(),
+                zksync_multivm::interface::InspectExecutionMode::OneTx,
+            );
             let call_traces = if only_top {
                 vec![]
             } else {
@@ -236,26 +235,27 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> DebugNames
 
 #[cfg(test)]
 mod tests {
+    use ethers::abi::{short_signature, AbiEncode, HumanReadableParser, ParamType, Token};
+    use zksync_types::{
+        api::{Block, CallTracerConfig, SupportedTracers, TransactionReceipt},
+        transaction_request::CallRequestBuilder,
+        utils::deployed_address_create,
+        Address, K256PrivateKey, Nonce, H160, U256,
+    };
+
     use super::*;
     use crate::{
+        config::constants::DEFAULT_ACCOUNT_BALANCE,
         deps::system_contracts::bytecode_from_slice,
         http_fork_source::HttpForkSource,
         node::{InMemoryNode, TransactionResult},
         testing::{self, LogBuilder},
     };
-    use ethers::abi::{short_signature, AbiEncode, HumanReadableParser, ParamType, Token};
-    use zksync_basic_types::{Address, Nonce, H160, U256};
-    use zksync_types::{
-        api::{Block, CallTracerConfig, SupportedTracers, TransactionReceipt},
-        transaction_request::CallRequestBuilder,
-        utils::deployed_address_create,
-    };
 
     fn deploy_test_contracts(node: &InMemoryNode<HttpForkSource>) -> (Address, Address) {
-        let private_key = H256::repeat_byte(0xee);
-        let from_account = zksync_types::PackedEthSignature::address_from_private_key(&private_key)
-            .expect("failed generating address");
-        node.set_rich_account(from_account);
+        let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(0xee)).unwrap();
+        let from_account = private_key.address();
+        node.set_rich_account(from_account, U256::from(DEFAULT_ACCOUNT_BALANCE));
 
         // first, deploy secondary contract
         let secondary_bytecode = bytecode_from_slice(
@@ -266,7 +266,7 @@ mod tests {
         testing::deploy_contract(
             node,
             H256::repeat_byte(0x1),
-            private_key,
+            &private_key,
             secondary_bytecode,
             Some((U256::from(2),).encode()),
             Nonce(0),
@@ -281,7 +281,7 @@ mod tests {
         testing::deploy_contract(
             node,
             H256::repeat_byte(0x1),
-            private_key,
+            &private_key,
             primary_bytecode,
             Some((secondary_deployed_address).encode()),
             Nonce(1),
@@ -298,7 +298,7 @@ mod tests {
         let func = HumanReadableParser::parse_function("calculate(uint)").unwrap();
         let calldata = func.encode_input(&[Token::Uint(U256::from(42))]).unwrap();
         let request = CallRequestBuilder::default()
-            .to(primary_deployed_address)
+            .to(Some(primary_deployed_address))
             .data(calldata.clone().into())
             .gas(80_000_000.into())
             .build();
@@ -348,7 +348,7 @@ mod tests {
         let func = HumanReadableParser::parse_function("calculate(uint)").unwrap();
         let calldata = func.encode_input(&[Token::Uint(U256::from(42))]).unwrap();
         let request = CallRequestBuilder::default()
-            .to(primary_deployed_address)
+            .to(Some(primary_deployed_address))
             .data(calldata.into())
             .gas(80_000_000.into())
             .build();
@@ -383,7 +383,7 @@ mod tests {
 
         // trace a call to the primary contract
         let request = CallRequestBuilder::default()
-            .to(primary_deployed_address)
+            .to(Some(primary_deployed_address))
             .data(short_signature("shouldRevert()", &[]).into())
             .gas(80_000_000.into())
             .build();

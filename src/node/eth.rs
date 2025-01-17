@@ -1,12 +1,11 @@
 use std::collections::HashSet;
 
+use anyhow::Context as _;
 use colored::Colorize;
 use futures::FutureExt;
 use itertools::Itertools;
-use multivm::interface::{ExecutionResult, TxExecutionMode};
-use multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
-use zksync_basic_types::{web3, AccountTreeId, Address, Bytes, H160, H256, U256, U64};
-use zksync_state::ReadStorage;
+use zksync_multivm::interface::{ExecutionResult, TxExecutionMode};
+use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use zksync_types::{
     api::{Block, BlockIdVariant, BlockNumber, TransactionVariant},
     fee::Fee,
@@ -14,7 +13,11 @@ use zksync_types::{
     l2::L2Tx,
     transaction_request::TransactionRequest,
     utils::storage_key_for_standard_token_balance,
-    PackedEthSignature, StorageKey, L2_ETH_TOKEN_ADDRESS,
+    PackedEthSignature, StorageKey, L2_BASE_TOKEN_ADDRESS, MAX_L1_TRANSACTION_GAS_LIMIT,
+};
+use zksync_types::{
+    web3::{self, Bytes},
+    AccountTreeId, Address, H160, H256, U256, U64,
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
 use zksync_web3_decl::{
@@ -26,15 +29,172 @@ use crate::{
     filters::{FilterType, LogFilter},
     fork::ForkSource,
     namespaces::{EthNamespaceT, EthTestNodeNamespaceT, RpcResult},
-    node::{InMemoryNode, TransactionResult, L2_GAS_PRICE, MAX_TX_SIZE, PROTOCOL_VERSION},
-    utils::{self, h256_to_u64, into_jsrpc_error, not_implemented, IntoBoxedFuture},
+    node::{InMemoryNode, TransactionResult, MAX_TX_SIZE, PROTOCOL_VERSION},
+    utils::{
+        self, h256_to_u64, into_jsrpc_error, not_implemented, report_into_jsrpc_error,
+        IntoBoxedFuture, TransparentError,
+    },
 };
+
+impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> InMemoryNode<S> {
+    fn call_impl(
+        &self,
+        req: zksync_types::transaction_request::CallRequest,
+    ) -> Result<Bytes, Web3Error> {
+        let system_contracts = self.system_contracts.contracts_for_l2_call().clone();
+        let allow_no_target = system_contracts.evm_emulator.is_some();
+
+        let mut tx = L2Tx::from_request(req.into(), MAX_TX_SIZE, allow_no_target)?;
+        tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
+        let call_result = self
+            .run_l2_call(tx, system_contracts)
+            .context("Invalid data due to invalid name")?;
+
+        match call_result {
+            ExecutionResult::Success { output } => Ok(output.into()),
+            ExecutionResult::Revert { output } => {
+                let message = output.to_user_friendly_string();
+                let pretty_message = format!(
+                    "execution reverted{}{}",
+                    if message.is_empty() { "" } else { ": " },
+                    message
+                );
+
+                tracing::info!("{}", pretty_message.on_red());
+                Err(Web3Error::SubmitTransactionError(
+                    pretty_message,
+                    output.encoded_data(),
+                ))
+            }
+            ExecutionResult::Halt { reason } => {
+                let message = reason.to_string();
+                let pretty_message = format!(
+                    "execution halted {}{}",
+                    if message.is_empty() { "" } else { ": " },
+                    message
+                );
+
+                tracing::info!("{}", pretty_message.on_red());
+                Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
+            }
+        }
+    }
+
+    fn send_raw_transaction_impl(&self, tx_bytes: Bytes) -> Result<H256, Web3Error> {
+        let chain_id = self
+            .get_inner()
+            .read()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire read lock for chain ID retrieval"))?
+            .fork_storage
+            .chain_id;
+
+        let (tx_req, hash) = TransactionRequest::from_bytes(&tx_bytes.0, chain_id)?;
+        // Impersonation does not matter in this context so we assume the tx is not impersonated:
+        // system contracts here are fetched solely to check for EVM emulator.
+        let system_contracts = self
+            .system_contracts
+            .contracts(TxExecutionMode::VerifyExecute, false);
+        let allow_no_target = system_contracts.evm_emulator.is_some();
+        let mut l2_tx = L2Tx::from_request(tx_req, MAX_TX_SIZE, allow_no_target)?;
+
+        l2_tx.set_input(tx_bytes.0, hash);
+        if hash != l2_tx.hash() {
+            let err = anyhow::anyhow!(
+                "Invalid transaction data: computed hash does not match the provided hash."
+            );
+            return Err(err.into());
+        };
+
+        self.pool.add_tx(l2_tx);
+        Ok(hash)
+    }
+
+    fn send_transaction_impl(
+        &self,
+        tx: zksync_types::transaction_request::CallRequest,
+    ) -> Result<H256, Web3Error> {
+        let (chain_id, l2_gas_price) = {
+            let reader = self
+                .inner
+                .read()
+                .map_err(|_| anyhow::anyhow!("Failed to acquire read lock"))?;
+            (
+                reader.fork_storage.chain_id,
+                reader.fee_input_provider.gas_price(),
+            )
+        };
+
+        let mut tx_req = TransactionRequest::from(tx.clone());
+        // Users might expect a "sensible default"
+        if tx.gas.is_none() {
+            tx_req.gas = U256::from(MAX_L1_TRANSACTION_GAS_LIMIT);
+        }
+
+        tx_req.chain_id = Some(chain_id.as_u64());
+
+        // EIP-1559 gas fields should be processed separately
+        if tx.gas_price.is_some() {
+            if tx.max_fee_per_gas.is_some() || tx.max_priority_fee_per_gas.is_some() {
+                let err = "Transaction contains unsupported fields: max_fee_per_gas or max_priority_fee_per_gas";
+                tracing::error!("{err}");
+                return Err(TransparentError(err.into()).into());
+            }
+        } else {
+            tx_req.gas_price = tx.max_fee_per_gas.unwrap_or(U256::from(l2_gas_price));
+            tx_req.max_priority_fee_per_gas = tx.max_priority_fee_per_gas;
+            if tx_req.transaction_type.is_none() {
+                tx_req.transaction_type = Some(zksync_types::EIP_1559_TX_TYPE.into());
+            }
+        }
+        // Needed to calculate hash
+        tx_req.r = Some(U256::default());
+        tx_req.s = Some(U256::default());
+        tx_req.v = Some(U64::from(27));
+
+        let hash = tx_req.get_tx_hash()?;
+        let bytes = tx_req.get_signed_bytes(&PackedEthSignature::from_rsv(
+            &H256::default(),
+            &H256::default(),
+            27,
+        ))?;
+
+        // Impersonation does not matter in this context so we assume the tx is not impersonated:
+        // system contracts here are fetched solely to check for EVM emulator.
+        let system_contracts = self
+            .system_contracts
+            .contracts(TxExecutionMode::VerifyExecute, false);
+        let allow_no_target = system_contracts.evm_emulator.is_some();
+        let mut l2_tx: L2Tx = L2Tx::from_request(tx_req, MAX_TX_SIZE, allow_no_target)?;
+
+        // `v` was overwritten with 0 during converting into l2 tx
+        let mut signature = vec![0u8; 65];
+        signature[64] = 27;
+        l2_tx.common_data.signature = signature;
+
+        l2_tx.set_input(bytes, hash);
+
+        if !self
+            .impersonation
+            .is_impersonating(&l2_tx.common_data.initiator_address)
+        {
+            let err = format!(
+                "Initiator address {:?} is not allowed to perform transactions",
+                l2_tx.common_data.initiator_address
+            );
+            tracing::error!("{err}");
+            return Err(TransparentError(err).into());
+        }
+
+        self.pool.add_tx(l2_tx);
+        Ok(hash)
+    }
+}
 
 impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespaceT
     for InMemoryNode<S>
 {
     /// Returns the chain ID of the node.
-    fn chain_id(&self) -> RpcResult<zksync_basic_types::U64> {
+    fn chain_id(&self) -> RpcResult<zksync_types::U64> {
         match self.get_inner().read() {
             Ok(inner) => Ok(U64::from(inner.fork_storage.chain_id.as_u64())).into_boxed_future(),
             Err(_) => Err(into_jsrpc_error(Web3Error::InternalError(
@@ -58,60 +218,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
         &self,
         req: zksync_types::transaction_request::CallRequest,
         _block: Option<BlockIdVariant>,
-    ) -> RpcResult<zksync_basic_types::Bytes> {
-        match L2Tx::from_request(req.into(), MAX_TX_SIZE) {
-            Ok(mut tx) => {
-                tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
-                let result = self.run_l2_call(tx);
-
-                match result {
-                    Ok(execution_result) => match execution_result {
-                        ExecutionResult::Success { output } => {
-                            Ok(output.into()).into_boxed_future()
-                        }
-                        ExecutionResult::Revert { output } => {
-                            let message = output.to_user_friendly_string();
-                            let pretty_message = format!(
-                                "execution reverted{}{}",
-                                if message.is_empty() { "" } else { ": " },
-                                message
-                            );
-
-                            tracing::info!("{}", pretty_message.on_red());
-                            Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
-                                pretty_message,
-                                output.encoded_data(),
-                            )))
-                            .into_boxed_future()
-                        }
-                        ExecutionResult::Halt { reason } => {
-                            let message = reason.to_string();
-                            let pretty_message = format!(
-                                "execution halted {}{}",
-                                if message.is_empty() { "" } else { ": " },
-                                message
-                            );
-
-                            tracing::info!("{}", pretty_message.on_red());
-                            Err(into_jsrpc_error(Web3Error::SubmitTransactionError(
-                                pretty_message,
-                                vec![],
-                            )))
-                            .into_boxed_future()
-                        }
-                    },
-                    Err(e) => {
-                        let error_message = format!("Invalid data due to invalid name: {}", e);
-                        let error = Web3Error::InternalError(anyhow::Error::msg(error_message));
-                        Err(into_jsrpc_error(error)).into_boxed_future()
-                    }
-                }
-            }
-            Err(e) => {
-                let error = Web3Error::SerializationError(e);
-                Err(into_jsrpc_error(error)).into_boxed_future()
-            }
-        }
+    ) -> RpcResult<Bytes> {
+        self.call_impl(req)
+            .map_err(into_jsrpc_error)
+            .into_boxed_future()
     }
 
     /// Returns the balance of the specified address.
@@ -129,14 +239,16 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
 
         Box::pin(async move {
             let balance_key = storage_key_for_standard_token_balance(
-                AccountTreeId::new(L2_ETH_TOKEN_ADDRESS),
+                AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
                 &address,
             );
 
             match inner.write() {
-                Ok(mut inner_guard) => {
-                    let balance = inner_guard.fork_storage.read_value(&balance_key);
-                    Ok(h256_to_u256(balance))
+                Ok(inner_guard) => {
+                    match inner_guard.fork_storage.read_value_internal(&balance_key) {
+                        Ok(balance) => Ok(h256_to_u256(balance)),
+                        Err(error) => Err(report_into_jsrpc_error(error)),
+                    }
                 }
                 Err(_) => {
                     let error_message = "Error acquiring write lock for balance retrieval";
@@ -244,28 +356,30 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
     /// # Returns
     ///
     /// A `BoxFuture` containing the result of the operation, which is a `jsonrpc_core::Result` containing
-    /// the code as a `zksync_basic_types::Bytes` object.
+    /// the code as a `Bytes` object.
     fn get_code(
         &self,
-        address: zksync_basic_types::Address,
+        address: zksync_types::Address,
         _block: Option<BlockIdVariant>,
-    ) -> RpcResult<zksync_basic_types::Bytes> {
+    ) -> RpcResult<Bytes> {
         let inner = self.get_inner().clone();
 
         Box::pin(async move {
             let code_key = get_code_key(&address);
 
             match inner.write() {
-                Ok(mut guard) => {
-                    let code_hash = guard.fork_storage.read_value(&code_key);
-
-                    let code = guard
-                        .fork_storage
-                        .load_factory_dep(code_hash)
-                        .unwrap_or_default();
-
-                    Ok(Bytes::from(code))
-                }
+                Ok(guard) => match guard.fork_storage.read_value_internal(&code_key) {
+                    Ok(code_hash) => {
+                        match guard.fork_storage.load_factory_dep_internal(code_hash) {
+                            Ok(raw_code) => {
+                                let code = raw_code.unwrap_or_default();
+                                Ok(Bytes::from(code))
+                            }
+                            Err(error) => Err(report_into_jsrpc_error(error)),
+                        }
+                    }
+                    Err(error) => Err(report_into_jsrpc_error(error)),
+                },
                 Err(_) => Err(into_jsrpc_error(Web3Error::InternalError(
                     anyhow::Error::msg("Failed to acquire write lock for code retrieval"),
                 ))),
@@ -285,7 +399,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
     /// Returns a `BoxFuture` containing the transaction count as a `U256` wrapped in a `jsonrpc_core::Result`.
     fn get_transaction_count(
         &self,
-        address: zksync_basic_types::Address,
+        address: zksync_types::Address,
         _block: Option<BlockIdVariant>,
     ) -> RpcResult<U256> {
         let inner = self.get_inner().clone();
@@ -294,10 +408,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
             let nonce_key = get_nonce_key(&address);
 
             match inner.write() {
-                Ok(mut guard) => {
-                    let result = guard.fork_storage.read_value(&nonce_key);
-                    Ok(h256_to_u64(result).into())
-                }
+                Ok(guard) => match guard.fork_storage.read_value_internal(&nonce_key) {
+                    Ok(result) => Ok(h256_to_u64(result).into()),
+                    Err(error) => Err(report_into_jsrpc_error(error)),
+                },
                 Err(_) => Err(into_jsrpc_error(Web3Error::InternalError(
                     anyhow::Error::msg("Failed to acquire write lock for nonce retrieval"),
                 ))),
@@ -316,7 +430,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
     /// A `BoxFuture` that resolves to an `Option` of a `TransactionReceipt` or an error.
     fn get_transaction_receipt(
         &self,
-        hash: zksync_basic_types::H256,
+        hash: zksync_types::H256,
     ) -> RpcResult<Option<zksync_types::api::TransactionReceipt>> {
         let inner = self.get_inner().clone();
 
@@ -349,55 +463,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
     /// # Returns
     ///
     /// A future that resolves to the hash of the transaction if successful, or an error if the transaction is invalid or execution fails.
-    fn send_raw_transaction(
-        &self,
-        tx_bytes: zksync_basic_types::Bytes,
-    ) -> RpcResult<zksync_basic_types::H256> {
-        let chain_id = match self.get_inner().read() {
-            Ok(reader) => reader.fork_storage.chain_id,
-            Err(_) => {
-                return futures::future::err(into_jsrpc_error(Web3Error::InternalError(
-                    anyhow::Error::msg("Failed to acquire read lock for chain ID retrieval"),
-                )))
-                .boxed()
-            }
-        };
-
-        let (tx_req, hash) = match TransactionRequest::from_bytes(&tx_bytes.0, chain_id) {
-            Ok(result) => result,
-            Err(e) => {
-                return futures::future::err(into_jsrpc_error(Web3Error::SerializationError(e)))
-                    .boxed()
-            }
-        };
-
-        let mut l2_tx: L2Tx = match L2Tx::from_request(tx_req, MAX_TX_SIZE) {
-            Ok(tx) => tx,
-            Err(e) => {
-                return futures::future::err(into_jsrpc_error(Web3Error::SerializationError(e)))
-                    .boxed()
-            }
-        };
-
-        l2_tx.set_input(tx_bytes.0, hash);
-        if hash != l2_tx.hash() {
-            let error_message =
-                "Invalid transaction data: computed hash does not match the provided hash.";
-            let web3_error = Web3Error::InternalError(anyhow::Error::msg(error_message));
-            return futures::future::err(into_jsrpc_error(web3_error)).boxed();
-        };
-
-        match self.run_l2_tx(l2_tx.clone(), TxExecutionMode::VerifyExecute) {
-            Ok(_) => Ok(hash).into_boxed_future(),
-            Err(e) => {
-                let error_message = format!("Execution error: {}", e);
-                futures::future::err(into_jsrpc_error(Web3Error::SubmitTransactionError(
-                    error_message,
-                    l2_tx.hash().as_bytes().to_vec(),
-                )))
-                .boxed()
-            }
-        }
+    fn send_raw_transaction(&self, tx_bytes: Bytes) -> RpcResult<H256> {
+        self.send_raw_transaction_impl(tx_bytes)
+            .map_err(into_jsrpc_error)
+            .into_boxed_future()
     }
 
     /// Returns a block by its hash. Currently, only hashes for blocks in memory are supported.
@@ -412,7 +481,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
     /// A `BoxFuture` containing a `jsonrpc_core::Result` that resolves to an `Option` of `Block<TransactionVariant>`.
     fn get_block_by_hash(
         &self,
-        hash: zksync_basic_types::H256,
+        hash: zksync_types::H256,
         full_transactions: bool,
     ) -> RpcResult<Option<Block<TransactionVariant>>> {
         let inner = self.get_inner().clone();
@@ -488,7 +557,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
     /// A `jsonrpc_core::BoxFuture` that resolves to a `jsonrpc_core::Result` containing an optional `zksync_types::api::Transaction`.
     fn get_transaction_by_hash(
         &self,
-        hash: zksync_basic_types::H256,
+        hash: zksync_types::H256,
     ) -> RpcResult<Option<zksync_types::api::Transaction>> {
         let inner = self.get_inner().clone();
 
@@ -509,9 +578,9 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
                         nonce: U256::from(info.tx.common_data.nonce.0),
                         block_hash: Some(hash),
                         block_number: Some(U64::from(info.miniblock_number)),
-                        transaction_index: Some(U64::from(1)),
+                        transaction_index: Some(U64::from(0)),
                         from: Some(info.tx.initiator_account()),
-                        to: Some(info.tx.recipient_account()),
+                        to: info.tx.recipient_account(),
                         value: info.tx.execute.value,
                         gas_price: Some(U256::from(0)),
                         gas: Default::default(),
@@ -562,7 +631,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
     }
 
     /// Returns the current block number as a `U64` wrapped in a `BoxFuture`.
-    fn get_block_number(&self) -> RpcResult<zksync_basic_types::U64> {
+    fn get_block_number(&self) -> RpcResult<zksync_types::U64> {
         let inner = self.get_inner().clone();
 
         Box::pin(async move {
@@ -601,7 +670,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
             }
         };
 
-        let result: jsonrpc_core::Result<Fee> = reader.estimate_gas_impl(req);
+        let result: jsonrpc_core::Result<Fee> = reader.estimate_gas_impl(&self.time, req);
         match result {
             Ok(fee) => Ok(fee.gas_limit).into_boxed_future(),
             Err(err) => return futures::future::err(err).boxed(),
@@ -610,7 +679,12 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
 
     /// Returns the current gas price in U256 format.
     fn gas_price(&self) -> RpcResult<U256> {
-        let fair_l2_gas_price: u64 = L2_GAS_PRICE;
+        let fair_l2_gas_price: u64 = self
+            .get_inner()
+            .read()
+            .expect("Failed to acquire read lock")
+            .fee_input_provider
+            .gas_price();
         Ok(U256::from(fair_l2_gas_price)).into_boxed_future()
     }
 
@@ -956,7 +1030,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
 
     fn get_block_transaction_count_by_hash(
         &self,
-        block_hash: zksync_basic_types::H256,
+        block_hash: zksync_types::H256,
     ) -> RpcResult<Option<U256>> {
         let inner = self.get_inner().clone();
 
@@ -1008,14 +1082,14 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
     /// A `BoxFuture` containing a `jsonrpc_core::Result` that resolves to a [H256] value in the storage.
     fn get_storage(
         &self,
-        address: zksync_basic_types::Address,
+        address: zksync_types::Address,
         idx: U256,
         block: Option<BlockIdVariant>,
-    ) -> RpcResult<zksync_basic_types::H256> {
+    ) -> RpcResult<zksync_types::H256> {
         let inner = self.get_inner().clone();
 
         Box::pin(async move {
-            let mut writer = match inner.write() {
+            let writer = match inner.write() {
                 Ok(r) => r,
                 Err(_) => {
                     return Err(into_jsrpc_error(Web3Error::InternalError(
@@ -1053,7 +1127,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
                 .unwrap_or_else(|| Ok(U64::from(writer.current_miniblock)))?;
 
             if block_number.as_u64() == writer.current_miniblock {
-                Ok(H256(writer.fork_storage.read_value(&storage_key).0))
+                match writer.fork_storage.read_value_internal(&storage_key) {
+                    Ok(value) => Ok(H256(value.0)),
+                    Err(error) => Err(report_into_jsrpc_error(error)),
+                }
             } else if writer.block_hashes.contains_key(&block_number.as_u64()) {
                 let value = writer
                     .block_hashes
@@ -1064,7 +1141,10 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
                     .unwrap_or_default();
 
                 if value.is_zero() {
-                    Ok(H256(writer.fork_storage.read_value(&storage_key).0))
+                    match writer.fork_storage.read_value_internal(&storage_key) {
+                        Ok(value) => Ok(H256(value.0)),
+                        Err(error) => Err(report_into_jsrpc_error(error)),
+                    }
                 } else {
                     Ok(value)
                 }
@@ -1104,8 +1184,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
     /// A `BoxFuture` containing a `jsonrpc_core::Result` that maybe resolves to a [zksync_types::api::Transaction], if found.
     fn get_transaction_by_block_hash_and_index(
         &self,
-        block_hash: zksync_basic_types::H256,
-        index: zksync_basic_types::web3::types::Index,
+        block_hash: zksync_types::H256,
+        index: zksync_types::web3::Index,
     ) -> RpcResult<Option<zksync_types::api::Transaction>> {
         let inner = self.get_inner().clone();
 
@@ -1172,7 +1252,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
     fn get_transaction_by_block_number_and_index(
         &self,
         block_number: BlockNumber,
-        index: zksync_basic_types::web3::types::Index,
+        index: zksync_types::web3::Index,
     ) -> RpcResult<Option<zksync_types::api::Transaction>> {
         let inner = self.get_inner().clone();
 
@@ -1270,7 +1350,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
         futures::future::ok(accounts).boxed()
     }
 
-    fn coinbase(&self) -> RpcResult<zksync_basic_types::Address> {
+    fn coinbase(&self) -> RpcResult<zksync_types::Address> {
         not_implemented("eth_coinbase")
     }
 
@@ -1282,10 +1362,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
         not_implemented("eth_hashrate")
     }
 
-    fn get_uncle_count_by_block_hash(
-        &self,
-        _hash: zksync_basic_types::H256,
-    ) -> RpcResult<Option<U256>> {
+    fn get_uncle_count_by_block_hash(&self, _hash: zksync_types::H256) -> RpcResult<Option<U256>> {
         not_implemented("eth_getUncleCountByBlockHash")
     }
 
@@ -1332,7 +1409,8 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
                 // Can't be more than the total number of blocks
                 .clamp(1, reader.current_miniblock + 1);
 
-            let mut base_fee_per_gas = vec![U256::from(L2_GAS_PRICE); block_count as usize];
+            let mut base_fee_per_gas =
+                vec![U256::from(reader.fee_input_provider.gas_price()); block_count as usize];
 
             let oldest_block = reader.current_miniblock + 1 - base_fee_per_gas.len() as u64;
             // We do not store gas used ratio for blocks, returns array of zeroes as a placeholder.
@@ -1347,10 +1425,12 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
             base_fee_per_gas.push(*base_fee_per_gas.last().unwrap());
 
             Ok(FeeHistory {
-                oldest_block: web3::types::BlockNumber::Number(oldest_block.into()),
+                oldest_block: web3::BlockNumber::Number(oldest_block.into()),
                 base_fee_per_gas,
                 gas_used_ratio,
                 reward,
+                base_fee_per_blob_gas: Default::default(),
+                blob_gas_used_ratio: Default::default(),
             })
         })
     }
@@ -1371,107 +1451,23 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthTestNod
     fn send_transaction(
         &self,
         tx: zksync_types::transaction_request::CallRequest,
-    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<zksync_basic_types::H256>> {
-        let chain_id = match self.get_inner().read() {
-            Ok(reader) => reader.fork_storage.chain_id,
-            Err(_) => {
-                return futures::future::err(into_jsrpc_error(Web3Error::InternalError(
-                    anyhow::Error::msg("Failed to acquire read lock for chain ID retrieval."),
-                )))
-                .boxed()
-            }
-        };
-
-        let mut tx_req = TransactionRequest::from(tx.clone());
-        // EIP-1559 gas fields should be processed separately
-        if tx.gas_price.is_some() {
-            if tx.max_fee_per_gas.is_some() || tx.max_priority_fee_per_gas.is_some() {
-                let error_message = "Transaction contains unsupported fields: max_fee_per_gas or max_priority_fee_per_gas";
-                return futures::future::err(into_jsrpc_error(Web3Error::InternalError(
-                    anyhow::Error::msg(error_message),
-                )))
-                .boxed();
-            }
-        } else {
-            tx_req.gas_price = tx.max_fee_per_gas.unwrap_or_default();
-            tx_req.max_priority_fee_per_gas = tx.max_priority_fee_per_gas;
-            if tx_req.transaction_type.is_none() {
-                tx_req.transaction_type = Some(zksync_types::EIP_1559_TX_TYPE.into());
-            }
-        }
-        // Needed to calculate hash
-        tx_req.r = Some(U256::default());
-        tx_req.s = Some(U256::default());
-        tx_req.v = Some(U64::from(27));
-
-        let hash = match tx_req.get_tx_hash(chain_id) {
-            Ok(result) => result,
-            Err(e) => {
-                return futures::future::err(into_jsrpc_error(Web3Error::SerializationError(e)))
-                    .boxed()
-            }
-        };
-        let bytes = tx_req.get_signed_bytes(
-            &PackedEthSignature::from_rsv(&H256::default(), &H256::default(), 27),
-            chain_id,
-        );
-        let mut l2_tx: L2Tx = match L2Tx::from_request(tx_req, MAX_TX_SIZE) {
-            Ok(tx) => tx,
-            Err(e) => {
-                return futures::future::err(into_jsrpc_error(Web3Error::SerializationError(e)))
-                    .boxed()
-            }
-        };
-
-        // `v` was overwritten with 0 during converting into l2 tx
-        let mut signature = vec![0u8; 65];
-        signature[64] = 27;
-        l2_tx.common_data.signature = signature;
-
-        l2_tx.set_input(bytes, hash);
-
-        match self.get_inner().read() {
-            Ok(reader) => {
-                if !reader
-                    .impersonated_accounts
-                    .contains(&l2_tx.common_data.initiator_address)
-                {
-                    let error_message = format!(
-                        "Initiator address {:?} is not allowed to perform transactions",
-                        l2_tx.common_data.initiator_address
-                    );
-                    return futures::future::err(into_jsrpc_error(Web3Error::InternalError(
-                        anyhow::Error::msg(error_message),
-                    )))
-                    .boxed();
-                }
-            }
-            Err(_) => {
-                return futures::future::err(into_jsrpc_error(Web3Error::InternalError(
-                    anyhow::Error::msg("Failed to acquire read lock for accounts."),
-                )))
-                .boxed()
-            }
-        }
-
-        match self.run_l2_tx(l2_tx.clone(), TxExecutionMode::VerifyExecute) {
-            Ok(_) => Ok(l2_tx.hash()).into_boxed_future(),
-            Err(e) => {
-                let error_message = format!("Execution error: {}", e);
-                futures::future::err(into_jsrpc_error(Web3Error::SubmitTransactionError(
-                    error_message,
-                    l2_tx.hash().as_bytes().to_vec(),
-                )))
-                .boxed()
-            }
-        }
+    ) -> jsonrpc_core::BoxFuture<jsonrpc_core::Result<H256>> {
+        self.send_transaction_impl(tx)
+            .map_err(into_jsrpc_error)
+            .into_boxed_future()
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::{
-        cache::CacheConfig,
+        config::{
+            cache::CacheConfig,
+            constants::{
+                DEFAULT_ACCOUNT_BALANCE, DEFAULT_L2_GAS_PRICE, NON_FORK_FIRST_BLOCK_TIMESTAMP,
+            },
+        },
         fork::ForkDetails,
         http_fork_source::HttpForkSource,
         node::{compute_hash, InMemoryNode, Snapshot},
@@ -1481,15 +1477,25 @@ mod tests {
         },
     };
     use maplit::hashmap;
-    use zksync_basic_types::{web3, Nonce};
+    use zksync_multivm::utils::get_max_batch_gas_limit;
+    use zksync_types::l2::TransactionType;
+    use zksync_types::vm::VmVersion;
     use zksync_types::{
+        api,
         api::{BlockHashObject, BlockNumber, BlockNumberObject, TransactionReceipt},
         utils::deployed_address_create,
-        PackedEthSignature,
+        Bloom, K256PrivateKey, EMPTY_UNCLES_HASH,
     };
+    use zksync_types::{web3, Nonce};
     use zksync_web3_decl::types::{SyncState, ValueOrArray};
 
-    use super::*;
+    async fn test_node(url: &str) -> InMemoryNode<HttpForkSource> {
+        InMemoryNode::<HttpForkSource>::default_fork(Some(
+            ForkDetails::from_network(url, None, &CacheConfig::None)
+                .await
+                .unwrap(),
+        ))
+    }
 
     #[tokio::test]
     async fn test_eth_syncing() {
@@ -1509,11 +1515,11 @@ mod tests {
 
         assert_eq!(
             fee_history.oldest_block,
-            web3::types::BlockNumber::Number(U64::from(0))
+            web3::BlockNumber::Number(U64::from(0))
         );
         assert_eq!(
             fee_history.base_fee_per_gas,
-            vec![U256::from(L2_GAS_PRICE); 2]
+            vec![U256::from(DEFAULT_L2_GAS_PRICE); 2]
         );
         assert_eq!(fee_history.gas_used_ratio, vec![0.0]);
         assert_eq!(fee_history.reward, Some(vec![vec![U256::from(0); 3]]));
@@ -1530,11 +1536,11 @@ mod tests {
 
         assert_eq!(
             fee_history.oldest_block,
-            web3::types::BlockNumber::Number(U64::from(0))
+            web3::BlockNumber::Number(U64::from(0))
         );
         assert_eq!(
             fee_history.base_fee_per_gas,
-            vec![U256::from(L2_GAS_PRICE); 2]
+            vec![U256::from(DEFAULT_L2_GAS_PRICE); 2]
         );
         assert_eq!(fee_history.gas_used_ratio, vec![0.0]);
         assert_eq!(fee_history.reward, Some(vec![vec![]]));
@@ -1561,11 +1567,11 @@ mod tests {
         assert_eq!(latest_block, U64::from(2));
         assert_eq!(
             fee_history.oldest_block,
-            web3::types::BlockNumber::Number(U64::from(1))
+            web3::BlockNumber::Number(U64::from(1))
         );
         assert_eq!(
             fee_history.base_fee_per_gas,
-            vec![U256::from(L2_GAS_PRICE); 3]
+            vec![U256::from(DEFAULT_L2_GAS_PRICE); 3]
         );
         assert_eq!(fee_history.gas_used_ratio, vec![0.0, 0.0]);
         assert_eq!(fee_history.reward, Some(vec![vec![U256::from(0); 3]; 2]));
@@ -1594,7 +1600,7 @@ mod tests {
             .expect("no block");
 
         assert_eq!(0, block.number.as_u64());
-        assert_eq!(compute_hash(0, H256::zero()), block.hash);
+        assert_eq!(compute_hash(0, []), block.hash);
     }
 
     #[tokio::test]
@@ -1602,7 +1608,7 @@ mod tests {
         let node = InMemoryNode::<HttpForkSource>::default();
 
         let block = node
-            .get_block_by_hash(compute_hash(0, H256::zero()), false)
+            .get_block_by_hash(compute_hash(0, []), false)
             .await
             .expect("failed fetching block by hash")
             .expect("no block");
@@ -1638,7 +1644,13 @@ mod tests {
     #[tokio::test]
     async fn test_get_block_by_hash_for_produced_block() {
         let node = InMemoryNode::<HttpForkSource>::default();
-        let (expected_block_hash, _) = testing::apply_tx(&node, H256::repeat_byte(0x01));
+        let tx_hash = H256::repeat_byte(0x01);
+        let (expected_block_hash, _, _) = testing::apply_tx(&node, tx_hash);
+        let genesis_block = node
+            .get_block_by_number(BlockNumber::from(0), false)
+            .await
+            .expect("failed fetching block by number")
+            .expect("no block");
 
         let actual_block = node
             .get_block_by_hash(expected_block_hash, false)
@@ -1646,9 +1658,40 @@ mod tests {
             .expect("failed fetching block by hash")
             .expect("no block");
 
-        assert_eq!(expected_block_hash, actual_block.hash);
-        assert_eq!(U64::from(1), actual_block.number);
-        assert_eq!(Some(U64::from(1)), actual_block.l1_batch_number);
+        let expected_block: Block<TransactionVariant> = Block {
+            hash: expected_block_hash,
+            parent_hash: genesis_block.hash,
+            uncles_hash: EMPTY_UNCLES_HASH,
+            author: Default::default(),
+            state_root: Default::default(),
+            transactions_root: Default::default(),
+            receipts_root: Default::default(),
+            number: U64::from(1),
+            l1_batch_number: Some(U64::from(1)),
+            gas_used: actual_block.gas_used, // Checked separately, see below
+            gas_limit: U256::from(get_max_batch_gas_limit(VmVersion::latest())),
+            base_fee_per_gas: actual_block.base_fee_per_gas, // Checked separately, see below
+            extra_data: Default::default(),
+            logs_bloom: actual_block.logs_bloom, // Checked separately, see below
+            timestamp: U256::from(NON_FORK_FIRST_BLOCK_TIMESTAMP + 1),
+            l1_batch_timestamp: Some(U256::from(NON_FORK_FIRST_BLOCK_TIMESTAMP + 1)),
+            difficulty: Default::default(),
+            total_difficulty: Default::default(),
+            seal_fields: vec![],
+            uncles: vec![],
+            transactions: vec![TransactionVariant::Hash(tx_hash)],
+            size: Default::default(),
+            mix_hash: Default::default(),
+            nonce: Default::default(),
+        };
+
+        assert_eq!(expected_block, actual_block);
+
+        // It is hard to predict the values below without repeating the exact logic used to calculate
+        // them. We are resorting to some basic sanity checks instead.
+        assert!(actual_block.gas_used > U256::zero());
+        assert!(actual_block.base_fee_per_gas > U256::zero());
+        assert_ne!(actual_block.logs_bloom, Bloom::zero());
     }
 
     #[tokio::test]
@@ -1661,11 +1704,7 @@ mod tests {
             transaction_count: 0,
         });
 
-        let node = InMemoryNode::<HttpForkSource>::new(
-            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            None,
-            Default::default(),
-        );
+        let node = test_node(&mock_server.url()).await;
 
         let inner = node.get_inner();
         let inner = inner.read().unwrap();
@@ -1705,11 +1744,7 @@ mod tests {
             }),
             block_response,
         );
-        let node = InMemoryNode::<HttpForkSource>::new(
-            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            None,
-            Default::default(),
-        );
+        let node = test_node(&mock_server.url()).await;
 
         let actual_block = node
             .get_block_by_hash(input_block_hash, false)
@@ -1737,17 +1772,102 @@ mod tests {
     #[tokio::test]
     async fn test_get_block_by_number_for_produced_block() {
         let node = InMemoryNode::<HttpForkSource>::default();
-        testing::apply_tx(&node, H256::repeat_byte(0x01));
+        let tx_hash = H256::repeat_byte(0x01);
+        let (expected_block_hash, _, _) = testing::apply_tx(&node, tx_hash);
         let expected_block_number = 1;
+        let genesis_block = node
+            .get_block_by_number(BlockNumber::from(0), false)
+            .await
+            .expect("failed fetching block by number")
+            .expect("no block");
 
         let actual_block = node
             .get_block_by_number(BlockNumber::Number(U64::from(expected_block_number)), false)
             .await
-            .expect("failed fetching block by hash")
+            .expect("failed fetching block by number")
             .expect("no block");
 
-        assert_eq!(U64::from(expected_block_number), actual_block.number);
-        assert_eq!(1, actual_block.transactions.len());
+        let expected_block: Block<TransactionVariant> = Block {
+            hash: expected_block_hash,
+            parent_hash: genesis_block.hash,
+            uncles_hash: EMPTY_UNCLES_HASH,
+            author: Default::default(),
+            state_root: Default::default(),
+            transactions_root: Default::default(),
+            receipts_root: Default::default(),
+            number: U64::from(expected_block_number),
+            l1_batch_number: Some(U64::from(1)),
+            gas_used: actual_block.gas_used, // Checked separately, see below
+            gas_limit: U256::from(get_max_batch_gas_limit(VmVersion::latest())),
+            base_fee_per_gas: actual_block.base_fee_per_gas, // Checked separately, see below
+            extra_data: Default::default(),
+            logs_bloom: actual_block.logs_bloom, // Checked separately, see below
+            timestamp: U256::from(NON_FORK_FIRST_BLOCK_TIMESTAMP + 1),
+            l1_batch_timestamp: Some(U256::from(NON_FORK_FIRST_BLOCK_TIMESTAMP + 1)),
+            difficulty: Default::default(),
+            total_difficulty: Default::default(),
+            seal_fields: vec![],
+            uncles: vec![],
+            transactions: vec![TransactionVariant::Hash(tx_hash)],
+            size: Default::default(),
+            mix_hash: Default::default(),
+            nonce: Default::default(),
+        };
+
+        assert_eq!(expected_block, actual_block);
+
+        // It is hard to predict the values below without repeating the exact logic used to calculate
+        // them. We are resorting to some basic sanity checks instead.
+        assert!(actual_block.gas_used > U256::zero());
+        assert!(actual_block.base_fee_per_gas > U256::zero());
+        assert_ne!(actual_block.logs_bloom, Bloom::zero());
+    }
+
+    #[tokio::test]
+    async fn test_get_block_by_number_for_produced_block_full_txs() {
+        let node = InMemoryNode::<HttpForkSource>::default();
+        let tx_hash = H256::repeat_byte(0x01);
+        let (block_hash, _, tx) = testing::apply_tx(&node, tx_hash);
+        let expected_block_number = 1;
+
+        let mut actual_block = node
+            .get_block_by_number(BlockNumber::Number(U64::from(expected_block_number)), true)
+            .await
+            .expect("failed fetching block by number")
+            .expect("no block");
+
+        assert_eq!(actual_block.transactions.len(), 1);
+        let actual_tx = match actual_block.transactions.remove(0) {
+            TransactionVariant::Full(tx) => tx,
+            TransactionVariant::Hash(_) => unreachable!(),
+        };
+        let expected_tx = api::Transaction {
+            hash: tx_hash,
+            nonce: U256::from(0),
+            block_hash: Some(block_hash),
+            block_number: Some(U64::from(expected_block_number)),
+            transaction_index: Some(U64::from(0)),
+            from: Some(tx.initiator_account()),
+            to: tx.recipient_account(),
+            value: U256::from(1),
+            gas_price: Some(tx.common_data.fee.max_fee_per_gas),
+            gas: tx.common_data.fee.gas_limit,
+            input: Default::default(),
+            v: actual_tx.v, // Checked separately, see below
+            r: actual_tx.r, // Checked separately, see below
+            s: actual_tx.s, // Checked separately, see below
+            raw: None,
+            transaction_type: Some(U64::from(TransactionType::EIP712Transaction as u32)),
+            access_list: None,
+            max_fee_per_gas: Some(tx.common_data.fee.max_fee_per_gas),
+            max_priority_fee_per_gas: Some(tx.common_data.fee.max_priority_fee_per_gas),
+            chain_id: U256::from(260),
+            l1_batch_number: Some(U64::from(1)),
+            l1_batch_tx_index: Some(U64::from(0)),
+        };
+        assert_eq!(expected_tx, actual_tx);
+
+        // TODO: Verify that the TX is signed properly (use alloy to abstract from zksync-core code?)
     }
 
     #[tokio::test]
@@ -1773,11 +1893,7 @@ mod tests {
             }),
             block_response,
         );
-        let node = InMemoryNode::<HttpForkSource>::new(
-            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            None,
-            Default::default(),
-        );
+        let node = test_node(&mock_server.url()).await;
 
         let actual_block = node
             .get_block_by_number(BlockNumber::Number(U64::from(8)), false)
@@ -1821,11 +1937,7 @@ mod tests {
             transaction_count: 0,
         });
 
-        let node = InMemoryNode::<HttpForkSource>::new(
-            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            None,
-            Default::default(),
-        );
+        let node = test_node(&mock_server.url()).await;
 
         let actual_block = node
             .get_block_by_number(BlockNumber::Latest, false)
@@ -1857,11 +1969,7 @@ mod tests {
                 .set_number(input_block_number)
                 .build(),
         );
-        let node = InMemoryNode::<HttpForkSource>::new(
-            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            None,
-            Default::default(),
-        );
+        let node = test_node(&mock_server.url()).await;
 
         let actual_block = node
             .get_block_by_number(BlockNumber::Earliest, false)
@@ -1884,11 +1992,7 @@ mod tests {
                 hash: H256::repeat_byte(0xab),
                 transaction_count: 0,
             });
-            let node = InMemoryNode::<HttpForkSource>::new(
-                Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-                None,
-                Default::default(),
-            );
+            let node = test_node(&mock_server.url()).await;
 
             let actual_block = node
                 .get_block_by_number(block_number, false)
@@ -1908,7 +2012,7 @@ mod tests {
     async fn test_get_block_transaction_count_by_hash_for_produced_block() {
         let node = InMemoryNode::<HttpForkSource>::default();
 
-        let (expected_block_hash, _) = testing::apply_tx(&node, H256::repeat_byte(0x01));
+        let (expected_block_hash, _, _) = testing::apply_tx(&node, H256::repeat_byte(0x01));
         let actual_transaction_count = node
             .get_block_transaction_count_by_hash(expected_block_hash)
             .await
@@ -1942,11 +2046,7 @@ mod tests {
                 "result": format!("{:#x}", input_transaction_count),
             }),
         );
-        let node = InMemoryNode::<HttpForkSource>::new(
-            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            None,
-            Default::default(),
-        );
+        let node = test_node(&mock_server.url()).await;
 
         let actual_transaction_count = node
             .get_block_transaction_count_by_hash(input_block_hash)
@@ -1999,11 +2099,7 @@ mod tests {
             }),
         );
 
-        let node = InMemoryNode::<HttpForkSource>::new(
-            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            None,
-            Default::default(),
-        );
+        let node = test_node(&mock_server.url()).await;
 
         let actual_transaction_count = node
             .get_block_transaction_count_by_number(BlockNumber::Number(U64::from(1)))
@@ -2041,11 +2137,7 @@ mod tests {
             }),
         );
 
-        let node = InMemoryNode::<HttpForkSource>::new(
-            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            None,
-            Default::default(),
-        );
+        let node = test_node(&mock_server.url()).await;
 
         let actual_transaction_count = node
             .get_block_transaction_count_by_number(BlockNumber::Earliest)
@@ -2074,11 +2166,7 @@ mod tests {
                 hash: H256::repeat_byte(0xab),
             });
 
-            let node = InMemoryNode::<HttpForkSource>::new(
-                Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-                None,
-                Default::default(),
-            );
+            let node = test_node(&mock_server.url()).await;
 
             let actual_transaction_count = node
                 .get_block_transaction_count_by_number(block_number)
@@ -2099,7 +2187,7 @@ mod tests {
     async fn test_get_transaction_receipt_uses_produced_block_hash() {
         let node = InMemoryNode::<HttpForkSource>::default();
         let tx_hash = H256::repeat_byte(0x01);
-        let (expected_block_hash, _) = testing::apply_tx(&node, tx_hash);
+        let (expected_block_hash, _, _) = testing::apply_tx(&node, tx_hash);
 
         let actual_tx_receipt = node
             .get_transaction_receipt(tx_hash)
@@ -2181,7 +2269,7 @@ mod tests {
             .new_block_filter()
             .await
             .expect("failed creating filter");
-        let (block_hash, _) = testing::apply_tx(&node, H256::repeat_byte(0x1));
+        let (block_hash, _, _) = testing::apply_tx(&node, H256::repeat_byte(0x1));
 
         match node
             .get_filter_changes(filter_id)
@@ -2226,7 +2314,7 @@ mod tests {
             .await
             .expect("failed getting filter changes")
         {
-            FilterChanges::Logs(result) => assert_eq!(2, result.len()),
+            FilterChanges::Logs(result) => assert_eq!(4, result.len()),
             changes => panic!("unexpected filter changes: {:?}", changes),
         }
 
@@ -2349,11 +2437,7 @@ mod tests {
             }),
         );
 
-        let node = InMemoryNode::<HttpForkSource>::new(
-            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            None,
-            Default::default(),
-        );
+        let node = test_node(&mock_server.url()).await;
 
         let actual_value = node
             .get_storage(
@@ -2444,11 +2528,7 @@ mod tests {
             }),
         );
 
-        let node = InMemoryNode::<HttpForkSource>::new(
-            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            None,
-            Default::default(),
-        );
+        let node = test_node(&mock_server.url()).await;
         node.get_inner()
             .write()
             .map(|mut writer| {
@@ -2486,17 +2566,16 @@ mod tests {
     async fn test_get_storage_fetches_state_for_deployed_smart_contract_in_current_block() {
         let node = InMemoryNode::<HttpForkSource>::default();
 
-        let private_key = H256::repeat_byte(0xef);
-        let from_account = zksync_types::PackedEthSignature::address_from_private_key(&private_key)
-            .expect("failed generating address");
-        node.set_rich_account(from_account);
+        let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(0xef)).unwrap();
+        let from_account = private_key.address();
+        node.set_rich_account(from_account, U256::from(DEFAULT_ACCOUNT_BALANCE));
 
         let deployed_address = deployed_address_create(from_account, U256::zero());
 
         testing::deploy_contract(
             &node,
             H256::repeat_byte(0x1),
-            private_key,
+            &private_key,
             hex::decode(testing::STORAGE_CONTRACT_BYTECODE).unwrap(),
             None,
             Nonce(0),
@@ -2519,17 +2598,16 @@ mod tests {
     async fn test_get_storage_fetches_state_for_deployed_smart_contract_in_old_block() {
         let node = InMemoryNode::<HttpForkSource>::default();
 
-        let private_key = H256::repeat_byte(0xef);
-        let from_account = zksync_types::PackedEthSignature::address_from_private_key(&private_key)
-            .expect("failed generating address");
-        node.set_rich_account(from_account);
+        let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(0xef)).unwrap();
+        let from_account = private_key.address();
+        node.set_rich_account(from_account, U256::from(DEFAULT_ACCOUNT_BALANCE));
 
         let deployed_address = deployed_address_create(from_account, U256::zero());
 
         let initial_block_hash = testing::deploy_contract(
             &node,
             H256::repeat_byte(0x1),
-            private_key,
+            &private_key,
             hex::decode(testing::STORAGE_CONTRACT_BYTECODE).unwrap(),
             None,
             Nonce(0),
@@ -2735,8 +2813,8 @@ mod tests {
         let node = InMemoryNode::<HttpForkSource>::default();
 
         let private_key = H256::repeat_byte(0x01);
-        let from_account = PackedEthSignature::address_from_private_key(&private_key).unwrap();
-        node.set_rich_account(from_account);
+        let from_account = K256PrivateKey::from_bytes(private_key).unwrap().address();
+        node.set_rich_account(from_account, U256::from(DEFAULT_ACCOUNT_BALANCE));
 
         let account_result = node.accounts().await;
         let expected_accounts: Vec<H160> = vec![from_account];
@@ -2772,12 +2850,12 @@ mod tests {
         inner.current_batch = 1;
         inner.current_miniblock = 1;
         inner.current_miniblock_hash = H256::repeat_byte(0x1);
-        inner.current_timestamp = 1;
+        node.time.set_current_timestamp_unchecked(1);
         inner
             .filters
             .add_block_filter()
             .expect("failed adding block filter");
-        inner.impersonated_accounts.insert(H160::repeat_byte(0x1));
+        inner.impersonation.impersonate(H160::repeat_byte(0x1));
         inner.rich_accounts.insert(H160::repeat_byte(0x1));
         inner
             .previous_states
@@ -2789,7 +2867,6 @@ mod tests {
 
         let storage = inner.fork_storage.inner.read().unwrap();
         let expected_snapshot = Snapshot {
-            current_timestamp: inner.current_timestamp,
             current_batch: inner.current_batch,
             current_miniblock: inner.current_miniblock,
             current_miniblock_hash: inner.current_miniblock_hash,
@@ -2798,7 +2875,7 @@ mod tests {
             blocks: inner.blocks.clone(),
             block_hashes: inner.block_hashes.clone(),
             filters: inner.filters.clone(),
-            impersonated_accounts: inner.impersonated_accounts.clone(),
+            impersonation_state: inner.impersonation.state(),
             rich_accounts: inner.rich_accounts.clone(),
             previous_states: inner.previous_states.clone(),
             raw_storage: storage.raw_storage.clone(),
@@ -2807,10 +2884,6 @@ mod tests {
         };
         let actual_snapshot = inner.snapshot().expect("failed taking snapshot");
 
-        assert_eq!(
-            expected_snapshot.current_timestamp,
-            actual_snapshot.current_timestamp
-        );
         assert_eq!(
             expected_snapshot.current_batch,
             actual_snapshot.current_batch
@@ -2835,8 +2908,8 @@ mod tests {
         assert_eq!(expected_snapshot.block_hashes, actual_snapshot.block_hashes);
         assert_eq!(expected_snapshot.filters, actual_snapshot.filters);
         assert_eq!(
-            expected_snapshot.impersonated_accounts,
-            actual_snapshot.impersonated_accounts
+            expected_snapshot.impersonation_state,
+            actual_snapshot.impersonation_state
         );
         assert_eq!(
             expected_snapshot.rich_accounts,
@@ -2878,12 +2951,12 @@ mod tests {
         inner.current_batch = 1;
         inner.current_miniblock = 1;
         inner.current_miniblock_hash = H256::repeat_byte(0x1);
-        inner.current_timestamp = 1;
+        node.time.set_current_timestamp_unchecked(1);
         inner
             .filters
             .add_block_filter()
             .expect("failed adding block filter");
-        inner.impersonated_accounts.insert(H160::repeat_byte(0x1));
+        inner.impersonation.impersonate(H160::repeat_byte(0x1));
         inner.rich_accounts.insert(H160::repeat_byte(0x1));
         inner
             .previous_states
@@ -2896,7 +2969,6 @@ mod tests {
         let expected_snapshot = {
             let storage = inner.fork_storage.inner.read().unwrap();
             Snapshot {
-                current_timestamp: inner.current_timestamp,
                 current_batch: inner.current_batch,
                 current_miniblock: inner.current_miniblock,
                 current_miniblock_hash: inner.current_miniblock_hash,
@@ -2905,7 +2977,7 @@ mod tests {
                 blocks: inner.blocks.clone(),
                 block_hashes: inner.block_hashes.clone(),
                 filters: inner.filters.clone(),
-                impersonated_accounts: inner.impersonated_accounts.clone(),
+                impersonation_state: inner.impersonation.state(),
                 rich_accounts: inner.rich_accounts.clone(),
                 previous_states: inner.previous_states.clone(),
                 raw_storage: storage.raw_storage.clone(),
@@ -2931,12 +3003,12 @@ mod tests {
         inner.current_batch = 2;
         inner.current_miniblock = 2;
         inner.current_miniblock_hash = H256::repeat_byte(0x2);
-        inner.current_timestamp = 2;
+        node.time.set_current_timestamp_unchecked(2);
         inner
             .filters
             .add_pending_transaction_filter()
             .expect("failed adding pending transaction filter");
-        inner.impersonated_accounts.insert(H160::repeat_byte(0x2));
+        inner.impersonation.impersonate(H160::repeat_byte(0x2));
         inner.rich_accounts.insert(H160::repeat_byte(0x2));
         inner
             .previous_states
@@ -2952,13 +3024,13 @@ mod tests {
             .expect("failed restoring snapshot");
 
         let storage = inner.fork_storage.inner.read().unwrap();
-        assert_eq!(expected_snapshot.current_timestamp, inner.current_timestamp);
         assert_eq!(expected_snapshot.current_batch, inner.current_batch);
         assert_eq!(expected_snapshot.current_miniblock, inner.current_miniblock);
         assert_eq!(
             expected_snapshot.current_miniblock_hash,
             inner.current_miniblock_hash
         );
+
         assert_eq!(
             expected_snapshot.fee_input_provider,
             inner.fee_input_provider
@@ -2971,8 +3043,8 @@ mod tests {
         assert_eq!(expected_snapshot.block_hashes, inner.block_hashes);
         assert_eq!(expected_snapshot.filters, inner.filters);
         assert_eq!(
-            expected_snapshot.impersonated_accounts,
-            inner.impersonated_accounts
+            expected_snapshot.impersonation_state,
+            inner.impersonation.state()
         );
         assert_eq!(expected_snapshot.rich_accounts, inner.rich_accounts);
         assert_eq!(expected_snapshot.previous_states, inner.previous_states);
@@ -2988,7 +3060,7 @@ mod tests {
     async fn test_get_transaction_by_block_hash_and_index_returns_none_for_invalid_block_hash() {
         let node = InMemoryNode::<HttpForkSource>::default();
         let input_tx_hash = H256::repeat_byte(0x01);
-        let (input_block_hash, _) = testing::apply_tx(&node, input_tx_hash);
+        let (input_block_hash, _, _) = testing::apply_tx(&node, input_tx_hash);
         let invalid_block_hash = H256::repeat_byte(0xab);
         assert_ne!(input_block_hash, invalid_block_hash);
 
@@ -3004,7 +3076,7 @@ mod tests {
     async fn test_get_transaction_by_block_hash_and_index_returns_none_for_invalid_index() {
         let node = InMemoryNode::<HttpForkSource>::default();
         let input_tx_hash = H256::repeat_byte(0x01);
-        let (input_block_hash, _) = testing::apply_tx(&node, input_tx_hash);
+        let (input_block_hash, _, _) = testing::apply_tx(&node, input_tx_hash);
 
         let result = node
             .get_transaction_by_block_hash_and_index(input_block_hash, U64::from(10))
@@ -3018,7 +3090,7 @@ mod tests {
     async fn test_get_transaction_by_block_hash_and_index_returns_transaction_for_valid_input() {
         let node = InMemoryNode::<HttpForkSource>::default();
         let input_tx_hash = H256::repeat_byte(0x01);
-        let (input_block_hash, _) = testing::apply_tx(&node, input_tx_hash);
+        let (input_block_hash, _, _) = testing::apply_tx(&node, input_tx_hash);
 
         let actual_tx = node
             .get_transaction_by_block_hash_and_index(input_block_hash, U64::from(0))
@@ -3055,11 +3127,7 @@ mod tests {
                 .build(),
         );
 
-        let node = InMemoryNode::<HttpForkSource>::new(
-            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            None,
-            Default::default(),
-        );
+        let node = test_node(&mock_server.url()).await;
 
         // store the block info with just the tx hash invariant
         {
@@ -3110,11 +3178,7 @@ mod tests {
                 .build(),
         );
 
-        let node = InMemoryNode::<HttpForkSource>::new(
-            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            None,
-            Default::default(),
-        );
+        let node = test_node(&mock_server.url()).await;
 
         let actual_tx = node
             .get_transaction_by_block_hash_and_index(input_block_hash, U64::from(1))
@@ -3131,7 +3195,7 @@ mod tests {
     {
         let node = InMemoryNode::<HttpForkSource>::default();
         let input_tx_hash = H256::repeat_byte(0x01);
-        let (input_block_hash, _) = testing::apply_tx(&node, input_tx_hash);
+        let (input_block_hash, _, _) = testing::apply_tx(&node, input_tx_hash);
         let invalid_block_hash = H256::repeat_byte(0xab);
         assert_ne!(input_block_hash, invalid_block_hash);
 
@@ -3164,7 +3228,7 @@ mod tests {
     async fn test_get_transaction_by_block_number_and_index_returns_transaction_for_valid_input() {
         let node = InMemoryNode::<HttpForkSource>::default();
         let input_tx_hash = H256::repeat_byte(0x01);
-        let (_, input_block_number) = testing::apply_tx(&node, input_tx_hash);
+        let (_, input_block_number, _) = testing::apply_tx(&node, input_tx_hash);
 
         let actual_tx = node
             .get_transaction_by_block_number_and_index(
@@ -3205,11 +3269,7 @@ mod tests {
                 .build(),
         );
 
-        let node = InMemoryNode::<HttpForkSource>::new(
-            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            None,
-            Default::default(),
-        );
+        let node = test_node(&mock_server.url()).await;
 
         // store the block info with just the tx hash invariant
         {
@@ -3267,11 +3327,7 @@ mod tests {
                 .build(),
         );
 
-        let node = InMemoryNode::<HttpForkSource>::new(
-            Some(ForkDetails::from_network(&mock_server.url(), None, CacheConfig::None).await),
-            None,
-            Default::default(),
-        );
+        let node = test_node(&mock_server.url()).await;
 
         let actual_tx = node
             .get_transaction_by_block_number_and_index(

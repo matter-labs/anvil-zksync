@@ -8,6 +8,21 @@ import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
 
 const provider = getTestProvider();
 
+describe("evm_setAccountNonce", function () {
+  it("Should update the nonce of an account", async function () {
+    // Arrange
+    const userWallet = Wallet.createRandom().connect(provider);
+    const newNonce = 42;
+
+    // Act
+    await provider.send("evm_setAccountNonce", [userWallet.address, ethers.utils.hexlify(newNonce)]);
+
+    // Assert
+    const nonce = await userWallet.getNonce();
+    expect(nonce).to.equal(newNonce);
+  });
+});
+
 describe("evm_mine", function () {
   it("Should mine one block", async function () {
     // Arrange
@@ -29,15 +44,16 @@ describe("evm_increaseTime", function () {
     const wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
     const userWallet = Wallet.createRandom().connect(provider);
     let expectedTimestamp: number = await provider.send("config_getCurrentTimestamp", []);
-    expectedTimestamp += timeIncreaseInSeconds * 1000;
+    expectedTimestamp += timeIncreaseInSeconds;
 
     // Act
     await provider.send("evm_increaseTime", [timeIncreaseInSeconds]);
 
-    await wallet.sendTransaction({
+    const txResponse = await wallet.sendTransaction({
       to: userWallet.address,
       value: ethers.utils.parseEther("0.1"),
     });
+    await txResponse.wait();
     expectedTimestamp += 2; // New transaction will add two blocks
 
     // Assert
@@ -58,11 +74,12 @@ describe("evm_setNextBlockTimestamp", function () {
     // Act
     await provider.send("evm_setNextBlockTimestamp", [expectedTimestamp]);
 
-    await wallet.sendTransaction({
+    const txResponse = await wallet.sendTransaction({
       to: userWallet.address,
       value: ethers.utils.parseEther("0.1"),
     });
-    expectedTimestamp += 2; // New transaction will add two blocks
+    await txResponse.wait();
+    expectedTimestamp += 1; // After executing a transaction, the node puts it into a block and increases its current timestamp
 
     // Assert
     const newBlockTimestamp = (await provider.getBlock("latest")).timestamp;
@@ -82,10 +99,11 @@ describe("evm_setTime", function () {
     // Act
     await provider.send("evm_setTime", [expectedTimestamp]);
 
-    await wallet.sendTransaction({
+    const txResponse = await wallet.sendTransaction({
       to: userWallet.address,
       value: ethers.utils.parseEther("0.1"),
     });
+    await txResponse.wait();
     expectedTimestamp += 2; // New transaction will add two blocks
 
     // Assert

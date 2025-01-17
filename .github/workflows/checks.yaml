@@ -19,7 +19,7 @@ jobs:
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          toolchain: nightly-2024-01-01
+          toolchain: nightly-2024-08-01
           components: rustfmt, clippy
 
       - uses: actions/setup-node@v3
@@ -44,7 +44,7 @@ jobs:
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          toolchain: nightly-2024-01-01
+          toolchain: nightly-2024-08-01
 
       - name: Build Code
         run: make all
@@ -52,14 +52,24 @@ jobs:
       - name: Create artifact
         run: |
           cd ./target/release
-          tar -czf era_test_node-${{ matrix.os }}.tar.gz ./era_test_node*
+          tar -czf anvil-zksync-${{ matrix.os }}.tar.gz ./anvil-zksync*
 
       - name:  Upload artifact
         uses:  actions/upload-artifact@v3
         with:
-          name: era_test_node-${{ matrix.os }}.tar.gz
-          path: ./target/release/era_test_node-${{ matrix.os }}.tar.gz
+          name: anvil-zksync-${{ matrix.os }}.tar.gz
+          path: ./target/release/anvil-zksync-${{ matrix.os }}.tar.gz
   e2e:
     needs: build
     uses: ./.github/workflows/e2e.yml
     name: e2e-tests
+
+  spec:
+    needs: build
+    uses: ./.github/workflows/spec.yml
+    name: spec-tests
+
+  e2e-rust:
+    needs: build
+    uses: ./.github/workflows/e2e-rust.yml
+    name: e2e-tests-rust

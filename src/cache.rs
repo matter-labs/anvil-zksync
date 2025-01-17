@@ -6,9 +6,11 @@ use std::io::{BufReader, BufWriter};
 use std::path::Path;
 use std::result::Result;
 use std::str::FromStr;
-use zksync_basic_types::H256;
 use zksync_types::api::{Block, BridgeAddresses, Transaction, TransactionVariant};
 use zksync_types::Transaction as RawTransaction;
+use zksync_types::H256;
+
+use crate::config::cache::CacheConfig;
 
 /// Caches full blocks by their hashes
 const CACHE_TYPE_BLOCKS_FULL: &str = "blocks_full";
@@ -18,27 +20,13 @@ const CACHE_TYPE_BLOCKS_MIN: &str = "blocks_min";
 const CACHE_TYPE_BLOCK_RAW_TRANSACTIONS: &str = "block_raw_transactions";
 /// Caches transactions by their hashes
 const CACHE_TYPE_TRANSACTIONS: &str = "transactions";
+/// Caching resolver functions by their selectors
+const CACHE_TYPE_RESOLVER_SELECTORS: &str = "resolver_selectors";
 /// Caches arbitrary values by their keys
 const CACHE_TYPE_KEY_VALUE: &str = "key_value";
 
 /// Caching key for bridge addresses
 const CACHE_KEY_BRIDGE_ADDRESSES: &str = "bridge_addresses";
-
-/// Cache configuration. Can be one of:
-///
-/// None    : Caching is disabled
-/// Memory  : Caching is provided in-memory and not persisted across runs
-/// Disk    : Caching is persisted on disk in the provided directory and can be reset
-#[derive(Default, Debug, Clone)]
-pub enum CacheConfig {
-    #[default]
-    None,
-    Memory,
-    Disk {
-        dir: String,
-        reset: bool,
-    },
-}
 
 /// A general purpose cache.
 #[derive(Default, Debug, Clone)]
@@ -49,6 +37,7 @@ pub(crate) struct Cache {
     blocks_min: FxHashMap<H256, Block<TransactionVariant>>,
     block_raw_transactions: FxHashMap<u64, Vec<RawTransaction>>,
     transactions: FxHashMap<H256, Transaction>,
+    resolver_selectors: FxHashMap<String, String>,
     bridge_addresses: Option<BridgeAddresses>,
     confirmed_tokens: FxHashMap<(u32, u8), Vec<zksync_web3_decl::types::Token>>,
 }
@@ -68,6 +57,7 @@ impl Cache {
                     CACHE_TYPE_BLOCKS_MIN,
                     CACHE_TYPE_BLOCK_RAW_TRANSACTIONS,
                     CACHE_TYPE_TRANSACTIONS,
+                    CACHE_TYPE_RESOLVER_SELECTORS,
                     CACHE_TYPE_KEY_VALUE,
                 ] {
                     fs::remove_dir_all(Path::new(dir).join(cache_type)).unwrap_or_else(|err| {
@@ -89,6 +79,7 @@ impl Cache {
                 CACHE_TYPE_BLOCKS_MIN,
                 CACHE_TYPE_BLOCK_RAW_TRANSACTIONS,
                 CACHE_TYPE_TRANSACTIONS,
+                CACHE_TYPE_RESOLVER_SELECTORS,
                 CACHE_TYPE_KEY_VALUE,
             ] {
                 fs::create_dir_all(Path::new(dir).join(cache_type)).unwrap_or_else(|err| {
@@ -212,6 +203,15 @@ impl Cache {
         self.transactions.get(hash)
     }
 
+    /// Returns the cached resolved function/event selector for the provided selector.
+    pub(crate) fn get_resolver_selector(&self, selector: &String) -> Option<&String> {
+        if matches!(self.config, CacheConfig::None) {
+            return None;
+        }
+
+        self.resolver_selectors.get(selector)
+    }
+
     /// Cache a transaction for the provided hash.
     pub(crate) fn insert_transaction(&mut self, hash: H256, transaction: Transaction) {
         if matches!(self.config, CacheConfig::None) {
@@ -224,6 +224,20 @@ impl Cache {
             &transaction,
         );
         self.transactions.insert(hash, transaction);
+    }
+
+    /// Cache a resolver function for the provided selector.
+    pub(crate) fn insert_resolver_selector(&mut self, selector: String, selector_value: String) {
+        if matches!(self.config, CacheConfig::None) {
+            return;
+        }
+
+        self.write_to_disk(
+            CACHE_TYPE_RESOLVER_SELECTORS,
+            selector.clone(),
+            &selector_value,
+        );
+        self.resolver_selectors.insert(selector, selector_value);
     }
 
     /// Returns the cached bridge addresses for the provided hash.
@@ -256,6 +270,7 @@ impl Cache {
             CACHE_TYPE_BLOCKS_MIN,
             CACHE_TYPE_BLOCK_RAW_TRANSACTIONS,
             CACHE_TYPE_TRANSACTIONS,
+            CACHE_TYPE_RESOLVER_SELECTORS,
             CACHE_TYPE_KEY_VALUE,
         ] {
             let cache_dir = Path::new(dir).join(cache_type);
@@ -316,6 +331,12 @@ impl Cache {
                             })?;
                         self.transactions.insert(key, transaction);
                     }
+                    CACHE_TYPE_RESOLVER_SELECTORS => {
+                        let selector: String = serde_json::from_reader(reader).map_err(|err| {
+                            format!("failed parsing json for cache file '{:?}': {:?}", key, err)
+                        })?;
+                        self.resolver_selectors.insert(key, selector);
+                    }
                     CACHE_TYPE_KEY_VALUE => match key.as_str() {
                         CACHE_KEY_BRIDGE_ADDRESSES => {
                             self.bridge_addresses =
@@ -358,8 +379,8 @@ impl Cache {
 #[cfg(test)]
 mod tests {
     use tempdir::TempDir;
-    use zksync_basic_types::{H160, U64};
     use zksync_types::{Execute, ExecuteTransactionCommon};
+    use zksync_types::{H160, U64};
 
     use crate::testing;
 
@@ -402,17 +423,20 @@ mod tests {
             execute: Execute {
                 calldata: Default::default(),
                 contract_address: Default::default(),
-                factory_deps: None,
+                factory_deps: vec![],
                 value: Default::default(),
             },
             received_timestamp_ms: 0,
             raw_bytes: None,
         }];
         let bridge_addresses = BridgeAddresses {
-            l1_erc20_default_bridge: H160::repeat_byte(0x1),
-            l2_erc20_default_bridge: H160::repeat_byte(0x2),
+            l1_shared_default_bridge: Some(H160::repeat_byte(0x5)),
+            l2_shared_default_bridge: Some(H160::repeat_byte(0x6)),
+            l1_erc20_default_bridge: Some(H160::repeat_byte(0x1)),
+            l2_erc20_default_bridge: Some(H160::repeat_byte(0x2)),
             l1_weth_bridge: Some(H160::repeat_byte(0x3)),
             l2_weth_bridge: Some(H160::repeat_byte(0x4)),
+            l2_legacy_shared_bridge: Some(H160::repeat_byte(0x6)),
         };
 
         let mut cache = Cache::new(CacheConfig::Memory);
@@ -465,17 +489,20 @@ mod tests {
             execute: Execute {
                 calldata: Default::default(),
                 contract_address: Default::default(),
-                factory_deps: None,
+                factory_deps: vec![],
                 value: Default::default(),
             },
             received_timestamp_ms: 0,
             raw_bytes: None,
         }];
         let bridge_addresses = BridgeAddresses {
-            l1_erc20_default_bridge: H160::repeat_byte(0x1),
-            l2_erc20_default_bridge: H160::repeat_byte(0x2),
+            l1_shared_default_bridge: Some(H160::repeat_byte(0x5)),
+            l2_shared_default_bridge: Some(H160::repeat_byte(0x6)),
+            l1_erc20_default_bridge: Some(H160::repeat_byte(0x1)),
+            l2_erc20_default_bridge: Some(H160::repeat_byte(0x2)),
             l1_weth_bridge: Some(H160::repeat_byte(0x3)),
             l2_weth_bridge: Some(H160::repeat_byte(0x4)),
+            l2_legacy_shared_bridge: Some(H160::repeat_byte(0x6)),
         };
 
         let cache_dir = TempDir::new("cache-test").expect("failed creating temporary dir");
@@ -563,17 +590,20 @@ mod tests {
             execute: Execute {
                 calldata: Default::default(),
                 contract_address: Default::default(),
-                factory_deps: None,
+                factory_deps: vec![],
                 value: Default::default(),
             },
             received_timestamp_ms: 0,
             raw_bytes: None,
         }];
         let bridge_addresses = BridgeAddresses {
-            l1_erc20_default_bridge: H160::repeat_byte(0x1),
-            l2_erc20_default_bridge: H160::repeat_byte(0x2),
+            l1_shared_default_bridge: Some(H160::repeat_byte(0x5)),
+            l2_shared_default_bridge: Some(H160::repeat_byte(0x6)),
+            l2_erc20_default_bridge: Some(H160::repeat_byte(0x2)),
+            l1_erc20_default_bridge: Some(H160::repeat_byte(0x1)),
             l1_weth_bridge: Some(H160::repeat_byte(0x3)),
             l2_weth_bridge: Some(H160::repeat_byte(0x4)),
+            l2_legacy_shared_bridge: Some(H160::repeat_byte(0x6)),
         };
 
         let cache_dir = TempDir::new("cache-test").expect("failed creating temporary dir");

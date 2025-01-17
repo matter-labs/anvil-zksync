@@ -1,4 +1,4 @@
-name: Testing era_test_node using e2e
+name: Testing anvil-zksync using e2e
 on:
   workflow_call:
 
@@ -24,16 +24,16 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v3
         with:
-          name: era_test_node-${{ matrix.os }}.tar.gz
+          name: anvil-zksync-${{ matrix.os }}.tar.gz
       
-      - name: Start the era_test_node
+      - name: Start the anvil-zksync
         id: start_node
         run: |
-          echo "Extracting era_test_node binary"
-          tar -xzf era_test_node-${{ matrix.os }}.tar.gz
-          chmod +x era_test_node
+          echo "Extracting anvil-zksync binary"
+          tar -xzf anvil-zksync-${{ matrix.os }}.tar.gz
+          chmod +x anvil-zksync
           echo "Starting node in background"
-          ./era_test_node run 2>&1 | tee era_test_node_output.log &
+          ./anvil-zksync 2>&1 | tee anvil-zksync-output.log &
           echo "PID=$!" >> $GITHUB_ENV
 
       - name: Launch tests
@@ -42,9 +42,9 @@ jobs:
           echo "Run tests"
           make test-e2e
 
-      - name: Stop the era_test_node and print output logs
+      - name: Stop the anvil-zksync and print output logs
         id: stop_node
         if: always()
         run: |
-          cat era_test_node_output.log
+          cat anvil-zksync-output.log
           kill $PID
