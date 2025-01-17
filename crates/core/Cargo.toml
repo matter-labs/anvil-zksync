@@ -46,16 +46,17 @@ async-trait.workspace = true
 
 # ZK os dependencies
 
-#forward_system = { git = "https://github.com/matter-labs/zk_ee.git", branch = "main"}
-#basic_system = { git = "https://github.com/matter-labs/zk_ee.git", branch = "main"}
-#zk_ee = { git = "https://github.com/matter-labs/zk_ee.git", branch = "main"}
-#system_hooks = { git = "https://github.com/matter-labs/zk_ee.git", branch = "main"}
+forward_system = { git = "https://github.com/matter-labs/zk_ee.git", branch = "main"}
+basic_system = { git = "https://github.com/matter-labs/zk_ee.git", branch = "main"}
+zk_ee = { git = "https://github.com/matter-labs/zk_ee.git", branch = "main"}
+system_hooks = { git = "https://github.com/matter-labs/zk_ee.git", branch = "main"}
+zkos_api = { git = "https://github.com/matter-labs/zk_ee.git", branch = "main" }
 
-forward_system = { path = "../../../zk_ee/forward_system" }
-basic_system = { path = "../../../zk_ee/basic_system" }
-zk_ee = { path = "../../../zk_ee/zk_ee" }
-system_hooks = { path = "../../../zk_ee/system_hooks" }
-zkos_api = { path = "../../../zk_ee/api" }
+#forward_system = { path = "../../../zk_ee/forward_system" }
+#basic_system = { path = "../../../zk_ee/basic_system" }
+#zk_ee = { path = "../../../zk_ee/zk_ee" }
+#system_hooks = { path = "../../../zk_ee/system_hooks" }
+#zkos_api = { path = "../../../zk_ee/api" }
 
 
 ruint = { version = "1.12.3", default-features = false, features = ["alloc"]}
