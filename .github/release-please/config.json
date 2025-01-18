@@ -1,0 +1,19 @@
+{
+  "bump-minor-pre-major": true,
+  "bump-patch-for-minor-pre-major": true,
+  "release-type": "simple",
+  "include-component-in-tag": false,
+  "group-pull-request-title-pattern": "chore: release ${component} ${version}",
+  "draft": true,
+  "packages": {
+    ".": {
+      "component": "anvil-zksync",
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "Cargo.toml"
+        }
+      ]
+    }
+  }
+}

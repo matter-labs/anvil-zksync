@@ -1,26 +1,19 @@
-FROM ubuntu:22.04 AS builder
+FROM lukemathwalker/cargo-chef:latest-rust-1 AS chef
+WORKDIR /anvil-zksync
 
-ENV DEBIAN_FRONTEND=noninteractive
-ENV DEBCONF_NONINTERACTIVE_SEEN=true
-
-RUN apt-get update && apt-get install -y curl clang openssl libssl-dev gcc g++ \
-    pkg-config build-essential libclang-dev linux-libc-dev liburing-dev && \
-    rm -rf /var/lib/apt/lists/*
-
-ENV RUSTUP_HOME=/usr/local/rustup \
-    CARGO_HOME=/usr/local/cargo \
-    PATH=/usr/local/cargo/bin:$PATH
-
-RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
-    rustup install stable && \
-    rustup default stable
-
-WORKDIR /usr/src/anvil-zksync
+FROM chef AS planner
 COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
 
-RUN cargo build --release
+FROM chef AS builder
+COPY --from=planner /anvil-zksync/recipe.json recipe.json
+# Build dependencies - this is the caching Docker layer
+RUN cargo chef cook --release --recipe-path recipe.json
+# Build application
+COPY . .
+RUN cargo build --release --bin anvil-zksync
 
-FROM ubuntu:22.04
+FROM ubuntu:22.04 as runtime
 
 RUN apt-get update && \
     apt-get install -y \
@@ -31,6 +24,6 @@ RUN apt-get update && \
 EXPOSE 8011
 
 WORKDIR /usr/local/bin
-COPY --from=builder /usr/src/anvil-zksync/target/release/anvil-zksync .
+COPY --from=builder /anvil-zksync/target/release/anvil-zksync .
 
 ENTRYPOINT [ "anvil-zksync" ]

@@ -1,44 +1,27 @@
-# This workflow is borrowed from reth, which is borrowed from Lighthouse:
-# reth: https://github.com/paradigmxyz/reth/blob/500b0fac135fe07635d871d64467326599e2b27e/.github/workflows/release.yml
-# lighthouse: https://github.com/sigp/lighthouse/blob/693886b94176faa4cb450f024696cb69cda2fe58/.github/workflows/release.yml
-
-name: release
+name: Release binaries
 
 on:
-  push:
-    tags:
-      - v*
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        description: 'The tag to use for the Docker image.'
+        required: true
+  workflow_dispatch:
+    inputs:
+      prerelease_name:
+        description: "Suffix to use for manual pre-release."
+        required: false
+        type: string
+        default: "prerelease-test"
 
-env:
-  REPO_NAME: ${{ github.repository_owner }}/anvil-zksync
-  CARGO_TERM_COLOR: always
-  RUSTFLAGS: ""
 
 jobs:
-  extract-version:
-    name: extract version
-    runs-on: ubuntu-latest
-    steps:
-      - name: Extract version
-        run: echo "VERSION=$(echo ${GITHUB_REF#refs/tags/})" >> $GITHUB_OUTPUT
-        id: extract_version
-    outputs:
-      VERSION: ${{ steps.extract_version.outputs.VERSION }}
 
   build:
-    permissions:
-      id-token: write
-      attestations: write
-    name: build release
+    name: Build binaries
     strategy:
       matrix:
-        arch:
-          [
-            x86_64-unknown-linux-gnu,
-            aarch64-unknown-linux-gnu,
-            x86_64-apple-darwin,
-            aarch64-apple-darwin,
-          ]
         include:
           - arch: x86_64-unknown-linux-gnu
             platform: ubuntu-24.04
@@ -50,30 +33,23 @@ jobs:
             platform: macos-latest
 
     runs-on: ${{ matrix.platform }}
-    needs: [extract-version]
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || '' }}
 
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
+          rustflags: ""
+
       - name: Install target
         run: rustup target add ${{ matrix.arch }}
 
-      - name: Run cargo clean
-        run: cargo clean
-
-      # ==============================
-      #       Builds
-      # ==============================
-
-      - name: Install cross v0.2.4 from source
-        env:
-          RUSTFLAGS: ""
-        run: |
-          cargo install cross --git https://github.com/cross-rs/cross --tag v0.2.4
+      - name: Install cross v0.2.5 from source
+        run: cargo install cross --git https://github.com/cross-rs/cross --tag v0.2.5
 
       - name: Build anvil-zksync for ${{ matrix.arch }}
         run: |
@@ -83,115 +59,66 @@ jobs:
             make build-${{ matrix.arch }}
           fi
 
-      - name: Rename and move binary
+      - name: Pack anvil-zksync
         run: |
-          mkdir artifacts
-          mv target/${{ matrix.arch }}/release/anvil-zksync ./artifacts
+          tar -czf anvil-zksync-${{ inputs.tag || inputs.prerelease_name }}-${{ matrix.arch }}.tar.gz \
+            ./target/${{ matrix.arch }}/release/anvil-zksync
 
-      - name: Create artifacts
-        run: |
-          cd artifacts
-          tar -czf anvil-zksync-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.arch }}.tar.gz anvil-zksync*
-          mv *tar.gz* ..
-
-        # =======================================================================
-        # Upload artifacts
-        # This is required to share artifacts between different jobs
-        # =======================================================================
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: anvil-zksync-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.arch }}.tar.gz
-          path: anvil-zksync-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.arch }}.tar.gz
+          name: anvil-zksync-${{ matrix.arch }}
+          path: |
+            anvil-zksync-${{ inputs.tag || inputs.prerelease_name }}-${{ matrix.arch }}.tar.gz
+            ./target/${{ matrix.arch }}/release/anvil-zksync
+
+
+  upload-binaries:
+    name: Upload binaries
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+      attestations: write
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || '' }}
+
+      - name: Define release name
+        id: release_tag
+        shell: 'bash -ex {0}'
+        run: |
+          [ ! -z "${{ inputs.tag }}" ] && TAG="${{ inputs.tag }}" \
+            || TAG="$(git rev-parse --short HEAD)" 
+          echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "anvil-zksync-*"
+          path: artifacts
 
       - name: Binaries attestation
         uses: actions/attest-build-provenance@v2
         with:
-          subject-path: ./artifacts/anvil-zksync
+          subject-path: 'artifacts/**/anvil-zksync'
 
-  draft-release:
-    name: draft release
-    needs: [build, extract-version]
-    runs-on: ubuntu-latest
-    env:
-      VERSION: ${{ needs.extract-version.outputs.VERSION }}
-    permissions:
-      # Required to post the release
-      contents: write
-    steps:
-      # This is necessary for generating the changelog. It has to come before "Download Artifacts" or else it deletes the artifacts.
-      - name: Checkout sources
-        uses: actions/checkout@v4
+      - name: Update release-please release artifacts
+        if: ${{ inputs.tag != '' }}
+        uses: softprops/action-gh-release@v2
         with:
-          fetch-depth: 0
+          tag_name: ${{ inputs.tag }}
+          files: 'artifacts/**/anvil-zksync*.tar.gz'
 
-      # ==============================
-      #       Download artifacts
-      # ==============================
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-
-      # ==============================
-      #       Create release draft
-      # ==============================
-      - name: Generate full changelog
-        id: changelog
-        run: |
-          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
-          echo "$(git log --pretty=format:"- %s" $(git describe --tags --abbrev=0 ${{ env.VERSION }}^)..${{ env.VERSION }})" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Generate list of contributors
-        id: contributors
-        run: |
-          echo "CONTRIBUTORS<<EOF" >> $GITHUB_OUTPUT
-          echo "$(git log --pretty=format:"- %aN (%aE)" $(git describe --tags --abbrev=0 ${{ env.VERSION }}^)..${{ env.VERSION }} | sort | uniq)" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Create release draft
-        env:
-          GITHUB_USER: ${{ github.repository_owner }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-        # The formatting here is borrowed from reth which borrowed it from Lighthouse (which is borrowed from OpenEthereum): https://github.com/openethereum/openethereum/blob/main/.github/workflows/build.yml
-        run: |
-          body=$(cat <<- "ENDBODY"
-          <!--Watch Release Notes video below 👇 
-          [![YouTube Release Notes](https://img.youtube.com/vi/FZefCZW7JJk/0.jpg)](https://www.youtube.com/watch?v=FZefCZW7JJk)-->
-
-          ## 📋 Summary
-
-          ### 🐛 Bug Fixes:
-          - TBD
-
-          ### ✨ New Features:
-          - TBD
-
-          ### ⚠️ Breaking Changes:
-          - TBD
-
-          ## 📜 All Changes
-
-          ${{ steps.changelog.outputs.CHANGELOG }}
-
-          ## ⭐ Contributors
-
-          ${{ steps.contributors.outputs.CONTRIBUTORS }}
-
-          ## 📥 Binaries
-
-          | System | Architecture | Binary |
-          |:---:|:---:|:---:|
-          | <img src="https://simpleicons.org/icons/linux.svg" style="width: 32px;"/> | x86_64 | [anvil-zksync-${{ env.VERSION }}-x86_64-unknown-linux-gnu.tar.gz](https://github.com/${{ env.REPO_NAME }}/releases/download/${{ env.VERSION }}/anvil-zksync-${{ env.VERSION }}-x86_64-unknown-linux-gnu.tar.gz) | 
-          | <img src="https://simpleicons.org/icons/linux.svg" style="width: 32px;"/> | aarch64 | [anvil-zksync-${{ env.VERSION }}-aarch64-unknown-linux-gnu.tar.gz](https://github.com/${{ env.REPO_NAME }}/releases/download/${{ env.VERSION }}/anvil-zksync-${{ env.VERSION }}-aarch64-unknown-linux-gnu.tar.gz) | 
-          | <img src="https://simpleicons.org/icons/apple.svg" style="width: 32px;"/> | x86_64 | [anvil-zksync-${{ env.VERSION }}-x86_64-apple-darwin.tar.gz](https://github.com/${{ env.REPO_NAME }}/releases/download/${{ env.VERSION }}/anvil-zksync-${{ env.VERSION }}-x86_64-apple-darwin.tar.gz) | 
-          | <img src="https://simpleicons.org/icons/apple.svg" style="width: 32px;"/> | aarch64 | [anvil-zksync-${{ env.VERSION }}-aarch64-apple-darwin.tar.gz](https://github.com/${{ env.REPO_NAME }}/releases/download/${{ env.VERSION }}/anvil-zksync-${{ env.VERSION }}-aarch64-apple-darwin.tar.gz) |
-          | | | | 
-          ENDBODY
-          )
-          assets=()
-          for asset in ./anvil-zksync-*.tar.gz*; do
-              assets+=("$asset/$asset")
-          done
-          tag_name="${{ env.VERSION }}"
-          echo "$body" | gh release create "$tag_name" "${assets[@]}" --draft -F "-" -t "Release: $tag_name"
+      - name: Create release
+        if: ${{ inputs.prerelease_name != '' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          name: 'anvil-zksync ${{ inputs.prerelease_name}} ${{ steps.release_tag.outputs.tag }}'
+          tag_name: ${{ steps.release_tag.outputs.tag }}
+          prerelease: true
+          files: 'artifacts/**/anvil-zksync*.tar.gz'
