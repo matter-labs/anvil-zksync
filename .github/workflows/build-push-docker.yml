@@ -1,56 +1,52 @@
 name: Build and push Docker image
+
 on:
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        description: 'The tag to use for the Docker image'
+        required: true
   push:
     branches:
       - main
-    tags:
-      - "*"
 
-env:
-  PLATFORMS: 'linux/amd64,linux/arm64'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  set-tags:
-    name: Set Docker Tags
-    runs-on: ubuntu-latest
-    outputs:
-      base_tag: ${{ steps.set_tag.outputs.base_tag }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set Git SHA
-        id: git_sha
-        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-
-      - name: Determine Base Tag
-        id: set_tag
-        run: |
-          ts=$(date +%s%N | cut -b1-13)
-          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            echo "base_tag=${{ steps.git_sha.outputs.sha_short }}-${ts}" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            echo "base_tag=$(echo ${GITHUB_REF#refs/tags/})" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            echo "base_tag=none" >> $GITHUB_OUTPUT
-          else
-            echo "Unsupported event ${GITHUB_EVENT_NAME} or ref ${GITHUB_REF}. Only refs/heads/main, refs/tags/*, and pull_request are supported."
-            exit 1
-          fi
 
   build-push-image:
     name: Build and Push Docker Image
     runs-on: matterlabs-ci-runner-high-performance
-    needs: set-tags
+    env:
+      DOCKERHUB_IMAGE: us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/anvil-zksync
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || '' }}
+
+      - name: Determine Base Tag
+        id: set_tag
+        shell: 'bash -ex {0}'
+        run: |
+          [ ! -z "${{ inputs.tag }}" ] && BASE_TAG="${{ inputs.tag }}" \
+            || BASE_TAG="$(git rev-parse --short HEAD)-$(date +%s%N | cut -b1-13)" 
+          echo "base_tag=${BASE_TAG}" >> "${GITHUB_OUTPUT}"
+
+      - name: Define if to save cache
+        id: set-cache-to
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "cache-to=type=gha,mode=max" >> "${GITHUB_OUTPUT}"
+          fi
 
       - name: Login to GAR
-        run: |
-          gcloud auth configure-docker us-docker.pkg.dev -q
+        run: gcloud auth configure-docker us-docker.pkg.dev -q
 
       - name: Login to GHCR
         uses: docker/login-action@v3
@@ -63,19 +59,27 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build and push Docker image
-        id: docker_build
         uses: docker/build-push-action@v6
+        id: push
         with:
           context: .
-          push: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) }}
-          platforms: ${{ env.PLATFORMS }}
+          push: ${{ github.event_name != 'pull_request' }}
+          platforms: 'linux/amd64,linux/arm64'
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: ${{ steps.set-cache-to.outputs.cache-to }}
           tags: |
-            ghcr.io/${{ github.repository_owner }}/anvil-zksync:${{ needs.set-tags.outputs.base_tag }}
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/anvil-zksync:${{ needs.set-tags.outputs.base_tag }}
+            ghcr.io/${{ github.repository }}:${{ steps.set_tag.outputs.base_tag }}
+            ${{ env.DOCKERHUB_IMAGE }}:${{ steps.set_tag.outputs.base_tag }}
+
+      - name: Generate docker image attestation
+        if: ${{ inputs.tag != '' }}
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-name: ghcr.io/${{ github.repository }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
 
       - name: Print image digest to summary
         run: |
-          echo "Image tags: ghcr.io/${{ github.repository_owner }}/anvil-zksync:${{ needs.set-tags.outputs.base_tag }}" >> $GITHUB_STEP_SUMMARY
-          echo "Image tags: us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/anvil-zksync:${{ needs.set-tags.outputs.base_tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "Image tags: ghcr.io/${{ github.repository }}:${{ steps.set_tag.outputs.base_tag }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Image tags: ${{ env.DOCKERHUB_IMAGE }}:${{ steps.set_tag.outputs.base_tag }}" >> "${GITHUB_STEP_SUMMARY}"
