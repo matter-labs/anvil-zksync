@@ -28,6 +28,7 @@ categories = ["cryptography"]
 #########################
 zksync_multivm = { git = "https://github.com/matter-labs/zksync-era.git", rev = "core-v25.4.0" }
 zksync_contracts = { git = "https://github.com/matter-labs/zksync-era.git", rev = "core-v25.4.0" }
+zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era.git", rev = "core-v25.4.0" }
 zksync_types = { git = "https://github.com/matter-labs/zksync-era.git", rev = "core-v25.4.0" }
 zksync_vm_interface = { git = "https://github.com/matter-labs/zksync-era.git", rev = "core-v25.4.0" }
 zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era.git", rev = "core-v25.4.0", features = [
