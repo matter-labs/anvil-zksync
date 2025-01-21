@@ -44,6 +44,8 @@ async-trait = "0.1.85"
 chrono = { version = "0.4.31", default-features = false }
 clap = { version = "4.2.4", features = ["derive", "env"] }
 colored = "2"
+anstyle = { version = "1.0" }
+colorchoice = "1.0"
 ethabi = "16.0.0"
 eyre = "0.6"
 flate2 = "1.0"

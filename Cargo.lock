@@ -466,12 +466,14 @@ dependencies = [
 name = "anvil_zksync_core"
 version = "0.2.5"
 dependencies = [
+ "anstyle",
  "anvil_zksync_config",
  "anvil_zksync_types",
  "anyhow",
  "async-trait",
  "backon",
  "chrono",
+ "colorchoice",
  "colored",
  "ethabi 16.0.0",
  "ethers",
