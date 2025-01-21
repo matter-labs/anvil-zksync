@@ -32,7 +32,7 @@ pub struct ForkPrintInfo {
     pub l2_block: String,
     pub block_timestamp: String,
     pub fork_block_hash: String,
-    pub fee_model_config_v2: Option<FeeModelConfigV2>,
+    pub fee_model_config_v2: FeeModelConfigV2,
 }
 
 /// Defines the configuration parameters for the [InMemoryNode].
@@ -282,28 +282,38 @@ impl TestNodeConfig {
                 "Fork Block Hash:           {}",
                 format!("{:#}", fd.fork_block_hash).green()
             );
-            if let Some(fee_config) = &fd.fee_model_config_v2 {
-                tracing::info!(
-                    "Compute Overhead Part:     {}",
-                    fee_config.compute_overhead_part.to_string().green()
-                );
-                tracing::info!(
-                    "Pubdata Overhead Part:     {}",
-                    fee_config.pubdata_overhead_part.to_string().green()
-                );
-                tracing::info!(
-                    "Batch Overhead L1 Gas:     {}",
-                    fee_config.batch_overhead_l1_gas.to_string().green()
-                );
-                tracing::info!(
-                    "Max Gas Per Batch:         {}",
-                    fee_config.max_gas_per_batch.to_string().green()
-                );
-                tracing::info!(
-                    "Max Pubdata Per Batch:     {}",
-                    fee_config.max_pubdata_per_batch.to_string().green()
-                );
-            }
+            tracing::info!(
+                "Compute Overhead Part:     {}",
+                fd.fee_model_config_v2
+                    .compute_overhead_part
+                    .to_string()
+                    .green()
+            );
+            tracing::info!(
+                "Pubdata Overhead Part:     {}",
+                fd.fee_model_config_v2
+                    .pubdata_overhead_part
+                    .to_string()
+                    .green()
+            );
+            tracing::info!(
+                "Batch Overhead L1 Gas:     {}",
+                fd.fee_model_config_v2
+                    .batch_overhead_l1_gas
+                    .to_string()
+                    .green()
+            );
+            tracing::info!(
+                "Max Gas Per Batch:         {}",
+                fd.fee_model_config_v2.max_gas_per_batch.to_string().green()
+            );
+            tracing::info!(
+                "Max Pubdata Per Batch:     {}",
+                fd.fee_model_config_v2
+                    .max_pubdata_per_batch
+                    .to_string()
+                    .green()
+            );
             println!("\n");
         } else {
             tracing::info!("Network Configuration");

@@ -189,21 +189,7 @@ impl InMemoryNode {
             if let Some(block) = self.blockchain.get_block_by_id(block_id).await {
                 Some(block)
             } else {
-                self.inner
-                    .read()
-                    .await
-                    .fork_storage
-                    .inner
-                    .read()
-                    .expect("failed reading fork storage")
-                    .fork
-                    .as_ref()
-                    .and_then(|fork| {
-                        fork.fork_source
-                            .get_block_by_id(block_id, true)
-                            .ok()
-                            .flatten()
-                    })
+                self.fork.get_block_by_id(block_id).await?
             }
         };
 
@@ -284,22 +270,7 @@ impl InMemoryNode {
         // try retrieving transaction from memory, and if unavailable subsequently from the fork
         match self.blockchain.get_tx_api(&hash).await? {
             Some(tx) => Ok(Some(tx)),
-            None => Ok(self
-                .inner
-                .read()
-                .await
-                .fork_storage
-                .inner
-                .read()
-                .expect("failed reading fork storage")
-                .fork
-                .as_ref()
-                .and_then(|fork| {
-                    fork.fork_source
-                        .get_transaction_by_hash(hash)
-                        .ok()
-                        .flatten()
-                })),
+            None => self.fork.get_transaction_by_hash(hash).await,
         }
     }
 
@@ -435,30 +406,18 @@ impl InMemoryNode {
         &self,
         block_id: api::BlockId,
     ) -> Result<Option<U256>, Web3Error> {
-        let result = self.blockchain.get_block_tx_count_by_id(block_id).await;
-        let result = match result {
-            Some(result) => Some(U256::from(result)),
-            None => self
-                .inner
-                .read()
-                .await
-                .fork_storage
-                .inner
-                .read()
-                .expect("failed reading fork storage")
-                .fork
-                .as_ref()
-                .and_then(|fork| {
-                    fork.fork_source
-                        .get_block_transaction_count_by_id(block_id)
-                        .ok()
-                        .flatten()
-                }),
+        let count = match self.blockchain.get_block_tx_count_by_id(block_id).await {
+            Some(count) => Some(U256::from(count)),
+            None => {
+                self.fork
+                    .get_block_transaction_count_by_id(block_id)
+                    .await?
+            }
         };
 
         // TODO: Is this right? What is the purpose of having `Option` here then?
-        match result {
-            Some(value) => Ok(Some(value)),
+        match count {
+            Some(count) => Ok(Some(count)),
             None => Err(Web3Error::NoBlock),
         }
     }
@@ -481,31 +440,18 @@ impl InMemoryNode {
         block_id: api::BlockId,
         index: web3::Index,
     ) -> anyhow::Result<Option<api::Transaction>> {
-        let tx = self
+        match self
             .blockchain
             .get_block_tx_by_id(block_id, index.as_usize())
-            .await;
-        let maybe_tx = match tx {
-            Some(tx) => Some(tx),
-            None => self
-                .inner
-                .read()
-                .await
-                .fork_storage
-                .inner
-                .read()
-                .expect("failed reading fork storage")
-                .fork
-                .as_ref()
-                .and_then(|fork| {
-                    fork.fork_source
-                        .get_transaction_by_block_id_and_index(block_id, index)
-                        .ok()
-                })
-                .flatten(),
-        };
-
-        Ok(maybe_tx)
+            .await
+        {
+            Some(tx) => Ok(Some(tx)),
+            None => {
+                self.fork
+                    .get_transaction_by_block_id_and_index(block_id, index)
+                    .await
+            }
+        }
     }
 
     pub fn protocol_version_impl(&self) -> String {

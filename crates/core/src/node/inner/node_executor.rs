@@ -1,9 +1,11 @@
 use super::InMemoryNodeInner;
+use crate::node::inner::fork::{ForkClient, ForkSource};
 use crate::node::keys::StorageKeyLayout;
 use crate::node::pool::TxBatch;
 use crate::system_contracts::SystemContracts;
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot, RwLock};
+use url::Url;
 use zksync_multivm::interface::TxExecutionMode;
 use zksync_types::bytecode::BytecodeHash;
 use zksync_types::utils::nonces_to_full_nonce;
@@ -53,6 +55,18 @@ impl NodeExecutor {
                 }
                 Command::SetNonce(address, nonce, reply) => {
                     self.set_nonce(address, nonce, reply).await;
+                }
+                Command::ResetFork(url, block_number, reply) => {
+                    self.reset_fork(url, block_number, reply).await;
+                }
+                Command::ResetForkBlockNumber(block_number, reply) => {
+                    self.reset_fork_block_number(block_number, reply).await;
+                }
+                Command::SetForkUrl(url, reply) => {
+                    self.set_fork_url(url, reply).await;
+                }
+                Command::RemoveFork(reply) => {
+                    self.remove_fork(reply).await;
                 }
                 Command::IncreaseTime(delta, reply) => {
                     self.increase_time(delta, reply).await;
@@ -210,6 +224,83 @@ impl NodeExecutor {
             .await
             .fork_storage
             .set_value(nonce_key, u256_to_h256(enforced_full_nonce));
+        // Reply to sender if we can
+        if reply.send(()).is_err() {
+            tracing::info!("failed to reply as receiver has been dropped");
+        }
+    }
+
+    async fn reset_fork(
+        &self,
+        url: Url,
+        block_number: Option<L2BlockNumber>,
+        reply: oneshot::Sender<anyhow::Result<()>>,
+    ) {
+        let result = async {
+            let fork_client = ForkClient::at_block_number(url, block_number).await?;
+            self.node_inner.write().await.reset(Some(fork_client)).await;
+
+            anyhow::Ok(())
+        }
+        .await;
+
+        // Reply to sender if we can, otherwise hold result for further processing
+        let result = if let Err(result) = reply.send(result) {
+            tracing::info!("failed to reply as receiver has been dropped");
+            result
+        } else {
+            return;
+        };
+        // Not much we can do with an error at this level so we just print it
+        if let Err(err) = result {
+            tracing::error!("failed to reset fork: {:#?}", err);
+        }
+    }
+
+    async fn reset_fork_block_number(
+        &self,
+        block_number: L2BlockNumber,
+        reply: oneshot::Sender<anyhow::Result<()>>,
+    ) {
+        let result = async {
+            let node_inner = self.node_inner.write().await;
+            let url = node_inner
+                .fork
+                .url()
+                .ok_or_else(|| anyhow::anyhow!("no existing fork found"))?;
+            let fork_client = ForkClient::at_block_number(url, Some(block_number)).await?;
+            self.node_inner.write().await.reset(Some(fork_client)).await;
+
+            anyhow::Ok(())
+        }
+        .await;
+
+        // Reply to sender if we can, otherwise hold result for further processing
+        let result = if let Err(result) = reply.send(result) {
+            tracing::info!("failed to reply as receiver has been dropped");
+            result
+        } else {
+            return;
+        };
+        // Not much we can do with an error at this level so we just print it
+        if let Err(err) = result {
+            tracing::error!("failed to reset fork: {:#?}", err);
+        }
+    }
+
+    async fn set_fork_url(&self, url: Url, reply: oneshot::Sender<Option<Url>>) {
+        let node_inner = self.node_inner.write().await;
+        let old_url = node_inner.fork.set_fork_url(url);
+
+        // Reply to sender if we can
+        if reply.send(old_url).is_err() {
+            tracing::info!("failed to reply as receiver has been dropped");
+        }
+    }
+
+    async fn remove_fork(&self, reply: oneshot::Sender<()>) {
+        self.node_inner.write().await.reset(None).await;
+
         // Reply to sender if we can
         if reply.send(()).is_err() {
             tracing::info!("failed to reply as receiver has been dropped");
@@ -407,6 +498,78 @@ impl NodeExecutorHandle {
         }
     }
 
+    /// Request [`NodeExecutor`] to reset fork to given url and block number. All local state will
+    /// be wiped. Waits for the change to take place.
+    pub async fn reset_fork_sync(
+        &self,
+        url: Url,
+        block_number: Option<L2BlockNumber>,
+    ) -> anyhow::Result<()> {
+        let (response_sender, response_receiver) = oneshot::channel();
+        self.command_sender
+            .send(Command::ResetFork(url, block_number, response_sender))
+            .await
+            .map_err(|_| anyhow::anyhow!("failed to reset fork as node executor is dropped"))?;
+        match response_receiver.await {
+            Ok(result) => result,
+            Err(_) => {
+                anyhow::bail!("failed to reset fork as node executor is dropped")
+            }
+        }
+    }
+
+    /// Request [`NodeExecutor`] to reset fork at the given block number. All state will be wiped.
+    /// Fails if there is no existing fork. Waits for the change to take place.
+    pub async fn reset_fork_block_number_sync(
+        &self,
+        block_number: L2BlockNumber,
+    ) -> anyhow::Result<()> {
+        let (response_sender, response_receiver) = oneshot::channel();
+        self.command_sender
+            .send(Command::ResetForkBlockNumber(block_number, response_sender))
+            .await
+            .map_err(|_| {
+                anyhow::anyhow!("failed to reset fork block number as node executor is dropped")
+            })?;
+        match response_receiver.await {
+            Ok(result) => result,
+            Err(_) => {
+                anyhow::bail!("failed to reset fork block number as node executor is dropped")
+            }
+        }
+    }
+
+    /// Request [`NodeExecutor`] to set fork's RPC URL without resetting the state. Waits for the
+    /// change to take place. Returns `Some(previous_url)` if fork existed and `None` otherwise.
+    pub async fn set_fork_url_sync(&self, url: Url) -> anyhow::Result<Option<Url>> {
+        let (response_sender, response_receiver) = oneshot::channel();
+        self.command_sender
+            .send(Command::SetForkUrl(url, response_sender))
+            .await
+            .map_err(|_| anyhow::anyhow!("failed to set fork URL as node executor is dropped"))?;
+        match response_receiver.await {
+            Ok(result) => Ok(result),
+            Err(_) => {
+                anyhow::bail!("failed to set fork URL as node executor is dropped")
+            }
+        }
+    }
+
+    /// Request [`NodeExecutor`] to remove fork if there is one. Waits for the change to take place.
+    pub async fn remove_fork_sync(&self) -> anyhow::Result<()> {
+        let (response_sender, response_receiver) = oneshot::channel();
+        self.command_sender
+            .send(Command::RemoveFork(response_sender))
+            .await
+            .map_err(|_| anyhow::anyhow!("failed to remove fork as node executor is dropped"))?;
+        match response_receiver.await {
+            Ok(()) => Ok(()),
+            Err(_) => {
+                anyhow::bail!("failed to remove fork as node executor is dropped")
+            }
+        }
+    }
+
     /// Request [`NodeExecutor`] to increase time by the given delta (in seconds). Waits for the
     /// change to take place.
     pub async fn increase_time_sync(&self, delta: u64) -> anyhow::Result<()> {
@@ -502,6 +665,15 @@ enum Command {
     SetStorage(StorageKey, U256, oneshot::Sender<()>),
     SetBalance(Address, U256, oneshot::Sender<()>),
     SetNonce(Address, U256, oneshot::Sender<()>),
+    // Fork manipulation commands
+    ResetFork(
+        Url,
+        Option<L2BlockNumber>,
+        oneshot::Sender<anyhow::Result<()>>,
+    ),
+    ResetForkBlockNumber(L2BlockNumber, oneshot::Sender<anyhow::Result<()>>),
+    SetForkUrl(Url, oneshot::Sender<Option<Url>>),
+    RemoveFork(oneshot::Sender<()>),
     // Time manipulation commands. Caveat: reply-able commands can hold user connections alive for
     // a long time (until the command is processed).
     IncreaseTime(u64, oneshot::Sender<()>),

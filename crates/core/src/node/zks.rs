@@ -1,5 +1,4 @@
 use crate::node::InMemoryNode;
-use crate::utils::internal_error;
 use anyhow::Context;
 use std::collections::HashMap;
 use zksync_types::api;
@@ -25,7 +24,7 @@ impl InMemoryNode {
             .blockchain
             .get_block_tx_hashes_by_number(block_number)
             .await;
-        let transactions = if let Some(tx_hashes) = tx_hashes {
+        if let Some(tx_hashes) = tx_hashes {
             let mut transactions = Vec::with_capacity(tx_hashes.len());
             for tx_hash in tx_hashes {
                 let transaction = self
@@ -35,46 +34,18 @@ impl InMemoryNode {
                     .with_context(|| anyhow::anyhow!("Unexpectedly transaction (hash={tx_hash}) belongs to a block but could not be found"))?;
                 transactions.push(transaction);
             }
-            transactions
+            Ok(transactions)
         } else {
-            let reader = self.inner.read().await;
-            let fork_storage_read = reader
-                .fork_storage
-                .inner
-                .read()
-                .expect("failed reading fork storage");
-
-            match fork_storage_read.fork.as_ref() {
-                Some(fork) => fork
-                    .fork_source
-                    .get_raw_block_transactions(block_number)
-                    .map_err(|e| internal_error("get_raw_block_transactions", e))?,
-                None => return Err(Web3Error::NoBlock),
-            }
-        };
-
-        Ok(transactions)
+            Ok(self.fork.get_raw_block_transactions(block_number).await?)
+        }
     }
 
     pub async fn get_bridge_contracts_impl(&self) -> Result<api::BridgeAddresses, Web3Error> {
-        let reader = self.inner.read().await;
-
-        let result = match reader
-            .fork_storage
-            .inner
-            .read()
-            .expect("failed reading fork storage")
+        Ok(self
             .fork
-            .as_ref()
-        {
-            Some(fork) => fork.fork_source.get_bridge_contracts().map_err(|err| {
-                tracing::error!("failed fetching bridge contracts from the fork: {:?}", err);
-                Web3Error::InternalError(anyhow::Error::msg(format!(
-                    "failed fetching bridge contracts from the fork: {:?}",
-                    err
-                )))
-            })?,
-            None => api::BridgeAddresses {
+            .get_bridge_contracts()
+            .await?
+            .unwrap_or(api::BridgeAddresses {
                 l1_shared_default_bridge: Default::default(),
                 l2_shared_default_bridge: Default::default(),
                 l1_erc20_default_bridge: Default::default(),
@@ -82,10 +53,7 @@ impl InMemoryNode {
                 l1_weth_bridge: Default::default(),
                 l2_weth_bridge: Default::default(),
                 l2_legacy_shared_bridge: Default::default(),
-            },
-        };
-
-        Ok(result)
+            }))
     }
 
     pub async fn get_confirmed_tokens_impl(
@@ -93,29 +61,17 @@ impl InMemoryNode {
         from: u32,
         limit: u8,
     ) -> anyhow::Result<Vec<zksync_web3_decl::types::Token>> {
-        let reader = self.inner.read().await;
-
-        let fork_storage_read = reader
-            .fork_storage
-            .inner
-            .read()
-            .expect("failed reading fork storage");
-
-        match fork_storage_read.fork.as_ref() {
-            Some(fork) => Ok(fork
-                .fork_source
-                .get_confirmed_tokens(from, limit)
-                .map_err(|e| {
-                    anyhow::anyhow!("failed fetching bridge contracts from the fork: {:?}", e)
-                })?),
-            None => Ok(vec![zksync_web3_decl::types::Token {
+        Ok(self
+            .fork
+            .get_confirmed_tokens(from, limit)
+            .await?
+            .unwrap_or(vec![zksync_web3_decl::types::Token {
                 l1_address: Address::zero(),
                 l2_address: L2_BASE_TOKEN_ADDRESS,
                 name: "Ether".to_string(),
                 symbol: "ETH".to_string(),
                 decimals: 18,
-            }]),
-        }
+            }]))
     }
 
     pub async fn get_all_account_balances_impl(
@@ -163,55 +119,20 @@ impl InMemoryNode {
             )
             .await;
 
-        let maybe_block_details = match block_details {
-            Some(block_details) => Some(block_details),
-            None => self
-                .inner
-                .read()
-                .await
-                .fork_storage
-                .inner
-                .read()
-                .expect("failed reading fork storage")
-                .fork
-                .as_ref()
-                .and_then(|fork| {
-                    fork.fork_source
-                        .get_block_details(block_number)
-                        .ok()
-                        .flatten()
-                }),
-        };
-
-        Ok(maybe_block_details)
+        match block_details {
+            Some(block_details) => Ok(Some(block_details)),
+            None => self.fork.get_block_details(block_number).await,
+        }
     }
 
     pub async fn get_transaction_details_impl(
         &self,
         hash: H256,
     ) -> anyhow::Result<Option<api::TransactionDetails>> {
-        let tx_details = self.blockchain.get_tx_details(&hash).await;
-        let maybe_tx_details = match tx_details {
-            Some(tx_details) => Some(tx_details),
-            None => self
-                .inner
-                .read()
-                .await
-                .fork_storage
-                .inner
-                .read()
-                .expect("failed reading fork storage")
-                .fork
-                .as_ref()
-                .and_then(|fork| {
-                    fork.fork_source
-                        .get_transaction_details(hash)
-                        .ok()
-                        .flatten()
-                }),
-        };
-
-        Ok(maybe_tx_details)
+        match self.blockchain.get_tx_details(&hash).await {
+            Some(tx_details) => Ok(Some(tx_details)),
+            None => self.fork.get_transaction_details(hash).await,
+        }
     }
 
     pub async fn get_bytecode_by_hash_impl(&self, hash: H256) -> anyhow::Result<Option<Vec<u8>>> {
@@ -219,25 +140,7 @@ impl InMemoryNode {
             return Ok(Some(bytecode));
         }
 
-        let writer = self.inner.write().await;
-        let maybe_fork_details = &writer
-            .fork_storage
-            .inner
-            .read()
-            .expect("failed reading fork storage")
-            .fork;
-        if let Some(fork_details) = maybe_fork_details {
-            let maybe_bytecode = match fork_details.fork_source.get_bytecode_by_hash(hash) {
-                Ok(maybe_bytecode) => maybe_bytecode,
-                Err(error) => {
-                    return Err(anyhow::anyhow!("failed to get bytecode: {:?}", error));
-                }
-            };
-
-            Ok(maybe_bytecode)
-        } else {
-            Ok(None)
-        }
+        self.fork.get_bytecode_by_hash(hash).await
     }
 
     pub async fn get_base_token_l1_address_impl(&self) -> anyhow::Result<Address> {

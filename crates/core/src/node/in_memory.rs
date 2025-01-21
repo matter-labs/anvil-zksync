@@ -1,5 +1,4 @@
 //! In-memory node, that supports forking other networks.
-use super::inner::fork::ForkDetails;
 use super::inner::node_executor::NodeExecutorHandle;
 use super::inner::InMemoryNodeInner;
 use super::vm::AnvilVM;
@@ -19,9 +18,7 @@ use crate::node::{BlockSealer, BlockSealerMode, NodeExecutor, TxPool};
 use crate::observability::Observability;
 use crate::system_contracts::SystemContracts;
 use crate::{delegate_vm, formatter};
-use anvil_zksync_config::constants::{
-    LEGACY_RICH_WALLETS, NON_FORK_FIRST_BLOCK_TIMESTAMP, RICH_WALLETS, TEST_NODE_NETWORK_ID,
-};
+use anvil_zksync_config::constants::{NON_FORK_FIRST_BLOCK_TIMESTAMP, TEST_NODE_NETWORK_ID};
 use anvil_zksync_config::types::Genesis;
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_types::{LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
@@ -34,7 +31,6 @@ use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::io::{Read, Write};
-use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use zksync_contracts::BaseSystemContracts;
@@ -47,6 +43,7 @@ use zksync_multivm::tracers::CallTracer;
 use zksync_multivm::utils::{get_batch_base_fee, get_max_batch_gas_limit};
 use zksync_multivm::vm_latest::Vm;
 
+use crate::node::fork::{ForkClient, ForkSource};
 use crate::node::keys::StorageKeyLayout;
 use zksync_multivm::vm_latest::{HistoryDisabled, ToTracerPointer};
 use zksync_multivm::VmVersion;
@@ -249,6 +246,7 @@ pub struct InMemoryNode {
     pub(crate) inner: Arc<RwLock<InMemoryNodeInner>>,
     pub(crate) blockchain: Box<dyn ReadBlockchain>,
     pub(crate) storage: Box<dyn ReadStorageDyn>,
+    pub(crate) fork: Box<dyn ForkSource>,
     pub(crate) node_handle: NodeExecutorHandle,
     /// List of snapshots of the [InMemoryNodeInner]. This is bounded at runtime by [MAX_SNAPSHOTS].
     pub(crate) snapshots: Arc<RwLock<Vec<Snapshot>>>,
@@ -268,6 +266,7 @@ impl InMemoryNode {
         inner: Arc<RwLock<InMemoryNodeInner>>,
         blockchain: Box<dyn ReadBlockchain>,
         storage: Box<dyn ReadStorageDyn>,
+        fork: Box<dyn ForkSource>,
         node_handle: NodeExecutorHandle,
         observability: Option<Observability>,
         time: Box<dyn ReadTime>,
@@ -281,6 +280,7 @@ impl InMemoryNode {
             inner,
             blockchain,
             storage,
+            fork,
             node_handle,
             snapshots: Default::default(),
             time,
@@ -291,29 +291,6 @@ impl InMemoryNode {
             system_contracts,
             storage_key_layout,
         }
-    }
-
-    pub async fn reset(&self, fork: Option<ForkDetails>) -> Result<(), String> {
-        self.inner.write().await.reset(fork).await;
-        self.snapshots.write().await.clear();
-
-        for wallet in LEGACY_RICH_WALLETS.iter() {
-            let address = wallet.0;
-            self.set_rich_account(
-                H160::from_str(address).unwrap(),
-                U256::from(100u128 * 10u128.pow(18)),
-            )
-            .await;
-        }
-        for wallet in RICH_WALLETS.iter() {
-            let address = wallet.0;
-            self.set_rich_account(
-                H160::from_str(address).unwrap(),
-                U256::from(100u128 * 10u128.pow(18)),
-            )
-            .await;
-        }
-        Ok(())
     }
 
     /// Applies multiple transactions across multiple blocks. All transactions are expected to be
@@ -645,8 +622,10 @@ pub fn load_last_l1_batch<S: ReadStorage>(storage: StoragePtr<S>) -> Option<(u64
 // #[cfg(test)]
 // TODO: Mark with #[cfg(test)] once it is not used in other modules
 impl InMemoryNode {
-    pub fn test_config(fork: Option<ForkDetails>, config: TestNodeConfig) -> Self {
-        let fee_provider = TestNodeFeeInputProvider::from_fork(fork.as_ref());
+    pub fn test_config(fork_client_opt: Option<ForkClient>, config: TestNodeConfig) -> Self {
+        let fee_provider = TestNodeFeeInputProvider::from_fork(
+            fork_client_opt.as_ref().map(|client| &client.details),
+        );
         let impersonation = ImpersonationManager::default();
         let system_contracts = SystemContracts::from_options(
             &config.system_contracts_options,
@@ -658,8 +637,8 @@ impl InMemoryNode {
         } else {
             StorageKeyLayout::ZkEra
         };
-        let (inner, storage, blockchain, time) = InMemoryNodeInner::init(
-            fork,
+        let (inner, storage, blockchain, time, fork) = InMemoryNodeInner::init(
+            fork_client_opt,
             fee_provider,
             Arc::new(RwLock::new(Default::default())),
             config,
@@ -685,6 +664,7 @@ impl InMemoryNode {
             inner,
             blockchain,
             storage,
+            fork,
             node_handle,
             None,
             time,
@@ -696,8 +676,8 @@ impl InMemoryNode {
         )
     }
 
-    pub fn test(fork: Option<ForkDetails>) -> Self {
+    pub fn test(fork_client_opt: Option<ForkClient>) -> Self {
         let config = TestNodeConfig::default();
-        Self::test_config(fork, config)
+        Self::test_config(fork_client_opt, config)
     }
 }

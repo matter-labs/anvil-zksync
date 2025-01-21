@@ -73,6 +73,7 @@ tracing-subscriber = { version = "0.3", features = [
     "json",
     "local-time",
 ] }
+url = "2.5.4"
 
 #########################
 # Test dependencies    #

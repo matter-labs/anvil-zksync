@@ -1,12 +1,13 @@
-use super::blockchain::{Blockchain, ReadBlockchain};
-use super::fork::{ForkDetails, ForkStorage, SerializableStorage};
-use super::time::Time;
 use crate::bootloader_debug::{BootloaderDebug, BootloaderDebugTracer};
 use crate::console_log::ConsoleLogHandler;
 use crate::deps::storage_view::StorageView;
 use crate::filters::EthFilters;
 use crate::node::call_error_tracer::CallErrorTracer;
 use crate::node::error::LoadStateError;
+use crate::node::inner::blockchain::{Blockchain, ReadBlockchain};
+use crate::node::inner::fork::{Fork, ForkClient, ForkSource};
+use crate::node::inner::fork_storage::{ForkStorage, SerializableStorage};
+use crate::node::inner::time::Time;
 use crate::node::keys::StorageKeyLayout;
 use crate::node::state::StateV1;
 use crate::node::storage_logs::print_storage_logs_details;
@@ -82,6 +83,7 @@ pub struct InMemoryNodeInner {
     // TODO: Make private
     // Underlying storage
     pub fork_storage: ForkStorage,
+    pub(super) fork: Fork,
     // Configuration.
     pub config: TestNodeConfig,
     pub console_log_handler: ConsoleLogHandler,
@@ -100,6 +102,7 @@ impl InMemoryNodeInner {
         blockchain: Blockchain,
         time: Time,
         fork_storage: ForkStorage,
+        fork: Fork,
         fee_input_provider: TestNodeFeeInputProvider,
         filters: Arc<RwLock<EthFilters>>,
         config: TestNodeConfig,
@@ -113,6 +116,7 @@ impl InMemoryNodeInner {
             fee_input_provider,
             filters,
             fork_storage,
+            fork,
             config,
             console_log_handler: ConsoleLogHandler::default(),
             system_contracts,
@@ -160,17 +164,13 @@ impl InMemoryNodeInner {
             timestamp: self.time.peek_next_timestamp(),
         };
 
-        let fee_input = if let Some(fork) = &self
-            .fork_storage
-            .inner
-            .read()
-            .expect("fork_storage lock is already held by the current thread")
-            .fork
-        {
+        let fee_input = if let Some(fork_details) = self.fork.details() {
+            // TODO: This is a weird pattern. `TestNodeFeeInputProvider` should encapsulate fork's
+            //       behavior by taking fork's fee input into account during initialization.
             BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
-                l1_gas_price: fork.l1_gas_price,
-                fair_l2_gas_price: fork.l2_fair_gas_price,
-                fair_pubdata_price: fork.fair_pubdata_price,
+                l1_gas_price: fork_details.l1_gas_price,
+                fair_l2_gas_price: fork_details.l2_fair_gas_price,
+                fair_pubdata_price: fork_details.fair_pubdata_price,
             })
         } else {
             self.fee_input_provider.get_batch_fee_input()
@@ -1243,48 +1243,23 @@ impl InMemoryNodeInner {
                 ))),
             }
         } else if storage.hashes.contains_key(&block_number) {
-            let value = storage
+            // This is a locally produced block so no point in querying fork.
+            Ok(storage
                 .hashes
                 .get(&block_number)
                 .and_then(|block_hash| self.previous_states.get(block_hash))
                 .and_then(|state| state.get(&storage_key))
                 .cloned()
-                .unwrap_or_default();
-
-            if value.is_zero() {
-                match self.fork_storage.read_value_internal(&storage_key) {
-                    Ok(value) => Ok(H256(value.0)),
-                    Err(error) => Err(Web3Error::InternalError(anyhow::anyhow!(
-                        "failed to read storage: {}",
-                        error
-                    ))),
-                }
-            } else {
-                Ok(value)
-            }
+                .unwrap_or_default())
         } else {
-            self.fork_storage
-                .inner
-                .read()
-                .expect("failed reading fork storage")
-                .fork
-                .as_ref()
-                .and_then(|fork| fork.fork_source.get_storage_at(address, idx, block).ok())
-                .ok_or_else(|| {
-                    tracing::error!(
-                        "unable to get storage at address {:?}, index {:?} for block {:?}",
-                        address,
-                        idx,
-                        block
-                    );
-                    Web3Error::InternalError(anyhow::Error::msg("Failed to get storage."))
-                })
+            Ok(self.fork.get_storage_at(address, idx, block).await?)
         }
     }
 
-    pub async fn reset(&mut self, fork: Option<ForkDetails>) {
+    pub async fn reset(&mut self, fork_client_opt: Option<ForkClient>) {
+        let fork_details = fork_client_opt.as_ref().map(|client| &client.details);
         let blockchain = Blockchain::new(
-            fork.as_ref(),
+            fork_details,
             self.config.genesis.as_ref(),
             self.config.genesis_timestamp,
         );
@@ -1295,15 +1270,16 @@ impl InMemoryNodeInner {
         ));
 
         self.time.set_current_timestamp_unchecked(
-            fork.as_ref()
-                .map(|f| f.block_timestamp)
+            fork_details
+                .map(|fd| fd.block_timestamp)
                 .unwrap_or(NON_FORK_FIRST_BLOCK_TIMESTAMP),
         );
 
         drop(std::mem::take(&mut *self.filters.write().await));
 
+        self.fork.reset_fork_client(fork_client_opt);
         let fork_storage = ForkStorage::new(
-            fork,
+            self.fork.clone(),
             &self.config.system_contracts_options,
             self.config.use_evm_emulator,
             self.config.chain_id,
@@ -1313,7 +1289,6 @@ impl InMemoryNodeInner {
         old_storage.raw_storage = std::mem::take(&mut new_storage.raw_storage);
         old_storage.value_read_cache = std::mem::take(&mut new_storage.value_read_cache);
         old_storage.factory_dep_cache = std::mem::take(&mut new_storage.factory_dep_cache);
-        old_storage.fork = std::mem::take(&mut new_storage.fork);
         self.fork_storage.chain_id = fork_storage.chain_id;
         drop(old_storage);
         drop(new_storage);

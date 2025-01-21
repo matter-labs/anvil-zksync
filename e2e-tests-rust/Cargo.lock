@@ -1004,6 +1004,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "url",
  "zksync_contracts",
  "zksync_multivm",
  "zksync_types",
