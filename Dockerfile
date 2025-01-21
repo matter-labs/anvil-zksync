@@ -13,7 +13,7 @@ RUN cargo chef cook --release --recipe-path recipe.json
 COPY . .
 RUN cargo build --release --bin anvil-zksync
 
-FROM ubuntu:22.04 as runtime
+FROM ubuntu:24.04 AS runtime
 
 RUN apt-get update && \
     apt-get install -y \

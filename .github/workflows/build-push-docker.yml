@@ -1,20 +1,27 @@
 name: Build and push Docker image
 
 on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'The zksync-anvil version to generate docker image from. If empty, branch that triggered the workflow is used.'
+        required: false
+        default: ''
+      tag:
+        description: 'The tag to use for the Docker image. Leave empty to skip pushing the image.'
+        required: false
+        default: ''
   workflow_call:
     inputs:
       tag:
         type: string
-        description: 'The tag to use for the Docker image'
+        description: 'The tag to use for the Docker image.'
         required: true
-  push:
-    branches:
-      - main
 
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
 
@@ -27,23 +34,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.tag || '' }}
-
-      - name: Determine Base Tag
-        id: set_tag
-        shell: 'bash -ex {0}'
-        run: |
-          [ ! -z "${{ inputs.tag }}" ] && BASE_TAG="${{ inputs.tag }}" \
-            || BASE_TAG="$(git rev-parse --short HEAD)-$(date +%s%N | cut -b1-13)" 
-          echo "base_tag=${BASE_TAG}" >> "${GITHUB_OUTPUT}"
-
-      - name: Define if to save cache
-        id: set-cache-to
-        shell: bash
-        run: |
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            echo "cache-to=type=gha,mode=max" >> "${GITHUB_OUTPUT}"
-          fi
+          ref: ${{ inputs.ref || '' }}
 
       - name: Login to GAR
         run: gcloud auth configure-docker us-docker.pkg.dev -q
@@ -63,13 +54,13 @@ jobs:
         id: push
         with:
           context: .
-          push: ${{ github.event_name != 'pull_request' }}
+          push: ${{ inputs.tag != '' }}
           platforms: 'linux/amd64,linux/arm64'
           cache-from: type=gha
-          cache-to: ${{ steps.set-cache-to.outputs.cache-to }}
+          cache-to: type=gha,mode=max
           tags: |
-            ghcr.io/${{ github.repository }}:${{ steps.set_tag.outputs.base_tag }}
-            ${{ env.DOCKERHUB_IMAGE }}:${{ steps.set_tag.outputs.base_tag }}
+            ghcr.io/${{ github.repository }}:${{ inputs.tag }}
+            ${{ env.DOCKERHUB_IMAGE }}:${{ inputs.tag }}
 
       - name: Generate docker image attestation
         if: ${{ inputs.tag != '' }}
@@ -80,6 +71,7 @@ jobs:
           push-to-registry: true
 
       - name: Print image digest to summary
+        if: ${{ inputs.tag != '' }}
         run: |
-          echo "Image tags: ghcr.io/${{ github.repository }}:${{ steps.set_tag.outputs.base_tag }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "Image tags: ${{ env.DOCKERHUB_IMAGE }}:${{ steps.set_tag.outputs.base_tag }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Image tags: ghcr.io/${{ github.repository }}:${{ inputs.tag }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Image tags: ${{ env.DOCKERHUB_IMAGE }}:${{ inputs.tag }}" >> "${GITHUB_STEP_SUMMARY}"
