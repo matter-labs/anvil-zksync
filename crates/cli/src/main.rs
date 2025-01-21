@@ -17,7 +17,7 @@ use anvil_zksync_core::node::{
 };
 use anvil_zksync_core::observability::Observability;
 use anvil_zksync_core::system_contracts::SystemContracts;
-use anyhow::{anyhow, Context};
+use anyhow::Context;
 use clap::Parser;
 use std::fs::File;
 use std::sync::Arc;
@@ -26,26 +26,48 @@ use std::{env, net::SocketAddr, str::FromStr};
 use tokio::sync::RwLock;
 use tower_http::cors::AllowOrigin;
 use tracing_subscriber::filter::LevelFilter;
+use zksync_error::documentation::Documented as _;
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
 use zksync_types::H160;
 use zksync_web3_decl::namespaces::ZksNamespaceClient;
+
+use zksync_error::anvil::env::generic_error;
 
 mod bytecode_override;
 mod cli;
 mod utils;
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> Result<(), zksync_error::ZksyncError> {
+    match main_inner().await {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            if let Ok(Some(documentation)) = e.get_documentation() {
+                eprint!("{documentation:#?}")
+            };
+            Err(e)
+        }
+    }
+}
+
+async fn main_inner() -> Result<(), zksync_error::ZksyncError> {
     // Check for deprecated options
     Cli::deprecated_config_option();
 
     let opt = Cli::parse();
     let command = opt.command.clone();
 
-    let mut config = opt.into_test_node_config().map_err(|e| anyhow!(e))?;
+    let mut config = opt
+        .into_test_node_config()
+        .map_err(|e| generic_error!("{e}"))?;
 
     let log_level_filter = LevelFilter::from(config.log_level);
-    let log_file = File::create(&config.log_file_path)?;
+    let log_file = File::create(&config.log_file_path).map_err(|e| {
+        zksync_error::anvil::env::LogFileAccessError {
+            log_filename: config.log_file_path.clone(),
+            wrapped_error: e.to_string(),
+        }
+    })?;
 
     // Initialize the tracing subscriber
     let observability = Observability::init(
@@ -53,7 +75,8 @@ async fn main() -> anyhow::Result<()> {
         log_level_filter,
         log_file,
         config.silent,
-    )?;
+    )
+    .map_err(|e| generic_error!("{e}"))?;
 
     // Use `Command::Run` as default.
     let command = command.as_ref().unwrap_or(&Command::Run);
@@ -83,11 +106,11 @@ async fn main() -> anyhow::Result<()> {
             } else {
                 // Initialize the client to get the fee params
                 let (_, client) = ForkDetails::fork_network_and_client("mainnet")
-                    .map_err(|e| anyhow!("Failed to initialize client: {:?}", e))?;
+                    .map_err(|e| generic_error!("Failed to initialize client: {e:?}"))?;
 
                 let fee = client.get_fee_params().await.map_err(|e| {
                     tracing::error!("Failed to fetch fee params: {:?}", e);
-                    anyhow!(e)
+                    generic_error!("{e}")
                 })?;
 
                 match fee {
@@ -116,7 +139,9 @@ async fn main() -> anyhow::Result<()> {
                             .with_chain_id(config.chain_id.or(Some(TEST_NODE_NETWORK_ID)));
                     }
                     FeeParams::V1(_) => {
-                        return Err(anyhow!("Unsupported FeeParams::V1 in this context"));
+                        return Err(
+                            generic_error!("Unsupported FeeParams::V1 in this context").into()
+                        );
                     }
                 }
 
@@ -137,7 +162,9 @@ async fn main() -> anyhow::Result<()> {
                 .await
             };
 
-            update_with_fork_details(&mut config, fork_details_result).await?
+            update_with_fork_details(&mut config, fork_details_result)
+                .await
+                .map_err(|e| generic_error!("{e}"))?
         }
         Command::ReplayTx(replay_tx) => {
             let fork_details_result = ForkDetails::from_network_tx(
@@ -147,7 +174,9 @@ async fn main() -> anyhow::Result<()> {
             )
             .await;
 
-            update_with_fork_details(&mut config, fork_details_result).await?
+            update_with_fork_details(&mut config, fork_details_result)
+                .await
+                .map_err(|e| generic_error!("{e}"))?
         }
     };
 
@@ -165,7 +194,7 @@ async fn main() -> anyhow::Result<()> {
                     "failed to get earlier transactions in the same block for replay tx: {:?}",
                     error
                 );
-                return Err(anyhow!(error));
+                return Err(generic_error!("{error}").into());
             }
         }
     } else {
@@ -284,7 +313,8 @@ async fn main() -> anyhow::Result<()> {
 
     if !transactions_to_replay.is_empty() {
         node.apply_txs(transactions_to_replay, config.max_transactions)
-            .await?;
+            .await
+            .map_err(|e| generic_error!("{e}"))?;
     }
 
     for signer in config.genesis_accounts.iter() {
@@ -314,7 +344,8 @@ async fn main() -> anyhow::Result<()> {
             config
                 .allow_origin
                 .parse()
-                .context("allow origin is malformed")?,
+                .context("allow origin is malformed")
+                .map_err(|e| generic_error!("{e}"))?,
         ),
     );
     if config.health_check_endpoint {
@@ -353,11 +384,12 @@ async fn main() -> anyhow::Result<()> {
                         server_handles.push(server.run());
                     }
                     Err(err) => {
-                        return Err(anyhow!(
+                        return Err(generic_error!(
                             "Failed to start server on host {} with port: {}",
                             host,
                             err
-                        ));
+                        )
+                        .into());
                     }
                 }
             }
@@ -369,11 +401,15 @@ async fn main() -> anyhow::Result<()> {
     // Load state from `--load-state` if provided
     if let Some(ref load_state_path) = config.load_state {
         let bytes = std::fs::read(load_state_path).expect("Failed to read load state file");
-        node.load_state(zksync_types::web3::Bytes(bytes)).await?;
+        node.load_state(zksync_types::web3::Bytes(bytes))
+            .await
+            .map_err(|e| generic_error!("{e}"))?;
     }
     if let Some(ref state_path) = config.state {
         let bytes = std::fs::read(state_path).expect("Failed to read load state file");
-        node.load_state(zksync_types::web3::Bytes(bytes)).await?;
+        node.load_state(zksync_types::web3::Bytes(bytes))
+            .await
+            .map_err(|e| generic_error!("{e}"))?;
     }
 
     let state_path = config.dump_state.clone().or_else(|| config.state.clone());
@@ -405,7 +441,7 @@ async fn main() -> anyhow::Result<()> {
         _ = state_dumper => {
             tracing::trace!("state dumper was stopped")
         },
-    }
+    };
 
     Ok(())
 }
