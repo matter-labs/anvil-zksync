@@ -30,6 +30,7 @@ jobs:
       update-cargo-lock: true                          # Update Cargo.lock file
       publish-to-crates-io: false                      # Disable publishing to crates.io
       upgrade-dependencies: false                      # Do not upgrade workspace dependencies
+      workspace-dirs: 'e2e-tests-rust'                 # Additionally update Cargo.lock in e2e-tests-rust workspace
 
   # Trigger workflow to publish binaries
   release-binaries:
