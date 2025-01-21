@@ -19,6 +19,7 @@ use anvil_zksync_core::observability::Observability;
 use anvil_zksync_core::system_contracts::SystemContracts;
 use anyhow::Context;
 use clap::Parser;
+use zksync_error::error::IError as _;
 use std::fs::File;
 use std::sync::Arc;
 use std::time::Duration;
@@ -42,8 +43,10 @@ async fn main() -> Result<(), zksync_error::ZksyncError> {
     match main_inner().await {
         Ok(_) => Ok(()),
         Err(e) => {
+
+            eprintln!("Error: {}", e.get_message());
             if let Ok(Some(documentation)) = e.get_documentation() {
-                eprint!("{documentation:#?}")
+                eprintln!("{documentation:#?}")
             };
             Err(e)
         }
