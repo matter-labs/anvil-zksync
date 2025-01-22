@@ -5,7 +5,7 @@ use crate::trace::types::{
 };
 use crate::trace::decode::CallTraceDecoder;
 use zksync_multivm::interface::{Call, VmExecutionResultAndLogs};
-use zksync_types::tx;
+use zksync_types::H160;
 pub mod formatterv2;
 pub mod types;
 pub mod abi_utils;
@@ -38,103 +38,80 @@ pub fn build_call_trace_arena(
     tx_result: VmExecutionResultAndLogs,
 ) -> CallTraceArena {
     let mut arena = Vec::new();
-    let mut parent_stack = Vec::new(); // Stack to keep track of parent indices
+
+    // Add a virtual root node
+    let root_idx = arena.len();
+    let root_node = CallTraceNode {
+        parent: None,
+        children: Vec::new(),
+        idx: root_idx,
+        trace: CallTrace {
+            depth: 0,
+            success: true,
+            caller: H160::zero(), // Placeholder
+            address: H160::zero(), // Placeholder
+            execution_result: tx_result.clone(),
+            decoded: DecodedCallTrace::default(),
+            call: Call::default(),
+        },
+        ordering: Vec::new(),
+    };
+    arena.push(root_node);
 
     for call in calls {
-        for subcall in &call.calls {
-            if CallTraceArena::is_precompile(&subcall.to) {
-                continue;
-            }
-            if CallTraceArena::is_system(&subcall.to) {
-                continue;
-            }
-            println!("subcalls: {:?}", subcall);
-        }
-        if CallTraceArena::is_precompile(&call.to) {
-            continue;
-        }
-        // println!("aftfer precompile filter calls: {:?}", call);
-        if CallTraceArena::is_system(&call.to) {
-            continue;
-        }
-
-        
-
-        let idx = arena.len();
-        let call_trace = convert_call_to_call_trace(call, 0, tx_result.clone());
-
-        // For now, omit capturing logs by leaving the `ordering` empty
-        let ordering = Vec::new();
-
-        let node = CallTraceNode {
-            parent: parent_stack.last().copied(),
-            children: Vec::new(),
-            idx,
-            trace: call_trace,
-            ordering, // Empty ordering to skip logs
-        };
-        arena.push(node);
-
-        if let Some(&parent_idx) = parent_stack.last() {
-            arena[parent_idx].children.push(idx);
-            let child_local_idx = arena[parent_idx].children.len() - 1;
-            arena[parent_idx].ordering.push(TraceMemberOrder::Call(child_local_idx));
-        }
-
-
-        parent_stack.push(idx);
-        process_subcalls(call, &mut arena, &mut parent_stack, tx_result.clone());
-        parent_stack.pop();
+        process_call_and_subcalls(
+            call,
+            root_idx,
+            0,
+            &mut arena,
+            &tx_result,
+        );
     }
 
     CallTraceArena { arena }
 }
 
-/// Recursively processes subcalls and populates the arena.
-fn process_subcalls(
+fn process_call_and_subcalls(
     call: &Call,
+    parent_idx: usize,
+    depth: usize,
     arena: &mut Vec<CallTraceNode>,
-    parent_stack: &mut Vec<usize>,
-    tx_result: VmExecutionResultAndLogs,
+    tx_result: &VmExecutionResultAndLogs,
 ) {
-    for subcall in &call.calls {
-         if CallTraceArena::is_precompile(&subcall.to) {
-            continue;
-        }
-        if CallTraceArena::is_system(&subcall.to) {
-            continue;
-        }
+    // Only add the current call to the arena if it's not System or Precompile
+    let should_add_call = !CallTraceArena::is_precompile(&call.to) && !CallTraceArena::is_system(&call.to);
 
-        let parent_idx = *parent_stack
-            .last()
-            .expect("Parent stack should not be empty");
+    let idx = if should_add_call {
         let idx = arena.len();
-        // Determine the depth based on the parent node
-        let parent_depth = arena[parent_idx].trace.depth;
-        let sub_depth = parent_depth + 1;
+        let call_trace = convert_call_to_call_trace(call, depth, tx_result.clone());
 
-        // Convert `Call` to `CallTrace`
-        let sub_call_trace = convert_call_to_call_trace(subcall, sub_depth, tx_result.clone());
-        let sub_node = CallTraceNode {
+        let node = CallTraceNode {
             parent: Some(parent_idx),
             children: Vec::new(),
             idx,
-            trace: sub_call_trace,
-            ordering: Vec::new(), // To be populated based on logs and subcalls
+            trace: call_trace,
+            ordering: Vec::new(),
         };
-        arena.push(sub_node);
+        arena.push(node);
 
-        // Update the parent node's children and ordering
+        // Add as a child of the parent node
         arena[parent_idx].children.push(idx);
         let child_local_idx = arena[parent_idx].children.len() - 1;
         arena[parent_idx].ordering.push(TraceMemberOrder::Call(child_local_idx));
 
-        // Push subcall to the stack and process its subcalls recursively
-        parent_stack.push(idx);
-        process_subcalls(subcall, arena, parent_stack, tx_result.clone());
-        parent_stack.pop();
+        idx
+    } else {
+        // If the current call is skipped, maintain the same parent index for its subcalls
+        parent_idx
+    };
+
+    // Process subcalls recursively
+    for subcall in &call.calls {
+        process_call_and_subcalls(subcall, idx, depth + 1, arena, tx_result);
     }
 }
+
+
 
 /// Converts a single `Call` to a `CallTrace`.
 fn convert_call_to_call_trace(

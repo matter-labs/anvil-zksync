@@ -193,7 +193,9 @@ impl<W: Write> TraceWriter<W> {
 
     /// Writes a call trace arena to the writer.
     pub fn write_arena(&mut self, arena: &CallTraceArena) -> io::Result<()> {
-        println!("arena: {:?}", arena.nodes());
+        if arena.nodes().is_empty() {
+            return Ok(()); // Nothing to write
+        }
         let root = &arena.nodes()[0];
         for member in &root.ordering {
             if let TraceMemberOrder::Call(local_idx) = member {
