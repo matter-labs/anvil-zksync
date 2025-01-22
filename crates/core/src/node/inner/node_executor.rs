@@ -1,4 +1,5 @@
 use super::InMemoryNodeInner;
+use crate::node::fork::ForkConfig;
 use crate::node::inner::fork::{ForkClient, ForkSource};
 use crate::node::keys::StorageKeyLayout;
 use crate::node::pool::TxBatch;
@@ -237,7 +238,9 @@ impl NodeExecutor {
         reply: oneshot::Sender<anyhow::Result<()>>,
     ) {
         let result = async {
-            let fork_client = ForkClient::at_block_number(url, block_number).await?;
+            // We don't know what chain this is so we assume default scale configuration.
+            let fork_client =
+                ForkClient::at_block_number(ForkConfig::unknown(url), block_number).await?;
             self.node_inner.write().await.reset(Some(fork_client)).await;
 
             anyhow::Ok(())
@@ -268,7 +271,20 @@ impl NodeExecutor {
                 .fork
                 .url()
                 .ok_or_else(|| anyhow::anyhow!("no existing fork found"))?;
-            let fork_client = ForkClient::at_block_number(url, Some(block_number)).await?;
+            // Keep scale factors as this is the same chain.
+            let details = node_inner
+                .fork
+                .details()
+                .ok_or_else(|| anyhow::anyhow!("no existing fork found"))?;
+            let fork_client = ForkClient::at_block_number(
+                ForkConfig {
+                    url,
+                    estimate_gas_price_scale_factor: details.estimate_gas_price_scale_factor,
+                    estimate_gas_scale_factor: details.estimate_gas_scale_factor,
+                },
+                Some(block_number),
+            )
+            .await?;
             self.node_inner.write().await.reset(Some(fork_client)).await;
 
             anyhow::Ok(())

@@ -7,6 +7,7 @@ use anvil_zksync_config::types::{
     AccountGenerator, CacheConfig, CacheType, Genesis, SystemContractsOptions,
 };
 use anvil_zksync_config::TestNodeConfig;
+use anvil_zksync_core::node::fork::ForkConfig;
 use anvil_zksync_core::{
     node::{InMemoryNode, VersionedState},
     utils::write_json_file,
@@ -376,11 +377,19 @@ impl ForkUrl {
     const MAINNET_URL: &'static str = "https://mainnet.era.zksync.io:443";
     const SEPOLIA_TESTNET_URL: &'static str = "https://sepolia.era.zksync.dev:443";
 
-    pub fn to_url(&self) -> Url {
+    pub fn to_config(&self) -> ForkConfig {
         match self {
-            ForkUrl::Mainnet => Self::MAINNET_URL.parse().unwrap(),
-            ForkUrl::SepoliaTestnet => Self::SEPOLIA_TESTNET_URL.parse().unwrap(),
-            ForkUrl::Other(url) => url.clone(),
+            ForkUrl::Mainnet => ForkConfig {
+                url: Self::MAINNET_URL.parse().unwrap(),
+                estimate_gas_price_scale_factor: 1.5,
+                estimate_gas_scale_factor: 1.4,
+            },
+            ForkUrl::SepoliaTestnet => ForkConfig {
+                url: Self::SEPOLIA_TESTNET_URL.parse().unwrap(),
+                estimate_gas_price_scale_factor: 2.0,
+                estimate_gas_scale_factor: 1.3,
+            },
+            ForkUrl::Other(url) => ForkConfig::unknown(url.clone()),
         }
     }
 }

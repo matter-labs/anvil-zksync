@@ -522,7 +522,7 @@ impl InMemoryNode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::node::fork::ForkClient;
+    use crate::node::fork::{ForkClient, ForkConfig};
     use crate::node::TransactionResult;
     use crate::{
         node::{compute_hash, InMemoryNode},
@@ -549,7 +549,11 @@ mod tests {
     use zksync_web3_decl::types::{SyncState, ValueOrArray};
 
     async fn test_node(url: Url) -> InMemoryNode {
-        InMemoryNode::test(Some(ForkClient::at_block_number(url, None).await.unwrap()))
+        InMemoryNode::test(Some(
+            ForkClient::at_block_number(ForkConfig::unknown(url), None)
+                .await
+                .unwrap(),
+        ))
     }
 
     #[tokio::test]

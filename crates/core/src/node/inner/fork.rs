@@ -230,6 +230,30 @@ impl Default for ForkDetails {
     }
 }
 
+pub struct ForkConfig {
+    pub url: Url,
+    pub estimate_gas_price_scale_factor: f64,
+    pub estimate_gas_scale_factor: f32,
+}
+
+impl ForkConfig {
+    /// Default configuration for an unknown chain.
+    pub fn unknown(url: Url) -> Self {
+        // TODO: Unfortunately there is no endpoint that exposes this information and there is no
+        //       easy way to derive these values either. Recent releases of zksync-era report unscaled
+        //       open batch's fee input and we should mimic something similar.
+        let (estimate_gas_price_scale_factor, estimate_gas_scale_factor) = (
+            DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
+            DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
+        );
+        Self {
+            url,
+            estimate_gas_price_scale_factor,
+            estimate_gas_scale_factor,
+        }
+    }
+}
+
 /// Simple wrapper over `eth`/`zks`-capable client that propagates all [`ForkSource`] RPC requests to it.
 #[derive(Debug, Clone)]
 pub struct ForkClient {
@@ -240,10 +264,15 @@ pub struct ForkClient {
 
 impl ForkClient {
     async fn new(
-        url: Url,
+        config: ForkConfig,
         l2_client: Box<DynClient<L2>>,
         block_number: L2BlockNumber,
     ) -> anyhow::Result<Self> {
+        let ForkConfig {
+            url,
+            estimate_gas_price_scale_factor,
+            estimate_gas_scale_factor,
+        } = config;
         let chain_id = l2_client
             .chain_id()
             .await
@@ -291,13 +320,6 @@ impl ForkClient {
             )
         }
 
-        // TODO: Fetch from the network somehow? Unfortunately there is no endpoint that exposes
-        //       this information but we can derive it by comparing result of `zks_getBatchFeeInput`
-        //       with `eth_gasPrice`. As former is not scaled and the latter one is.
-        let (estimate_gas_price_scale_factor, estimate_gas_scale_factor) = (
-            DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
-            DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
-        );
         let fee_params = l2_client.get_fee_params().await?;
         let details = ForkDetails {
             chain_id,
@@ -324,36 +346,42 @@ impl ForkClient {
         Ok(fork)
     }
 
-    /// Initializes a fork from a source at a given block number.
+    /// Initializes a fork based on config at a given block number.
     pub async fn at_block_number(
-        url: Url,
+        config: ForkConfig,
         block_number: Option<L2BlockNumber>,
     ) -> anyhow::Result<Self> {
         let l2_client =
-            zksync_web3_decl::client::Client::http(SensitiveUrl::from(url.clone()))?.build();
+            zksync_web3_decl::client::Client::http(SensitiveUrl::from(config.url.clone()))?.build();
         let block_number = if let Some(block_number) = block_number {
             block_number
         } else {
             let block_number = l2_client
                 .get_block_number()
                 .await
-                .with_context(|| format!("failed to get block number from fork={url}"))?;
+                .with_context(|| format!("failed to get block number from fork={}", config.url))?;
             L2BlockNumber(block_number.as_u32())
         };
 
-        Self::new(url, Box::new(l2_client), block_number).await
+        Self::new(config, Box::new(l2_client), block_number).await
     }
 
-    /// Initializes a fork from a source at a block BEFORE given transaction.
+    /// Initializes a fork based on config at a block BEFORE given transaction.
     /// This will allow us to apply this transaction locally on top of this fork.
-    pub async fn at_before_tx(url: Url, tx_hash: H256) -> anyhow::Result<(Self, Vec<L2Tx>)> {
+    pub async fn at_before_tx(
+        config: ForkConfig,
+        tx_hash: H256,
+    ) -> anyhow::Result<(Self, Vec<L2Tx>)> {
         let l2_client =
-            zksync_web3_decl::client::Client::http(SensitiveUrl::from(url.clone()))?.build();
+            zksync_web3_decl::client::Client::http(SensitiveUrl::from(config.url.clone()))?.build();
         let tx_details = l2_client
             .get_transaction_by_hash(tx_hash)
             .await?
             .ok_or_else(|| {
-                anyhow::anyhow!("could not find tx with hash={tx_hash:?} at fork={url}")
+                anyhow::anyhow!(
+                    "could not find tx with hash={tx_hash:?} at fork={}",
+                    config.url
+                )
             })?;
         let block_number = tx_details.block_number.ok_or_else(|| {
             anyhow::anyhow!(
@@ -381,7 +409,7 @@ impl ForkClient {
 
         // We initialize fork from the parent of the block containing transaction.
         Ok((
-            Self::new(url, Box::new(l2_client), block_number - 1).await?,
+            Self::new(config, Box::new(l2_client), block_number - 1).await?,
             earlier_txs,
         ))
     }

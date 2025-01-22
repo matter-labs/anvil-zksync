@@ -81,7 +81,8 @@ async fn main() -> anyhow::Result<()> {
                 (None, Vec::new())
             } else {
                 // Initialize the client to get the fee params
-                let client = ForkClient::at_block_number(ForkUrl::Mainnet.to_url(), None).await?;
+                let client =
+                    ForkClient::at_block_number(ForkUrl::Mainnet.to_config(), None).await?;
                 let fee = client.get_fee_params().await?;
 
                 match fee {
@@ -120,12 +121,12 @@ async fn main() -> anyhow::Result<()> {
         Command::Fork(fork) => {
             let (fork_client, earlier_txs) = if let Some(tx_hash) = fork.fork_transaction_hash {
                 // If transaction hash is provided, we fork at the parent of block containing tx
-                ForkClient::at_before_tx(fork.fork_url.to_url(), tx_hash).await?
+                ForkClient::at_before_tx(fork.fork_url.to_config(), tx_hash).await?
             } else {
                 // Otherwise, we fork at the provided block
                 (
                     ForkClient::at_block_number(
-                        fork.fork_url.to_url(),
+                        fork.fork_url.to_config(),
                         fork.fork_block_number.map(|bn| L2BlockNumber(bn as u32)),
                     )
                     .await?,
@@ -138,7 +139,7 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::ReplayTx(replay_tx) => {
             let (fork_client, earlier_txs) =
-                ForkClient::at_before_tx(replay_tx.fork_url.to_url(), replay_tx.tx).await?;
+                ForkClient::at_before_tx(replay_tx.fork_url.to_config(), replay_tx.tx).await?;
 
             update_with_fork_details(&mut config, &fork_client.details).await;
             (Some(fork_client), earlier_txs)

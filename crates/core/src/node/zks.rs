@@ -157,7 +157,7 @@ mod tests {
     use zksync_types::{u256_to_h256, L1BatchNumber};
 
     use super::*;
-    use crate::node::fork::ForkClient;
+    use crate::node::fork::{ForkClient, ForkConfig};
     use crate::node::TransactionResult;
     use crate::{
         node::InMemoryNode,
@@ -259,7 +259,7 @@ mod tests {
         );
 
         let node = InMemoryNode::test(Some(
-            ForkClient::at_block_number(mock_server.url(), None)
+            ForkClient::at_block_number(ForkConfig::unknown(mock_server.url()), None)
                 .await
                 .unwrap(),
         ));
@@ -336,7 +336,7 @@ mod tests {
         );
 
         let node = InMemoryNode::test(Some(
-            ForkClient::at_block_number(mock_server.url(), None)
+            ForkClient::at_block_number(ForkConfig::unknown(mock_server.url()), None)
                 .await
                 .unwrap(),
         ));
@@ -407,7 +407,7 @@ mod tests {
         );
 
         let node = InMemoryNode::test(Some(
-            ForkClient::at_block_number(mock_server.url(), None)
+            ForkClient::at_block_number(ForkConfig::unknown(mock_server.url()), None)
                 .await
                 .unwrap(),
         ));
@@ -461,7 +461,7 @@ mod tests {
         );
 
         let node = InMemoryNode::test(Some(
-            ForkClient::at_block_number(mock_server.url(), None)
+            ForkClient::at_block_number(ForkConfig::unknown(mock_server.url()), None)
                 .await
                 .unwrap(),
         ));
@@ -577,7 +577,7 @@ mod tests {
         );
 
         let node = InMemoryNode::test(Some(
-            ForkClient::at_block_number(mock_server.url(), None)
+            ForkClient::at_block_number(ForkConfig::unknown(mock_server.url()), None)
                 .await
                 .unwrap(),
         ));
@@ -711,7 +711,7 @@ mod tests {
         );
 
         let node = InMemoryNode::test(Some(
-            ForkClient::at_block_number(mock_server.url(), Some(1.into()))
+            ForkClient::at_block_number(ForkConfig::unknown(mock_server.url()), Some(1.into()))
                 .await
                 .unwrap(),
         ));
