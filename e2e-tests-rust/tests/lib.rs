@@ -4,11 +4,12 @@ use alloy::providers::Provider;
 use alloy::{
     network::primitives::BlockTransactionsKind, primitives::U256, signers::local::PrivateKeySigner,
 };
+use alloy_zksync::node_bindings::AnvilZKsync;
 use anvil_zksync_core::node::VersionedState;
 use anvil_zksync_core::utils::write_json_file;
 use anvil_zksync_e2e_tests::{
     get_node_binary_path, init_testing_provider, init_testing_provider_with_client, AnvilZKsyncApi,
-    ReceiptExt, ZksyncWalletProviderExt, DEFAULT_TX_VALUE,
+    LockedPort, ReceiptExt, ZksyncWalletProviderExt, DEFAULT_TX_VALUE,
 };
 use anyhow::Context;
 use flate2::read::GzDecoder;
@@ -775,6 +776,33 @@ async fn load_state_on_fork() -> anyhow::Result<()> {
         "State dump file should still exist at {:?}",
         dump_path
     );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_server_port_fallback() -> anyhow::Result<()> {
+    let locked_port = LockedPort::acquire_unused().await?;
+
+    let node1 = AnvilZKsync::new()
+        .path(get_node_binary_path())
+        .port(locked_port.port)
+        .spawn();
+    let port1 = node1.port();
+
+    let node2 = AnvilZKsync::new()
+        .path(get_node_binary_path())
+        .port(locked_port.port)
+        .spawn();
+    let port2 = node2.port();
+
+    assert_ne!(
+        port1, port2,
+        "The second instance should have a different port due to fallback"
+    );
+
+    drop(node1);
+    drop(node2);
 
     Ok(())
 }

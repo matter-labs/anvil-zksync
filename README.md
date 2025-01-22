@@ -46,20 +46,16 @@ Please note that `anvil-zksync` is still in its **alpha** stage. Some features m
 
 ### Using the installation script
 
-1. Download the installation script and mark as executable:
-   ```bash
-   curl --proto '=https' -sSf https://raw.githubusercontent.com/matter-labs/anvil-zksync/main/scripts/install.sh > install.sh
-   chmod +x install.sh
-   ```
+1. Install via `foundryup-zksync` as described [here](https://foundry-book.zksync.io/getting-started/installation):
+  ```
+  curl -L https://raw.githubusercontent.com/matter-labs/foundry-zksync/main/install-foundry-zksync | bash
+  ```
 
-2. Run the script with `sudo` (version can optionally be specified via the `--version` argument):
-   ```bash
-   sudo ./install.sh
-   ```
+This will install `forge`, `cast` and `anvil-zksync`.
 
 3. Start the node:
    ```bash
-   anvil-zksync run
+   anvil-zksync
    ```
 
 ### Manually
@@ -74,7 +70,7 @@ Please note that `anvil-zksync` is still in its **alpha** stage. Some features m
 
 3. Start the node:
    ```bash
-   anvil-zksync run
+   anvil-zksync
    ```
 
 ## 🧑‍💻 Running Locally
@@ -147,7 +143,14 @@ anvil-zksync fork fork-url mainnet
 If you wish to replay a remote transaction locally for deep debugging, use the following command:
 
 ```bash
-anvil-zksync replay_tx <network> <transaction_hash>
+anvil-zksync replay_tx --fork-url <network> <transaction_hash>
+```
+
+Example:
+
+```bash
+anvil-zksync --show-calls=all --resolve-hashes=true replay_tx --fork-url sepolia-testnet \
+0x7119045573862797257e4441ff48bf5a3bc4d133a00d167c18dc955eda12cfa
 ```
 
 ## Replacing bytecodes
@@ -178,26 +181,23 @@ By default, the tool is just printing the basic information about the executed t
 But with --show-calls flag, it can print more detailed call traces, and with --resolve-hashes, it will ask openchain for ABI names.
 
 ```bash
-anvil-zksync --show-calls=user --resolve-hashes replay_tx sepolia-testnet 0x7119045573862797257e4441ff48bf5a3bc4d133a00d167c18dc955eda12cfac
+anvil-zksync --show-calls=user --resolve-hashes=true replay_tx --fork-url sepolia-testnet 0x7119045573862797257e4441ff48bf5a3bc4d133a00d167c18dc955eda12cfac
 
-Executing 0x7119045573862797257e4441ff48bf5a3bc4d133a00d167c18dc955eda12cfac
-┌─────────────────────────┐
-│   TRANSACTION SUMMARY   │
-└─────────────────────────┘
-Transaction: SUCCESS
-Initiator: 0x4eaf936c172b5e5511959167e8ab4f7031113ca3
-Payer: 0x4eaf936c172b5e5511959167e8ab4f7031113ca3
-Gas - Limit: 2_487_330 | Used: 969_330 | Refunded: 1_518_000
-Use --show-gas-details flag or call config_setShowGasDetails to display more info
-
-==== Console logs:
-
-==== 22 call traces.  Use --show-calls flag or call config_setShowCalls to display more info.
-  Call(Normal) 0x4eaf936c172b5e5511959167e8ab4f7031113ca3           validateTransaction(bytes32, bytes32, tuple)   1830339
-    Call(Normal) 0x0000000000000000000000000000000000000001                 0x89c19e9b   1766835
-  Call(Normal) 0x4eaf936c172b5e5511959167e8ab4f7031113ca3           payForTransaction(bytes32, bytes32, tuple)   1789767
-  Call(Normal) 0x4eaf936c172b5e5511959167e8ab4f7031113ca3           executeTransaction(bytes32, bytes32, tuple)   1671012
-      Call(Mimic) 0x5d4fb5385ed95b65d1cd6a10ed9549613481ab2f           0x   1443393
+16:19:43  INFO Validating 0x7119045573862797257e4441ff48bf5a3bc4d133a00d167c18dc955eda12cfac
+16:19:43  INFO Executing 0x7119045573862797257e4441ff48bf5a3bc4d133a00d167c18dc955eda12cfac
+16:19:46  INFO 
+16:19:46  INFO ✅  [SUCCESS] Hash: 0x7119045573862797257e4441ff48bf5a3bc4d133a00d167c18dc955eda12cfac
+16:19:46  INFO Initiator: 0x4eaf936c172b5e5511959167e8ab4f7031113ca3
+16:19:46  INFO Payer: 0x4eaf936c172b5e5511959167e8ab4f7031113ca3
+16:19:46  INFO Gas Limit: 2_487_330 | Used: 133_046 | Refunded: 2_354_284
+16:19:46  INFO Paid: 0.0000252787 ETH (133046 gas * 0.19000000 gwei)
+16:19:46  INFO Refunded: 0.0004473140 ETH
+16:19:46  INFO 
+16:19:46  INFO 
+16:19:46  INFO [Transaction Execution] (23 calls)
+16:19:46  INFO Call(Normal) [2_400_300] initiator@0x4eaf936c172b5e5511959167e8ab4f7031113ca3::validateTransaction(bytes32, bytes32, tuple) (18_748)
+16:19:46  INFO Call(Normal) [2_378_250] initiator@0x4eaf936c172b5e5511959167e8ab4f7031113ca3::payForTransaction(bytes32, bytes32, tuple) (8_691)
+16:19:46  INFO Call(Normal) [2_333_268] initiator@0x4eaf936c172b5e5511959167e8ab4f7031113ca3::executeTransaction(bytes32, bytes32, tuple) (10_820)
 ```
 
 You can use the following options to get more granular information during transaction processing:

@@ -55,6 +55,10 @@ lint-fix:
 	cd e2e-tests && yarn && yarn lint:fix && yarn fmt:fix
 	cargo clippy --fix
 	cargo fmt
+	cd e2e-tests-rust && cargo fmt --all
+	cd e2e-tests-rust && cargo clippy --fix
+	cd spec-tests && cargo fmt --all
+	cd spec-tests && cargo clippy --fix
 
 # Run unit tests for Rust code
 test:

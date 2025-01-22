@@ -247,6 +247,14 @@ async fn main() -> anyhow::Result<()> {
         storage_key_layout,
     );
 
+    // We start the node executor now so it can receive and handle commands
+    // during replay. Otherwise, replay would send commands and hang.
+    tokio::spawn(async move {
+        if let Err(err) = node_executor.run().await {
+            tracing::error!("node executor ended with error: {:?}", err);
+        }
+    });
+
     if let Some(ref bytecodes_dir) = config.override_bytecodes_dir {
         override_bytecodes(&node, bytecodes_dir.to_string())
             .await
@@ -296,10 +304,43 @@ async fn main() -> anyhow::Result<()> {
     }
     let mut server_handles = Vec::with_capacity(config.host.len());
     for host in &config.host {
-        let addr = SocketAddr::new(*host, config.port);
-        let server = server_builder.clone().build(addr).await;
-        config.port = server.local_addr().port();
-        server_handles.push(server.run());
+        let mut addr = SocketAddr::new(*host, config.port);
+
+        match server_builder.clone().build(addr).await {
+            Ok(server) => {
+                config.port = server.local_addr().port();
+                server_handles.push(server.run());
+            }
+            Err(err) => {
+                tracing::info!(
+                    "Failed to bind to address {}:{}: {}. Retrying with a different port...",
+                    host,
+                    config.port,
+                    err
+                );
+
+                // Attempt to bind to a dynamic port
+                addr.set_port(0);
+                match server_builder.clone().build(addr).await {
+                    Ok(server) => {
+                        config.port = server.local_addr().port();
+                        tracing::info!(
+                            "Successfully started server on port {} for host {}",
+                            config.port,
+                            host
+                        );
+                        server_handles.push(server.run());
+                    }
+                    Err(err) => {
+                        return Err(anyhow!(
+                            "Failed to start server on host {} with port: {}",
+                            host,
+                            err
+                        ));
+                    }
+                }
+            }
+        }
     }
     let any_server_stopped =
         futures::future::select_all(server_handles.into_iter().map(|h| Box::pin(h.stopped())));
@@ -336,9 +377,6 @@ async fn main() -> anyhow::Result<()> {
         },
         _ = any_server_stopped => {
             tracing::trace!("node server was stopped")
-        },
-        _ = node_executor.run() => {
-            tracing::trace!("node executor was stopped")
         },
         _ = block_sealer.run() => {
             tracing::trace!("block sealer was stopped")
