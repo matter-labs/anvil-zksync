@@ -6,6 +6,7 @@
 use crate::deps::InMemoryStorage;
 use crate::node::inner::fork::{Fork, ForkSource};
 use crate::node::inner::storage::ReadStorageDyn;
+use crate::utils;
 use anvil_zksync_config::constants::TEST_NODE_NETWORK_ID;
 use anvil_zksync_config::types::SystemContractsOptions;
 use async_trait::async_trait;
@@ -90,7 +91,8 @@ impl ForkStorage {
         };
         let address = *key.account().address();
         let idx = h256_to_u256(*key.key());
-        let value = futures::executor::block_on(fork.get_storage_at_forked(address, idx)).unwrap();
+        let value =
+            utils::block_on(async move { fork.get_storage_at_forked(address, idx).await }).unwrap();
 
         let mut writer = self.inner.write().unwrap();
         writer.value_read_cache.insert(*key, value);
@@ -110,7 +112,7 @@ impl ForkStorage {
             writer.fork.clone()
         };
 
-        let result = futures::executor::block_on(fork.get_bytecode_by_hash(hash)).unwrap();
+        let result = utils::block_on(async move { fork.get_bytecode_by_hash(hash).await }).unwrap();
 
         let mut writer = self.inner.write().unwrap();
         writer.factory_dep_cache.insert(hash, result.clone());
