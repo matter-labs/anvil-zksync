@@ -1,5 +1,92 @@
-use zksync_multivm::interface::{Call, VmExecutionResultAndLogs};
-use zksync_types::Address;
+use zksync_multivm::interface::{Call, VmExecutionResultAndLogs, ExecutionResult};
+use zksync_types::{Address, H256};
+use zksync_types::web3::Bytes;
+use alloy_primitives::FixedBytes;
+use std::fmt;
+
+/// Solidity contract functions are addressed using the first four bytes of the
+/// Keccak-256 hash of their signature.
+pub type Selector = FixedBytes<4>;
+
+/// An Ethereum event log object.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(::serde::Serialize, ::serde::Deserialize))]
+#[cfg_attr(feature = "arbitrary", derive(derive_arbitrary::Arbitrary, proptest_derive::Arbitrary))]
+pub struct LogData {
+    /// The indexed topic list.
+    topics: Vec<H256>,
+    /// The plain data.
+    pub data: Bytes,
+}
+
+impl LogData {
+    /// Creates a new log, without length-checking. This allows creation of
+    /// invalid logs. May be safely used when the length of the topic list is
+    /// known to be 4 or less.
+    #[inline]
+    pub const fn new_unchecked(topics: Vec<H256>, data: Bytes) -> Self {
+        Self { topics, data }
+    }
+
+    /// Creates a new log.
+    #[inline]
+    pub fn new(topics: Vec<H256>, data: Bytes) -> Option<Self> {
+        let this = Self::new_unchecked(topics, data);
+        this.is_valid().then_some(this)
+    }
+
+    /// Creates a new empty log.
+    #[inline]
+    pub const fn empty() -> Self {
+        Self { topics: Vec::new(), data: Bytes(Vec::new()) }
+    }
+
+    /// True if valid, false otherwise.
+    #[inline]
+    pub fn is_valid(&self) -> bool {
+        self.topics.len() <= 4
+    }
+
+    /// Get the topic list.
+    #[inline]
+    pub fn topics(&self) -> &[H256] {
+        &self.topics
+    }
+
+    /// Get the topic list, mutably. This gives access to the internal
+    /// array, without allowing extension of that array.
+    #[inline]
+    pub fn topics_mut(&mut self) -> &mut [H256] {
+        &mut self.topics
+    }
+
+    /// Get a mutable reference to the topic list. This allows creation of
+    /// invalid logs.
+    #[inline]
+    pub fn topics_mut_unchecked(&mut self) -> &mut Vec<H256> {
+        &mut self.topics
+    }
+
+    /// Set the topic list, without length-checking. This allows creation of
+    /// invalid logs.
+    #[inline]
+    pub fn set_topics_unchecked(&mut self, topics: Vec<H256>) {
+        self.topics = topics;
+    }
+
+    /// Set the topic list, truncating to 4 topics.
+    #[inline]
+    pub fn set_topics_truncating(&mut self, mut topics: Vec<H256>) {
+        topics.truncate(4);
+        self.set_topics_unchecked(topics);
+    }
+
+    /// Consumes the log data, returning the topic list and the data.
+    #[inline]
+    pub fn split(self) -> (Vec<H256>, Bytes) {
+        (self.topics, self.data)
+    }
+}
 
 /// Decoded call data.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -119,7 +206,7 @@ impl CallTraceArena {
         //self.arena.push(Default::default());
     }
 
-        /// Pushes a new trace into the arena, returning the trace ID
+    /// Pushes a new trace into the arena, returning the trace ID
     ///
     /// This appends a new trace to the arena, and also inserts a new entry in the node's parent
     /// node children set if `attach_to_parent` is `true`. E.g. if calls to precompiles should
@@ -181,5 +268,19 @@ impl PushTraceKind {
     #[inline]
     const fn is_attach_to_parent(&self) -> bool {
         matches!(self, Self::PushAndAttachToParent)
+    }
+}
+
+pub trait ExecutionResultDisplay {
+    fn display(&self) -> String;
+}
+
+impl ExecutionResultDisplay for ExecutionResult {
+    fn display(&self) -> String {
+        match self {
+            ExecutionResult::Success { .. } => "Success".to_string(),
+            ExecutionResult::Revert { output } => format!("Revert: {}", output),
+            ExecutionResult::Halt { reason } => format!("Halt: {:?}", reason),
+        }
     }
 }

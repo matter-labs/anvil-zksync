@@ -11,18 +11,18 @@
 // use serde::Deserialize;
 use crate::trace::types::{
     CallTrace, CallTraceArena, CallTraceNode, DecodedCallData, DecodedCallTrace,
+    ExecutionResultDisplay
 };
 use anstyle::{AnsiColor, Color, Style};
 use colorchoice::ColorChoice;
 use std::io::{self, Write};
 use std::str;
-use zksync_multivm::interface::{CallType, VmExecutionLogs, VmEvent};
+use zksync_multivm::interface::{CallType, VmEvent, VmExecutionLogs};
 use zksync_types::{
-    StorageLogWithPreviousValue,
+    l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     zk_evm_types::FarCallOpcode,
-    l2_to_l1_log::{UserL2ToL1Log, SystemL2ToL1Log},
+    StorageLogWithPreviousValue,
     H256,
-    //fee_model::FeeModelConfigV2, Address, StorageLogWithPreviousValue, Transaction, H160, H256,
     U256,
 };
 
@@ -191,7 +191,13 @@ impl<W: Write> TraceWriter<W> {
 
     /// Writes a call trace arena to the writer.
     pub fn write_arena(&mut self, arena: &CallTraceArena) -> io::Result<()> {
-        self.write_node(arena.nodes(), 0)?;
+        let root = &arena.nodes()[0];
+        for member in &root.ordering {
+            if let TraceMemberOrder::Call(local_idx) = member {
+                let child_idx = root.children[*local_idx];
+                self.write_node(arena.nodes(), child_idx)?;
+            }
+        }
         self.writer.flush()
     }
 
@@ -205,53 +211,65 @@ impl<W: Write> TraceWriter<W> {
     ///
     /// Note: this will return the length of [CallTraceNode::ordering] when the last item gets
     /// processed.
-    fn write_item(
-        &mut self,
-        nodes: &[CallTraceNode],
-        node_idx: usize,
-        item_idx: usize,
-    ) -> io::Result<usize> {
-        let node = &nodes[node_idx];
-        match &node.ordering[item_idx] {
-            TraceMemberOrder::Log(index) => {
-                let logs = &node.trace.execution_result.logs;
+fn write_item(
+    &mut self,
+    nodes: &[CallTraceNode],
+    node_idx: usize,
+    item_idx: usize,
+) -> io::Result<usize> {
+    let node = &nodes[node_idx];
+    match &node.ordering[item_idx] {
+        TraceMemberOrder::Log(index) => {
+            let logs = &node.trace.execution_result.logs;
 
-                if *index < logs.storage_logs.len() {
-                    self.write_storage_log(&logs.storage_logs[*index])?;
-                } else if *index < logs.storage_logs.len() + logs.events.len() {
-                    let event_index = *index - logs.storage_logs.len();
-                    self.write_event_log(&logs.events[event_index])?;
-                } else if *index
-                    < logs.storage_logs.len() + logs.events.len() + logs.user_l2_to_l1_logs.len()
-                {
-                    let user_log_index = *index - logs.storage_logs.len() - logs.events.len();
-                    self.write_user_l2_to_l1_log(&logs.user_l2_to_l1_logs[user_log_index])?;
-                } else if *index
-                    < logs.storage_logs.len()
-                        + logs.events.len()
-                        + logs.user_l2_to_l1_logs.len()
-                        + logs.system_l2_to_l1_logs.len()
-                {
-                    let system_log_index = *index
-                        - logs.storage_logs.len()
-                        - logs.events.len()
-                        - logs.user_l2_to_l1_logs.len();
-                    self.write_system_l2_to_l1_log(&logs.system_l2_to_l1_logs[system_log_index])?;
-                } else {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        "Log index out of bounds",
-                    ));
-                }
+            let total_logs = logs.storage_logs.len()
+                + logs.events.len()
+                + logs.user_l2_to_l1_logs.len()
+                + logs.system_l2_to_l1_logs.len();
 
-                Ok(item_idx + 1)
+            if *index >= total_logs {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!(
+                        "Log index out of bounds: {index}, total logs: {total_logs}"
+                    ),
+                ));
             }
-            TraceMemberOrder::Call(index) => {
-                self.write_node(nodes, node.children[*index])?;
-                Ok(item_idx + 1)
+
+            if *index < logs.storage_logs.len() {
+                self.write_storage_log(&logs.storage_logs[*index])?;
+            } else if *index < logs.storage_logs.len() + logs.events.len() {
+                let event_index = *index - logs.storage_logs.len();
+                self.write_event_log(&logs.events[event_index])?;
+            } else if *index
+                < logs.storage_logs.len() + logs.events.len() + logs.user_l2_to_l1_logs.len()
+            {
+                let user_log_index = *index - logs.storage_logs.len() - logs.events.len();
+                self.write_user_l2_to_l1_log(&logs.user_l2_to_l1_logs[user_log_index])?;
+            } else if *index
+                < logs.storage_logs.len()
+                    + logs.events.len()
+                    + logs.user_l2_to_l1_logs.len()
+                    + logs.system_l2_to_l1_logs.len()
+            {
+                let system_log_index = *index
+                    - logs.storage_logs.len()
+                    - logs.events.len()
+                    - logs.user_l2_to_l1_logs.len();
+                self.write_system_l2_to_l1_log(&logs.system_l2_to_l1_logs[system_log_index])?;
             }
+            println!("end of log");
+
+            Ok(item_idx + 1)
+        }
+        TraceMemberOrder::Call(index) => {
+            assert!(*index < node.children.len(), "Call index out of bounds");
+            self.write_node(nodes, node.children[*index])?;
+            Ok(item_idx + 1)
         }
     }
+}
+
 
     /// Writes items of a single node to the writer, starting from the given index, and until the
     /// given predicate is false.
@@ -281,10 +299,12 @@ impl<W: Write> TraceWriter<W> {
     /// Writes a single node and its children to the writer.
     fn write_node(&mut self, nodes: &[CallTraceNode], idx: usize) -> io::Result<()> {
         let node = &nodes[idx];
-
+        
         // Write header.
         self.write_branch()?;
+        
         self.write_trace_header(&node.trace)?;
+        
         self.writer.write_all(b"\n")?;
 
         // Write logs and subcalls.
@@ -489,21 +509,24 @@ impl<W: Write> TraceWriter<W> {
     }
 
     /// Writes the footer of a call trace.
-    fn write_trace_footer(&mut self, trace: &CallTrace) -> io::Result<()> {
-        // Write the execution result status
+        fn write_trace_footer(&mut self, trace: &CallTrace) -> io::Result<()> {
+        // Use the custom trait to format the execution result
+        let status_str = trace.execution_result.result.display();
+        
+        // Write the execution result status using the formatted string
         write!(
             self.writer,
-            "{style}{RETURN}[{status:?}]{style:#}",
+            "{style}{RETURN}[{status}]{style:#}",
             style = self.trace_style(trace),
-            status = trace.execution_result.result,
+            status = status_str,
         )?;
-
+    
         // Write decoded return data if available
         if let Some(decoded) = &trace.decoded.return_data {
             write!(self.writer, " ")?;
             return self.writer.write_all(decoded.as_bytes());
         }
-
+    
         // Handle contract creation or output data
         if !self.config.write_bytecodes
             && matches!(trace.call.r#type, CallType::Create)
@@ -513,7 +536,7 @@ impl<W: Write> TraceWriter<W> {
         } else if !trace.call.output.is_empty() {
             write!(self.writer, " {}", hex::encode(&trace.call.output))?;
         }
-
+    
         Ok(())
     }
 

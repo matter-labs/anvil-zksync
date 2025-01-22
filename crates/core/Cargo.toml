@@ -44,6 +44,10 @@ flate2.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true
 
+alloy-primitives.workspace = true
+alloy-json-abi.workspace = true
+alloy-dyn-abi.workspace = true
+
 [dev-dependencies]
 maplit.workspace = true
 ethers.workspace = true

@@ -40,6 +40,9 @@ zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era.git", rev 
 anyhow = "1.0"
 alloy-signer-local = { version = "0.5.4", features = ["mnemonic"] }
 alloy-signer = { version = "0.5.4", default-features = false }
+alloy-primitives = { version = "0.5.4", default-features = false }
+alloy-json-abi = "0.5.4"
+alloy-dyn-abi = "0.5.4"
 async-trait = "0.1.85"
 chrono = { version = "0.4.31", default-features = false }
 clap = { version = "4.2.4", features = ["derive", "env"] }

@@ -17,6 +17,8 @@ use crate::node::{
     TransactionResult, TxExecutionInfo, VersionedState, ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION,
     MAX_PREVIOUS_STATES, MAX_TX_SIZE,
 };
+use crate::trace::types::{CallTrace, CallTraceArena, CallTraceNode};
+use crate::trace::{build_call_trace_arena, render_trace_arena_inner};
 
 use crate::system_contracts::SystemContracts;
 use crate::utils::create_debug_output;
@@ -389,6 +391,18 @@ impl InMemoryNodeInner {
         if self.config.show_vm_details != ShowVMDetails::None {
             let mut formatter = formatter::Formatter::new();
             formatter.print_vm_details(&tx_result);
+        }
+        tracing::info!("wwow");
+        println!("okay");
+
+        if let Some(call_traces) = call_traces {
+            let arena = build_call_trace_arena(&call_traces, tx_result.clone());
+
+            // Render the arena once
+            let trace_output = render_trace_arena_inner(&arena, false);
+
+            // Print the formatted traces using `{}` to interpret ANSI codes correctly
+            println!("Traces:\n{}", trace_output);
         }
 
         if let Some(call_traces) = call_traces {

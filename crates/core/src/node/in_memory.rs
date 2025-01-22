@@ -6,6 +6,8 @@ use super::vm::AnvilVM;
 use crate::deps::storage_view::StorageView;
 use crate::deps::InMemoryStorage;
 use crate::filters::EthFilters;
+use crate::trace::{render_trace_arena_inner, build_call_trace_arena};
+use crate::trace::types::{CallTraceArena, CallTrace, CallTraceNode};
 use crate::node::call_error_tracer::CallErrorTracer;
 use crate::node::error::LoadStateError;
 use crate::node::fee_model::TestNodeFeeInputProvider;
@@ -444,13 +446,21 @@ impl InMemoryNode {
                 }
             };
         }
-
+        tracing::info!("testing2, attention please!");
         if !inner.config.disable_console_log {
             inner
                 .console_log_handler
                 .handle_calls_recursive(&call_traces);
         }
-
+        tracing::info!("testing, attention please!");
+        println!("testinggggggg, attention please!");
+        let mut decoded_traces: Vec<String> = Vec::with_capacity(call_traces.len());
+        let arena = build_call_trace_arena(&call_traces, tx_result.clone());
+        let ct = call_traces.clone();
+        for call in ct {
+            decoded_traces.push(render_trace_arena_inner(&arena, false,));
+        }
+        println!("decoded_traces: {:?}", decoded_traces);
         if inner.config.show_calls != ShowCalls::None {
             tracing::info!("");
             tracing::info!(

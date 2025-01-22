@@ -1,6 +1,7 @@
 use anyhow::Context;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 use std::future::Future;
 use std::sync::Arc;
 use std::{convert::TryInto, fmt};
@@ -202,6 +203,17 @@ pub fn write_json_file<T: Serialize>(path: &Path, obj: &T) -> anyhow::Result<()>
 
     Ok(())
 }
+
+/// Reads the JSON file at the specified path and deserializes it into the provided type.
+/// Returns an error if the file cannot be read or deserialization fails.
+pub fn read_json_file<T: DeserializeOwned>(path: &Path) -> anyhow::Result<T> {
+    let file_content = std::fs::read_to_string(path)
+        .with_context(|| format!("Failed to read file '{}'", path.display()))?;
+    
+    serde_json::from_str(&file_content)
+        .with_context(|| format!("Failed to deserialize JSON from '{}'", path.display()))
+}
+
 
 pub fn block_on<F: Future + Send + 'static>(future: F) -> F::Output
 where
