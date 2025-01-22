@@ -6,6 +6,38 @@ use ethabi::{Function, Param, StateMutability};
 use itertools::Itertools;
 use zksync_multivm::interface::Call;
 use zksync_types::H160;
+use std::sync::LazyLock;
+use crate::trace::types::Selector;
+
+/// Maps all the `hardhat/console.log` log selectors that use the legacy ABI (`int`, `uint`) to
+/// their normalized counterparts (`int256`, `uint256`).
+///
+/// `hardhat/console.log` logs its events manually, and in functions that accept integers they're
+/// encoded as `abi.encodeWithSignature("log(int)", p0)`, which is not the canonical ABI encoding
+/// for `int` that Solidity and [`sol!`] use.
+pub static HARDHAT_CONSOLE_SELECTOR_PATCHES: LazyLock<HashMap<[u8; 4], [u8; 4]>> =
+    LazyLock::new(|| HashMap::from_iter(include!("./data/patches.rs")));
+
+/// Patches the given Hardhat `console` function selector to its ABI-normalized form.
+///
+/// See [`HARDHAT_CONSOLE_SELECTOR_PATCHES`] for more details.
+pub fn patch_hh_console_selector(input: &mut [u8]) {
+    if let Some(selector) = hh_console_selector(input) {
+        input[..4].copy_from_slice(selector.as_slice());
+    }
+}
+
+/// Returns the ABI-normalized selector for the given Hardhat `console` function selector.
+///
+/// See [`HARDHAT_CONSOLE_SELECTOR_PATCHES`] for more details.
+pub fn hh_console_selector(input: &[u8]) -> Option<&'static Selector> {
+    if let Some(selector) = input.get(..4) {
+        let selector: &[u8; 4] = selector.try_into().unwrap();
+        HARDHAT_CONSOLE_SELECTOR_PATCHES.get(selector).map(Into::into)
+    } else {
+        None
+    }
+}
 
 /// ConsoleLogHandler is responsible for printing the logs, that are created when contract calls 'console.log' method.
 /// This is a popular debugging method used by hardhat and foundry.
@@ -80,7 +112,7 @@ impl ConsoleLogHandler {
 }
 
 /// Returns the well-known log [Function]s.
-fn get_log_functions() -> Vec<Function> {
+pub fn get_log_functions() -> Vec<Function> {
     LOG_FUNCTIONS
         .iter()
         .map(|func_decl| {

@@ -18,8 +18,8 @@ use crate::node::{
     MAX_PREVIOUS_STATES, MAX_TX_SIZE,
 };
 use crate::trace::types::{CallTrace, CallTraceArena, CallTraceNode};
-use crate::trace::{build_call_trace_arena, render_trace_arena_inner};
-
+use crate::trace::{build_call_trace_arena, render_trace_arena_inner, decode_trace_arena};
+use crate::trace::decode::CallTraceDecoderBuilder;
 use crate::system_contracts::SystemContracts;
 use crate::utils::create_debug_output;
 use crate::{delegate_vm, formatter, utils};
@@ -392,11 +392,18 @@ impl InMemoryNodeInner {
             let mut formatter = formatter::Formatter::new();
             formatter.print_vm_details(&tx_result);
         }
-        tracing::info!("wwow");
-        println!("okay");
 
         if let Some(call_traces) = call_traces {
-            let arena = build_call_trace_arena(&call_traces, tx_result.clone());
+            let builder = CallTraceDecoderBuilder::new();
+            let decoder = builder.build();
+            let mut arena = build_call_trace_arena(&call_traces, tx_result.clone());
+            tokio::task::block_in_place(|| {
+                // Run the async function using the current runtime
+                tokio::runtime::Handle::current().block_on(async {
+                   // decoder.populate_function(arena.clone()).await;
+                    decode_trace_arena(&mut arena, &decoder).await.unwrap();
+                });
+            });
 
             // Render the arena once
             let trace_output = render_trace_arena_inner(&arena, false);

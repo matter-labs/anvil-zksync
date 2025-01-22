@@ -221,7 +221,7 @@ impl SignEthClient {
         if selectors.is_empty() {
             return Ok(vec![]);
         }
-
+        
         tracing::debug!(len = selectors.len(), "decoding selectors");
         tracing::trace!(?selectors, "decoding selectors");
 

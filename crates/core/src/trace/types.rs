@@ -236,6 +236,34 @@ impl CallTraceArena {
         //self.arena.push(Default::default());
     }
 
+    /// Checks if the given address is a precompile based on `KNOWN_ADDRESSES`.
+    pub fn is_precompile(address: &Address) -> bool {
+        if let Some(known) = KNOWN_ADDRESSES.get(address) {
+            matches!(known.contract_type, ContractType::Precompile)
+        } else {
+            false
+        }
+    }
+
+    /// Filters out precompile nodes from the arena.
+    pub fn filter_out_precompiles(&mut self) {
+        self.arena.retain(|node| !Self::is_precompile(&node.trace.address));
+    }
+
+    /// Checks if the given address is a system contract based on `KNOWN_ADDRESSES`.
+    pub fn is_system(address: &Address) -> bool {
+        if let Some(known) = KNOWN_ADDRESSES.get(address) {
+            matches!(known.contract_type, ContractType::System)
+        } else {
+            false
+        }
+    }
+
+    /// Filters out system contracts nodes from the arena.
+    pub fn filter_out_system_contracts(&mut self) {
+        self.arena.retain(|node| !Self::is_system(&node.trace.address));
+    }
+
     /// Pushes a new trace into the arena, returning the trace ID
     ///
     /// This appends a new trace to the arena, and also inserts a new entry in the node's parent
