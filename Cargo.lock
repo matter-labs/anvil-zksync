@@ -410,6 +410,7 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
+ "zksync_error",
  "zksync_types",
  "zksync_web3_decl",
 ]
@@ -498,6 +499,7 @@ dependencies = [
  "tracing-subscriber",
  "zksync-web3-rs",
  "zksync_contracts",
+ "zksync_error",
  "zksync_multivm",
  "zksync_types",
  "zksync_web3_decl",
@@ -7908,6 +7910,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync-error-description"
+version = "0.1.0"
+source = "git+https://github.com/sayon/error-codegen-poc?branch=main#f4e0b4d24a1507fb769aec4a9c0c223848246e77"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "zksync-web3-rs"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8048,6 +8059,18 @@ dependencies = [
  "sha2 0.10.8",
  "thiserror",
  "zksync_basic_types",
+]
+
+[[package]]
+name = "zksync_error"
+version = "0.1.0"
+dependencies = [
+ "lazy_static",
+ "serde",
+ "serde_json",
+ "strum",
+ "strum_macros",
+ "zksync-error-description",
 ]
 
 [[package]]

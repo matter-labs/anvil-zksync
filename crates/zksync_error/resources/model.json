@@ -1,0 +1,713 @@
+{
+  "types": {
+    "WrappedError": {
+      "name": "WrappedError",
+      "meta": {
+        "description": "Any wrapped error"
+      },
+      "bindings": {
+        "rust": {
+          "name": "serde_json::Value",
+          "path": ""
+        }
+      }
+    },
+    "string": {
+      "name": "string",
+      "meta": {
+        "description": "Unicode zero-terminated string"
+      },
+      "bindings": {
+        "rust": {
+          "name": "String",
+          "path": ""
+        }
+      }
+    },
+    "uint": {
+      "name": "uint",
+      "meta": {
+        "description": "Unsigned 32-bit integer"
+      },
+      "bindings": {
+        "rust": {
+          "name": "u32",
+          "path": ""
+        }
+      }
+    }
+  },
+  "domains": {
+    "Anvil": {
+      "name": "Anvil",
+      "code": 5,
+      "components": [
+        "AnvilEnvironment"
+      ],
+      "bindings": {
+        "rust": "Anvil",
+        "typescript": "Anvil"
+      },
+      "identifier": "anvil",
+      "description": "Errors originating in Anvil for ZKsync."
+    },
+    "Compiler": {
+      "name": "Compiler",
+      "code": 2,
+      "components": [
+        "LLVM_EVM",
+        "LLVM_Era",
+        "Solc",
+        "SolcFork",
+        "Zksolc",
+        "Zkvyper"
+      ],
+      "bindings": {
+        "rust": "Compiler",
+        "typescript": "Compiler"
+      },
+      "identifier": "compiler",
+      "description": "Compilers such as zksolc, zkvyper, solc."
+    },
+    "Core": {
+      "name": "Core",
+      "code": 1,
+      "components": [
+        "API",
+        "EraVM",
+        "ExecutionPlatform",
+        "Sequencer"
+      ],
+      "bindings": {
+        "rust": "Core",
+        "typescript": "Core"
+      },
+      "identifier": "core",
+      "description": "Errors in core ZKsync components such as sequencer or mempool."
+    },
+    "Foundry": {
+      "name": "Foundry",
+      "code": 4,
+      "components": [
+        "FoundryUpstream",
+        "FoundryZksync"
+      ],
+      "bindings": {
+        "rust": "Foundry",
+        "typescript": "Foundry"
+      },
+      "identifier": "foundry",
+      "description": "Errors originating in Foundry."
+    },
+    "Hardhat": {
+      "name": "Hardhat",
+      "code": 3,
+      "components": [
+        "HardhatUpstream",
+        "HardhatZksync"
+      ],
+      "bindings": {
+        "rust": "Hardhat",
+        "typescript": "Hardhat"
+      },
+      "identifier": "hardhat",
+      "description": "Errors originating in HardHat."
+    }
+  },
+  "components": {
+    "API": {
+      "name": "API",
+      "code": 4,
+      "domain_name": "Core",
+      "bindings": {
+        "rust": "API",
+        "typescript": "API"
+      },
+      "identifier": "api",
+      "description": "Errors originating in the web3 API."
+    },
+    "AnvilEnvironment": {
+      "name": "AnvilEnvironment",
+      "code": 1,
+      "domain_name": "Anvil",
+      "bindings": {
+        "rust": "AnvilEnvironment",
+        "typescript": "AnvilEnvironment"
+      },
+      "identifier": "env",
+      "description": ""
+    },
+    "EraVM": {
+      "name": "EraVM",
+      "code": 2,
+      "domain_name": "Core",
+      "bindings": {
+        "rust": "EraVM",
+        "typescript": "EraVM"
+      },
+      "identifier": "eravm",
+      "description": "Errors in EraVM virtual machine executing contracts."
+    },
+    "ExecutionPlatform": {
+      "name": "ExecutionPlatform",
+      "code": 3,
+      "domain_name": "Core",
+      "bindings": {
+        "rust": "ExecutionPlatform",
+        "typescript": "ExecutionPlatform"
+      },
+      "identifier": "exec",
+      "description": "Errors in the contract execution environment, bootloader, etc."
+    },
+    "FoundryUpstream": {
+      "name": "FoundryUpstream",
+      "code": 1,
+      "domain_name": "Foundry",
+      "bindings": {
+        "rust": "FoundryUpstream",
+        "typescript": "FoundryUpstream"
+      },
+      "identifier": "upstream",
+      "description": "Errors originating in the upstream Foundry implementation."
+    },
+    "FoundryZksync": {
+      "name": "FoundryZksync",
+      "code": 2,
+      "domain_name": "Foundry",
+      "bindings": {
+        "rust": "FoundryZksync",
+        "typescript": "FoundryZksync"
+      },
+      "identifier": "zksync",
+      "description": "Errors originating in the ZKsync codebase for Foundry."
+    },
+    "HardhatUpstream": {
+      "name": "HardhatUpstream",
+      "code": 1,
+      "domain_name": "Hardhat",
+      "bindings": {
+        "rust": "HardhatUpstream",
+        "typescript": "HardhatUpstream"
+      },
+      "identifier": "upstream",
+      "description": "Errors originating in the upstream Hardhat implementation."
+    },
+    "HardhatZksync": {
+      "name": "HardhatZksync",
+      "code": 2,
+      "domain_name": "Hardhat",
+      "bindings": {
+        "rust": "HardhatZksync",
+        "typescript": "HardhatZksync"
+      },
+      "identifier": "zksync",
+      "description": "Errors originating in the ZKsync codebase for HardHat."
+    },
+    "LLVM_EVM": {
+      "name": "LLVM_EVM",
+      "code": 2,
+      "domain_name": "Compiler",
+      "bindings": {
+        "rust": "LLVM_EVM",
+        "typescript": "LLVM_EVM"
+      },
+      "identifier": "llvm+evm",
+      "description": "Errors originating in the compiler backend for Ethereum VM (EVM)."
+    },
+    "LLVM_Era": {
+      "name": "LLVM_Era",
+      "code": 1,
+      "domain_name": "Compiler",
+      "bindings": {
+        "rust": "LLVM_Era",
+        "typescript": "LLVM_Era"
+      },
+      "identifier": "llvm+era",
+      "description": "Errors originating in the compiler backend for EraVM."
+    },
+    "Sequencer": {
+      "name": "Sequencer",
+      "code": 1,
+      "domain_name": "Core",
+      "bindings": {
+        "rust": "Sequencer",
+        "typescript": "Sequencer"
+      },
+      "identifier": "seq",
+      "description": "Errors in the sequencer node"
+    },
+    "Solc": {
+      "name": "Solc",
+      "code": 3,
+      "domain_name": "Compiler",
+      "bindings": {
+        "rust": "Solc",
+        "typescript": "Solc"
+      },
+      "identifier": "solc",
+      "description": "Errors originating in the official Solidity compiler."
+    },
+    "SolcFork": {
+      "name": "SolcFork",
+      "code": 4,
+      "domain_name": "Compiler",
+      "bindings": {
+        "rust": "SolcFork",
+        "typescript": "SolcFork"
+      },
+      "identifier": "solc+fork",
+      "description": "Errors originating in the ZKsync fork of Solidity compiler."
+    },
+    "Zksolc": {
+      "name": "Zksolc",
+      "code": 5,
+      "domain_name": "Compiler",
+      "bindings": {
+        "rust": "Zksolc",
+        "typescript": "Zksolc"
+      },
+      "identifier": "zksolc",
+      "description": "Errors originating in the ZKsync Solidity compiler for EraVM and EVM."
+    },
+    "Zkvyper": {
+      "name": "Zkvyper",
+      "code": 6,
+      "domain_name": "Compiler",
+      "bindings": {
+        "rust": "Zkvyper",
+        "typescript": "Zkvyper"
+      },
+      "identifier": "zkvyper",
+      "description": "Errors originating in the ZKsync Vyper compiler for EraVM."
+    }
+  },
+  "errors": {
+    "[anvil-env-0]": {
+      "domain": "Anvil",
+      "component": "AnvilEnvironment",
+      "name": "GenericError",
+      "code": 0,
+      "identifier": "[anvil-env-0]",
+      "message": "Generic error: {message}",
+      "fields": [
+        {
+          "name": "message",
+          "type": "string"
+        }
+      ],
+      "documentation": null,
+      "bindings": {
+        "rust": {
+          "name": "GenericError",
+          "path": ""
+        },
+        "typescript": {
+          "name": "GenericError",
+          "path": ""
+        }
+      }
+    },
+    "[anvil-env-1]": {
+      "domain": "Anvil",
+      "component": "AnvilEnvironment",
+      "name": "LogFileAccessError",
+      "code": 1,
+      "identifier": "[anvil-env-1]",
+      "message": "Unable to access log file: {log_filename}",
+      "fields": [
+        {
+          "name": "log_filename",
+          "type": "string"
+        },
+        {
+          "name": "wrapped_error",
+          "type": "string"
+        }
+      ],
+      "documentation": {
+        "description": "Anvil was unable to open the log file for writing.",
+        "short_description": "Unable to access log file.",
+        "likely_causes": [
+          {
+            "cause": "Not enough space.",
+            "fixes": [
+              "Check if you have enough free space in your storage to create or open a log file"
+            ],
+            "report": "",
+            "owner": null,
+            "references": []
+          },
+          {
+            "cause": "Insufficient permissions.",
+            "fixes": [
+              "Check if you have permissions to write to the log file."
+            ],
+            "report": "",
+            "owner": null,
+            "references": []
+          }
+        ]
+      },
+      "bindings": {
+        "rust": {
+          "name": "LogFileAccessError",
+          "path": ""
+        },
+        "typescript": {
+          "name": "LogFileAccessError",
+          "path": ""
+        }
+      }
+    },
+    "[compiler-llvm+era-0]": {
+      "domain": "Compiler",
+      "component": "LLVM_Era",
+      "name": "GenericError",
+      "code": 0,
+      "identifier": "[compiler-llvm+era-0]",
+      "message": "Generic error: {message}",
+      "fields": [
+        {
+          "name": "message",
+          "type": "string"
+        }
+      ],
+      "documentation": null,
+      "bindings": {
+        "rust": {
+          "name": "GenericError",
+          "path": ""
+        },
+        "typescript": {
+          "name": "GenericError",
+          "path": ""
+        }
+      }
+    },
+    "[compiler-llvm+evm-0]": {
+      "domain": "Compiler",
+      "component": "LLVM_EVM",
+      "name": "GenericError",
+      "code": 0,
+      "identifier": "[compiler-llvm+evm-0]",
+      "message": "Generic error: {message}",
+      "fields": [
+        {
+          "name": "message",
+          "type": "string"
+        }
+      ],
+      "documentation": null,
+      "bindings": {
+        "rust": {
+          "name": "GenericError",
+          "path": ""
+        },
+        "typescript": {
+          "name": "GenericError",
+          "path": ""
+        }
+      }
+    },
+    "[compiler-solc+fork-0]": {
+      "domain": "Compiler",
+      "component": "SolcFork",
+      "name": "GenericError",
+      "code": 0,
+      "identifier": "[compiler-solc+fork-0]",
+      "message": "Generic error: {message}",
+      "fields": [
+        {
+          "name": "message",
+          "type": "string"
+        }
+      ],
+      "documentation": null,
+      "bindings": {
+        "rust": {
+          "name": "GenericError",
+          "path": ""
+        },
+        "typescript": {
+          "name": "GenericError",
+          "path": ""
+        }
+      }
+    },
+    "[compiler-solc-0]": {
+      "domain": "Compiler",
+      "component": "Solc",
+      "name": "GenericError",
+      "code": 0,
+      "identifier": "[compiler-solc-0]",
+      "message": "Generic error: {message}",
+      "fields": [
+        {
+          "name": "message",
+          "type": "string"
+        }
+      ],
+      "documentation": null,
+      "bindings": {
+        "rust": {
+          "name": "GenericError",
+          "path": ""
+        },
+        "typescript": {
+          "name": "GenericError",
+          "path": ""
+        }
+      }
+    },
+    "[compiler-zksolc-0]": {
+      "domain": "Compiler",
+      "component": "Zksolc",
+      "name": "GenericError",
+      "code": 0,
+      "identifier": "[compiler-zksolc-0]",
+      "message": "Generic error: {message}",
+      "fields": [
+        {
+          "name": "message",
+          "type": "string"
+        }
+      ],
+      "documentation": null,
+      "bindings": {
+        "rust": {
+          "name": "GenericError",
+          "path": ""
+        },
+        "typescript": {
+          "name": "GenericError",
+          "path": ""
+        }
+      }
+    },
+    "[compiler-zkvyper-0]": {
+      "domain": "Compiler",
+      "component": "Zkvyper",
+      "name": "GenericError",
+      "code": 0,
+      "identifier": "[compiler-zkvyper-0]",
+      "message": "Generic error: {message}",
+      "fields": [
+        {
+          "name": "message",
+          "type": "string"
+        }
+      ],
+      "documentation": null,
+      "bindings": {
+        "rust": {
+          "name": "GenericError",
+          "path": ""
+        },
+        "typescript": {
+          "name": "GenericError",
+          "path": ""
+        }
+      }
+    },
+    "[core-api-0]": {
+      "domain": "Core",
+      "component": "API",
+      "name": "GenericError",
+      "code": 0,
+      "identifier": "[core-api-0]",
+      "message": "Generic error: {message}",
+      "fields": [
+        {
+          "name": "message",
+          "type": "string"
+        }
+      ],
+      "documentation": null,
+      "bindings": {
+        "rust": {
+          "name": "GenericError",
+          "path": ""
+        },
+        "typescript": {
+          "name": "GenericError",
+          "path": ""
+        }
+      }
+    },
+    "[core-eravm-0]": {
+      "domain": "Core",
+      "component": "EraVM",
+      "name": "GenericError",
+      "code": 0,
+      "identifier": "[core-eravm-0]",
+      "message": "Generic error: {message}",
+      "fields": [
+        {
+          "name": "message",
+          "type": "string"
+        }
+      ],
+      "documentation": null,
+      "bindings": {
+        "rust": {
+          "name": "GenericError",
+          "path": ""
+        },
+        "typescript": {
+          "name": "GenericError",
+          "path": ""
+        }
+      }
+    },
+    "[core-exec-0]": {
+      "domain": "Core",
+      "component": "ExecutionPlatform",
+      "name": "GenericError",
+      "code": 0,
+      "identifier": "[core-exec-0]",
+      "message": "Generic error: {message}",
+      "fields": [
+        {
+          "name": "message",
+          "type": "string"
+        }
+      ],
+      "documentation": null,
+      "bindings": {
+        "rust": {
+          "name": "GenericError",
+          "path": ""
+        },
+        "typescript": {
+          "name": "GenericError",
+          "path": ""
+        }
+      }
+    },
+    "[core-seq-0]": {
+      "domain": "Core",
+      "component": "Sequencer",
+      "name": "GenericError",
+      "code": 0,
+      "identifier": "[core-seq-0]",
+      "message": "Generic error: {message}",
+      "fields": [
+        {
+          "name": "message",
+          "type": "string"
+        }
+      ],
+      "documentation": null,
+      "bindings": {
+        "rust": {
+          "name": "GenericError",
+          "path": ""
+        },
+        "typescript": {
+          "name": "GenericError",
+          "path": ""
+        }
+      }
+    },
+    "[foundry-upstream-0]": {
+      "domain": "Foundry",
+      "component": "FoundryUpstream",
+      "name": "GenericError",
+      "code": 0,
+      "identifier": "[foundry-upstream-0]",
+      "message": "Generic error: {message}",
+      "fields": [
+        {
+          "name": "message",
+          "type": "string"
+        }
+      ],
+      "documentation": null,
+      "bindings": {
+        "rust": {
+          "name": "GenericError",
+          "path": ""
+        },
+        "typescript": {
+          "name": "GenericError",
+          "path": ""
+        }
+      }
+    },
+    "[foundry-zksync-0]": {
+      "domain": "Foundry",
+      "component": "FoundryZksync",
+      "name": "GenericError",
+      "code": 0,
+      "identifier": "[foundry-zksync-0]",
+      "message": "Generic error: {message}",
+      "fields": [
+        {
+          "name": "message",
+          "type": "string"
+        }
+      ],
+      "documentation": null,
+      "bindings": {
+        "rust": {
+          "name": "GenericError",
+          "path": ""
+        },
+        "typescript": {
+          "name": "GenericError",
+          "path": ""
+        }
+      }
+    },
+    "[hardhat-upstream-0]": {
+      "domain": "Hardhat",
+      "component": "HardhatUpstream",
+      "name": "GenericError",
+      "code": 0,
+      "identifier": "[hardhat-upstream-0]",
+      "message": "Generic error: {message}",
+      "fields": [
+        {
+          "name": "message",
+          "type": "string"
+        }
+      ],
+      "documentation": null,
+      "bindings": {
+        "rust": {
+          "name": "GenericError",
+          "path": ""
+        },
+        "typescript": {
+          "name": "GenericError",
+          "path": ""
+        }
+      }
+    },
+    "[hardhat-zksync-0]": {
+      "domain": "Hardhat",
+      "component": "HardhatZksync",
+      "name": "GenericError",
+      "code": 0,
+      "identifier": "[hardhat-zksync-0]",
+      "message": "Generic error: {message}",
+      "fields": [
+        {
+          "name": "message",
+          "type": "string"
+        }
+      ],
+      "documentation": null,
+      "bindings": {
+        "rust": {
+          "name": "GenericError",
+          "path": ""
+        },
+        "typescript": {
+          "name": "GenericError",
+          "path": ""
+        }
+      }
+    }
+  }
+}

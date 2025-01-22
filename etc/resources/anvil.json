@@ -1,0 +1,60 @@
+{
+    "types": [],
+    "domains": [
+        {
+            "domain_name": "Anvil",
+            "domain_code": 5,
+            "identifier_encoding": "anvil",
+            "components" : [
+                {
+                    "component_name": "AnvilEnvironment",
+                    "component_code": 1,
+                    "identifier_encoding": "env",
+                    "errors" : [
+                        {
+                            "name": "LogFileAccessError",
+                            "code": 1,
+                            "message": "Unable to access log file: {log_filename}",
+                            "bindings": {
+                                "rust":
+                                {
+                                    "name": "LogFileAccessError"
+                                }
+                            },
+                            "fields": [
+                                {
+                                    "name": "log_filename",
+                                    "type": "string"
+                                },
+                                {
+                                    "name": "wrapped_error",
+                                    "type": "string"
+                                }
+                            ],
+                            "doc" : {
+                                "description": "Anvil was unable to open the log file for writing.",
+                                "short_description": "Unable to access log file.",
+                                "likely_causes": [
+                                    {
+                                        "cause": "Not enough space.",
+                                        "fixes": [
+                                            "Check if you have enough free space in your storage to create or open a log file"
+                                        ]
+                                    },
+                                    {
+                                        "cause": "Insufficient permissions.",
+                                        "fixes": [
+                                            "Check if you have permissions to write to the log file."
+                                        ]
+                                    }
+                                ],
+                                "references": ["https://matter-labs.io", "https://github.com"]
+                            }
+                        }
+
+                    ]
+                }
+            ]
+        }
+    ]
+}
