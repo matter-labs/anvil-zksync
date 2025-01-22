@@ -13,7 +13,7 @@ use std::future::Future;
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use tracing::Instrument;
 use url::Url;
-use zksync_types::fee_model::FeeParams;
+use zksync_types::fee_model::{BaseTokenConversionRatio, FeeModelConfigV2, FeeParams, FeeParamsV2};
 use zksync_types::l2::L2Tx;
 use zksync_types::url::SensitiveUrl;
 use zksync_types::web3::Index;
@@ -187,8 +187,6 @@ pub struct ForkDetails {
     pub block_timestamp: u64,
     /// API block at which we forked (corresponds to the hash of block #`block_number`).
     pub api_block: api::Block<api::TransactionVariant>,
-
-    // TODO: Document what values below are
     pub l1_gas_price: u64,
     pub l2_fair_gas_price: u64,
     // Cost of publishing one byte.
@@ -198,6 +196,38 @@ pub struct ForkDetails {
     /// The factor by which to scale the gasLimit.
     pub estimate_gas_scale_factor: f32,
     pub fee_params: FeeParams,
+}
+
+impl Default for ForkDetails {
+    fn default() -> Self {
+        let config = FeeModelConfigV2 {
+            minimal_l2_gas_price: 10_000_000_000,
+            compute_overhead_part: 0.0,
+            pubdata_overhead_part: 1.0,
+            batch_overhead_l1_gas: 800_000,
+            max_gas_per_batch: 200_000_000,
+            max_pubdata_per_batch: 500_000,
+        };
+        Self {
+            chain_id: Default::default(),
+            batch_number: Default::default(),
+            block_number: Default::default(),
+            block_hash: Default::default(),
+            block_timestamp: 0,
+            api_block: Default::default(),
+            l1_gas_price: 0,
+            l2_fair_gas_price: 0,
+            fair_pubdata_price: 0,
+            estimate_gas_price_scale_factor: 0.0,
+            estimate_gas_scale_factor: 0.0,
+            fee_params: FeeParams::V2(FeeParamsV2::new(
+                config,
+                10_000_000_000,
+                5_000_000_000,
+                BaseTokenConversionRatio::default(),
+            )),
+        }
+    }
 }
 
 /// Simple wrapper over `eth`/`zks`-capable client that propagates all [`ForkSource`] RPC requests to it.
@@ -367,12 +397,70 @@ impl ForkClient {
 }
 
 #[cfg(test)]
-impl ForkClient<zksync_web3_decl::client::MockClient<L2>> {
-    pub fn test() -> anyhow::Result<Self> {
-        let origin = "test-fork-in-memory-storage".to_string();
-        // TODO: Port handlers from ExternalStorage
-        let l2_client = zksync_web3_decl::client::MockClient::builder(L2::default()).build();
-        Ok(ForkClient { origin, l2_client })
+impl ForkClient {
+    pub fn mock(details: ForkDetails, storage: crate::deps::InMemoryStorage) -> Self {
+        use zksync_types::{u256_to_h256, AccountTreeId, StorageKey, H160};
+
+        let storage = Arc::new(RwLock::new(storage));
+        let storage_clone = storage.clone();
+        let l2_client = Box::new(
+            zksync_web3_decl::client::MockClient::builder(L2::default())
+                .method(
+                    "eth_getStorageAt",
+                    move |address: Address, idx: U256, _block: Option<api::BlockIdVariant>| {
+                        let key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(idx));
+                        Ok(storage
+                            .read()
+                            .unwrap()
+                            .state
+                            .get(&key)
+                            .cloned()
+                            .unwrap_or_default())
+                    },
+                )
+                .method("zks_getBytecodeByHash", move |hash: H256| {
+                    Ok(storage_clone
+                        .read()
+                        .unwrap()
+                        .factory_deps
+                        .get(&hash)
+                        .cloned())
+                })
+                .method("zks_getBlockDetails", move |block_number: L2BlockNumber| {
+                    Ok(Some(api::BlockDetails {
+                        number: block_number,
+                        l1_batch_number: L1BatchNumber(123),
+                        base: api::BlockDetailsBase {
+                            timestamp: 0,
+                            l1_tx_count: 0,
+                            l2_tx_count: 0,
+                            root_hash: None,
+                            status: api::BlockStatus::Sealed,
+                            commit_tx_hash: None,
+                            committed_at: None,
+                            commit_chain_id: None,
+                            prove_tx_hash: None,
+                            proven_at: None,
+                            prove_chain_id: None,
+                            execute_tx_hash: None,
+                            executed_at: None,
+                            execute_chain_id: None,
+                            l1_gas_price: 123,
+                            l2_fair_gas_price: 234,
+                            fair_pubdata_price: Some(345),
+                            base_system_contracts_hashes: Default::default(),
+                        },
+                        operator_address: H160::zero(),
+                        protocol_version: None,
+                    }))
+                })
+                .build(),
+        );
+        ForkClient {
+            url: Url::parse("http://test-fork-in-memory-storage.local").unwrap(),
+            details,
+            l2_client,
+        }
     }
 }
 
@@ -846,5 +934,88 @@ impl fmt::Display for SupportedProtocolVersions {
                 .map(|v| v.to_string())
                 .join(", "),
         )
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::deps::InMemoryStorage;
+    use maplit::hashmap;
+    use zksync_types::block::{pack_block_info, unpack_block_info};
+    use zksync_types::{h256_to_u256, u256_to_h256, AccountTreeId, StorageKey};
+
+    #[tokio::test]
+    async fn test_mock_client() {
+        let input_batch = 1;
+        let input_l2_block = 2;
+        let input_timestamp = 3;
+        let input_bytecode = vec![0x4];
+        let batch_key = StorageKey::new(
+            AccountTreeId::new(zksync_types::SYSTEM_CONTEXT_ADDRESS),
+            zksync_types::SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
+        );
+        let l2_block_key = StorageKey::new(
+            AccountTreeId::new(zksync_types::SYSTEM_CONTEXT_ADDRESS),
+            zksync_types::SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+        );
+
+        let client = ForkClient::mock(
+            ForkDetails::default(),
+            InMemoryStorage {
+                state: hashmap! {
+                    batch_key => u256_to_h256(U256::from(input_batch)),
+                    l2_block_key => u256_to_h256(pack_block_info(
+                        input_l2_block,
+                        input_timestamp,
+                    ))
+                },
+                factory_deps: hashmap! {
+                    H256::repeat_byte(0x1) => input_bytecode.clone(),
+                },
+            },
+        );
+        let fork = Fork::new(Some(client), CacheConfig::None);
+
+        let actual_batch = fork
+            .get_storage_at(
+                zksync_types::SYSTEM_CONTEXT_ADDRESS,
+                h256_to_u256(zksync_types::SYSTEM_CONTEXT_BLOCK_INFO_POSITION),
+                None,
+            )
+            .await
+            .map(|value| h256_to_u256(value).as_u64())
+            .expect("failed getting batch number");
+        assert_eq!(input_batch, actual_batch);
+
+        let (actual_l2_block, actual_timestamp) = fork
+            .get_storage_at(
+                zksync_types::SYSTEM_CONTEXT_ADDRESS,
+                h256_to_u256(zksync_types::SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION),
+                None,
+            )
+            .await
+            .map(|value| unpack_block_info(h256_to_u256(value)))
+            .expect("failed getting l2 block info");
+        assert_eq!(input_l2_block, actual_l2_block);
+        assert_eq!(input_timestamp, actual_timestamp);
+
+        let zero_missing_value = fork
+            .get_storage_at(
+                zksync_types::SYSTEM_CONTEXT_ADDRESS,
+                h256_to_u256(H256::repeat_byte(0x1e)),
+                None,
+            )
+            .await
+            .map(|value| h256_to_u256(value).as_u64())
+            .expect("failed missing value");
+        assert_eq!(0, zero_missing_value);
+
+        let actual_bytecode = fork
+            .get_bytecode_by_hash(H256::repeat_byte(0x1))
+            .await
+            .expect("failed getting bytecode")
+            .expect("missing bytecode");
+        assert_eq!(input_bytecode, actual_bytecode);
     }
 }

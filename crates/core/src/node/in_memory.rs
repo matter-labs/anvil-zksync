@@ -19,7 +19,7 @@ use crate::observability::Observability;
 use crate::system_contracts::SystemContracts;
 use crate::{delegate_vm, formatter};
 use anvil_zksync_config::constants::{NON_FORK_FIRST_BLOCK_TIMESTAMP, TEST_NODE_NETWORK_ID};
-use anvil_zksync_config::types::Genesis;
+use anvil_zksync_config::types::{CacheConfig, Genesis};
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_types::{LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
 use colored::Colorize;
@@ -677,7 +677,10 @@ impl InMemoryNode {
     }
 
     pub fn test(fork_client_opt: Option<ForkClient>) -> Self {
-        let config = TestNodeConfig::default();
+        let config = TestNodeConfig {
+            cache_config: CacheConfig::None,
+            ..Default::default()
+        };
         Self::test_config(fork_client_opt, config)
     }
 }

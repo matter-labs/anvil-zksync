@@ -1243,14 +1243,26 @@ impl InMemoryNodeInner {
                 ))),
             }
         } else if storage.hashes.contains_key(&block_number) {
-            // This is a locally produced block so no point in querying fork.
-            Ok(storage
+            let value = storage
                 .hashes
                 .get(&block_number)
                 .and_then(|block_hash| self.previous_states.get(block_hash))
                 .and_then(|state| state.get(&storage_key))
                 .cloned()
-                .unwrap_or_default())
+                .unwrap_or_default();
+            if !value.is_zero() {
+                return Ok(value);
+            }
+            // TODO: Check if the rest of the logic below makes sense.
+            //       AFAIU this branch can only be entered if the block was produced locally, but
+            //       we query the fork regardless?
+            match self.fork_storage.read_value_internal(&storage_key) {
+                Ok(value) => Ok(H256(value.0)),
+                Err(error) => Err(Web3Error::InternalError(anyhow::anyhow!(
+                    "failed to read storage: {}",
+                    error
+                ))),
+            }
         } else {
             Ok(self.fork.get_storage_at(address, idx, block).await?)
         }
@@ -1380,7 +1392,7 @@ impl InMemoryNodeInner {
         } else {
             StorageKeyLayout::ZkEra
         };
-        let (inner, _, _, _) = InMemoryNodeInner::init(
+        let (inner, _, _, _, _) = InMemoryNodeInner::init(
             None,
             fee_provider,
             Arc::new(RwLock::new(Default::default())),
@@ -1541,15 +1553,16 @@ impl InMemoryNodeInner {
 mod tests {
     use super::*;
     use crate::node::create_genesis;
-    use crate::node::fork::ForkStorage;
+    use crate::node::fork::ForkDetails;
+    use crate::node::inner::fork_storage::ForkStorage;
     use crate::testing;
-    use crate::testing::{ExternalStorage, TransactionBuilder, STORAGE_CONTRACT_BYTECODE};
+    use crate::testing::{TransactionBuilder, STORAGE_CONTRACT_BYTECODE};
     use anvil_zksync_config::constants::{
         DEFAULT_ACCOUNT_BALANCE, DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
         DEFAULT_ESTIMATE_GAS_SCALE_FACTOR, DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L2_GAS_PRICE,
         TEST_NODE_NETWORK_ID,
     };
-    use anvil_zksync_config::types::{CacheConfig, SystemContractsOptions};
+    use anvil_zksync_config::types::SystemContractsOptions;
     use anvil_zksync_config::TestNodeConfig;
     use ethabi::{ParamType, Token, Uint};
     use itertools::Itertools;
@@ -1665,7 +1678,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_run_l2_tx_raw_does_not_panic_on_external_storage_call() {
+    async fn test_run_l2_tx_raw_does_not_panic_on_mock_fork_client_call() {
         // Perform a transaction to get storage to an intermediate state
         let inner = InMemoryNodeInner::test();
         let mut node = inner.write().await;
@@ -1676,31 +1689,29 @@ mod tests {
             .system_contracts
             .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
         node.seal_block(vec![tx], system_contracts).await.unwrap();
-        let external_storage = node.fork_storage.clone();
 
-        // Execute next transaction using a fresh in-memory node and the external fork storage
-        let mock_db = ExternalStorage {
-            raw_storage: external_storage.inner.read().unwrap().raw_storage.clone(),
+        // Execute next transaction using a fresh in-memory node and mocked fork client
+        let fork_details = ForkDetails {
+            chain_id: TEST_NODE_NETWORK_ID.into(),
+            batch_number: L1BatchNumber(1),
+            block_number: L2BlockNumber(2),
+            block_hash: Default::default(),
+            block_timestamp: 1002,
+            api_block: api::Block::default(),
+            l1_gas_price: 1000,
+            l2_fair_gas_price: DEFAULT_L2_GAS_PRICE,
+            fair_pubdata_price: DEFAULT_FAIR_PUBDATA_PRICE,
+            estimate_gas_price_scale_factor: DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
+            estimate_gas_scale_factor: DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
+            ..Default::default()
         };
+        let mock_fork_client = ForkClient::mock(
+            fork_details,
+            node.fork_storage.inner.read().unwrap().raw_storage.clone(),
+        );
         let impersonation = ImpersonationManager::default();
-        let (node, _, _, _) = InMemoryNodeInner::init(
-            Some(ForkDetails {
-                fork_source: Box::new(mock_db),
-                chain_id: TEST_NODE_NETWORK_ID.into(),
-                l1_block: L1BatchNumber(1),
-                l2_block: api::Block::default(),
-                l2_miniblock: 2,
-                l2_miniblock_hash: Default::default(),
-                block_timestamp: 1002,
-                overwrite_chain_id: None,
-                l1_gas_price: 1000,
-                l2_fair_gas_price: DEFAULT_L2_GAS_PRICE,
-                fair_pubdata_price: DEFAULT_FAIR_PUBDATA_PRICE,
-                fee_params: None,
-                estimate_gas_price_scale_factor: DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
-                estimate_gas_scale_factor: DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
-                cache_config: CacheConfig::default(),
-            }),
+        let (node, _, _, _, _) = InMemoryNodeInner::init(
+            Some(mock_fork_client),
             TestNodeFeeInputProvider::default(),
             Arc::new(RwLock::new(Default::default())),
             TestNodeConfig::default(),
@@ -1717,7 +1728,7 @@ mod tests {
             .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
         let (_, _, mut vm) = test_vm(&mut *node, system_contracts).await;
         node.run_l2_tx_raw(tx, &mut vm)
-            .expect("transaction must pass with external storage");
+            .expect("transaction must pass with mock fork client");
     }
 
     #[tokio::test]

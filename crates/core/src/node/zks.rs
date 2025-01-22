@@ -139,6 +139,7 @@ impl InMemoryNode {
         if let Some(bytecode) = self.storage.load_factory_dep_alt(hash).await? {
             return Ok(Some(bytecode));
         }
+        println!("Nope");
 
         self.fork.get_bytecode_by_hash(hash).await
     }
@@ -152,12 +153,11 @@ impl InMemoryNode {
 mod tests {
     use std::str::FromStr;
 
-    use anvil_zksync_config::types::CacheConfig;
     use zksync_types::{api, transaction_request::CallRequest, Address, H160, H256};
     use zksync_types::{u256_to_h256, L1BatchNumber};
 
     use super::*;
-    use crate::node::fork::ForkDetails;
+    use crate::node::fork::ForkClient;
     use crate::node::TransactionResult;
     use crate::{
         node::InMemoryNode,
@@ -243,33 +243,23 @@ mod tests {
         });
         let input_tx_hash = H256::repeat_byte(0x02);
         mock_server.expect(
+            "zks_getTransactionDetails",
+            Some(serde_json::json!([format!("{:#x}", input_tx_hash),])),
             serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 0,
-                "method": "zks_getTransactionDetails",
-                "params": [
-                    format!("{:#x}", input_tx_hash),
-                ],
-            }),
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "result": {
-                    "isL1Originated": false,
-                    "status": "included",
-                    "fee": "0x74293f087500",
-                    "gasPerPubdata": "0x4e20",
-                    "initiatorAddress": "0x63ab285cd87a189f345fed7dd4e33780393e01f0",
-                    "receivedAt": "2023-10-12T15:45:53.094Z",
-                    "ethCommitTxHash": null,
-                    "ethProveTxHash": null,
-                    "ethExecuteTxHash": null
-                },
-                "id": 0
+                "isL1Originated": false,
+                "status": "included",
+                "fee": "0x74293f087500",
+                "gasPerPubdata": "0x4e20",
+                "initiatorAddress": "0x63ab285cd87a189f345fed7dd4e33780393e01f0",
+                "receivedAt": "2023-10-12T15:45:53.094Z",
+                "ethCommitTxHash": null,
+                "ethProveTxHash": null,
+                "ethExecuteTxHash": null
             }),
         );
 
         let node = InMemoryNode::test(Some(
-            ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
+            ForkClient::at_block_number(mock_server.url(), None)
                 .await
                 .unwrap(),
         ));
@@ -317,17 +307,9 @@ mod tests {
         });
         let miniblock = L2BlockNumber::from(16474138);
         mock_server.expect(
+            "zks_getBlockDetails",
+            Some(serde_json::json!([miniblock.0])),
             serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 0,
-                "method": "zks_getBlockDetails",
-                "params": [
-                    miniblock.0,
-                ],
-            }),
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "result": {
                   "number": 16474138,
                   "l1BatchNumber": 270435,
                   "timestamp": 1697405098,
@@ -350,13 +332,11 @@ mod tests {
                   },
                   "operatorAddress": "0xa9232040bf0e0aea2578a5b2243f2916dbfc0a69",
                   "protocolVersion": "Version15"
-                },
-                "id": 0
               }),
         );
 
         let node = InMemoryNode::test(Some(
-            ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
+            ForkClient::at_block_number(mock_server.url(), None)
                 .await
                 .unwrap(),
         ));
@@ -414,27 +394,20 @@ mod tests {
             l2_legacy_shared_bridge: Some(H160::repeat_byte(0x6)),
         };
         mock_server.expect(
+            "zks_getBridgeContracts",
+            None,
             serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 0,
-                "method": "zks_getBridgeContracts",
-            }),
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "result": {
-                    "l1Erc20SharedBridge": format!("{:#x}", input_bridge_addresses.l1_shared_default_bridge.unwrap()),
-                    "l2Erc20SharedBridge": format!("{:#x}", input_bridge_addresses.l2_shared_default_bridge.unwrap()),
-                    "l1Erc20DefaultBridge": format!("{:#x}", input_bridge_addresses.l1_erc20_default_bridge.unwrap()),
-                    "l2Erc20DefaultBridge": format!("{:#x}", input_bridge_addresses.l2_erc20_default_bridge.unwrap()),
-                    "l1WethBridge": format!("{:#x}", input_bridge_addresses.l1_weth_bridge.unwrap()),
-                    "l2WethBridge": format!("{:#x}", input_bridge_addresses.l2_weth_bridge.unwrap())
-                },
-                "id": 0
+                "l1Erc20SharedBridge": format!("{:#x}", input_bridge_addresses.l1_shared_default_bridge.unwrap()),
+                "l2Erc20SharedBridge": format!("{:#x}", input_bridge_addresses.l2_shared_default_bridge.unwrap()),
+                "l1Erc20DefaultBridge": format!("{:#x}", input_bridge_addresses.l1_erc20_default_bridge.unwrap()),
+                "l2Erc20DefaultBridge": format!("{:#x}", input_bridge_addresses.l2_erc20_default_bridge.unwrap()),
+                "l1WethBridge": format!("{:#x}", input_bridge_addresses.l1_weth_bridge.unwrap()),
+                "l2WethBridge": format!("{:#x}", input_bridge_addresses.l2_weth_bridge.unwrap())
             }),
         );
 
         let node = InMemoryNode::test(Some(
-            ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
+            ForkClient::at_block_number(mock_server.url(), None)
                 .await
                 .unwrap(),
         ));
@@ -470,7 +443,8 @@ mod tests {
         assert_eq!(input_bytecode, actual);
     }
 
-    #[tokio::test]
+    // FIXME: Multi-threaded flavor is needed because of the `block_on` mess inside `ForkStorage`.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_get_bytecode_by_hash_uses_fork_if_value_unavailable() {
         // Arrange
         let mock_server = MockServer::run_with_config(ForkBlockConfig {
@@ -481,23 +455,13 @@ mod tests {
         let input_hash = H256::repeat_byte(0x1);
         let input_bytecode = vec![0x1];
         mock_server.expect(
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 0,
-                "method": "zks_getBytecodeByHash",
-                "params": [
-                    format!("{:#x}", input_hash)
-                ],
-            }),
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 0,
-                "result": input_bytecode,
-            }),
+            "zks_getBytecodeByHash",
+            Some(serde_json::json!([format!("{:#x}", input_hash)])),
+            serde_json::json!(input_bytecode),
         );
 
         let node = InMemoryNode::test(Some(
-            ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
+            ForkClient::at_block_number(mock_server.url(), None)
                 .await
                 .unwrap(),
         ));
@@ -560,68 +524,60 @@ mod tests {
         });
         let miniblock = L2BlockNumber::from(16474138);
         mock_server.expect(
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 0,
-                "method": "zks_getRawBlockTransactions",
-                "params": [miniblock.0]
-            }),
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "result": [
-                  {
-                    "common_data": {
-                      "L2": {
-                        "nonce": 86,
-                        "fee": {
-                          "gas_limit": "0xcc626",
-                          "max_fee_per_gas": "0x141dd760",
-                          "max_priority_fee_per_gas": "0x0",
-                          "gas_per_pubdata_limit": "0x4e20"
-                        },
-                        "initiatorAddress": "0x840bd73f903ba7dbb501be8326fe521dadcae1a5",
-                        "signature": [
-                          135,
-                          163,
-                          2,
-                          78,
-                          118,
-                          14,
-                          209
-                        ],
-                        "transactionType": "EIP1559Transaction",
-                        "input": {
-                          "hash": "0xc1f625f55d186ad0b439054adfe3317ae703c5f588f4fa1896215e8810a141e0",
-                          "data": [
-                            2,
-                            249,
-                            1,
-                            110,
-                            130
-                          ]
-                        },
-                        "paymasterParams": {
-                          "paymaster": "0x0000000000000000000000000000000000000000",
-                          "paymasterInput": []
-                        }
-                      }
+            "zks_getRawBlockTransactions",
+            Some(serde_json::json!([miniblock.0])),
+            serde_json::json!([
+              {
+                "common_data": {
+                  "L2": {
+                    "nonce": 86,
+                    "fee": {
+                      "gas_limit": "0xcc626",
+                      "max_fee_per_gas": "0x141dd760",
+                      "max_priority_fee_per_gas": "0x0",
+                      "gas_per_pubdata_limit": "0x4e20"
                     },
-                    "execute": {
-                      "contractAddress": "0xbe7d1fd1f6748bbdefc4fbacafbb11c6fc506d1d",
-                      "calldata": "0x38ed173900000000000000000000000000000000000000000000000000000000002c34cc00000000000000000000000000000000000000000000000000000000002c9a2500000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000840bd73f903ba7dbb501be8326fe521dadcae1a500000000000000000000000000000000000000000000000000000000652c5d1900000000000000000000000000000000000000000000000000000000000000020000000000000000000000008e86e46278518efc1c5ced245cba2c7e3ef115570000000000000000000000003355df6d4c9c3035724fd0e3914de96a5a83aaf4",
-                      "value": "0x0",
-                      "factoryDeps": null
+                    "initiatorAddress": "0x840bd73f903ba7dbb501be8326fe521dadcae1a5",
+                    "signature": [
+                      135,
+                      163,
+                      2,
+                      78,
+                      118,
+                      14,
+                      209
+                    ],
+                    "transactionType": "EIP1559Transaction",
+                    "input": {
+                      "hash": "0xc1f625f55d186ad0b439054adfe3317ae703c5f588f4fa1896215e8810a141e0",
+                      "data": [
+                        2,
+                        249,
+                        1,
+                        110,
+                        130
+                      ]
                     },
-                    "received_timestamp_ms": 1697405097873u64,
-                    "raw_bytes": "0x02f9016e820144568084141dd760830cc62694be7d1fd1f6748bbdefc4fbacafbb11c6fc506d1d80b9010438ed173900000000000000000000000000000000000000000000000000000000002c34cc00000000000000000000000000000000000000000000000000000000002c9a2500000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000840bd73f903ba7dbb501be8326fe521dadcae1a500000000000000000000000000000000000000000000000000000000652c5d1900000000000000000000000000000000000000000000000000000000000000020000000000000000000000008e86e46278518efc1c5ced245cba2c7e3ef115570000000000000000000000003355df6d4c9c3035724fd0e3914de96a5a83aaf4c080a087a3024e760ed14134ef541608bf308e083c899a89dba3c02bf3040f07c8b91b9fc3a7eeb6b3b8b36bb03ea4352415e7815dda4954f4898d255bd7660736285e"
+                    "paymasterParams": {
+                      "paymaster": "0x0000000000000000000000000000000000000000",
+                      "paymasterInput": []
+                    }
                   }
-                ],
-                "id": 0
-              }),
+                },
+                "execute": {
+                  "contractAddress": "0xbe7d1fd1f6748bbdefc4fbacafbb11c6fc506d1d",
+                  "calldata": "0x38ed173900000000000000000000000000000000000000000000000000000000002c34cc00000000000000000000000000000000000000000000000000000000002c9a2500000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000840bd73f903ba7dbb501be8326fe521dadcae1a500000000000000000000000000000000000000000000000000000000652c5d1900000000000000000000000000000000000000000000000000000000000000020000000000000000000000008e86e46278518efc1c5ced245cba2c7e3ef115570000000000000000000000003355df6d4c9c3035724fd0e3914de96a5a83aaf4",
+                  "value": "0x0",
+                  "factoryDeps": null
+                },
+                "received_timestamp_ms": 1697405097873u64,
+                "raw_bytes": "0x02f9016e820144568084141dd760830cc62694be7d1fd1f6748bbdefc4fbacafbb11c6fc506d1d80b9010438ed173900000000000000000000000000000000000000000000000000000000002c34cc00000000000000000000000000000000000000000000000000000000002c9a2500000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000840bd73f903ba7dbb501be8326fe521dadcae1a500000000000000000000000000000000000000000000000000000000652c5d1900000000000000000000000000000000000000000000000000000000000000020000000000000000000000008e86e46278518efc1c5ced245cba2c7e3ef115570000000000000000000000003355df6d4c9c3035724fd0e3914de96a5a83aaf4c080a087a3024e760ed14134ef541608bf308e083c899a89dba3c02bf3040f07c8b91b9fc3a7eeb6b3b8b36bb03ea4352415e7815dda4954f4898d255bd7660736285e"
+              }
+            ]),
         );
 
         let node = InMemoryNode::test(Some(
-            ForkDetails::from_network(&mock_server.url(), None, &CacheConfig::None)
+            ForkClient::at_block_number(mock_server.url(), None)
                 .await
                 .unwrap(),
         ));
@@ -659,141 +615,103 @@ mod tests {
         let cbeth_address = Address::from_str("0x75af292c1c9a37b3ea2e6041168b4e48875b9ed5")
             .expect("failed to parse address");
         let mock_server = testing::MockServer::run();
-        mock_server.expect(
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 0,
-                "method": "eth_chainId",
-            }),
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 0,
-                "result": "0x104",
-            }),
-        );
+        mock_server.expect("eth_chainId", None, serde_json::json!("0x104"));
 
         mock_server.expect(
+            "zks_getBlockDetails",
+            Some(serde_json::json!([1])),
             serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "zks_getBlockDetails",
-                "params": [1]
-            }),
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "result": {
-                    "baseSystemContractsHashes": {
-                        "bootloader": "0x010008a5c30072f79f8e04f90b31f34e554279957e7e2bf85d3e9c7c1e0f834d",
-                        "default_aa": "0x01000663d7941c097ba2631096508cf9ec7769ddd40e081fd81b0d04dc07ea0e"
-                    },
-                    "commitTxHash": null,
-                    "committedAt": null,
-                    "executeTxHash": null,
-                    "executedAt": null,
-                    "l1BatchNumber": 0,
-                    "l1GasPrice": 0,
-                    "l1TxCount": 1,
-                    "l2FairGasPrice": 50000000,
-                    "l2TxCount": 0,
-                    "number": 0,
-                    "operatorAddress": "0x0000000000000000000000000000000000000000",
-                    "protocolVersion": "Version16",
-                    "proveTxHash": null,
-                    "provenAt": null,
-                    "rootHash": "0xdaa77426c30c02a43d9fba4e841a6556c524d47030762eb14dc4af897e605d9b",
-                    "status": "verified",
-                    "timestamp": 1000
+                "baseSystemContractsHashes": {
+                    "bootloader": "0x010008a5c30072f79f8e04f90b31f34e554279957e7e2bf85d3e9c7c1e0f834d",
+                    "default_aa": "0x01000663d7941c097ba2631096508cf9ec7769ddd40e081fd81b0d04dc07ea0e"
                 },
-                "id": 1
+                "commitTxHash": null,
+                "committedAt": null,
+                "executeTxHash": null,
+                "executedAt": null,
+                "l1BatchNumber": 0,
+                "l1GasPrice": 0,
+                "l1TxCount": 1,
+                "l2FairGasPrice": 50000000,
+                "l2TxCount": 0,
+                "number": 0,
+                "operatorAddress": "0x0000000000000000000000000000000000000000",
+                "protocolVersion": "Version16",
+                "proveTxHash": null,
+                "provenAt": null,
+                "rootHash": "0xdaa77426c30c02a43d9fba4e841a6556c524d47030762eb14dc4af897e605d9b",
+                "status": "verified",
+                "timestamp": 1000
             }),
         );
         mock_server.expect(
+            "eth_getBlockByHash",
+            Some(serde_json::json!(["0xdaa77426c30c02a43d9fba4e841a6556c524d47030762eb14dc4af897e605d9b", true])),
             serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 2,
-                "method": "eth_getBlockByHash",
-                "params": ["0xdaa77426c30c02a43d9fba4e841a6556c524d47030762eb14dc4af897e605d9b", true]
+                "baseFeePerGas": "0x0",
+                "difficulty": "0x0",
+                "extraData": "0x",
+                "gasLimit": "0xffffffff",
+                "gasUsed": "0x0",
+                "hash": "0xdaa77426c30c02a43d9fba4e841a6556c524d47030762eb14dc4af897e605d9b",
+                "l1BatchNumber": "0x0",
+                "l1BatchTimestamp": null,
+                "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                "miner": "0x0000000000000000000000000000000000000000",
+                "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "nonce": "0x0000000000000000",
+                "number": "0x0",
+                "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "receiptsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "sealFields": [],
+                "sha3Uncles": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "size": "0x0",
+                "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "timestamp": "0x3e8",
+                "totalDifficulty": "0x0",
+                "transactions": [],
+                "transactionsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "uncles": []
             }),
+        );
+        mock_server.expect(
+            "zks_getConfirmedTokens",
+            Some(serde_json::json!([0, 100])),
+            serde_json::json!([
+              {
+                "decimals": 18,
+                "l1Address": "0xbe9895146f7af43049ca1c1ae358b0541ea49704",
+                "l2Address": "0x75af292c1c9a37b3ea2e6041168b4e48875b9ed5",
+                "name": "Coinbase Wrapped Staked ETH",
+                "symbol": "cbETH"
+              }
+            ]),
+        );
+        mock_server.expect(
+            "zks_getFeeParams",
+            None,
             serde_json::json!({
-                "jsonrpc": "2.0",
-                "result": {
-                    "baseFeePerGas": "0x0",
-                    "difficulty": "0x0",
-                    "extraData": "0x",
-                    "gasLimit": "0xffffffff",
-                    "gasUsed": "0x0",
-                    "hash": "0xdaa77426c30c02a43d9fba4e841a6556c524d47030762eb14dc4af897e605d9b",
-                    "l1BatchNumber": "0x0",
-                    "l1BatchTimestamp": null,
-                    "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-                    "miner": "0x0000000000000000000000000000000000000000",
-                    "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                    "nonce": "0x0000000000000000",
-                    "number": "0x0",
-                    "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                    "receiptsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                    "sealFields": [],
-                    "sha3Uncles": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                    "size": "0x0",
-                    "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                    "timestamp": "0x3e8",
-                    "totalDifficulty": "0x0",
-                    "transactions": [],
-                    "transactionsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                    "uncles": []
+              "V2": {
+                "config": {
+                  "minimal_l2_gas_price": 25000000,
+                  "compute_overhead_part": 0,
+                  "pubdata_overhead_part": 1,
+                  "batch_overhead_l1_gas": 800000,
+                  "max_gas_per_batch": 200000000,
+                  "max_pubdata_per_batch": 240000
                 },
-                "id": 2
-            }),
-        );
-        mock_server.expect(
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 0,
-                "method": "zks_getConfirmedTokens",
-                "params": [0, 100]
-            }),
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "result": [
-                    {
-                        "decimals": 18,
-                        "l1Address": "0xbe9895146f7af43049ca1c1ae358b0541ea49704",
-                        "l2Address": "0x75af292c1c9a37b3ea2e6041168b4e48875b9ed5",
-                        "name": "Coinbase Wrapped Staked ETH",
-                        "symbol": "cbETH"
-                      }
-                ],
-                "id": 0
-            }),
-        );
-        mock_server.expect(
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 3,
-                "method": "zks_getFeeParams",
-            }),
-            serde_json::json!({
-              "jsonrpc": "2.0",
-              "result": {
-                "V2": {
-                  "config": {
-                    "minimal_l2_gas_price": 25000000,
-                    "compute_overhead_part": 0,
-                    "pubdata_overhead_part": 1,
-                    "batch_overhead_l1_gas": 800000,
-                    "max_gas_per_batch": 200000000,
-                    "max_pubdata_per_batch": 240000
-                  },
-                  "l1_gas_price": 46226388803u64,
-                  "l1_pubdata_price": 100780475095u64
+                "l1_gas_price": 46226388803u64,
+                "l1_pubdata_price": 100780475095u64,
+                "conversion_ratio": {
+                  "numerator": 1,
+                  "denominator": 1
                 }
-              },
-              "id": 3
+              }
             }),
         );
 
         let node = InMemoryNode::test(Some(
-            ForkDetails::from_network(&mock_server.url(), Some(1), &CacheConfig::None)
+            ForkClient::at_block_number(mock_server.url(), Some(1.into()))
                 .await
                 .unwrap(),
         ));
