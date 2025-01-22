@@ -1,6 +1,7 @@
 use crate::trace::formatterv2::TraceWriter;
 use crate::trace::types::{
     CallTrace, CallTraceArena, CallTraceNode, DecodedCallTrace, TraceMemberOrder,
+    KNOWN_ADDRESSES,
 };
 use zksync_multivm::interface::{Call, VmExecutionResultAndLogs};
 use zksync_types::tx;
@@ -24,7 +25,6 @@ pub fn build_call_trace_arena(
     calls: &[Call],
     tx_result: VmExecutionResultAndLogs,
 ) -> CallTraceArena {
-    println!("Building call trace arena");
     let mut arena = Vec::new();
     let mut parent_stack = Vec::new(); // Stack to keep track of parent indices
 
@@ -45,7 +45,6 @@ pub fn build_call_trace_arena(
         arena.push(node);
 
         if let Some(&parent_idx) = parent_stack.last() {
-            println!("Adding child node {idx} to parent {parent_idx}");
             arena[parent_idx].children.push(idx);
             let child_local_idx = arena[parent_idx].children.len() - 1;
             arena[parent_idx].ordering.push(TraceMemberOrder::Call(child_local_idx));
@@ -105,13 +104,22 @@ fn convert_call_to_call_trace(
     depth: usize,
     tx_result: VmExecutionResultAndLogs,
 ) -> CallTrace {
+
+    let label = KNOWN_ADDRESSES
+        .get(&call.to)
+        .map(|known| known.name.clone());
+
+
     CallTrace {
         depth,
         success: !tx_result.result.is_failed(),
         caller: call.from,
         address: call.to,
         execution_result: tx_result,
-        decoded: DecodedCallTrace::default(), // Implement this mapping
+        decoded: DecodedCallTrace {
+            label, 
+            ..Default::default()
+        },
         call: call.clone(),
     }
 }

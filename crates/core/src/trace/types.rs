@@ -1,8 +1,38 @@
 use zksync_multivm::interface::{Call, VmExecutionResultAndLogs, ExecutionResult};
-use zksync_types::{Address, H256};
+use zksync_types::{Address, H256, H160};
 use zksync_types::web3::Bytes;
 use alloy_primitives::FixedBytes;
-use std::fmt;
+use std::collections::HashMap;
+use serde::Deserialize;
+use lazy_static::lazy_static;
+
+#[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
+pub enum ContractType {
+    System,
+    Precompile,
+    Popular,
+    Unknown,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct KnownAddress {
+    pub address: H160,
+    pub name: String,
+    contract_type: ContractType,
+}
+
+lazy_static! {
+    /// Loads the known contact addresses from the JSON file.
+    pub static ref KNOWN_ADDRESSES: HashMap<H160, KnownAddress> = {
+        let json_value = serde_json::from_slice(include_bytes!("../data/address_map.json")).unwrap();
+        let pairs: Vec<KnownAddress> = serde_json::from_value(json_value).unwrap();
+
+        pairs
+            .into_iter()
+            .map(|entry| (entry.address, entry))
+            .collect()
+    };
+}
 
 /// Solidity contract functions are addressed using the first four bytes of the
 /// Keccak-256 hash of their signature.

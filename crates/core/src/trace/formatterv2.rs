@@ -27,6 +27,8 @@ use zksync_types::{
 };
 
 use super::types::TraceMemberOrder;
+use crate::resolver;
+use crate::utils::block_on;
 
 const PIPE: &str = "  │ ";
 const EDGE: &str = "  └─ ";
@@ -332,6 +334,13 @@ fn write_item(
         let trace_kind_style = self.trace_kind_style();
         let address = trace.call.to.to_string();
 
+        // Use the label if available; otherwise, fall back to the address
+        let label_or_address = trace
+            .decoded
+            .label
+            .as_deref()
+            .unwrap_or(&address);
+
         match trace.call.r#type {
             CallType::Create => {
                 write!(
@@ -344,20 +353,41 @@ fn write_item(
                 }
             }
             CallType::Call(_) | CallType::NearCall => {
-                let (func_name, inputs) = match &trace.decoded.call_data {
-                    Some(DecodedCallData { signature, args }) => {
-                        let name = signature.split('(').next().unwrap();
-                        (name.to_string(), args.join(", "))
+                // let (func_name, inputs) = match &trace.decoded.call_data {
+                //     Some(DecodedCallData { signature, args }) => {
+                //         let name = signature.split('(').next().unwrap();
+                //         (name.to_string(), args.join(", "))
+                //     }
+                //     None => {
+                //         if trace.call.input.len() < 4 {
+                //             ("fallback".to_string(), hex::encode(&trace.call.input))
+                //         } else {
+                //             let (selector, data) = trace.call.input.split_at(4);
+                //             (hex::encode(selector), hex::encode(data))
+                //         }
+                //     }
+                // };
+
+                // TODO: this is hack done previously
+                let (func_name, inputs) = if trace.call.input.len() >= 4 {
+                    let (selector, data) = trace.call.input.split_at(4);
+                    let selector_hex = hex::encode(selector);
+
+                    if matches!(trace.decoded.label, Some(ref label) if label == "precompile") {
+                        (format!("0x{}", selector_hex), hex::encode(data))
+                    } else {
+                        let resolved_name = block_on(async move {
+                            resolver::decode_function_selector(&selector_hex)
+                                .await
+                                .unwrap_or_else(|_| Some(format!("0x{}", selector_hex)))
+                                .unwrap_or_else(|| format!("0x{}", selector_hex))
+                        });
+                        (resolved_name, hex::encode(data))
                     }
-                    None => {
-                        if trace.call.input.len() < 4 {
-                            ("fallback".to_string(), hex::encode(&trace.call.input))
-                        } else {
-                            let (selector, data) = trace.call.input.split_at(4);
-                            (hex::encode(selector), hex::encode(data))
-                        }
-                    }
+                } else {
+                    ("fallback".to_string(), hex::encode(&trace.call.input))
                 };
+
 
                 write!(
                     self.writer,
