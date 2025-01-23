@@ -25,7 +25,6 @@ use zksync_types::{
 
 /// In memory storage, that allows 'forking' from other network.
 /// If forking is enabled, it reads missing data from remote location.
-/// S - is a struct that is used for source of the fork.
 #[derive(Debug, Clone)]
 pub struct ForkStorage {
     pub inner: Arc<RwLock<ForkStorageInner>>,
