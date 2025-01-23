@@ -79,9 +79,6 @@ impl CallTraceDecoder {
             .map(|(address, known_address)| (address.clone(), known_address.name.clone()))
             .collect();
 
-        let cache_path = Some(PathBuf::from("./.cache/signatures"));
-        let sig_idt = SignaturesIdentifier::new(cache_path, false).unwrap();
-
         Self {
             contracts: Default::default(),
             labels,
@@ -90,11 +87,11 @@ impl CallTraceDecoder {
             functions: hh_funcs()
                 .map(|(selector, func)| (selector, vec![func]))
                 .collect(),
-            signature_identifier: Some(sig_idt),
+            signature_identifier: None,
         }
     }
 
-       /// Populates the traces with decoded data by mutating the
+    /// Populates the traces with decoded data by mutating the
     /// [CallTrace] in place. See [CallTraceDecoder::decode_function] and
     /// [CallTraceDecoder::decode_event] for more details.
     pub async fn populate_traces(&self, traces: &mut Vec<CallTraceNode>) {
@@ -219,7 +216,8 @@ impl CallTraceDecoder {
                 }
             }
         }
-
+        println!("func {:?}", func);
+        println!("args {:?}", args);
         DecodedCallData { signature: func.signature(), args: args.unwrap_or_default() }
     }
 
@@ -293,6 +291,14 @@ impl CallTraceDecoderBuilder {
         self.decoder.labels.extend(labels);
         self
     }
+
+     /// Sets the signature identifier for events and functions.
+    #[inline]
+    pub fn with_signature_identifier(mut self, identifier: SingleSignaturesIdentifier) -> Self {
+        self.decoder.signature_identifier = Some(identifier);
+        self
+    }
+
     /// Build the decoder.
     #[inline]
     pub fn build(self) -> CallTraceDecoder {

@@ -17,6 +17,7 @@ use crate::node::{
     TransactionResult, TxExecutionInfo, VersionedState, ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION,
     MAX_PREVIOUS_STATES, MAX_TX_SIZE,
 };
+use crate::trace::signatures::SignaturesIdentifier;
 use crate::trace::types::{CallTrace, CallTraceArena, CallTraceNode};
 use crate::trace::{build_call_trace_arena, render_trace_arena_inner, decode_trace_arena};
 use crate::trace::decode::CallTraceDecoderBuilder;
@@ -31,6 +32,7 @@ use colored::Colorize;
 use indexmap::IndexMap;
 use once_cell::sync::OnceCell;
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use zksync_contracts::BaseSystemContracts;
@@ -395,6 +397,10 @@ impl InMemoryNodeInner {
 
         if let Some(call_traces) = call_traces {
             let builder = CallTraceDecoderBuilder::new();
+            builder = builder.with_signature_identifier(SignaturesIdentifier::new(
+                Some(PathBuf::from("./.cache/signatures")), //todo 
+                self.config.offline,
+            )?);
             let decoder = builder.build();
             let mut arena = build_call_trace_arena(&call_traces, tx_result.clone());
             tokio::task::block_in_place(|| {
