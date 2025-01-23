@@ -1,11 +1,13 @@
 use std::{collections::HashMap, str::FromStr};
 
+use alloy_dyn_abi::JsonAbiExt;
+use alloy_json_abi::{Function, Param, StateMutability};
+use alloy_primitives::Selector;
 use colored::Colorize;
-use ethabi::param_type::Reader;
-use ethabi::{Function, Param, StateMutability};
 use itertools::Itertools;
 use zksync_multivm::interface::Call;
 use zksync_types::H160;
+use crate::utils::format_token;
 
 /// ConsoleLogHandler is responsible for printing the logs, that are created when contract calls 'console.log' method.
 /// This is a popular debugging method used by hardhat and foundry.
@@ -15,7 +17,7 @@ use zksync_types::H160;
 pub struct ConsoleLogHandler {
     /// Map from the 4-byte function signature to function itself.
     // This contract has many 'log' methods (depending on argument type) - so we have a map here, to be able to parse the arguments.
-    signature_map: HashMap<[u8; 4], Function>,
+    signature_map: HashMap<Selector, Function>,
     /// The 'fake' hardcoded contract, whose calls with have to log.
     target_contract: H160,
 }
@@ -27,7 +29,7 @@ impl Default for ConsoleLogHandler {
         Self {
             signature_map: get_log_functions()
                 .into_iter()
-                .map(|func| (func.short_signature(), func))
+                .map(|func| (func.selector(), func))
                 .collect::<HashMap<_, _>>(),
             target_contract: H160::from_str(CONSOLE_ADDRESS).unwrap(),
         }
@@ -64,17 +66,22 @@ impl ConsoleLogHandler {
         if current_call.input.len() < 4 {
             return None;
         }
+
         let signature = &current_call.input[..4];
         let message =
             self.signature_map
                 .get(signature)
                 .map_or("Unknown log call.".to_owned(), |func| {
-                    let tokens = func.decode_input(&current_call.input.as_slice()[4..]);
-
+                    let tokens: Result<Vec<alloy_dyn_abi::DynSolValue>, alloy_dyn_abi::Error> =
+                        func.abi_decode_input(&current_call.input.as_slice()[4..], false);
                     tokens.map_or("Failed to parse inputs for log.".to_owned(), |tokens| {
-                        tokens.iter().map(|t| format!("{}", t)).join(" ")
+                        tokens
+                            .iter()
+                            .map(|t| format_token(t, false)) // Use the custom formatter here
+                            .join(" ")
                     })
                 });
+
         Some(message)
     }
 }
@@ -89,30 +96,24 @@ fn get_log_functions() -> Vec<Function> {
                 .split_once('(')
                 .unwrap_or_else(|| panic!("unable to obtain function name for '{}'", func_decl));
 
-            #[allow(deprecated)] // for deprecated field `constant`
             Function {
                 name: String::from(name),
                 inputs: params
                     .split(',')
-                    .enumerate()
-                    .map(|(index, param)| Param {
-                        name: format!("p{index}"),
-                        kind: Reader::read(param).unwrap_or_else(|err| {
-                            panic!(
-                                "failed deserializing type '{}' for '{}' : {:?}",
-                                param, func_decl, err
-                            )
-                        }),
-                        internal_type: Some(String::from(param)),
+                    .map(|param| {
+                        Param::parse(param).unwrap_or_else(|err| {
+                            panic!("Failed to parse parameter '{}': {:?}", param, err)
+                        })
                     })
                     .collect(),
                 outputs: vec![],
-                constant: false,
                 state_mutability: StateMutability::View,
             }
         })
         .collect()
 }
+
+
 
 /// Represents the common log functions.
 /// See https://github.com/NomicFoundation/hardhat/blob/main/packages/hardhat-core/console.sol

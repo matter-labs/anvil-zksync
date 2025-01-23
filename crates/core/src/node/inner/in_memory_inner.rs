@@ -1408,7 +1408,6 @@ impl InMemoryNodeInner {
         Self::test_config(TestNodeConfig::default())
     }
 
-    /// Deploys a contract with the given bytecode.
     pub async fn deploy_contract(
         &mut self,
         tx_hash: H256,
@@ -1417,49 +1416,53 @@ impl InMemoryNodeInner {
         calldata: Option<Vec<u8>>,
         nonce: zksync_types::Nonce,
     ) -> H256 {
-        use ethers::abi::Function;
-        use ethers::types::Bytes;
-        use zksync_web3_rs::eip712;
+        use alloy_dyn_abi::{DynSolValue, JsonAbiExt};
+        use alloy_json_abi::{Function, Param};
+        use alloy_zksync::network::unsigned_tx::eip712::hash_bytecode;
 
         let salt = [0u8; 32];
-        let bytecode_hash = eip712::hash_bytecode(&bytecode).expect("invalid bytecode");
-        let call_data: Bytes = calldata.unwrap_or_default().into();
-        let create: Function = serde_json::from_str(
-            r#"{
-            "inputs": [
-              {
-                "internalType": "bytes32",
-                "name": "_salt",
-                "type": "bytes32"
-              },
-              {
-                "internalType": "bytes32",
-                "name": "_bytecodeHash",
-                "type": "bytes32"
-              },
-              {
-                "internalType": "bytes",
-                "name": "_input",
-                "type": "bytes"
-              }
-            ],
-            "name": "create",
-            "outputs": [
-              {
-                "internalType": "address",
-                "name": "",
-                "type": "address"
-              }
-            ],
-            "stateMutability": "payable",
-            "type": "function"
-          }"#,
-        )
-        .unwrap();
+        let bytecode_hash = hash_bytecode(&bytecode).expect("invalid bytecode");
+        let call_data = calldata.unwrap_or_default();
 
-        let data =
-            ethers::contract::encode_function_data(&create, (salt, bytecode_hash, call_data))
-                .expect("failed encoding function data");
+        // Define the function using alloy_json_abi
+        let create = Function {
+            name: "create".to_string(),
+            inputs: vec![
+                Param {
+                    name: "_salt".to_string(),
+                    ty: "bytes32".to_string(),
+                    components: vec![],
+                    internal_type: None,
+                },
+                Param {
+                    name: "_bytecodeHash".to_string(),
+                    ty: "bytes32".to_string(),
+                    components: vec![],
+                    internal_type: None,
+                },
+                Param {
+                    name: "_input".to_string(),
+                    ty: "bytes".to_string(),
+                    components: vec![],
+                    internal_type: None,
+                },
+            ],
+            outputs: vec![Param {
+                name: "".to_string(),
+                ty: "address".to_string(),
+                components: vec![],
+                internal_type: None,
+            }],
+            state_mutability: alloy_json_abi::StateMutability::Payable,
+        };
+
+        let data = create
+            .abi_encode_input(&[
+                DynSolValue::FixedBytes(salt.into(), salt.len()),
+                DynSolValue::FixedBytes(bytecode_hash[..].try_into().expect("invalid hash length"), bytecode_hash.len()),
+                DynSolValue::Bytes(call_data.into()),
+            ])
+            .expect("failed to encode function data");
 
         let mut tx = L2Tx::new_signed(
             Some(zksync_types::CONTRACT_DEPLOYER_ADDRESS),
@@ -1557,6 +1560,8 @@ mod tests {
     use crate::node::inner::fork_storage::ForkStorage;
     use crate::testing;
     use crate::testing::{TransactionBuilder, STORAGE_CONTRACT_BYTECODE};
+    use alloy_dyn_abi::{DynSolType, DynSolValue};
+    use alloy_primitives::U256 as AlloyU256;
     use anvil_zksync_config::constants::{
         DEFAULT_ACCOUNT_BALANCE, DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
         DEFAULT_ESTIMATE_GAS_SCALE_FACTOR, DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L2_GAS_PRICE,
@@ -1564,7 +1569,6 @@ mod tests {
     };
     use anvil_zksync_config::types::SystemContractsOptions;
     use anvil_zksync_config::TestNodeConfig;
-    use ethabi::{ParamType, Token, Uint};
     use itertools::Itertools;
     use zksync_types::{utils::deployed_address_create, K256PrivateKey, Nonce};
 
@@ -1585,23 +1589,27 @@ mod tests {
     }
 
     /// Decodes a `bytes` tx result to its concrete parameter type.
-    fn decode_tx_result(output: &[u8], param_type: ParamType) -> Token {
-        let result = ethabi::decode(&[ParamType::Bytes], output).expect("failed decoding output");
-        if result.is_empty() {
-            panic!("result was empty");
-        }
+    fn decode_tx_result(output: &[u8], param_type: DynSolType) -> DynSolValue {
+        let result = DynSolType::Bytes
+            .abi_decode(output)
+            .expect("failed decoding output");
+        // if result.is_empty() {
+        //     panic!("result was empty");
+        // }
+        let result_bytes = match result {
+            DynSolValue::Bytes(bytes) => bytes,
+            _ => panic!("expected bytes but got a different type"),
+        };
 
-        let result_bytes = result[0]
-            .clone()
-            .into_bytes()
-            .expect("failed converting result to bytes");
-        let result =
-            ethabi::decode(&[param_type], &result_bytes).expect("failed converting output");
-        if result.is_empty() {
-            panic!("decoded result was empty");
-        }
+        // Decode the inner value using the provided parameter type
+        let result = param_type
+            .abi_decode(&result_bytes)
+            .expect("failed decoding output");
+        // if result.is_empty() {
+        //     panic!("decoded result was empty");
+        // }
 
-        result[0].clone()
+        result
     }
 
     #[tokio::test]
@@ -1781,8 +1789,8 @@ mod tests {
 
         match result.result {
             ExecutionResult::Success { output } => {
-                let actual = decode_tx_result(&output, ethabi::ParamType::Uint(256));
-                let expected = Token::Uint(Uint::from(1024u64));
+                let actual = decode_tx_result(&output, DynSolType::Uint(256));
+                let expected = DynSolValue::Uint(AlloyU256::from(1024), 256);
                 assert_eq!(expected, actual, "invalid result");
             }
             _ => panic!("invalid result {:?}", result.result),
