@@ -119,9 +119,7 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         Command::Fork(fork) => {
-            // TODO: For now, we do not replay earlier transactions when forking to keep compatibility
-            //       with the legacy forking behavior.
-            let (fork_client, _) = if let Some(tx_hash) = fork.fork_transaction_hash {
+            let (fork_client, earlier_txs) = if let Some(tx_hash) = fork.fork_transaction_hash {
                 // If transaction hash is provided, we fork at the parent of block containing tx
                 ForkClient::at_before_tx(fork.fork_url.to_config(), tx_hash).await?
             } else {
@@ -137,7 +135,7 @@ async fn main() -> anyhow::Result<()> {
             };
 
             update_with_fork_details(&mut config, &fork_client.details).await;
-            (Some(fork_client), Vec::new())
+            (Some(fork_client), earlier_txs)
         }
         Command::ReplayTx(replay_tx) => {
             let (fork_client, earlier_txs) =
