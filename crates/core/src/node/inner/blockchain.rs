@@ -1,5 +1,5 @@
-use super::fork::ForkDetails;
 use crate::filters::LogFilter;
+use crate::node::inner::fork::ForkDetails;
 use crate::node::time::{ReadTime, Time};
 use crate::node::{compute_hash, create_genesis, create_genesis_from_json, TransactionResult};
 use crate::utils::utc_datetime_from_epoch_ms;
@@ -472,21 +472,21 @@ impl ReadBlockchain for Blockchain {
 
 impl Blockchain {
     pub(super) fn new(
-        fork: Option<&ForkDetails>,
+        fork_details: Option<&ForkDetails>,
         genesis: Option<&Genesis>,
         genesis_timestamp: Option<u64>,
     ) -> Blockchain {
-        let state = if let Some(fork) = fork {
+        let state = if let Some(fork_details) = fork_details {
             BlockchainState {
-                current_batch: fork.l1_block,
-                current_block: L2BlockNumber(fork.l2_miniblock as u32),
-                current_block_hash: fork.l2_miniblock_hash,
+                current_batch: fork_details.batch_number,
+                current_block: fork_details.block_number,
+                current_block_hash: fork_details.block_hash,
                 tx_results: Default::default(),
-                blocks: HashMap::from_iter([(fork.l2_block.hash, fork.l2_block.clone())]),
-                hashes: HashMap::from_iter([(
-                    fork.l2_block.number.as_u32().into(),
-                    fork.l2_block.hash,
+                blocks: HashMap::from_iter([(
+                    fork_details.block_hash,
+                    fork_details.api_block.clone(),
                 )]),
+                hashes: HashMap::from_iter([(fork_details.block_number, fork_details.block_hash)]),
             }
         } else {
             let block_hash = compute_hash(0, []);

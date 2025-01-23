@@ -1,12 +1,13 @@
-use super::blockchain::{Blockchain, ReadBlockchain};
-use super::fork::{ForkDetails, ForkStorage, SerializableStorage};
-use super::time::Time;
 use crate::bootloader_debug::{BootloaderDebug, BootloaderDebugTracer};
 use crate::console_log::ConsoleLogHandler;
 use crate::deps::storage_view::StorageView;
 use crate::filters::EthFilters;
 use crate::node::call_error_tracer::CallErrorTracer;
 use crate::node::error::LoadStateError;
+use crate::node::inner::blockchain::{Blockchain, ReadBlockchain};
+use crate::node::inner::fork::{Fork, ForkClient, ForkSource};
+use crate::node::inner::fork_storage::{ForkStorage, SerializableStorage};
+use crate::node::inner::time::Time;
 use crate::node::keys::StorageKeyLayout;
 use crate::node::state::StateV1;
 use crate::node::storage_logs::print_storage_logs_details;
@@ -83,6 +84,7 @@ pub struct InMemoryNodeInner {
     // TODO: Make private
     // Underlying storage
     pub fork_storage: ForkStorage,
+    pub(super) fork: Fork,
     // Configuration.
     pub config: TestNodeConfig,
     pub console_log_handler: ConsoleLogHandler,
@@ -101,6 +103,7 @@ impl InMemoryNodeInner {
         blockchain: Blockchain,
         time: Time,
         fork_storage: ForkStorage,
+        fork: Fork,
         fee_input_provider: TestNodeFeeInputProvider,
         filters: Arc<RwLock<EthFilters>>,
         config: TestNodeConfig,
@@ -114,6 +117,7 @@ impl InMemoryNodeInner {
             fee_input_provider,
             filters,
             fork_storage,
+            fork,
             config,
             console_log_handler: ConsoleLogHandler::default(),
             system_contracts,
@@ -161,17 +165,13 @@ impl InMemoryNodeInner {
             timestamp: self.time.peek_next_timestamp(),
         };
 
-        let fee_input = if let Some(fork) = &self
-            .fork_storage
-            .inner
-            .read()
-            .expect("fork_storage lock is already held by the current thread")
-            .fork
-        {
+        let fee_input = if let Some(fork_details) = self.fork.details() {
+            // TODO: This is a weird pattern. `TestNodeFeeInputProvider` should encapsulate fork's
+            //       behavior by taking fork's fee input into account during initialization.
             BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
-                l1_gas_price: fork.l1_gas_price,
-                fair_l2_gas_price: fork.l2_fair_gas_price,
-                fair_pubdata_price: fork.fair_pubdata_price,
+                l1_gas_price: fork_details.l1_gas_price,
+                fair_l2_gas_price: fork_details.l2_fair_gas_price,
+                fair_pubdata_price: fork_details.fair_pubdata_price,
             })
         } else {
             self.fee_input_provider.get_batch_fee_input()
@@ -1253,41 +1253,28 @@ impl InMemoryNodeInner {
                 .and_then(|state| state.get(&storage_key))
                 .cloned()
                 .unwrap_or_default();
-
-            if value.is_zero() {
-                match self.fork_storage.read_value_internal(&storage_key) {
-                    Ok(value) => Ok(H256(value.0)),
-                    Err(error) => Err(Web3Error::InternalError(anyhow::anyhow!(
-                        "failed to read storage: {}",
-                        error
-                    ))),
-                }
-            } else {
-                Ok(value)
+            if !value.is_zero() {
+                return Ok(value);
+            }
+            // TODO: Check if the rest of the logic below makes sense.
+            //       AFAIU this branch can only be entered if the block was produced locally, but
+            //       we query the fork regardless?
+            match self.fork_storage.read_value_internal(&storage_key) {
+                Ok(value) => Ok(H256(value.0)),
+                Err(error) => Err(Web3Error::InternalError(anyhow::anyhow!(
+                    "failed to read storage: {}",
+                    error
+                ))),
             }
         } else {
-            self.fork_storage
-                .inner
-                .read()
-                .expect("failed reading fork storage")
-                .fork
-                .as_ref()
-                .and_then(|fork| fork.fork_source.get_storage_at(address, idx, block).ok())
-                .ok_or_else(|| {
-                    tracing::error!(
-                        "unable to get storage at address {:?}, index {:?} for block {:?}",
-                        address,
-                        idx,
-                        block
-                    );
-                    Web3Error::InternalError(anyhow::Error::msg("Failed to get storage."))
-                })
+            Ok(self.fork.get_storage_at(address, idx, block).await?)
         }
     }
 
-    pub async fn reset(&mut self, fork: Option<ForkDetails>) {
+    pub async fn reset(&mut self, fork_client_opt: Option<ForkClient>) {
+        let fork_details = fork_client_opt.as_ref().map(|client| &client.details);
         let blockchain = Blockchain::new(
-            fork.as_ref(),
+            fork_details,
             self.config.genesis.as_ref(),
             self.config.genesis_timestamp,
         );
@@ -1298,15 +1285,16 @@ impl InMemoryNodeInner {
         ));
 
         self.time.set_current_timestamp_unchecked(
-            fork.as_ref()
-                .map(|f| f.block_timestamp)
+            fork_details
+                .map(|fd| fd.block_timestamp)
                 .unwrap_or(NON_FORK_FIRST_BLOCK_TIMESTAMP),
         );
 
         drop(std::mem::take(&mut *self.filters.write().await));
 
+        self.fork.reset_fork_client(fork_client_opt);
         let fork_storage = ForkStorage::new(
-            fork,
+            self.fork.clone(),
             &self.config.system_contracts_options,
             self.config.use_evm_emulator,
             self.config.chain_id,
@@ -1316,7 +1304,6 @@ impl InMemoryNodeInner {
         old_storage.raw_storage = std::mem::take(&mut new_storage.raw_storage);
         old_storage.value_read_cache = std::mem::take(&mut new_storage.value_read_cache);
         old_storage.factory_dep_cache = std::mem::take(&mut new_storage.factory_dep_cache);
-        old_storage.fork = std::mem::take(&mut new_storage.fork);
         self.fork_storage.chain_id = fork_storage.chain_id;
         drop(old_storage);
         drop(new_storage);
@@ -1408,7 +1395,7 @@ impl InMemoryNodeInner {
         } else {
             StorageKeyLayout::ZkEra
         };
-        let (inner, _, _, _) = InMemoryNodeInner::init(
+        let (inner, _, _, _, _) = InMemoryNodeInner::init(
             None,
             fee_provider,
             Arc::new(RwLock::new(Default::default())),
@@ -1569,15 +1556,16 @@ impl InMemoryNodeInner {
 mod tests {
     use super::*;
     use crate::node::create_genesis;
-    use crate::node::fork::ForkStorage;
+    use crate::node::fork::ForkDetails;
+    use crate::node::inner::fork_storage::ForkStorage;
     use crate::testing;
-    use crate::testing::{ExternalStorage, TransactionBuilder, STORAGE_CONTRACT_BYTECODE};
+    use crate::testing::{TransactionBuilder, STORAGE_CONTRACT_BYTECODE};
     use anvil_zksync_config::constants::{
         DEFAULT_ACCOUNT_BALANCE, DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
         DEFAULT_ESTIMATE_GAS_SCALE_FACTOR, DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L2_GAS_PRICE,
         TEST_NODE_NETWORK_ID,
     };
-    use anvil_zksync_config::types::{CacheConfig, SystemContractsOptions};
+    use anvil_zksync_config::types::SystemContractsOptions;
     use anvil_zksync_config::TestNodeConfig;
     use ethabi::{ParamType, Token, Uint};
     use itertools::Itertools;
@@ -1693,7 +1681,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_run_l2_tx_raw_does_not_panic_on_external_storage_call() {
+    async fn test_run_l2_tx_raw_does_not_panic_on_mock_fork_client_call() {
         // Perform a transaction to get storage to an intermediate state
         let inner = InMemoryNodeInner::test();
         let mut node = inner.write().await;
@@ -1704,31 +1692,29 @@ mod tests {
             .system_contracts
             .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
         node.seal_block(vec![tx], system_contracts).await.unwrap();
-        let external_storage = node.fork_storage.clone();
 
-        // Execute next transaction using a fresh in-memory node and the external fork storage
-        let mock_db = ExternalStorage {
-            raw_storage: external_storage.inner.read().unwrap().raw_storage.clone(),
+        // Execute next transaction using a fresh in-memory node and mocked fork client
+        let fork_details = ForkDetails {
+            chain_id: TEST_NODE_NETWORK_ID.into(),
+            batch_number: L1BatchNumber(1),
+            block_number: L2BlockNumber(2),
+            block_hash: Default::default(),
+            block_timestamp: 1002,
+            api_block: api::Block::default(),
+            l1_gas_price: 1000,
+            l2_fair_gas_price: DEFAULT_L2_GAS_PRICE,
+            fair_pubdata_price: DEFAULT_FAIR_PUBDATA_PRICE,
+            estimate_gas_price_scale_factor: DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
+            estimate_gas_scale_factor: DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
+            ..Default::default()
         };
+        let mock_fork_client = ForkClient::mock(
+            fork_details,
+            node.fork_storage.inner.read().unwrap().raw_storage.clone(),
+        );
         let impersonation = ImpersonationManager::default();
-        let (node, _, _, _) = InMemoryNodeInner::init(
-            Some(ForkDetails {
-                fork_source: Box::new(mock_db),
-                chain_id: TEST_NODE_NETWORK_ID.into(),
-                l1_block: L1BatchNumber(1),
-                l2_block: api::Block::default(),
-                l2_miniblock: 2,
-                l2_miniblock_hash: Default::default(),
-                block_timestamp: 1002,
-                overwrite_chain_id: None,
-                l1_gas_price: 1000,
-                l2_fair_gas_price: DEFAULT_L2_GAS_PRICE,
-                fair_pubdata_price: DEFAULT_FAIR_PUBDATA_PRICE,
-                fee_params: None,
-                estimate_gas_price_scale_factor: DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
-                estimate_gas_scale_factor: DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
-                cache_config: CacheConfig::default(),
-            }),
+        let (node, _, _, _, _) = InMemoryNodeInner::init(
+            Some(mock_fork_client),
             TestNodeFeeInputProvider::default(),
             Arc::new(RwLock::new(Default::default())),
             TestNodeConfig::default(),
@@ -1745,7 +1731,7 @@ mod tests {
             .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
         let (_, _, mut vm) = test_vm(&mut node, system_contracts).await;
         node.run_l2_tx_raw(tx, &mut vm)
-            .expect("transaction must pass with external storage");
+            .expect("transaction must pass with mock fork client");
     }
 
     #[tokio::test]
