@@ -1,5 +1,6 @@
 use std::{collections::HashMap, str::FromStr};
 
+use crate::utils::format_token;
 use alloy_dyn_abi::JsonAbiExt;
 use alloy_json_abi::{Function, Param, StateMutability};
 use alloy_primitives::Selector;
@@ -7,7 +8,6 @@ use colored::Colorize;
 use itertools::Itertools;
 use zksync_multivm::interface::Call;
 use zksync_types::H160;
-use crate::utils::format_token;
 
 /// ConsoleLogHandler is responsible for printing the logs, that are created when contract calls 'console.log' method.
 /// This is a popular debugging method used by hardhat and foundry.
@@ -66,7 +66,6 @@ impl ConsoleLogHandler {
         if current_call.input.len() < 4 {
             return None;
         }
-
         let signature = &current_call.input[..4];
         let message =
             self.signature_map
@@ -77,11 +76,10 @@ impl ConsoleLogHandler {
                     tokens.map_or("Failed to parse inputs for log.".to_owned(), |tokens| {
                         tokens
                             .iter()
-                            .map(|t| format_token(t, false)) // Use the custom formatter here
+                            .map(|t| format_token(t, false))
                             .join(" ")
                     })
                 });
-
         Some(message)
     }
 }
@@ -112,8 +110,6 @@ fn get_log_functions() -> Vec<Function> {
         })
         .collect()
 }
-
-
 
 /// Represents the common log functions.
 /// See https://github.com/NomicFoundation/hardhat/blob/main/packages/hardhat-core/console.sol

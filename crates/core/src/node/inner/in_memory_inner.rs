@@ -1408,6 +1408,7 @@ impl InMemoryNodeInner {
         Self::test_config(TestNodeConfig::default())
     }
 
+    /// Deploys a contract with the given bytecode.
     pub async fn deploy_contract(
         &mut self,
         tx_hash: H256,
@@ -1417,14 +1418,13 @@ impl InMemoryNodeInner {
         nonce: zksync_types::Nonce,
     ) -> H256 {
         use alloy_dyn_abi::{DynSolValue, JsonAbiExt};
-        use alloy_json_abi::{Function, Param};
+        use alloy_json_abi::{Function, Param, StateMutability};
         use alloy_zksync::network::unsigned_tx::eip712::hash_bytecode;
 
         let salt = [0u8; 32];
         let bytecode_hash = hash_bytecode(&bytecode).expect("invalid bytecode");
         let call_data = calldata.unwrap_or_default();
 
-        // Define the function using alloy_json_abi
         let create = Function {
             name: "create".to_string(),
             inputs: vec![
@@ -1453,14 +1453,17 @@ impl InMemoryNodeInner {
                 components: vec![],
                 internal_type: None,
             }],
-            state_mutability: alloy_json_abi::StateMutability::Payable,
+            state_mutability: StateMutability::Payable,
         };
 
         let data = create
             .abi_encode_input(&[
                 DynSolValue::FixedBytes(salt.into(), salt.len()),
-                DynSolValue::FixedBytes(bytecode_hash[..].try_into().expect("invalid hash length"), bytecode_hash.len()),
-                DynSolValue::Bytes(call_data.into()),
+                DynSolValue::FixedBytes(
+                    bytecode_hash[..].try_into().expect("invalid hash length"),
+                    bytecode_hash.len(),
+                ),
+                DynSolValue::Bytes(call_data),
             ])
             .expect("failed to encode function data");
 
@@ -1593,23 +1596,14 @@ mod tests {
         let result = DynSolType::Bytes
             .abi_decode(output)
             .expect("failed decoding output");
-        // if result.is_empty() {
-        //     panic!("result was empty");
-        // }
         let result_bytes = match result {
             DynSolValue::Bytes(bytes) => bytes,
             _ => panic!("expected bytes but got a different type"),
         };
 
-        // Decode the inner value using the provided parameter type
-        let result = param_type
+        param_type
             .abi_decode(&result_bytes)
-            .expect("failed decoding output");
-        // if result.is_empty() {
-        //     panic!("decoded result was empty");
-        // }
-
-        result
+            .expect("failed decoding output")
     }
 
     #[tokio::test]

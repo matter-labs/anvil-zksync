@@ -86,7 +86,7 @@ impl InMemoryNode {
 
         let tx: Transaction = l2_tx.clone().into();
         vm.push_transaction(tx);
-        
+
         let call_tracer_result = Arc::new(OnceCell::default());
         let tracer = CallTracer::new(call_tracer_result.clone()).into_tracer_pointer();
 
@@ -94,7 +94,6 @@ impl InMemoryNode {
             &mut tracer.into(),
             zksync_multivm::interface::InspectExecutionMode::OneTx,
         );
-
         let call_traces = if only_top {
             vec![]
         } else {
@@ -127,9 +126,8 @@ impl InMemoryNode {
 mod tests {
     use alloy_dyn_abi::{DynSolValue, FunctionExt, JsonAbiExt};
     use alloy_json_abi::{Function, Param};
-    use alloy_primitives::{U256 as AlloyU256, Address as AlloyAddress};
+    use alloy_primitives::{Address as AlloyAddress, U256 as AlloyU256};
     use anvil_zksync_config::constants::DEFAULT_ACCOUNT_BALANCE;
-    
     use zksync_types::{
         transaction_request::CallRequestBuilder, utils::deployed_address_create, Address,
         K256PrivateKey, L2BlockNumber, Nonce, H160, U256,
@@ -148,14 +146,15 @@ mod tests {
         node.set_rich_account(from_account, U256::from(DEFAULT_ACCOUNT_BALANCE))
             .await;
 
+        // first, deploy secondary contract
         let secondary_bytecode = bytecode_from_slice(
             "Secondary",
             include_bytes!("../deps/test-contracts/Secondary.json"),
         );
         let secondary_deployed_address = deployed_address_create(from_account, U256::zero());
         let alloy_secondary_address = AlloyAddress::from(secondary_deployed_address.0);
-
-        let secondary_constructor_calldata = DynSolValue::Uint(AlloyU256::from(2), 256).abi_encode();
+        let secondary_constructor_calldata =
+            DynSolValue::Uint(AlloyU256::from(2), 256).abi_encode();
 
         testing::deploy_contract(
             node,
@@ -172,7 +171,8 @@ mod tests {
             include_bytes!("../deps/test-contracts/Primary.json"),
         );
         let primary_deployed_address = deployed_address_create(from_account, U256::one());
-        let primary_constructor_calldata = DynSolValue::Address(alloy_secondary_address).abi_encode();
+        let primary_constructor_calldata =
+            DynSolValue::Address(alloy_secondary_address).abi_encode();
 
         testing::deploy_contract(
             node,
@@ -220,20 +220,19 @@ mod tests {
             .data(calldata.clone().into())
             .gas(80_000_000.into())
             .build();
-        
         let trace = node
             .trace_call_impl(request.clone(), None, None)
             .await
             .expect("trace call")
             .unwrap_default();
-        
-        // Call should not revert
+
+        // call should not revert
         assert!(trace.error.is_none());
         assert!(trace.revert_reason.is_none());
 
         // check that the call was successful
         let output = func
-            .abi_decode_output(&trace.output.0.as_slice(), true)
+            .abi_decode_output(trace.output.0.as_slice(), true)
             .expect("failed to decode output");
         assert_eq!(
             output[0],
@@ -241,7 +240,7 @@ mod tests {
             "unexpected output"
         );
 
-        // Find the call to the primary contract in the trace
+        // find the call to primary contract in the trace
         let contract_call = trace
             .calls
             .first()
@@ -256,7 +255,7 @@ mod tests {
         assert_eq!(contract_call.to, primary_deployed_address);
         assert_eq!(contract_call.input, calldata.into());
 
-        // Check that it contains a call to the secondary contract
+        // check that it contains a call to secondary contract
         let subcall = contract_call.calls.first().unwrap();
         assert_eq!(subcall.to, secondary_deployed_address);
         assert_eq!(subcall.from, primary_deployed_address);
@@ -282,7 +281,7 @@ mod tests {
                 components: vec![],
                 internal_type: None,
             }],
-            outputs: vec![],            
+            outputs: vec![],
             state_mutability: alloy_json_abi::StateMutability::NonPayable,
         };
 
@@ -313,7 +312,7 @@ mod tests {
         // call should not revert
         assert!(trace.error.is_none());
         assert!(trace.revert_reason.is_none());
-        
+
         // call should not contain any subcalls
         assert!(trace.calls.is_empty());
     }
