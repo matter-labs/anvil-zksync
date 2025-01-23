@@ -304,6 +304,8 @@ impl ForkClient {
         block.l1_batch_number = Some(batch_number.0.into());
 
         if let Some(protocol_version) = block_details.protocol_version {
+            // TODO: In reality, anvil-zksync only supports one protocol version as we rely on
+            //       compiled contracts from `contracts` submodule.
             if !SupportedProtocolVersions::is_supported(protocol_version) {
                 anyhow::bail!(
                     "Block #{block_number} from fork={url} is using unsupported protocol version `{protocol_version}`. \
