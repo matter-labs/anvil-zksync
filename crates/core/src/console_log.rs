@@ -74,10 +74,7 @@ impl ConsoleLogHandler {
                     let tokens: Result<Vec<alloy_dyn_abi::DynSolValue>, alloy_dyn_abi::Error> =
                         func.abi_decode_input(&current_call.input.as_slice()[4..], false);
                     tokens.map_or("Failed to parse inputs for log.".to_owned(), |tokens| {
-                        tokens
-                            .iter()
-                            .map(|t| format_token(t, false))
-                            .join(" ")
+                        tokens.iter().map(|t| format_token(t, false)).join(" ")
                     })
                 });
         Some(message)

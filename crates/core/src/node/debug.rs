@@ -165,7 +165,7 @@ mod tests {
             Nonce(0),
         )
         .await;
-        
+
         // deploy primary contract using the secondary contract address as a constructor parameter
         let primary_bytecode = bytecode_from_slice(
             "Primary",
