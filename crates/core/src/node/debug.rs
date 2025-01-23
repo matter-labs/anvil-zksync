@@ -165,7 +165,8 @@ mod tests {
             Nonce(0),
         )
         .await;
-
+        
+        // deploy primary contract using the secondary contract address as a constructor parameter
         let primary_bytecode = bytecode_from_slice(
             "Primary",
             include_bytes!("../deps/test-contracts/Primary.json"),
@@ -273,6 +274,7 @@ mod tests {
 
         let (primary_deployed_address, _) = deploy_test_contracts(&node).await;
 
+        // trace a call to the primary contract
         let func = Function {
             name: "calculate".to_string(),
             inputs: vec![Param {
@@ -295,6 +297,7 @@ mod tests {
             .gas(80_000_000.into())
             .build();
 
+        // if we trace with onlyTopCall=true, we should get only the top-level call
         let trace = node
             .trace_call_impl(
                 request,
