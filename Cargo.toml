@@ -17,7 +17,7 @@ strip = "debuginfo" # Automatically strip symbols from the binary.
 lto = "thin"        # Enable link-time optimization.
 
 [workspace.package]
-version = "0.2.5" # x-release-please-version
+version = "0.3.0" # x-release-please-version
 edition = "2021"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
