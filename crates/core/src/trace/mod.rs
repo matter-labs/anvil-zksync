@@ -47,8 +47,8 @@ pub fn build_call_trace_arena(
         trace: CallTrace {
             depth: 0,
             success: true,
-            caller: H160::zero(),  // Placeholder
-            address: H160::zero(), // Placeholder
+            caller: H160::zero(), 
+            address: H160::zero(),
             execution_result: tx_result.clone(),
             decoded: DecodedCallTrace::default(),
             call: Call::default(),

@@ -256,6 +256,7 @@ pub fn format_token(value: &DynSolValue, raw: bool) -> String {
             }
         }
         DynSolValue::Bool(inner) => inner.to_string(),
+        &DynSolValue::CustomStruct { .. } => todo!(),
     }
 }
 

@@ -24,8 +24,11 @@ futures.workspace = true
 once_cell.workspace = true
 
 alloy-json-abi.workspace = true
-alloy-primitives.workspace = true
-alloy-dyn-abi.workspace = true
+alloy-primitives = { workspace = true, features = [
+    "serde",
+    "arbitrary",
+] }
+alloy-dyn-abi = { workspace = true, features = ["arbitrary", "eip712"] }
 alloy-sol-types = { workspace = true, features = ["json"] }
 
 reqwest.workspace = true
@@ -56,3 +59,8 @@ tempdir.workspace = true
 alloy-zksync.workspace = true
 test-case.workspace = true
 backon.workspace = true
+
+# TODO: dont think this is needed
+[features]
+serde = []
+arbitrary = []
