@@ -124,8 +124,10 @@ impl InMemoryNode {
 
 #[cfg(test)]
 mod tests {
+    use alloy_dyn_abi::{DynSolValue, FunctionExt, JsonAbiExt};
+    use alloy_json_abi::{Function, Param};
+    use alloy_primitives::{Address as AlloyAddress, U256 as AlloyU256};
     use anvil_zksync_config::constants::DEFAULT_ACCOUNT_BALANCE;
-    use ethers::abi::{short_signature, AbiEncode, HumanReadableParser, ParamType, Token};
     use zksync_types::{
         transaction_request::CallRequestBuilder, utils::deployed_address_create, Address,
         K256PrivateKey, L2BlockNumber, Nonce, H160, U256,
@@ -150,12 +152,16 @@ mod tests {
             include_bytes!("../deps/test-contracts/Secondary.json"),
         );
         let secondary_deployed_address = deployed_address_create(from_account, U256::zero());
+        let alloy_secondary_address = AlloyAddress::from(secondary_deployed_address.0);
+        let secondary_constructor_calldata =
+            DynSolValue::Uint(AlloyU256::from(2), 256).abi_encode();
+
         testing::deploy_contract(
             node,
             H256::repeat_byte(0x1),
             &private_key,
             secondary_bytecode,
-            Some((U256::from(2),).encode()),
+            Some(secondary_constructor_calldata),
             Nonce(0),
         )
         .await;
@@ -166,15 +172,19 @@ mod tests {
             include_bytes!("../deps/test-contracts/Primary.json"),
         );
         let primary_deployed_address = deployed_address_create(from_account, U256::one());
+        let primary_constructor_calldata =
+            DynSolValue::Address(alloy_secondary_address).abi_encode();
+
         testing::deploy_contract(
             node,
             H256::repeat_byte(0x1),
             &private_key,
             primary_bytecode,
-            Some((secondary_deployed_address).encode()),
+            Some(primary_constructor_calldata),
             Nonce(1),
         )
         .await;
+
         (primary_deployed_address, secondary_deployed_address)
     }
 
@@ -184,9 +194,28 @@ mod tests {
 
         let (primary_deployed_address, secondary_deployed_address) =
             deploy_test_contracts(&node).await;
-        // trace a call to the primary contract
-        let func = HumanReadableParser::parse_function("calculate(uint)").unwrap();
-        let calldata = func.encode_input(&[Token::Uint(U256::from(42))]).unwrap();
+
+        let func = Function {
+            name: "calculate".to_string(),
+            inputs: vec![Param {
+                name: "value".to_string(),
+                ty: "uint256".to_string(),
+                components: vec![],
+                internal_type: None,
+            }],
+            outputs: vec![Param {
+                name: "".to_string(),
+                ty: "uint256".to_string(),
+                components: vec![],
+                internal_type: None,
+            }],
+            state_mutability: alloy_json_abi::StateMutability::NonPayable,
+        };
+
+        let calldata = func
+            .abi_encode_input(&[DynSolValue::Uint(AlloyU256::from(42), 256)])
+            .expect("failed to encode function input");
+
         let request = CallRequestBuilder::default()
             .to(Some(primary_deployed_address))
             .data(calldata.clone().into())
@@ -203,9 +232,14 @@ mod tests {
         assert!(trace.revert_reason.is_none());
 
         // check that the call was successful
-        let output =
-            ethers::abi::decode(&[ParamType::Uint(256)], trace.output.0.as_slice()).unwrap();
-        assert_eq!(output[0], Token::Uint(U256::from(84)));
+        let output = func
+            .abi_decode_output(trace.output.0.as_slice(), true)
+            .expect("failed to decode output");
+        assert_eq!(
+            output[0],
+            DynSolValue::Uint(AlloyU256::from(84), 256),
+            "unexpected output"
+        );
 
         // find the call to primary contract in the trace
         let contract_call = trace
@@ -226,7 +260,12 @@ mod tests {
         let subcall = contract_call.calls.first().unwrap();
         assert_eq!(subcall.to, secondary_deployed_address);
         assert_eq!(subcall.from, primary_deployed_address);
-        assert_eq!(subcall.output, U256::from(84).encode().into());
+        assert_eq!(
+            subcall.output,
+            func.abi_encode_output(&[DynSolValue::Uint(AlloyU256::from(84), 256)])
+                .expect("failed to encode function output")
+                .into()
+        );
     }
 
     #[tokio::test]
@@ -236,8 +275,22 @@ mod tests {
         let (primary_deployed_address, _) = deploy_test_contracts(&node).await;
 
         // trace a call to the primary contract
-        let func = HumanReadableParser::parse_function("calculate(uint)").unwrap();
-        let calldata = func.encode_input(&[Token::Uint(U256::from(42))]).unwrap();
+        let func = Function {
+            name: "calculate".to_string(),
+            inputs: vec![Param {
+                name: "value".to_string(),
+                ty: "uint256".to_string(),
+                components: vec![],
+                internal_type: None,
+            }],
+            outputs: vec![],
+            state_mutability: alloy_json_abi::StateMutability::NonPayable,
+        };
+
+        let calldata = func
+            .abi_encode_input(&[DynSolValue::Uint(AlloyU256::from(42), 256)])
+            .expect("failed to encode function input");
+
         let request = CallRequestBuilder::default()
             .to(Some(primary_deployed_address))
             .data(calldata.into())
@@ -273,10 +326,17 @@ mod tests {
 
         let (primary_deployed_address, _) = deploy_test_contracts(&node).await;
 
+        let func = Function {
+            name: "shouldRevert".to_string(),
+            inputs: vec![],
+            outputs: vec![],
+            state_mutability: alloy_json_abi::StateMutability::NonPayable,
+        };
+
         // trace a call to the primary contract
         let request = CallRequestBuilder::default()
             .to(Some(primary_deployed_address))
-            .data(short_signature("shouldRevert()", &[]).into())
+            .data(func.selector().to_vec().into())
             .gas(80_000_000.into())
             .build();
         let trace = node

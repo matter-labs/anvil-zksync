@@ -46,8 +46,6 @@ pub mod console_log;
 pub mod deps;
 pub mod filters;
 pub mod formatter;
-pub mod trace;
-pub mod http_fork_source;
 pub mod node;
 pub mod observability;
 pub mod resolver;

@@ -7,6 +7,7 @@ use anvil_zksync_config::types::{
     AccountGenerator, CacheConfig, CacheType, Genesis, SystemContractsOptions,
 };
 use anvil_zksync_config::TestNodeConfig;
+use anvil_zksync_core::node::fork::ForkConfig;
 use anvil_zksync_core::{
     node::{InMemoryNode, VersionedState},
     utils::write_json_file,
@@ -23,6 +24,7 @@ use std::env;
 use std::io::Read;
 use std::net::IpAddr;
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::time::Duration;
 use std::{
     future::Future,
@@ -30,6 +32,7 @@ use std::{
     task::{Context, Poll},
 };
 use tokio::time::{Instant, Interval};
+use url::Url;
 use zksync_types::{H256, U256};
 
 #[derive(Debug, Parser, Clone)]
@@ -340,7 +343,7 @@ pub struct ForkArgs {
         alias = "network",
         help = "Network to fork from (e.g., http://XXX:YY, mainnet, sepolia-testnet)."
     )]
-    pub fork_url: String,
+    pub fork_url: ForkUrl,
     // Fork at a given L2 miniblock height.
     // If not set - will use the current finalized block from the network.
     #[arg(
@@ -363,6 +366,48 @@ pub struct ForkArgs {
     pub fork_transaction_hash: Option<H256>,
 }
 
+#[derive(Clone, Debug)]
+pub enum ForkUrl {
+    Mainnet,
+    SepoliaTestnet,
+    Other(Url),
+}
+
+impl ForkUrl {
+    const MAINNET_URL: &'static str = "https://mainnet.era.zksync.io:443";
+    const SEPOLIA_TESTNET_URL: &'static str = "https://sepolia.era.zksync.dev:443";
+
+    pub fn to_config(&self) -> ForkConfig {
+        match self {
+            ForkUrl::Mainnet => ForkConfig {
+                url: Self::MAINNET_URL.parse().unwrap(),
+                estimate_gas_price_scale_factor: 1.5,
+                estimate_gas_scale_factor: 1.4,
+            },
+            ForkUrl::SepoliaTestnet => ForkConfig {
+                url: Self::SEPOLIA_TESTNET_URL.parse().unwrap(),
+                estimate_gas_price_scale_factor: 2.0,
+                estimate_gas_scale_factor: 1.3,
+            },
+            ForkUrl::Other(url) => ForkConfig::unknown(url.clone()),
+        }
+    }
+}
+
+impl FromStr for ForkUrl {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        if s == "mainnet" {
+            Ok(ForkUrl::Mainnet)
+        } else if s == "sepolia-testnet" {
+            Ok(ForkUrl::SepoliaTestnet)
+        } else {
+            Ok(Url::from_str(s).map(ForkUrl::Other)?)
+        }
+    }
+}
+
 #[derive(Debug, Parser, Clone)]
 pub struct ReplayArgs {
     /// Whether to fork from existing network.
@@ -377,7 +422,7 @@ pub struct ReplayArgs {
         alias = "network",
         help = "Network to fork from (e.g., http://XXX:YY, mainnet, sepolia-testnet)."
     )]
-    pub fork_url: String,
+    pub fork_url: ForkUrl,
     /// Transaction hash to replay.
     #[arg(help = "Transaction hash to replay.")]
     pub tx: H256,

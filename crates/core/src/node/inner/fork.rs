@@ -1,503 +1,192 @@
-//! This file hold tools used for test-forking other networks.
-//!
-//! There is ForkStorage (that is a wrapper over InMemoryStorage)
-//! And ForkDetails - that parses network address and fork height from arguments.
-
-use crate::node::inner::storage::ReadStorageDyn;
-use crate::utils::block_on;
-use crate::{deps::InMemoryStorage, http_fork_source::HttpForkSource};
+use crate::cache::Cache;
 use anvil_zksync_config::constants::{
     DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
-    DEFAULT_FAIR_PUBDATA_PRICE, TEST_NODE_NETWORK_ID,
+    DEFAULT_FAIR_PUBDATA_PRICE,
 };
-use anvil_zksync_config::types::{CacheConfig, SystemContractsOptions};
+use anvil_zksync_config::types::CacheConfig;
+use anyhow::Context;
 use async_trait::async_trait;
-use eyre::eyre;
-use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
-use std::iter::FromIterator;
-use std::{
-    collections::HashMap,
-    convert::{TryFrom, TryInto},
-    fmt,
-    str::FromStr,
-    sync::{Arc, RwLock},
-};
-use zksync_multivm::interface::storage::ReadStorage;
-use zksync_types::api::BlockId;
-use zksync_types::web3::Bytes;
+use futures::TryFutureExt;
+use itertools::Itertools;
+use std::fmt;
+use std::future::Future;
+use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use tracing::Instrument;
+use url::Url;
+use zksync_types::fee_model::{BaseTokenConversionRatio, FeeModelConfigV2, FeeParams, FeeParamsV2};
+use zksync_types::l2::L2Tx;
+use zksync_types::url::SensitiveUrl;
+use zksync_types::web3::Index;
 use zksync_types::{
-    api,
-    api::{
-        Block, BlockDetails, BlockIdVariant, BlockNumber, BridgeAddresses, Transaction,
-        TransactionDetails, TransactionVariant,
-    },
-    fee_model::FeeParams,
-    get_system_context_key,
-    l2::L2Tx,
-    url::SensitiveUrl,
-    ProtocolVersionId, StorageKey, SYSTEM_CONTEXT_CHAIN_ID_POSITION,
+    api, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, H256, U256,
 };
-use zksync_types::{bytecode::BytecodeHash, h256_to_u256};
-use zksync_types::{
-    Address, L1BatchNumber, L2BlockNumber, L2ChainId, StorageValue, H256, U256, U64,
-};
-use zksync_web3_decl::{
-    client::{Client, L2},
-    namespaces::ZksNamespaceClient,
-};
-use zksync_web3_decl::{namespaces::EthNamespaceClient, types::Index};
+use zksync_web3_decl::client::{DynClient, L2};
+use zksync_web3_decl::error::Web3Error;
+use zksync_web3_decl::namespaces::{EthNamespaceClient, ZksNamespaceClient};
 
-/// The possible networks to fork from.
-#[derive(Debug, Clone)]
-pub enum ForkNetwork {
-    Mainnet,
-    SepoliaTestnet,
-    GoerliTestnet,
-    Other(String),
-}
-
-impl ForkNetwork {
-    /// Return the URL for the underlying fork source.
-    pub fn to_url(&self) -> &str {
-        match self {
-            ForkNetwork::Mainnet => "https://mainnet.era.zksync.io:443",
-            ForkNetwork::SepoliaTestnet => "https://sepolia.era.zksync.dev:443",
-            ForkNetwork::GoerliTestnet => "https://testnet.era.zksync.dev:443",
-            ForkNetwork::Other(url) => url,
-        }
-    }
-    // TODO: This needs to be dynamic based on the network.
-    /// Returns the local gas scale factors currently in use by the upstream network.
-    pub fn local_gas_scale_factors(&self) -> (f64, f32) {
-        match self {
-            ForkNetwork::Mainnet => (1.5, 1.4),
-            ForkNetwork::SepoliaTestnet => (2.0, 1.3),
-            ForkNetwork::GoerliTestnet => (1.2, 1.2),
-            ForkNetwork::Other(_) => (
-                DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
-                DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
-            ),
-        }
-    }
-}
-
-/// In memory storage, that allows 'forking' from other network.
-/// If forking is enabled, it reads missing data from remote location.
-/// S - is a struct that is used for source of the fork.
-#[derive(Debug, Clone)]
-pub struct ForkStorage {
-    pub inner: Arc<RwLock<ForkStorageInner>>,
-    pub chain_id: L2ChainId,
-}
-
-// TODO: Hide mutable state and mark everything with `pub(super)`
-#[derive(Debug)]
-pub struct ForkStorageInner {
-    // Underlying local storage
-    pub raw_storage: InMemoryStorage,
-    // Cache of data that was read from remote location.
-    pub(super) value_read_cache: HashMap<StorageKey, H256>,
-    // Cache of factory deps that were read from remote location.
-    pub(super) factory_dep_cache: HashMap<H256, Option<Vec<u8>>>,
-    // If set - it hold the necessary information on where to fetch the data.
-    // If not set - it will simply read from underlying storage.
-    pub fork: Option<Box<ForkDetails>>,
-}
-
-impl ForkStorage {
-    pub(super) fn new(
-        fork: Option<ForkDetails>,
-        system_contracts_options: &SystemContractsOptions,
-        use_evm_emulator: bool,
-        override_chain_id: Option<u32>,
-    ) -> Self {
-        let chain_id = if let Some(override_id) = override_chain_id {
-            L2ChainId::from(override_id)
-        } else {
-            fork.as_ref()
-                .and_then(|d| d.overwrite_chain_id)
-                .unwrap_or(L2ChainId::from(TEST_NODE_NETWORK_ID))
-        };
-
-        ForkStorage {
-            inner: Arc::new(RwLock::new(ForkStorageInner {
-                raw_storage: InMemoryStorage::with_system_contracts_and_chain_id(
-                    chain_id,
-                    |b| BytecodeHash::for_bytecode(b).value(),
-                    system_contracts_options,
-                    use_evm_emulator,
-                ),
-                value_read_cache: Default::default(),
-                fork: fork.map(Box::new),
-                factory_dep_cache: Default::default(),
-            })),
-            chain_id,
-        }
-    }
-
-    pub fn get_cache_config(&self) -> Result<CacheConfig, String> {
-        let reader = self
-            .inner
-            .read()
-            .map_err(|e| format!("Failed to acquire read lock: {}", e))?;
-        let cache_config = if let Some(ref fork_details) = reader.fork {
-            fork_details.cache_config.clone()
-        } else {
-            CacheConfig::default()
-        };
-        Ok(cache_config)
-    }
-
-    pub fn get_fork_url(&self) -> Result<String, String> {
-        let reader = self
-            .inner
-            .read()
-            .map_err(|e| format!("Failed to acquire read lock: {}", e))?;
-        if let Some(ref fork_details) = reader.fork {
-            fork_details
-                .fork_source
-                .get_fork_url()
-                .map_err(|e| e.to_string())
-        } else {
-            Err("not forked".to_string())
-        }
-    }
-
-    pub fn read_value_internal(
-        &self,
-        key: &StorageKey,
-    ) -> eyre::Result<zksync_types::StorageValue> {
-        let mut mutator = self.inner.write().unwrap();
-        let local_storage = mutator.raw_storage.read_value(key);
-
-        if let Some(fork) = &mutator.fork {
-            if !H256::is_zero(&local_storage) {
-                return Ok(local_storage);
-            }
-
-            if let Some(value) = mutator.value_read_cache.get(key) {
-                return Ok(*value);
-            }
-            let l2_miniblock = fork.l2_miniblock;
-            let key_ = *key;
-
-            let result = fork.fork_source.get_storage_at(
-                *key_.account().address(),
-                h256_to_u256(*key_.key()),
-                Some(BlockIdVariant::BlockNumber(BlockNumber::Number(U64::from(
-                    l2_miniblock,
-                )))),
-            )?;
-
-            mutator.value_read_cache.insert(*key, result);
-            Ok(result)
-        } else {
-            Ok(local_storage)
-        }
-    }
-
-    pub fn load_factory_dep_internal(&self, hash: H256) -> eyre::Result<Option<Vec<u8>>> {
-        let mut mutator = self.inner.write().unwrap();
-        let local_storage = mutator.raw_storage.load_factory_dep(hash);
-        if let Some(fork) = &mutator.fork {
-            if local_storage.is_some() {
-                return Ok(local_storage);
-            }
-            if let Some(value) = mutator.factory_dep_cache.get(&hash) {
-                return Ok(value.clone());
-            }
-
-            let result = fork.fork_source.get_bytecode_by_hash(hash)?;
-            mutator.factory_dep_cache.insert(hash, result.clone());
-            Ok(result)
-        } else {
-            Ok(local_storage)
-        }
-    }
-
-    /// Check if this is the first time when we're ever writing to this key.
-    /// This has impact on amount of pubdata that we have to spend for the write.
-    pub fn is_write_initial_internal(&self, key: &StorageKey) -> eyre::Result<bool> {
-        // Currently we don't have the zks API to return us the information on whether a given
-        // key was written to before a given block.
-        // This means, we have to depend on the following heuristic: we'll read the value of the slot.
-        //  - if value != 0 -> this means that the slot was written to in the past (so we can return intitial_write = false)
-        //  - but if the value = 0 - there is a chance, that slot was written to in the past - and later was reset.
-        //                            but unfortunately we cannot detect that with the current zks api, so we'll attempt to do it
-        //                           only on local storage.
-        let value = self.read_value_internal(key)?;
-        if value != H256::zero() {
-            return Ok(false);
-        }
-
-        // If value was 0, there is still a chance, that the slot was written to in the past - and only now set to 0.
-        // We unfortunately don't have the API to check it on the fork, but we can at least try to check it on local storage.
-        let mut mutator = self
-            .inner
-            .write()
-            .map_err(|err| eyre!("failed acquiring write lock on fork storage: {:?}", err))?;
-        Ok(mutator.raw_storage.is_write_initial(key))
-    }
-
-    /// Retrieves the enumeration index for a given `key`.
-    fn get_enumeration_index_internal(&self, _key: &StorageKey) -> Option<u64> {
-        // TODO: Update this file to use proper enumeration index value once it's exposed for forks via API
-        Some(0_u64)
-    }
-
-    /// Creates a serializable representation of current storage state. It will contain both locally
-    /// stored data and cached data read from the fork.
-    pub fn dump_state(&self) -> SerializableForkStorage {
-        let inner = self.inner.read().unwrap();
-        let mut state = BTreeMap::from_iter(inner.value_read_cache.clone());
-        state.extend(inner.raw_storage.state.clone());
-        let mut factory_deps = BTreeMap::from_iter(
-            inner
-                .factory_dep_cache
-                .iter()
-                // Ignore cache misses
-                .filter_map(|(k, v)| v.as_ref().map(|v| (k, v)))
-                .map(|(k, v)| (*k, Bytes::from(v.clone()))),
-        );
-        factory_deps.extend(
-            inner
-                .raw_storage
-                .factory_deps
-                .iter()
-                .map(|(k, v)| (*k, Bytes::from(v.clone()))),
-        );
-
-        SerializableForkStorage {
-            storage: SerializableStorage(state),
-            factory_deps,
-        }
-    }
-
-    pub fn load_state(&self, state: SerializableForkStorage) {
-        tracing::trace!(
-            slots = state.storage.0.len(),
-            factory_deps = state.factory_deps.len(),
-            "loading fork storage from supplied state"
-        );
-        let mut inner = self.inner.write().unwrap();
-        inner.raw_storage.state.extend(state.storage.0);
-        inner
-            .raw_storage
-            .factory_deps
-            .extend(state.factory_deps.into_iter().map(|(k, v)| (k, v.0)));
-    }
-}
-
-impl ReadStorage for ForkStorage {
-    fn is_write_initial(&mut self, key: &StorageKey) -> bool {
-        self.is_write_initial_internal(key).unwrap()
-    }
-
-    fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
-        self.load_factory_dep_internal(hash).unwrap()
-    }
-
-    fn read_value(&mut self, key: &StorageKey) -> zksync_types::StorageValue {
-        self.read_value_internal(key).unwrap()
-    }
-
-    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
-        self.get_enumeration_index_internal(key)
-    }
-}
-
-impl ReadStorage for &ForkStorage {
-    fn read_value(&mut self, key: &StorageKey) -> zksync_types::StorageValue {
-        self.read_value_internal(key).unwrap()
-    }
-
-    fn is_write_initial(&mut self, key: &StorageKey) -> bool {
-        self.is_write_initial_internal(key).unwrap()
-    }
-
-    fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
-        self.load_factory_dep_internal(hash).unwrap()
-    }
-
-    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
-        self.get_enumeration_index_internal(key)
-    }
-}
-
+/// Trait that provides necessary data when forking a remote chain.
+///
+/// Most methods' signatures are similar to corresponding methods from [`EthNamespaceClient`] and [`ZksNamespaceClient`]
+/// but with domain-specific types where that makes sense. Additionally, return types are wrapped
+/// into [`anyhow::Result`] to avoid leaking RPC-specific implementation details.
 #[async_trait]
-impl ReadStorageDyn for ForkStorage {
-    fn dyn_cloned(&self) -> Box<dyn ReadStorageDyn> {
-        Box::new(self.clone())
-    }
+pub trait ForkSource: fmt::Debug + Send + Sync {
+    /// Alternative for [`Clone::clone`] that is object safe.
+    fn dyn_cloned(&self) -> Box<dyn ForkSource>;
 
-    async fn read_value_alt(&self, key: &StorageKey) -> anyhow::Result<StorageValue> {
-        // TODO: Get rid of `block_on` inside to propagate asynchronous execution up to this level
-        self.read_value_internal(key)
-            .map_err(|e| anyhow::anyhow!("failed reading value: {:?}", e))
-    }
+    /// Human-readable description on the fork's origin. None if there is no fork.
+    fn url(&self) -> Option<Url>;
 
-    async fn load_factory_dep_alt(&self, hash: H256) -> anyhow::Result<Option<Vec<u8>>> {
-        // TODO: Get rid of `block_on` inside to propagate asynchronous execution up to this level
-        self.load_factory_dep_internal(hash)
-            .map_err(|e| anyhow::anyhow!("failed to load factory dep: {:?}", e))
-    }
-}
+    /// Details on the fork's state at the moment when we forked from it. None if there is no fork.
+    fn details(&self) -> Option<ForkDetails>;
 
-impl ForkStorage {
-    pub fn set_value(&self, key: StorageKey, value: zksync_types::StorageValue) {
-        let mut mutator = self.inner.write().unwrap();
-        mutator.raw_storage.set_value(key, value)
-    }
-    pub fn store_factory_dep(&self, hash: H256, bytecode: Vec<u8>) {
-        let mut mutator = self.inner.write().unwrap();
-        mutator.raw_storage.store_factory_dep(hash, bytecode)
-    }
-    pub fn set_chain_id(&mut self, id: L2ChainId) {
-        self.chain_id = id;
-        let mut mutator = self.inner.write().unwrap();
-        if let Some(fork) = &mut mutator.fork {
-            fork.set_chain_id(id)
-        }
-        mutator.raw_storage.set_value(
-            get_system_context_key(SYSTEM_CONTEXT_CHAIN_ID_POSITION),
-            H256::from_low_u64_be(id.as_u64()),
-        );
-    }
-}
-
-/// Trait that provides necessary data when
-/// forking a remote chain.
-/// The method signatures are similar to methods from ETHNamespace and ZKNamespace.
-pub trait ForkSource {
-    /// Returns the forked URL.
-    fn get_fork_url(&self) -> eyre::Result<String>;
-
-    /// Returns the Storage value at a given index for given address.
-    fn get_storage_at(
+    /// Fetches fork's storage value at a given index for given address for the forked blocked.
+    async fn get_storage_at(
         &self,
         address: Address,
         idx: U256,
-        block: Option<BlockIdVariant>,
-    ) -> eyre::Result<H256>;
+        block: Option<api::BlockIdVariant>,
+    ) -> anyhow::Result<H256>;
+
+    /// Fetches fork's storage value at a given index for given address for the forked blocked.
+    async fn get_storage_at_forked(&self, address: Address, idx: U256) -> anyhow::Result<H256>;
 
     /// Returns the bytecode stored under this hash (if available).
-    fn get_bytecode_by_hash(&self, hash: H256) -> eyre::Result<Option<Vec<u8>>>;
+    async fn get_bytecode_by_hash(&self, hash: H256) -> anyhow::Result<Option<Vec<u8>>>;
 
-    /// Returns the transaction for a given hash.
-    fn get_transaction_by_hash(&self, hash: H256) -> eyre::Result<Option<Transaction>>;
+    /// Fetches fork's transaction for a given hash.
+    async fn get_transaction_by_hash(&self, hash: H256)
+        -> anyhow::Result<Option<api::Transaction>>;
 
-    /// Returns the transaction details for a given hash.
-    fn get_transaction_details(&self, hash: H256) -> eyre::Result<Option<TransactionDetails>>;
-
-    /// Gets all transactions that belong to a given miniblock.
-    fn get_raw_block_transactions(
-        &self,
-        block_number: L2BlockNumber,
-    ) -> eyre::Result<Vec<zksync_types::Transaction>>;
-
-    /// Returns the block for a given hash.
-    fn get_block_by_hash(
+    /// Fetches fork's transaction details for a given hash.
+    async fn get_transaction_details(
         &self,
         hash: H256,
-        full_transactions: bool,
-    ) -> eyre::Result<Option<Block<TransactionVariant>>>;
+    ) -> anyhow::Result<Option<api::TransactionDetails>>;
 
-    /// Returns the block for a given number.
-    fn get_block_by_number(
+    /// Fetches fork's transactions that belong to a block with the given number.
+    async fn get_raw_block_transactions(
         &self,
-        block_number: zksync_types::api::BlockNumber,
-        full_transactions: bool,
-    ) -> eyre::Result<Option<Block<TransactionVariant>>>;
+        block_number: L2BlockNumber,
+    ) -> anyhow::Result<Vec<zksync_types::Transaction>>;
 
-    fn get_block_by_id(
+    /// Fetches fork's block for a given hash.
+    async fn get_block_by_hash(
         &self,
-        block_id: zksync_types::api::BlockId,
-        full_transactions: bool,
-    ) -> eyre::Result<Option<Block<TransactionVariant>>> {
-        match block_id {
-            BlockId::Hash(hash) => self.get_block_by_hash(hash, full_transactions),
-            BlockId::Number(number) => self.get_block_by_number(number, full_transactions),
-        }
-    }
+        hash: H256,
+    ) -> anyhow::Result<Option<api::Block<api::TransactionVariant>>>;
 
-    /// Returns the block details for a given miniblock number.
-    fn get_block_details(&self, miniblock: L2BlockNumber) -> eyre::Result<Option<BlockDetails>>;
-
-    /// Returns fee parameters for the give source.
-    fn get_fee_params(&self) -> eyre::Result<FeeParams>;
-
-    /// Returns the  transaction count for a given block hash.
-    fn get_block_transaction_count_by_hash(&self, block_hash: H256) -> eyre::Result<Option<U256>>;
-
-    /// Returns the transaction count for a given block number.
-    fn get_block_transaction_count_by_number(
+    /// Fetches fork's block for a given number.
+    async fn get_block_by_number(
         &self,
-        block_number: zksync_types::api::BlockNumber,
-    ) -> eyre::Result<Option<U256>>;
+        block_number: api::BlockNumber,
+    ) -> anyhow::Result<Option<api::Block<api::TransactionVariant>>>;
 
-    fn get_block_transaction_count_by_id(
+    /// Fetches fork's block for a given id.
+    async fn get_block_by_id(
         &self,
         block_id: api::BlockId,
-    ) -> eyre::Result<Option<U256>> {
+    ) -> anyhow::Result<Option<api::Block<api::TransactionVariant>>> {
         match block_id {
-            BlockId::Hash(hash) => self.get_block_transaction_count_by_hash(hash),
-            BlockId::Number(number) => self.get_block_transaction_count_by_number(number),
+            api::BlockId::Hash(hash) => self.get_block_by_hash(hash).await,
+            api::BlockId::Number(number) => self.get_block_by_number(number).await,
         }
     }
 
-    /// Returns information about a transaction by block hash and transaction index position.
-    fn get_transaction_by_block_hash_and_index(
+    /// Fetches fork's block details for a given block number.
+    async fn get_block_details(
+        &self,
+        block_number: L2BlockNumber,
+    ) -> anyhow::Result<Option<api::BlockDetails>>;
+
+    /// Fetches fork's transaction count for a given block hash.
+    async fn get_block_transaction_count_by_hash(
         &self,
         block_hash: H256,
-        index: Index,
-    ) -> eyre::Result<Option<Transaction>>;
+    ) -> anyhow::Result<Option<U256>>;
 
-    /// Returns information about a transaction by block number and transaction index position.
-    fn get_transaction_by_block_number_and_index(
+    /// Fetches fork's transaction count for a given block number.
+    async fn get_block_transaction_count_by_number(
         &self,
-        block_number: BlockNumber,
-        index: Index,
-    ) -> eyre::Result<Option<Transaction>>;
+        block_number: api::BlockNumber,
+    ) -> anyhow::Result<Option<U256>>;
 
-    fn get_transaction_by_block_id_and_index(
+    /// Fetches fork's transaction count for a given block id.
+    async fn get_block_transaction_count_by_id(
         &self,
         block_id: api::BlockId,
-        index: Index,
-    ) -> eyre::Result<Option<Transaction>> {
+    ) -> anyhow::Result<Option<U256>> {
         match block_id {
-            BlockId::Hash(hash) => self.get_transaction_by_block_hash_and_index(hash, index),
-            BlockId::Number(number) => {
-                self.get_transaction_by_block_number_and_index(number, index)
+            api::BlockId::Hash(hash) => self.get_block_transaction_count_by_hash(hash).await,
+            api::BlockId::Number(number) => {
+                self.get_block_transaction_count_by_number(number).await
             }
         }
     }
 
-    /// Returns addresses of the default bridge contracts.
-    fn get_bridge_contracts(&self) -> eyre::Result<BridgeAddresses>;
+    /// Fetches fork's transaction by block hash and transaction index position.
+    async fn get_transaction_by_block_hash_and_index(
+        &self,
+        block_hash: H256,
+        index: Index,
+    ) -> anyhow::Result<Option<api::Transaction>>;
 
-    /// Returns confirmed tokens
-    fn get_confirmed_tokens(
+    /// Fetches fork's transaction by block number and transaction index position.
+    async fn get_transaction_by_block_number_and_index(
+        &self,
+        block_number: api::BlockNumber,
+        index: Index,
+    ) -> anyhow::Result<Option<api::Transaction>>;
+
+    /// Fetches fork's transaction by block id and transaction index position.
+    async fn get_transaction_by_block_id_and_index(
+        &self,
+        block_id: api::BlockId,
+        index: Index,
+    ) -> anyhow::Result<Option<api::Transaction>> {
+        match block_id {
+            api::BlockId::Hash(hash) => {
+                self.get_transaction_by_block_hash_and_index(hash, index)
+                    .await
+            }
+            api::BlockId::Number(number) => {
+                self.get_transaction_by_block_number_and_index(number, index)
+                    .await
+            }
+        }
+    }
+
+    /// Fetches fork's addresses of the default bridge contracts.
+    async fn get_bridge_contracts(&self) -> anyhow::Result<Option<api::BridgeAddresses>>;
+
+    /// Fetches fork's confirmed tokens.
+    async fn get_confirmed_tokens(
         &self,
         from: u32,
         limit: u8,
-    ) -> eyre::Result<Vec<zksync_web3_decl::types::Token>>;
+    ) -> anyhow::Result<Option<Vec<zksync_web3_decl::types::Token>>>;
 }
 
-/// Holds the information about the original chain.
+impl Clone for Box<dyn ForkSource> {
+    fn clone(&self) -> Self {
+        self.dyn_cloned()
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct ForkDetails {
-    // Source of the fork data (for example HttpForkSource)
-    pub fork_source: Box<dyn ForkSource + Send + Sync>,
-    // Chain ID of fork
+    /// Chain ID of the fork.
     pub chain_id: L2ChainId,
-    // Block number at which we forked (the next block to create is l1_block + 1)
-    pub l1_block: L1BatchNumber,
-    // The actual L2 block
-    pub l2_block: zksync_types::api::Block<zksync_types::api::TransactionVariant>,
-    pub l2_miniblock: u64,
-    pub l2_miniblock_hash: H256,
+    /// Batch number at which we forked (the next batch to seal locally is `batch_number + 1`).
+    pub batch_number: L1BatchNumber,
+    /// Block number at which we forked (the next block to seal locally is `block_number + 1`).
+    pub block_number: L2BlockNumber,
+    /// Block hash at which we forked (corresponds to the hash of block #`block_number`).
+    pub block_hash: H256,
+    /// Block timestamp at which we forked (corresponds to the timestamp of block #`block_number`).
     pub block_timestamp: u64,
-    pub overwrite_chain_id: Option<L2ChainId>,
+    /// API block at which we forked (corresponds to the hash of block #`block_number`).
+    pub api_block: api::Block<api::TransactionVariant>,
     pub l1_gas_price: u64,
     pub l2_fair_gas_price: u64,
     // Cost of publishing one byte.
@@ -506,120 +195,141 @@ pub struct ForkDetails {
     pub estimate_gas_price_scale_factor: f64,
     /// The factor by which to scale the gasLimit.
     pub estimate_gas_scale_factor: f32,
-    pub fee_params: Option<FeeParams>,
-    pub cache_config: CacheConfig,
+    pub fee_params: FeeParams,
 }
 
-const SUPPORTED_VERSIONS: &[ProtocolVersionId] = &[
-    ProtocolVersionId::Version9,
-    ProtocolVersionId::Version10,
-    ProtocolVersionId::Version11,
-    ProtocolVersionId::Version12,
-    ProtocolVersionId::Version13,
-    ProtocolVersionId::Version14,
-    ProtocolVersionId::Version15,
-    ProtocolVersionId::Version16,
-    ProtocolVersionId::Version17,
-    ProtocolVersionId::Version18,
-    ProtocolVersionId::Version19,
-    ProtocolVersionId::Version20,
-    ProtocolVersionId::Version21,
-    ProtocolVersionId::Version22,
-    ProtocolVersionId::Version23,
-    ProtocolVersionId::Version24,
-    ProtocolVersionId::Version25,
-];
-
-pub fn supported_protocol_versions(version: ProtocolVersionId) -> bool {
-    SUPPORTED_VERSIONS.contains(&version)
-}
-
-pub fn supported_versions_to_string() -> String {
-    let versions: Vec<String> = SUPPORTED_VERSIONS
-        .iter()
-        .map(|v| format!("{:?}", v))
-        .collect();
-    versions.join(", ")
-}
-
-impl fmt::Debug for ForkDetails {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ForkDetails")
-            .field("chain_id", &self.chain_id)
-            .field("l1_block", &self.l1_block)
-            .field("l2_block", &self.l2_block)
-            .field("l2_miniblock", &self.l2_miniblock)
-            .field("l2_miniblock_hash", &self.l2_miniblock_hash)
-            .field("block_timestamp", &self.block_timestamp)
-            .field("overwrite_chain_id", &self.overwrite_chain_id)
-            .field("l1_gas_price", &self.l1_gas_price)
-            .field("l2_fair_gas_price", &self.l2_fair_gas_price)
-            .finish()
+impl Default for ForkDetails {
+    fn default() -> Self {
+        let config = FeeModelConfigV2 {
+            minimal_l2_gas_price: 10_000_000_000,
+            compute_overhead_part: 0.0,
+            pubdata_overhead_part: 1.0,
+            batch_overhead_l1_gas: 800_000,
+            max_gas_per_batch: 200_000_000,
+            max_pubdata_per_batch: 500_000,
+        };
+        Self {
+            chain_id: Default::default(),
+            batch_number: Default::default(),
+            block_number: Default::default(),
+            block_hash: Default::default(),
+            block_timestamp: 0,
+            api_block: Default::default(),
+            l1_gas_price: 0,
+            l2_fair_gas_price: 0,
+            fair_pubdata_price: 0,
+            estimate_gas_price_scale_factor: 0.0,
+            estimate_gas_scale_factor: 0.0,
+            fee_params: FeeParams::V2(FeeParamsV2::new(
+                config,
+                10_000_000_000,
+                5_000_000_000,
+                BaseTokenConversionRatio::default(),
+            )),
+        }
     }
 }
 
-impl ForkDetails {
-    pub async fn from_network_and_miniblock_and_chain(
-        network: ForkNetwork,
-        client: Client<L2>,
-        miniblock: u64,
-        chain_id: Option<L2ChainId>,
-        cache_config: &CacheConfig,
-    ) -> eyre::Result<Self> {
-        let url = network.to_url();
-        let opt_block_details = client
-            .get_block_details(L2BlockNumber(miniblock as u32))
+pub struct ForkConfig {
+    pub url: Url,
+    pub estimate_gas_price_scale_factor: f64,
+    pub estimate_gas_scale_factor: f32,
+}
+
+impl ForkConfig {
+    /// Default configuration for an unknown chain.
+    pub fn unknown(url: Url) -> Self {
+        // TODO: Unfortunately there is no endpoint that exposes this information and there is no
+        //       easy way to derive these values either. Recent releases of zksync-era report unscaled
+        //       open batch's fee input and we should mimic something similar.
+        let (estimate_gas_price_scale_factor, estimate_gas_scale_factor) = (
+            DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
+            DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
+        );
+        Self {
+            url,
+            estimate_gas_price_scale_factor,
+            estimate_gas_scale_factor,
+        }
+    }
+}
+
+/// Simple wrapper over `eth`/`zks`-capable client that propagates all [`ForkSource`] RPC requests to it.
+#[derive(Debug, Clone)]
+pub struct ForkClient {
+    pub url: Url,
+    pub details: ForkDetails,
+    l2_client: Box<DynClient<L2>>,
+}
+
+impl ForkClient {
+    async fn new(
+        config: ForkConfig,
+        l2_client: Box<DynClient<L2>>,
+        block_number: L2BlockNumber,
+    ) -> anyhow::Result<Self> {
+        let ForkConfig {
+            url,
+            estimate_gas_price_scale_factor,
+            estimate_gas_scale_factor,
+        } = config;
+        let chain_id = l2_client
+            .chain_id()
             .await
-            .map_err(|error| eyre!(error))?;
-        let block_details = opt_block_details
-            .ok_or_else(|| eyre!("Could not find block {:?} in {:?}", miniblock, url))?;
+            .with_context(|| format!("failed to get chain id from fork={url}"))?;
+        let chain_id = L2ChainId::try_from(chain_id.as_u64())
+            .map_err(|e| anyhow::anyhow!("fork has malformed chain id: {e}"))?;
+        let block_details = l2_client
+            .get_block_details(block_number)
+            .await?
+            .ok_or_else(
+                || anyhow::anyhow!("could not find block #{block_number} at fork={url}",),
+            )?;
         let root_hash = block_details
             .base
             .root_hash
-            .ok_or_else(|| eyre!("fork block #{} missing root hash", miniblock))?;
-        let opt_block = client
+            .ok_or_else(|| anyhow::anyhow!("fork block #{block_number} missing root hash"))?;
+        let mut block = l2_client
             .get_block_by_hash(root_hash, true)
-            .await
-            .map_err(|error| eyre!(error))?;
-        let mut block = opt_block.ok_or_else(|| {
-            eyre!(
-                "Could not find block #{:?} ({:#x}) in {:?}",
-                miniblock,
-                root_hash,
-                url
-            )
-        })?;
-        let l1_batch_number = block_details.l1_batch_number;
-        block.l1_batch_number = Some(l1_batch_number.0.into());
+            .await?
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "could not find API block #{block_number} at fork={url} despite finding its details \
+                    through `zks_getBlockDetails` previously; this is likely a bug, please report this",
+                )
+            })?;
+        let batch_number = block_details.l1_batch_number;
+        // TODO: This is a bit weird, we should just grab last block from the latest sealed L1 batch
+        //       instead to ensure `l1BatchNumber` is always present.
+        block.l1_batch_number = Some(batch_number.0.into());
 
-        if !block_details
-            .protocol_version
-            .is_some_and(supported_protocol_versions)
-        {
-            return Err(eyre!("This block is using the unsupported protocol version: {:?}. This binary supports versions {}.",
-                             block_details.protocol_version,
-                             supported_versions_to_string()));
+        if let Some(protocol_version) = block_details.protocol_version {
+            // TODO: In reality, anvil-zksync only supports one protocol version as we rely on
+            //       compiled contracts from `contracts` submodule.
+            if !SupportedProtocolVersions::is_supported(protocol_version) {
+                anyhow::bail!(
+                    "Block #{block_number} from fork={url} is using unsupported protocol version `{protocol_version}`. \
+                    anvil-zksync only supports the following versions: {SupportedProtocolVersions}."
+                )
+            }
+        } else {
+            // It is possible that some external nodes do not store protocol versions for versions below 9.
+            // That's why we assume that whenever a protocol version is not present, it is unsupported by anvil-zksync.
+            anyhow::bail!(
+                "Block #{block_number} from fork={url} does not have protocol version set. \
+                Likely you are using an external node with a block for protocol version below 9 which are unsupported in anvil-zksync. \
+                Please report this as a bug if that's not the case."
+            )
         }
 
-        let (estimate_gas_price_scale_factor, estimate_gas_scale_factor) =
-            network.local_gas_scale_factors();
-        let fee_params = match client.get_fee_params().await {
-            Ok(fp) => Some(fp),
-            Err(error) => {
-                tracing::warn!("Cannot get fee params: {:?}", error);
-                None
-            }
-        };
-
-        Ok(ForkDetails {
-            fork_source: Box::new(HttpForkSource::new(url.to_owned(), cache_config.clone())),
-            chain_id: chain_id.unwrap_or_else(|| L2ChainId::from(TEST_NODE_NETWORK_ID)),
-            l1_block: l1_batch_number,
-            l2_block: block,
+        let fee_params = l2_client.get_fee_params().await?;
+        let details = ForkDetails {
+            chain_id,
+            batch_number,
+            block_number,
+            block_hash: root_hash,
             block_timestamp: block_details.base.timestamp,
-            l2_miniblock: miniblock,
-            l2_miniblock_hash: root_hash,
-            overwrite_chain_id: chain_id,
+            api_block: block,
             l1_gas_price: block_details.base.l1_gas_price,
             l2_fair_gas_price: block_details.base.l2_fair_gas_price,
             fair_pubdata_price: block_details
@@ -629,424 +339,713 @@ impl ForkDetails {
             estimate_gas_price_scale_factor,
             estimate_gas_scale_factor,
             fee_params,
-            cache_config: cache_config.clone(), // TODO: This is a temporary solution, we should avoid cloning the cache config here. We should look to refactor how cache is being configured / used as it currently feels a bit too rigid. See: https://github.com/matter-labs/anvil-zksync/issues/387
-        })
+        };
+        let fork = ForkClient {
+            url,
+            details,
+            l2_client,
+        };
+        Ok(fork)
     }
-    /// Create a fork from a given network at a given height.
-    pub async fn from_network(
-        fork: &str,
-        fork_block_number: Option<u64>,
-        cache_config: &CacheConfig,
-    ) -> eyre::Result<Self> {
-        let (network, client) = Self::fork_network_and_client(fork)?;
-        let chain_id_u64 = client.chain_id().await?;
-        let chain_id = L2ChainId::from(chain_id_u64.as_u32());
 
-        let l2_miniblock = if let Some(fork_block_number) = fork_block_number {
-            fork_block_number
+    /// Initializes a fork based on config at a given block number.
+    pub async fn at_block_number(
+        config: ForkConfig,
+        block_number: Option<L2BlockNumber>,
+    ) -> anyhow::Result<Self> {
+        let l2_client =
+            zksync_web3_decl::client::Client::http(SensitiveUrl::from(config.url.clone()))?.build();
+        let block_number = if let Some(block_number) = block_number {
+            block_number
         } else {
-            match client.get_block_number().await {
-                Ok(bn) => bn.as_u64(),
-                Err(error) => {
-                    return Err(eyre!(error));
-                }
-            }
+            let block_number = l2_client
+                .get_block_number()
+                .await
+                .with_context(|| format!("failed to get block number from fork={}", config.url))?;
+            L2BlockNumber(block_number.as_u32())
         };
 
-        Self::from_network_and_miniblock_and_chain(
-            network,
-            client,
-            l2_miniblock,
-            chain_id.into(),
-            cache_config,
-        )
-        .await
+        Self::new(config, Box::new(l2_client), block_number).await
     }
 
-    /// Create a fork from a given network, at a height BEFORE a transaction.
+    /// Initializes a fork based on config at a block BEFORE given transaction.
     /// This will allow us to apply this transaction locally on top of this fork.
-    pub async fn from_network_tx(
-        fork: &str,
-        tx: H256,
-        cache_config: &CacheConfig,
-    ) -> eyre::Result<Self> {
-        let (network, client) = Self::fork_network_and_client(fork)?;
-        let opt_tx_details = client
-            .get_transaction_by_hash(tx)
-            .await
-            .map_err(|error| eyre!(error))?;
-        let tx_details = opt_tx_details.ok_or_else(|| eyre!("could not find {:?}", tx))?;
-        let overwrite_chain_id = L2ChainId::try_from(tx_details.chain_id.as_u64())
-            .map_err(|error| eyre!("erroneous chain id {}: {:?}", tx_details.chain_id, error))?;
-        let block_number = tx_details
-            .block_number
-            .ok_or_else(|| eyre!("tx {:?} has no block number", tx))?;
-        let miniblock_number = L2BlockNumber(block_number.as_u32());
-        // We have to sync to the one-miniblock before the one where transaction is.
-        let l2_miniblock = miniblock_number.saturating_sub(1) as u64;
-
-        Self::from_network_and_miniblock_and_chain(
-            network,
-            client,
-            l2_miniblock,
-            Some(overwrite_chain_id),
-            cache_config,
-        )
-        .await
-    }
-
-    /// Return URL and HTTP client for `hardhat_reset`.
-    pub fn from_url(
-        url: String,
-        fork_block_number: Option<u64>,
-        cache_config: CacheConfig,
-    ) -> eyre::Result<Self> {
-        let parsed_url = SensitiveUrl::from_str(&url)?;
-        let builder = Client::http(parsed_url).map_err(|error| eyre!(error))?;
-        let client = builder.build();
-
-        block_on(async move {
-            let chain_id_u64 = client.chain_id().await?;
-            let chain_id = L2ChainId::from(chain_id_u64.as_u32());
-            let l2_miniblock = if let Some(fork_block_number) = fork_block_number {
-                fork_block_number
-            } else {
-                client.get_block_number().await?.as_u64()
-            };
-
-            Self::from_network_and_miniblock_and_chain(
-                ForkNetwork::Other(url),
-                client,
-                l2_miniblock,
-                chain_id.into(),
-                &cache_config,
-            )
-            .await
-        })
-    }
-
-    /// Return [`ForkNetwork`] and HTTP client for a given fork name.
-    pub fn fork_network_and_client(fork: &str) -> eyre::Result<(ForkNetwork, Client<L2>)> {
-        let network = match fork {
-            "mainnet" => ForkNetwork::Mainnet,
-            "sepolia-testnet" => ForkNetwork::SepoliaTestnet,
-            "goerli-testnet" => ForkNetwork::GoerliTestnet,
-            _ => ForkNetwork::Other(fork.to_string()),
-        };
-
-        let url = network.to_url();
-        let parsed_url = SensitiveUrl::from_str(url)
-            .map_err(|_| eyre!("Unable to parse client URL: {}", &url))?;
-        let builder = Client::http(parsed_url)
-            .map_err(|_| eyre!("Unable to create a client for fork: {}", &url))?;
-        Ok((network, builder.build()))
-    }
-
-    /// Returns transactions that are in the same L2 miniblock as replay_tx, but were executed before it.
-    pub fn get_earlier_transactions_in_same_block(
-        &self,
-        replay_tx: H256,
-    ) -> eyre::Result<Vec<L2Tx>> {
-        let opt_tx_details = self
-            .fork_source
-            .get_transaction_by_hash(replay_tx)
-            .map_err(|err| {
-                eyre!(
-                    "Cannot get transaction to replay by hash from fork source: {:?}",
-                    err
+    pub async fn at_before_tx(
+        config: ForkConfig,
+        tx_hash: H256,
+    ) -> anyhow::Result<(Self, Vec<L2Tx>)> {
+        let l2_client =
+            zksync_web3_decl::client::Client::http(SensitiveUrl::from(config.url.clone()))?.build();
+        let tx_details = l2_client
+            .get_transaction_by_hash(tx_hash)
+            .await?
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "could not find tx with hash={tx_hash:?} at fork={}",
+                    config.url
                 )
             })?;
-        let tx_details =
-            opt_tx_details.ok_or_else(|| eyre!("Cannot find transaction {:?}", replay_tx))?;
-        let block_number = tx_details
-            .block_number
-            .ok_or_else(|| eyre!("Block has no number"))?;
-        let miniblock = L2BlockNumber(block_number.as_u32());
+        let block_number = tx_details.block_number.ok_or_else(|| {
+            anyhow::anyhow!(
+                "could not initialize fork from tx with hash={tx_hash:?} as it is still pending"
+            )
+        })?;
+        let block_number = L2BlockNumber(block_number.as_u32());
+        if block_number == L2BlockNumber(0) {
+            anyhow::bail!(
+                "could not initialize fork from tx with hash={tx_hash:?} as it belongs to genesis"
+            );
+        }
+        let mut earlier_txs = Vec::new();
+        for tx in l2_client.get_raw_block_transactions(block_number).await? {
+            let hash = tx.hash();
+            let l2_tx: L2Tx = tx
+                .try_into()
+                .map_err(|e| anyhow::anyhow!("Failed to convert to L2 transaction: {e}"))?;
+            earlier_txs.push(l2_tx);
 
-        // And we're fetching all the transactions from this miniblock.
-        let block_transactions = self.fork_source.get_raw_block_transactions(miniblock)?;
-
-        let mut tx_to_apply = Vec::new();
-        for tx in block_transactions {
-            let h = tx.hash();
-            let l2_tx: L2Tx = tx.try_into().unwrap();
-            tx_to_apply.push(l2_tx);
-
-            if h == replay_tx {
-                return Ok(tx_to_apply);
+            if hash == tx_hash {
+                break;
             }
         }
-        Err(eyre!(
-            "Cound not find tx {:?} in miniblock: {:?}",
-            replay_tx,
-            miniblock
+
+        // We initialize fork from the parent of the block containing transaction.
+        Ok((
+            Self::new(config, Box::new(l2_client), block_number - 1).await?,
+            earlier_txs,
         ))
     }
-
-    /// Returns
-    ///
-    /// - `l1_gas_price`
-    /// - `l2_fair_gas_price`
-    /// - `fair_pubdata_price`
-    ///
-    /// for the given l2 block.
-    pub fn get_block_gas_details(&self, miniblock: u32) -> Option<(u64, u64, u64)> {
-        let res_opt_block_details = self.fork_source.get_block_details(L2BlockNumber(miniblock));
-        match res_opt_block_details {
-            Ok(opt_block_details) => {
-                if let Some(block_details) = opt_block_details {
-                    if let Some(fair_pubdata_price) = block_details.base.fair_pubdata_price {
-                        Some((
-                            block_details.base.l1_gas_price,
-                            block_details.base.l2_fair_gas_price,
-                            fair_pubdata_price,
-                        ))
-                    } else {
-                        tracing::warn!(
-                            "Fair pubdata price is not present in {} l2 block details",
-                            miniblock
-                        );
-                        None
-                    }
-                } else {
-                    tracing::warn!("No block details for {}", miniblock);
-                    None
-                }
-            }
-            Err(e) => {
-                tracing::warn!("Error getting block details: {:?}", e);
-                None
-            }
-        }
-    }
-
-    /// Sets fork's internal URL. Assumes the underlying chain is the same as before.
-    pub fn set_rpc_url(&mut self, url: String) {
-        self.fork_source = Box::new(HttpForkSource::new(url, self.cache_config.clone()));
-    }
-
-    // Sets fork's chain id.
-    pub fn set_chain_id(&mut self, id: L2ChainId) {
-        self.chain_id = id;
-        self.overwrite_chain_id = Some(id);
-    }
 }
 
-/// Serializable representation of [`ForkStorage`]'s state.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SerializableForkStorage {
-    /// Node's current key-value storage state (contains both local and cached fork data if applicable).
-    pub storage: SerializableStorage,
-    /// Factory dependencies by their hash.
-    pub factory_deps: BTreeMap<H256, Bytes>,
-}
-
-/// Wrapper for [`BTreeMap<StorageKey, StorageValue>`] to avoid serializing [`StorageKey`] as a struct.
-/// JSON does not support non-string keys so we use conversion to [`Bytes`] via [`crate::node::state::SerializableStorageKey`]
-/// instead.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(
-    into = "BTreeMap<serde_from::SerializableStorageKey, StorageValue>",
-    from = "BTreeMap<serde_from::SerializableStorageKey, StorageValue>"
-)]
-pub struct SerializableStorage(pub BTreeMap<StorageKey, StorageValue>);
-
-mod serde_from {
-    use super::SerializableStorage;
-    use serde::{Deserialize, Serialize};
-    use std::collections::BTreeMap;
-    use std::convert::TryFrom;
-    use zksync_types::web3::Bytes;
-    use zksync_types::{AccountTreeId, Address, StorageKey, StorageValue, H256};
-
-    impl From<BTreeMap<SerializableStorageKey, StorageValue>> for SerializableStorage {
-        fn from(value: BTreeMap<SerializableStorageKey, StorageValue>) -> Self {
-            SerializableStorage(value.into_iter().map(|(k, v)| (k.into(), v)).collect())
-        }
-    }
-
-    impl From<SerializableStorage> for BTreeMap<SerializableStorageKey, StorageValue> {
-        fn from(value: SerializableStorage) -> Self {
-            value.0.into_iter().map(|(k, v)| (k.into(), v)).collect()
-        }
-    }
-
-    #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-    #[serde(into = "Bytes", try_from = "Bytes")]
-    pub struct SerializableStorageKey(StorageKey);
-
-    impl From<StorageKey> for SerializableStorageKey {
-        fn from(value: StorageKey) -> Self {
-            SerializableStorageKey(value)
-        }
-    }
-
-    impl From<SerializableStorageKey> for StorageKey {
-        fn from(value: SerializableStorageKey) -> Self {
-            value.0
-        }
-    }
-
-    impl TryFrom<Bytes> for SerializableStorageKey {
-        type Error = anyhow::Error;
-
-        fn try_from(bytes: Bytes) -> anyhow::Result<Self> {
-            if bytes.0.len() != 52 {
-                anyhow::bail!("invalid bytes length (expected 52, got {})", bytes.0.len())
-            }
-            let address = Address::from_slice(&bytes.0[0..20]);
-            let key = H256::from_slice(&bytes.0[20..52]);
-            Ok(SerializableStorageKey(StorageKey::new(
-                AccountTreeId::new(address),
-                key,
-            )))
-        }
-    }
-
-    impl From<SerializableStorageKey> for Bytes {
-        fn from(value: SerializableStorageKey) -> Self {
-            let bytes = [value.0.address().as_bytes(), value.0.key().as_bytes()].concat();
-            bytes.into()
-        }
+impl ForkClient {
+    pub async fn get_fee_params(&self) -> anyhow::Result<FeeParams> {
+        self.l2_client
+            .get_fee_params()
+            .await
+            .with_context(|| format!("failed to get fee parameters from fork={}", self.url))
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{ForkDetails, ForkStorage};
-    use crate::{deps::InMemoryStorage, testing};
-    use anvil_zksync_config::constants::{
-        DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
-        DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L2_GAS_PRICE, TEST_NODE_NETWORK_ID,
-    };
-    use anvil_zksync_config::types::{CacheConfig, SystemContractsOptions};
-    use zksync_multivm::interface::storage::ReadStorage;
-    use zksync_types::{api::TransactionVariant, StorageKey};
-    use zksync_types::{
-        get_system_context_key, AccountTreeId, L1BatchNumber, L2ChainId, H256,
-        SYSTEM_CONTEXT_CHAIN_ID_POSITION,
-    };
+impl ForkClient {
+    pub fn mock(details: ForkDetails, storage: crate::deps::InMemoryStorage) -> Self {
+        use zksync_types::{u256_to_h256, AccountTreeId, StorageKey, H160};
 
-    #[test]
-    fn test_initial_writes() {
-        let account = AccountTreeId::default();
-        let never_written_key = StorageKey::new(account, H256::from_low_u64_be(1));
-        let key_with_some_value = StorageKey::new(account, H256::from_low_u64_be(2));
-        let key_with_value_0 = StorageKey::new(account, H256::from_low_u64_be(3));
-        let mut in_memory_storage = InMemoryStorage::default();
-        in_memory_storage.set_value(key_with_some_value, H256::from_low_u64_be(13));
-        in_memory_storage.set_value(key_with_value_0, H256::from_low_u64_be(0));
+        let storage = Arc::new(RwLock::new(storage));
+        let storage_clone = storage.clone();
+        let l2_client = Box::new(
+            zksync_web3_decl::client::MockClient::builder(L2::default())
+                .method(
+                    "eth_getStorageAt",
+                    move |address: Address, idx: U256, _block: Option<api::BlockIdVariant>| {
+                        let key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(idx));
+                        Ok(storage
+                            .read()
+                            .unwrap()
+                            .state
+                            .get(&key)
+                            .cloned()
+                            .unwrap_or_default())
+                    },
+                )
+                .method("zks_getBytecodeByHash", move |hash: H256| {
+                    Ok(storage_clone
+                        .read()
+                        .unwrap()
+                        .factory_deps
+                        .get(&hash)
+                        .cloned())
+                })
+                .method("zks_getBlockDetails", move |block_number: L2BlockNumber| {
+                    Ok(Some(api::BlockDetails {
+                        number: block_number,
+                        l1_batch_number: L1BatchNumber(123),
+                        base: api::BlockDetailsBase {
+                            timestamp: 0,
+                            l1_tx_count: 0,
+                            l2_tx_count: 0,
+                            root_hash: None,
+                            status: api::BlockStatus::Sealed,
+                            commit_tx_hash: None,
+                            committed_at: None,
+                            commit_chain_id: None,
+                            prove_tx_hash: None,
+                            proven_at: None,
+                            prove_chain_id: None,
+                            execute_tx_hash: None,
+                            executed_at: None,
+                            execute_chain_id: None,
+                            l1_gas_price: 123,
+                            l2_fair_gas_price: 234,
+                            fair_pubdata_price: Some(345),
+                            base_system_contracts_hashes: Default::default(),
+                        },
+                        operator_address: H160::zero(),
+                        protocol_version: None,
+                    }))
+                })
+                .build(),
+        );
+        ForkClient {
+            url: Url::parse("http://test-fork-in-memory-storage.local").unwrap(),
+            details,
+            l2_client,
+        }
+    }
+}
 
-        let external_storage = testing::ExternalStorage {
-            raw_storage: in_memory_storage,
-        };
+#[derive(Debug, Clone)]
+pub(super) struct Fork {
+    state: Arc<RwLock<ForkState>>,
+}
 
-        let options = SystemContractsOptions::default();
+#[derive(Debug)]
+struct ForkState {
+    client: Option<ForkClient>,
+    cache: Cache,
+}
 
-        let fork_details = ForkDetails {
-            fork_source: Box::new(external_storage),
-            chain_id: TEST_NODE_NETWORK_ID.into(),
-            l1_block: L1BatchNumber(1),
-            l2_block: zksync_types::api::Block::<TransactionVariant>::default(),
-            l2_miniblock: 1,
-            l2_miniblock_hash: H256::zero(),
-            block_timestamp: 0,
-            overwrite_chain_id: None,
-            l1_gas_price: 100,
-            l2_fair_gas_price: DEFAULT_L2_GAS_PRICE,
-            fair_pubdata_price: DEFAULT_FAIR_PUBDATA_PRICE,
-            estimate_gas_price_scale_factor: DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
-            estimate_gas_scale_factor: DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
-            fee_params: None,
-            cache_config: CacheConfig::None,
-        };
-
-        let mut fork_storage: ForkStorage =
-            ForkStorage::new(Some(fork_details), &options, false, None);
-
-        assert!(fork_storage.is_write_initial(&never_written_key));
-        assert!(!fork_storage.is_write_initial(&key_with_some_value));
-        // This is the current limitation of the system. In theory, this should return false - as the value was written, but we don't have the API to the
-        // backend to get this information.
-        assert!(fork_storage.is_write_initial(&key_with_value_0));
-
-        // But writing any value there in the local storage (even 0) - should make it non-initial write immediately.
-        fork_storage.set_value(key_with_value_0, H256::zero());
-        assert!(!fork_storage.is_write_initial(&key_with_value_0));
+impl Fork {
+    pub(super) fn new(client: Option<ForkClient>, cache_config: CacheConfig) -> Self {
+        let cache = Cache::new(cache_config);
+        Self {
+            state: Arc::new(RwLock::new(ForkState { client, cache })),
+        }
     }
 
-    #[test]
-    fn test_get_block_gas_details() {
-        let fork_details = ForkDetails {
-            fork_source: Box::new(testing::ExternalStorage {
-                raw_storage: InMemoryStorage::default(),
-            }),
-            chain_id: TEST_NODE_NETWORK_ID.into(),
-            l1_block: L1BatchNumber(0),
-            l2_block: zksync_types::api::Block::<TransactionVariant>::default(),
-            l2_miniblock: 0,
-            l2_miniblock_hash: H256::zero(),
-            block_timestamp: 0,
-            overwrite_chain_id: None,
-            l1_gas_price: 0,
-            l2_fair_gas_price: 0,
-            fair_pubdata_price: 0,
-            estimate_gas_price_scale_factor: 0.0,
-            estimate_gas_scale_factor: 0.0,
-            fee_params: None,
-            cache_config: CacheConfig::None,
-        };
-
-        let actual_result = fork_details.get_block_gas_details(1);
-        let expected_result = Some((123, 234, 345));
-
-        assert_eq!(actual_result, expected_result);
+    pub(super) fn reset_fork_client(&self, client: Option<ForkClient>) {
+        // TODO: We don't clean cache here so it might interfere with the new fork. Consider
+        //       parametrizing cache by fork URL to avoid this.
+        self.write().client = client;
     }
 
-    #[test]
-    fn test_fork_storage_set_chain_id() {
-        let fork_details = ForkDetails {
-            fork_source: Box::new(testing::ExternalStorage {
-                raw_storage: InMemoryStorage::default(),
-            }),
-            chain_id: TEST_NODE_NETWORK_ID.into(),
-            l1_block: L1BatchNumber(0),
-            l2_block: zksync_types::api::Block::<TransactionVariant>::default(),
-            l2_miniblock: 0,
-            l2_miniblock_hash: H256::zero(),
-            block_timestamp: 0,
-            overwrite_chain_id: None,
-            l1_gas_price: 0,
-            l2_fair_gas_price: 0,
-            fair_pubdata_price: 0,
-            estimate_gas_price_scale_factor: 0.0,
-            estimate_gas_scale_factor: 0.0,
-            fee_params: None,
-            cache_config: CacheConfig::None,
+    pub(super) fn set_fork_url(&self, new_url: Url) -> Option<Url> {
+        // We are assuming that the new url is pointing to the same logical data source so we do not
+        // invalidate cache
+        let mut writer = self.write();
+        if let Some(client) = writer.client.as_mut() {
+            Some(std::mem::replace(&mut client.url, new_url))
+        } else {
+            None
+        }
+    }
+
+    fn read(&self) -> RwLockReadGuard<ForkState> {
+        self.state.read().expect("Fork lock is poisoned")
+    }
+
+    fn write(&self) -> RwLockWriteGuard<ForkState> {
+        self.state.write().expect("Fork lock is poisoned")
+    }
+
+    async fn make_call<T, F: Future<Output = anyhow::Result<T>>>(
+        &self,
+        method: &str,
+        call_body: impl FnOnce(Box<DynClient<L2>>) -> F,
+    ) -> Option<anyhow::Result<T>> {
+        let (client, span) = if let Some(client) = self.read().client.as_ref() {
+            let span = tracing::info_span!("fork_rpc_call", method, url = %client.url);
+            (client.l2_client.clone(), span)
+        } else {
+            return None;
         };
-        let mut fork_storage: ForkStorage = ForkStorage::new(
-            Some(fork_details),
-            &SystemContractsOptions::default(),
-            false,
-            None,
-        );
-        let new_chain_id = L2ChainId::from(261);
-        fork_storage.set_chain_id(new_chain_id);
+        Some(
+            call_body(client)
+                .map_err(|error| {
+                    tracing::error!(%error, "call failed");
+                    error
+                })
+                .instrument(span)
+                .await,
+        )
+    }
+}
 
-        let inner = fork_storage.inner.read().unwrap();
+#[async_trait]
+impl ForkSource for Fork {
+    fn dyn_cloned(&self) -> Box<dyn ForkSource> {
+        Box::new(self.clone())
+    }
 
-        assert_eq!(new_chain_id, fork_storage.chain_id);
-        assert_eq!(
-            new_chain_id,
-            inner.fork.as_ref().map(|f| f.chain_id).unwrap()
+    fn url(&self) -> Option<Url> {
+        self.read().client.as_ref().map(|client| client.url.clone())
+    }
+
+    fn details(&self) -> Option<ForkDetails> {
+        self.read()
+            .client
+            .as_ref()
+            .map(|client| client.details.clone())
+    }
+
+    async fn get_storage_at(
+        &self,
+        address: Address,
+        idx: U256,
+        block: Option<api::BlockIdVariant>,
+    ) -> anyhow::Result<H256> {
+        // TODO: This is currently cached at the `ForkStorage` level but I am unsure if this is a
+        //       good thing. Intuitively it feels like cache should be centralized in a single place.
+        self.make_call("get_storage_at", |client| async move {
+            client
+                .get_storage_at(address, idx, block)
+                .await
+                .with_context(|| format!("(address={address:?}, idx={idx:?})"))
+        })
+        .await
+        .unwrap_or(Ok(H256::zero()))
+    }
+
+    async fn get_storage_at_forked(&self, address: Address, idx: U256) -> anyhow::Result<H256> {
+        let Some(block_number) = self
+            .read()
+            .client
+            .as_ref()
+            .map(|client| client.details.block_number)
+        else {
+            return Ok(H256::zero());
+        };
+        self.get_storage_at(
+            address,
+            idx,
+            Some(api::BlockIdVariant::BlockNumber(api::BlockNumber::Number(
+                block_number.0.into(),
+            ))),
+        )
+        .await
+    }
+
+    async fn get_bytecode_by_hash(&self, hash: H256) -> anyhow::Result<Option<Vec<u8>>> {
+        // TODO: This is currently cached at the `ForkStorage` level but I am unsure if this is a
+        //       good thing. Intuitively it feels like cache should be centralized in a single place.
+        self.make_call("get_bytecode_by_hash", |client| async move {
+            client
+                .get_bytecode_by_hash(hash)
+                .await
+                .with_context(|| format!("(hash={hash:?})"))
+        })
+        .await
+        .unwrap_or(Ok(None))
+    }
+
+    async fn get_transaction_by_hash(
+        &self,
+        hash: H256,
+    ) -> anyhow::Result<Option<api::Transaction>> {
+        if let Some(tx) = self.read().cache.get_transaction(&hash).cloned() {
+            tracing::debug!(?hash, "using cached transaction");
+            return Ok(Some(tx));
+        }
+
+        let tx = self
+            .make_call("get_transaction_by_hash", |client| async move {
+                client
+                    .get_transaction_by_hash(hash)
+                    .await
+                    .with_context(|| format!("(hash={hash:?})"))
+            })
+            .await
+            .unwrap_or(Ok(None))?;
+
+        if let Some(tx) = tx {
+            self.write().cache.insert_transaction(hash, tx.clone());
+            Ok(Some(tx))
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn get_transaction_details(
+        &self,
+        hash: H256,
+    ) -> anyhow::Result<Option<api::TransactionDetails>> {
+        // N.B. We don't cache these responses as they will change through the lifecycle of the transaction
+        // and caching could be error-prone. In theory, we could cache responses once the txn status
+        // is `final` or `failed` but currently this does not warrant the additional complexity.
+        self.make_call("get_transaction_details", |client| async move {
+            client
+                .get_transaction_details(hash)
+                .await
+                .with_context(|| format!("(hash={hash:?})"))
+        })
+        .await
+        .unwrap_or(Ok(None))
+    }
+
+    async fn get_raw_block_transactions(
+        &self,
+        block_number: L2BlockNumber,
+    ) -> anyhow::Result<Vec<zksync_types::Transaction>> {
+        if let Some(txs) = self
+            .read()
+            .cache
+            .get_block_raw_transactions(&(block_number.0 as u64))
+            .cloned()
+        {
+            tracing::debug!(%block_number, "using cached block raw transactions");
+            return Ok(txs);
+        }
+
+        let txs = self
+            .make_call("get_raw_block_transactions", |client| async move {
+                client
+                    .get_raw_block_transactions(block_number)
+                    .await
+                    .with_context(|| format!("(block_number={block_number})"))
+            })
+            .await
+            .unwrap_or(Err(Web3Error::NoBlock.into()))?;
+
+        self.write()
+            .cache
+            .insert_block_raw_transactions(block_number.0 as u64, txs.clone());
+        Ok(txs)
+    }
+
+    async fn get_block_by_hash(
+        &self,
+        hash: H256,
+    ) -> anyhow::Result<Option<api::Block<api::TransactionVariant>>> {
+        if let Some(block) = self.read().cache.get_block(&hash, true).cloned() {
+            tracing::debug!(?hash, "using cached block");
+            return Ok(Some(block));
+        }
+
+        let block = self
+            .make_call("get_block_by_hash", |client| async move {
+                client
+                    .get_block_by_hash(hash, true)
+                    .await
+                    .with_context(|| format!("(hash={hash:?}, full_transactions=true)"))
+            })
+            .await
+            .unwrap_or(Ok(None))?;
+
+        if let Some(block) = block {
+            self.write().cache.insert_block(hash, true, block.clone());
+            Ok(Some(block))
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn get_block_by_number(
+        &self,
+        block_number: api::BlockNumber,
+    ) -> anyhow::Result<Option<api::Block<api::TransactionVariant>>> {
+        match block_number {
+            api::BlockNumber::Number(block_number) => {
+                {
+                    let guard = self.read();
+                    let cache = &guard.cache;
+                    if let Some(block) = cache
+                        .get_block_hash(&block_number.as_u64())
+                        .and_then(|hash| cache.get_block(hash, true))
+                        .cloned()
+                    {
+                        tracing::debug!(%block_number, "using cached block");
+                        return Ok(Some(block));
+                    }
+                }
+
+                let block = self
+                    .make_call("get_block_by_number", |client| async move {
+                        client
+                            .get_block_by_number(api::BlockNumber::Number(block_number), true)
+                            .await
+                            .with_context(|| {
+                                format!("(block_number={block_number}, full_transactions=true)")
+                            })
+                    })
+                    .await
+                    .unwrap_or(Ok(None))?;
+
+                if let Some(block) = block {
+                    self.write()
+                        .cache
+                        .insert_block(block.hash, true, block.clone());
+                    Ok(Some(block))
+                } else {
+                    Ok(None)
+                }
+            }
+            _ => self
+                .make_call("get_block_by_number", |client| async move {
+                    client
+                        .get_block_by_number(block_number, true)
+                        .await
+                        .with_context(|| {
+                            format!("(block_number={block_number}, full_transactions=true)")
+                        })
+                })
+                .await
+                .unwrap_or(Ok(None)),
+        }
+    }
+
+    async fn get_block_details(
+        &self,
+        block_number: L2BlockNumber,
+    ) -> anyhow::Result<Option<api::BlockDetails>> {
+        // N.B. We don't cache these responses as they will change through the lifecycle of the block
+        // and caching could be error-prone. In theory, we could cache responses once the block
+        // is finalized but currently this does not warrant the additional complexity.
+        self.make_call("get_block_details", |client| async move {
+            client
+                .get_block_details(block_number)
+                .await
+                .with_context(|| format!("(block_number={block_number})"))
+        })
+        .await
+        .unwrap_or(Ok(None))
+    }
+
+    async fn get_block_transaction_count_by_hash(
+        &self,
+        block_hash: H256,
+    ) -> anyhow::Result<Option<U256>> {
+        // TODO: Cache?
+        self.make_call("get_block_transaction_count_by_hash", |client| async move {
+            client
+                .get_block_transaction_count_by_hash(block_hash)
+                .await
+                .with_context(|| format!("(block_hash={block_hash:?})"))
+        })
+        .await
+        .unwrap_or(Ok(None))
+    }
+
+    async fn get_block_transaction_count_by_number(
+        &self,
+        block_number: api::BlockNumber,
+    ) -> anyhow::Result<Option<U256>> {
+        // TODO: Cache?
+        self.make_call(
+            "get_block_transaction_count_by_number",
+            |client| async move {
+                client
+                    .get_block_transaction_count_by_number(block_number)
+                    .await
+                    .with_context(|| format!("(block_number={block_number})"))
+            },
+        )
+        .await
+        .unwrap_or(Ok(None))
+    }
+
+    async fn get_transaction_by_block_hash_and_index(
+        &self,
+        block_hash: H256,
+        index: Index,
+    ) -> anyhow::Result<Option<api::Transaction>> {
+        // TODO: Cache?
+        self.make_call(
+            "get_transaction_by_block_hash_and_index",
+            |client| async move {
+                client
+                    .get_transaction_by_block_hash_and_index(block_hash, index)
+                    .await
+                    .with_context(|| format!("(block_hash={block_hash:?}, index={index})"))
+            },
+        )
+        .await
+        .unwrap_or(Ok(None))
+    }
+
+    async fn get_transaction_by_block_number_and_index(
+        &self,
+        block_number: api::BlockNumber,
+        index: Index,
+    ) -> anyhow::Result<Option<api::Transaction>> {
+        // TODO: Cache?
+        self.make_call(
+            "get_transaction_by_block_number_and_index",
+            |client| async move {
+                client
+                    .get_transaction_by_block_number_and_index(block_number, index)
+                    .await
+                    .with_context(|| format!("(block_number={block_number}, index={index})"))
+            },
+        )
+        .await
+        .unwrap_or(Ok(None))
+    }
+
+    async fn get_bridge_contracts(&self) -> anyhow::Result<Option<api::BridgeAddresses>> {
+        if let Some(bridge_contracts) = self.read().cache.get_bridge_addresses().cloned() {
+            tracing::debug!("using cached bridge contracts");
+            return Ok(Some(bridge_contracts));
+        }
+
+        let bridge_contracts = self
+            .make_call("get_bridge_contracts", |client| async move {
+                Ok(Some(client.get_bridge_contracts().await?))
+            })
+            .await
+            .unwrap_or(Ok(None))?;
+
+        if let Some(bridge_contracts) = bridge_contracts {
+            self.write()
+                .cache
+                .set_bridge_addresses(bridge_contracts.clone());
+            Ok(Some(bridge_contracts))
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn get_confirmed_tokens(
+        &self,
+        from: u32,
+        limit: u8,
+    ) -> anyhow::Result<Option<Vec<zksync_web3_decl::types::Token>>> {
+        if let Some(confirmed_tokens) = self.read().cache.get_confirmed_tokens(from, limit).cloned()
+        {
+            tracing::debug!(from, limit, "using cached confirmed tokens");
+            return Ok(Some(confirmed_tokens));
+        }
+
+        let confirmed_tokens = self
+            .make_call("get_block_details", |client| async move {
+                Ok(Some(
+                    client
+                        .get_confirmed_tokens(from, limit)
+                        .await
+                        .with_context(|| format!("(from={from}, limit={limit})"))?,
+                ))
+            })
+            .await
+            .unwrap_or(Ok(None))?;
+
+        if let Some(confirmed_tokens) = confirmed_tokens {
+            self.write()
+                .cache
+                .set_confirmed_tokens(from, limit, confirmed_tokens.clone());
+            Ok(Some(confirmed_tokens))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+struct SupportedProtocolVersions;
+
+impl SupportedProtocolVersions {
+    const SUPPORTED_VERSIONS: [ProtocolVersionId; 17] = [
+        ProtocolVersionId::Version9,
+        ProtocolVersionId::Version10,
+        ProtocolVersionId::Version11,
+        ProtocolVersionId::Version12,
+        ProtocolVersionId::Version13,
+        ProtocolVersionId::Version14,
+        ProtocolVersionId::Version15,
+        ProtocolVersionId::Version16,
+        ProtocolVersionId::Version17,
+        ProtocolVersionId::Version18,
+        ProtocolVersionId::Version19,
+        ProtocolVersionId::Version20,
+        ProtocolVersionId::Version21,
+        ProtocolVersionId::Version22,
+        ProtocolVersionId::Version23,
+        ProtocolVersionId::Version24,
+        ProtocolVersionId::Version25,
+    ];
+
+    fn is_supported(version: ProtocolVersionId) -> bool {
+        Self::SUPPORTED_VERSIONS.contains(&version)
+    }
+}
+
+impl fmt::Display for SupportedProtocolVersions {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(
+            &Self::SUPPORTED_VERSIONS
+                .iter()
+                .map(|v| v.to_string())
+                .join(", "),
+        )
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::deps::InMemoryStorage;
+    use maplit::hashmap;
+    use zksync_types::block::{pack_block_info, unpack_block_info};
+    use zksync_types::{h256_to_u256, u256_to_h256, AccountTreeId, StorageKey};
+
+    #[tokio::test]
+    async fn test_mock_client() {
+        let input_batch = 1;
+        let input_l2_block = 2;
+        let input_timestamp = 3;
+        let input_bytecode = vec![0x4];
+        let batch_key = StorageKey::new(
+            AccountTreeId::new(zksync_types::SYSTEM_CONTEXT_ADDRESS),
+            zksync_types::SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
         );
-        assert_eq!(
-            H256::from_low_u64_be(new_chain_id.as_u64()),
-            *inner
-                .raw_storage
-                .state
-                .get(&get_system_context_key(SYSTEM_CONTEXT_CHAIN_ID_POSITION))
-                .unwrap()
+        let l2_block_key = StorageKey::new(
+            AccountTreeId::new(zksync_types::SYSTEM_CONTEXT_ADDRESS),
+            zksync_types::SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
         );
+
+        let client = ForkClient::mock(
+            ForkDetails::default(),
+            InMemoryStorage {
+                state: hashmap! {
+                    batch_key => u256_to_h256(U256::from(input_batch)),
+                    l2_block_key => u256_to_h256(pack_block_info(
+                        input_l2_block,
+                        input_timestamp,
+                    ))
+                },
+                factory_deps: hashmap! {
+                    H256::repeat_byte(0x1) => input_bytecode.clone(),
+                },
+            },
+        );
+        let fork = Fork::new(Some(client), CacheConfig::None);
+
+        let actual_batch = fork
+            .get_storage_at(
+                zksync_types::SYSTEM_CONTEXT_ADDRESS,
+                h256_to_u256(zksync_types::SYSTEM_CONTEXT_BLOCK_INFO_POSITION),
+                None,
+            )
+            .await
+            .map(|value| h256_to_u256(value).as_u64())
+            .expect("failed getting batch number");
+        assert_eq!(input_batch, actual_batch);
+
+        let (actual_l2_block, actual_timestamp) = fork
+            .get_storage_at(
+                zksync_types::SYSTEM_CONTEXT_ADDRESS,
+                h256_to_u256(zksync_types::SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION),
+                None,
+            )
+            .await
+            .map(|value| unpack_block_info(h256_to_u256(value)))
+            .expect("failed getting l2 block info");
+        assert_eq!(input_l2_block, actual_l2_block);
+        assert_eq!(input_timestamp, actual_timestamp);
+
+        let zero_missing_value = fork
+            .get_storage_at(
+                zksync_types::SYSTEM_CONTEXT_ADDRESS,
+                h256_to_u256(H256::repeat_byte(0x1e)),
+                None,
+            )
+            .await
+            .map(|value| h256_to_u256(value).as_u64())
+            .expect("failed missing value");
+        assert_eq!(0, zero_missing_value);
+
+        let actual_bytecode = fork
+            .get_bytecode_by_hash(H256::repeat_byte(0x1))
+            .await
+            .expect("failed getting bytecode")
+            .expect("missing bytecode");
+        assert_eq!(input_bytecode, actual_bytecode);
     }
 }

@@ -23,6 +23,10 @@ tokio.workspace = true
 futures.workspace = true
 once_cell.workspace = true
 
+alloy-json-abi.workspace = true
+alloy-primitives.workspace = true
+alloy-dyn-abi.workspace = true
+
 reqwest.workspace = true
 serde.workspace = true
 tracing.workspace = true
@@ -34,7 +38,6 @@ lazy_static.workspace = true
 eyre.workspace = true
 serde_json.workspace = true
 hex.workspace = true
-ethabi.workspace = true
 itertools.workspace = true
 rustc-hash.workspace = true
 indexmap.workspace = true
@@ -43,6 +46,7 @@ time.workspace = true
 flate2.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true
+url.workspace = true
 
 alloy-primitives.workspace = true
 alloy-json-abi.workspace = true
@@ -51,9 +55,8 @@ alloy-sol-types = { workspace = true, features = ["json"] }
 
 [dev-dependencies]
 maplit.workspace = true
-ethers.workspace = true
 httptest.workspace = true
 tempdir.workspace = true
-zksync-web3-rs.workspace = true
+alloy-zksync.workspace = true
 test-case.workspace = true
 backon.workspace = true
