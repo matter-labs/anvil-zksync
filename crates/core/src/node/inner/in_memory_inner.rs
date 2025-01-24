@@ -1419,10 +1419,9 @@ impl InMemoryNodeInner {
     ) -> H256 {
         use alloy::dyn_abi::{DynSolValue, JsonAbiExt};
         use alloy::json_abi::{Function, Param, StateMutability};
-        use alloy_zksync::network::unsigned_tx::eip712::hash_bytecode;
 
         let salt = [0u8; 32];
-        let bytecode_hash = hash_bytecode(&bytecode).expect("invalid bytecode");
+        let bytecode_hash = BytecodeHash::for_bytecode(&bytecode).value().0;
         let call_data = calldata.unwrap_or_default();
 
         let create = Function {
