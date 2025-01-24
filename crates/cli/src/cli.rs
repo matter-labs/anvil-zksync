@@ -1,5 +1,5 @@
 use crate::utils::parse_genesis_file;
-use alloy_signer_local::coins_bip39::{English, Mnemonic};
+use alloy::signers::local::coins_bip39::{English, Mnemonic};
 use anvil_zksync_config::constants::{
     DEFAULT_DISK_CACHE_DIR, DEFAULT_MNEMONIC, TEST_NODE_NETWORK_ID,
 };

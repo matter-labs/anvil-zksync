@@ -1,9 +1,9 @@
 use std::{collections::HashMap, str::FromStr};
 
 use crate::utils::format_token;
-use alloy_dyn_abi::JsonAbiExt;
-use alloy_json_abi::{Function, Param, StateMutability};
-use alloy_primitives::Selector;
+use alloy::dyn_abi::JsonAbiExt;
+use alloy::json_abi::{Function, Param, StateMutability};
+use alloy::primitives::Selector;
 use colored::Colorize;
 use itertools::Itertools;
 use zksync_multivm::interface::Call;
@@ -71,8 +71,7 @@ impl ConsoleLogHandler {
             self.signature_map
                 .get(signature)
                 .map_or("Unknown log call.".to_owned(), |func| {
-                    let tokens: Result<Vec<alloy_dyn_abi::DynSolValue>, alloy_dyn_abi::Error> =
-                        func.abi_decode_input(&current_call.input.as_slice()[4..], false);
+                    let tokens = func.abi_decode_input(&current_call.input.as_slice()[4..], false);
                     tokens.map_or("Failed to parse inputs for log.".to_owned(), |tokens| {
                         tokens.iter().map(|t| format_token(t, false)).join(" ")
                     })

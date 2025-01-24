@@ -23,9 +23,7 @@ tokio.workspace = true
 futures.workspace = true
 once_cell.workspace = true
 
-alloy-json-abi.workspace = true
-alloy-primitives.workspace = true
-alloy-dyn-abi.workspace = true
+alloy = { workspace = true, default-features = false, features = ["json-abi", "dyn-abi"] }
 
 reqwest.workspace = true
 serde.workspace = true

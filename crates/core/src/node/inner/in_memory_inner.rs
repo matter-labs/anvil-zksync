@@ -1417,8 +1417,8 @@ impl InMemoryNodeInner {
         calldata: Option<Vec<u8>>,
         nonce: zksync_types::Nonce,
     ) -> H256 {
-        use alloy_dyn_abi::{DynSolValue, JsonAbiExt};
-        use alloy_json_abi::{Function, Param, StateMutability};
+        use alloy::dyn_abi::{DynSolValue, JsonAbiExt};
+        use alloy::json_abi::{Function, Param, StateMutability};
         use alloy_zksync::network::unsigned_tx::eip712::hash_bytecode;
 
         let salt = [0u8; 32];
@@ -1563,8 +1563,8 @@ mod tests {
     use crate::node::inner::fork_storage::ForkStorage;
     use crate::testing;
     use crate::testing::{TransactionBuilder, STORAGE_CONTRACT_BYTECODE};
-    use alloy_dyn_abi::{DynSolType, DynSolValue};
-    use alloy_primitives::U256 as AlloyU256;
+    use alloy::dyn_abi::{DynSolType, DynSolValue};
+    use alloy::primitives::U256 as AlloyU256;
     use anvil_zksync_config::constants::{
         DEFAULT_ACCOUNT_BALANCE, DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
         DEFAULT_ESTIMATE_GAS_SCALE_FACTOR, DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L2_GAS_PRICE,

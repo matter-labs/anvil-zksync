@@ -124,9 +124,9 @@ impl InMemoryNode {
 
 #[cfg(test)]
 mod tests {
-    use alloy_dyn_abi::{DynSolValue, FunctionExt, JsonAbiExt};
-    use alloy_json_abi::{Function, Param};
-    use alloy_primitives::{Address as AlloyAddress, U256 as AlloyU256};
+    use alloy::dyn_abi::{DynSolValue, FunctionExt, JsonAbiExt};
+    use alloy::json_abi::{Function, Param, StateMutability};
+    use alloy::primitives::{Address as AlloyAddress, U256 as AlloyU256};
     use anvil_zksync_config::constants::DEFAULT_ACCOUNT_BALANCE;
     use zksync_types::{
         transaction_request::CallRequestBuilder, utils::deployed_address_create, Address,
@@ -209,7 +209,7 @@ mod tests {
                 components: vec![],
                 internal_type: None,
             }],
-            state_mutability: alloy_json_abi::StateMutability::NonPayable,
+            state_mutability: StateMutability::NonPayable,
         };
 
         let calldata = func
@@ -284,7 +284,7 @@ mod tests {
                 internal_type: None,
             }],
             outputs: vec![],
-            state_mutability: alloy_json_abi::StateMutability::NonPayable,
+            state_mutability: StateMutability::NonPayable,
         };
 
         let calldata = func
@@ -330,7 +330,7 @@ mod tests {
             name: "shouldRevert".to_string(),
             inputs: vec![],
             outputs: vec![],
-            state_mutability: alloy_json_abi::StateMutability::NonPayable,
+            state_mutability: StateMutability::NonPayable,
         };
 
         // trace a call to the primary contract

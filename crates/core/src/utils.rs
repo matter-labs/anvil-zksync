@@ -1,5 +1,5 @@
-use alloy_dyn_abi::DynSolValue;
-use alloy_primitives::{Sign, I256, U256 as AlloyU256};
+use alloy::dyn_abi::DynSolValue;
+use alloy::primitives::{Sign, I256, U256 as AlloyU256};
 use anyhow::Context;
 use chrono::{DateTime, Utc};
 use colored::Colorize;
