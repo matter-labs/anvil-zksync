@@ -1,11 +1,10 @@
 //! ABI related helper functions.
 
+use super::types::LogData;
 use alloy_dyn_abi::{DynSolType, DynSolValue, FunctionExt, JsonAbiExt};
 use alloy_json_abi::{Error, Event, Function, Param};
-use alloy_primitives::{hex, Address};
-use eyre::{Context, ContextCompat, Result};
-use std::{future::Future, pin::Pin};
-use super::types::LogData;
+use alloy_primitives::hex;
+use eyre::{Context, Result};
 
 pub fn encode_args<I, S>(inputs: &[Param], args: I) -> Result<Vec<DynSolValue>>
 where
@@ -97,16 +96,20 @@ pub fn get_indexed_event(mut event: Event, raw_log: &LogData) -> Event {
         let num_inputs = event.inputs.len();
         let num_address_params = event.inputs.iter().filter(|p| p.ty == "address").count();
 
-        event.inputs.iter_mut().enumerate().for_each(|(index, param)| {
-            if param.name.is_empty() {
-                param.name = format!("param{index}");
-            }
-            if num_inputs == indexed_params ||
-                (num_address_params == indexed_params && param.ty == "address")
-            {
-                param.indexed = true;
-            }
-        })
+        event
+            .inputs
+            .iter_mut()
+            .enumerate()
+            .for_each(|(index, param)| {
+                if param.name.is_empty() {
+                    param.name = format!("param{index}");
+                }
+                if num_inputs == indexed_params
+                    || (num_address_params == indexed_params && param.ty == "address")
+                {
+                    param.indexed = true;
+                }
+            })
     }
     event
 }

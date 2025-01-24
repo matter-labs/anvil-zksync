@@ -5,11 +5,15 @@ use alloy_primitives::hex;
 //     abi::{get_error, get_event, get_func},
 //     fs,
 // };
-use crate::utils::{write_json_file, read_json_file};
+use crate::resolver::{SelectorType, SignEthClient};
 use crate::trace::abi_utils::{get_error, get_event, get_func};
-use crate::resolver::{SignEthClient, SelectorType};
+use crate::utils::{read_json_file, write_json_file};
 use serde::{Deserialize, Serialize};
-use std::{collections::{BTreeMap, HashMap}, path::PathBuf, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    path::PathBuf,
+    sync::Arc,
+};
 use tokio::sync::RwLock;
 
 pub type SingleSignaturesIdentifier = Arc<RwLock<SignaturesIdentifier>>;
@@ -57,13 +61,22 @@ impl SignaturesIdentifier {
         cache_path: Option<PathBuf>,
         offline: bool,
     ) -> eyre::Result<SingleSignaturesIdentifier> {
-        let client = if !offline { Some(SignEthClient::new()?) } else { None };
+        let client = if !offline {
+            Some(SignEthClient::new()?)
+        } else {
+            None
+        };
 
         let identifier = if let Some(cache_path) = cache_path {
             let path = cache_path.join("signatures");
             tracing::trace!(target: "evm::traces", ?path, "reading signature cache");
             let cached = CachedSignatures::load(cache_path);
-            Self { cached, cached_path: Some(path), unavailable: HashMap::default(), client }
+            Self {
+                cached,
+                cached_path: Some(path),
+                unavailable: HashMap::default(),
+                client,
+            }
         } else {
             Self {
                 cached: Default::default(),
@@ -131,7 +144,10 @@ impl SignaturesIdentifier {
             }
         }
 
-        hex_identifiers.iter().map(|v| cache.get(v).and_then(|v| get_type(v).ok())).collect()
+        hex_identifiers
+            .iter()
+            .map(|v| cache.get(v).and_then(|v| get_type(v).ok()))
+            .collect()
     }
 
     /// Identifies `Function`s from its cache or `https://api.openchain.xyz`
@@ -139,7 +155,8 @@ impl SignaturesIdentifier {
         &mut self,
         identifiers: impl IntoIterator<Item = impl AsRef<[u8]>>,
     ) -> Vec<Option<Function>> {
-        self.identify(SelectorType::Function, identifiers, get_func).await
+        self.identify(SelectorType::Function, identifiers, get_func)
+            .await
     }
 
     /// Identifies `Function` from its cache or `https://api.openchain.xyz`
@@ -152,7 +169,8 @@ impl SignaturesIdentifier {
         &mut self,
         identifiers: impl IntoIterator<Item = impl AsRef<[u8]>>,
     ) -> Vec<Option<Event>> {
-        self.identify(SelectorType::Event, identifiers, get_event).await
+        self.identify(SelectorType::Event, identifiers, get_event)
+            .await
     }
 
     /// Identifies `Event` from its cache or `https://api.openchain.xyz`
@@ -165,7 +183,8 @@ impl SignaturesIdentifier {
         &mut self,
         identifiers: impl IntoIterator<Item = impl AsRef<[u8]>>,
     ) -> Vec<Option<Error>> {
-        self.identify(SelectorType::Error, identifiers, get_error).await
+        self.identify(SelectorType::Error, identifiers, get_error)
+            .await
     }
 
     /// Identifies `Error` from its cache or `https://api.openchain.xyz`.

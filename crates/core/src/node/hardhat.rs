@@ -1,8 +1,7 @@
-use alloy_primitives::{address, Address};
+use alloy_primitives::{address, Address, Selector};
 use alloy_sol_types::sol;
+use std::collections::HashMap;
 use std::sync::LazyLock;
-use std::{collections::HashMap, str::FromStr};
-use crate::trace::types::Selector;
 
 sol!(
     #[sol(abi)]
@@ -30,7 +29,9 @@ pub fn patch_hh_console_selector(input: &mut [u8]) {
 pub fn hh_console_selector(input: &[u8]) -> Option<&'static Selector> {
     if let Some(selector) = input.get(..4) {
         let selector: &[u8; 4] = selector.try_into().unwrap();
-        HARDHAT_CONSOLE_SELECTOR_PATCHES.get(selector).map(Into::into)
+        HARDHAT_CONSOLE_SELECTOR_PATCHES
+            .get(selector)
+            .map(Into::into)
     } else {
         None
     }

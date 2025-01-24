@@ -18,11 +18,10 @@ use crate::node::{
     TransactionResult, TxExecutionInfo, VersionedState, ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION,
     MAX_PREVIOUS_STATES, MAX_TX_SIZE,
 };
-use crate::trace::signatures::SignaturesIdentifier;
-use crate::trace::types::{CallTrace, CallTraceArena, CallTraceNode};
-use crate::trace::{build_call_trace_arena, render_trace_arena_inner, decode_trace_arena};
-use crate::trace::decode::CallTraceDecoderBuilder;
 use crate::system_contracts::SystemContracts;
+use crate::trace::decode::CallTraceDecoderBuilder;
+use crate::trace::signatures::SignaturesIdentifier;
+use crate::trace::{build_call_trace_arena, decode_trace_arena, render_trace_arena_inner};
 use crate::utils::create_debug_output;
 use crate::{delegate_vm, formatter, utils};
 use anvil_zksync_config::constants::NON_FORK_FIRST_BLOCK_TIMESTAMP;
@@ -396,17 +395,20 @@ impl InMemoryNodeInner {
         }
 
         if let Some(call_traces) = call_traces {
-            let builder = CallTraceDecoderBuilder::new();
-            builder = builder.with_signature_identifier(SignaturesIdentifier::new(
-                Some(PathBuf::from("./.cache/signatures")), //todo 
-                self.config.offline,
-            )?);
+            let mut builder = CallTraceDecoderBuilder::new();
+            builder = builder.with_signature_identifier(
+                SignaturesIdentifier::new(
+                    Some(PathBuf::from("./.cache/signatures")), //todo
+                    self.config.offline,
+                )
+                .unwrap(),
+            );
             let decoder = builder.build();
             let mut arena = build_call_trace_arena(&call_traces, tx_result.clone());
             tokio::task::block_in_place(|| {
                 // Run the async function using the current runtime
                 tokio::runtime::Handle::current().block_on(async {
-                   // decoder.populate_function(arena.clone()).await;
+                    // decoder.populate_function(arena.clone()).await;
                     decode_trace_arena(&mut arena, &decoder).await.unwrap();
                 });
             });

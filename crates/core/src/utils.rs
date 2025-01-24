@@ -3,8 +3,8 @@ use alloy_primitives::{Sign, I256, U256 as AlloyU256};
 use anyhow::Context;
 use chrono::{DateTime, Utc};
 use colored::Colorize;
-use serde::Serialize;
 use serde::de::DeserializeOwned;
+use serde::Serialize;
 use std::future::Future;
 use std::sync::Arc;
 use std::{convert::TryInto, fmt};
@@ -212,11 +212,10 @@ pub fn write_json_file<T: Serialize>(path: &Path, obj: &T) -> anyhow::Result<()>
 pub fn read_json_file<T: DeserializeOwned>(path: &Path) -> anyhow::Result<T> {
     let file_content = std::fs::read_to_string(path)
         .with_context(|| format!("Failed to read file '{}'", path.display()))?;
-    
+
     serde_json::from_str(&file_content)
         .with_context(|| format!("Failed to deserialize JSON from '{}'", path.display()))
 }
-
 
 /// Formats a token value for display. Adapted from `foundry-common-fmt`.
 pub fn format_token(value: &DynSolValue, raw: bool) -> String {

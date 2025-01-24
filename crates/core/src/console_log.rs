@@ -6,10 +6,9 @@ use alloy_json_abi::{Function, Param, StateMutability};
 use alloy_primitives::Selector;
 use colored::Colorize;
 use itertools::Itertools;
+use std::sync::LazyLock;
 use zksync_multivm::interface::Call;
 use zksync_types::H160;
-use std::sync::LazyLock;
-use crate::trace::types::Selector;
 
 /// Maps all the `hardhat/console.log` log selectors that use the legacy ABI (`int`, `uint`) to
 /// their normalized counterparts (`int256`, `uint256`).
@@ -35,7 +34,9 @@ pub fn patch_hh_console_selector(input: &mut [u8]) {
 pub fn hh_console_selector(input: &[u8]) -> Option<&'static Selector> {
     if let Some(selector) = input.get(..4) {
         let selector: &[u8; 4] = selector.try_into().unwrap();
-        HARDHAT_CONSOLE_SELECTOR_PATCHES.get(selector).map(Into::into)
+        HARDHAT_CONSOLE_SELECTOR_PATCHES
+            .get(selector)
+            .map(Into::into)
     } else {
         None
     }

@@ -5,8 +5,6 @@ use super::vm::AnvilVM;
 use crate::deps::storage_view::StorageView;
 use crate::deps::InMemoryStorage;
 use crate::filters::EthFilters;
-use crate::trace::{render_trace_arena_inner, build_call_trace_arena};
-use crate::trace::types::{CallTraceArena, CallTrace, CallTraceNode};
 use crate::node::call_error_tracer::CallErrorTracer;
 use crate::node::error::LoadStateError;
 use crate::node::fee_model::TestNodeFeeInputProvider;
@@ -19,6 +17,7 @@ use crate::node::state::VersionedState;
 use crate::node::{BlockSealer, BlockSealerMode, NodeExecutor, TxPool};
 use crate::observability::Observability;
 use crate::system_contracts::SystemContracts;
+use crate::trace::{build_call_trace_arena, render_trace_arena_inner};
 use crate::{delegate_vm, formatter};
 use anvil_zksync_config::constants::{NON_FORK_FIRST_BLOCK_TIMESTAMP, TEST_NODE_NETWORK_ID};
 use anvil_zksync_config::types::{CacheConfig, Genesis};
@@ -435,7 +434,7 @@ impl InMemoryNode {
         let arena = build_call_trace_arena(&call_traces, tx_result.clone());
         let ct = call_traces.clone();
         for call in ct {
-            decoded_traces.push(render_trace_arena_inner(&arena, false,));
+            decoded_traces.push(render_trace_arena_inner(&arena, false));
         }
         println!("decoded_traces: {:?}", decoded_traces);
         if inner.config.show_calls != ShowCalls::None {

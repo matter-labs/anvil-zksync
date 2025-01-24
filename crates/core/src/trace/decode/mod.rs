@@ -1,18 +1,14 @@
-use super::types::{CallTrace, CallTraceArena, CallTraceNode, DecodedCallData, DecodedCallTrace, Selector};
-use crate::node::hardhat::{
-    HardhatConsole, HARDHAT_CONSOLE_ADDRESS, HARDHAT_CONSOLE_SELECTOR_PATCHES,
-};
-use crate::utils::to_human_size;
+use super::types::{CallTrace, CallTraceArena, CallTraceNode, DecodedCallData, DecodedCallTrace};
+use crate::node::hardhat::{HardhatConsole, HARDHAT_CONSOLE_SELECTOR_PATCHES};
+use crate::trace::signatures::SingleSignaturesIdentifier;
 use crate::trace::types::KNOWN_ADDRESSES;
+use crate::utils::format_token;
 use alloy_dyn_abi::{DecodedEvent, DynSolValue, EventExt, FunctionExt, JsonAbiExt};
 use alloy_json_abi::{Error, Event, Function, JsonAbi};
-use std::path::PathBuf;
-use std::{
-    collections::{BTreeMap, HashMap},
-    sync::OnceLock,
-};
-use zksync_types::{Address, H160, H256};
-use crate::trace::signatures::{SignaturesIdentifier, SingleSignaturesIdentifier};
+use alloy_primitives::Selector;
+use itertools::Itertools;
+use std::{collections::HashMap, sync::OnceLock};
+use zksync_types::{Address, H160};
 
 /// The first four bytes of the call data for a function call specifies the function to be called.
 pub const SELECTOR_LEN: usize = 4;
@@ -39,7 +35,7 @@ pub struct CallTraceDecoder {
 
     /// All known functions.
     pub functions: HashMap<Selector, Vec<Function>>,
-                                                    
+
     /// A signature identifier for events and functions.
     pub signature_identifier: Option<SingleSignaturesIdentifier>,
 }
@@ -106,7 +102,8 @@ impl CallTraceDecoder {
 
     pub async fn populate_function(&mut self, arena: CallTraceArena) {
         // Collect unique selectors from the arena that are not already in `functions`
-        let selectors: Vec<Selector> = arena.nodes()
+        let selectors: Vec<Selector> = arena
+            .nodes()
             .iter()
             .filter_map(|node| {
                 let input = &node.trace.call.input;
@@ -122,12 +119,18 @@ impl CallTraceDecoder {
         // Identify the functions
         if !selectors.is_empty() {
             if let Some(identifier) = &self.signature_identifier {
-                
-                 let identified_functions = identifier.write().await.identify_functions(&selectors).await;
+                let identified_functions = identifier
+                    .write()
+                    .await
+                    .identify_functions(&selectors)
+                    .await;
                 // Iterate over selectors and their corresponding functions
                 for (selector, func_option) in selectors.iter().zip(identified_functions.iter()) {
                     if let Some(func) = func_option {
-                        self.functions.entry(*selector).or_default().push(func.clone());
+                        self.functions
+                            .entry(*selector)
+                            .or_default()
+                            .push(func.clone());
                     } else {
                         // Optionally handle unidentified functions
                         // For example, you might want to log or store selectors with no matching functions
@@ -136,9 +139,9 @@ impl CallTraceDecoder {
                 }
             }
         }
-    }   
+    }
 
-        /// Decodes a call trace.
+    /// Decodes a call trace.
     pub async fn decode_function(&self, trace: &CallTrace) -> DecodedCallTrace {
         // if let Some(trace) = precompiles::decode(trace, 1) {
         //     return trace;
@@ -160,7 +163,6 @@ impl CallTraceDecoder {
             let functions = match self.functions.get(selector) {
                 Some(fs) => fs,
                 None => {
-                    
                     if let Some(identifier) = &self.signature_identifier {
                         if let Some(function) =
                             identifier.write().await.identify_function(selector).await
@@ -195,9 +197,17 @@ impl CallTraceDecoder {
             }
         } else {
             let has_receive = self.receive_contracts.contains(&trace.address);
-            let signature =
-                if cdata.is_empty() && has_receive { "receive()" } else { "fallback()" }.into();
-            let args = if cdata.is_empty() { Vec::new() } else { vec![hex::encode(&cdata)] };
+            let signature = if cdata.is_empty() && has_receive {
+                "receive()"
+            } else {
+                "fallback()"
+            }
+            .into();
+            let args = if cdata.is_empty() {
+                Vec::new()
+            } else {
+                vec![hex::encode(&cdata)]
+            };
             DecodedCallTrace {
                 label,
                 call_data: Some(DecodedCallData { signature, args }),
@@ -212,13 +222,14 @@ impl CallTraceDecoder {
         if trace.call.input.len() >= SELECTOR_LEN {
             if args.is_none() {
                 if let Ok(v) = func.abi_decode_input(&trace.call.input[SELECTOR_LEN..], false) {
-                    args = Some(v.iter().map(|value| format!("{:?}", value)).collect());
+                    args = Some(v.iter().map(|value| self.format_value(value)).collect());
                 }
             }
         }
-        println!("func {:?}", func);
-        println!("args {:?}", args);
-        DecodedCallData { signature: func.signature(), args: args.unwrap_or_default() }
+        DecodedCallData {
+            signature: func.signature(),
+            args: args.unwrap_or_default(),
+        }
     }
 
     /// Decodes a function's output into the given trace.
@@ -227,8 +238,9 @@ impl CallTraceDecoder {
             return self.default_return_data(trace);
         }
 
-        if let Some(values) =
-            funcs.iter().find_map(|func| func.abi_decode_output(&trace.call.output, false).ok())
+        if let Some(values) = funcs
+            .iter()
+            .find_map(|func| func.abi_decode_output(&trace.call.output, false).ok())
         {
             // Functions coming from an external database do not have any outputs specified,
             // and will lead to returning an empty list of values.
@@ -237,16 +249,22 @@ impl CallTraceDecoder {
             }
 
             return Some(
-                values.iter().map(|value| format!("{:?}", value)).collect::<Vec<_>>().join(", "),
+                values
+                    .iter()
+                    .map(|value| self.format_value(value))
+                    .format(", ")
+                    .to_string(),
             );
         }
 
         None
     }
 
-      /// Prefetches function and event signatures into the identifier cache
+    /// Prefetches function and event signatures into the identifier cache
     pub async fn prefetch_signatures(&self, nodes: &[CallTraceNode]) {
-        let Some(identifier) = &self.signature_identifier else { return };
+        let Some(identifier) = &self.signature_identifier else {
+            return;
+        };
 
         // TODO: events and logs
         // let events_it = nodes
@@ -261,13 +279,26 @@ impl CallTraceDecoder {
                 _ => n.trace.call.input.get(..SELECTOR_LEN),
             })
             .filter(|v| !self.functions.contains_key(*v));
-    
+
         identifier.write().await.identify_functions(funcs_it).await;
     }
 
-     /// The default decoded return data for a trace.
+    /// The default decoded return data for a trace.
     fn default_return_data(&self, trace: &CallTrace) -> Option<String> {
         (!trace.success).then(|| "Revert - to do decode output strings".to_string())
+    }
+
+    /// Pretty-prints a value.
+    fn format_value(&self, value: &DynSolValue) -> String {
+        if let DynSolValue::Address(addr) = value {
+            // TODO: handle error
+            let zksync_address = Address::from(<[u8; 20]>::try_from(addr.0.as_slice()).unwrap());
+
+            if let Some(label) = self.labels.get(&zksync_address) {
+                return format!("{label}: [{addr}]");
+            }
+        }
+        format_token(value, false)
     }
 }
 
@@ -282,7 +313,9 @@ impl CallTraceDecoderBuilder {
     /// Create a new builder.
     #[inline]
     pub fn new() -> Self {
-        Self { decoder: CallTraceDecoder::new().clone() }
+        Self {
+            decoder: CallTraceDecoder::new().clone(),
+        }
     }
 
     /// Add known labels to the decoder.
@@ -292,7 +325,7 @@ impl CallTraceDecoderBuilder {
         self
     }
 
-     /// Sets the signature identifier for events and functions.
+    /// Sets the signature identifier for events and functions.
     #[inline]
     pub fn with_signature_identifier(mut self, identifier: SingleSignaturesIdentifier) -> Self {
         self.decoder.signature_identifier = Some(identifier);

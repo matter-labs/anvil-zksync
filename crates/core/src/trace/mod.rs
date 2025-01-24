@@ -1,16 +1,15 @@
+use crate::trace::decode::CallTraceDecoder;
 use crate::trace::formatterv2::TraceWriter;
 use crate::trace::types::{
-    CallTrace, CallTraceArena, CallTraceNode, DecodedCallTrace, TraceMemberOrder,
-    KNOWN_ADDRESSES, 
+    CallTrace, CallTraceArena, CallTraceNode, DecodedCallTrace, TraceMemberOrder, KNOWN_ADDRESSES,
 };
-use crate::trace::decode::CallTraceDecoder;
 use zksync_multivm::interface::{Call, VmExecutionResultAndLogs};
 use zksync_types::H160;
-pub mod formatterv2;
-pub mod types;
 pub mod abi_utils;
-pub mod signatures;
 pub mod decode;
+pub mod formatterv2;
+pub mod signatures;
+pub mod types;
 
 /// Decode a collection of call traces.
 ///
@@ -48,7 +47,7 @@ pub fn build_call_trace_arena(
         trace: CallTrace {
             depth: 0,
             success: true,
-            caller: H160::zero(), // Placeholder
+            caller: H160::zero(),  // Placeholder
             address: H160::zero(), // Placeholder
             execution_result: tx_result.clone(),
             decoded: DecodedCallTrace::default(),
@@ -59,13 +58,7 @@ pub fn build_call_trace_arena(
     arena.push(root_node);
 
     for call in calls {
-        process_call_and_subcalls(
-            call,
-            root_idx,
-            0,
-            &mut arena,
-            &tx_result,
-        );
+        process_call_and_subcalls(call, root_idx, 0, &mut arena, &tx_result);
     }
 
     CallTraceArena { arena }
@@ -79,8 +72,8 @@ fn process_call_and_subcalls(
     tx_result: &VmExecutionResultAndLogs,
 ) {
     // Only add the current call to the arena if it's not System or Precompile
-    let should_add_call = !CallTraceArena::is_precompile(&call.to) && !CallTraceArena::is_system(&call.to);
-
+    // let should_add_call = !CallTraceArena::is_precompile(&call.to) && !CallTraceArena::is_system(&call.to);
+    let should_add_call = !CallTraceArena::is_precompile(&call.to);
     let idx = if should_add_call {
         let idx = arena.len();
         let call_trace = convert_call_to_call_trace(call, depth, tx_result.clone());
@@ -97,7 +90,9 @@ fn process_call_and_subcalls(
         // Add as a child of the parent node
         arena[parent_idx].children.push(idx);
         let child_local_idx = arena[parent_idx].children.len() - 1;
-        arena[parent_idx].ordering.push(TraceMemberOrder::Call(child_local_idx));
+        arena[parent_idx]
+            .ordering
+            .push(TraceMemberOrder::Call(child_local_idx));
 
         idx
     } else {
@@ -111,19 +106,15 @@ fn process_call_and_subcalls(
     }
 }
 
-
-
 /// Converts a single `Call` to a `CallTrace`.
 fn convert_call_to_call_trace(
     call: &Call,
     depth: usize,
     tx_result: VmExecutionResultAndLogs,
 ) -> CallTrace {
-
     let label = KNOWN_ADDRESSES
         .get(&call.to)
         .map(|known| known.name.clone());
-
 
     CallTrace {
         depth,
@@ -132,7 +123,7 @@ fn convert_call_to_call_trace(
         address: call.to,
         execution_result: tx_result,
         decoded: DecodedCallTrace {
-            label, 
+            label,
             ..Default::default()
         },
         call: call.clone(),

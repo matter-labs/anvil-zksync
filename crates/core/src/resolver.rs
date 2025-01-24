@@ -205,7 +205,7 @@ impl SignEthClient {
             .cloned())
     }
 
-       /// Decodes the given function, error or event selectors using OpenChain.
+    /// Decodes the given function, error or event selectors using OpenChain.
     pub async fn decode_selectors(
         &self,
         selector_type: SelectorType,
@@ -215,13 +215,19 @@ impl SignEthClient {
             .into_iter()
             .map(Into::into)
             .map(|s| s.to_lowercase())
-            .map(|s| if s.starts_with("0x") { s } else { format!("0x{s}") })
+            .map(|s| {
+                if s.starts_with("0x") {
+                    s
+                } else {
+                    format!("0x{s}")
+                }
+            })
             .collect();
 
         if selectors.is_empty() {
             return Ok(vec![]);
         }
-        
+
         tracing::debug!(len = selectors.len(), "decoding selectors");
         tracing::trace!(?selectors, "decoding selectors");
 

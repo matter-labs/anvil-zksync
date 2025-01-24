@@ -1,10 +1,9 @@
-use zksync_multivm::interface::{Call, VmExecutionResultAndLogs, ExecutionResult};
-use zksync_types::{Address, H256, H160};
-use zksync_types::web3::Bytes;
-use alloy_primitives::FixedBytes;
-use std::collections::HashMap;
-use serde::Deserialize;
 use lazy_static::lazy_static;
+use serde::Deserialize;
+use std::collections::HashMap;
+use zksync_multivm::interface::{Call, ExecutionResult, VmExecutionResultAndLogs};
+use zksync_types::web3::Bytes;
+use zksync_types::{Address, H160, H256};
 
 #[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
 pub enum ContractType {
@@ -34,14 +33,17 @@ lazy_static! {
     };
 }
 
-/// Solidity contract functions are addressed using the first four bytes of the
-/// Keccak-256 hash of their signature.
-pub type Selector = FixedBytes<4>;
+// /// Solidity contract functions are addressed using the first four bytes of the
+// /// Keccak-256 hash of their signature.
+// pub type Selector = FixedBytes<4>;
 
 /// An Ethereum event log object.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(::serde::Serialize, ::serde::Deserialize))]
-#[cfg_attr(feature = "arbitrary", derive(derive_arbitrary::Arbitrary, proptest_derive::Arbitrary))]
+#[cfg_attr(
+    feature = "arbitrary",
+    derive(derive_arbitrary::Arbitrary, proptest_derive::Arbitrary)
+)]
 pub struct LogData {
     /// The indexed topic list.
     topics: Vec<H256>,
@@ -68,7 +70,10 @@ impl LogData {
     /// Creates a new empty log.
     #[inline]
     pub const fn empty() -> Self {
-        Self { topics: Vec::new(), data: Bytes(Vec::new()) }
+        Self {
+            topics: Vec::new(),
+            data: Bytes(Vec::new()),
+        }
     }
 
     /// True if valid, false otherwise.
@@ -159,13 +164,12 @@ pub struct CallTrace {
     /// Whether this is a call to a precompile.
     ///
     /// Note: This is optional because not all tracers make use of this.
-   // pub maybe_precompile: Option<bool>,
+    // pub maybe_precompile: Option<bool>,
     pub execution_result: VmExecutionResultAndLogs,
     /// Optional complementary decoded call data.
     pub decoded: DecodedCallTrace,
     pub call: Call,
 }
-
 
 /// A node in the arena
 #[derive(Clone, Debug)]
@@ -247,7 +251,8 @@ impl CallTraceArena {
 
     /// Filters out precompile nodes from the arena.
     pub fn filter_out_precompiles(&mut self) {
-        self.arena.retain(|node| !Self::is_precompile(&node.trace.address));
+        self.arena
+            .retain(|node| !Self::is_precompile(&node.trace.address));
     }
 
     /// Checks if the given address is a system contract based on `KNOWN_ADDRESSES`.
@@ -261,7 +266,8 @@ impl CallTraceArena {
 
     /// Filters out system contracts nodes from the arena.
     pub fn filter_out_system_contracts(&mut self) {
-        self.arena.retain(|node| !Self::is_system(&node.trace.address));
+        self.arena
+            .retain(|node| !Self::is_system(&node.trace.address));
     }
 
     /// Pushes a new trace into the arena, returning the trace ID
@@ -306,7 +312,10 @@ impl CallTraceArena {
                 }
                 _ => {
                     // We haven't found the parent node, go deeper
-                    entry = *self.arena[entry].children.last().expect("Disconnected trace");
+                    entry = *self.arena[entry]
+                        .children
+                        .last()
+                        .expect("Disconnected trace");
                 }
             }
         }
