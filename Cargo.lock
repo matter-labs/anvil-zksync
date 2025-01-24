@@ -1010,7 +1010,7 @@ dependencies = [
 
 [[package]]
 name = "anvil-zksync"
-version = "0.2.5"
+version = "0.3.0"
 dependencies = [
  "alloy-signer-local 0.5.4",
  "anvil_zksync_api_server",
@@ -1039,7 +1039,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_api_decl"
-version = "0.2.5"
+version = "0.3.0"
 dependencies = [
  "anvil_zksync_types",
  "jsonrpsee",
@@ -1049,7 +1049,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_api_server"
-version = "0.2.5"
+version = "0.3.0"
 dependencies = [
  "anvil_zksync_api_decl",
  "anvil_zksync_core",
@@ -1069,7 +1069,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_config"
-version = "0.2.5"
+version = "0.3.0"
 dependencies = [
  "alloy-signer 0.5.4",
  "alloy-signer-local 0.5.4",
@@ -1087,7 +1087,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_core"
-version = "0.2.5"
+version = "0.3.0"
 dependencies = [
  "alloy-dyn-abi 0.5.4",
  "alloy-json-abi 0.5.4",
@@ -1130,7 +1130,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_types"
-version = "0.2.5"
+version = "0.3.0"
 dependencies = [
  "clap",
  "serde",
