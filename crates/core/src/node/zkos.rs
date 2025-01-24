@@ -3,6 +3,7 @@
 
 //! Interfaces that use zkos for VM execution.
 //! This is still experimental code.
+use anvil_zksync_config::types::ZKOSConfig;
 use zksync_multivm::{
     interface::{
         storage::{StoragePtr, WriteStorage},
@@ -14,6 +15,10 @@ use zksync_multivm::{
 use zksync_types::{Address, StorageKey, Transaction};
 
 use crate::deps::InMemoryStorage;
+
+pub fn zkos_get_batch_witness(key: &u32) -> Option<Vec<u8>> {
+    None
+}
 
 pub fn zkos_get_nonce_key(account: &Address) -> StorageKey {
     todo!()
@@ -35,6 +40,7 @@ impl<S: WriteStorage, H: HistoryMode> ZKOsVM<S, H> {
         system_env: SystemEnv,
         storage: StoragePtr<S>,
         raw_storage: &InMemoryStorage,
+        config: &ZKOSConfig,
     ) -> Self {
         todo!()
     }
