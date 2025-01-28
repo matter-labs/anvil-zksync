@@ -7,7 +7,6 @@ use crate::deps::storage_view::StorageView;
 use crate::deps::InMemoryStorage;
 use crate::filters::EthFilters;
 use crate::node::call_error_tracer::CallErrorTracer;
-use crate::node::error::LoadStateError;
 use crate::node::fee_model::TestNodeFeeInputProvider;
 use crate::node::impersonate::{ImpersonationManager, ImpersonationState};
 use crate::node::inner::blockchain::ReadBlockchain;
@@ -32,6 +31,7 @@ use flate2::Compression;
 use indexmap::IndexMap;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
+use zksync_error::anvil::state::StateLoaderError;
 use std::collections::{HashMap, HashSet};
 use std::io::{Read, Write};
 use std::str::FromStr;
@@ -497,7 +497,7 @@ impl InMemoryNode {
         Ok(encoder.finish()?.into())
     }
 
-    pub async fn load_state(&self, buf: Bytes) -> Result<bool, LoadStateError> {
+    pub async fn load_state(&self, buf: Bytes) -> Result<bool, StateLoaderError> {
         let orig_buf = &buf.0[..];
         let mut decoder = GzDecoder::new(orig_buf);
         let mut decoded_data = Vec::new();
@@ -507,16 +507,16 @@ impl InMemoryNode {
             tracing::trace!(bytes = buf.0.len(), "decompressing state");
             decoder
                 .read_to_end(decoded_data.as_mut())
-                .map_err(LoadStateError::FailedDecompress)?;
+                .map_err(|e| StateLoaderError::StateDecompressionError { details: e.to_string() } )?;
             &decoded_data
         } else {
             &buf.0
         };
         tracing::trace!(bytes = decoded.len(), "deserializing state");
         let state: VersionedState =
-            serde_json::from_slice(decoded).map_err(LoadStateError::FailedDeserialize)?;
+            serde_json::from_slice(decoded).map_err(|e| StateLoaderError::StateDeserializationError { details: e.to_string() })?;
 
-        self.inner.write().await.load_state(state).await
+        Ok(self.inner.write().await.load_state(state).await?)
     }
 
     pub async fn get_chain_id(&self) -> anyhow::Result<u32> {

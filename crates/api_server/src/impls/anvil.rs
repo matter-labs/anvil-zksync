@@ -1,4 +1,4 @@
-use crate::error::RpcError;
+use crate::error::{to_error_object, RpcError};
 use anvil_zksync_api_decl::AnvilNamespaceServer;
 use anvil_zksync_core::node::InMemoryNode;
 use anvil_zksync_types::api::{DetailedTransaction, ResetRequest};
@@ -29,7 +29,7 @@ impl AnvilNamespaceServer for AnvilNamespace {
     }
 
     async fn load_state(&self, bytes: Bytes) -> RpcResult<bool> {
-        Ok(self.node.load_state(bytes).await.map_err(RpcError::from)?)
+        Ok(self.node.load_state(bytes).await.map_err(to_error_object)?)
     }
 
     async fn mine_detailed(&self) -> RpcResult<Block<DetailedTransaction>> {

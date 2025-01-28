@@ -19,7 +19,6 @@ use anvil_zksync_core::observability::Observability;
 use anvil_zksync_core::system_contracts::SystemContracts;
 use anyhow::Context;
 use clap::Parser;
-use zksync_error::error::IError as _;
 use std::fs::File;
 use std::sync::Arc;
 use std::time::Duration;
@@ -27,12 +26,14 @@ use std::{env, net::SocketAddr, str::FromStr};
 use tokio::sync::RwLock;
 use tower_http::cors::AllowOrigin;
 use tracing_subscriber::filter::LevelFilter;
-use zksync_error::documentation::Documented as _;
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
 use zksync_types::H160;
 use zksync_web3_decl::namespaces::ZksNamespaceClient;
 
 use zksync_error::anvil::env::generic_error;
+use zksync_error::anvil::state::StateLoaderError;
+use zksync_error::documentation::Documented as _;
+use zksync_error::error::IError as _;
 
 mod bytecode_override;
 mod cli;
@@ -43,7 +44,6 @@ async fn main() -> Result<(), zksync_error::ZksyncError> {
     match main_inner().await {
         Ok(_) => Ok(()),
         Err(e) => {
-
             eprintln!("Error: {}", e.get_message());
             if let Ok(Some(documentation)) = e.get_documentation() {
                 eprintln!("{documentation:#?}")
@@ -402,17 +402,21 @@ async fn main_inner() -> Result<(), zksync_error::ZksyncError> {
         futures::future::select_all(server_handles.into_iter().map(|h| Box::pin(h.stopped())));
 
     // Load state from `--load-state` if provided
-    if let Some(ref load_state_path) = config.load_state {
-        let bytes = std::fs::read(load_state_path).expect("Failed to read load state file");
-        node.load_state(zksync_types::web3::Bytes(bytes))
-            .await
-            .map_err(|e| generic_error!("{e}"))?;
-    }
-    if let Some(ref state_path) = config.state {
-        let bytes = std::fs::read(state_path).expect("Failed to read load state file");
-        node.load_state(zksync_types::web3::Bytes(bytes))
-            .await
-            .map_err(|e| generic_error!("{e}"))?;
+    for state_path in [config.load_state.as_deref(), config.state.as_deref()]
+        .iter()
+        .flatten()
+    {
+        let path_as_str = state_path.to_str().ok_or(StateLoaderError::GenericError {
+            message: format!("Invalid path to the state {state_path:?}"),
+        })?;
+
+        let bytes = std::fs::read(state_path).map_err(|error| {
+            zksync_error::anvil::state::LoadStateError {
+                path: path_as_str.to_string(),
+                reason: error.to_string(),
+            }
+        })?;
+        node.load_state(zksync_types::web3::Bytes(bytes)).await?;
     }
 
     let state_path = config.dump_state.clone().or_else(|| config.state.clone());

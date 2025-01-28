@@ -2,7 +2,6 @@
 
 mod call_error_tracer;
 mod debug;
-pub mod error;
 mod eth;
 mod fee_model;
 mod impersonate;

@@ -441,6 +441,7 @@ dependencies = [
  "tower 0.4.13",
  "tower-http",
  "tracing",
+ "zksync_error",
  "zksync_types",
  "zksync_web3_decl",
 ]
@@ -7912,7 +7913,7 @@ dependencies = [
 [[package]]
 name = "zksync-error-description"
 version = "0.1.0"
-source = "git+https://github.com/sayon/error-codegen-poc?branch=main#f4e0b4d24a1507fb769aec4a9c0c223848246e77"
+source = "git+https://github.com/sayon/error-codegen-poc?branch=main#10cf83121c6a27c43ae44ad3836af7debb43a463"
 dependencies = [
  "serde",
  "serde_json",
@@ -8065,6 +8066,7 @@ dependencies = [
 name = "zksync_error"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "lazy_static",
  "serde",
  "serde_json",

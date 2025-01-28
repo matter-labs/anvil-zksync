@@ -59,6 +59,7 @@ impl IError<ZksyncError> for ZksyncError {
     fn get_message(&self) -> String {
         match self {
          ZksyncError::Anvil(Anvil::AnvilEnvironment(error)) => error.get_message(),
+         ZksyncError::Anvil(Anvil::StateLoader(error)) => error.get_message(),
          ZksyncError::Compiler(Compiler::LLVM_EVM(error)) => error.get_message(),
          ZksyncError::Compiler(Compiler::LLVM_Era(error)) => error.get_message(),
          ZksyncError::Compiler(Compiler::Solc(error)) => error.get_message(),

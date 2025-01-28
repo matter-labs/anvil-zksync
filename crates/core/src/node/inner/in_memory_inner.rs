@@ -6,7 +6,6 @@ use crate::console_log::ConsoleLogHandler;
 use crate::deps::storage_view::StorageView;
 use crate::filters::EthFilters;
 use crate::node::call_error_tracer::CallErrorTracer;
-use crate::node::error::LoadStateError;
 use crate::node::keys::StorageKeyLayout;
 use crate::node::state::StateV1;
 use crate::node::storage_logs::print_storage_logs_details;
@@ -28,6 +27,7 @@ use anyhow::Context;
 use colored::Colorize;
 use indexmap::IndexMap;
 use once_cell::sync::OnceCell;
+use zksync_error::anvil::state::StateLoaderError;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -1162,24 +1162,24 @@ impl InMemoryNodeInner {
         }))
     }
 
-    pub async fn load_state(&mut self, state: VersionedState) -> Result<bool, LoadStateError> {
+    pub async fn load_state(&mut self, state: VersionedState) -> Result<bool, StateLoaderError> {
         let mut storage = self.blockchain.write().await;
         if storage.blocks.len() > 1 {
             tracing::debug!(
                 blocks = storage.blocks.len(),
                 "node has existing state; refusing to load new state"
             );
-            return Err(LoadStateError::HasExistingState);
+            return Err(StateLoaderError::LoadingStateOverExistingStateError);
         }
         let state = match state {
             VersionedState::V1 { state, .. } => state,
             VersionedState::Unknown { version } => {
-                return Err(LoadStateError::UnknownStateVersion(version))
+                return Err(StateLoaderError::UnknownStateVersionError { version: version.into() } )
             }
         };
         if state.blocks.is_empty() {
             tracing::debug!("new state has no blocks; refusing to load");
-            return Err(LoadStateError::EmptyState);
+            return Err(StateLoaderError::LoadEmptyStateError);
         }
 
         storage.load_blocks(&mut self.time, state.blocks);

@@ -12,9 +12,7 @@ lazy_static! {
 
 
 fn get_model() -> ErrorHierarchy {
-    let serialized_model = include_str!("../resources/model.json");
-    serde_json::from_str(serialized_model).expect("Always valid")
-
+   zksync_error_description::ErrorHierarchy::from_str(include_str!("../resources/error-model-dump.json"))
 }
 
 #[derive(Debug)]

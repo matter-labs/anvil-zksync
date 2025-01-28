@@ -637,6 +637,7 @@ mod tests {
         net::{IpAddr, Ipv4Addr},
     };
     use tempdir::TempDir;
+    use zksync_error::error::ICustomError as _;
     use zksync_types::{H160, U256};
 
     #[test]
@@ -768,7 +769,8 @@ mod tests {
 
         new_node
             .load_state(zksync_types::web3::Bytes(std::fs::read(&state_path)?))
-            .await?;
+            .await
+            .map_err(|e| e.to_unified())?;
 
         // assert the balance from the loaded state is correctly applied
         let balance = new_node.get_balance_impl(test_address, None).await?;

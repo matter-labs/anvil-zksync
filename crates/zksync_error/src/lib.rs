@@ -18,7 +18,10 @@ pub use crate::error::domains::ZksyncError;
 
 pub mod anvil {
    pub mod env {
+      pub use crate::error::definitions::AnvilEnvironment as AnvilEnvironmentError;
       pub use crate::error::definitions::AnvilEnvironment::LogFileAccessError;
+      pub use crate::error::definitions::AnvilEnvironment::UnsupportedMethodError;
+      pub use crate::error::definitions::AnvilEnvironment::Web3Error;
       pub use crate::error::definitions::AnvilEnvironment::GenericError;
       
       #[macro_export]
@@ -29,9 +32,28 @@ pub mod anvil {
       }
       pub use crate::anvil_env_generic_error as generic_error;
       }
+   pub mod state {
+      pub use crate::error::definitions::StateLoader as StateLoaderError;
+      pub use crate::error::definitions::StateLoader::LoadingStateOverExistingStateError;
+      pub use crate::error::definitions::StateLoader::LoadEmptyStateError;
+      pub use crate::error::definitions::StateLoader::StateDecompressionError;
+      pub use crate::error::definitions::StateLoader::StateDeserializationError;
+      pub use crate::error::definitions::StateLoader::UnknownStateVersionError;
+      pub use crate::error::definitions::StateLoader::LoadStateError;
+      pub use crate::error::definitions::StateLoader::GenericError;
+      
+      #[macro_export]
+      macro_rules! anvil_state_generic_error {
+          ($($arg:tt)*) => {
+              zksync_error::error::definitions::StateLoader::GenericError { message: format!($($arg)*) }
+          };
+      }
+      pub use crate::anvil_state_generic_error as generic_error;
+      }
    }
 pub mod compiler {
    pub mod llvm_evm {
+      pub use crate::error::definitions::LLVM_EVM as LLVM_EVMError;
       pub use crate::error::definitions::LLVM_EVM::GenericError;
       
       #[macro_export]
@@ -43,6 +65,7 @@ pub mod compiler {
       pub use crate::compiler_llvm_evm_generic_error as generic_error;
       }
    pub mod llvm_era {
+      pub use crate::error::definitions::LLVM_Era as LLVM_EraError;
       pub use crate::error::definitions::LLVM_Era::GenericError;
       
       #[macro_export]
@@ -54,6 +77,7 @@ pub mod compiler {
       pub use crate::compiler_llvm_era_generic_error as generic_error;
       }
    pub mod solc {
+      pub use crate::error::definitions::Solc as SolcError;
       pub use crate::error::definitions::Solc::GenericError;
       
       #[macro_export]
@@ -65,6 +89,7 @@ pub mod compiler {
       pub use crate::compiler_solc_generic_error as generic_error;
       }
    pub mod solc_fork {
+      pub use crate::error::definitions::SolcFork as SolcForkError;
       pub use crate::error::definitions::SolcFork::GenericError;
       
       #[macro_export]
@@ -76,6 +101,7 @@ pub mod compiler {
       pub use crate::compiler_solc_fork_generic_error as generic_error;
       }
    pub mod zksolc {
+      pub use crate::error::definitions::Zksolc as ZksolcError;
       pub use crate::error::definitions::Zksolc::GenericError;
       
       #[macro_export]
@@ -87,6 +113,7 @@ pub mod compiler {
       pub use crate::compiler_zksolc_generic_error as generic_error;
       }
    pub mod zkvyper {
+      pub use crate::error::definitions::Zkvyper as ZkvyperError;
       pub use crate::error::definitions::Zkvyper::GenericError;
       
       #[macro_export]
@@ -100,6 +127,7 @@ pub mod compiler {
    }
 pub mod core {
    pub mod api {
+      pub use crate::error::definitions::API as APIError;
       pub use crate::error::definitions::API::GenericError;
       
       #[macro_export]
@@ -111,6 +139,7 @@ pub mod core {
       pub use crate::core_api_generic_error as generic_error;
       }
    pub mod eravm {
+      pub use crate::error::definitions::EraVM as EraVMError;
       pub use crate::error::definitions::EraVM::GenericError;
       
       #[macro_export]
@@ -122,6 +151,7 @@ pub mod core {
       pub use crate::core_eravm_generic_error as generic_error;
       }
    pub mod exec {
+      pub use crate::error::definitions::ExecutionPlatform as ExecutionPlatformError;
       pub use crate::error::definitions::ExecutionPlatform::GenericError;
       
       #[macro_export]
@@ -133,6 +163,8 @@ pub mod core {
       pub use crate::core_exec_generic_error as generic_error;
       }
    pub mod seq {
+      pub use crate::error::definitions::Sequencer as SequencerError;
+      pub use crate::error::definitions::Sequencer::GenericSequencerError;
       pub use crate::error::definitions::Sequencer::GenericError;
       
       #[macro_export]
@@ -146,6 +178,7 @@ pub mod core {
    }
 pub mod foundry {
    pub mod upstream {
+      pub use crate::error::definitions::FoundryUpstream as FoundryUpstreamError;
       pub use crate::error::definitions::FoundryUpstream::GenericError;
       
       #[macro_export]
@@ -157,6 +190,7 @@ pub mod foundry {
       pub use crate::foundry_upstream_generic_error as generic_error;
       }
    pub mod zksync {
+      pub use crate::error::definitions::FoundryZksync as FoundryZksyncError;
       pub use crate::error::definitions::FoundryZksync::GenericError;
       
       #[macro_export]
@@ -170,6 +204,7 @@ pub mod foundry {
    }
 pub mod hardhat {
    pub mod upstream {
+      pub use crate::error::definitions::HardhatUpstream as HardhatUpstreamError;
       pub use crate::error::definitions::HardhatUpstream::GenericError;
       
       #[macro_export]
@@ -181,6 +216,7 @@ pub mod hardhat {
       pub use crate::hardhat_upstream_generic_error as generic_error;
       }
    pub mod zksync {
+      pub use crate::error::definitions::HardhatZksync as HardhatZksyncError;
       pub use crate::error::definitions::HardhatZksync::GenericError;
       
       #[macro_export]

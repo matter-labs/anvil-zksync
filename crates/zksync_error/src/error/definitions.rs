@@ -28,16 +28,22 @@ pub enum AnvilEnvironment {
    ///
    /// # Description
    /// Anvil was unable to open the log file for writing.
-   LogFileAccessError { 
+   LogFileAccessError {
       log_filename : String,
       wrapped_error : String,
    } = 1, 
-   GenericError { 
+   UnsupportedMethodError  = 2, 
+   Web3Error {
+      inner : Box<API>,
+   } = 3, 
+   GenericError {
       message : String,
    } = 0, 
    
 } // end of AnvilEnvironment
 
+
+impl std::error::Error for AnvilEnvironment {}
 
 impl NamedError for AnvilEnvironment {
     fn get_error_name(&self) -> String {
@@ -56,11 +62,27 @@ impl From<AnvilEnvironment> for crate::ZksyncError {
     }
 }
 
+
+impl From<anyhow::Error> for AnvilEnvironment {
+    fn from(value: anyhow::Error) -> Self {
+        let message = format!("{value:#?}");
+        AnvilEnvironment::GenericError { message }
+    }
+}
+
+
 impl Documented for AnvilEnvironment {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
 
     fn get_documentation(&self) -> Result<Option<Self::Documentation>, crate::documentation::DocumentationError> {
         self.to_unified().get_identifier().get_documentation()
+    }
+}
+
+
+impl std::fmt::Display for AnvilEnvironment {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+       f.write_fmt(format_args!("{self:?}"))
     }
 }
 
@@ -73,6 +95,13 @@ impl CustomErrorMessage for AnvilEnvironment {
             wrapped_error,
          }
           => { format!("[anvil-env-1] Unable to access log file: {log_filename}") },
+         AnvilEnvironment::UnsupportedMethodError { 
+         }
+          => { format!("[anvil-env-2] Unsupported method.") },
+         AnvilEnvironment::Web3Error { 
+            inner,
+         }
+          => { format!("[anvil-env-3] Web3Error: {inner}.") },
          AnvilEnvironment::GenericError { 
             message,
          }
@@ -93,6 +122,136 @@ impl From<AnvilEnvironment> for crate::serialized::SerializedError {
         crate::serialized::serialize(packed).expect("Internal serialization error.")
     }
 }
+
+#[repr(u32)]
+#[derive(AsRefStr, Clone, Debug, Eq, EnumDiscriminants, PartialEq, serde::Serialize, serde::Deserialize)]
+#[strum_discriminants(name(StateLoaderCode))]
+#[strum_discriminants(vis(pub))]
+#[strum_discriminants(derive(AsRefStr, FromRepr))]
+#[non_exhaustive]
+pub enum StateLoader {
+   /// # Short description
+   /// It is not allowed to load a state overriding the existing node state. If you have a use case for that, please create an issue.
+   ///
+   /// # Description
+   /// It is not allowed to load a state overriding the existing node state.
+   LoadingStateOverExistingStateError  = 1, 
+   /// # Short description
+   /// It is not allowed to load a state without any blocks in it.
+   ///
+   /// # Description
+   /// It is not allowed to load a state without any blocks in it.
+   LoadEmptyStateError  = 2, 
+   StateDecompressionError {
+      details : String,
+   } = 3, 
+   StateDeserializationError {
+      details : String,
+   } = 4, 
+   UnknownStateVersionError {
+      version : u32,
+   } = 5, 
+   LoadStateError {
+      path : String,
+      reason : String,
+   } = 6, 
+   GenericError {
+      message : String,
+   } = 0, 
+   
+} // end of StateLoader
+
+
+impl std::error::Error for StateLoader {}
+
+impl NamedError for StateLoader {
+    fn get_error_name(&self) -> String {
+        self.as_ref().to_owned()
+    }
+}
+impl NamedError for StateLoaderCode {
+    fn get_error_name(&self) -> String {
+        self.as_ref().to_owned()
+    }
+}
+
+impl From<StateLoader> for crate::ZksyncError {
+    fn from(val: StateLoader) -> Self {
+        val.to_unified()
+    }
+}
+
+
+impl From<anyhow::Error> for StateLoader {
+    fn from(value: anyhow::Error) -> Self {
+        let message = format!("{value:#?}");
+        StateLoader::GenericError { message }
+    }
+}
+
+
+impl Documented for StateLoader {
+    type Documentation = &'static zksync_error_description::ErrorDocumentation;
+
+    fn get_documentation(&self) -> Result<Option<Self::Documentation>, crate::documentation::DocumentationError> {
+        self.to_unified().get_identifier().get_documentation()
+    }
+}
+
+
+impl std::fmt::Display for StateLoader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+       f.write_fmt(format_args!("{self:?}"))
+    }
+}
+
+
+impl CustomErrorMessage for StateLoader {
+    fn get_message(&self) -> String {
+        match self {
+         StateLoader::LoadingStateOverExistingStateError { 
+         }
+          => { format!("[anvil-state-1] Loading state into a node with existing state is not allowed.") },
+         StateLoader::LoadEmptyStateError { 
+         }
+          => { format!("[anvil-state-2] Loading a state without blocks is not allowed.") },
+         StateLoader::StateDecompressionError { 
+            details,
+         }
+          => { format!("[anvil-state-3] Failed to decompress state: {details}.") },
+         StateLoader::StateDeserializationError { 
+            details,
+         }
+          => { format!("[anvil-state-4] Failed to deserialize state: {details}") },
+         StateLoader::UnknownStateVersionError { 
+            version,
+         }
+          => { format!("[anvil-state-5] Unknown version of the state: {version}.") },
+         StateLoader::LoadStateError { 
+            path,
+            reason,
+         }
+          => { format!("[anvil-state-6] Error while attempting to access the state located at `{path}`. Reason: {reason}.") },
+         StateLoader::GenericError { 
+            message,
+         }
+          => { format!("[anvil-state-0] Generic error: {message}") },
+      }
+   }
+}
+
+impl From<StateLoader> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
+    fn from(value: StateLoader) -> Self {
+        crate::packed::pack(value)
+    }
+}
+
+impl From<StateLoader> for crate::serialized::SerializedError {
+    fn from(value: StateLoader) -> Self {
+        let packed = crate::packed::pack(value);
+        crate::serialized::serialize(packed).expect("Internal serialization error.")
+    }
+}
 /// Errors originating in the compiler backend for Ethereum VM (EVM).
 
 #[repr(u32)]
@@ -102,12 +261,14 @@ impl From<AnvilEnvironment> for crate::serialized::SerializedError {
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
 #[non_exhaustive]
 pub enum LLVM_EVM {
-   GenericError { 
+   GenericError {
       message : String,
    } = 0, 
    
 } // end of LLVM_EVM
 
+
+impl std::error::Error for LLVM_EVM {}
 
 impl NamedError for LLVM_EVM {
     fn get_error_name(&self) -> String {
@@ -126,11 +287,27 @@ impl From<LLVM_EVM> for crate::ZksyncError {
     }
 }
 
+
+impl From<anyhow::Error> for LLVM_EVM {
+    fn from(value: anyhow::Error) -> Self {
+        let message = format!("{value:#?}");
+        LLVM_EVM::GenericError { message }
+    }
+}
+
+
 impl Documented for LLVM_EVM {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
 
     fn get_documentation(&self) -> Result<Option<Self::Documentation>, crate::documentation::DocumentationError> {
         self.to_unified().get_identifier().get_documentation()
+    }
+}
+
+
+impl std::fmt::Display for LLVM_EVM {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+       f.write_fmt(format_args!("{self:?}"))
     }
 }
 
@@ -167,12 +344,14 @@ impl From<LLVM_EVM> for crate::serialized::SerializedError {
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
 #[non_exhaustive]
 pub enum LLVM_Era {
-   GenericError { 
+   GenericError {
       message : String,
    } = 0, 
    
 } // end of LLVM_Era
 
+
+impl std::error::Error for LLVM_Era {}
 
 impl NamedError for LLVM_Era {
     fn get_error_name(&self) -> String {
@@ -191,11 +370,27 @@ impl From<LLVM_Era> for crate::ZksyncError {
     }
 }
 
+
+impl From<anyhow::Error> for LLVM_Era {
+    fn from(value: anyhow::Error) -> Self {
+        let message = format!("{value:#?}");
+        LLVM_Era::GenericError { message }
+    }
+}
+
+
 impl Documented for LLVM_Era {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
 
     fn get_documentation(&self) -> Result<Option<Self::Documentation>, crate::documentation::DocumentationError> {
         self.to_unified().get_identifier().get_documentation()
+    }
+}
+
+
+impl std::fmt::Display for LLVM_Era {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+       f.write_fmt(format_args!("{self:?}"))
     }
 }
 
@@ -232,12 +427,14 @@ impl From<LLVM_Era> for crate::serialized::SerializedError {
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
 #[non_exhaustive]
 pub enum Solc {
-   GenericError { 
+   GenericError {
       message : String,
    } = 0, 
    
 } // end of Solc
 
+
+impl std::error::Error for Solc {}
 
 impl NamedError for Solc {
     fn get_error_name(&self) -> String {
@@ -256,11 +453,27 @@ impl From<Solc> for crate::ZksyncError {
     }
 }
 
+
+impl From<anyhow::Error> for Solc {
+    fn from(value: anyhow::Error) -> Self {
+        let message = format!("{value:#?}");
+        Solc::GenericError { message }
+    }
+}
+
+
 impl Documented for Solc {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
 
     fn get_documentation(&self) -> Result<Option<Self::Documentation>, crate::documentation::DocumentationError> {
         self.to_unified().get_identifier().get_documentation()
+    }
+}
+
+
+impl std::fmt::Display for Solc {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+       f.write_fmt(format_args!("{self:?}"))
     }
 }
 
@@ -297,12 +510,14 @@ impl From<Solc> for crate::serialized::SerializedError {
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
 #[non_exhaustive]
 pub enum SolcFork {
-   GenericError { 
+   GenericError {
       message : String,
    } = 0, 
    
 } // end of SolcFork
 
+
+impl std::error::Error for SolcFork {}
 
 impl NamedError for SolcFork {
     fn get_error_name(&self) -> String {
@@ -321,11 +536,27 @@ impl From<SolcFork> for crate::ZksyncError {
     }
 }
 
+
+impl From<anyhow::Error> for SolcFork {
+    fn from(value: anyhow::Error) -> Self {
+        let message = format!("{value:#?}");
+        SolcFork::GenericError { message }
+    }
+}
+
+
 impl Documented for SolcFork {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
 
     fn get_documentation(&self) -> Result<Option<Self::Documentation>, crate::documentation::DocumentationError> {
         self.to_unified().get_identifier().get_documentation()
+    }
+}
+
+
+impl std::fmt::Display for SolcFork {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+       f.write_fmt(format_args!("{self:?}"))
     }
 }
 
@@ -362,12 +593,14 @@ impl From<SolcFork> for crate::serialized::SerializedError {
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
 #[non_exhaustive]
 pub enum Zksolc {
-   GenericError { 
+   GenericError {
       message : String,
    } = 0, 
    
 } // end of Zksolc
 
+
+impl std::error::Error for Zksolc {}
 
 impl NamedError for Zksolc {
     fn get_error_name(&self) -> String {
@@ -386,11 +619,27 @@ impl From<Zksolc> for crate::ZksyncError {
     }
 }
 
+
+impl From<anyhow::Error> for Zksolc {
+    fn from(value: anyhow::Error) -> Self {
+        let message = format!("{value:#?}");
+        Zksolc::GenericError { message }
+    }
+}
+
+
 impl Documented for Zksolc {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
 
     fn get_documentation(&self) -> Result<Option<Self::Documentation>, crate::documentation::DocumentationError> {
         self.to_unified().get_identifier().get_documentation()
+    }
+}
+
+
+impl std::fmt::Display for Zksolc {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+       f.write_fmt(format_args!("{self:?}"))
     }
 }
 
@@ -427,12 +676,14 @@ impl From<Zksolc> for crate::serialized::SerializedError {
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
 #[non_exhaustive]
 pub enum Zkvyper {
-   GenericError { 
+   GenericError {
       message : String,
    } = 0, 
    
 } // end of Zkvyper
 
+
+impl std::error::Error for Zkvyper {}
 
 impl NamedError for Zkvyper {
     fn get_error_name(&self) -> String {
@@ -451,11 +702,27 @@ impl From<Zkvyper> for crate::ZksyncError {
     }
 }
 
+
+impl From<anyhow::Error> for Zkvyper {
+    fn from(value: anyhow::Error) -> Self {
+        let message = format!("{value:#?}");
+        Zkvyper::GenericError { message }
+    }
+}
+
+
 impl Documented for Zkvyper {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
 
     fn get_documentation(&self) -> Result<Option<Self::Documentation>, crate::documentation::DocumentationError> {
         self.to_unified().get_identifier().get_documentation()
+    }
+}
+
+
+impl std::fmt::Display for Zkvyper {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+       f.write_fmt(format_args!("{self:?}"))
     }
 }
 
@@ -492,12 +759,14 @@ impl From<Zkvyper> for crate::serialized::SerializedError {
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
 #[non_exhaustive]
 pub enum API {
-   GenericError { 
+   GenericError {
       message : String,
    } = 0, 
    
 } // end of API
 
+
+impl std::error::Error for API {}
 
 impl NamedError for API {
     fn get_error_name(&self) -> String {
@@ -516,11 +785,27 @@ impl From<API> for crate::ZksyncError {
     }
 }
 
+
+impl From<anyhow::Error> for API {
+    fn from(value: anyhow::Error) -> Self {
+        let message = format!("{value:#?}");
+        API::GenericError { message }
+    }
+}
+
+
 impl Documented for API {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
 
     fn get_documentation(&self) -> Result<Option<Self::Documentation>, crate::documentation::DocumentationError> {
         self.to_unified().get_identifier().get_documentation()
+    }
+}
+
+
+impl std::fmt::Display for API {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+       f.write_fmt(format_args!("{self:?}"))
     }
 }
 
@@ -557,12 +842,14 @@ impl From<API> for crate::serialized::SerializedError {
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
 #[non_exhaustive]
 pub enum EraVM {
-   GenericError { 
+   GenericError {
       message : String,
    } = 0, 
    
 } // end of EraVM
 
+
+impl std::error::Error for EraVM {}
 
 impl NamedError for EraVM {
     fn get_error_name(&self) -> String {
@@ -581,11 +868,27 @@ impl From<EraVM> for crate::ZksyncError {
     }
 }
 
+
+impl From<anyhow::Error> for EraVM {
+    fn from(value: anyhow::Error) -> Self {
+        let message = format!("{value:#?}");
+        EraVM::GenericError { message }
+    }
+}
+
+
 impl Documented for EraVM {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
 
     fn get_documentation(&self) -> Result<Option<Self::Documentation>, crate::documentation::DocumentationError> {
         self.to_unified().get_identifier().get_documentation()
+    }
+}
+
+
+impl std::fmt::Display for EraVM {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+       f.write_fmt(format_args!("{self:?}"))
     }
 }
 
@@ -622,12 +925,14 @@ impl From<EraVM> for crate::serialized::SerializedError {
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
 #[non_exhaustive]
 pub enum ExecutionPlatform {
-   GenericError { 
+   GenericError {
       message : String,
    } = 0, 
    
 } // end of ExecutionPlatform
 
+
+impl std::error::Error for ExecutionPlatform {}
 
 impl NamedError for ExecutionPlatform {
     fn get_error_name(&self) -> String {
@@ -646,11 +951,27 @@ impl From<ExecutionPlatform> for crate::ZksyncError {
     }
 }
 
+
+impl From<anyhow::Error> for ExecutionPlatform {
+    fn from(value: anyhow::Error) -> Self {
+        let message = format!("{value:#?}");
+        ExecutionPlatform::GenericError { message }
+    }
+}
+
+
 impl Documented for ExecutionPlatform {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
 
     fn get_documentation(&self) -> Result<Option<Self::Documentation>, crate::documentation::DocumentationError> {
         self.to_unified().get_identifier().get_documentation()
+    }
+}
+
+
+impl std::fmt::Display for ExecutionPlatform {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+       f.write_fmt(format_args!("{self:?}"))
     }
 }
 
@@ -687,12 +1008,17 @@ impl From<ExecutionPlatform> for crate::serialized::SerializedError {
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
 #[non_exhaustive]
 pub enum Sequencer {
-   GenericError { 
+   GenericSequencerError {
+      message : String,
+   } = 1, 
+   GenericError {
       message : String,
    } = 0, 
    
 } // end of Sequencer
 
+
+impl std::error::Error for Sequencer {}
 
 impl NamedError for Sequencer {
     fn get_error_name(&self) -> String {
@@ -711,6 +1037,15 @@ impl From<Sequencer> for crate::ZksyncError {
     }
 }
 
+
+impl From<anyhow::Error> for Sequencer {
+    fn from(value: anyhow::Error) -> Self {
+        let message = format!("{value:#?}");
+        Sequencer::GenericError { message }
+    }
+}
+
+
 impl Documented for Sequencer {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
 
@@ -720,9 +1055,20 @@ impl Documented for Sequencer {
 }
 
 
+impl std::fmt::Display for Sequencer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+       f.write_fmt(format_args!("{self:?}"))
+    }
+}
+
+
 impl CustomErrorMessage for Sequencer {
     fn get_message(&self) -> String {
         match self {
+         Sequencer::GenericSequencerError { 
+            message,
+         }
+          => { format!("[core-seq-1] Generic error: {message}") },
          Sequencer::GenericError { 
             message,
          }
@@ -752,12 +1098,14 @@ impl From<Sequencer> for crate::serialized::SerializedError {
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
 #[non_exhaustive]
 pub enum FoundryUpstream {
-   GenericError { 
+   GenericError {
       message : String,
    } = 0, 
    
 } // end of FoundryUpstream
 
+
+impl std::error::Error for FoundryUpstream {}
 
 impl NamedError for FoundryUpstream {
     fn get_error_name(&self) -> String {
@@ -776,11 +1124,27 @@ impl From<FoundryUpstream> for crate::ZksyncError {
     }
 }
 
+
+impl From<anyhow::Error> for FoundryUpstream {
+    fn from(value: anyhow::Error) -> Self {
+        let message = format!("{value:#?}");
+        FoundryUpstream::GenericError { message }
+    }
+}
+
+
 impl Documented for FoundryUpstream {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
 
     fn get_documentation(&self) -> Result<Option<Self::Documentation>, crate::documentation::DocumentationError> {
         self.to_unified().get_identifier().get_documentation()
+    }
+}
+
+
+impl std::fmt::Display for FoundryUpstream {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+       f.write_fmt(format_args!("{self:?}"))
     }
 }
 
@@ -817,12 +1181,14 @@ impl From<FoundryUpstream> for crate::serialized::SerializedError {
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
 #[non_exhaustive]
 pub enum FoundryZksync {
-   GenericError { 
+   GenericError {
       message : String,
    } = 0, 
    
 } // end of FoundryZksync
 
+
+impl std::error::Error for FoundryZksync {}
 
 impl NamedError for FoundryZksync {
     fn get_error_name(&self) -> String {
@@ -841,11 +1207,27 @@ impl From<FoundryZksync> for crate::ZksyncError {
     }
 }
 
+
+impl From<anyhow::Error> for FoundryZksync {
+    fn from(value: anyhow::Error) -> Self {
+        let message = format!("{value:#?}");
+        FoundryZksync::GenericError { message }
+    }
+}
+
+
 impl Documented for FoundryZksync {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
 
     fn get_documentation(&self) -> Result<Option<Self::Documentation>, crate::documentation::DocumentationError> {
         self.to_unified().get_identifier().get_documentation()
+    }
+}
+
+
+impl std::fmt::Display for FoundryZksync {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+       f.write_fmt(format_args!("{self:?}"))
     }
 }
 
@@ -882,12 +1264,14 @@ impl From<FoundryZksync> for crate::serialized::SerializedError {
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
 #[non_exhaustive]
 pub enum HardhatUpstream {
-   GenericError { 
+   GenericError {
       message : String,
    } = 0, 
    
 } // end of HardhatUpstream
 
+
+impl std::error::Error for HardhatUpstream {}
 
 impl NamedError for HardhatUpstream {
     fn get_error_name(&self) -> String {
@@ -906,11 +1290,27 @@ impl From<HardhatUpstream> for crate::ZksyncError {
     }
 }
 
+
+impl From<anyhow::Error> for HardhatUpstream {
+    fn from(value: anyhow::Error) -> Self {
+        let message = format!("{value:#?}");
+        HardhatUpstream::GenericError { message }
+    }
+}
+
+
 impl Documented for HardhatUpstream {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
 
     fn get_documentation(&self) -> Result<Option<Self::Documentation>, crate::documentation::DocumentationError> {
         self.to_unified().get_identifier().get_documentation()
+    }
+}
+
+
+impl std::fmt::Display for HardhatUpstream {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+       f.write_fmt(format_args!("{self:?}"))
     }
 }
 
@@ -947,12 +1347,14 @@ impl From<HardhatUpstream> for crate::serialized::SerializedError {
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
 #[non_exhaustive]
 pub enum HardhatZksync {
-   GenericError { 
+   GenericError {
       message : String,
    } = 0, 
    
 } // end of HardhatZksync
 
+
+impl std::error::Error for HardhatZksync {}
 
 impl NamedError for HardhatZksync {
     fn get_error_name(&self) -> String {
@@ -971,11 +1373,27 @@ impl From<HardhatZksync> for crate::ZksyncError {
     }
 }
 
+
+impl From<anyhow::Error> for HardhatZksync {
+    fn from(value: anyhow::Error) -> Self {
+        let message = format!("{value:#?}");
+        HardhatZksync::GenericError { message }
+    }
+}
+
+
 impl Documented for HardhatZksync {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
 
     fn get_documentation(&self) -> Result<Option<Self::Documentation>, crate::documentation::DocumentationError> {
         self.to_unified().get_identifier().get_documentation()
+    }
+}
+
+
+impl std::fmt::Display for HardhatZksync {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+       f.write_fmt(format_args!("{self:?}"))
     }
 }
 

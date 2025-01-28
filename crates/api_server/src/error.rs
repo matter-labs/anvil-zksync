@@ -1,11 +1,11 @@
-use anvil_zksync_core::node::error::LoadStateError;
 use jsonrpsee::types::{ErrorCode, ErrorObjectOwned};
+use zksync_error::{anvil::state::StateLoaderError, error::IError as _, ZksyncError};
 use zksync_web3_decl::error::Web3Error;
 
 #[derive(thiserror::Error, Debug)]
 pub enum RpcError {
     #[error("failed to load state: {0}")]
-    LoadState(#[from] LoadStateError),
+    LoadState(#[from] StateLoaderError),
     #[error("method is unsupported")]
     Unsupported,
     #[error("{0}")]
@@ -15,17 +15,15 @@ pub enum RpcError {
     Other(#[from] anyhow::Error),
 }
 
+pub fn to_error_object(error: impl Into<ZksyncError>) -> ErrorObjectOwned {
+    let error: ZksyncError = error.into();
+    ErrorObjectOwned::owned(error.get_code() as i32, error.get_message(), Some(error))
+}
+
 impl From<RpcError> for ErrorObjectOwned {
     fn from(error: RpcError) -> Self {
         match error {
-            RpcError::LoadState(error) => match error {
-                err @ LoadStateError::HasExistingState
-                | err @ LoadStateError::EmptyState
-                | err @ LoadStateError::FailedDecompress(_)
-                | err @ LoadStateError::FailedDeserialize(_)
-                | err @ LoadStateError::UnknownStateVersion(_) => invalid_params(err.to_string()),
-                LoadStateError::Other(error) => internal(error.to_string()),
-            },
+            RpcError::LoadState(error) => to_error_object(error),
             RpcError::Unsupported => unsupported(),
             RpcError::Web3Error(error) => into_jsrpc_error(error),
             RpcError::Other(error) => internal(error.to_string()),
@@ -35,10 +33,6 @@ impl From<RpcError> for ErrorObjectOwned {
 
 fn internal(msg: String) -> ErrorObjectOwned {
     ErrorObjectOwned::owned(ErrorCode::InternalError.code(), msg, None::<()>)
-}
-
-fn invalid_params(msg: String) -> ErrorObjectOwned {
-    ErrorObjectOwned::owned(ErrorCode::InvalidParams.code(), msg, None::<()>)
 }
 
 fn unsupported() -> ErrorObjectOwned {
