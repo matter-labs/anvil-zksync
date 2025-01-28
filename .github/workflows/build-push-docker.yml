@@ -1,56 +1,43 @@
 name: Build and push Docker image
-on:
-  push:
-    branches:
-      - main
-    tags:
-      - "*"
 
-env:
-  PLATFORMS: 'linux/amd64,linux/arm64'
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'The zksync-anvil version to generate docker image from. If empty, branch that triggered the workflow is used.'
+        required: false
+        default: ''
+      tag:
+        description: 'The tag to use for the Docker image. Leave empty to skip pushing the image.'
+        required: false
+        default: ''
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        description: 'The tag to use for the Docker image.'
+        required: true
+
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
-  set-tags:
-    name: Set Docker Tags
-    runs-on: ubuntu-latest
-    outputs:
-      base_tag: ${{ steps.set_tag.outputs.base_tag }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set Git SHA
-        id: git_sha
-        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-
-      - name: Determine Base Tag
-        id: set_tag
-        run: |
-          ts=$(date +%s%N | cut -b1-13)
-          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            echo "base_tag=${{ steps.git_sha.outputs.sha_short }}-${ts}" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            echo "base_tag=$(echo ${GITHUB_REF#refs/tags/})" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            echo "base_tag=none" >> $GITHUB_OUTPUT
-          else
-            echo "Unsupported event ${GITHUB_EVENT_NAME} or ref ${GITHUB_REF}. Only refs/heads/main, refs/tags/*, and pull_request are supported."
-            exit 1
-          fi
 
   build-push-image:
     name: Build and Push Docker Image
     runs-on: matterlabs-ci-runner-high-performance
-    needs: set-tags
+    env:
+      DOCKERHUB_IMAGE: us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/anvil-zksync
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || '' }}
 
       - name: Login to GAR
-        run: |
-          gcloud auth configure-docker us-docker.pkg.dev -q
+        run: gcloud auth configure-docker us-docker.pkg.dev -q
 
       - name: Login to GHCR
         uses: docker/login-action@v3
@@ -63,19 +50,28 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build and push Docker image
-        id: docker_build
         uses: docker/build-push-action@v6
+        id: push
         with:
           context: .
-          push: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) }}
-          platforms: ${{ env.PLATFORMS }}
+          push: ${{ inputs.tag != '' }}
+          platforms: 'linux/amd64,linux/arm64'
           cache-from: type=gha
           cache-to: type=gha,mode=max
           tags: |
-            ghcr.io/${{ github.repository_owner }}/anvil-zksync:${{ needs.set-tags.outputs.base_tag }}
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/anvil-zksync:${{ needs.set-tags.outputs.base_tag }}
+            ghcr.io/${{ github.repository }}:${{ inputs.tag }}
+            ${{ env.DOCKERHUB_IMAGE }}:${{ inputs.tag }}
+
+      - name: Generate docker image attestation
+        if: ${{ inputs.tag != '' }}
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-name: ghcr.io/${{ github.repository }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
 
       - name: Print image digest to summary
+        if: ${{ inputs.tag != '' }}
         run: |
-          echo "Image tags: ghcr.io/${{ github.repository_owner }}/anvil-zksync:${{ needs.set-tags.outputs.base_tag }}" >> $GITHUB_STEP_SUMMARY
-          echo "Image tags: us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/anvil-zksync:${{ needs.set-tags.outputs.base_tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "Image tags: ghcr.io/${{ github.repository }}:${{ inputs.tag }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Image tags: ${{ env.DOCKERHUB_IMAGE }}:${{ inputs.tag }}" >> "${GITHUB_STEP_SUMMARY}"

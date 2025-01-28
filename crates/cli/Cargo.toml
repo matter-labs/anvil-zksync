@@ -16,10 +16,10 @@ anvil_zksync_config.workspace = true
 anvil_zksync_api_server.workspace = true
 anvil_zksync_types.workspace = true
 
+alloy = { workspace = true, default-features = false, features = ["signer-mnemonic"] }
+
 zksync_types.workspace = true
 zksync_web3_decl.workspace = true
-
-alloy-signer-local.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 eyre.workspace = true
@@ -34,6 +34,7 @@ tracing-subscriber.workspace = true
 tower.workspace = true
 tower-http.workspace = true
 flate2.workspace = true
+url.workspace = true
 
 [dev-dependencies]
 tempdir.workspace = true

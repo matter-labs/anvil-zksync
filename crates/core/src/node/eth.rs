@@ -189,21 +189,7 @@ impl InMemoryNode {
             if let Some(block) = self.blockchain.get_block_by_id(block_id).await {
                 Some(block)
             } else {
-                self.inner
-                    .read()
-                    .await
-                    .fork_storage
-                    .inner
-                    .read()
-                    .expect("failed reading fork storage")
-                    .fork
-                    .as_ref()
-                    .and_then(|fork| {
-                        fork.fork_source
-                            .get_block_by_id(block_id, true)
-                            .ok()
-                            .flatten()
-                    })
+                self.fork.get_block_by_id(block_id).await?
             }
         };
 
@@ -284,22 +270,7 @@ impl InMemoryNode {
         // try retrieving transaction from memory, and if unavailable subsequently from the fork
         match self.blockchain.get_tx_api(&hash).await? {
             Some(tx) => Ok(Some(tx)),
-            None => Ok(self
-                .inner
-                .read()
-                .await
-                .fork_storage
-                .inner
-                .read()
-                .expect("failed reading fork storage")
-                .fork
-                .as_ref()
-                .and_then(|fork| {
-                    fork.fork_source
-                        .get_transaction_by_hash(hash)
-                        .ok()
-                        .flatten()
-                })),
+            None => self.fork.get_transaction_by_hash(hash).await,
         }
     }
 
@@ -435,30 +406,18 @@ impl InMemoryNode {
         &self,
         block_id: api::BlockId,
     ) -> Result<Option<U256>, Web3Error> {
-        let result = self.blockchain.get_block_tx_count_by_id(block_id).await;
-        let result = match result {
-            Some(result) => Some(U256::from(result)),
-            None => self
-                .inner
-                .read()
-                .await
-                .fork_storage
-                .inner
-                .read()
-                .expect("failed reading fork storage")
-                .fork
-                .as_ref()
-                .and_then(|fork| {
-                    fork.fork_source
-                        .get_block_transaction_count_by_id(block_id)
-                        .ok()
-                        .flatten()
-                }),
+        let count = match self.blockchain.get_block_tx_count_by_id(block_id).await {
+            Some(count) => Some(U256::from(count)),
+            None => {
+                self.fork
+                    .get_block_transaction_count_by_id(block_id)
+                    .await?
+            }
         };
 
         // TODO: Is this right? What is the purpose of having `Option` here then?
-        match result {
-            Some(value) => Ok(Some(value)),
+        match count {
+            Some(count) => Ok(Some(count)),
             None => Err(Web3Error::NoBlock),
         }
     }
@@ -481,31 +440,18 @@ impl InMemoryNode {
         block_id: api::BlockId,
         index: web3::Index,
     ) -> anyhow::Result<Option<api::Transaction>> {
-        let tx = self
+        match self
             .blockchain
             .get_block_tx_by_id(block_id, index.as_usize())
-            .await;
-        let maybe_tx = match tx {
-            Some(tx) => Some(tx),
-            None => self
-                .inner
-                .read()
-                .await
-                .fork_storage
-                .inner
-                .read()
-                .expect("failed reading fork storage")
-                .fork
-                .as_ref()
-                .and_then(|fork| {
-                    fork.fork_source
-                        .get_transaction_by_block_id_and_index(block_id, index)
-                        .ok()
-                })
-                .flatten(),
-        };
-
-        Ok(maybe_tx)
+            .await
+        {
+            Some(tx) => Ok(Some(tx)),
+            None => {
+                self.fork
+                    .get_transaction_by_block_id_and_index(block_id, index)
+                    .await
+            }
+        }
     }
 
     pub fn protocol_version_impl(&self) -> String {
@@ -576,7 +522,7 @@ impl InMemoryNode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::node::fork::ForkDetails;
+    use crate::node::fork::{ForkClient, ForkConfig};
     use crate::node::TransactionResult;
     use crate::{
         node::{compute_hash, InMemoryNode},
@@ -588,8 +534,8 @@ mod tests {
     use anvil_zksync_config::constants::{
         DEFAULT_ACCOUNT_BALANCE, DEFAULT_L2_GAS_PRICE, NON_FORK_FIRST_BLOCK_TIMESTAMP,
     };
-    use anvil_zksync_config::types::CacheConfig;
     use maplit::hashmap;
+    use url::Url;
     use zksync_multivm::utils::get_max_batch_gas_limit;
     use zksync_types::l2::TransactionType;
     use zksync_types::vm::VmVersion;
@@ -602,9 +548,9 @@ mod tests {
     use zksync_types::{u256_to_h256, web3, AccountTreeId, Nonce};
     use zksync_web3_decl::types::{SyncState, ValueOrArray};
 
-    async fn test_node(url: &str) -> InMemoryNode {
+    async fn test_node(url: Url) -> InMemoryNode {
         InMemoryNode::test(Some(
-            ForkDetails::from_network(url, None, &CacheConfig::None)
+            ForkClient::at_block_number(ForkConfig::unknown(url), None)
                 .await
                 .unwrap(),
         ))
@@ -820,7 +766,7 @@ mod tests {
             transaction_count: 0,
         });
 
-        let node = test_node(&mock_server.url()).await;
+        let node = test_node(mock_server.url()).await;
         assert!(
             node.blockchain
                 .get_block_by_hash(&input_block_hash)
@@ -843,20 +789,13 @@ mod tests {
         let block_response = testing::BlockResponseBuilder::new()
             .set_hash(input_block_hash)
             .set_number(mock_block_number)
-            .build();
+            .build_result();
         mock_server.expect(
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 0,
-                "method": "eth_getBlockByHash",
-                "params": [
-                    format!("{input_block_hash:#x}"),
-                    true
-                ],
-            }),
+            "eth_getBlockByHash",
+            Some(serde_json::json!([format!("{input_block_hash:#x}"), true])),
             block_response,
         );
-        let node = test_node(&mock_server.url()).await;
+        let node = test_node(mock_server.url()).await;
 
         let actual_block = node
             .get_block_impl(api::BlockId::Hash(input_block_hash), false)
@@ -1002,20 +941,13 @@ mod tests {
         let mock_block_number = 8;
         let block_response = testing::BlockResponseBuilder::new()
             .set_number(mock_block_number)
-            .build();
+            .build_result();
         mock_server.expect(
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 0,
-                "method": "eth_getBlockByNumber",
-                "params": [
-                    "0x8",
-                    true
-                ],
-            }),
+            "eth_getBlockByNumber",
+            Some(serde_json::json!(["0x8", true])),
             block_response,
         );
-        let node = test_node(&mock_server.url()).await;
+        let node = test_node(mock_server.url()).await;
 
         let actual_block = node
             .get_block_impl(
@@ -1065,7 +997,7 @@ mod tests {
             transaction_count: 0,
         });
 
-        let node = test_node(&mock_server.url()).await;
+        let node = test_node(mock_server.url()).await;
 
         let actual_block = node
             .get_block_impl(api::BlockId::Number(BlockNumber::Latest), false)
@@ -1084,20 +1016,13 @@ mod tests {
         });
         let input_block_number = 1;
         mock_server.expect(
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 0,
-                "method": "eth_getBlockByNumber",
-                "params": [
-                    "earliest",
-                    true
-                ],
-            }),
+            "eth_getBlockByNumber",
+            Some(serde_json::json!(["earliest", true])),
             testing::BlockResponseBuilder::new()
                 .set_number(input_block_number)
-                .build(),
+                .build_result(),
         );
-        let node = test_node(&mock_server.url()).await;
+        let node = test_node(mock_server.url()).await;
 
         let actual_block = node
             .get_block_impl(api::BlockId::Number(BlockNumber::Earliest), false)
@@ -1120,7 +1045,7 @@ mod tests {
                 hash: H256::repeat_byte(0xab),
                 transaction_count: 0,
             });
-            let node = test_node(&mock_server.url()).await;
+            let node = test_node(mock_server.url()).await;
 
             let actual_block = node
                 .get_block_impl(api::BlockId::Number(block_number), false)
@@ -1160,21 +1085,11 @@ mod tests {
         let input_block_hash = H256::repeat_byte(0x01);
         let input_transaction_count = 1;
         mock_server.expect(
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 0,
-                "method": "eth_getBlockTransactionCountByHash",
-                "params": [
-                    format!("{:#x}", input_block_hash),
-                ],
-            }),
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 0,
-                "result": format!("{:#x}", input_transaction_count),
-            }),
+            "eth_getBlockTransactionCountByHash",
+            Some(serde_json::json!([format!("{:#x}", input_block_hash)])),
+            serde_json::json!(format!("{:#x}", input_transaction_count)),
         );
-        let node = test_node(&mock_server.url()).await;
+        let node = test_node(mock_server.url()).await;
 
         let actual_transaction_count = node
             .get_block_transaction_count_impl(api::BlockId::Hash(input_block_hash))
@@ -1214,22 +1129,12 @@ mod tests {
         let input_block_number = 1;
         let input_transaction_count = 1;
         mock_server.expect(
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 0,
-                "method": "eth_getBlockTransactionCountByNumber",
-                "params": [
-                    format!("{:#x}", input_block_number),
-                ],
-            }),
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 0,
-                "result": format!("{:#x}", input_transaction_count),
-            }),
+            "eth_getBlockTransactionCountByNumber",
+            Some(serde_json::json!([format!("{:#x}", input_block_number)])),
+            serde_json::json!(format!("{:#x}", input_transaction_count)),
         );
 
-        let node = test_node(&mock_server.url()).await;
+        let node = test_node(mock_server.url()).await;
 
         let actual_transaction_count = node
             .get_block_transaction_count_impl(api::BlockId::Number(BlockNumber::Number(U64::from(
@@ -1254,22 +1159,12 @@ mod tests {
         });
         let input_transaction_count = 1;
         mock_server.expect(
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 0,
-                "method": "eth_getBlockTransactionCountByNumber",
-                "params": [
-                    "earliest",
-                ],
-            }),
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 0,
-                "result": format!("{:#x}", input_transaction_count),
-            }),
+            "eth_getBlockTransactionCountByNumber",
+            Some(serde_json::json!(["earliest"])),
+            serde_json::json!(format!("{:#x}", input_transaction_count)),
         );
 
-        let node = test_node(&mock_server.url()).await;
+        let node = test_node(mock_server.url()).await;
 
         let actual_transaction_count = node
             .get_block_transaction_count_impl(api::BlockId::Number(BlockNumber::Earliest))
@@ -1298,7 +1193,7 @@ mod tests {
                 hash: H256::repeat_byte(0xab),
             });
 
-            let node = test_node(&mock_server.url()).await;
+            let node = test_node(mock_server.url()).await;
 
             let actual_transaction_count = node
                 .get_block_transaction_count_impl(api::BlockId::Number(block_number))
@@ -1546,24 +1441,16 @@ mod tests {
         let input_address = H160::repeat_byte(0x1);
         let input_storage_value = H256::repeat_byte(0xcd);
         mock_server.expect(
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 0,
-                "method": "eth_getStorageAt",
-                "params": [
-                    format!("{:#x}", input_address),
-                    "0x0",
-                    { "blockNumber": "0x2" },
-                ],
-            }),
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 0,
-                "result": format!("{:#x}", input_storage_value),
-            }),
+            "eth_getStorageAt",
+            Some(serde_json::json!([
+                format!("{:#x}", input_address),
+                "0x0",
+                { "blockNumber": "0x2" },
+            ])),
+            serde_json::json!(format!("{:#x}", input_storage_value)),
         );
 
-        let node = test_node(&mock_server.url()).await;
+        let node = test_node(mock_server.url()).await;
 
         let actual_value = node
             .get_storage_impl(
@@ -1627,7 +1514,8 @@ mod tests {
         assert_eq!(input_storage_value, actual_value);
     }
 
-    #[tokio::test]
+    // FIXME: Multi-threaded flavor is needed because of the `block_on` mess inside `ForkStorage`.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_get_storage_uses_fork_to_get_value_for_latest_block_for_missing_key() {
         let mock_server = MockServer::run_with_config(ForkBlockConfig {
             number: 10,
@@ -1637,24 +1525,16 @@ mod tests {
         let input_address = H160::repeat_byte(0x1);
         let input_storage_value = H256::repeat_byte(0xcd);
         mock_server.expect(
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 0,
-                "method": "eth_getStorageAt",
-                "params": [
-                    format!("{:#x}", input_address),
-                    "0x0",
-                    "0xa",
-                ],
-            }),
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 0,
-                "result": format!("{:#x}", input_storage_value),
-            }),
+            "eth_getStorageAt",
+            Some(serde_json::json!([
+                format!("{:#x}", input_address),
+                "0x0",
+                "0xa",
+            ])),
+            serde_json::json!(format!("{:#x}", input_storage_value)),
         );
 
-        let node = test_node(&mock_server.url()).await;
+        let node = test_node(mock_server.url()).await;
         {
             let mut writer = node.inner.write().await;
             let historical_block = Block::<TransactionVariant> {
@@ -2027,23 +1907,19 @@ mod tests {
         let input_block_hash = H256::repeat_byte(0x01);
         let input_tx_hash = H256::repeat_byte(0x02);
         mock_server.expect(
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 0,
-                "method": "eth_getTransactionByBlockHashAndIndex",
-                "params": [
-                    format!("{:#x}", input_block_hash),
-                    "0x1"
-                ],
-            }),
+            "eth_getTransactionByBlockHashAndIndex",
+            Some(serde_json::json!([
+                format!("{:#x}", input_block_hash),
+                "0x1"
+            ])),
             TransactionResponseBuilder::new()
                 .set_hash(input_tx_hash)
                 .set_block_hash(input_block_hash)
                 .set_block_number(U64::from(100))
-                .build(),
+                .build_result(),
         );
 
-        let node = test_node(&mock_server.url()).await;
+        let node = test_node(mock_server.url()).await;
 
         let actual_tx = node
             .get_transaction_by_block_and_index_impl(
@@ -2124,23 +2000,19 @@ mod tests {
         let input_block_number = U64::from(100);
         let input_tx_hash = H256::repeat_byte(0x02);
         mock_server.expect(
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 0,
-                "method": "eth_getTransactionByBlockNumberAndIndex",
-                "params": [
-                    format!("{:#x}", input_block_number),
-                    "0x1"
-                ],
-            }),
+            "eth_getTransactionByBlockNumberAndIndex",
+            Some(serde_json::json!([
+                format!("{:#x}", input_block_number),
+                "0x1"
+            ])),
             TransactionResponseBuilder::new()
                 .set_hash(input_tx_hash)
                 .set_block_hash(input_block_hash)
                 .set_block_number(input_block_number)
-                .build(),
+                .build_result(),
         );
 
-        let node = test_node(&mock_server.url()).await;
+        let node = test_node(mock_server.url()).await;
 
         let actual_tx = node
             .get_transaction_by_block_and_index_impl(

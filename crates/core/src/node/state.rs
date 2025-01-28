@@ -1,4 +1,4 @@
-use super::inner::fork::{SerializableForkStorage, SerializableStorage};
+use super::inner::{SerializableForkStorage, SerializableStorage};
 use super::TransactionResult;
 use serde::{Deserialize, Serialize};
 use zksync_types::api::{Block, TransactionVariant};
