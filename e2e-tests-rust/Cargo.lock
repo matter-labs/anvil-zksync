@@ -956,12 +956,11 @@ dependencies = [
  "tempdir",
  "tokio",
  "tower 0.5.1",
- "tower-http",
 ]
 
 [[package]]
 name = "anvil_zksync_config"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "alloy-signer 0.5.4",
  "alloy-signer-local 0.5.4",
@@ -979,7 +978,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_core"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "anvil_zksync_config",
  "anvil_zksync_types",
@@ -1013,7 +1012,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_types"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "clap",
  "serde",
@@ -6282,20 +6281,6 @@ dependencies = [
  "futures-util",
  "pin-project-lite",
  "sync_wrapper 0.1.2",
- "tower-layer",
- "tower-service",
-]
-
-[[package]]
-name = "tower-http"
-version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "403fa3b783d4b626a8ad51d766ab03cb6d2dbfc46b1c5d4448395e6628dc9697"
-dependencies = [
- "bitflags 2.6.0",
- "bytes",
- "http 1.1.0",
- "pin-project-lite",
  "tower-layer",
  "tower-service",
 ]
