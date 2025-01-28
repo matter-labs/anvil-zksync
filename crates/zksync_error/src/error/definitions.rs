@@ -131,13 +131,13 @@ impl From<AnvilEnvironment> for crate::serialized::SerializedError {
 #[non_exhaustive]
 pub enum StateLoader {
    /// # Short description
-   /// It is not allowed to load a state overriding the existing node state. If you have a use case for that, please create an issue.
+   /// It is not allowed to load a state overriding the existing node state.
    ///
    /// # Description
-   /// It is not allowed to load a state overriding the existing node state.
+   /// It is not allowed to load a state overriding the existing node state. If you have a use case for that, please create an issue.
    LoadingStateOverExistingStateError  = 1, 
    /// # Short description
-   /// It is not allowed to load a state without any blocks in it.
+   /// Attempt to load a state with no blocks
    ///
    /// # Description
    /// It is not allowed to load a state without any blocks in it.

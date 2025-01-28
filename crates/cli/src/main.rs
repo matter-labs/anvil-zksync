@@ -406,9 +406,11 @@ async fn main_inner() -> Result<(), zksync_error::ZksyncError> {
         .iter()
         .flatten()
     {
-        let path_as_str = state_path.to_str().ok_or(StateLoaderError::GenericError {
-            message: format!("Invalid path to the state {state_path:?}"),
-        })?;
+        let path_as_str = state_path
+            .to_str()
+            .ok_or(zksync_error::anvil::state::generic_error!(
+                "Invalid path to the state {state_path:?}"
+            ))?;
 
         let bytes = std::fs::read(state_path).map_err(|error| {
             zksync_error::anvil::state::LoadStateError {

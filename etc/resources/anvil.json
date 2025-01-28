@@ -80,10 +80,8 @@
                             "code": 1,
                             "message": "Loading state into a node with existing state is not allowed.",
                             "doc" : {
-                                "description": "It is not allowed to load a state overriding the existing node state.",
-                                "summary": "It is not allowed to load a state overriding the existing node state. If you have a use case for that, please create an issue.",
-                                "likely_causes": [],
-                                "references": ["https://matter-labs.io", "https://github.com/matter-labs/anvil-zksync"]
+                                "summary": "It is not allowed to load a state overriding the existing node state.",
+                                "description": "It is not allowed to load a state overriding the existing node state. If you have a use case for that, please create an issue."
                             }
                         },
                         {
@@ -91,10 +89,11 @@
                             "code": 2,
                             "message": "Loading a state without blocks is not allowed.",
                             "doc" : {
-                                "summary": "It is not allowed to load a state without any blocks in it.",
+                                "summary": "Attempt to load a state with no blocks",
                                 "description": "It is not allowed to load a state without any blocks in it.",
-                                "likely_causes": [],
-                                "references": ["https://matter-labs.io", "https://github.com/matter-labs/anvil-zksync"]
+                                "likely_causes": [
+                                    "You meant to provide a different state."
+                                ]
                             }
                         },
                         {

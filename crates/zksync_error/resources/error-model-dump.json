@@ -749,8 +749,8 @@
         "message": "Loading state into a node with existing state is not allowed.",
         "fields": [],
         "documentation": {
-          "description": "It is not allowed to load a state overriding the existing node state.",
-          "summary": "It is not allowed to load a state overriding the existing node state. If you have a use case for that, please create an issue.",
+          "description": "It is not allowed to load a state overriding the existing node state. If you have a use case for that, please create an issue.",
+          "summary": "It is not allowed to load a state overriding the existing node state.",
           "likely_causes": []
         },
         "bindings": {
@@ -774,8 +774,16 @@
         "fields": [],
         "documentation": {
           "description": "It is not allowed to load a state without any blocks in it.",
-          "summary": "It is not allowed to load a state without any blocks in it.",
-          "likely_causes": []
+          "summary": "Attempt to load a state with no blocks",
+          "likely_causes": [
+            {
+              "cause": "You meant to provide a different state.",
+              "fixes": [],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
         },
         "bindings": {
           "rust": {
