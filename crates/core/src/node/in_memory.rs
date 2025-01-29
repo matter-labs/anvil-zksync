@@ -390,9 +390,10 @@ impl InMemoryNode {
         delegate_vm!(vm, push_transaction(tx.clone()));
 
         let call_tracer_result = Arc::new(OnceCell::default());
+        let error_flags_result = Arc::new(OnceCell::new());
 
         let tracers = vec![
-            CallErrorTracer::new().into_tracer_pointer(),
+            CallErrorTracer::new(error_flags_result.clone()).into_tracer_pointer(),
             CallTracer::new(call_tracer_result.clone()).into_tracer_pointer(),
         ];
         let tx_result = delegate_vm!(
@@ -401,6 +402,10 @@ impl InMemoryNode {
         );
 
         let call_traces = Arc::try_unwrap(call_tracer_result)
+            .unwrap()
+            .take()
+            .unwrap_or_default();
+        let error_flags = Arc::try_unwrap(error_flags_result)
             .unwrap()
             .take()
             .unwrap_or_default();
@@ -414,9 +419,17 @@ impl InMemoryNode {
                     tracing::info!("Output: {}", serde_json::to_string(&output_bytes).unwrap());
                 }
                 ExecutionResult::Revert { output } => {
+                    // TODO: Once we integrate error-codegen avoid printing error flags returned from
+                    // vm_state and rather pass them to error-codegen to get properly formed error message. 
+                    // e.g. NOT_ENOUGH_ERGS -> Transaction ran out of gas.
+                    tracing::warn!("Execution flag raised: {:?}", error_flags);
                     tracing::info!("Call: {}: {}", "FAILED".red(), output);
                 }
                 ExecutionResult::Halt { reason } => {
+                    // TODO: Once we integrate error-codegen avoid printing error flags returned from
+                    // vm_state and rather pass them to error-codegen to get properly formed error message.
+                    // e.g. NOT_ENOUGH_ERGS -> Transaction ran out of gas. 
+                    tracing::warn!("Execution flag raised: {:?}", error_flags);
                     tracing::info!("Call: {} {}", "HALTED".red(), reason)
                 }
             };
