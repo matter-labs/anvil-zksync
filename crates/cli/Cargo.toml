@@ -22,7 +22,6 @@ zksync_types.workspace = true
 zksync_web3_decl.workspace = true
 zksync_error.workspace = true
 
-alloy-signer-local.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 eyre.workspace = true

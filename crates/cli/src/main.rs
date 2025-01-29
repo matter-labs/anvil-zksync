@@ -17,7 +17,7 @@ use anvil_zksync_core::node::{
 };
 use anvil_zksync_core::observability::Observability;
 use anvil_zksync_core::system_contracts::SystemContracts;
-use anyhow::Context;
+use anyhow::{anyhow, Context};
 use clap::Parser;
 use std::fs::File;
 use std::sync::Arc;
@@ -29,47 +29,22 @@ use tracing_subscriber::filter::LevelFilter;
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
 use zksync_types::{L2BlockNumber, H160};
 
-use zksync_error::anvil::env::generic_error;
-use zksync_error::anvil::state::StateLoaderError;
-use zksync_error::documentation::Documented as _;
-use zksync_error::error::IError as _;
-
 mod bytecode_override;
 mod cli;
 mod utils;
 
 #[tokio::main]
-async fn main() -> Result<(), zksync_error::ZksyncError> {
-    match main_inner().await {
-        Ok(_) => Ok(()),
-        Err(e) => {
-            eprintln!("Error: {}", e.get_message());
-            if let Ok(Some(documentation)) = e.get_documentation() {
-                eprintln!("{documentation:#?}")
-            };
-            Err(e)
-        }
-    }
-}
-
-async fn main_inner() -> Result<(), zksync_error::ZksyncError> {
+async fn main() -> anyhow::Result<()> {
     // Check for deprecated options
     Cli::deprecated_config_option();
 
     let opt = Cli::parse();
     let command = opt.command.clone();
 
-    let mut config = opt
-        .into_test_node_config()
-        .map_err(|e| generic_error!("{e}"))?;
+    let mut config = opt.into_test_node_config().map_err(|e| anyhow!(e))?;
 
     let log_level_filter = LevelFilter::from(config.log_level);
-    let log_file = File::create(&config.log_file_path).map_err(|e| {
-        zksync_error::anvil::env::LogFileAccessError {
-            log_filename: config.log_file_path.clone(),
-            wrapped_error: e.to_string(),
-        }
-    })?;
+    let log_file = File::create(&config.log_file_path)?;
 
     // Initialize the tracing subscriber
     let observability = Observability::init(
@@ -77,8 +52,7 @@ async fn main_inner() -> Result<(), zksync_error::ZksyncError> {
         log_level_filter,
         log_file,
         config.silent,
-    )
-    .map_err(|e| generic_error!("{e}"))?;
+    )?;
 
     // Use `Command::Run` as default.
     let command = command.as_ref().unwrap_or(&Command::Run);
@@ -137,9 +111,7 @@ async fn main_inner() -> Result<(), zksync_error::ZksyncError> {
                             .with_chain_id(config.chain_id.or(Some(TEST_NODE_NETWORK_ID)));
                     }
                     FeeParams::V1(_) => {
-                        return Err(
-                            generic_error!("Unsupported FeeParams::V1 in this context").into()
-                        );
+                        return Err(anyhow!("Unsupported FeeParams::V1 in this context"));
                     }
                 }
 
@@ -291,8 +263,7 @@ async fn main_inner() -> Result<(), zksync_error::ZksyncError> {
 
     if !transactions_to_replay.is_empty() {
         node.apply_txs(transactions_to_replay, config.max_transactions)
-            .await
-            .map_err(|e| generic_error!("{e}"))?;
+            .await?;
     }
 
     for signer in config.genesis_accounts.iter() {
@@ -322,8 +293,7 @@ async fn main_inner() -> Result<(), zksync_error::ZksyncError> {
             config
                 .allow_origin
                 .parse()
-                .context("allow origin is malformed")
-                .map_err(|e| generic_error!("{e}"))?,
+                .context("allow origin is malformed")?,
         ),
     );
     if config.health_check_endpoint {
@@ -362,12 +332,11 @@ async fn main_inner() -> Result<(), zksync_error::ZksyncError> {
                         server_handles.push(server.run());
                     }
                     Err(err) => {
-                        return Err(generic_error!(
+                        return Err(anyhow!(
                             "Failed to start server on host {} with port: {}",
                             host,
                             err
-                        )
-                        .into());
+                        ));
                     }
                 }
             }
@@ -377,22 +346,12 @@ async fn main_inner() -> Result<(), zksync_error::ZksyncError> {
         futures::future::select_all(server_handles.into_iter().map(|h| Box::pin(h.stopped())));
 
     // Load state from `--load-state` if provided
-    for state_path in [config.load_state.as_deref(), config.state.as_deref()]
-        .iter()
-        .flatten()
-    {
-        let path_as_str = state_path
-            .to_str()
-            .ok_or(zksync_error::anvil::state::generic_error!(
-                "Invalid path to the state {state_path:?}"
-            ))?;
-
-        let bytes = std::fs::read(state_path).map_err(|error| {
-            zksync_error::anvil::state::LoadStateError {
-                path: path_as_str.to_string(),
-                reason: error.to_string(),
-            }
-        })?;
+    if let Some(ref load_state_path) = config.load_state {
+        let bytes = std::fs::read(load_state_path).expect("Failed to read load state file");
+        node.load_state(zksync_types::web3::Bytes(bytes)).await?;
+    }
+    if let Some(ref state_path) = config.state {
+        let bytes = std::fs::read(state_path).expect("Failed to read load state file");
         node.load_state(zksync_types::web3::Bytes(bytes)).await?;
     }
 
@@ -425,7 +384,7 @@ async fn main_inner() -> Result<(), zksync_error::ZksyncError> {
         _ = state_dumper => {
             tracing::trace!("state dumper was stopped")
         },
-    };
+    }
 
     Ok(())
 }

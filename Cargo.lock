@@ -498,8 +498,8 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
- "zksync_error",
  "url",
+ "zksync_error",
  "zksync_types",
  "zksync_web3_decl",
 ]
@@ -6642,8 +6642,8 @@ dependencies = [
  "lazy_static",
  "p256",
  "serde",
- "sha2 0.10.8",
- "sha3 0.10.8",
+ "sha2",
+ "sha3",
 ]
 
 [[package]]
@@ -6653,29 +6653,6 @@ source = "git+https://github.com/sayon/error-codegen-poc?branch=main#10cf83121c6
 dependencies = [
  "serde",
  "serde_json",
-]
-
-[[package]]
-name = "zksync-web3-rs"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15bc9b106393359ac013c2527db318ced4ca838d26ef03488233af557ebe5da8"
-dependencies = [
- "async-trait",
- "clap",
- "env_logger",
- "ethers",
- "ethers-contract",
- "hex",
- "lazy_static",
- "log",
- "serde",
- "serde_json",
- "sha2 0.9.9",
- "thiserror",
- "tokio",
- "sha2",
- "sha3",
 ]
 
 [[package]]
