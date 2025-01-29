@@ -1,14 +1,16 @@
-use super::inner::fork::ForkDetails;
 use super::pool::TxBatch;
 use super::sealer::BlockSealerMode;
 use super::InMemoryNode;
+use anvil_zksync_config::constants::{LEGACY_RICH_WALLETS, RICH_WALLETS};
 use anvil_zksync_types::api::{DetailedTransaction, ResetRequest};
 use anyhow::{anyhow, Context};
+use std::str::FromStr;
 use std::time::Duration;
+use url::Url;
 use zksync_types::api::{Block, TransactionVariant};
 use zksync_types::bytecode::BytecodeHash;
 use zksync_types::u256_to_h256;
-use zksync_types::{AccountTreeId, Address, L2BlockNumber, StorageKey, H256, U256, U64};
+use zksync_types::{AccountTreeId, Address, L2BlockNumber, StorageKey, H160, H256, U256, U64};
 
 type Result<T> = anyhow::Result<T>;
 
@@ -222,56 +224,48 @@ impl InMemoryNode {
     }
 
     pub async fn reset_network(&self, reset_spec: Option<ResetRequest>) -> Result<bool> {
-        let (opt_url, block_number) = if let Some(spec) = reset_spec {
+        if let Some(spec) = reset_spec {
             if let Some(to) = spec.to {
                 if spec.forking.is_some() {
                     return Err(anyhow!(
                         "Only one of 'to' and 'forking' attributes can be specified"
                     ));
                 }
-                let url = match self.inner.read().await.fork_storage.get_fork_url() {
-                    Ok(url) => url,
-                    Err(error) => {
-                        tracing::error!("For returning to past local state, mark it with `evm_snapshot`, then revert to it with `evm_revert`.");
-                        return Err(anyhow!(error.to_string()));
-                    }
-                };
-                (Some(url), Some(to.as_u64()))
+                self.node_handle
+                    .reset_fork_block_number_sync(L2BlockNumber(to.as_u32()))
+                    .await?;
             } else if let Some(forking) = spec.forking {
-                let block_number = forking.block_number.map(|n| n.as_u64());
-                (Some(forking.json_rpc_url), block_number)
+                let url = Url::from_str(&forking.json_rpc_url).context("malformed fork URL")?;
+                let block_number = forking.block_number.map(|n| L2BlockNumber(n.as_u32()));
+                self.node_handle.reset_fork_sync(url, block_number).await?;
             } else {
-                (None, None)
+                self.node_handle.remove_fork_sync().await?;
             }
         } else {
-            (None, None)
-        };
-
-        let fork_details = if let Some(url) = opt_url {
-            let cache_config = self
-                .inner
-                .read()
-                .await
-                .fork_storage
-                .get_cache_config()
-                .map_err(|err| anyhow!(err))?;
-            match ForkDetails::from_url(url, block_number, cache_config) {
-                Ok(fd) => Some(fd),
-                Err(error) => {
-                    return Err(anyhow!(error.to_string()));
-                }
-            }
-        } else {
-            None
-        };
-
-        match self.reset(fork_details).await {
-            Ok(()) => {
-                tracing::info!("👷 Network reset");
-                Ok(true)
-            }
-            Err(error) => Err(anyhow!(error.to_string())),
+            self.node_handle.remove_fork_sync().await?;
         }
+
+        self.snapshots.write().await.clear();
+
+        for wallet in LEGACY_RICH_WALLETS.iter() {
+            let address = wallet.0;
+            self.set_rich_account(
+                H160::from_str(address).unwrap(),
+                U256::from(100u128 * 10u128.pow(18)),
+            )
+            .await;
+        }
+        for wallet in RICH_WALLETS.iter() {
+            let address = wallet.0;
+            self.set_rich_account(
+                H160::from_str(address).unwrap(),
+                U256::from(100u128 * 10u128.pow(18)),
+            )
+            .await;
+        }
+        tracing::info!("👷 Network reset");
+
+        Ok(true)
     }
 
     pub fn auto_impersonate_account(&self, enabled: bool) {
@@ -400,20 +394,8 @@ impl InMemoryNode {
     }
 
     pub async fn set_rpc_url(&self, url: String) -> Result<()> {
-        let inner = self.inner.read().await;
-        let mut fork_storage = inner
-            .fork_storage
-            .inner
-            .write()
-            .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))?;
-        if let Some(fork) = &mut fork_storage.fork {
-            let old_url = fork.fork_source.get_fork_url().map_err(|e| {
-                anyhow::anyhow!(
-                    "failed to resolve current fork's RPC URL: {}",
-                    e.to_string()
-                )
-            })?;
-            fork.set_rpc_url(url.clone());
+        let url = Url::from_str(&url).context("malformed fork URL")?;
+        if let Some(old_url) = self.node_handle.set_fork_url_sync(url.clone()).await? {
             tracing::info!("Updated fork rpc from \"{}\" to \"{}\"", old_url, url);
         } else {
             tracing::info!("Non-forking node tried to switch RPC URL to '{url}'. Call `anvil_reset` instead if you wish to switch to forking mode");

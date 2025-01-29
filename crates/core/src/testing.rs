@@ -5,26 +5,25 @@
 
 #![cfg(test)]
 
-use crate::deps::InMemoryStorage;
-use crate::node::fork::ForkSource;
 use crate::node::{InMemoryNode, TxExecutionInfo};
 
-use eyre::eyre;
 use httptest::{
     matchers::{eq, json_decoded, request},
     responders::json_encoded,
     Expectation, Server,
 };
 use itertools::Itertools;
+use serde::{Deserialize, Serialize};
 use std::str::FromStr;
-use zksync_types::api::{
-    BlockDetailsBase, BlockIdVariant, BlockStatus, BridgeAddresses, DebugCall, DebugCallType, Log,
+use std::sync::{Arc, RwLock};
+use url::Url;
+use zksync_types::api::{BridgeAddresses, DebugCall, DebugCallType, Log};
+use zksync_types::fee::Fee;
+use zksync_types::l2::L2Tx;
+use zksync_types::{
+    Address, K256PrivateKey, L2ChainId, Nonce, ProtocolVersionId, H160, H256, U256, U64,
 };
-use zksync_types::block::pack_block_info;
-use zksync_types::u256_to_h256;
-use zksync_types::{fee::Fee, l2::L2Tx, Address, L2ChainId, Nonce, ProtocolVersionId, H256, U256};
-use zksync_types::{AccountTreeId, L1BatchNumber, L2BlockNumber, H160, U64};
-use zksync_types::{K256PrivateKey, StorageKey};
+use zksync_web3_decl::jsonrpsee::types::TwoPointZero;
 
 /// Configuration for the [MockServer]'s initial block.
 #[derive(Default, Debug, Clone)]
@@ -32,6 +31,14 @@ pub struct ForkBlockConfig {
     pub number: u64,
     pub hash: H256,
     pub transaction_count: u8,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct RpcRequest {
+    pub jsonrpc: TwoPointZero,
+    pub id: u64,
+    pub method: String,
+    pub params: Option<serde_json::Value>,
 }
 
 /// A HTTP server that can be used to mock a fork source.
@@ -58,25 +65,24 @@ impl MockServer {
             Expectation::matching(request::body(json_decoded(eq(serde_json::json!({
                 "jsonrpc": "2.0",
                 "id": 0,
-                "method": "eth_chainId",
-            })))))
-            .respond_with(json_encoded(serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 0,
-                "result": "0x104",
-            }))),
-        );
-
-        server.expect(
-            Expectation::matching(request::body(json_decoded(eq(serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 1,
                 "method": "eth_blockNumber",
             })))))
             .respond_with(json_encoded(serde_json::json!({
                 "jsonrpc": "2.0",
-                "id": 1,
+                "id": 0,
                 "result": format!("{:#x}", block_config.number),
+            }))),
+        );
+        server.expect(
+            Expectation::matching(request::body(json_decoded(eq(serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "eth_chainId",
+            })))))
+            .respond_with(json_encoded(serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": "0x104",
             }))),
         );
         server.expect(
@@ -178,7 +184,11 @@ impl MockServer {
                     "max_pubdata_per_batch": 240000
                   },
                   "l1_gas_price": 46226388803u64,
-                  "l1_pubdata_price": 100780475095u64
+                  "l1_pubdata_price": 100780475095u64,
+                  "conversion_ratio": {
+                    "numerator": 1,
+                    "denominator": 1
+                  }
                 }
               },
               "id": 4
@@ -189,15 +199,37 @@ impl MockServer {
     }
 
     /// Retrieve the mock server's url.
-    pub fn url(&self) -> String {
-        self.inner.url("").to_string()
+    pub fn url(&self) -> Url {
+        self.inner.url("").to_string().parse().unwrap()
     }
 
     /// Assert an exactly single call expectation with a given request and the provided response.
-    pub fn expect(&self, request: serde_json::Value, response: serde_json::Value) {
+    pub fn expect(
+        &self,
+        method: &str,
+        params: Option<serde_json::Value>,
+        result: serde_json::Value,
+    ) {
+        let method = method.to_string();
+        let id_matcher = Arc::new(RwLock::new(0));
+        let id_matcher_clone = id_matcher.clone();
         self.inner.expect(
-            Expectation::matching(request::body(json_decoded(eq(request))))
-                .respond_with(json_encoded(response)),
+            Expectation::matching(request::body(json_decoded(move |request: &RpcRequest| {
+                let result = request.method == method && request.params == params;
+                if result {
+                    let mut writer = id_matcher.write().unwrap();
+                    *writer = request.id;
+                }
+                result
+            })))
+            .respond_with(move || {
+                let id = *id_matcher_clone.read().unwrap();
+                json_encoded(serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "result": result,
+                    "id": id
+                }))
+            }),
         );
     }
 }
@@ -635,154 +667,7 @@ pub fn assert_bridge_addresses_eq(
     );
 }
 
-/// Represents a read-only fork source that is backed by the provided [InMemoryStorage].
-#[derive(Debug, Clone)]
-pub struct ExternalStorage {
-    pub raw_storage: InMemoryStorage,
-}
-
-impl ForkSource for ExternalStorage {
-    fn get_fork_url(&self) -> eyre::Result<String> {
-        Err(eyre!("Not implemented"))
-    }
-
-    fn get_storage_at(
-        &self,
-        address: H160,
-        idx: U256,
-        _block: Option<BlockIdVariant>,
-    ) -> eyre::Result<H256> {
-        let key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(idx));
-        Ok(self
-            .raw_storage
-            .state
-            .get(&key)
-            .cloned()
-            .unwrap_or_default())
-    }
-
-    fn get_raw_block_transactions(
-        &self,
-        _block_number: L2BlockNumber,
-    ) -> eyre::Result<Vec<zksync_types::Transaction>> {
-        todo!()
-    }
-
-    fn get_bytecode_by_hash(&self, hash: H256) -> eyre::Result<Option<Vec<u8>>> {
-        Ok(self.raw_storage.factory_deps.get(&hash).cloned())
-    }
-
-    fn get_transaction_by_hash(
-        &self,
-        _hash: H256,
-    ) -> eyre::Result<Option<zksync_types::api::Transaction>> {
-        todo!()
-    }
-
-    fn get_transaction_details(
-        &self,
-        _hash: H256,
-    ) -> eyre::Result<std::option::Option<zksync_types::api::TransactionDetails>> {
-        todo!()
-    }
-
-    fn get_block_by_hash(
-        &self,
-        _hash: H256,
-        _full_transactions: bool,
-    ) -> eyre::Result<Option<zksync_types::api::Block<zksync_types::api::TransactionVariant>>> {
-        todo!()
-    }
-
-    fn get_block_by_number(
-        &self,
-        _block_number: zksync_types::api::BlockNumber,
-        _full_transactions: bool,
-    ) -> eyre::Result<Option<zksync_types::api::Block<zksync_types::api::TransactionVariant>>> {
-        todo!()
-    }
-
-    fn get_block_details(
-        &self,
-        miniblock: L2BlockNumber,
-    ) -> eyre::Result<Option<zksync_types::api::BlockDetails>> {
-        Ok(Some(zksync_types::api::BlockDetails {
-            number: miniblock,
-            l1_batch_number: L1BatchNumber(123),
-            base: BlockDetailsBase {
-                timestamp: 0,
-                l1_tx_count: 0,
-                l2_tx_count: 0,
-                root_hash: None,
-                status: BlockStatus::Sealed,
-                commit_tx_hash: None,
-                committed_at: None,
-                commit_chain_id: None,
-                prove_tx_hash: None,
-                proven_at: None,
-                prove_chain_id: None,
-                execute_tx_hash: None,
-                executed_at: None,
-                execute_chain_id: None,
-                l1_gas_price: 123,
-                l2_fair_gas_price: 234,
-                fair_pubdata_price: Some(345),
-                base_system_contracts_hashes: Default::default(),
-            },
-            operator_address: H160::zero(),
-            protocol_version: None,
-        }))
-    }
-
-    fn get_fee_params(&self) -> eyre::Result<zksync_types::fee_model::FeeParams> {
-        todo!()
-    }
-
-    fn get_block_transaction_count_by_hash(&self, _block_hash: H256) -> eyre::Result<Option<U256>> {
-        todo!()
-    }
-
-    fn get_block_transaction_count_by_number(
-        &self,
-        _block_number: zksync_types::api::BlockNumber,
-    ) -> eyre::Result<Option<U256>> {
-        todo!()
-    }
-
-    fn get_transaction_by_block_hash_and_index(
-        &self,
-        _block_hash: H256,
-        _index: zksync_types::web3::Index,
-    ) -> eyre::Result<Option<zksync_types::api::Transaction>> {
-        todo!()
-    }
-
-    fn get_transaction_by_block_number_and_index(
-        &self,
-        _block_number: zksync_types::api::BlockNumber,
-        _index: zksync_types::web3::Index,
-    ) -> eyre::Result<Option<zksync_types::api::Transaction>> {
-        todo!()
-    }
-
-    fn get_bridge_contracts(&self) -> eyre::Result<zksync_types::api::BridgeAddresses> {
-        todo!()
-    }
-
-    fn get_confirmed_tokens(
-        &self,
-        _from: u32,
-        _limit: u8,
-    ) -> eyre::Result<Vec<zksync_web3_decl::types::Token>> {
-        todo!()
-    }
-}
-
 mod test {
-    use maplit::hashmap;
-    use zksync_types::block::unpack_block_info;
-    use zksync_types::h256_to_u256;
-
     use super::*;
 
     #[test]
@@ -927,73 +812,5 @@ mod test {
             ],
             log.topics
         );
-    }
-
-    #[test]
-    fn test_external_storage() {
-        let input_batch = 1;
-        let input_l2_block = 2;
-        let input_timestamp = 3;
-        let input_bytecode = vec![0x4];
-        let batch_key = StorageKey::new(
-            AccountTreeId::new(zksync_types::SYSTEM_CONTEXT_ADDRESS),
-            zksync_types::SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
-        );
-        let l2_block_key = StorageKey::new(
-            AccountTreeId::new(zksync_types::SYSTEM_CONTEXT_ADDRESS),
-            zksync_types::SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
-        );
-
-        let storage = &ExternalStorage {
-            raw_storage: InMemoryStorage {
-                state: hashmap! {
-                    batch_key => u256_to_h256(U256::from(input_batch)),
-                    l2_block_key => u256_to_h256(pack_block_info(
-                        input_l2_block,
-                        input_timestamp,
-                    ))
-                },
-                factory_deps: hashmap! {
-                    H256::repeat_byte(0x1) => input_bytecode.clone(),
-                },
-            },
-        };
-
-        let actual_batch = storage
-            .get_storage_at(
-                zksync_types::SYSTEM_CONTEXT_ADDRESS,
-                h256_to_u256(zksync_types::SYSTEM_CONTEXT_BLOCK_INFO_POSITION),
-                None,
-            )
-            .map(|value| h256_to_u256(value).as_u64())
-            .expect("failed getting batch number");
-        assert_eq!(input_batch, actual_batch);
-
-        let (actual_l2_block, actual_timestamp) = storage
-            .get_storage_at(
-                zksync_types::SYSTEM_CONTEXT_ADDRESS,
-                h256_to_u256(zksync_types::SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION),
-                None,
-            )
-            .map(|value| unpack_block_info(h256_to_u256(value)))
-            .expect("failed getting l2 block info");
-        assert_eq!(input_l2_block, actual_l2_block);
-        assert_eq!(input_timestamp, actual_timestamp);
-
-        let zero_missing_value = storage
-            .get_storage_at(
-                zksync_types::SYSTEM_CONTEXT_ADDRESS,
-                h256_to_u256(H256::repeat_byte(0x1e)),
-                None,
-            )
-            .map(|value| h256_to_u256(value).as_u64())
-            .expect("failed missing value");
-        assert_eq!(0, zero_missing_value);
-
-        let actual_bytecode = storage
-            .get_bytecode_by_hash(H256::repeat_byte(0x1))
-            .expect("failed getting bytecode")
-            .expect("missing bytecode");
-        assert_eq!(input_bytecode, actual_bytecode);
     }
 }

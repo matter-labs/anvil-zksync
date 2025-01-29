@@ -1,5 +1,5 @@
 use crate::bytecode_override::override_bytecodes;
-use crate::cli::{Cli, Command, PeriodicStateDumper};
+use crate::cli::{Cli, Command, ForkUrl, PeriodicStateDumper};
 use crate::utils::update_with_fork_details;
 use anvil_zksync_api_server::NodeServerBuilder;
 use anvil_zksync_config::constants::{
@@ -10,7 +10,7 @@ use anvil_zksync_config::constants::{
 use anvil_zksync_config::types::SystemContractsOptions;
 use anvil_zksync_config::ForkPrintInfo;
 use anvil_zksync_core::filters::EthFilters;
-use anvil_zksync_core::node::fork::ForkDetails;
+use anvil_zksync_core::node::fork::ForkClient;
 use anvil_zksync_core::node::{
     BlockSealer, BlockSealerMode, ImpersonationManager, InMemoryNode, InMemoryNodeInner,
     NodeExecutor, StorageKeyLayout, TestNodeFeeInputProvider, TxPool,
@@ -27,8 +27,7 @@ use tokio::sync::RwLock;
 use tower_http::cors::AllowOrigin;
 use tracing_subscriber::filter::LevelFilter;
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
-use zksync_types::H160;
-use zksync_web3_decl::namespaces::ZksNamespaceClient;
+use zksync_types::{L2BlockNumber, H160};
 
 use zksync_error::anvil::env::generic_error;
 use zksync_error::anvil::state::StateLoaderError;
@@ -83,7 +82,7 @@ async fn main_inner() -> Result<(), zksync_error::ZksyncError> {
 
     // Use `Command::Run` as default.
     let command = command.as_ref().unwrap_or(&Command::Run);
-    let fork_details = match command {
+    let (fork_client, transactions_to_replay) = match command {
         Command::Run => {
             if config.offline {
                 tracing::warn!("Running in offline mode: default fee parameters will be used.");
@@ -105,9 +104,10 @@ async fn main_inner() -> Result<(), zksync_error::ZksyncError> {
                         config.l1_pubdata_price.or(Some(DEFAULT_FAIR_PUBDATA_PRICE)),
                     )
                     .with_chain_id(config.chain_id.or(Some(TEST_NODE_NETWORK_ID)));
-                None
+                (None, Vec::new())
             } else {
                 // Initialize the client to get the fee params
+<<<<<<< HEAD
                 let (_, client) = ForkDetails::fork_network_and_client("mainnet")
                     .map_err(|e| generic_error!("Failed to initialize client: {e:?}"))?;
 
@@ -115,6 +115,11 @@ async fn main_inner() -> Result<(), zksync_error::ZksyncError> {
                     tracing::error!("Failed to fetch fee params: {:?}", e);
                     generic_error!("{e}")
                 })?;
+=======
+                let client =
+                    ForkClient::at_block_number(ForkUrl::Mainnet.to_config(), None).await?;
+                let fee = client.get_fee_params().await?;
+>>>>>>> 4a46759e0b335c6f527b9f92a3da4b5d6c431063
 
                 match fee {
                     FeeParams::V2(fee_v2) => {
@@ -148,35 +153,39 @@ async fn main_inner() -> Result<(), zksync_error::ZksyncError> {
                     }
                 }
 
-                None
+                (None, Vec::new())
             }
         }
         Command::Fork(fork) => {
-            let fork_details_result = if let Some(tx_hash) = fork.fork_transaction_hash {
-                // If fork_transaction_hash is provided, use from_network_tx
-                ForkDetails::from_network_tx(&fork.fork_url, tx_hash, &config.cache_config).await
+            let (fork_client, earlier_txs) = if let Some(tx_hash) = fork.fork_transaction_hash {
+                // If transaction hash is provided, we fork at the parent of block containing tx
+                ForkClient::at_before_tx(fork.fork_url.to_config(), tx_hash).await?
             } else {
-                // Otherwise, use from_network
-                ForkDetails::from_network(
-                    &fork.fork_url,
-                    fork.fork_block_number,
-                    &config.cache_config,
+                // Otherwise, we fork at the provided block
+                (
+                    ForkClient::at_block_number(
+                        fork.fork_url.to_config(),
+                        fork.fork_block_number.map(|bn| L2BlockNumber(bn as u32)),
+                    )
+                    .await?,
+                    Vec::new(),
                 )
-                .await
             };
 
+<<<<<<< HEAD
             update_with_fork_details(&mut config, fork_details_result)
                 .await
                 .map_err(|e| generic_error!("{e}"))?
+=======
+            update_with_fork_details(&mut config, &fork_client.details).await;
+            (Some(fork_client), earlier_txs)
+>>>>>>> 4a46759e0b335c6f527b9f92a3da4b5d6c431063
         }
         Command::ReplayTx(replay_tx) => {
-            let fork_details_result = ForkDetails::from_network_tx(
-                &replay_tx.fork_url,
-                replay_tx.tx,
-                &config.cache_config,
-            )
-            .await;
+            let (fork_client, earlier_txs) =
+                ForkClient::at_before_tx(replay_tx.fork_url.to_config(), replay_tx.tx).await?;
 
+<<<<<<< HEAD
             update_with_fork_details(&mut config, fork_details_result)
                 .await
                 .map_err(|e| generic_error!("{e}"))?
@@ -204,6 +213,13 @@ async fn main_inner() -> Result<(), zksync_error::ZksyncError> {
         vec![]
     };
 
+=======
+            update_with_fork_details(&mut config, &fork_client.details).await;
+            (Some(fork_client), earlier_txs)
+        }
+    };
+
+>>>>>>> 4a46759e0b335c6f527b9f92a3da4b5d6c431063
     if matches!(
         config.system_contracts_options,
         SystemContractsOptions::Local
@@ -213,28 +229,31 @@ async fn main_inner() -> Result<(), zksync_error::ZksyncError> {
         }
     }
 
-    let fork_print_info = if let Some(fd) = fork_details.as_ref() {
-        let fee_model_config_v2 = match fd.fee_params {
-            Some(FeeParams::V2(fee_params_v2)) => {
+    let fork_print_info = if let Some(fork_client) = &fork_client {
+        let fee_model_config_v2 = match &fork_client.details.fee_params {
+            FeeParams::V2(fee_params_v2) => {
                 let config = fee_params_v2.config();
-                Some(FeeModelConfigV2 {
+                FeeModelConfigV2 {
                     minimal_l2_gas_price: config.minimal_l2_gas_price,
                     compute_overhead_part: config.compute_overhead_part,
                     pubdata_overhead_part: config.pubdata_overhead_part,
                     batch_overhead_l1_gas: config.batch_overhead_l1_gas,
                     max_gas_per_batch: config.max_gas_per_batch,
                     max_pubdata_per_batch: config.max_pubdata_per_batch,
-                })
+                }
             }
-            _ => None,
+            _ => anyhow::bail!(
+                "fork is using unsupported fee parameters: {:?}",
+                fork_client.details.fee_params
+            ),
         };
 
         Some(ForkPrintInfo {
-            network_rpc: fd.fork_source.get_fork_url().unwrap_or_default(),
-            l1_block: fd.l1_block.to_string(),
-            l2_block: fd.l2_miniblock.to_string(),
-            block_timestamp: fd.block_timestamp.to_string(),
-            fork_block_hash: format!("{:#x}", fd.l2_block.hash),
+            network_rpc: fork_client.url.to_string(),
+            l1_block: fork_client.details.batch_number.to_string(),
+            l2_block: fork_client.details.block_number.to_string(),
+            block_timestamp: fork_client.details.block_timestamp.to_string(),
+            fork_block_hash: format!("{:#x}", fork_client.details.block_hash),
             fee_model_config_v2,
         })
     } else {
@@ -248,7 +267,8 @@ async fn main_inner() -> Result<(), zksync_error::ZksyncError> {
     }
     let pool = TxPool::new(impersonation.clone(), config.transaction_order);
 
-    let fee_input_provider = TestNodeFeeInputProvider::from_fork(fork_details.as_ref());
+    let fee_input_provider =
+        TestNodeFeeInputProvider::from_fork(fork_client.as_ref().map(|f| &f.details));
     let filters = Arc::new(RwLock::new(EthFilters::default()));
     let system_contracts = SystemContracts::from_options(
         &config.system_contracts_options,
@@ -261,8 +281,8 @@ async fn main_inner() -> Result<(), zksync_error::ZksyncError> {
         StorageKeyLayout::ZkEra
     };
 
-    let (node_inner, storage, blockchain, time) = InMemoryNodeInner::init(
-        fork_details,
+    let (node_inner, storage, blockchain, time, fork) = InMemoryNodeInner::init(
+        fork_client,
         fee_input_provider.clone(),
         filters,
         config.clone(),
@@ -290,6 +310,7 @@ async fn main_inner() -> Result<(), zksync_error::ZksyncError> {
         node_inner,
         blockchain,
         storage,
+        fork,
         node_handle,
         Some(observability),
         time,
