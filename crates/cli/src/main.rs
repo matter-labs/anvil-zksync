@@ -107,19 +107,9 @@ async fn main_inner() -> Result<(), zksync_error::ZksyncError> {
                 (None, Vec::new())
             } else {
                 // Initialize the client to get the fee params
-<<<<<<< HEAD
-                let (_, client) = ForkDetails::fork_network_and_client("mainnet")
-                    .map_err(|e| generic_error!("Failed to initialize client: {e:?}"))?;
-
-                let fee = client.get_fee_params().await.map_err(|e| {
-                    tracing::error!("Failed to fetch fee params: {:?}", e);
-                    generic_error!("{e}")
-                })?;
-=======
                 let client =
                     ForkClient::at_block_number(ForkUrl::Mainnet.to_config(), None).await?;
                 let fee = client.get_fee_params().await?;
->>>>>>> 4a46759e0b335c6f527b9f92a3da4b5d6c431063
 
                 match fee {
                     FeeParams::V2(fee_v2) => {
@@ -172,54 +162,18 @@ async fn main_inner() -> Result<(), zksync_error::ZksyncError> {
                 )
             };
 
-<<<<<<< HEAD
-            update_with_fork_details(&mut config, fork_details_result)
-                .await
-                .map_err(|e| generic_error!("{e}"))?
-=======
             update_with_fork_details(&mut config, &fork_client.details).await;
             (Some(fork_client), earlier_txs)
->>>>>>> 4a46759e0b335c6f527b9f92a3da4b5d6c431063
         }
         Command::ReplayTx(replay_tx) => {
             let (fork_client, earlier_txs) =
                 ForkClient::at_before_tx(replay_tx.fork_url.to_config(), replay_tx.tx).await?;
 
-<<<<<<< HEAD
-            update_with_fork_details(&mut config, fork_details_result)
-                .await
-                .map_err(|e| generic_error!("{e}"))?
-        }
-    };
-
-    // If we're replaying the transaction, we need to sync to the previous block
-    // and then replay all the transactions that happened in
-    let transactions_to_replay = if let Command::ReplayTx(replay_tx) = command {
-        match fork_details
-            .as_ref()
-            .unwrap()
-            .get_earlier_transactions_in_same_block(replay_tx.tx)
-        {
-            Ok(txs) => txs,
-            Err(error) => {
-                tracing::error!(
-                    "failed to get earlier transactions in the same block for replay tx: {:?}",
-                    error
-                );
-                return Err(generic_error!("{error}").into());
-            }
-        }
-    } else {
-        vec![]
-    };
-
-=======
             update_with_fork_details(&mut config, &fork_client.details).await;
             (Some(fork_client), earlier_txs)
         }
     };
 
->>>>>>> 4a46759e0b335c6f527b9f92a3da4b5d6c431063
     if matches!(
         config.system_contracts_options,
         SystemContractsOptions::Local

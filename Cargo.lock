@@ -498,11 +498,8 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
-<<<<<<< HEAD
  "zksync_error",
-=======
  "url",
->>>>>>> 4a46759e0b335c6f527b9f92a3da4b5d6c431063
  "zksync_types",
  "zksync_web3_decl",
 ]
@@ -6645,7 +6642,6 @@ dependencies = [
  "lazy_static",
  "p256",
  "serde",
-<<<<<<< HEAD
  "sha2 0.10.8",
  "sha3 0.10.8",
 ]
@@ -6678,10 +6674,8 @@ dependencies = [
  "sha2 0.9.9",
  "thiserror",
  "tokio",
-=======
  "sha2",
  "sha3",
->>>>>>> 4a46759e0b335c6f527b9f92a3da4b5d6c431063
 ]
 
 [[package]]
