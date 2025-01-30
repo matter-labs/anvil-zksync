@@ -133,10 +133,10 @@ anvil-zksync --cache=disk --cache-dir=/tmp/foo --reset-cache run
 To fork the mainnet:
 
 ```bash
-anvil-zksync fork fork-url mainnet
+anvil-zksync fork --fork-url mainnet
 ```
 
-> Tip: You can also fork the zkSync Sepolia testnet with `anvil-zksync fork fork-url sepolia-testnet`.
+> Tip: You can also fork the zkSync Sepolia testnet with `anvil-zksync fork --fork-url sepolia-testnet`.
 
 ## 🔄 Replay Remote Transactions Locally
 
