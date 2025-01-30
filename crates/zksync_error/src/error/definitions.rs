@@ -63,14 +63,6 @@ impl From<AnvilEnvironment> for crate::ZksyncError {
 }
 
 
-impl From<anyhow::Error> for AnvilEnvironment {
-    fn from(value: anyhow::Error) -> Self {
-        let message = format!("{value:#?}");
-        AnvilEnvironment::GenericError { message }
-    }
-}
-
-
 impl Documented for AnvilEnvironment {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
 
@@ -118,6 +110,436 @@ impl From<AnvilEnvironment> for crate::packed::PackedError<crate::error::domains
 
 impl From<AnvilEnvironment> for crate::serialized::SerializedError {
     fn from(value: AnvilEnvironment) -> Self {
+        let packed = crate::packed::pack(value);
+        crate::serialized::serialize(packed).expect("Internal serialization error.")
+    }
+}
+
+#[repr(u32)]
+#[derive(AsRefStr, Clone, Debug, Eq, EnumDiscriminants, PartialEq, serde::Serialize, serde::Deserialize)]
+#[strum_discriminants(name(HaltCode))]
+#[strum_discriminants(vis(pub))]
+#[strum_discriminants(derive(AsRefStr, FromRepr))]
+#[non_exhaustive]
+pub enum Halt {
+   /// # Short description
+   /// Account validation failed during execution.
+   ///
+   /// # Description
+   /// This error occurs when the account validation step fails during the verification and execution of a transaction.
+   ValidationFailed {
+      msg : String,
+      data : String,
+   } = 1, 
+   /// # Short description
+   /// Paymaster validation failed.
+   ///
+   /// # Description
+   /// This error is emitted when the paymaster validation process fails during transaction execution.
+   PaymasterValidationFailed {
+      msg : String,
+      data : String,
+   } = 2, 
+   /// # Short description
+   /// Pre-paymaster preparation step failed.
+   ///
+   /// # Description
+   /// This error occurs when the system fails to prepare the paymaster before executing a transaction.
+   PrePaymasterPreparationFailed {
+      msg : String,
+      data : String,
+   } = 3, 
+   /// # Short description
+   /// Payment for the transaction failed.
+   ///
+   /// # Description
+   /// This error is emitted when the system fails to deduct the required fees for executing the transaction.
+   PayForTxFailed {
+      msg : String,
+      data : String,
+   } = 4, 
+   /// # Short description
+   /// Failed to mark factory dependencies during execution.
+   ///
+   /// # Description
+   /// This error occurs when the system cannot mark the necessary factory dependencies required for the transaction.
+   FailedToMarkFactoryDependencies {
+      msg : String,
+      data : String,
+   } = 5, 
+   /// # Short description
+   /// Charging the transaction fee failed.
+   ///
+   /// # Description
+   /// This error is emitted when the system cannot deduct the necessary fee for the transaction.
+   FailedToChargeFee {
+      msg : String,
+      data : String,
+   } = 6, 
+   /// # Short description
+   /// The sender address is not a valid account.
+   ///
+   /// # Description
+   /// This error occurs when a transaction is attempted from an address that has not been deployed as an account, meaning the `from` address is just a contract.
+   FromIsNotAnAccount  = 7, 
+   /// # Short description
+   /// An inner transaction error occurred.
+   ///
+   /// # Description
+   /// This error is currently not used and should be removed when refactoring errors.
+   InnerTxError  = 8, 
+   /// # Short description
+   /// An unknown error occurred.
+   ///
+   /// # Description
+   /// This error is emitted when the system encounters an unspecified reason for halting.
+   Unknown {
+      msg : String,
+      data : String,
+   } = 9, 
+   /// # Short description
+   /// The virtual machine encountered an unexpected state.
+   ///
+   /// # Description
+   /// This error is used temporarily instead of panics to provide a better experience for developers. It indicates that the VM entered an unforeseen state during transaction execution.
+   UnexpectedVMBehavior {
+      problem : String,
+   } = 10, 
+   /// # Short description
+   /// The bootloader has run out of gas.
+   ///
+   /// # Description
+   /// This error occurs when the bootloader does not have enough gas to continue executing the transaction.
+   BootloaderOutOfGas  = 11, 
+   /// # Short description
+   /// The validation step ran out of gas.
+   ///
+   /// # Description
+   /// This error is emitted when the validation phase of transaction execution exceeds the allocated gas limit.
+   ValidationOutOfGas  = 12, 
+   /// # Short description
+   /// The transaction's gas limit is excessively high.
+   ///
+   /// # Description
+   /// This error occurs when the gas limit set for the transaction is too large for the server to handle.
+   TooBigGasLimit  = 13, 
+   /// # Short description
+   /// Insufficient gas provided to initiate the transaction.
+   ///
+   /// # Description
+   /// This error is emitted when the bootloader lacks the necessary gas to begin executing the transaction.
+   NotEnoughGasProvided  = 14, 
+   /// # Short description
+   /// The transaction exceeded the allowed number of cold storage invocations.
+   ///
+   /// # Description
+   /// This error occurs when the transaction makes too many missing invocations to memory, surpassing the allowed limit.
+   MissingInvocationLimitReached  = 15, 
+   /// # Short description
+   /// Unable to set L2 block information.
+   ///
+   /// # Description
+   /// This error is emitted when the system fails to set the necessary information for the L2 block during transaction execution.
+   FailedToSetL2Block {
+      msg : String,
+   } = 16, 
+   /// # Short description
+   /// Failed to add the transaction to the L2 block.
+   ///
+   /// # Description
+   /// This error occurs when the system cannot append the transaction to the ongoing L2 block, possibly due to data inconsistencies or internal errors.
+   FailedToAppendTransactionToL2Block {
+      msg : String,
+   } = 17, 
+   /// # Short description
+   /// The virtual machine encountered a panic.
+   ///
+   /// # Description
+   /// This error is emitted when the VM experiences a critical failure and panics during transaction execution.
+   VMPanic  = 18, 
+   /// # Short description
+   /// Tracer aborted the transaction execution.
+   ///
+   /// # Description
+   /// This error occurs when a custom tracer used during transaction execution decides to abort the process, typically due to specific conditions being met.
+   TracerCustom {
+      msg : String,
+   } = 19, 
+   /// # Short description
+   /// Unable to publish compressed bytecodes.
+   ///
+   /// # Description
+   /// This error is emitted when the system fails to publish the compressed bytecodes during transaction execution.
+   FailedToPublishCompressedBytecodes  = 20, 
+   /// # Short description
+   /// Block timestamp assertion failed during the transaction.
+   ///
+   /// # Description
+   /// This error occurs when the transaction's execution fails to satisfy the `block.timestamp` assertion, indicating a discrepancy in the expected timestamp.
+   FailedBlockTimestampAssertion  = 21, 
+   GenericError {
+      message : String,
+   } = 0, 
+   
+} // end of Halt
+
+
+impl std::error::Error for Halt {}
+
+impl NamedError for Halt {
+    fn get_error_name(&self) -> String {
+        self.as_ref().to_owned()
+    }
+}
+impl NamedError for HaltCode {
+    fn get_error_name(&self) -> String {
+        self.as_ref().to_owned()
+    }
+}
+
+impl From<Halt> for crate::ZksyncError {
+    fn from(val: Halt) -> Self {
+        val.to_unified()
+    }
+}
+
+
+impl Documented for Halt {
+    type Documentation = &'static zksync_error_description::ErrorDocumentation;
+
+    fn get_documentation(&self) -> Result<Option<Self::Documentation>, crate::documentation::DocumentationError> {
+        self.to_unified().get_identifier().get_documentation()
+    }
+}
+
+
+impl std::fmt::Display for Halt {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+       f.write_fmt(format_args!("{self:?}"))
+    }
+}
+
+
+impl CustomErrorMessage for Halt {
+    fn get_message(&self) -> String {
+        match self {
+         Halt::ValidationFailed { 
+            msg,
+            data,
+         }
+          => { format!("[anvil-halt-1] Account validation error: {msg}: {data}") },
+         Halt::PaymasterValidationFailed { 
+            msg,
+            data,
+         }
+          => { format!("[anvil-halt-2] Paymaster validation error: {msg}: {data}.") },
+         Halt::PrePaymasterPreparationFailed { 
+            msg,
+            data,
+         }
+          => { format!("[anvil-halt-3] Pre-paymaster preparation error: {msg}: {data}") },
+         Halt::PayForTxFailed { 
+            msg,
+            data,
+         }
+          => { format!("[anvil-halt-4] Failed to pay for the transaction: {msg}: {data}") },
+         Halt::FailedToMarkFactoryDependencies { 
+            msg,
+            data,
+         }
+          => { format!("[anvil-halt-5] Failed to mark factory dependencies: {msg}: {data}") },
+         Halt::FailedToChargeFee { 
+            msg,
+            data,
+         }
+          => { format!("[anvil-halt-6] Failed to charge fee: {msg}: {data}") },
+         Halt::FromIsNotAnAccount { 
+         }
+          => { format!("[anvil-halt-7] Sender is not an account") },
+         Halt::InnerTxError { 
+         }
+          => { format!("[anvil-halt-8] Bootloader-based tx failed") },
+         Halt::Unknown { 
+            msg,
+            data,
+         }
+          => { format!("[anvil-halt-9] Unknown reason: {msg}: {data}") },
+         Halt::UnexpectedVMBehavior { 
+            problem,
+         }
+          => { format!("[anvil-halt-10] virtual machine entered unexpected state. Please contact developers and provide transaction details that caused this error. Error description: {problem}") },
+         Halt::BootloaderOutOfGas { 
+         }
+          => { format!("[anvil-halt-11] Bootloader out of gas") },
+         Halt::ValidationOutOfGas { 
+         }
+          => { format!("[anvil-halt-12] Validation run out of gas") },
+         Halt::TooBigGasLimit { 
+         }
+          => { format!("[anvil-halt-13] Transaction has a too big ergs limit and will not be executed by the server") },
+         Halt::NotEnoughGasProvided { 
+         }
+          => { format!("[anvil-halt-14] Bootloader did not have enough gas to start the transaction") },
+         Halt::MissingInvocationLimitReached { 
+         }
+          => { format!("[anvil-halt-15] Tx produced too much cold storage accesses") },
+         Halt::FailedToSetL2Block { 
+            msg,
+         }
+          => { format!("[anvil-halt-16] Failed to set information about the L2 block: {msg}") },
+         Halt::FailedToAppendTransactionToL2Block { 
+            msg,
+         }
+          => { format!("[anvil-halt-17] Failed to append the transaction to the current L2 block: {msg}") },
+         Halt::VMPanic { 
+         }
+          => { format!("[anvil-halt-18] VM panicked") },
+         Halt::TracerCustom { 
+            msg,
+         }
+          => { format!("[anvil-halt-19] Tracer aborted execution: {msg}") },
+         Halt::FailedToPublishCompressedBytecodes { 
+         }
+          => { format!("[anvil-halt-20] Failed to publish compressed bytecodes") },
+         Halt::FailedBlockTimestampAssertion { 
+         }
+          => { format!("[anvil-halt-21] Transaction failed block.timestamp assertion") },
+         Halt::GenericError { 
+            message,
+         }
+          => { format!("[anvil-halt-0] Generic error: {message}") },
+      }
+   }
+}
+
+impl From<Halt> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
+    fn from(value: Halt) -> Self {
+        crate::packed::pack(value)
+    }
+}
+
+impl From<Halt> for crate::serialized::SerializedError {
+    fn from(value: Halt) -> Self {
+        let packed = crate::packed::pack(value);
+        crate::serialized::serialize(packed).expect("Internal serialization error.")
+    }
+}
+
+#[repr(u32)]
+#[derive(AsRefStr, Clone, Debug, Eq, EnumDiscriminants, PartialEq, serde::Serialize, serde::Deserialize)]
+#[strum_discriminants(name(RevertCode))]
+#[strum_discriminants(vis(pub))]
+#[strum_discriminants(derive(AsRefStr, FromRepr))]
+#[non_exhaustive]
+pub enum Revert {
+   /// # Short description
+   /// A general VM error occurred.
+   ///
+   /// # Description
+   /// This error represents a general VM failure, containing a message and additional data for debugging.
+   General {
+      msg : String,
+      data : Vec<u8>,
+   } = 1, 
+   /// # Short description
+   /// An inner transaction error occurred.
+   ///
+   /// # Description
+   /// This error is emitted when an inner transaction within the VM fails, typically related to bootloader execution.
+   InnerTxError  = 2, 
+   /// # Short description
+   /// A generic VM error.
+   ///
+   /// # Description
+   /// This error indicates a generic failure within the VM, without specific details.
+   VmError  = 3, 
+   /// # Short description
+   /// An unknown VM revert reason was encountered.
+   ///
+   /// # Description
+   /// This error is emitted when the VM encounters a revert reason that is not recognized, including the function selector and raw data for debugging.
+   Unknown {
+      function_selector : String,
+      data : String,
+   } = 4, 
+   GenericError {
+      message : String,
+   } = 0, 
+   
+} // end of Revert
+
+
+impl std::error::Error for Revert {}
+
+impl NamedError for Revert {
+    fn get_error_name(&self) -> String {
+        self.as_ref().to_owned()
+    }
+}
+impl NamedError for RevertCode {
+    fn get_error_name(&self) -> String {
+        self.as_ref().to_owned()
+    }
+}
+
+impl From<Revert> for crate::ZksyncError {
+    fn from(val: Revert) -> Self {
+        val.to_unified()
+    }
+}
+
+
+impl Documented for Revert {
+    type Documentation = &'static zksync_error_description::ErrorDocumentation;
+
+    fn get_documentation(&self) -> Result<Option<Self::Documentation>, crate::documentation::DocumentationError> {
+        self.to_unified().get_identifier().get_documentation()
+    }
+}
+
+
+impl std::fmt::Display for Revert {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+       f.write_fmt(format_args!("{self:?}"))
+    }
+}
+
+
+impl CustomErrorMessage for Revert {
+    fn get_message(&self) -> String {
+        match self {
+         Revert::General { 
+            msg,
+            data,
+         }
+          => { format!("[anvil-revert-1] General VM error: {msg}") },
+         Revert::InnerTxError { 
+         }
+          => { format!("[anvil-revert-2] Bootloader-based transaction failed.") },
+         Revert::VmError { 
+         }
+          => { format!("[anvil-revert-3] VM Error") },
+         Revert::Unknown { 
+            function_selector,
+            data,
+         }
+          => { format!("[anvil-revert-4] Unknown VM revert reason: function_selector={function_selector}, data={data}") },
+         Revert::GenericError { 
+            message,
+         }
+          => { format!("[anvil-revert-0] Generic error: {message}") },
+      }
+   }
+}
+
+impl From<Revert> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
+    fn from(value: Revert) -> Self {
+        crate::packed::pack(value)
+    }
+}
+
+impl From<Revert> for crate::serialized::SerializedError {
+    fn from(value: Revert) -> Self {
         let packed = crate::packed::pack(value);
         crate::serialized::serialize(packed).expect("Internal serialization error.")
     }
@@ -178,14 +600,6 @@ impl NamedError for StateLoaderCode {
 impl From<StateLoader> for crate::ZksyncError {
     fn from(val: StateLoader) -> Self {
         val.to_unified()
-    }
-}
-
-
-impl From<anyhow::Error> for StateLoader {
-    fn from(value: anyhow::Error) -> Self {
-        let message = format!("{value:#?}");
-        StateLoader::GenericError { message }
     }
 }
 
@@ -288,14 +702,6 @@ impl From<LLVM_EVM> for crate::ZksyncError {
 }
 
 
-impl From<anyhow::Error> for LLVM_EVM {
-    fn from(value: anyhow::Error) -> Self {
-        let message = format!("{value:#?}");
-        LLVM_EVM::GenericError { message }
-    }
-}
-
-
 impl Documented for LLVM_EVM {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
 
@@ -367,14 +773,6 @@ impl NamedError for LLVM_EraCode {
 impl From<LLVM_Era> for crate::ZksyncError {
     fn from(val: LLVM_Era) -> Self {
         val.to_unified()
-    }
-}
-
-
-impl From<anyhow::Error> for LLVM_Era {
-    fn from(value: anyhow::Error) -> Self {
-        let message = format!("{value:#?}");
-        LLVM_Era::GenericError { message }
     }
 }
 
@@ -454,14 +852,6 @@ impl From<Solc> for crate::ZksyncError {
 }
 
 
-impl From<anyhow::Error> for Solc {
-    fn from(value: anyhow::Error) -> Self {
-        let message = format!("{value:#?}");
-        Solc::GenericError { message }
-    }
-}
-
-
 impl Documented for Solc {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
 
@@ -533,14 +923,6 @@ impl NamedError for SolcForkCode {
 impl From<SolcFork> for crate::ZksyncError {
     fn from(val: SolcFork) -> Self {
         val.to_unified()
-    }
-}
-
-
-impl From<anyhow::Error> for SolcFork {
-    fn from(value: anyhow::Error) -> Self {
-        let message = format!("{value:#?}");
-        SolcFork::GenericError { message }
     }
 }
 
@@ -620,14 +1002,6 @@ impl From<Zksolc> for crate::ZksyncError {
 }
 
 
-impl From<anyhow::Error> for Zksolc {
-    fn from(value: anyhow::Error) -> Self {
-        let message = format!("{value:#?}");
-        Zksolc::GenericError { message }
-    }
-}
-
-
 impl Documented for Zksolc {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
 
@@ -699,14 +1073,6 @@ impl NamedError for ZkvyperCode {
 impl From<Zkvyper> for crate::ZksyncError {
     fn from(val: Zkvyper) -> Self {
         val.to_unified()
-    }
-}
-
-
-impl From<anyhow::Error> for Zkvyper {
-    fn from(value: anyhow::Error) -> Self {
-        let message = format!("{value:#?}");
-        Zkvyper::GenericError { message }
     }
 }
 
@@ -786,14 +1152,6 @@ impl From<API> for crate::ZksyncError {
 }
 
 
-impl From<anyhow::Error> for API {
-    fn from(value: anyhow::Error) -> Self {
-        let message = format!("{value:#?}");
-        API::GenericError { message }
-    }
-}
-
-
 impl Documented for API {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
 
@@ -865,14 +1223,6 @@ impl NamedError for EraVMCode {
 impl From<EraVM> for crate::ZksyncError {
     fn from(val: EraVM) -> Self {
         val.to_unified()
-    }
-}
-
-
-impl From<anyhow::Error> for EraVM {
-    fn from(value: anyhow::Error) -> Self {
-        let message = format!("{value:#?}");
-        EraVM::GenericError { message }
     }
 }
 
@@ -952,14 +1302,6 @@ impl From<ExecutionPlatform> for crate::ZksyncError {
 }
 
 
-impl From<anyhow::Error> for ExecutionPlatform {
-    fn from(value: anyhow::Error) -> Self {
-        let message = format!("{value:#?}");
-        ExecutionPlatform::GenericError { message }
-    }
-}
-
-
 impl Documented for ExecutionPlatform {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
 
@@ -1034,14 +1376,6 @@ impl NamedError for SequencerCode {
 impl From<Sequencer> for crate::ZksyncError {
     fn from(val: Sequencer) -> Self {
         val.to_unified()
-    }
-}
-
-
-impl From<anyhow::Error> for Sequencer {
-    fn from(value: anyhow::Error) -> Self {
-        let message = format!("{value:#?}");
-        Sequencer::GenericError { message }
     }
 }
 
@@ -1125,14 +1459,6 @@ impl From<FoundryUpstream> for crate::ZksyncError {
 }
 
 
-impl From<anyhow::Error> for FoundryUpstream {
-    fn from(value: anyhow::Error) -> Self {
-        let message = format!("{value:#?}");
-        FoundryUpstream::GenericError { message }
-    }
-}
-
-
 impl Documented for FoundryUpstream {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
 
@@ -1204,14 +1530,6 @@ impl NamedError for FoundryZksyncCode {
 impl From<FoundryZksync> for crate::ZksyncError {
     fn from(val: FoundryZksync) -> Self {
         val.to_unified()
-    }
-}
-
-
-impl From<anyhow::Error> for FoundryZksync {
-    fn from(value: anyhow::Error) -> Self {
-        let message = format!("{value:#?}");
-        FoundryZksync::GenericError { message }
     }
 }
 
@@ -1291,14 +1609,6 @@ impl From<HardhatUpstream> for crate::ZksyncError {
 }
 
 
-impl From<anyhow::Error> for HardhatUpstream {
-    fn from(value: anyhow::Error) -> Self {
-        let message = format!("{value:#?}");
-        HardhatUpstream::GenericError { message }
-    }
-}
-
-
 impl Documented for HardhatUpstream {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
 
@@ -1370,14 +1680,6 @@ impl NamedError for HardhatZksyncCode {
 impl From<HardhatZksync> for crate::ZksyncError {
     fn from(val: HardhatZksync) -> Self {
         val.to_unified()
-    }
-}
-
-
-impl From<anyhow::Error> for HardhatZksync {
-    fn from(value: anyhow::Error) -> Self {
-        let message = format!("{value:#?}");
-        HardhatZksync::GenericError { message }
     }
 }
 

@@ -2,6 +2,7 @@ use crate::bootloader_debug::{BootloaderDebug, BootloaderDebugTracer};
 use crate::console_log::ConsoleLogHandler;
 use crate::deps::storage_view::StorageView;
 use crate::filters::EthFilters;
+use crate::formatter::format_and_print_error;
 use crate::node::call_error_tracer::CallErrorTracer;
 use crate::node::error::LoadStateError;
 use crate::node::inner::blockchain::{Blockchain, ReadBlockchain};
@@ -18,10 +19,11 @@ use crate::node::{
     TransactionResult, TxExecutionInfo, VersionedState, ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION,
     MAX_PREVIOUS_STATES, MAX_TX_SIZE,
 };
-
 use crate::system_contracts::SystemContracts;
 use crate::utils::create_debug_output;
 use crate::{delegate_vm, formatter, utils};
+use alloy::hex::ToHexExt;
+use alloy::signers::k256::pkcs8::der::Encode;
 use anvil_zksync_config::constants::NON_FORK_FIRST_BLOCK_TIMESTAMP;
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_types::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
@@ -29,17 +31,23 @@ use anyhow::Context;
 use colored::Colorize;
 use indexmap::IndexMap;
 use once_cell::sync::OnceCell;
-use zksync_error::anvil::state::StateLoaderError;
 use std::collections::{HashMap, HashSet};
+use std::error::Error;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use zksync_contracts::BaseSystemContracts;
+use zksync_error::anvil::halt::HaltError;
+use zksync_error::anvil::revert::RevertError;
+use zksync_error::anvil::state::StateLoaderError;
+use zksync_error::documentation::Documented;
+use zksync_error::error::CustomErrorMessage;
+use zksync_error::error::NamedError;
 use zksync_multivm::interface::storage::{ReadStorage, WriteStorage};
 use zksync_multivm::interface::VmFactory;
 use zksync_multivm::interface::{
-    Call, ExecutionResult, InspectExecutionMode, L1BatchEnv, L2BlockEnv, SystemEnv,
+    Call, ExecutionResult, Halt, InspectExecutionMode, L1BatchEnv, L2BlockEnv, SystemEnv,
     TxExecutionMode, VmExecutionResultAndLogs, VmInterface, VmInterfaceExt,
-    VmInterfaceHistoryEnabled,
+    VmInterfaceHistoryEnabled, VmRevertReason,
 };
 use zksync_multivm::vm_latest::Vm;
 
@@ -914,20 +922,6 @@ impl InMemoryNodeInner {
 
         match estimate_gas_result.result {
             ExecutionResult::Revert { output } => {
-                tracing::info!("{}", format!("Unable to estimate gas for the request with our suggested gas limit of {}. The transaction is most likely unexecutable. Breakdown of estimation:", suggested_gas_limit + overhead).red());
-                tracing::info!(
-                    "{}",
-                    format!(
-                        "\tEstimated transaction body gas cost: {}",
-                        tx_body_gas_limit
-                    )
-                    .red()
-                );
-                tracing::info!(
-                    "{}",
-                    format!("\tGas for pubdata: {}", additional_gas_for_pubdata).red()
-                );
-                tracing::info!("{}", format!("\tOverhead: {}", overhead).red());
                 let message = output.to_string();
                 let pretty_message = format!(
                     "execution reverted{}{}",
@@ -935,32 +929,206 @@ impl InMemoryNodeInner {
                     message
                 );
                 let data = output.encoded_data();
-                tracing::info!("{}", pretty_message.on_red());
+                match output {
+                    VmRevertReason::General { msg, data } => {
+                        // TODO: want data?
+                        let res = RevertError::General {
+                            msg: msg,
+                            data: data,
+                        };
+                        let error_msg = res.get_message();
+                        let doc = res.get_documentation().unwrap().cloned();
+                        format_and_print_error(&error_msg, doc);
+                    }
+                    VmRevertReason::InnerTxError => {
+                        let res = RevertError::InnerTxError;
+                        let error_msg = res.get_message();
+                        let doc = res.get_documentation().unwrap().cloned();
+                        format_and_print_error(&error_msg, doc);
+                    }
+                    VmRevertReason::VmError => {
+                        let res = RevertError::VmError;
+                        let error_msg = res.get_message();
+                        let doc = res.get_documentation().unwrap().cloned();
+                        format_and_print_error(&error_msg, doc);
+                    }
+                    VmRevertReason::Unknown {
+                        function_selector,
+                        data,
+                    } => {
+                        let res = RevertError::Unknown {
+                            function_selector: function_selector.encode_hex(),
+                            data: data.encode_hex(),
+                        };
+                        let error_msg = res.get_message();
+                        let doc = res.get_documentation().unwrap().cloned();
+                        format_and_print_error(&error_msg, doc);
+                    }
+                    _ => {
+                        println!("Unknown Reason: {:?}", output);
+                    }
+                }
+
                 Err(Web3Error::SubmitTransactionError(pretty_message, data))
             }
             ExecutionResult::Halt { reason } => {
-                tracing::info!("{}", format!("Unable to estimate gas for the request with our suggested gas limit of {}. The transaction is most likely unexecutable. Breakdown of estimation:", suggested_gas_limit + overhead).red());
-                tracing::info!(
-                    "{}",
-                    format!(
-                        "\tEstimated transaction body gas cost: {}",
-                        tx_body_gas_limit
-                    )
-                    .red()
-                );
-                tracing::info!(
-                    "{}",
-                    format!("\tGas for pubdata: {}", additional_gas_for_pubdata).red()
-                );
-                tracing::info!("{}", format!("\tOverhead: {}", overhead).red());
-                let message = reason.to_string();
-                let pretty_message = format!(
-                    "execution reverted{}{}",
-                    if message.is_empty() { "" } else { ": " },
-                    message
-                );
+                let pretty_message = format!("execution halted: {}", reason.to_string());
+                match reason {
+                    Halt::ValidationFailed(VmRevertReason::General { msg, data }) => {
+                        let res = HaltError::ValidationFailed {
+                            msg: msg,
+                            data: data.encode_hex(),
+                        };
+                        let error_msg = res.get_message();
+                        let doc = res.get_documentation().unwrap().cloned();
+                        format_and_print_error(&error_msg, doc);
+                    }
+                    Halt::PaymasterValidationFailed(VmRevertReason::General { msg, data }) => {
+                        let res = HaltError::PaymasterValidationFailed {
+                            msg: msg,
+                            data: data.encode_hex(),
+                        };
+                        let error_msg = res.get_message();
+                        let doc = res.get_documentation().unwrap().cloned();
+                        format_and_print_error(&error_msg, doc);
+                    }
+                    Halt::PrePaymasterPreparationFailed(VmRevertReason::General { msg, data }) => {
+                        let res = HaltError::PrePaymasterPreparationFailed {
+                            msg: msg,
+                            data: data.encode_hex(),
+                        };
+                        let error_msg = res.get_message();
+                        let doc = res.get_documentation().unwrap().cloned();
+                        format_and_print_error(&error_msg, doc);
+                    }
+                    Halt::PayForTxFailed(VmRevertReason::General { msg, data }) => {
+                        let res = HaltError::PayForTxFailed {
+                            msg: msg,
+                            data: data.encode_hex(),
+                        };
+                        let error_msg = res.get_message();
+                        let doc = res.get_documentation().unwrap().cloned();
+                        format_and_print_error(&error_msg, doc);
+                    }
+                    Halt::FailedToMarkFactoryDependencies(VmRevertReason::General {
+                        msg,
+                        data,
+                    }) => {
+                        let res = HaltError::FailedToMarkFactoryDependencies {
+                            msg: msg,
+                            data: data.encode_hex(),
+                        };
+                        let error_msg = res.get_message();
+                        let doc = res.get_documentation().unwrap().cloned();
+                        format_and_print_error(&error_msg, doc);
+                    }
+                    Halt::FailedToChargeFee(VmRevertReason::General { msg, data }) => {
+                        let res = HaltError::FailedToChargeFee {
+                            msg: msg,
+                            data: data.encode_hex(),
+                        };
+                        let error_msg = res.get_message();
+                        let doc = res.get_documentation().unwrap().cloned();
+                        format_and_print_error(&error_msg, doc);
+                    }
+                    Halt::Unknown(VmRevertReason::General { msg, data }) => {
+                        let res = HaltError::Unknown {
+                            msg: msg,
+                            data: data.encode_hex(),
+                        };
+                        let error_msg = res.get_message();
+                        let doc = res.get_documentation().unwrap().cloned();
+                        format_and_print_error(&error_msg, doc);
+                    }
+                    Halt::UnexpectedVMBehavior(msg) => {
+                        let res = HaltError::UnexpectedVMBehavior { problem: msg };
+                        let error_msg = res.get_message();
+                        let doc = res.get_documentation().unwrap().cloned();
+                        format_and_print_error(&error_msg, doc);
+                    }
+                    Halt::FailedToSetL2Block(msg) => {
+                        let res = HaltError::FailedToSetL2Block { msg: msg };
+                        let error_msg = res.get_message();
+                        let doc = res.get_documentation().unwrap().cloned();
+                        format_and_print_error(&error_msg, doc);
+                    }
+                    Halt::FailedToAppendTransactionToL2Block(msg) => {
+                        let res = HaltError::FailedToAppendTransactionToL2Block { msg: msg };
+                        let error_msg = res.get_message();
+                        let doc = res.get_documentation().unwrap().cloned();
+                        format_and_print_error(&error_msg, doc);
+                    }
+                    Halt::TracerCustom(msg) => {
+                        let res = HaltError::TracerCustom { msg: msg };
+                        let error_msg = res.get_message();
+                        let doc = res.get_documentation().unwrap().cloned();
+                        format_and_print_error(&error_msg, doc);
+                    }
+                    Halt::FromIsNotAnAccount => {
+                        let res = HaltError::FromIsNotAnAccount;
+                        let error_msg = res.get_message();
+                        let doc = res.get_documentation().unwrap().cloned();
+                        format_and_print_error(&error_msg, doc);
+                    }
+                    Halt::InnerTxError => {
+                        let res = HaltError::InnerTxError;
+                        let error_msg = res.get_message();
+                        let doc = res.get_documentation().unwrap().cloned();
+                        format_and_print_error(&error_msg, doc);
+                    }
+                    Halt::BootloaderOutOfGas => {
+                        let res = HaltError::BootloaderOutOfGas;
+                        let error_msg = res.get_message();
+                        let doc = res.get_documentation().unwrap().cloned();
+                        format_and_print_error(&error_msg, doc);
+                    }
+                    Halt::ValidationOutOfGas => {
+                        let res = HaltError::ValidationOutOfGas;
+                        let error_msg = res.get_message();
+                        let doc = res.get_documentation().unwrap().cloned();
+                        format_and_print_error(&error_msg, doc);
+                    }
+                    Halt::TooBigGasLimit => {
+                        let res = HaltError::TooBigGasLimit;
+                        let error_msg = res.get_message();
+                        let doc = res.get_documentation().unwrap().cloned();
+                        format_and_print_error(&error_msg, doc);
+                    }
+                    Halt::NotEnoughGasProvided => {
+                        let res = HaltError::NotEnoughGasProvided;
+                        let error_msg = res.get_message();
+                        let doc = res.get_documentation().unwrap().cloned();
+                        format_and_print_error(&error_msg, doc);
+                    }
+                    Halt::MissingInvocationLimitReached => {
+                        let res = HaltError::MissingInvocationLimitReached;
+                        let error_msg = res.get_message();
+                        let doc = res.get_documentation().unwrap().cloned();
+                        format_and_print_error(&error_msg, doc);
+                    }
+                    Halt::VMPanic => {
+                        let res = HaltError::VMPanic;
+                        let error_msg = res.get_message();
+                        let doc = res.get_documentation().unwrap().cloned();
+                        format_and_print_error(&error_msg, doc);
+                    }
+                    Halt::FailedToPublishCompressedBytecodes => {
+                        let res = HaltError::FailedToPublishCompressedBytecodes;
+                        let error_msg = res.get_message();
+                        let doc = res.get_documentation().unwrap().cloned();
+                        format_and_print_error(&error_msg, doc);
+                    }
+                    Halt::FailedBlockTimestampAssertion => {
+                        let res = HaltError::FailedBlockTimestampAssertion;
+                        let error_msg = res.get_message();
+                        let doc = res.get_documentation().unwrap().cloned();
+                        format_and_print_error(&error_msg, doc);
+                    }
+                    _ => {
+                        println!("Unknown Reason: {:?}", reason);
+                    }
+                }
 
-                tracing::info!("{}", pretty_message.on_red());
                 Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
             }
             ExecutionResult::Success { .. } => {
@@ -1175,7 +1343,9 @@ impl InMemoryNodeInner {
         let state = match state {
             VersionedState::V1 { state, .. } => state,
             VersionedState::Unknown { version } => {
-                return Err(StateLoaderError::UnknownStateVersionError { version: version.into() } )
+                return Err(StateLoaderError::UnknownStateVersionError {
+                    version: version.into(),
+                })
             }
         };
         if state.blocks.is_empty() {

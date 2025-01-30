@@ -90,6 +90,8 @@ impl Identifying for Kind {
   fn get_identifier_repr(&self) -> String {
     match self {
          Kind::Anvil(AnvilCode::AnvilEnvironment) => "anvil-env",
+         Kind::Anvil(AnvilCode::Halt) => "anvil-halt",
+         Kind::Anvil(AnvilCode::Revert) => "anvil-revert",
          Kind::Anvil(AnvilCode::StateLoader) => "anvil-state",
          Kind::Compiler(CompilerCode::LLVM_EVM) => "compiler-llvm+evm",
          Kind::Compiler(CompilerCode::LLVM_Era) => "compiler-llvm+era",
@@ -120,6 +122,8 @@ impl NamedError for Identifier {
     fn get_error_name(&self) -> String {
         match self.kind {
          Kind::Anvil(AnvilCode::AnvilEnvironment) => crate::error::definitions::AnvilEnvironmentCode::from_repr(self.code).expect("Internal error").get_error_name(),
+         Kind::Anvil(AnvilCode::Halt) => crate::error::definitions::HaltCode::from_repr(self.code).expect("Internal error").get_error_name(),
+         Kind::Anvil(AnvilCode::Revert) => crate::error::definitions::RevertCode::from_repr(self.code).expect("Internal error").get_error_name(),
          Kind::Anvil(AnvilCode::StateLoader) => crate::error::definitions::StateLoaderCode::from_repr(self.code).expect("Internal error").get_error_name(),
          Kind::Compiler(CompilerCode::LLVM_EVM) => crate::error::definitions::LLVM_EVMCode::from_repr(self.code).expect("Internal error").get_error_name(),
          Kind::Compiler(CompilerCode::LLVM_Era) => crate::error::definitions::LLVM_EraCode::from_repr(self.code).expect("Internal error").get_error_name(),

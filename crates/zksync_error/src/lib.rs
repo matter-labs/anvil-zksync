@@ -32,6 +32,55 @@ pub mod anvil {
       }
       pub use crate::anvil_env_generic_error as generic_error;
       }
+   pub mod halt {
+      pub use crate::error::definitions::Halt as HaltError;
+      pub use crate::error::definitions::Halt::ValidationFailed;
+      pub use crate::error::definitions::Halt::PaymasterValidationFailed;
+      pub use crate::error::definitions::Halt::PrePaymasterPreparationFailed;
+      pub use crate::error::definitions::Halt::PayForTxFailed;
+      pub use crate::error::definitions::Halt::FailedToMarkFactoryDependencies;
+      pub use crate::error::definitions::Halt::FailedToChargeFee;
+      pub use crate::error::definitions::Halt::FromIsNotAnAccount;
+      pub use crate::error::definitions::Halt::InnerTxError;
+      pub use crate::error::definitions::Halt::Unknown;
+      pub use crate::error::definitions::Halt::UnexpectedVMBehavior;
+      pub use crate::error::definitions::Halt::BootloaderOutOfGas;
+      pub use crate::error::definitions::Halt::ValidationOutOfGas;
+      pub use crate::error::definitions::Halt::TooBigGasLimit;
+      pub use crate::error::definitions::Halt::NotEnoughGasProvided;
+      pub use crate::error::definitions::Halt::MissingInvocationLimitReached;
+      pub use crate::error::definitions::Halt::FailedToSetL2Block;
+      pub use crate::error::definitions::Halt::FailedToAppendTransactionToL2Block;
+      pub use crate::error::definitions::Halt::VMPanic;
+      pub use crate::error::definitions::Halt::TracerCustom;
+      pub use crate::error::definitions::Halt::FailedToPublishCompressedBytecodes;
+      pub use crate::error::definitions::Halt::FailedBlockTimestampAssertion;
+      pub use crate::error::definitions::Halt::GenericError;
+      
+      #[macro_export]
+      macro_rules! anvil_halt_generic_error {
+          ($($arg:tt)*) => {
+              zksync_error::error::definitions::Halt::GenericError { message: format!($($arg)*) }
+          };
+      }
+      pub use crate::anvil_halt_generic_error as generic_error;
+      }
+   pub mod revert {
+      pub use crate::error::definitions::Revert as RevertError;
+      pub use crate::error::definitions::Revert::General;
+      pub use crate::error::definitions::Revert::InnerTxError;
+      pub use crate::error::definitions::Revert::VmError;
+      pub use crate::error::definitions::Revert::Unknown;
+      pub use crate::error::definitions::Revert::GenericError;
+      
+      #[macro_export]
+      macro_rules! anvil_revert_generic_error {
+          ($($arg:tt)*) => {
+              zksync_error::error::definitions::Revert::GenericError { message: format!($($arg)*) }
+          };
+      }
+      pub use crate::anvil_revert_generic_error as generic_error;
+      }
    pub mod state {
       pub use crate::error::definitions::StateLoader as StateLoaderError;
       pub use crate::error::definitions::StateLoader::LoadingStateOverExistingStateError;

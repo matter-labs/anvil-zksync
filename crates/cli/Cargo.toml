@@ -37,6 +37,7 @@ tower.workspace = true
 tower-http.workspace = true
 flate2.workspace = true
 url.workspace = true
+zksync-error-codegen.workspace = true
 
 [dev-dependencies]
 tempdir.workspace = true

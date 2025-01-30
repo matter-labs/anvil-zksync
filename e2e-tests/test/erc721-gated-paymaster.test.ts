@@ -82,7 +82,7 @@ describe("ERC721GatedPaymaster", function () {
     expect(newBalance).to.eql(initialBalance);
   });
 
-  it.only("should require the user to have the NFT", async function () {
+  it("should require the user to have the NFT", async function () {
     // Arrange
     const normalUserWallet = new Wallet(Wallet.createRandom().privateKey, provider);
 

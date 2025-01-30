@@ -12,6 +12,10 @@ use strum_macros::EnumDiscriminants;
 use strum_macros::FromRepr;
 use crate::error::definitions::AnvilEnvironment;
 use crate::error::definitions::AnvilEnvironmentCode;
+use crate::error::definitions::Halt;
+use crate::error::definitions::HaltCode;
+use crate::error::definitions::Revert;
+use crate::error::definitions::RevertCode;
 use crate::error::definitions::StateLoader;
 use crate::error::definitions::StateLoaderCode;
 use crate::error::definitions::LLVM_EVM;
@@ -60,6 +64,8 @@ impl crate::documentation::Documented for ZksyncError {
         match self {
 
          ZksyncError::Anvil(Anvil::AnvilEnvironment(error)) => error.get_documentation() ,
+         ZksyncError::Anvil(Anvil::Halt(error)) => error.get_documentation() ,
+         ZksyncError::Anvil(Anvil::Revert(error)) => error.get_documentation() ,
          ZksyncError::Anvil(Anvil::StateLoader(error)) => error.get_documentation() ,
          ZksyncError::Compiler(Compiler::LLVM_EVM(error)) => error.get_documentation() ,
          ZksyncError::Compiler(Compiler::LLVM_Era(error)) => error.get_documentation() ,
@@ -84,6 +90,8 @@ impl ZksyncError {
     pub fn get_kind(&self) -> crate::kind::Kind {
         match self {
          ZksyncError::Anvil(Anvil::AnvilEnvironment(_)) => { Kind::Anvil(AnvilCode::AnvilEnvironment) },
+         ZksyncError::Anvil(Anvil::Halt(_)) => { Kind::Anvil(AnvilCode::Halt) },
+         ZksyncError::Anvil(Anvil::Revert(_)) => { Kind::Anvil(AnvilCode::Revert) },
          ZksyncError::Anvil(Anvil::StateLoader(_)) => { Kind::Anvil(AnvilCode::StateLoader) },
          ZksyncError::Compiler(Compiler::LLVM_EVM(_)) => { Kind::Compiler(CompilerCode::LLVM_EVM) },
          ZksyncError::Compiler(Compiler::LLVM_Era(_)) => { Kind::Compiler(CompilerCode::LLVM_Era) },
@@ -105,6 +113,8 @@ impl ZksyncError {
     pub fn get_code(&self) -> u32 {
         match self {
          ZksyncError::Anvil(Anvil::AnvilEnvironment(error)) => { Into::<AnvilEnvironmentCode>::into(error) as u32 },
+         ZksyncError::Anvil(Anvil::Halt(error)) => { Into::<HaltCode>::into(error) as u32 },
+         ZksyncError::Anvil(Anvil::Revert(error)) => { Into::<RevertCode>::into(error) as u32 },
          ZksyncError::Anvil(Anvil::StateLoader(error)) => { Into::<StateLoaderCode>::into(error) as u32 },
          ZksyncError::Compiler(Compiler::LLVM_EVM(error)) => { Into::<LLVM_EVMCode>::into(error) as u32 },
          ZksyncError::Compiler(Compiler::LLVM_Era(error)) => { Into::<LLVM_EraCode>::into(error) as u32 },
@@ -140,6 +150,8 @@ impl std::error::Error for ZksyncError {}
 #[strum_discriminants(vis(pub))]
 pub enum Anvil {
    AnvilEnvironment(AnvilEnvironment),
+   Halt(Halt),
+   Revert(Revert),
    StateLoader(StateLoader),
 }
 
@@ -232,6 +244,20 @@ impl Hardhat {
 impl ICustomError<ZksyncError, ZksyncError> for AnvilEnvironment {
     fn to_unified(&self) -> ZksyncError {
         ZksyncError::Anvil(Anvil::AnvilEnvironment(self.clone()))
+    }
+}
+
+
+impl ICustomError<ZksyncError, ZksyncError> for Halt {
+    fn to_unified(&self) -> ZksyncError {
+        ZksyncError::Anvil(Anvil::Halt(self.clone()))
+    }
+}
+
+
+impl ICustomError<ZksyncError, ZksyncError> for Revert {
+    fn to_unified(&self) -> ZksyncError {
+        ZksyncError::Anvil(Anvil::Revert(self.clone()))
     }
 }
 

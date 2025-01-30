@@ -15,6 +15,7 @@ use zksync_types::{
     fee_model::FeeModelConfigV2, Address, StorageLogWithPreviousValue, Transaction, H160, H256,
     U256,
 };
+use zksync_error_description::ErrorDocumentation;
 
 // @dev elected to have GasDetails struct as we can do more with it in the future
 // We can provide more detailed understanding of gas errors and gas usage
@@ -859,4 +860,85 @@ pub fn print_transaction_summary(
         format_gwei(l2_gas_price.into())
     );
     tracing::info!("Refunded: {:.10} ETH", refunded_in_eth);
+}
+
+pub fn format_and_print_error(message: &str, documentation: Option<ErrorDocumentation>) {
+    // Extract error code from message (assuming it's enclosed in square brackets)
+    let error_code = if let Some(start) = message.find('[') {
+        if let Some(end) = message.find(']') {
+            &message[start..=end] // Extracts "[anvil-halt-2]"
+        } else {
+            "[UNKNOWN]"
+        }
+    } else {
+        "[UNKNOWN]"
+    };
+
+    // Remove error code from message for cleaner output
+    let binding = message.replacen(error_code, "", 1);
+    let cleaned_message = binding.trim();
+
+    // Print error header
+    println!(
+        "{}{}: {}",
+        "error".red().bold(),
+        error_code.yellow(),
+        cleaned_message.red()
+    );
+    println!("    |");
+    println!(
+        "    = {} {}",
+        "error:".bright_red(),
+        documentation.as_ref().map_or("An unknown error occurred", |doc| &doc.summary)
+    );
+
+    // Print likely causes if available
+    if let Some(doc) = &documentation {
+        if !doc.likely_causes.is_empty() {
+            println!("    | ");
+            println!("    | {}", "Likely causes:".cyan());
+            for cause in &doc.likely_causes {
+                println!("    |   - {}", cause.cause);
+            }
+        }
+
+        // Print possible fixes if available
+        if let Some(first_cause) = doc.likely_causes.first() {
+            if !first_cause.fixes.is_empty() {
+                println!("    | ");
+                println!("    | {}", "Possible fixes:".green());
+                for fix in &first_cause.fixes {
+                    println!("    |   - {}", fix);
+                }
+            }
+        }
+
+        // Print additional note if available
+        println!("    |");
+        println!(
+            "{} {}",
+            "note:".blue(),
+            doc.description
+        );
+    }
+
+    // Provide additional references if available
+    if let Some(doc) = &documentation {
+        if !doc.likely_causes.is_empty() && !doc.likely_causes[0].references.is_empty() {
+            println!("\n{}", "For more information about this error, visit:".cyan());
+            for reference in &doc.likely_causes[0].references {
+                println!("  - {}", reference.underline());
+            }
+        } else {
+             println!(
+                "\nFor more information about this error, try `{}`.",
+                format!("anvil-zksync --explain {}", error_code).yellow()
+            );
+        }
+    }
+
+    println!(
+        "{} transaction execution halted due to the above error\n",
+        "error:".red()
+    );
 }

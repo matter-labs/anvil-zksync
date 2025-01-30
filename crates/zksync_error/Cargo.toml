@@ -12,4 +12,4 @@ serde_json = { version = "1.0.128" }
 strum = "0.26.3"
 strum_macros = "0.26.4"
 zksync-error-description = { git = "https://github.com/sayon/error-codegen-poc", branch = "main"}
-anyhow = "1.0"
+

@@ -44,6 +44,7 @@ flate2.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true
 url.workspace = true
+zksync-error-description.workspace = true
 
 [dev-dependencies]
 maplit.workspace = true
