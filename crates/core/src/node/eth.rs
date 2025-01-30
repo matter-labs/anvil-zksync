@@ -1,7 +1,19 @@
 use std::collections::HashSet;
 
+use crate::formatter::format_and_print_error;
+use crate::node::error::{ToHaltError, ToRevertReason};
+use crate::{
+    filters::{FilterType, LogFilter},
+    node::{InMemoryNode, MAX_TX_SIZE, PROTOCOL_VERSION},
+    utils::{h256_to_u64, TransparentError},
+};
 use anyhow::Context as _;
 use colored::Colorize;
+use zksync_error::anvil::halt::HaltError;
+use zksync_error::anvil::revert::RevertError;
+use zksync_error::documentation::Documented;
+use zksync_error::error::CustomErrorMessage;
+use zksync_error::error::NamedError;
 use zksync_multivm::interface::ExecutionResult;
 use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use zksync_types::h256_to_u256;
@@ -20,18 +32,6 @@ use zksync_types::{
 use zksync_web3_decl::{
     error::Web3Error,
     types::{FeeHistory, Filter, FilterChanges, SyncState},
-};
-use crate::node::error::{ToHaltError, ToRevertReason};
-use zksync_error::anvil::halt::HaltError;
-use zksync_error::anvil::revert::RevertError;
-use crate::formatter::format_and_print_error;
-use zksync_error::documentation::Documented;
-use zksync_error::error::CustomErrorMessage;
-use zksync_error::error::NamedError;
-use crate::{
-    filters::{FilterType, LogFilter},
-    node::{InMemoryNode, MAX_TX_SIZE, PROTOCOL_VERSION},
-    utils::{h256_to_u64, TransparentError},
 };
 
 impl InMemoryNode {

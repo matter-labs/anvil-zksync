@@ -19,26 +19,48 @@ pub enum LoadStateError {
     Other(#[from] anyhow::Error),
 }
 
+fn handle_vm_revert_reason(reason: VmRevertReason, default_msg: &str) -> (String, String) {
+    match reason {
+        VmRevertReason::General { msg, data } => (msg, data.encode_hex()),
+        VmRevertReason::InnerTxError => ("Inner transaction error".to_string(), String::new()),
+        VmRevertReason::VmError => ("VM Error".to_string(), String::new()),
+        VmRevertReason::Unknown {
+            function_selector,
+            data,
+        } => (
+            format!(
+                "Unknown revert reason for function: {:#?}",
+                function_selector
+            ),
+            data.encode_hex(),
+        ),
+        _ => (default_msg.to_string(), String::new()),
+    }
+}
+
 pub trait ToRevertReason {
     fn to_revert_reason(self) -> RevertError;
 }
 
 impl ToRevertReason for VmRevertReason {
     fn to_revert_reason(self) -> RevertError {
+        let default_msg = "Unknown revert reason";
+        let (message, data) = handle_vm_revert_reason(self.clone(), default_msg);
+
         match self {
-            VmRevertReason::General { msg, data } => RevertError::General { msg, data },
+            VmRevertReason::General { .. } => RevertError::General {
+                msg: message,
+                data: data.into(),
+            },
             VmRevertReason::InnerTxError => RevertError::InnerTxError,
             VmRevertReason::VmError => RevertError::VmError,
-            VmRevertReason::Unknown {
-                function_selector,
+            VmRevertReason::Unknown { .. } => RevertError::Unknown {
+                function_selector: message.encode_hex(),
                 data,
-            } => RevertError::Unknown {
-                function_selector: function_selector.encode_hex(),
-                data: data.encode_hex(),
             },
             _ => RevertError::Unknown {
-                function_selector: "Unknown revert reason".to_string(),
-                data: String::new(),
+                function_selector: message.encode_hex(),
+                data,
             },
         }
     }
@@ -51,52 +73,41 @@ pub trait ToHaltError {
 impl ToHaltError for Halt {
     fn to_halt_error(self) -> HaltError {
         match self {
-            Halt::ValidationFailed(VmRevertReason::General { msg, data }) => {
-                HaltError::ValidationFailed {
-                    msg,
-                    data: data.encode_hex(),
-                }
+            Halt::ValidationFailed(vm_revert_reason) => {
+                let (message, data) =
+                    handle_vm_revert_reason(vm_revert_reason, "Validation Failed");
+                HaltError::ValidationFailed { msg: message, data }
             }
-             Halt::ValidationFailed(VmRevertReason::Unknown { function_selector, data }) => {
-                HaltError::ValidationFailed {
-                    function_selector,
-                    data: data.encode_hex(),
-                }
+            Halt::PaymasterValidationFailed(vm_revert_reason) => {
+                let (message, data) =
+                    handle_vm_revert_reason(vm_revert_reason, "Paymaster Validation Failed");
+                HaltError::PaymasterValidationFailed { msg: message, data }
             }
-            Halt::PaymasterValidationFailed(VmRevertReason::General { msg, data }) => {
-                HaltError::PaymasterValidationFailed {
-                    msg,
-                    data: data.encode_hex(),
-                }
+            Halt::PrePaymasterPreparationFailed(vm_revert_reason) => {
+                let (message, data) =
+                    handle_vm_revert_reason(vm_revert_reason, "Pre-Paymaster Preparation Failed");
+                HaltError::PrePaymasterPreparationFailed { msg: message, data }
             }
-            Halt::PrePaymasterPreparationFailed(VmRevertReason::General { msg, data }) => {
-                HaltError::PrePaymasterPreparationFailed {
-                    msg,
-                    data: data.encode_hex(),
-                }
+            Halt::PayForTxFailed(vm_revert_reason) => {
+                let (message, data) = handle_vm_revert_reason(vm_revert_reason, "PayForTx Failed");
+                HaltError::PayForTxFailed { msg: message, data }
             }
-            Halt::PayForTxFailed(VmRevertReason::General { msg, data }) => {
-                HaltError::PayForTxFailed {
-                    msg,
-                    data: data.encode_hex(),
-                }
+            Halt::FailedToMarkFactoryDependencies(vm_revert_reason) => {
+                let (message, data) = handle_vm_revert_reason(
+                    vm_revert_reason,
+                    "Failed to Mark Factory Dependencies",
+                );
+                HaltError::FailedToMarkFactoryDependencies { msg: message, data }
             }
-            Halt::FailedToMarkFactoryDependencies(VmRevertReason::General { msg, data }) => {
-                HaltError::FailedToMarkFactoryDependencies {
-                    msg,
-                    data: data.encode_hex(),
-                }
+            Halt::FailedToChargeFee(vm_revert_reason) => {
+                let (message, data) =
+                    handle_vm_revert_reason(vm_revert_reason, "Failed to Charge Fee");
+                HaltError::FailedToChargeFee { msg: message, data }
             }
-            Halt::FailedToChargeFee(VmRevertReason::General { msg, data }) => {
-                HaltError::FailedToChargeFee {
-                    msg,
-                    data: data.encode_hex(),
-                }
+            Halt::Unknown(vm_revert_reason) => {
+                let (message, data) = handle_vm_revert_reason(vm_revert_reason, "Unknown Error");
+                HaltError::Unknown { msg: message, data }
             }
-            Halt::Unknown(VmRevertReason::General { msg, data }) => HaltError::Unknown {
-                msg,
-                data: data.encode_hex(),
-            },
             Halt::UnexpectedVMBehavior(msg) => HaltError::UnexpectedVMBehavior { problem: msg },
             Halt::FailedToSetL2Block(msg) => HaltError::FailedToSetL2Block { msg },
             Halt::FailedToAppendTransactionToL2Block(msg) => {
@@ -115,10 +126,6 @@ impl ToHaltError for Halt {
                 HaltError::FailedToPublishCompressedBytecodes
             }
             Halt::FailedBlockTimestampAssertion => HaltError::FailedBlockTimestampAssertion,
-            _ => HaltError::Unknown {
-                msg: "Unknown halt reason".to_string(),
-                data: String::new(),
-            },
         }
     }
 }
@@ -152,9 +159,15 @@ macro_rules! print_error {
             if let Some(input_data) = &tx.common_data.input {
                 println!("    |   Input Data: {:?}", input_data);
             }
-            println!("    |   Transaction Type: {:?}", tx.common_data.transaction_type);
+            println!(
+                "    |   Transaction Type: {:?}",
+                tx.common_data.transaction_type
+            );
             println!("    |   Gas Used: {}", tx.common_data.fee.gas_limit);
-            println!("    |   To: {}", tx.execute.contract_address.unwrap_or_default());  // Just a placeholder; update logic as necessary
+            println!(
+                "    |   To: {}",
+                tx.execute.contract_address.unwrap_or_default()
+            ); // Just a placeholder; update logic as necessary
         }
 
         // Print likely causes if available

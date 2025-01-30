@@ -9,11 +9,11 @@ use colored::Colorize;
 use futures::future::join_all;
 use lazy_static::lazy_static;
 use serde::Deserialize;
-use zksync_types::l2::L2Tx;
-use zksync_types::L2TxCommonData;
 use std::{collections::HashMap, str};
 use zksync_error_description::ErrorDocumentation;
 use zksync_multivm::interface::{Call, VmEvent, VmExecutionResultAndLogs};
+use zksync_types::l2::L2Tx;
+use zksync_types::L2TxCommonData;
 use zksync_types::{
     fee_model::FeeModelConfigV2, Address, StorageLogWithPreviousValue, Transaction, H160, H256,
     U256,

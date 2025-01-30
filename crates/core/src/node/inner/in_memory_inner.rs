@@ -934,6 +934,7 @@ impl InMemoryNodeInner {
                 let revert_reason: RevertError = output.to_revert_reason();
                 let revert_msg = revert_reason.get_message();
                 let doc = revert_reason.get_documentation().unwrap().cloned();
+                // TODO: clean this up
                 let error_code = if let Some(start) = revert_msg.find('[') {
                     if let Some(end) = revert_msg.find(']') {
                         &revert_msg[start..=end] // Extracts "[anvil-halt-2]"
@@ -954,6 +955,7 @@ impl InMemoryNodeInner {
                 println!("REASON {:?}", reason);
                 let pretty_message = format!("execution halted: {}", reason.to_string());
                 let halt_error: HaltError = reason.to_halt_error();
+                println!("halt_error {:?}", halt_error);
                 let error_msg = halt_error.get_message();
                 println!("ERROR MSG {}", error_msg);
                 println!("pretty_message {}", pretty_message);
@@ -971,7 +973,7 @@ impl InMemoryNodeInner {
 
                 let replaced_message = error_msg.replacen(error_code, "", 1);
                 let cleaned_message = replaced_message.trim();
-                
+
                 print_error!(error_code, cleaned_message, doc.as_ref(), Some(l2_tx));
                 Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
             }
