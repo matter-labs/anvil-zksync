@@ -21,7 +21,13 @@ use zksync_web3_decl::{
     error::Web3Error,
     types::{FeeHistory, Filter, FilterChanges, SyncState},
 };
-
+use crate::node::error::{ToHaltError, ToRevertReason};
+use zksync_error::anvil::halt::HaltError;
+use zksync_error::anvil::revert::RevertError;
+use crate::formatter::format_and_print_error;
+use zksync_error::documentation::Documented;
+use zksync_error::error::CustomErrorMessage;
+use zksync_error::error::NamedError;
 use crate::{
     filters::{FilterType, LogFilter},
     node::{InMemoryNode, MAX_TX_SIZE, PROTOCOL_VERSION},
@@ -55,7 +61,10 @@ impl InMemoryNode {
                     message
                 );
 
-                tracing::info!("{}", pretty_message.on_red());
+                let revert_reason: RevertError = output.clone().to_revert_reason();
+                let revert_msg = revert_reason.get_message();
+                let doc = revert_reason.get_documentation().unwrap().cloned();
+                format_and_print_error(&revert_msg, doc);
                 Err(Web3Error::SubmitTransactionError(
                     pretty_message,
                     output.encoded_data(),
@@ -69,7 +78,10 @@ impl InMemoryNode {
                     message
                 );
 
-                tracing::info!("{}", pretty_message.on_red());
+                let halt_error: HaltError = reason.clone().to_halt_error();
+                let error_msg = halt_error.get_message();
+                let doc = halt_error.get_documentation().unwrap().cloned();
+                format_and_print_error(&error_msg, doc);
                 Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
             }
         }

@@ -26,9 +26,9 @@ use std::{env, net::SocketAddr, str::FromStr};
 use tokio::sync::RwLock;
 use tower_http::cors::AllowOrigin;
 use tracing_subscriber::filter::LevelFilter;
+use zksync_error_codegen::default_load_and_generate;
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
 use zksync_types::{L2BlockNumber, H160};
-use zksync_error_codegen::default_load_and_generate;
 mod bytecode_override;
 mod cli;
 mod utils;
@@ -36,7 +36,10 @@ mod utils;
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     println!("cargo:rerun-if-changed=etc/resources/anvil.json");
-    default_load_and_generate("https://github.com/sayon/error-codegen-poc/blob/main/zksync-root.json", vec!["/Users/dustinbrickwood/Documents/dev/zk/devx/anvil-zksync/etc/resources/anvil.json"]);
+    default_load_and_generate(
+        "https://github.com/sayon/error-codegen-poc/blob/main/zksync-root.json",
+        vec!["/Users/dustinbrickwood/Documents/dev/zk/devx/anvil-zksync/etc/resources/anvil.json"],
+    );
     // Check for deprecated options
     Cli::deprecated_config_option();
 

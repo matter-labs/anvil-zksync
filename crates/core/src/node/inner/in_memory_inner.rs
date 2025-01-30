@@ -19,11 +19,10 @@ use crate::node::{
     TransactionResult, TxExecutionInfo, VersionedState, ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION,
     MAX_PREVIOUS_STATES, MAX_TX_SIZE,
 };
+use crate::print_error;
 use crate::system_contracts::SystemContracts;
 use crate::utils::create_debug_output;
 use crate::{delegate_vm, formatter, utils};
-use alloy::hex::ToHexExt;
-use alloy::signers::k256::pkcs8::der::Encode;
 use anvil_zksync_config::constants::NON_FORK_FIRST_BLOCK_TIMESTAMP;
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_types::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
@@ -32,7 +31,6 @@ use colored::Colorize;
 use indexmap::IndexMap;
 use once_cell::sync::OnceCell;
 use std::collections::{HashMap, HashSet};
-use std::error::Error;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use zksync_contracts::BaseSystemContracts;
@@ -490,6 +488,10 @@ impl InMemoryNodeInner {
         } = self.run_l2_tx_raw(l2_tx.clone(), vm)?;
 
         if let ExecutionResult::Halt { reason } = result.result {
+            let halt_error: HaltError = reason.clone().to_halt_error();
+            let error_msg = halt_error.get_message();
+            let doc = halt_error.get_documentation().unwrap().cloned();
+            format_and_print_error(&error_msg, doc);
             // Halt means that something went really bad with the transaction execution (in most cases invalid signature,
             // but it could also be bootloader panic etc).
             // In such case, we should not persist the VM data, and we should pretend that transaction never existed.
@@ -932,17 +934,45 @@ impl InMemoryNodeInner {
                 let revert_reason: RevertError = output.to_revert_reason();
                 let revert_msg = revert_reason.get_message();
                 let doc = revert_reason.get_documentation().unwrap().cloned();
-                format_and_print_error(&revert_msg, doc);
+                let error_code = if let Some(start) = revert_msg.find('[') {
+                    if let Some(end) = revert_msg.find(']') {
+                        &revert_msg[start..=end] // Extracts "[anvil-halt-2]"
+                    } else {
+                        "[UNKNOWN]"
+                    }
+                } else {
+                    "[UNKNOWN]"
+                };
+
+                let replaced_message = revert_msg.replacen(error_code, "", 1);
+                let cleaned_message = replaced_message.trim();
+                print_error!(error_code, cleaned_message, doc.as_ref(), Some(l2_tx));
 
                 Err(Web3Error::SubmitTransactionError(pretty_message, data))
             }
             ExecutionResult::Halt { reason } => {
+                println!("REASON {:?}", reason);
                 let pretty_message = format!("execution halted: {}", reason.to_string());
                 let halt_error: HaltError = reason.to_halt_error();
                 let error_msg = halt_error.get_message();
+                println!("ERROR MSG {}", error_msg);
+                println!("pretty_message {}", pretty_message);
                 let doc = halt_error.get_documentation().unwrap().cloned();
-                format_and_print_error(&error_msg, doc);
+                // format_and_print_error(&error_msg, doc);
+                let error_code = if let Some(start) = error_msg.find('[') {
+                    if let Some(end) = error_msg.find(']') {
+                        &error_msg[start..=end] // Extracts "[anvil-halt-2]"
+                    } else {
+                        "[UNKNOWN]"
+                    }
+                } else {
+                    "[UNKNOWN]"
+                };
 
+                let replaced_message = error_msg.replacen(error_code, "", 1);
+                let cleaned_message = replaced_message.trim();
+                
+                print_error!(error_code, cleaned_message, doc.as_ref(), Some(l2_tx));
                 Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
             }
             ExecutionResult::Success { .. } => {

@@ -2,6 +2,7 @@
 
 mod call_error_tracer;
 mod debug;
+mod error;
 mod eth;
 mod fee_model;
 mod impersonate;
@@ -16,7 +17,6 @@ mod storage_logs;
 mod vm;
 mod zkos;
 mod zks;
-mod error;
 
 pub use self::{
     fee_model::TestNodeFeeInputProvider, impersonate::ImpersonationManager, keys::StorageKeyLayout,

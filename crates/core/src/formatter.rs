@@ -9,13 +9,15 @@ use colored::Colorize;
 use futures::future::join_all;
 use lazy_static::lazy_static;
 use serde::Deserialize;
+use zksync_types::l2::L2Tx;
+use zksync_types::L2TxCommonData;
 use std::{collections::HashMap, str};
+use zksync_error_description::ErrorDocumentation;
 use zksync_multivm::interface::{Call, VmEvent, VmExecutionResultAndLogs};
 use zksync_types::{
     fee_model::FeeModelConfigV2, Address, StorageLogWithPreviousValue, Transaction, H160, H256,
     U256,
 };
-use zksync_error_description::ErrorDocumentation;
 
 // @dev elected to have GasDetails struct as we can do more with it in the future
 // We can provide more detailed understanding of gas errors and gas usage
@@ -863,7 +865,6 @@ pub fn print_transaction_summary(
 }
 
 pub fn format_and_print_error(message: &str, documentation: Option<ErrorDocumentation>) {
-    // Extract error code from message (assuming it's enclosed in square brackets)
     let error_code = if let Some(start) = message.find('[') {
         if let Some(end) = message.find(']') {
             &message[start..=end] // Extracts "[anvil-halt-2]"
@@ -874,7 +875,6 @@ pub fn format_and_print_error(message: &str, documentation: Option<ErrorDocument
         "[UNKNOWN]"
     };
 
-    // Remove error code from message for cleaner output
     let binding = message.replacen(error_code, "", 1);
     let cleaned_message = binding.trim();
 
@@ -889,7 +889,9 @@ pub fn format_and_print_error(message: &str, documentation: Option<ErrorDocument
     println!(
         "    = {} {}",
         "error:".bright_red(),
-        documentation.as_ref().map_or("An unknown error occurred", |doc| &doc.summary)
+        documentation
+            .as_ref()
+            .map_or("An unknown error occurred", |doc| &doc.summary)
     );
 
     // Print likely causes if available
@@ -913,24 +915,22 @@ pub fn format_and_print_error(message: &str, documentation: Option<ErrorDocument
             }
         }
 
-        // Print additional note if available
         println!("    |");
-        println!(
-            "{} {}",
-            "note:".blue(),
-            doc.description
-        );
+        println!("{} {}", "note:".blue(), doc.description);
     }
 
     // Provide additional references if available
     if let Some(doc) = &documentation {
         if !doc.likely_causes.is_empty() && !doc.likely_causes[0].references.is_empty() {
-            println!("\n{}", "For more information about this error, visit:".cyan());
+            println!(
+                "\n{}",
+                "For more information about this error, visit:".cyan()
+            );
             for reference in &doc.likely_causes[0].references {
                 println!("  - {}", reference.underline());
             }
         } else {
-             println!(
+            println!(
                 "\nFor more information about this error, try `{}`.",
                 format!("anvil-zksync --explain {}", error_code).yellow()
             );

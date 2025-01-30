@@ -28,12 +28,12 @@ use flate2::Compression;
 use indexmap::IndexMap;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
-use zksync_error::anvil::state::StateLoaderError;
 use std::collections::{HashMap, HashSet};
 use std::io::{Read, Write};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use zksync_contracts::BaseSystemContracts;
+use zksync_error::anvil::state::StateLoaderError;
 use zksync_multivm::interface::storage::{ReadStorage, StoragePtr};
 use zksync_multivm::interface::VmFactory;
 use zksync_multivm::interface::{
@@ -43,8 +43,15 @@ use zksync_multivm::tracers::CallTracer;
 use zksync_multivm::utils::{get_batch_base_fee, get_max_batch_gas_limit};
 use zksync_multivm::vm_latest::Vm;
 
+use crate::formatter::format_and_print_error;
+use crate::node::error::{ToHaltError, ToRevertReason};
 use crate::node::fork::{ForkClient, ForkSource};
 use crate::node::keys::StorageKeyLayout;
+use zksync_error::anvil::halt::HaltError;
+use zksync_error::anvil::revert::RevertError;
+use zksync_error::documentation::Documented;
+use zksync_error::error::CustomErrorMessage;
+use zksync_error::error::NamedError;
 use zksync_multivm::vm_latest::{HistoryDisabled, ToTracerPointer};
 use zksync_multivm::VmVersion;
 use zksync_types::api::{Block, DebugCall, TransactionReceipt, TransactionVariant};
@@ -408,16 +415,19 @@ impl InMemoryNode {
         if inner.config.show_tx_summary {
             tracing::info!("");
             match &tx_result.result {
-                ExecutionResult::Success { output } => {
-                    tracing::info!("Call: {}", "SUCCESS".green());
-                    let output_bytes = zksync_types::web3::Bytes::from(output.clone());
-                    tracing::info!("Output: {}", serde_json::to_string(&output_bytes).unwrap());
-                }
+                // Ignore success as the tx summary is logged in raw call
+                ExecutionResult::Success { output: _ } => {}
                 ExecutionResult::Revert { output } => {
-                    tracing::info!("Call: {}: {}", "FAILED".red(), output);
+                    let revert_reason: RevertError = output.clone().to_revert_reason();
+                    let revert_msg = revert_reason.get_message();
+                    let doc = revert_reason.get_documentation().unwrap().cloned();
+                    format_and_print_error(&revert_msg, doc);
                 }
                 ExecutionResult::Halt { reason } => {
-                    tracing::info!("Call: {} {}", "HALTED".red(), reason)
+                    let halt_error: HaltError = reason.clone().to_halt_error();
+                    let error_msg = halt_error.get_message();
+                    let doc = halt_error.get_documentation().unwrap().cloned();
+                    format_and_print_error(&error_msg, doc);
                 }
             };
         }
@@ -482,16 +492,21 @@ impl InMemoryNode {
         // Support both compressed and non-compressed state format
         let decoded = if decoder.header().is_some() {
             tracing::trace!(bytes = buf.0.len(), "decompressing state");
-            decoder
-                .read_to_end(decoded_data.as_mut())
-                .map_err(|e| StateLoaderError::StateDecompressionError { details: e.to_string() } )?;
+            decoder.read_to_end(decoded_data.as_mut()).map_err(|e| {
+                StateLoaderError::StateDecompressionError {
+                    details: e.to_string(),
+                }
+            })?;
             &decoded_data
         } else {
             &buf.0
         };
         tracing::trace!(bytes = decoded.len(), "deserializing state");
-        let state: VersionedState =
-            serde_json::from_slice(decoded).map_err(|e| StateLoaderError::StateDeserializationError { details: e.to_string() })?;
+        let state: VersionedState = serde_json::from_slice(decoded).map_err(|e| {
+            StateLoaderError::StateDeserializationError {
+                details: e.to_string(),
+            }
+        })?;
 
         Ok(self.inner.write().await.load_state(state).await?)
     }
