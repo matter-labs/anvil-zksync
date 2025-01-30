@@ -420,7 +420,7 @@ impl InMemoryNode {
                 }
                 ExecutionResult::Revert { output } => {
                     // TODO: Once we integrate error-codegen avoid printing error flags returned from
-                    // vm_state and rather pass them to error-codegen to get properly formed error message. 
+                    // vm_state and rather pass them to error-codegen to get properly formed error message.
                     // e.g. NOT_ENOUGH_ERGS -> Transaction ran out of gas.
                     tracing::warn!("Execution flag raised: {:?}", error_flags);
                     tracing::info!("Call: {}: {}", "FAILED".red(), output);
@@ -428,7 +428,7 @@ impl InMemoryNode {
                 ExecutionResult::Halt { reason } => {
                     // TODO: Once we integrate error-codegen avoid printing error flags returned from
                     // vm_state and rather pass them to error-codegen to get properly formed error message.
-                    // e.g. NOT_ENOUGH_ERGS -> Transaction ran out of gas. 
+                    // e.g. NOT_ENOUGH_ERGS -> Transaction ran out of gas.
                     tracing::warn!("Execution flag raised: {:?}", error_flags);
                     tracing::info!("Call: {} {}", "HALTED".red(), reason)
                 }
