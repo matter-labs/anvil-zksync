@@ -1,0 +1,14 @@
+# ATTENTION: This file contains sensible placeholders. Please check them and update with the desired values.
+create2_factory_salt: 0x9e2e9d16f521ee6388128472593175ca7bd85e8a0ac8755dd553c8bfb0fc0d45
+governance_min_delay: 0
+max_number_of_chains: 100
+diamond_init_batch_overhead_l1_gas: 1000000
+diamond_init_max_l2_gas_per_batch: 80000000
+diamond_init_max_pubdata_per_batch: 120000
+diamond_init_minimal_l2_gas_price: 250000000
+diamond_init_priority_tx_max_pubdata: 99000
+diamond_init_pubdata_pricing_mode: 0
+priority_tx_max_gas_limit: 72000000
+validator_timelock_execution_delay: 0
+token_weth_address: 0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2
+bridgehub_create_new_chain_salt: 297943471550302789

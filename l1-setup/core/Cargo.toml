@@ -1,0 +1,5 @@
+# Dummy crate pretending to be zksync-era server binary for zkstack to run smoothly
+[package]
+name = "zksync_server"
+
+[workspace] # ignore higher-level workspace

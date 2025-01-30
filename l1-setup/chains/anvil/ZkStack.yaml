@@ -1,0 +1,15 @@
+id: 1
+name: anvil
+chain_id: 260
+prover_version: NoProofs
+configs: ./chains/anvil/configs/
+rocks_db_path: ./chains/anvil/db/
+external_node_config_path: ./chains/anvil/configs/external_node
+artifacts_path: ./chains/anvil/artifacts/
+l1_batch_commit_data_generator_mode: Rollup
+base_token:
+  address: '0x0000000000000000000000000000000000000001'
+  nominator: 1
+  denominator: 1
+wallet_creation: InFile
+wallet_path: ./etc/env/file_based/wallets.yaml

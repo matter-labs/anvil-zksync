@@ -1,0 +1,5 @@
+node_modules
+core/target
+
+# ZK stack CLI downloads it by default and it is hard to disable this behavior without affecting the rest of the flow
+era-observability/
