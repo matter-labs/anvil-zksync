@@ -482,18 +482,6 @@ impl InMemoryNodeInner {
         } = self.run_l2_tx_raw(l2_tx.clone(), vm)?;
 
         if let ExecutionResult::Halt { reason } = result.result {
-            let halt_error: HaltError = reason.clone().to_halt_error();
-            // let zksync_error = ZksyncError::Anvil(zksync_error::error::domains::Anvil::Halt(
-            //     halt_error.clone(),
-            // ));
-            // let identifier = zksync_error.get_identifier();
-            // let repr = identifier.get_identifier_repr();
-            // let error_msg = halt_error.get_message();
-            // let doc = halt_error.get_documentation().unwrap().cloned();
-
-            // format_and_print_error(&repr, &error_msg, doc.as_ref(), Some(&l2_tx));
-            print_error_generic(&halt_error, Some(&l2_tx));
-
             // Halt means that something went really bad with the transaction execution (in most cases invalid signature,
             // but it could also be bootloader panic etc).
             // In such case, we should not persist the VM data, and we should pretend that transaction never existed.
@@ -933,16 +921,18 @@ impl InMemoryNodeInner {
                     message
                 );
                 let data = output.encoded_data();
-                let revert_reason: RevertError = output.to_revert_reason();
+
+                let revert_reason: RevertError = output.to_revert_reason().await;
                 print_error_generic(&revert_reason, Some(&l2_tx));
 
                 Err(Web3Error::SubmitTransactionError(pretty_message, data))
             }
             ExecutionResult::Halt { reason } => {
-                let pretty_message = format!("execution halted: {}", reason.to_string());
+                let pretty_message = format!("execution halted: {}", reason);
 
-                let halt_error: HaltError = reason.to_halt_error();
+                let halt_error: HaltError = reason.to_halt_error().await;
                 print_error_generic(&halt_error, Some(&l2_tx));
+
                 Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
             }
             ExecutionResult::Success { .. } => {

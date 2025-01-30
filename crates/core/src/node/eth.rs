@@ -56,7 +56,7 @@ impl InMemoryNode {
                     message
                 );
 
-                let revert_reason: RevertError = output.clone().to_revert_reason();
+                let revert_reason: RevertError = output.clone().to_revert_reason().await;
                 print_error_generic(&revert_reason, Some(&tx));
                 Err(Web3Error::SubmitTransactionError(
                     pretty_message,
@@ -71,7 +71,7 @@ impl InMemoryNode {
                     message
                 );
 
-                let halt_error: HaltError = reason.clone().to_halt_error();
+                let halt_error: HaltError = reason.clone().to_halt_error().await;
                 print_error_generic(&halt_error, Some(&tx));
                 Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
             }

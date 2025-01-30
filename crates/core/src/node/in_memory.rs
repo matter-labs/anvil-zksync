@@ -42,11 +42,8 @@ use zksync_multivm::tracers::CallTracer;
 use zksync_multivm::utils::{get_batch_base_fee, get_max_batch_gas_limit};
 use zksync_multivm::vm_latest::Vm;
 
-use crate::formatter::print_error_generic;
-use crate::node::error::{ToHaltError, ToRevertReason};
 use crate::node::fork::{ForkClient, ForkSource};
 use crate::node::keys::StorageKeyLayout;
-use zksync_error::anvil::{halt::HaltError, revert::RevertError};
 use zksync_multivm::vm_latest::{HistoryDisabled, ToTracerPointer};
 use zksync_multivm::VmVersion;
 use zksync_types::api::{Block, DebugCall, TransactionReceipt, TransactionVariant};
@@ -387,8 +384,8 @@ impl InMemoryNode {
         if l2_tx.common_data.signature.is_empty() {
             l2_tx.common_data.signature = PackedEthSignature::default().serialize_packed().into();
         }
-        // TODO: can we avoid cloning here?
-        let tx: Transaction = l2_tx.clone().into();
+
+        let tx: Transaction = l2_tx.into();
         delegate_vm!(vm, push_transaction(tx.clone()));
 
         let call_tracer_result = Arc::new(OnceCell::default());
@@ -406,22 +403,6 @@ impl InMemoryNode {
             .unwrap()
             .take()
             .unwrap_or_default();
-
-        if inner.config.show_tx_summary {
-            tracing::info!("");
-            match &tx_result.result {
-                // Ignore success as the tx summary is logged in raw call
-                ExecutionResult::Success { output: _ } => {}
-                ExecutionResult::Revert { output } => {
-                    let revert_reason: RevertError = output.clone().to_revert_reason();
-                    print_error_generic(&revert_reason, Some(&l2_tx));
-                }
-                ExecutionResult::Halt { reason } => {
-                    let halt_error: HaltError = reason.clone().to_halt_error();
-                    print_error_generic(&halt_error, Some(&l2_tx));
-                }
-            };
-        }
 
         if !inner.config.disable_console_log {
             inner
@@ -494,7 +475,7 @@ impl InMemoryNode {
         let state: VersionedState =
             serde_json::from_slice(decoded).map_err(LoadStateError::FailedDeserialize)?;
 
-        Ok(self.inner.write().await.load_state(state).await?)
+        self.inner.write().await.load_state(state).await
     }
 
     pub async fn get_chain_id(&self) -> anyhow::Result<u32> {

@@ -682,7 +682,6 @@ mod tests {
         net::{IpAddr, Ipv4Addr},
     };
     use tempdir::TempDir;
-    use zksync_error::error::ICustomError as _;
     use zksync_types::{H160, U256};
 
     #[test]

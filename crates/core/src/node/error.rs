@@ -1,4 +1,6 @@
+use crate::resolver::decode_function_selector;
 use alloy::hex::ToHexExt;
+use async_trait::async_trait;
 use zksync_error::anvil::halt::HaltError;
 use zksync_error::anvil::revert::RevertError;
 use zksync_multivm::interface::{Halt, VmRevertReason};
@@ -19,7 +21,7 @@ pub enum LoadStateError {
     Other(#[from] anyhow::Error),
 }
 
-fn handle_vm_revert_reason(reason: VmRevertReason, default_msg: &str) -> (String, String) {
+async fn handle_vm_revert_reason(reason: VmRevertReason, default_msg: &str) -> (String, String) {
     match reason {
         VmRevertReason::General { msg, data } => (msg, data.encode_hex()),
         VmRevertReason::InnerTxError => ("Inner transaction error".to_string(), String::new()),
@@ -28,28 +30,43 @@ fn handle_vm_revert_reason(reason: VmRevertReason, default_msg: &str) -> (String
             function_selector,
             data,
         } => {
-            let formatted_selector = format!("0x{}", function_selector.encode_hex());
-            (
-                format!(
-                    "Account validation error: Unknown revert reason for function: {}. Data: {}",
-                    formatted_selector,
-                    data.encode_hex()
-                ),
-                data.encode_hex(),
-            )
+            if function_selector.is_empty() {
+                // Function selector is empty, so we return empty strings
+                (String::new(), String::new())
+            } else {
+                let hex_selector = function_selector.encode_hex();
+
+                match decode_function_selector(&hex_selector).await {
+                    // Successfully decoded something like "InsufficientFunds(uint256,uint256)"
+                    Ok(Some(decoded_name)) => (decoded_name, data.encode_hex()),
+                    // Decoding returned None => unknown signature
+                    Ok(None) => (
+                        format!("Error with function selector: 0x{hex_selector}"),
+                        data.encode_hex(),
+                    ),
+                    Err(e) => (
+                        format!(
+                            "Error with function selector: 0x{hex_selector}. Decode failure: {e}"
+                        ),
+                        data.encode_hex(),
+                    ),
+                }
+            }
         }
         _ => (default_msg.to_string(), String::new()),
     }
 }
 
+#[async_trait]
 pub trait ToRevertReason {
-    fn to_revert_reason(self) -> RevertError;
+    async fn to_revert_reason(self) -> RevertError;
 }
 
+#[async_trait]
 impl ToRevertReason for VmRevertReason {
-    fn to_revert_reason(self) -> RevertError {
+    async fn to_revert_reason(self) -> RevertError {
         let default_msg = "Unknown revert reason";
-        let (message, data) = handle_vm_revert_reason(self.clone(), default_msg);
+        let (message, data) = handle_vm_revert_reason(self.clone(), default_msg).await;
 
         match self {
             VmRevertReason::General { .. } => RevertError::General {
@@ -70,46 +87,52 @@ impl ToRevertReason for VmRevertReason {
     }
 }
 
+#[async_trait]
 pub trait ToHaltError {
-    fn to_halt_error(self) -> HaltError;
+    async fn to_halt_error(self) -> HaltError;
 }
 
+#[async_trait]
 impl ToHaltError for Halt {
-    fn to_halt_error(self) -> HaltError {
+    async fn to_halt_error(self) -> HaltError {
         match self {
             Halt::ValidationFailed(vm_revert_reason) => {
                 let (message, data) =
-                    handle_vm_revert_reason(vm_revert_reason, "Validation Failed");
+                    handle_vm_revert_reason(vm_revert_reason, "Validation Failed").await;
                 HaltError::ValidationFailed { msg: message, data }
             }
             Halt::PaymasterValidationFailed(vm_revert_reason) => {
                 let (message, data) =
-                    handle_vm_revert_reason(vm_revert_reason, "Paymaster Validation Failed");
+                    handle_vm_revert_reason(vm_revert_reason, "Paymaster Validation Failed").await;
                 HaltError::PaymasterValidationFailed { msg: message, data }
             }
             Halt::PrePaymasterPreparationFailed(vm_revert_reason) => {
                 let (message, data) =
-                    handle_vm_revert_reason(vm_revert_reason, "Pre-Paymaster Preparation Failed");
+                    handle_vm_revert_reason(vm_revert_reason, "Pre-Paymaster Preparation Failed")
+                        .await;
                 HaltError::PrePaymasterPreparationFailed { msg: message, data }
             }
             Halt::PayForTxFailed(vm_revert_reason) => {
-                let (message, data) = handle_vm_revert_reason(vm_revert_reason, "PayForTx Failed");
+                let (message, data) =
+                    handle_vm_revert_reason(vm_revert_reason, "PayForTx Failed").await;
                 HaltError::PayForTxFailed { msg: message, data }
             }
             Halt::FailedToMarkFactoryDependencies(vm_revert_reason) => {
                 let (message, data) = handle_vm_revert_reason(
                     vm_revert_reason,
                     "Failed to Mark Factory Dependencies",
-                );
+                )
+                .await;
                 HaltError::FailedToMarkFactoryDependencies { msg: message, data }
             }
             Halt::FailedToChargeFee(vm_revert_reason) => {
                 let (message, data) =
-                    handle_vm_revert_reason(vm_revert_reason, "Failed to Charge Fee");
+                    handle_vm_revert_reason(vm_revert_reason, "Failed to Charge Fee").await;
                 HaltError::FailedToChargeFee { msg: message, data }
             }
             Halt::Unknown(vm_revert_reason) => {
-                let (message, data) = handle_vm_revert_reason(vm_revert_reason, "Unknown Error");
+                let (message, data) =
+                    handle_vm_revert_reason(vm_revert_reason, "Unknown Error").await;
                 HaltError::Unknown { msg: message, data }
             }
             Halt::UnexpectedVMBehavior(msg) => HaltError::UnexpectedVMBehavior { problem: msg },

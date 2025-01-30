@@ -7,6 +7,9 @@ members = [
     "crates/core",
     "crates/types",
 ]
+exclude = [
+    "crates/zksync_error"
+]
 resolver = "2"
 
 [profile.dev]

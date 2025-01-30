@@ -851,7 +851,9 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "url",
+ "zksync-error-description",
  "zksync_contracts",
+ "zksync_error",
  "zksync_multivm",
  "zksync_types",
  "zksync_web3_decl",
@@ -6981,6 +6983,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync-error-description"
+version = "0.1.0"
+source = "git+https://github.com/sayon/error-codegen-poc?branch=main#e6b17c21f080711e4770cb9ed3d1fa285a81cbdd"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "zksync_basic_types"
 version = "26.2.1-non-semver-compat"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7104,6 +7115,18 @@ dependencies = [
  "sha2",
  "thiserror 1.0.69",
  "zksync_basic_types",
+]
+
+[[package]]
+name = "zksync_error"
+version = "0.1.0"
+dependencies = [
+ "lazy_static",
+ "serde",
+ "serde_json",
+ "strum",
+ "strum_macros",
+ "zksync-error-description",
 ]
 
 [[package]]
