@@ -242,16 +242,7 @@ mod tests {
         );
 
         // find the call to primary contract in the trace
-        let contract_call = trace
-            .calls
-            .first()
-            .unwrap()
-            .calls
-            .last()
-            .unwrap()
-            .calls
-            .first()
-            .unwrap();
+        let contract_call = trace.calls.last().unwrap().calls.first().unwrap();
 
         assert_eq!(contract_call.to, primary_deployed_address);
         assert_eq!(contract_call.input, calldata.into());
@@ -348,16 +339,7 @@ mod tests {
         // call should revert
         assert!(trace.revert_reason.is_some());
         // find the call to primary contract in the trace
-        let contract_call = trace
-            .calls
-            .first()
-            .unwrap()
-            .calls
-            .last()
-            .unwrap()
-            .calls
-            .first()
-            .unwrap();
+        let contract_call = trace.calls.last().unwrap().calls.first().unwrap();
 
         // the contract subcall should have reverted
         assert!(contract_call.revert_reason.is_some());

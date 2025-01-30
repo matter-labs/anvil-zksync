@@ -3,7 +3,7 @@
 set -xe
 
 TEST_CONTRACT_ARTIFACTS="etc/test-contracts/artifacts-zk/cache-zk/solpp-generated-contracts"
-TEST_CONTRACT_TARGET="src/deps/test-contracts"
+TEST_CONTRACT_TARGET="crates/core/src/deps/test-contracts"
 
 echo "Building test contracts"
 (cd etc/test-contracts && yarn && yarn build)

@@ -19,7 +19,6 @@ anvil_zksync_types.workspace = true
 alloy = { workspace = true, default-features = false, features = ["signer-mnemonic"] }
 
 zksync_types.workspace = true
-zksync_web3_decl.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 eyre.workspace = true
