@@ -10,10 +10,11 @@ use futures::future::join_all;
 use lazy_static::lazy_static;
 use serde::Deserialize;
 use std::{collections::HashMap, str};
+use zksync_error::documentation::Documented;
+use zksync_error::error::{CustomErrorMessage, NamedError};
 use zksync_error_description::ErrorDocumentation;
 use zksync_multivm::interface::{Call, VmEvent, VmExecutionResultAndLogs};
 use zksync_types::l2::L2Tx;
-use zksync_types::L2TxCommonData;
 use zksync_types::{
     fee_model::FeeModelConfigV2, Address, StorageLogWithPreviousValue, Transaction, H160, H256,
     U256,
@@ -864,77 +865,80 @@ pub fn print_transaction_summary(
     tracing::info!("Refunded: {:.10} ETH", refunded_in_eth);
 }
 
-pub fn format_and_print_error(message: &str, documentation: Option<ErrorDocumentation>) {
-    let error_code = if let Some(start) = message.find('[') {
-        if let Some(end) = message.find(']') {
-            &message[start..=end] // Extracts "[anvil-halt-2]"
-        } else {
-            "[UNKNOWN]"
+/// Prints halt and revert errors.
+pub fn print_error_generic<E>(error: &E, tx: Option<&L2Tx>)
+where
+    E: NamedError + CustomErrorMessage + Documented<Documentation = &'static ErrorDocumentation>,
+{
+    let error_msg = error.get_message();
+    let doc = match error.get_documentation() {
+        Ok(opt) => opt,
+        Err(e) => {
+            eprintln!("Failed to get error documentation: {}", e);
+            None
         }
-    } else {
-        "[UNKNOWN]"
     };
 
-    let binding = message.replacen(error_code, "", 1);
-    let cleaned_message = binding.trim();
-
     // Print error header
-    println!(
-        "{}{}: {}",
-        "error".red().bold(),
-        error_code.yellow(),
-        cleaned_message.red()
-    );
+    println!("{}: {}", "error".red().bold(), error_msg.red());
     println!("    |");
     println!(
         "    = {} {}",
         "error:".bright_red(),
-        documentation
-            .as_ref()
-            .map_or("An unknown error occurred", |doc| &doc.summary)
+        doc.as_ref()
+            .map_or("An unknown error occurred", |d| d.summary.as_str())
     );
 
+    if let Some(tx) = tx {
+        println!("    | ");
+        println!("    | {}", "Transaction details:".cyan());
+        println!(
+            "    |   Transaction Type: {:?}",
+            tx.common_data.transaction_type
+        );
+        println!("    |   Nonce: {}", tx.common_data.nonce);
+        if let Some(contract_address) = &tx.execute.contract_address {
+            println!("    |   To: {:?}", contract_address);
+        }
+        println!("    |   From: {:?}", tx.common_data.initiator_address);
+        if let Some(input_data) = &tx.common_data.input {
+            println!("    |   Input Data: {:?}", input_data);
+        }
+        println!("    |   Gas Used: {}", tx.common_data.fee.gas_limit);
+    }
+
     // Print likely causes if available
-    if let Some(doc) = &documentation {
+    if let Some(doc) = doc {
         if !doc.likely_causes.is_empty() {
             println!("    | ");
             println!("    | {}", "Likely causes:".cyan());
             for cause in &doc.likely_causes {
                 println!("    |   - {}", cause.cause);
             }
-        }
 
-        // Print possible fixes if available
-        if let Some(first_cause) = doc.likely_causes.first() {
-            if !first_cause.fixes.is_empty() {
-                println!("    | ");
-                println!("    | {}", "Possible fixes:".green());
-                for fix in &first_cause.fixes {
-                    println!("    |   - {}", fix);
+            if let Some(first_cause) = doc.likely_causes.first() {
+                if !first_cause.fixes.is_empty() {
+                    println!("    | ");
+                    println!("    | {}", "Possible fixes:".green());
+                    for fix in &first_cause.fixes {
+                        println!("    |   - {}", fix);
+                    }
+                }
+
+                if !first_cause.references.is_empty() {
+                    println!(
+                        "\n{}",
+                        "For more information about this error, visit:".cyan()
+                    );
+                    for reference in &first_cause.references {
+                        println!("  - {}", reference.underline());
+                    }
                 }
             }
         }
 
         println!("    |");
         println!("{} {}", "note:".blue(), doc.description);
-    }
-
-    // Provide additional references if available
-    if let Some(doc) = &documentation {
-        if !doc.likely_causes.is_empty() && !doc.likely_causes[0].references.is_empty() {
-            println!(
-                "\n{}",
-                "For more information about this error, visit:".cyan()
-            );
-            for reference in &doc.likely_causes[0].references {
-                println!("  - {}", reference.underline());
-            }
-        } else {
-            println!(
-                "\nFor more information about this error, try `{}`.",
-                format!("anvil-zksync --explain {}", error_code).yellow()
-            );
-        }
     }
 
     println!(

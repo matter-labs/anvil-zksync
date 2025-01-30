@@ -69,7 +69,7 @@
       "deploymentType": "create",
       "factoryDeps": [],
       "address": "0x26b368C3Ed16313eBd6660b72d8e4439a697Cb0B",
-      "txHash": "0x9d36599908930a9bfc31df0853c6b547be621f3c5f9234cc81289c9341625cf8"
+      "txHash": "0x64df55c726eeea7a95a8b01f7854f710e86867d5db8a131c0d5060d4b2084db5"
     },
     {
       "constructorArgs": [

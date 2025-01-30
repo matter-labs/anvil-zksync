@@ -2,7 +2,7 @@ use crate::bootloader_debug::{BootloaderDebug, BootloaderDebugTracer};
 use crate::console_log::ConsoleLogHandler;
 use crate::deps::storage_view::StorageView;
 use crate::filters::EthFilters;
-use crate::formatter::format_and_print_error;
+use crate::formatter::print_error_generic;
 use crate::node::call_error_tracer::CallErrorTracer;
 use crate::node::error::{LoadStateError, ToHaltError, ToRevertReason};
 use crate::node::inner::blockchain::{Blockchain, ReadBlockchain};
@@ -19,7 +19,6 @@ use crate::node::{
     TransactionResult, TxExecutionInfo, VersionedState, ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION,
     MAX_PREVIOUS_STATES, MAX_TX_SIZE,
 };
-use crate::print_error;
 use crate::system_contracts::SystemContracts;
 use crate::utils::create_debug_output;
 use crate::{delegate_vm, formatter, utils};
@@ -34,18 +33,13 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use zksync_contracts::BaseSystemContracts;
-use zksync_error::anvil::halt::HaltError;
-use zksync_error::anvil::revert::RevertError;
-use zksync_error::anvil::state::StateLoaderError;
-use zksync_error::documentation::Documented;
-use zksync_error::error::CustomErrorMessage;
-use zksync_error::error::NamedError;
+use zksync_error::anvil::{halt::HaltError, revert::RevertError};
 use zksync_multivm::interface::storage::{ReadStorage, WriteStorage};
 use zksync_multivm::interface::VmFactory;
 use zksync_multivm::interface::{
-    Call, ExecutionResult, Halt, InspectExecutionMode, L1BatchEnv, L2BlockEnv, SystemEnv,
+    Call, ExecutionResult, InspectExecutionMode, L1BatchEnv, L2BlockEnv, SystemEnv,
     TxExecutionMode, VmExecutionResultAndLogs, VmInterface, VmInterfaceExt,
-    VmInterfaceHistoryEnabled, VmRevertReason,
+    VmInterfaceHistoryEnabled,
 };
 use zksync_multivm::vm_latest::Vm;
 
@@ -489,9 +483,17 @@ impl InMemoryNodeInner {
 
         if let ExecutionResult::Halt { reason } = result.result {
             let halt_error: HaltError = reason.clone().to_halt_error();
-            let error_msg = halt_error.get_message();
-            let doc = halt_error.get_documentation().unwrap().cloned();
-            format_and_print_error(&error_msg, doc);
+            // let zksync_error = ZksyncError::Anvil(zksync_error::error::domains::Anvil::Halt(
+            //     halt_error.clone(),
+            // ));
+            // let identifier = zksync_error.get_identifier();
+            // let repr = identifier.get_identifier_repr();
+            // let error_msg = halt_error.get_message();
+            // let doc = halt_error.get_documentation().unwrap().cloned();
+
+            // format_and_print_error(&repr, &error_msg, doc.as_ref(), Some(&l2_tx));
+            print_error_generic(&halt_error, Some(&l2_tx));
+
             // Halt means that something went really bad with the transaction execution (in most cases invalid signature,
             // but it could also be bootloader panic etc).
             // In such case, we should not persist the VM data, and we should pretend that transaction never existed.
@@ -932,49 +934,15 @@ impl InMemoryNodeInner {
                 );
                 let data = output.encoded_data();
                 let revert_reason: RevertError = output.to_revert_reason();
-                let revert_msg = revert_reason.get_message();
-                let doc = revert_reason.get_documentation().unwrap().cloned();
-                // TODO: clean this up
-                let error_code = if let Some(start) = revert_msg.find('[') {
-                    if let Some(end) = revert_msg.find(']') {
-                        &revert_msg[start..=end] // Extracts "[anvil-halt-2]"
-                    } else {
-                        "[UNKNOWN]"
-                    }
-                } else {
-                    "[UNKNOWN]"
-                };
-
-                let replaced_message = revert_msg.replacen(error_code, "", 1);
-                let cleaned_message = replaced_message.trim();
-                print_error!(error_code, cleaned_message, doc.as_ref(), Some(l2_tx));
+                print_error_generic(&revert_reason, Some(&l2_tx));
 
                 Err(Web3Error::SubmitTransactionError(pretty_message, data))
             }
             ExecutionResult::Halt { reason } => {
-                println!("REASON {:?}", reason);
                 let pretty_message = format!("execution halted: {}", reason.to_string());
+
                 let halt_error: HaltError = reason.to_halt_error();
-                println!("halt_error {:?}", halt_error);
-                let error_msg = halt_error.get_message();
-                println!("ERROR MSG {}", error_msg);
-                println!("pretty_message {}", pretty_message);
-                let doc = halt_error.get_documentation().unwrap().cloned();
-                // format_and_print_error(&error_msg, doc);
-                let error_code = if let Some(start) = error_msg.find('[') {
-                    if let Some(end) = error_msg.find(']') {
-                        &error_msg[start..=end] // Extracts "[anvil-halt-2]"
-                    } else {
-                        "[UNKNOWN]"
-                    }
-                } else {
-                    "[UNKNOWN]"
-                };
-
-                let replaced_message = error_msg.replacen(error_code, "", 1);
-                let cleaned_message = replaced_message.trim();
-
-                print_error!(error_code, cleaned_message, doc.as_ref(), Some(l2_tx));
+                print_error_generic(&halt_error, Some(&l2_tx));
                 Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
             }
             ExecutionResult::Success { .. } => {
@@ -1177,26 +1145,24 @@ impl InMemoryNodeInner {
         }))
     }
 
-    pub async fn load_state(&mut self, state: VersionedState) -> Result<bool, StateLoaderError> {
+    pub async fn load_state(&mut self, state: VersionedState) -> Result<bool, LoadStateError> {
         let mut storage = self.blockchain.write().await;
         if storage.blocks.len() > 1 {
             tracing::debug!(
                 blocks = storage.blocks.len(),
                 "node has existing state; refusing to load new state"
             );
-            return Err(StateLoaderError::LoadingStateOverExistingStateError);
+            return Err(LoadStateError::HasExistingState);
         }
         let state = match state {
             VersionedState::V1 { state, .. } => state,
             VersionedState::Unknown { version } => {
-                return Err(StateLoaderError::UnknownStateVersionError {
-                    version: version.into(),
-                })
+                return Err(LoadStateError::UnknownStateVersion(version))
             }
         };
         if state.blocks.is_empty() {
             tracing::debug!("new state has no blocks; refusing to load");
-            return Err(StateLoaderError::LoadEmptyStateError);
+            return Err(LoadStateError::EmptyState);
         }
 
         storage.load_blocks(&mut self.time, state.blocks);

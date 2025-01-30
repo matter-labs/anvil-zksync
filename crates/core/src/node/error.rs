@@ -27,13 +27,17 @@ fn handle_vm_revert_reason(reason: VmRevertReason, default_msg: &str) -> (String
         VmRevertReason::Unknown {
             function_selector,
             data,
-        } => (
-            format!(
-                "Unknown revert reason for function: {:#?}",
-                function_selector
-            ),
-            data.encode_hex(),
-        ),
+        } => {
+            let formatted_selector = format!("0x{}", function_selector.encode_hex());
+            (
+                format!(
+                    "Account validation error: Unknown revert reason for function: {}. Data: {}",
+                    formatted_selector,
+                    data.encode_hex()
+                ),
+                data.encode_hex(),
+            )
+        }
         _ => (default_msg.to_string(), String::new()),
     }
 }
@@ -128,94 +132,4 @@ impl ToHaltError for Halt {
             Halt::FailedBlockTimestampAssertion => HaltError::FailedBlockTimestampAssertion,
         }
     }
-}
-
-#[macro_export]
-macro_rules! print_error {
-    ($error_code:expr, $message:expr, $doc:expr, $tx:expr) => {
-        // Print error header
-        println!(
-            "{}{}: {}",
-            "error".red().bold(),
-            $error_code.yellow(),
-            $message.red()
-        );
-        println!("    |");
-        println!(
-            "    = {} {}",
-            "error:".bright_red(),
-            $doc.map_or("An unknown error occurred", |doc| &doc.summary)
-        );
-
-        // Print transaction details if provided
-        if let Some(tx) = &$tx {
-            println!("    | ");
-            println!("    | {}", "Transaction details:".cyan());
-            if let Some(contract_address) = &tx.execute.contract_address {
-                println!("    |   Contract Address: {}", contract_address);
-            }
-            println!("    |   Nonce: {}", tx.common_data.nonce);
-            println!("    |   From: {}", tx.common_data.initiator_address);
-            if let Some(input_data) = &tx.common_data.input {
-                println!("    |   Input Data: {:?}", input_data);
-            }
-            println!(
-                "    |   Transaction Type: {:?}",
-                tx.common_data.transaction_type
-            );
-            println!("    |   Gas Used: {}", tx.common_data.fee.gas_limit);
-            println!(
-                "    |   To: {}",
-                tx.execute.contract_address.unwrap_or_default()
-            ); // Just a placeholder; update logic as necessary
-        }
-
-        // Print likely causes if available
-        if let Some(doc) = &$doc {
-            if !doc.likely_causes.is_empty() {
-                println!("    | ");
-                println!("    | {}", "Likely causes:".cyan());
-                for cause in &doc.likely_causes {
-                    println!("    |   - {}", cause.cause);
-                }
-            }
-
-            // Print possible fixes if available
-            if let Some(first_cause) = doc.likely_causes.first() {
-                if !first_cause.fixes.is_empty() {
-                    println!("    | ");
-                    println!("    | {}", "Possible fixes:".green());
-                    for fix in &first_cause.fixes {
-                        println!("    |   - {}", fix);
-                    }
-                }
-            }
-
-            println!("    |");
-            println!("{} {}", "note:".blue(), doc.description);
-        }
-
-        // Additional reference if available
-        if let Some(doc) = &$doc {
-            if !doc.likely_causes.is_empty() && !doc.likely_causes[0].references.is_empty() {
-                println!(
-                    "\n{}",
-                    "For more information about this error, visit:".cyan()
-                );
-                for reference in &doc.likely_causes[0].references {
-                    println!("  - {}", reference.underline());
-                }
-            } else {
-                println!(
-                    "\nFor more information about this error, try `{}`.",
-                    format!("anvil-zksync --explain {}", $error_code).yellow()
-                );
-            }
-        }
-
-        println!(
-            "{} transaction execution halted due to the above error\n",
-            "error:".red()
-        );
-    };
 }

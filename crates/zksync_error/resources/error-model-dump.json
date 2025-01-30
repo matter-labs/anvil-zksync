@@ -1644,7 +1644,7 @@
         "name": "General",
         "code": 1,
         "identifier": "[anvil-revert-1]",
-        "message": "General VM error: {msg}",
+        "message": "General revert error: {msg}",
         "fields": [
           {
             "name": "msg",
@@ -1656,14 +1656,15 @@
           }
         ],
         "documentation": {
-          "description": "This error represents a general VM failure, containing a message and additional data for debugging.",
-          "summary": "A general VM error occurred.",
+          "description": "This error indicates that the transaction execution was reverted.",
+          "summary": "Execution reverted due to a failure.",
           "likely_causes": [
             {
-              "cause": "An unexpected condition occurred within the VM.",
+              "cause": "The smart contract encountered a condition that triggered a revert. Common reasons include:",
               "fixes": [
-                "Review the transaction details and VM logs for more information.",
-                "Contact the development team with the error data."
+                "Check the transaction parameters, such as sender address, function inputs, and required permissions.",
+                "Ensure that the contract state allows the operation (e.g., the caller has the required role or balance).",
+                "Check the transaction logs and VM trace for deeper debugging."
               ],
               "report": "",
               "owner": null,

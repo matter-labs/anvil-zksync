@@ -530,7 +530,6 @@ dependencies = [
  "tower 0.4.13",
  "tower-http",
  "tracing",
- "zksync_error",
  "zksync_types",
  "zksync_web3_decl",
 ]

@@ -814,8 +814,7 @@ mod tests {
 
         new_node
             .load_state(zksync_types::web3::Bytes(std::fs::read(&state_path)?))
-            .await
-            .map_err(|e| e.to_unified())?;
+            .await?;
 
         // assert the balance from the loaded state is correctly applied
         let balance = new_node.get_balance_impl(test_address, None).await?;

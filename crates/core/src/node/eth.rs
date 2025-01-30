@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::formatter::format_and_print_error;
+use crate::formatter::print_error_generic;
 use crate::node::error::{ToHaltError, ToRevertReason};
 use crate::{
     filters::{FilterType, LogFilter},
@@ -8,12 +8,7 @@ use crate::{
     utils::{h256_to_u64, TransparentError},
 };
 use anyhow::Context as _;
-use colored::Colorize;
-use zksync_error::anvil::halt::HaltError;
-use zksync_error::anvil::revert::RevertError;
-use zksync_error::documentation::Documented;
-use zksync_error::error::CustomErrorMessage;
-use zksync_error::error::NamedError;
+use zksync_error::anvil::{halt::HaltError, revert::RevertError};
 use zksync_multivm::interface::ExecutionResult;
 use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use zksync_types::h256_to_u256;
@@ -47,7 +42,7 @@ impl InMemoryNode {
         )?;
         tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
         let call_result = self
-            .run_l2_call(tx, system_contracts)
+            .run_l2_call(tx.clone(), system_contracts)
             .await
             .context("Invalid data due to invalid name")?;
 
@@ -62,9 +57,7 @@ impl InMemoryNode {
                 );
 
                 let revert_reason: RevertError = output.clone().to_revert_reason();
-                let revert_msg = revert_reason.get_message();
-                let doc = revert_reason.get_documentation().unwrap().cloned();
-                format_and_print_error(&revert_msg, doc);
+                print_error_generic(&revert_reason, Some(&tx));
                 Err(Web3Error::SubmitTransactionError(
                     pretty_message,
                     output.encoded_data(),
@@ -79,9 +72,7 @@ impl InMemoryNode {
                 );
 
                 let halt_error: HaltError = reason.clone().to_halt_error();
-                let error_msg = halt_error.get_message();
-                let doc = halt_error.get_documentation().unwrap().cloned();
-                format_and_print_error(&error_msg, doc);
+                print_error_generic(&halt_error, Some(&tx));
                 Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
             }
         }

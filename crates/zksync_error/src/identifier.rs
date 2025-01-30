@@ -73,7 +73,7 @@ impl Identifier {
     }
 }
 
-trait Identifying {
+pub trait Identifying {
     fn get_identifier_repr(&self) -> String;
 }
 

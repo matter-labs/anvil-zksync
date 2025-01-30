@@ -413,10 +413,10 @@ impl From<Halt> for crate::serialized::SerializedError {
 #[non_exhaustive]
 pub enum Revert {
     /// # Short description
-    /// A general VM error occurred.
+    /// Execution reverted due to a failure.
     ///
     /// # Description
-    /// This error represents a general VM failure, containing a message and additional data for debugging.
+    /// This error indicates that the transaction execution was reverted.
     General {
         msg: String,
         data: Vec<u8>,
@@ -486,7 +486,7 @@ impl CustomErrorMessage for Revert {
     fn get_message(&self) -> String {
         match self {
             Revert::General { msg, data } => {
-                format!("[anvil-revert-1] General VM error: {msg}")
+                format!("[anvil-revert-1] General revert error: {msg}")
             }
             Revert::InnerTxError {} => {
                 format!("[anvil-revert-2] Bootloader-based transaction failed.")

@@ -17,7 +17,6 @@ anvil_zksync_types.workspace = true
 
 zksync_types.workspace = true
 zksync_web3_decl.workspace = true
-zksync_error.workspace = true
 
 anyhow.workspace = true
 hex.workspace = true

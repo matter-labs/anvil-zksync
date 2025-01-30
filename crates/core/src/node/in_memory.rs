@@ -1,4 +1,5 @@
 //! In-memory node, that supports forking other networks.
+use super::error::LoadStateError;
 use super::inner::node_executor::NodeExecutorHandle;
 use super::inner::InMemoryNodeInner;
 use super::vm::AnvilVM;
@@ -21,7 +22,6 @@ use anvil_zksync_config::constants::{NON_FORK_FIRST_BLOCK_TIMESTAMP, TEST_NODE_N
 use anvil_zksync_config::types::{CacheConfig, Genesis};
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_types::{LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
-use colored::Colorize;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
@@ -33,7 +33,6 @@ use std::io::{Read, Write};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use zksync_contracts::BaseSystemContracts;
-use zksync_error::anvil::state::StateLoaderError;
 use zksync_multivm::interface::storage::{ReadStorage, StoragePtr};
 use zksync_multivm::interface::VmFactory;
 use zksync_multivm::interface::{
@@ -43,15 +42,11 @@ use zksync_multivm::tracers::CallTracer;
 use zksync_multivm::utils::{get_batch_base_fee, get_max_batch_gas_limit};
 use zksync_multivm::vm_latest::Vm;
 
-use crate::formatter::format_and_print_error;
+use crate::formatter::print_error_generic;
 use crate::node::error::{ToHaltError, ToRevertReason};
 use crate::node::fork::{ForkClient, ForkSource};
 use crate::node::keys::StorageKeyLayout;
-use zksync_error::anvil::halt::HaltError;
-use zksync_error::anvil::revert::RevertError;
-use zksync_error::documentation::Documented;
-use zksync_error::error::CustomErrorMessage;
-use zksync_error::error::NamedError;
+use zksync_error::anvil::{halt::HaltError, revert::RevertError};
 use zksync_multivm::vm_latest::{HistoryDisabled, ToTracerPointer};
 use zksync_multivm::VmVersion;
 use zksync_types::api::{Block, DebugCall, TransactionReceipt, TransactionVariant};
@@ -392,8 +387,8 @@ impl InMemoryNode {
         if l2_tx.common_data.signature.is_empty() {
             l2_tx.common_data.signature = PackedEthSignature::default().serialize_packed().into();
         }
-
-        let tx: Transaction = l2_tx.into();
+        // TODO: can we avoid cloning here?
+        let tx: Transaction = l2_tx.clone().into();
         delegate_vm!(vm, push_transaction(tx.clone()));
 
         let call_tracer_result = Arc::new(OnceCell::default());
@@ -419,15 +414,11 @@ impl InMemoryNode {
                 ExecutionResult::Success { output: _ } => {}
                 ExecutionResult::Revert { output } => {
                     let revert_reason: RevertError = output.clone().to_revert_reason();
-                    let revert_msg = revert_reason.get_message();
-                    let doc = revert_reason.get_documentation().unwrap().cloned();
-                    format_and_print_error(&revert_msg, doc);
+                    print_error_generic(&revert_reason, Some(&l2_tx));
                 }
                 ExecutionResult::Halt { reason } => {
                     let halt_error: HaltError = reason.clone().to_halt_error();
-                    let error_msg = halt_error.get_message();
-                    let doc = halt_error.get_documentation().unwrap().cloned();
-                    format_and_print_error(&error_msg, doc);
+                    print_error_generic(&halt_error, Some(&l2_tx));
                 }
             };
         }
@@ -484,7 +475,7 @@ impl InMemoryNode {
         Ok(encoder.finish()?.into())
     }
 
-    pub async fn load_state(&self, buf: Bytes) -> Result<bool, StateLoaderError> {
+    pub async fn load_state(&self, buf: Bytes) -> Result<bool, LoadStateError> {
         let orig_buf = &buf.0[..];
         let mut decoder = GzDecoder::new(orig_buf);
         let mut decoded_data = Vec::new();
@@ -492,21 +483,16 @@ impl InMemoryNode {
         // Support both compressed and non-compressed state format
         let decoded = if decoder.header().is_some() {
             tracing::trace!(bytes = buf.0.len(), "decompressing state");
-            decoder.read_to_end(decoded_data.as_mut()).map_err(|e| {
-                StateLoaderError::StateDecompressionError {
-                    details: e.to_string(),
-                }
-            })?;
+            decoder
+                .read_to_end(decoded_data.as_mut())
+                .map_err(LoadStateError::FailedDecompress)?;
             &decoded_data
         } else {
             &buf.0
         };
         tracing::trace!(bytes = decoded.len(), "deserializing state");
-        let state: VersionedState = serde_json::from_slice(decoded).map_err(|e| {
-            StateLoaderError::StateDeserializationError {
-                details: e.to_string(),
-            }
-        })?;
+        let state: VersionedState =
+            serde_json::from_slice(decoded).map_err(LoadStateError::FailedDeserialize)?;
 
         Ok(self.inner.write().await.load_state(state).await?)
     }
