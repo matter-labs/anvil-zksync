@@ -4,7 +4,7 @@ use crate::deps::storage_view::StorageView;
 use crate::filters::EthFilters;
 use crate::formatter::format_and_print_error;
 use crate::node::call_error_tracer::CallErrorTracer;
-use crate::node::error::LoadStateError;
+use crate::node::error::{LoadStateError, ToHaltError, ToRevertReason};
 use crate::node::inner::blockchain::{Blockchain, ReadBlockchain};
 use crate::node::inner::fork::{Fork, ForkClient, ForkSource};
 use crate::node::inner::fork_storage::{ForkStorage, SerializableStorage};
@@ -929,205 +929,19 @@ impl InMemoryNodeInner {
                     message
                 );
                 let data = output.encoded_data();
-                match output {
-                    VmRevertReason::General { msg, data } => {
-                        // TODO: want data?
-                        let res = RevertError::General {
-                            msg: msg,
-                            data: data,
-                        };
-                        let error_msg = res.get_message();
-                        let doc = res.get_documentation().unwrap().cloned();
-                        format_and_print_error(&error_msg, doc);
-                    }
-                    VmRevertReason::InnerTxError => {
-                        let res = RevertError::InnerTxError;
-                        let error_msg = res.get_message();
-                        let doc = res.get_documentation().unwrap().cloned();
-                        format_and_print_error(&error_msg, doc);
-                    }
-                    VmRevertReason::VmError => {
-                        let res = RevertError::VmError;
-                        let error_msg = res.get_message();
-                        let doc = res.get_documentation().unwrap().cloned();
-                        format_and_print_error(&error_msg, doc);
-                    }
-                    VmRevertReason::Unknown {
-                        function_selector,
-                        data,
-                    } => {
-                        let res = RevertError::Unknown {
-                            function_selector: function_selector.encode_hex(),
-                            data: data.encode_hex(),
-                        };
-                        let error_msg = res.get_message();
-                        let doc = res.get_documentation().unwrap().cloned();
-                        format_and_print_error(&error_msg, doc);
-                    }
-                    _ => {
-                        println!("Unknown Reason: {:?}", output);
-                    }
-                }
+                let revert_reason: RevertError = output.to_revert_reason();
+                let revert_msg = revert_reason.get_message();
+                let doc = revert_reason.get_documentation().unwrap().cloned();
+                format_and_print_error(&revert_msg, doc);
 
                 Err(Web3Error::SubmitTransactionError(pretty_message, data))
             }
             ExecutionResult::Halt { reason } => {
                 let pretty_message = format!("execution halted: {}", reason.to_string());
-                match reason {
-                    Halt::ValidationFailed(VmRevertReason::General { msg, data }) => {
-                        let res = HaltError::ValidationFailed {
-                            msg: msg,
-                            data: data.encode_hex(),
-                        };
-                        let error_msg = res.get_message();
-                        let doc = res.get_documentation().unwrap().cloned();
-                        format_and_print_error(&error_msg, doc);
-                    }
-                    Halt::PaymasterValidationFailed(VmRevertReason::General { msg, data }) => {
-                        let res = HaltError::PaymasterValidationFailed {
-                            msg: msg,
-                            data: data.encode_hex(),
-                        };
-                        let error_msg = res.get_message();
-                        let doc = res.get_documentation().unwrap().cloned();
-                        format_and_print_error(&error_msg, doc);
-                    }
-                    Halt::PrePaymasterPreparationFailed(VmRevertReason::General { msg, data }) => {
-                        let res = HaltError::PrePaymasterPreparationFailed {
-                            msg: msg,
-                            data: data.encode_hex(),
-                        };
-                        let error_msg = res.get_message();
-                        let doc = res.get_documentation().unwrap().cloned();
-                        format_and_print_error(&error_msg, doc);
-                    }
-                    Halt::PayForTxFailed(VmRevertReason::General { msg, data }) => {
-                        let res = HaltError::PayForTxFailed {
-                            msg: msg,
-                            data: data.encode_hex(),
-                        };
-                        let error_msg = res.get_message();
-                        let doc = res.get_documentation().unwrap().cloned();
-                        format_and_print_error(&error_msg, doc);
-                    }
-                    Halt::FailedToMarkFactoryDependencies(VmRevertReason::General {
-                        msg,
-                        data,
-                    }) => {
-                        let res = HaltError::FailedToMarkFactoryDependencies {
-                            msg: msg,
-                            data: data.encode_hex(),
-                        };
-                        let error_msg = res.get_message();
-                        let doc = res.get_documentation().unwrap().cloned();
-                        format_and_print_error(&error_msg, doc);
-                    }
-                    Halt::FailedToChargeFee(VmRevertReason::General { msg, data }) => {
-                        let res = HaltError::FailedToChargeFee {
-                            msg: msg,
-                            data: data.encode_hex(),
-                        };
-                        let error_msg = res.get_message();
-                        let doc = res.get_documentation().unwrap().cloned();
-                        format_and_print_error(&error_msg, doc);
-                    }
-                    Halt::Unknown(VmRevertReason::General { msg, data }) => {
-                        let res = HaltError::Unknown {
-                            msg: msg,
-                            data: data.encode_hex(),
-                        };
-                        let error_msg = res.get_message();
-                        let doc = res.get_documentation().unwrap().cloned();
-                        format_and_print_error(&error_msg, doc);
-                    }
-                    Halt::UnexpectedVMBehavior(msg) => {
-                        let res = HaltError::UnexpectedVMBehavior { problem: msg };
-                        let error_msg = res.get_message();
-                        let doc = res.get_documentation().unwrap().cloned();
-                        format_and_print_error(&error_msg, doc);
-                    }
-                    Halt::FailedToSetL2Block(msg) => {
-                        let res = HaltError::FailedToSetL2Block { msg: msg };
-                        let error_msg = res.get_message();
-                        let doc = res.get_documentation().unwrap().cloned();
-                        format_and_print_error(&error_msg, doc);
-                    }
-                    Halt::FailedToAppendTransactionToL2Block(msg) => {
-                        let res = HaltError::FailedToAppendTransactionToL2Block { msg: msg };
-                        let error_msg = res.get_message();
-                        let doc = res.get_documentation().unwrap().cloned();
-                        format_and_print_error(&error_msg, doc);
-                    }
-                    Halt::TracerCustom(msg) => {
-                        let res = HaltError::TracerCustom { msg: msg };
-                        let error_msg = res.get_message();
-                        let doc = res.get_documentation().unwrap().cloned();
-                        format_and_print_error(&error_msg, doc);
-                    }
-                    Halt::FromIsNotAnAccount => {
-                        let res = HaltError::FromIsNotAnAccount;
-                        let error_msg = res.get_message();
-                        let doc = res.get_documentation().unwrap().cloned();
-                        format_and_print_error(&error_msg, doc);
-                    }
-                    Halt::InnerTxError => {
-                        let res = HaltError::InnerTxError;
-                        let error_msg = res.get_message();
-                        let doc = res.get_documentation().unwrap().cloned();
-                        format_and_print_error(&error_msg, doc);
-                    }
-                    Halt::BootloaderOutOfGas => {
-                        let res = HaltError::BootloaderOutOfGas;
-                        let error_msg = res.get_message();
-                        let doc = res.get_documentation().unwrap().cloned();
-                        format_and_print_error(&error_msg, doc);
-                    }
-                    Halt::ValidationOutOfGas => {
-                        let res = HaltError::ValidationOutOfGas;
-                        let error_msg = res.get_message();
-                        let doc = res.get_documentation().unwrap().cloned();
-                        format_and_print_error(&error_msg, doc);
-                    }
-                    Halt::TooBigGasLimit => {
-                        let res = HaltError::TooBigGasLimit;
-                        let error_msg = res.get_message();
-                        let doc = res.get_documentation().unwrap().cloned();
-                        format_and_print_error(&error_msg, doc);
-                    }
-                    Halt::NotEnoughGasProvided => {
-                        let res = HaltError::NotEnoughGasProvided;
-                        let error_msg = res.get_message();
-                        let doc = res.get_documentation().unwrap().cloned();
-                        format_and_print_error(&error_msg, doc);
-                    }
-                    Halt::MissingInvocationLimitReached => {
-                        let res = HaltError::MissingInvocationLimitReached;
-                        let error_msg = res.get_message();
-                        let doc = res.get_documentation().unwrap().cloned();
-                        format_and_print_error(&error_msg, doc);
-                    }
-                    Halt::VMPanic => {
-                        let res = HaltError::VMPanic;
-                        let error_msg = res.get_message();
-                        let doc = res.get_documentation().unwrap().cloned();
-                        format_and_print_error(&error_msg, doc);
-                    }
-                    Halt::FailedToPublishCompressedBytecodes => {
-                        let res = HaltError::FailedToPublishCompressedBytecodes;
-                        let error_msg = res.get_message();
-                        let doc = res.get_documentation().unwrap().cloned();
-                        format_and_print_error(&error_msg, doc);
-                    }
-                    Halt::FailedBlockTimestampAssertion => {
-                        let res = HaltError::FailedBlockTimestampAssertion;
-                        let error_msg = res.get_message();
-                        let doc = res.get_documentation().unwrap().cloned();
-                        format_and_print_error(&error_msg, doc);
-                    }
-                    _ => {
-                        println!("Unknown Reason: {:?}", reason);
-                    }
-                }
+                let halt_error: HaltError = reason.to_halt_error();
+                let error_msg = halt_error.get_message();
+                let doc = halt_error.get_documentation().unwrap().cloned();
+                format_and_print_error(&error_msg, doc);
 
                 Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
             }
