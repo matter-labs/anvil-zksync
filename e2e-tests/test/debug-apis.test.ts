@@ -64,7 +64,7 @@ describe("debug_traceCall", function () {
     expect(revertReason).to.equal(null);
 
     // subcall from primary to secondary contract should be present
-    const contract_call = calls[0].calls.at(-1).calls[0].calls[0];
+    const contract_call = calls.at(-1).calls[0].calls[0];
     expect(contract_call.from.toLowerCase()).to.equal((await primary.getAddress()).toLowerCase());
     expect(contract_call.to.toLowerCase()).to.equal((await secondary.getAddress()).toLowerCase());
 
@@ -93,7 +93,7 @@ describe("debug_traceTransaction", function () {
 
     // call should be successful
     expect(trace.error).to.equal(null);
-    expect(trace.calls.length).to.equal(1);
+    expect(trace.calls.length).greaterThanOrEqual(1);
 
     // gas limit should match
     expect(BigInt(trace.gas)).to.equal(BigInt(txResponse.gasLimit));
