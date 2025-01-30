@@ -27,6 +27,8 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CallErrorTracer {
         data: AfterDecodingData,
         _memory: &SimpleMemory<H>,
     ) {
+        // The top frame is processed last, its error flags
+        // overwrite any previously observed ones.
         if !data.error_flags_accumulated.is_empty() {
             let _ = self.result.set(data.error_flags_accumulated);
         }
