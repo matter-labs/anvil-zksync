@@ -131,12 +131,13 @@ pub struct Cli {
     /// May decrease performance.
     pub resolve_hashes: Option<bool>,
 
-    /// Increments verbosity each time it is used. (-v, -vv, -vvv)
+    /// Increments verbosity each time it is used. (-vv, -vvv)
     ///
     /// Example usage:
-    ///   - `-v` => verbosity level 1
-    ///   - `-vv` => level 2
-    ///   - `-vvv` => level 3
+    ///   - `-vv` => verbosity level 2 (includes user calls and event calls)
+    ///   - `-vvv` => level 3 (includes system calls, system event calls)
+    ///   - `-vvvv` => level 4 (includes system calls, system event calls, and precompiles)
+    ///   - `-vvvvv` => level 5 (includes everything)
     #[arg(short = 'v', long = "verbosity", action = ArgAction::Count, help_heading = "Debugging Options")]
     pub verbosity: u8,
 
