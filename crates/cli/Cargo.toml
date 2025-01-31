@@ -23,6 +23,7 @@ anyhow.workspace = true
 clap.workspace = true
 eyre.workspace = true
 hex.workspace = true
+itertools.workspace = true
 futures.workspace = true
 rand.workspace = true
 serde.workspace = true

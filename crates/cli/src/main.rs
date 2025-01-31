@@ -266,25 +266,26 @@ async fn main() -> anyhow::Result<()> {
             .await?;
     }
 
-    for signer in config.genesis_accounts.iter() {
-        let address = H160::from_slice(signer.address().as_ref());
+    // TODO: Consider moving to `InMemoryNodeInner::init`
+    let rich_addresses = itertools::chain!(
+        config
+            .genesis_accounts
+            .iter()
+            .map(|acc| H160::from_slice(acc.address().as_ref())),
+        config
+            .signer_accounts
+            .iter()
+            .map(|acc| H160::from_slice(acc.address().as_ref())),
+        LEGACY_RICH_WALLETS
+            .iter()
+            .map(|(address, _)| H160::from_str(address).unwrap()),
+        RICH_WALLETS
+            .iter()
+            .map(|(address, _, _)| H160::from_str(address).unwrap()),
+    )
+    .collect::<Vec<_>>();
+    for address in rich_addresses {
         node.set_rich_account(address, config.genesis_balance).await;
-    }
-    for signer in config.signer_accounts.iter() {
-        let address = H160::from_slice(signer.address().as_ref());
-        node.set_rich_account(address, config.genesis_balance).await;
-    }
-    // sets legacy rich wallets
-    for wallet in LEGACY_RICH_WALLETS.iter() {
-        let address = wallet.0;
-        node.set_rich_account(H160::from_str(address).unwrap(), config.genesis_balance)
-            .await;
-    }
-    // sets additional legacy rich wallets
-    for wallet in RICH_WALLETS.iter() {
-        let address = wallet.0;
-        node.set_rich_account(H160::from_str(address).unwrap(), config.genesis_balance)
-            .await;
     }
 
     let mut server_builder = NodeServerBuilder::new(
