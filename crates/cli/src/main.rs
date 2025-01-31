@@ -199,9 +199,9 @@ async fn main() -> anyhow::Result<()> {
     let system_contracts = SystemContracts::from_options(
         &config.system_contracts_options,
         config.use_evm_emulator,
-        config.use_zkos,
+        config.zkos_config.clone(),
     );
-    let storage_key_layout = if config.use_zkos {
+    let storage_key_layout = if config.zkos_config.use_zkos {
         StorageKeyLayout::ZkOs
     } else {
         StorageKeyLayout::ZkEra
