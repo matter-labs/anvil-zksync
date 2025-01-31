@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::formatter::print_error_generic;
+use crate::formatter::print_execution_error;
 use crate::node::error::{ToHaltError, ToRevertReason};
 use crate::{
     filters::{FilterType, LogFilter},
@@ -57,7 +57,7 @@ impl InMemoryNode {
                 );
 
                 let revert_reason: RevertError = output.clone().to_revert_reason().await;
-                print_error_generic(&revert_reason, Some(&tx));
+                print_execution_error(&revert_reason, Some(&tx));
                 Err(Web3Error::SubmitTransactionError(
                     pretty_message,
                     output.encoded_data(),
@@ -72,7 +72,7 @@ impl InMemoryNode {
                 );
 
                 let halt_error: HaltError = reason.clone().to_halt_error().await;
-                print_error_generic(&halt_error, Some(&tx));
+                print_execution_error(&halt_error, Some(&tx));
                 Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
             }
         }

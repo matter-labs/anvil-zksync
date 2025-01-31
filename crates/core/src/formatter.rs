@@ -866,8 +866,8 @@ pub fn print_transaction_summary(
     tracing::info!("Refunded: {:.10} ETH", refunded_in_eth);
 }
 
-/// Prints halt and revert errors.
-pub fn print_error_generic<E>(error: &E, tx: Option<&L2Tx>)
+/// Prints halt and revert execution errors.
+pub fn print_execution_error<E>(error: &E, tx: Option<&L2Tx>)
 where
     E: NamedError + CustomErrorMessage + Documented<Documentation = &'static ErrorDocumentation>,
 {

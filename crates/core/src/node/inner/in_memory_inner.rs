@@ -2,7 +2,7 @@ use crate::bootloader_debug::{BootloaderDebug, BootloaderDebugTracer};
 use crate::console_log::ConsoleLogHandler;
 use crate::deps::storage_view::StorageView;
 use crate::filters::EthFilters;
-use crate::formatter::print_error_generic;
+use crate::formatter::print_execution_error;
 use crate::node::call_error_tracer::CallErrorTracer;
 use crate::node::error::{LoadStateError, ToHaltError, ToRevertReason};
 use crate::node::inner::blockchain::{Blockchain, ReadBlockchain};
@@ -924,7 +924,7 @@ impl InMemoryNodeInner {
                 let data = output.encoded_data();
 
                 let revert_reason: RevertError = output.to_revert_reason().await;
-                print_error_generic(&revert_reason, Some(&l2_tx));
+                print_execution_error(&revert_reason, Some(&l2_tx));
 
                 Err(Web3Error::SubmitTransactionError(pretty_message, data))
             }
@@ -932,7 +932,7 @@ impl InMemoryNodeInner {
                 let pretty_message = format!("execution halted: {}", reason);
 
                 let halt_error: HaltError = reason.to_halt_error().await;
-                print_error_generic(&halt_error, Some(&l2_tx));
+                print_execution_error(&halt_error, Some(&l2_tx));
 
                 Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
             }
