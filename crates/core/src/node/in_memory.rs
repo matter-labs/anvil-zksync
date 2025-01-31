@@ -409,6 +409,27 @@ impl InMemoryNode {
             .take()
             .unwrap_or_default();
 
+        // TODO: I dont think we need to log any of this. The success and errors are
+        // already logged later.
+        if inner.config.show_tx_summary {
+            tracing::info!("");
+            match &tx_result.result {
+                ExecutionResult::Success { output: _ } => {}
+                ExecutionResult::Revert { output: _ } => {
+                    // TODO: Once we integrate error-codegen avoid printing error flags returned from
+                    // vm_state and rather pass them to error-codegen to get properly formed error message.
+                    // e.g. NOT_ENOUGH_ERGS -> Transaction ran out of gas.
+                    tracing::warn!("Execution flag raised: {:?}", error_flags);
+                }
+                ExecutionResult::Halt { reason: _ } => {
+                    // TODO: Once we integrate error-codegen avoid printing error flags returned from
+                    // vm_state and rather pass them to error-codegen to get properly formed error message.
+                    // e.g. NOT_ENOUGH_ERGS -> Transaction ran out of gas.
+                    tracing::warn!("Execution flag raised: {:?}", error_flags);
+                }
+            };
+        }
+
         if !inner.config.disable_console_log {
             inner
                 .console_log_handler

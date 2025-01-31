@@ -23,22 +23,6 @@
           }
         }
       },
-      "AnvilEnvironment": {
-        "name": "AnvilEnvironment",
-        "meta": {
-          "description": ""
-        },
-        "bindings": {
-          "rust": {
-            "name": "Box<AnvilEnvironment>",
-            "path": ""
-          },
-          "typescript": {
-            "name": "Box<AnvilEnvironment>",
-            "path": ""
-          }
-        }
-      },
       "EraVM": {
         "name": "EraVM",
         "meta": {
@@ -247,22 +231,6 @@
           }
         }
       },
-      "StateLoader": {
-        "name": "StateLoader",
-        "meta": {
-          "description": ""
-        },
-        "bindings": {
-          "rust": {
-            "name": "Box<StateLoader>",
-            "path": ""
-          },
-          "typescript": {
-            "name": "Box<StateLoader>",
-            "path": ""
-          }
-        }
-      },
       "WrappedError": {
         "name": "WrappedError",
         "meta": {
@@ -373,10 +341,8 @@
         "name": "Anvil",
         "code": 5,
         "components": [
-          "AnvilEnvironment",
           "Halt",
-          "Revert",
-          "StateLoader"
+          "Revert"
         ],
         "bindings": {
           "rust": "Anvil",
@@ -460,17 +426,6 @@
         "identifier": "api",
         "description": "Errors originating in the web3 API."
       },
-      "AnvilEnvironment": {
-        "name": "AnvilEnvironment",
-        "code": 1,
-        "domain_name": "Anvil",
-        "bindings": {
-          "rust": "AnvilEnvironment",
-          "typescript": "AnvilEnvironment"
-        },
-        "identifier": "env",
-        "description": ""
-      },
       "EraVM": {
         "name": "EraVM",
         "code": 2,
@@ -517,7 +472,7 @@
       },
       "Halt": {
         "name": "Halt",
-        "code": 3,
+        "code": 1,
         "domain_name": "Anvil",
         "bindings": {
           "rust": "Halt",
@@ -572,7 +527,7 @@
       },
       "Revert": {
         "name": "Revert",
-        "code": 4,
+        "code": 2,
         "domain_name": "Anvil",
         "bindings": {
           "rust": "Revert",
@@ -614,17 +569,6 @@
         "identifier": "solc+fork",
         "description": "Errors originating in the ZKsync fork of Solidity compiler."
       },
-      "StateLoader": {
-        "name": "StateLoader",
-        "code": 2,
-        "domain_name": "Anvil",
-        "bindings": {
-          "rust": "StateLoader",
-          "typescript": "StateLoader"
-        },
-        "identifier": "state",
-        "description": ""
-      },
       "Zksolc": {
         "name": "Zksolc",
         "code": 5,
@@ -649,128 +593,6 @@
       }
     },
     "errors": {
-      "[anvil-env-0]": {
-        "domain": "Anvil",
-        "component": "AnvilEnvironment",
-        "name": "GenericError",
-        "code": 0,
-        "identifier": "[anvil-env-0]",
-        "message": "Generic error: {message}",
-        "fields": [
-          {
-            "name": "message",
-            "type": "string"
-          }
-        ],
-        "documentation": null,
-        "bindings": {
-          "rust": {
-            "name": "GenericError",
-            "path": ""
-          },
-          "typescript": {
-            "name": "GenericError",
-            "path": ""
-          }
-        }
-      },
-      "[anvil-env-1]": {
-        "domain": "Anvil",
-        "component": "AnvilEnvironment",
-        "name": "LogFileAccessError",
-        "code": 1,
-        "identifier": "[anvil-env-1]",
-        "message": "Unable to access log file: {log_filename}",
-        "fields": [
-          {
-            "name": "log_filename",
-            "type": "string"
-          },
-          {
-            "name": "wrapped_error",
-            "type": "string"
-          }
-        ],
-        "documentation": {
-          "description": "Anvil was unable to open the log file for writing.",
-          "summary": "Unable to access log file.",
-          "likely_causes": [
-            {
-              "cause": "Not enough space.",
-              "fixes": [
-                "Check if you have enough free space in your storage to create or open a log file"
-              ],
-              "report": "",
-              "owner": null,
-              "references": []
-            },
-            {
-              "cause": "Insufficient permissions.",
-              "fixes": [
-                "Check if you have permissions to write to the log file."
-              ],
-              "report": "",
-              "owner": null,
-              "references": []
-            }
-          ]
-        },
-        "bindings": {
-          "rust": {
-            "name": "LogFileAccessError",
-            "path": ""
-          },
-          "typescript": {
-            "name": "LogFileAccessError",
-            "path": ""
-          }
-        }
-      },
-      "[anvil-env-2]": {
-        "domain": "Anvil",
-        "component": "AnvilEnvironment",
-        "name": "UnsupportedMethodError",
-        "code": 2,
-        "identifier": "[anvil-env-2]",
-        "message": "Unsupported method.",
-        "fields": [],
-        "documentation": null,
-        "bindings": {
-          "rust": {
-            "name": "UnsupportedMethodError",
-            "path": ""
-          },
-          "typescript": {
-            "name": "UnsupportedMethodError",
-            "path": ""
-          }
-        }
-      },
-      "[anvil-env-3]": {
-        "domain": "Anvil",
-        "component": "AnvilEnvironment",
-        "name": "Web3Error",
-        "code": 3,
-        "identifier": "[anvil-env-3]",
-        "message": "Web3Error: {inner}.",
-        "fields": [
-          {
-            "name": "inner",
-            "type": "API"
-          }
-        ],
-        "documentation": null,
-        "bindings": {
-          "rust": {
-            "name": "Web3Error",
-            "path": ""
-          },
-          "typescript": {
-            "name": "Web3Error",
-            "path": ""
-          }
-        }
-      },
       "[anvil-halt-0]": {
         "domain": "Anvil",
         "component": "Halt",
@@ -802,7 +624,7 @@
         "name": "UnexpectedVMBehavior",
         "code": 10,
         "identifier": "[anvil-halt-10]",
-        "message": "virtual machine entered unexpected state. Please contact developers and provide transaction details that caused this error. Error description: {problem}",
+        "message": "virtual machine entered unexpected state. Error description: {problem}",
         "fields": [
           {
             "name": "problem",
@@ -810,7 +632,7 @@
           }
         ],
         "documentation": {
-          "description": "This error is used temporarily instead of panics to provide a better experience for developers. It indicates that the VM entered an unforeseen state during transaction execution.",
+          "description": "VM entered an unforeseen state during transaction execution.",
           "summary": "The virtual machine encountered an unexpected state.",
           "likely_causes": [
             {
@@ -880,7 +702,7 @@
         "message": "Validation run out of gas",
         "fields": [],
         "documentation": {
-          "description": "This error is emitted when the validation phase of transaction execution exceeds the allocated gas limit.",
+          "description": "Validation phase of transaction execution exceeds the allocated gas limit.",
           "summary": "The validation step ran out of gas.",
           "likely_causes": [
             {
@@ -921,8 +743,7 @@
             {
               "cause": "Setting an unrealistically high gas limit for the transaction.",
               "fixes": [
-                "Adjust the gas limit to a reasonable value.",
-                "Consult the network's gas limit guidelines to set an appropriate limit."
+                "Adjust the gas limit to a reasonable value."
               ],
               "report": "",
               "owner": null,
@@ -950,7 +771,7 @@
         "message": "Bootloader did not have enough gas to start the transaction",
         "fields": [],
         "documentation": {
-          "description": "This error is emitted when the bootloader lacks the necessary gas to begin executing the transaction.",
+          "description": "Bootloader lacks the necessary gas to begin executing the transaction.",
           "summary": "Insufficient gas provided to initiate the transaction.",
           "likely_causes": [
             {
@@ -982,17 +803,16 @@
         "name": "MissingInvocationLimitReached",
         "code": 15,
         "identifier": "[anvil-halt-15]",
-        "message": "Tx produced too much cold storage accesses",
+        "message": "Transaction produced too much storage accesses.",
         "fields": [],
         "documentation": {
           "description": "This error occurs when the transaction makes too many missing invocations to memory, surpassing the allowed limit.",
-          "summary": "The transaction exceeded the allowed number of cold storage invocations.",
+          "summary": "The transaction exceeded the allowed number of storage invocations.",
           "likely_causes": [
             {
               "cause": "Highly complex transaction with excessive memory accesses.",
               "fixes": [
-                "Optimize the transaction to reduce the number of memory accesses.",
-                "Break down the transaction into smaller, more manageable parts."
+                "Optimize the transaction to reduce the number of memory accesses."
               ],
               "report": "",
               "owner": null,
@@ -1025,7 +845,7 @@
           }
         ],
         "documentation": {
-          "description": "This error is emitted when the system fails to set the necessary information for the L2 block during transaction execution.",
+          "description": "System failed to set the necessary information for the L2 block during transaction execution.",
           "summary": "Unable to set L2 block information.",
           "likely_causes": [
             {
@@ -1065,7 +885,7 @@
           }
         ],
         "documentation": {
-          "description": "This error occurs when the system cannot append the transaction to the ongoing L2 block, possibly due to data inconsistencies or internal errors.",
+          "description": "System cannot append the transaction to the ongoing L2 block, possibly due to data inconsistencies or internal errors.",
           "summary": "Failed to add the transaction to the L2 block.",
           "likely_causes": [
             {
@@ -1100,14 +920,13 @@
         "message": "VM panicked",
         "fields": [],
         "documentation": {
-          "description": "This error is emitted when the VM experiences a critical failure and panics during transaction execution.",
+          "description": "VM experiences a critical failure and panic during transaction execution.",
           "summary": "The virtual machine encountered a panic.",
           "likely_causes": [
             {
               "cause": "Uncaught exception or critical internal error within the VM.",
               "fixes": [
-                "Review the transaction for any operations that might cause the VM to panic.",
-                "Consult the development team to investigate the VM's internal state."
+                "Review the transaction for any operations that might cause the VM to panic."
               ],
               "report": "",
               "owner": null,
@@ -1140,7 +959,7 @@
           }
         ],
         "documentation": {
-          "description": "This error occurs when a custom tracer used during transaction execution decides to abort the process, typically due to specific conditions being met.",
+          "description": "Custom tracer used during transaction execution decides to abort the process, typically due to specific conditions being met.",
           "summary": "Tracer aborted the transaction execution.",
           "likely_causes": [
             {
@@ -1188,10 +1007,18 @@
           "summary": "Account validation failed during execution.",
           "likely_causes": [
             {
+              "cause": "Insufficient funds to cover transaction costs.",
+              "fixes": [
+                "Add enough balance to the account to pay for gas and the transaction amount."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
               "cause": "Invalid account state or credentials.",
               "fixes": [
-                "Ensure the account has been properly deployed and initialized.",
-                "Verify that the account credentials are correct."
+                "Verify that the account used has a valid signature and nonce."
               ],
               "report": "",
               "owner": null,
@@ -1219,13 +1046,13 @@
         "message": "Failed to publish compressed bytecodes",
         "fields": [],
         "documentation": {
-          "description": "This error is emitted when the system fails to publish the compressed bytecodes during transaction execution.",
+          "description": "Emitted when the system fails to publish the compressed bytecodes during transaction execution.",
           "summary": "Unable to publish compressed bytecodes.",
           "likely_causes": [
             {
-              "cause": "Compression algorithm failure or network issues during publishing.",
+              "cause": "Compression failure or network issues during publishing.",
               "fixes": [
-                "Ensure the compression algorithm is functioning correctly.",
+                "Ensure the compression is functioning correctly.",
                 "Verify network connectivity and retry the publishing process."
               ],
               "report": "",
@@ -1251,7 +1078,7 @@
         "name": "FailedBlockTimestampAssertion",
         "code": 21,
         "identifier": "[anvil-halt-21]",
-        "message": "Transaction failed block.timestamp assertion",
+        "message": "Transaction failed `block.timestamp` assertion",
         "fields": [],
         "documentation": {
           "description": "This error occurs when the transaction's execution fails to satisfy the `block.timestamp` assertion, indicating a discrepancy in the expected timestamp.",
@@ -1302,9 +1129,9 @@
           "summary": "Paymaster validation failed.",
           "likely_causes": [
             {
-              "cause": "Invalid paymaster parameters or insufficient funds.",
+              "cause": "Invalid paymaster parameters, insufficient funds or unmet validation conditions.",
               "fixes": [
-                "Check the paymaster configuration and ensure all parameters are correct.",
+                "Check the paymaster validation conditions and ensure all parameters are correct.",
                 "Ensure the paymaster account has sufficient funds to cover the transaction fees."
               ],
               "report": "",
@@ -1348,8 +1175,7 @@
             {
               "cause": "Error in setting up pre-paymaster state.",
               "fixes": [
-                "Verify the pre-paymaster setup process and ensure all prerequisites are met.",
-                "Check for any dependencies or configurations that might be missing."
+                "Verify the pre-paymaster setup process and ensure all prerequisites are met."
               ],
               "report": "",
               "owner": null,
@@ -1392,8 +1218,7 @@
             {
               "cause": "Insufficient balance or incorrect payment parameters.",
               "fixes": [
-                "Ensure the sender has enough balance to cover the transaction fees.",
-                "Verify that the payment parameters are correctly specified."
+                "Verify that the parameters are correctly specified."
               ],
               "report": "",
               "owner": null,
@@ -1434,10 +1259,9 @@
           "summary": "Failed to mark factory dependencies during execution.",
           "likely_causes": [
             {
-              "cause": "Dependency resolution issues or corrupted state.",
+              "cause": "Factory dependencies may be missing or incorrectly injected.",
               "fixes": [
-                "Check the dependency configurations and ensure all required dependencies are available.",
-                "Verify the integrity of the system state to rule out corruption."
+                "Ensure the factory dependencies are correctly included in the transaction."
               ],
               "report": "",
               "owner": null,
@@ -1480,7 +1304,7 @@
             {
               "cause": "Insufficient funds or incorrect fee parameters.",
               "fixes": [
-                "Ensure the account has sufficient funds to cover the transaction fee.",
+                "Ensure the account has sufficient balance to cover the transaction fee.",
                 "Verify that the fee parameters are correctly specified."
               ],
               "report": "",
@@ -1513,10 +1337,18 @@
           "summary": "The sender address is not a valid account.",
           "likely_causes": [
             {
+              "cause": "Account not deployed with `createAccount` or `create2Account`",
+              "fixes": [
+                "Ensure that the `from` address is an account deployed using `createAccount` or `create2Account`."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
               "cause": "Using a contract address as the sender instead of an account.",
               "fixes": [
-                "Ensure that the `from` address is a properly deployed account.",
-                "Deploy an account if necessary and use its address as the sender."
+                "Ensure that the `from` address is an account and not a contract."
               ],
               "report": "",
               "owner": null,
@@ -1544,13 +1376,13 @@
         "message": "Bootloader-based tx failed",
         "fields": [],
         "documentation": {
-          "description": "This error is currently not used and should be removed when refactoring errors.",
+          "description": "Transaction reverted due to a contract call that failed during execution.",
           "summary": "An inner transaction error occurred.",
           "likely_causes": [
             {
-              "cause": "Internal transaction processing issue.",
+              "cause": "Contract function call failed.",
               "fixes": [
-                "Await error refactoring to address this issue properly."
+                "Review contract function logic for potential issues."
               ],
               "report": "",
               "owner": null,
@@ -1593,8 +1425,7 @@
             {
               "cause": "Unexpected or unhandled VM state.",
               "fixes": [
-                "Contact the developers with transaction details that caused this error.",
-                "Review the transaction to identify any anomalies."
+                "Contact the developers with transaction details that caused this error."
               ],
               "report": "",
               "owner": null,
@@ -1733,8 +1564,7 @@
             {
               "cause": "A non-specific internal error within the VM.",
               "fixes": [
-                "Review the VM logs for more detailed information.",
-                "Contact support with the VM state and error context."
+                "Review the VM logs for more detailed information."
               ],
               "report": "",
               "owner": null,
@@ -1775,11 +1605,9 @@
           "summary": "An unknown VM revert reason was encountered.",
           "likely_causes": [
             {
-              "cause": "Reverting with an unrecognized error type or corrupted data.",
+              "cause": "Reverting due unknown reason.",
               "fixes": [
-                "Verify the integrity of the transaction data.",
-                "Ensure that the function selectors used in the contract are correct.",
-                "Contact the development team with the raw error data."
+                "Verify the contract call and its parameters are proper."
               ],
               "report": "",
               "owner": null,
@@ -1794,191 +1622,6 @@
           },
           "typescript": {
             "name": "Unknown",
-            "path": ""
-          }
-        }
-      },
-      "[anvil-state-0]": {
-        "domain": "Anvil",
-        "component": "StateLoader",
-        "name": "GenericError",
-        "code": 0,
-        "identifier": "[anvil-state-0]",
-        "message": "Generic error: {message}",
-        "fields": [
-          {
-            "name": "message",
-            "type": "string"
-          }
-        ],
-        "documentation": null,
-        "bindings": {
-          "rust": {
-            "name": "GenericError",
-            "path": ""
-          },
-          "typescript": {
-            "name": "GenericError",
-            "path": ""
-          }
-        }
-      },
-      "[anvil-state-1]": {
-        "domain": "Anvil",
-        "component": "StateLoader",
-        "name": "LoadingStateOverExistingStateError",
-        "code": 1,
-        "identifier": "[anvil-state-1]",
-        "message": "Loading state into a node with existing state is not allowed.",
-        "fields": [],
-        "documentation": {
-          "description": "It is not allowed to load a state overriding the existing node state. If you have a use case for that, please create an issue.",
-          "summary": "It is not allowed to load a state overriding the existing node state.",
-          "likely_causes": []
-        },
-        "bindings": {
-          "rust": {
-            "name": "LoadingStateOverExistingStateError",
-            "path": ""
-          },
-          "typescript": {
-            "name": "LoadingStateOverExistingStateError",
-            "path": ""
-          }
-        }
-      },
-      "[anvil-state-2]": {
-        "domain": "Anvil",
-        "component": "StateLoader",
-        "name": "LoadEmptyStateError",
-        "code": 2,
-        "identifier": "[anvil-state-2]",
-        "message": "Loading a state without blocks is not allowed.",
-        "fields": [],
-        "documentation": {
-          "description": "It is not allowed to load a state without any blocks in it.",
-          "summary": "Attempt to load a state with no blocks",
-          "likely_causes": [
-            {
-              "cause": "You meant to provide a different state.",
-              "fixes": [],
-              "report": "",
-              "owner": null,
-              "references": []
-            }
-          ]
-        },
-        "bindings": {
-          "rust": {
-            "name": "LoadEmptyStateError",
-            "path": ""
-          },
-          "typescript": {
-            "name": "LoadEmptyStateError",
-            "path": ""
-          }
-        }
-      },
-      "[anvil-state-3]": {
-        "domain": "Anvil",
-        "component": "StateLoader",
-        "name": "StateDecompressionError",
-        "code": 3,
-        "identifier": "[anvil-state-3]",
-        "message": "Failed to decompress state: {details}.",
-        "fields": [
-          {
-            "name": "details",
-            "type": "string"
-          }
-        ],
-        "documentation": null,
-        "bindings": {
-          "rust": {
-            "name": "StateDecompressionError",
-            "path": ""
-          },
-          "typescript": {
-            "name": "StateDecompressionError",
-            "path": ""
-          }
-        }
-      },
-      "[anvil-state-4]": {
-        "domain": "Anvil",
-        "component": "StateLoader",
-        "name": "StateDeserializationError",
-        "code": 4,
-        "identifier": "[anvil-state-4]",
-        "message": "Failed to deserialize state: {details}",
-        "fields": [
-          {
-            "name": "details",
-            "type": "string"
-          }
-        ],
-        "documentation": null,
-        "bindings": {
-          "rust": {
-            "name": "StateDeserializationError",
-            "path": ""
-          },
-          "typescript": {
-            "name": "StateDeserializationError",
-            "path": ""
-          }
-        }
-      },
-      "[anvil-state-5]": {
-        "domain": "Anvil",
-        "component": "StateLoader",
-        "name": "UnknownStateVersionError",
-        "code": 5,
-        "identifier": "[anvil-state-5]",
-        "message": "Unknown version of the state: {version}.",
-        "fields": [
-          {
-            "name": "version",
-            "type": "uint"
-          }
-        ],
-        "documentation": null,
-        "bindings": {
-          "rust": {
-            "name": "UnknownStateVersionError",
-            "path": ""
-          },
-          "typescript": {
-            "name": "UnknownStateVersionError",
-            "path": ""
-          }
-        }
-      },
-      "[anvil-state-6]": {
-        "domain": "Anvil",
-        "component": "StateLoader",
-        "name": "LoadStateError",
-        "code": 6,
-        "identifier": "[anvil-state-6]",
-        "message": "Error while attempting to access the state located at `{path}`. Reason: {reason}.",
-        "fields": [
-          {
-            "name": "path",
-            "type": "string"
-          },
-          {
-            "name": "reason",
-            "type": "string"
-          }
-        ],
-        "documentation": null,
-        "bindings": {
-          "rust": {
-            "name": "LoadStateError",
-            "path": ""
-          },
-          "typescript": {
-            "name": "LoadStateError",
             "path": ""
           }
         }

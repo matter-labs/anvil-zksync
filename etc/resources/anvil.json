@@ -7,149 +7,8 @@
       "identifier_encoding": "anvil",
       "components": [
         {
-          "component_name": "AnvilEnvironment",
-          "component_code": 1,
-          "identifier_encoding": "env",
-          "errors": [
-            {
-              "name": "LogFileAccessError",
-              "code": 1,
-              "message": "Unable to access log file: {log_filename}",
-              "bindings": {
-                "rust": {
-                  "name": "LogFileAccessError"
-                }
-              },
-              "fields": [
-                {
-                  "name": "log_filename",
-                  "type": "string"
-                },
-                {
-                  "name": "wrapped_error",
-                  "type": "string"
-                }
-              ],
-              "doc": {
-                "description": "Anvil was unable to open the log file for writing.",
-                "summary": "Unable to access log file.",
-                "likely_causes": [
-                  {
-                    "cause": "Not enough space.",
-                    "fixes": [
-                      "Check if you have enough free space in your storage to create or open a log file"
-                    ]
-                  },
-                  {
-                    "cause": "Insufficient permissions.",
-                    "fixes": [
-                      "Check if you have permissions to write to the log file."
-                    ]
-                  }
-                ],
-                "references": [
-                  "https://matter-labs.io",
-                  "https://github.com"
-                ]
-              }
-            },
-            {
-              "name": "UnsupportedMethodError",
-              "code": 2,
-              "message": "Unsupported method."
-            },
-            {
-              "name": "Web3Error",
-              "code": 3,
-              "message": "Web3Error: {inner}.",
-              "fields": [
-                {
-                  "name": "inner",
-                  "type": "API"
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "component_name": "StateLoader",
-          "component_code": 2,
-          "identifier_encoding": "state",
-          "errors": [
-            {
-              "name": "LoadingStateOverExistingStateError",
-              "code": 1,
-              "message": "Loading state into a node with existing state is not allowed.",
-              "doc": {
-                "summary": "It is not allowed to load a state overriding the existing node state.",
-                "description": "It is not allowed to load a state overriding the existing node state. If you have a use case for that, please create an issue."
-              }
-            },
-            {
-              "name": "LoadEmptyStateError",
-              "code": 2,
-              "message": "Loading a state without blocks is not allowed.",
-              "doc": {
-                "summary": "Attempt to load a state with no blocks",
-                "description": "It is not allowed to load a state without any blocks in it.",
-                "likely_causes": [
-                  "You meant to provide a different state."
-                ]
-              }
-            },
-            {
-              "name": "StateDecompressionError",
-              "code": 3,
-              "message": "Failed to decompress state: {details}.",
-              "fields": [
-                {
-                  "name": "details",
-                  "type": "string"
-                }
-              ]
-            },
-            {
-              "name": "StateDeserializationError",
-              "code": 4,
-              "message": "Failed to deserialize state: {details}",
-              "fields": [
-                {
-                  "name": "details",
-                  "type": "string"
-                }
-              ]
-            },
-            {
-              "name": "UnknownStateVersionError",
-              "code": 5,
-              "message": "Unknown version of the state: {version}.",
-              "fields": [
-                {
-                  "name": "version",
-                  "type": "uint"
-                }
-              ]
-            },
-            {
-              "name": "LoadStateError",
-              "code": 6,
-              "message": "Error while attempting to access the state located at `{path}`. Reason: {reason}.",
-              "fields": [
-                {
-                  "name": "path",
-                  "type": "string"
-                },
-                {
-                  "name": "reason",
-                  "type": "string"
-                }
-              ]
-            }
-          ]
-        },
-        {
           "component_name": "Halt",
-          "component_code": 3,
+          "component_code": 1,
           "identifier_encoding": "halt",
           "errors": [
             {
@@ -170,11 +29,16 @@
                 "summary": "Account validation failed during execution.",
                 "description": "This error occurs when the account validation step fails during the verification and execution of a transaction.",
                 "likely_causes": [
+                    {
+                    "cause": "Insufficient funds to cover transaction costs.",
+                    "fixes": [
+                      "Add enough balance to the account to pay for gas and the transaction amount."
+                    ]
+                  },
                   {
                     "cause": "Invalid account state or credentials.",
                     "fixes": [
-                      "Ensure the account has been properly deployed and initialized.",
-                      "Verify that the account credentials are correct."
+                      "Verify that the account used has a valid signature and nonce."
                     ]
                   }
                 ]
@@ -199,9 +63,9 @@
                 "description": "This error is emitted when the paymaster validation process fails during transaction execution.",
                 "likely_causes": [
                   {
-                    "cause": "Invalid paymaster parameters or insufficient funds.",
+                    "cause": "Invalid paymaster parameters, insufficient funds or unmet validation conditions.",
                     "fixes": [
-                      "Check the paymaster configuration and ensure all parameters are correct.",
+                      "Check the paymaster validation conditions and ensure all parameters are correct.",
                       "Ensure the paymaster account has sufficient funds to cover the transaction fees."
                     ]
                   }
@@ -229,8 +93,7 @@
                   {
                     "cause": "Error in setting up pre-paymaster state.",
                     "fixes": [
-                      "Verify the pre-paymaster setup process and ensure all prerequisites are met.",
-                      "Check for any dependencies or configurations that might be missing."
+                      "Verify the pre-paymaster setup process and ensure all prerequisites are met."
                     ]
                   }
                 ]
@@ -257,8 +120,7 @@
                   {
                     "cause": "Insufficient balance or incorrect payment parameters.",
                     "fixes": [
-                      "Ensure the sender has enough balance to cover the transaction fees.",
-                      "Verify that the payment parameters are correctly specified."
+                      "Verify that the parameters are correctly specified."
                     ]
                   }
                 ]
@@ -283,10 +145,9 @@
                 "description": "This error occurs when the system cannot mark the necessary factory dependencies required for the transaction.",
                 "likely_causes": [
                   {
-                    "cause": "Dependency resolution issues or corrupted state.",
+                    "cause": "Factory dependencies may be missing or incorrectly injected.",
                     "fixes": [
-                      "Check the dependency configurations and ensure all required dependencies are available.",
-                      "Verify the integrity of the system state to rule out corruption."
+                      "Ensure the factory dependencies are correctly included in the transaction."
                     ]
                   }
                 ]
@@ -313,7 +174,7 @@
                   {
                     "cause": "Insufficient funds or incorrect fee parameters.",
                     "fixes": [
-                      "Ensure the account has sufficient funds to cover the transaction fee.",
+                      "Ensure the account has sufficient balance to cover the transaction fee.",
                       "Verify that the fee parameters are correctly specified."
                     ]
                   }
@@ -328,11 +189,16 @@
                 "summary": "The sender address is not a valid account.",
                 "description": "This error occurs when a transaction is attempted from an address that has not been deployed as an account, meaning the `from` address is just a contract.",
                 "likely_causes": [
+                   {
+                    "cause": "Account not deployed with `createAccount` or `create2Account`",
+                    "fixes": [
+                      "Ensure that the `from` address is an account deployed using `createAccount` or `create2Account`."
+                    ]
+                  },
                   {
                     "cause": "Using a contract address as the sender instead of an account.",
                     "fixes": [
-                      "Ensure that the `from` address is a properly deployed account.",
-                      "Deploy an account if necessary and use its address as the sender."
+                      "Ensure that the `from` address is an account and not a contract."
                     ]
                   }
                 ]
@@ -344,12 +210,12 @@
               "message": "Bootloader-based tx failed",
               "doc": {
                 "summary": "An inner transaction error occurred.",
-                "description": "This error is currently not used and should be removed when refactoring errors.",
+                "description": "Transaction reverted due to a contract call that failed during execution.",
                 "likely_causes": [
                   {
-                    "cause": "Internal transaction processing issue.",
+                    "cause": "Contract function call failed.",
                     "fixes": [
-                      "Await error refactoring to address this issue properly."
+                      "Review contract function logic for potential issues."
                     ]
                   }
                 ]
@@ -376,8 +242,7 @@
                   {
                     "cause": "Unexpected or unhandled VM state.",
                     "fixes": [
-                      "Contact the developers with transaction details that caused this error.",
-                      "Review the transaction to identify any anomalies."
+                      "Contact the developers with transaction details that caused this error."
                     ]
                   }
                 ]
@@ -386,7 +251,7 @@
             {
               "name": "UnexpectedVMBehavior",
               "code": 10,
-              "message": "virtual machine entered unexpected state. Please contact developers and provide transaction details that caused this error. Error description: {problem}",
+              "message": "virtual machine entered unexpected state. Error description: {problem}",
               "fields": [
                 {
                   "name": "problem",
@@ -395,7 +260,7 @@
               ],
               "doc": {
                 "summary": "The virtual machine encountered an unexpected state.",
-                "description": "This error is used temporarily instead of panics to provide a better experience for developers. It indicates that the VM entered an unforeseen state during transaction execution.",
+                "description": "VM entered an unforeseen state during transaction execution.",
                 "likely_causes": [
                   {
                     "cause": "Internal VM logic error or unforeseen edge case.",
@@ -431,7 +296,7 @@
               "message": "Validation run out of gas",
               "doc": {
                 "summary": "The validation step ran out of gas.",
-                "description": "This error is emitted when the validation phase of transaction execution exceeds the allocated gas limit.",
+                "description": "Validation phase of transaction execution exceeds the allocated gas limit.",
                 "likely_causes": [
                   {
                     "cause": "Complex validation logic requiring more gas than allocated.",
@@ -454,8 +319,7 @@
                   {
                     "cause": "Setting an unrealistically high gas limit for the transaction.",
                     "fixes": [
-                      "Adjust the gas limit to a reasonable value.",
-                      "Consult the network's gas limit guidelines to set an appropriate limit."
+                      "Adjust the gas limit to a reasonable value."
                     ]
                   }
                 ]
@@ -467,7 +331,7 @@
               "message": "Bootloader did not have enough gas to start the transaction",
               "doc": {
                 "summary": "Insufficient gas provided to initiate the transaction.",
-                "description": "This error is emitted when the bootloader lacks the necessary gas to begin executing the transaction.",
+                "description": "Bootloader lacks the necessary gas to begin executing the transaction.",
                 "likely_causes": [
                   {
                     "cause": "Insufficient gas allocated for the transaction initiation.",
@@ -482,16 +346,15 @@
             {
               "name": "MissingInvocationLimitReached",
               "code": 15,
-              "message": "Tx produced too much cold storage accesses",
+              "message": "Transaction produced too much storage accesses.",
               "doc": {
-                "summary": "The transaction exceeded the allowed number of cold storage invocations.",
+                "summary": "The transaction exceeded the allowed number of storage invocations.",
                 "description": "This error occurs when the transaction makes too many missing invocations to memory, surpassing the allowed limit.",
                 "likely_causes": [
                   {
                     "cause": "Highly complex transaction with excessive memory accesses.",
                     "fixes": [
-                      "Optimize the transaction to reduce the number of memory accesses.",
-                      "Break down the transaction into smaller, more manageable parts."
+                      "Optimize the transaction to reduce the number of memory accesses."
                     ]
                   }
                 ]
@@ -509,7 +372,7 @@
               ],
               "doc": {
                 "summary": "Unable to set L2 block information.",
-                "description": "This error is emitted when the system fails to set the necessary information for the L2 block during transaction execution.",
+                "description": "System failed to set the necessary information for the L2 block during transaction execution.",
                 "likely_causes": [
                   {
                     "cause": "Invalid L2 block data or internal processing error.",
@@ -533,7 +396,7 @@
               ],
               "doc": {
                 "summary": "Failed to add the transaction to the L2 block.",
-                "description": "This error occurs when the system cannot append the transaction to the ongoing L2 block, possibly due to data inconsistencies or internal errors.",
+                "description": "System cannot append the transaction to the ongoing L2 block, possibly due to data inconsistencies or internal errors.",
                 "likely_causes": [
                   {
                     "cause": "Data inconsistency or corruption in the L2 block.",
@@ -551,13 +414,12 @@
               "message": "VM panicked",
               "doc": {
                 "summary": "The virtual machine encountered a panic.",
-                "description": "This error is emitted when the VM experiences a critical failure and panics during transaction execution.",
+                "description": "VM experiences a critical failure and panic during transaction execution.",
                 "likely_causes": [
                   {
                     "cause": "Uncaught exception or critical internal error within the VM.",
                     "fixes": [
-                      "Review the transaction for any operations that might cause the VM to panic.",
-                      "Consult the development team to investigate the VM's internal state."
+                      "Review the transaction for any operations that might cause the VM to panic."
                     ]
                   }
                 ]
@@ -575,7 +437,7 @@
               ],
               "doc": {
                 "summary": "Tracer aborted the transaction execution.",
-                "description": "This error occurs when a custom tracer used during transaction execution decides to abort the process, typically due to specific conditions being met.",
+                "description": "Custom tracer used during transaction execution decides to abort the process, typically due to specific conditions being met.",
                 "likely_causes": [
                   {
                     "cause": "Custom tracer conditions not met or detected an issue.",
@@ -593,12 +455,12 @@
               "message": "Failed to publish compressed bytecodes",
               "doc": {
                 "summary": "Unable to publish compressed bytecodes.",
-                "description": "This error is emitted when the system fails to publish the compressed bytecodes during transaction execution.",
+                "description": "Emitted when the system fails to publish the compressed bytecodes during transaction execution.",
                 "likely_causes": [
                   {
-                    "cause": "Compression algorithm failure or network issues during publishing.",
+                    "cause": "Compression failure or network issues during publishing.",
                     "fixes": [
-                      "Ensure the compression algorithm is functioning correctly.",
+                      "Ensure the compression is functioning correctly.",
                       "Verify network connectivity and retry the publishing process."
                     ]
                   }
@@ -608,7 +470,7 @@
             {
               "name": "FailedBlockTimestampAssertion",
               "code": 21,
-              "message": "Transaction failed block.timestamp assertion",
+              "message": "Transaction failed `block.timestamp` assertion",
               "doc": {
                 "summary": "Block timestamp assertion failed during the transaction.",
                 "description": "This error occurs when the transaction's execution fails to satisfy the `block.timestamp` assertion, indicating a discrepancy in the expected timestamp.",
@@ -627,7 +489,7 @@
         },
         {
           "component_name": "Revert",
-          "component_code": 4,
+          "component_code": 2,
           "identifier_encoding": "revert",
           "errors": [
             {
@@ -688,8 +550,7 @@
                   {
                     "cause": "A non-specific internal error within the VM.",
                     "fixes": [
-                      "Review the VM logs for more detailed information.",
-                      "Contact support with the VM state and error context."
+                      "Review the VM logs for more detailed information."
                     ]
                   }
                 ]
@@ -714,11 +575,9 @@
                 "description": "This error is emitted when the VM encounters a revert reason that is not recognized, including the function selector and raw data for debugging.",
                 "likely_causes": [
                   {
-                    "cause": "Reverting with an unrecognized error type or corrupted data.",
+                    "cause": "Reverting due unknown reason.",
                     "fixes": [
-                      "Verify the integrity of the transaction data.",
-                      "Ensure that the function selectors used in the contract are correct.",
-                      "Contact the development team with the raw error data."
+                      "Verify the contract call and its parameters are proper."                      
                     ]
                   }
                 ]

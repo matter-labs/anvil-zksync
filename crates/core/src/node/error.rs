@@ -21,9 +21,9 @@ pub enum LoadStateError {
     Other(#[from] anyhow::Error),
 }
 
-async fn handle_vm_revert_reason(reason: VmRevertReason, default_msg: &str) -> (String, String) {
+async fn handle_vm_revert_reason(reason: &VmRevertReason, default_msg: &str) -> (String, String) {
     match reason {
-        VmRevertReason::General { msg, data } => (msg, data.encode_hex()),
+        VmRevertReason::General { msg, data } => (msg.to_string(), data.encode_hex()),
         VmRevertReason::InnerTxError => ("Inner transaction error".to_string(), String::new()),
         VmRevertReason::VmError => ("VM Error".to_string(), String::new()),
         VmRevertReason::Unknown {
@@ -66,7 +66,7 @@ pub trait ToRevertReason {
 impl ToRevertReason for VmRevertReason {
     async fn to_revert_reason(self) -> RevertError {
         let default_msg = "Unknown revert reason";
-        let (message, data) = handle_vm_revert_reason(self.clone(), default_msg).await;
+        let (message, data) = handle_vm_revert_reason(&self, default_msg).await;
 
         match self {
             VmRevertReason::General { .. } => RevertError::General {
@@ -98,28 +98,28 @@ impl ToHaltError for Halt {
         match self {
             Halt::ValidationFailed(vm_revert_reason) => {
                 let (message, data) =
-                    handle_vm_revert_reason(vm_revert_reason, "Validation Failed").await;
+                    handle_vm_revert_reason(&vm_revert_reason, "Validation Failed").await;
                 HaltError::ValidationFailed { msg: message, data }
             }
             Halt::PaymasterValidationFailed(vm_revert_reason) => {
                 let (message, data) =
-                    handle_vm_revert_reason(vm_revert_reason, "Paymaster Validation Failed").await;
+                    handle_vm_revert_reason(&vm_revert_reason, "Paymaster Validation Failed").await;
                 HaltError::PaymasterValidationFailed { msg: message, data }
             }
             Halt::PrePaymasterPreparationFailed(vm_revert_reason) => {
                 let (message, data) =
-                    handle_vm_revert_reason(vm_revert_reason, "Pre-Paymaster Preparation Failed")
+                    handle_vm_revert_reason(&vm_revert_reason, "Pre-Paymaster Preparation Failed")
                         .await;
                 HaltError::PrePaymasterPreparationFailed { msg: message, data }
             }
             Halt::PayForTxFailed(vm_revert_reason) => {
                 let (message, data) =
-                    handle_vm_revert_reason(vm_revert_reason, "PayForTx Failed").await;
+                    handle_vm_revert_reason(&vm_revert_reason, "PayForTx Failed").await;
                 HaltError::PayForTxFailed { msg: message, data }
             }
             Halt::FailedToMarkFactoryDependencies(vm_revert_reason) => {
                 let (message, data) = handle_vm_revert_reason(
-                    vm_revert_reason,
+                    &vm_revert_reason,
                     "Failed to Mark Factory Dependencies",
                 )
                 .await;
@@ -127,12 +127,12 @@ impl ToHaltError for Halt {
             }
             Halt::FailedToChargeFee(vm_revert_reason) => {
                 let (message, data) =
-                    handle_vm_revert_reason(vm_revert_reason, "Failed to Charge Fee").await;
+                    handle_vm_revert_reason(&vm_revert_reason, "Failed to Charge Fee").await;
                 HaltError::FailedToChargeFee { msg: message, data }
             }
             Halt::Unknown(vm_revert_reason) => {
                 let (message, data) =
-                    handle_vm_revert_reason(vm_revert_reason, "Unknown Error").await;
+                    handle_vm_revert_reason(&vm_revert_reason, "Unknown Error").await;
                 HaltError::Unknown { msg: message, data }
             }
             Halt::UnexpectedVMBehavior(msg) => HaltError::UnexpectedVMBehavior { problem: msg },

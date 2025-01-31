@@ -3,6 +3,7 @@ use crate::bootloader_debug::BootloaderDebug;
 use crate::resolver;
 use crate::utils::block_on;
 use crate::utils::{calculate_eth_cost, to_human_size};
+use alloy::hex::ToHexExt;
 use anvil_zksync_config::utils::format_gwei;
 use anvil_zksync_types::ShowCalls;
 use colored::Colorize;
@@ -896,15 +897,40 @@ where
             "    |   Transaction Type: {:?}",
             tx.common_data.transaction_type
         );
-        println!("    |   Nonce: {}", tx.common_data.nonce);
-        if let Some(contract_address) = &tx.execute.contract_address {
+        println!("    |   Nonce: {}", tx.nonce());
+        if let Some(contract_address) = &tx.recipient_account() {
             println!("    |   To: {:?}", contract_address);
         }
-        println!("    |   From: {:?}", tx.common_data.initiator_address);
+        println!("    |   From: {:?}", tx.initiator_account());
         if let Some(input_data) = &tx.common_data.input {
             println!("    |   Input Data: {:?}", input_data);
+            println!("    |   Hash: {}", tx.hash());
         }
-        println!("    |   Gas Used: {}", tx.common_data.fee.gas_limit);
+        println!("    |   Gas Limit: {}", tx.common_data.fee.gas_limit);
+        println!(
+            "    |   Gas Price: {}",
+            format_gwei(tx.common_data.fee.max_fee_per_gas)
+        );
+        println!(
+            "    |   Gas Per Pubdata Limit: {}",
+            tx.common_data.fee.gas_per_pubdata_limit
+        );
+
+        // Log paymaster details if available
+        let paymaster_address = tx.common_data.paymaster_params.paymaster;
+        let paymaster_input = &tx.common_data.paymaster_params.paymaster_input;
+        if paymaster_address != Address::zero() || !paymaster_input.is_empty() {
+            println!("    | {}", "Paymaster details:".cyan());
+            println!("    |   Paymaster Address: {:?}", paymaster_address);
+            println!(
+                "    |   Paymaster Input: {}",
+                if paymaster_input.is_empty() {
+                    "None".to_string()
+                } else {
+                    format!("{:?}", paymaster_input.encode_hex())
+                }
+            );
+        }
     }
 
     // Print likely causes if available
@@ -916,23 +942,37 @@ where
                 println!("    |   - {}", cause.cause);
             }
 
-            if let Some(first_cause) = doc.likely_causes.first() {
-                if !first_cause.fixes.is_empty() {
-                    println!("    | ");
-                    println!("    | {}", "Possible fixes:".green());
-                    for fix in &first_cause.fixes {
-                        println!("    |   - {}", fix);
-                    }
-                }
+            // Collect fixes from all causes
+            let all_fixes: Vec<&String> = doc
+                .likely_causes
+                .iter()
+                .flat_map(|cause| &cause.fixes)
+                .collect();
 
-                if !first_cause.references.is_empty() {
-                    println!(
-                        "\n{}",
-                        "For more information about this error, visit:".cyan()
-                    );
-                    for reference in &first_cause.references {
-                        println!("  - {}", reference.underline());
-                    }
+            if !all_fixes.is_empty() {
+                println!("    | ");
+                println!("    | {}", "Possible fixes:".green().bold());
+                for fix in &all_fixes {
+                    println!("    |   - {}", fix);
+                }
+            }
+
+            // Collect references
+            let all_references: Vec<&String> = doc
+                .likely_causes
+                .iter()
+                .flat_map(|cause| &cause.references)
+                .collect();
+
+            if !all_references.is_empty() {
+                println!(
+                    "\n{}",
+                    "For more information about this error, visit:"
+                        .cyan()
+                        .bold()
+                );
+                for reference in &all_references {
+                    println!("  - {}", reference.underline());
                 }
             }
         }
