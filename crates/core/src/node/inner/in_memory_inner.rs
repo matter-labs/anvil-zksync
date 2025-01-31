@@ -338,9 +338,10 @@ impl InMemoryNodeInner {
 
         let call_tracer_result = Arc::new(OnceCell::default());
         let bootloader_debug_result = Arc::new(OnceCell::default());
+        let error_flags_result = Arc::new(OnceCell::new());
 
         let tracers = vec![
-            CallErrorTracer::new().into_tracer_pointer(),
+            CallErrorTracer::new(error_flags_result.clone()).into_tracer_pointer(),
             CallTracer::new(call_tracer_result.clone()).into_tracer_pointer(),
             BootloaderDebugTracer {
                 result: bootloader_debug_result.clone(),

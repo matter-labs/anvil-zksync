@@ -389,9 +389,10 @@ impl InMemoryNode {
         delegate_vm!(vm, push_transaction(tx.clone()));
 
         let call_tracer_result = Arc::new(OnceCell::default());
+        let error_flags_result = Arc::new(OnceCell::new());
 
         let tracers = vec![
-            CallErrorTracer::new().into_tracer_pointer(),
+            CallErrorTracer::new(error_flags_result.clone()).into_tracer_pointer(),
             CallTracer::new(call_tracer_result.clone()).into_tracer_pointer(),
         ];
         let tx_result = delegate_vm!(
@@ -400,6 +401,10 @@ impl InMemoryNode {
         );
 
         let call_traces = Arc::try_unwrap(call_tracer_result)
+            .unwrap()
+            .take()
+            .unwrap_or_default();
+        let error_flags = Arc::try_unwrap(error_flags_result)
             .unwrap()
             .take()
             .unwrap_or_default();

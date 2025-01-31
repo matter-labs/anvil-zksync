@@ -115,3 +115,5 @@ dist
 
 # TernJS port file
 .tern-port
+
+e2e-tests/deployments-zk/
