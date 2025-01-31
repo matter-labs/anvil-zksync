@@ -411,7 +411,7 @@ impl InMemoryNodeInner {
                 );
                 let decoder = builder.build();
                 let mut arena = build_call_trace_arena(
-                    &call_traces,
+                    call_traces,
                     tx_result.clone(),
                     self.config.get_verbosity_level(),
                 );

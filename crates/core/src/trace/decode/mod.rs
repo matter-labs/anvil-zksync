@@ -124,7 +124,7 @@ impl CallTraceDecoder {
         // Add known addresses (system contracts, precompiles) to the labels
         let labels: HashMap<H160, String> = KNOWN_ADDRESSES
             .iter()
-            .map(|(address, known_address)| (address.clone(), known_address.name.clone()))
+            .map(|(address, known_address)| (*address, known_address.name.clone()))
             .collect();
 
         Self {
@@ -210,7 +210,7 @@ impl CallTraceDecoder {
             let args = if cdata.is_empty() {
                 Vec::new()
             } else {
-                vec![hex::encode(&cdata)]
+                vec![hex::encode(cdata)]
             };
             DecodedCallTrace {
                 label,
@@ -223,11 +223,9 @@ impl CallTraceDecoder {
     /// Decodes a function's input into the given trace.
     fn decode_function_input(&self, trace: &CallTrace, func: &Function) -> DecodedCallData {
         let mut args = None;
-        if trace.call.input.len() >= SELECTOR_LEN {
-            if args.is_none() {
-                if let Ok(v) = func.abi_decode_input(&trace.call.input[SELECTOR_LEN..], false) {
-                    args = Some(v.iter().map(|value| self.format_value(value)).collect());
-                }
+        if trace.call.input.len() >= SELECTOR_LEN && args.is_none() {
+            if let Ok(v) = func.abi_decode_input(&trace.call.input[SELECTOR_LEN..], false) {
+                args = Some(v.iter().map(|value| self.format_value(value)).collect());
             }
         }
         DecodedCallData {
@@ -266,7 +264,7 @@ impl CallTraceDecoder {
 
     /// Decodes an event from zksync type VmEvent.
     pub async fn decode_event(&self, vm_event: &VmEvent) -> DecodedCallEvent {
-        let Some(&t0) = vm_event.indexed_topics.get(0) else {
+        let Some(&t0) = vm_event.indexed_topics.first() else {
             return DecodedCallEvent {
                 name: None,
                 params: None,
@@ -287,7 +285,7 @@ impl CallTraceDecoder {
                 &events
             }
         };
-        let log_data = vm_event_to_log_data(&vm_event);
+        let log_data = vm_event_to_log_data(vm_event);
         for event in events {
             if let Ok(decoded) = event.decode_log(&log_data, false) {
                 let params = reconstruct_params(event, &decoded);
@@ -332,9 +330,7 @@ impl CallTraceDecoder {
 
         let funcs_it = nodes
             .iter()
-            .filter_map(|n| match n.trace.address {
-                _ => n.trace.call.input.get(..SELECTOR_LEN),
-            })
+            .filter_map(|n| n.trace.call.input.get(..SELECTOR_LEN))
             .filter(|v| !self.functions.contains_key(*v));
 
         identifier.write().await.identify_functions(funcs_it).await;
