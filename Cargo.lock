@@ -489,6 +489,7 @@ dependencies = [
  "flate2",
  "futures 0.3.31",
  "hex",
+ "itertools 0.13.0",
  "rand 0.8.5",
  "serde",
  "serde_json",

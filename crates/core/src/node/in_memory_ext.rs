@@ -1,7 +1,6 @@
 use super::pool::TxBatch;
 use super::sealer::BlockSealerMode;
 use super::InMemoryNode;
-use anvil_zksync_config::constants::{LEGACY_RICH_WALLETS, RICH_WALLETS};
 use anvil_zksync_types::api::{DetailedTransaction, ResetRequest};
 use anyhow::{anyhow, Context};
 use std::str::FromStr;
@@ -10,7 +9,7 @@ use url::Url;
 use zksync_types::api::{Block, TransactionVariant};
 use zksync_types::bytecode::BytecodeHash;
 use zksync_types::u256_to_h256;
-use zksync_types::{AccountTreeId, Address, L2BlockNumber, StorageKey, H160, H256, U256, U64};
+use zksync_types::{AccountTreeId, Address, L2BlockNumber, StorageKey, H256, U256, U64};
 
 type Result<T> = anyhow::Result<T>;
 
@@ -247,22 +246,6 @@ impl InMemoryNode {
 
         self.snapshots.write().await.clear();
 
-        for wallet in LEGACY_RICH_WALLETS.iter() {
-            let address = wallet.0;
-            self.set_rich_account(
-                H160::from_str(address).unwrap(),
-                U256::from(100u128 * 10u128.pow(18)),
-            )
-            .await;
-        }
-        for wallet in RICH_WALLETS.iter() {
-            let address = wallet.0;
-            self.set_rich_account(
-                H160::from_str(address).unwrap(),
-                U256::from(100u128 * 10u128.pow(18)),
-            )
-            .await;
-        }
         tracing::info!("👷 Network reset");
 
         Ok(true)

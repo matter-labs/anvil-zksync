@@ -256,32 +256,39 @@ describe("anvil_setNonce", function () {
     const richWallet = new Wallet(RichAccounts[0].PrivateKey).connect(provider);
     const userWallet = Wallet.createRandom().connect(provider);
 
-    // Simply asserts that `richWallet` can still send successful transactions
+    // Fund `userWallet` from `richWallet`
+    const fundTxResponse = await richWallet.sendTransaction({
+      to: userWallet.address,
+      value: ethers.parseEther("10"),
+    });
+    await fundTxResponse.wait();
+
+    // Simply asserts that `userWallet` can still send successful transactions
     async function assertCanSendTx() {
       const tx = {
         to: userWallet.address,
         value: ethers.parseEther("0.42"),
       };
 
-      const txResponse = await richWallet.sendTransaction(tx);
+      const txResponse = await userWallet.sendTransaction(tx);
       const txReceipt = await txResponse.wait();
-      expect(txReceipt.status).to.equal(1);
+      expect(txReceipt!.status).to.equal(1);
     }
 
     const newNonce = 42;
 
     // Advance nonce to 42
-    await provider.send("anvil_setNonce", [richWallet.address, ethers.toBeHex(newNonce)]);
+    await provider.send("anvil_setNonce", [userWallet.address, ethers.toBeHex(newNonce)]);
 
     // Assert
-    expect(await richWallet.getNonce()).to.equal(newNonce);
+    expect(await userWallet.getNonce()).to.equal(newNonce);
     await assertCanSendTx();
 
     // Rollback nonce to 0
-    await provider.send("anvil_setNonce", [richWallet.address, ethers.toBeHex(0)]);
+    await provider.send("anvil_setNonce", [userWallet.address, ethers.toBeHex(0)]);
 
     // Assert
-    expect(await richWallet.getNonce()).to.equal(0);
+    expect(await userWallet.getNonce()).to.equal(0);
     await assertCanSendTx();
   });
 });
