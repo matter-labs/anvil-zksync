@@ -1,4 +1,4 @@
-//! ABI related helper functions. 
+//! ABI related helper functions.
 //////////////////////////////////////////////////////////////////////////////////////
 // Attribution: File adapted from the `foundry-common` crate                        //
 //                                                                                  //
@@ -130,9 +130,13 @@ pub fn coerce_value(ty: &str, arg: &str) -> Result<DynSolValue> {
 
 #[cfg(test)]
 mod tests {
+    use crate::trace::decode::{get_indexed_event_for_vm, vm_event_to_log_data};
+
     use super::*;
     use alloy::dyn_abi::EventExt;
-    use alloy::primitives::{B256, U256, Address, FixedBytes};
+    use alloy::primitives::{Address, B256, U256};
+    use zksync_multivm::interface::VmEvent;
+    use zksync_types::H256;
 
     #[test]
     fn test_get_func() {
@@ -155,48 +159,51 @@ mod tests {
         assert_eq!(func.outputs[0].ty, "bytes4");
     }
 
-//     #[test]
-//     fn test_indexed_only_address() {
-//         let event = get_event("event Ev(address,uint256,address)").unwrap();
+    #[test]
+    fn test_indexed_only_address_vm() {
+        let event = get_event("event Ev(address,uint256,address)").unwrap();
 
-//         let param0 = B256::random();
-//         let param1 = vec![3; 32];
-//         let param2 = B256::random();
-//         let log = LogData::new_unchecked(vec![event.selector(), param0, param2], param1.into());
-//         let event = get_indexed_event(event, &log);
+        let param0 = B256::new([0u8; 32]);
+        let param2 = B256::new([0u8; 32]);
+        let param1_data = vec![3u8; 32];
 
-//         assert_eq!(event.inputs.len(), 3);
+        let vm_event = VmEvent {
+            indexed_topics: vec![
+                H256::from_slice(&event.selector().0),
+                H256::from_slice(&param0.0),
+                H256::from_slice(&param2.0),
+            ],
+            value: param1_data.clone(),
+            ..Default::default()
+        };
 
-//         // Only the address fields get indexed since total_params > num_indexed_params
-//         let parsed = event.decode_log(&log, false).unwrap();
+        // Convert the `Event` into its indexed form, matching the number of topics in `VmEvent`.
+        let updated_event = get_indexed_event_for_vm(event, &vm_event);
+        assert_eq!(updated_event.inputs.len(), 3);
 
-//         assert_eq!(event.inputs.iter().filter(|param| param.indexed).count(), 2);
-//         assert_eq!(parsed.indexed[0], DynSolValue::Address(Address::from_word(param0)));
-//         assert_eq!(parsed.body[0], DynSolValue::Uint(U256::from_be_bytes([3; 32]), 256));
-//         assert_eq!(parsed.indexed[1], DynSolValue::Address(Address::from_word(param2)));
-//     }
+        // Now convert the VmEvent into a `LogData`
+        let log_data = vm_event_to_log_data(&vm_event);
+        let decoded = updated_event.decode_log(&log_data, false).unwrap();
 
-//     #[test]
-//     fn test_indexed_all() {
-//         let event = get_event("event Ev(address,uint256,address)").unwrap();
-
-//         let param0 = B256::random();
-//         let param1 = vec![3; 32];
-//         let param2 = B256::random();
-//         let log = LogData::new_unchecked(
-//             vec![event.selector(), param0, B256::from_slice(&param1), param2],
-//             vec![].into(),
-//         );
-//         let event = get_indexed_event(event, &log);
-
-//         assert_eq!(event.inputs.len(), 3);
-
-//         // All parameters get indexed since num_indexed_params == total_params
-//         assert_eq!(event.inputs.iter().filter(|param| param.indexed).count(), 3);
-//         let parsed = event.decode_log(&log, false).unwrap();
-
-//         assert_eq!(parsed.indexed[0], DynSolValue::Address(Address::from_word(param0)));
-//         assert_eq!(parsed.indexed[1], DynSolValue::Uint(U256::from_be_bytes([3; 32]), 256));
-//         assert_eq!(parsed.indexed[2], DynSolValue::Address(Address::from_word(param2)));
-//     }
+        assert_eq!(
+            updated_event
+                .inputs
+                .iter()
+                .filter(|param| param.indexed)
+                .count(),
+            2
+        );
+        assert_eq!(
+            decoded.indexed[0],
+            DynSolValue::Address(Address::from_word(param0))
+        );
+        assert_eq!(
+            decoded.body[0],
+            DynSolValue::Uint(U256::from_be_bytes([3u8; 32]), 256)
+        );
+        assert_eq!(
+            decoded.indexed[1],
+            DynSolValue::Address(Address::from_word(param2))
+        );
+    }
 }

@@ -1,16 +1,16 @@
 use crate::trace::decode::CallTraceDecoder;
-use crate::trace::writer::TraceWriter;
 use crate::trace::types::{
     CallTrace, CallTraceArena, CallTraceNode, DecodedCallTrace, TraceMemberOrder, KNOWN_ADDRESSES,
 };
+use crate::trace::writer::TraceWriter;
 use types::{CallLog, DecodedCallEvent};
 use zksync_multivm::interface::{Call, VmExecutionResultAndLogs};
 use zksync_types::H160;
 pub mod abi_utils;
 pub mod decode;
-pub mod writer;
 pub mod signatures;
 pub mod types;
+pub mod writer;
 
 /// Decode a collection of call traces.
 ///
@@ -18,7 +18,7 @@ pub mod types;
 pub async fn decode_trace_arena(
     arena: &mut CallTraceArena,
     decoder: &CallTraceDecoder,
-) -> Result<(), std::fmt::Error> {
+) -> Result<(), anyhow::Error> {
     decoder.prefetch_signatures(arena.nodes()).await;
     decoder.populate_traces(arena.nodes_mut()).await;
 
@@ -65,7 +65,7 @@ fn process_call_and_subcalls(
 ) {
     // Determine if the current call should be shown at this verbosity level
     let should_add_call = should_include_call(&call.to, verbosity);
-    
+
     let idx = if should_add_call {
         let idx = arena.len();
         // collect event logs
@@ -130,7 +130,7 @@ fn process_call_and_subcalls(
 fn should_include_call(address: &H160, verbosity: u8) -> bool {
     let is_system = CallTraceArena::is_system(address);
     let is_precompile = CallTraceArena::is_precompile(address);
-    
+
     match verbosity {
         // -v or less => 0 or 1 => show nothing
         0 | 1 => false,

@@ -7,11 +7,11 @@
 // Note: These methods are used under the terms of the original project's license.                        //
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-use alloy::json_abi::{Error, Event, Function};
-use alloy::primitives::hex;
 use crate::resolver::{SelectorType, SignEthClient};
 use crate::trace::abi_utils::{get_error, get_event, get_func};
 use crate::utils::{read_json_file, write_json_file};
+use alloy::json_abi::{Error, Event, Function};
+use alloy::primitives::hex;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, HashMap},
@@ -218,7 +218,12 @@ mod tests {
             assert!(sigs.read().await.cached.events.is_empty());
             assert!(sigs.read().await.cached.functions.is_empty());
 
-            let func = sigs.write().await.identify_function(&[35, 184, 114, 221]).await.unwrap();
+            let func = sigs
+                .write()
+                .await
+                .identify_function(&[35, 184, 114, 221])
+                .await
+                .unwrap();
             let event = sigs
                 .write()
                 .await
@@ -229,8 +234,14 @@ mod tests {
                 .await
                 .unwrap();
 
-            assert_eq!(func, get_func("transferFrom(address,address,uint256)").unwrap());
-            assert_eq!(event, get_event("Transfer(address,address,uint128)").unwrap());
+            assert_eq!(
+                func,
+                get_func("transferFrom(address,address,uint256)").unwrap()
+            );
+            assert_eq!(
+                event,
+                get_event("Transfer(address,address,uint128)").unwrap()
+            );
 
             // dropping saves the cache
         }

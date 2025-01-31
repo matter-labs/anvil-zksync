@@ -5,7 +5,6 @@ use zksync_multivm::interface::{Call, ExecutionResult, VmEvent, VmExecutionResul
 use zksync_types::web3::Bytes;
 use zksync_types::{Address, H160, H256};
 
-
 // Note: duplicated types from existing formatter.rs
 // will be consolidated pending feedback
 #[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
@@ -240,7 +239,9 @@ impl Default for CallTraceNode {
                 success: true,
                 caller: H160::zero(),
                 address: H160::zero(),
-                execution_result: VmExecutionResultAndLogs::mock(ExecutionResult::Success { output: vec![] }),
+                execution_result: VmExecutionResultAndLogs::mock(ExecutionResult::Success {
+                    output: vec![],
+                }),
                 decoded: DecodedCallTrace::default(),
                 call: Call::default(),
             },
@@ -281,7 +282,9 @@ impl Default for CallTraceArena {
                 success: true,
                 caller: H160::zero(),
                 address: H160::zero(),
-                execution_result: VmExecutionResultAndLogs::mock(ExecutionResult::Success { output: vec![] }),
+                execution_result: VmExecutionResultAndLogs::mock(ExecutionResult::Success {
+                    output: vec![],
+                }),
                 decoded: DecodedCallTrace::default(),
                 call: Call::default(),
             },
@@ -290,7 +293,9 @@ impl Default for CallTraceArena {
         };
 
         // Initialize CallTraceArena with the root node
-        Self { arena: vec![root_node] }
+        Self {
+            arena: vec![root_node],
+        }
     }
 }
 

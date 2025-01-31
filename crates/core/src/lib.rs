@@ -50,8 +50,8 @@ pub mod node;
 pub mod observability;
 pub mod resolver;
 pub mod system_contracts;
-pub mod utils;
 pub mod trace;
+pub mod utils;
 
 mod cache;
 mod testing;

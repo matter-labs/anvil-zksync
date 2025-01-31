@@ -19,9 +19,7 @@ use hex::encode;
 use std::io::{self, Write};
 use std::str;
 use zksync_multivm::interface::CallType;
-use zksync_types::{
-    zk_evm_types::FarCallOpcode,
-};
+use zksync_types::zk_evm_types::FarCallOpcode;
 
 const PIPE: &str = "  │ ";
 const EDGE: &str = "  └─ ";
@@ -37,7 +35,7 @@ const LOG_STYLE: Style = AnsiColor::Cyan.on_default();
 #[allow(missing_copy_implementations)]
 pub struct TraceWriterConfig {
     use_colors: bool,
-    write_bytecodes: bool,    
+    write_bytecodes: bool,
 }
 
 impl Default for TraceWriterConfig {

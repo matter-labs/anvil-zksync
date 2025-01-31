@@ -1,6 +1,13 @@
-use super::types::{
-    CallTrace, CallTraceNode, DecodedCallData, DecodedCallEvent, DecodedCallTrace,
-};
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Attribution: File adapted from the `evm` crate for zksync usage                                        //
+//                                                                                                        //
+// Full credit goes to its authors. See the original implementation here:                                 //
+// https://github.com/foundry-rs/foundry/blob/master/crates/evm/traces/src/decoder/mod.rs.                //
+//                                                                                                        //
+// Note: These methods are used under the terms of the original project's license.                        //
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+use super::types::{CallTrace, CallTraceNode, DecodedCallData, DecodedCallEvent, DecodedCallTrace};
 use crate::node::console::Console;
 use crate::node::hardhat::{HardhatConsole, HARDHAT_CONSOLE_SELECTOR_PATCHES};
 use crate::trace::signatures::SingleSignaturesIdentifier;
@@ -265,7 +272,7 @@ impl CallTraceDecoder {
                 params: None,
             };
         };
-        
+
         let mut events = Vec::new();
         let b256_t0 = B256::from_slice(t0.as_bytes());
         let key = (b256_t0, indexed_inputs_zksync(vm_event) - 1);
@@ -315,7 +322,11 @@ impl CallTraceDecoder {
 
         let events_it = nodes
             .iter()
-            .flat_map(|node| node.logs.iter().filter_map(|log| log.raw_log.indexed_topics.first()))
+            .flat_map(|node| {
+                node.logs
+                    .iter()
+                    .filter_map(|log| log.raw_log.indexed_topics.first())
+            })
             .unique();
         identifier.write().await.identify_events(events_it).await;
 

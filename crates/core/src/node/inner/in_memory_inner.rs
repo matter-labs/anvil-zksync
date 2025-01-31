@@ -28,7 +28,7 @@ use anvil_zksync_config::constants::{
 };
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_types::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
-use anyhow::Context;
+use anyhow::{anyhow, Context, Result};
 use colored::Colorize;
 use indexmap::IndexMap;
 use once_cell::sync::OnceCell;
@@ -404,10 +404,10 @@ impl InMemoryNodeInner {
                 let mut builder = CallTraceDecoderBuilder::new();
                 builder = builder.with_signature_identifier(
                     SignaturesIdentifier::new(
-                        Some(PathBuf::from(DEFAULT_DISK_CACHE_DIR)), // todo: this should be available from config
+                        Some(PathBuf::from(DEFAULT_DISK_CACHE_DIR)),
                         self.config.offline,
                     )
-                    .unwrap(),
+                    .map_err(|err| anyhow!("Failed to create SignaturesIdentifier: {:#}", err))?,
                 );
                 let decoder = builder.build();
                 let mut arena = build_call_trace_arena(
@@ -416,13 +416,16 @@ impl InMemoryNodeInner {
                     self.config.get_verbosity_level(),
                 );
                 tokio::task::block_in_place(|| {
-                    // Run the async function using the current runtime
                     tokio::runtime::Handle::current().block_on(async {
-                        decode_trace_arena(&mut arena, &decoder).await.unwrap();
-                    });
-                });
+                        decode_trace_arena(&mut arena, &decoder)
+                            .await
+                            .context("Failed to decode trace arena")?;
+
+                        Ok::<_, anyhow::Error>(())
+                    })
+                })?;
                 let trace_output = render_trace_arena_inner(&arena, false);
-                // Print the formatted traces using `{}` to interpret ANSI codes correctly
+
                 println!("Traces:\n{}", trace_output);
             }
         }
