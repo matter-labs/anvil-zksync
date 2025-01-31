@@ -229,6 +229,27 @@ pub struct CallTraceNode {
     pub ordering: Vec<TraceMemberOrder>,
 }
 
+impl Default for CallTraceNode {
+    fn default() -> Self {
+        Self {
+            parent: None,
+            children: Vec::new(),
+            idx: 0,
+            trace: CallTrace {
+                depth: 0,
+                success: true,
+                caller: H160::zero(),
+                address: H160::zero(),
+                execution_result: VmExecutionResultAndLogs::mock(ExecutionResult::Success { output: vec![] }),
+                decoded: DecodedCallTrace::default(),
+                call: Call::default(),
+            },
+            logs: Vec::new(),
+            ordering: Vec::new(),
+        }
+    }
+}
+
 /// Ordering enum for calls, logs and steps
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -249,12 +270,29 @@ pub struct CallTraceArena {
     pub(crate) arena: Vec<CallTraceNode>,
 }
 
-// impl Default for CallTraceArena {
-//     fn default() -> Self {
-//         // The first node is the root node
-//         Self { arena: vec![Default::default()] }
-//     }
-// }
+impl Default for CallTraceArena {
+    fn default() -> Self {
+        let root_node = CallTraceNode {
+            parent: None,
+            children: Vec::new(),
+            idx: 0, // Assuming root index is 0
+            trace: CallTrace {
+                depth: 0,
+                success: true,
+                caller: H160::zero(),
+                address: H160::zero(),
+                execution_result: VmExecutionResultAndLogs::mock(ExecutionResult::Success { output: vec![] }),
+                decoded: DecodedCallTrace::default(),
+                call: Call::default(),
+            },
+            logs: Vec::new(),
+            ordering: Vec::new(),
+        };
+
+        // Initialize CallTraceArena with the root node
+        Self { arena: vec![root_node] }
+    }
+}
 
 impl CallTraceArena {
     /// Returns the nodes in the arena.
@@ -278,8 +316,7 @@ impl CallTraceArena {
     #[inline]
     pub fn clear(&mut self) {
         self.arena.clear();
-        // TODO: circle back to this
-        //self.arena.push(Default::default());
+        self.arena.push(Default::default());
     }
 
     /// Checks if the given address is a precompile based on `KNOWN_ADDRESSES`.

@@ -24,7 +24,7 @@ use crate::trace::decode::CallTraceDecoderBuilder;
 use crate::utils::create_debug_output;
 use crate::{delegate_vm, formatter, utils};
 use anvil_zksync_config::constants::{
-    LEGACY_RICH_WALLETS, NON_FORK_FIRST_BLOCK_TIMESTAMP, RICH_WALLETS, DEFAULT_DISK_CACHE_DIR
+    DEFAULT_DISK_CACHE_DIR, LEGACY_RICH_WALLETS, NON_FORK_FIRST_BLOCK_TIMESTAMP, RICH_WALLETS,
 };
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_types::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
@@ -47,6 +47,8 @@ use zksync_multivm::interface::{
 };
 use zksync_multivm::vm_latest::Vm;
 
+use crate::trace::signatures::SignaturesIdentifier;
+use crate::trace::{build_call_trace_arena, decode_trace_arena, render_trace_arena_inner};
 use zksync_multivm::tracers::CallTracer;
 use zksync_multivm::utils::{
     adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
@@ -74,8 +76,6 @@ use zksync_types::{
     ACCOUNT_CODE_STORAGE_ADDRESS, H160, H256, MAX_L2_TX_GAS_LIMIT, U256, U64,
 };
 use zksync_web3_decl::error::Web3Error;
-use crate::trace::signatures::SignaturesIdentifier;
-use crate::trace::{build_call_trace_arena, decode_trace_arena, render_trace_arena_inner};
 
 // TODO: Rename `InMemoryNodeInner` to something more sensible
 /// Helper struct for InMemoryNode.
@@ -399,29 +399,32 @@ impl InMemoryNodeInner {
             formatter.print_vm_details(&tx_result);
         }
 
-        if let Some(call_traces) = call_traces {
-            let mut builder = CallTraceDecoderBuilder::new();
-            builder = builder.with_signature_identifier(
-                SignaturesIdentifier::new(
-                    Some(PathBuf::from(DEFAULT_DISK_CACHE_DIR)), //todo
-                    self.config.offline,
-                )
-                .unwrap(),
-            );
-            let decoder = builder.build();
-            let mut arena = build_call_trace_arena(&call_traces, tx_result.clone());
-            tokio::task::block_in_place(|| {
-                // Run the async function using the current runtime
-                tokio::runtime::Handle::current().block_on(async {
-                    decode_trace_arena(&mut arena, &decoder).await.unwrap();
+        if self.config.get_verbosity_level() >= 2 {
+            if let Some(call_traces) = call_traces {
+                let mut builder = CallTraceDecoderBuilder::new();
+                builder = builder.with_signature_identifier(
+                    SignaturesIdentifier::new(
+                        Some(PathBuf::from(DEFAULT_DISK_CACHE_DIR)), // todo: this should be available from config
+                        self.config.offline,
+                    )
+                    .unwrap(),
+                );
+                let decoder = builder.build();
+                let mut arena = build_call_trace_arena(
+                    &call_traces,
+                    tx_result.clone(),
+                    self.config.get_verbosity_level(),
+                );
+                tokio::task::block_in_place(|| {
+                    // Run the async function using the current runtime
+                    tokio::runtime::Handle::current().block_on(async {
+                        decode_trace_arena(&mut arena, &decoder).await.unwrap();
+                    });
                 });
-            });
-            
-            // Render the arena once
-            let trace_output = render_trace_arena_inner(&arena, false);
-
-            // Print the formatted traces using `{}` to interpret ANSI codes correctly
-            println!("Traces:\n{}", trace_output);
+                let trace_output = render_trace_arena_inner(&arena, false);
+                // Print the formatted traces using `{}` to interpret ANSI codes correctly
+                println!("Traces:\n{}", trace_output);
+            }
         }
 
         if let Some(call_traces) = call_traces {

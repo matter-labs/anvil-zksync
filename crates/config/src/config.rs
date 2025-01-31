@@ -60,6 +60,8 @@ pub struct TestNodeConfig {
     pub show_vm_details: ShowVMDetails,
     /// Level of detail for gas usage logs
     pub show_gas_details: ShowGasDetails,
+    /// Numeric verbosity derived from repeated `-v` flags (e.g. -v = 1, -vv = 2, etc.).
+    pub verbosity: u8,
     /// Whether to resolve hash references
     pub resolve_hashes: bool,
     /// Don’t print anything on startup if true
@@ -153,6 +155,7 @@ impl Default for TestNodeConfig {
             show_vm_details: Default::default(),
             show_gas_details: Default::default(),
             resolve_hashes: false,
+            verbosity: 0,
             silent: false,
             system_contracts_options: Default::default(),
             override_bytecodes_dir: None,
@@ -660,6 +663,18 @@ impl TestNodeConfig {
             self.resolve_hashes = resolve;
         }
         self
+    }
+
+    /// Sets the numeric verbosity derived from repeated `-v` flags
+    #[must_use]
+    pub fn with_verbosity_level(mut self, verbosity: u8) -> Self {
+        self.verbosity = verbosity;
+        self
+    }
+
+    /// Get the numeric verbosity derived from repeated `-v` flags
+    pub fn get_verbosity_level(&self) -> u8 {
+        self.verbosity
     }
 
     /// Enable or disable silent mode
