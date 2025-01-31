@@ -342,15 +342,21 @@ impl CallTraceDecoder {
     }
 
     /// Pretty-prints a value.
-    fn format_value(&self, value: &DynSolValue) -> String {
+   fn format_value(&self, value: &DynSolValue) -> String {
         if let DynSolValue::Address(addr) = value {
-            // TODO: handle error
-            let zksync_address = Address::from(<[u8; 20]>::try_from(addr.0.as_slice()).unwrap());
-
-            if let Some(label) = self.labels.get(&zksync_address) {
-                return format!("{label}: [{addr}]");
+            match <[u8; 20]>::try_from(addr.0.as_slice()) {
+                Ok(raw_bytes_20) => {
+                    let zksync_address = Address::from(raw_bytes_20);
+                    if let Some(label) = self.labels.get(&zksync_address) {
+                        return format!("{label}: [{addr}]");
+                    }
+                }
+                Err(e) => {
+                    return format!("Invalid address ({}): {:?}", e, addr);
+                }
             }
         }
+        
         format_token(value, false)
     }
 }
