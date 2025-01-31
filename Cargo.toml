@@ -74,6 +74,8 @@ tracing-subscriber = { version = "0.3", features = [
     "local-time",
 ] }
 url = "2.5.4"
+anstyle = { version = "1.0" }
+colorchoice = "1.0"
 
 #########################
 # Test dependencies    #
@@ -92,3 +94,6 @@ anvil_zksync_api_server = { path = "crates/api_server" }
 anvil_zksync_config = { path = "crates/config" }
 anvil_zksync_core = { path = "crates/core" }
 anvil_zksync_types = { path = "crates/types" }
+
+# macros
+derive_more = { version = "1.0", features = ["full"] }

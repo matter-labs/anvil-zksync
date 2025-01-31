@@ -17,6 +17,8 @@ mod storage_logs;
 mod vm;
 mod zkos;
 mod zks;
+pub mod hardhat;
+pub mod console;
 
 pub use self::{
     fee_model::TestNodeFeeInputProvider, impersonate::ImpersonationManager, keys::StorageKeyLayout,

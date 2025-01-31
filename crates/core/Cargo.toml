@@ -23,7 +23,7 @@ tokio.workspace = true
 futures.workspace = true
 once_cell.workspace = true
 
-alloy = { workspace = true, default-features = false, features = ["json-abi", "dyn-abi"] }
+alloy = { workspace = true, default-features = false, features = ["json-abi", "dyn-abi", "sol-types"] }
 
 reqwest.workspace = true
 serde.workspace = true
@@ -44,9 +44,17 @@ thiserror.workspace = true
 async-trait.workspace = true
 url.workspace = true
 
+derive_more.workspace = true
+anstyle.workspace = true
+colorchoice.workspace = true
+
 [dev-dependencies]
 maplit.workspace = true
 httptest.workspace = true
 tempdir.workspace = true
 test-case.workspace = true
 backon.workspace = true
+
+[features]
+serde = []
+arbitrary = []

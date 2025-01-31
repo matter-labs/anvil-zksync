@@ -51,6 +51,7 @@ pub mod observability;
 pub mod resolver;
 pub mod system_contracts;
 pub mod utils;
+pub mod trace;
 
 mod cache;
 mod testing;
