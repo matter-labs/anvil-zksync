@@ -1,5 +1,14 @@
 //! Helper methods to display transaction data in more human readable way.
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Attribution: File adapted from the `revm-inspectors`crate for zksync usage                             //
+//                                                                                                        //
+// Full credit goes to its authors. See the original implementation here:                                 //
+// https://github.com/paradigmxyz/revm-inspectors/blob/main/src/tracing/writer.rs                         //
+//                                                                                                        //
+// Note: These methods are used under the terms of the original project's license.                        //
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 use super::types::{CallLog, TraceMemberOrder};
 use crate::trace::types::{
     CallTrace, CallTraceArena, CallTraceNode, DecodedCallData, ExecutionResultDisplay,
@@ -28,9 +37,7 @@ const LOG_STYLE: Style = AnsiColor::Cyan.on_default();
 #[allow(missing_copy_implementations)]
 pub struct TraceWriterConfig {
     use_colors: bool,
-    color_cheatcodes: bool,
-    write_bytecodes: bool,
-    write_storage_changes: bool,
+    write_bytecodes: bool,    
 }
 
 impl Default for TraceWriterConfig {
@@ -44,9 +51,7 @@ impl TraceWriterConfig {
     pub fn new() -> Self {
         Self {
             use_colors: use_colors(ColorChoice::Auto),
-            color_cheatcodes: false,
             write_bytecodes: false,
-            write_storage_changes: false,
         }
     }
 
@@ -61,17 +66,6 @@ impl TraceWriterConfig {
         self.use_colors
     }
 
-    /// Color calls to the cheatcode address differently. Default: false.
-    pub fn color_cheatcodes(mut self, yes: bool) -> Self {
-        self.color_cheatcodes = yes;
-        self
-    }
-
-    /// Returns `true` if calls to the cheatcode address are colored differently.
-    pub fn get_color_cheatcodes(&self) -> bool {
-        self.color_cheatcodes
-    }
-
     /// Write contract creation codes and deployed codes when writing "create" traces.
     /// Default: false.
     pub fn write_bytecodes(mut self, yes: bool) -> Self {
@@ -83,17 +77,6 @@ impl TraceWriterConfig {
     pub fn get_write_bytecodes(&self) -> bool {
         self.write_bytecodes
     }
-
-    // /// Sets whether to write storage changes.
-    // pub fn write_storage_changes(mut self, yes: bool) -> Self {
-    //     self.write_storage_changes = yes;
-    //     self
-    // }
-
-    // /// Returns `true` if storage changes are written to the writer.
-    // pub fn get_write_storage_changes(&self) -> bool {
-    //     self.write_storage_changes
-    // }
 }
 
 /// Formats [call traces](CallTraceArena) to an [`Write`] writer.
@@ -129,13 +112,6 @@ impl<W: Write> TraceWriter<W> {
         self
     }
 
-    /// Sets whether to color calls to the cheatcode address differently.
-    #[inline]
-    pub fn color_cheatcodes(mut self, yes: bool) -> Self {
-        self.config.color_cheatcodes = yes;
-        self
-    }
-
     /// Sets the starting indentation level.
     #[inline]
     pub fn with_indentation_level(mut self, level: u16) -> Self {
@@ -147,13 +123,6 @@ impl<W: Write> TraceWriter<W> {
     #[inline]
     pub fn write_bytecodes(mut self, yes: bool) -> Self {
         self.config.write_bytecodes = yes;
-        self
-    }
-
-    /// Sets whether to write storage changes.
-    #[inline]
-    pub fn with_storage_changes(mut self, yes: bool) -> Self {
-        self.config.write_storage_changes = yes;
         self
     }
 
@@ -251,10 +220,6 @@ impl<W: Write> TraceWriter<W> {
         // Write logs and subcalls.
         self.indentation_level += 1;
         self.write_items(nodes, idx)?;
-
-        // if self.config.write_storage_changes {
-        //     self.write_storage_changes(node)?;
-        // }
 
         // Write return data.
         self.write_edge()?;
@@ -436,9 +401,7 @@ impl<W: Write> TraceWriter<W> {
         if !self.config.use_colors {
             return Style::default();
         }
-        let color = if self.config.color_cheatcodes {
-            AnsiColor::Blue
-        } else if trace.success {
+        let color = if trace.success {
             AnsiColor::Green
         } else {
             AnsiColor::Red
@@ -469,13 +432,3 @@ fn use_colors(choice: ColorChoice) -> bool {
         ColorChoice::Never => false,
     }
 }
-
-// Formats the given U256 as a decimal number if it is short, otherwise as a hexadecimal
-// byte-array.
-// fn num_or_hex(x: U256) -> String {
-//     if x < U256::from(1e6 as u128) {
-//         x.to_string()
-//     } else {
-//         H256::from(x).to_string()
-//     }
-// }

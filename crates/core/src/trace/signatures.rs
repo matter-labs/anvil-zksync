@@ -1,10 +1,14 @@
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Attribution: File adapted from the `evm` crate for zksync usage                                        //
+//                                                                                                        //
+// Full credit goes to its authors. See the original implementation here:                                 //
+// https://github.com/foundry-rs/foundry/blob/master/crates/evm/traces/src/idenitfier/signatures.rs.      //
+//                                                                                                        //
+// Note: These methods are used under the terms of the original project's license.                        //
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 use alloy::json_abi::{Error, Event, Function};
 use alloy::primitives::hex;
-
-// use foundry_common::{
-//     abi::{get_error, get_event, get_func},
-//     fs,
-// };
 use crate::resolver::{SelectorType, SignEthClient};
 use crate::trace::abi_utils::{get_error, get_event, get_func};
 use crate::utils::{read_json_file, write_json_file};
@@ -204,7 +208,7 @@ impl Drop for SignaturesIdentifier {
 mod tests {
     use super::*;
     use tempdir::TempDir;
-    
+
     #[tokio::test(flavor = "multi_thread")]
     async fn can_query_signatures() {
         let tmp = TempDir::new("sig-test").expect("failed creating temporary dir");

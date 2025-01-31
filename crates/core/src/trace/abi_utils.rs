@@ -1,4 +1,12 @@
-//! ABI related helper functions.
+//! ABI related helper functions. 
+//////////////////////////////////////////////////////////////////////////////////////
+// Attribution: File adapted from the `foundry-common` crate                        //
+//                                                                                  //
+// Full credit goes to its authors. See the original implementation here:           //
+// https://github.com/foundry-rs/foundry/blob/master/crates/common/src/abi.rs.      //
+//                                                                                  //
+// Note: These methods are used under the terms of the original project's license.  //
+//////////////////////////////////////////////////////////////////////////////////////
 
 use super::types::LogData;
 use alloy::dyn_abi::{DynSolType, DynSolValue, FunctionExt, JsonAbiExt};

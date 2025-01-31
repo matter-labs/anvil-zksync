@@ -5,6 +5,9 @@ use zksync_multivm::interface::{Call, ExecutionResult, VmEvent, VmExecutionResul
 use zksync_types::web3::Bytes;
 use zksync_types::{Address, H160, H256};
 
+
+// Note: duplicated types from existing formatter.rs
+// will be consolidated pending feedback
 #[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
 pub enum ContractType {
     System,
@@ -33,7 +36,7 @@ lazy_static! {
     };
 }
 
-/// An Ethereum event log object.
+/// A ZKsync event log object.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(::serde::Serialize, ::serde::Deserialize))]
 #[cfg_attr(
@@ -164,17 +167,6 @@ pub struct CallLog {
     pub position: u64,
 }
 
-// impl From<Log> for CallLog {
-//     /// Converts a [`Log`] into a [`CallLog`].
-//     fn from(log: Log) -> Self {
-//         Self {
-//             position: Default::default(),
-//             raw_log: log.data,
-//             decoded: DecodedCallLog { name: None, params: None },
-//         }
-//     }
-// }
-
 impl CallLog {
     /// Sets the position of the log.
     #[inline]
@@ -200,19 +192,15 @@ pub struct CallTrace {
     /// - [`CallKind::Call`] and alike: the callee, the address of the contract being called
     /// - [`CallKind::Create`] and alike: the address of the created contract
     pub address: Address,
-    /// Whether this is a call to a precompile.
-    ///
-    /// Note: This is optional because not all tracers make use of this.
-    // pub maybe_precompile: Option<bool>,
+    /// The execution result of the call.
     pub execution_result: VmExecutionResultAndLogs,
     /// Optional complementary decoded call data.
     pub decoded: DecodedCallTrace,
-    
-    // pub decoded_events: DecodedCallEvent,
+    /// The call trace
     pub call: Call,
 }
 
-/// Additional decoded data enhancing the [CallLog].
+/// Decoded ZKSync event data enhancing the [CallLog].
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DecodedCallEvent {
@@ -235,10 +223,8 @@ pub struct CallTraceNode {
     pub idx: usize,
     /// The call trace
     pub trace: CallTrace,
-
     /// Event logs
     pub logs: Vec<CallLog>,
-
     /// Ordering of child calls and logs
     pub ordering: Vec<TraceMemberOrder>,
 }

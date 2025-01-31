@@ -21,9 +21,46 @@ use zksync_types::{Address, H160};
 /// The first four bytes of the call data for a function call specifies the function to be called.
 pub const SELECTOR_LEN: usize = 4;
 
+/// Build a new [CallTraceDecoder].
+#[derive(Default)]
+#[must_use = "builders do nothing unless you call `build` on them"]
+pub struct CallTraceDecoderBuilder {
+    decoder: CallTraceDecoder,
+}
+
+impl CallTraceDecoderBuilder {
+    /// Create a new builder.
+    #[inline]
+    pub fn new() -> Self {
+        Self {
+            decoder: CallTraceDecoder::new().clone(),
+        }
+    }
+
+    /// Add known labels to the decoder.
+    #[inline]
+    pub fn with_labels(mut self, labels: impl IntoIterator<Item = (Address, String)>) -> Self {
+        self.decoder.labels.extend(labels);
+        self
+    }
+
+    /// Sets the signature identifier for events and functions.
+    #[inline]
+    pub fn with_signature_identifier(mut self, identifier: SingleSignaturesIdentifier) -> Self {
+        self.decoder.signature_identifier = Some(identifier);
+        self
+    }
+
+    /// Build the decoder.
+    #[inline]
+    pub fn build(self) -> CallTraceDecoder {
+        self.decoder
+    }
+}
+
 /// The call trace decoder.
 ///
-/// The decoder collects address labels and ABIs from any number of [TraceIdentifier]s, which it
+/// The decoder collects address labels and ABIs which it
 /// then uses to decode the call trace.
 ///
 /// Note that a call trace decoder is required for each new set of traces, since addresses in
@@ -40,14 +77,10 @@ pub struct CallTraceDecoder {
     pub receive_contracts: Vec<Address>,
     /// Contract addresses that have fallback functions, mapped to function sigs.
     pub fallback_contracts: HashMap<Address, Vec<String>>,
-
     /// All known events.
-    // todo perhaps change to VmEvent type?
     pub events: BTreeMap<(B256, usize), Vec<Event>>,
-
     /// All known functions.
     pub functions: HashMap<Selector, Vec<Function>>,
-
     /// A signature identifier for events and functions.
     pub signature_identifier: Option<SingleSignaturesIdentifier>,
 }
@@ -55,8 +88,7 @@ pub struct CallTraceDecoder {
 impl CallTraceDecoder {
     /// Creates a new call trace decoder.
     ///
-    /// The call trace decoder always knows how to decode calls to the cheatcode address, as well
-    /// as DSTest-style logs.
+    /// The call trace decoder always knows how to decode calls of DSTest-style logs
     pub fn new() -> &'static Self {
         // If you want to take arguments in this function, assign them to the fields of the cloned
         // lazy instead of removing it
@@ -82,6 +114,7 @@ impl CallTraceDecoder {
             functions.into_iter()
         }
 
+        // Add known addresses (system contracts, precompiles) to the labels
         let labels: HashMap<H160, String> = KNOWN_ADDRESSES
             .iter()
             .map(|(address, known_address)| (address.clone(), known_address.name.clone()))
@@ -110,10 +143,6 @@ impl CallTraceDecoder {
     pub async fn populate_traces(&self, traces: &mut Vec<CallTraceNode>) {
         for node in traces {
             node.trace.decoded = self.decode_function(&node.trace).await;
-            // TODO: Decode logs
-            // for log in node.trace.execution_result.logs.events.iter_mut() {
-            //     node.trace.decoded_events = self.decode_event(&log).await;
-            // }
             for log in node.logs.iter_mut() {
                 log.decoded = self.decode_event(&log.raw_log).await;
             }
@@ -122,9 +151,6 @@ impl CallTraceDecoder {
 
     /// Decodes a call trace.
     pub async fn decode_function(&self, trace: &CallTrace) -> DecodedCallTrace {
-        // if let Some(trace) = precompiles::decode(trace, 1) {
-        //     return trace;
-        // }
         let label = self.labels.get(&trace.address).cloned();
         let cdata = &trace.call.input;
 
@@ -231,22 +257,19 @@ impl CallTraceDecoder {
         None
     }
 
-    /// Decodes an event.
+    /// Decodes an event from zksync type VmEvent.
     pub async fn decode_event(&self, vm_event: &VmEvent) -> DecodedCallEvent {
-        // let &[t0, ..] = log.topics() else { return DecodedCallEvent { name: None, params: None } };
         let Some(&t0) = vm_event.indexed_topics.get(0) else {
             return DecodedCallEvent {
                 name: None,
                 params: None,
             };
         };
-        //let key = (t0, vm_event.indexed_topics.len() - 1);
-
+        
         let mut events = Vec::new();
-        let b256_t0 = B256::from_slice(t0.as_bytes()); // or your preferred conversion
-        let key = (b256_t0, vm_event.indexed_topics.len() - 1);
+        let b256_t0 = B256::from_slice(t0.as_bytes());
+        let key = (b256_t0, indexed_inputs_zksync(vm_event) - 1);
         let events = match self.events.get(&key) {
-            // TODO
             Some(es) => es,
             None => {
                 if let Some(identifier) = &self.signature_identifier {
@@ -290,12 +313,11 @@ impl CallTraceDecoder {
             return;
         };
 
-        // TODO: events and logs
-        // let events_it = nodes
-        //     .iter()
-        //     .flat_map(|node| node.logs.iter().filter_map(|log| log.raw_log.topics().first()))
-        //     .unique();
-        // identifier.write().await.identify_events(events_it).await;
+        let events_it = nodes
+            .iter()
+            .flat_map(|node| node.logs.iter().filter_map(|log| log.raw_log.indexed_topics.first()))
+            .unique();
+        identifier.write().await.identify_events(events_it).await;
 
         let funcs_it = nodes
             .iter()
@@ -309,7 +331,7 @@ impl CallTraceDecoder {
 
     /// The default decoded return data for a trace.
     fn default_return_data(&self, trace: &CallTrace) -> Option<String> {
-        (!trace.success).then(|| "Revert - to do decode output strings".to_string())
+        (!trace.success).then(|| "Revert - todo! decode output strings".to_string())
     }
 
     /// Pretty-prints a value.
@@ -326,14 +348,36 @@ impl CallTraceDecoder {
     }
 }
 
-fn _indexed_inputs_zksync(event: &VmEvent) -> usize {
+/// Restore the order of the params of a decoded event,
+/// as Alloy returns the indexed and unindexed params separately.
+fn reconstruct_params(event: &Event, decoded: &DecodedEvent) -> Vec<DynSolValue> {
+    let mut indexed = 0;
+    let mut unindexed = 0;
+    let mut inputs = vec![];
+    for input in event.inputs.iter() {
+        // Prevent panic of event `Transfer(from, to)` decoded with a signature
+        // `Transfer(address indexed from, address indexed to, uint256 indexed tokenId)` by making
+        // sure the event inputs is not higher than decoded indexed / un-indexed values.
+        if input.indexed && indexed < decoded.indexed.len() {
+            inputs.push(decoded.indexed[indexed].clone());
+            indexed += 1;
+        } else if unindexed < decoded.body.len() {
+            inputs.push(decoded.body[unindexed].clone());
+            unindexed += 1;
+        }
+    }
+
+    inputs
+}
+
+fn indexed_inputs_zksync(event: &VmEvent) -> usize {
     event.indexed_topics.len()
 }
 
 fn indexed_inputs(event: &Event) -> usize {
     event.inputs.iter().filter(|param| param.indexed).count()
 }
-// TODO move
+
 /// Given an `Event` without indexed parameters and a `VmEvent`, it tries to
 /// return the `Event` with the proper indexed parameters. Otherwise,
 /// it returns the original `Event`.
@@ -361,28 +405,7 @@ pub fn get_indexed_event_for_vm(mut event: Event, vm_event: &VmEvent) -> Event {
     event
 }
 
-/// Restore the order of the params of a decoded event,
-/// as Alloy returns the indexed and unindexed params separately.
-fn reconstruct_params(event: &Event, decoded: &DecodedEvent) -> Vec<DynSolValue> {
-    let mut indexed = 0;
-    let mut unindexed = 0;
-    let mut inputs = vec![];
-    for input in event.inputs.iter() {
-        // Prevent panic of event `Transfer(from, to)` decoded with a signature
-        // `Transfer(address indexed from, address indexed to, uint256 indexed tokenId)` by making
-        // sure the event inputs is not higher than decoded indexed / un-indexed values.
-        if input.indexed && indexed < decoded.indexed.len() {
-            inputs.push(decoded.indexed[indexed].clone());
-            indexed += 1;
-        } else if unindexed < decoded.body.len() {
-            inputs.push(decoded.body[unindexed].clone());
-            unindexed += 1;
-        }
-    }
-
-    inputs
-}
-
+/// Converts a `VmEvent` to a `LogData`.
 pub fn vm_event_to_log_data(event: &VmEvent) -> LogData {
     LogData::new_unchecked(
         event
@@ -392,41 +415,4 @@ pub fn vm_event_to_log_data(event: &VmEvent) -> LogData {
             .collect(),
         event.value.clone().into(),
     )
-}
-
-/// Build a new [CallTraceDecoder].
-#[derive(Default)]
-#[must_use = "builders do nothing unless you call `build` on them"]
-pub struct CallTraceDecoderBuilder {
-    decoder: CallTraceDecoder,
-}
-
-impl CallTraceDecoderBuilder {
-    /// Create a new builder.
-    #[inline]
-    pub fn new() -> Self {
-        Self {
-            decoder: CallTraceDecoder::new().clone(),
-        }
-    }
-
-    /// Add known labels to the decoder.
-    #[inline]
-    pub fn with_labels(mut self, labels: impl IntoIterator<Item = (Address, String)>) -> Self {
-        self.decoder.labels.extend(labels);
-        self
-    }
-
-    /// Sets the signature identifier for events and functions.
-    #[inline]
-    pub fn with_signature_identifier(mut self, identifier: SingleSignaturesIdentifier) -> Self {
-        self.decoder.signature_identifier = Some(identifier);
-        self
-    }
-
-    /// Build the decoder.
-    #[inline]
-    pub fn build(self) -> CallTraceDecoder {
-        self.decoder
-    }
 }
