@@ -124,7 +124,7 @@ impl ForkStorage {
         // Currently we don't have the zks API to return us the information on whether a given
         // key was written to before a given block.
         // This means, we have to depend on the following heuristic: we'll read the value of the slot.
-        //  - if value != 0 -> this means that the slot was written to in the past (so we can return intitial_write = false)
+        //  - if value != 0 -> this means that the slot was written to in the past (so we can return initial_write = false)
         //  - but if the value = 0 - there is a chance, that slot was written to in the past - and later was reset.
         //                            but unfortunately we cannot detect that with the current zks api, so we'll attempt to do it
         //                           only on local storage.

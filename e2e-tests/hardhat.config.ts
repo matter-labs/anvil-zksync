@@ -21,7 +21,7 @@ const config: HardhatUserConfig = {
     version: "0.8.17",
   },
   mocha: {
-    // Multiple reports allow view of the ouput in the console and as a JSON for the test result exporter in CI
+    // Multiple reports allow view of the output in the console and as a JSON for the test result exporter in CI
     reporter: "mocha-multi",
     reporterOptions: {
       spec: "-",

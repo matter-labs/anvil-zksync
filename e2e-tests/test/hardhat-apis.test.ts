@@ -74,8 +74,8 @@ describe("hardhat_impersonateAccount & hardhat_stopImpersonatingAccount", functi
       value: ethers.parseEther("0.42"),
     };
 
-    const recieptTx = await signer.sendTransaction(tx);
-    await recieptTx.wait();
+    const receiptTx = await signer.sendTransaction(tx);
+    await receiptTx.wait();
 
     await provider.send("hardhat_stopImpersonatingAccount", [RichAccounts[5].Account]);
 

@@ -63,7 +63,7 @@ function prepare_binary() {
     mv anvil-zksync "$destination/anvil-zksync"
     chmod +x "$destination/anvil-zksync"
 
-    echo "Succesfully prepared binary!"
+    echo "Successfully prepared binary!"
 }
 
 function download_binary() {

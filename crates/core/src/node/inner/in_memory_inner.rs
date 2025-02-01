@@ -198,7 +198,7 @@ impl InMemoryNodeInner {
                 // In theory , when forking mainnet, we should match this value
                 // to the value that was set in the node at that time - but AFAIK
                 // we don't have any API for this - so this might result in slightly
-                // incorrect replays of transacions during the migration period, that
+                // incorrect replays of transactions during the migration period, that
                 // depend on block number or timestamp.
                 max_virtual_blocks_to_create: 1,
             },

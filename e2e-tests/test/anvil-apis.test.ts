@@ -70,7 +70,7 @@ describe("anvil_setBlockTimestampInterval & anvil_removeBlockTimestampInterval",
     const newBlockTimestamp = (await provider.getBlock(txReceipt.blockNumber)).timestamp;
     expect(newBlockTimestamp).to.equal(expectedTimestamp);
 
-    // Accomodate for virtual block
+    // Accommodate for virtual block
     expectedTimestamp += interval;
 
     // Remove interval
@@ -330,8 +330,8 @@ describe("anvil_impersonateAccount & anvil_stopImpersonatingAccount", function (
       value: ethers.parseEther("0.42"),
     };
 
-    const recieptTx = await signer.sendTransaction(tx);
-    await recieptTx.wait();
+    const receiptTx = await signer.sendTransaction(tx);
+    await receiptTx.wait();
 
     await provider.send("anvil_stopImpersonatingAccount", [richAccount]);
 
@@ -357,8 +357,8 @@ describe("anvil_autoImpersonateAccount", function () {
       value: ethers.parseEther("0.42"),
     };
 
-    const recieptTx = await signer.sendTransaction(tx);
-    await recieptTx.wait();
+    const receiptTx = await signer.sendTransaction(tx);
+    await receiptTx.wait();
 
     await provider.send("anvil_autoImpersonateAccount", [false]);
 
