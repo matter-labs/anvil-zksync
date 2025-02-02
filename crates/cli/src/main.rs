@@ -17,6 +17,7 @@ use anvil_zksync_core::node::{
 };
 use anvil_zksync_core::observability::Observability;
 use anvil_zksync_core::system_contracts::SystemContracts;
+use anvil_zksync_l1_sidecar::L1Sidecar;
 use anyhow::{anyhow, Context};
 use clap::Parser;
 use std::fs::File;
@@ -186,6 +187,9 @@ async fn main() -> anyhow::Result<()> {
         None
     };
 
+    // TODO: Make port configurable
+    let (l1_sidecar, l1_sidecar_runner) = L1Sidecar::builtin(8012).await?;
+
     let impersonation = ImpersonationManager::default();
     if config.enable_auto_impersonate {
         // Enable auto impersonation if configured
@@ -289,6 +293,7 @@ async fn main() -> anyhow::Result<()> {
 
     let mut server_builder = NodeServerBuilder::new(
         node.clone(),
+        l1_sidecar,
         AllowOrigin::exact(
             config
                 .allow_origin
@@ -383,6 +388,9 @@ async fn main() -> anyhow::Result<()> {
         },
         _ = state_dumper => {
             tracing::trace!("state dumper was stopped")
+        },
+        _ = l1_sidecar_runner.run() => {
+            tracing::trace!("L1 sender was stopped")
         },
     }
 

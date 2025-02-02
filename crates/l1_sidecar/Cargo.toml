@@ -1,0 +1,28 @@
+[package]
+name = "anvil_zksync_l1_sidecar"
+description = "anvil-zksync L1 sidecar"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+anvil_zksync_config.workspace = true
+
+zksync_contracts.workspace = true
+zksync_types.workspace = true
+
+alloy = { workspace = true, default-features = false, features = ["sol-types", "rpc-types", "providers", "kzg"] }
+anyhow.workspace = true
+tempdir.workspace = true
+serde.workspace = true
+serde_yaml.workspace = true
+serde_with.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]

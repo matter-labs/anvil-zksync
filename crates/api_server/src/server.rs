@@ -1,13 +1,15 @@
+use crate::impls::AnvilExtNamespace;
 use crate::{
     AnvilNamespace, ConfigNamespace, DebugNamespace, EthNamespace, EthTestNamespace, EvmNamespace,
     NetNamespace, Web3Namespace, ZksNamespace,
 };
 use anvil_zksync_api_decl::{
-    AnvilNamespaceServer, ConfigNamespaceServer, DebugNamespaceServer, EthNamespaceServer,
-    EthTestNamespaceServer, EvmNamespaceServer, NetNamespaceServer, Web3NamespaceServer,
-    ZksNamespaceServer,
+    AnvilExtNamespaceServer, AnvilNamespaceServer, ConfigNamespaceServer, DebugNamespaceServer,
+    EthNamespaceServer, EthTestNamespaceServer, EvmNamespaceServer, NetNamespaceServer,
+    Web3NamespaceServer, ZksNamespaceServer,
 };
 use anvil_zksync_core::node::InMemoryNode;
+use anvil_zksync_l1_sidecar::L1Sidecar;
 use http::Method;
 use jsonrpsee::server::middleware::http::ProxyGetRequestLayer;
 use jsonrpsee::server::{RpcServiceBuilder, ServerBuilder, ServerHandle};
@@ -18,15 +20,17 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 #[derive(Clone)]
 pub struct NodeServerBuilder {
     node: InMemoryNode,
+    l1_sidecar: L1Sidecar,
     health_api_enabled: bool,
     cors_enabled: bool,
     allow_origin: AllowOrigin,
 }
 
 impl NodeServerBuilder {
-    pub fn new(node: InMemoryNode, allow_origin: AllowOrigin) -> Self {
+    pub fn new(node: InMemoryNode, l1_sidecar: L1Sidecar, allow_origin: AllowOrigin) -> Self {
         Self {
             node,
+            l1_sidecar,
             health_api_enabled: false,
             cors_enabled: false,
             allow_origin,
@@ -41,13 +45,15 @@ impl NodeServerBuilder {
         self.cors_enabled = true;
     }
 
-    fn default_rpc(node: InMemoryNode) -> RpcModule<()> {
+    fn default_rpc(node: InMemoryNode, l1_sidecar: L1Sidecar) -> RpcModule<()> {
         let mut rpc = RpcModule::new(());
         rpc.merge(EthNamespace::new(node.clone()).into_rpc())
             .unwrap();
         rpc.merge(EthTestNamespace::new(node.clone()).into_rpc())
             .unwrap();
         rpc.merge(AnvilNamespace::new(node.clone()).into_rpc())
+            .unwrap();
+        rpc.merge(AnvilExtNamespace::new(l1_sidecar).into_rpc())
             .unwrap();
         rpc.merge(EvmNamespace::new(node.clone()).into_rpc())
             .unwrap();
@@ -89,7 +95,7 @@ impl NodeServerBuilder {
         match server_builder.build(addr).await {
             Ok(server) => {
                 let local_addr = server.local_addr().unwrap();
-                let rpc = Self::default_rpc(self.node);
+                let rpc = Self::default_rpc(self.node, self.l1_sidecar);
                 // `jsonrpsee` does `tokio::spawn` within `start` method, so we cannot invoke it here, as this method
                 // should only build the server. This way we delay the launch until the `NodeServer::run` is invoked.
                 Ok(NodeServer {
