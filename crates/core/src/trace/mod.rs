@@ -14,7 +14,7 @@ pub mod writer;
 
 /// Decode a collection of call traces.
 ///
-/// The traces will be decoded using the given decoder, if possible.
+/// The traces will be decoded if possible using openchain.
 pub async fn decode_trace_arena(
     arena: &mut CallTraceArena,
     decoder: &CallTraceDecoder,
@@ -40,12 +40,10 @@ pub fn build_call_trace_arena(
 ) -> CallTraceArena {
     let mut arena = CallTraceArena::default();
     let root_idx = 0;
-
     // Update the root node's execution_result with the actual transaction result
     if let Some(root_node) = arena.arena.get_mut(root_idx) {
         root_node.trace.execution_result = tx_result.clone();
     }
-
     // Process calls and their subcalls
     for call in calls {
         process_call_and_subcalls(call, root_idx, 0, &mut arena.arena, &tx_result, verbosity);

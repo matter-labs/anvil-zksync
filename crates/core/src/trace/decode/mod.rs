@@ -1,5 +1,5 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Attribution: File adapted from the `evm` crate for zksync usage                                        //
+// Attribution: File adapted from the Foundry `evm` crate for ZKsync usage                                        //
 //                                                                                                        //
 // Full credit goes to its authors. See the original implementation here:                                 //
 // https://github.com/foundry-rs/foundry/blob/master/crates/evm/traces/src/decoder/mod.rs.                //
@@ -67,11 +67,8 @@ impl CallTraceDecoderBuilder {
 
 /// The call trace decoder.
 ///
-/// The decoder collects address labels and ABIs which it
+/// The decoder collects address labels which it
 /// then uses to decode the call trace.
-///
-/// Note that a call trace decoder is required for each new set of traces, since addresses in
-/// different sets might overlap.
 #[derive(Clone, Debug, Default)]
 pub struct CallTraceDecoder {
     /// Addresses identified to be a specific contract.
@@ -262,7 +259,7 @@ impl CallTraceDecoder {
         None
     }
 
-    /// Decodes an event from zksync type VmEvent.
+    /// Decodes an event from ZKsync type VmEvent.
     pub async fn decode_event(&self, vm_event: &VmEvent) -> DecodedCallEvent {
         let Some(&t0) = vm_event.indexed_topics.first() else {
             return DecodedCallEvent {
@@ -279,7 +276,7 @@ impl CallTraceDecoder {
             None => {
                 if let Some(identifier) = &self.signature_identifier {
                     if let Some(event) = identifier.write().await.identify_event(&t0[..]).await {
-                        events.push(get_indexed_event_for_vm(event, vm_event));
+                        events.push(get_indexed_event_from_vm_event(event, vm_event));
                     }
                 }
                 &events
@@ -342,7 +339,7 @@ impl CallTraceDecoder {
     }
 
     /// Pretty-prints a value.
-   fn format_value(&self, value: &DynSolValue) -> String {
+    fn format_value(&self, value: &DynSolValue) -> String {
         if let DynSolValue::Address(addr) = value {
             match <[u8; 20]>::try_from(addr.0.as_slice()) {
                 Ok(raw_bytes_20) => {
@@ -356,7 +353,7 @@ impl CallTraceDecoder {
                 }
             }
         }
-        
+
         format_token(value, false)
     }
 }
@@ -382,11 +379,9 @@ fn reconstruct_params(event: &Event, decoded: &DecodedEvent) -> Vec<DynSolValue>
 
     inputs
 }
-
 fn indexed_inputs_zksync(event: &VmEvent) -> usize {
     event.indexed_topics.len()
 }
-
 fn indexed_inputs(event: &Event) -> usize {
     event.inputs.iter().filter(|param| param.indexed).count()
 }
@@ -394,7 +389,7 @@ fn indexed_inputs(event: &Event) -> usize {
 /// Given an `Event` without indexed parameters and a `VmEvent`, it tries to
 /// return the `Event` with the proper indexed parameters. Otherwise,
 /// it returns the original `Event`.
-pub fn get_indexed_event_for_vm(mut event: Event, vm_event: &VmEvent) -> Event {
+pub fn get_indexed_event_from_vm_event(mut event: Event, vm_event: &VmEvent) -> Event {
     if !event.anonymous && vm_event.indexed_topics.len() > 1 {
         let indexed_params = vm_event.indexed_topics.len() - 1;
         let num_inputs = event.inputs.len();

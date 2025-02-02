@@ -35,12 +35,12 @@ impl CachedSignatures {
         if path.is_file() {
             read_json_file(&path)
                 .map_err(
-                    |err| tracing::warn!(target: "evm::traces", ?path, ?err, "failed to read cache file"),
+                    |err| tracing::warn!(target: "trace::signatures", ?path, ?err, "failed to read cache file"),
                 )
                 .unwrap_or_default()
         } else {
             if let Err(err) = std::fs::create_dir_all(cache_path) {
-                tracing::warn!(target: "evm::traces", "could not create signatures cache dir: {:?}", err);
+                tracing::warn!(target: "trace::signatures", "could not create signatures cache dir: {:?}", err);
             }
             Self::default()
         }
@@ -73,7 +73,7 @@ impl SignaturesIdentifier {
 
         let identifier = if let Some(cache_path) = cache_path {
             let path = cache_path.join("signatures");
-            tracing::trace!(target: "evm::traces", ?path, "reading signature cache");
+            tracing::trace!(target: "trace::signatures", ?path, "reading signature cache");
             let cached = CachedSignatures::load(cache_path);
             Self {
                 cached,
@@ -97,13 +97,13 @@ impl SignaturesIdentifier {
         if let Some(cached_path) = &self.cached_path {
             if let Some(parent) = cached_path.parent() {
                 if let Err(err) = std::fs::create_dir_all(parent) {
-                    tracing::warn!(target: "evm::traces", ?parent, ?err, "failed to create cache");
+                    tracing::warn!(target: "trace::signatures", ?parent, ?err, "failed to create cache");
                 }
             }
             if let Err(err) = write_json_file(cached_path, &self.cached) {
-                tracing::warn!(target: "evm::traces", ?cached_path, ?err, "failed to flush signature cache");
+                tracing::warn!(target: "trace::signatures", ?cached_path, ?err, "failed to flush signature cache");
             } else {
-                tracing::trace!(target: "evm::traces", ?cached_path, "flushed signature cache")
+                tracing::trace!(target: "trace::signatures", ?cached_path, "flushed signature cache")
             }
         }
     }

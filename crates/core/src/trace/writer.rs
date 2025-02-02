@@ -282,7 +282,7 @@ impl<W: Write> TraceWriter<W> {
                         FarCallOpcode::Delegate => Some(" [delegatecall]"),
                         FarCallOpcode::Mimic => Some(" [mimiccall]"),
                     },
-                    CallType::NearCall => Some("[nearcall]"), // TODO check if this is correct
+                    CallType::NearCall => Some("[nearcall]"),
                     CallType::Create => unreachable!(), // Create calls are handled separately.
                 };
 

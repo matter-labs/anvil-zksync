@@ -5,7 +5,7 @@ use zksync_multivm::interface::{Call, ExecutionResult, VmEvent, VmExecutionResul
 use zksync_types::web3::Bytes;
 use zksync_types::{Address, H160, H256};
 
-// Note: duplicated types from existing formatter.rs
+// TODO: duplicated types from existing formatter.rs
 // will be consolidated pending feedback
 #[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
 pub enum ContractType {
@@ -276,7 +276,7 @@ impl Default for CallTraceArena {
         let root_node = CallTraceNode {
             parent: None,
             children: Vec::new(),
-            idx: 0, // Assuming root index is 0
+            idx: 0,
             trace: CallTrace {
                 depth: 0,
                 success: true,
@@ -355,6 +355,7 @@ impl CallTraceArena {
     }
 }
 
+/// A trait for displaying the execution result.
 pub trait ExecutionResultDisplay {
     fn display(&self) -> String;
 }

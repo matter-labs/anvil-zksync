@@ -130,7 +130,7 @@ pub fn coerce_value(ty: &str, arg: &str) -> Result<DynSolValue> {
 
 #[cfg(test)]
 mod tests {
-    use crate::trace::decode::{get_indexed_event_for_vm, vm_event_to_log_data};
+    use crate::trace::decode::{get_indexed_event_from_vm_event, vm_event_to_log_data};
 
     use super::*;
     use alloy::dyn_abi::EventExt;
@@ -178,7 +178,7 @@ mod tests {
         };
 
         // Convert the `Event` into its indexed form, matching the number of topics in `VmEvent`.
-        let updated_event = get_indexed_event_for_vm(event, &vm_event);
+        let updated_event = get_indexed_event_from_vm_event(event, &vm_event);
         assert_eq!(updated_event.inputs.len(), 3);
 
         // Now convert the VmEvent into a `LogData`
