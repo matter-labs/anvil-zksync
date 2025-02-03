@@ -74,8 +74,8 @@ tracing-subscriber = { version = "0.3", features = [
     "local-time",
 ] }
 url = "2.5.4"
-zksync-error-description = { git = "https://github.com/sayon/error-codegen-poc", branch = "main" }
-zksync-error-codegen = { git = "https://github.com/sayon/error-codegen-poc", branch = "main", package = "zksync-error-codegen" }
+zksync-error-description = { git = "https://github.com/matter-labs/zksync-error", branch = "main" }
+zksync-error-codegen = { git = "https://github.com/matter-labs/zksync-error", branch = "main", package = "zksync-error-codegen" }
 strum = "0.26.3"
 strum_macros = "0.26.4"
 
