@@ -172,3 +172,43 @@ impl CommitmentGenerator {
         L1BatchWithMetadata::new(batch_header, batch_metadata, HashMap::new(), &[])
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn generates_proper_genesis() {
+        let config = ZkstackConfig::builtin();
+        let (_, genesis_metadata) = CommitmentGenerator::new(&config);
+        // Basic invariants expected by the protocol
+        assert_eq!(genesis_metadata.header.number, L1BatchNumber(0));
+        assert_eq!(genesis_metadata.header.timestamp, 0);
+        assert_eq!(genesis_metadata.header.l1_tx_count, 0);
+        assert_eq!(genesis_metadata.header.l2_tx_count, 0);
+
+        // Computed genesis should match provided config
+        assert_eq!(
+            genesis_metadata.metadata.root_hash,
+            config.genesis.genesis_root
+        );
+        assert_eq!(
+            genesis_metadata.metadata.rollup_last_leaf_index,
+            config.genesis.genesis_rollup_leaf_index
+        );
+        assert_eq!(
+            genesis_metadata.metadata.commitment,
+            config.genesis.genesis_batch_commitment
+        );
+    }
+
+    #[test]
+    fn generates_valid_commitment_for_random_batch() {
+        let config = ZkstackConfig::builtin();
+        let (commitment_generator, _) = CommitmentGenerator::new(&config);
+        let metadata = commitment_generator.generate_metadata(L1BatchNumber(42));
+
+        // Really this is all we can check without making assumptions about the implementation
+        assert_eq!(metadata.header.number, L1BatchNumber(42));
+    }
+}

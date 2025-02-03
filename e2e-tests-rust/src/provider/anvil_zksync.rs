@@ -1,8 +1,9 @@
 use alloy::network::Network;
+use alloy::primitives::TxHash;
 use alloy::providers::{Provider, ProviderCall};
 use alloy::rpc::client::NoParams;
 use alloy::serde::WithOtherFields;
-use alloy::transports::Transport;
+use alloy::transports::{Transport, TransportResult};
 use alloy_zksync::network::Zksync;
 
 /// RPC interface that gives access to methods specific to anvil-zksync.
@@ -24,6 +25,13 @@ where
         >,
     > {
         self.client().request_noparams("anvil_mine_detailed").into()
+    }
+
+    /// Commits batch with given number to L1
+    async fn anvil_commit_batch(&self, batch_number: u64) -> TransportResult<TxHash> {
+        self.client()
+            .request("anvil_commitBatch", (batch_number,))
+            .await
     }
 }
 
