@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { Wallet } from "zksync-ethers";
 import { deployContract, expectThrowsAsync, getTestProvider } from "../helpers/utils";
-import { RichAccounts } from "../helpers/constants";
+import { GenesisAccounts, RichAccounts } from "../helpers/constants";
 import { ethers } from "hardhat";
 import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
 import * as hre from "hardhat";
@@ -175,6 +175,13 @@ describe("hardhat_reset", function () {
     await provider.send("hardhat_reset", []);
     const newBlockNumber = await provider.send("eth_blockNumber", []);
     expect(BigInt(newBlockNumber)).to.eq(0n);
+
+    // Assert that both rich accounts and genesis accounts are still managed by the node
+    const response: string[] = await provider.send("eth_accounts", []);
+    const accounts = response.map((addr) => ethers.getAddress(addr)).sort();
+    const richAccounts = RichAccounts.map((ra) => ra.Account);
+    expect(accounts).to.include.members(GenesisAccounts);
+    expect(accounts).to.include.members(richAccounts);
   });
 });
 

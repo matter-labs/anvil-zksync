@@ -22,7 +22,9 @@ use crate::node::{
 use crate::system_contracts::SystemContracts;
 use crate::utils::create_debug_output;
 use crate::{delegate_vm, formatter, utils};
-use anvil_zksync_config::constants::NON_FORK_FIRST_BLOCK_TIMESTAMP;
+use anvil_zksync_config::constants::{
+    LEGACY_RICH_WALLETS, NON_FORK_FIRST_BLOCK_TIMESTAMP, RICH_WALLETS,
+};
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_types::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
 use anyhow::Context;
@@ -30,6 +32,7 @@ use colored::Colorize;
 use indexmap::IndexMap;
 use once_cell::sync::OnceCell;
 use std::collections::{HashMap, HashSet};
+use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use zksync_contracts::BaseSystemContracts;
@@ -337,9 +340,10 @@ impl InMemoryNodeInner {
 
         let call_tracer_result = Arc::new(OnceCell::default());
         let bootloader_debug_result = Arc::new(OnceCell::default());
+        let error_flags_result = Arc::new(OnceCell::new());
 
         let tracers = vec![
-            CallErrorTracer::new().into_tracer_pointer(),
+            CallErrorTracer::new(error_flags_result.clone()).into_tracer_pointer(),
             CallTracer::new(call_tracer_result.clone()).into_tracer_pointer(),
             BootloaderDebugTracer {
                 result: bootloader_debug_result.clone(),
@@ -1307,6 +1311,27 @@ impl InMemoryNodeInner {
 
         self.rich_accounts.clear();
         self.previous_states.clear();
+
+        let rich_addresses = itertools::chain!(
+            self.config
+                .genesis_accounts
+                .iter()
+                .map(|acc| H160::from_slice(acc.address().as_ref())),
+            self.config
+                .signer_accounts
+                .iter()
+                .map(|acc| H160::from_slice(acc.address().as_ref())),
+            LEGACY_RICH_WALLETS
+                .iter()
+                .map(|(address, _)| H160::from_str(address).unwrap()),
+            RICH_WALLETS
+                .iter()
+                .map(|(address, _, _)| H160::from_str(address).unwrap()),
+        )
+        .collect::<Vec<_>>();
+        for address in rich_addresses {
+            self.set_rich_account(address, self.config.genesis_balance);
+        }
     }
 
     /// Adds a lot of tokens to a given account with a specified balance.
