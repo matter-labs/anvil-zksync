@@ -1,0 +1,275 @@
+{
+    "types": [
+        {
+            "name": "uint",
+            "description": "Unsigned 32-bit integer",
+            "bindings": {
+                "rust":
+                {
+                    "name": "u32",
+                    "path": ""
+                }
+            }
+        },
+        {
+            "name": "int",
+            "description": "Signed 32-bit integer",
+            "bindings": {
+                "rust":
+                {
+                    "name": "i32",
+                    "path": ""
+                }
+            }
+        },
+        {
+            "name": "string",
+            "description": "Unicode zero-terminated string",
+            "bindings": {
+                "rust": {
+                    "name": "String",
+                    "path": ""
+                }
+            }
+        },
+        {
+            "name": "map",
+            "description": "String to string mapping.",
+            "bindings": {
+                "rust": {
+                    "name": "Vec<(String,String)>",
+                    "path": ""
+                }
+            }
+        },
+        {
+            "name": "WrappedError",
+            "description": "Any wrapped error",
+            "bindings": {
+                "rust": {
+                    "name": "serde_json::Value",
+                    "path": ""
+                }
+            }
+        },
+        {
+            "name": "bytes",
+            "description": "Sequence of bytes",
+            "bindings": {
+                "rust": {
+                    "name": "Vec<u8>",
+                    "path": ""
+                }
+            }
+        }
+    ],
+    "domains": [
+        {
+            "domain_name": "Core",
+            "domain_code": 1,
+            "identifier_encoding": "core",
+            "description": "Errors in core ZKsync components such as sequencer or mempool.",
+            "bindings": {
+                "rust": "Core"
+            },
+            "components" : [
+                {
+                    "component_name": "Sequencer",
+                    "component_code": 1,
+                    "identifier_encoding": "seq",
+                    "bindings": {
+                        "rust": "Sequencer"
+                    },
+                    "description": "Errors in the sequencer node",
+                    "errors" : [
+                        {
+                            "name": "GenericSequencerError",
+                            "code": 1,
+                            "message": "Generic error: {message}",
+                            "fields": [
+                                {
+                                    "name": "message",
+                                    "type": "string"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "component_name": "EraVM",
+                    "component_code": 2,
+                    "identifier_encoding": "eravm",
+                    "bindings": {
+                        "rust": "EraVM"
+                    },
+                    "description": "Errors in EraVM virtual machine executing contracts.",
+                    "errors" : []
+                },
+                {
+                    "component_name": "ExecutionPlatform",
+                    "component_code": 3,
+                    "identifier_encoding": "exec",
+                    "bindings": {
+                        "rust": "ExecutionPlatform"
+                    },
+                    "description": "Errors in the contract execution environment, bootloader, etc.",
+                    "errors" : []
+                },
+                {
+                    "component_name": "API",
+                    "component_code": 4,
+                    "identifier_encoding": "api",
+                    "bindings": {
+                        "rust": "API"
+                    },
+                    "description": "Errors originating in the web3 API.",
+                    "errors" : []
+                }
+            ]
+        },
+        {
+            "domain_name": "Compiler",
+            "domain_code": 2,
+            "identifier_encoding": "compiler",
+            "description": "Compilers such as zksolc, zkvyper, solc.",
+            "bindings": {
+                "rust": "Compiler"
+            },
+            "components" : [
+                {
+                    "component_name": "LLVM_Era",
+                    "component_code": 1,
+                    "identifier_encoding": "llvm+era",
+                    "bindings": {
+                        "rust": "LLVM_Era"
+                    },
+                    "description": "Errors originating in the compiler backend for EraVM.",
+                    "errors" : []
+                },
+                {
+                    "component_name": "LLVM_EVM",
+                    "component_code": 2,
+                    "identifier_encoding": "llvm+evm",
+                    "bindings": {
+                        "rust": "LLVM_EVM"
+                    },
+                    "description": "Errors originating in the compiler backend for Ethereum VM (EVM).",
+                    "errors" : []
+                },
+                {
+                    "component_name": "Solc",
+                    "component_code": 3,
+                    "identifier_encoding": "solc",
+                    "bindings": {
+                        "rust": "Solc"
+                    },
+                    "description": "Errors originating in the official Solidity compiler.",
+                    "errors" : []
+                },
+                {
+                    "component_name": "SolcFork",
+                    "component_code": 4,
+                    "identifier_encoding": "solc+fork",
+                    "bindings": {
+                        "rust": "SolcFork"
+                    },
+                    "description": "Errors originating in the ZKsync fork of Solidity compiler.",
+                    "errors" : []
+                },
+                {
+                    "component_name": "Zksolc",
+                    "component_code": 5,
+                    "identifier_encoding": "zksolc",
+                    "bindings": {
+                        "rust": "Zksolc"
+                    },
+                    "description": "Errors originating in the ZKsync Solidity compiler for EraVM and EVM.",
+                    "errors" : []
+                },
+                {
+                    "component_name": "Zkvyper",
+                    "component_code": 6,
+                    "identifier_encoding": "zkvyper",
+                    "bindings": {
+                        "rust": "Zkvyper"
+                    },
+                    "description": "Errors originating in the ZKsync Vyper compiler for EraVM.",
+                    "errors" : []
+                }
+            ]
+        },
+        {
+            "domain_name": "Anvil",
+            "domain_code": 5,
+            "identifier_encoding": "anvil",
+            "description": "Errors originating in Anvil for ZKsync.",
+            "bindings": {
+                "rust": "Anvil"
+            },
+            "components" : []
+        },
+        {
+            "domain_name": "Hardhat",
+            "domain_code": 3,
+            "identifier_encoding": "hardhat",
+            "description": "Errors originating in HardHat.",
+            "bindings": {
+                "rust": "Hardhat"
+            },
+            "components" : [
+                {
+                    "component_name": "HardhatUpstream",
+                    "component_code": 1,
+                    "identifier_encoding": "upstream",
+                    "bindings": {
+                        "rust": "HardhatUpstream"
+                    },
+                    "description": "Errors originating in the upstream Hardhat implementation.",
+                    "errors" : []
+                },
+                {
+                    "component_name": "HardhatZksync",
+                    "component_code": 2,
+                    "identifier_encoding": "zksync",
+                    "bindings": {
+                        "rust": "HardhatZksync"
+                    },
+                    "description": "Errors originating in the ZKsync codebase for HardHat.",
+                    "errors" : []
+                }
+            ]
+        },
+        {
+            "domain_name": "Foundry",
+            "domain_code": 4,
+            "identifier_encoding": "foundry",
+            "description": "Errors originating in Foundry.",
+            "bindings": {
+                "rust": "Foundry"
+            },
+            "components" : [
+                {
+                    "component_name": "FoundryUpstream",
+                    "component_code": 1,
+                    "identifier_encoding": "upstream",
+                    "bindings": {
+                        "rust": "FoundryUpstream"
+                    },
+                    "description": "Errors originating in the upstream Foundry implementation.",
+                    "errors" : []
+                },
+                {
+                    "component_name": "FoundryZksync",
+                    "component_code": 2,
+                    "identifier_encoding": "zksync",
+                    "bindings": {
+                        "rust": "FoundryZksync"
+                    },
+                    "description": "Errors originating in the ZKsync codebase for Foundry.",
+                    "errors" : []
+                }
+            ]
+        }
+
+    ]
+}
