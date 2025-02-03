@@ -1,19 +1,12 @@
+use crate::contracts;
 use crate::zkstack_config::ZkstackConfig;
 use alloy::consensus::{SidecarBuilder, SimpleCoder};
 use alloy::network::{ReceiptResponse, TransactionBuilder, TransactionBuilder4844};
 use alloy::providers::Provider;
 use alloy::rpc::types::TransactionRequest;
-use alloy::sol_types::{SolCall, SolValue};
 use tokio::sync::{mpsc, oneshot};
 use zksync_types::commitment::L1BatchWithMetadata;
 use zksync_types::{Address, L2ChainId, H256};
-
-/// Current commitment encoding version as per protocol.
-pub const SUPPORTED_ENCODING_VERSION: u8 = 0;
-
-alloy::sol!(
-    "../../contracts/l1-contracts/contracts/state-transition/chain-interfaces/IExecutor.sol"
-);
 
 /// Node component responsible for sending transactions to L1.
 pub struct L1Sender {
@@ -90,12 +83,11 @@ impl L1Sender {
         // Create a blob sidecar with empty data
         let sidecar = SidecarBuilder::<SimpleCoder>::from_slice(&[]).build()?;
 
-        let call = IExecutor::commitBatchesSharedBridgeCall::new((
-            alloy::primitives::U256::from(self.l2_chain_id.as_u64()),
-            alloy::primitives::U256::from(self.last_committed_l1_batch.header.number.0 + 1),
-            alloy::primitives::U256::from(self.last_committed_l1_batch.header.number.0 + 1),
-            self.commit_calldata(batch).into(),
-        ));
+        let call = contracts::commit_batches_shared_bridge_call(
+            self.l2_chain_id,
+            &self.last_committed_l1_batch,
+            batch,
+        );
 
         let gas_price = self.provider.get_gas_price().await?;
         let eip1559_est = self.provider.estimate_eip1559_fees(None).await?;
@@ -140,60 +132,6 @@ impl L1Sender {
         }
 
         Ok(receipt.transaction_hash().0.into())
-    }
-
-    /// ABI encode new batch into calldata as expected by `IExecutor::commitBatchesSharedBridgeCall`.
-    fn commit_calldata(&self, batch: &L1BatchWithMetadata) -> Vec<u8> {
-        let stored_batch_info = IExecutor::StoredBatchInfo::from((
-            self.last_committed_l1_batch.header.number.0 as u64,
-            alloy::primitives::FixedBytes::<32>::from(
-                &self.last_committed_l1_batch.metadata.root_hash.0,
-            ),
-            self.last_committed_l1_batch.metadata.rollup_last_leaf_index,
-            alloy::primitives::U256::from(self.last_committed_l1_batch.header.l1_tx_count),
-            alloy::primitives::FixedBytes::<32>::from(
-                self.last_committed_l1_batch
-                    .header
-                    .priority_ops_onchain_data_hash()
-                    .0,
-            ),
-            alloy::primitives::FixedBytes::<32>::from(
-                self.last_committed_l1_batch.metadata.l2_l1_merkle_root.0,
-            ),
-            alloy::primitives::U256::from(self.last_committed_l1_batch.header.timestamp),
-            alloy::primitives::FixedBytes::<32>::from(
-                self.last_committed_l1_batch.metadata.commitment.0,
-            ),
-        ));
-        let commit_batch_info = IExecutor::CommitBatchInfo::from((
-            batch.header.number.0 as u64,
-            batch.header.timestamp,
-            batch.metadata.rollup_last_leaf_index,
-            alloy::primitives::FixedBytes::<32>::from(batch.metadata.root_hash.0),
-            alloy::primitives::U256::from(batch.header.l1_tx_count),
-            alloy::primitives::FixedBytes::<32>::from(
-                batch.header.priority_ops_onchain_data_hash().0,
-            ),
-            alloy::primitives::FixedBytes::<32>::from(
-                batch
-                    .metadata
-                    .bootloader_initial_content_commitment
-                    .unwrap()
-                    .0,
-            ),
-            alloy::primitives::FixedBytes::<32>::from(
-                batch.metadata.events_queue_commitment.unwrap().0,
-            ),
-            // System log verification is disabled on L1 so we pretend we don't have any
-            alloy::primitives::Bytes::new(),
-            // Same for DA input
-            alloy::primitives::Bytes::new(),
-        ));
-        let mut commit_data = (stored_batch_info, vec![commit_batch_info]).abi_encode_params();
-        // Prefixed by current encoding version as expected by protocol
-        commit_data.insert(0, SUPPORTED_ENCODING_VERSION);
-
-        commit_data
     }
 }
 

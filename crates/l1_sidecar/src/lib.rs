@@ -6,6 +6,7 @@ use zksync_types::{L1BatchNumber, H256};
 
 mod anvil;
 mod commitment_generator;
+mod contracts;
 mod l1_sender;
 mod zkstack_config;
 
