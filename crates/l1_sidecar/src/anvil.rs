@@ -3,6 +3,7 @@ use alloy::network::{EthereumWallet, TransactionBuilder};
 use alloy::providers::{Provider, ProviderBuilder, WalletProvider};
 use alloy::rpc::types::TransactionRequest;
 use std::ffi::OsStr;
+use std::fs::File;
 use std::path::PathBuf;
 use std::process::{ExitStatus, Stdio};
 use std::time::Duration;
@@ -116,6 +117,8 @@ impl L1AnvilEnv {
                 anvil_state_path,
             }) => (anvil_bin_path, anvil_state_path),
         };
+        // TODO: Make log location configurable
+        let log_file = File::create("./anvil-zksync-l1.log")?;
         let child = AsyncCommand::new(anvil_bin_path)
             .args(vec![
                 OsStr::new("--port"),
@@ -123,8 +126,7 @@ impl L1AnvilEnv {
                 OsStr::new("--load-state"),
                 anvil_state_path.as_os_str(),
             ])
-            // TODO: What do we want to do with stdout/stderr? Redirect into another log file?
-            .stdout(Stdio::inherit())
+            .stdout(log_file)
             .stderr(Stdio::inherit())
             .kill_on_drop(true)
             .spawn()?;
