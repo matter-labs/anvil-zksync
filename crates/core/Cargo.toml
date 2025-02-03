@@ -52,6 +52,3 @@ httptest.workspace = true
 tempdir.workspace = true
 test-case.workspace = true
 backon.workspace = true
-
-[build-dependencies]
-zksync-error-codegen.workspace = true
