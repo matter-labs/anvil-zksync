@@ -315,6 +315,10 @@ pub struct Cli {
     /// Transaction ordering in the mempool.
     #[arg(long, default_value = "fifo")]
     pub order: TransactionOrder,
+
+    #[arg(long, help_heading = "L1")]
+    /// Port the spawned L1 anvil node will listen on
+    pub l1_anvil_port: Option<u16>,
 }
 
 #[derive(Debug, Subcommand, Clone)]
@@ -503,7 +507,8 @@ impl Cli {
             .with_state_interval(self.state_interval)
             .with_dump_state(self.dump_state)
             .with_preserve_historical_states(self.preserve_historical_states)
-            .with_load_state(self.load_state);
+            .with_load_state(self.load_state)
+            .with_l1_anvil_port(self.l1_anvil_port);
 
         if self.emulate_evm && self.dev_system_contracts != Some(SystemContractsOptions::Local) {
             return Err(eyre::eyre!(
@@ -631,7 +636,7 @@ impl PeriodicStateDumper {
 // An endless future that periodically dumps the state to disk if configured.
 // Implementation adapted from: https://github.com/foundry-rs/foundry/blob/206dab285437bd6889463ab006b6a5fb984079d8/crates/anvil/src/cmd.rs#L658
 impl Future for PeriodicStateDumper {
-    type Output = ();
+    type Output = anyhow::Result<()>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();

@@ -133,6 +133,8 @@ pub struct TestNodeConfig {
     pub preserve_historical_states: bool,
     /// State to load
     pub load_state: Option<PathBuf>,
+    /// Port the spawned L1 anvil node will listen on
+    pub l1_anvil_port: Option<u16>,
 }
 
 impl Default for TestNodeConfig {
@@ -206,6 +208,7 @@ impl Default for TestNodeConfig {
             state_interval: None,
             preserve_historical_states: false,
             load_state: None,
+            l1_anvil_port: None,
         }
     }
 }
@@ -977,6 +980,13 @@ impl TestNodeConfig {
     #[must_use]
     pub fn with_load_state(mut self, load_state: Option<PathBuf>) -> Self {
         self.load_state = load_state;
+        self
+    }
+
+    /// Set the L1 anvil port
+    #[must_use]
+    pub fn with_l1_anvil_port(mut self, l1_anvil_port: Option<u16>) -> Self {
+        self.l1_anvil_port = l1_anvil_port;
         self
     }
 }
