@@ -315,9 +315,7 @@ async fn main() -> anyhow::Result<()> {
             Err(err) => {
                 println!(
                     "Failed to bind to address {}:{}: {}. Retrying with a different port...",
-                    host,
-                    config.port,
-                    err
+                    host, config.port, err
                 );
 
                 // Attempt to bind to a dynamic port
@@ -327,8 +325,7 @@ async fn main() -> anyhow::Result<()> {
                         config.port = server.local_addr().port();
                         println!(
                             "Successfully started server on port {} for host {}",
-                            config.port,
-                            host
+                            config.port, host
                         );
                         server_handles.push(server.run());
                     }

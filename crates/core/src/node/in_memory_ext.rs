@@ -168,8 +168,7 @@ impl InMemoryNode {
         self.node_handle.set_balance_sync(address, balance).await?;
         println!(
             "👷 Balance for address {:?} has been manually set to {} Wei",
-            address,
-            balance
+            address, balance
         );
         Ok(true)
     }
@@ -178,8 +177,7 @@ impl InMemoryNode {
         self.node_handle.set_nonce_sync(address, nonce).await?;
         println!(
             "👷 Nonces for address {:?} have been set to {}",
-            address,
-            nonce
+            address, nonce
         );
         Ok(true)
     }

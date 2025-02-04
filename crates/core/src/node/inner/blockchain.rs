@@ -649,7 +649,8 @@ impl BlockchainState {
             panic!("encountered a block with no batch; this is not supposed to happen")
         };
         let latest_timestamp = latest_block.timestamp.as_u64();
-        println!("latest block after loading state: number={}, hash={}, batch_number={}, timestamp={}",
+        println!(
+            "latest block after loading state: number={}, hash={}, batch_number={}, timestamp={}",
             latest_number, latest_hash, latest_batch_number, latest_timestamp
         );
         self.current_block = L2BlockNumber(latest_number as u32);
