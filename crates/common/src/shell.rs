@@ -228,7 +228,7 @@ macro_rules! sh_err {
 
 #[cfg(test)]
 mod tests {
-    
+
     #[test]
     fn test_print_macros() {
         // These calls use the global shell.
