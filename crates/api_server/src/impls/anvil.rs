@@ -100,7 +100,7 @@ impl AnvilNamespaceServer for AnvilNamespace {
     }
 
     async fn set_min_gas_price(&self, _gas: U256) -> RpcResult<()> {
-        tracing::info!(
+        println!(
             "Setting minimum gas price is unsupported as ZKsync is a post-EIP1559 chain"
         );
         Err(RpcError::Unsupported.into())

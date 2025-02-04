@@ -102,7 +102,7 @@ impl SystemContracts {
         initiator: &Address,
     ) -> BaseSystemContracts {
         if impersonation.is_impersonating(initiator) {
-            tracing::info!("🕵️ Executing tx from impersonated account {initiator:?}");
+            println!("🕵️ Executing tx from impersonated account {initiator:?}");
             self.contracts(TxExecutionMode::VerifyExecute, true).clone()
         } else {
             self.contracts(TxExecutionMode::VerifyExecute, false)

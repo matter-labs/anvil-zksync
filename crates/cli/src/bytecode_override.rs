@@ -44,7 +44,7 @@ pub async fn override_bytecodes(node: &InMemoryNode, bytecodes_dir: String) -> a
                 node.override_bytecode(address, bytecode)
                     .await
                     .expect("Failed to override bytecode");
-                tracing::info!("+++++ Replacing bytecode at address {:?} +++++", address);
+                println!("Replacing bytecode at address {:?}", address);
             }
         }
     }

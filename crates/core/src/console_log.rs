@@ -44,12 +44,13 @@ impl ConsoleLogHandler {
         }
 
         if !messages.is_empty() {
-            tracing::info!("");
-            tracing::info!("==== Console logs: ");
+            println!("");
+            println!("Logs: ");
         }
         for message in messages {
-            tracing::info!("{}", message.cyan());
+            println!("{}", message.bold());
         }
+        println!("");
     }
     pub fn handle_call_recursive(&self, current_call: &Call, messages: &mut Vec<String>) {
         if let Some(message) = self.handle_call(current_call) {

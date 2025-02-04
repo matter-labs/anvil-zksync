@@ -21,7 +21,7 @@ pub struct EraRunHandle {
 impl Drop for EraRunHandle {
     fn drop(&mut self) {
         if let Some(mut process) = self.process.take() {
-            tracing::info!("Cleaning up anvil-zksync process: pid={:?}", process.id());
+            println!("Cleaning up anvil-zksync process: pid={:?}", process.id());
 
             process.start_kill().expect("failed to kill anvil-zksync");
             let _ = process.try_wait();
@@ -37,7 +37,7 @@ pub fn run<S: AsRef<OsStr> + Clone + Display>(
     options.push(format!("--port={}", config.rpc_port));
     // TODO: parametrize log file, cache file etc so simultaneous nodes don't compete
     options.push("run".to_string());
-    tracing::info!(bin_path = %bin_path, rpc_port = config.rpc_port, "Starting anvil-zksync");
+    println!(bin_path = %bin_path, rpc_port = config.rpc_port, "Starting anvil-zksync");
     let process = Command::new(bin_path.clone())
         .args(options)
         .spawn()
@@ -60,7 +60,7 @@ fn ensure_binary_is_fresh() -> anyhow::Result<()> {
     match metadata.modified() {
         Ok(binary_mod_time) => {
             let binary_mod_time = DateTime::<Local>::from(binary_mod_time);
-            tracing::info!(
+            println!(
                 %binary_mod_time,
                 path = ANVIL_ZKSYNC_BINARY_DEFAULT_PATH,
                 "Resolved when binary file was last modified"
@@ -74,7 +74,7 @@ fn ensure_binary_is_fresh() -> anyhow::Result<()> {
                 .max();
             if let Some(source_mod_time) = source_mod_time {
                 let source_mod_time = DateTime::<Local>::from(source_mod_time);
-                tracing::info!(
+                println!(
                     %source_mod_time,
                     path = ANVIL_ZKSYNC_SRC_PATH,
                     "Resolved when source files were last modified"

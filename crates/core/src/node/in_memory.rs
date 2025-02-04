@@ -411,26 +411,26 @@ impl InMemoryNode {
             .unwrap_or_default();
 
         if inner.config.show_tx_summary {
-            tracing::info!("");
+            println!("");
             match &tx_result.result {
                 ExecutionResult::Success { output } => {
-                    tracing::info!("Call: {}", "SUCCESS".green());
+                    println!("Call: {}", "SUCCESS".green());
                     let output_bytes = zksync_types::web3::Bytes::from(output.clone());
-                    tracing::info!("Output: {}", serde_json::to_string(&output_bytes).unwrap());
+                    println!("Output: {}", serde_json::to_string(&output_bytes).unwrap());
                 }
                 ExecutionResult::Revert { output } => {
                     // TODO: Once we integrate error-codegen avoid printing error flags returned from
                     // vm_state and rather pass them to error-codegen to get properly formed error message.
                     // e.g. NOT_ENOUGH_ERGS -> Transaction ran out of gas.
                     tracing::warn!("Execution flag raised: {:?}", error_flags);
-                    tracing::info!("Call: {}: {}", "FAILED".red(), output);
+                    println!("Call: {}: {}", "FAILED".red(), output);
                 }
                 ExecutionResult::Halt { reason } => {
                     // TODO: Once we integrate error-codegen avoid printing error flags returned from
                     // vm_state and rather pass them to error-codegen to get properly formed error message.
                     // e.g. NOT_ENOUGH_ERGS -> Transaction ran out of gas.
                     tracing::warn!("Execution flag raised: {:?}", error_flags);
-                    tracing::info!("Call: {} {}", "HALTED".red(), reason)
+                    println!("Call: {} {}", "HALTED".red(), reason)
                 }
             };
         }
@@ -442,8 +442,8 @@ impl InMemoryNode {
         }
 
         if inner.config.show_calls != ShowCalls::None {
-            tracing::info!("");
-            tracing::info!(
+            println!("");
+            println!(
                 "[Transaction Execution] ({} calls)",
                 call_traces[0].calls.len()
             );
@@ -594,7 +594,7 @@ impl InMemoryNode {
         let Some(observability) = &self.observability else {
             anyhow::bail!("Node's logging is not set up.")
         };
-        tracing::info!("setting log level to '{}'", level);
+        println!("setting log level to '{}'", level);
         observability.set_log_level(level)?;
         Ok(true)
     }
@@ -603,7 +603,7 @@ impl InMemoryNode {
         let Some(observability) = &self.observability else {
             anyhow::bail!("Node's logging is not set up.")
         };
-        tracing::info!("setting logging to '{}'", directive);
+        println!("setting logging to '{}'", directive);
         observability.set_logging(directive)?;
         Ok(true)
     }

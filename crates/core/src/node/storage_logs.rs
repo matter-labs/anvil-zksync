@@ -62,8 +62,8 @@ pub fn print_storage_logs_details(
     show_storage_logs: ShowStorageLogs,
     result: &VmExecutionResultAndLogs,
 ) {
-    tracing::info!("");
-    tracing::info!(
+    println!("");
+    println!(
         "[Storage Logs] ({} entries)",
         result.logs.storage_logs.len()
     );

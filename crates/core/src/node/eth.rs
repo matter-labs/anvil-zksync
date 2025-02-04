@@ -55,7 +55,7 @@ impl InMemoryNode {
                     message
                 );
 
-                tracing::info!("{}", pretty_message.on_red());
+                println!("{}", pretty_message.on_red());
                 Err(Web3Error::SubmitTransactionError(
                     pretty_message,
                     output.encoded_data(),
@@ -69,7 +69,7 @@ impl InMemoryNode {
                     message
                 );
 
-                tracing::info!("{}", pretty_message.on_red());
+                println!("{}", pretty_message.on_red());
                 Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
             }
         }

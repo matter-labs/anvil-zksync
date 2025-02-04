@@ -111,7 +111,7 @@ impl NodeExecutor {
         // Reply to sender if we can, otherwise hold result for further processing
         let result = if let Some(reply) = reply {
             if let Err(result) = reply.send(result) {
-                tracing::info!("failed to reply as receiver has been dropped");
+                println!("failed to reply as receiver has been dropped");
                 result
             } else {
                 return;
@@ -160,7 +160,7 @@ impl NodeExecutor {
 
         // Reply to sender if we can, otherwise hold result for further processing
         let result = if let Err(result) = reply.send(result) {
-            tracing::info!("failed to reply as receiver has been dropped");
+            println!("failed to reply as receiver has been dropped");
             result
         } else {
             return;
@@ -183,7 +183,7 @@ impl NodeExecutor {
         drop(node_inner);
         // Reply to sender if we can
         if reply.send(()).is_err() {
-            tracing::info!("failed to reply as receiver has been dropped");
+            println!("failed to reply as receiver has been dropped");
         }
     }
 
@@ -196,7 +196,7 @@ impl NodeExecutor {
             .set_value(key, u256_to_h256(value));
         // Reply to sender if we can
         if reply.send(()).is_err() {
-            tracing::info!("failed to reply as receiver has been dropped");
+            println!("failed to reply as receiver has been dropped");
         }
     }
 
@@ -212,7 +212,7 @@ impl NodeExecutor {
             .set_value(balance_key, u256_to_h256(balance));
         // Reply to sender if we can
         if reply.send(()).is_err() {
-            tracing::info!("failed to reply as receiver has been dropped");
+            println!("failed to reply as receiver has been dropped");
         }
     }
 
@@ -227,7 +227,7 @@ impl NodeExecutor {
             .set_value(nonce_key, u256_to_h256(enforced_full_nonce));
         // Reply to sender if we can
         if reply.send(()).is_err() {
-            tracing::info!("failed to reply as receiver has been dropped");
+            println!("failed to reply as receiver has been dropped");
         }
     }
 
@@ -249,7 +249,7 @@ impl NodeExecutor {
 
         // Reply to sender if we can, otherwise hold result for further processing
         let result = if let Err(result) = reply.send(result) {
-            tracing::info!("failed to reply as receiver has been dropped");
+            println!("failed to reply as receiver has been dropped");
             result
         } else {
             return;
@@ -293,7 +293,7 @@ impl NodeExecutor {
 
         // Reply to sender if we can, otherwise hold result for further processing
         let result = if let Err(result) = reply.send(result) {
-            tracing::info!("failed to reply as receiver has been dropped");
+            println!("failed to reply as receiver has been dropped");
             result
         } else {
             return;
@@ -310,7 +310,7 @@ impl NodeExecutor {
 
         // Reply to sender if we can
         if reply.send(old_url).is_err() {
-            tracing::info!("failed to reply as receiver has been dropped");
+            println!("failed to reply as receiver has been dropped");
         }
     }
 
@@ -319,7 +319,7 @@ impl NodeExecutor {
 
         // Reply to sender if we can
         if reply.send(()).is_err() {
-            tracing::info!("failed to reply as receiver has been dropped");
+            println!("failed to reply as receiver has been dropped");
         }
     }
 
@@ -327,7 +327,7 @@ impl NodeExecutor {
         self.node_inner.write().await.time.increase_time(delta);
         // Reply to sender if we can
         if reply.send(()).is_err() {
-            tracing::info!("failed to reply as receiver has been dropped");
+            println!("failed to reply as receiver has been dropped");
         }
     }
 
@@ -344,7 +344,7 @@ impl NodeExecutor {
             .enforce_next_timestamp(timestamp);
         // Reply to sender if we can, otherwise hold result for further processing
         let result = if let Err(result) = reply.send(result) {
-            tracing::info!("failed to reply as receiver has been dropped");
+            println!("failed to reply as receiver has been dropped");
             result
         } else {
             return;
@@ -364,7 +364,7 @@ impl NodeExecutor {
             .set_current_timestamp_unchecked(timestamp);
         // Reply to sender if we can
         if reply.send(result).is_err() {
-            tracing::info!("failed to reply as receiver has been dropped");
+            println!("failed to reply as receiver has been dropped");
         }
     }
 
@@ -385,7 +385,7 @@ impl NodeExecutor {
             .remove_block_timestamp_interval();
         // Reply to sender if we can
         if reply.send(result).is_err() {
-            tracing::info!("failed to reply as receiver has been dropped");
+            println!("failed to reply as receiver has been dropped");
         }
     }
 }

@@ -151,7 +151,7 @@ async fn main() -> anyhow::Result<()> {
         SystemContractsOptions::Local
     ) {
         if let Some(path) = env::var_os("ZKSYNC_HOME") {
-            tracing::info!("+++++ Reading local contracts from {:?} +++++", path);
+            println!("Reading local contracts from {:?}", path);
         }
     }
 
@@ -313,7 +313,7 @@ async fn main() -> anyhow::Result<()> {
                 server_handles.push(server.run());
             }
             Err(err) => {
-                tracing::info!(
+                println!(
                     "Failed to bind to address {}:{}: {}. Retrying with a different port...",
                     host,
                     config.port,
@@ -325,7 +325,7 @@ async fn main() -> anyhow::Result<()> {
                 match server_builder.clone().build(addr).await {
                     Ok(server) => {
                         config.port = server.local_addr().port();
-                        tracing::info!(
+                        println!(
                             "Successfully started server on port {} for host {}",
                             config.port,
                             host

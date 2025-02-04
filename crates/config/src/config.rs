@@ -230,34 +230,34 @@ impl TestNodeConfig {
 
         println!("{}", BANNER.custom_color(color));
 
-        tracing::info!("Version:        {}", VERSION_MESSAGE.green());
-        tracing::info!(
+        println!("Version:        {}", VERSION_MESSAGE.green());
+        println!(
             "Repository:     {}",
             "https://github.com/matter-labs/anvil-zksync".green()
         );
         println!("\n");
 
-        tracing::info!("Rich Accounts");
-        tracing::info!("========================");
+        println!("Rich Accounts");
+        println!("========================");
         let balance = format_eth(self.genesis_balance);
         for (idx, account) in self.genesis_accounts.iter().enumerate() {
-            tracing::info!("({}) {} ({balance})", idx, account.address());
+            println!("({}) {} ({balance})", idx, account.address());
         }
         println!("\n");
 
-        tracing::info!("Private Keys");
-        tracing::info!("========================");
+        println!("Private Keys");
+        println!("========================");
         for (idx, account) in self.genesis_accounts.iter().enumerate() {
             let private_key = hex::encode(account.credential().to_bytes());
-            tracing::info!("({}) 0x{}", idx, private_key);
+            println!("({}) 0x{}", idx, private_key);
         }
         println!("\n");
 
         if let Some(ref generator) = self.account_generator {
-            tracing::info!("Wallet");
-            tracing::info!("========================");
-            tracing::info!("Mnemonic:            {}", generator.get_phrase().green());
-            tracing::info!(
+            println!("Wallet");
+            println!("========================");
+            println!("Mnemonic:            {}", generator.get_phrase().green());
+            println!(
                 "Derivation path:     {}",
                 generator.get_derivation_path().green()
             );
@@ -265,49 +265,49 @@ impl TestNodeConfig {
         println!("\n");
 
         if let Some(fd) = fork_details {
-            tracing::info!("Fork Details");
-            tracing::info!("========================");
-            tracing::info!("Network RPC:               {}", fd.network_rpc.green());
-            tracing::info!(
+            println!("Fork Details");
+            println!("========================");
+            println!("Network RPC:               {}", fd.network_rpc.green());
+            println!(
                 "Chain ID:                  {}",
                 self.get_chain_id().to_string().green()
             );
-            tracing::info!("L1 Batch #:                {}", fd.l1_block.green());
-            tracing::info!("L2 Block #:                {}", fd.l2_block.green());
-            tracing::info!(
+            println!("L1 Batch #:                {}", fd.l1_block.green());
+            println!("L2 Block #:                {}", fd.l2_block.green());
+            println!(
                 "Block Timestamp:           {}",
                 fd.block_timestamp.to_string().green()
             );
-            tracing::info!(
+            println!(
                 "Fork Block Hash:           {}",
                 format!("{:#}", fd.fork_block_hash).green()
             );
-            tracing::info!(
+            println!(
                 "Compute Overhead Part:     {}",
                 fd.fee_model_config_v2
                     .compute_overhead_part
                     .to_string()
                     .green()
             );
-            tracing::info!(
+            println!(
                 "Pubdata Overhead Part:     {}",
                 fd.fee_model_config_v2
                     .pubdata_overhead_part
                     .to_string()
                     .green()
             );
-            tracing::info!(
+            println!(
                 "Batch Overhead L1 Gas:     {}",
                 fd.fee_model_config_v2
                     .batch_overhead_l1_gas
                     .to_string()
                     .green()
             );
-            tracing::info!(
+            println!(
                 "Max Gas Per Batch:         {}",
                 fd.fee_model_config_v2.max_gas_per_batch.to_string().green()
             );
-            tracing::info!(
+            println!(
                 "Max Pubdata Per Batch:     {}",
                 fd.fee_model_config_v2
                     .max_pubdata_per_batch
@@ -316,9 +316,9 @@ impl TestNodeConfig {
             );
             println!("\n");
         } else {
-            tracing::info!("Network Configuration");
-            tracing::info!("========================");
-            tracing::info!(
+            println!("Network Configuration");
+            println!("========================");
+            println!(
                 "Chain ID: {}",
                 self.chain_id
                     .unwrap_or(TEST_NODE_NETWORK_ID)
@@ -327,39 +327,39 @@ impl TestNodeConfig {
             );
             println!("\n");
         }
-        tracing::info!("Gas Configuration");
-        tracing::info!("========================");
-        tracing::info!(
+        println!("Gas Configuration");
+        println!("========================");
+        println!(
             "L1 Gas Price (gwei):               {}",
             format_gwei(self.get_l1_gas_price().into()).green()
         );
-        tracing::info!(
+        println!(
             "L2 Gas Price (gwei):               {}",
             format_gwei(self.get_l2_gas_price().into()).green()
         );
-        tracing::info!(
+        println!(
             "L1 Pubdata Price (gwei):           {}",
             format_gwei(self.get_l1_pubdata_price().into()).green()
         );
-        tracing::info!(
+        println!(
             "Estimated Gas Price Scale Factor:  {}",
             self.get_price_scale().to_string().green()
         );
-        tracing::info!(
+        println!(
             "Estimated Gas Limit Scale Factor:  {}",
             self.get_gas_limit_scale().to_string().green()
         );
         println!("\n");
 
-        tracing::info!("Genesis Timestamp");
-        tracing::info!("========================");
-        tracing::info!("{}", self.get_genesis_timestamp().to_string().green());
+        println!("Genesis Timestamp");
+        println!("========================");
+        println!("{}", self.get_genesis_timestamp().to_string().green());
         println!("\n");
 
-        tracing::info!("Node Configuration");
-        tracing::info!("========================");
-        tracing::info!("Port:               {}", self.port);
-        tracing::info!(
+        println!("Node Configuration");
+        println!("========================");
+        println!("Port:               {}", self.port);
+        println!(
             "EVM Emulator:       {}",
             if self.use_evm_emulator {
                 "Enabled".green()
@@ -367,7 +367,7 @@ impl TestNodeConfig {
                 "Disabled".red()
             }
         );
-        tracing::info!(
+        println!(
             "Health Check Endpoint: {}",
             if self.health_check_endpoint {
                 "Enabled".green()
@@ -375,7 +375,7 @@ impl TestNodeConfig {
                 "Disabled".red()
             }
         );
-        tracing::info!(
+        println!(
             "ZK OS:              {}",
             if self.use_zkos {
                 "Enabled".green()
@@ -385,15 +385,15 @@ impl TestNodeConfig {
         );
 
         println!("\n");
-        tracing::info!("========================================");
+        println!("========================================");
         for host in &self.host {
-            tracing::info!(
+            println!(
                 "  Listening on {}:{}",
                 host.to_string().green(),
                 self.port.to_string().green()
             );
         }
-        tracing::info!("========================================");
+        println!("========================================");
         println!("\n");
     }
 
