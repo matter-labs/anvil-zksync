@@ -1,7 +1,7 @@
 use crate::deps::system_contracts::bytecode_from_slice;
 use crate::node::ImpersonationManager;
-use anvil_zksync_config::types::SystemContractsOptions;
 use anvil_zksync_common::sh_println;
+use anvil_zksync_config::types::SystemContractsOptions;
 use zksync_contracts::{
     read_bootloader_code, read_sys_contract_bytecode, BaseSystemContracts,
     BaseSystemContractsHashes, ContractLanguage, SystemContractCode,

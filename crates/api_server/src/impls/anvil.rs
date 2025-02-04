@@ -1,5 +1,6 @@
 use crate::error::RpcError;
 use anvil_zksync_api_decl::AnvilNamespaceServer;
+use anvil_zksync_common::sh_warn;
 use anvil_zksync_core::node::InMemoryNode;
 use anvil_zksync_types::api::{DetailedTransaction, ResetRequest};
 use anvil_zksync_types::Numeric;
@@ -7,7 +8,6 @@ use jsonrpsee::core::{async_trait, RpcResult};
 use zksync_types::api::Block;
 use zksync_types::web3::Bytes;
 use zksync_types::{Address, H256, U256, U64};
-use anvil_zksync_common::sh_warn;
 
 pub struct AnvilNamespace {
     node: InMemoryNode,

@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use crate::formatter::{self, PubdataBytesInfo};
 
-use anvil_zksync_types::ShowStorageLogs;
 use anvil_zksync_common::sh_println;
+use anvil_zksync_types::ShowStorageLogs;
 use zksync_multivm::interface::VmExecutionResultAndLogs;
 use zksync_types::h256_to_u256;
 use zksync_types::{

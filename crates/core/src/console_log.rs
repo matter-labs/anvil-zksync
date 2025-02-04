@@ -4,11 +4,11 @@ use crate::utils::format_token;
 use alloy::dyn_abi::JsonAbiExt;
 use alloy::json_abi::{Function, Param, StateMutability};
 use alloy::primitives::Selector;
+use anvil_zksync_common::sh_println;
 use colored::Colorize;
 use itertools::Itertools;
 use zksync_multivm::interface::Call;
 use zksync_types::H160;
-use anvil_zksync_common::sh_println;
 
 /// ConsoleLogHandler is responsible for printing the logs, that are created when contract calls 'console.log' method.
 /// This is a popular debugging method used by hardhat and foundry.

@@ -18,11 +18,11 @@ use crate::node::{BlockSealer, BlockSealerMode, NodeExecutor, TxPool};
 use crate::observability::Observability;
 use crate::system_contracts::SystemContracts;
 use crate::{delegate_vm, formatter};
+use anvil_zksync_common::{sh_println, sh_warn};
 use anvil_zksync_config::constants::{NON_FORK_FIRST_BLOCK_TIMESTAMP, TEST_NODE_NETWORK_ID};
 use anvil_zksync_config::types::{CacheConfig, Genesis};
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_types::{LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
-use anvil_zksync_common::{sh_warn, sh_println};
 use colored::Colorize;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
@@ -412,7 +412,6 @@ impl InMemoryNode {
             .unwrap_or_default();
 
         if inner.config.show_tx_summary {
-            sh_println!("");
             match &tx_result.result {
                 ExecutionResult::Success { output } => {
                     sh_println!("Call: {}", "SUCCESS".green());
@@ -443,7 +442,6 @@ impl InMemoryNode {
         }
 
         if inner.config.show_calls != ShowCalls::None {
-            sh_println!("");
             sh_println!(
                 "[Transaction Execution] ({} calls)",
                 call_traces[0].calls.len()

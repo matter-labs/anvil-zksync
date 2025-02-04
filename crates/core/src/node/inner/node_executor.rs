@@ -4,6 +4,7 @@ use crate::node::inner::fork::{ForkClient, ForkSource};
 use crate::node::keys::StorageKeyLayout;
 use crate::node::pool::TxBatch;
 use crate::system_contracts::SystemContracts;
+use anvil_zksync_common::{sh_eprintln, sh_err};
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot, RwLock};
 use url::Url;
@@ -11,7 +12,6 @@ use zksync_multivm::interface::TxExecutionMode;
 use zksync_types::bytecode::BytecodeHash;
 use zksync_types::utils::nonces_to_full_nonce;
 use zksync_types::{get_code_key, u256_to_h256, Address, L2BlockNumber, StorageKey, U256};
-use anvil_zksync_common::{sh_err, sh_eprintln};
 
 pub struct NodeExecutor {
     node_inner: Arc<RwLock<InMemoryNodeInner>>,

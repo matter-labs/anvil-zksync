@@ -1,5 +1,6 @@
 use alloy::dyn_abi::DynSolValue;
 use alloy::primitives::{Sign, I256, U256 as AlloyU256};
+use anvil_zksync_common::sh_err;
 use anyhow::Context;
 use chrono::{DateTime, Utc};
 use colored::Colorize;
@@ -22,7 +23,6 @@ use zksync_types::{
     CONTRACT_DEPLOYER_ADDRESS, H256, U256, U64,
 };
 use zksync_web3_decl::error::Web3Error;
-use anvil_zksync_common::sh_err;
 
 /// Takes long integers and returns them in human friendly format with "_".
 /// For example: 12_334_093

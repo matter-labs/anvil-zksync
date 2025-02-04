@@ -1,5 +1,5 @@
-use anvil_zksync_config::types::CacheConfig;
 use anvil_zksync_common::{sh_err, sh_warn};
+use anvil_zksync_config::types::CacheConfig;
 use rustc_hash::FxHashMap;
 use serde::Serialize;
 use std::fs;
@@ -69,9 +69,8 @@ impl Cache {
                     });
                 }
 
-                fs::remove_dir(Path::new(dir)).unwrap_or_else(|err| {
-                    sh_warn!("failed removing cache directory: {:?}", err)
-                });
+                fs::remove_dir(Path::new(dir))
+                    .unwrap_or_else(|err| sh_warn!("failed removing cache directory: {:?}", err));
             }
 
             for cache_type in [

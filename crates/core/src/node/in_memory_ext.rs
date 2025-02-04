@@ -1,8 +1,8 @@
 use super::pool::TxBatch;
 use super::sealer::BlockSealerMode;
 use super::InMemoryNode;
-use anvil_zksync_types::api::{DetailedTransaction, ResetRequest};
 use anvil_zksync_common::sh_println;
+use anvil_zksync_types::api::{DetailedTransaction, ResetRequest};
 use anyhow::{anyhow, Context};
 use std::str::FromStr;
 use std::time::Duration;
@@ -169,7 +169,8 @@ impl InMemoryNode {
         self.node_handle.set_balance_sync(address, balance).await?;
         sh_println!(
             "👷 Balance for address {:?} has been manually set to {} Wei",
-            address, balance
+            address,
+            balance
         );
         Ok(true)
     }
@@ -178,7 +179,8 @@ impl InMemoryNode {
         self.node_handle.set_nonce_sync(address, nonce).await?;
         sh_println!(
             "👷 Nonces for address {:?} have been set to {}",
-            address, nonce
+            address,
+            nonce
         );
         Ok(true)
     }

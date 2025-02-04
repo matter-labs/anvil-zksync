@@ -1,4 +1,6 @@
-// shell.rs
+//! Utility functions for writing to [`stdout`](std::io::stdout) and [`stderr`](std::io::stderr).
+//!
+//! Simplified adaptation from https://github.com/foundry-rs/foundry/blob/master/crates/common/src/io/macros.rs.
 
 use std::io::{self, Write};
 use std::sync::{Mutex, OnceLock};
@@ -20,12 +22,11 @@ pub enum ColorChoice {
 
 /// A simple shell abstraction.
 ///
-/// In this simplified version we only track a verbosity level, an output mode,
-/// and a color choice. In your application you might extend this with more
-/// sophisticated buffering or logging features.
+/// We only track a verbosity level, an output mode,
+/// and a color choice.
 #[derive(Debug)]
 pub struct Shell {
-    /// Verbosity level (currently unused, but available for expansion)
+    /// Verbosity level (currently unused, but will be in #577)
     pub verbosity: u8,
     /// Whether to output anything at all.
     pub output_mode: OutputMode,
@@ -111,16 +112,18 @@ impl Shell {
         self.println_err(&formatted)
     }
 
-    /// Should we output with ANSI colors?
-    ///
-    /// In the `Auto` case we use the [atty](https://crates.io/crates/atty) crate to detect
-    /// whether stdout is a terminal.
     fn should_color(&self) -> bool {
         match self.color_choice {
             ColorChoice::Always => true,
             ColorChoice::Never => false,
             ColorChoice::Auto => atty::is(atty::Stream::Stdout),
         }
+    }
+}
+
+impl Default for Shell {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -151,7 +154,7 @@ pub fn set_shell(shell: Shell) {
 /// Macro to print a formatted message to stdout.
 ///
 /// Usage:
-/// ```rust
+/// ```
 /// sh_print!("Hello, {}!", "world");
 /// ```
 #[macro_export]
@@ -196,7 +199,7 @@ macro_rules! sh_eprintln {
 /// Macro to print a warning message.
 ///
 /// Usage:
-/// ```rust
+/// ```
 /// sh_warn!("This is a warning: {}", "be careful!");
 /// ```
 #[macro_export]
@@ -211,7 +214,7 @@ macro_rules! sh_warn {
 /// Macro to print an error message.
 ///
 /// Usage:
-/// ```rust
+/// ```
 /// sh_err!("Something went wrong: {}", "details");
 /// ```
 #[macro_export]
@@ -220,27 +223,6 @@ macro_rules! sh_err {
         let msg = format!($($arg)*);
         $crate::shell::get_shell().error(&msg)
             .unwrap_or_else(|e| eprintln!("Error writing error: {}", e));
-    }};
-}
-
-/// Macro to prompt the user for input.
-///
-/// This prints the prompt (using our shell abstraction), flushes stdout, reads
-/// a line from stdin, and returns the trimmed input as a `String`.
-///
-/// Usage:
-/// ```rust
-/// let response = prompt!("Enter your name: ");
-/// ```
-#[macro_export]
-macro_rules! prompt {
-    ($($arg:tt)*) => {{
-        $crate::sh_print!($($arg)*);
-        let _ = std::io::stdout().flush();
-        let mut input = String::new();
-        std::io::stdin().read_line(&mut input)
-            .expect("Failed to read input");
-        input.trim().to_string()
     }};
 }
 
@@ -258,13 +240,4 @@ mod tests {
         sh_warn!("This is a warning");
         sh_err!("This is an error");
     }
-
-    // Uncomment the following test to try the prompt macro. Note that this requires interactive input.
-    /*
-    #[test]
-    fn test_prompt_macro() {
-        let response = prompt!("Type something: ");
-        sh_println!("You typed: {}", response);
-    }
-    */
 }

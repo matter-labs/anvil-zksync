@@ -5,7 +5,7 @@ use chrono::{DateTime, Local};
 use tokio::process::{Child, Command};
 
 use crate::utils::LockedPort;
-use anvil_zksync_common::sh_println;
+use anvil_zksync_common::{sh_eprintln, sh_println, sh_warn};
 
 const ANVIL_ZKSYNC_BINARY_DEFAULT_PATH: &str = "../target/release/anvil-zksync";
 const ANVIL_ZKSYNC_SRC_PATH: &str = "../src";
@@ -40,7 +40,8 @@ pub fn run<S: AsRef<OsStr> + Clone + Display>(
     options.push("run".to_string());
     sh_println!(
         "Starting anvil-zksync: bin_path={}, rpc_port={}",
-        bin_path, config.rpc_port
+        bin_path,
+        config.rpc_port
     );
 
     let process = Command::new(bin_path.clone())
@@ -65,9 +66,10 @@ fn ensure_binary_is_fresh() -> anyhow::Result<()> {
     match metadata.modified() {
         Ok(binary_mod_time) => {
             let binary_mod_time = DateTime::<Local>::from(binary_mod_time);
-            println!(
+            sh_println!(
                 "Resolved when binary file was last modified: binary_mod_time={}, path={}",
-                binary_mod_time, ANVIL_ZKSYNC_BINARY_DEFAULT_PATH
+                binary_mod_time,
+                ANVIL_ZKSYNC_BINARY_DEFAULT_PATH
             );
 
             let source_mod_time = std::fs::read_dir(ANVIL_ZKSYNC_SRC_PATH)
@@ -81,7 +83,8 @@ fn ensure_binary_is_fresh() -> anyhow::Result<()> {
                 let source_mod_time = DateTime::<Local>::from(source_mod_time);
                 sh_println!(
                     "Resolved when source files were last modified: source_mod_time={}, path={}",
-                    source_mod_time, ANVIL_ZKSYNC_SRC_PATH
+                    source_mod_time,
+                    ANVIL_ZKSYNC_SRC_PATH
                 );
 
                 if binary_mod_time < source_mod_time {
@@ -94,18 +97,18 @@ fn ensure_binary_is_fresh() -> anyhow::Result<()> {
                     );
                 }
             } else {
-                tracing::warn!(
-                    path = ANVIL_ZKSYNC_SRC_PATH,
-                    "No files found under the source directory"
+                sh_warn!(
+                    "No files found under the source directory: {}",
+                    ANVIL_ZKSYNC_SRC_PATH,
                 );
             }
         }
         Err(error) => {
-            tracing::warn!(
-                %error,
-                path = ANVIL_ZKSYNC_BINARY_DEFAULT_PATH,
+            sh_eprintln!(
                 "Could not get modification time from file (your platform might not support it, refer to the attached error). \
-                Make sure that your binary has been built against the code you are working with."
+                Make sure that your binary has been built against the code you are working with. {}, {}",
+                error,
+                ANVIL_ZKSYNC_BINARY_DEFAULT_PATH,
             );
         }
     }

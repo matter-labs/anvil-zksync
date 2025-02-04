@@ -2,6 +2,7 @@ use crate::bytecode_override::override_bytecodes;
 use crate::cli::{Cli, Command, ForkUrl, PeriodicStateDumper};
 use crate::utils::update_with_fork_details;
 use anvil_zksync_api_server::NodeServerBuilder;
+use anvil_zksync_common::{sh_eprintln, sh_err, sh_println, sh_warn};
 use anvil_zksync_config::constants::{
     DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
     DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L1_GAS_PRICE, DEFAULT_L2_GAS_PRICE, LEGACY_RICH_WALLETS,
@@ -17,7 +18,6 @@ use anvil_zksync_core::node::{
 };
 use anvil_zksync_core::observability::Observability;
 use anvil_zksync_core::system_contracts::SystemContracts;
-use anvil_zksync_common::{sh_warn, sh_println, sh_err, sh_eprintln};
 use anyhow::{anyhow, Context};
 use clap::Parser;
 use std::fs::File;
@@ -316,7 +316,9 @@ async fn main() -> anyhow::Result<()> {
             Err(err) => {
                 sh_eprintln!(
                     "Failed to bind to address {}:{}: {}. Retrying with a different port...",
-                    host, config.port, err
+                    host,
+                    config.port,
+                    err
                 );
 
                 // Attempt to bind to a dynamic port
@@ -326,7 +328,8 @@ async fn main() -> anyhow::Result<()> {
                         config.port = server.local_addr().port();
                         sh_println!(
                             "Successfully started server on port {} for host {}",
-                            config.port, host
+                            config.port,
+                            host
                         );
                         server_handles.push(server.run());
                     }

@@ -1,5 +1,6 @@
 use crate::utils::parse_genesis_file;
 use alloy::signers::local::coins_bip39::{English, Mnemonic};
+use anvil_zksync_common::{sh_eprintln, sh_err};
 use anvil_zksync_config::constants::{
     DEFAULT_DISK_CACHE_DIR, DEFAULT_MNEMONIC, TEST_NODE_NETWORK_ID,
 };
@@ -15,7 +16,6 @@ use anvil_zksync_core::{
 use anvil_zksync_types::{
     LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails, TransactionOrder,
 };
-use anvil_zksync_common::{sh_eprintln, sh_err};
 use anyhow::Result;
 use clap::{arg, command, Parser, Subcommand};
 use flate2::read::GzDecoder;

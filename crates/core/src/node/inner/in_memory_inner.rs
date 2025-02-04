@@ -22,12 +22,12 @@ use crate::node::{
 use crate::system_contracts::SystemContracts;
 use crate::utils::create_debug_output;
 use crate::{delegate_vm, formatter, utils};
+use anvil_zksync_common::{sh_eprintln, sh_err, sh_println};
 use anvil_zksync_config::constants::{
     LEGACY_RICH_WALLETS, NON_FORK_FIRST_BLOCK_TIMESTAMP, RICH_WALLETS,
 };
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_types::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
-use anvil_zksync_common::{sh_println, sh_eprintln, sh_err};
 use anyhow::Context;
 use colored::Colorize;
 use indexmap::IndexMap;
@@ -377,7 +377,6 @@ impl InMemoryNodeInner {
                 &tx_result,
                 status,
             );
-            sh_println!("\n");
         }
         // Print gas details if enabled
         if self.config.show_gas_details != ShowGasDetails::None {
@@ -402,7 +401,6 @@ impl InMemoryNodeInner {
             }
 
             if self.config.show_calls != ShowCalls::None {
-                sh_println!("\n");
                 sh_println!(
                     "[Transaction Execution] ({} calls)",
                     call_traces[0].calls.len()
@@ -425,14 +423,12 @@ impl InMemoryNodeInner {
         }
         // Print event logs if enabled
         if self.config.show_event_logs {
-            sh_println!("\n");
             sh_println!("[Events] ({} events)", tx_result.logs.events.len());
             for (i, event) in tx_result.logs.events.iter().enumerate() {
                 let is_last = i == tx_result.logs.events.len() - 1;
                 let mut formatter = formatter::Formatter::new();
                 formatter.print_event(event, self.config.resolve_hashes, is_last);
             }
-            sh_println!("\n");
         }
 
         let mut bytecodes = HashMap::new();

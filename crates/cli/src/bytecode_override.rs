@@ -1,3 +1,4 @@
+use anvil_zksync_common::sh_println;
 use anvil_zksync_core::node::InMemoryNode;
 use anyhow::Context;
 use hex::FromHex;
@@ -5,7 +6,6 @@ use serde::Deserialize;
 use std::str::FromStr;
 use tokio::fs;
 use zksync_types::Address;
-use anvil_zksync_common::sh_println;
 
 #[derive(Debug, Deserialize)]
 struct ContractJson {

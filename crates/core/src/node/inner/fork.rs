@@ -1,10 +1,10 @@
 use crate::cache::Cache;
+use anvil_zksync_common::sh_err;
 use anvil_zksync_config::constants::{
     DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
     DEFAULT_FAIR_PUBDATA_PRICE,
 };
 use anvil_zksync_config::types::CacheConfig;
-use anvil_zksync_common::sh_err;
 use anyhow::Context;
 use async_trait::async_trait;
 use futures::TryFutureExt;

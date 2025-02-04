@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use anvil_zksync_common::{sh_err, sh_eprintln};
+use anvil_zksync_common::{sh_eprintln, sh_err};
 use anyhow::Context as _;
 use colored::Colorize;
 use zksync_multivm::interface::ExecutionResult;
