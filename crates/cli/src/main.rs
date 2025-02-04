@@ -17,6 +17,7 @@ use anvil_zksync_core::node::{
 };
 use anvil_zksync_core::observability::Observability;
 use anvil_zksync_core::system_contracts::SystemContracts;
+use anvil_zksync_common::{sh_warn, sh_println, sh_err, sh_eprintln};
 use anyhow::{anyhow, Context};
 use clap::Parser;
 use std::fs::File;
@@ -59,7 +60,7 @@ async fn main() -> anyhow::Result<()> {
     let (fork_client, transactions_to_replay) = match command {
         Command::Run => {
             if config.offline {
-                tracing::warn!("Running in offline mode: default fee parameters will be used.");
+                sh_warn!("Running in offline mode: default fee parameters will be used.");
                 config = config
                     .clone()
                     .with_l1_gas_price(config.l1_gas_price.or(Some(DEFAULT_L1_GAS_PRICE)))
@@ -151,7 +152,7 @@ async fn main() -> anyhow::Result<()> {
         SystemContractsOptions::Local
     ) {
         if let Some(path) = env::var_os("ZKSYNC_HOME") {
-            println!("Reading local contracts from {:?}", path);
+            sh_println!("Reading local contracts from {:?}", path);
         }
     }
 
@@ -251,7 +252,7 @@ async fn main() -> anyhow::Result<()> {
     // during replay. Otherwise, replay would send commands and hang.
     tokio::spawn(async move {
         if let Err(err) = node_executor.run().await {
-            tracing::error!("node executor ended with error: {:?}", err);
+            sh_err!("node executor ended with error: {:?}", err);
         }
     });
 
@@ -313,7 +314,7 @@ async fn main() -> anyhow::Result<()> {
                 server_handles.push(server.run());
             }
             Err(err) => {
-                println!(
+                sh_eprintln!(
                     "Failed to bind to address {}:{}: {}. Retrying with a different port...",
                     host, config.port, err
                 );
@@ -323,7 +324,7 @@ async fn main() -> anyhow::Result<()> {
                 match server_builder.clone().build(addr).await {
                     Ok(server) => {
                         config.port = server.local_addr().port();
-                        println!(
+                        sh_println!(
                             "Successfully started server on port {} for host {}",
                             config.port, host
                         );

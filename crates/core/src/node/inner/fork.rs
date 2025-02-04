@@ -4,6 +4,7 @@ use anvil_zksync_config::constants::{
     DEFAULT_FAIR_PUBDATA_PRICE,
 };
 use anvil_zksync_config::types::CacheConfig;
+use anvil_zksync_common::sh_err;
 use anyhow::Context;
 use async_trait::async_trait;
 use futures::TryFutureExt;
@@ -552,7 +553,7 @@ impl Fork {
         Some(
             call_body(client)
                 .map_err(|error| {
-                    tracing::error!(%error, "call failed");
+                    sh_err!("call failed: {}", error);
                     error
                 })
                 .instrument(span)

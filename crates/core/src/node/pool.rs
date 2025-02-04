@@ -1,5 +1,6 @@
 use crate::node::impersonate::ImpersonationManager;
 use anvil_zksync_types::{TransactionOrder, TransactionPriority};
+use anvil_zksync_common::sh_warn;
 use futures::channel::mpsc::{channel, Receiver, Sender};
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
@@ -159,9 +160,9 @@ impl TxPool {
             Ok(()) => true,
             Err(e) => {
                 if e.is_full() {
-                    tracing::warn!(
-                        %tx_hash,
-                        "Failed to send transaction notification because channel is full",
+                    sh_warn!(
+                        "Failed to send transaction notification because channel is full: {}",
+                        tx_hash,
                     );
                     true
                 } else {

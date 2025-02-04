@@ -1,6 +1,7 @@
 use crate::deps::system_contracts::bytecode_from_slice;
 use crate::node::ImpersonationManager;
 use anvil_zksync_config::types::SystemContractsOptions;
+use anvil_zksync_common::sh_println;
 use zksync_contracts::{
     read_bootloader_code, read_sys_contract_bytecode, BaseSystemContracts,
     BaseSystemContractsHashes, ContractLanguage, SystemContractCode,
@@ -102,7 +103,7 @@ impl SystemContracts {
         initiator: &Address,
     ) -> BaseSystemContracts {
         if impersonation.is_impersonating(initiator) {
-            println!("🕵️ Executing tx from impersonated account {initiator:?}");
+            sh_println!("🕵️ Executing tx from impersonated account {initiator:?}");
             self.contracts(TxExecutionMode::VerifyExecute, true).clone()
         } else {
             self.contracts(TxExecutionMode::VerifyExecute, false)

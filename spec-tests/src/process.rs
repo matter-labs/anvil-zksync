@@ -5,6 +5,7 @@ use chrono::{DateTime, Local};
 use tokio::process::{Child, Command};
 
 use crate::utils::LockedPort;
+use anvil_zksync_common::sh_println;
 
 const ANVIL_ZKSYNC_BINARY_DEFAULT_PATH: &str = "../target/release/anvil-zksync";
 const ANVIL_ZKSYNC_SRC_PATH: &str = "../src";
@@ -21,7 +22,7 @@ pub struct EraRunHandle {
 impl Drop for EraRunHandle {
     fn drop(&mut self) {
         if let Some(mut process) = self.process.take() {
-            println!("Cleaning up anvil-zksync process: pid={:?}", process.id());
+            sh_println!("Cleaning up anvil-zksync process: pid={:?}", process.id());
 
             process.start_kill().expect("failed to kill anvil-zksync");
             let _ = process.try_wait();
@@ -37,7 +38,7 @@ pub fn run<S: AsRef<OsStr> + Clone + Display>(
     options.push(format!("--port={}", config.rpc_port));
     // TODO: parametrize log file, cache file etc so simultaneous nodes don't compete
     options.push("run".to_string());
-    println!(
+    sh_println!(
         "Starting anvil-zksync: bin_path={}, rpc_port={}",
         bin_path, config.rpc_port
     );
@@ -78,7 +79,7 @@ fn ensure_binary_is_fresh() -> anyhow::Result<()> {
                 .max();
             if let Some(source_mod_time) = source_mod_time {
                 let source_mod_time = DateTime::<Local>::from(source_mod_time);
-                println!(
+                sh_println!(
                     "Resolved when source files were last modified: source_mod_time={}, path={}",
                     source_mod_time, ANVIL_ZKSYNC_SRC_PATH
                 );

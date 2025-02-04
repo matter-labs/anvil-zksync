@@ -5,6 +5,7 @@ use serde::Deserialize;
 use std::str::FromStr;
 use tokio::fs;
 use zksync_types::Address;
+use anvil_zksync_common::sh_println;
 
 #[derive(Debug, Deserialize)]
 struct ContractJson {
@@ -44,7 +45,7 @@ pub async fn override_bytecodes(node: &InMemoryNode, bytecodes_dir: String) -> a
                 node.override_bytecode(address, bytecode)
                     .await
                     .expect("Failed to override bytecode");
-                println!("Replacing bytecode at address {:?}", address);
+                sh_println!("Replacing bytecode at address {:?}", address);
             }
         }
     }

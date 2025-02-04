@@ -2,6 +2,7 @@ use super::pool::TxBatch;
 use super::sealer::BlockSealerMode;
 use super::InMemoryNode;
 use anvil_zksync_types::api::{DetailedTransaction, ResetRequest};
+use anvil_zksync_common::sh_println;
 use anyhow::{anyhow, Context};
 use std::str::FromStr;
 use std::time::Duration;
@@ -74,7 +75,7 @@ impl InMemoryNode {
         });
 
         let block_number = self.node_handle.seal_block_sync(tx_batch).await?;
-        println!("👷 Mined block #{}", block_number);
+        sh_println!("👷 Mined block #{}", block_number);
         Ok(block_number)
     }
 
@@ -125,7 +126,7 @@ impl InMemoryNode {
         let snapshot = reader.snapshot().await.map_err(|err| anyhow!("{}", err))?;
         let mut snapshots = snapshots.write().await;
         snapshots.push(snapshot);
-        println!("Created snapshot '{}'", snapshots.len());
+        sh_println!("Created snapshot '{}'", snapshots.len());
         Ok(U64::from(snapshots.len()))
     }
 
@@ -153,12 +154,12 @@ impl InMemoryNode {
             .next()
             .expect("unexpected failure, value must exist");
 
-        println!("Reverting node to snapshot '{snapshot_id:?}'");
+        sh_println!("Reverting node to snapshot '{snapshot_id:?}'");
         writer
             .restore_snapshot(selected_snapshot)
             .await
             .map(|_| {
-                println!("Reverting node to snapshot '{snapshot_id:?}'");
+                sh_println!("Reverting node to snapshot '{snapshot_id:?}'");
                 true
             })
             .map_err(|err| anyhow!("{}", err))
@@ -166,7 +167,7 @@ impl InMemoryNode {
 
     pub async fn set_balance(&self, address: Address, balance: U256) -> anyhow::Result<bool> {
         self.node_handle.set_balance_sync(address, balance).await?;
-        println!(
+        sh_println!(
             "👷 Balance for address {:?} has been manually set to {} Wei",
             address, balance
         );
@@ -175,7 +176,7 @@ impl InMemoryNode {
 
     pub async fn set_nonce(&self, address: Address, nonce: U256) -> anyhow::Result<bool> {
         self.node_handle.set_nonce_sync(address, nonce).await?;
-        println!(
+        sh_println!(
             "👷 Nonces for address {:?} have been set to {}",
             address, nonce
         );
@@ -206,7 +207,7 @@ impl InMemoryNode {
         self.node_handle
             .seal_blocks_sync(tx_batches, interval_sec)
             .await?;
-        println!("👷 Mined {} blocks", num_blocks);
+        sh_println!("👷 Mined {} blocks", num_blocks);
 
         Ok(())
     }
@@ -244,7 +245,7 @@ impl InMemoryNode {
 
         self.snapshots.write().await.clear();
 
-        println!("👷 Network reset");
+        sh_println!("👷 Network reset");
 
         Ok(true)
     }
@@ -255,20 +256,20 @@ impl InMemoryNode {
 
     pub fn impersonate_account(&self, address: Address) -> Result<bool> {
         if self.impersonation.impersonate(address) {
-            println!("🕵️ Account {:?} has been impersonated", address);
+            sh_println!("🕵️ Account {:?} has been impersonated", address);
             Ok(true)
         } else {
-            println!("🕵️ Account {:?} was already impersonated", address);
+            sh_println!("🕵️ Account {:?} was already impersonated", address);
             Ok(false)
         }
     }
 
     pub fn stop_impersonating_account(&self, address: Address) -> Result<bool> {
         if self.impersonation.stop_impersonating(&address) {
-            println!("🕵️ Stopped impersonating account {:?}", address);
+            sh_println!("🕵️ Stopped impersonating account {:?}", address);
             Ok(true)
         } else {
-            println!(
+            sh_println!(
                 "🕵️ Account {:?} was not impersonated, nothing to stop",
                 address
             );
@@ -282,7 +283,7 @@ impl InMemoryNode {
             .ok_or_else(|| anyhow!("code must be 0x-prefixed"))?;
         let bytecode = hex::decode(code_slice)?;
         zksync_types::bytecode::validate_bytecode(&bytecode).context("Invalid bytecode")?;
-        println!(
+        sh_println!(
             "set code: address={:?}, bytecode_hash={:?}",
             address,
             BytecodeHash::for_bytecode(&bytecode).value()
@@ -377,9 +378,9 @@ impl InMemoryNode {
     pub async fn set_rpc_url(&self, url: String) -> Result<()> {
         let url = Url::from_str(&url).context("malformed fork URL")?;
         if let Some(old_url) = self.node_handle.set_fork_url_sync(url.clone()).await? {
-            println!("Updated fork rpc from \"{}\" to \"{}\"", old_url, url);
+            sh_println!("Updated fork rpc from \"{}\" to \"{}\"", old_url, url);
         } else {
-            println!("Non-forking node tried to switch RPC URL to '{url}'. Call `anvil_reset` instead if you wish to switch to forking mode");
+            sh_println!("Non-forking node tried to switch RPC URL to '{url}'. Call `anvil_reset` instead if you wish to switch to forking mode");
         }
         Ok(())
     }

@@ -8,6 +8,7 @@ use colored::Colorize;
 use itertools::Itertools;
 use zksync_multivm::interface::Call;
 use zksync_types::H160;
+use anvil_zksync_common::sh_println;
 
 /// ConsoleLogHandler is responsible for printing the logs, that are created when contract calls 'console.log' method.
 /// This is a popular debugging method used by hardhat and foundry.
@@ -44,13 +45,11 @@ impl ConsoleLogHandler {
         }
 
         if !messages.is_empty() {
-            println!("");
-            println!("Logs: ");
+            sh_println!("Logs: ");
         }
         for message in messages {
-            println!("{}", message.bold());
+            sh_println!("{}", message.bold());
         }
-        println!("");
     }
     pub fn handle_call_recursive(&self, current_call: &Call, messages: &mut Vec<String>) {
         if let Some(message) = self.handle_call(current_call) {

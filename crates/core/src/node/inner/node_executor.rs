@@ -11,6 +11,7 @@ use zksync_multivm::interface::TxExecutionMode;
 use zksync_types::bytecode::BytecodeHash;
 use zksync_types::utils::nonces_to_full_nonce;
 use zksync_types::{get_code_key, u256_to_h256, Address, L2BlockNumber, StorageKey, U256};
+use anvil_zksync_common::{sh_err, sh_eprintln};
 
 pub struct NodeExecutor {
     node_inner: Arc<RwLock<InMemoryNodeInner>>,
@@ -111,7 +112,7 @@ impl NodeExecutor {
         // Reply to sender if we can, otherwise hold result for further processing
         let result = if let Some(reply) = reply {
             if let Err(result) = reply.send(result) {
-                println!("failed to reply as receiver has been dropped");
+                sh_eprintln!("failed to reply as receiver has been dropped");
                 result
             } else {
                 return;
@@ -121,7 +122,7 @@ impl NodeExecutor {
         };
         // Not much we can do with an error at this level so we just print it
         if let Err(err) = result {
-            tracing::error!("failed to seal a block: {:#?}", err);
+            sh_err!("failed to seal a block: {:#?}", err);
         }
     }
 
@@ -160,14 +161,14 @@ impl NodeExecutor {
 
         // Reply to sender if we can, otherwise hold result for further processing
         let result = if let Err(result) = reply.send(result) {
-            println!("failed to reply as receiver has been dropped");
+            sh_eprintln!("failed to reply as receiver has been dropped");
             result
         } else {
             return;
         };
         // Not much we can do with an error at this level so we just print it
         if let Err(err) = result {
-            tracing::error!("failed to seal blocks: {:#?}", err);
+            sh_err!("failed to seal blocks: {:#?}", err);
         }
     }
 
@@ -183,7 +184,7 @@ impl NodeExecutor {
         drop(node_inner);
         // Reply to sender if we can
         if reply.send(()).is_err() {
-            println!("failed to reply as receiver has been dropped");
+            sh_eprintln!("failed to reply as receiver has been dropped");
         }
     }
 
@@ -196,7 +197,7 @@ impl NodeExecutor {
             .set_value(key, u256_to_h256(value));
         // Reply to sender if we can
         if reply.send(()).is_err() {
-            println!("failed to reply as receiver has been dropped");
+            sh_eprintln!("failed to reply as receiver has been dropped");
         }
     }
 
@@ -212,7 +213,7 @@ impl NodeExecutor {
             .set_value(balance_key, u256_to_h256(balance));
         // Reply to sender if we can
         if reply.send(()).is_err() {
-            println!("failed to reply as receiver has been dropped");
+            sh_eprintln!("failed to reply as receiver has been dropped");
         }
     }
 
@@ -227,7 +228,7 @@ impl NodeExecutor {
             .set_value(nonce_key, u256_to_h256(enforced_full_nonce));
         // Reply to sender if we can
         if reply.send(()).is_err() {
-            println!("failed to reply as receiver has been dropped");
+            sh_eprintln!("failed to reply as receiver has been dropped");
         }
     }
 
@@ -249,14 +250,14 @@ impl NodeExecutor {
 
         // Reply to sender if we can, otherwise hold result for further processing
         let result = if let Err(result) = reply.send(result) {
-            println!("failed to reply as receiver has been dropped");
+            sh_eprintln!("failed to reply as receiver has been dropped");
             result
         } else {
             return;
         };
         // Not much we can do with an error at this level so we just print it
         if let Err(err) = result {
-            tracing::error!("failed to reset fork: {:#?}", err);
+            sh_err!("failed to reset fork: {:#?}", err);
         }
     }
 
@@ -293,14 +294,14 @@ impl NodeExecutor {
 
         // Reply to sender if we can, otherwise hold result for further processing
         let result = if let Err(result) = reply.send(result) {
-            println!("failed to reply as receiver has been dropped");
+            sh_eprintln!("failed to reply as receiver has been dropped");
             result
         } else {
             return;
         };
         // Not much we can do with an error at this level so we just print it
         if let Err(err) = result {
-            tracing::error!("failed to reset fork: {:#?}", err);
+            sh_err!("failed to reset fork: {:#?}", err);
         }
     }
 
@@ -310,7 +311,7 @@ impl NodeExecutor {
 
         // Reply to sender if we can
         if reply.send(old_url).is_err() {
-            println!("failed to reply as receiver has been dropped");
+            sh_eprintln!("failed to reply as receiver has been dropped");
         }
     }
 
@@ -319,7 +320,7 @@ impl NodeExecutor {
 
         // Reply to sender if we can
         if reply.send(()).is_err() {
-            println!("failed to reply as receiver has been dropped");
+            sh_eprintln!("failed to reply as receiver has been dropped");
         }
     }
 
@@ -327,7 +328,7 @@ impl NodeExecutor {
         self.node_inner.write().await.time.increase_time(delta);
         // Reply to sender if we can
         if reply.send(()).is_err() {
-            println!("failed to reply as receiver has been dropped");
+            sh_eprintln!("failed to reply as receiver has been dropped");
         }
     }
 
@@ -344,14 +345,14 @@ impl NodeExecutor {
             .enforce_next_timestamp(timestamp);
         // Reply to sender if we can, otherwise hold result for further processing
         let result = if let Err(result) = reply.send(result) {
-            println!("failed to reply as receiver has been dropped");
+            sh_eprintln!("failed to reply as receiver has been dropped");
             result
         } else {
             return;
         };
         // Not much we can do with an error at this level so we just print it
         if let Err(err) = result {
-            tracing::error!("failed to enforce next timestamp: {:#?}", err);
+            sh_err!("failed to enforce next timestamp: {:#?}", err);
         }
     }
 
@@ -364,7 +365,7 @@ impl NodeExecutor {
             .set_current_timestamp_unchecked(timestamp);
         // Reply to sender if we can
         if reply.send(result).is_err() {
-            println!("failed to reply as receiver has been dropped");
+            sh_eprintln!("failed to reply as receiver has been dropped");
         }
     }
 
@@ -385,7 +386,7 @@ impl NodeExecutor {
             .remove_block_timestamp_interval();
         // Reply to sender if we can
         if reply.send(result).is_err() {
-            println!("failed to reply as receiver has been dropped");
+            sh_eprintln!("failed to reply as receiver has been dropped");
         }
     }
 }

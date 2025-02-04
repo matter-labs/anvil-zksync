@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use zksync_types::api::{BlockNumber, Log};
 use zksync_types::{H160, H256, U256, U64};
 use zksync_web3_decl::types::FilterChanges;
+use anvil_zksync_common::sh_println;
 
 use crate::utils;
 
@@ -107,7 +108,7 @@ impl EthFilters {
             }),
         );
 
-        println!("created block filter '{:#x}'", self.id_counter);
+        sh_println!("created block filter '{:#x}'", self.id_counter);
         Ok(self.id_counter)
     }
 
@@ -134,7 +135,7 @@ impl EthFilters {
             })),
         );
 
-        println!("created log filter '{:#x}'", self.id_counter);
+        sh_println!("created log filter '{:#x}'", self.id_counter);
         Ok(self.id_counter)
     }
 
@@ -151,7 +152,7 @@ impl EthFilters {
             }),
         );
 
-        println!(
+        sh_println!(
             "created pending transaction filter '{:#x}'",
             self.id_counter
         );
@@ -160,7 +161,7 @@ impl EthFilters {
 
     /// Removes the filter with the given id. Returns true if the filter existed, false otherwise.
     pub fn remove_filter(&mut self, id: U256) -> bool {
-        println!("removing filter '{id:#x}'");
+        sh_println!("removing filter '{id:#x}'");
         self.filters.remove(&id).is_some()
     }
 

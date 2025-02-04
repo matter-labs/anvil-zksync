@@ -1,4 +1,5 @@
 use anvil_zksync_config::types::CacheConfig;
+use anvil_zksync_common::{sh_err, sh_warn};
 use rustc_hash::FxHashMap;
 use serde::Serialize;
 use std::fs;
@@ -60,7 +61,7 @@ impl Cache {
                     CACHE_TYPE_KEY_VALUE,
                 ] {
                     fs::remove_dir_all(Path::new(dir).join(cache_type)).unwrap_or_else(|err| {
-                        tracing::warn!(
+                        sh_warn!(
                             "failed removing directory {:?}: {:?}",
                             Path::new(dir).join(cache_type),
                             err
@@ -69,7 +70,7 @@ impl Cache {
                 }
 
                 fs::remove_dir(Path::new(dir)).unwrap_or_else(|err| {
-                    tracing::warn!("failed removing cache directory: {:?}", err)
+                    sh_warn!("failed removing cache directory: {:?}", err)
                 });
             }
 
@@ -87,7 +88,7 @@ impl Cache {
             }
             cache
                 .read_all_from_disk(dir)
-                .unwrap_or_else(|err| tracing::error!("failed reading cache from disk: {:?}", err));
+                .unwrap_or_else(|err| sh_err!("failed reading cache from disk: {:?}", err));
         }
 
         cache
@@ -366,10 +367,10 @@ impl Cache {
                 Ok(cache_file) => {
                     let writer = BufWriter::new(cache_file);
                     if let Err(err) = serde_json::to_writer(writer, data) {
-                        tracing::error!("failed writing to cache '{:?}': {:?}", file, err);
+                        sh_err!("failed writing to cache '{:?}': {:?}", file, err);
                     }
                 }
-                Err(err) => tracing::error!("failed creating file: '{:?}': {:?}", file, err),
+                Err(err) => sh_err!("failed creating file: '{:?}': {:?}", file, err),
             }
         }
     }

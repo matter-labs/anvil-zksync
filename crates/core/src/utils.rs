@@ -22,6 +22,7 @@ use zksync_types::{
     CONTRACT_DEPLOYER_ADDRESS, H256, U256, U64,
 };
 use zksync_web3_decl::error::Web3Error;
+use anvil_zksync_common::sh_err;
 
 /// Takes long integers and returns them in human friendly format with "_".
 /// For example: 12_334_093
@@ -162,7 +163,7 @@ impl From<TransparentError> for Web3Error {
 }
 
 pub fn internal_error(method_name: &'static str, error: impl fmt::Display) -> Web3Error {
-    tracing::error!("Internal error in method {method_name}: {error}");
+    sh_err!("Internal error in method {method_name}: {error}");
     Web3Error::InternalError(anyhow::Error::msg(error.to_string()))
 }
 

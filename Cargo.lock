@@ -480,6 +480,7 @@ version = "0.2.5"
 dependencies = [
  "alloy",
  "anvil_zksync_api_server",
+ "anvil_zksync_common",
  "anvil_zksync_config",
  "anvil_zksync_core",
  "anvil_zksync_types",
@@ -518,6 +519,7 @@ name = "anvil_zksync_api_server"
 version = "0.2.5"
 dependencies = [
  "anvil_zksync_api_decl",
+ "anvil_zksync_common",
  "anvil_zksync_core",
  "anvil_zksync_types",
  "anyhow",
@@ -534,10 +536,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "anvil_zksync_common"
+version = "0.2.5"
+dependencies = [
+ "atty",
+]
+
+[[package]]
 name = "anvil_zksync_config"
 version = "0.2.5"
 dependencies = [
  "alloy",
+ "anvil_zksync_common",
  "anvil_zksync_types",
  "clap",
  "colored",
@@ -555,6 +565,7 @@ name = "anvil_zksync_core"
 version = "0.2.5"
 dependencies = [
  "alloy",
+ "anvil_zksync_common",
  "anvil_zksync_config",
  "anvil_zksync_types",
  "anyhow",
@@ -790,6 +801,17 @@ name = "atomic-waker"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
+
+[[package]]
+name = "atty"
+version = "0.2.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d9b39be18770d11421cdb1b9947a45dd3f37e93092cbf377614828a319d5fee8"
+dependencies = [
+ "hermit-abi 0.1.19",
+ "libc",
+ "winapi",
+]
 
 [[package]]
 name = "auto_impl"
@@ -2278,6 +2300,15 @@ checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
 name = "hermit-abi"
+version = "0.1.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62b467343b94ba476dcb2500d242dadbb39557df889310ac77c5d99100aaac33"
+dependencies = [
+ "libc",
+]
+
+[[package]]
+name = "hermit-abi"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d231dfb89cfffdbc30e7fc41579ed6066ad03abda9e567ccafae602b97ec5024"
@@ -3247,7 +3278,7 @@ version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "80e04d1dcff3aae0704555fe5fee3bcfaf3d1fdf8a7e521d5b9d2b42acb52cec"
 dependencies = [
- "hermit-abi",
+ "hermit-abi 0.3.9",
  "libc",
  "wasi",
  "windows-sys 0.52.0",
@@ -3385,7 +3416,7 @@ version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4161fcb6d602d4d2081af7c3a45852d875a03dd337a6bfdd6e06407b61342a43"
 dependencies = [
- "hermit-abi",
+ "hermit-abi 0.3.9",
  "libc",
 ]
 
