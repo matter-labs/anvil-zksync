@@ -12,22 +12,12 @@ on:
 jobs:
   test:
     name: unit-tests
-    strategy:
-      matrix:
-        platform: [macos-latest, ubuntu-24.04-github-hosted-16core]
-    runs-on: ${{ matrix.platform }}
+    runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v4
 
-    - name: Install Rust
-      uses: actions-rust-lang/setup-rust-toolchain@v1
-      with:
-        toolchain: stable
-
-    - name: Install cargo-nextest
-      run: cargo install cargo-nextest
-
-    - name: Run tests
-      run: cargo nextest run
+      - name: Slack notification
+        uses: matter-labs/zksync-ci-common/.github/actions/slack-notify-release@aba-webhook-trigger
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK }}
+          context: 'TEST: webhook check'
