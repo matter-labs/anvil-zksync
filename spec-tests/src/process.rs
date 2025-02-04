@@ -37,7 +37,11 @@ pub fn run<S: AsRef<OsStr> + Clone + Display>(
     options.push(format!("--port={}", config.rpc_port));
     // TODO: parametrize log file, cache file etc so simultaneous nodes don't compete
     options.push("run".to_string());
-    println!(bin_path = %bin_path, rpc_port = config.rpc_port, "Starting anvil-zksync");
+    println!(
+        "Starting anvil-zksync: bin_path={}, rpc_port={}",
+        bin_path, config.rpc_port
+    );
+
     let process = Command::new(bin_path.clone())
         .args(options)
         .spawn()
@@ -61,10 +65,10 @@ fn ensure_binary_is_fresh() -> anyhow::Result<()> {
         Ok(binary_mod_time) => {
             let binary_mod_time = DateTime::<Local>::from(binary_mod_time);
             println!(
-                %binary_mod_time,
-                path = ANVIL_ZKSYNC_BINARY_DEFAULT_PATH,
-                "Resolved when binary file was last modified"
+                "Resolved when binary file was last modified: binary_mod_time={}, path={}",
+                binary_mod_time, ANVIL_ZKSYNC_BINARY_DEFAULT_PATH
             );
+
             let source_mod_time = std::fs::read_dir(ANVIL_ZKSYNC_SRC_PATH)
                 .context("couldn't access anvil-zksync source directory")?
                 .map(|entry| entry.and_then(|f| f.metadata()).and_then(|f| f.modified()))
@@ -75,10 +79,10 @@ fn ensure_binary_is_fresh() -> anyhow::Result<()> {
             if let Some(source_mod_time) = source_mod_time {
                 let source_mod_time = DateTime::<Local>::from(source_mod_time);
                 println!(
-                    %source_mod_time,
-                    path = ANVIL_ZKSYNC_SRC_PATH,
-                    "Resolved when source files were last modified"
+                    "Resolved when source files were last modified: source_mod_time={}, path={}",
+                    source_mod_time, ANVIL_ZKSYNC_SRC_PATH
                 );
+
                 if binary_mod_time < source_mod_time {
                     // TODO: invoke `make all` for the user automatically?
                     anyhow::bail!(

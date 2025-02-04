@@ -46,7 +46,7 @@ lint:
 	cd e2e-tests-rust && cargo fmt --all -- --check
 	cd spec-tests && cargo fmt --all -- --check
 	cargo fmt --all -- --check
-	cargo clippy --tests -p anvil-zksync -- -D warnings --allow clippy::unwrap_used
+	cargo clippy --tests -p anvil-zksync -- -D warnings --allow clippy::unwrap_used --allow clippy::println_empty_string
 	cd e2e-tests-rust && cargo clippy --tests -- -D warnings --allow clippy::unwrap_used
 	cd spec-tests && cargo clippy --tests -- -D warnings --allow clippy::unwrap_used
 
