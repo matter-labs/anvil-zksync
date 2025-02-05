@@ -34,7 +34,7 @@ build-%:
 
 # Build the Rust project for a specific target (static build).
 build-static-%:
-	RUSTFLAGS='-C target-feature=+crt-static' OPENSSL_STATIC=1 cross build --bin anvil-zksync --target $* --release
+	RUSTFLAGS='-C target-feature=+crt-static' cross build --bin anvil-zksync --target $* --release
 
 # Build the Rust documentation
 rust-doc:

@@ -25,7 +25,7 @@ once_cell.workspace = true
 
 alloy = { workspace = true, default-features = false, features = ["json-abi", "dyn-abi"] }
 
-reqwest.workspace = true
+reqwest = { workspace = true, default-features = false, features = ["rustls-tls", "rustls-tls-native-roots"] }
 serde.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
