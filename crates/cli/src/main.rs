@@ -19,7 +19,6 @@ use anvil_zksync_core::observability::Observability;
 use anvil_zksync_core::system_contracts::SystemContracts;
 use anyhow::Context;
 use clap::Parser;
-use zksync_error::anvil::AnvilError;
 use std::fs::File;
 use std::sync::Arc;
 use std::time::Duration;
@@ -28,6 +27,7 @@ use tokio::sync::RwLock;
 use tower_http::cors::AllowOrigin;
 use tracing_subscriber::filter::LevelFilter;
 use zksync_error::anvil::gen::{generic_error, to_domain};
+use zksync_error::anvil::AnvilError;
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
 use zksync_types::{L2BlockNumber, H160};
 
@@ -54,7 +54,8 @@ async fn main() -> Result<(), AnvilError> {
         log_level_filter,
         log_file,
         config.silent,
-    ).map_err(to_domain)?;
+    )
+    .map_err(to_domain)?;
 
     // Use `Command::Run` as default.
     let command = command.as_ref().unwrap_or(&Command::Run);
@@ -83,8 +84,9 @@ async fn main() -> Result<(), AnvilError> {
                 (None, Vec::new())
             } else {
                 // Initialize the client to get the fee params
-                let client =
-                    ForkClient::at_block_number(ForkUrl::Mainnet.to_config(), None).await.map_err(to_domain)?;
+                let client = ForkClient::at_block_number(ForkUrl::Mainnet.to_config(), None)
+                    .await
+                    .map_err(to_domain)?;
                 let fee = client.get_fee_params().await.map_err(to_domain)?;
 
                 match fee {
@@ -113,7 +115,9 @@ async fn main() -> Result<(), AnvilError> {
                             .with_chain_id(config.chain_id.or(Some(TEST_NODE_NETWORK_ID)));
                     }
                     FeeParams::V1(_) => {
-                        return Err(generic_error!("Unsupported FeeParams::V1 in this context").into());
+                        return Err(
+                            generic_error!("Unsupported FeeParams::V1 in this context").into()
+                        );
                     }
                 }
 
@@ -123,7 +127,9 @@ async fn main() -> Result<(), AnvilError> {
         Command::Fork(fork) => {
             let (fork_client, earlier_txs) = if let Some(tx_hash) = fork.fork_transaction_hash {
                 // If transaction hash is provided, we fork at the parent of block containing tx
-                ForkClient::at_before_tx(fork.fork_url.to_config(), tx_hash).await.map_err(to_domain)?
+                ForkClient::at_before_tx(fork.fork_url.to_config(), tx_hash)
+                    .await
+                    .map_err(to_domain)?
             } else {
                 // Otherwise, we fork at the provided block
                 (
@@ -131,7 +137,8 @@ async fn main() -> Result<(), AnvilError> {
                         fork.fork_url.to_config(),
                         fork.fork_block_number.map(|bn| L2BlockNumber(bn as u32)),
                     )
-                    .await.map_err(to_domain)?,
+                    .await
+                    .map_err(to_domain)?,
                     Vec::new(),
                 )
             };
@@ -141,7 +148,9 @@ async fn main() -> Result<(), AnvilError> {
         }
         Command::ReplayTx(replay_tx) => {
             let (fork_client, earlier_txs) =
-                ForkClient::at_before_tx(replay_tx.fork_url.to_config(), replay_tx.tx).await.map_err(to_domain)?;
+                ForkClient::at_before_tx(replay_tx.fork_url.to_config(), replay_tx.tx)
+                    .await
+                    .map_err(to_domain)?;
 
             update_with_fork_details(&mut config, &fork_client.details).await;
             (Some(fork_client), earlier_txs)
@@ -267,7 +276,8 @@ async fn main() -> Result<(), AnvilError> {
 
     if !transactions_to_replay.is_empty() {
         node.apply_txs(transactions_to_replay, config.max_transactions)
-            .await.map_err(to_domain)?;
+            .await
+            .map_err(to_domain)?;
     }
 
     // TODO: Consider moving to `InMemoryNodeInner::init`
@@ -298,7 +308,8 @@ async fn main() -> Result<(), AnvilError> {
             config
                 .allow_origin
                 .parse()
-                .context("allow origin is malformed").map_err(to_domain)?,
+                .context("allow origin is malformed")
+                .map_err(to_domain)?,
         ),
     );
     if config.health_check_endpoint {
