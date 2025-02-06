@@ -26,6 +26,7 @@ use std::{env, net::SocketAddr, str::FromStr};
 use tokio::sync::RwLock;
 use tower_http::cors::AllowOrigin;
 use tracing_subscriber::filter::LevelFilter;
+use zksync_error::anvil::gen::{to_generic, AnvilGenericError};
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
 use zksync_types::{L2BlockNumber, H160};
 
@@ -34,7 +35,7 @@ mod cli;
 mod utils;
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> Result<(), AnvilGenericError> {
     // Check for deprecated options
     Cli::deprecated_config_option();
 
@@ -44,7 +45,7 @@ async fn main() -> anyhow::Result<()> {
     let mut config = opt.into_test_node_config().map_err(|e| anyhow!(e))?;
 
     let log_level_filter = LevelFilter::from(config.log_level);
-    let log_file = File::create(&config.log_file_path)?;
+    let log_file = File::create(&config.log_file_path).map_err(to_generic)?;
 
     // Initialize the tracing subscriber
     let observability = Observability::init(
@@ -111,7 +112,7 @@ async fn main() -> anyhow::Result<()> {
                             .with_chain_id(config.chain_id.or(Some(TEST_NODE_NETWORK_ID)));
                     }
                     FeeParams::V1(_) => {
-                        return Err(anyhow!("Unsupported FeeParams::V1 in this context"));
+                        return Err(anyhow!("Unsupported FeeParams::V1 in this context").into());
                     }
                 }
 
@@ -168,10 +169,13 @@ async fn main() -> anyhow::Result<()> {
                     max_pubdata_per_batch: config.max_pubdata_per_batch,
                 }
             }
-            _ => anyhow::bail!(
-                "fork is using unsupported fee parameters: {:?}",
-                fork_client.details.fee_params
-            ),
+            _ => {
+                return Err(anyhow!(
+                    "fork is using unsupported fee parameters: {:?}",
+                    fork_client.details.fee_params
+                )
+                .into())
+            }
         };
 
         Some(ForkPrintInfo {
@@ -337,7 +341,8 @@ async fn main() -> anyhow::Result<()> {
                             "Failed to start server on host {} with port: {}",
                             host,
                             err
-                        ));
+                        )
+                        .into());
                     }
                 }
             }
@@ -349,11 +354,15 @@ async fn main() -> anyhow::Result<()> {
     // Load state from `--load-state` if provided
     if let Some(ref load_state_path) = config.load_state {
         let bytes = std::fs::read(load_state_path).expect("Failed to read load state file");
-        node.load_state(zksync_types::web3::Bytes(bytes)).await?;
+        node.load_state(zksync_types::web3::Bytes(bytes))
+            .await
+            .map_err(to_generic)?;
     }
     if let Some(ref state_path) = config.state {
         let bytes = std::fs::read(state_path).expect("Failed to read load state file");
-        node.load_state(zksync_types::web3::Bytes(bytes)).await?;
+        node.load_state(zksync_types::web3::Bytes(bytes))
+            .await
+            .map_err(to_generic)?;
     }
 
     let state_path = config.dump_state.clone().or_else(|| config.state.clone());
