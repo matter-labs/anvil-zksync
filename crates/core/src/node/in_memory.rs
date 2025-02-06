@@ -18,12 +18,11 @@ use crate::node::{BlockSealer, BlockSealerMode, NodeExecutor, TxPool};
 use crate::observability::Observability;
 use crate::system_contracts::SystemContracts;
 use crate::{delegate_vm, formatter};
-use anvil_zksync_common::{sh_println, sh_warn};
+use anvil_zksync_common::sh_println;
 use anvil_zksync_config::constants::{NON_FORK_FIRST_BLOCK_TIMESTAMP, TEST_NODE_NETWORK_ID};
 use anvil_zksync_config::types::{CacheConfig, Genesis};
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_types::{LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
-use colored::Colorize;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
@@ -406,34 +405,6 @@ impl InMemoryNode {
             .unwrap()
             .take()
             .unwrap_or_default();
-        let error_flags = Arc::try_unwrap(error_flags_result)
-            .unwrap()
-            .take()
-            .unwrap_or_default();
-
-        if inner.config.show_tx_summary {
-            match &tx_result.result {
-                ExecutionResult::Success { output } => {
-                    sh_println!("Call: {}", "SUCCESS".green());
-                    let output_bytes = zksync_types::web3::Bytes::from(output.clone());
-                    sh_println!("Output: {}", serde_json::to_string(&output_bytes).unwrap());
-                }
-                ExecutionResult::Revert { output } => {
-                    // TODO: Once we integrate error-codegen avoid printing error flags returned from
-                    // vm_state and rather pass them to error-codegen to get properly formed error message.
-                    // e.g. NOT_ENOUGH_ERGS -> Transaction ran out of gas.
-                    sh_warn!("Execution flag raised: {:?}", error_flags);
-                    sh_println!("Call: {}: {}", "FAILED".red(), output);
-                }
-                ExecutionResult::Halt { reason } => {
-                    // TODO: Once we integrate error-codegen avoid printing error flags returned from
-                    // vm_state and rather pass them to error-codegen to get properly formed error message.
-                    // e.g. NOT_ENOUGH_ERGS -> Transaction ran out of gas.
-                    sh_warn!("Execution flag raised: {:?}", error_flags);
-                    sh_println!("Call: {} {}", "HALTED".red(), reason)
-                }
-            };
-        }
 
         if !inner.config.disable_console_log {
             inner
@@ -593,7 +564,7 @@ impl InMemoryNode {
         let Some(observability) = &self.observability else {
             anyhow::bail!("Node's logging is not set up.")
         };
-        sh_println!("setting log level to '{}'", level);
+        tracing::debug!("setting log level to '{}'", level);
         observability.set_log_level(level)?;
         Ok(true)
     }
@@ -602,7 +573,7 @@ impl InMemoryNode {
         let Some(observability) = &self.observability else {
             anyhow::bail!("Node's logging is not set up.")
         };
-        sh_println!("setting logging to '{}'", directive);
+        tracing::debug!("setting logging to '{}'", directive);
         observability.set_logging(directive)?;
         Ok(true)
     }

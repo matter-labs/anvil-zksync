@@ -2,7 +2,7 @@ use crate::bytecode_override::override_bytecodes;
 use crate::cli::{Cli, Command, ForkUrl, PeriodicStateDumper};
 use crate::utils::update_with_fork_details;
 use anvil_zksync_api_server::NodeServerBuilder;
-use anvil_zksync_common::{sh_eprintln, sh_err, sh_println, sh_warn};
+use anvil_zksync_common::{sh_eprintln, sh_err, sh_warn};
 use anvil_zksync_config::constants::{
     DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
     DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L1_GAS_PRICE, DEFAULT_L2_GAS_PRICE, LEGACY_RICH_WALLETS,
@@ -152,7 +152,7 @@ async fn main() -> anyhow::Result<()> {
         SystemContractsOptions::Local
     ) {
         if let Some(path) = env::var_os("ZKSYNC_HOME") {
-            sh_println!("Reading local contracts from {:?}", path);
+            tracing::debug!("Reading local contracts from {:?}", path);
         }
     }
 
@@ -326,7 +326,7 @@ async fn main() -> anyhow::Result<()> {
                 match server_builder.clone().build(addr).await {
                     Ok(server) => {
                         config.port = server.local_addr().port();
-                        sh_println!(
+                        tracing::info!(
                             "Successfully started server on port {} for host {}",
                             config.port,
                             host

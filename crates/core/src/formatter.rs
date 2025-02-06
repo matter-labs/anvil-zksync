@@ -842,7 +842,7 @@ pub fn print_transaction_summary(
         _ => "⚠️",
     };
 
-    sh_println!("{}  [{}] Hash: {:?}", emoji, status, tx.hash());
+    sh_println!("\n{}  [{}] Hash: {:?}", emoji, status, tx.hash());
     sh_println!("Initiator: {:?}", tx.initiator_account());
     sh_println!("Payer: {:?}", tx.payer());
     sh_println!(

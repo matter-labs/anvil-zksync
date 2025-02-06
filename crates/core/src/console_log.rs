@@ -45,7 +45,7 @@ impl ConsoleLogHandler {
         }
 
         if !messages.is_empty() {
-            sh_println!("Logs: ");
+            sh_println!("\nLogs: ");
         }
         for message in messages {
             sh_println!("{}", message.bold());

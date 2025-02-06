@@ -56,7 +56,7 @@ impl InMemoryNode {
                     message
                 );
 
-                sh_eprintln!("{}", pretty_message.on_red());
+                sh_eprintln!("\n{}", pretty_message.on_red());
                 Err(Web3Error::SubmitTransactionError(
                     pretty_message,
                     output.encoded_data(),
@@ -70,7 +70,7 @@ impl InMemoryNode {
                     message
                 );
 
-                sh_eprintln!("{}", pretty_message.on_red());
+                sh_eprintln!("\n{}", pretty_message.on_red());
                 Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
             }
         }
@@ -156,7 +156,7 @@ impl InMemoryNode {
                 "Initiator address {:?} is not allowed to perform transactions",
                 l2_tx.common_data.initiator_address
             );
-            sh_err!("{err}");
+            tracing::error!("\n{err}");
             return Err(TransparentError(err).into());
         }
 

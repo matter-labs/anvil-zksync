@@ -288,7 +288,7 @@ impl InMemoryNodeInner {
 
         let l2_gas_price = self.fee_input_provider.gas_price();
         if tx.common_data.fee.max_fee_per_gas < l2_gas_price.into() {
-            sh_println!(
+            sh_eprintln!(
                 "Submitted Tx is Unexecutable {:?} because of MaxFeePerGasTooLow {}",
                 tx.hash(),
                 tx.common_data.fee.max_fee_per_gas
@@ -297,7 +297,7 @@ impl InMemoryNodeInner {
         }
 
         if tx.common_data.fee.max_fee_per_gas < tx.common_data.fee.max_priority_fee_per_gas {
-            sh_println!(
+            sh_eprintln!(
                 "Submitted Tx is Unexecutable {:?} because of MaxPriorityFeeGreaterThanMaxFee {}",
                 tx.hash(),
                 tx.common_data.fee.max_fee_per_gas
@@ -370,7 +370,6 @@ impl InMemoryNodeInner {
 
         // Print transaction summary
         if self.config.show_tx_summary {
-            sh_println!("\n");
             formatter::print_transaction_summary(
                 self.config.get_l2_gas_price(),
                 &tx,
@@ -464,16 +463,7 @@ impl InMemoryNodeInner {
         let tx_hash = l2_tx.hash();
         let transaction_type = l2_tx.common_data.transaction_type;
 
-        if self.config.show_tx_summary {
-            sh_println!("\n");
-            sh_println!("Validating {}", format!("{:?}", tx_hash).bold());
-        }
-
         self.validate_tx(&l2_tx)?;
-
-        if self.config.show_tx_summary {
-            sh_println!("Executing {}", format!("{:?}", tx_hash).bold());
-        }
 
         let TxExecutionOutput {
             result,
@@ -914,8 +904,8 @@ impl InMemoryNodeInner {
 
         match estimate_gas_result.result {
             ExecutionResult::Revert { output } => {
-                sh_eprintln!("{}", format!("Unable to estimate gas for the request with our suggested gas limit of {}. The transaction is most likely unexecutable. Breakdown of estimation:", suggested_gas_limit + overhead).red());
-                sh_eprintln!(
+                tracing::debug!("{}", format!("Unable to estimate gas for the request with our suggested gas limit of {}. The transaction is most likely unexecutable. Breakdown of estimation:", suggested_gas_limit + overhead).red());
+                tracing::debug!(
                     "{}",
                     format!(
                         "\tEstimated transaction body gas cost: {}",
@@ -923,11 +913,11 @@ impl InMemoryNodeInner {
                     )
                     .red()
                 );
-                sh_eprintln!(
+                tracing::debug!(
                     "{}",
                     format!("\tGas for pubdata: {}", additional_gas_for_pubdata).red()
                 );
-                sh_eprintln!("{}", format!("\tOverhead: {}", overhead).red());
+                tracing::debug!("{}", format!("\tOverhead: {}", overhead).red());
                 let message = output.to_string();
                 let pretty_message = format!(
                     "execution reverted{}{}",
@@ -935,12 +925,12 @@ impl InMemoryNodeInner {
                     message
                 );
                 let data = output.encoded_data();
-                sh_eprintln!("{}", pretty_message.on_red());
+                sh_eprintln!("\n{}", pretty_message.on_red());
                 Err(Web3Error::SubmitTransactionError(pretty_message, data))
             }
             ExecutionResult::Halt { reason } => {
-                sh_eprintln!("{}", format!("Unable to estimate gas for the request with our suggested gas limit of {}. The transaction is most likely unexecutable. Breakdown of estimation:", suggested_gas_limit + overhead).red());
-                sh_eprintln!(
+                tracing::debug!("{}", format!("Unable to estimate gas for the request with our suggested gas limit of {}. The transaction is most likely unexecutable. Breakdown of estimation:", suggested_gas_limit + overhead).red());
+                tracing::debug!(
                     "{}",
                     format!(
                         "\tEstimated transaction body gas cost: {}",
@@ -948,11 +938,11 @@ impl InMemoryNodeInner {
                     )
                     .red()
                 );
-                sh_eprintln!(
+                tracing::debug!(
                     "{}",
                     format!("\tGas for pubdata: {}", additional_gas_for_pubdata).red()
                 );
-                sh_eprintln!("{}", format!("\tOverhead: {}", overhead).red());
+                tracing::debug!("{}", format!("\tOverhead: {}", overhead).red());
                 let message = reason.to_string();
                 let pretty_message = format!(
                     "execution reverted{}{}",
@@ -960,15 +950,15 @@ impl InMemoryNodeInner {
                     message
                 );
 
-                sh_eprintln!("{}", pretty_message.on_red());
+                sh_eprintln!("\n{}", pretty_message.on_red());
                 Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
             }
             ExecutionResult::Success { .. } => {
                 let full_gas_limit = match suggested_gas_limit.overflowing_add(overhead) {
                     (value, false) => value,
                     (_, true) => {
-                        sh_println!("{}", "Overflow when calculating gas estimation. We've exceeded the block gas limit by summing the following values:".red());
-                        sh_println!(
+                        tracing::info!("{}", "Overflow when calculating gas estimation. We've exceeded the block gas limit by summing the following values:".red());
+                        tracing::info!(
                             "{}",
                             format!(
                                 "\tEstimated transaction body gas cost: {}",
@@ -976,11 +966,11 @@ impl InMemoryNodeInner {
                             )
                             .red()
                         );
-                        sh_println!(
+                        tracing::info!(
                             "{}",
                             format!("\tGas for pubdata: {}", additional_gas_for_pubdata).red()
                         );
-                        sh_println!("{}", format!("\tOverhead: {}", overhead).red());
+                        tracing::info!("{}", format!("\tOverhead: {}", overhead).red());
                         return Err(Web3Error::SubmitTransactionError(
                             "exceeds block gas limit".into(),
                             Default::default(),
