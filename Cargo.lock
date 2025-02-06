@@ -3645,9 +3645,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.20.2"
+version = "1.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1261fe7e33c73b354eab43b1273a57c8f967d0391e80353e51f764ac02cf6775"
+checksum = "945462a4b81e43c4e3ba96bd7b49d834c6f61198356aa858733bc4acf3cbe62e"
 
 [[package]]
 name = "openssl"
@@ -7133,7 +7133,7 @@ dependencies = [
 [[package]]
 name = "zksync-error-codegen"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-error?branch=dev#5491777a4e78aba88c01558c2cc306c7f283bb5e"
+source = "git+https://github.com/matter-labs/zksync-error?branch=dev#c574f0de55f4320987c8628a530bac12890041a1"
 dependencies = [
  "cargo_metadata",
  "include_dir",
@@ -7157,7 +7157,7 @@ dependencies = [
 [[package]]
 name = "zksync-error-description"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-error?branch=dev#5491777a4e78aba88c01558c2cc306c7f283bb5e"
+source = "git+https://github.com/matter-labs/zksync-error?branch=dev#c574f0de55f4320987c8628a530bac12890041a1"
 dependencies = [
  "serde",
  "serde_json",
@@ -7176,7 +7176,7 @@ dependencies = [
 [[package]]
 name = "zksync-error-model"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-error?branch=dev#5491777a4e78aba88c01558c2cc306c7f283bb5e"
+source = "git+https://github.com/matter-labs/zksync-error?branch=dev#c574f0de55f4320987c8628a530bac12890041a1"
 dependencies = [
  "serde",
  "serde_json",

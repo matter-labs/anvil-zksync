@@ -11,38 +11,38 @@ pub mod packed;
 pub mod serialized;
 pub mod untyped;
 pub use crate::error::domains::ZksyncError;
-pub mod anvil {
-    pub use crate::error::domains::Anvil as AnvilError;
+pub mod anvil_zks {
+    pub use crate::error::domains::AnvilZKS as AnvilZKSError;
     pub mod env {
-        pub use crate::error::definitions::AnvilEnvironment as AnvilEnvironmentError;
-        pub use crate::error::definitions::AnvilEnvironment::GenericError;
+        pub use crate::error::definitions::AnvilZKSEnvironment as AnvilZKSEnvironmentError;
+        pub use crate::error::definitions::AnvilZKSEnvironment::GenericError;
         #[macro_export]
-        macro_rules ! anvil_env_generic_error { ($ ($ arg : tt) *) => { zksync_error :: error :: definitions :: AnvilEnvironment :: GenericError { message : format ! ($ ($ arg) *) } } ; }
-        pub use crate::anvil_env_generic_error as generic_error;
-        pub fn to_generic<T: std::fmt::Display>(err: T) -> AnvilEnvironmentError {
+        macro_rules ! anvil_zks_env_generic_error { ($ ($ arg : tt) *) => { zksync_error :: error :: definitions :: AnvilZKSEnvironment :: GenericError { message : format ! ($ ($ arg) *) } } ; }
+        pub use crate::anvil_zks_env_generic_error as generic_error;
+        pub fn to_generic<T: std::fmt::Display>(err: T) -> AnvilZKSEnvironmentError {
             GenericError {
                 message: err.to_string(),
             }
         }
-        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::AnvilError {
-            super::AnvilError::AnvilEnvironment(GenericError {
+        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::AnvilZKSError {
+            super::AnvilZKSError::AnvilZKSEnvironment(GenericError {
                 message: err.to_string(),
             })
         }
     }
     pub mod gen {
-        pub use crate::error::definitions::AnvilGeneric as AnvilGenericError;
-        pub use crate::error::definitions::AnvilGeneric::GenericError;
+        pub use crate::error::definitions::AnvilZKSGeneric as AnvilZKSGenericError;
+        pub use crate::error::definitions::AnvilZKSGeneric::GenericError;
         #[macro_export]
-        macro_rules ! anvil_gen_generic_error { ($ ($ arg : tt) *) => { zksync_error :: error :: definitions :: AnvilGeneric :: GenericError { message : format ! ($ ($ arg) *) } } ; }
-        pub use crate::anvil_gen_generic_error as generic_error;
-        pub fn to_generic<T: std::fmt::Display>(err: T) -> AnvilGenericError {
+        macro_rules ! anvil_zks_gen_generic_error { ($ ($ arg : tt) *) => { zksync_error :: error :: definitions :: AnvilZKSGeneric :: GenericError { message : format ! ($ ($ arg) *) } } ; }
+        pub use crate::anvil_zks_gen_generic_error as generic_error;
+        pub fn to_generic<T: std::fmt::Display>(err: T) -> AnvilZKSGenericError {
             GenericError {
                 message: err.to_string(),
             }
         }
-        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::AnvilError {
-            super::AnvilError::AnvilGeneric(GenericError {
+        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::AnvilZKSError {
+            super::AnvilZKSError::AnvilZKSGeneric(GenericError {
                 message: err.to_string(),
             })
         }

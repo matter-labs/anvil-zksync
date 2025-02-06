@@ -14,7 +14,7 @@ use strum_macros::EnumDiscriminants;
 use strum_macros::FromRepr;
 #[doc = ""]
 #[doc = ""]
-#[doc = "Domain: Anvil"]
+#[doc = "Domain: AnvilZKS"]
 #[repr(u32)]
 #[derive(
     AsRefStr,
@@ -26,35 +26,35 @@ use strum_macros::FromRepr;
     serde :: Serialize,
     serde :: Deserialize,
 )]
-#[strum_discriminants(name(AnvilEnvironmentCode))]
+#[strum_discriminants(name(AnvilZKSEnvironmentCode))]
 #[strum_discriminants(vis(pub))]
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
 #[non_exhaustive]
-pub enum AnvilEnvironment {
+pub enum AnvilZKSEnvironment {
     GenericError { message: String } = 0u32,
 }
-impl std::error::Error for AnvilEnvironment {}
-impl NamedError for AnvilEnvironment {
+impl std::error::Error for AnvilZKSEnvironment {}
+impl NamedError for AnvilZKSEnvironment {
     fn get_error_name(&self) -> String {
         self.as_ref().to_owned()
     }
 }
-impl NamedError for AnvilEnvironmentCode {
+impl NamedError for AnvilZKSEnvironmentCode {
     fn get_error_name(&self) -> String {
         self.as_ref().to_owned()
     }
 }
-impl From<AnvilEnvironment> for crate::ZksyncError {
-    fn from(val: AnvilEnvironment) -> Self {
+impl From<AnvilZKSEnvironment> for crate::ZksyncError {
+    fn from(val: AnvilZKSEnvironment) -> Self {
         val.to_unified()
     }
 }
-impl std::fmt::Display for AnvilEnvironment {
+impl std::fmt::Display for AnvilZKSEnvironment {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!("{self:?}"))
     }
 }
-impl Documented for AnvilEnvironment {
+impl Documented for AnvilZKSEnvironment {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
     fn get_documentation(
         &self,
@@ -62,35 +62,35 @@ impl Documented for AnvilEnvironment {
         self.to_unified().get_identifier().get_documentation()
     }
 }
-impl From<anyhow::Error> for AnvilEnvironment {
+impl From<anyhow::Error> for AnvilZKSEnvironment {
     fn from(value: anyhow::Error) -> Self {
         let message = format!("{value:#?}");
-        AnvilEnvironment::GenericError { message }
+        AnvilZKSEnvironment::GenericError { message }
     }
 }
-impl From<AnvilEnvironment> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
-    fn from(value: AnvilEnvironment) -> Self {
+impl From<AnvilZKSEnvironment> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
+    fn from(value: AnvilZKSEnvironment) -> Self {
         crate::packed::pack(value)
     }
 }
-impl From<AnvilEnvironment> for crate::serialized::SerializedError {
-    fn from(value: AnvilEnvironment) -> Self {
+impl From<AnvilZKSEnvironment> for crate::serialized::SerializedError {
+    fn from(value: AnvilZKSEnvironment) -> Self {
         let packed = crate::packed::pack(value);
         crate::serialized::serialize(packed).expect("Internal serialization error.")
     }
 }
-impl CustomErrorMessage for AnvilEnvironment {
+impl CustomErrorMessage for AnvilZKSEnvironment {
     fn get_message(&self) -> String {
         match self {
-            AnvilEnvironment::GenericError { message } => {
-                format!("[anvil-env-0] Generic error: {message}")
+            AnvilZKSEnvironment::GenericError { message } => {
+                format!("[anvil_zks-env-0] Generic error: {message}")
             }
         }
     }
 }
 #[doc = ""]
 #[doc = ""]
-#[doc = "Domain: Anvil"]
+#[doc = "Domain: AnvilZKS"]
 #[repr(u32)]
 #[derive(
     AsRefStr,
@@ -102,35 +102,35 @@ impl CustomErrorMessage for AnvilEnvironment {
     serde :: Serialize,
     serde :: Deserialize,
 )]
-#[strum_discriminants(name(AnvilGenericCode))]
+#[strum_discriminants(name(AnvilZKSGenericCode))]
 #[strum_discriminants(vis(pub))]
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
 #[non_exhaustive]
-pub enum AnvilGeneric {
+pub enum AnvilZKSGeneric {
     GenericError { message: String } = 0u32,
 }
-impl std::error::Error for AnvilGeneric {}
-impl NamedError for AnvilGeneric {
+impl std::error::Error for AnvilZKSGeneric {}
+impl NamedError for AnvilZKSGeneric {
     fn get_error_name(&self) -> String {
         self.as_ref().to_owned()
     }
 }
-impl NamedError for AnvilGenericCode {
+impl NamedError for AnvilZKSGenericCode {
     fn get_error_name(&self) -> String {
         self.as_ref().to_owned()
     }
 }
-impl From<AnvilGeneric> for crate::ZksyncError {
-    fn from(val: AnvilGeneric) -> Self {
+impl From<AnvilZKSGeneric> for crate::ZksyncError {
+    fn from(val: AnvilZKSGeneric) -> Self {
         val.to_unified()
     }
 }
-impl std::fmt::Display for AnvilGeneric {
+impl std::fmt::Display for AnvilZKSGeneric {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!("{self:?}"))
     }
 }
-impl Documented for AnvilGeneric {
+impl Documented for AnvilZKSGeneric {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
     fn get_documentation(
         &self,
@@ -138,28 +138,28 @@ impl Documented for AnvilGeneric {
         self.to_unified().get_identifier().get_documentation()
     }
 }
-impl From<anyhow::Error> for AnvilGeneric {
+impl From<anyhow::Error> for AnvilZKSGeneric {
     fn from(value: anyhow::Error) -> Self {
         let message = format!("{value:#?}");
-        AnvilGeneric::GenericError { message }
+        AnvilZKSGeneric::GenericError { message }
     }
 }
-impl From<AnvilGeneric> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
-    fn from(value: AnvilGeneric) -> Self {
+impl From<AnvilZKSGeneric> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
+    fn from(value: AnvilZKSGeneric) -> Self {
         crate::packed::pack(value)
     }
 }
-impl From<AnvilGeneric> for crate::serialized::SerializedError {
-    fn from(value: AnvilGeneric) -> Self {
+impl From<AnvilZKSGeneric> for crate::serialized::SerializedError {
+    fn from(value: AnvilZKSGeneric) -> Self {
         let packed = crate::packed::pack(value);
         crate::serialized::serialize(packed).expect("Internal serialization error.")
     }
 }
-impl CustomErrorMessage for AnvilGeneric {
+impl CustomErrorMessage for AnvilZKSGeneric {
     fn get_message(&self) -> String {
         match self {
-            AnvilGeneric::GenericError { message } => {
-                format!("[anvil-gen-0] Generic error: {message}")
+            AnvilZKSGeneric::GenericError { message } => {
+                format!("[anvil_zks-gen-0] Generic error: {message}")
             }
         }
     }

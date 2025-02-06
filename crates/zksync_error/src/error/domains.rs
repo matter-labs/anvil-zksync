@@ -4,10 +4,10 @@
 
 #![allow(non_camel_case_types)]
 use crate::error::definitions::APICode;
-use crate::error::definitions::AnvilEnvironment;
-use crate::error::definitions::AnvilEnvironmentCode;
-use crate::error::definitions::AnvilGeneric;
-use crate::error::definitions::AnvilGenericCode;
+use crate::error::definitions::AnvilZKSEnvironment;
+use crate::error::definitions::AnvilZKSEnvironmentCode;
+use crate::error::definitions::AnvilZKSGeneric;
+use crate::error::definitions::AnvilZKSGenericCode;
 use crate::error::definitions::EraVM;
 use crate::error::definitions::EraVMCode;
 use crate::error::definitions::ExecutionPlatform;
@@ -53,7 +53,7 @@ use strum_macros::FromRepr;
     serde :: Deserialize,
 )]
 pub enum ZksyncError {
-    Anvil(Anvil),
+    AnvilZKS(AnvilZKS),
     Compiler(Compiler),
     Core(Core),
     Foundry(Foundry),
@@ -65,8 +65,10 @@ impl crate::documentation::Documented for ZksyncError {
         &self,
     ) -> Result<Option<Self::Documentation>, crate::documentation::DocumentationError> {
         match self {
-            ZksyncError::Anvil(Anvil::AnvilEnvironment(error)) => error.get_documentation(),
-            ZksyncError::Anvil(Anvil::AnvilGeneric(error)) => error.get_documentation(),
+            ZksyncError::AnvilZKS(AnvilZKS::AnvilZKSEnvironment(error)) => {
+                error.get_documentation()
+            }
+            ZksyncError::AnvilZKS(AnvilZKS::AnvilZKSGeneric(error)) => error.get_documentation(),
             ZksyncError::Compiler(Compiler::LLVM_EVM(error)) => error.get_documentation(),
             ZksyncError::Compiler(Compiler::LLVM_Era(error)) => error.get_documentation(),
             ZksyncError::Compiler(Compiler::Solc(error)) => error.get_documentation(),
@@ -87,10 +89,12 @@ impl crate::documentation::Documented for ZksyncError {
 impl ZksyncError {
     pub fn get_kind(&self) -> crate::kind::Kind {
         match self {
-            ZksyncError::Anvil(Anvil::AnvilEnvironment(_)) => {
-                Kind::Anvil(AnvilCode::AnvilEnvironment)
+            ZksyncError::AnvilZKS(AnvilZKS::AnvilZKSEnvironment(_)) => {
+                Kind::AnvilZKS(AnvilZKSCode::AnvilZKSEnvironment)
             }
-            ZksyncError::Anvil(Anvil::AnvilGeneric(_)) => Kind::Anvil(AnvilCode::AnvilGeneric),
+            ZksyncError::AnvilZKS(AnvilZKS::AnvilZKSGeneric(_)) => {
+                Kind::AnvilZKS(AnvilZKSCode::AnvilZKSGeneric)
+            }
             ZksyncError::Compiler(Compiler::LLVM_EVM(_)) => Kind::Compiler(CompilerCode::LLVM_EVM),
             ZksyncError::Compiler(Compiler::LLVM_Era(_)) => Kind::Compiler(CompilerCode::LLVM_Era),
             ZksyncError::Compiler(Compiler::Solc(_)) => Kind::Compiler(CompilerCode::Solc),
@@ -119,11 +123,11 @@ impl ZksyncError {
     }
     pub fn get_code(&self) -> u32 {
         match self {
-            ZksyncError::Anvil(Anvil::AnvilEnvironment(error)) => {
-                Into::<AnvilEnvironmentCode>::into(error) as u32
+            ZksyncError::AnvilZKS(AnvilZKS::AnvilZKSEnvironment(error)) => {
+                Into::<AnvilZKSEnvironmentCode>::into(error) as u32
             }
-            ZksyncError::Anvil(Anvil::AnvilGeneric(error)) => {
-                Into::<AnvilGenericCode>::into(error) as u32
+            ZksyncError::AnvilZKS(AnvilZKS::AnvilZKSGeneric(error)) => {
+                Into::<AnvilZKSGenericCode>::into(error) as u32
             }
             ZksyncError::Compiler(Compiler::LLVM_EVM(error)) => {
                 Into::<LLVM_EVMCode>::into(error) as u32
@@ -180,45 +184,45 @@ impl std::error::Error for ZksyncError {}
     serde :: Serialize,
     serde :: Deserialize,
 )]
-#[strum_discriminants(name(AnvilCode))]
+#[strum_discriminants(name(AnvilZKSCode))]
 #[strum_discriminants(derive(serde::Serialize, serde::Deserialize, FromRepr))]
 #[strum_discriminants(vis(pub))]
-pub enum Anvil {
-    AnvilEnvironment(AnvilEnvironment),
-    AnvilGeneric(AnvilGeneric),
+pub enum AnvilZKS {
+    AnvilZKSEnvironment(AnvilZKSEnvironment),
+    AnvilZKSGeneric(AnvilZKSGeneric),
 }
-impl Anvil {
+impl AnvilZKS {
     pub fn get_name(&self) -> &str {
         self.as_ref()
     }
 }
-impl ICustomError<ZksyncError, ZksyncError> for AnvilEnvironment {
+impl ICustomError<ZksyncError, ZksyncError> for AnvilZKSEnvironment {
     fn to_unified(&self) -> ZksyncError {
-        ZksyncError::Anvil(Anvil::AnvilEnvironment(self.clone()))
+        ZksyncError::AnvilZKS(AnvilZKS::AnvilZKSEnvironment(self.clone()))
     }
 }
-impl From<AnvilEnvironment> for Anvil {
-    fn from(val: AnvilEnvironment) -> Self {
-        Anvil::AnvilEnvironment(val)
+impl From<AnvilZKSEnvironment> for AnvilZKS {
+    fn from(val: AnvilZKSEnvironment) -> Self {
+        AnvilZKS::AnvilZKSEnvironment(val)
     }
 }
-impl ICustomError<ZksyncError, ZksyncError> for AnvilGeneric {
+impl ICustomError<ZksyncError, ZksyncError> for AnvilZKSGeneric {
     fn to_unified(&self) -> ZksyncError {
-        ZksyncError::Anvil(Anvil::AnvilGeneric(self.clone()))
+        ZksyncError::AnvilZKS(AnvilZKS::AnvilZKSGeneric(self.clone()))
     }
 }
-impl From<AnvilGeneric> for Anvil {
-    fn from(val: AnvilGeneric) -> Self {
-        Anvil::AnvilGeneric(val)
+impl From<AnvilZKSGeneric> for AnvilZKS {
+    fn from(val: AnvilZKSGeneric) -> Self {
+        AnvilZKS::AnvilZKSGeneric(val)
     }
 }
-impl ICustomError<ZksyncError, ZksyncError> for Anvil {
+impl ICustomError<ZksyncError, ZksyncError> for AnvilZKS {
     fn to_unified(&self) -> ZksyncError {
-        ZksyncError::Anvil(self.clone())
+        ZksyncError::AnvilZKS(self.clone())
     }
 }
-impl From<Anvil> for ZksyncError {
-    fn from(value: Anvil) -> Self {
+impl From<AnvilZKS> for ZksyncError {
+    fn from(value: AnvilZKS) -> Self {
         value.to_unified()
     }
 }

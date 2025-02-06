@@ -4,7 +4,7 @@
 
 pub mod definitions;
 pub mod domains;
-use crate::error::domains::Anvil;
+use crate::error::domains::AnvilZKS;
 use crate::error::domains::Compiler;
 use crate::error::domains::Core;
 use crate::error::domains::Foundry;
@@ -48,8 +48,8 @@ impl IError<ZksyncError> for ZksyncError {
     }
     fn get_message(&self) -> String {
         match self {
-            ZksyncError::Anvil(Anvil::AnvilEnvironment(error)) => error.get_message(),
-            ZksyncError::Anvil(Anvil::AnvilGeneric(error)) => error.get_message(),
+            ZksyncError::AnvilZKS(AnvilZKS::AnvilZKSEnvironment(error)) => error.get_message(),
+            ZksyncError::AnvilZKS(AnvilZKS::AnvilZKSGeneric(error)) => error.get_message(),
             ZksyncError::Compiler(Compiler::LLVM_EVM(error)) => error.get_message(),
             ZksyncError::Compiler(Compiler::LLVM_Era(error)) => error.get_message(),
             ZksyncError::Compiler(Compiler::Solc(error)) => error.get_message(),

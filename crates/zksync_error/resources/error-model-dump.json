@@ -23,34 +23,34 @@
           }
         }
       },
-      "AnvilEnvironment": {
-        "name": "AnvilEnvironment",
+      "AnvilZKSEnvironment": {
+        "name": "AnvilZKSEnvironment",
         "meta": {
           "description": ""
         },
         "bindings": {
           "rust": {
-            "name": "Box<AnvilEnvironment>",
+            "name": "Box<AnvilZKSEnvironment>",
             "path": ""
           },
           "typescript": {
-            "name": "Box<AnvilEnvironment>",
+            "name": "Box<AnvilZKSEnvironment>",
             "path": ""
           }
         }
       },
-      "AnvilGeneric": {
-        "name": "AnvilGeneric",
+      "AnvilZKSGeneric": {
+        "name": "AnvilZKSGeneric",
         "meta": {
           "description": ""
         },
         "bindings": {
           "rust": {
-            "name": "Box<AnvilGeneric>",
+            "name": "Box<AnvilZKSGeneric>",
             "path": ""
           },
           "typescript": {
-            "name": "Box<AnvilGeneric>",
+            "name": "Box<AnvilZKSGeneric>",
             "path": ""
           }
         }
@@ -337,18 +337,18 @@
       }
     },
     "domains": {
-      "Anvil": {
-        "name": "Anvil",
+      "AnvilZKS": {
+        "name": "AnvilZKS",
         "code": 5,
         "components": [
-          "AnvilEnvironment",
-          "AnvilGeneric"
+          "AnvilZKSEnvironment",
+          "AnvilZKSGeneric"
         ],
         "bindings": {
-          "rust": "Anvil",
-          "typescript": "Anvil"
+          "rust": "AnvilZKS",
+          "typescript": "AnvilZKS"
         },
-        "identifier": "anvil",
+        "identifier": "anvil_zks",
         "description": "Errors originating in Anvil for ZKsync."
       },
       "Compiler": {
@@ -426,24 +426,24 @@
         "identifier": "api",
         "description": "Errors originating in the web3 API."
       },
-      "AnvilEnvironment": {
-        "name": "AnvilEnvironment",
+      "AnvilZKSEnvironment": {
+        "name": "AnvilZKSEnvironment",
         "code": 1,
-        "domain_name": "Anvil",
+        "domain_name": "AnvilZKS",
         "bindings": {
-          "rust": "AnvilEnvironment",
-          "typescript": "AnvilEnvironment"
+          "rust": "AnvilZKSEnvironment",
+          "typescript": "AnvilZKSEnvironment"
         },
         "identifier": "env",
         "description": ""
       },
-      "AnvilGeneric": {
-        "name": "AnvilGeneric",
+      "AnvilZKSGeneric": {
+        "name": "AnvilZKSGeneric",
         "code": 0,
-        "domain_name": "Anvil",
+        "domain_name": "AnvilZKS",
         "bindings": {
-          "rust": "AnvilGeneric",
-          "typescript": "AnvilGeneric"
+          "rust": "AnvilZKSGeneric",
+          "typescript": "AnvilZKSGeneric"
         },
         "identifier": "gen",
         "description": ""
@@ -593,12 +593,12 @@
       }
     },
     "errors": {
-      "[anvil-env-0]": {
-        "domain": "Anvil",
-        "component": "AnvilEnvironment",
+      "[anvil_zks-env-0]": {
+        "domain": "AnvilZKS",
+        "component": "AnvilZKSEnvironment",
         "name": "GenericError",
         "code": 0,
-        "identifier": "[anvil-env-0]",
+        "identifier": "[anvil_zks-env-0]",
         "message": "Generic error: {message}",
         "fields": [
           {
@@ -618,12 +618,12 @@
           }
         }
       },
-      "[anvil-gen-0]": {
-        "domain": "Anvil",
-        "component": "AnvilGeneric",
+      "[anvil_zks-gen-0]": {
+        "domain": "AnvilZKS",
+        "component": "AnvilZKSGeneric",
         "name": "GenericError",
         "code": 0,
-        "identifier": "[anvil-gen-0]",
+        "identifier": "[anvil_zks-gen-0]",
         "message": "Generic error: {message}",
         "fields": [
           {
