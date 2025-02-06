@@ -511,6 +511,7 @@ version = "0.3.0"
 dependencies = [
  "anvil_zksync_types",
  "jsonrpsee",
+ "zksync_error",
  "zksync_types",
  "zksync_web3_decl",
 ]
@@ -531,6 +532,7 @@ dependencies = [
  "tower 0.4.13",
  "tower-http",
  "tracing",
+ "zksync_error",
  "zksync_types",
  "zksync_web3_decl",
 ]
@@ -548,6 +550,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tracing",
+ "zksync_error",
  "zksync_types",
  "zksync_vm_interface",
 ]
