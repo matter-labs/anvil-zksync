@@ -30,11 +30,11 @@ impl Kind {
     }
     pub fn component_code(&self) -> u32 {
         match self {
-            Kind::AnvilZKS(component) => component.clone() as u32,
-            Kind::Compiler(component) => component.clone() as u32,
-            Kind::Core(component) => component.clone() as u32,
-            Kind::Foundry(component) => component.clone() as u32,
-            Kind::Hardhat(component) => component.clone() as u32,
+            Kind::AnvilZKS(component) => *component as u32,
+            Kind::Compiler(component) => *component as u32,
+            Kind::Core(component) => *component as u32,
+            Kind::Foundry(component) => *component as u32,
+            Kind::Hardhat(component) => *component as u32,
         }
     }
 }

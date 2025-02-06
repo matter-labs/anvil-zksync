@@ -62,9 +62,9 @@ where
 }
 pub fn unpack_untyped(se: &SerializedError) -> Result<UntypedErrorObject, serde_json::Error> {
     let identifier = Identifier::decode(StructuredErrorCode::decode(se.code)).unwrap();
-    let skip_domain = se.data.as_object().unwrap().values().nth(0).unwrap();
-    let skip_subdomain = skip_domain.as_object().unwrap().values().nth(0).unwrap();
-    let (name, value) = skip_subdomain.as_object().unwrap().iter().nth(0).unwrap();
+    let skip_domain = se.data.as_object().unwrap().values().next().unwrap();
+    let skip_subdomain = skip_domain.as_object().unwrap().values().next().unwrap();
+    let (name, value) = skip_subdomain.as_object().unwrap().iter().next().unwrap();
     let fields: serde_json::Map<String, serde_json::Value> = value.as_object().unwrap().clone();
     Ok(UntypedErrorObject {
         identifier,
