@@ -17,8 +17,9 @@ use anvil_zksync_core::node::{
 };
 use anvil_zksync_core::observability::Observability;
 use anvil_zksync_core::system_contracts::SystemContracts;
-use anyhow::{anyhow, Context};
+use anyhow::Context;
 use clap::Parser;
+use zksync_error::anvil::AnvilError;
 use std::fs::File;
 use std::sync::Arc;
 use std::time::Duration;
@@ -26,7 +27,7 @@ use std::{env, net::SocketAddr, str::FromStr};
 use tokio::sync::RwLock;
 use tower_http::cors::AllowOrigin;
 use tracing_subscriber::filter::LevelFilter;
-use zksync_error::anvil::gen::{to_generic, AnvilGenericError};
+use zksync_error::anvil::gen::{generic_error, to_domain};
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
 use zksync_types::{L2BlockNumber, H160};
 
@@ -35,17 +36,17 @@ mod cli;
 mod utils;
 
 #[tokio::main]
-async fn main() -> Result<(), AnvilGenericError> {
+async fn main() -> Result<(), AnvilError> {
     // Check for deprecated options
     Cli::deprecated_config_option();
 
     let opt = Cli::parse();
     let command = opt.command.clone();
 
-    let mut config = opt.into_test_node_config().map_err(|e| anyhow!(e))?;
+    let mut config = opt.into_test_node_config().map_err(to_domain)?;
 
     let log_level_filter = LevelFilter::from(config.log_level);
-    let log_file = File::create(&config.log_file_path).map_err(to_generic)?;
+    let log_file = File::create(&config.log_file_path).map_err(to_domain)?;
 
     // Initialize the tracing subscriber
     let observability = Observability::init(
@@ -53,7 +54,7 @@ async fn main() -> Result<(), AnvilGenericError> {
         log_level_filter,
         log_file,
         config.silent,
-    )?;
+    ).map_err(to_domain)?;
 
     // Use `Command::Run` as default.
     let command = command.as_ref().unwrap_or(&Command::Run);
@@ -83,8 +84,8 @@ async fn main() -> Result<(), AnvilGenericError> {
             } else {
                 // Initialize the client to get the fee params
                 let client =
-                    ForkClient::at_block_number(ForkUrl::Mainnet.to_config(), None).await?;
-                let fee = client.get_fee_params().await?;
+                    ForkClient::at_block_number(ForkUrl::Mainnet.to_config(), None).await.map_err(to_domain)?;
+                let fee = client.get_fee_params().await.map_err(to_domain)?;
 
                 match fee {
                     FeeParams::V2(fee_v2) => {
@@ -112,7 +113,7 @@ async fn main() -> Result<(), AnvilGenericError> {
                             .with_chain_id(config.chain_id.or(Some(TEST_NODE_NETWORK_ID)));
                     }
                     FeeParams::V1(_) => {
-                        return Err(anyhow!("Unsupported FeeParams::V1 in this context").into());
+                        return Err(generic_error!("Unsupported FeeParams::V1 in this context").into());
                     }
                 }
 
@@ -122,7 +123,7 @@ async fn main() -> Result<(), AnvilGenericError> {
         Command::Fork(fork) => {
             let (fork_client, earlier_txs) = if let Some(tx_hash) = fork.fork_transaction_hash {
                 // If transaction hash is provided, we fork at the parent of block containing tx
-                ForkClient::at_before_tx(fork.fork_url.to_config(), tx_hash).await?
+                ForkClient::at_before_tx(fork.fork_url.to_config(), tx_hash).await.map_err(to_domain)?
             } else {
                 // Otherwise, we fork at the provided block
                 (
@@ -130,7 +131,7 @@ async fn main() -> Result<(), AnvilGenericError> {
                         fork.fork_url.to_config(),
                         fork.fork_block_number.map(|bn| L2BlockNumber(bn as u32)),
                     )
-                    .await?,
+                    .await.map_err(to_domain)?,
                     Vec::new(),
                 )
             };
@@ -140,7 +141,7 @@ async fn main() -> Result<(), AnvilGenericError> {
         }
         Command::ReplayTx(replay_tx) => {
             let (fork_client, earlier_txs) =
-                ForkClient::at_before_tx(replay_tx.fork_url.to_config(), replay_tx.tx).await?;
+                ForkClient::at_before_tx(replay_tx.fork_url.to_config(), replay_tx.tx).await.map_err(to_domain)?;
 
             update_with_fork_details(&mut config, &fork_client.details).await;
             (Some(fork_client), earlier_txs)
@@ -170,11 +171,10 @@ async fn main() -> Result<(), AnvilGenericError> {
                 }
             }
             _ => {
-                return Err(anyhow!(
+                return Err(to_domain(generic_error!(
                     "fork is using unsupported fee parameters: {:?}",
                     fork_client.details.fee_params
-                )
-                .into())
+                )))
             }
         };
 
@@ -267,7 +267,7 @@ async fn main() -> Result<(), AnvilGenericError> {
 
     if !transactions_to_replay.is_empty() {
         node.apply_txs(transactions_to_replay, config.max_transactions)
-            .await?;
+            .await.map_err(to_domain)?;
     }
 
     // TODO: Consider moving to `InMemoryNodeInner::init`
@@ -298,7 +298,7 @@ async fn main() -> Result<(), AnvilGenericError> {
             config
                 .allow_origin
                 .parse()
-                .context("allow origin is malformed")?,
+                .context("allow origin is malformed").map_err(to_domain)?,
         ),
     );
     if config.health_check_endpoint {
@@ -337,12 +337,11 @@ async fn main() -> Result<(), AnvilGenericError> {
                         server_handles.push(server.run());
                     }
                     Err(err) => {
-                        return Err(anyhow!(
+                        return Err(to_domain(generic_error!(
                             "Failed to start server on host {} with port: {}",
                             host,
                             err
-                        )
-                        .into());
+                        )));
                     }
                 }
             }
@@ -356,13 +355,13 @@ async fn main() -> Result<(), AnvilGenericError> {
         let bytes = std::fs::read(load_state_path).expect("Failed to read load state file");
         node.load_state(zksync_types::web3::Bytes(bytes))
             .await
-            .map_err(to_generic)?;
+            .map_err(to_domain)?;
     }
     if let Some(ref state_path) = config.state {
         let bytes = std::fs::read(state_path).expect("Failed to read load state file");
         node.load_state(zksync_types::web3::Bytes(bytes))
             .await
-            .map_err(to_generic)?;
+            .map_err(to_domain)?;
     }
 
     let state_path = config.dump_state.clone().or_else(|| config.state.clone());

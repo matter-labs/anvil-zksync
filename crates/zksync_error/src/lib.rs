@@ -16,7 +16,6 @@ pub mod anvil {
     pub mod env {
         pub use crate::error::definitions::AnvilEnvironment as AnvilEnvironmentError;
         pub use crate::error::definitions::AnvilEnvironment::GenericError;
-        pub use crate::error::definitions::AnvilEnvironment::LogFileAccessError;
         #[macro_export]
         macro_rules ! anvil_env_generic_error { ($ ($ arg : tt) *) => { zksync_error :: error :: definitions :: AnvilEnvironment :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::anvil_env_generic_error as generic_error;
