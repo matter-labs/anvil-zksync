@@ -38,7 +38,6 @@ pub fn run<S: AsRef<OsStr> + Clone + Display>(
     // TODO: parametrize log file, cache file etc so simultaneous nodes don't compete
     options.push("run".to_string());
     tracing::info!(bin_path = %bin_path, rpc_port = config.rpc_port, "Starting anvil-zksync");
-
     let process = Command::new(bin_path.clone())
         .args(options)
         .spawn()
@@ -66,7 +65,6 @@ fn ensure_binary_is_fresh() -> anyhow::Result<()> {
                 path = ANVIL_ZKSYNC_BINARY_DEFAULT_PATH,
                 "Resolved when binary file was last modified"
             );
-
             let source_mod_time = std::fs::read_dir(ANVIL_ZKSYNC_SRC_PATH)
                 .context("couldn't access anvil-zksync source directory")?
                 .map(|entry| entry.and_then(|f| f.metadata()).and_then(|f| f.modified()))
@@ -81,7 +79,6 @@ fn ensure_binary_is_fresh() -> anyhow::Result<()> {
                     path = ANVIL_ZKSYNC_SRC_PATH,
                     "Resolved when source files were last modified"
                 );
-
                 if binary_mod_time < source_mod_time {
                     // TODO: invoke `make all` for the user automatically?
                     anyhow::bail!(
