@@ -1,0 +1,25 @@
+{
+  "types": [],
+  "domains": [
+    {
+      "domain_name": "Anvil",
+      "domain_code": 5,
+      "identifier_encoding": "anvil",
+      "components": [
+        {
+          "component_name": "AnvilGeneric",
+          "component_code": 0,
+          "identifier_encoding": "gen",
+          "errors" : []
+        },
+        {
+          "component_name": "AnvilEnvironment",
+          "component_code": 1,
+          "identifier_encoding": "env",
+          "errors" : []
+        }
+      ]
+
+    }
+  ]
+}

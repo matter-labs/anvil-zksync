@@ -6,6 +6,7 @@ members = [
     "crates/config",
     "crates/core",
     "crates/types",
+    "crates/zksync_error",
 ]
 resolver = "2"
 
@@ -92,3 +93,9 @@ anvil_zksync_api_server = { path = "crates/api_server" }
 anvil_zksync_config = { path = "crates/config" }
 anvil_zksync_core = { path = "crates/core" }
 anvil_zksync_types = { path = "crates/types" }
+zksync_error = { path = "crates/zksync_error" }
+
+#########################
+# Build dependencies    #
+#########################
+zksync-error-codegen = { git = "https://github.com/matter-labs/zksync-error", branch = "dev" }
