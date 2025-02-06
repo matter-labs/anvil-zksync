@@ -480,6 +480,7 @@ version = "0.3.0"
 dependencies = [
  "alloy",
  "anvil_zksync_api_server",
+ "anvil_zksync_common",
  "anvil_zksync_config",
  "anvil_zksync_core",
  "anvil_zksync_types",
@@ -518,6 +519,7 @@ name = "anvil_zksync_api_server"
 version = "0.3.0"
 dependencies = [
  "anvil_zksync_api_decl",
+ "anvil_zksync_common",
  "anvil_zksync_core",
  "anvil_zksync_types",
  "anyhow",
@@ -534,10 +536,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "anvil_zksync_common"
+version = "0.3.0"
+dependencies = [
+ "anstream",
+ "anstyle",
+]
+
+[[package]]
 name = "anvil_zksync_config"
 version = "0.3.0"
 dependencies = [
  "alloy",
+ "anvil_zksync_common",
  "anvil_zksync_types",
  "clap",
  "colored",
@@ -556,6 +567,7 @@ version = "0.3.0"
 dependencies = [
  "alloy",
  "anstyle",
+ "anvil_zksync_common",
  "anvil_zksync_config",
  "anvil_zksync_types",
  "anyhow",

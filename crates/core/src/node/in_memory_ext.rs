@@ -74,7 +74,7 @@ impl InMemoryNode {
         });
 
         let block_number = self.node_handle.seal_block_sync(tx_batch).await?;
-        tracing::info!("👷 Mined block #{}", block_number);
+        tracing::info!("Mined block #{}", block_number);
         Ok(block_number)
     }
 
@@ -125,7 +125,7 @@ impl InMemoryNode {
         let snapshot = reader.snapshot().await.map_err(|err| anyhow!("{}", err))?;
         let mut snapshots = snapshots.write().await;
         snapshots.push(snapshot);
-        tracing::info!("Created snapshot '{}'", snapshots.len());
+        tracing::debug!("Created snapshot '{}'", snapshots.len());
         Ok(U64::from(snapshots.len()))
     }
 
@@ -153,12 +153,12 @@ impl InMemoryNode {
             .next()
             .expect("unexpected failure, value must exist");
 
-        tracing::info!("Reverting node to snapshot '{snapshot_id:?}'");
+        tracing::debug!("Reverting node to snapshot '{snapshot_id:?}'");
         writer
             .restore_snapshot(selected_snapshot)
             .await
             .map(|_| {
-                tracing::info!("Reverting node to snapshot '{snapshot_id:?}'");
+                tracing::debug!("Reverting node to snapshot '{snapshot_id:?}'");
                 true
             })
             .map_err(|err| anyhow!("{}", err))
@@ -167,7 +167,7 @@ impl InMemoryNode {
     pub async fn set_balance(&self, address: Address, balance: U256) -> anyhow::Result<bool> {
         self.node_handle.set_balance_sync(address, balance).await?;
         tracing::info!(
-            "👷 Balance for address {:?} has been manually set to {} Wei",
+            "Balance for address {:?} has been manually set to {} Wei",
             address,
             balance
         );
@@ -177,7 +177,7 @@ impl InMemoryNode {
     pub async fn set_nonce(&self, address: Address, nonce: U256) -> anyhow::Result<bool> {
         self.node_handle.set_nonce_sync(address, nonce).await?;
         tracing::info!(
-            "👷 Nonces for address {:?} have been set to {}",
+            "Nonces for address {:?} have been set to {}",
             address,
             nonce
         );
@@ -208,7 +208,7 @@ impl InMemoryNode {
         self.node_handle
             .seal_blocks_sync(tx_batches, interval_sec)
             .await?;
-        tracing::info!("👷 Mined {} blocks", num_blocks);
+        tracing::info!("Mined {} blocks", num_blocks);
 
         Ok(())
     }
@@ -246,7 +246,7 @@ impl InMemoryNode {
 
         self.snapshots.write().await.clear();
 
-        tracing::info!("👷 Network reset");
+        tracing::debug!("Network reset");
 
         Ok(true)
     }
@@ -257,21 +257,21 @@ impl InMemoryNode {
 
     pub fn impersonate_account(&self, address: Address) -> Result<bool> {
         if self.impersonation.impersonate(address) {
-            tracing::info!("🕵️ Account {:?} has been impersonated", address);
+            tracing::debug!("Account {:?} has been impersonated", address);
             Ok(true)
         } else {
-            tracing::info!("🕵️ Account {:?} was already impersonated", address);
+            tracing::debug!("Account {:?} was already impersonated", address);
             Ok(false)
         }
     }
 
     pub fn stop_impersonating_account(&self, address: Address) -> Result<bool> {
         if self.impersonation.stop_impersonating(&address) {
-            tracing::info!("🕵️ Stopped impersonating account {:?}", address);
+            tracing::debug!("Stopped impersonating account {:?}", address);
             Ok(true)
         } else {
-            tracing::info!(
-                "🕵️ Account {:?} was not impersonated, nothing to stop",
+            tracing::debug!(
+                "Account {:?} was not impersonated, nothing to stop",
                 address
             );
             Ok(false)
@@ -284,10 +284,10 @@ impl InMemoryNode {
             .ok_or_else(|| anyhow!("code must be 0x-prefixed"))?;
         let bytecode = hex::decode(code_slice)?;
         zksync_types::bytecode::validate_bytecode(&bytecode).context("Invalid bytecode")?;
-        tracing::info!(
-            ?address,
-            bytecode_hash = ?BytecodeHash::for_bytecode(&bytecode).value(),
-            "set code"
+        tracing::debug!(
+            "set code: address={:?}, bytecode_hash={:?}",
+            address,
+            BytecodeHash::for_bytecode(&bytecode).value()
         );
         self.node_handle.set_code_sync(address, bytecode).await?;
         Ok(())

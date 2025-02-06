@@ -2,6 +2,7 @@ use crate::constants::*;
 use crate::types::*;
 use crate::utils::{format_eth, format_gwei};
 use alloy::signers::local::PrivateKeySigner;
+use anvil_zksync_common::sh_println;
 use anvil_zksync_types::{
     LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails, TransactionOrder,
 };
@@ -231,138 +232,138 @@ impl TestNodeConfig {
 
         let color = CustomColor::new(13, 71, 198);
 
-        println!("{}", BANNER.custom_color(color));
+        sh_println!("{}", BANNER.custom_color(color));
 
-        tracing::info!("Version:        {}", VERSION_MESSAGE.green());
-        tracing::info!(
+        sh_println!("Version:        {}", VERSION_MESSAGE.green());
+        sh_println!(
             "Repository:     {}",
             "https://github.com/matter-labs/anvil-zksync".green()
         );
-        println!("\n");
+        sh_println!("\n");
 
-        tracing::info!("Rich Accounts");
-        tracing::info!("========================");
+        sh_println!("Rich Accounts");
+        sh_println!("========================");
         let balance = format_eth(self.genesis_balance);
         for (idx, account) in self.genesis_accounts.iter().enumerate() {
-            tracing::info!("({}) {} ({balance})", idx, account.address());
+            sh_println!("({}) {} ({balance})", idx, account.address());
         }
-        println!("\n");
+        sh_println!("\n");
 
-        tracing::info!("Private Keys");
-        tracing::info!("========================");
+        sh_println!("Private Keys");
+        sh_println!("========================");
         for (idx, account) in self.genesis_accounts.iter().enumerate() {
             let private_key = hex::encode(account.credential().to_bytes());
-            tracing::info!("({}) 0x{}", idx, private_key);
+            sh_println!("({}) 0x{}", idx, private_key);
         }
-        println!("\n");
+        sh_println!("\n");
 
         if let Some(ref generator) = self.account_generator {
-            tracing::info!("Wallet");
-            tracing::info!("========================");
-            tracing::info!("Mnemonic:            {}", generator.get_phrase().green());
-            tracing::info!(
+            sh_println!("Wallet");
+            sh_println!("========================");
+            sh_println!("Mnemonic:            {}", generator.get_phrase().green());
+            sh_println!(
                 "Derivation path:     {}",
                 generator.get_derivation_path().green()
             );
         }
-        println!("\n");
+        sh_println!("\n");
 
         if let Some(fd) = fork_details {
-            tracing::info!("Fork Details");
-            tracing::info!("========================");
-            tracing::info!("Network RPC:               {}", fd.network_rpc.green());
-            tracing::info!(
+            sh_println!("Fork Details");
+            sh_println!("========================");
+            sh_println!("Network RPC:               {}", fd.network_rpc.green());
+            sh_println!(
                 "Chain ID:                  {}",
                 self.get_chain_id().to_string().green()
             );
-            tracing::info!("L1 Batch #:                {}", fd.l1_block.green());
-            tracing::info!("L2 Block #:                {}", fd.l2_block.green());
-            tracing::info!(
+            sh_println!("L1 Batch #:                {}", fd.l1_block.green());
+            sh_println!("L2 Block #:                {}", fd.l2_block.green());
+            sh_println!(
                 "Block Timestamp:           {}",
                 fd.block_timestamp.to_string().green()
             );
-            tracing::info!(
+            sh_println!(
                 "Fork Block Hash:           {}",
                 format!("{:#}", fd.fork_block_hash).green()
             );
-            tracing::info!(
+            sh_println!(
                 "Compute Overhead Part:     {}",
                 fd.fee_model_config_v2
                     .compute_overhead_part
                     .to_string()
                     .green()
             );
-            tracing::info!(
+            sh_println!(
                 "Pubdata Overhead Part:     {}",
                 fd.fee_model_config_v2
                     .pubdata_overhead_part
                     .to_string()
                     .green()
             );
-            tracing::info!(
+            sh_println!(
                 "Batch Overhead L1 Gas:     {}",
                 fd.fee_model_config_v2
                     .batch_overhead_l1_gas
                     .to_string()
                     .green()
             );
-            tracing::info!(
+            sh_println!(
                 "Max Gas Per Batch:         {}",
                 fd.fee_model_config_v2.max_gas_per_batch.to_string().green()
             );
-            tracing::info!(
+            sh_println!(
                 "Max Pubdata Per Batch:     {}",
                 fd.fee_model_config_v2
                     .max_pubdata_per_batch
                     .to_string()
                     .green()
             );
-            println!("\n");
+            sh_println!("\n");
         } else {
-            tracing::info!("Network Configuration");
-            tracing::info!("========================");
-            tracing::info!(
+            sh_println!("Network Configuration");
+            sh_println!("========================");
+            sh_println!(
                 "Chain ID: {}",
                 self.chain_id
                     .unwrap_or(TEST_NODE_NETWORK_ID)
                     .to_string()
                     .green()
             );
-            println!("\n");
+            sh_println!("\n");
         }
-        tracing::info!("Gas Configuration");
-        tracing::info!("========================");
-        tracing::info!(
+        sh_println!("Gas Configuration");
+        sh_println!("========================");
+        sh_println!(
             "L1 Gas Price (gwei):               {}",
             format_gwei(self.get_l1_gas_price().into()).green()
         );
-        tracing::info!(
+        sh_println!(
             "L2 Gas Price (gwei):               {}",
             format_gwei(self.get_l2_gas_price().into()).green()
         );
-        tracing::info!(
+        sh_println!(
             "L1 Pubdata Price (gwei):           {}",
             format_gwei(self.get_l1_pubdata_price().into()).green()
         );
-        tracing::info!(
+        sh_println!(
             "Estimated Gas Price Scale Factor:  {}",
             self.get_price_scale().to_string().green()
         );
-        tracing::info!(
+        sh_println!(
             "Estimated Gas Limit Scale Factor:  {}",
             self.get_gas_limit_scale().to_string().green()
         );
-        println!("\n");
+        sh_println!("\n");
 
-        tracing::info!("Genesis Timestamp");
-        tracing::info!("========================");
-        tracing::info!("{}", self.get_genesis_timestamp().to_string().green());
-        println!("\n");
+        sh_println!("Genesis Timestamp");
+        sh_println!("========================");
+        sh_println!("{}", self.get_genesis_timestamp().to_string().green());
+        sh_println!("\n");
 
-        tracing::info!("Node Configuration");
-        tracing::info!("========================");
-        tracing::info!("Port:               {}", self.port);
-        tracing::info!(
+        sh_println!("Node Configuration");
+        sh_println!("========================");
+        sh_println!("Port:               {}", self.port);
+        sh_println!(
             "EVM Emulator:       {}",
             if self.use_evm_emulator {
                 "Enabled".green()
@@ -370,7 +371,7 @@ impl TestNodeConfig {
                 "Disabled".red()
             }
         );
-        tracing::info!(
+        sh_println!(
             "Health Check Endpoint: {}",
             if self.health_check_endpoint {
                 "Enabled".green()
@@ -378,7 +379,7 @@ impl TestNodeConfig {
                 "Disabled".red()
             }
         );
-        tracing::info!(
+        sh_println!(
             "ZK OS:              {}",
             if self.use_zkos {
                 "Enabled".green()
@@ -387,17 +388,17 @@ impl TestNodeConfig {
             }
         );
 
-        println!("\n");
-        tracing::info!("========================================");
+        sh_println!("\n");
+        sh_println!("========================================");
         for host in &self.host {
-            tracing::info!(
+            sh_println!(
                 "  Listening on {}:{}",
                 host.to_string().green(),
                 self.port.to_string().green()
             );
         }
-        tracing::info!("========================================");
-        println!("\n");
+        sh_println!("========================================");
+        sh_println!("\n");
     }
 
     fn as_json(&self, fork: Option<&ForkPrintInfo>) -> Value {

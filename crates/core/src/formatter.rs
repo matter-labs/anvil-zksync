@@ -3,6 +3,7 @@ use crate::bootloader_debug::BootloaderDebug;
 use crate::resolver;
 use crate::utils::block_on;
 use crate::utils::{calculate_eth_cost, to_human_size};
+use anvil_zksync_common::sh_println;
 use anvil_zksync_config::utils::format_gwei;
 use anvil_zksync_types::ShowCalls;
 use colored::Colorize;
@@ -134,12 +135,12 @@ impl Formatter {
     /// Logs a formatted message with a hierarchical prefix.
     pub fn format_log(&self, is_last_sibling: bool, message: &str) {
         let prefix = build_prefix(&self.sibling_stack, is_last_sibling);
-        tracing::info!("{}{}", prefix, message);
+        sh_println!("{}{}", prefix, message);
     }
     /// Logs a formatted error message with a hierarchical prefix.
     pub fn format_error(&self, is_last_sibling: bool, message: &str) {
         let prefix = build_prefix(&self.sibling_stack, is_last_sibling);
-        tracing::info!("{}", format!("{}{}", prefix, message).red());
+        sh_println!("{}", format!("{}{}", prefix, message).red());
     }
     /// Prints gas details for the transaction in a structured log.
     pub fn print_gas_details(
@@ -590,8 +591,6 @@ impl Formatter {
     }
     /// Prints the VM execution results in a structured log.
     pub fn print_vm_details(&mut self, result: &VmExecutionResultAndLogs) {
-        tracing::info!("");
-
         self.section("[VM Execution Results]", true, |section| {
             let stats = [
                 (
@@ -843,20 +842,20 @@ pub fn print_transaction_summary(
         _ => "⚠️",
     };
 
-    tracing::info!("{}  [{}] Hash: {:?}", emoji, status, tx.hash());
-    tracing::info!("Initiator: {:?}", tx.initiator_account());
-    tracing::info!("Payer: {:?}", tx.payer());
-    tracing::info!(
+    sh_println!("\n{}  [{}] Hash: {:?}", emoji, status, tx.hash());
+    sh_println!("Initiator: {:?}", tx.initiator_account());
+    sh_println!("Payer: {:?}", tx.payer());
+    sh_println!(
         "Gas Limit: {} | Used: {} | Refunded: {}",
         to_human_size(tx.gas_limit()),
         to_human_size(used_gas),
         to_human_size(tx_result.refunds.gas_refunded.into())
     );
-    tracing::info!(
+    sh_println!(
         "Paid: {:.10} ETH ({} gas * {})",
         paid_in_eth,
         used_gas,
         format_gwei(l2_gas_price.into())
     );
-    tracing::info!("Refunded: {:.10} ETH", refunded_in_eth);
+    sh_println!("Refunded: {:.10} ETH", refunded_in_eth);
 }

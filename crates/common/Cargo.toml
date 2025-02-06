@@ -1,0 +1,15 @@
+[package]
+name = "anvil_zksync_common"
+description = "anvil-zksync common"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+anstream.workspace = true
+anstyle.workspace = true

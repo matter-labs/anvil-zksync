@@ -1,5 +1,6 @@
 use crate::utils::parse_genesis_file;
 use alloy::signers::local::coins_bip39::{English, Mnemonic};
+use anvil_zksync_common::{sh_eprintln, sh_err};
 use anvil_zksync_config::constants::{
     DEFAULT_DISK_CACHE_DIR, DEFAULT_MNEMONIC, TEST_NODE_NETWORK_ID,
 };
@@ -442,7 +443,7 @@ impl Cli {
     /// Checks for deprecated options and warns users.
     pub fn deprecated_config_option() {
         if env::args().any(|arg| arg == "--config" || arg.starts_with("--config=")) {
-            eprintln!(
+            sh_eprintln!(
                 "Warning: The '--config' option has been removed. \
                 Please migrate to using other configuration options or defaults."
             );
@@ -610,7 +611,7 @@ impl PeriodicStateDumper {
         let state_bytes = match node.dump_state(preserve_historical_states).await {
             Ok(bytes) => bytes,
             Err(err) => {
-                tracing::error!("Failed to dump state: {:?}", err);
+                sh_err!("Failed to dump state: {:?}", err);
                 return;
             }
         };
@@ -618,20 +619,20 @@ impl PeriodicStateDumper {
         let mut decoder = GzDecoder::new(&state_bytes.0[..]);
         let mut json_str = String::new();
         if let Err(err) = decoder.read_to_string(&mut json_str) {
-            tracing::error!(?err, "Failed to decompress state bytes");
+            sh_err!("Failed to decompress state bytes: {}", err);
             return;
         }
 
         let state = match serde_json::from_str::<VersionedState>(&json_str) {
             Ok(state) => state,
             Err(err) => {
-                tracing::error!(?err, "Failed to parse state JSON");
+                sh_err!("Failed to parse state JSON: {}", err);
                 return;
             }
         };
 
         if let Err(err) = write_json_file(&dump_path, &state) {
-            tracing::error!(?err, "Failed to write state to file");
+            sh_err!("Failed to write state to file: {}", err);
         } else {
             tracing::trace!(path = ?dump_path, "Dumped state successfully");
         }

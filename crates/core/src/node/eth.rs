@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use anvil_zksync_common::{sh_eprintln, sh_err};
 use anyhow::Context as _;
 use colored::Colorize;
 use zksync_multivm::interface::ExecutionResult;
@@ -55,7 +56,7 @@ impl InMemoryNode {
                     message
                 );
 
-                tracing::info!("{}", pretty_message.on_red());
+                sh_eprintln!("\n{}", pretty_message.on_red());
                 Err(Web3Error::SubmitTransactionError(
                     pretty_message,
                     output.encoded_data(),
@@ -69,7 +70,7 @@ impl InMemoryNode {
                     message
                 );
 
-                tracing::info!("{}", pretty_message.on_red());
+                sh_eprintln!("\n{}", pretty_message.on_red());
                 Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
             }
         }
@@ -115,7 +116,7 @@ impl InMemoryNode {
         if tx.gas_price.is_some() {
             if tx.max_fee_per_gas.is_some() || tx.max_priority_fee_per_gas.is_some() {
                 let err = "Transaction contains unsupported fields: max_fee_per_gas or max_priority_fee_per_gas";
-                tracing::error!("{err}");
+                sh_err!("{err}");
                 return Err(TransparentError(err.into()).into());
             }
         } else {
@@ -155,7 +156,7 @@ impl InMemoryNode {
                 "Initiator address {:?} is not allowed to perform transactions",
                 l2_tx.common_data.initiator_address
             );
-            tracing::error!("{err}");
+            tracing::error!("\n{err}");
             return Err(TransparentError(err).into());
         }
 
