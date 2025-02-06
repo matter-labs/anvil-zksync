@@ -1,4 +1,3 @@
-use anvil_zksync_common::sh_warn;
 use std::collections::HashSet;
 
 use schemars::{
@@ -156,8 +155,9 @@ impl Visitor for EthSpecPatch {
                 // Remove `unevaluatedProperties` and expect it to be present and set to `false`.
                 let removed = schema.extensions.remove("unevaluatedProperties");
                 if removed != Some(json!(false)) {
-                    sh_warn!("Removed 'unevaluatedProperties' from schema but it wasn't set to `false`: {}",
+                    tracing::warn!(
                         self.schema_name,
+                        "Removed 'unevaluatedProperties' from schema but it wasn't set to `false`"
                     );
                 }
             }

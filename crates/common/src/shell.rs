@@ -1,16 +1,16 @@
-//! Utility functions for writing to [`stdout`](std::io::stdout) and [`stderr`](std::io::stderr).
+//! Utility functions for writing to stdout and stderr.
 //!
-//! Simplified adaptation from https://github.com/foundry-rs/foundry/blob/master/crates/common/src/io/macros.rs.
+//! Simplified adaptation from
+//! https://github.com/foundry-rs/foundry/blob/master/crates/common/src/io/macros.rs.
 
-use std::io::{self, Write};
+use anstream::{AutoStream, ColorChoice as AnstreamColorChoice};
+use anstyle::{AnsiColor, Effects, Reset, Style};
+use std::io::{self, IsTerminal, Write};
 use std::sync::{Mutex, OnceLock};
 
-/// The output mode: either normal output or completely quiet.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum OutputMode {
-    Normal,
-    Quiet,
-}
+/// Default styles for WARNING and ERROR messages.
+pub const ERROR: Style = AnsiColor::Red.on_default().effects(Effects::BOLD);
+pub const WARN: Style = AnsiColor::Yellow.on_default().effects(Effects::BOLD);
 
 /// Choices for whether to use colored output.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -20,10 +20,27 @@ pub enum ColorChoice {
     Never,
 }
 
-/// A simple shell abstraction.
-///
-/// We only track a verbosity level, an output mode,
+impl ColorChoice {
+    #[inline]
+    fn to_anstream(self) -> AnstreamColorChoice {
+        match self {
+            ColorChoice::Always => AnstreamColorChoice::Always,
+            ColorChoice::Never => AnstreamColorChoice::Never,
+            ColorChoice::Auto => AnstreamColorChoice::Auto,
+        }
+    }
+}
+
+/// The output mode: either normal output or completely quiet.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum OutputMode {
+    Normal,
+    Quiet,
+}
+
+/// A shell abstraction that tracks verbosity level, an output mode,
 /// and a color choice.
+/// It uses anstream’s AutoStream for stdout and stderr.
 #[derive(Debug)]
 pub struct Shell {
     /// Verbosity level (currently unused, but will be in #577)
@@ -32,15 +49,25 @@ pub struct Shell {
     pub output_mode: OutputMode,
     /// Whether to use colors.
     pub color_choice: ColorChoice,
+    /// Adaptive stdout.
+    stdout: AutoStream<std::io::Stdout>,
+    /// Adaptive stderr.
+    stderr: AutoStream<std::io::Stderr>,
 }
 
 impl Shell {
-    /// Create a new shell with default settings.
+    /// Creates a new shell with default settings:
+    /// - verbosity 0,
+    /// - Normal output mode,
+    /// - Auto color detection.
     pub fn new() -> Self {
+        let color = ColorChoice::Auto;
         Self {
             verbosity: 0,
             output_mode: OutputMode::Normal,
-            color_choice: ColorChoice::Auto,
+            color_choice: color,
+            stdout: AutoStream::new(std::io::stdout(), color.to_anstream()),
+            stderr: AutoStream::new(std::io::stderr(), color.to_anstream()),
         }
     }
 
@@ -49,10 +76,8 @@ impl Shell {
         if self.output_mode == OutputMode::Quiet {
             return Ok(());
         }
-        let stdout = io::stdout();
-        let mut handle = stdout.lock();
-        write!(handle, "{}", msg)?;
-        handle.flush()
+        write!(self.stdout, "{}", msg)?;
+        self.stdout.flush()
     }
 
     /// Print a line (with a newline) to stdout.
@@ -60,10 +85,8 @@ impl Shell {
         if self.output_mode == OutputMode::Quiet {
             return Ok(());
         }
-        let stdout = io::stdout();
-        let mut handle = stdout.lock();
-        writeln!(handle, "{}", msg)?;
-        handle.flush()
+        writeln!(self.stdout, "{}", msg)?;
+        self.stdout.flush()
     }
 
     /// Print a string to stderr.
@@ -71,10 +94,8 @@ impl Shell {
         if self.output_mode == OutputMode::Quiet {
             return Ok(());
         }
-        let stderr = io::stderr();
-        let mut handle = stderr.lock();
-        write!(handle, "{}", msg)?;
-        handle.flush()
+        write!(self.stderr, "{}", msg)?;
+        self.stderr.flush()
     }
 
     /// Print a line (with a newline) to stderr.
@@ -82,41 +103,39 @@ impl Shell {
         if self.output_mode == OutputMode::Quiet {
             return Ok(());
         }
-        let stderr = io::stderr();
-        let mut handle = stderr.lock();
-        writeln!(handle, "{}", msg)?;
-        handle.flush()
+        writeln!(self.stderr, "{}", msg)?;
+        self.stderr.flush()
     }
 
     /// Print a warning message.
     ///
     /// If colors are enabled, the “Warning:” prefix is printed in yellow.
     pub fn warn(&mut self, msg: &str) -> io::Result<()> {
-        let formatted = if self.should_color() {
-            format!("\x1b[33mWarning:\x1b[0m {}", msg)
+        let prefix = if self.should_color() {
+            format!("{}Warning:{} ", WARN, Reset)
         } else {
-            format!("Warning: {}", msg)
+            "Warning: ".to_string()
         };
-        self.println_err(&formatted)
+        self.println_err(&format!("{}{}", prefix, msg))
     }
 
     /// Print an error message.
     ///
     /// If colors are enabled, the “Error:” prefix is printed in red.
     pub fn error(&mut self, msg: &str) -> io::Result<()> {
-        let formatted = if self.should_color() {
-            format!("\x1b[31mError:\x1b[0m {}", msg)
+        let prefix = if self.should_color() {
+            format!("{}Error:{} ", ERROR, Reset)
         } else {
-            format!("Error: {}", msg)
+            "Error: ".to_string()
         };
-        self.println_err(&formatted)
+        self.println_err(&format!("{}{}", prefix, msg))
     }
 
     fn should_color(&self) -> bool {
         match self.color_choice {
             ColorChoice::Always => true,
             ColorChoice::Never => false,
-            ColorChoice::Auto => atty::is(atty::Stream::Stdout),
+            ColorChoice::Auto => std::io::stdout().is_terminal(),
         }
     }
 }
@@ -186,7 +205,7 @@ macro_rules! sh_eprint {
     }};
 }
 
-/// Macro to print a formatted message (with a newline) to stderr.
+/// Macro to print a formatted message (with newline) to stderr.
 #[macro_export]
 macro_rules! sh_eprintln {
     ($($arg:tt)*) => {{
@@ -228,10 +247,9 @@ macro_rules! sh_err {
 
 #[cfg(test)]
 mod tests {
-
     #[test]
-    fn test_print_macros() {
-        // These calls use the global shell.
+    fn test_shell_macros() {
+        // These calls use the global shell instance.
         sh_print!("Hello, ");
         sh_println!("world!");
         sh_eprint!("Error: ");

@@ -75,7 +75,8 @@ tracing-subscriber = { version = "0.3", features = [
     "local-time",
 ] }
 url = "2.5.4"
-atty = "0.2"
+anstream = "0.6.18"
+anstyle = "1.0.10"
 
 #########################
 # Test dependencies    #

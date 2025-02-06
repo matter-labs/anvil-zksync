@@ -5,7 +5,6 @@ use chrono::{DateTime, Local};
 use tokio::process::{Child, Command};
 
 use crate::utils::LockedPort;
-use anvil_zksync_common::{sh_eprintln, sh_println, sh_warn};
 
 const ANVIL_ZKSYNC_BINARY_DEFAULT_PATH: &str = "../target/release/anvil-zksync";
 const ANVIL_ZKSYNC_SRC_PATH: &str = "../src";
@@ -22,7 +21,7 @@ pub struct EraRunHandle {
 impl Drop for EraRunHandle {
     fn drop(&mut self) {
         if let Some(mut process) = self.process.take() {
-            sh_println!("Cleaning up anvil-zksync process: pid={:?}", process.id());
+            tracing::info!("Cleaning up anvil-zksync process: pid={:?}", process.id());
 
             process.start_kill().expect("failed to kill anvil-zksync");
             let _ = process.try_wait();
@@ -38,11 +37,7 @@ pub fn run<S: AsRef<OsStr> + Clone + Display>(
     options.push(format!("--port={}", config.rpc_port));
     // TODO: parametrize log file, cache file etc so simultaneous nodes don't compete
     options.push("run".to_string());
-    sh_println!(
-        "Starting anvil-zksync: bin_path={}, rpc_port={}",
-        bin_path,
-        config.rpc_port
-    );
+    tracing::info!(bin_path = %bin_path, rpc_port = config.rpc_port, "Starting anvil-zksync");
 
     let process = Command::new(bin_path.clone())
         .args(options)
@@ -66,10 +61,10 @@ fn ensure_binary_is_fresh() -> anyhow::Result<()> {
     match metadata.modified() {
         Ok(binary_mod_time) => {
             let binary_mod_time = DateTime::<Local>::from(binary_mod_time);
-            sh_println!(
-                "Resolved when binary file was last modified: binary_mod_time={}, path={}",
-                binary_mod_time,
-                ANVIL_ZKSYNC_BINARY_DEFAULT_PATH
+            tracing::info!(
+                %binary_mod_time,
+                path = ANVIL_ZKSYNC_BINARY_DEFAULT_PATH,
+                "Resolved when binary file was last modified"
             );
 
             let source_mod_time = std::fs::read_dir(ANVIL_ZKSYNC_SRC_PATH)
@@ -81,10 +76,10 @@ fn ensure_binary_is_fresh() -> anyhow::Result<()> {
                 .max();
             if let Some(source_mod_time) = source_mod_time {
                 let source_mod_time = DateTime::<Local>::from(source_mod_time);
-                sh_println!(
-                    "Resolved when source files were last modified: source_mod_time={}, path={}",
-                    source_mod_time,
-                    ANVIL_ZKSYNC_SRC_PATH
+                tracing::info!(
+                    %source_mod_time,
+                    path = ANVIL_ZKSYNC_SRC_PATH,
+                    "Resolved when source files were last modified"
                 );
 
                 if binary_mod_time < source_mod_time {
@@ -97,18 +92,18 @@ fn ensure_binary_is_fresh() -> anyhow::Result<()> {
                     );
                 }
             } else {
-                sh_warn!(
-                    "No files found under the source directory: {}",
-                    ANVIL_ZKSYNC_SRC_PATH,
+                tracing::warn!(
+                    path = ANVIL_ZKSYNC_SRC_PATH,
+                    "No files found under the source directory"
                 );
             }
         }
         Err(error) => {
-            sh_eprintln!(
+            tracing::warn!(
+                %error,
+                path = ANVIL_ZKSYNC_BINARY_DEFAULT_PATH,
                 "Could not get modification time from file (your platform might not support it, refer to the attached error). \
-                Make sure that your binary has been built against the code you are working with. {}, {}",
-                error,
-                ANVIL_ZKSYNC_BINARY_DEFAULT_PATH,
+                Make sure that your binary has been built against the code you are working with."
             );
         }
     }
