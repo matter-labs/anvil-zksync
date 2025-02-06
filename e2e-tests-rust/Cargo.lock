@@ -815,7 +815,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_config"
-version = "0.2.5"
+version = "0.3.0"
 dependencies = [
  "alloy",
  "anvil_zksync_common",
@@ -833,7 +833,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_core"
-version = "0.2.5"
+version = "0.3.0"
 dependencies = [
  "alloy",
  "anvil_zksync_common",
@@ -869,7 +869,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_types"
-version = "0.2.5"
+version = "0.3.0"
 dependencies = [
  "clap",
  "serde",
