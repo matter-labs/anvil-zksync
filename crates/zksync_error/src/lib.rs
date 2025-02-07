@@ -4,20 +4,25 @@
 
 #![allow(unused)]
 pub mod documentation;
-pub mod error;
-pub mod identifier;
-pub mod kind;
+pub(crate) mod error;
+pub(crate) mod identifier;
+pub use identifier::Identifier;
+pub use identifier::StructuredErrorCode;
+pub(crate) mod kind;
+pub use kind::Kind;
 pub mod packed;
 pub mod serialized;
 pub mod untyped;
 pub use crate::error::domains::ZksyncError;
 pub mod anvil_zks {
     pub use crate::error::domains::AnvilZKS as AnvilZKSError;
+    pub use crate::error::domains::AnvilZKSCode;
     pub mod env {
         pub use crate::error::definitions::AnvilZKSEnvironment as AnvilZKSEnvironmentError;
         pub use crate::error::definitions::AnvilZKSEnvironment::GenericError;
+        pub use crate::error::definitions::AnvilZKSEnvironmentCode as ErrorCode;
         #[macro_export]
-        macro_rules ! anvil_zks_env_generic_error { ($ ($ arg : tt) *) => { zksync_error :: error :: definitions :: AnvilZKSEnvironment :: GenericError { message : format ! ($ ($ arg) *) } } ; }
+        macro_rules ! anvil_zks_env_generic_error { ($ ($ arg : tt) *) => { zksync_error :: anvil_zks :: env :: AnvilZKSEnvironmentError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::anvil_zks_env_generic_error as generic_error;
         pub fn to_generic<T: std::fmt::Display>(err: T) -> AnvilZKSEnvironmentError {
             GenericError {
@@ -33,8 +38,9 @@ pub mod anvil_zks {
     pub mod gen {
         pub use crate::error::definitions::AnvilZKSGeneric as AnvilZKSGenericError;
         pub use crate::error::definitions::AnvilZKSGeneric::GenericError;
+        pub use crate::error::definitions::AnvilZKSGenericCode as ErrorCode;
         #[macro_export]
-        macro_rules ! anvil_zks_gen_generic_error { ($ ($ arg : tt) *) => { zksync_error :: error :: definitions :: AnvilZKSGeneric :: GenericError { message : format ! ($ ($ arg) *) } } ; }
+        macro_rules ! anvil_zks_gen_generic_error { ($ ($ arg : tt) *) => { zksync_error :: anvil_zks :: gen :: AnvilZKSGenericError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::anvil_zks_gen_generic_error as generic_error;
         pub fn to_generic<T: std::fmt::Display>(err: T) -> AnvilZKSGenericError {
             GenericError {
@@ -50,11 +56,13 @@ pub mod anvil_zks {
 }
 pub mod compiler {
     pub use crate::error::domains::Compiler as CompilerError;
+    pub use crate::error::domains::CompilerCode;
     pub mod llvm_evm {
+        pub use crate::error::definitions::LLVM_EVMCode as ErrorCode;
         pub use crate::error::definitions::LLVM_EVM as LLVM_EVMError;
         pub use crate::error::definitions::LLVM_EVM::GenericError;
         #[macro_export]
-        macro_rules ! compiler_llvm_evm_generic_error { ($ ($ arg : tt) *) => { zksync_error :: error :: definitions :: LLVM_EVM :: GenericError { message : format ! ($ ($ arg) *) } } ; }
+        macro_rules ! compiler_llvm_evm_generic_error { ($ ($ arg : tt) *) => { zksync_error :: compiler :: llvm_evm :: LLVM_EVMError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::compiler_llvm_evm_generic_error as generic_error;
         pub fn to_generic<T: std::fmt::Display>(err: T) -> LLVM_EVMError {
             GenericError {
@@ -70,8 +78,9 @@ pub mod compiler {
     pub mod llvm_era {
         pub use crate::error::definitions::LLVM_Era as LLVM_EraError;
         pub use crate::error::definitions::LLVM_Era::GenericError;
+        pub use crate::error::definitions::LLVM_EraCode as ErrorCode;
         #[macro_export]
-        macro_rules ! compiler_llvm_era_generic_error { ($ ($ arg : tt) *) => { zksync_error :: error :: definitions :: LLVM_Era :: GenericError { message : format ! ($ ($ arg) *) } } ; }
+        macro_rules ! compiler_llvm_era_generic_error { ($ ($ arg : tt) *) => { zksync_error :: compiler :: llvm_era :: LLVM_EraError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::compiler_llvm_era_generic_error as generic_error;
         pub fn to_generic<T: std::fmt::Display>(err: T) -> LLVM_EraError {
             GenericError {
@@ -87,8 +96,9 @@ pub mod compiler {
     pub mod solc {
         pub use crate::error::definitions::Solc as SolcError;
         pub use crate::error::definitions::Solc::GenericError;
+        pub use crate::error::definitions::SolcCode as ErrorCode;
         #[macro_export]
-        macro_rules ! compiler_solc_generic_error { ($ ($ arg : tt) *) => { zksync_error :: error :: definitions :: Solc :: GenericError { message : format ! ($ ($ arg) *) } } ; }
+        macro_rules ! compiler_solc_generic_error { ($ ($ arg : tt) *) => { zksync_error :: compiler :: solc :: SolcError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::compiler_solc_generic_error as generic_error;
         pub fn to_generic<T: std::fmt::Display>(err: T) -> SolcError {
             GenericError {
@@ -104,8 +114,9 @@ pub mod compiler {
     pub mod solc_fork {
         pub use crate::error::definitions::SolcFork as SolcForkError;
         pub use crate::error::definitions::SolcFork::GenericError;
+        pub use crate::error::definitions::SolcForkCode as ErrorCode;
         #[macro_export]
-        macro_rules ! compiler_solc_fork_generic_error { ($ ($ arg : tt) *) => { zksync_error :: error :: definitions :: SolcFork :: GenericError { message : format ! ($ ($ arg) *) } } ; }
+        macro_rules ! compiler_solc_fork_generic_error { ($ ($ arg : tt) *) => { zksync_error :: compiler :: solc_fork :: SolcForkError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::compiler_solc_fork_generic_error as generic_error;
         pub fn to_generic<T: std::fmt::Display>(err: T) -> SolcForkError {
             GenericError {
@@ -121,8 +132,9 @@ pub mod compiler {
     pub mod zksolc {
         pub use crate::error::definitions::Zksolc as ZksolcError;
         pub use crate::error::definitions::Zksolc::GenericError;
+        pub use crate::error::definitions::ZksolcCode as ErrorCode;
         #[macro_export]
-        macro_rules ! compiler_zksolc_generic_error { ($ ($ arg : tt) *) => { zksync_error :: error :: definitions :: Zksolc :: GenericError { message : format ! ($ ($ arg) *) } } ; }
+        macro_rules ! compiler_zksolc_generic_error { ($ ($ arg : tt) *) => { zksync_error :: compiler :: zksolc :: ZksolcError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::compiler_zksolc_generic_error as generic_error;
         pub fn to_generic<T: std::fmt::Display>(err: T) -> ZksolcError {
             GenericError {
@@ -138,8 +150,9 @@ pub mod compiler {
     pub mod zkvyper {
         pub use crate::error::definitions::Zkvyper as ZkvyperError;
         pub use crate::error::definitions::Zkvyper::GenericError;
+        pub use crate::error::definitions::ZkvyperCode as ErrorCode;
         #[macro_export]
-        macro_rules ! compiler_zkvyper_generic_error { ($ ($ arg : tt) *) => { zksync_error :: error :: definitions :: Zkvyper :: GenericError { message : format ! ($ ($ arg) *) } } ; }
+        macro_rules ! compiler_zkvyper_generic_error { ($ ($ arg : tt) *) => { zksync_error :: compiler :: zkvyper :: ZkvyperError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::compiler_zkvyper_generic_error as generic_error;
         pub fn to_generic<T: std::fmt::Display>(err: T) -> ZkvyperError {
             GenericError {
@@ -155,11 +168,13 @@ pub mod compiler {
 }
 pub mod core {
     pub use crate::error::domains::Core as CoreError;
+    pub use crate::error::domains::CoreCode;
     pub mod api {
+        pub use crate::error::definitions::APICode as ErrorCode;
         pub use crate::error::definitions::API as APIError;
         pub use crate::error::definitions::API::GenericError;
         #[macro_export]
-        macro_rules ! core_api_generic_error { ($ ($ arg : tt) *) => { zksync_error :: error :: definitions :: API :: GenericError { message : format ! ($ ($ arg) *) } } ; }
+        macro_rules ! core_api_generic_error { ($ ($ arg : tt) *) => { zksync_error :: core :: api :: APIError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::core_api_generic_error as generic_error;
         pub fn to_generic<T: std::fmt::Display>(err: T) -> APIError {
             GenericError {
@@ -175,8 +190,9 @@ pub mod core {
     pub mod eravm {
         pub use crate::error::definitions::EraVM as EraVMError;
         pub use crate::error::definitions::EraVM::GenericError;
+        pub use crate::error::definitions::EraVMCode as ErrorCode;
         #[macro_export]
-        macro_rules ! core_eravm_generic_error { ($ ($ arg : tt) *) => { zksync_error :: error :: definitions :: EraVM :: GenericError { message : format ! ($ ($ arg) *) } } ; }
+        macro_rules ! core_eravm_generic_error { ($ ($ arg : tt) *) => { zksync_error :: core :: eravm :: EraVMError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::core_eravm_generic_error as generic_error;
         pub fn to_generic<T: std::fmt::Display>(err: T) -> EraVMError {
             GenericError {
@@ -192,8 +208,9 @@ pub mod core {
     pub mod exec {
         pub use crate::error::definitions::ExecutionPlatform as ExecutionPlatformError;
         pub use crate::error::definitions::ExecutionPlatform::GenericError;
+        pub use crate::error::definitions::ExecutionPlatformCode as ErrorCode;
         #[macro_export]
-        macro_rules ! core_exec_generic_error { ($ ($ arg : tt) *) => { zksync_error :: error :: definitions :: ExecutionPlatform :: GenericError { message : format ! ($ ($ arg) *) } } ; }
+        macro_rules ! core_exec_generic_error { ($ ($ arg : tt) *) => { zksync_error :: core :: exec :: ExecutionPlatformError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::core_exec_generic_error as generic_error;
         pub fn to_generic<T: std::fmt::Display>(err: T) -> ExecutionPlatformError {
             GenericError {
@@ -210,8 +227,9 @@ pub mod core {
         pub use crate::error::definitions::Sequencer as SequencerError;
         pub use crate::error::definitions::Sequencer::GenericError;
         pub use crate::error::definitions::Sequencer::GenericSequencerError;
+        pub use crate::error::definitions::SequencerCode as ErrorCode;
         #[macro_export]
-        macro_rules ! core_seq_generic_error { ($ ($ arg : tt) *) => { zksync_error :: error :: definitions :: Sequencer :: GenericError { message : format ! ($ ($ arg) *) } } ; }
+        macro_rules ! core_seq_generic_error { ($ ($ arg : tt) *) => { zksync_error :: core :: seq :: SequencerError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::core_seq_generic_error as generic_error;
         pub fn to_generic<T: std::fmt::Display>(err: T) -> SequencerError {
             GenericError {
@@ -227,11 +245,13 @@ pub mod core {
 }
 pub mod foundry {
     pub use crate::error::domains::Foundry as FoundryError;
+    pub use crate::error::domains::FoundryCode;
     pub mod upstream {
         pub use crate::error::definitions::FoundryUpstream as FoundryUpstreamError;
         pub use crate::error::definitions::FoundryUpstream::GenericError;
+        pub use crate::error::definitions::FoundryUpstreamCode as ErrorCode;
         #[macro_export]
-        macro_rules ! foundry_upstream_generic_error { ($ ($ arg : tt) *) => { zksync_error :: error :: definitions :: FoundryUpstream :: GenericError { message : format ! ($ ($ arg) *) } } ; }
+        macro_rules ! foundry_upstream_generic_error { ($ ($ arg : tt) *) => { zksync_error :: foundry :: upstream :: FoundryUpstreamError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::foundry_upstream_generic_error as generic_error;
         pub fn to_generic<T: std::fmt::Display>(err: T) -> FoundryUpstreamError {
             GenericError {
@@ -247,8 +267,9 @@ pub mod foundry {
     pub mod zksync {
         pub use crate::error::definitions::FoundryZksync as FoundryZksyncError;
         pub use crate::error::definitions::FoundryZksync::GenericError;
+        pub use crate::error::definitions::FoundryZksyncCode as ErrorCode;
         #[macro_export]
-        macro_rules ! foundry_zksync_generic_error { ($ ($ arg : tt) *) => { zksync_error :: error :: definitions :: FoundryZksync :: GenericError { message : format ! ($ ($ arg) *) } } ; }
+        macro_rules ! foundry_zksync_generic_error { ($ ($ arg : tt) *) => { zksync_error :: foundry :: zksync :: FoundryZksyncError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::foundry_zksync_generic_error as generic_error;
         pub fn to_generic<T: std::fmt::Display>(err: T) -> FoundryZksyncError {
             GenericError {
@@ -264,11 +285,13 @@ pub mod foundry {
 }
 pub mod hardhat {
     pub use crate::error::domains::Hardhat as HardhatError;
+    pub use crate::error::domains::HardhatCode;
     pub mod upstream {
         pub use crate::error::definitions::HardhatUpstream as HardhatUpstreamError;
         pub use crate::error::definitions::HardhatUpstream::GenericError;
+        pub use crate::error::definitions::HardhatUpstreamCode as ErrorCode;
         #[macro_export]
-        macro_rules ! hardhat_upstream_generic_error { ($ ($ arg : tt) *) => { zksync_error :: error :: definitions :: HardhatUpstream :: GenericError { message : format ! ($ ($ arg) *) } } ; }
+        macro_rules ! hardhat_upstream_generic_error { ($ ($ arg : tt) *) => { zksync_error :: hardhat :: upstream :: HardhatUpstreamError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::hardhat_upstream_generic_error as generic_error;
         pub fn to_generic<T: std::fmt::Display>(err: T) -> HardhatUpstreamError {
             GenericError {
@@ -284,8 +307,9 @@ pub mod hardhat {
     pub mod zksync {
         pub use crate::error::definitions::HardhatZksync as HardhatZksyncError;
         pub use crate::error::definitions::HardhatZksync::GenericError;
+        pub use crate::error::definitions::HardhatZksyncCode as ErrorCode;
         #[macro_export]
-        macro_rules ! hardhat_zksync_generic_error { ($ ($ arg : tt) *) => { zksync_error :: error :: definitions :: HardhatZksync :: GenericError { message : format ! ($ ($ arg) *) } } ; }
+        macro_rules ! hardhat_zksync_generic_error { ($ ($ arg : tt) *) => { zksync_error :: hardhat :: zksync :: HardhatZksyncError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::hardhat_zksync_generic_error as generic_error;
         pub fn to_generic<T: std::fmt::Display>(err: T) -> HardhatZksyncError {
             GenericError {
