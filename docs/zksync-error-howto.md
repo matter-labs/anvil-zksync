@@ -303,17 +303,13 @@ Suppose you want to throw an error from a component `AnvilEnvironment` of domain
    for example:
    
    
-   ```rust
-   //replace the first line with the second
-       let log_file = File::create(&config.log_file_path)?;
-       // Instead of returning `std::io::Error` you now return `anvil::gen::GenericError` containing it
-       let log_file = File::create(&config.log_file_path).map_err(to_generic)?;
-   ```
-   
-   - 
-   
-   ```rust
-   //This is equivalent to `return anyhow!(error)`
+```rust
+//replace the first line with the second
+    let log_file = File::create(&config.log_file_path)?;
+    // Instead of returning `std::io::Error` you now return `anvil::gen::GenericError` containing it
+    let log_file = File::create(&config.log_file_path).map_err(to_generic)?;
+
+//This is equivalent to `return anyhow!(error)`
 anyhow::bail!(
         "fork is using unsupported fee parameters: {:?}",
         fork_client.details.fee_params
@@ -331,7 +327,8 @@ return Err(generic_error!(
     "fork is using unsupported fee parameters: {:?}",
     fork_client.details.fee_params
 ))
-  ```
+```
+  
 2. Introduce more errors, corresponding to different failure situations.
 
    Describe the new error in the JSON file, and replace it on the throw site.
@@ -376,3 +373,5 @@ If a function may return errors that are spread among components (e.g. either
 type `AnvilError` from it. 
 Such function are rare and require more manual work, but the algorithm is the
 same -- just use `to_domain` helper along with `generic_error!` macro.
+
+
