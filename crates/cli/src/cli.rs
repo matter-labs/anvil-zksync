@@ -6,7 +6,7 @@ use anvil_zksync_config::constants::{
 use anvil_zksync_config::types::{
     AccountGenerator, CacheConfig, CacheType, Genesis, SystemContractsOptions,
 };
-use anvil_zksync_config::TestNodeConfig;
+use anvil_zksync_config::{L1Config, TestNodeConfig};
 use anvil_zksync_core::node::fork::ForkConfig;
 use anvil_zksync_core::{
     node::{InMemoryNode, VersionedState},
@@ -316,9 +316,13 @@ pub struct Cli {
     #[arg(long, default_value = "fifo")]
     pub order: TransactionOrder,
 
-    #[arg(long, help_heading = "L1")]
-    /// Port the spawned L1 anvil node will listen on
-    pub l1_anvil_port: Option<u16>,
+    /// Enable L1 support.
+    #[arg(long, help_heading = "UNSTABLE - L1")]
+    pub with_l1: bool,
+
+    /// Port the spawned L1 anvil node will listen on.
+    #[arg(long, requires = "with_l1", help_heading = "UNSTABLE - L1")]
+    pub l1_port: Option<u16>,
 }
 
 #[derive(Debug, Subcommand, Clone)]
@@ -508,7 +512,9 @@ impl Cli {
             .with_dump_state(self.dump_state)
             .with_preserve_historical_states(self.preserve_historical_states)
             .with_load_state(self.load_state)
-            .with_l1_anvil_port(self.l1_anvil_port);
+            .with_l1_config(self.with_l1.then(|| L1Config {
+                port: self.l1_port.unwrap_or(8012),
+            }));
 
         if self.emulate_evm && self.dev_system_contracts != Some(SystemContractsOptions::Local) {
             return Err(eyre::eyre!(

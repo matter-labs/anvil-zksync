@@ -146,7 +146,7 @@ impl L1AnvilEnv {
                     break;
                 }
                 Err(err) if err.is_transport_error() => {
-                    tracing::info!(?err, "L1 Anvil is not up yet; sleeping");
+                    tracing::debug!(?err, "L1 Anvil is not up yet; sleeping");
                     tokio::time::sleep(Duration::from_millis(100)).await;
                 }
                 Err(err) => return Err(err.into()),

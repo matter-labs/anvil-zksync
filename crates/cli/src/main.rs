@@ -190,9 +190,9 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let mut node_service_tasks: Vec<Pin<Box<dyn Future<Output = anyhow::Result<()>>>>> = Vec::new();
-    let l1_sidecar = match config.l1_anvil_port {
-        Some(l1_anvil_port) => {
-            let (l1_sidecar, l1_sidecar_runner) = L1Sidecar::builtin(l1_anvil_port).await?;
+    let l1_sidecar = match config.l1_config.as_ref() {
+        Some(l1_config) => {
+            let (l1_sidecar, l1_sidecar_runner) = L1Sidecar::builtin(l1_config.port).await?;
             node_service_tasks.push(Box::pin(l1_sidecar_runner.run()));
             l1_sidecar
         }
