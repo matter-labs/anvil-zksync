@@ -650,11 +650,11 @@ impl BlockchainState {
         };
         let latest_timestamp = latest_block.timestamp.as_u64();
         tracing::info!(
-            "latest block after loading state: number={}, hash={}, batch_number={}, timestamp={}",
-            latest_number,
-            latest_hash,
-            latest_batch_number,
-            latest_timestamp
+            number = latest_number,
+            hash = %latest_hash,
+            batch_number = latest_batch_number,
+            timestamp = latest_timestamp,
+            "latest block after loading state"
         );
         self.current_block = L2BlockNumber(latest_number as u32);
         self.current_block_hash = latest_hash;

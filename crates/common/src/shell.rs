@@ -5,6 +5,7 @@
 
 use anstream::{AutoStream, ColorChoice as AnstreamColorChoice};
 use anstyle::{AnsiColor, Effects, Reset, Style};
+use std::fmt::Arguments;
 use std::io::{self, IsTerminal, Write};
 use std::sync::{Mutex, OnceLock};
 
@@ -72,63 +73,71 @@ impl Shell {
     }
 
     /// Print a string to stdout.
-    pub fn print_out(&mut self, msg: &str) -> io::Result<()> {
+    pub fn print_out(&mut self, args: Arguments) -> io::Result<()> {
         if self.output_mode == OutputMode::Quiet {
             return Ok(());
         }
-        write!(self.stdout, "{}", msg)?;
+
+        self.stdout.write_fmt(args)?;
         self.stdout.flush()
     }
 
     /// Print a line (with a newline) to stdout.
-    pub fn println_out(&mut self, msg: &str) -> io::Result<()> {
+    pub fn println_out(&mut self, args: Arguments) -> io::Result<()> {
         if self.output_mode == OutputMode::Quiet {
             return Ok(());
         }
-        writeln!(self.stdout, "{}", msg)?;
+
+        self.stdout.write_fmt(args)?;
+        writeln!(self.stdout)?;
         self.stdout.flush()
     }
 
     /// Print a string to stderr.
-    pub fn print_err(&mut self, msg: &str) -> io::Result<()> {
+    pub fn print_err(&mut self, args: Arguments) -> io::Result<()> {
         if self.output_mode == OutputMode::Quiet {
             return Ok(());
         }
-        write!(self.stderr, "{}", msg)?;
+        self.stderr.write_fmt(args)?;
         self.stderr.flush()
     }
 
     /// Print a line (with a newline) to stderr.
-    pub fn println_err(&mut self, msg: &str) -> io::Result<()> {
+    pub fn println_err(&mut self, args: Arguments) -> io::Result<()> {
         if self.output_mode == OutputMode::Quiet {
             return Ok(());
         }
-        writeln!(self.stderr, "{}", msg)?;
+        self.stderr.write_fmt(args)?;
+        writeln!(self.stderr)?;
         self.stderr.flush()
     }
 
     /// Print a warning message.
     ///
     /// If colors are enabled, the “Warning:” prefix is printed in yellow.
-    pub fn warn(&mut self, msg: &str) -> io::Result<()> {
-        let prefix = if self.should_color() {
-            format!("{}Warning:{} ", WARN, Reset)
+    pub fn warn(&mut self, args: Arguments) -> io::Result<()> {
+        if self.should_color() {
+            write!(self.stderr, "{}Warning:{} ", WARN, Reset)?;
         } else {
-            "Warning: ".to_string()
-        };
-        self.println_err(&format!("{}{}", prefix, msg))
+            write!(self.stderr, "Warning: ")?;
+        }
+        self.stderr.write_fmt(args)?;
+        writeln!(self.stderr)?;
+        self.stderr.flush()
     }
 
     /// Print an error message.
     ///
     /// If colors are enabled, the “Error:” prefix is printed in red.
-    pub fn error(&mut self, msg: &str) -> io::Result<()> {
-        let prefix = if self.should_color() {
-            format!("{}Error:{} ", ERROR, Reset)
+    pub fn error(&mut self, args: Arguments) -> io::Result<()> {
+        if self.should_color() {
+            write!(self.stderr, "{}Error:{} ", ERROR, Reset)?;
         } else {
-            "Error: ".to_string()
-        };
-        self.println_err(&format!("{}{}", prefix, msg))
+            write!(self.stderr, "Error: ")?;
+        }
+        self.stderr.write_fmt(args)?;
+        writeln!(self.stderr)?;
+        self.stderr.flush()
     }
 
     fn should_color(&self) -> bool {
@@ -179,8 +188,7 @@ pub fn set_shell(shell: Shell) {
 #[macro_export]
 macro_rules! sh_print {
     ($($arg:tt)*) => {{
-        let msg = format!($($arg)*);
-        $crate::shell::get_shell().print_out(&msg)
+        $crate::shell::get_shell().print_out(format_args!($($arg)*))
             .unwrap_or_else(|e| eprintln!("Error writing output: {}", e));
     }};
 }
@@ -189,8 +197,7 @@ macro_rules! sh_print {
 #[macro_export]
 macro_rules! sh_println {
     ($($arg:tt)*) => {{
-        let msg = format!($($arg)*);
-        $crate::shell::get_shell().println_out(&msg)
+        $crate::shell::get_shell().println_out(format_args!($($arg)*))
             .unwrap_or_else(|e| eprintln!("Error writing output: {}", e));
     }};
 }
@@ -199,8 +206,7 @@ macro_rules! sh_println {
 #[macro_export]
 macro_rules! sh_eprint {
     ($($arg:tt)*) => {{
-        let msg = format!($($arg)*);
-        $crate::shell::get_shell().print_err(&msg)
+        $crate::shell::get_shell().print_err(format_args!($($arg)*))
             .unwrap_or_else(|e| eprintln!("Error writing stderr: {}", e));
     }};
 }
@@ -209,8 +215,7 @@ macro_rules! sh_eprint {
 #[macro_export]
 macro_rules! sh_eprintln {
     ($($arg:tt)*) => {{
-        let msg = format!($($arg)*);
-        $crate::shell::get_shell().println_err(&msg)
+        $crate::shell::get_shell().println_err(format_args!($($arg)*))
             .unwrap_or_else(|e| eprintln!("Error writing stderr: {}", e));
     }};
 }
@@ -224,8 +229,7 @@ macro_rules! sh_eprintln {
 #[macro_export]
 macro_rules! sh_warn {
     ($($arg:tt)*) => {{
-        let msg = format!($($arg)*);
-        $crate::shell::get_shell().warn(&msg)
+        $crate::shell::get_shell().warn(format_args!($($arg)*))
             .unwrap_or_else(|e| eprintln!("Error writing warning: {}", e));
     }};
 }
@@ -239,8 +243,7 @@ macro_rules! sh_warn {
 #[macro_export]
 macro_rules! sh_err {
     ($($arg:tt)*) => {{
-        let msg = format!($($arg)*);
-        $crate::shell::get_shell().error(&msg)
+        $crate::shell::get_shell().error(format_args!($($arg)*))
             .unwrap_or_else(|e| eprintln!("Error writing error: {}", e));
     }};
 }

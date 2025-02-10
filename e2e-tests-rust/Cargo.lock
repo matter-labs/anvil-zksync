@@ -807,7 +807,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_common"
-version = "0.2.5"
+version = "0.3.0"
 dependencies = [
  "anstream",
  "anstyle",

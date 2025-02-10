@@ -213,14 +213,10 @@ impl Default for TestNodeConfig {
 
 impl TestNodeConfig {
     pub fn print(&self, fork_details: Option<&ForkPrintInfo>) {
-        if self.config_out.is_some() {
-            let config_out = self.config_out.as_deref().unwrap();
-            to_writer(
-                &File::create(config_out)
-                    .expect("Unable to create anvil-zksync config description file"),
-                &self.as_json(fork_details),
-            )
-            .expect("Failed writing json");
+        if let Some(config_out) = self.config_out.as_deref() {
+            let file = File::create(config_out)
+                .expect("Unable to create anvil-zksync config description file");
+            to_writer(&file, &self.as_json(fork_details)).expect("Failed writing json");
         }
 
         if self.silent || !self.show_node_config {
@@ -229,155 +225,168 @@ impl TestNodeConfig {
 
         let color = CustomColor::new(13, 71, 198);
 
-        sh_println!("{}", BANNER.custom_color(color));
-
-        sh_println!("Version:        {}", VERSION_MESSAGE.green());
+        // Banner, version and repository section.
         sh_println!(
-            "Repository:     {}",
+            r#"
+{} 
+Version:        {}
+Repository:     {}
+
+"#,
+            BANNER.custom_color(color),
+            VERSION_MESSAGE.green(),
             "https://github.com/matter-labs/anvil-zksync".green()
         );
-        sh_println!("\n");
 
-        sh_println!("Rich Accounts");
-        sh_println!("========================");
+        // Rich Accounts.
         let balance = format_eth(self.genesis_balance);
+        let mut rich_accounts = String::new();
         for (idx, account) in self.genesis_accounts.iter().enumerate() {
-            sh_println!("({}) {} ({balance})", idx, account.address());
+            rich_accounts.push_str(&format!("({}) {} ({})\n", idx, account.address(), balance));
         }
-        sh_println!("\n");
+        sh_println!(
+            r#"
+Rich Accounts
+========================
+{}
+"#,
+            rich_accounts
+        );
 
-        sh_println!("Private Keys");
-        sh_println!("========================");
+        // Private Keys.
+        let mut private_keys = String::new();
         for (idx, account) in self.genesis_accounts.iter().enumerate() {
             let private_key = hex::encode(account.credential().to_bytes());
-            sh_println!("({}) 0x{}", idx, private_key);
+            private_keys.push_str(&format!("({}) 0x{}\n", idx, private_key));
         }
-        sh_println!("\n");
+        sh_println!(
+            r#"
+Private Keys
+========================
+{}
+"#,
+            private_keys
+        );
 
+        // Wallet configuration.
         if let Some(ref generator) = self.account_generator {
-            sh_println!("Wallet");
-            sh_println!("========================");
-            sh_println!("Mnemonic:            {}", generator.get_phrase().green());
             sh_println!(
-                "Derivation path:     {}",
+                r#"
+Wallet
+========================
+Mnemonic:            {}
+Derivation path:     {}
+"#,
+                generator.get_phrase().green(),
                 generator.get_derivation_path().green()
             );
         }
-        sh_println!("\n");
 
+        // Either print Fork Details (if provided) or the Network Configuration.
         if let Some(fd) = fork_details {
-            sh_println!("Fork Details");
-            sh_println!("========================");
-            sh_println!("Network RPC:               {}", fd.network_rpc.green());
             sh_println!(
-                "Chain ID:                  {}",
-                self.get_chain_id().to_string().green()
-            );
-            sh_println!("L1 Batch #:                {}", fd.l1_block.green());
-            sh_println!("L2 Block #:                {}", fd.l2_block.green());
-            sh_println!(
-                "Block Timestamp:           {}",
-                fd.block_timestamp.to_string().green()
-            );
-            sh_println!(
-                "Fork Block Hash:           {}",
-                format!("{:#}", fd.fork_block_hash).green()
-            );
-            sh_println!(
-                "Compute Overhead Part:     {}",
+                r#"
+Fork Details
+========================
+Network RPC:               {}
+Chain ID:                  {}
+L1 Batch #:                {}
+L2 Block #:                {}
+Block Timestamp:           {}
+Fork Block Hash:           {}
+Compute Overhead Part:     {}
+Pubdata Overhead Part:     {}
+Batch Overhead L1 Gas:     {}
+Max Gas Per Batch:         {}
+Max Pubdata Per Batch:     {}
+"#,
+                fd.network_rpc.green(),
+                self.get_chain_id().to_string().green(),
+                fd.l1_block.green(),
+                fd.l2_block.green(),
+                fd.block_timestamp.to_string().green(),
+                format!("{:#}", fd.fork_block_hash).green(),
                 fd.fee_model_config_v2
                     .compute_overhead_part
                     .to_string()
-                    .green()
-            );
-            sh_println!(
-                "Pubdata Overhead Part:     {}",
+                    .green(),
                 fd.fee_model_config_v2
                     .pubdata_overhead_part
                     .to_string()
-                    .green()
-            );
-            sh_println!(
-                "Batch Overhead L1 Gas:     {}",
+                    .green(),
                 fd.fee_model_config_v2
                     .batch_overhead_l1_gas
                     .to_string()
-                    .green()
-            );
-            sh_println!(
-                "Max Gas Per Batch:         {}",
-                fd.fee_model_config_v2.max_gas_per_batch.to_string().green()
-            );
-            sh_println!(
-                "Max Pubdata Per Batch:     {}",
+                    .green(),
+                fd.fee_model_config_v2.max_gas_per_batch.to_string().green(),
                 fd.fee_model_config_v2
                     .max_pubdata_per_batch
                     .to_string()
                     .green()
             );
-            sh_println!("\n");
         } else {
-            sh_println!("Network Configuration");
-            sh_println!("========================");
             sh_println!(
-                "Chain ID: {}",
+                r#"
+Network Configuration
+========================
+Chain ID: {}
+"#,
                 self.chain_id
                     .unwrap_or(TEST_NODE_NETWORK_ID)
                     .to_string()
                     .green()
             );
-            sh_println!("\n");
         }
-        sh_println!("Gas Configuration");
-        sh_println!("========================");
+
+        // Gas Configuration.
         sh_println!(
-            "L1 Gas Price (gwei):               {}",
-            format_gwei(self.get_l1_gas_price().into()).green()
-        );
-        sh_println!(
-            "L2 Gas Price (gwei):               {}",
-            format_gwei(self.get_l2_gas_price().into()).green()
-        );
-        sh_println!(
-            "L1 Pubdata Price (gwei):           {}",
-            format_gwei(self.get_l1_pubdata_price().into()).green()
-        );
-        sh_println!(
-            "Estimated Gas Price Scale Factor:  {}",
-            self.get_price_scale().to_string().green()
-        );
-        sh_println!(
-            "Estimated Gas Limit Scale Factor:  {}",
+            r#"
+Gas Configuration
+========================
+L1 Gas Price (gwei):               {}
+L2 Gas Price (gwei):               {}
+L1 Pubdata Price (gwei):           {}
+Estimated Gas Price Scale Factor:  {}
+Estimated Gas Limit Scale Factor:  {}
+"#,
+            format_gwei(self.get_l1_gas_price().into()).green(),
+            format_gwei(self.get_l2_gas_price().into()).green(),
+            format_gwei(self.get_l1_pubdata_price().into()).green(),
+            self.get_price_scale().to_string().green(),
             self.get_gas_limit_scale().to_string().green()
         );
-        sh_println!("\n");
 
-        sh_println!("Genesis Timestamp");
-        sh_println!("========================");
-        sh_println!("{}", self.get_genesis_timestamp().to_string().green());
-        sh_println!("\n");
-
-        sh_println!("Node Configuration");
-        sh_println!("========================");
-        sh_println!("Port:               {}", self.port);
+        // Genesis Timestamp.
         sh_println!(
-            "EVM Emulator:       {}",
+            r#"
+Genesis Timestamp
+========================
+{}
+"#,
+            self.get_genesis_timestamp().to_string().green()
+        );
+
+        // Node Configuration.
+        sh_println!(
+            r#"
+Node Configuration
+========================
+Port:               {}
+EVM Emulator:       {}
+Health Check Endpoint: {}
+ZK OS:              {}
+"#,
+            self.port,
             if self.use_evm_emulator {
                 "Enabled".green()
             } else {
                 "Disabled".red()
-            }
-        );
-        sh_println!(
-            "Health Check Endpoint: {}",
+            },
             if self.health_check_endpoint {
                 "Enabled".green()
             } else {
                 "Disabled".red()
-            }
-        );
-        sh_println!(
-            "ZK OS:              {}",
+            },
             if self.use_zkos {
                 "Enabled".green()
             } else {
@@ -385,17 +394,18 @@ impl TestNodeConfig {
             }
         );
 
-        sh_println!("\n");
-        sh_println!("========================================");
+        // Listening addresses.
+        let mut listening = String::new();
+        listening.push_str("\n========================================\n");
         for host in &self.host {
-            sh_println!(
-                "  Listening on {}:{}",
+            listening.push_str(&format!(
+                "  Listening on {}:{}\n",
                 host.to_string().green(),
                 self.port.to_string().green()
-            );
+            ));
         }
-        sh_println!("========================================");
-        sh_println!("\n");
+        listening.push_str("========================================\n");
+        sh_println!("{}", listening);
     }
 
     fn as_json(&self, fork: Option<&ForkPrintInfo>) -> Value {

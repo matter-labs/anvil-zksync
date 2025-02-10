@@ -826,15 +826,13 @@ pub fn print_transaction_summary(
     tx_result: &VmExecutionResultAndLogs,
     status: &str,
 ) {
-    // Calculate used and refunded gas
+    // Calculate used and refunded gas.
     let used_gas = tx.gas_limit() - tx_result.refunds.gas_refunded;
     let paid_in_eth = calculate_eth_cost(l2_gas_price, used_gas.as_u64());
-
     let refunded_gas = tx_result.refunds.gas_refunded;
-
-    // Calculate refunded gas in ETH
     let refunded_in_eth = calculate_eth_cost(l2_gas_price, refunded_gas);
 
+    // Select an emoji based on the status.
     let emoji = match status {
         "SUCCESS" => "✅",
         "FAILED" => "❌",
@@ -842,20 +840,26 @@ pub fn print_transaction_summary(
         _ => "⚠️",
     };
 
-    sh_println!("\n{}  [{}] Hash: {:?}", emoji, status, tx.hash());
-    sh_println!("Initiator: {:?}", tx.initiator_account());
-    sh_println!("Payer: {:?}", tx.payer());
     sh_println!(
-        "Gas Limit: {} | Used: {} | Refunded: {}",
-        to_human_size(tx.gas_limit()),
-        to_human_size(used_gas),
-        to_human_size(tx_result.refunds.gas_refunded.into())
+        r#"
+{emoji} [{status}] Hash: {tx_hash:?}
+Initiator: {initiator:?}
+Payer: {payer:?}
+Gas Limit: {gas_limit} | Used: {used} | Refunded: {refunded}
+Paid: {paid:.10} ETH ({used_gas} gas * {l2_gas_price_fmt})
+Refunded: {refunded_eth:.10} ETH
+"#,
+        emoji = emoji,
+        status = status,
+        tx_hash = tx.hash(),
+        initiator = tx.initiator_account(),
+        payer = tx.payer(),
+        gas_limit = to_human_size(tx.gas_limit()),
+        used = to_human_size(used_gas),
+        refunded = to_human_size(tx_result.refunds.gas_refunded.into()),
+        paid = paid_in_eth,
+        used_gas = used_gas,
+        l2_gas_price_fmt = format_gwei(l2_gas_price.into()),
+        refunded_eth = refunded_in_eth,
     );
-    sh_println!(
-        "Paid: {:.10} ETH ({} gas * {})",
-        paid_in_eth,
-        used_gas,
-        format_gwei(l2_gas_price.into())
-    );
-    sh_println!("Refunded: {:.10} ETH", refunded_in_eth);
 }

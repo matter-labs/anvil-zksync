@@ -284,10 +284,10 @@ impl InMemoryNode {
             .ok_or_else(|| anyhow!("code must be 0x-prefixed"))?;
         let bytecode = hex::decode(code_slice)?;
         zksync_types::bytecode::validate_bytecode(&bytecode).context("Invalid bytecode")?;
-        tracing::debug!(
-            "set code: address={:?}, bytecode_hash={:?}",
-            address,
-            BytecodeHash::for_bytecode(&bytecode).value()
+        tracing::info!(
+            ?address,
+            bytecode_hash = ?BytecodeHash::for_bytecode(&bytecode).value(),
+            "set code"
         );
         self.node_handle.set_code_sync(address, bytecode).await?;
         Ok(())
