@@ -23,7 +23,7 @@ use crate::system_contracts::SystemContracts;
 use crate::trace::decode::CallTraceDecoderBuilder;
 use crate::utils::create_debug_output;
 use crate::{delegate_vm, formatter, utils};
-use anvil_zksync_common::{sh_eprintln, sh_err, sh_println};
+use anvil_zksync_common::{sh_eprintln, sh_err, sh_println, sh_println_verbose};
 use anvil_zksync_config::constants::{
     DEFAULT_DISK_CACHE_DIR, LEGACY_RICH_WALLETS, NON_FORK_FIRST_BLOCK_TIMESTAMP, RICH_WALLETS,
 };
@@ -49,7 +49,7 @@ use zksync_multivm::interface::{
 use zksync_multivm::vm_latest::Vm;
 
 use crate::trace::signatures::SignaturesIdentifier;
-use crate::trace::{build_call_trace_arena, decode_trace_arena, render_trace_arena_inner};
+use crate::trace::{decode_trace_arena, filter_call_trace_arena, render_trace_arena_inner, TraceArenaBuilder};
 use zksync_multivm::tracers::CallTracer;
 use zksync_multivm::utils::{
     adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
@@ -398,70 +398,34 @@ impl InMemoryNodeInner {
             formatter.print_vm_details(&tx_result);
         }
 
-        if self.config.get_verbosity_level() >= 2 {
-            if let Some(call_traces) = call_traces {
-                let mut builder = CallTraceDecoderBuilder::new();
-                builder = builder.with_signature_identifier(
-                    SignaturesIdentifier::new(
-                        Some(PathBuf::from(DEFAULT_DISK_CACHE_DIR)),
-                        self.config.offline,
-                    )
-                    .map_err(|err| anyhow!("Failed to create SignaturesIdentifier: {:#}", err))?,
-                );
-                let decoder = builder.build();
-                let mut arena = build_call_trace_arena(
-                    call_traces,
-                    tx_result.clone(),
-                    self.config.get_verbosity_level(),
-                );
-                tokio::task::block_in_place(|| {
-                    tokio::runtime::Handle::current().block_on(async {
-                        decode_trace_arena(&mut arena, &decoder)
-                            .await
-                            .context("Failed to decode trace arena")?;
+        if let Some(call_traces) = call_traces {
+            let mut builder = CallTraceDecoderBuilder::new();
+            builder = builder.with_signature_identifier(
+                SignaturesIdentifier::new(
+                    Some(PathBuf::from(DEFAULT_DISK_CACHE_DIR)),
+                    self.config.offline,
+                )
+                .map_err(|err| anyhow!("Failed to create SignaturesIdentifier: {:#}", err))?,
+            );
+            let decoder = builder.build();
+            let arena = TraceArenaBuilder::new(&call_traces, &tx_result).build_arena();
+            let mut filtered_arena = filter_call_trace_arena(&arena, self.config.get_verbosity_level());
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    decode_trace_arena(&mut filtered_arena, &decoder)
+                        .await
+                        .context("Failed to decode trace arena")?;
 
-                        Ok::<_, anyhow::Error>(())
-                    })
-                })?;
-                let trace_output = render_trace_arena_inner(&arena, false);
-
-                println!("Traces:\n{}", trace_output);
-            }
+                    Ok::<_, anyhow::Error>(())
+                })
+            })?;
+            let trace_output = render_trace_arena_inner(&filtered_arena, false);
+            sh_println_verbose!(2, "Traces:\n{}", trace_output);
         }
 
         if let Some(call_traces) = call_traces {
             if !self.config.disable_console_log {
                 self.console_log_handler.handle_calls_recursive(call_traces);
-            }
-
-            if self.config.show_calls != ShowCalls::None {
-                sh_println!(
-                    "[Transaction Execution] ({} calls)",
-                    call_traces[0].calls.len()
-                );
-                let num_calls = call_traces.len();
-                for (i, call) in call_traces.iter().enumerate() {
-                    let is_last_sibling = i == num_calls - 1;
-                    let mut formatter = formatter::Formatter::new();
-                    formatter.print_call(
-                        tx.initiator_account(),
-                        tx.execute.contract_address,
-                        call,
-                        is_last_sibling,
-                        self.config.show_calls,
-                        self.config.show_outputs,
-                        self.config.resolve_hashes,
-                    );
-                }
-            }
-        }
-        // Print event logs if enabled
-        if self.config.show_event_logs {
-            sh_println!("[Events] ({} events)", tx_result.logs.events.len());
-            for (i, event) in tx_result.logs.events.iter().enumerate() {
-                let is_last = i == tx_result.logs.events.len() - 1;
-                let mut formatter = formatter::Formatter::new();
-                formatter.print_event(event, self.config.resolve_hashes, is_last);
             }
         }
 

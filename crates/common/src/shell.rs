@@ -107,6 +107,16 @@ impl Shell {
         self.stderr.flush()
     }
 
+    /// Print a string to stdout if the verbosity level is at least the given level.
+    pub fn println_out_verbose(&mut self, verbosity: u8, msg: &str) -> io::Result<()> {
+        if self.verbosity >= verbosity && self.output_mode == OutputMode::Normal {
+            writeln!(self.stdout, "\n{}", msg)?;
+            self.stdout.flush()
+        } else {
+            Ok(())
+        }
+    }
+
     /// Print a warning message.
     ///
     /// If colors are enabled, the “Warning:” prefix is printed in yellow.
@@ -212,6 +222,22 @@ macro_rules! sh_eprintln {
         let msg = format!($($arg)*);
         $crate::shell::get_shell().println_err(&msg)
             .unwrap_or_else(|e| eprintln!("Error writing stderr: {}", e));
+    }};
+}
+
+/// Macro to print a formatted message to stdout if the verbosity level is at least the given level.
+/// This is useful for debugging output.
+/// Usage:
+/// ```
+/// sh_println_verbose!(2, "This is a verbose message");
+/// ```
+#[macro_export]
+macro_rules! sh_println_verbose {
+    ($verbosity:expr, $($arg:tt)*) => {{
+        let msg = format!($($arg)*);
+        $crate::shell::get_shell()
+            .println_out_verbose($verbosity, &msg)
+            .unwrap_or_else(|e| eprintln!("Error writing output: {}", e));
     }};
 }
 

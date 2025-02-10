@@ -17,9 +17,12 @@ use crate::node::state::VersionedState;
 use crate::node::{BlockSealer, BlockSealerMode, NodeExecutor, TxPool};
 use crate::observability::Observability;
 use crate::system_contracts::SystemContracts;
+use crate::trace::decode::CallTraceDecoderBuilder;
+use crate::trace::signatures::SignaturesIdentifier;
+use crate::trace::{decode_trace_arena, filter_call_trace_arena, render_trace_arena_inner, TraceArenaBuilder};
 use crate::{delegate_vm, formatter};
-use anvil_zksync_common::sh_println;
-use anvil_zksync_config::constants::{NON_FORK_FIRST_BLOCK_TIMESTAMP, TEST_NODE_NETWORK_ID};
+use anvil_zksync_common::{sh_println, sh_println_verbose};
+use anvil_zksync_config::constants::{DEFAULT_DISK_CACHE_DIR, NON_FORK_FIRST_BLOCK_TIMESTAMP, TEST_NODE_NETWORK_ID};
 use anvil_zksync_config::types::{CacheConfig, Genesis};
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_types::{LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
@@ -27,10 +30,12 @@ use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use indexmap::IndexMap;
+use anyhow::anyhow;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::io::{Read, Write};
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use zksync_contracts::BaseSystemContracts;
@@ -412,25 +417,23 @@ impl InMemoryNode {
                 .handle_calls_recursive(&call_traces);
         }
 
-        if inner.config.show_calls != ShowCalls::None {
-            sh_println!(
-                "[Transaction Execution] ({} calls)",
-                call_traces[0].calls.len()
+        if !call_traces.is_empty() {
+            let mut builder = CallTraceDecoderBuilder::new();
+            let cfg = &self.inner.read().await.config;
+            builder = builder.with_signature_identifier(
+                SignaturesIdentifier::new(
+                    Some(PathBuf::from(DEFAULT_DISK_CACHE_DIR)),
+                    cfg.offline,
+                )
+                .map_err(|err| anyhow!("Failed to create SignaturesIdentifier: {:#}", err))?,
             );
-            let num_calls = call_traces.len();
-            for (i, call) in call_traces.iter().enumerate() {
-                let is_last_sibling = i == num_calls - 1;
-                let mut formatter = formatter::Formatter::new();
-                formatter.print_call(
-                    tx.initiator_account(),
-                    tx.execute.contract_address,
-                    call,
-                    is_last_sibling,
-                    inner.config.show_calls,
-                    inner.config.show_outputs,
-                    inner.config.resolve_hashes,
-                );
-            }
+            let decoder = builder.build();
+            let arena = TraceArenaBuilder::new(&call_traces, &tx_result).build_arena();
+            let mut filtered_arena = filter_call_trace_arena(&arena, cfg.get_verbosity_level());
+            decode_trace_arena(&mut filtered_arena, &decoder).await.unwrap();
+            
+            let trace_output = render_trace_arena_inner(&filtered_arena, false);
+            sh_println_verbose!(2, "Traces:\n{}", trace_output);
         }
 
         Ok(tx_result.result)

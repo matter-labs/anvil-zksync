@@ -139,7 +139,7 @@ pub struct Cli {
     ///   - `-vvv` => level 3 (includes system calls, system event calls)
     ///   - `-vvvv` => level 4 (includes system calls, system event calls, and precompiles)
     ///   - `-vvvvv` => level 5 (includes everything)
-    #[arg(short = 'v', long = "verbosity", action = ArgAction::Count, help_heading = "Debugging Options")]
+    #[arg(short = 'v', long = "verbosity", action = ArgAction::Count, default_value = "0", help_heading = "Debugging Options")]
     pub verbosity: u8,
 
     // Gas Configuration
