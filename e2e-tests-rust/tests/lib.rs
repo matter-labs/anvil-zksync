@@ -812,7 +812,11 @@ async fn commit_batch_to_l1() -> anyhow::Result<()> {
     let l1_locked_port = LockedPort::acquire_unused().await?;
 
     let l2_provider = init_testing_provider(|node| {
-        node.args(["--l1-anvil-port", l1_locked_port.port.to_string().as_str()])
+        node.args([
+            "--with-l1",
+            "--l1-port",
+            l1_locked_port.port.to_string().as_str(),
+        ])
     })
     .await?;
     let l1_provider = ProviderBuilder::new()
