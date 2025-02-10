@@ -252,7 +252,6 @@ macro_rules! sh_err {
 mod tests {
     #[test]
     fn test_shell_macros() {
-        // These calls use the global shell instance.
         sh_print!("Hello, ");
         sh_println!("world!");
         sh_eprint!("Error: ");

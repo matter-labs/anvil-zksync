@@ -1,5 +1,4 @@
 use crate::node::impersonate::ImpersonationManager;
-use anvil_zksync_common::sh_warn;
 use anvil_zksync_types::{TransactionOrder, TransactionPriority};
 use futures::channel::mpsc::{channel, Receiver, Sender};
 use std::cmp::Ordering;

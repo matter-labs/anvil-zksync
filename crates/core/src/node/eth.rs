@@ -2,7 +2,6 @@ use std::collections::HashSet;
 
 use anvil_zksync_common::{sh_eprintln, sh_err};
 use anyhow::Context as _;
-use colored::Colorize;
 use zksync_multivm::interface::ExecutionResult;
 use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use zksync_types::h256_to_u256;
@@ -56,7 +55,7 @@ impl InMemoryNode {
                     message
                 );
 
-                sh_eprintln!("\n{}", pretty_message.on_red());
+                sh_eprintln!("\n{}", pretty_message);
                 Err(Web3Error::SubmitTransactionError(
                     pretty_message,
                     output.encoded_data(),
@@ -70,7 +69,7 @@ impl InMemoryNode {
                     message
                 );
 
-                sh_eprintln!("\n{}", pretty_message.on_red());
+                sh_eprintln!("\n{}", pretty_message);
                 Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
             }
         }

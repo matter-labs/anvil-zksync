@@ -1,6 +1,5 @@
 use crate::error::RpcError;
 use anvil_zksync_api_decl::AnvilNamespaceServer;
-use anvil_zksync_common::sh_warn;
 use anvil_zksync_core::node::InMemoryNode;
 use anvil_zksync_types::api::{DetailedTransaction, ResetRequest};
 use anvil_zksync_types::Numeric;
@@ -101,7 +100,9 @@ impl AnvilNamespaceServer for AnvilNamespace {
     }
 
     async fn set_min_gas_price(&self, _gas: U256) -> RpcResult<()> {
-        sh_warn!("Setting minimum gas price is unsupported as ZKsync is a post-EIP1559 chain");
+        tracing::info!(
+            "Setting minimum gas price is unsupported as ZKsync is a post-EIP1559 chain"
+        );
         Err(RpcError::Unsupported.into())
     }
 

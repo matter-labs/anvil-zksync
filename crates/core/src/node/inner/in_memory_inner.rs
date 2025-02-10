@@ -29,7 +29,6 @@ use anvil_zksync_config::constants::{
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_types::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
 use anyhow::Context;
-use colored::Colorize;
 use indexmap::IndexMap;
 use once_cell::sync::OnceCell;
 use std::collections::{HashMap, HashSet};
@@ -381,7 +380,7 @@ impl InMemoryNodeInner {
         if self.config.show_gas_details != ShowGasDetails::None {
             self.display_detailed_gas_info(bootloader_debug_result.get(), spent_on_pubdata)
                 .unwrap_or_else(|err| {
-                    sh_err!("{}", format!("Cannot display gas details: {err}").on_red());
+                    sh_err!("{}", format!("Cannot display gas details: {err}"));
                 });
         }
         // Print storage logs if enabled
@@ -924,7 +923,7 @@ impl InMemoryNodeInner {
                     message
                 );
                 let data = output.encoded_data();
-                sh_eprintln!("\n{}", pretty_message.on_red());
+                sh_eprintln!("\n{}", pretty_message);
                 Err(Web3Error::SubmitTransactionError(pretty_message, data))
             }
             ExecutionResult::Halt { reason } => {
@@ -948,7 +947,7 @@ impl InMemoryNodeInner {
                     message
                 );
 
-                sh_eprintln!("\n{}", pretty_message.on_red());
+                sh_eprintln!("\n{}", pretty_message);
                 Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
             }
             ExecutionResult::Success { .. } => {
@@ -1212,7 +1211,7 @@ impl InMemoryNodeInner {
                     .get(&o.block_hash)
                     .map(|block| block.number)
                     .ok_or_else(|| {
-                        sh_err!("unable to map block number to hash #{:#x}", o.block_hash);
+                        tracing::error!("unable to map block number to hash #{:#x}", o.block_hash);
                         Web3Error::InternalError(anyhow::Error::msg(
                             "Failed to map block number to hash.",
                         ))

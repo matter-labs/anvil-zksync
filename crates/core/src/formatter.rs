@@ -826,13 +826,12 @@ pub fn print_transaction_summary(
     tx_result: &VmExecutionResultAndLogs,
     status: &str,
 ) {
-    // Calculate used and refunded gas.
+    // Calculate used and refunded gas
     let used_gas = tx.gas_limit() - tx_result.refunds.gas_refunded;
     let paid_in_eth = calculate_eth_cost(l2_gas_price, used_gas.as_u64());
     let refunded_gas = tx_result.refunds.gas_refunded;
     let refunded_in_eth = calculate_eth_cost(l2_gas_price, refunded_gas);
 
-    // Select an emoji based on the status.
     let emoji = match status {
         "SUCCESS" => "✅",
         "FAILED" => "❌",
