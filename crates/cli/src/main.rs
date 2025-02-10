@@ -26,8 +26,8 @@ use std::{env, net::SocketAddr, str::FromStr};
 use tokio::sync::RwLock;
 use tower_http::cors::AllowOrigin;
 use tracing_subscriber::filter::LevelFilter;
-use zksync_error::anvil_zks::gen::{generic_error, to_domain};
-use zksync_error::anvil_zks::AnvilZKSError;
+use zksync_error::anvil_zksync::gen::{generic_error, to_domain};
+use zksync_error::anvil_zksync::AnvilZksyncError;
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
 use zksync_types::{L2BlockNumber, H160};
 
@@ -36,7 +36,7 @@ mod cli;
 mod utils;
 
 #[tokio::main]
-async fn main() -> Result<(), AnvilZKSError> {
+async fn main() -> Result<(), AnvilZksyncError> {
     // Check for deprecated options
     Cli::deprecated_config_option();
 
