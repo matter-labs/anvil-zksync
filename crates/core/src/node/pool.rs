@@ -160,9 +160,9 @@ impl TxPool {
             Ok(()) => true,
             Err(e) => {
                 if e.is_full() {
-                    sh_warn!(
-                        "Failed to send transaction notification because channel is full: {}",
-                        tx_hash,
+                    tracing::warn!(
+                        %tx_hash,
+                        "Failed to send transaction notification because channel is full",
                     );
                     true
                 } else {
