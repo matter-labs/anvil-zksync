@@ -15,17 +15,14 @@ pub struct ZkstackConfig {
 impl ZkstackConfig {
     pub fn builtin() -> Self {
         let contracts: ContractsConfig = serde_yaml::from_slice(include_bytes!(
-            "../../../../l1-setup/chains/anvil/configs/contracts.yaml"
+            "../../../../l1-setup/configs/contracts.yaml"
         ))
         .unwrap();
-        let genesis: GenesisConfig = serde_yaml::from_slice(include_bytes!(
-            "../../../../l1-setup/chains/anvil/configs/genesis.yaml"
-        ))
-        .unwrap();
-        let wallets: WalletsConfig = serde_yaml::from_slice(include_bytes!(
-            "../../../../l1-setup/chains/anvil/configs/wallets.yaml"
-        ))
-        .unwrap();
+        let genesis: GenesisConfig =
+            serde_yaml::from_slice(include_bytes!("../../../../l1-setup/configs/genesis.yaml"))
+                .unwrap();
+        let wallets: WalletsConfig =
+            serde_yaml::from_slice(include_bytes!("../../../../l1-setup/wallets.yaml")).unwrap();
         Self {
             contracts,
             genesis,
