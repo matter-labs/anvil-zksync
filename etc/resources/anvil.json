@@ -1,0 +1,25 @@
+{
+  "types": [],
+  "domains": [
+    {
+      "domain_name": "AnvilZKS",
+      "domain_code": 5,
+      "identifier_encoding": "anvil_zks",
+      "components": [
+        {
+          "component_name": "AnvilZKSGeneric",
+          "component_code": 0,
+          "identifier_encoding": "gen",
+          "errors" : []
+        },
+        {
+          "component_name": "AnvilZKSEnvironment",
+          "component_code": 1,
+          "identifier_encoding": "env",
+          "errors" : []
+        }
+      ]
+
+    }
+  ]
+}
