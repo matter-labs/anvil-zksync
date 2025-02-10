@@ -108,7 +108,7 @@ example in Solidity compiler or VM.
 
 # Adding new errors
 
-Put new errors in the file [etc/resources/anvil.json](etc/resources/anvil.json).
+Put new errors in the file [etc/errors/anvil.json](/etc/errors/anvil.json).
 
 Every component implicitly contains an error with code 0 meaning an umbrella
 "generic error". You usually should not define this error yourself.

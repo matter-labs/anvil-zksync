@@ -2,9 +2,10 @@ use zksync_error_codegen::arguments::Backend;
 use zksync_error_codegen::arguments::GenerationArguments;
 
 fn main() {
+    let local_anvil_path = "../../etc/errors/anvil.json".to_owned();
     // If we have modified anvil errors, forces rerunning the build script and
     // regenerating the crate `zksync-error`.
-    println!("cargo:rerun-if-changed=../../etc/resources/anvil.json");
+    println!("cargo:rerun-if-changed={local_anvil_path}");
 
     // This is the root JSON file
     // It will contain the links to other JSON files in the `takeFrom`
@@ -14,7 +15,6 @@ fn main() {
     // copy of `anvil.json` file as well, because we may change it, adding new
     // errors.
     let root_link = "https://raw.githubusercontent.com/matter-labs/zksync-error/refs/heads/main/zksync-root.json".to_owned();
-    let local_anvil_path = "../../etc/resources/anvil.json".to_owned();
 
     let arguments = GenerationArguments {
         verbose: true,
