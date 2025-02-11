@@ -845,11 +845,13 @@ pub fn print_transaction_summary(
 Initiator: {initiator:?}
 Payer: {payer:?}
 Gas Limit: {gas_limit} | Used: {used} | Refunded: {refunded}
-Paid: {paid:.10} ETH ({used_gas} gas * {l2_gas_price_fmt})
-Refunded: {refunded_eth:.10} ETH
+Paid: {paid:.10} ETH ({} gas * {l2_gas_price_fmt})
+Refunded: {:.10} ETH
 "#,
         emoji,
         status,
+        used_gas,
+        refunded_in_eth,
         tx_hash = tx.hash(),
         initiator = tx.initiator_account(),
         payer = tx.payer(),
@@ -857,8 +859,6 @@ Refunded: {refunded_eth:.10} ETH
         used = to_human_size(used_gas),
         refunded = to_human_size(tx_result.refunds.gas_refunded.into()),
         paid = paid_in_eth,
-        used_gas = used_gas,
-        l2_gas_price_fmt = format_gwei(l2_gas_price.into()),
-        refunded_eth = refunded_in_eth,
+        l2_gas_price_fmt = format_gwei(l2_gas_price.into())
     );
 }
