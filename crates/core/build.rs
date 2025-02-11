@@ -31,6 +31,6 @@ fn main() {
         input_links: vec![local_anvil_path],
     };
     if let Err(e) = zksync_error_codegen::load_and_generate(arguments) {
-        eprintln!("{e}");
+        println!("cargo::error={e}");
     }
 }
