@@ -1,4 +1,5 @@
 //! In-memory node, that supports forking other networks.
+use super::error::LoadStateError;
 use super::inner::node_executor::NodeExecutorHandle;
 use super::inner::InMemoryNodeInner;
 use super::vm::AnvilVM;
@@ -6,7 +7,6 @@ use crate::deps::storage_view::StorageView;
 use crate::deps::InMemoryStorage;
 use crate::filters::EthFilters;
 use crate::node::call_error_tracer::CallErrorTracer;
-use crate::node::error::LoadStateError;
 use crate::node::fee_model::TestNodeFeeInputProvider;
 use crate::node::impersonate::{ImpersonationManager, ImpersonationState};
 use crate::node::inner::blockchain::ReadBlockchain;
@@ -22,7 +22,6 @@ use anvil_zksync_config::constants::{NON_FORK_FIRST_BLOCK_TIMESTAMP, TEST_NODE_N
 use anvil_zksync_config::types::{CacheConfig, Genesis};
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_types::{LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
-use colored::Colorize;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
@@ -410,27 +409,23 @@ impl InMemoryNode {
             .take()
             .unwrap_or_default();
 
+        // TODO: I dont think we need to log any of this. The success and errors are
+        // already logged later.
         if inner.config.show_tx_summary {
             tracing::info!("");
             match &tx_result.result {
-                ExecutionResult::Success { output } => {
-                    tracing::info!("Call: {}", "SUCCESS".green());
-                    let output_bytes = zksync_types::web3::Bytes::from(output.clone());
-                    tracing::info!("Output: {}", serde_json::to_string(&output_bytes).unwrap());
-                }
-                ExecutionResult::Revert { output } => {
+                ExecutionResult::Success { output: _ } => {}
+                ExecutionResult::Revert { output: _ } => {
                     // TODO: Once we integrate error-codegen avoid printing error flags returned from
                     // vm_state and rather pass them to error-codegen to get properly formed error message.
                     // e.g. NOT_ENOUGH_ERGS -> Transaction ran out of gas.
                     tracing::warn!("Execution flag raised: {:?}", error_flags);
-                    tracing::info!("Call: {}: {}", "FAILED".red(), output);
                 }
-                ExecutionResult::Halt { reason } => {
+                ExecutionResult::Halt { reason: _ } => {
                     // TODO: Once we integrate error-codegen avoid printing error flags returned from
                     // vm_state and rather pass them to error-codegen to get properly formed error message.
                     // e.g. NOT_ENOUGH_ERGS -> Transaction ran out of gas.
                     tracing::warn!("Execution flag raised: {:?}", error_flags);
-                    tracing::info!("Call: {} {}", "HALTED".red(), reason)
                 }
             };
         }

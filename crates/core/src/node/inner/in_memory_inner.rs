@@ -2,8 +2,9 @@ use crate::bootloader_debug::{BootloaderDebug, BootloaderDebugTracer};
 use crate::console_log::ConsoleLogHandler;
 use crate::deps::storage_view::StorageView;
 use crate::filters::EthFilters;
+use crate::formatter::print_execution_error;
 use crate::node::call_error_tracer::CallErrorTracer;
-use crate::node::error::LoadStateError;
+use crate::node::error::{LoadStateError, ToHaltError, ToRevertReason};
 use crate::node::inner::blockchain::{Blockchain, ReadBlockchain};
 use crate::node::inner::fork::{Fork, ForkClient, ForkSource};
 use crate::node::inner::fork_storage::{ForkStorage, SerializableStorage};
@@ -18,7 +19,6 @@ use crate::node::{
     TransactionResult, TxExecutionInfo, VersionedState, ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION,
     MAX_PREVIOUS_STATES, MAX_TX_SIZE,
 };
-
 use crate::system_contracts::SystemContracts;
 use crate::utils::create_debug_output;
 use crate::{delegate_vm, formatter, utils};
@@ -36,6 +36,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use zksync_contracts::BaseSystemContracts;
+use zksync_error::anvil::{halt::HaltError, revert::RevertError};
 use zksync_multivm::interface::storage::{ReadStorage, WriteStorage};
 use zksync_multivm::interface::VmFactory;
 use zksync_multivm::interface::{
@@ -917,20 +918,6 @@ impl InMemoryNodeInner {
 
         match estimate_gas_result.result {
             ExecutionResult::Revert { output } => {
-                tracing::info!("{}", format!("Unable to estimate gas for the request with our suggested gas limit of {}. The transaction is most likely unexecutable. Breakdown of estimation:", suggested_gas_limit + overhead).red());
-                tracing::info!(
-                    "{}",
-                    format!(
-                        "\tEstimated transaction body gas cost: {}",
-                        tx_body_gas_limit
-                    )
-                    .red()
-                );
-                tracing::info!(
-                    "{}",
-                    format!("\tGas for pubdata: {}", additional_gas_for_pubdata).red()
-                );
-                tracing::info!("{}", format!("\tOverhead: {}", overhead).red());
                 let message = output.to_string();
                 let pretty_message = format!(
                     "execution reverted{}{}",
@@ -938,32 +925,18 @@ impl InMemoryNodeInner {
                     message
                 );
                 let data = output.encoded_data();
-                tracing::info!("{}", pretty_message.on_red());
+
+                let revert_reason: RevertError = output.to_revert_reason().await;
+                print_execution_error(&revert_reason, Some(&l2_tx));
+
                 Err(Web3Error::SubmitTransactionError(pretty_message, data))
             }
             ExecutionResult::Halt { reason } => {
-                tracing::info!("{}", format!("Unable to estimate gas for the request with our suggested gas limit of {}. The transaction is most likely unexecutable. Breakdown of estimation:", suggested_gas_limit + overhead).red());
-                tracing::info!(
-                    "{}",
-                    format!(
-                        "\tEstimated transaction body gas cost: {}",
-                        tx_body_gas_limit
-                    )
-                    .red()
-                );
-                tracing::info!(
-                    "{}",
-                    format!("\tGas for pubdata: {}", additional_gas_for_pubdata).red()
-                );
-                tracing::info!("{}", format!("\tOverhead: {}", overhead).red());
-                let message = reason.to_string();
-                let pretty_message = format!(
-                    "execution reverted{}{}",
-                    if message.is_empty() { "" } else { ": " },
-                    message
-                );
+                let pretty_message = format!("execution halted: {}", reason);
 
-                tracing::info!("{}", pretty_message.on_red());
+                let halt_error: HaltError = reason.to_halt_error().await;
+                print_execution_error(&halt_error, Some(&l2_tx));
+
                 Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
             }
             ExecutionResult::Success { .. } => {

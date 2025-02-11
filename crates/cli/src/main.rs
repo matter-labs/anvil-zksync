@@ -28,7 +28,6 @@ use tower_http::cors::AllowOrigin;
 use tracing_subscriber::filter::LevelFilter;
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
 use zksync_types::{L2BlockNumber, H160};
-
 mod bytecode_override;
 mod cli;
 mod utils;

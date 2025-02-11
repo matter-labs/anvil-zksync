@@ -19,6 +19,8 @@ anvil_zksync_types.workspace = true
 alloy = { workspace = true, default-features = false, features = ["signer-mnemonic"] }
 
 zksync_types.workspace = true
+zksync_error.workspace = true
+
 anyhow.workspace = true
 clap.workspace = true
 eyre.workspace = true
@@ -35,6 +37,7 @@ tower.workspace = true
 tower-http.workspace = true
 flate2.workspace = true
 url.workspace = true
+zksync-error-codegen.workspace = true
 
 [dev-dependencies]
 tempdir.workspace = true

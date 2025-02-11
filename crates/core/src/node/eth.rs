@@ -1,7 +1,14 @@
 use std::collections::HashSet;
 
+use crate::formatter::print_execution_error;
+use crate::node::error::{ToHaltError, ToRevertReason};
+use crate::{
+    filters::{FilterType, LogFilter},
+    node::{InMemoryNode, MAX_TX_SIZE, PROTOCOL_VERSION},
+    utils::{h256_to_u64, TransparentError},
+};
 use anyhow::Context as _;
-use colored::Colorize;
+use zksync_error::anvil::{halt::HaltError, revert::RevertError};
 use zksync_multivm::interface::ExecutionResult;
 use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use zksync_types::h256_to_u256;
@@ -22,12 +29,6 @@ use zksync_web3_decl::{
     types::{FeeHistory, Filter, FilterChanges, SyncState},
 };
 
-use crate::{
-    filters::{FilterType, LogFilter},
-    node::{InMemoryNode, MAX_TX_SIZE, PROTOCOL_VERSION},
-    utils::{h256_to_u64, TransparentError},
-};
-
 impl InMemoryNode {
     pub async fn call_impl(
         &self,
@@ -41,7 +42,7 @@ impl InMemoryNode {
         )?;
         tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
         let call_result = self
-            .run_l2_call(tx, system_contracts)
+            .run_l2_call(tx.clone(), system_contracts)
             .await
             .context("Invalid data due to invalid name")?;
 
@@ -55,7 +56,8 @@ impl InMemoryNode {
                     message
                 );
 
-                tracing::info!("{}", pretty_message.on_red());
+                let revert_reason: RevertError = output.clone().to_revert_reason().await;
+                print_execution_error(&revert_reason, Some(&tx));
                 Err(Web3Error::SubmitTransactionError(
                     pretty_message,
                     output.encoded_data(),
@@ -69,7 +71,8 @@ impl InMemoryNode {
                     message
                 );
 
-                tracing::info!("{}", pretty_message.on_red());
+                let halt_error: HaltError = reason.clone().to_halt_error().await;
+                print_execution_error(&halt_error, Some(&tx));
                 Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
             }
         }
