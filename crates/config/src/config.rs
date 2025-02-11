@@ -371,10 +371,10 @@ Genesis Timestamp
             r#"
 Node Configuration
 ========================
-Port:               {}
-EVM Emulator:       {}
+Port:                  {}
+EVM Emulator:          {}
 Health Check Endpoint: {}
-ZK OS:              {}
+ZK OS:                 {}
 "#,
             self.port,
             if self.use_evm_emulator {

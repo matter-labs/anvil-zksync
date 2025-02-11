@@ -954,19 +954,14 @@ impl InMemoryNodeInner {
                 let full_gas_limit = match suggested_gas_limit.overflowing_add(overhead) {
                     (value, false) => value,
                     (_, true) => {
-                        tracing::info!("{}", "Overflow when calculating gas estimation. We've exceeded the block gas limit by summing the following values:");
+                        tracing::info!("Overflow when calculating gas estimation. We've exceeded the block gas limit by summing the following values:");
                         tracing::info!(
-                            "{}",
-                            format!(
-                                "\tEstimated transaction body gas cost: {}",
-                                tx_body_gas_limit
-                            )
+                            "\tEstimated transaction body gas cost: {}",
+                            tx_body_gas_limit
                         );
-                        tracing::info!(
-                            "{}",
-                            format!("\tGas for pubdata: {}", additional_gas_for_pubdata)
-                        );
-                        tracing::info!("{}", format!("\tOverhead: {}", overhead));
+                        tracing::info!("\tGas for pubdata: {}", additional_gas_for_pubdata);
+                        tracing::info!("\tOverhead: {}", overhead);
+
                         return Err(Web3Error::SubmitTransactionError(
                             "exceeds block gas limit".into(),
                             Default::default(),

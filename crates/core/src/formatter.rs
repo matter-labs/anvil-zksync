@@ -841,15 +841,15 @@ pub fn print_transaction_summary(
 
     sh_println!(
         r#"
-{emoji} [{status}] Hash: {tx_hash:?}
+{} [{}] Hash: {tx_hash:?}
 Initiator: {initiator:?}
 Payer: {payer:?}
 Gas Limit: {gas_limit} | Used: {used} | Refunded: {refunded}
 Paid: {paid:.10} ETH ({used_gas} gas * {l2_gas_price_fmt})
 Refunded: {refunded_eth:.10} ETH
 "#,
-        emoji = emoji,
-        status = status,
+        emoji,
+        status,
         tx_hash = tx.hash(),
         initiator = tx.initiator_account(),
         payer = tx.payer(),
