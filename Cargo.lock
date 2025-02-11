@@ -1042,7 +1042,7 @@ dependencies = [
 
 [[package]]
 name = "anvil-zksync"
-version = "0.2.5"
+version = "0.3.0"
 dependencies = [
  "alloy",
  "anvil_zksync_api_server",
@@ -1072,7 +1072,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_api_decl"
-version = "0.2.5"
+version = "0.3.0"
 dependencies = [
  "anvil_zksync_types",
  "jsonrpsee",
@@ -1082,7 +1082,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_api_server"
-version = "0.2.5"
+version = "0.3.0"
 dependencies = [
  "anvil_zksync_api_decl",
  "anvil_zksync_core",
@@ -1103,7 +1103,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_config"
-version = "0.2.5"
+version = "0.3.0"
 dependencies = [
  "alloy",
  "anvil_zksync_types",
@@ -1120,7 +1120,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_core"
-version = "0.2.5"
+version = "0.3.0"
 dependencies = [
  "alloy",
  "anvil_zksync_config",
@@ -1179,7 +1179,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_types"
-version = "0.2.5"
+version = "0.3.0"
 dependencies = [
  "clap",
  "serde",
