@@ -1,7 +1,7 @@
 mod namespaces;
 
 pub use namespaces::{
-    AnvilExtNamespaceServer, AnvilNamespaceServer, ConfigNamespaceServer, EthTestNamespaceServer,
+    AnvilNamespaceServer, AnvilZksNamespaceServer, ConfigNamespaceServer, EthTestNamespaceServer,
     EvmNamespaceServer,
 };
 

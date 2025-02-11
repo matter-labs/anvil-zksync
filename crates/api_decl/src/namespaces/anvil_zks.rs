@@ -1,11 +1,10 @@
-//! This module extends the Anvil JSON-RPC API with anvil-zksync specific RPC methods.
-
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use zksync_types::{L1BatchNumber, H256};
 
-#[rpc(server, namespace = "anvil")]
-pub trait AnvilExtNamespace {
+/// Custom namespace that contains anvil-zksync specific methods.
+#[rpc(server, namespace = "anvil_zks")]
+pub trait AnvilZksNamespace {
     #[method(name = "commitBatch")]
     async fn commit_batch(&self, batch_number: L1BatchNumber) -> RpcResult<H256>;
 }

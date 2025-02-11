@@ -1,10 +1,9 @@
-use crate::impls::AnvilExtNamespace;
 use crate::{
-    AnvilNamespace, ConfigNamespace, DebugNamespace, EthNamespace, EthTestNamespace, EvmNamespace,
-    NetNamespace, Web3Namespace, ZksNamespace,
+    AnvilNamespace, AnvilZksNamespace, ConfigNamespace, DebugNamespace, EthNamespace,
+    EthTestNamespace, EvmNamespace, NetNamespace, Web3Namespace, ZksNamespace,
 };
 use anvil_zksync_api_decl::{
-    AnvilExtNamespaceServer, AnvilNamespaceServer, ConfigNamespaceServer, DebugNamespaceServer,
+    AnvilNamespaceServer, AnvilZksNamespaceServer, ConfigNamespaceServer, DebugNamespaceServer,
     EthNamespaceServer, EthTestNamespaceServer, EvmNamespaceServer, NetNamespaceServer,
     Web3NamespaceServer, ZksNamespaceServer,
 };
@@ -53,7 +52,7 @@ impl NodeServerBuilder {
             .unwrap();
         rpc.merge(AnvilNamespace::new(node.clone()).into_rpc())
             .unwrap();
-        rpc.merge(AnvilExtNamespace::new(l1_sidecar).into_rpc())
+        rpc.merge(AnvilZksNamespace::new(l1_sidecar).into_rpc())
             .unwrap();
         rpc.merge(EvmNamespace::new(node.clone()).into_rpc())
             .unwrap();

@@ -30,7 +30,7 @@ where
     /// Commits batch with given number to L1
     async fn anvil_commit_batch(&self, batch_number: u64) -> TransportResult<TxHash> {
         self.client()
-            .request("anvil_commitBatch", (batch_number,))
+            .request("anvil_zks_commitBatch", (batch_number,))
             .await
     }
 }
