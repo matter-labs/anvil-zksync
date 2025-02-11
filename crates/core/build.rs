@@ -1,8 +1,10 @@
 use zksync_error_codegen::arguments::Backend;
 use zksync_error_codegen::arguments::GenerationArguments;
 
+const REPOSITORY_ROOT : &str = "../..";
+const  ROOT_ERROR_DEFINITIONS_FROM_ZKSYNC_ERROR: &str = "zksync-error://zksync-root.json";
 fn main() {
-    let local_anvil_path = "../../etc/errors/anvil.json".to_owned();
+    let local_anvil_path = format!("{REPOSITORY_ROOT}/etc/errors/anvil.json");
     // If we have modified anvil errors, forces rerunning the build script and
     // regenerating the crate `zksync-error`.
     println!("cargo::rerun-if-changed={local_anvil_path}");
@@ -14,16 +16,20 @@ fn main() {
     // However, when developing locally, we need to fetch errors from the local
     // copy of `anvil.json` file as well, because we may change it, adding new
     // errors.
-    let root_link = "https://raw.githubusercontent.com/matter-labs/zksync-error/refs/heads/main/zksync-root.json".to_owned();
+    // Useful link types:
+    // - `zksync-error://zksync-root.json` -- file provided by zksync-error crate, matching its version;
+    // - `file://<path>` or simply a path` -- local file path;
+    // - URL -- allows fetching file from network.
+    let root_link = ROOT_ERROR_DEFINITIONS_FROM_ZKSYNC_ERROR;
 
     let arguments = GenerationArguments {
         verbose: true,
-        root_link,
+        root_link: root_link.into(),
         outputs: vec![
             // Overwrite the crate `zksync-error`, add the converter from
             // `anyhow` to a generic error of the appropriate domain.
             (
-                "../zksync_error".into(),
+                root_link.into(),
                 Backend::Rust,
                 vec![("use_anyhow".to_owned(), "true".to_owned())],
             ),
