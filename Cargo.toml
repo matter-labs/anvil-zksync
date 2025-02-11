@@ -42,6 +42,8 @@ zksync_web3_decl = "=26.2.1-non-semver-compat"
 #########################
 anyhow = "1.0"
 alloy = { version = "0.9.2", default-features = false }
+foundry-anvil = { package = "anvil", git = "https://github.com/foundry-rs/foundry", rev = "v1.0.0" }
+foundry-common = { git = "https://github.com/foundry-rs/foundry", rev = "v1.0.0" }
 async-trait = "0.1.85"
 chrono = { version = "0.4.31", default-features = false }
 clap = { version = "4.2.4", features = ["derive", "env"] }

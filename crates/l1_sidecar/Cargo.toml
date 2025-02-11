@@ -17,6 +17,8 @@ zksync_contracts.workspace = true
 zksync_types.workspace = true
 
 alloy = { workspace = true, default-features = false, features = ["sol-types", "rpc-types", "providers", "kzg"] }
+foundry-anvil.workspace = true
+foundry-common.workspace = true
 anyhow.workspace = true
 tempdir.workspace = true
 serde.workspace = true

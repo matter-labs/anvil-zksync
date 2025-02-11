@@ -58,8 +58,8 @@ impl L1SidecarRunner {
             _ = self.l1_sender.run() => {
                 tracing::trace!("L1 sender was stopped");
             },
-            status = self.anvil_handle.wait() => {
-                tracing::error!("L1 anvil exited unexpectedly: {}", status?);
+            _ = self.anvil_handle.run() => {
+                tracing::trace!("L1 anvil exited unexpectedly");
             },
         }
         Ok(())
