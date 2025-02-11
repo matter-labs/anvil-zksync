@@ -5,7 +5,7 @@ fn main() {
     let local_anvil_path = "../../etc/errors/anvil.json".to_owned();
     // If we have modified anvil errors, forces rerunning the build script and
     // regenerating the crate `zksync-error`.
-    println!("cargo:rerun-if-changed={local_anvil_path}");
+    println!("cargo::rerun-if-changed={local_anvil_path}");
 
     // This is the root JSON file
     // It will contain the links to other JSON files in the `takeFrom`
