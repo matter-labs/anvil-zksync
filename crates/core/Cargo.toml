@@ -12,6 +12,7 @@ categories.workspace = true
 [dependencies]
 anvil_zksync_types.workspace = true
 anvil_zksync_config.workspace = true
+anvil_zksync_common.workspace = true
 
 zksync_multivm.workspace = true
 zksync_contracts.workspace = true
@@ -25,7 +26,7 @@ tokio.workspace = true
 futures.workspace = true
 once_cell.workspace = true
 
-alloy = { workspace = true, default-features = false, features = ["json-abi", "dyn-abi"] }
+alloy = { workspace = true, default-features = false, features = ["json-abi", "dyn-abi", "eip712"] }
 
 reqwest.workspace = true
 serde.workspace = true

@@ -107,7 +107,7 @@ impl EthFilters {
             }),
         );
 
-        tracing::info!("created block filter '{:#x}'", self.id_counter);
+        tracing::debug!("created block filter '{:#x}'", self.id_counter);
         Ok(self.id_counter)
     }
 
@@ -134,7 +134,7 @@ impl EthFilters {
             })),
         );
 
-        tracing::info!("created log filter '{:#x}'", self.id_counter);
+        tracing::debug!("created log filter '{:#x}'", self.id_counter);
         Ok(self.id_counter)
     }
 
@@ -151,7 +151,7 @@ impl EthFilters {
             }),
         );
 
-        tracing::info!(
+        tracing::debug!(
             "created pending transaction filter '{:#x}'",
             self.id_counter
         );
@@ -160,7 +160,7 @@ impl EthFilters {
 
     /// Removes the filter with the given id. Returns true if the filter existed, false otherwise.
     pub fn remove_filter(&mut self, id: U256) -> bool {
-        tracing::info!("removing filter '{id:#x}'");
+        tracing::debug!("removing filter '{id:#x}'");
         self.filters.remove(&id).is_some()
     }
 
