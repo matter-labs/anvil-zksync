@@ -49,6 +49,7 @@ impl L1Sender {
             match command {
                 Command::Commit(batch, reply) => self.commit(batch, reply).await,
                 Command::Prove(batch, reply) => self.prove(batch, reply).await,
+                Command::Execute(batch, reply) => self.execute(batch, reply).await,
             }
         }
 
@@ -215,6 +216,77 @@ impl L1Sender {
 
         Ok(receipt.transaction_hash().0.into())
     }
+
+    async fn execute(
+        &mut self,
+        batch: L1BatchWithMetadata,
+        reply: oneshot::Sender<anyhow::Result<H256>>,
+    ) {
+        let result = self.execute_fallible(&batch).await;
+
+        // Reply to sender if we can, otherwise hold result for further processing
+        let result = if let Err(result) = reply.send(result) {
+            tracing::info!("failed to reply as receiver has been dropped");
+            result
+        } else {
+            return;
+        };
+        // Not much we can do with an error at this level so we just print it
+        if let Err(err) = result {
+            tracing::error!("failed to execute batch: {:#?}", err);
+        }
+    }
+
+    async fn execute_fallible(&self, batch: &L1BatchWithMetadata) -> anyhow::Result<H256> {
+        // Create a blob sidecar with empty data
+        let sidecar = SidecarBuilder::<SimpleCoder>::from_slice(&[]).build()?;
+
+        let call = contracts::execute_batches_shared_bridge_call(self.l2_chain_id, batch);
+
+        let gas_price = self.provider.get_gas_price().await?;
+        let eip1559_est = self.provider.estimate_eip1559_fees(None).await?;
+        let tx = TransactionRequest::default()
+            .with_to(self.validator_timelock_addr.0.into())
+            .with_max_fee_per_blob_gas(gas_price)
+            .with_max_fee_per_gas(eip1559_est.max_fee_per_gas)
+            .with_max_priority_fee_per_gas(eip1559_est.max_priority_fee_per_gas)
+            // Default value for `max_aggregated_tx_gas` from zksync-era, should always be enough
+            .with_gas_limit(15000000)
+            .with_call(&call)
+            .with_blob_sidecar(sidecar);
+
+        let pending_tx = self.provider.send_transaction(tx).await?;
+        tracing::debug!(
+            batch = batch.header.number.0,
+            pending_tx_hash = ?pending_tx.tx_hash(),
+            "batch execute transaction sent to L1"
+        );
+
+        let receipt = pending_tx.get_receipt().await?;
+        if receipt.status() {
+            // We could also look at tx receipt's logs for a corresponding `BlocksVerification` event but
+            // the existing logic is likely good enough for a test node.
+            tracing::info!(
+                batch = batch.header.number.0,
+                tx_hash = ?receipt.transaction_hash,
+                block_number = receipt.block_number.unwrap(),
+                "batch executed on L1",
+            );
+        } else {
+            tracing::error!(
+                batch = batch.header.number.0,
+                tx_hash = ?receipt.transaction_hash,
+                block_number = receipt.block_number.unwrap(),
+                "execute transaction failed"
+            );
+            anyhow::bail!(
+                "execute transaction failed, see L1 transaction's trace for more details (tx_hash='{:?}')",
+                receipt.transaction_hash
+            );
+        }
+
+        Ok(receipt.transaction_hash().0.into())
+    }
 }
 
 /// A cheap cloneable handle to a [`L1Sender`] instance that can send requests and await for them to
@@ -254,10 +326,26 @@ impl L1SenderHandle {
             Err(_) => anyhow::bail!("failed to prove a batch as L1 sender is dropped"),
         }
     }
+
+    /// Request [`L1Sender`] to execute provided batch. Waits until an L1 transaction executing the
+    /// batch is submitted to L1 and returns its hash.
+    pub async fn execute_sync(&self, batch: L1BatchWithMetadata) -> anyhow::Result<H256> {
+        let (response_sender, response_receiver) = oneshot::channel();
+        self.command_sender
+            .send(Command::Execute(batch, response_sender))
+            .await
+            .map_err(|_| anyhow::anyhow!("failed to execute a batch as L1 sender is dropped"))?;
+
+        match response_receiver.await {
+            Ok(result) => result,
+            Err(_) => anyhow::bail!("failed to execute a batch as L1 sender is dropped"),
+        }
+    }
 }
 
 #[derive(Debug)]
 enum Command {
     Commit(L1BatchWithMetadata, oneshot::Sender<anyhow::Result<H256>>),
     Prove(L1BatchWithMetadata, oneshot::Sender<anyhow::Result<H256>>),
+    Execute(L1BatchWithMetadata, oneshot::Sender<anyhow::Result<H256>>),
 }

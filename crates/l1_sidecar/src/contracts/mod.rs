@@ -13,6 +13,14 @@ mod private {
     // Additionally, https://github.com/alloy-rs/core/issues/601 tracks proper support for output into
     // a file.
     alloy::sol!("src/contracts/sol/IExecutor.sol");
+    // Copied from `PriorityTree.sol` as the entire file has imports that are unprocessable by `alloy::sol!`
+    alloy::sol! {
+        struct PriorityOpsBatchInfo {
+            bytes32[] leftPath;
+            bytes32[] rightPath;
+            bytes32[] itemHashes;
+        }
+    }
 
     impl From<&L1BatchWithMetadata> for IExecutor::StoredBatchInfo {
         fn from(value: &L1BatchWithMetadata) -> Self {
@@ -32,7 +40,7 @@ mod private {
     }
 }
 
-use self::private::IExecutor;
+use self::private::{IExecutor, PriorityOpsBatchInfo};
 use alloy::sol_types::{SolCall, SolValue};
 use zksync_types::commitment::L1BatchWithMetadata;
 use zksync_types::L2ChainId;
@@ -57,7 +65,7 @@ pub fn commit_batches_shared_bridge_call(
 }
 
 /// `commitBatchesSharedBridge` expects the rest of calldata to be of very specific form. This
-/// function makes sure last committed batch and new batch are encoded correctly.
+/// function makes sure last committed batch and new batch are encoded correctly (assumes post gateway).
 fn commit_calldata(
     last_committed_l1_batch: &L1BatchWithMetadata,
     batch: &L1BatchWithMetadata,
@@ -85,11 +93,12 @@ fn commit_calldata(
         // Same for DA input
         alloy::primitives::Bytes::new(),
     ));
-    let mut commit_data = (stored_batch_info, vec![commit_batch_info]).abi_encode_params();
-    // Prefixed by current encoding version as expected by protocol
-    commit_data.insert(0, SUPPORTED_ENCODING_VERSION);
+    let encoded_data = (stored_batch_info, vec![commit_batch_info]).abi_encode_params();
 
-    commit_data
+    // Prefixed by current encoding version as expected by protocol
+    [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
+        .concat()
+        .to_vec()
 }
 
 /// Builds a Solidity function call to `proveBatchesSharedBridge` as expected by `IExecutor.sol`.
@@ -109,7 +118,7 @@ pub fn prove_batches_shared_bridge_call(
 }
 
 /// `proveBatchesSharedBridge` expects the rest of calldata to be of very specific form. This
-/// function makes sure last proved batch and new batch are encoded correctly.
+/// function makes sure last proved batch and new batch are encoded correctly (assumes post gateway).
 fn prove_calldata(
     last_proved_l1_batch: &L1BatchWithMetadata,
     batch: &L1BatchWithMetadata,
@@ -118,6 +127,36 @@ fn prove_calldata(
     let batches_arg = vec![IExecutor::StoredBatchInfo::from(batch)];
     let proof_input = Vec::<alloy::primitives::U256>::new();
     let encoded_data = (prev_l1_batch_info, batches_arg, proof_input).abi_encode_params();
+
+    // Prefixed by current encoding version as expected by protocol
+    [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
+        .concat()
+        .to_vec()
+}
+
+/// Builds a Solidity function call to `executeBatchesSharedBridge` as expected by `IExecutor.sol`.
+pub fn execute_batches_shared_bridge_call(
+    l2_chain_id: L2ChainId,
+    batch: &L1BatchWithMetadata,
+) -> impl SolCall {
+    IExecutor::executeBatchesSharedBridgeCall::new((
+        alloy::primitives::U256::from(l2_chain_id.as_u64()),
+        alloy::primitives::U256::from(batch.header.number.0),
+        alloy::primitives::U256::from(batch.header.number.0),
+        execute_calldata(batch).into(),
+    ))
+}
+
+/// `executeBatchesSharedBridge` expects the rest of calldata to be of very specific form. This
+/// function makes sure batch and its priority operations are encoded correctly (assumes post gateway).
+fn execute_calldata(batch: &L1BatchWithMetadata) -> Vec<u8> {
+    let batches_arg = vec![IExecutor::StoredBatchInfo::from(batch)];
+    let priority_ops_proofs = vec![PriorityOpsBatchInfo {
+        leftPath: vec![],
+        rightPath: vec![],
+        itemHashes: vec![],
+    }];
+    let encoded_data = (batches_arg, priority_ops_proofs).abi_encode_params();
 
     // Prefixed by current encoding version as expected by protocol
     [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
