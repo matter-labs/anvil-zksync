@@ -78,6 +78,8 @@ impl Identifying for Kind {
         match self {
             Kind::AnvilZKS(AnvilZKSCode::AnvilZKSEnvironment) => "anvil_zks-env",
             Kind::AnvilZKS(AnvilZKSCode::AnvilZKSGeneric) => "anvil_zks-gen",
+            Kind::AnvilZKS(AnvilZKSCode::Halt) => "anvil_zks-halt",
+            Kind::AnvilZKS(AnvilZKSCode::Revert) => "anvil_zks-revert",
             Kind::Compiler(CompilerCode::LLVM_EVM) => "compiler-llvm+evm",
             Kind::Compiler(CompilerCode::LLVM_Era) => "compiler-llvm+era",
             Kind::Compiler(CompilerCode::Solc) => "compiler-solc",
@@ -106,6 +108,16 @@ impl NamedError for Identifier {
             }
             Kind::AnvilZKS(AnvilZKSCode::AnvilZKSGeneric) => {
                 crate::error::definitions::AnvilZKSGenericCode::from_repr(self.code)
+                    .expect("Internal error")
+                    .get_error_name()
+            }
+            Kind::AnvilZKS(AnvilZKSCode::Halt) => {
+                crate::error::definitions::HaltCode::from_repr(self.code)
+                    .expect("Internal error")
+                    .get_error_name()
+            }
+            Kind::AnvilZKS(AnvilZKSCode::Revert) => {
+                crate::error::definitions::RevertCode::from_repr(self.code)
                     .expect("Internal error")
                     .get_error_name()
             }

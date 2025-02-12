@@ -99,3 +99,4 @@ zksync_error = { path = "crates/zksync_error" }
 # Build dependencies    #
 #########################
 zksync-error-codegen = { git = "https://github.com/matter-labs/zksync-error", branch = "main" }
+zksync-error-description = { git = "https://github.com/matter-labs/zksync-error", branch = "main" }

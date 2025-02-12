@@ -3,7 +3,7 @@ use crate::console_log::ConsoleLogHandler;
 use crate::deps::storage_view::StorageView;
 use crate::filters::EthFilters;
 use crate::node::call_error_tracer::CallErrorTracer;
-use crate::node::error::LoadStateError;
+use crate::node::error::{LoadStateError, ToHaltError, ToRevertReason};
 use crate::node::inner::blockchain::{Blockchain, ReadBlockchain};
 use crate::node::inner::fork::{Fork, ForkClient, ForkSource};
 use crate::node::inner::fork_storage::{ForkStorage, SerializableStorage};
@@ -72,6 +72,8 @@ use zksync_types::{
     ACCOUNT_CODE_STORAGE_ADDRESS, H160, H256, MAX_L2_TX_GAS_LIMIT, U256, U64,
 };
 use zksync_web3_decl::error::Web3Error;
+use crate::formatter::print_execution_error;
+use zksync_error::anvil_zks::{halt::HaltError, revert::RevertError};
 
 // TODO: Rename `InMemoryNodeInner` to something more sensible
 /// Helper struct for InMemoryNode.
@@ -938,7 +940,10 @@ impl InMemoryNodeInner {
                     message
                 );
                 let data = output.encoded_data();
-                tracing::info!("{}", pretty_message.on_red());
+                
+                let revert_reason: RevertError = output.to_revert_reason().await;
+                print_execution_error(&revert_reason, Some(&l2_tx));
+                
                 Err(Web3Error::SubmitTransactionError(pretty_message, data))
             }
             ExecutionResult::Halt { reason } => {
@@ -963,7 +968,9 @@ impl InMemoryNodeInner {
                     message
                 );
 
-                tracing::info!("{}", pretty_message.on_red());
+                let halt_error: HaltError = reason.to_halt_error().await;
+                print_execution_error(&halt_error, Some(&l2_tx));
+
                 Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
             }
             ExecutionResult::Success { .. } => {

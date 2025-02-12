@@ -164,6 +164,425 @@ impl CustomErrorMessage for AnvilZKSGeneric {
         }
     }
 }
+#[doc = ""]
+#[doc = ""]
+#[doc = "Domain: AnvilZKS"]
+#[repr(u32)]
+#[derive(
+    AsRefStr,
+    Clone,
+    Debug,
+    Eq,
+    EnumDiscriminants,
+    PartialEq,
+    serde :: Serialize,
+    serde :: Deserialize,
+)]
+#[strum_discriminants(name(HaltCode))]
+#[strum_discriminants(vis(pub))]
+#[strum_discriminants(derive(AsRefStr, FromRepr))]
+#[non_exhaustive]
+pub enum Halt {
+    #[doc = "# Summary "]
+    #[doc = "Account validation failed during execution."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "This error occurs when the account validation step fails during the verification and execution of a transaction."]
+    ValidationFailed {
+        msg: String,
+        data: String,
+    } = 1u32,
+    #[doc = "# Summary "]
+    #[doc = "Paymaster validation failed."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "This error is emitted when the paymaster validation process fails during transaction execution."]
+    PaymasterValidationFailed {
+        msg: String,
+        data: String,
+    } = 2u32,
+    #[doc = "# Summary "]
+    #[doc = "Pre-paymaster preparation step failed."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "This error occurs when the system fails to prepare the paymaster before executing a transaction."]
+    PrePaymasterPreparationFailed {
+        msg: String,
+        data: String,
+    } = 3u32,
+    #[doc = "# Summary "]
+    #[doc = "Payment for the transaction failed."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "This error is emitted when the system fails to deduct the required fees for executing the transaction."]
+    PayForTxFailed {
+        msg: String,
+        data: String,
+    } = 4u32,
+    #[doc = "# Summary "]
+    #[doc = "Failed to mark factory dependencies during execution."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "This error occurs when the system cannot mark the necessary factory dependencies required for the transaction."]
+    FailedToMarkFactoryDependencies {
+        msg: String,
+        data: String,
+    } = 5u32,
+    #[doc = "# Summary "]
+    #[doc = "Charging the transaction fee failed."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "This error is emitted when the system cannot deduct the necessary fee for the transaction."]
+    FailedToChargeFee {
+        msg: String,
+        data: String,
+    } = 6u32,
+    #[doc = "# Summary "]
+    #[doc = "The sender address is not a valid account."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "This error occurs when a transaction is attempted from an address that has not been deployed as an account, meaning the `from` address is just a contract."]
+    FromIsNotAnAccount = 7u32,
+    #[doc = "# Summary "]
+    #[doc = "An inner transaction error occurred."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "Transaction reverted due to a contract call that failed during execution."]
+    InnerTxError = 8u32,
+    #[doc = "# Summary "]
+    #[doc = "An unknown error occurred."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "This error is emitted when the system encounters an unspecified reason for halting."]
+    Unknown {
+        msg: String,
+        data: String,
+    } = 9u32,
+    #[doc = "# Summary "]
+    #[doc = "The virtual machine encountered an unexpected state."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "VM entered an unforeseen state during transaction execution."]
+    UnexpectedVMBehavior {
+        problem: String,
+    } = 10u32,
+    #[doc = "# Summary "]
+    #[doc = "The bootloader has run out of gas."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "This error occurs when the bootloader does not have enough gas to continue executing the transaction."]
+    BootloaderOutOfGas = 11u32,
+    #[doc = "# Summary "]
+    #[doc = "The validation step ran out of gas."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "Validation phase of transaction execution exceeds the allocated gas limit."]
+    ValidationOutOfGas = 12u32,
+    #[doc = "# Summary "]
+    #[doc = "The transaction's gas limit is excessively high."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "This error occurs when the gas limit set for the transaction is too large for the server to handle."]
+    TooBigGasLimit = 13u32,
+    #[doc = "# Summary "]
+    #[doc = "Insufficient gas provided to initiate the transaction."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "Bootloader lacks the necessary gas to begin executing the transaction."]
+    NotEnoughGasProvided = 14u32,
+    #[doc = "# Summary "]
+    #[doc = "The transaction exceeded the allowed number of storage invocations."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "This error occurs when the transaction makes too many missing invocations to memory, surpassing the allowed limit."]
+    MissingInvocationLimitReached = 15u32,
+    #[doc = "# Summary "]
+    #[doc = "Unable to set L2 block information."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "System failed to set the necessary information for the L2 block during transaction execution."]
+    FailedToSetL2Block {
+        msg: String,
+    } = 16u32,
+    #[doc = "# Summary "]
+    #[doc = "Failed to add the transaction to the L2 block."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "System cannot append the transaction to the ongoing L2 block, possibly due to data inconsistencies or internal errors."]
+    FailedToAppendTransactionToL2Block {
+        msg: String,
+    } = 17u32,
+    #[doc = "# Summary "]
+    #[doc = "The virtual machine encountered a panic."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "VM experiences a critical failure and panic during transaction execution."]
+    VMPanic = 18u32,
+    #[doc = "# Summary "]
+    #[doc = "Tracer aborted the transaction execution."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "Custom tracer used during transaction execution decides to abort the process, typically due to specific conditions being met."]
+    TracerCustom {
+        msg: String,
+    } = 19u32,
+    #[doc = "# Summary "]
+    #[doc = "Unable to publish compressed bytecodes."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "Emitted when the system fails to publish the compressed bytecodes during transaction execution."]
+    FailedToPublishCompressedBytecodes = 20u32,
+    #[doc = "# Summary "]
+    #[doc = "Block timestamp assertion failed during the transaction."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "This error occurs when the transaction's execution fails to satisfy the `block.timestamp` assertion, indicating a discrepancy in the expected timestamp."]
+    FailedBlockTimestampAssertion = 21u32,
+    GenericError {
+        message: String,
+    } = 0u32,
+}
+impl std::error::Error for Halt {}
+impl NamedError for Halt {
+    fn get_error_name(&self) -> String {
+        self.as_ref().to_owned()
+    }
+}
+impl NamedError for HaltCode {
+    fn get_error_name(&self) -> String {
+        self.as_ref().to_owned()
+    }
+}
+impl From<Halt> for crate::ZksyncError {
+    fn from(val: Halt) -> Self {
+        val.to_unified()
+    }
+}
+impl std::fmt::Display for Halt {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("{self:?}"))
+    }
+}
+impl Documented for Halt {
+    type Documentation = &'static zksync_error_description::ErrorDocumentation;
+    fn get_documentation(
+        &self,
+    ) -> Result<Option<Self::Documentation>, crate::documentation::DocumentationError> {
+        self.to_unified().get_identifier().get_documentation()
+    }
+}
+impl From<anyhow::Error> for Halt {
+    fn from(value: anyhow::Error) -> Self {
+        let message = format!("{value:#?}");
+        Halt::GenericError { message }
+    }
+}
+impl From<Halt> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
+    fn from(value: Halt) -> Self {
+        crate::packed::pack(value)
+    }
+}
+impl From<Halt> for crate::serialized::SerializedError {
+    fn from(value: Halt) -> Self {
+        let packed = crate::packed::pack(value);
+        crate::serialized::serialize(packed).expect("Internal serialization error.")
+    }
+}
+impl CustomErrorMessage for Halt {
+    fn get_message(&self) -> String {
+        match self {
+            Halt::ValidationFailed { msg, data } => {
+                format!("[anvil_zks-halt-1] Account validation error: {msg}: {data}")
+            }
+            Halt::PaymasterValidationFailed { msg, data } => {
+                format!("[anvil_zks-halt-2] Paymaster validation error: {msg}: {data}.")
+            }
+            Halt::PrePaymasterPreparationFailed { msg, data } => {
+                format!("[anvil_zks-halt-3] Pre-paymaster preparation error: {msg}: {data}")
+            }
+            Halt::PayForTxFailed { msg, data } => {
+                format!("[anvil_zks-halt-4] Failed to pay for the transaction: {msg}: {data}")
+            }
+            Halt::FailedToMarkFactoryDependencies { msg, data } => {
+                format!("[anvil_zks-halt-5] Failed to mark factory dependencies: {msg}: {data}")
+            }
+            Halt::FailedToChargeFee { msg, data } => {
+                format!("[anvil_zks-halt-6] Failed to charge fee: {msg}: {data}")
+            }
+            Halt::FromIsNotAnAccount => {
+                format!("[anvil_zks-halt-7] Sender is not an account")
+            }
+            Halt::InnerTxError => {
+                format!("[anvil_zks-halt-8] Bootloader-based tx failed")
+            }
+            Halt::Unknown { msg, data } => {
+                format!("[anvil_zks-halt-9] Unknown reason: {msg}: {data}")
+            }
+            Halt::UnexpectedVMBehavior { problem } => {
+                format ! ("[anvil_zks-halt-10] virtual machine entered unexpected state. Error description: {problem}")
+            }
+            Halt::BootloaderOutOfGas => {
+                format!("[anvil_zks-halt-11] Bootloader out of gas")
+            }
+            Halt::ValidationOutOfGas => {
+                format!("[anvil_zks-halt-12] Validation run out of gas")
+            }
+            Halt::TooBigGasLimit => {
+                format ! ("[anvil_zks-halt-13] Transaction has a too big ergs limit and will not be executed by the server")
+            }
+            Halt::NotEnoughGasProvided => {
+                format ! ("[anvil_zks-halt-14] Bootloader did not have enough gas to start the transaction")
+            }
+            Halt::MissingInvocationLimitReached => {
+                format!("[anvil_zks-halt-15] Transaction produced too much storage accesses.")
+            }
+            Halt::FailedToSetL2Block { msg } => {
+                format!("[anvil_zks-halt-16] Failed to set information about the L2 block: {msg}")
+            }
+            Halt::FailedToAppendTransactionToL2Block { msg } => {
+                format ! ("[anvil_zks-halt-17] Failed to append the transaction to the current L2 block: {msg}")
+            }
+            Halt::VMPanic => {
+                format!("[anvil_zks-halt-18] VM panicked")
+            }
+            Halt::TracerCustom { msg } => {
+                format!("[anvil_zks-halt-19] Tracer aborted execution: {msg}")
+            }
+            Halt::FailedToPublishCompressedBytecodes => {
+                format!("[anvil_zks-halt-20] Failed to publish compressed bytecodes")
+            }
+            Halt::FailedBlockTimestampAssertion => {
+                format!("[anvil_zks-halt-21] Transaction failed `block.timestamp` assertion")
+            }
+            Halt::GenericError { message } => {
+                format!("[anvil_zks-halt-0] Generic error: {message}")
+            }
+        }
+    }
+}
+#[doc = ""]
+#[doc = ""]
+#[doc = "Domain: AnvilZKS"]
+#[repr(u32)]
+#[derive(
+    AsRefStr,
+    Clone,
+    Debug,
+    Eq,
+    EnumDiscriminants,
+    PartialEq,
+    serde :: Serialize,
+    serde :: Deserialize,
+)]
+#[strum_discriminants(name(RevertCode))]
+#[strum_discriminants(vis(pub))]
+#[strum_discriminants(derive(AsRefStr, FromRepr))]
+#[non_exhaustive]
+pub enum Revert {
+    #[doc = "# Summary "]
+    #[doc = "Execution reverted due to a failure."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "This error indicates that the transaction execution was reverted."]
+    General {
+        msg: String,
+        data: Vec<u8>,
+    } = 1u32,
+    #[doc = "# Summary "]
+    #[doc = "An inner transaction error occurred."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "This error is emitted when an inner transaction within the VM fails, typically related to bootloader execution."]
+    InnerTxError = 2u32,
+    #[doc = "# Summary "]
+    #[doc = "A generic VM error."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "This error indicates a generic failure within the VM, without specific details."]
+    VmError = 3u32,
+    #[doc = "# Summary "]
+    #[doc = "An unknown VM revert reason was encountered."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "This error is emitted when the VM encounters a revert reason that is not recognized, including the function selector and raw data for debugging."]
+    Unknown {
+        function_selector: String,
+        data: String,
+    } = 4u32,
+    GenericError {
+        message: String,
+    } = 0u32,
+}
+impl std::error::Error for Revert {}
+impl NamedError for Revert {
+    fn get_error_name(&self) -> String {
+        self.as_ref().to_owned()
+    }
+}
+impl NamedError for RevertCode {
+    fn get_error_name(&self) -> String {
+        self.as_ref().to_owned()
+    }
+}
+impl From<Revert> for crate::ZksyncError {
+    fn from(val: Revert) -> Self {
+        val.to_unified()
+    }
+}
+impl std::fmt::Display for Revert {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("{self:?}"))
+    }
+}
+impl Documented for Revert {
+    type Documentation = &'static zksync_error_description::ErrorDocumentation;
+    fn get_documentation(
+        &self,
+    ) -> Result<Option<Self::Documentation>, crate::documentation::DocumentationError> {
+        self.to_unified().get_identifier().get_documentation()
+    }
+}
+impl From<anyhow::Error> for Revert {
+    fn from(value: anyhow::Error) -> Self {
+        let message = format!("{value:#?}");
+        Revert::GenericError { message }
+    }
+}
+impl From<Revert> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
+    fn from(value: Revert) -> Self {
+        crate::packed::pack(value)
+    }
+}
+impl From<Revert> for crate::serialized::SerializedError {
+    fn from(value: Revert) -> Self {
+        let packed = crate::packed::pack(value);
+        crate::serialized::serialize(packed).expect("Internal serialization error.")
+    }
+}
+impl CustomErrorMessage for Revert {
+    fn get_message(&self) -> String {
+        match self {
+            Revert::General { msg, data } => {
+                format!("[anvil_zks-revert-1] General revert error: {msg}")
+            }
+            Revert::InnerTxError => {
+                format!("[anvil_zks-revert-2] Bootloader-based transaction failed.")
+            }
+            Revert::VmError => {
+                format!("[anvil_zks-revert-3] VM Error")
+            }
+            Revert::Unknown {
+                function_selector,
+                data,
+            } => {
+                format ! ("[anvil_zks-revert-4] Unknown VM revert reason: function_selector={function_selector}, data={data}")
+            }
+            Revert::GenericError { message } => {
+                format!("[anvil_zks-revert-0] Generic error: {message}")
+            }
+        }
+    }
+}
 #[doc = "Errors originating in the compiler backend for Ethereum VM (EVM)."]
 #[doc = ""]
 #[doc = "Domain: Compiler"]

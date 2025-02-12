@@ -119,6 +119,22 @@
           }
         }
       },
+      "Halt": {
+        "name": "Halt",
+        "meta": {
+          "description": ""
+        },
+        "bindings": {
+          "rust": {
+            "name": "Box<Halt>",
+            "path": ""
+          },
+          "typescript": {
+            "name": "Box<Halt>",
+            "path": ""
+          }
+        }
+      },
       "HardhatUpstream": {
         "name": "HardhatUpstream",
         "meta": {
@@ -179,6 +195,22 @@
           },
           "typescript": {
             "name": "Box<LLVM_Era>",
+            "path": ""
+          }
+        }
+      },
+      "Revert": {
+        "name": "Revert",
+        "meta": {
+          "description": ""
+        },
+        "bindings": {
+          "rust": {
+            "name": "Box<Revert>",
+            "path": ""
+          },
+          "typescript": {
+            "name": "Box<Revert>",
             "path": ""
           }
         }
@@ -342,7 +374,9 @@
         "code": 5,
         "components": [
           "AnvilZKSEnvironment",
-          "AnvilZKSGeneric"
+          "AnvilZKSGeneric",
+          "Halt",
+          "Revert"
         ],
         "bindings": {
           "rust": "AnvilZKS",
@@ -492,6 +526,17 @@
         "identifier": "zksync",
         "description": "Errors originating in the ZKsync codebase for Foundry."
       },
+      "Halt": {
+        "name": "Halt",
+        "code": 1,
+        "domain_name": "AnvilZKS",
+        "bindings": {
+          "rust": "Halt",
+          "typescript": "Halt"
+        },
+        "identifier": "halt",
+        "description": ""
+      },
       "HardhatUpstream": {
         "name": "HardhatUpstream",
         "code": 1,
@@ -535,6 +580,17 @@
         },
         "identifier": "llvm+era",
         "description": "Errors originating in the compiler backend for EraVM."
+      },
+      "Revert": {
+        "name": "Revert",
+        "code": 2,
+        "domain_name": "AnvilZKS",
+        "bindings": {
+          "rust": "Revert",
+          "typescript": "Revert"
+        },
+        "identifier": "revert",
+        "description": ""
       },
       "Sequencer": {
         "name": "Sequencer",
@@ -639,6 +695,1039 @@
           },
           "typescript": {
             "name": "GenericError",
+            "path": ""
+          }
+        }
+      },
+      "[anvil_zks-halt-0]": {
+        "domain": "AnvilZKS",
+        "component": "Halt",
+        "name": "GenericError",
+        "code": 0,
+        "identifier": "[anvil_zks-halt-0]",
+        "message": "Generic error: {message}",
+        "fields": [
+          {
+            "name": "message",
+            "type": "string"
+          }
+        ],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "name": "GenericError",
+            "path": ""
+          },
+          "typescript": {
+            "name": "GenericError",
+            "path": ""
+          }
+        }
+      },
+      "[anvil_zks-halt-10]": {
+        "domain": "AnvilZKS",
+        "component": "Halt",
+        "name": "UnexpectedVMBehavior",
+        "code": 10,
+        "identifier": "[anvil_zks-halt-10]",
+        "message": "virtual machine entered unexpected state. Error description: {problem}",
+        "fields": [
+          {
+            "name": "problem",
+            "type": "string"
+          }
+        ],
+        "documentation": {
+          "description": "VM entered an unforeseen state during transaction execution.",
+          "summary": "The virtual machine encountered an unexpected state.",
+          "likely_causes": [
+            {
+              "cause": "Internal VM logic error or unforeseen edge case.",
+              "fixes": [
+                "Contact the development team with detailed transaction information.",
+                "Review the transaction logic for potential issues."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "name": "UnexpectedVMBehavior",
+            "path": ""
+          },
+          "typescript": {
+            "name": "UnexpectedVMBehavior",
+            "path": ""
+          }
+        }
+      },
+      "[anvil_zks-halt-11]": {
+        "domain": "AnvilZKS",
+        "component": "Halt",
+        "name": "BootloaderOutOfGas",
+        "code": 11,
+        "identifier": "[anvil_zks-halt-11]",
+        "message": "Bootloader out of gas",
+        "fields": [],
+        "documentation": {
+          "description": "This error occurs when the bootloader does not have enough gas to continue executing the transaction.",
+          "summary": "The bootloader has run out of gas.",
+          "likely_causes": [
+            {
+              "cause": "Insufficient gas limit set for the transaction.",
+              "fixes": [
+                "Increase the gas limit for the transaction.",
+                "Optimize the transaction to consume less gas."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "name": "BootloaderOutOfGas",
+            "path": ""
+          },
+          "typescript": {
+            "name": "BootloaderOutOfGas",
+            "path": ""
+          }
+        }
+      },
+      "[anvil_zks-halt-12]": {
+        "domain": "AnvilZKS",
+        "component": "Halt",
+        "name": "ValidationOutOfGas",
+        "code": 12,
+        "identifier": "[anvil_zks-halt-12]",
+        "message": "Validation run out of gas",
+        "fields": [],
+        "documentation": {
+          "description": "Validation phase of transaction execution exceeds the allocated gas limit.",
+          "summary": "The validation step ran out of gas.",
+          "likely_causes": [
+            {
+              "cause": "Complex validation logic requiring more gas than allocated.",
+              "fixes": [
+                "Increase the gas limit for the validation step.",
+                "Simplify the validation logic to consume less gas."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "name": "ValidationOutOfGas",
+            "path": ""
+          },
+          "typescript": {
+            "name": "ValidationOutOfGas",
+            "path": ""
+          }
+        }
+      },
+      "[anvil_zks-halt-13]": {
+        "domain": "AnvilZKS",
+        "component": "Halt",
+        "name": "TooBigGasLimit",
+        "code": 13,
+        "identifier": "[anvil_zks-halt-13]",
+        "message": "Transaction has a too big ergs limit and will not be executed by the server",
+        "fields": [],
+        "documentation": {
+          "description": "This error occurs when the gas limit set for the transaction is too large for the server to handle.",
+          "summary": "The transaction's gas limit is excessively high.",
+          "likely_causes": [
+            {
+              "cause": "Setting an unrealistically high gas limit for the transaction.",
+              "fixes": [
+                "Adjust the gas limit to a reasonable value."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "name": "TooBigGasLimit",
+            "path": ""
+          },
+          "typescript": {
+            "name": "TooBigGasLimit",
+            "path": ""
+          }
+        }
+      },
+      "[anvil_zks-halt-14]": {
+        "domain": "AnvilZKS",
+        "component": "Halt",
+        "name": "NotEnoughGasProvided",
+        "code": 14,
+        "identifier": "[anvil_zks-halt-14]",
+        "message": "Bootloader did not have enough gas to start the transaction",
+        "fields": [],
+        "documentation": {
+          "description": "Bootloader lacks the necessary gas to begin executing the transaction.",
+          "summary": "Insufficient gas provided to initiate the transaction.",
+          "likely_causes": [
+            {
+              "cause": "Insufficient gas allocated for the transaction initiation.",
+              "fixes": [
+                "Increase the gas provided for the transaction.",
+                "Ensure that the gas estimation is accurate before setting the gas limit."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "name": "NotEnoughGasProvided",
+            "path": ""
+          },
+          "typescript": {
+            "name": "NotEnoughGasProvided",
+            "path": ""
+          }
+        }
+      },
+      "[anvil_zks-halt-15]": {
+        "domain": "AnvilZKS",
+        "component": "Halt",
+        "name": "MissingInvocationLimitReached",
+        "code": 15,
+        "identifier": "[anvil_zks-halt-15]",
+        "message": "Transaction produced too much storage accesses.",
+        "fields": [],
+        "documentation": {
+          "description": "This error occurs when the transaction makes too many missing invocations to memory, surpassing the allowed limit.",
+          "summary": "The transaction exceeded the allowed number of storage invocations.",
+          "likely_causes": [
+            {
+              "cause": "Highly complex transaction with excessive memory accesses.",
+              "fixes": [
+                "Optimize the transaction to reduce the number of memory accesses."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "name": "MissingInvocationLimitReached",
+            "path": ""
+          },
+          "typescript": {
+            "name": "MissingInvocationLimitReached",
+            "path": ""
+          }
+        }
+      },
+      "[anvil_zks-halt-16]": {
+        "domain": "AnvilZKS",
+        "component": "Halt",
+        "name": "FailedToSetL2Block",
+        "code": 16,
+        "identifier": "[anvil_zks-halt-16]",
+        "message": "Failed to set information about the L2 block: {msg}",
+        "fields": [
+          {
+            "name": "msg",
+            "type": "string"
+          }
+        ],
+        "documentation": {
+          "description": "System failed to set the necessary information for the L2 block during transaction execution.",
+          "summary": "Unable to set L2 block information.",
+          "likely_causes": [
+            {
+              "cause": "Invalid L2 block data or internal processing error.",
+              "fixes": [
+                "Verify the L2 block information being set.",
+                "Check for any internal processing issues that might prevent setting the L2 block."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "name": "FailedToSetL2Block",
+            "path": ""
+          },
+          "typescript": {
+            "name": "FailedToSetL2Block",
+            "path": ""
+          }
+        }
+      },
+      "[anvil_zks-halt-17]": {
+        "domain": "AnvilZKS",
+        "component": "Halt",
+        "name": "FailedToAppendTransactionToL2Block",
+        "code": 17,
+        "identifier": "[anvil_zks-halt-17]",
+        "message": "Failed to append the transaction to the current L2 block: {msg}",
+        "fields": [
+          {
+            "name": "msg",
+            "type": "string"
+          }
+        ],
+        "documentation": {
+          "description": "System cannot append the transaction to the ongoing L2 block, possibly due to data inconsistencies or internal errors.",
+          "summary": "Failed to add the transaction to the L2 block.",
+          "likely_causes": [
+            {
+              "cause": "Data inconsistency or corruption in the L2 block.",
+              "fixes": [
+                "Ensure the integrity of the L2 block data.",
+                "Retry appending the transaction after verifying the L2 block state."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "name": "FailedToAppendTransactionToL2Block",
+            "path": ""
+          },
+          "typescript": {
+            "name": "FailedToAppendTransactionToL2Block",
+            "path": ""
+          }
+        }
+      },
+      "[anvil_zks-halt-18]": {
+        "domain": "AnvilZKS",
+        "component": "Halt",
+        "name": "VMPanic",
+        "code": 18,
+        "identifier": "[anvil_zks-halt-18]",
+        "message": "VM panicked",
+        "fields": [],
+        "documentation": {
+          "description": "VM experiences a critical failure and panic during transaction execution.",
+          "summary": "The virtual machine encountered a panic.",
+          "likely_causes": [
+            {
+              "cause": "Uncaught exception or critical internal error within the VM.",
+              "fixes": [
+                "Review the transaction for any operations that might cause the VM to panic."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "name": "VMPanic",
+            "path": ""
+          },
+          "typescript": {
+            "name": "VMPanic",
+            "path": ""
+          }
+        }
+      },
+      "[anvil_zks-halt-19]": {
+        "domain": "AnvilZKS",
+        "component": "Halt",
+        "name": "TracerCustom",
+        "code": 19,
+        "identifier": "[anvil_zks-halt-19]",
+        "message": "Tracer aborted execution: {msg}",
+        "fields": [
+          {
+            "name": "msg",
+            "type": "string"
+          }
+        ],
+        "documentation": {
+          "description": "Custom tracer used during transaction execution decides to abort the process, typically due to specific conditions being met.",
+          "summary": "Tracer aborted the transaction execution.",
+          "likely_causes": [
+            {
+              "cause": "Custom tracer conditions not met or detected an issue.",
+              "fixes": [
+                "Review the tracer's logic to understand why it aborted the execution.",
+                "Adjust the tracer conditions if necessary to prevent unnecessary aborts."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "name": "TracerCustom",
+            "path": ""
+          },
+          "typescript": {
+            "name": "TracerCustom",
+            "path": ""
+          }
+        }
+      },
+      "[anvil_zks-halt-1]": {
+        "domain": "AnvilZKS",
+        "component": "Halt",
+        "name": "ValidationFailed",
+        "code": 1,
+        "identifier": "[anvil_zks-halt-1]",
+        "message": "Account validation error: {msg}: {data}",
+        "fields": [
+          {
+            "name": "msg",
+            "type": "string"
+          },
+          {
+            "name": "data",
+            "type": "string"
+          }
+        ],
+        "documentation": {
+          "description": "This error occurs when the account validation step fails during the verification and execution of a transaction.",
+          "summary": "Account validation failed during execution.",
+          "likely_causes": [
+            {
+              "cause": "Insufficient funds to cover transaction costs.",
+              "fixes": [
+                "Add enough balance to the account to pay for gas and the transaction amount."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
+              "cause": "Invalid account state or credentials.",
+              "fixes": [
+                "Verify that the account used has a valid signature and nonce."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "name": "ValidationFailed",
+            "path": ""
+          },
+          "typescript": {
+            "name": "ValidationFailed",
+            "path": ""
+          }
+        }
+      },
+      "[anvil_zks-halt-20]": {
+        "domain": "AnvilZKS",
+        "component": "Halt",
+        "name": "FailedToPublishCompressedBytecodes",
+        "code": 20,
+        "identifier": "[anvil_zks-halt-20]",
+        "message": "Failed to publish compressed bytecodes",
+        "fields": [],
+        "documentation": {
+          "description": "Emitted when the system fails to publish the compressed bytecodes during transaction execution.",
+          "summary": "Unable to publish compressed bytecodes.",
+          "likely_causes": [
+            {
+              "cause": "Compression failure or network issues during publishing.",
+              "fixes": [
+                "Ensure the compression is functioning correctly.",
+                "Verify network connectivity and retry the publishing process."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "name": "FailedToPublishCompressedBytecodes",
+            "path": ""
+          },
+          "typescript": {
+            "name": "FailedToPublishCompressedBytecodes",
+            "path": ""
+          }
+        }
+      },
+      "[anvil_zks-halt-21]": {
+        "domain": "AnvilZKS",
+        "component": "Halt",
+        "name": "FailedBlockTimestampAssertion",
+        "code": 21,
+        "identifier": "[anvil_zks-halt-21]",
+        "message": "Transaction failed `block.timestamp` assertion",
+        "fields": [],
+        "documentation": {
+          "description": "This error occurs when the transaction's execution fails to satisfy the `block.timestamp` assertion, indicating a discrepancy in the expected timestamp.",
+          "summary": "Block timestamp assertion failed during the transaction.",
+          "likely_causes": [
+            {
+              "cause": "Incorrect block timestamp or transaction timing issues.",
+              "fixes": [
+                "Ensure that the block timestamp is set correctly.",
+                "Verify the transaction timing and adjust if necessary."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "name": "FailedBlockTimestampAssertion",
+            "path": ""
+          },
+          "typescript": {
+            "name": "FailedBlockTimestampAssertion",
+            "path": ""
+          }
+        }
+      },
+      "[anvil_zks-halt-2]": {
+        "domain": "AnvilZKS",
+        "component": "Halt",
+        "name": "PaymasterValidationFailed",
+        "code": 2,
+        "identifier": "[anvil_zks-halt-2]",
+        "message": "Paymaster validation error: {msg}: {data}.",
+        "fields": [
+          {
+            "name": "msg",
+            "type": "string"
+          },
+          {
+            "name": "data",
+            "type": "string"
+          }
+        ],
+        "documentation": {
+          "description": "This error is emitted when the paymaster validation process fails during transaction execution.",
+          "summary": "Paymaster validation failed.",
+          "likely_causes": [
+            {
+              "cause": "Invalid paymaster parameters, insufficient funds or unmet validation conditions.",
+              "fixes": [
+                "Check the paymaster validation conditions and ensure all parameters are correct.",
+                "Ensure the paymaster account has sufficient funds to cover the transaction fees."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "name": "PaymasterValidationFailed",
+            "path": ""
+          },
+          "typescript": {
+            "name": "PaymasterValidationFailed",
+            "path": ""
+          }
+        }
+      },
+      "[anvil_zks-halt-3]": {
+        "domain": "AnvilZKS",
+        "component": "Halt",
+        "name": "PrePaymasterPreparationFailed",
+        "code": 3,
+        "identifier": "[anvil_zks-halt-3]",
+        "message": "Pre-paymaster preparation error: {msg}: {data}",
+        "fields": [
+          {
+            "name": "msg",
+            "type": "string"
+          },
+          {
+            "name": "data",
+            "type": "string"
+          }
+        ],
+        "documentation": {
+          "description": "This error occurs when the system fails to prepare the paymaster before executing a transaction.",
+          "summary": "Pre-paymaster preparation step failed.",
+          "likely_causes": [
+            {
+              "cause": "Error in setting up pre-paymaster state.",
+              "fixes": [
+                "Verify the pre-paymaster setup process and ensure all prerequisites are met."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "name": "PrePaymasterPreparationFailed",
+            "path": ""
+          },
+          "typescript": {
+            "name": "PrePaymasterPreparationFailed",
+            "path": ""
+          }
+        }
+      },
+      "[anvil_zks-halt-4]": {
+        "domain": "AnvilZKS",
+        "component": "Halt",
+        "name": "PayForTxFailed",
+        "code": 4,
+        "identifier": "[anvil_zks-halt-4]",
+        "message": "Failed to pay for the transaction: {msg}: {data}",
+        "fields": [
+          {
+            "name": "msg",
+            "type": "string"
+          },
+          {
+            "name": "data",
+            "type": "string"
+          }
+        ],
+        "documentation": {
+          "description": "This error is emitted when the system fails to deduct the required fees for executing the transaction.",
+          "summary": "Payment for the transaction failed.",
+          "likely_causes": [
+            {
+              "cause": "Insufficient balance or incorrect payment parameters.",
+              "fixes": [
+                "Verify that the parameters are correctly specified."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "name": "PayForTxFailed",
+            "path": ""
+          },
+          "typescript": {
+            "name": "PayForTxFailed",
+            "path": ""
+          }
+        }
+      },
+      "[anvil_zks-halt-5]": {
+        "domain": "AnvilZKS",
+        "component": "Halt",
+        "name": "FailedToMarkFactoryDependencies",
+        "code": 5,
+        "identifier": "[anvil_zks-halt-5]",
+        "message": "Failed to mark factory dependencies: {msg}: {data}",
+        "fields": [
+          {
+            "name": "msg",
+            "type": "string"
+          },
+          {
+            "name": "data",
+            "type": "string"
+          }
+        ],
+        "documentation": {
+          "description": "This error occurs when the system cannot mark the necessary factory dependencies required for the transaction.",
+          "summary": "Failed to mark factory dependencies during execution.",
+          "likely_causes": [
+            {
+              "cause": "Factory dependencies may be missing or incorrectly injected.",
+              "fixes": [
+                "Ensure the factory dependencies are correctly included in the transaction."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "name": "FailedToMarkFactoryDependencies",
+            "path": ""
+          },
+          "typescript": {
+            "name": "FailedToMarkFactoryDependencies",
+            "path": ""
+          }
+        }
+      },
+      "[anvil_zks-halt-6]": {
+        "domain": "AnvilZKS",
+        "component": "Halt",
+        "name": "FailedToChargeFee",
+        "code": 6,
+        "identifier": "[anvil_zks-halt-6]",
+        "message": "Failed to charge fee: {msg}: {data}",
+        "fields": [
+          {
+            "name": "msg",
+            "type": "string"
+          },
+          {
+            "name": "data",
+            "type": "string"
+          }
+        ],
+        "documentation": {
+          "description": "This error is emitted when the system cannot deduct the necessary fee for the transaction.",
+          "summary": "Charging the transaction fee failed.",
+          "likely_causes": [
+            {
+              "cause": "Insufficient funds or incorrect fee parameters.",
+              "fixes": [
+                "Ensure the account has sufficient balance to cover the transaction fee.",
+                "Verify that the fee parameters are correctly specified."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "name": "FailedToChargeFee",
+            "path": ""
+          },
+          "typescript": {
+            "name": "FailedToChargeFee",
+            "path": ""
+          }
+        }
+      },
+      "[anvil_zks-halt-7]": {
+        "domain": "AnvilZKS",
+        "component": "Halt",
+        "name": "FromIsNotAnAccount",
+        "code": 7,
+        "identifier": "[anvil_zks-halt-7]",
+        "message": "Sender is not an account",
+        "fields": [],
+        "documentation": {
+          "description": "This error occurs when a transaction is attempted from an address that has not been deployed as an account, meaning the `from` address is just a contract.",
+          "summary": "The sender address is not a valid account.",
+          "likely_causes": [
+            {
+              "cause": "Account not deployed with `createAccount` or `create2Account`",
+              "fixes": [
+                "Ensure that the `from` address is an account deployed using `createAccount` or `create2Account`."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
+              "cause": "Using a contract address as the sender instead of an account.",
+              "fixes": [
+                "Ensure that the `from` address is an account and not a contract."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "name": "FromIsNotAnAccount",
+            "path": ""
+          },
+          "typescript": {
+            "name": "FromIsNotAnAccount",
+            "path": ""
+          }
+        }
+      },
+      "[anvil_zks-halt-8]": {
+        "domain": "AnvilZKS",
+        "component": "Halt",
+        "name": "InnerTxError",
+        "code": 8,
+        "identifier": "[anvil_zks-halt-8]",
+        "message": "Bootloader-based tx failed",
+        "fields": [],
+        "documentation": {
+          "description": "Transaction reverted due to a contract call that failed during execution.",
+          "summary": "An inner transaction error occurred.",
+          "likely_causes": [
+            {
+              "cause": "Contract function call failed.",
+              "fixes": [
+                "Review contract function logic for potential issues."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "name": "InnerTxError",
+            "path": ""
+          },
+          "typescript": {
+            "name": "InnerTxError",
+            "path": ""
+          }
+        }
+      },
+      "[anvil_zks-halt-9]": {
+        "domain": "AnvilZKS",
+        "component": "Halt",
+        "name": "Unknown",
+        "code": 9,
+        "identifier": "[anvil_zks-halt-9]",
+        "message": "Unknown reason: {msg}: {data}",
+        "fields": [
+          {
+            "name": "msg",
+            "type": "string"
+          },
+          {
+            "name": "data",
+            "type": "string"
+          }
+        ],
+        "documentation": {
+          "description": "This error is emitted when the system encounters an unspecified reason for halting.",
+          "summary": "An unknown error occurred.",
+          "likely_causes": [
+            {
+              "cause": "Unexpected or unhandled VM state.",
+              "fixes": [
+                "Contact the developers with transaction details that caused this error."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "name": "Unknown",
+            "path": ""
+          },
+          "typescript": {
+            "name": "Unknown",
+            "path": ""
+          }
+        }
+      },
+      "[anvil_zks-revert-0]": {
+        "domain": "AnvilZKS",
+        "component": "Revert",
+        "name": "GenericError",
+        "code": 0,
+        "identifier": "[anvil_zks-revert-0]",
+        "message": "Generic error: {message}",
+        "fields": [
+          {
+            "name": "message",
+            "type": "string"
+          }
+        ],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "name": "GenericError",
+            "path": ""
+          },
+          "typescript": {
+            "name": "GenericError",
+            "path": ""
+          }
+        }
+      },
+      "[anvil_zks-revert-1]": {
+        "domain": "AnvilZKS",
+        "component": "Revert",
+        "name": "General",
+        "code": 1,
+        "identifier": "[anvil_zks-revert-1]",
+        "message": "General revert error: {msg}",
+        "fields": [
+          {
+            "name": "msg",
+            "type": "string"
+          },
+          {
+            "name": "data",
+            "type": "bytes"
+          }
+        ],
+        "documentation": {
+          "description": "This error indicates that the transaction execution was reverted.",
+          "summary": "Execution reverted due to a failure.",
+          "likely_causes": [
+            {
+              "cause": "The smart contract encountered a condition that triggered a revert. Common reasons include:",
+              "fixes": [
+                "Check the transaction parameters, such as sender address, function inputs, and required permissions.",
+                "Ensure that the contract state allows the operation (e.g., the caller has the required role or balance).",
+                "Check the transaction logs and VM trace for deeper debugging."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "name": "General",
+            "path": ""
+          },
+          "typescript": {
+            "name": "General",
+            "path": ""
+          }
+        }
+      },
+      "[anvil_zks-revert-2]": {
+        "domain": "AnvilZKS",
+        "component": "Revert",
+        "name": "InnerTxError",
+        "code": 2,
+        "identifier": "[anvil_zks-revert-2]",
+        "message": "Bootloader-based transaction failed.",
+        "fields": [],
+        "documentation": {
+          "description": "This error is emitted when an inner transaction within the VM fails, typically related to bootloader execution.",
+          "summary": "An inner transaction error occurred.",
+          "likely_causes": [
+            {
+              "cause": "Failure in executing a nested transaction within the VM.",
+              "fixes": [
+                "Check the inner transaction details for errors.",
+                "Ensure that all prerequisites for the nested transaction are met."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "name": "InnerTxError",
+            "path": ""
+          },
+          "typescript": {
+            "name": "InnerTxError",
+            "path": ""
+          }
+        }
+      },
+      "[anvil_zks-revert-3]": {
+        "domain": "AnvilZKS",
+        "component": "Revert",
+        "name": "VmError",
+        "code": 3,
+        "identifier": "[anvil_zks-revert-3]",
+        "message": "VM Error",
+        "fields": [],
+        "documentation": {
+          "description": "This error indicates a generic failure within the VM, without specific details.",
+          "summary": "A generic VM error.",
+          "likely_causes": [
+            {
+              "cause": "A non-specific internal error within the VM.",
+              "fixes": [
+                "Review the VM logs for more detailed information."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "name": "VmError",
+            "path": ""
+          },
+          "typescript": {
+            "name": "VmError",
+            "path": ""
+          }
+        }
+      },
+      "[anvil_zks-revert-4]": {
+        "domain": "AnvilZKS",
+        "component": "Revert",
+        "name": "Unknown",
+        "code": 4,
+        "identifier": "[anvil_zks-revert-4]",
+        "message": "Unknown VM revert reason: function_selector={function_selector}, data={data}",
+        "fields": [
+          {
+            "name": "function_selector",
+            "type": "string"
+          },
+          {
+            "name": "data",
+            "type": "string"
+          }
+        ],
+        "documentation": {
+          "description": "This error is emitted when the VM encounters a revert reason that is not recognized, including the function selector and raw data for debugging.",
+          "summary": "An unknown VM revert reason was encountered.",
+          "likely_causes": [
+            {
+              "cause": "Reverting due unknown reason.",
+              "fixes": [
+                "Verify the contract call and its parameters are proper."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "name": "Unknown",
+            "path": ""
+          },
+          "typescript": {
+            "name": "Unknown",
             "path": ""
           }
         }

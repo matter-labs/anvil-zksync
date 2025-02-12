@@ -590,6 +590,7 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "zksync-error-codegen",
+ "zksync-error-description",
  "zksync_contracts",
  "zksync_error",
  "zksync_multivm",
