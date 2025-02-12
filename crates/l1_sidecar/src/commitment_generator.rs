@@ -1,5 +1,6 @@
 use crate::zkstack_config::ZkstackConfig;
 use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::blob::num_blobs_required;
 use zksync_types::block::L1BatchHeader;
@@ -18,6 +19,8 @@ pub struct CommitmentGenerator {
     base_system_contracts_hashes: BaseSystemContractsHashes,
     /// Fee address expected by L1.
     fee_address: Address,
+    /// Batches with already known metadata.
+    batches: Arc<RwLock<HashMap<L1BatchNumber, L1BatchWithMetadata>>>,
 }
 
 impl CommitmentGenerator {
@@ -43,6 +46,7 @@ impl CommitmentGenerator {
         let this = Self {
             base_system_contracts_hashes,
             fee_address: zkstack_config.genesis.fee_account,
+            batches: Arc::new(RwLock::new(HashMap::new())),
         };
 
         // Run realistic genesis commitment computation that should match value from zkstack config
@@ -57,13 +61,24 @@ impl CommitmentGenerator {
             zkstack_config.genesis.genesis_batch_commitment, genesis_metadata.metadata.commitment,
             "Computed genesis batch commitment does not match zkstack config"
         );
+        this.batches
+            .write()
+            .unwrap()
+            .insert(L1BatchNumber(0), genesis_metadata.clone());
 
         (this, genesis_metadata)
     }
 
-    /// Generate metadata (including commitment) for a batch. Note: since anvil-zksync does not store
-    /// batches running this method twice on the same batch number will not result in the same metadata.
-    pub fn generate_metadata(&self, batch_number: L1BatchNumber) -> L1BatchWithMetadata {
+    /// Retrieve batch's existing metadata or generate it if there is none.
+    pub fn get_metadata(&self, batch_number: L1BatchNumber) -> L1BatchWithMetadata {
+        let mut writer = self.batches.write().unwrap();
+        writer
+            .entry(batch_number)
+            .or_insert_with(|| self.generate_metadata(batch_number))
+            .clone()
+    }
+
+    fn generate_metadata(&self, batch_number: L1BatchNumber) -> L1BatchWithMetadata {
         // anvil-zksync does not store batches right now so we just generate dummy commitment input.
         // Root hash is random purely so that different batches have different commitments.
         let root_hash = H256::random();

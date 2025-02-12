@@ -7,4 +7,7 @@ use zksync_types::{L1BatchNumber, H256};
 pub trait AnvilZksNamespace {
     #[method(name = "commitBatch")]
     async fn commit_batch(&self, batch_number: L1BatchNumber) -> RpcResult<H256>;
+
+    #[method(name = "proveBatch")]
+    async fn prove_batch(&self, batch_number: L1BatchNumber) -> RpcResult<H256>;
 }

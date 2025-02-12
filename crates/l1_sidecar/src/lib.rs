@@ -73,10 +73,20 @@ impl L1Sidecar {
                 "cannot commit a batch as there is no L1 configured"
             ));
         };
-        let batch_with_metadata = inner.commitment_generator.generate_metadata(batch_number);
+        let batch_with_metadata = inner.commitment_generator.get_metadata(batch_number);
         inner
             .l1_sender_handle
             .commit_sync(batch_with_metadata)
             .await
+    }
+
+    pub async fn prove_batch(&self, batch_number: L1BatchNumber) -> anyhow::Result<H256> {
+        let Some(inner) = self.inner.as_ref() else {
+            return Err(anyhow::anyhow!(
+                "cannot prove a batch as there is no L1 configured"
+            ));
+        };
+        let batch_with_metadata = inner.commitment_generator.get_metadata(batch_number);
+        inner.l1_sender_handle.prove_sync(batch_with_metadata).await
     }
 }
