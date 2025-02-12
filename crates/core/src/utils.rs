@@ -233,11 +233,7 @@ pub fn format_token(value: &DynSolValue, raw: bool) -> String {
                 values.iter().map(|v| format_token(v, raw)).collect();
             format!("[{}]", formatted_values.join(", "))
         }
-        DynSolValue::Tuple(values) => {
-            let formatted_values: Vec<String> =
-                values.iter().map(|v| format_token(v, raw)).collect();
-            format!("({})", formatted_values.join(", "))
-        }
+        DynSolValue::Tuple(values) => format_tuple(values, raw),
         DynSolValue::String(inner) => {
             if raw {
                 inner.escape_debug().to_string()
@@ -246,7 +242,43 @@ pub fn format_token(value: &DynSolValue, raw: bool) -> String {
             }
         }
         DynSolValue::Bool(inner) => inner.to_string(),
+        DynSolValue::CustomStruct {
+            name,
+            prop_names,
+            tuple,
+        } => {
+            if raw {
+                return format_token(&DynSolValue::Tuple(tuple.clone()), true);
+            }
+
+            let mut s = String::new();
+
+            s.push_str(name);
+
+            if prop_names.len() == tuple.len() {
+                s.push_str("({ ");
+
+                for (i, (prop_name, value)) in std::iter::zip(prop_names, tuple).enumerate() {
+                    if i > 0 {
+                        s.push_str(", ");
+                    }
+                    s.push_str(prop_name);
+                    s.push_str(": ");
+                    s.push_str(&format_token(value, raw));
+                }
+
+                s.push_str(" })");
+            } else {
+                s.push_str(&format_tuple(tuple, raw));
+            }
+            s
+        }
     }
+}
+
+fn format_tuple(values: &[DynSolValue], raw: bool) -> String {
+    let formatted_values: Vec<String> = values.iter().map(|v| format_token(v, raw)).collect();
+    format!("({})", formatted_values.join(", "))
 }
 
 pub fn block_on<F: Future + Send + 'static>(future: F) -> F::Output

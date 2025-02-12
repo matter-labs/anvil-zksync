@@ -134,6 +134,14 @@ pub struct TestNodeConfig {
     pub preserve_historical_states: bool,
     /// State to load
     pub load_state: Option<PathBuf>,
+    /// L1 configuration, disabled if `None`
+    pub l1_config: Option<L1Config>,
+}
+
+#[derive(Debug, Clone)]
+pub struct L1Config {
+    /// Port the spawned L1 anvil node will listen on
+    pub port: u16,
 }
 
 impl Default for TestNodeConfig {
@@ -207,6 +215,7 @@ impl Default for TestNodeConfig {
             state_interval: None,
             preserve_historical_states: false,
             load_state: None,
+            l1_config: None,
         }
     }
 }
@@ -375,6 +384,7 @@ Port:                  {}
 EVM Emulator:          {}
 Health Check Endpoint: {}
 ZK OS:                 {}
+L1:                    {}
 "#,
             self.port,
             if self.use_evm_emulator {
@@ -391,8 +401,25 @@ ZK OS:                 {}
                 "Enabled".green()
             } else {
                 "Disabled".red()
+            },
+            if self.l1_config.is_some() {
+                "Enabled".green()
+            } else {
+                "Disabled".red()
             }
         );
+
+        // L1 Configuration
+        if let Some(l1_config) = self.l1_config.as_ref() {
+            sh_println!(
+                r#"
+L1 Configuration
+========================
+Port: {}
+"#,
+                l1_config.port
+            );
+        }
 
         // Listening addresses.
         let mut listening = String::new();
@@ -988,6 +1015,13 @@ ZK OS:                 {}
     #[must_use]
     pub fn with_load_state(mut self, load_state: Option<PathBuf>) -> Self {
         self.load_state = load_state;
+        self
+    }
+
+    /// Set the L1 config
+    #[must_use]
+    pub fn with_l1_config(mut self, l1_config: Option<L1Config>) -> Self {
+        self.l1_config = l1_config;
         self
     }
 }
