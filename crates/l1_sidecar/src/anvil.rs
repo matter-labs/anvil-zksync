@@ -1,6 +1,7 @@
 use crate::zkstack_config::ZkstackConfig;
 use alloy::network::EthereumWallet;
 use alloy::providers::{Provider, ProviderBuilder};
+use anyhow::Context;
 use foundry_anvil::{NodeConfig, NodeHandle};
 use foundry_common::Shell;
 use std::time::Duration;
@@ -92,18 +93,23 @@ async fn setup_provider(port: u16, config: &ZkstackConfig) -> anyhow::Result<Box
         .await?;
 
     // Wait for anvil to be up
-    loop {
-        match provider.get_accounts().await {
-            Ok(_) => {
-                break;
+    tokio::time::timeout(Duration::from_secs(60), async {
+        loop {
+            match provider.get_accounts().await {
+                Ok(_) => {
+                    return anyhow::Ok(());
+                }
+                Err(err) if err.is_transport_error() => {
+                    tracing::debug!(?err, "L1 Anvil is not up yet; sleeping");
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                }
+                Err(err) => return Err(err.into()),
             }
-            Err(err) if err.is_transport_error() => {
-                tracing::debug!(?err, "L1 Anvil is not up yet; sleeping");
-                tokio::time::sleep(Duration::from_millis(100)).await;
-            }
-            Err(err) => return Err(err.into()),
         }
-    }
+    })
+    .await
+    .context("L1 anvil failed to start")?
+    .context("unexpected response from L1 anvil")?;
 
     Ok(Box::new(provider))
 }
