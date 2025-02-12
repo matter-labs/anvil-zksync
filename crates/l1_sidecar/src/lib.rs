@@ -2,6 +2,7 @@ use crate::anvil::AnvilHandle;
 use crate::commitment_generator::CommitmentGenerator;
 use crate::l1_sender::{L1Sender, L1SenderHandle};
 use crate::zkstack_config::ZkstackConfig;
+use anvil_zksync_core::node::blockchain::ReadBlockchain;
 use zksync_types::{L1BatchNumber, H256};
 
 mod anvil;
@@ -26,11 +27,19 @@ impl L1Sidecar {
         Self { inner: None }
     }
 
-    pub async fn builtin(port: u16) -> anyhow::Result<(Self, L1SidecarRunner)> {
+    pub async fn builtin(
+        port: u16,
+        blockchain: Box<dyn ReadBlockchain>,
+    ) -> anyhow::Result<(Self, L1SidecarRunner)> {
         let zkstack_config = ZkstackConfig::builtin();
         let (anvil_handle, anvil_provider) = anvil::spawn_builtin(port, &zkstack_config).await?;
-        let (commitment_generator, genesis_with_metadata) =
-            CommitmentGenerator::new(&zkstack_config);
+        let commitment_generator = CommitmentGenerator::new(&zkstack_config, blockchain);
+        let genesis_with_metadata = commitment_generator
+            .get_or_generate_metadata(L1BatchNumber(0))
+            .await
+            .ok_or(anyhow::anyhow!(
+                "genesis is missing from local storage, can't start L1 sidecar"
+            ))?;
         let (l1_sender, l1_sender_handle) =
             L1Sender::new(&zkstack_config, genesis_with_metadata, anvil_provider);
         let this = Self {
@@ -73,7 +82,11 @@ impl L1Sidecar {
                 "cannot commit a batch as there is no L1 configured"
             ));
         };
-        let batch_with_metadata = inner.commitment_generator.get_metadata(batch_number);
+        let batch_with_metadata = inner
+            .commitment_generator
+            .get_or_generate_metadata(batch_number)
+            .await
+            .ok_or_else(|| anyhow::anyhow!("batch #{batch_number} does not exist"))?;
         inner
             .l1_sender_handle
             .commit_sync(batch_with_metadata)
@@ -86,7 +99,11 @@ impl L1Sidecar {
                 "cannot prove a batch as there is no L1 configured"
             ));
         };
-        let batch_with_metadata = inner.commitment_generator.get_metadata(batch_number);
+        let batch_with_metadata = inner
+            .commitment_generator
+            .get_or_generate_metadata(batch_number)
+            .await
+            .ok_or_else(|| anyhow::anyhow!("batch #{batch_number} does not exist"))?;
         inner.l1_sender_handle.prove_sync(batch_with_metadata).await
     }
 
@@ -96,7 +113,11 @@ impl L1Sidecar {
                 "cannot execute a batch as there is no L1 configured"
             ));
         };
-        let batch_with_metadata = inner.commitment_generator.get_metadata(batch_number);
+        let batch_with_metadata = inner
+            .commitment_generator
+            .get_or_generate_metadata(batch_number)
+            .await
+            .ok_or_else(|| anyhow::anyhow!("batch #{batch_number} does not exist"))?;
         inner
             .l1_sender_handle
             .execute_sync(batch_with_metadata)

@@ -1164,7 +1164,10 @@ version = "0.3.0"
 dependencies = [
  "alloy",
  "anvil",
+ "anvil_zksync_core",
+ "anvil_zksync_types",
  "anyhow",
+ "async-trait",
  "foundry-common",
  "serde",
  "serde_with",

@@ -230,12 +230,7 @@ impl InMemoryNodeInner {
         }
 
         let mut storage = self.blockchain.write().await;
-        storage.current_batch += 1;
-        storage.tx_results.extend(
-            tx_results
-                .into_iter()
-                .map(|r| (r.receipt.transaction_hash, r)),
-        );
+        storage.apply_batch(tx_results);
         for (index, block) in blocks.into_iter().enumerate() {
             // archive current state before we produce new batch/blocks
             archive_state(
@@ -1697,10 +1692,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_genesis_creates_block_with_hash_and_zero_parent_hash() {
-        let first_block = create_genesis::<TransactionVariant>(Some(1000));
+        let (first_block, first_batch) = create_genesis::<TransactionVariant>(Some(1000));
 
         assert_eq!(first_block.hash, compute_hash(0, []));
         assert_eq!(first_block.parent_hash, H256::zero());
+
+        assert_eq!(first_batch.number, L1BatchNumber(0));
     }
 
     #[tokio::test]
