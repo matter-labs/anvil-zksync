@@ -389,7 +389,7 @@ pub enum ForkUrl {
 impl ForkUrl {
     const MAINNET_URL: &'static str = "https://mainnet.era.zksync.io:443";
     const SEPOLIA_TESTNET_URL: &'static str = "https://sepolia.era.zksync.dev:443";
-    const ABSTRACT_MAINNET_URL: &'static str = "https://api.mainnet.abs.xyz	";
+    const ABSTRACT_MAINNET_URL: &'static str = "https://api.mainnet.abs.xyz";
     const ABSTRACT_TESTNET_URL: &'static str = "https://api.testnet.abs.xyz";
 
     pub fn to_config(&self) -> ForkConfig {
