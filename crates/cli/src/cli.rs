@@ -407,12 +407,12 @@ impl ForkUrl {
             ForkUrl::AbstractMainnet => ForkConfig {
                 url: Self::ABSTRACT_MAINNET_URL.parse().unwrap(),
                 estimate_gas_price_scale_factor: 1.5,
-                estimate_gas_scale_factor: 1.4,
+                estimate_gas_scale_factor: 1.3,
             },
             ForkUrl::AbstractTestnet => ForkConfig {
                 url: Self::ABSTRACT_TESTNET_URL.parse().unwrap(),
                 estimate_gas_price_scale_factor: 1.5,
-                estimate_gas_scale_factor: 1.4,
+                estimate_gas_scale_factor: 1.3,
             },
             ForkUrl::Other(url) => ForkConfig::unknown(url.clone()),
         }
