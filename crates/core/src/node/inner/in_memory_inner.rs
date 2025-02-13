@@ -45,6 +45,8 @@ use zksync_multivm::interface::{
 };
 use zksync_multivm::vm_latest::Vm;
 
+use crate::formatter::print_execution_error;
+use zksync_error::anvil_zks::{halt::HaltError, revert::RevertError};
 use zksync_multivm::tracers::CallTracer;
 use zksync_multivm::utils::{
     adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
@@ -72,8 +74,6 @@ use zksync_types::{
     ACCOUNT_CODE_STORAGE_ADDRESS, H160, H256, MAX_L2_TX_GAS_LIMIT, U256, U64,
 };
 use zksync_web3_decl::error::Web3Error;
-use crate::formatter::print_execution_error;
-use zksync_error::anvil_zks::{halt::HaltError, revert::RevertError};
 
 // TODO: Rename `InMemoryNodeInner` to something more sensible
 /// Helper struct for InMemoryNode.
@@ -472,12 +472,36 @@ impl InMemoryNodeInner {
             call_traces,
         } = self.run_l2_tx_raw(l2_tx.clone(), vm)?;
 
-        if let ExecutionResult::Halt { reason } = result.result {
-            // Halt means that something went really bad with the transaction execution (in most cases invalid signature,
-            // but it could also be bootloader panic etc).
-            // In such case, we should not persist the VM data, and we should pretend that transaction never existed.
-            anyhow::bail!("Transaction HALT: {reason}");
-        }
+        match result.result {
+            ExecutionResult::Halt { reason } => {
+                let reason_clone = reason.clone();
+
+                let halt_error = tokio::task::block_in_place(|| {
+                    tokio::runtime::Handle::current()
+                        .block_on(async { reason_clone.to_halt_error().await })
+                });
+
+                print_execution_error(&halt_error, Some(&l2_tx));
+
+                // TODO: add tracing here
+                // Halt means that something went really bad with the transaction execution
+                // (in most cases invalid signature, but it could also be bootloader panic etc).
+                // In such cases, we should not persist the VM data and should pretend that
+                // the transaction never existed.
+                anyhow::bail!("Transaction HALT: {:?}", reason);
+            }
+            ExecutionResult::Revert { ref output } => {
+                let output_clone = output.clone();
+
+                let revert_error = tokio::task::block_in_place(|| {
+                    tokio::runtime::Handle::current()
+                        .block_on(async { output_clone.to_revert_reason().await })
+                });
+
+                print_execution_error(&revert_error, Some(&l2_tx));
+            }
+            _ => {}
+        };
 
         // Write all the factory deps.
         for (hash, code) in bytecodes {
@@ -925,10 +949,10 @@ impl InMemoryNodeInner {
                     message
                 );
                 let data = output.encoded_data();
-                
+
                 let revert_reason: RevertError = output.to_revert_reason().await;
                 print_execution_error(&revert_reason, Some(&l2_tx));
-                
+
                 Err(Web3Error::SubmitTransactionError(pretty_message, data))
             }
             ExecutionResult::Halt { reason } => {

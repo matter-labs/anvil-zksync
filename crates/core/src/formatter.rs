@@ -3,6 +3,7 @@ use crate::bootloader_debug::BootloaderDebug;
 use crate::resolver;
 use crate::utils::block_on;
 use crate::utils::{calculate_eth_cost, to_human_size};
+use alloy::hex::ToHexExt;
 use anvil_zksync_common::sh_println;
 use anvil_zksync_config::utils::format_gwei;
 use anvil_zksync_types::ShowCalls;
@@ -11,16 +12,15 @@ use futures::future::join_all;
 use lazy_static::lazy_static;
 use serde::Deserialize;
 use std::{collections::HashMap, str};
+use zksync_error::documentation::Documented;
+use zksync_error::error::{CustomErrorMessage, NamedError};
+use zksync_error_description::ErrorDocumentation;
 use zksync_multivm::interface::{Call, VmEvent, VmExecutionResultAndLogs};
+use zksync_types::l2::L2Tx;
 use zksync_types::{
     fee_model::FeeModelConfigV2, Address, StorageLogWithPreviousValue, Transaction, H160, H256,
     U256,
 };
-use zksync_error::documentation::Documented;
-use zksync_error::error::{CustomErrorMessage, NamedError};
-use zksync_error_description::ErrorDocumentation;
-use zksync_types::l2::L2Tx;
-use alloy::hex::ToHexExt;
 
 // @dev elected to have GasDetails struct as we can do more with it in the future
 // We can provide more detailed understanding of gas errors and gas usage
@@ -883,6 +883,7 @@ where
     };
 
     // Print error header
+    // TODO: should also include the exact error format (e.g. `FailedToChargeFee`)
     println!("{}: {}", "error".red().bold(), error_msg.red());
     println!("    |");
     println!(
@@ -905,8 +906,9 @@ where
         }
         println!("    |   From: {:?}", tx.initiator_account());
         if let Some(input_data) = &tx.common_data.input {
-            println!("    |   Input Data: {:?}", input_data);
-            println!("    |   Hash: {}", tx.hash());
+            let hex_data = &input_data.data.encode_hex();
+            println!("    |   Input Data: 0x{}", hex_data);
+            println!("    |   Hash: {:?}", tx.hash());
         }
         println!("    |   Gas Limit: {}", tx.common_data.fee.gas_limit);
         println!(
@@ -925,11 +927,11 @@ where
             println!("    | {}", "Paymaster details:".cyan());
             println!("    |   Paymaster Address: {:?}", paymaster_address);
             println!(
-                "    |   Paymaster Input: {}",
+                "    |   Paymaster Input: 0x{}",
                 if paymaster_input.is_empty() {
                     "None".to_string()
                 } else {
-                    format!("{:?}", paymaster_input.encode_hex())
+                    paymaster_input.encode_hex()
                 }
             );
         }

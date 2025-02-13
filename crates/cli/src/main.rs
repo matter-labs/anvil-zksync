@@ -206,7 +206,9 @@ async fn main() -> Result<(), AnvilZKSError> {
     let mut node_service_tasks: Vec<Pin<Box<dyn Future<Output = anyhow::Result<()>>>>> = Vec::new();
     let l1_sidecar = match config.l1_config.as_ref() {
         Some(l1_config) => {
-            let (l1_sidecar, l1_sidecar_runner) = L1Sidecar::builtin(l1_config.port).await.map_err(to_domain)?;
+            let (l1_sidecar, l1_sidecar_runner) = L1Sidecar::builtin(l1_config.port)
+                .await
+                .map_err(to_domain)?;
             node_service_tasks.push(Box::pin(l1_sidecar_runner.run()));
             l1_sidecar
         }

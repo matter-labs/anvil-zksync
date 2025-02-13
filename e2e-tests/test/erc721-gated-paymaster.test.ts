@@ -36,6 +36,7 @@ describe("ERC721GatedPaymaster", function () {
     await provider.send("hardhat_setBalance", [await paymaster.getAddress(), ethers.toBeHex(ethers.parseEther("10"))]);
 
     // Assign NFT to nftUserWallet
+
     const tx = await erc721.mint(nftUserWallet.address);
     await tx.wait();
   });
