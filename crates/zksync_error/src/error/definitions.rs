@@ -205,7 +205,7 @@ pub enum Halt {
     #[doc = "Pre-paymaster preparation step failed."]
     #[doc = ""]
     #[doc = "# Description"]
-    #[doc = "This error occurs when the system fails to prepare the paymaster before executing a transaction."]
+    #[doc = "This error occurs during pre-transaction paymaster preparation if the paymaster input is too short (less than 4 bytes) or its selector is unsupported."]
     PrePaymasterPreparationFailed {
         msg: String,
         data: String,
@@ -220,19 +220,19 @@ pub enum Halt {
         data: String,
     } = 4u32,
     #[doc = "# Summary "]
-    #[doc = "Failed to mark factory dependencies during execution."]
+    #[doc = "Failed to register factory dependencies for L1 transactions."]
     #[doc = ""]
     #[doc = "# Description"]
-    #[doc = "This error occurs when the system cannot mark the necessary factory dependencies required for the transaction."]
+    #[doc = "This error occurs when the system is unable to mark the factory dependencies for an L1 transaction in the known code storage. For L1 transactions, factory dependencies must be recorded as known to ensure that all required code components are available. A failure here may indicate that the dependency data is missing or malformed."]
     FailedToMarkFactoryDependencies {
         msg: String,
         data: String,
     } = 5u32,
     #[doc = "# Summary "]
-    #[doc = "Charging the transaction fee failed."]
+    #[doc = "Transaction fee deduction failed."]
     #[doc = ""]
     #[doc = "# Description"]
-    #[doc = "This error is emitted when the system cannot deduct the necessary fee for the transaction."]
+    #[doc = "This error is raised when the funds transferred to the bootloader are insufficient compared to the required fee (calculated as gasLimit * gasPrice). This may occur when the payer (account or paymaster) does not send enough ETH or when fee parameters are misconfigured."]
     FailedToChargeFee {
         msg: String,
         data: String,
@@ -259,10 +259,10 @@ pub enum Halt {
         data: String,
     } = 9u32,
     #[doc = "# Summary "]
-    #[doc = "The virtual machine encountered an unexpected state."]
+    #[doc = "The bootloader encountered an unexpected state."]
     #[doc = ""]
     #[doc = "# Description"]
-    #[doc = "VM entered an unforeseen state during transaction execution."]
+    #[doc = "This error can be triggered by various bootloader anomalies such as mismatched fee parameters (e.g., baseFee greater than maxFeePerGas), unaccepted pubdata price, failed system calls (like L1 messenger or System Context), or internal assertion failures."]
     UnexpectedVMBehavior {
         problem: String,
     } = 10u32,
@@ -276,7 +276,7 @@ pub enum Halt {
     #[doc = "The validation step ran out of gas."]
     #[doc = ""]
     #[doc = "# Description"]
-    #[doc = "Validation phase of transaction execution exceeds the allocated gas limit."]
+    #[doc = "Validation step of transaction execution exceeds the allocated gas limit."]
     ValidationOutOfGas = 12u32,
     #[doc = "# Summary "]
     #[doc = "The transaction's gas limit is excessively high."]
@@ -285,10 +285,10 @@ pub enum Halt {
     #[doc = "This error occurs when the gas limit set for the transaction is too large for the server to handle."]
     TooBigGasLimit = 13u32,
     #[doc = "# Summary "]
-    #[doc = "Insufficient gas provided to initiate the transaction."]
+    #[doc = "Insufficient gas for the bootloader to continue the transaction."]
     #[doc = ""]
     #[doc = "# Description"]
-    #[doc = "Bootloader lacks the necessary gas to begin executing the transaction."]
+    #[doc = "The bootloader checks if it can supply the requested gas plus overhead. If the remaining gas is below this threshold, it reverts."]
     NotEnoughGasProvided = 14u32,
     #[doc = "# Summary "]
     #[doc = "The transaction exceeded the allowed number of storage invocations."]
@@ -300,15 +300,15 @@ pub enum Halt {
     #[doc = "Unable to set L2 block information."]
     #[doc = ""]
     #[doc = "# Description"]
-    #[doc = "System failed to set the necessary information for the L2 block during transaction execution."]
+    #[doc = "System failed to set the necessary information for the L2 block during execution."]
     FailedToSetL2Block {
         msg: String,
     } = 16u32,
     #[doc = "# Summary "]
-    #[doc = "Failed to add the transaction to the L2 block."]
+    #[doc = "Unable to append the transaction hash to the ongoing L2 block."]
     #[doc = ""]
     #[doc = "# Description"]
-    #[doc = "System cannot append the transaction to the ongoing L2 block, possibly due to data inconsistencies or internal errors."]
+    #[doc = "The system context call to record this transaction in the current L2 block failed. Common causes include invalid or corrupted L2 block data, insufficient gas, or unforeseen internal errors in the system context."]
     FailedToAppendTransactionToL2Block {
         msg: String,
     } = 17u32,
@@ -330,13 +330,13 @@ pub enum Halt {
     #[doc = "Unable to publish compressed bytecodes."]
     #[doc = ""]
     #[doc = "# Description"]
-    #[doc = "Emitted when the system fails to publish the compressed bytecodes during transaction execution."]
+    #[doc = "Emitted when the system fails to publish the compressed bytecodes during execution."]
     FailedToPublishCompressedBytecodes = 20u32,
     #[doc = "# Summary "]
     #[doc = "Block timestamp assertion failed during the transaction."]
     #[doc = ""]
     #[doc = "# Description"]
-    #[doc = "This error occurs when the transaction's execution fails to satisfy the `block.timestamp` assertion, indicating a discrepancy in the expected timestamp."]
+    #[doc = "This error often occurs if the transaction's timestamp is behind the last known block or conflicts with expected chronological order."]
     FailedBlockTimestampAssertion = 21u32,
     GenericError {
         message: String,
@@ -419,7 +419,7 @@ impl CustomErrorMessage for Halt {
                 format!("[anvil_zks-halt-9] Unknown reason: {msg}: {data}")
             }
             Halt::UnexpectedVMBehavior { problem } => {
-                format ! ("[anvil_zks-halt-10] virtual machine entered unexpected state. Error description: {problem}")
+                format ! ("[anvil_zks-halt-10] Virtual machine entered unexpected state. Error description: {problem}")
             }
             Halt::BootloaderOutOfGas => {
                 format!("[anvil_zks-halt-11] Bootloader out of gas")
@@ -431,7 +431,7 @@ impl CustomErrorMessage for Halt {
                 format ! ("[anvil_zks-halt-13] Transaction has a too big ergs limit and will not be executed by the server")
             }
             Halt::NotEnoughGasProvided => {
-                format ! ("[anvil_zks-halt-14] Bootloader did not have enough gas to start the transaction")
+                format ! ("[anvil_zks-halt-14] Bootloader does not have enough gas to proceed with the transaction.")
             }
             Halt::MissingInvocationLimitReached => {
                 format!("[anvil_zks-halt-15] Transaction produced too much storage accesses.")
