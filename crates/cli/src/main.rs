@@ -279,6 +279,9 @@ async fn main() -> anyhow::Result<()> {
     if !transactions_to_replay.is_empty() {
         node.apply_txs(transactions_to_replay, config.max_transactions)
             .await?;
+
+        // If we are in replay mode, we don't start the server
+        return Ok(());
     }
 
     // TODO: Consider moving to `InMemoryNodeInner::init`
