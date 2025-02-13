@@ -4,7 +4,7 @@
 
 #![allow(unused)]
 pub mod documentation;
-pub mod error;
+pub(crate) mod error;
 pub(crate) mod identifier;
 pub use identifier::Identifier;
 pub use identifier::StructuredErrorCode;

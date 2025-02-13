@@ -471,7 +471,8 @@ impl InMemoryNodeInner {
             bytecodes,
             call_traces,
         } = self.run_l2_tx_raw(l2_tx.clone(), vm)?;
-
+        
+        // TODO: add tracing before here
         match result.result {
             ExecutionResult::Halt { reason } => {
                 let reason_clone = reason.clone();
@@ -483,7 +484,6 @@ impl InMemoryNodeInner {
 
                 print_execution_error(&halt_error, Some(&l2_tx));
 
-                // TODO: add tracing here
                 // Halt means that something went really bad with the transaction execution
                 // (in most cases invalid signature, but it could also be bootloader panic etc).
                 // In such cases, we should not persist the VM data and should pretend that
