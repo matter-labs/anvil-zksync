@@ -471,8 +471,7 @@ impl InMemoryNodeInner {
             bytecodes,
             call_traces,
         } = self.run_l2_tx_raw(l2_tx.clone(), vm)?;
-        
-        // TODO: add tracing before here
+
         match result.result {
             ExecutionResult::Halt { reason } => {
                 let reason_clone = reason.clone();
@@ -488,7 +487,8 @@ impl InMemoryNodeInner {
                 // (in most cases invalid signature, but it could also be bootloader panic etc).
                 // In such cases, we should not persist the VM data and should pretend that
                 // the transaction never existed.
-                anyhow::bail!("Transaction HALT: {:?}", reason);
+                // We do not print the error here, as it was already printed above.
+                anyhow::bail!("Transaction halted due to critical error");
             }
             ExecutionResult::Revert { ref output } => {
                 let output_clone = output.clone();

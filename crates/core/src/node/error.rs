@@ -95,7 +95,6 @@ pub trait ToHaltError {
 #[async_trait]
 impl ToHaltError for Halt {
     async fn to_halt_error(self) -> HaltError {
-        println!("Halt: {:?}", self);
         match self {
             Halt::ValidationFailed(vm_revert_reason) => {
                 let (message, data) =
