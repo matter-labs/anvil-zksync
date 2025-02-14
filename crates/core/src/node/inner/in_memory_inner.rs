@@ -20,18 +20,21 @@ use crate::node::{
 };
 
 use crate::system_contracts::SystemContracts;
+use crate::trace::decode::CallTraceDecoderBuilder;
 use crate::utils::create_debug_output;
 use crate::{delegate_vm, formatter, utils};
+use anvil_zksync_common::shell::get_shell;
 use anvil_zksync_common::{sh_eprintln, sh_err, sh_println};
 use anvil_zksync_config::constants::{
-    LEGACY_RICH_WALLETS, NON_FORK_FIRST_BLOCK_TIMESTAMP, RICH_WALLETS,
+    DEFAULT_DISK_CACHE_DIR, LEGACY_RICH_WALLETS, NON_FORK_FIRST_BLOCK_TIMESTAMP, RICH_WALLETS,
 };
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_types::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
-use anyhow::Context;
+use anyhow::{anyhow, Context, Result};
 use indexmap::IndexMap;
 use once_cell::sync::OnceCell;
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -45,6 +48,10 @@ use zksync_multivm::interface::{
 };
 use zksync_multivm::vm_latest::Vm;
 
+use crate::trace::signatures::SignaturesIdentifier;
+use crate::trace::{
+    build_call_trace_arena, decode_trace_arena, filter_call_trace_arena, render_trace_arena_inner,
+};
 use zksync_multivm::tracers::CallTracer;
 use zksync_multivm::utils::{
     adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
@@ -391,6 +398,34 @@ impl InMemoryNodeInner {
         if self.config.show_vm_details != ShowVMDetails::None {
             let mut formatter = formatter::Formatter::new();
             formatter.print_vm_details(&tx_result);
+        }
+
+        if let Some(call_traces) = call_traces {
+            let mut builder = CallTraceDecoderBuilder::new();
+            builder = builder.with_signature_identifier(
+                SignaturesIdentifier::new(
+                    Some(PathBuf::from(DEFAULT_DISK_CACHE_DIR)),
+                    self.config.offline,
+                )
+                .map_err(|err| anyhow!("Failed to create SignaturesIdentifier: {:#}", err))?,
+            );
+            let decoder = builder.build();
+            let mut arena = build_call_trace_arena(call_traces, tx_result.clone());
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    decode_trace_arena(&mut arena, &decoder)
+                        .await
+                        .context("Failed to decode trace arena")?;
+
+                    Ok::<_, anyhow::Error>(())
+                })
+            })?;
+
+            let verbosity = get_shell().verbosity;
+            let filtered_arena = filter_call_trace_arena(&arena, verbosity);
+            let trace_output = render_trace_arena_inner(&filtered_arena, false);
+
+            sh_println!("Traces:\n{}", trace_output);
         }
 
         if let Some(call_traces) = call_traces {

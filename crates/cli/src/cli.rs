@@ -17,7 +17,7 @@ use anvil_zksync_types::{
     LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails, TransactionOrder,
 };
 use anyhow::Result;
-use clap::{arg, command, Parser, Subcommand};
+use clap::{arg, command, ArgAction, Parser, Subcommand};
 use flate2::read::GzDecoder;
 use futures::FutureExt;
 use rand::{rngs::StdRng, SeedableRng};
@@ -131,6 +131,16 @@ pub struct Cli {
     /// If true, the tool will try to resolve ABI and topic names for better readability.
     /// May decrease performance.
     pub resolve_hashes: Option<bool>,
+
+    /// Increments verbosity each time it is used. (-vv, -vvv)
+    ///
+    /// Example usage:
+    ///   - `-vv` => verbosity level 2 (includes user calls and event calls)
+    ///   - `-vvv` => level 3 (includes system calls, system event calls)
+    ///   - `-vvvv` => level 4 (includes system calls, system event calls, and precompiles)
+    ///   - `-vvvvv` => level 5 (includes everything)
+    #[arg(short = 'v', long = "verbosity", action = ArgAction::Count, help_heading = "Debugging Options")]
+    pub verbosity: u8,
 
     // Gas Configuration
     #[arg(long, help_heading = "Gas Configuration")]
@@ -490,7 +500,7 @@ impl Cli {
             .with_resolve_hashes(self.resolve_hashes)
             .with_gas_limit_scale(self.limit_scale_factor)
             .with_price_scale(self.price_scale_factor)
-            .with_resolve_hashes(self.resolve_hashes)
+            .with_verbosity_level(self.verbosity)
             .with_show_node_config(self.show_node_config)
             .with_silent(self.silent)
             .with_system_contracts(self.dev_system_contracts)
