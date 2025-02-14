@@ -42,9 +42,8 @@ pub struct TraceArenaBuilder<'a> {
 impl<'a> TraceArenaBuilder<'a> {
     /// Initialize a builder with references to the calls and the VM result.
     pub fn new(calls: &'a [Call], tx_result: &'a VmExecutionResultAndLogs) -> Self {
-        // Create a default arena with its root node.
         let mut arena = CallTraceArena::default();
-        // If the arena has a root node, assign the transaction’s top-level execution result to it.
+        
         if let Some(root) = arena.arena.first_mut() {
             root.trace.execution_result = tx_result.clone();
         }
@@ -62,7 +61,6 @@ impl<'a> TraceArenaBuilder<'a> {
         for call in self.calls {
             self.add_call_and_subcalls(call, root_idx, 0);
         }
-        // Optionally rebuild ordering for the root after the entire tree is built.
         self.rebuild_all_orderings();
         self.arena
     }
@@ -73,11 +71,9 @@ impl<'a> TraceArenaBuilder<'a> {
         let node = self.make_node(call, depth, new_node_idx, Some(parent_idx));
         self.arena.arena.push(node);
 
-        // Add `new_node_idx` as a child of `parent_idx`.
         let parent_node = &mut self.arena.arena[parent_idx];
         parent_node.children.push(new_node_idx);
 
-        // Recursively process subcalls.
         for subcall in &call.calls {
             self.add_call_and_subcalls(subcall, new_node_idx, depth + 1);
         }
@@ -93,8 +89,6 @@ impl<'a> TraceArenaBuilder<'a> {
     ) -> CallTraceNode {
         let logs_for_call = self.logs_for_call(call);
         let trace = convert_call_to_call_trace(call, depth, self.tx_result.clone());
-        // We'll create an “empty ordering” for now; we’ll do a full pass to rebuild later
-        // or you could rebuild on the fly if you prefer.
         CallTraceNode {
             parent,
             children: Vec::new(),
@@ -105,12 +99,7 @@ impl<'a> TraceArenaBuilder<'a> {
         }
     }
 
-    /// Build the logs associated with a call by comparing its `to` address
-    /// with logs in the tx result.
     fn logs_for_call(&self, call: &Call) -> Vec<CallLog> {
-        // Example logic: match each event’s address to `call.to`.
-        // If the same address appears multiple times, you might want a more
-        // advanced approach (like matching by call depth).
         self.tx_result
             .logs
             .events
@@ -129,12 +118,7 @@ impl<'a> TraceArenaBuilder<'a> {
             })
             .collect()
     }
-
-    /// (Optional) Rebuild the ordering for all nodes in the arena.
     fn rebuild_all_orderings(&mut self) {
-        // A simple DFS or iteration over all nodes, re-sorting children’s
-        // order. If you want child calls in the order they were added, you
-        // can simply do logs first, calls second, etc.
         let len = self.arena.arena.len();
         for i in 0..len {
             rebuild_ordering(&mut self.arena.arena[i]);
@@ -142,16 +126,11 @@ impl<'a> TraceArenaBuilder<'a> {
     }
 }
 
-/// Rebuild the ordering for a single node:
-///  - Logs first, in their natural index order
-///  - Child calls next, in their order within `node.children`
 fn rebuild_ordering(node: &mut CallTraceNode) {
     node.ordering.clear();
-    // Logs first
     for i in 0..node.logs.len() {
         node.ordering.push(TraceMemberOrder::Log(i));
     }
-    // Then calls
     for i in 0..node.children.len() {
         node.ordering.push(TraceMemberOrder::Call(i));
     }
@@ -188,14 +167,11 @@ pub fn filter_call_trace_arena(
 ) -> CallTraceArena {
     let mut filtered = CallTraceArena::default();
 
-    // If original is empty, return empty.
     if arena.arena.is_empty() {
         return filtered;
     }
 
-    // Always include the root node.
     let root_idx = 0;
-    // Clone it, but clear children / ordering so we can reattach them in our DFS.
     let mut root_copy = arena.arena[root_idx].clone();
     root_copy.parent = None;
     root_copy.idx = 0;
@@ -205,7 +181,6 @@ pub fn filter_call_trace_arena(
     filtered.arena.clear();
     filtered.arena.push(root_copy);
 
-    // Recur on children of the root, using a helper function.
     filter_node_recursively(
         &arena.arena[root_idx],
         arena,
@@ -214,16 +189,12 @@ pub fn filter_call_trace_arena(
         verbosity,
     );
 
-    // Rebuild final orderings if needed.
     for node in &mut filtered.arena {
         rebuild_ordering(node);
     }
 
     filtered
 }
-
-/// Recursively visits the `orig_node`’s children, deciding whether to
-/// include them or bubble up their children.
 fn filter_node_recursively(
     orig_node: &CallTraceNode,
     orig_arena: &CallTraceArena,
@@ -234,7 +205,6 @@ fn filter_node_recursively(
     for &child_idx in &orig_node.children {
         let child = &orig_arena.arena[child_idx];
         if should_include_call(&child.trace.address, verbosity) {
-            // Copy child into the new arena.
             let new_idx = filtered_arena.arena.len();
             let mut child_copy = child.clone();
             child_copy.idx = new_idx;
@@ -242,18 +212,14 @@ fn filter_node_recursively(
             child_copy.children.clear();
             child_copy.ordering.clear();
 
-            // Insert the child in the new arena.
             filtered_arena.arena.push(child_copy);
 
-            // Attach it to the parent's children list.
             if let Some(p_idx) = parent_idx {
                 filtered_arena.arena[p_idx].children.push(new_idx);
             }
 
-            // Recur deeper, but use the newly inserted node as parent.
             filter_node_recursively(child, orig_arena, filtered_arena, Some(new_idx), verbosity);
         } else {
-            // If the child is excluded, “bubble up” its children to the same parent.
             filter_node_recursively(child, orig_arena, filtered_arena, parent_idx, verbosity);
         }
     }

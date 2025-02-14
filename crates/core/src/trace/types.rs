@@ -355,9 +355,6 @@ impl CallTraceArena {
     }
 }
 
-
-
-
 /// A trait for displaying the execution result.
 pub trait ExecutionResultDisplay {
     fn display(&self) -> String;
