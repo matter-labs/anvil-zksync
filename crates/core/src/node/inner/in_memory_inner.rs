@@ -23,6 +23,7 @@ use crate::system_contracts::SystemContracts;
 use crate::trace::decode::CallTraceDecoderBuilder;
 use crate::utils::create_debug_output;
 use crate::{delegate_vm, formatter, utils};
+use anvil_zksync_common::shell::get_shell;
 use anvil_zksync_common::{sh_eprintln, sh_err, sh_println};
 use anvil_zksync_config::constants::{
     DEFAULT_DISK_CACHE_DIR, LEGACY_RICH_WALLETS, NON_FORK_FIRST_BLOCK_TIMESTAMP, RICH_WALLETS,
@@ -48,7 +49,9 @@ use zksync_multivm::interface::{
 use zksync_multivm::vm_latest::Vm;
 
 use crate::trace::signatures::SignaturesIdentifier;
-use crate::trace::{build_call_trace_arena, decode_trace_arena, render_trace_arena_inner};
+use crate::trace::{
+    build_call_trace_arena, decode_trace_arena, filter_call_trace_arena, render_trace_arena_inner,
+};
 use zksync_multivm::tracers::CallTracer;
 use zksync_multivm::utils::{
     adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
@@ -397,35 +400,32 @@ impl InMemoryNodeInner {
             formatter.print_vm_details(&tx_result);
         }
 
-        if self.config.get_verbosity_level() >= 2 {
-            if let Some(call_traces) = call_traces {
-                let mut builder = CallTraceDecoderBuilder::new();
-                builder = builder.with_signature_identifier(
-                    SignaturesIdentifier::new(
-                        Some(PathBuf::from(DEFAULT_DISK_CACHE_DIR)),
-                        self.config.offline,
-                    )
-                    .map_err(|err| anyhow!("Failed to create SignaturesIdentifier: {:#}", err))?,
-                );
-                let decoder = builder.build();
-                let mut arena = build_call_trace_arena(
-                    call_traces,
-                    tx_result.clone(),
-                    self.config.get_verbosity_level(),
-                );
-                tokio::task::block_in_place(|| {
-                    tokio::runtime::Handle::current().block_on(async {
-                        decode_trace_arena(&mut arena, &decoder)
-                            .await
-                            .context("Failed to decode trace arena")?;
+        if let Some(call_traces) = call_traces {
+            let mut builder = CallTraceDecoderBuilder::new();
+            builder = builder.with_signature_identifier(
+                SignaturesIdentifier::new(
+                    Some(PathBuf::from(DEFAULT_DISK_CACHE_DIR)),
+                    self.config.offline,
+                )
+                .map_err(|err| anyhow!("Failed to create SignaturesIdentifier: {:#}", err))?,
+            );
+            let decoder = builder.build();
+            let mut arena = build_call_trace_arena(call_traces, tx_result.clone());
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    decode_trace_arena(&mut arena, &decoder)
+                        .await
+                        .context("Failed to decode trace arena")?;
 
-                        Ok::<_, anyhow::Error>(())
-                    })
-                })?;
-                let trace_output = render_trace_arena_inner(&arena, false);
+                    Ok::<_, anyhow::Error>(())
+                })
+            })?;
 
-                println!("Traces:\n{}", trace_output);
-            }
+            let verbosity = get_shell().verbosity;
+            let filtered_arena = filter_call_trace_arena(&arena, verbosity);
+            let trace_output = render_trace_arena_inner(&filtered_arena, false);
+
+            sh_println!("Traces:\n{}", trace_output);
         }
 
         if let Some(call_traces) = call_traces {

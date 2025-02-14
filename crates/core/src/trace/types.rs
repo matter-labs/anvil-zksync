@@ -300,6 +300,28 @@ impl Default for CallTraceArena {
 }
 
 impl CallTraceArena {
+    /// Adds a node to the arena, updating parent–child relationships and ordering.
+    pub fn add_node(&mut self, parent: Option<usize>, mut node: CallTraceNode) -> usize {
+        let idx = self.arena.len();
+        node.idx = idx;
+        node.parent = parent;
+
+        // Build ordering for the node based on its logs.
+        node.ordering = (0..node.logs.len()).map(TraceMemberOrder::Log).collect();
+
+        self.arena.push(node);
+
+        // Update parent's children and ordering if a parent exists.
+        if let Some(parent_idx) = parent {
+            self.arena[parent_idx].children.push(idx);
+            let child_local_idx = self.arena[parent_idx].children.len() - 1;
+            self.arena[parent_idx]
+                .ordering
+                .push(TraceMemberOrder::Call(child_local_idx));
+        }
+        idx
+    }
+
     /// Returns the nodes in the arena.
     pub fn nodes(&self) -> &[CallTraceNode] {
         &self.arena
