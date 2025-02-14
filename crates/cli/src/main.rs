@@ -295,6 +295,9 @@ async fn main() -> Result<(), AnvilZKSError> {
         node.apply_txs(transactions_to_replay, config.max_transactions)
             .await
             .map_err(to_domain)?;
+
+        // If we are in replay mode, we don't start the server
+        return Ok(());
     }
 
     // TODO: Consider moving to `InMemoryNodeInner::init`

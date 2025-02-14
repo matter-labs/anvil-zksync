@@ -346,11 +346,13 @@ pub struct ForkArgs {
     /// If set - will try to fork a remote network. Possible values:
     ///  - mainnet
     ///  - sepolia-testnet
+    ///  - abstract (mainnet)
+    ///  - abstract-testnet
     ///  - http://XXX:YY
     #[arg(
         long,
         alias = "network",
-        help = "Network to fork from (e.g., http://XXX:YY, mainnet, sepolia-testnet)."
+        help = "Network to fork from (e.g., http://XXX:YY, mainnet, sepolia-testnet, abstract, abstract-testnet)."
     )]
     pub fork_url: ForkUrl,
     // Fork at a given L2 miniblock height.
@@ -379,23 +381,37 @@ pub struct ForkArgs {
 pub enum ForkUrl {
     Mainnet,
     SepoliaTestnet,
+    AbstractMainnet,
+    AbstractTestnet,
     Other(Url),
 }
 
 impl ForkUrl {
     const MAINNET_URL: &'static str = "https://mainnet.era.zksync.io:443";
     const SEPOLIA_TESTNET_URL: &'static str = "https://sepolia.era.zksync.dev:443";
+    const ABSTRACT_MAINNET_URL: &'static str = "https://api.mainnet.abs.xyz";
+    const ABSTRACT_TESTNET_URL: &'static str = "https://api.testnet.abs.xyz";
 
     pub fn to_config(&self) -> ForkConfig {
         match self {
             ForkUrl::Mainnet => ForkConfig {
                 url: Self::MAINNET_URL.parse().unwrap(),
                 estimate_gas_price_scale_factor: 1.5,
-                estimate_gas_scale_factor: 1.4,
+                estimate_gas_scale_factor: 1.3,
             },
             ForkUrl::SepoliaTestnet => ForkConfig {
                 url: Self::SEPOLIA_TESTNET_URL.parse().unwrap(),
                 estimate_gas_price_scale_factor: 2.0,
+                estimate_gas_scale_factor: 1.3,
+            },
+            ForkUrl::AbstractMainnet => ForkConfig {
+                url: Self::ABSTRACT_MAINNET_URL.parse().unwrap(),
+                estimate_gas_price_scale_factor: 1.5,
+                estimate_gas_scale_factor: 1.3,
+            },
+            ForkUrl::AbstractTestnet => ForkConfig {
+                url: Self::ABSTRACT_TESTNET_URL.parse().unwrap(),
+                estimate_gas_price_scale_factor: 1.5,
                 estimate_gas_scale_factor: 1.3,
             },
             ForkUrl::Other(url) => ForkConfig::unknown(url.clone()),
@@ -411,6 +427,10 @@ impl FromStr for ForkUrl {
             Ok(ForkUrl::Mainnet)
         } else if s == "sepolia-testnet" {
             Ok(ForkUrl::SepoliaTestnet)
+        } else if s == "abstract" {
+            Ok(ForkUrl::AbstractMainnet)
+        } else if s == "abstract-testnet" {
+            Ok(ForkUrl::AbstractTestnet)
         } else {
             Ok(Url::from_str(s).map(ForkUrl::Other)?)
         }
@@ -424,12 +444,13 @@ pub struct ReplayArgs {
     /// If set - will try to fork a remote network. Possible values:
     ///  - mainnet
     ///  - sepolia-testnet
-    ///  - goerli-testnet
+    ///  - abstract (mainnet)
+    ///  - abstract-testnet
     ///  - http://XXX:YY
     #[arg(
         long,
         alias = "network",
-        help = "Network to fork from (e.g., http://XXX:YY, mainnet, sepolia-testnet)."
+        help = "Network to fork from (e.g., http://XXX:YY, mainnet, sepolia-testnet, abstract, abstract-testnet)."
     )]
     pub fork_url: ForkUrl,
     /// Transaction hash to replay.
