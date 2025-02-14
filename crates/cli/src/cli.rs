@@ -1,12 +1,13 @@
 use crate::utils::parse_genesis_file;
 use alloy::signers::local::coins_bip39::{English, Mnemonic};
+use anvil_zksync_common::{sh_eprintln, sh_err};
 use anvil_zksync_config::constants::{
     DEFAULT_DISK_CACHE_DIR, DEFAULT_MNEMONIC, TEST_NODE_NETWORK_ID,
 };
 use anvil_zksync_config::types::{
     AccountGenerator, CacheConfig, CacheType, Genesis, SystemContractsOptions,
 };
-use anvil_zksync_config::TestNodeConfig;
+use anvil_zksync_config::{L1Config, TestNodeConfig};
 use anvil_zksync_core::node::fork::ForkConfig;
 use anvil_zksync_core::{
     node::{InMemoryNode, VersionedState},
@@ -325,6 +326,14 @@ pub struct Cli {
     /// Transaction ordering in the mempool.
     #[arg(long, default_value = "fifo")]
     pub order: TransactionOrder,
+
+    /// Enable L1 support.
+    #[arg(long, help_heading = "UNSTABLE - L1")]
+    pub with_l1: bool,
+
+    /// Port the spawned L1 anvil node will listen on.
+    #[arg(long, requires = "with_l1", help_heading = "UNSTABLE - L1")]
+    pub l1_port: Option<u16>,
 }
 
 #[derive(Debug, Subcommand, Clone)]
@@ -347,11 +356,13 @@ pub struct ForkArgs {
     /// If set - will try to fork a remote network. Possible values:
     ///  - mainnet
     ///  - sepolia-testnet
+    ///  - abstract (mainnet)
+    ///  - abstract-testnet
     ///  - http://XXX:YY
     #[arg(
         long,
         alias = "network",
-        help = "Network to fork from (e.g., http://XXX:YY, mainnet, sepolia-testnet)."
+        help = "Network to fork from (e.g., http://XXX:YY, mainnet, sepolia-testnet, abstract, abstract-testnet)."
     )]
     pub fork_url: ForkUrl,
     // Fork at a given L2 miniblock height.
@@ -380,23 +391,37 @@ pub struct ForkArgs {
 pub enum ForkUrl {
     Mainnet,
     SepoliaTestnet,
+    AbstractMainnet,
+    AbstractTestnet,
     Other(Url),
 }
 
 impl ForkUrl {
     const MAINNET_URL: &'static str = "https://mainnet.era.zksync.io:443";
     const SEPOLIA_TESTNET_URL: &'static str = "https://sepolia.era.zksync.dev:443";
+    const ABSTRACT_MAINNET_URL: &'static str = "https://api.mainnet.abs.xyz";
+    const ABSTRACT_TESTNET_URL: &'static str = "https://api.testnet.abs.xyz";
 
     pub fn to_config(&self) -> ForkConfig {
         match self {
             ForkUrl::Mainnet => ForkConfig {
                 url: Self::MAINNET_URL.parse().unwrap(),
                 estimate_gas_price_scale_factor: 1.5,
-                estimate_gas_scale_factor: 1.4,
+                estimate_gas_scale_factor: 1.3,
             },
             ForkUrl::SepoliaTestnet => ForkConfig {
                 url: Self::SEPOLIA_TESTNET_URL.parse().unwrap(),
                 estimate_gas_price_scale_factor: 2.0,
+                estimate_gas_scale_factor: 1.3,
+            },
+            ForkUrl::AbstractMainnet => ForkConfig {
+                url: Self::ABSTRACT_MAINNET_URL.parse().unwrap(),
+                estimate_gas_price_scale_factor: 1.5,
+                estimate_gas_scale_factor: 1.3,
+            },
+            ForkUrl::AbstractTestnet => ForkConfig {
+                url: Self::ABSTRACT_TESTNET_URL.parse().unwrap(),
+                estimate_gas_price_scale_factor: 1.5,
                 estimate_gas_scale_factor: 1.3,
             },
             ForkUrl::Other(url) => ForkConfig::unknown(url.clone()),
@@ -412,6 +437,10 @@ impl FromStr for ForkUrl {
             Ok(ForkUrl::Mainnet)
         } else if s == "sepolia-testnet" {
             Ok(ForkUrl::SepoliaTestnet)
+        } else if s == "abstract" {
+            Ok(ForkUrl::AbstractMainnet)
+        } else if s == "abstract-testnet" {
+            Ok(ForkUrl::AbstractTestnet)
         } else {
             Ok(Url::from_str(s).map(ForkUrl::Other)?)
         }
@@ -425,12 +454,13 @@ pub struct ReplayArgs {
     /// If set - will try to fork a remote network. Possible values:
     ///  - mainnet
     ///  - sepolia-testnet
-    ///  - goerli-testnet
+    ///  - abstract (mainnet)
+    ///  - abstract-testnet
     ///  - http://XXX:YY
     #[arg(
         long,
         alias = "network",
-        help = "Network to fork from (e.g., http://XXX:YY, mainnet, sepolia-testnet)."
+        help = "Network to fork from (e.g., http://XXX:YY, mainnet, sepolia-testnet, abstract, abstract-testnet)."
     )]
     pub fork_url: ForkUrl,
     /// Transaction hash to replay.
@@ -442,7 +472,7 @@ impl Cli {
     /// Checks for deprecated options and warns users.
     pub fn deprecated_config_option() {
         if env::args().any(|arg| arg == "--config" || arg.starts_with("--config=")) {
-            eprintln!(
+            sh_eprintln!(
                 "Warning: The '--config' option has been removed. \
                 Please migrate to using other configuration options or defaults."
             );
@@ -513,7 +543,10 @@ impl Cli {
             .with_state_interval(self.state_interval)
             .with_dump_state(self.dump_state)
             .with_preserve_historical_states(self.preserve_historical_states)
-            .with_load_state(self.load_state);
+            .with_load_state(self.load_state)
+            .with_l1_config(self.with_l1.then(|| L1Config {
+                port: self.l1_port.unwrap_or(8012),
+            }));
 
         if self.emulate_evm && self.dev_system_contracts != Some(SystemContractsOptions::Local) {
             return Err(eyre::eyre!(
@@ -610,7 +643,7 @@ impl PeriodicStateDumper {
         let state_bytes = match node.dump_state(preserve_historical_states).await {
             Ok(bytes) => bytes,
             Err(err) => {
-                tracing::error!("Failed to dump state: {:?}", err);
+                sh_err!("Failed to dump state: {:?}", err);
                 return;
             }
         };
@@ -618,20 +651,20 @@ impl PeriodicStateDumper {
         let mut decoder = GzDecoder::new(&state_bytes.0[..]);
         let mut json_str = String::new();
         if let Err(err) = decoder.read_to_string(&mut json_str) {
-            tracing::error!(?err, "Failed to decompress state bytes");
+            sh_err!("Failed to decompress state bytes: {}", err);
             return;
         }
 
         let state = match serde_json::from_str::<VersionedState>(&json_str) {
             Ok(state) => state,
             Err(err) => {
-                tracing::error!(?err, "Failed to parse state JSON");
+                sh_err!("Failed to parse state JSON: {}", err);
                 return;
             }
         };
 
         if let Err(err) = write_json_file(&dump_path, &state) {
-            tracing::error!(?err, "Failed to write state to file");
+            sh_err!("Failed to write state to file: {}", err);
         } else {
             tracing::trace!(path = ?dump_path, "Dumped state successfully");
         }
@@ -641,7 +674,7 @@ impl PeriodicStateDumper {
 // An endless future that periodically dumps the state to disk if configured.
 // Implementation adapted from: https://github.com/foundry-rs/foundry/blob/206dab285437bd6889463ab006b6a5fb984079d8/crates/anvil/src/cmd.rs#L658
 impl Future for PeriodicStateDumper {
-    type Output = ();
+    type Output = anyhow::Result<()>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();

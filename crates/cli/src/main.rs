@@ -2,6 +2,7 @@ use crate::bytecode_override::override_bytecodes;
 use crate::cli::{Cli, Command, ForkUrl, PeriodicStateDumper};
 use crate::utils::update_with_fork_details;
 use anvil_zksync_api_server::NodeServerBuilder;
+use anvil_zksync_common::{sh_eprintln, sh_err, sh_warn};
 use anvil_zksync_config::constants::{
     DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
     DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L1_GAS_PRICE, DEFAULT_L2_GAS_PRICE, LEGACY_RICH_WALLETS,
@@ -17,9 +18,12 @@ use anvil_zksync_core::node::{
 };
 use anvil_zksync_core::observability::Observability;
 use anvil_zksync_core::system_contracts::SystemContracts;
+use anvil_zksync_l1_sidecar::L1Sidecar;
 use anyhow::{anyhow, Context};
 use clap::Parser;
 use std::fs::File;
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 use std::{env, net::SocketAddr, str::FromStr};
@@ -59,7 +63,7 @@ async fn main() -> anyhow::Result<()> {
     let (fork_client, transactions_to_replay) = match command {
         Command::Run => {
             if config.offline {
-                tracing::warn!("Running in offline mode: default fee parameters will be used.");
+                sh_warn!("Running in offline mode: default fee parameters will be used.");
                 config = config
                     .clone()
                     .with_l1_gas_price(config.l1_gas_price.or(Some(DEFAULT_L1_GAS_PRICE)))
@@ -151,7 +155,7 @@ async fn main() -> anyhow::Result<()> {
         SystemContractsOptions::Local
     ) {
         if let Some(path) = env::var_os("ZKSYNC_HOME") {
-            tracing::info!("+++++ Reading local contracts from {:?} +++++", path);
+            tracing::debug!("Reading local contracts from {:?}", path);
         }
     }
 
@@ -184,6 +188,16 @@ async fn main() -> anyhow::Result<()> {
         })
     } else {
         None
+    };
+
+    let mut node_service_tasks: Vec<Pin<Box<dyn Future<Output = anyhow::Result<()>>>>> = Vec::new();
+    let l1_sidecar = match config.l1_config.as_ref() {
+        Some(l1_config) => {
+            let (l1_sidecar, l1_sidecar_runner) = L1Sidecar::builtin(l1_config.port).await?;
+            node_service_tasks.push(Box::pin(l1_sidecar_runner.run()));
+            l1_sidecar
+        }
+        None => L1Sidecar::none(),
     };
 
     let impersonation = ImpersonationManager::default();
@@ -231,6 +245,7 @@ async fn main() -> anyhow::Result<()> {
     };
     let (block_sealer, block_sealer_state) =
         BlockSealer::new(sealing_mode, pool.clone(), node_handle.clone());
+    node_service_tasks.push(Box::pin(block_sealer.run()));
 
     let node: InMemoryNode = InMemoryNode::new(
         node_inner,
@@ -251,7 +266,7 @@ async fn main() -> anyhow::Result<()> {
     // during replay. Otherwise, replay would send commands and hang.
     tokio::spawn(async move {
         if let Err(err) = node_executor.run().await {
-            tracing::error!("node executor ended with error: {:?}", err);
+            sh_err!("node executor ended with error: {:?}", err);
         }
     });
 
@@ -264,6 +279,9 @@ async fn main() -> anyhow::Result<()> {
     if !transactions_to_replay.is_empty() {
         node.apply_txs(transactions_to_replay, config.max_transactions)
             .await?;
+
+        // If we are in replay mode, we don't start the server
+        return Ok(());
     }
 
     // TODO: Consider moving to `InMemoryNodeInner::init`
@@ -290,6 +308,7 @@ async fn main() -> anyhow::Result<()> {
 
     let mut server_builder = NodeServerBuilder::new(
         node.clone(),
+        l1_sidecar,
         AllowOrigin::exact(
             config
                 .allow_origin
@@ -313,7 +332,7 @@ async fn main() -> anyhow::Result<()> {
                 server_handles.push(server.run());
             }
             Err(err) => {
-                tracing::info!(
+                sh_eprintln!(
                     "Failed to bind to address {}:{}: {}. Retrying with a different port...",
                     host,
                     config.port,
@@ -369,8 +388,10 @@ async fn main() -> anyhow::Result<()> {
         dump_interval,
         preserve_historical_states,
     );
+    node_service_tasks.push(Box::pin(state_dumper));
 
     config.print(fork_print_info.as_ref());
+    let node_service_stopped = futures::future::select_all(node_service_tasks);
 
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {
@@ -379,12 +400,9 @@ async fn main() -> anyhow::Result<()> {
         _ = any_server_stopped => {
             tracing::trace!("node server was stopped")
         },
-        _ = block_sealer.run() => {
-            tracing::trace!("block sealer was stopped")
-        },
-        _ = state_dumper => {
-            tracing::trace!("state dumper was stopped")
-        },
+        _ = node_service_stopped => {
+            tracing::trace!("node service was stopped")
+        }
     }
 
     Ok(())

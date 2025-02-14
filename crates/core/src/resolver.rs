@@ -1,5 +1,6 @@
 //! Resolving the selectors (both method & event) with external database.
 use crate::cache::Cache;
+use anvil_zksync_common::sh_warn;
 use anvil_zksync_config::types::CacheConfig;
 use lazy_static::lazy_static;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
@@ -14,7 +15,6 @@ use std::{
     time::Duration,
 };
 use tokio::sync::RwLock;
-use tracing::warn;
 
 static SELECTOR_DATABASE_URL: &str = "https://api.openchain.xyz/signature-database/v1/lookup";
 
@@ -106,7 +106,7 @@ impl SignEthClient {
         }
 
         if is_connectivity_err(err) {
-            warn!("spurious network detected for api.openchain.xyz");
+            sh_warn!("spurious network detected for api.openchain.xyz");
             let previous = self.timedout_requests.fetch_add(1, Ordering::SeqCst);
             if previous >= self.max_timedout_requests {
                 self.set_spurious();
