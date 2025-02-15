@@ -1,9 +1,12 @@
+use std::process::ExitCode;
+
 use zksync_error_codegen::arguments::Backend;
 use zksync_error_codegen::arguments::GenerationArguments;
 
-const REPOSITORY_ROOT : &str = "../..";
-const  ROOT_ERROR_DEFINITIONS_FROM_ZKSYNC_ERROR: &str = "zksync-error://zksync-root.json";
-fn main() {
+const REPOSITORY_ROOT: &str = "../..";
+const ROOT_ERROR_DEFINITIONS_FROM_ZKSYNC_ERROR: &str = "zksync-error://zksync-root.json";
+
+fn main() -> ExitCode {
     let local_anvil_path = format!("{REPOSITORY_ROOT}/etc/errors/anvil.json");
     // If we have modified anvil errors, forces rerunning the build script and
     // regenerating the crate `zksync-error`.
@@ -28,15 +31,22 @@ fn main() {
         outputs: vec![
             // Overwrite the crate `zksync-error`, add the converter from
             // `anyhow` to a generic error of the appropriate domain.
-            (
-                root_link.into(),
-                Backend::Rust,
-                vec![("use_anyhow".to_owned(), "true".to_owned())],
-            ),
+            zksync_error_codegen::arguments::BackendOutput {
+                output_path: format!("{REPOSITORY_ROOT}/crates/zksync_error").into(),
+                backend: Backend::Rust,
+                arguments: vec![
+                    ("use_anyhow".to_owned(), "true".to_owned()),
+                    ("generate_cargo_toml".to_owned(), "true".to_owned()),
+                ],
+            },
         ],
         input_links: vec![local_anvil_path],
     };
     if let Err(e) = zksync_error_codegen::load_and_generate(arguments) {
-        println!("cargo::error={e}");
+        println!("{e}");
+       ExitCode::FAILURE
+    }
+    else {
+        ExitCode::SUCCESS
     }
 }
