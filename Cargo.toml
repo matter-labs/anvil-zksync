@@ -61,6 +61,8 @@ reqwest = { version = "0.11", features = ["blocking"] }
 rustc-hash = "1.1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+strum = "0.26.3"
+strum_macros = "0.26.4"
 thiserror = "1"
 time = "0.3.36"
 tokio = { version = "1", features = ["full", "tracing"] }
@@ -98,4 +100,4 @@ zksync_error = { path = "crates/zksync_error" }
 #########################
 # Build dependencies    #
 #########################
-zksync-error-codegen = { git = "https://github.com/matter-labs/zksync-error", branch = "main" }
+zksync-error-codegen = { git = "https://github.com/matter-labs/zksync-error", branch = "dev" }

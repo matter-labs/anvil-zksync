@@ -36,7 +36,7 @@ fn main() -> ExitCode {
                 backend: Backend::Rust,
                 arguments: vec![
                     ("use_anyhow".to_owned(), "true".to_owned()),
-                    ("generate_cargo_toml".to_owned(), "true".to_owned()),
+                    ("generate_cargo_toml".to_owned(), "false".to_owned()),
                 ],
             },
         ],
