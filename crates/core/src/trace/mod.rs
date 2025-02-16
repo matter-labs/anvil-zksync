@@ -86,20 +86,20 @@ fn process_call_and_subcalls(
         .logs
         .user_l2_to_l1_logs
         .iter()
-        .filter(|log| log.0.sender == call.to) // Ensure logs match the call's address
+        .filter(|log| log.0.sender == call.to)
         .map(|log| L1L2Logs {
-            raw_log: L1L2Log::User(log.clone()), // Wrap in L1L2Log::User
-            position: log.0.tx_number_in_block as u64, // Use tx_number_in_block as a unique position marker
+            raw_log: L1L2Log::User(log.clone()),
+            position: log.0.tx_number_in_block as u64,
         })
         .chain(
             tx_result
                 .logs
                 .system_l2_to_l1_logs
                 .iter()
-                .filter(|log| log.0.sender == call.to) // Ensure logs match the call's address
+                .filter(|log| log.0.sender == call.to)
                 .map(|log| L1L2Logs {
-                    raw_log: L1L2Log::System(log.clone()), // Wrap in L1L2Log::System
-                    position: log.0.tx_number_in_block as u64, // Use tx_number_in_block as a unique position marker
+                    raw_log: L1L2Log::System(log.clone()),
+                    position: log.0.tx_number_in_block as u64,
                 }),
         )
         .collect();
@@ -210,10 +210,10 @@ fn filter_node_recursively(
 /// its address type and the current verbosity level.
 ///
 /// Verbosity levels (for quick reference):
-/// - 2: user only
-/// - 3: user + system
-/// - 4: user + system + precompile
-/// - 5+: everything + L1–L2 logs (future-proof)
+/// - 2: user calls and logs only
+/// - 3: user + system calls and logs
+/// - 4: user + system + precompile  logs
+/// - 5+: everything (future-proof)
 #[inline]
 fn should_include_call(address: &H160, verbosity: u8) -> bool {
     let is_system = CallTraceArena::is_system(address);

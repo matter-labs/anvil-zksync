@@ -70,7 +70,7 @@ describe("ERC20FixedPaymaster", function () {
     await setGreetingTx.wait();
   }
 
-  it.only("user with MyERC20 token can update message for free", async function () {
+  it("user with MyERC20 token can update message for free", async function () {
     // Arrange
     const initialMintAmount = ethers.parseEther("3");
     const success = await token.mint(userWallet.address, initialMintAmount);
