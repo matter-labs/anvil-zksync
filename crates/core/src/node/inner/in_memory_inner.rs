@@ -402,10 +402,6 @@ impl InMemoryNodeInner {
         }
 
         if let Some(call_traces) = call_tracer_result.get() {
-            if !self.config.disable_console_log {
-                self.console_log_handler.handle_calls_recursive(call_traces);
-            }
-
             let call_traces_owned = call_traces.clone();
             let tx_result_for_arena = tx_result.clone();
             let mut builder = CallTraceDecoderBuilder::new();
@@ -442,6 +438,9 @@ impl InMemoryNodeInner {
             let trace_output = render_trace_arena_inner(&filtered_arena, false);
 
             sh_println!("Traces:\n{}", trace_output);
+            if !self.config.disable_console_log {
+                self.console_log_handler.handle_calls_recursive(call_traces);
+            }
         }
 
         let mut bytecodes = HashMap::new();

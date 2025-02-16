@@ -519,9 +519,11 @@ impl Cli {
             "--show-outputs=",
             "--show-event-logs=",
         ];
+        if !args.is_empty() {
+            sh_warn!("⚠ Deprecated CLI Options Detected (as of v0.3.1):\n");
+            sh_warn!("[Options below will be removed in v0.4.0]\n");
+        }
 
-        sh_warn!("⚠ Deprecated CLI Options Detected (as of v0.3.1):\n");
-        sh_warn!("[Options below will be removed in v0.4.0]\n");
         for arg in &args {
             if let Some(warning) = deprecated_flags.get(arg.as_str()) {
                 sh_warn!("{}", warning);

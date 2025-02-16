@@ -3,7 +3,18 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use zksync_multivm::interface::{Call, ExecutionResult, VmEvent, VmExecutionResultAndLogs};
 use zksync_types::web3::Bytes;
-use zksync_types::{Address, H160, H256};
+use zksync_types::{
+    l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
+    Address, H160, H256,
+};
+
+/// Enum to represent both user and system L1-L2 logs
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum L1L2Log {
+    User(UserL2ToL1Log),
+    System(SystemL2ToL1Log),
+}
 
 // TODO: duplicated types from existing formatter.rs
 // will be consolidated pending feedback
@@ -166,6 +177,16 @@ pub struct CallLog {
     pub position: u64,
 }
 
+/// A log with optional decoded data.
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct L1L2Logs {
+    /// The raw log data.
+    pub raw_log: L1L2Log,
+    /// The position of the log relative to subcalls within the same trace.
+    pub position: u64,
+}
+
 impl CallLog {
     /// Sets the position of the log.
     #[inline]
@@ -224,6 +245,8 @@ pub struct CallTraceNode {
     pub trace: CallTrace,
     /// Event logs
     pub logs: Vec<CallLog>,
+    /// L1-L2 logs
+    pub l1_l2_logs: Vec<L1L2Logs>,
     /// Ordering of child calls and logs
     pub ordering: Vec<TraceMemberOrder>,
 }
@@ -246,6 +269,7 @@ impl Default for CallTraceNode {
                 call: Call::default(),
             },
             logs: Vec::new(),
+            l1_l2_logs: Vec::new(),
             ordering: Vec::new(),
         }
     }
@@ -259,6 +283,8 @@ pub enum TraceMemberOrder {
     Log(usize),
     /// Contains the index of the corresponding trace node
     Call(usize),
+    /// Contains the index of the corresponding l1-l2 log
+    L1L2Log(usize),
 }
 
 /// An arena of recorded traces.
@@ -289,6 +315,7 @@ impl Default for CallTraceArena {
                 call: Call::default(),
             },
             logs: Vec::new(),
+            l1_l2_logs: Vec::new(),
             ordering: Vec::new(),
         };
 

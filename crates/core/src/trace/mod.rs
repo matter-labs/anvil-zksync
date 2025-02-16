@@ -3,7 +3,7 @@ use crate::trace::types::{
     CallTrace, CallTraceArena, CallTraceNode, DecodedCallTrace, TraceMemberOrder, KNOWN_ADDRESSES,
 };
 use crate::trace::writer::TraceWriter;
-use types::{CallLog, DecodedCallEvent};
+use types::{CallLog, DecodedCallEvent, L1L2Log, L1L2Logs};
 use zksync_multivm::interface::{Call, VmExecutionResultAndLogs};
 use zksync_types::H160;
 pub mod abi_utils;
@@ -81,6 +81,29 @@ fn process_call_and_subcalls(
         })
         .collect();
 
+    // Collect user and system L1-L2 logs associated with this call.
+    let l1_l2_logs_for_call: Vec<L1L2Logs> = tx_result
+        .logs
+        .user_l2_to_l1_logs
+        .iter()
+        .filter(|log| log.0.sender == call.to) // Ensure logs match the call's address
+        .map(|log| L1L2Logs {
+            raw_log: L1L2Log::User(log.clone()), // Wrap in L1L2Log::User
+            position: log.0.tx_number_in_block as u64, // Use tx_number_in_block as a unique position marker
+        })
+        .chain(
+            tx_result
+                .logs
+                .system_l2_to_l1_logs
+                .iter()
+                .filter(|log| log.0.sender == call.to) // Ensure logs match the call's address
+                .map(|log| L1L2Logs {
+                    raw_log: L1L2Log::System(log.clone()), // Wrap in L1L2Log::System
+                    position: log.0.tx_number_in_block as u64, // Use tx_number_in_block as a unique position marker
+                }),
+        )
+        .collect();
+
     let call_trace = convert_call_to_call_trace(call, depth, tx_result.clone());
 
     let node = CallTraceNode {
@@ -89,6 +112,7 @@ fn process_call_and_subcalls(
         idx: 0,
         trace: call_trace,
         logs: logs_for_call,
+        l1_l2_logs: l1_l2_logs_for_call,
         ordering: Vec::new(),
     };
 
@@ -213,6 +237,9 @@ fn rebuild_ordering(node: &mut CallTraceNode) {
     node.ordering.clear();
     for i in 0..node.logs.len() {
         node.ordering.push(TraceMemberOrder::Log(i));
+    }
+    for i in 0..node.l1_l2_logs.len() {
+        node.ordering.push(TraceMemberOrder::L1L2Log(i));
     }
     for i in 0..node.children.len() {
         node.ordering.push(TraceMemberOrder::Call(i));

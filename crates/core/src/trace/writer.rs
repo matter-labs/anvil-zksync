@@ -9,7 +9,7 @@
 // Note: These methods are used under the terms of the original project's license.                        //
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-use super::types::{CallLog, TraceMemberOrder};
+use super::types::{CallLog, L1L2Log, L1L2Logs, TraceMemberOrder};
 use crate::trace::types::{
     CallTrace, CallTraceArena, CallTraceNode, DecodedCallData, ExecutionResultDisplay,
 };
@@ -178,6 +178,10 @@ impl<W: Write> TraceWriter<W> {
                 self.write_node(nodes, node.children[*index])?;
                 Ok(item_idx + 1)
             }
+            TraceMemberOrder::L1L2Log(index) => {
+                self.write_l1_l2_log(&node.l1_l2_logs[*index])?;
+                Ok(item_idx + 1)
+            }
         }
     }
 
@@ -294,6 +298,26 @@ impl<W: Write> TraceWriter<W> {
                 }
             }
         }
+
+        Ok(())
+    }
+
+    fn write_l1_l2_log(&mut self, log: &L1L2Logs) -> io::Result<()> {
+        let log_style = self.log_style();
+        self.write_branch()?; // Write indentation/pipes if needed
+
+        let (log_type, l2_log) = match &log.raw_log {
+            L1L2Log::User(user_log) => ("UserL1L2Log", &user_log.0),
+            L1L2Log::System(system_log) => ("SystemL1L2Log", &system_log.0),
+        };
+
+        write!(
+            self.writer,
+            "{log_type}({log_style}key: {:?}, value: {:?}{log_style:#})",
+            l2_log.key, l2_log.value
+        )?;
+
+        writeln!(self.writer)?;
 
         Ok(())
     }
