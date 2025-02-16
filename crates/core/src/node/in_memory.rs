@@ -2,6 +2,7 @@
 use super::inner::node_executor::NodeExecutorHandle;
 use super::inner::InMemoryNodeInner;
 use super::vm::AnvilVM;
+use crate::delegate_vm;
 use crate::deps::storage_view::StorageView;
 use crate::deps::InMemoryStorage;
 use crate::filters::EthFilters;
@@ -17,12 +18,21 @@ use crate::node::state::VersionedState;
 use crate::node::{BlockSealer, BlockSealerMode, NodeExecutor, TxPool};
 use crate::observability::Observability;
 use crate::system_contracts::SystemContracts;
-use crate::{delegate_vm, formatter};
+use crate::trace::decode::CallTraceDecoderBuilder;
+use crate::trace::signatures::SignaturesIdentifier;
+use crate::trace::types::CallTraceArena;
+use crate::trace::{
+    build_call_trace_arena, decode_trace_arena, filter_call_trace_arena, render_trace_arena_inner,
+};
 use anvil_zksync_common::sh_println;
-use anvil_zksync_config::constants::{NON_FORK_FIRST_BLOCK_TIMESTAMP, TEST_NODE_NETWORK_ID};
+use anvil_zksync_common::shell::get_shell;
+use anvil_zksync_config::constants::{
+    DEFAULT_DISK_CACHE_DIR, NON_FORK_FIRST_BLOCK_TIMESTAMP, TEST_NODE_NETWORK_ID,
+};
 use anvil_zksync_config::types::{CacheConfig, Genesis};
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_types::{LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
+use anyhow::{anyhow, Context};
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
@@ -31,6 +41,7 @@ use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::io::{Read, Write};
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use zksync_contracts::BaseSystemContracts;
@@ -412,25 +423,43 @@ impl InMemoryNode {
                 .handle_calls_recursive(&call_traces);
         }
 
-        if inner.config.show_calls != ShowCalls::None {
-            sh_println!(
-                "[Transaction Execution] ({} calls)",
-                call_traces[0].calls.len()
+        if !call_traces.is_empty() {
+            let call_traces_owned = call_traces.clone();
+            let tx_result_for_arena = tx_result.clone();
+            let mut builder = CallTraceDecoderBuilder::new();
+
+            builder = builder.with_signature_identifier(
+                SignaturesIdentifier::new(
+                    Some(PathBuf::from(DEFAULT_DISK_CACHE_DIR)),
+                    inner.config.offline,
+                )
+                .map_err(|err| anyhow!("Failed to create SignaturesIdentifier: {:#}", err))?,
             );
-            let num_calls = call_traces.len();
-            for (i, call) in call_traces.iter().enumerate() {
-                let is_last_sibling = i == num_calls - 1;
-                let mut formatter = formatter::Formatter::new();
-                formatter.print_call(
-                    tx.initiator_account(),
-                    tx.execute.contract_address,
-                    call,
-                    is_last_sibling,
-                    inner.config.show_calls,
-                    inner.config.show_outputs,
-                    inner.config.resolve_hashes,
-                );
-            }
+            let decoder = builder.build();
+
+            let arena: CallTraceArena = futures::executor::block_on(async {
+                let blocking_result = tokio::task::spawn_blocking(move || {
+                    let mut arena = build_call_trace_arena(&call_traces_owned, tx_result_for_arena);
+                    let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
+                    rt.block_on(async {
+                        decode_trace_arena(&mut arena, &decoder)
+                            .await
+                            .context("Failed to decode trace arena")?;
+                        Ok::<CallTraceArena, anyhow::Error>(arena)
+                    })
+                })
+                .await;
+
+                let inner_result: Result<CallTraceArena, anyhow::Error> =
+                    blocking_result.expect("spawn_blocking failed");
+                inner_result
+            })?;
+
+            let verbosity = get_shell().verbosity;
+            let filtered_arena = filter_call_trace_arena(&arena, verbosity);
+            let trace_output = render_trace_arena_inner(&filtered_arena, false);
+
+            sh_println!("Traces:\n{}", trace_output);
         }
 
         Ok(tx_result.result)

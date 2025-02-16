@@ -1,6 +1,6 @@
 use crate::utils::parse_genesis_file;
 use alloy::signers::local::coins_bip39::{English, Mnemonic};
-use anvil_zksync_common::{sh_eprintln, sh_err};
+use anvil_zksync_common::{sh_err, sh_warn};
 use anvil_zksync_config::constants::{
     DEFAULT_DISK_CACHE_DIR, DEFAULT_MNEMONIC, TEST_NODE_NETWORK_ID,
 };
@@ -21,6 +21,7 @@ use clap::{arg, command, ArgAction, Parser, Subcommand};
 use flate2::read::GzDecoder;
 use futures::FutureExt;
 use rand::{rngs::StdRng, SeedableRng};
+use std::collections::HashMap;
 use std::env;
 use std::io::Read;
 use std::net::IpAddr;
@@ -471,13 +472,72 @@ pub struct ReplayArgs {
 impl Cli {
     /// Checks for deprecated options and warns users.
     pub fn deprecated_config_option() {
-        if env::args().any(|arg| arg == "--config" || arg.starts_with("--config=")) {
-            sh_eprintln!(
-                "Warning: The '--config' option has been removed. \
-                Please migrate to using other configuration options or defaults."
-            );
+        let args: Vec<String> = env::args().collect();
+
+        let deprecated_flags: HashMap<&str, &str> = [
+        ("--config", 
+            "⚠ The '--config' option has been removed. Please migrate to using other configuration options or defaults."),
+
+        ("--show-calls", 
+            "⚠ The '--show-calls' option is deprecated. Use verbosity levels instead:\n\
+             -vv  → Show user calls\n\
+             -vvv → Show system calls"),
+
+        ("--show-event-logs", 
+            "⚠ The '--show-event-logs' option is deprecated. Event logs are now included in traces by default.\n\
+             Use verbosity levels instead:\n\
+             -vv  → Show user calls\n\
+             -vvv → Show system calls"),
+
+        ("--resolve-hashes", 
+            "⚠ The '--resolve-hashes' option is deprecated. Automatic decoding of function and event selectors\n\
+             using OpenChain is now enabled by default, unless running in offline mode.\n\
+             If needed, disable it explicitly with `--offline`."),
+
+        ("--show-outputs", 
+            "⚠ The '--show-outputs' option has been deprecated. Output logs are now included in traces by default."),
+
+        ("--debug", 
+            "⚠ The '--debug' (or '-d') option is deprecated. Use verbosity levels instead:\n\
+             -vv  → Show user calls\n\
+             -vvv → Show system calls"),
+
+        ("-d", 
+            "⚠ The '-d' option is deprecated. Use verbosity levels instead:\n\
+             -vv  → Show user calls\n\
+             -vvv → Show system calls"),
+    ]
+    .iter()
+    .copied()
+    .collect();
+
+        // Prefix flags that may have values assigned (e.g., --show-calls=system)
+        let prefix_flags = [
+            "--config=",
+            "--show-calls=",
+            "--resolve-hashes=",
+            "--show-outputs=",
+            "--show-event-logs=",
+        ];
+
+        sh_warn!("⚠ Deprecated CLI Options Detected (as of v0.3.1):\n");
+        sh_warn!("[Options below will be removed in v0.4.0]\n");
+        for arg in &args {
+            if let Some(warning) = deprecated_flags.get(arg.as_str()) {
+                sh_warn!("{}", warning);
+            } else if prefix_flags.iter().any(|prefix| arg.starts_with(prefix)) {
+                let base_flag = prefix_flags
+                    .iter()
+                    .find(|&&prefix| arg.starts_with(prefix))
+                    .unwrap();
+                let warning = deprecated_flags
+                    .get(base_flag.trim_end_matches("="))
+                    .unwrap_or(&"⚠ Unknown deprecated option.");
+                sh_warn!("{}", warning);
+            }
         }
     }
+
     /// Converts the CLI arguments to a `TestNodeConfig`.
     pub fn into_test_node_config(self) -> eyre::Result<TestNodeConfig> {
         let genesis_balance = U256::from(self.balance as u128 * 10u128.pow(18));

@@ -334,6 +334,7 @@ impl CallTraceDecoder {
     }
 
     /// The default decoded return data for a trace.
+    // TODO: decode errors
     fn default_return_data(&self, trace: &CallTrace) -> Option<String> {
         (!trace.success).then(|| "Revert - todo! decode output strings".to_string())
     }
