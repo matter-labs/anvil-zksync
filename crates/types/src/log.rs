@@ -9,10 +9,11 @@ use tracing::level_filters::LevelFilter;
 pub enum LogLevel {
     Trace,
     Debug,
-    #[default]
     Info,
     Warn,
     Error,
+    #[default]
+    None,
 }
 
 impl fmt::Display for LogLevel {
@@ -23,6 +24,7 @@ impl fmt::Display for LogLevel {
             LogLevel::Info => f.pad("INFO"),
             LogLevel::Warn => f.pad("WARN"),
             LogLevel::Error => f.pad("ERROR"),
+            LogLevel::None => f.pad("NONE"),
         }
     }
 }
@@ -35,6 +37,7 @@ impl From<LogLevel> for LevelFilter {
             LogLevel::Info => LevelFilter::INFO,
             LogLevel::Warn => LevelFilter::WARN,
             LogLevel::Error => LevelFilter::ERROR,
+            LogLevel::None => LevelFilter::OFF,
         }
     }
 }

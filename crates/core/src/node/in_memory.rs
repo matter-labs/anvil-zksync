@@ -18,11 +18,11 @@ use crate::node::{BlockSealer, BlockSealerMode, NodeExecutor, TxPool};
 use crate::observability::Observability;
 use crate::system_contracts::SystemContracts;
 use crate::{delegate_vm, formatter};
+use anvil_zksync_common::sh_println;
 use anvil_zksync_config::constants::{NON_FORK_FIRST_BLOCK_TIMESTAMP, TEST_NODE_NETWORK_ID};
 use anvil_zksync_config::types::{CacheConfig, Genesis};
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_types::{LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
-use colored::Colorize;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
@@ -390,9 +390,10 @@ impl InMemoryNode {
         delegate_vm!(vm, push_transaction(tx.clone()));
 
         let call_tracer_result = Arc::new(OnceCell::default());
+        let error_flags_result = Arc::new(OnceCell::new());
 
         let tracers = vec![
-            CallErrorTracer::new().into_tracer_pointer(),
+            CallErrorTracer::new(error_flags_result.clone()).into_tracer_pointer(),
             CallTracer::new(call_tracer_result.clone()).into_tracer_pointer(),
         ];
         let tx_result = delegate_vm!(
@@ -405,23 +406,6 @@ impl InMemoryNode {
             .take()
             .unwrap_or_default();
 
-        if inner.config.show_tx_summary {
-            tracing::info!("");
-            match &tx_result.result {
-                ExecutionResult::Success { output } => {
-                    tracing::info!("Call: {}", "SUCCESS".green());
-                    let output_bytes = zksync_types::web3::Bytes::from(output.clone());
-                    tracing::info!("Output: {}", serde_json::to_string(&output_bytes).unwrap());
-                }
-                ExecutionResult::Revert { output } => {
-                    tracing::info!("Call: {}: {}", "FAILED".red(), output);
-                }
-                ExecutionResult::Halt { reason } => {
-                    tracing::info!("Call: {} {}", "HALTED".red(), reason)
-                }
-            };
-        }
-
         if !inner.config.disable_console_log {
             inner
                 .console_log_handler
@@ -429,8 +413,7 @@ impl InMemoryNode {
         }
 
         if inner.config.show_calls != ShowCalls::None {
-            tracing::info!("");
-            tracing::info!(
+            sh_println!(
                 "[Transaction Execution] ({} calls)",
                 call_traces[0].calls.len()
             );
@@ -581,7 +564,7 @@ impl InMemoryNode {
         let Some(observability) = &self.observability else {
             anyhow::bail!("Node's logging is not set up.")
         };
-        tracing::info!("setting log level to '{}'", level);
+        tracing::debug!("setting log level to '{}'", level);
         observability.set_log_level(level)?;
         Ok(true)
     }
@@ -590,7 +573,7 @@ impl InMemoryNode {
         let Some(observability) = &self.observability else {
             anyhow::bail!("Node's logging is not set up.")
         };
-        tracing::info!("setting logging to '{}'", directive);
+        tracing::debug!("setting logging to '{}'", directive);
         observability.set_logging(directive)?;
         Ok(true)
     }

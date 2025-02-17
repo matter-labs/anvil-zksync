@@ -11,20 +11,22 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-anvil_zksync_core.workspace = true
-anvil_zksync_config.workspace = true
 anvil_zksync_api_server.workspace = true
+anvil_zksync_config.workspace = true
+anvil_zksync_core.workspace = true
+anvil_zksync_l1_sidecar.workspace = true
 anvil_zksync_types.workspace = true
-
-alloy = { workspace = true, default-features = false, features = ["signer-mnemonic"] }
+anvil_zksync_common.workspace = true
 
 zksync_types.workspace = true
 zksync-telemetry.workspace = true
 zksync_web3_decl.workspace = true
+alloy = { workspace = true, default-features = false, features = ["signer-mnemonic", "reqwest-rustls-tls"] }
 anyhow.workspace = true
 clap.workspace = true
 eyre.workspace = true
 hex.workspace = true
+itertools.workspace = true
 futures.workspace = true
 rand.workspace = true
 serde.workspace = true

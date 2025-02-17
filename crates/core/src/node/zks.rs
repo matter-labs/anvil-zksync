@@ -139,7 +139,6 @@ impl InMemoryNode {
         if let Some(bytecode) = self.storage.load_factory_dep_alt(hash).await? {
             return Ok(Some(bytecode));
         }
-        println!("Nope");
 
         self.fork.get_bytecode_by_hash(hash).await
     }
