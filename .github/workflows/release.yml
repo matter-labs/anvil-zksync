@@ -61,9 +61,8 @@ jobs:
 
       - name: Pack anvil-zksync
         run: |
-          tar -C ./target/${{ matrix.arch }}/release -czf \
-            anvil-zksync-${{ inputs.tag || inputs.prerelease_name }}-${{ matrix.arch }}.tar.gz \
-            anvil-zksync
+          tar -czf anvil-zksync-${{ inputs.tag || inputs.prerelease_name }}-${{ matrix.arch }}.tar.gz \
+            ./target/${{ matrix.arch }}/release/anvil-zksync
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -94,7 +93,7 @@ jobs:
         shell: 'bash -ex {0}'
         run: |
           [ ! -z "${{ inputs.tag }}" ] && TAG="${{ inputs.tag }}" \
-            || TAG="$(git rev-parse --short HEAD)"
+            || TAG="$(git rev-parse --short HEAD)" 
           echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
 
       - name: Download artifacts
