@@ -35,7 +35,7 @@ use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use zksync_contracts::BaseSystemContracts;
+use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_multivm::interface::storage::{ReadStorage, WriteStorage};
 use zksync_multivm::interface::VmFactory;
 use zksync_multivm::interface::{
@@ -209,10 +209,13 @@ impl InMemoryNodeInner {
 
     async fn apply_batch(
         &mut self,
+        batch_timestamp: u64,
+        base_system_contracts_hashes: BaseSystemContractsHashes,
         blocks: impl IntoIterator<Item = api::Block<api::TransactionVariant>>,
         tx_results: impl IntoIterator<Item = TransactionResult>,
     ) {
-        // TODO: Move this to a dedicated `PreviousStates` struct once we have one
+        // TODO: `apply_batch` is leaking a lot of abstractions and should be wholly contained inside `Blockchain`.
+        //       Additionally, a dedicated `PreviousStates` struct would help with separation of concern.
         /// Archives the current state for later queries.
         fn archive_state(
             previous_states: &mut IndexMap<H256, HashMap<StorageKey, StorageValue>>,
@@ -230,7 +233,7 @@ impl InMemoryNodeInner {
         }
 
         let mut storage = self.blockchain.write().await;
-        storage.apply_batch(tx_results);
+        storage.apply_batch(batch_timestamp, base_system_contracts_hashes, tx_results);
         for (index, block) in blocks.into_iter().enumerate() {
             // archive current state before we produce new batch/blocks
             archive_state(
@@ -604,6 +607,7 @@ impl InMemoryNodeInner {
         txs: Vec<L2Tx>,
         system_contracts: BaseSystemContracts,
     ) -> anyhow::Result<L2BlockNumber> {
+        let base_system_contracts_hashes = system_contracts.hashes();
         // Prepare a new block context and a new batch env
         let system_env = self.create_system_env(system_contracts, TxExecutionMode::VerifyExecute);
         let (batch_env, mut block_ctx) = self.create_l1_batch_env().await;
@@ -703,7 +707,14 @@ impl InMemoryNodeInner {
             blocks.push(virtual_block);
         }
         let block_hashes = blocks.iter().map(|b| b.hash).collect::<Vec<_>>();
-        self.apply_batch(blocks, tx_results).await;
+        // Use first block's timestamp as batch timestamp
+        self.apply_batch(
+            block_ctx.timestamp,
+            base_system_contracts_hashes,
+            blocks,
+            tx_results,
+        )
+        .await;
 
         let mut filters = self.filters.write().await;
         for block_hash in block_hashes {

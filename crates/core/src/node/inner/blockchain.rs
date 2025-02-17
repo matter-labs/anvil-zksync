@@ -636,16 +636,18 @@ impl BlockchainState {
         self.blocks.insert(block.hash, block);
     }
 
-    pub(super) fn apply_batch(&mut self, tx_results: impl IntoIterator<Item = TransactionResult>) {
+    pub(super) fn apply_batch(
+        &mut self,
+        batch_timestamp: u64,
+        base_system_contracts_hashes: BaseSystemContractsHashes,
+        tx_results: impl IntoIterator<Item = TransactionResult>,
+    ) {
         self.current_batch += 1;
-        // Our version of contracts has system log and data availability verification disabled.
-        // Hence, we are free to create a zeroed out dummy header without any logs whatsoever.
+        // As our use of batches is limited for now, most of their fields are zeroed out.
         let header = L1BatchHeader::new(
             self.current_batch,
-            0,
-            // We could use contract hashes that were actually used, but they might differ from what
-            // L1 expects due to impersonation
-            BaseSystemContractsHashes::default(),
+            batch_timestamp,
+            base_system_contracts_hashes,
             ProtocolVersionId::latest(),
         );
         self.batches.insert(self.current_batch, header);
