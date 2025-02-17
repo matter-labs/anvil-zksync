@@ -44,9 +44,8 @@ fn main() -> ExitCode {
     };
     if let Err(e) = zksync_error_codegen::load_and_generate(arguments) {
         println!("{e}");
-       ExitCode::FAILURE
-    }
-    else {
+        ExitCode::FAILURE
+    } else {
         ExitCode::SUCCESS
     }
 }
