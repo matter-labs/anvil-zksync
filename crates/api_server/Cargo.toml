@@ -13,7 +13,9 @@ categories.workspace = true
 [dependencies]
 anvil_zksync_api_decl.workspace = true
 anvil_zksync_core.workspace = true
+anvil_zksync_l1_sidecar.workspace = true
 anvil_zksync_types.workspace = true
+anvil_zksync_common.workspace = true
 
 zksync_types.workspace = true
 zksync_web3_decl.workspace = true
