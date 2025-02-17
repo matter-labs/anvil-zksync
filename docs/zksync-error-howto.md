@@ -1,4 +1,6 @@
-# What is zksync-error?
+# ZKsync Error, a unified description of errors
+
+## What is zksync-error?
 
 A generated crate describing all errors that are:
 
@@ -8,112 +10,105 @@ A generated crate describing all errors that are:
 `anvil-zksync` is one of such components.
 
 The motivation behind `zksync-error` is to:
-- improve developer and user experience by agreeing on a single source of truth
-  for source code error descriptions in Rust and Typescript, their
-  documentation, format and error messages, pretty-printing etc
-- make a unified failure description system but retain the ability to work on
-  parts of different ZKsync components separately;
+- improve developer and user experience by agreeing on a single source of truth for source code error descriptions in
+  Rust and Typescript, their documentation, format and error messages, pretty-printing etc
+- make a unified failure description system but retain the ability to work on parts of different ZKsync components
+  separately;
 - provide an ease of usage and ease of migration for developers;
 - agree on a single documentation standard for public facing errors;
-- provide ZKsync components with access to the documentation in runtime so that
-  they could react to failures and guide users towards solutions.
+- provide ZKsync components with access to the documentation in runtime so that they could react to failures and guide
+  users towards solutions.
 
-Every component has and will have their own ways of handling failures;
-zksync-error is only concerned with providing an abstraction layer for outwards
-facing errors.
+Every component has and will have their own ways of handling failures; zksync-error is only concerned with providing an
+abstraction layer for outwards facing errors.
 
-# Error hierarchy
+## Error hierarchy
 
-- Errors are described as pure data in JSON files. This fragment of a JSON file
-  describes an individual error with a field `msg` of type `string`:
+- Errors are described as pure data in JSON files. This fragment of a JSON file describes an individual error with a
+  field `msg` of type `string`:
 
 ```json
  {
-    "name": "FailedToAppendTransactionToL2Block",
-    "code": 17,
-    "message": "Failed to append the transaction to the current L2 block: {msg}",
-    "fields": [
-        {
-            "name": "msg",
-            "type": "string"
-        }
-    ]
+  "name": "FailedToAppendTransactionToL2Block",
+  "code": 17,
+  "message": "Failed to append the transaction to the current L2 block: {msg}",
+  "fields": [
+    {
+      "name": "msg",
+      "type": "string"
+    }
+  ]
 }
 ```
 
-- Every error has a *code*, belongs to a *component*, and every component belongs to a *domain*.
-  This structure matches the structure of JSON files. For example, this file
-  describes one domain `Anvil` with one component `AnvilEnvironment` and one
-  error `LogFileAccessError`:
+- Every error has a *code*, belongs to a *component*, and every component belongs to a *domain*. This structure matches
+  the structure of JSON files. For example, this file describes one domain `Anvil` with one component `AnvilEnvironment`
+  and one error `LogFileAccessError`:
 
-```js
+```json
 {
-    "types": [],
-    "domains": [
+  "types": [],
+  "domains": [
+    {
+      "domain_name": "Anvil",
+      "domain_code": 5,
+      "identifier_encoding": "anvil",
+      "components": [
         {
-            "domain_name": "Anvil",
-            "domain_code": 5,
-            "identifier_encoding": "anvil",
-            "components" : [
+          "component_name": "AnvilEnvironment",
+          "component_code": 1,
+          "identifier_encoding": "env",
+          "errors": [
+            {
+              "name": "LogFileAccessError",
+              "code": 1,
+              "message": "Unable to access log file: {log_filename}",
+              "fields": [
                 {
-                    "component_name": "AnvilEnvironment",
-                    "component_code": 1,
-                    "identifier_encoding": "env",
-                    "errors" : [
-                        {
-                            "name": "LogFileAccessError",
-                            "code": 1,
-                            "message": "Unable to access log file: {log_filename}",
-                            "fields": [
-                                {
-                                    "name": "log_filename",
-                                    "type": "string"
-                                },
-                                {
-                                    "name": "wrapped_error",
-                                    "type": "string"
-                                }
-                            ]
-                       }
-                    ]
+                  "name": "log_filename",
+                  "type": "string"
+                },
+                {
+                  "name": "wrapped_error",
+                  "type": "string"
                 }
-            ]
+              ]
+            }
+          ]
         }
-        ]
+      ]
+    }
+  ]
 }
 ```
 
 - The error codes should be unique inside a single component.
-- Domains and components have identifiers -- short strings provided by
-  `identifier_encoding` field in JSON files. For example, the domain `Anvil` in
-  the example above has an identifier `anvil`.
+- Domains and components have identifiers -- short strings provided by `identifier_encoding` field in JSON files. For
+  example, the domain `Anvil` in the example above has an identifier `anvil`.
 
-- Errors have identifiers in form
-  `[<domain_identifier>-<component_identifier>-<error_code>]`. For example, the
-  error `LogFileAccessError` in the example above has an identifier
-  `[anvil-env-1]`. Identifiers are globally unique and never reused if the error is deprecated.
+- Errors have identifiers in form `[<domain_identifier>-<component_identifier>-<error_code>]`. For example, the error
+  `LogFileAccessError` in the example above has an identifier `[anvil-env-1]`. Identifiers are globally unique and never
+  reused if the error is deprecated.
   
 - The main JSON file is located in [zksync-error
-  repository](https://github.com/matter-labs/zksync-error/blob/main/zksync-root.json).
-  It is linked to similar files in other repositories through `takeFrom` fields.
-  These files are automatically merged to produce a single tree of
-  domains-components-errors.
-  This tree-like model is then used to generate:
+  repository](https://github.com/matter-labs/zksync-error/blob/main/zksync-root.json). It is linked to similar files in
+  other repositories through `takeFrom` fields. These files are automatically merged to produce a single tree of
+  domains-components-errors. This tree-like model is then used to generate:
     + `zksync-error` crate, defining errors for Rust code;
-    + documentation for errors in MDbook format.
+    + documentation for errors in MDbook format;
     + in future, TypeScript code to interact with these errors.
 
-This approach allows to define errors in the projects where they are used, for
-example in Solidity compiler or VM.
+This approach allows to define errors in the projects where they are used, for example in Solidity compiler or VM.
 
-# Adding new errors
+
+## Adding new errors
 
 Put new errors in the file [etc/errors/anvil.json](/etc/errors/anvil.json).
 
-Every component implicitly contains an error with code 0 meaning an umbrella
-"generic error". You usually should not define this error yourself.
+Every component implicitly contains an error with code 0 meaning an umbrella "generic error". You usually should not
+define this error yourself.
 
-```js
+```json
 {
         "name": "GenericError",
         "code": 0,
@@ -129,49 +124,47 @@ Every component implicitly contains an error with code 0 meaning an umbrella
 
 You may define other errors, for example:
 
-```
+```json
 {
-    "types": [],
-    "domains": [
+  "types": [],
+  "domains": [
+    {
+      "domain_name": "Anvil",
+      "domain_code": 5,
+      "identifier_encoding": "anvil",
+      "components": [
         {
-            "domain_name": "Anvil",
-            "domain_code": 5,
-            "identifier_encoding": "anvil",
-            "components" : [
+          "component_name": "StateLoader",
+          "component_code": 2,
+          "identifier_encoding": "state",
+          "errors": [
             {
-                "component_name": "StateLoader",
-                "component_code": 2,
-                "identifier_encoding": "state",
-                "errors" : [
-                    {
-                        "name": "LoadingStateOverExistingStateError",
-                        "code": 1,
-                        "message": "Loading state into a node with existing state is not allowed.",
-                        "doc" : {
-                            "summary": "It is not allowed to load a state overriding the existing node state.",
-                            "description": "It is not allowed to load a state overriding the existing node state. If you have a use case for that, please create an issue."
-                            }
-                    }
-                ]
+              "name": "LoadingStateOverExistingStateError",
+              "code": 1,
+              "message": "Loading state into a node with existing state is not allowed.",
+              "doc": {
+                "summary": "It is not allowed to load a state overriding the existing node state.",
+                "description": "It is not allowed to load a state overriding the existing node state."
+              }
             }
-        ]
+          ]
+        }
+      ]
     }
-    ]
+  ]
 }
 ```
 
 ## Publishing
 
-After you change `anvil.json`, rebuild `anvil-zksync` and `zksync-error` crate
-will be regenerated.
-You may also build `zksync-error` crate using CLI.
+After you change `anvil.json`, rebuild `anvil-zksync` and `zksync-error` crate will be regenerated. You may also build
+`zksync-error` crate using CLI.
 
-You may use `cargo build -vv` to see the debug output of the code generator.
-New errors will appearing in [definitions.rs](crates/zksync_error/src/error/definitions.rs).
+You may use `cargo build -vv` to see the debug output of the code generator. New errors will appearing in
+[definitions.rs](crates/zksync_error/src/error/definitions.rs).
 
-When you publish your `anvil.json` to the repository, other projects will see
-the updated definitions. Then they should regenerate their `zksync-error` crates
-to use them. 
+When you publish your `anvil.json` to the repository, other projects will see the updated definitions. Then they should
+regenerate their `zksync-error` crates to use them. 
 
 ## Error fields
 By default, the fields of errors can have one of the following types:
@@ -183,9 +176,8 @@ By default, the fields of errors can have one of the following types:
 - `bytes`: a sequence of bytes
 - type of another error, defined in one of JSONs.
 
-Errors in `zksync-error` are part of a component's interface, so they can not
-have types that are unknown to other components.
-This prevents directly wrapping errors that are defined internally in one of components.
+Errors in `zksync-error` are part of a component's interface, so they can not have types that are unknown to other
+components. This prevents directly wrapping errors that are defined internally in one of components.
 
 # Accessing new errors
 
@@ -207,19 +199,16 @@ pub mod anvil {
         fn to_generic<E: Display>(error); 
     }
     pub mod gen {
-    ...
+    //… 
     }
 }
 ```
 
 
+## Migration
 
-
-# Migration
-
-The root type of the error hierarchy is `ZksyncError`. For example, the error
-`GenericError` from the domain `Anvil` and its component `AnvilEnvironment`
-is instantiated as follows:
+The root type of the error hierarchy is `ZksyncError`. For example, the error `GenericError` from the domain `Anvil` and
+its component `AnvilEnvironment` is instantiated as follows:
 
 ```rust
     ZksyncError::Anvil(// Domain
@@ -230,8 +219,7 @@ is instantiated as follows:
     );
 ```
 
-**You don't need to construct this instance explicitly**. There are adapters
-implementing `Into` for every use case:
+**You don't need to construct this instance explicitly**. There are adapters implementing `Into` for every use case:
 
 1. from errors to domain errors types e.g. `Anvil`
 2. from errors to component errors types e.g. `AnvilEnvironment`
@@ -284,24 +272,18 @@ fn test_domain() -> Result<(), AnvilError> {
 }
 ```
 
+### If the function returns `Result<_,anyhow::Error>`
 
+Suppose you want to throw an error from a component `AnvilEnvironment` of domain `Anvil` instead of `anyhow::Error`.
+Follow these steps:
 
+1. Change the return type of the function to `Result<_, zksync_error::anvil::gen::GenericError>` and it will be
+   automatically cast to a `GenericError` of this component.
 
-
-
-## If the function returns `Result<_,anyhow::Error>`
-
-Suppose you want to throw an error from a component `AnvilEnvironment` of domain `Anvil` instead of `anyhow::Error`. Follow these steps:
-
-1. Change the return type of the function to `Result<_,
-   zksync_error::anvil::gen::GenericError>` and it will be automatically cast to
-   a `GenericError` of this component.
-
-   On error throwing sites, if the implicit call to `into` is not sufficient or is not applicable, then try to do the following:
+   On error throwing sites, if the implicit call to `into` is not sufficient or is not applicable, then try to do the
+   following:
    
-   - map the error using the function `zksync_error::anvil::gen::to_generic`,
-   for example:
-   
+   - map the error using the function `zksync_error::anvil::gen::to_generic`, for example:
    
 ```rust
 //replace the first line with the second
@@ -330,48 +312,35 @@ return Err(generic_error!(
 ```
   
 2. Introduce more errors, corresponding to different failure situations.
-
    Describe the new error in the JSON file, and replace it on the throw site.
 
+### If the function returns `Result` with an internal error 
 
-   
-## If the function returns `Result` with an internal error 
+Many functions return `Result<_, CustomErrorType>` and if the error `CustomErrorType` ends up getting outside the
+component, you may want to modify the function to return  `Result<_, zksync_error::anvil::env::AnvilEnvironmentError>`
+instead,  or an error related to a different component. 
 
-Many functions return `Result<_, CustomErrorType>` and if the error
-`CustomErrorType` ends up getting outside the component, you may want to modify
-the function to return 
-`Result<_, zksync_error::anvil::env::AnvilEnvironmentError>` instead,  or an
-error related to a different component. 
+Suppose functions `caller1`, `caller2` and so on call a function  `fn f()->Result<_, CustomErrorType>`, and we want to
+migrate `f` to  `AnvilEnvironmentError` step by step.
 
-Suppose functions `caller1`, `caller2` and so on call a function 
-`fn f()->Result<_, CustomErrorType>`, and we want to migrate `f` to 
-`AnvilEnvironmentError` step by step.
-
-1. Assess if you *really* need to rewrite it. Remember that all error types
-   described in JSON and provided by `zksync_error` are for public errors only!
-   If this error gets through the call stack to the component user, then it
+1. Assess if you *really* need to rewrite it. Remember that all error types described in JSON and provided by
+   `zksync_error` are for public errors only! If this error gets through the call stack to the component user, then it
    makes sense to migrate it to `ZksyncError`.
-2. On the call site, in `caller`, map the error value using
-   `map_err(to_generic)` and refactor the `caller` until it compiles.
+2. On the call site, in `caller`, map the error value using `map_err(to_generic)` and refactor the `caller` until it
+   compiles.
 3. Make a copy of `f`, say, `f_new`.
-4. Replace the return type in `f_new` with `Result<_, AnvilEnvironmentError>`. 
-   Whenever `f_new` returns `Err(e:CustomErrorType)`,  it may return `anvil::env::GenericError` instead.
-   Use `.map_err(to_generic)`, explicit or implicit `into`, and `anvil::env::generic_error!` macros.
-5. Work through the callers, one at a time. Pick a caller, say, `caller1`.
-   Replace calls to `f` with calls to `f_new` and remove unused conversions. 
+4. Replace the return type in `f_new` with `Result<_, AnvilEnvironmentError>`. Whenever `f_new` returns
+   `Err(e:CustomErrorType)`,  it may return `anvil::env::GenericError` instead. Use `.map_err(to_generic)`, explicit or
+   implicit `into`, and `anvil::env::generic_error!` macros.
+5. Work through the callers, one at a time. Pick a caller, say, `caller1`. Replace calls to `f` with calls to `f_new`
+   and remove unused conversions. 
 6. Repeat until all callers are refactored.
 7. Remove the function `f` and rename `f_new` back to `f`.
-   
 
+### Functions returning errors from multiple components
 
-
-
-## Functions returning errors from multiple components
-
-If a function may return errors that are spread among components (e.g. either
-`AnvilEnvironment` or `AnvilStateLoader` components) then we advise to return a
-type `AnvilError` from it. 
-Such function are rare and require more manual work, but the algorithm is the
-same -- just use `to_domain` helper along with `generic_error!` macro.
+If a function may return errors that are spread among components (e.g. either `AnvilEnvironment` or `AnvilStateLoader`
+components) then we advise to return a type `AnvilError` from it. Such function are rare and require more manual work,
+but the algorithm is the same -- just use `to_domain` helper along with `generic_error!` macro.
 
 
