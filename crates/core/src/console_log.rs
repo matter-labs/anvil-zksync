@@ -4,6 +4,7 @@ use crate::utils::format_token;
 use alloy::dyn_abi::JsonAbiExt;
 use alloy::json_abi::{Function, Param, StateMutability};
 use alloy::primitives::Selector;
+use anvil_zksync_common::sh_println;
 use colored::Colorize;
 use itertools::Itertools;
 use zksync_multivm::interface::Call;
@@ -44,11 +45,10 @@ impl ConsoleLogHandler {
         }
 
         if !messages.is_empty() {
-            tracing::info!("");
-            tracing::info!("==== Console logs: ");
+            sh_println!("\nLogs: ");
         }
         for message in messages {
-            tracing::info!("{}", message.cyan());
+            sh_println!("{}", message.bold());
         }
     }
     pub fn handle_call_recursive(&self, current_call: &Call, messages: &mut Vec<String>) {

@@ -1,5 +1,6 @@
 use alloy::dyn_abi::DynSolValue;
 use alloy::primitives::{Sign, I256, U256 as AlloyU256};
+use anvil_zksync_common::sh_err;
 use anyhow::Context;
 use chrono::{DateTime, Utc};
 use colored::Colorize;
@@ -162,7 +163,7 @@ impl From<TransparentError> for Web3Error {
 }
 
 pub fn internal_error(method_name: &'static str, error: impl fmt::Display) -> Web3Error {
-    tracing::error!("Internal error in method {method_name}: {error}");
+    sh_err!("Internal error in method {method_name}: {error}");
     Web3Error::InternalError(anyhow::Error::msg(error.to_string()))
 }
 

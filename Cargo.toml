@@ -7,6 +7,7 @@ members = [
     "crates/core",
     "crates/l1_sidecar",
     "crates/types",
+    "crates/common",
 ]
 resolver = "2"
 
@@ -80,6 +81,8 @@ tracing-subscriber = { version = "0.3", features = [
     "local-time",
 ] }
 url = "2.5.4"
+anstream = "0.6.18"
+anstyle = "1.0.10"
 
 #########################
 # Test dependencies    #
@@ -98,3 +101,4 @@ anvil_zksync_config = { path = "crates/config" }
 anvil_zksync_core = { path = "crates/core" }
 anvil_zksync_l1_sidecar = { path = "crates/l1_sidecar" }
 anvil_zksync_types = { path = "crates/types" }
+anvil_zksync_common = { path = "crates/common" }

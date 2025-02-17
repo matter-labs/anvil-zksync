@@ -2,6 +2,7 @@ use crate::bytecode_override::override_bytecodes;
 use crate::cli::{Cli, Command, ForkUrl, PeriodicStateDumper};
 use crate::utils::update_with_fork_details;
 use anvil_zksync_api_server::NodeServerBuilder;
+use anvil_zksync_common::{sh_eprintln, sh_err, sh_warn};
 use anvil_zksync_config::constants::{
     DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
     DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L1_GAS_PRICE, DEFAULT_L2_GAS_PRICE, LEGACY_RICH_WALLETS,
@@ -62,7 +63,7 @@ async fn main() -> anyhow::Result<()> {
     let (fork_client, transactions_to_replay) = match command {
         Command::Run => {
             if config.offline {
-                tracing::warn!("Running in offline mode: default fee parameters will be used.");
+                sh_warn!("Running in offline mode: default fee parameters will be used.");
                 config = config
                     .clone()
                     .with_l1_gas_price(config.l1_gas_price.or(Some(DEFAULT_L1_GAS_PRICE)))
@@ -154,7 +155,7 @@ async fn main() -> anyhow::Result<()> {
         SystemContractsOptions::Local
     ) {
         if let Some(path) = env::var_os("ZKSYNC_HOME") {
-            tracing::info!("+++++ Reading local contracts from {:?} +++++", path);
+            tracing::debug!("Reading local contracts from {:?}", path);
         }
     }
 
@@ -269,7 +270,7 @@ async fn main() -> anyhow::Result<()> {
     // during replay. Otherwise, replay would send commands and hang.
     tokio::spawn(async move {
         if let Err(err) = node_executor.run().await {
-            tracing::error!("node executor ended with error: {:?}", err);
+            sh_err!("node executor ended with error: {:?}", err);
         }
     });
 
@@ -282,6 +283,9 @@ async fn main() -> anyhow::Result<()> {
     if !transactions_to_replay.is_empty() {
         node.apply_txs(transactions_to_replay, config.max_transactions)
             .await?;
+
+        // If we are in replay mode, we don't start the server
+        return Ok(());
     }
 
     // TODO: Consider moving to `InMemoryNodeInner::init`
@@ -332,7 +336,7 @@ async fn main() -> anyhow::Result<()> {
                 server_handles.push(server.run());
             }
             Err(err) => {
-                tracing::info!(
+                sh_eprintln!(
                     "Failed to bind to address {}:{}: {}. Retrying with a different port...",
                     host,
                     config.port,

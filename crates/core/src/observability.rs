@@ -34,18 +34,13 @@ impl Observability {
         };
         let (filter, reload_handle) = reload::Layer::<EnvFilter, Registry>::new(filter);
 
-        let timer_format =
-            time::format_description::parse("[hour]:[minute]:[second]").expect("Cataplum");
-        let time_offset = time::UtcOffset::current_local_offset().unwrap_or(time::UtcOffset::UTC);
-        let timer = tracing_subscriber::fmt::time::OffsetTime::new(time_offset, timer_format);
-
         tracing_subscriber::registry()
             .with(filter)
             .with(
                 tracing_subscriber::fmt::layer().event_format(
                     tracing_subscriber::fmt::format()
                         .compact()
-                        .with_timer(timer.clone())
+                        .without_time()
                         .with_target(false),
                 ),
             )
@@ -54,7 +49,7 @@ impl Observability {
                     .event_format(
                         tracing_subscriber::fmt::format()
                             .compact()
-                            .with_timer(timer.clone())
+                            .without_time()
                             .with_target(false),
                     )
                     .with_writer(Mutex::new(log_file))

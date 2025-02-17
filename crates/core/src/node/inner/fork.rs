@@ -1,4 +1,5 @@
 use crate::cache::Cache;
+use anvil_zksync_common::sh_err;
 use anvil_zksync_config::constants::{
     DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
     DEFAULT_FAIR_PUBDATA_PRICE,
@@ -552,7 +553,7 @@ impl Fork {
         Some(
             call_body(client)
                 .map_err(|error| {
-                    tracing::error!(%error, "call failed");
+                    sh_err!("call failed: {}", error);
                     error
                 })
                 .instrument(span)

@@ -868,10 +868,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "anvil_zksync_common"
+version = "0.3.0"
+dependencies = [
+ "anstream",
+ "anstyle",
+]
+
+[[package]]
 name = "anvil_zksync_config"
 version = "0.3.0"
 dependencies = [
  "alloy",
+ "anvil_zksync_common",
  "anvil_zksync_types",
  "clap",
  "colored",
@@ -889,6 +898,7 @@ name = "anvil_zksync_core"
 version = "0.3.0"
 dependencies = [
  "alloy",
+ "anvil_zksync_common",
  "anvil_zksync_config",
  "anvil_zksync_types",
  "anyhow",
