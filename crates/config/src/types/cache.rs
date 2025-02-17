@@ -3,7 +3,7 @@ use clap::ValueEnum;
 use serde::Deserialize;
 
 /// Cache type for the node.
-#[derive(ValueEnum, Deserialize, Default, Debug, Copy, Clone)]
+#[derive(ValueEnum, Deserialize, Default, Debug, Copy, Clone, serde::Serialize)]
 pub enum CacheType {
     None,
     Memory,

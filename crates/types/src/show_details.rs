@@ -3,7 +3,16 @@ use serde::Deserialize;
 use std::{fmt::Display, str::FromStr};
 
 #[derive(
-    Deserialize, Debug, Default, clap::Parser, Copy, Clone, clap::ValueEnum, PartialEq, Eq,
+    Deserialize,
+    Debug,
+    Default,
+    clap::Parser,
+    Copy,
+    Clone,
+    clap::ValueEnum,
+    PartialEq,
+    Eq,
+    serde::Serialize,
 )]
 pub enum ShowCalls {
     #[default]
@@ -36,7 +45,18 @@ impl Display for ShowCalls {
     }
 }
 
-#[derive(Deserialize, Debug, Default, Parser, Copy, Clone, clap::ValueEnum, PartialEq, Eq)]
+#[derive(
+    Deserialize,
+    Debug,
+    Default,
+    Parser,
+    Copy,
+    Clone,
+    clap::ValueEnum,
+    PartialEq,
+    Eq,
+    serde::Serialize,
+)]
 pub enum ShowStorageLogs {
     #[default]
     None,
@@ -70,7 +90,18 @@ impl Display for ShowStorageLogs {
     }
 }
 
-#[derive(Deserialize, Debug, Default, Parser, Copy, Clone, clap::ValueEnum, PartialEq, Eq)]
+#[derive(
+    Deserialize,
+    Debug,
+    Default,
+    Parser,
+    Copy,
+    Clone,
+    clap::ValueEnum,
+    PartialEq,
+    Eq,
+    serde::Serialize,
+)]
 pub enum ShowVMDetails {
     #[default]
     None,
@@ -98,7 +129,18 @@ impl Display for ShowVMDetails {
     }
 }
 
-#[derive(Deserialize, Debug, Default, Parser, Copy, Clone, clap::ValueEnum, PartialEq, Eq)]
+#[derive(
+    Deserialize,
+    Debug,
+    Default,
+    Parser,
+    Copy,
+    Clone,
+    clap::ValueEnum,
+    PartialEq,
+    Eq,
+    serde::Serialize,
+)]
 pub enum ShowGasDetails {
     #[default]
     None,

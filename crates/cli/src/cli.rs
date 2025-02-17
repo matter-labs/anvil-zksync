@@ -35,6 +35,13 @@ use tokio::time::{Instant, Interval};
 use url::Url;
 use zksync_types::{H256, U256};
 
+const DEFAULT_PORT: &str = "8011";
+const DEFAULT_HOST: &str = "0.0.0.0";
+const DEFAULT_ACCOUNTS: &str = "10";
+const DEFAULT_BALANCE: &str = "10000";
+const DEFAULT_ALLOW_ORIGIN: &str = "*";
+const DEFAULT_TX_ORDER: &str = "fifo";
+
 #[derive(Debug, Parser, Clone)]
 #[command(
     author = "Matter Labs",
@@ -61,7 +68,7 @@ pub struct Cli {
     #[arg(long, value_name = "OUT_FILE", help_heading = "General Options")]
     pub config_out: Option<String>,
 
-    #[arg(long, default_value = "8011", help_heading = "Network Options")]
+    #[arg(long, default_value = DEFAULT_PORT, help_heading = "Network Options")]
     /// Port to listen on (default: 8011).
     pub port: Option<u16>,
 
@@ -70,7 +77,7 @@ pub struct Cli {
         long,
         value_name = "IP_ADDR",
         env = "ANVIL_ZKSYNC_IP_ADDR",
-        default_value = "0.0.0.0",
+        default_value = DEFAULT_HOST,
         value_delimiter = ',',
         help_heading = "Network Options"
     )]
@@ -199,7 +206,7 @@ pub struct Cli {
     #[arg(
         long,
         short,
-        default_value = "10",
+        default_value = DEFAULT_ACCOUNTS,
         value_name = "NUM",
         help_heading = "Account Configuration"
     )]
@@ -208,7 +215,7 @@ pub struct Cli {
     /// The balance of every dev account in Ether.
     #[arg(
         long,
-        default_value = "10000",
+        default_value = DEFAULT_BALANCE,
         value_name = "NUM",
         help_heading = "Account Configuration"
     )]
@@ -305,7 +312,7 @@ pub struct Cli {
     pub no_mining: bool,
 
     /// The cors `allow_origin` header
-    #[arg(long, default_value = "*", help_heading = "Server options")]
+    #[arg(long, default_value = DEFAULT_ALLOW_ORIGIN, help_heading = "Server options")]
     pub allow_origin: String,
 
     /// Disable CORS.
@@ -313,11 +320,11 @@ pub struct Cli {
     pub no_cors: bool,
 
     /// Transaction ordering in the mempool.
-    #[arg(long, default_value = "fifo")]
+    #[arg(long, default_value = DEFAULT_TX_ORDER)]
     pub order: TransactionOrder,
 }
 
-#[derive(Debug, Subcommand, Clone)]
+#[derive(Debug, Subcommand, Clone, serde::Serialize)]
 pub enum Command {
     /// Starts a new empty local network.
     #[command(name = "run")]
@@ -330,7 +337,8 @@ pub enum Command {
     ReplayTx(ReplayArgs),
 }
 
-#[derive(Debug, Parser, Clone)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Parser, Clone, serde::Serialize)]
 pub struct ForkArgs {
     /// Whether to fork from existing network.
     /// If not set - will start a new network from genesis.
@@ -366,7 +374,7 @@ pub struct ForkArgs {
     pub fork_transaction_hash: Option<H256>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize)]
 pub enum ForkUrl {
     Mainnet,
     SepoliaTestnet,
@@ -408,7 +416,7 @@ impl FromStr for ForkUrl {
     }
 }
 
-#[derive(Debug, Parser, Clone)]
+#[derive(Debug, Parser, Clone, serde::Serialize)]
 pub struct ReplayArgs {
     /// Whether to fork from existing network.
     /// If not set - will start a new network from genesis.
@@ -667,6 +675,177 @@ impl Future for PeriodicStateDumper {
 
         Poll::Pending
     }
+}
+
+#[serde_with::skip_serializing_none]
+#[derive(serde::Serialize)]
+pub struct CliReportingData {
+    command_name: Option<String>,
+    command: Option<Command>,
+    offline: Option<bool>,
+    health_check_endpoint: Option<bool>,
+    config_out: Option<SensitiveValue>,
+    port: Option<SensitiveValue>,
+    host: Option<SensitiveValue>,
+    chain_id: Option<SensitiveValue>,
+    debug_mode: Option<bool>,
+    show_node_config: Option<bool>,
+    show_tx_summary: Option<bool>,
+    disable_console_log: Option<bool>,
+    show_event_logs: Option<bool>,
+    show_calls: Option<ShowCalls>,
+    show_outputs: Option<bool>,
+    show_storage_logs: Option<ShowStorageLogs>,
+    show_vm_details: Option<ShowVMDetails>,
+    show_gas_details: Option<ShowGasDetails>,
+    resolve_hashes: Option<bool>,
+    l1_gas_price: Option<u64>,
+    l2_gas_price: Option<u64>,
+    l1_pubdata_price: Option<u64>,
+    price_scale_factor: Option<f64>,
+    limit_scale_factor: Option<f32>,
+    override_bytecodes_dir: Option<SensitiveValue>,
+    dev_system_contracts: Option<SystemContractsOptions>,
+    emulate_evm: Option<bool>,
+    log: Option<LogLevel>,
+    log_file_path: Option<SensitiveValue>,
+    silent: Option<bool>,
+    cache: Option<CacheType>,
+    reset_cache: Option<bool>,
+    cache_dir: Option<SensitiveValue>,
+    accounts: Option<u64>,
+    balance: Option<u64>,
+    timestamp: Option<u64>,
+    init: Option<SensitiveValue>,
+    state: Option<SensitiveValue>,
+    state_interval: Option<u64>,
+    dump_state: Option<SensitiveValue>,
+    preserve_historical_states: Option<bool>,
+    load_state: Option<SensitiveValue>,
+    mnemonic: Option<SensitiveValue>,
+    mnemonic_random: Option<SensitiveValue>,
+    mnemonic_seed: Option<SensitiveValue>,
+    derivation_path: Option<SensitiveValue>,
+    auto_impersonate: Option<bool>,
+    block_time: Option<Duration>,
+    no_mining: Option<bool>,
+    allow_origin: Option<SensitiveValue>,
+    no_cors: Option<bool>,
+    order: Option<TransactionOrder>,
+}
+
+// Converts cli struct to reporting data struct
+// Skipping fields containing default values
+impl From<Cli> for CliReportingData {
+    fn from(cli: Cli) -> Self {
+        Self {
+            command_name: cli.command.clone().map(|c| match c {
+                Command::Run => "run".to_string(),
+                Command::Fork(_) => "fork".to_string(),
+                Command::ReplayTx(_) => "replay_tx".to_string(),
+            }),
+            command: cli.command,
+            offline: if cli.offline { Some(true) } else { None },
+            health_check_endpoint: if cli.health_check_endpoint {
+                Some(true)
+            } else {
+                None
+            },
+            config_out: cli.config_out.map(|_| SensitiveValue::Value),
+            port: cli
+                .port
+                .filter(|&p| p.to_string() != DEFAULT_PORT)
+                .map(|_| SensitiveValue::Value),
+            host: cli
+                .host
+                .first()
+                .filter(|&h| h.to_string() != DEFAULT_HOST || cli.host.len() != 1)
+                .map(|_| SensitiveValue::Value),
+            chain_id: cli.chain_id.map(|_| SensitiveValue::Value),
+            debug_mode: if cli.debug_mode { Some(true) } else { None },
+            show_node_config: if cli.show_node_config.unwrap_or(false) {
+                None
+            } else {
+                Some(false)
+            },
+            show_tx_summary: if cli.show_tx_summary.unwrap_or(false) {
+                None
+            } else {
+                Some(false)
+            },
+            disable_console_log: cli.disable_console_log,
+            show_event_logs: cli.show_event_logs,
+            show_calls: cli.show_calls,
+            show_outputs: cli.show_outputs,
+            show_storage_logs: cli.show_storage_logs,
+            show_vm_details: cli.show_vm_details,
+            show_gas_details: cli.show_gas_details,
+            resolve_hashes: cli.resolve_hashes,
+            l1_gas_price: cli.l1_gas_price,
+            l2_gas_price: cli.l2_gas_price,
+            l1_pubdata_price: cli.l1_pubdata_price,
+            price_scale_factor: cli.price_scale_factor,
+            limit_scale_factor: cli.limit_scale_factor,
+            override_bytecodes_dir: cli.override_bytecodes_dir.map(|_| SensitiveValue::Value),
+            dev_system_contracts: cli.dev_system_contracts,
+            emulate_evm: if cli.emulate_evm { Some(true) } else { None },
+            log: cli.log,
+            log_file_path: cli.log_file_path.map(|_| SensitiveValue::Value),
+            silent: cli.silent,
+            cache: cli.cache,
+            reset_cache: cli.reset_cache,
+            cache_dir: cli.cache_dir.map(|_| SensitiveValue::Value),
+            accounts: if cli.accounts.to_string() != DEFAULT_ACCOUNTS {
+                Some(cli.accounts)
+            } else {
+                None
+            },
+            balance: if cli.balance.to_string() != DEFAULT_BALANCE {
+                Some(cli.balance)
+            } else {
+                None
+            },
+            timestamp: cli.timestamp,
+            init: cli.init.map(|_| SensitiveValue::Value),
+            state: cli.state.map(|_| SensitiveValue::Value),
+            state_interval: cli.state_interval,
+            dump_state: cli.dump_state.map(|_| SensitiveValue::Value),
+            preserve_historical_states: if cli.preserve_historical_states {
+                Some(true)
+            } else {
+                None
+            },
+            load_state: cli.load_state.map(|_| SensitiveValue::Value),
+            mnemonic: cli.mnemonic.map(|_| SensitiveValue::Value),
+            mnemonic_random: cli.mnemonic_random.map(|_| SensitiveValue::Value),
+            mnemonic_seed: cli.mnemonic_seed.map(|_| SensitiveValue::Value),
+            derivation_path: cli.derivation_path.map(|_| SensitiveValue::Value),
+            auto_impersonate: if cli.auto_impersonate {
+                Some(true)
+            } else {
+                None
+            },
+            block_time: cli.block_time,
+            no_mining: if cli.no_mining { Some(true) } else { None },
+            allow_origin: if cli.allow_origin != DEFAULT_ALLOW_ORIGIN {
+                Some(SensitiveValue::Value)
+            } else {
+                None
+            },
+            no_cors: if cli.no_cors { Some(true) } else { None },
+            order: if cli.order.to_string() != DEFAULT_TX_ORDER {
+                Some(cli.order)
+            } else {
+                None
+            },
+        }
+    }
+}
+
+#[derive(serde::Serialize)]
+enum SensitiveValue {
+    #[serde(rename = "***")]
+    Value,
 }
 
 #[cfg(test)]
