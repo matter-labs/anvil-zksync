@@ -23,4 +23,20 @@ impl AnvilZksNamespaceServer for AnvilZksNamespace {
             .await
             .map_err(RpcError::from)?)
     }
+
+    async fn prove_batch(&self, batch_number: L1BatchNumber) -> RpcResult<H256> {
+        Ok(self
+            .l1_sidecar
+            .prove_batch(batch_number)
+            .await
+            .map_err(RpcError::from)?)
+    }
+
+    async fn execute_batch(&self, batch_number: L1BatchNumber) -> RpcResult<H256> {
+        Ok(self
+            .l1_sidecar
+            .execute_batch(batch_number)
+            .await
+            .map_err(RpcError::from)?)
+    }
 }
