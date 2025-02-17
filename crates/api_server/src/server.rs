@@ -33,8 +33,12 @@ pub struct NodeServerBuilder {
 }
 
 impl NodeServerBuilder {
-    pub fn new(node: InMemoryNode, l1_sidecar: L1Sidecar, allow_origin: AllowOrigin, telemetry: &'static Telemetry) -> Self {
-
+    pub fn new(
+        node: InMemoryNode,
+        l1_sidecar: L1Sidecar,
+        allow_origin: AllowOrigin,
+        telemetry: &'static Telemetry,
+    ) -> Self {
         Self {
             node,
             l1_sidecar,
