@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use tracing::level_filters::LevelFilter;
 
 /// Log filter level for the node.
-#[derive(Default, Debug, Copy, Clone, ValueEnum, Serialize, Deserialize)]
+#[derive(Default, Debug, Copy, Clone, ValueEnum, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum LogLevel {
     Trace,

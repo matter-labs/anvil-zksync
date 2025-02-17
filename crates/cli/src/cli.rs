@@ -333,7 +333,7 @@ pub struct Cli {
     pub l1_port: Option<u16>,
 }
 
-#[derive(Debug, Subcommand, Clone, serde::Serialize)]
+#[derive(Debug, Subcommand, Clone, serde::Serialize, PartialEq)]
 pub enum Command {
     /// Starts a new empty local network.
     #[command(name = "run")]
@@ -347,7 +347,7 @@ pub enum Command {
 }
 
 #[serde_with::skip_serializing_none]
-#[derive(Debug, Parser, Clone, serde::Serialize)]
+#[derive(Debug, Parser, Clone, serde::Serialize, PartialEq)]
 pub struct ForkArgs {
     /// Whether to fork from existing network.
     /// If not set - will start a new network from genesis.
@@ -385,7 +385,7 @@ pub struct ForkArgs {
     pub fork_transaction_hash: Option<H256>,
 }
 
-#[derive(Clone, Debug, serde::Serialize)]
+#[derive(Clone, Debug, serde::Serialize, PartialEq)]
 pub enum ForkUrl {
     Mainnet,
     SepoliaTestnet,
@@ -445,7 +445,7 @@ impl FromStr for ForkUrl {
     }
 }
 
-#[derive(Debug, Parser, Clone, serde::Serialize)]
+#[derive(Debug, Parser, Clone, serde::Serialize, PartialEq)]
 pub struct ReplayArgs {
     /// Whether to fork from existing network.
     /// If not set - will start a new network from genesis.
@@ -711,7 +711,7 @@ impl Future for PeriodicStateDumper {
 }
 
 #[serde_with::skip_serializing_none]
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, PartialEq, Debug)]
 pub struct CliReportingData {
     command_name: Option<String>,
     command: Option<Command>,
@@ -875,7 +875,7 @@ impl From<Cli> for CliReportingData {
     }
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, PartialEq, Debug)]
 enum SensitiveValue {
     #[serde(rename = "***")]
     Value,
@@ -885,7 +885,7 @@ enum SensitiveValue {
 mod tests {
     use crate::cli::PeriodicStateDumper;
 
-    use super::Cli;
+    use super::{Cli, CliReportingData};
     use anvil_zksync_core::node::InMemoryNode;
     use clap::Parser;
     use serde_json::Value;
@@ -1031,6 +1031,50 @@ mod tests {
         let balance = new_node.get_balance_impl(test_address, None).await?;
         assert_eq!(balance, U256::from(1000000u64));
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_cli_reporting_data_skips_missing_args() -> anyhow::Result<()> {
+        let args: CliReportingData = Cli::parse_from(["anvil-zksync"]).into();
+        let json = serde_json::to_value(args).unwrap();
+        let expected_json: serde_json::Value = serde_json::from_str("{}").unwrap();
+        assert_eq!(json, expected_json);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_cli_reporting_data_hides_sensitive_data() -> anyhow::Result<()> {
+        let args: CliReportingData = Cli::parse_from([
+            "anvil-zksync",
+            "--offline",
+            "--host",
+            "100.100.100.100",
+            "--port",
+            "3333",
+            "--chain-id",
+            "123",
+            "--config-out",
+            "/some/path",
+            "fork",
+            "--fork-url",
+            "mainnet",
+        ]).into();
+        let json = serde_json::to_value(args).unwrap();
+        let expected_json: serde_json::Value = serde_json::from_str("{
+            \"command_name\": \"fork\",
+            \"command\": {
+                \"Fork\": {
+                    \"fork_url\": \"Mainnet\"
+                }
+            },
+            \"offline\": true,
+            \"config_out\": \"***\",
+            \"port\": \"***\",
+            \"host\": \"***\",
+            \"chain_id\": \"***\"
+        }").unwrap();
+        assert_eq!(json, expected_json);
         Ok(())
     }
 }

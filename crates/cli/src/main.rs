@@ -282,8 +282,7 @@ async fn start_program(telemetry: &'static Telemetry) -> anyhow::Result<()> {
             let error = err.context("Node executor ended with error");
             sh_err!("{:?}", error);
 
-            let boxed_error: Box<&(dyn std::error::Error + Send + Sync)> = Box::new(error.as_ref());
-            let _ = telemetry.track_error(boxed_error).await;
+            let _ = telemetry.track_error(Box::new(error.as_ref())).await;
         }
     });
 
