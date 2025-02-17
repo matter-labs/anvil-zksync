@@ -222,6 +222,9 @@ async fn main() -> anyhow::Result<()> {
 
     let mut node_service_tasks: Vec<Pin<Box<dyn Future<Output = anyhow::Result<()>>>>> = Vec::new();
     let l1_sidecar = match config.l1_config.as_ref() {
+        Some(_) if fork_print_info.is_some() => {
+            anyhow::bail!("running L1 in forking mode is unsupported")
+        }
         Some(l1_config) => {
             let (l1_sidecar, l1_sidecar_runner) =
                 L1Sidecar::builtin(l1_config.port, blockchain.clone()).await?;

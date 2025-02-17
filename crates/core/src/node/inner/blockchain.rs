@@ -496,7 +496,8 @@ impl Blockchain {
                     fork_details.api_block.clone(),
                 )]),
                 hashes: HashMap::from_iter([(fork_details.block_number, fork_details.block_hash)]),
-                // Batches are not being used when running in forking mode
+                // As we do not support L1-L2 communication when running in forking mode, batches are
+                // irrelevant.
                 batches: HashMap::from_iter([]),
             }
         } else {
