@@ -2,6 +2,7 @@ use crate::constants::*;
 use crate::types::*;
 use crate::utils::{format_eth, format_gwei};
 use alloy::signers::local::PrivateKeySigner;
+use anvil_zksync_common::sh_println;
 use anvil_zksync_types::{
     LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails, TransactionOrder,
 };
@@ -133,6 +134,14 @@ pub struct TestNodeConfig {
     pub preserve_historical_states: bool,
     /// State to load
     pub load_state: Option<PathBuf>,
+    /// L1 configuration, disabled if `None`
+    pub l1_config: Option<L1Config>,
+}
+
+#[derive(Debug, Clone)]
+pub struct L1Config {
+    /// Port the spawned L1 anvil node will listen on
+    pub port: u16,
 }
 
 impl Default for TestNodeConfig {
@@ -206,20 +215,17 @@ impl Default for TestNodeConfig {
             state_interval: None,
             preserve_historical_states: false,
             load_state: None,
+            l1_config: None,
         }
     }
 }
 
 impl TestNodeConfig {
     pub fn print(&self, fork_details: Option<&ForkPrintInfo>) {
-        if self.config_out.is_some() {
-            let config_out = self.config_out.as_deref().unwrap();
-            to_writer(
-                &File::create(config_out)
-                    .expect("Unable to create anvil-zksync config description file"),
-                &self.as_json(fork_details),
-            )
-            .expect("Failed writing json");
+        if let Some(config_out) = self.config_out.as_deref() {
+            let file = File::create(config_out)
+                .expect("Unable to create anvil-zksync config description file");
+            to_writer(&file, &self.as_json(fork_details)).expect("Failed writing json");
         }
 
         if self.silent || !self.show_node_config {
@@ -228,173 +234,205 @@ impl TestNodeConfig {
 
         let color = CustomColor::new(13, 71, 198);
 
-        println!("{}", BANNER.custom_color(color));
+        // Banner, version and repository section.
+        sh_println!(
+            r#"
+{} 
+Version:        {}
+Repository:     {}
 
-        tracing::info!("Version:        {}", VERSION_MESSAGE.green());
-        tracing::info!(
-            "Repository:     {}",
+"#,
+            BANNER.custom_color(color),
+            VERSION_MESSAGE.green(),
             "https://github.com/matter-labs/anvil-zksync".green()
         );
-        println!("\n");
 
-        tracing::info!("Rich Accounts");
-        tracing::info!("========================");
+        // Rich Accounts.
         let balance = format_eth(self.genesis_balance);
+        let mut rich_accounts = String::new();
         for (idx, account) in self.genesis_accounts.iter().enumerate() {
-            tracing::info!("({}) {} ({balance})", idx, account.address());
+            rich_accounts.push_str(&format!("({}) {} ({})\n", idx, account.address(), balance));
         }
-        println!("\n");
+        sh_println!(
+            r#"
+Rich Accounts
+========================
+{}
+"#,
+            rich_accounts
+        );
 
-        tracing::info!("Private Keys");
-        tracing::info!("========================");
+        // Private Keys.
+        let mut private_keys = String::new();
         for (idx, account) in self.genesis_accounts.iter().enumerate() {
             let private_key = hex::encode(account.credential().to_bytes());
-            tracing::info!("({}) 0x{}", idx, private_key);
+            private_keys.push_str(&format!("({}) 0x{}\n", idx, private_key));
         }
-        println!("\n");
+        sh_println!(
+            r#"
+Private Keys
+========================
+{}
+"#,
+            private_keys
+        );
 
+        // Wallet configuration.
         if let Some(ref generator) = self.account_generator {
-            tracing::info!("Wallet");
-            tracing::info!("========================");
-            tracing::info!("Mnemonic:            {}", generator.get_phrase().green());
-            tracing::info!(
-                "Derivation path:     {}",
+            sh_println!(
+                r#"
+Wallet
+========================
+Mnemonic:            {}
+Derivation path:     {}
+"#,
+                generator.get_phrase().green(),
                 generator.get_derivation_path().green()
             );
         }
-        println!("\n");
 
+        // Either print Fork Details (if provided) or the Network Configuration.
         if let Some(fd) = fork_details {
-            tracing::info!("Fork Details");
-            tracing::info!("========================");
-            tracing::info!("Network RPC:               {}", fd.network_rpc.green());
-            tracing::info!(
-                "Chain ID:                  {}",
-                self.get_chain_id().to_string().green()
-            );
-            tracing::info!("L1 Batch #:                {}", fd.l1_block.green());
-            tracing::info!("L2 Block #:                {}", fd.l2_block.green());
-            tracing::info!(
-                "Block Timestamp:           {}",
-                fd.block_timestamp.to_string().green()
-            );
-            tracing::info!(
-                "Fork Block Hash:           {}",
-                format!("{:#}", fd.fork_block_hash).green()
-            );
-            tracing::info!(
-                "Compute Overhead Part:     {}",
+            sh_println!(
+                r#"
+Fork Details
+========================
+Network RPC:               {}
+Chain ID:                  {}
+L1 Batch #:                {}
+L2 Block #:                {}
+Block Timestamp:           {}
+Fork Block Hash:           {}
+Compute Overhead Part:     {}
+Pubdata Overhead Part:     {}
+Batch Overhead L1 Gas:     {}
+Max Gas Per Batch:         {}
+Max Pubdata Per Batch:     {}
+"#,
+                fd.network_rpc.green(),
+                self.get_chain_id().to_string().green(),
+                fd.l1_block.green(),
+                fd.l2_block.green(),
+                fd.block_timestamp.to_string().green(),
+                format!("{:#}", fd.fork_block_hash).green(),
                 fd.fee_model_config_v2
                     .compute_overhead_part
                     .to_string()
-                    .green()
-            );
-            tracing::info!(
-                "Pubdata Overhead Part:     {}",
+                    .green(),
                 fd.fee_model_config_v2
                     .pubdata_overhead_part
                     .to_string()
-                    .green()
-            );
-            tracing::info!(
-                "Batch Overhead L1 Gas:     {}",
+                    .green(),
                 fd.fee_model_config_v2
                     .batch_overhead_l1_gas
                     .to_string()
-                    .green()
-            );
-            tracing::info!(
-                "Max Gas Per Batch:         {}",
-                fd.fee_model_config_v2.max_gas_per_batch.to_string().green()
-            );
-            tracing::info!(
-                "Max Pubdata Per Batch:     {}",
+                    .green(),
+                fd.fee_model_config_v2.max_gas_per_batch.to_string().green(),
                 fd.fee_model_config_v2
                     .max_pubdata_per_batch
                     .to_string()
                     .green()
             );
-            println!("\n");
         } else {
-            tracing::info!("Network Configuration");
-            tracing::info!("========================");
-            tracing::info!(
-                "Chain ID: {}",
+            sh_println!(
+                r#"
+Network Configuration
+========================
+Chain ID: {}
+"#,
                 self.chain_id
                     .unwrap_or(TEST_NODE_NETWORK_ID)
                     .to_string()
                     .green()
             );
-            println!("\n");
         }
-        tracing::info!("Gas Configuration");
-        tracing::info!("========================");
-        tracing::info!(
-            "L1 Gas Price (gwei):               {}",
-            format_gwei(self.get_l1_gas_price().into()).green()
-        );
-        tracing::info!(
-            "L2 Gas Price (gwei):               {}",
-            format_gwei(self.get_l2_gas_price().into()).green()
-        );
-        tracing::info!(
-            "L1 Pubdata Price (gwei):           {}",
-            format_gwei(self.get_l1_pubdata_price().into()).green()
-        );
-        tracing::info!(
-            "Estimated Gas Price Scale Factor:  {}",
-            self.get_price_scale().to_string().green()
-        );
-        tracing::info!(
-            "Estimated Gas Limit Scale Factor:  {}",
+
+        // Gas Configuration.
+        sh_println!(
+            r#"
+Gas Configuration
+========================
+L1 Gas Price (gwei):               {}
+L2 Gas Price (gwei):               {}
+L1 Pubdata Price (gwei):           {}
+Estimated Gas Price Scale Factor:  {}
+Estimated Gas Limit Scale Factor:  {}
+"#,
+            format_gwei(self.get_l1_gas_price().into()).green(),
+            format_gwei(self.get_l2_gas_price().into()).green(),
+            format_gwei(self.get_l1_pubdata_price().into()).green(),
+            self.get_price_scale().to_string().green(),
             self.get_gas_limit_scale().to_string().green()
         );
-        println!("\n");
 
-        tracing::info!("Genesis Timestamp");
-        tracing::info!("========================");
-        tracing::info!("{}", self.get_genesis_timestamp().to_string().green());
-        println!("\n");
+        // Genesis Timestamp.
+        sh_println!(
+            r#"
+Genesis Timestamp
+========================
+{}
+"#,
+            self.get_genesis_timestamp().to_string().green()
+        );
 
-        tracing::info!("Node Configuration");
-        tracing::info!("========================");
-        tracing::info!("Port:               {}", self.port);
-        tracing::info!(
-            "EVM Emulator:       {}",
+        // Node Configuration.
+        sh_println!(
+            r#"
+Node Configuration
+========================
+Port:                  {}
+EVM Emulator:          {}
+Health Check Endpoint: {}
+ZK OS:                 {}
+L1:                    {}
+"#,
+            self.port,
             if self.use_evm_emulator {
                 "Enabled".green()
             } else {
                 "Disabled".red()
-            }
-        );
-        tracing::info!(
-            "Health Check Endpoint: {}",
+            },
             if self.health_check_endpoint {
                 "Enabled".green()
             } else {
                 "Disabled".red()
-            }
-        );
-        tracing::info!(
-            "ZK OS:              {}",
+            },
             if self.use_zkos {
+                "Enabled".green()
+            } else {
+                "Disabled".red()
+            },
+            if self.l1_config.is_some() {
                 "Enabled".green()
             } else {
                 "Disabled".red()
             }
         );
 
-        println!("\n");
-        tracing::info!("========================================");
-        for host in &self.host {
-            tracing::info!(
-                "  Listening on {}:{}",
-                host.to_string().green(),
-                self.port.to_string().green()
+        // L1 Configuration
+        if let Some(l1_config) = self.l1_config.as_ref() {
+            sh_println!(
+                r#"
+L1 Configuration
+========================
+Port: {}
+"#,
+                l1_config.port
             );
         }
-        tracing::info!("========================================");
-        println!("\n");
+
+        // Listening addresses.
+        let mut listening = String::new();
+        listening.push_str("\n========================================\n");
+        for host in &self.host {
+            listening.push_str(&format!(
+                "  Listening on {}:{}\n",
+                host.to_string().green(),
+                self.port.to_string().green()
+            ));
+        }
+        listening.push_str("========================================\n");
+        sh_println!("{}", listening);
     }
 
     fn as_json(&self, fork: Option<&ForkPrintInfo>) -> Value {
@@ -977,6 +1015,13 @@ impl TestNodeConfig {
     #[must_use]
     pub fn with_load_state(mut self, load_state: Option<PathBuf>) -> Self {
         self.load_state = load_state;
+        self
+    }
+
+    /// Set the L1 config
+    #[must_use]
+    pub fn with_l1_config(mut self, l1_config: Option<L1Config>) -> Self {
+        self.l1_config = l1_config;
         self
     }
 }

@@ -1,4 +1,5 @@
 use crate::cache::Cache;
+use anvil_zksync_common::sh_err;
 use anvil_zksync_config::constants::{
     DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
     DEFAULT_FAIR_PUBDATA_PRICE,
@@ -552,7 +553,7 @@ impl Fork {
         Some(
             call_body(client)
                 .map_err(|error| {
-                    tracing::error!(%error, "call failed");
+                    sh_err!("call failed: {}", error);
                     error
                 })
                 .instrument(span)
@@ -931,7 +932,7 @@ impl ForkSource for Fork {
 struct SupportedProtocolVersions;
 
 impl SupportedProtocolVersions {
-    const SUPPORTED_VERSIONS: [ProtocolVersionId; 17] = [
+    const SUPPORTED_VERSIONS: [ProtocolVersionId; 18] = [
         ProtocolVersionId::Version9,
         ProtocolVersionId::Version10,
         ProtocolVersionId::Version11,
@@ -949,6 +950,7 @@ impl SupportedProtocolVersions {
         ProtocolVersionId::Version23,
         ProtocolVersionId::Version24,
         ProtocolVersionId::Version25,
+        ProtocolVersionId::Version26,
     ];
 
     fn is_supported(version: ProtocolVersionId) -> bool {
