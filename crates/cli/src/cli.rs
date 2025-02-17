@@ -1059,9 +1059,11 @@ mod tests {
             "fork",
             "--fork-url",
             "mainnet",
-        ]).into();
+        ])
+        .into();
         let json = serde_json::to_value(args).unwrap();
-        let expected_json: serde_json::Value = serde_json::from_str("{
+        let expected_json: serde_json::Value = serde_json::from_str(
+            "{
             \"command_name\": \"fork\",
             \"command\": {
                 \"Fork\": {
@@ -1073,7 +1075,9 @@ mod tests {
             \"port\": \"***\",
             \"host\": \"***\",
             \"chain_id\": \"***\"
-        }").unwrap();
+        }",
+        )
+        .unwrap();
         assert_eq!(json, expected_json);
         Ok(())
     }
