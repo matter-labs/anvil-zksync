@@ -20,7 +20,6 @@ anvil_zksync_common.workspace = true
 
 zksync_types.workspace = true
 zksync-telemetry.workspace = true
-zksync_web3_decl.workspace = true
 alloy = { workspace = true, default-features = false, features = ["signer-mnemonic", "reqwest-rustls-tls"] }
 anyhow.workspace = true
 clap.workspace = true
