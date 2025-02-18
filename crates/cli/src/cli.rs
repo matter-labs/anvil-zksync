@@ -888,7 +888,7 @@ mod tests {
     use super::{Cli, CliReportingData};
     use anvil_zksync_core::node::InMemoryNode;
     use clap::Parser;
-    use serde_json::Value;
+    use serde_json::{Value, json};
     use std::{
         env,
         net::{IpAddr, Ipv4Addr},
@@ -1038,7 +1038,7 @@ mod tests {
     async fn test_cli_reporting_data_skips_missing_args() -> anyhow::Result<()> {
         let args: CliReportingData = Cli::parse_from(["anvil-zksync"]).into();
         let json = serde_json::to_value(args).unwrap();
-        let expected_json: serde_json::Value = serde_json::from_str("{}").unwrap();
+        let expected_json: serde_json::Value = json!({});
         assert_eq!(json, expected_json);
         Ok(())
     }
@@ -1062,22 +1062,19 @@ mod tests {
         ])
         .into();
         let json = serde_json::to_value(args).unwrap();
-        let expected_json: serde_json::Value = serde_json::from_str(
-            "{
-            \"command_name\": \"fork\",
-            \"command\": {
-                \"Fork\": {
-                    \"fork_url\": \"Mainnet\"
+        let expected_json: serde_json::Value = json!({
+            "command_name": "fork",
+            "command": {
+                "Fork": {
+                    "fork_url": "Mainnet"
                 }
             },
-            \"offline\": true,
-            \"config_out\": \"***\",
-            \"port\": \"***\",
-            \"host\": \"***\",
-            \"chain_id\": \"***\"
-        }",
-        )
-        .unwrap();
+            "offline": true,
+            "config_out": "***",
+            "port": "***",
+            "host": "***",
+            "chain_id": "***"
+        });
         assert_eq!(json, expected_json);
         Ok(())
     }
