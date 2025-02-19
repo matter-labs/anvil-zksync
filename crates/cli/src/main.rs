@@ -1,5 +1,5 @@
 use crate::bytecode_override::override_bytecodes;
-use crate::cli::{Cli, CliReportingData, Command, ForkUrl, PeriodicStateDumper};
+use crate::cli::{Cli, Command, ForkUrl, PeriodicStateDumper};
 use crate::utils::update_with_fork_details;
 use anvil_zksync_api_server::NodeServerBuilder;
 use anvil_zksync_common::{sh_eprintln, sh_err, sh_warn};
@@ -21,18 +21,16 @@ use anvil_zksync_core::system_contracts::SystemContracts;
 use anvil_zksync_l1_sidecar::L1Sidecar;
 use anyhow::{anyhow, Context};
 use clap::Parser;
-use std::collections::HashMap;
 use std::fs::File;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 use std::{env, net::SocketAddr, str::FromStr};
-use tokio::sync::OnceCell;
 use tokio::sync::RwLock;
 use tower_http::cors::AllowOrigin;
 use tracing_subscriber::filter::LevelFilter;
-use zksync_telemetry::Telemetry;
+use zksync_telemetry::{get_telemetry, init_telemetry, TelemetryProps};
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
 use zksync_types::{L2BlockNumber, H160};
 
@@ -43,7 +41,7 @@ mod utils;
 const POSTHOG_API_KEY: &str = "phc_TsD52JxwkT2OXPHA2oKX2Lc3mf30hItCBrE9s9g1MKe";
 const TELEMETRY_CONFIG_NAME: &str = "zksync-tooling";
 
-async fn start_program(telemetry: &'static Telemetry) -> anyhow::Result<()> {
+async fn start_program() -> anyhow::Result<()> {
     // Check for deprecated options
     Cli::deprecated_config_option();
 
@@ -51,13 +49,16 @@ async fn start_program(telemetry: &'static Telemetry) -> anyhow::Result<()> {
     let command = opt.command.clone();
 
     // Track node start
-    let cli_reporting_data: CliReportingData = opt.clone().into();
-    let mut event_props = HashMap::new();
-    event_props.insert(
-        "params".to_string(),
-        serde_json::to_value(cli_reporting_data).expect("Failed to parse cli reporting data"),
-    );
-    let _ = telemetry.track_event("node_started", event_props).await;
+    let telemetry = get_telemetry().expect("telemetry is not initialized");
+    let cli_telemetry_props = opt.clone().into_telemetry_props();
+    let _ = telemetry
+        .track_event(
+            "node_started",
+            TelemetryProps::new()
+                .insert("params", Some(cli_telemetry_props))
+                .take(),
+        )
+        .await;
 
     let mut config = opt.into_test_node_config().map_err(|e| anyhow!(e))?;
     let log_level_filter = LevelFilter::from(config.log_level);
@@ -331,7 +332,6 @@ async fn start_program(telemetry: &'static Telemetry) -> anyhow::Result<()> {
                 .parse()
                 .context("allow origin is malformed")?,
         ),
-        telemetry,
     );
     if config.health_check_endpoint {
         server_builder.enable_health_api()
@@ -427,23 +427,18 @@ async fn start_program(telemetry: &'static Telemetry) -> anyhow::Result<()> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    static TELEMETRY: OnceCell<Telemetry> = OnceCell::const_new();
-    let telemetry = TELEMETRY
-        .get_or_init(|| async {
-            Telemetry::new(
-                env!("CARGO_PKG_NAME"),
-                env!("CARGO_PKG_VERSION"),
-                TELEMETRY_CONFIG_NAME,
-                Some(POSTHOG_API_KEY.into()),
-                None,
-                None,
-            )
-            .await
-            .expect("Failed to initialize telemetry")
-        })
-        .await;
+    init_telemetry(
+        env!("CARGO_PKG_NAME"),
+        env!("CARGO_PKG_VERSION"),
+        TELEMETRY_CONFIG_NAME,
+        Some(POSTHOG_API_KEY.into()),
+        None,
+        None,
+    )
+    .await?;
 
-    if let Err(err) = start_program(telemetry).await {
+    if let Err(err) = start_program().await {
+        let telemetry = get_telemetry().expect("telemetry is not initialized");
         let _ = telemetry.track_error(Box::new(err.as_ref())).await;
         anyhow::bail!(err)
     }

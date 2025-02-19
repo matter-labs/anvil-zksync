@@ -19,7 +19,7 @@ anvil_zksync_types.workspace = true
 anvil_zksync_common.workspace = true
 
 zksync_types.workspace = true
-zksync-telemetry.workspace = true
+zksync_telemetry.workspace = true
 alloy = { workspace = true, default-features = false, features = ["signer-mnemonic", "reqwest-rustls-tls"] }
 anyhow.workspace = true
 clap.workspace = true

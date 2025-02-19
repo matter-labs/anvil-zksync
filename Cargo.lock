@@ -1070,7 +1070,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "url",
- "zksync-telemetry",
+ "zksync_telemetry",
  "zksync_types",
 ]
 
@@ -1104,7 +1104,7 @@ dependencies = [
  "tower 0.4.13",
  "tower-http",
  "tracing",
- "zksync-telemetry",
+ "zksync_telemetry",
  "zksync_types",
  "zksync_web3_decl",
 ]
@@ -10009,22 +10009,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync-telemetry"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-telemetry.git?branch=async-client#4525f3e747eff0b76334122777ca7e7108ea0964"
-dependencies = [
- "anyhow",
- "chrono",
- "directories",
- "posthog-rs",
- "sentry",
- "serde",
- "serde_json",
- "thiserror 2.0.11",
- "uuid 1.13.1",
-]
-
-[[package]]
 name = "zksync_basic_types"
 version = "26.3.0-non-semver-compat"
 source = "git+https://github.com/matter-labs/zksync-era?tag=core-v26.4.0#5da5be9d57c2bba602dd8035d59662a254ca971a"
@@ -10231,6 +10215,23 @@ source = "git+https://github.com/matter-labs/zksync-era?tag=core-v26.4.0#5da5be9
 dependencies = [
  "once_cell",
  "zksync_basic_types",
+]
+
+[[package]]
+name = "zksync_telemetry"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/zksync-telemetry.git?branch=refactoring#c32c70c0b85700cf15cef329ee4f83b513327f10"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "directories",
+ "once_cell",
+ "posthog-rs",
+ "sentry",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.11",
+ "uuid 1.13.1",
 ]
 
 [[package]]

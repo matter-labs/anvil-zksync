@@ -37,7 +37,7 @@ zksync_contracts = { git = "https://github.com/matter-labs/zksync-era", tag = "c
 zksync_types = { git = "https://github.com/matter-labs/zksync-era", tag = "core-v26.4.0" }
 zksync_vm_interface = { git = "https://github.com/matter-labs/zksync-era", tag = "core-v26.4.0" }
 zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era", tag = "core-v26.4.0" }
-zksync-telemetry = { git = "https://github.com/matter-labs/zksync-telemetry.git", branch = "async-client" }
+zksync_telemetry = { git = "https://github.com/matter-labs/zksync-telemetry.git", branch = "refactoring" }
 
 #########################
 # External dependencies #

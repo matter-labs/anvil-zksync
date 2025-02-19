@@ -1,4 +1,6 @@
-use crate::utils::parse_genesis_file;
+use crate::utils::{
+    get_cli_command_telemetry_props, parse_genesis_file, TELEMETRY_SENSITIVE_VALUE,
+};
 use alloy::signers::local::coins_bip39::{English, Mnemonic};
 use anvil_zksync_common::{sh_eprintln, sh_err};
 use anvil_zksync_config::constants::{
@@ -34,6 +36,7 @@ use std::{
 };
 use tokio::time::{Instant, Interval};
 use url::Url;
+use zksync_telemetry::TelemetryProps;
 use zksync_types::{H256, U256};
 
 const DEFAULT_PORT: &str = "8011";
@@ -333,7 +336,7 @@ pub struct Cli {
     pub l1_port: Option<u16>,
 }
 
-#[derive(Debug, Subcommand, Clone, serde::Serialize, PartialEq)]
+#[derive(Debug, Subcommand, Clone)]
 pub enum Command {
     /// Starts a new empty local network.
     #[command(name = "run")]
@@ -346,8 +349,7 @@ pub enum Command {
     ReplayTx(ReplayArgs),
 }
 
-#[serde_with::skip_serializing_none]
-#[derive(Debug, Parser, Clone, serde::Serialize, PartialEq)]
+#[derive(Debug, Parser, Clone)]
 pub struct ForkArgs {
     /// Whether to fork from existing network.
     /// If not set - will start a new network from genesis.
@@ -385,7 +387,7 @@ pub struct ForkArgs {
     pub fork_transaction_hash: Option<H256>,
 }
 
-#[derive(Clone, Debug, serde::Serialize, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum ForkUrl {
     Mainnet,
     SepoliaTestnet,
@@ -445,7 +447,7 @@ impl FromStr for ForkUrl {
     }
 }
 
-#[derive(Debug, Parser, Clone, serde::Serialize, PartialEq)]
+#[derive(Debug, Parser, Clone)]
 pub struct ReplayArgs {
     /// Whether to fork from existing network.
     /// If not set - will start a new network from genesis.
@@ -557,6 +559,147 @@ impl Cli {
         }
 
         Ok(config)
+    }
+
+    pub fn into_telemetry_props(self) -> TelemetryProps {
+        TelemetryProps::new()
+            .insert("command", get_cli_command_telemetry_props(self.command))
+            .insert_with("offline", self.offline, |v| v.then_some(v))
+            .insert_with("health_check_endpoint", self.health_check_endpoint, |v| {
+                v.then_some(v)
+            })
+            .insert_with("config_out", self.config_out, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("port", self.port, |v| {
+                v.filter(|&p| p.to_string() != DEFAULT_PORT)
+                    .map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("host", &self.host, |v| {
+                v.first()
+                    .filter(|&h| h.to_string() != DEFAULT_HOST || self.host.len() != 1)
+                    .map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("chain_id", self.chain_id, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("debug_mode", self.debug_mode, |v| v.then_some(v))
+            .insert_with("show_node_config", self.show_node_config, |v| {
+                (!v.unwrap_or(false)).then_some(false)
+            })
+            .insert_with("show_tx_summary", self.show_tx_summary, |v| {
+                (!v.unwrap_or(false)).then_some(false)
+            })
+            .insert("disable_console_log", self.disable_console_log)
+            .insert("show_event_logs", self.show_event_logs)
+            .insert("show_calls", self.show_calls.map(|v| v.to_string()))
+            .insert("show_outputs", self.show_outputs)
+            .insert(
+                "show_storage_logs",
+                self.show_storage_logs.map(|v| v.to_string()),
+            )
+            .insert(
+                "show_vm_details",
+                self.show_vm_details.map(|v| v.to_string()),
+            )
+            .insert(
+                "show_gas_details",
+                self.show_gas_details.map(|v| v.to_string()),
+            )
+            .insert("resolve_hashes", self.resolve_hashes)
+            .insert(
+                "l1_gas_price",
+                self.l1_gas_price.map(serde_json::Number::from),
+            )
+            .insert(
+                "l2_gas_price",
+                self.l2_gas_price.map(serde_json::Number::from),
+            )
+            .insert(
+                "l1_pubdata_price",
+                self.l1_pubdata_price.map(serde_json::Number::from),
+            )
+            .insert(
+                "price_scale_factor",
+                self.price_scale_factor.map(|v| {
+                    serde_json::Number::from_f64(v).unwrap_or(serde_json::Number::from(0))
+                }),
+            )
+            .insert(
+                "limit_scale_factor",
+                self.limit_scale_factor.map(|v| {
+                    serde_json::Number::from_f64(v as f64).unwrap_or(serde_json::Number::from(0))
+                }),
+            )
+            .insert_with("override_bytecodes_dir", self.override_bytecodes_dir, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert(
+                "dev_system_contracts",
+                self.dev_system_contracts.map(|v| format!("{:?}", v)),
+            )
+            .insert_with("emulate_evm", self.emulate_evm, |v| v.then_some(v))
+            .insert("log", self.log.map(|v| v.to_string()))
+            .insert_with("log_file_path", self.log_file_path, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert("silent", self.silent)
+            .insert("cache", self.cache.map(|v| format!("{:?}", v)))
+            .insert("reset_cache", self.reset_cache)
+            .insert_with("cache_dir", self.cache_dir, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("accounts", self.accounts, |v| {
+                (v.to_string() != DEFAULT_ACCOUNTS).then_some(serde_json::Number::from(v))
+            })
+            .insert_with("balance", self.balance, |v| {
+                (v.to_string() != DEFAULT_BALANCE).then_some(serde_json::Number::from(v))
+            })
+            .insert("timestamp", self.timestamp.map(serde_json::Number::from))
+            .insert_with("init", self.init, |v| v.map(|_| TELEMETRY_SENSITIVE_VALUE))
+            .insert_with("state", self.state, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert(
+                "state_interval",
+                self.state_interval.map(serde_json::Number::from),
+            )
+            .insert_with("dump_state", self.dump_state, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with(
+                "preserve_historical_states",
+                self.preserve_historical_states,
+                |v| v.then_some(v),
+            )
+            .insert_with("load_state", self.load_state, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("mnemonic", self.mnemonic, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("mnemonic_random", self.mnemonic_random, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("mnemonic_seed", self.mnemonic_seed, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("derivation_path", self.derivation_path, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("auto_impersonate", self.auto_impersonate, |v| {
+                v.then_some(v)
+            })
+            .insert("block_time", self.block_time.map(|v| format!("{:?}", v)))
+            .insert_with("no_mining", self.no_mining, |v| v.then_some(v))
+            .insert_with("allow_origin", self.allow_origin, |v| {
+                (v != DEFAULT_ALLOW_ORIGIN).then_some(TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("no_cors", self.no_cors, |v| v.then_some(v))
+            .insert_with("order", self.order, |v| {
+                (v.to_string() != DEFAULT_TX_ORDER).then_some(v.to_string())
+            })
+            .take()
     }
 
     fn account_generator(&self) -> AccountGenerator {
@@ -710,185 +853,14 @@ impl Future for PeriodicStateDumper {
     }
 }
 
-#[serde_with::skip_serializing_none]
-#[derive(serde::Serialize, PartialEq, Debug)]
-pub struct CliReportingData {
-    command_name: Option<String>,
-    command: Option<Command>,
-    offline: Option<bool>,
-    health_check_endpoint: Option<bool>,
-    config_out: Option<SensitiveValue>,
-    port: Option<SensitiveValue>,
-    host: Option<SensitiveValue>,
-    chain_id: Option<SensitiveValue>,
-    debug_mode: Option<bool>,
-    show_node_config: Option<bool>,
-    show_tx_summary: Option<bool>,
-    disable_console_log: Option<bool>,
-    show_event_logs: Option<bool>,
-    show_calls: Option<ShowCalls>,
-    show_outputs: Option<bool>,
-    show_storage_logs: Option<ShowStorageLogs>,
-    show_vm_details: Option<ShowVMDetails>,
-    show_gas_details: Option<ShowGasDetails>,
-    resolve_hashes: Option<bool>,
-    l1_gas_price: Option<u64>,
-    l2_gas_price: Option<u64>,
-    l1_pubdata_price: Option<u64>,
-    price_scale_factor: Option<f64>,
-    limit_scale_factor: Option<f32>,
-    override_bytecodes_dir: Option<SensitiveValue>,
-    dev_system_contracts: Option<SystemContractsOptions>,
-    emulate_evm: Option<bool>,
-    log: Option<LogLevel>,
-    log_file_path: Option<SensitiveValue>,
-    silent: Option<bool>,
-    cache: Option<CacheType>,
-    reset_cache: Option<bool>,
-    cache_dir: Option<SensitiveValue>,
-    accounts: Option<u64>,
-    balance: Option<u64>,
-    timestamp: Option<u64>,
-    init: Option<SensitiveValue>,
-    state: Option<SensitiveValue>,
-    state_interval: Option<u64>,
-    dump_state: Option<SensitiveValue>,
-    preserve_historical_states: Option<bool>,
-    load_state: Option<SensitiveValue>,
-    mnemonic: Option<SensitiveValue>,
-    mnemonic_random: Option<SensitiveValue>,
-    mnemonic_seed: Option<SensitiveValue>,
-    derivation_path: Option<SensitiveValue>,
-    auto_impersonate: Option<bool>,
-    block_time: Option<Duration>,
-    no_mining: Option<bool>,
-    allow_origin: Option<SensitiveValue>,
-    no_cors: Option<bool>,
-    order: Option<TransactionOrder>,
-}
-
-// Converts cli struct to reporting data struct
-// Skipping fields containing default values
-impl From<Cli> for CliReportingData {
-    fn from(cli: Cli) -> Self {
-        Self {
-            command_name: cli.command.clone().map(|c| match c {
-                Command::Run => "run".to_string(),
-                Command::Fork(_) => "fork".to_string(),
-                Command::ReplayTx(_) => "replay_tx".to_string(),
-            }),
-            command: cli.command,
-            offline: if cli.offline { Some(true) } else { None },
-            health_check_endpoint: if cli.health_check_endpoint {
-                Some(true)
-            } else {
-                None
-            },
-            config_out: cli.config_out.map(|_| SensitiveValue::Value),
-            port: cli
-                .port
-                .filter(|&p| p.to_string() != DEFAULT_PORT)
-                .map(|_| SensitiveValue::Value),
-            host: cli
-                .host
-                .first()
-                .filter(|&h| h.to_string() != DEFAULT_HOST || cli.host.len() != 1)
-                .map(|_| SensitiveValue::Value),
-            chain_id: cli.chain_id.map(|_| SensitiveValue::Value),
-            debug_mode: if cli.debug_mode { Some(true) } else { None },
-            show_node_config: if cli.show_node_config.unwrap_or(false) {
-                None
-            } else {
-                Some(false)
-            },
-            show_tx_summary: if cli.show_tx_summary.unwrap_or(false) {
-                None
-            } else {
-                Some(false)
-            },
-            disable_console_log: cli.disable_console_log,
-            show_event_logs: cli.show_event_logs,
-            show_calls: cli.show_calls,
-            show_outputs: cli.show_outputs,
-            show_storage_logs: cli.show_storage_logs,
-            show_vm_details: cli.show_vm_details,
-            show_gas_details: cli.show_gas_details,
-            resolve_hashes: cli.resolve_hashes,
-            l1_gas_price: cli.l1_gas_price,
-            l2_gas_price: cli.l2_gas_price,
-            l1_pubdata_price: cli.l1_pubdata_price,
-            price_scale_factor: cli.price_scale_factor,
-            limit_scale_factor: cli.limit_scale_factor,
-            override_bytecodes_dir: cli.override_bytecodes_dir.map(|_| SensitiveValue::Value),
-            dev_system_contracts: cli.dev_system_contracts,
-            emulate_evm: if cli.emulate_evm { Some(true) } else { None },
-            log: cli.log,
-            log_file_path: cli.log_file_path.map(|_| SensitiveValue::Value),
-            silent: cli.silent,
-            cache: cli.cache,
-            reset_cache: cli.reset_cache,
-            cache_dir: cli.cache_dir.map(|_| SensitiveValue::Value),
-            accounts: if cli.accounts.to_string() != DEFAULT_ACCOUNTS {
-                Some(cli.accounts)
-            } else {
-                None
-            },
-            balance: if cli.balance.to_string() != DEFAULT_BALANCE {
-                Some(cli.balance)
-            } else {
-                None
-            },
-            timestamp: cli.timestamp,
-            init: cli.init.map(|_| SensitiveValue::Value),
-            state: cli.state.map(|_| SensitiveValue::Value),
-            state_interval: cli.state_interval,
-            dump_state: cli.dump_state.map(|_| SensitiveValue::Value),
-            preserve_historical_states: if cli.preserve_historical_states {
-                Some(true)
-            } else {
-                None
-            },
-            load_state: cli.load_state.map(|_| SensitiveValue::Value),
-            mnemonic: cli.mnemonic.map(|_| SensitiveValue::Value),
-            mnemonic_random: cli.mnemonic_random.map(|_| SensitiveValue::Value),
-            mnemonic_seed: cli.mnemonic_seed.map(|_| SensitiveValue::Value),
-            derivation_path: cli.derivation_path.map(|_| SensitiveValue::Value),
-            auto_impersonate: if cli.auto_impersonate {
-                Some(true)
-            } else {
-                None
-            },
-            block_time: cli.block_time,
-            no_mining: if cli.no_mining { Some(true) } else { None },
-            allow_origin: if cli.allow_origin != DEFAULT_ALLOW_ORIGIN {
-                Some(SensitiveValue::Value)
-            } else {
-                None
-            },
-            no_cors: if cli.no_cors { Some(true) } else { None },
-            order: if cli.order.to_string() != DEFAULT_TX_ORDER {
-                Some(cli.order)
-            } else {
-                None
-            },
-        }
-    }
-}
-
-#[derive(serde::Serialize, PartialEq, Debug)]
-enum SensitiveValue {
-    #[serde(rename = "***")]
-    Value,
-}
-
 #[cfg(test)]
 mod tests {
     use crate::cli::PeriodicStateDumper;
 
-    use super::{Cli, CliReportingData};
+    use super::Cli;
     use anvil_zksync_core::node::InMemoryNode;
     use clap::Parser;
-    use serde_json::{Value, json};
+    use serde_json::{json, Value};
     use std::{
         env,
         net::{IpAddr, Ipv4Addr},
@@ -1035,17 +1007,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_cli_reporting_data_skips_missing_args() -> anyhow::Result<()> {
-        let args: CliReportingData = Cli::parse_from(["anvil-zksync"]).into();
-        let json = serde_json::to_value(args).unwrap();
+    async fn test_cli_telemetry_data_skips_missing_args() -> anyhow::Result<()> {
+        let args = Cli::parse_from(["anvil-zksync"]).into_telemetry_props();
+        let json = args.to_inner();
         let expected_json: serde_json::Value = json!({});
         assert_eq!(json, expected_json);
         Ok(())
     }
 
     #[tokio::test]
-    async fn test_cli_reporting_data_hides_sensitive_data() -> anyhow::Result<()> {
-        let args: CliReportingData = Cli::parse_from([
+    async fn test_cli_telemetry_data_hides_sensitive_data() -> anyhow::Result<()> {
+        let args = Cli::parse_from([
             "anvil-zksync",
             "--offline",
             "--host",
@@ -1060,14 +1032,14 @@ mod tests {
             "--fork-url",
             "mainnet",
         ])
-        .into();
-        let json = serde_json::to_value(args).unwrap();
+        .into_telemetry_props();
+        let json = args.to_inner();
         let expected_json: serde_json::Value = json!({
-            "command_name": "fork",
             "command": {
-                "Fork": {
+                "args": {
                     "fork_url": "Mainnet"
-                }
+                },
+                "name": "fork"
             },
             "offline": true,
             "config_out": "***",

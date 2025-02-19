@@ -1,7 +1,9 @@
+use crate::cli::{Command, ForkUrl};
 use anvil_zksync_config::types::Genesis;
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_core::node::fork::ForkDetails;
 use std::fs;
+use zksync_telemetry::TelemetryProps;
 
 /// Parses the genesis file from the given path.
 pub fn parse_genesis_file(path: &str) -> Result<Genesis, String> {
@@ -30,4 +32,47 @@ pub async fn update_with_fork_details(config: &mut TestNodeConfig, fd: &ForkDeta
         .update_price_scale(price_scale)
         .update_gas_limit_scale(gas_limit_scale)
         .update_chain_id(chain_id);
+}
+
+pub const TELEMETRY_SENSITIVE_VALUE: &str = "***";
+
+pub fn get_cli_command_telemetry_props(command: Option<Command>) -> Option<TelemetryProps> {
+    let get_sensitive_fork_url = |fork_url| match fork_url {
+        ForkUrl::Other(_) => Some(TELEMETRY_SENSITIVE_VALUE.to_string()),
+        _ => Some(format!("{:?}", fork_url)),
+    };
+
+    let (command_name, command_args) = match command {
+        Some(Command::Run) => (Some("run"), None),
+        Some(Command::Fork(args)) => {
+            let command_args = TelemetryProps::new()
+                .insert_with("fork_url", args.fork_url, get_sensitive_fork_url)
+                .insert(
+                    "fork_block_number",
+                    args.fork_block_number.map(serde_json::Number::from),
+                )
+                .insert(
+                    "fork_transaction_hash",
+                    args.fork_transaction_hash.map(|h| h.to_string()),
+                )
+                .take();
+            (Some("fork"), Some(command_args))
+        }
+        Some(Command::ReplayTx(args)) => {
+            let command_args = TelemetryProps::new()
+                .insert_with("fork_url", args.fork_url, get_sensitive_fork_url)
+                .insert_with("tx", args.tx, |_| Some(TELEMETRY_SENSITIVE_VALUE))
+                .take();
+            (Some("replay_tx"), Some(command_args))
+        }
+        None => (None, None),
+    };
+
+    command_name?;
+    Some(
+        TelemetryProps::new()
+            .insert("name", command_name)
+            .insert("args", command_args)
+            .take(),
+    )
 }

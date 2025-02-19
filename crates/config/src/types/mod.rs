@@ -8,7 +8,7 @@ use clap::ValueEnum;
 pub use genesis::Genesis;
 use serde::Deserialize;
 
-#[derive(Deserialize, Default, Debug, Copy, Clone, PartialEq, ValueEnum, serde::Serialize)]
+#[derive(Deserialize, Default, Debug, Copy, Clone, PartialEq, ValueEnum)]
 pub enum SystemContractsOptions {
     // Use the compiled-in contracts
     #[default]

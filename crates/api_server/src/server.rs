@@ -17,10 +17,9 @@ use jsonrpsee::server::middleware::rpc::RpcServiceT;
 use jsonrpsee::server::{MethodResponse, RpcServiceBuilder, ServerBuilder, ServerHandle};
 use jsonrpsee::types::Request;
 use jsonrpsee::RpcModule;
-use std::collections::HashMap;
 use std::net::SocketAddr;
 use tower_http::cors::{AllowOrigin, CorsLayer};
-use zksync_telemetry::Telemetry;
+use zksync_telemetry::{get_telemetry, TelemetryProps};
 
 #[derive(Clone)]
 pub struct NodeServerBuilder {
@@ -29,23 +28,16 @@ pub struct NodeServerBuilder {
     health_api_enabled: bool,
     cors_enabled: bool,
     allow_origin: AllowOrigin,
-    telemetry: &'static Telemetry,
 }
 
 impl NodeServerBuilder {
-    pub fn new(
-        node: InMemoryNode,
-        l1_sidecar: L1Sidecar,
-        allow_origin: AllowOrigin,
-        telemetry: &'static Telemetry,
-    ) -> Self {
+    pub fn new(node: InMemoryNode, l1_sidecar: L1Sidecar, allow_origin: AllowOrigin) -> Self {
         Self {
             node,
             l1_sidecar,
             health_api_enabled: false,
             cors_enabled: false,
             allow_origin,
-            telemetry,
         }
     }
 
@@ -103,12 +95,9 @@ impl NodeServerBuilder {
                     .layer(health_api_layer),
             )
             .set_rpc_middleware(RpcServiceBuilder::new().rpc_logger(100))
-            .set_rpc_middleware(RpcServiceBuilder::new().layer_fn(move |service| {
-                TelemetryReporter {
-                    service,
-                    telemetry: self.telemetry,
-                }
-            }));
+            .set_rpc_middleware(
+                RpcServiceBuilder::new().layer_fn(move |service| TelemetryReporter { service }),
+            );
 
         match server_builder.build(addr).await {
             Ok(server) => {
@@ -150,7 +139,6 @@ impl NodeServer {
 #[derive(Clone)]
 pub struct TelemetryReporter<S> {
     service: S,
-    telemetry: &'static Telemetry,
 }
 
 impl<'a, S> RpcServiceT<'a> for TelemetryReporter<S>
@@ -161,15 +149,18 @@ where
 
     fn call(&self, req: Request<'a>) -> Self::Future {
         let service = self.service.clone();
-        let telemetry = self.telemetry; // Capture telemetry reference
+        let telemetry = get_telemetry().expect("telemetry is not initialized");
 
         async move {
             let method = req.method_name();
             // Report only anvil and config API usage
             if method.starts_with("anvil_") || method.starts_with("config_") {
-                let mut event_props = HashMap::new();
-                event_props.insert("method".to_string(), method.into());
-                let _ = telemetry.track_event("rpc_call", event_props).await;
+                let _ = telemetry
+                    .track_event(
+                        "rpc_call",
+                        TelemetryProps::new().insert("method", Some(method)).take(),
+                    )
+                    .await;
             }
             service.call(req).await
         }
