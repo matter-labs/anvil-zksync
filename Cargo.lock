@@ -1174,6 +1174,7 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "zksync-error-codegen",
+ "zksync-error-description 0.1.0 (git+https://github.com/matter-labs/zksync-error?rev=cee7b79)",
  "zksync_contracts",
  "zksync_error",
  "zksync_multivm",

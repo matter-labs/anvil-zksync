@@ -105,10 +105,11 @@ anvil_zksync_config = { path = "crates/config" }
 anvil_zksync_core = { path = "crates/core" }
 anvil_zksync_l1_sidecar = { path = "crates/l1_sidecar" }
 anvil_zksync_types = { path = "crates/types" }
+anvil_zksync_common = { path = "crates/common" }
 zksync_error = { path = "crates/zksync_error" }
 
 #########################
 # Build dependencies    #
 #########################
 zksync-error-codegen = { git = "https://github.com/matter-labs/zksync-error", rev = "626df69" }
-anvil_zksync_common = { path = "crates/common" }
+zksync-error-description = { git = "https://github.com/matter-labs/zksync-error", rev = "cee7b79" }
