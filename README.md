@@ -106,6 +106,7 @@ The logging can be configured during runtime via the [`config_setLogLevel`](./SU
 
 Anonymous usage data is collected only if user agrees by selecting corresponding option when prompted during first launch.
 User can opt-out any time by editing or removing telemetry configuration file at `$HOME/Library/Application Support/com.matter-labs.zksync-tooling/telemetry.json` for darwin, `$XDG_CONFIG_HOME/zksync-tooling/telemetry.json or $HOME/.config/zksync-tooling/telemetry.json` for linux.
+
 We collect:
   - Basic usage statistics.
   - Error reports.
