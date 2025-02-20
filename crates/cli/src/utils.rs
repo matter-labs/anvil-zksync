@@ -51,10 +51,9 @@ pub fn get_cli_command_telemetry_props(command: Option<Command>) -> Option<Telem
                     "fork_block_number",
                     args.fork_block_number.map(serde_json::Number::from),
                 )
-                .insert(
-                    "fork_transaction_hash",
-                    args.fork_transaction_hash.map(|h| h.to_string()),
-                )
+                .insert_with("fork_transaction_hash", args.fork_transaction_hash, |_| {
+                    Some(TELEMETRY_SENSITIVE_VALUE)
+                })
                 .take();
             (Some("fork"), Some(command_args))
         }
