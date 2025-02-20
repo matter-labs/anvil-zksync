@@ -4,7 +4,7 @@ use crate::resolver;
 use crate::utils::block_on;
 use crate::utils::{calculate_eth_cost, to_human_size};
 use alloy::hex::ToHexExt;
-use anvil_zksync_common::sh_println;
+use anvil_zksync_common::{sh_eprintln, sh_println};
 use anvil_zksync_config::utils::format_gwei;
 use anvil_zksync_types::ShowCalls;
 use colored::Colorize;
@@ -875,16 +875,16 @@ where
     let doc = match error.get_documentation() {
         Ok(opt) => opt,
         Err(e) => {
-            eprintln!("Failed to get error documentation: {}", e);
+            sh_eprintln!("Failed to get error documentation: {}", e);
             None
         }
     };
 
     // Print error header
     // TODO: should also include the exact error format (e.g. `FailedToChargeFee`)
-    println!("{}: {}", "error".red().bold(), error_msg.red());
-    println!("    |");
-    println!(
+    sh_println!("{}: {}", "error".red().bold(), error_msg.red());
+    sh_println!("    |");
+    sh_println!(
         "    = {} {}",
         "error:".bright_red(),
         doc.as_ref()
@@ -892,28 +892,28 @@ where
     );
 
     if let Some(tx) = tx {
-        println!("    | ");
-        println!("    | {}", "Transaction details:".cyan());
-        println!(
+        sh_println!("    | ");
+        sh_println!("    | {}", "Transaction details:".cyan());
+        sh_println!(
             "    |   Transaction Type: {:?}",
             tx.common_data.transaction_type
         );
-        println!("    |   Nonce: {}", tx.nonce());
+        sh_println!("    |   Nonce: {}", tx.nonce());
         if let Some(contract_address) = &tx.recipient_account() {
-            println!("    |   To: {:?}", contract_address);
+            sh_println!("    |   To: {:?}", contract_address);
         }
-        println!("    |   From: {:?}", tx.initiator_account());
+        sh_println!("    |   From: {:?}", tx.initiator_account());
         if let Some(input_data) = &tx.common_data.input {
             let hex_data = &input_data.data.encode_hex();
-            println!("    |   Input Data: 0x{}", hex_data);
-            println!("    |   Hash: {:?}", tx.hash());
+            sh_println!("    |   Input Data: 0x{}", hex_data);
+            sh_println!("    |   Hash: {:?}", tx.hash());
         }
-        println!("    |   Gas Limit: {}", tx.common_data.fee.gas_limit);
-        println!(
+        sh_println!("    |   Gas Limit: {}", tx.common_data.fee.gas_limit);
+        sh_println!(
             "    |   Gas Price: {}",
             format_gwei(tx.common_data.fee.max_fee_per_gas)
         );
-        println!(
+        sh_println!(
             "    |   Gas Per Pubdata Limit: {}",
             tx.common_data.fee.gas_per_pubdata_limit
         );
@@ -922,9 +922,9 @@ where
         let paymaster_address = tx.common_data.paymaster_params.paymaster;
         let paymaster_input = &tx.common_data.paymaster_params.paymaster_input;
         if paymaster_address != Address::zero() || !paymaster_input.is_empty() {
-            println!("    | {}", "Paymaster details:".cyan());
-            println!("    |   Paymaster Address: {:?}", paymaster_address);
-            println!(
+            sh_println!("    | {}", "Paymaster details:".cyan());
+            sh_println!("    |   Paymaster Address: {:?}", paymaster_address);
+            sh_println!(
                 "    |   Paymaster Input: 0x{}",
                 if paymaster_input.is_empty() {
                     "None".to_string()
@@ -938,10 +938,10 @@ where
     // Print likely causes if available
     if let Some(doc) = doc {
         if !doc.likely_causes.is_empty() {
-            println!("    | ");
-            println!("    | {}", "Likely causes:".cyan());
+            sh_println!("    | ");
+            sh_println!("    | {}", "Likely causes:".cyan());
             for cause in &doc.likely_causes {
-                println!("    |   - {}", cause.cause);
+                sh_println!("    |   - {}", cause.cause);
             }
 
             // Collect fixes from all causes
@@ -952,10 +952,10 @@ where
                 .collect();
 
             if !all_fixes.is_empty() {
-                println!("    | ");
-                println!("    | {}", "Possible fixes:".green().bold());
+                sh_println!("    | ");
+                sh_println!("    | {}", "Possible fixes:".green().bold());
                 for fix in &all_fixes {
-                    println!("    |   - {}", fix);
+                    sh_println!("    |   - {}", fix);
                 }
             }
 
@@ -967,23 +967,23 @@ where
                 .collect();
 
             if !all_references.is_empty() {
-                println!(
+                sh_println!(
                     "\n{}",
                     "For more information about this error, visit:"
                         .cyan()
                         .bold()
                 );
                 for reference in &all_references {
-                    println!("  - {}", reference.underline());
+                    sh_println!("  - {}", reference.underline());
                 }
             }
         }
 
-        println!("    |");
-        println!("{} {}", "note:".blue(), doc.description);
+        sh_println!("    |");
+        sh_println!("{} {}", "note:".blue(), doc.description);
     }
 
-    println!(
+    sh_println!(
         "{} transaction execution halted due to the above error\n",
         "error:".red()
     );
