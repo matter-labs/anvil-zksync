@@ -21,7 +21,6 @@ use anvil_zksync_core::system_contracts::SystemContracts;
 use anvil_zksync_l1_sidecar::L1Sidecar;
 use anyhow::Context;
 use clap::Parser;
-use zksync_error::ICustomError;
 use std::fs::File;
 use std::future::Future;
 use std::pin::Pin;
@@ -33,6 +32,7 @@ use tower_http::cors::AllowOrigin;
 use tracing_subscriber::filter::LevelFilter;
 use zksync_error::anvil_zksync::gen::{generic_error, to_domain};
 use zksync_error::anvil_zksync::AnvilZksyncError;
+use zksync_error::ICustomError;
 use zksync_telemetry::{get_telemetry, init_telemetry, TelemetryProps};
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
 use zksync_types::{L2BlockNumber, H160};
@@ -103,8 +103,7 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
                 (None, Vec::new())
             } else {
                 // Initialize the client to get the fee params
-                let client =
-                    ForkClient::at_block_number(ForkUrl::Mainnet.to_config(), None)
+                let client = ForkClient::at_block_number(ForkUrl::Mainnet.to_config(), None)
                     .await
                     .map_err(to_domain)?;
                 let fee = client.get_fee_params().await.map_err(to_domain)?;
@@ -135,7 +134,9 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
                             .with_chain_id(config.chain_id.or(Some(TEST_NODE_NETWORK_ID)));
                     }
                     FeeParams::V1(_) => {
-                        return Err(generic_error!("Unsupported FeeParams::V1 in this context").into());
+                        return Err(
+                            generic_error!("Unsupported FeeParams::V1 in this context").into()
+                        );
                     }
                 }
 
@@ -221,8 +222,8 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
     let l1_sidecar = match config.l1_config.as_ref() {
         Some(l1_config) => {
             let (l1_sidecar, l1_sidecar_runner) = L1Sidecar::builtin(l1_config.port)
-            .await
-            .map_err(to_domain)?;
+                .await
+                .map_err(to_domain)?;
             node_service_tasks.push(Box::pin(l1_sidecar_runner.run()));
             l1_sidecar
         }
@@ -462,7 +463,7 @@ async fn main() -> Result<(), AnvilZksyncError> {
     if let Err(err) = start_program().await {
         let telemetry = get_telemetry().expect("telemetry is not initialized");
         let _ = telemetry.track_error(Box::new(&err.to_unified())).await;
-        return Err(err)
+        return Err(err);
     }
     Ok(())
 }
