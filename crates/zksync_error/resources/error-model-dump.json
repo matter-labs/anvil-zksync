@@ -23,34 +23,34 @@
           }
         }
       },
-      "AnvilZKSEnvironment": {
-        "name": "AnvilZKSEnvironment",
+      "AnvilEnvironment": {
+        "name": "AnvilEnvironment",
         "meta": {
           "description": ""
         },
         "bindings": {
           "rust": {
-            "name": "Box<AnvilZKSEnvironment>",
+            "name": "Box<AnvilEnvironment>",
             "path": ""
           },
           "typescript": {
-            "name": "Box<AnvilZKSEnvironment>",
+            "name": "Box<AnvilEnvironment>",
             "path": ""
           }
         }
       },
-      "AnvilZKSGeneric": {
-        "name": "AnvilZKSGeneric",
+      "AnvilGeneric": {
+        "name": "AnvilGeneric",
         "meta": {
           "description": ""
         },
         "bindings": {
           "rust": {
-            "name": "Box<AnvilZKSGeneric>",
+            "name": "Box<AnvilGeneric>",
             "path": ""
           },
           "typescript": {
-            "name": "Box<AnvilZKSGeneric>",
+            "name": "Box<AnvilGeneric>",
             "path": ""
           }
         }
@@ -369,20 +369,20 @@
       }
     },
     "domains": {
-      "AnvilZKS": {
-        "name": "AnvilZKS",
+      "AnvilZKsync": {
+        "name": "AnvilZKsync",
         "code": 5,
         "components": [
-          "AnvilZKSEnvironment",
-          "AnvilZKSGeneric",
+          "AnvilEnvironment",
+          "AnvilGeneric",
           "Halt",
           "Revert"
         ],
         "bindings": {
-          "rust": "AnvilZKS",
-          "typescript": "AnvilZKS"
+          "rust": "AnvilZksync",
+          "typescript": "AnvilZKsync"
         },
-        "identifier": "anvil_zks",
+        "identifier": "anvil_zksync",
         "description": "Errors originating in Anvil for ZKsync."
       },
       "Compiler": {
@@ -460,24 +460,24 @@
         "identifier": "api",
         "description": "Errors originating in the web3 API."
       },
-      "AnvilZKSEnvironment": {
-        "name": "AnvilZKSEnvironment",
+      "AnvilEnvironment": {
+        "name": "AnvilEnvironment",
         "code": 1,
-        "domain_name": "AnvilZKS",
+        "domain_name": "AnvilZKsync",
         "bindings": {
-          "rust": "AnvilZKSEnvironment",
-          "typescript": "AnvilZKSEnvironment"
+          "rust": "AnvilEnvironment",
+          "typescript": "AnvilEnvironment"
         },
         "identifier": "env",
         "description": ""
       },
-      "AnvilZKSGeneric": {
-        "name": "AnvilZKSGeneric",
+      "AnvilGeneric": {
+        "name": "AnvilGeneric",
         "code": 0,
-        "domain_name": "AnvilZKS",
+        "domain_name": "AnvilZKsync",
         "bindings": {
-          "rust": "AnvilZKSGeneric",
-          "typescript": "AnvilZKSGeneric"
+          "rust": "AnvilGeneric",
+          "typescript": "AnvilGeneric"
         },
         "identifier": "gen",
         "description": ""
@@ -528,8 +528,8 @@
       },
       "Halt": {
         "name": "Halt",
-        "code": 1,
-        "domain_name": "AnvilZKS",
+        "code": 2,
+        "domain_name": "AnvilZKsync",
         "bindings": {
           "rust": "Halt",
           "typescript": "Halt"
@@ -583,8 +583,8 @@
       },
       "Revert": {
         "name": "Revert",
-        "code": 2,
-        "domain_name": "AnvilZKS",
+        "code": 3,
+        "domain_name": "AnvilZKsync",
         "bindings": {
           "rust": "Revert",
           "typescript": "Revert"
@@ -649,12 +649,12 @@
       }
     },
     "errors": {
-      "[anvil_zks-env-0]": {
-        "domain": "AnvilZKS",
-        "component": "AnvilZKSEnvironment",
+      "[anvil_zksync-env-0]": {
+        "domain": "AnvilZKsync",
+        "component": "AnvilEnvironment",
         "name": "GenericError",
         "code": 0,
-        "identifier": "[anvil_zks-env-0]",
+        "identifier": "[anvil_zksync-env-0]",
         "message": "Generic error: {message}",
         "fields": [
           {
@@ -674,12 +674,12 @@
           }
         }
       },
-      "[anvil_zks-gen-0]": {
-        "domain": "AnvilZKS",
-        "component": "AnvilZKSGeneric",
+      "[anvil_zksync-gen-0]": {
+        "domain": "AnvilZKsync",
+        "component": "AnvilGeneric",
         "name": "GenericError",
         "code": 0,
-        "identifier": "[anvil_zks-gen-0]",
+        "identifier": "[anvil_zksync-gen-0]",
         "message": "Generic error: {message}",
         "fields": [
           {
@@ -699,12 +699,12 @@
           }
         }
       },
-      "[anvil_zks-halt-0]": {
-        "domain": "AnvilZKS",
+      "[anvil_zksync-halt-0]": {
+        "domain": "AnvilZKsync",
         "component": "Halt",
         "name": "GenericError",
         "code": 0,
-        "identifier": "[anvil_zks-halt-0]",
+        "identifier": "[anvil_zksync-halt-0]",
         "message": "Generic error: {message}",
         "fields": [
           {
@@ -724,12 +724,12 @@
           }
         }
       },
-      "[anvil_zks-halt-10]": {
-        "domain": "AnvilZKS",
+      "[anvil_zksync-halt-10]": {
+        "domain": "AnvilZKsync",
         "component": "Halt",
         "name": "UnexpectedVMBehavior",
         "code": 10,
-        "identifier": "[anvil_zks-halt-10]",
+        "identifier": "[anvil_zksync-halt-10]",
         "message": "Virtual machine entered unexpected state. Error description: {problem}",
         "fields": [
           {
@@ -765,12 +765,12 @@
           }
         }
       },
-      "[anvil_zks-halt-11]": {
-        "domain": "AnvilZKS",
+      "[anvil_zksync-halt-11]": {
+        "domain": "AnvilZKsync",
         "component": "Halt",
         "name": "BootloaderOutOfGas",
         "code": 11,
-        "identifier": "[anvil_zks-halt-11]",
+        "identifier": "[anvil_zksync-halt-11]",
         "message": "Bootloader out of gas",
         "fields": [],
         "documentation": {
@@ -800,12 +800,12 @@
           }
         }
       },
-      "[anvil_zks-halt-12]": {
-        "domain": "AnvilZKS",
+      "[anvil_zksync-halt-12]": {
+        "domain": "AnvilZKsync",
         "component": "Halt",
         "name": "ValidationOutOfGas",
         "code": 12,
-        "identifier": "[anvil_zks-halt-12]",
+        "identifier": "[anvil_zksync-halt-12]",
         "message": "Validation run out of gas",
         "fields": [],
         "documentation": {
@@ -835,12 +835,12 @@
           }
         }
       },
-      "[anvil_zks-halt-13]": {
-        "domain": "AnvilZKS",
+      "[anvil_zksync-halt-13]": {
+        "domain": "AnvilZKsync",
         "component": "Halt",
         "name": "TooBigGasLimit",
         "code": 13,
-        "identifier": "[anvil_zks-halt-13]",
+        "identifier": "[anvil_zksync-halt-13]",
         "message": "Transaction has a too big ergs limit and will not be executed by the server",
         "fields": [],
         "documentation": {
@@ -869,12 +869,12 @@
           }
         }
       },
-      "[anvil_zks-halt-14]": {
-        "domain": "AnvilZKS",
+      "[anvil_zksync-halt-14]": {
+        "domain": "AnvilZKsync",
         "component": "Halt",
         "name": "NotEnoughGasProvided",
         "code": 14,
-        "identifier": "[anvil_zks-halt-14]",
+        "identifier": "[anvil_zksync-halt-14]",
         "message": "Bootloader does not have enough gas to proceed with the transaction.",
         "fields": [],
         "documentation": {
@@ -904,12 +904,12 @@
           }
         }
       },
-      "[anvil_zks-halt-15]": {
-        "domain": "AnvilZKS",
+      "[anvil_zksync-halt-15]": {
+        "domain": "AnvilZKsync",
         "component": "Halt",
         "name": "MissingInvocationLimitReached",
         "code": 15,
-        "identifier": "[anvil_zks-halt-15]",
+        "identifier": "[anvil_zksync-halt-15]",
         "message": "Transaction produced too much storage accesses.",
         "fields": [],
         "documentation": {
@@ -938,12 +938,12 @@
           }
         }
       },
-      "[anvil_zks-halt-16]": {
-        "domain": "AnvilZKS",
+      "[anvil_zksync-halt-16]": {
+        "domain": "AnvilZKsync",
         "component": "Halt",
         "name": "FailedToSetL2Block",
         "code": 16,
-        "identifier": "[anvil_zks-halt-16]",
+        "identifier": "[anvil_zksync-halt-16]",
         "message": "Failed to set information about the L2 block: {msg}",
         "fields": [
           {
@@ -978,12 +978,12 @@
           }
         }
       },
-      "[anvil_zks-halt-17]": {
-        "domain": "AnvilZKS",
+      "[anvil_zksync-halt-17]": {
+        "domain": "AnvilZKsync",
         "component": "Halt",
         "name": "FailedToAppendTransactionToL2Block",
         "code": 17,
-        "identifier": "[anvil_zks-halt-17]",
+        "identifier": "[anvil_zksync-halt-17]",
         "message": "Failed to append the transaction to the current L2 block: {msg}",
         "fields": [
           {
@@ -1018,12 +1018,12 @@
           }
         }
       },
-      "[anvil_zks-halt-18]": {
-        "domain": "AnvilZKS",
+      "[anvil_zksync-halt-18]": {
+        "domain": "AnvilZKsync",
         "component": "Halt",
         "name": "VMPanic",
         "code": 18,
-        "identifier": "[anvil_zks-halt-18]",
+        "identifier": "[anvil_zksync-halt-18]",
         "message": "VM panicked",
         "fields": [],
         "documentation": {
@@ -1052,12 +1052,12 @@
           }
         }
       },
-      "[anvil_zks-halt-19]": {
-        "domain": "AnvilZKS",
+      "[anvil_zksync-halt-19]": {
+        "domain": "AnvilZKsync",
         "component": "Halt",
         "name": "TracerCustom",
         "code": 19,
-        "identifier": "[anvil_zks-halt-19]",
+        "identifier": "[anvil_zksync-halt-19]",
         "message": "Tracer aborted execution: {msg}",
         "fields": [
           {
@@ -1091,12 +1091,12 @@
           }
         }
       },
-      "[anvil_zks-halt-1]": {
-        "domain": "AnvilZKS",
+      "[anvil_zksync-halt-1]": {
+        "domain": "AnvilZKsync",
         "component": "Halt",
         "name": "ValidationFailed",
         "code": 1,
-        "identifier": "[anvil_zks-halt-1]",
+        "identifier": "[anvil_zksync-halt-1]",
         "message": "Account validation error: {msg}: {data}",
         "fields": [
           {
@@ -1143,12 +1143,12 @@
           }
         }
       },
-      "[anvil_zks-halt-20]": {
-        "domain": "AnvilZKS",
+      "[anvil_zksync-halt-20]": {
+        "domain": "AnvilZKsync",
         "component": "Halt",
         "name": "FailedToPublishCompressedBytecodes",
         "code": 20,
-        "identifier": "[anvil_zks-halt-20]",
+        "identifier": "[anvil_zksync-halt-20]",
         "message": "Failed to publish compressed bytecodes",
         "fields": [],
         "documentation": {
@@ -1177,12 +1177,12 @@
           }
         }
       },
-      "[anvil_zks-halt-21]": {
-        "domain": "AnvilZKS",
+      "[anvil_zksync-halt-21]": {
+        "domain": "AnvilZKsync",
         "component": "Halt",
         "name": "FailedBlockTimestampAssertion",
         "code": 21,
-        "identifier": "[anvil_zks-halt-21]",
+        "identifier": "[anvil_zksync-halt-21]",
         "message": "Transaction failed `block.timestamp` assertion",
         "fields": [],
         "documentation": {
@@ -1212,12 +1212,12 @@
           }
         }
       },
-      "[anvil_zks-halt-2]": {
-        "domain": "AnvilZKS",
+      "[anvil_zksync-halt-2]": {
+        "domain": "AnvilZKsync",
         "component": "Halt",
         "name": "PaymasterValidationFailed",
         "code": 2,
-        "identifier": "[anvil_zks-halt-2]",
+        "identifier": "[anvil_zksync-halt-2]",
         "message": "Paymaster validation error: {msg}: {data}.",
         "fields": [
           {
@@ -1256,12 +1256,12 @@
           }
         }
       },
-      "[anvil_zks-halt-3]": {
-        "domain": "AnvilZKS",
+      "[anvil_zksync-halt-3]": {
+        "domain": "AnvilZKsync",
         "component": "Halt",
         "name": "PrePaymasterPreparationFailed",
         "code": 3,
-        "identifier": "[anvil_zks-halt-3]",
+        "identifier": "[anvil_zksync-halt-3]",
         "message": "Pre-paymaster preparation error: {msg}: {data}",
         "fields": [
           {
@@ -1301,12 +1301,12 @@
           }
         }
       },
-      "[anvil_zks-halt-4]": {
-        "domain": "AnvilZKS",
+      "[anvil_zksync-halt-4]": {
+        "domain": "AnvilZKsync",
         "component": "Halt",
         "name": "PayForTxFailed",
         "code": 4,
-        "identifier": "[anvil_zks-halt-4]",
+        "identifier": "[anvil_zksync-halt-4]",
         "message": "Failed to pay for the transaction: {msg}: {data}",
         "fields": [
           {
@@ -1353,12 +1353,12 @@
           }
         }
       },
-      "[anvil_zks-halt-5]": {
-        "domain": "AnvilZKS",
+      "[anvil_zksync-halt-5]": {
+        "domain": "AnvilZKsync",
         "component": "Halt",
         "name": "FailedToMarkFactoryDependencies",
         "code": 5,
-        "identifier": "[anvil_zks-halt-5]",
+        "identifier": "[anvil_zksync-halt-5]",
         "message": "Failed to mark factory dependencies: {msg}: {data}",
         "fields": [
           {
@@ -1396,12 +1396,12 @@
           }
         }
       },
-      "[anvil_zks-halt-6]": {
-        "domain": "AnvilZKS",
+      "[anvil_zksync-halt-6]": {
+        "domain": "AnvilZKsync",
         "component": "Halt",
         "name": "FailedToChargeFee",
         "code": 6,
-        "identifier": "[anvil_zks-halt-6]",
+        "identifier": "[anvil_zksync-halt-6]",
         "message": "Failed to charge fee: {msg}: {data}",
         "fields": [
           {
@@ -1448,12 +1448,12 @@
           }
         }
       },
-      "[anvil_zks-halt-7]": {
-        "domain": "AnvilZKS",
+      "[anvil_zksync-halt-7]": {
+        "domain": "AnvilZKsync",
         "component": "Halt",
         "name": "FromIsNotAnAccount",
         "code": 7,
-        "identifier": "[anvil_zks-halt-7]",
+        "identifier": "[anvil_zksync-halt-7]",
         "message": "Sender is not an account",
         "fields": [],
         "documentation": {
@@ -1482,12 +1482,12 @@
           }
         }
       },
-      "[anvil_zks-halt-8]": {
-        "domain": "AnvilZKS",
+      "[anvil_zksync-halt-8]": {
+        "domain": "AnvilZKsync",
         "component": "Halt",
         "name": "InnerTxError",
         "code": 8,
-        "identifier": "[anvil_zks-halt-8]",
+        "identifier": "[anvil_zksync-halt-8]",
         "message": "Bootloader-based tx failed",
         "fields": [],
         "documentation": {
@@ -1516,12 +1516,12 @@
           }
         }
       },
-      "[anvil_zks-halt-9]": {
-        "domain": "AnvilZKS",
+      "[anvil_zksync-halt-9]": {
+        "domain": "AnvilZKsync",
         "component": "Halt",
         "name": "Unknown",
         "code": 9,
-        "identifier": "[anvil_zks-halt-9]",
+        "identifier": "[anvil_zksync-halt-9]",
         "message": "Unknown reason: {msg}: {data}",
         "fields": [
           {
@@ -1559,12 +1559,12 @@
           }
         }
       },
-      "[anvil_zks-revert-0]": {
-        "domain": "AnvilZKS",
+      "[anvil_zksync-revert-0]": {
+        "domain": "AnvilZKsync",
         "component": "Revert",
         "name": "GenericError",
         "code": 0,
-        "identifier": "[anvil_zks-revert-0]",
+        "identifier": "[anvil_zksync-revert-0]",
         "message": "Generic error: {message}",
         "fields": [
           {
@@ -1584,12 +1584,12 @@
           }
         }
       },
-      "[anvil_zks-revert-1]": {
-        "domain": "AnvilZKS",
+      "[anvil_zksync-revert-1]": {
+        "domain": "AnvilZKsync",
         "component": "Revert",
         "name": "General",
         "code": 1,
-        "identifier": "[anvil_zks-revert-1]",
+        "identifier": "[anvil_zksync-revert-1]",
         "message": "General revert error: {msg}",
         "fields": [
           {
@@ -1629,12 +1629,12 @@
           }
         }
       },
-      "[anvil_zks-revert-2]": {
-        "domain": "AnvilZKS",
+      "[anvil_zksync-revert-2]": {
+        "domain": "AnvilZKsync",
         "component": "Revert",
         "name": "InnerTxError",
         "code": 2,
-        "identifier": "[anvil_zks-revert-2]",
+        "identifier": "[anvil_zksync-revert-2]",
         "message": "Bootloader-based transaction failed.",
         "fields": [],
         "documentation": {
@@ -1664,12 +1664,12 @@
           }
         }
       },
-      "[anvil_zks-revert-3]": {
-        "domain": "AnvilZKS",
+      "[anvil_zksync-revert-3]": {
+        "domain": "AnvilZKsync",
         "component": "Revert",
         "name": "VmError",
         "code": 3,
-        "identifier": "[anvil_zks-revert-3]",
+        "identifier": "[anvil_zksync-revert-3]",
         "message": "VM Error",
         "fields": [],
         "documentation": {
@@ -1698,12 +1698,12 @@
           }
         }
       },
-      "[anvil_zks-revert-4]": {
-        "domain": "AnvilZKS",
+      "[anvil_zksync-revert-4]": {
+        "domain": "AnvilZKsync",
         "component": "Revert",
         "name": "Unknown",
         "code": 4,
-        "identifier": "[anvil_zks-revert-4]",
+        "identifier": "[anvil_zksync-revert-4]",
         "message": "Unknown VM revert reason: function_selector={function_selector}, data={data}",
         "fields": [
           {

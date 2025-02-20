@@ -12,9 +12,9 @@ use futures::future::join_all;
 use lazy_static::lazy_static;
 use serde::Deserialize;
 use std::{collections::HashMap, str};
-use zksync_error::documentation::Documented;
-use zksync_error::error::{CustomErrorMessage, NamedError};
-use zksync_error_description::ErrorDocumentation;
+// use zksync_error::documentation::Documented;
+use zksync_error::{CustomErrorMessage, NamedError};
+// use zksync_error_description::ErrorDocumentation;
 use zksync_multivm::interface::{Call, VmEvent, VmExecutionResultAndLogs};
 use zksync_types::l2::L2Tx;
 use zksync_types::{
@@ -868,125 +868,125 @@ Refunded: {:.10} ETH
     );
 }
 
-/// Prints halt and revert execution errors.
-pub fn print_execution_error<E>(error: &E, tx: Option<&L2Tx>)
-where
-    E: NamedError + CustomErrorMessage + Documented<Documentation = &'static ErrorDocumentation>,
-{
-    let error_msg = error.get_message();
-    let doc = match error.get_documentation() {
-        Ok(opt) => opt,
-        Err(e) => {
-            eprintln!("Failed to get error documentation: {}", e);
-            None
-        }
-    };
+// /// Prints halt and revert execution errors.
+// pub fn print_execution_error<E>(error: &E, tx: Option<&L2Tx>)
+// where
+//     E: NamedError + CustomErrorMessage + Documented<Documentation = &'static ErrorDocumentation>,
+// {
+//     let error_msg = error.get_message();
+//     let doc = match error.get_documentation() {
+//         Ok(opt) => opt,
+//         Err(e) => {
+//             eprintln!("Failed to get error documentation: {}", e);
+//             None
+//         }
+//     };
 
-    // Print error header
-    // TODO: should also include the exact error format (e.g. `FailedToChargeFee`)
-    println!("{}: {}", "error".red().bold(), error_msg.red());
-    println!("    |");
-    println!(
-        "    = {} {}",
-        "error:".bright_red(),
-        doc.as_ref()
-            .map_or("An unknown error occurred", |d| d.summary.as_str())
-    );
+//     // Print error header
+//     // TODO: should also include the exact error format (e.g. `FailedToChargeFee`)
+//     println!("{}: {}", "error".red().bold(), error_msg.red());
+//     println!("    |");
+//     println!(
+//         "    = {} {}",
+//         "error:".bright_red(),
+//         doc.as_ref()
+//             .map_or("An unknown error occurred", |d| d.summary.as_str())
+//     );
 
-    if let Some(tx) = tx {
-        println!("    | ");
-        println!("    | {}", "Transaction details:".cyan());
-        println!(
-            "    |   Transaction Type: {:?}",
-            tx.common_data.transaction_type
-        );
-        println!("    |   Nonce: {}", tx.nonce());
-        if let Some(contract_address) = &tx.recipient_account() {
-            println!("    |   To: {:?}", contract_address);
-        }
-        println!("    |   From: {:?}", tx.initiator_account());
-        if let Some(input_data) = &tx.common_data.input {
-            let hex_data = &input_data.data.encode_hex();
-            println!("    |   Input Data: 0x{}", hex_data);
-            println!("    |   Hash: {:?}", tx.hash());
-        }
-        println!("    |   Gas Limit: {}", tx.common_data.fee.gas_limit);
-        println!(
-            "    |   Gas Price: {}",
-            format_gwei(tx.common_data.fee.max_fee_per_gas)
-        );
-        println!(
-            "    |   Gas Per Pubdata Limit: {}",
-            tx.common_data.fee.gas_per_pubdata_limit
-        );
+//     if let Some(tx) = tx {
+//         println!("    | ");
+//         println!("    | {}", "Transaction details:".cyan());
+//         println!(
+//             "    |   Transaction Type: {:?}",
+//             tx.common_data.transaction_type
+//         );
+//         println!("    |   Nonce: {}", tx.nonce());
+//         if let Some(contract_address) = &tx.recipient_account() {
+//             println!("    |   To: {:?}", contract_address);
+//         }
+//         println!("    |   From: {:?}", tx.initiator_account());
+//         if let Some(input_data) = &tx.common_data.input {
+//             let hex_data = &input_data.data.encode_hex();
+//             println!("    |   Input Data: 0x{}", hex_data);
+//             println!("    |   Hash: {:?}", tx.hash());
+//         }
+//         println!("    |   Gas Limit: {}", tx.common_data.fee.gas_limit);
+//         println!(
+//             "    |   Gas Price: {}",
+//             format_gwei(tx.common_data.fee.max_fee_per_gas)
+//         );
+//         println!(
+//             "    |   Gas Per Pubdata Limit: {}",
+//             tx.common_data.fee.gas_per_pubdata_limit
+//         );
 
-        // Log paymaster details if available
-        let paymaster_address = tx.common_data.paymaster_params.paymaster;
-        let paymaster_input = &tx.common_data.paymaster_params.paymaster_input;
-        if paymaster_address != Address::zero() || !paymaster_input.is_empty() {
-            println!("    | {}", "Paymaster details:".cyan());
-            println!("    |   Paymaster Address: {:?}", paymaster_address);
-            println!(
-                "    |   Paymaster Input: 0x{}",
-                if paymaster_input.is_empty() {
-                    "None".to_string()
-                } else {
-                    paymaster_input.encode_hex()
-                }
-            );
-        }
-    }
+//         // Log paymaster details if available
+//         let paymaster_address = tx.common_data.paymaster_params.paymaster;
+//         let paymaster_input = &tx.common_data.paymaster_params.paymaster_input;
+//         if paymaster_address != Address::zero() || !paymaster_input.is_empty() {
+//             println!("    | {}", "Paymaster details:".cyan());
+//             println!("    |   Paymaster Address: {:?}", paymaster_address);
+//             println!(
+//                 "    |   Paymaster Input: 0x{}",
+//                 if paymaster_input.is_empty() {
+//                     "None".to_string()
+//                 } else {
+//                     paymaster_input.encode_hex()
+//                 }
+//             );
+//         }
+//     }
 
-    // Print likely causes if available
-    if let Some(doc) = doc {
-        if !doc.likely_causes.is_empty() {
-            println!("    | ");
-            println!("    | {}", "Likely causes:".cyan());
-            for cause in &doc.likely_causes {
-                println!("    |   - {}", cause.cause);
-            }
+//     // Print likely causes if available
+//     if let Some(doc) = doc {
+//         if !doc.likely_causes.is_empty() {
+//             println!("    | ");
+//             println!("    | {}", "Likely causes:".cyan());
+//             for cause in &doc.likely_causes {
+//                 println!("    |   - {}", cause.cause);
+//             }
 
-            // Collect fixes from all causes
-            let all_fixes: Vec<&String> = doc
-                .likely_causes
-                .iter()
-                .flat_map(|cause| &cause.fixes)
-                .collect();
+//             // Collect fixes from all causes
+//             let all_fixes: Vec<&String> = doc
+//                 .likely_causes
+//                 .iter()
+//                 .flat_map(|cause| &cause.fixes)
+//                 .collect();
 
-            if !all_fixes.is_empty() {
-                println!("    | ");
-                println!("    | {}", "Possible fixes:".green().bold());
-                for fix in &all_fixes {
-                    println!("    |   - {}", fix);
-                }
-            }
+//             if !all_fixes.is_empty() {
+//                 println!("    | ");
+//                 println!("    | {}", "Possible fixes:".green().bold());
+//                 for fix in &all_fixes {
+//                     println!("    |   - {}", fix);
+//                 }
+//             }
 
-            // Collect references
-            let all_references: Vec<&String> = doc
-                .likely_causes
-                .iter()
-                .flat_map(|cause| &cause.references)
-                .collect();
+//             // Collect references
+//             let all_references: Vec<&String> = doc
+//                 .likely_causes
+//                 .iter()
+//                 .flat_map(|cause| &cause.references)
+//                 .collect();
 
-            if !all_references.is_empty() {
-                println!(
-                    "\n{}",
-                    "For more information about this error, visit:"
-                        .cyan()
-                        .bold()
-                );
-                for reference in &all_references {
-                    println!("  - {}", reference.underline());
-                }
-            }
-        }
+//             if !all_references.is_empty() {
+//                 println!(
+//                     "\n{}",
+//                     "For more information about this error, visit:"
+//                         .cyan()
+//                         .bold()
+//                 );
+//                 for reference in &all_references {
+//                     println!("  - {}", reference.underline());
+//                 }
+//             }
+//         }
 
-        println!("    |");
-        println!("{} {}", "note:".blue(), doc.description);
-    }
+//         println!("    |");
+//         println!("{} {}", "note:".blue(), doc.description);
+//     }
 
-    println!(
-        "{} transaction execution halted due to the above error\n",
-        "error:".red()
-    );
-}
+//     println!(
+//         "{} transaction execution halted due to the above error\n",
+//         "error:".red()
+//     );
+// }

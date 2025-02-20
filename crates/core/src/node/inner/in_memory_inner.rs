@@ -3,7 +3,7 @@ use crate::console_log::ConsoleLogHandler;
 use crate::deps::storage_view::StorageView;
 use crate::filters::EthFilters;
 use crate::node::call_error_tracer::CallErrorTracer;
-use crate::node::error::{LoadStateError, ToHaltError, ToRevertReason};
+use crate::node::error::LoadStateError;
 use crate::node::inner::blockchain::{Blockchain, ReadBlockchain};
 use crate::node::inner::fork::{Fork, ForkClient, ForkSource};
 use crate::node::inner::fork_storage::{ForkStorage, SerializableStorage};
@@ -45,8 +45,8 @@ use zksync_multivm::interface::{
 };
 use zksync_multivm::vm_latest::Vm;
 
-use crate::formatter::print_execution_error;
-use zksync_error::anvil_zks::{halt::HaltError, revert::RevertError};
+// use crate::formatter::print_execution_error;
+// use zksync_error::anvil_zksync::{halt::HaltError, revert::RevertError};
 use zksync_multivm::tracers::CallTracer;
 use zksync_multivm::utils::{
     adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
@@ -476,12 +476,12 @@ impl InMemoryNodeInner {
             ExecutionResult::Halt { reason } => {
                 let reason_clone = reason.clone();
 
-                let halt_error = tokio::task::block_in_place(|| {
-                    tokio::runtime::Handle::current()
-                        .block_on(async { reason_clone.to_halt_error().await })
-                });
+                // let halt_error = tokio::task::block_in_place(|| {
+                //     tokio::runtime::Handle::current()
+                //         .block_on(async { reason_clone.to_halt_error().await })
+                // });
 
-                print_execution_error(&halt_error, Some(&l2_tx));
+                // print_execution_error(&halt_error, Some(&l2_tx));
 
                 // Halt means that something went really bad with the transaction execution
                 // (in most cases invalid signature, but it could also be bootloader panic etc).
@@ -491,14 +491,14 @@ impl InMemoryNodeInner {
                 anyhow::bail!("Transaction halted due to critical error");
             }
             ExecutionResult::Revert { ref output } => {
-                let output_clone = output.clone();
+                // let output_clone = output.clone();
 
-                let revert_error = tokio::task::block_in_place(|| {
-                    tokio::runtime::Handle::current()
-                        .block_on(async { output_clone.to_revert_reason().await })
-                });
+                // let revert_error = tokio::task::block_in_place(|| {
+                //     tokio::runtime::Handle::current()
+                //         .block_on(async { output_clone.to_revert_reason().await })
+                // });
 
-                print_execution_error(&revert_error, Some(&l2_tx));
+                // print_execution_error(&revert_error, Some(&l2_tx));
             }
             _ => {}
         };
@@ -950,8 +950,8 @@ impl InMemoryNodeInner {
                 );
                 let data = output.encoded_data();
 
-                let revert_reason: RevertError = output.to_revert_reason().await;
-                print_execution_error(&revert_reason, Some(&l2_tx));
+                // let revert_reason: RevertError = output.to_revert_reason().await;
+                // print_execution_error(&revert_reason, Some(&l2_tx));
 
                 Err(Web3Error::SubmitTransactionError(pretty_message, data))
             }
@@ -976,8 +976,8 @@ impl InMemoryNodeInner {
                     message
                 );
 
-                let halt_error: HaltError = reason.to_halt_error().await;
-                print_execution_error(&halt_error, Some(&l2_tx));
+                // let halt_error: HaltError = reason.to_halt_error().await;
+                // print_execution_error(&halt_error, Some(&l2_tx));
 
                 Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
             }

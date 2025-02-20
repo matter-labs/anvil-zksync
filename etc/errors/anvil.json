@@ -2,25 +2,28 @@
   "types": [],
   "domains": [
     {
-      "domain_name": "AnvilZKS",
+      "domain_name": "AnvilZKsync",
       "domain_code": 5,
-      "identifier_encoding": "anvil_zks",
+      "identifier_encoding": "anvil_zksync",
+      "bindings": {
+        "rust": "AnvilZksync"
+      },
       "components": [
         {
-          "component_name": "AnvilZKSGeneric",
+          "component_name": "AnvilGeneric",
           "component_code": 0,
           "identifier_encoding": "gen",
           "errors" : []
         },
         {
-          "component_name": "AnvilZKSEnvironment",
+          "component_name": "AnvilEnvironment",
           "component_code": 1,
           "identifier_encoding": "env",
           "errors" : []
         },
         {
         "component_name": "Halt",
-          "component_code": 1,
+          "component_code": 2,
           "identifier_encoding": "halt",
           "errors": [
             {
@@ -507,7 +510,7 @@
         },
         {
           "component_name": "Revert",
-          "component_code": 2,
+          "component_code": 3,
           "identifier_encoding": "revert",
           "errors": [
             {
