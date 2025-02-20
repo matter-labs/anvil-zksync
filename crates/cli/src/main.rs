@@ -32,6 +32,8 @@ use tower_http::cors::AllowOrigin;
 use tracing_subscriber::filter::LevelFilter;
 use zksync_error::anvil_zksync::gen::{generic_error, to_domain};
 use zksync_error::anvil_zksync::AnvilZksyncError;
+use zksync_error::ICustomError;
+use zksync_telemetry::{get_telemetry, init_telemetry, TelemetryProps};
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
 use zksync_types::{L2BlockNumber, H160};
 
@@ -39,16 +41,29 @@ mod bytecode_override;
 mod cli;
 mod utils;
 
-#[tokio::main]
-async fn main() -> Result<(), AnvilZksyncError> {
+const POSTHOG_API_KEY: &str = "phc_TsD52JxwkT2OXPHA2oKX2Lc3mf30hItCBrE9s9g1MKe";
+const TELEMETRY_CONFIG_NAME: &str = "zksync-tooling";
+
+async fn start_program() -> Result<(), AnvilZksyncError> {
     // Check for deprecated options
     Cli::deprecated_config_option();
 
     let opt = Cli::parse();
     let command = opt.command.clone();
 
-    let mut config = opt.into_test_node_config().map_err(to_domain)?;
+    // Track node start
+    let telemetry = get_telemetry().expect("telemetry is not initialized");
+    let cli_telemetry_props = opt.clone().into_telemetry_props();
+    let _ = telemetry
+        .track_event(
+            "node_started",
+            TelemetryProps::new()
+                .insert("params", Some(cli_telemetry_props))
+                .take(),
+        )
+        .await;
 
+    let mut config = opt.into_test_node_config().map_err(to_domain)?;
     let log_level_filter = LevelFilter::from(config.log_level);
     let log_file = File::create(&config.log_file_path).map_err(to_domain)?;
 
@@ -281,7 +296,10 @@ async fn main() -> Result<(), AnvilZksyncError> {
     // during replay. Otherwise, replay would send commands and hang.
     tokio::spawn(async move {
         if let Err(err) = node_executor.run().await {
-            sh_err!("node executor ended with error: {:?}", err);
+            let error = err.context("Node executor ended with error");
+            sh_err!("{:?}", error);
+
+            let _ = telemetry.track_error(Box::new(error.as_ref())).await;
         }
     });
 
@@ -426,5 +444,26 @@ async fn main() -> Result<(), AnvilZksyncError> {
         }
     }
 
+    Ok(())
+}
+
+#[tokio::main]
+async fn main() -> Result<(), AnvilZksyncError> {
+    init_telemetry(
+        env!("CARGO_PKG_NAME"),
+        env!("CARGO_PKG_VERSION"),
+        TELEMETRY_CONFIG_NAME,
+        Some(POSTHOG_API_KEY.into()),
+        None,
+        None,
+    )
+    .await
+    .map_err(to_domain)?;
+
+    if let Err(err) = start_program().await {
+        let telemetry = get_telemetry().expect("telemetry is not initialized");
+        let _ = telemetry.track_error(Box::new(&err.to_unified())).await;
+        return Err(err);
+    }
     Ok(())
 }
