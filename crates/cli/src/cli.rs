@@ -561,6 +561,7 @@ impl Cli {
         Ok(config)
     }
 
+    /// Converts the CLI arguments to a `TelemetryProps` to be used as event props.
     pub fn into_telemetry_props(self) -> TelemetryProps {
         TelemetryProps::new()
             .insert("command", get_cli_command_telemetry_props(self.command))
