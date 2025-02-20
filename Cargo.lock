@@ -377,7 +377,7 @@ dependencies = [
  "lru",
  "parking_lot",
  "pin-project 1.1.7",
- "reqwest",
+ "reqwest 0.12.12",
  "schnellru",
  "serde",
  "serde_json",
@@ -444,7 +444,7 @@ dependencies = [
  "alloy-transport-ws",
  "futures 0.3.31",
  "pin-project 1.1.7",
- "reqwest",
+ "reqwest 0.12.12",
  "serde",
  "serde_json",
  "tokio",
@@ -646,7 +646,7 @@ dependencies = [
  "async-trait",
  "coins-ledger",
  "futures-util",
- "semver 1.0.23",
+ "semver 1.0.25",
  "thiserror 2.0.11",
  "tracing",
 ]
@@ -681,7 +681,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-signer",
  "async-trait",
- "semver 1.0.23",
+ "semver 1.0.25",
  "thiserror 2.0.11",
  "tracing",
  "trezor-client",
@@ -788,7 +788,7 @@ checksum = "6e1509599021330a31c4a6816b655e34bf67acb1cc03c564e09fd8754ff6c5de"
 dependencies = [
  "alloy-json-rpc",
  "alloy-transport",
- "reqwest",
+ "reqwest 0.12.12",
  "serde_json",
  "tower 0.5.2",
  "tracing",
@@ -1061,6 +1061,7 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "serde_json",
+ "serde_with",
  "tempdir",
  "tokio",
  "tower 0.4.13",
@@ -1069,6 +1070,7 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "zksync_error",
+ "zksync_telemetry",
  "zksync_types",
 ]
 
@@ -1093,15 +1095,18 @@ dependencies = [
  "anvil_zksync_l1_sidecar",
  "anvil_zksync_types",
  "anyhow",
+ "futures 0.3.31",
  "hex",
  "http 1.1.0",
  "jsonrpsee",
+ "serde_json",
  "thiserror 1.0.69",
  "tokio",
  "tower 0.4.13",
  "tower-http",
  "tracing",
  "zksync_error",
+ "zksync_telemetry",
  "zksync_types",
  "zksync_web3_decl",
 ]
@@ -1156,7 +1161,7 @@ dependencies = [
  "lazy_static",
  "maplit",
  "once_cell",
- "reqwest",
+ "reqwest 0.12.12",
  "rustc-hash 1.1.0",
  "serde",
  "serde_json",
@@ -1208,9 +1213,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.93"
+version = "1.0.95"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c95c10ba0b00a02636238b814946408b1322d5ac4760326e6fb8ec956d85775"
+checksum = "34ac096ce696dc2fcabef30516bb13c0a68a11d30131d3df6f04711467681b04"
 
 [[package]]
 name = "arbitrary"
@@ -1741,7 +1746,7 @@ dependencies = [
  "serde_path_to_error",
  "serde_urlencoded",
  "sha1",
- "sync_wrapper",
+ "sync_wrapper 1.0.2",
  "tokio",
  "tokio-tungstenite",
  "tower 0.5.2",
@@ -1765,7 +1770,7 @@ dependencies = [
  "mime",
  "pin-project-lite",
  "rustversion",
- "sync_wrapper",
+ "sync_wrapper 1.0.2",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -2080,7 +2085,7 @@ checksum = "2d886547e41f740c616ae73108f6eb70afe6d940c7bc697cb30f13daec073037"
 dependencies = [
  "camino",
  "cargo-platform",
- "semver 1.0.23",
+ "semver 1.0.25",
  "serde",
  "serde_json",
  "thiserror 1.0.69",
@@ -2147,8 +2152,10 @@ checksum = "a21f936df1771bf62b77f047b726c4625ff2e8aa607c01ec06e5a05bd8463401"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
+ "js-sys",
  "num-traits",
  "serde",
+ "wasm-bindgen",
  "windows-targets 0.52.6",
 ]
 
@@ -2789,6 +2796,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "575f75dfd25738df5b91b8e43e14d44bda14637a58fae779fd2b064f8bf3e010"
 
 [[package]]
+name = "debugid"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bef552e6f588e446098f6ba40d89ac146c8c7b64aade83c051ee00bb5d2bc18d"
+dependencies = [
+ "serde",
+ "uuid 1.11.0",
+]
+
+[[package]]
 name = "der"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2958,6 +2975,15 @@ dependencies = [
  "const-oid",
  "crypto-common",
  "subtle",
+]
+
+[[package]]
+name = "directories"
+version = "5.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a49173b84e034382284f27f1af4dcbbd231ffa358c0fe316541a7337f376a35"
+dependencies = [
+ "dirs-sys 0.4.1",
 ]
 
 [[package]]
@@ -3355,6 +3381,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "findshlibs"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "40b9e59cd0f7e0806cca4be089683ecb6434e602038df21fe6bf6711b2f07f64"
+dependencies = [
+ "cc",
+ "lazy_static",
+ "libc",
+ "winapi",
+]
+
+[[package]]
 name = "fixed-hash"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3461,8 +3499,8 @@ dependencies = [
  "alloy-json-abi",
  "alloy-primitives",
  "foundry-compilers",
- "reqwest",
- "semver 1.0.23",
+ "reqwest 0.12.12",
+ "semver 1.0.25",
  "serde",
  "serde_json",
  "thiserror 1.0.69",
@@ -3508,7 +3546,7 @@ dependencies = [
  "rand 0.8.5",
  "revm",
  "revm-inspectors",
- "semver 1.0.23",
+ "semver 1.0.25",
  "serde",
  "serde_json",
  "thiserror 2.0.11",
@@ -3603,8 +3641,8 @@ dependencies = [
  "foundry-config",
  "itertools 0.14.0",
  "num-format",
- "reqwest",
- "semver 1.0.23",
+ "reqwest 0.12.12",
+ "semver 1.0.25",
  "serde",
  "serde_json",
  "terminal_size",
@@ -3657,7 +3695,7 @@ dependencies = [
  "md-5",
  "path-slash",
  "rayon",
- "semver 1.0.23",
+ "semver 1.0.25",
  "serde",
  "serde_json",
  "sha2",
@@ -3694,7 +3732,7 @@ dependencies = [
  "md-5",
  "path-slash",
  "rayon",
- "semver 1.0.23",
+ "semver 1.0.25",
  "serde",
  "serde_json",
  "serde_repr",
@@ -3716,7 +3754,7 @@ dependencies = [
  "foundry-compilers-artifacts-solc",
  "foundry-compilers-core",
  "path-slash",
- "semver 1.0.23",
+ "semver 1.0.25",
  "serde",
 ]
 
@@ -3731,7 +3769,7 @@ dependencies = [
  "dunce",
  "path-slash",
  "regex",
- "semver 1.0.23",
+ "semver 1.0.25",
  "serde",
  "serde_json",
  "svm-rs",
@@ -3761,9 +3799,9 @@ dependencies = [
  "number_prefix",
  "path-slash",
  "regex",
- "reqwest",
+ "reqwest 0.12.12",
  "revm-primitives",
- "semver 1.0.23",
+ "semver 1.0.25",
  "serde",
  "serde_json",
  "serde_regex",
@@ -3883,7 +3921,7 @@ dependencies = [
  "foundry-evm-core",
  "rayon",
  "revm",
- "semver 1.0.23",
+ "semver 1.0.25",
  "tracing",
 ]
 
@@ -3972,7 +4010,7 @@ source = "git+https://github.com/foundry-rs/foundry?rev=v1.0.0#8692e926198056d02
 dependencies = [
  "alloy-primitives",
  "foundry-compilers",
- "semver 1.0.23",
+ "semver 1.0.25",
  "thiserror 2.0.11",
 ]
 
@@ -4170,7 +4208,7 @@ dependencies = [
  "once_cell",
  "prost",
  "prost-types",
- "reqwest",
+ "reqwest 0.12.12",
  "secret-vault-value",
  "serde",
  "serde_json",
@@ -4464,6 +4502,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "hostname"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f9c7c7c8ac16c798734b8a24560c1362120597c40d5e1459f09498f8f6c8f2ba"
+dependencies = [
+ "cfg-if",
+ "libc",
+ "windows",
+]
+
+[[package]]
 name = "http"
 version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4642,7 +4691,7 @@ dependencies = [
  "tokio",
  "tokio-rustls 0.26.0",
  "tower-service",
- "webpki-roots",
+ "webpki-roots 0.26.7",
 ]
 
 [[package]]
@@ -5912,9 +5961,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.20.2"
+version = "1.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1261fe7e33c73b354eab43b1273a57c8f967d0391e80353e51f764ac02cf6775"
+checksum = "945462a4b81e43c4e3ba96bd7b49d834c6f61198356aa858733bc4acf3cbe62e"
 
 [[package]]
 name = "openssl"
@@ -5965,6 +6014,17 @@ name = "option-ext"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
+
+[[package]]
+name = "os_info"
+version = "3.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2a604e53c24761286860eba4e2c8b23a0161526476b1de520139d69cdb85a6b5"
+dependencies = [
+ "log",
+ "serde",
+ "windows-sys 0.52.0",
+]
 
 [[package]]
 name = "outref"
@@ -6334,6 +6394,21 @@ name = "portable-atomic"
 version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "280dc24453071f1b63954171985a0b0d30058d287960968b9b2aca264c8d4ee6"
+
+[[package]]
+name = "posthog-rs"
+version = "0.3.0"
+source = "git+https://github.com/Romsters/posthog-rs?rev=a54b1423100beaaa5d7eb43ff801f4b8389f9550#a54b1423100beaaa5d7eb43ff801f4b8389f9550"
+dependencies = [
+ "chrono",
+ "derive_builder",
+ "os_info",
+ "reqwest 0.11.27",
+ "semver 1.0.25",
+ "serde",
+ "serde_json",
+ "uuid 1.11.0",
+]
 
 [[package]]
 name = "powerfmt"
@@ -6921,6 +6996,47 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
+version = "0.11.27"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dd67538700a17451e7cba03ac727fb961abb7607553461627b97de0b89cf4a62"
+dependencies = [
+ "base64 0.21.7",
+ "bytes",
+ "encoding_rs",
+ "futures-core",
+ "futures-util",
+ "h2 0.3.26",
+ "http 0.2.12",
+ "http-body 0.4.6",
+ "hyper 0.14.31",
+ "hyper-rustls 0.24.2",
+ "ipnet",
+ "js-sys",
+ "log",
+ "mime",
+ "once_cell",
+ "percent-encoding",
+ "pin-project-lite",
+ "rustls 0.21.12",
+ "rustls-pemfile 1.0.4",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "sync_wrapper 0.1.2",
+ "system-configuration 0.5.1",
+ "tokio",
+ "tokio-rustls 0.24.1",
+ "tower-service",
+ "url",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "webpki-roots 0.25.4",
+ "winreg",
+]
+
+[[package]]
+name = "reqwest"
 version = "0.12.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "43e734407157c3c2034e0258f5e4473ddb361b1e85f95a66690d67264d7cd1da"
@@ -6957,8 +7073,8 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_urlencoded",
- "sync_wrapper",
- "system-configuration",
+ "sync_wrapper 1.0.2",
+ "system-configuration 0.6.1",
  "tokio",
  "tokio-native-tls",
  "tokio-rustls 0.26.0",
@@ -6971,7 +7087,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "wasm-streams",
  "web-sys",
- "webpki-roots",
+ "webpki-roots 0.26.7",
  "windows-registry",
 ]
 
@@ -7224,7 +7340,7 @@ version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cfcb3a22ef46e85b45de6ee7e79d063319ebb6594faafcf1c225ea92ab6e9b92"
 dependencies = [
- "semver 1.0.23",
+ "semver 1.0.25",
 ]
 
 [[package]]
@@ -7362,7 +7478,7 @@ dependencies = [
  "rustls-webpki 0.102.8",
  "security-framework 2.11.1",
  "security-framework-sys",
- "webpki-roots",
+ "webpki-roots 0.26.7",
  "winapi",
 ]
 
@@ -7640,9 +7756,9 @@ dependencies = [
 
 [[package]]
 name = "semver"
-version = "1.0.23"
+version = "1.0.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61697e0a1c7e512e84a621326239844a24d8207b4669b41bc18b32ea5cbf988b"
+checksum = "f79dfe2d285b0488816f30e700a7438c5a73d816b5b7d3ac72fbc48b0d185e03"
 dependencies = [
  "serde",
 ]
@@ -7667,6 +7783,114 @@ name = "send_wrapper"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cd0b0ec5f1c1ca621c432a25813d8d60c88abe6d3e08a3eb9cf37d97a0fe3d73"
+
+[[package]]
+name = "sentry"
+version = "0.35.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "016958f51b96861dead7c1e02290f138411d05e94fad175c8636a835dee6e51e"
+dependencies = [
+ "httpdate",
+ "native-tls",
+ "reqwest 0.12.12",
+ "sentry-backtrace",
+ "sentry-contexts",
+ "sentry-core",
+ "sentry-debug-images",
+ "sentry-panic",
+ "sentry-tracing",
+ "tokio",
+ "ureq",
+]
+
+[[package]]
+name = "sentry-backtrace"
+version = "0.35.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e57712c24e99252ef175b4b06c485294f10ad6bc5b5e1567ff3803ee7a0b7d3f"
+dependencies = [
+ "backtrace",
+ "once_cell",
+ "regex",
+ "sentry-core",
+]
+
+[[package]]
+name = "sentry-contexts"
+version = "0.35.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eba8754ec3b9279e00aa6d64916f211d44202370a1699afde1db2c16cbada089"
+dependencies = [
+ "hostname",
+ "libc",
+ "os_info",
+ "rustc_version 0.4.1",
+ "sentry-core",
+ "uname",
+]
+
+[[package]]
+name = "sentry-core"
+version = "0.35.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f9f8b6dcd4fbae1e3e22b447f32670360b27e31b62ab040f7fb04e0f80c04d92"
+dependencies = [
+ "once_cell",
+ "rand 0.8.5",
+ "sentry-types",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "sentry-debug-images"
+version = "0.35.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8982a69133d3f5e4efdbfa0776937fca43c3a2e275a8fe184f50b1b0aa92e07c"
+dependencies = [
+ "findshlibs",
+ "once_cell",
+ "sentry-core",
+]
+
+[[package]]
+name = "sentry-panic"
+version = "0.35.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "de296dae6f01e931b65071ee5fe28d66a27909857f744018f107ed15fd1f6b25"
+dependencies = [
+ "sentry-backtrace",
+ "sentry-core",
+]
+
+[[package]]
+name = "sentry-tracing"
+version = "0.35.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "263f73c757ed7915d3e1e34625eae18cad498a95b4261603d4ce3f87b159a6f0"
+dependencies = [
+ "sentry-backtrace",
+ "sentry-core",
+ "tracing-core",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "sentry-types"
+version = "0.35.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a71ed3a389948a6a6d92b98e997a2723ca22f09660c5a7b7388ecd509a70a527"
+dependencies = [
+ "debugid",
+ "hex",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "time",
+ "url",
+ "uuid 1.11.0",
+]
 
 [[package]]
 name = "serde"
@@ -8037,7 +8261,7 @@ dependencies = [
  "either",
  "num-bigint",
  "num-rational",
- "semver 1.0.23",
+ "semver 1.0.25",
  "solar-data-structures",
  "solar-interface",
  "solar-macros",
@@ -8241,8 +8465,8 @@ dependencies = [
  "const-hex",
  "dirs 5.0.1",
  "fs4",
- "reqwest",
- "semver 1.0.23",
+ "reqwest 0.12.12",
+ "semver 1.0.25",
  "serde",
  "serde_json",
  "sha2",
@@ -8260,7 +8484,7 @@ checksum = "074faea21171905847a96135b3896e2e0b74373758ca07b96a41c646cc04a8e5"
 dependencies = [
  "build_const",
  "const-hex",
- "semver 1.0.23",
+ "semver 1.0.25",
  "serde_json",
  "svm-rs",
 ]
@@ -8301,6 +8525,12 @@ dependencies = [
 
 [[package]]
 name = "sync_wrapper"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2047c6ded9c721764247e62cd3b03c09ffc529b2ba5b10ec482ae507a4a70160"
+
+[[package]]
+name = "sync_wrapper"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0bf256ce5efdfa370213c1dabab5935a12e49f2c58d15e9eac2870d3b4f27263"
@@ -8321,13 +8551,34 @@ dependencies = [
 
 [[package]]
 name = "system-configuration"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba3a3adc5c275d719af8cb4272ea1c4a6d668a777f37e115f6d11ddbc1c8e0e7"
+dependencies = [
+ "bitflags 1.3.2",
+ "core-foundation 0.9.4",
+ "system-configuration-sys 0.5.0",
+]
+
+[[package]]
+name = "system-configuration"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c879d448e9d986b661742763247d3693ed13609438cf3d006f51f5368a5ba6b"
 dependencies = [
  "bitflags 2.6.0",
  "core-foundation 0.9.4",
- "system-configuration-sys",
+ "system-configuration-sys 0.6.0",
+]
+
+[[package]]
+name = "system-configuration-sys"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a75fb188eb626b924683e3b95e3a48e63551fcfb51949de2f06a9d91dbee93c9"
+dependencies = [
+ "core-foundation-sys",
+ "libc",
 ]
 
 [[package]]
@@ -8698,7 +8949,7 @@ dependencies = [
  "tokio",
  "tokio-rustls 0.26.0",
  "tungstenite",
- "webpki-roots",
+ "webpki-roots 0.26.7",
 ]
 
 [[package]]
@@ -8803,7 +9054,7 @@ dependencies = [
  "home",
  "once_cell",
  "regex",
- "semver 1.0.23",
+ "semver 1.0.25",
  "walkdir",
 ]
 
@@ -8836,7 +9087,7 @@ dependencies = [
  "futures-core",
  "futures-util",
  "pin-project-lite",
- "sync_wrapper",
+ "sync_wrapper 1.0.2",
  "tokio",
  "tower-layer",
  "tower-service",
@@ -9040,6 +9291,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "uname"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b72f89f0ca32e4db1c04e2a72f5345d59796d4866a1ee0609084569f73683dc8"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "unarray"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9164,6 +9424,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
 
 [[package]]
+name = "ureq"
+version = "2.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "02d1a66277ed75f640d608235660df48c8e3c19f3b4edb6a263315626cc3c01d"
+dependencies = [
+ "base64 0.22.1",
+ "log",
+ "native-tls",
+ "once_cell",
+ "url",
+]
+
+[[package]]
 name = "url"
 version = "2.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9214,6 +9487,10 @@ name = "uuid"
 version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8c5f0a0af699448548ad1a2fbf920fb4bee257eae39953ba95cb84891a0446a"
+dependencies = [
+ "getrandom 0.2.15",
+ "serde",
+]
 
 [[package]]
 name = "valuable"
@@ -9442,6 +9719,12 @@ dependencies = [
 
 [[package]]
 name = "webpki-roots"
+version = "0.25.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5f20c57d8d7db6d3b86154206ae5d8fba62dd39573114de97c2cb0578251f8e1"
+
+[[package]]
+name = "webpki-roots"
 version = "0.26.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d642ff16b7e79272ae451b7322067cdc17cadf68c23264be9d94a32319efe7e"
@@ -9497,6 +9780,16 @@ name = "winapi-x86_64-pc-windows-gnu"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
+
+[[package]]
+name = "windows"
+version = "0.52.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e48a53791691ab099e5e2ad123536d0fff50652600abaf43bbf952894110d0be"
+dependencies = [
+ "windows-core",
+ "windows-targets 0.52.6",
+]
 
 [[package]]
 name = "windows-core"
@@ -9710,6 +10003,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "59690dea168f2198d1a3b0cac23b8063efcd11012f10ae4698f284808c8ef603"
 dependencies = [
  "memchr",
+]
+
+[[package]]
+name = "winreg"
+version = "0.50.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "524e57b2c537c0f9b1e69f1965311ec12182b4122e45035b1508cd24d2adadb1"
+dependencies = [
+ "cfg-if",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -10075,7 +10378,7 @@ dependencies = [
  "maplit",
  "proc-macro2",
  "quote",
- "reqwest",
+ "reqwest 0.12.12",
  "rustfmt-wrapper",
  "serde",
  "serde_json",
@@ -10341,6 +10644,23 @@ source = "git+https://github.com/matter-labs/zksync-era?tag=core-v26.4.0#5da5be9
 dependencies = [
  "once_cell",
  "zksync_basic_types",
+]
+
+[[package]]
+name = "zksync_telemetry"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/zksync-telemetry.git?branch=refactoring#823974532d8001d066cf3e0dc2a5509136df1e56"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "directories",
+ "once_cell",
+ "posthog-rs",
+ "sentry",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.11",
+ "uuid 1.11.0",
 ]
 
 [[package]]
