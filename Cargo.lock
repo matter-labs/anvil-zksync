@@ -10396,20 +10396,20 @@ dependencies = [
 [[package]]
 name = "zksync-error-description"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-error?branch=main#cee7b799ede3d0af742f47c618a6e328aac0e21a"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "zksync-error-description"
-version = "0.1.0"
 source = "git+https://github.com/matter-labs/zksync-error?rev=626df69#626df691838d6cc251d11f656a58348fcea1de04"
 dependencies = [
  "serde",
  "serde_json",
  "zksync-error-model",
+]
+
+[[package]]
+name = "zksync-error-description"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/zksync-error?rev=cee7b79#cee7b799ede3d0af742f47c618a6e328aac0e21a"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -10556,7 +10556,7 @@ dependencies = [
  "serde_json",
  "strum",
  "strum_macros",
- "zksync-error-description 0.1.0 (git+https://github.com/matter-labs/zksync-error?branch=main)",
+ "zksync-error-description 0.1.0 (git+https://github.com/matter-labs/zksync-error?rev=cee7b79)",
 ]
 
 [[package]]
