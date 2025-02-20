@@ -1,0 +1,13 @@
+[package]
+name = "zksync_error"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow.workspace = true
+lazy_static.workspace = true
+serde = { workspace = true, features = [ "rc" ] }
+serde_json.workspace = true
+strum.workspace = true
+strum_macros.workspace = true
+zksync-error-description = { git = "https://github.com/matter-labs/zksync-error", branch = "main"}

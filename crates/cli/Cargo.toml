@@ -16,6 +16,8 @@ anvil_zksync_config.workspace = true
 anvil_zksync_core.workspace = true
 anvil_zksync_l1_sidecar.workspace = true
 anvil_zksync_types.workspace = true
+zksync_error.workspace = true
+
 anvil_zksync_common.workspace = true
 
 zksync_types.workspace = true

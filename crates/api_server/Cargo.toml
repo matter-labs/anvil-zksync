@@ -19,6 +19,7 @@ anvil_zksync_common.workspace = true
 
 zksync_types.workspace = true
 zksync_web3_decl.workspace = true
+zksync_error.workspace = true
 zksync_telemetry.workspace = true
 
 anyhow.workspace = true
