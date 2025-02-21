@@ -2,7 +2,7 @@ use crate::utils::{
     get_cli_command_telemetry_props, parse_genesis_file, TELEMETRY_SENSITIVE_VALUE,
 };
 use alloy::signers::local::coins_bip39::{English, Mnemonic};
-use anvil_zksync_common::{sh_eprintln, sh_err};
+use anvil_zksync_common::{sh_err, sh_warn};
 use anvil_zksync_config::constants::{
     DEFAULT_DISK_CACHE_DIR, DEFAULT_MNEMONIC, TEST_NODE_NETWORK_ID,
 };
@@ -19,10 +19,11 @@ use anvil_zksync_types::{
     LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails, TransactionOrder,
 };
 use anyhow::Result;
-use clap::{arg, command, Parser, Subcommand};
+use clap::{arg, command, ArgAction, Parser, Subcommand};
 use flate2::read::GzDecoder;
 use futures::FutureExt;
 use rand::{rngs::StdRng, SeedableRng};
+use std::collections::HashMap;
 use std::env;
 use std::io::Read;
 use std::net::IpAddr;
@@ -141,6 +142,16 @@ pub struct Cli {
     /// If true, the tool will try to resolve ABI and topic names for better readability.
     /// May decrease performance.
     pub resolve_hashes: Option<bool>,
+
+    /// Increments verbosity each time it is used. (-vv, -vvv)
+    ///
+    /// Example usage:
+    ///   - `-vv` => verbosity level 2 (includes user calls and event calls)
+    ///   - `-vvv` => level 3 (includes system calls, system event calls)
+    ///   - `-vvvv` => level 4 (includes system calls, system event calls, and precompiles)
+    ///   - `-vvvvv` => level 5 (includes everything)
+    #[arg(short = 'v', long = "verbosity", action = ArgAction::Count, help_heading = "Debugging Options")]
+    pub verbosity: u8,
 
     // Gas Configuration
     #[arg(long, help_heading = "Gas Configuration")]
@@ -471,13 +482,80 @@ pub struct ReplayArgs {
 impl Cli {
     /// Checks for deprecated options and warns users.
     pub fn deprecated_config_option() {
-        if env::args().any(|arg| arg == "--config" || arg.starts_with("--config=")) {
-            sh_eprintln!(
-                "Warning: The '--config' option has been removed. \
-                Please migrate to using other configuration options or defaults."
-            );
+        let args: Vec<String> = env::args().collect();
+
+        let deprecated_flags: HashMap<&str, &str> = [
+        ("--config", 
+            "⚠ The '--config' option has been removed. Please migrate to using other configuration options or defaults."),
+
+        ("--show-calls", 
+            "⚠ The '--show-calls' option is deprecated. Use verbosity levels instead:\n\
+             -vv  → Show user calls\n\
+             -vvv → Show system calls"),
+
+        ("--show-event-logs", 
+            "⚠ The '--show-event-logs' option is deprecated. Event logs are now included in traces by default.\n\
+             Use verbosity levels instead:\n\
+             -vv  → Show user calls\n\
+             -vvv → Show system calls"),
+
+        ("--resolve-hashes", 
+            "⚠ The '--resolve-hashes' option is deprecated. Automatic decoding of function and event selectors\n\
+             using OpenChain is now enabled by default, unless running in offline mode.\n\
+             If needed, disable it explicitly with `--offline`."),
+
+        ("--show-outputs", 
+            "⚠ The '--show-outputs' option has been deprecated. Output logs are now included in traces by default."),
+
+        ("--debug", 
+            "⚠ The '--debug' (or '-d') option is deprecated. Use verbosity levels instead:\n\
+             -vv  → Show user calls\n\
+             -vvv → Show system calls"),
+
+        ("-d", 
+            "⚠ The '-d' option is deprecated. Use verbosity levels instead:\n\
+             -vv  → Show user calls\n\
+             -vvv → Show system calls"),
+    ]
+    .iter()
+    .copied()
+    .collect();
+
+        // Prefix flags that may have values assigned (e.g., --show-calls=system)
+        let prefix_flags = [
+            "--config=",
+            "--show-calls=",
+            "--resolve-hashes=",
+            "--show-outputs=",
+            "--show-event-logs=",
+        ];
+
+        let mut detected = false;
+
+        for arg in &args {
+            if let Some(warning) = deprecated_flags.get(arg.as_str()) {
+                if !detected {
+                    sh_warn!("⚠ Deprecated CLI Options Detected (as of v0.3.1):\n");
+                    sh_warn!("[Options below will be removed in v0.4.0]\n");
+                    detected = true;
+                }
+                sh_warn!("{}", warning);
+            } else if let Some(base_flag) =
+                prefix_flags.iter().find(|&&prefix| arg.starts_with(prefix))
+            {
+                let warning = deprecated_flags
+                    .get(base_flag.trim_end_matches("="))
+                    .unwrap_or(&"⚠ Unknown deprecated option.");
+                if !detected {
+                    sh_warn!("⚠ Deprecated CLI Options Detected (as of v0.3.1):\n");
+                    sh_warn!("[Options below will be removed in v0.4.0]\n");
+                    detected = true;
+                }
+                sh_warn!("{}", warning);
+            }
         }
     }
+
     /// Converts the CLI arguments to a `TestNodeConfig`.
     pub fn into_test_node_config(self) -> eyre::Result<TestNodeConfig> {
         let genesis_balance = U256::from(self.balance as u128 * 10u128.pow(18));
@@ -500,7 +578,7 @@ impl Cli {
             .with_resolve_hashes(self.resolve_hashes)
             .with_gas_limit_scale(self.limit_scale_factor)
             .with_price_scale(self.price_scale_factor)
-            .with_resolve_hashes(self.resolve_hashes)
+            .with_verbosity_level(self.verbosity)
             .with_show_node_config(self.show_node_config)
             .with_silent(self.silent)
             .with_system_contracts(self.dev_system_contracts)

@@ -1143,6 +1143,7 @@ name = "anvil_zksync_core"
 version = "0.3.1"
 dependencies = [
  "alloy",
+ "anstyle",
  "anvil_zksync_common",
  "anvil_zksync_config",
  "anvil_zksync_types",
@@ -1150,7 +1151,9 @@ dependencies = [
  "async-trait",
  "backon",
  "chrono",
+ "colorchoice",
  "colored",
+ "derive_more 1.0.0",
  "eyre",
  "flate2",
  "futures 0.3.31",

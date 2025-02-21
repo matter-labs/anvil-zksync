@@ -85,6 +85,7 @@ tracing-subscriber = { version = "0.3", features = [
     "local-time",
 ] }
 url = "2.5.4"
+colorchoice = "1.0"
 anstream = "0.6.18"
 anstyle = "1.0.10"
 
@@ -112,3 +113,6 @@ zksync_error = { path = "crates/zksync_error" }
 #########################
 zksync-error-codegen = { git = "https://github.com/matter-labs/zksync-error", rev = "626df69" }
 anvil_zksync_common = { path = "crates/common" }
+
+# macros
+derive_more = { version = "1.0", features = ["full"] }
