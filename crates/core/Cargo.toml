@@ -18,6 +18,7 @@ zksync_multivm.workspace = true
 zksync_contracts.workspace = true
 zksync_types.workspace = true
 zksync_web3_decl.workspace = true
+zksync_error.workspace = true
 
 anyhow.workspace = true
 tokio.workspace = true
@@ -26,7 +27,7 @@ once_cell.workspace = true
 
 alloy = { workspace = true, default-features = false, features = ["json-abi", "dyn-abi", "sol-types", "eip712"] }
 
-reqwest.workspace = true
+reqwest = { workspace = true, default-features = false, features = ["rustls-tls", "rustls-tls-native-roots"] }
 serde.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
@@ -59,3 +60,6 @@ backon.workspace = true
 [features]
 serde = []
 arbitrary = []
+
+[build-dependencies]
+zksync-error-codegen.workspace = true

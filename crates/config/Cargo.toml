@@ -16,6 +16,7 @@ anvil_zksync_common.workspace = true
 
 zksync_types.workspace = true
 zksync_vm_interface.workspace = true
+zksync_error.workspace = true
 
 alloy = { workspace = true, default-features = false, features = ["signer-mnemonic"] }
 

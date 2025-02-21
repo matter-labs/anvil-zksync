@@ -19,8 +19,11 @@ anvil_zksync_common.workspace = true
 
 zksync_types.workspace = true
 zksync_web3_decl.workspace = true
+zksync_error.workspace = true
+zksync_telemetry.workspace = true
 
 anyhow.workspace = true
+futures.workspace = true
 hex.workspace = true
 http.workspace = true
 jsonrpsee.workspace = true
@@ -29,3 +32,4 @@ tokio.workspace = true
 tower.workspace = true
 tower-http.workspace = true
 tracing.workspace = true
+serde_json.workspace = true

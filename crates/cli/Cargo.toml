@@ -16,11 +16,13 @@ anvil_zksync_config.workspace = true
 anvil_zksync_core.workspace = true
 anvil_zksync_l1_sidecar.workspace = true
 anvil_zksync_types.workspace = true
+zksync_error.workspace = true
+
 anvil_zksync_common.workspace = true
 
 zksync_types.workspace = true
-
-alloy = { workspace = true, default-features = false, features = ["signer-mnemonic", "reqwest"] }
+zksync_telemetry.workspace = true
+alloy = { workspace = true, default-features = false, features = ["signer-mnemonic", "reqwest-rustls-tls"] }
 anyhow.workspace = true
 clap.workspace = true
 eyre.workspace = true
@@ -30,6 +32,7 @@ futures.workspace = true
 rand.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+serde_with.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
