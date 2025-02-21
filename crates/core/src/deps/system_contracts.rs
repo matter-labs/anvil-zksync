@@ -14,6 +14,12 @@ use zksync_types::{
 };
 use zksync_types::{AccountTreeId, Address, H160};
 
+/// The `modEXP` system contract address.
+pub const MODEXP_PRECOMPILE_ADDRESS: Address = H160([
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x05,
+]);
+
 /// The `ecAdd` system contract address.
 pub const ECADD_PRECOMPILE_ADDRESS: Address = H160([
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -143,6 +149,11 @@ pub static COMPILED_IN_SYSTEM_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new
             "EventWriter",
             EVENT_WRITER_ADDRESS,
             include_bytes!("contracts/EventWriter.yul.zbin").to_vec(),
+        ),
+        (
+            "Modexp",
+            MODEXP_PRECOMPILE_ADDRESS,
+            include_bytes!("contracts/Modexp.yul.zbin").to_vec(),
         ),
         (
             "EcAdd",
