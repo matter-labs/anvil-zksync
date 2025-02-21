@@ -38,6 +38,16 @@ zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era.git", rev 
     "server",
 ] }
 
+#zksync_multivm = { path = "../era-for-anvil/core/lib/multivm"}
+#zksync_types = { path = "../era-for-anvil/core/lib/types"}
+#zksync_contracts = { path = "../era-for-anvil/core/lib/contracts"}
+#zksync_vm_interface = { path = "../era-for-anvil/core/lib/vm_interface"}
+#zksync_web3_decl = { path = "../era-for-anvil/core/lib/web3_decl", features = [
+#    "server",
+#] }
+
+
+
 #########################
 # External dependencies #
 #########################
@@ -94,3 +104,8 @@ anvil_zksync_api_server = { path = "crates/api_server" }
 anvil_zksync_config = { path = "crates/config" }
 anvil_zksync_core = { path = "crates/core" }
 anvil_zksync_types = { path = "crates/types" }
+
+
+#[patch.crates-io]
+#zk_evm_abstractions = { path = "../zksync-protocol/crates/zk_evm_abstractions" }
+#zksync_multivm = { path = "../era-for-anvil/core/lib/multivm"}
