@@ -472,44 +472,27 @@ impl InMemoryNodeInner {
             call_traces,
         } = self.run_l2_tx_raw(l2_tx.clone(), vm)?;
 
-        match result.result {
-            ExecutionResult::Halt { reason } => {
-                let reason_clone = reason.clone();
+        if let ExecutionResult::Halt { reason } = result.result {
+            let reason_clone = reason.clone();
 
-                let halt_error = tokio::runtime::Handle::current().block_on(async {
-                    tokio::task::spawn_blocking(move || {
-                        tokio::runtime::Handle::current()
-                            .block_on(async { reason_clone.to_halt_error().await })
-                    })
-                    .await
-                    .expect("spawn_blocking failed")
-                });
+            let halt_error = tokio::runtime::Handle::current().block_on(async {
+                tokio::task::spawn_blocking(move || {
+                    tokio::runtime::Handle::current()
+                        .block_on(async { reason_clone.to_halt_error().await })
+                })
+                .await
+                .expect("spawn_blocking failed")
+            });
 
-                print_execution_error(&halt_error, Some(&l2_tx));
+            print_execution_error(&halt_error, Some(&l2_tx));
 
-                // Halt means that something went really bad with the transaction execution
-                // (in most cases invalid signature, but it could also be bootloader panic etc).
-                // In such cases, we should not persist the VM data and should pretend that
-                // the transaction never existed.
-                // We do not print the error here, as it was already printed above.
-                anyhow::bail!("Transaction halted due to critical error");
-            }
-            ExecutionResult::Revert { ref output } => {
-                let output_clone = output.clone();
-
-                let revert_error = tokio::runtime::Handle::current().block_on(async {
-                    tokio::task::spawn_blocking(move || {
-                        tokio::runtime::Handle::current()
-                            .block_on(async { output_clone.to_revert_reason().await })
-                    })
-                    .await
-                    .expect("spawn_blocking failed")
-                });
-
-                print_execution_error(&revert_error, Some(&l2_tx));
-            }
-            _ => {}
-        };
+            // Halt means that something went really bad with the transaction execution
+            // (in most cases invalid signature, but it could also be bootloader panic etc).
+            // In such cases, we should not persist the VM data and should pretend that
+            // the transaction never existed.
+            // We do not print the error here, as it was already printed above.
+            anyhow::bail!("Transaction halted due to critical error");
+        }
 
         // Write all the factory deps.
         for (hash, code) in bytecodes {
