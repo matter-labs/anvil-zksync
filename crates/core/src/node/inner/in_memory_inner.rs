@@ -477,8 +477,9 @@ impl InMemoryNodeInner {
 
             let halt_error = tokio::runtime::Handle::current().block_on(async {
                 tokio::task::spawn_blocking(move || {
-                    tokio::runtime::Handle::current()
-                        .block_on(async { reason_clone.to_halt_error().await })
+                    tokio::task::block_in_place(|| {
+                        futures::executor::block_on(reason_clone.to_halt_error())
+                    })
                 })
                 .await
                 .expect("spawn_blocking failed")
