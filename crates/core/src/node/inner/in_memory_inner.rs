@@ -475,8 +475,17 @@ impl InMemoryNodeInner {
         if let ExecutionResult::Halt { reason } = result.result {
             let reason_clone = reason.clone();
 
-            let halt_error = tokio::task::block_in_place(|| {
-                futures::executor::block_on(reason_clone.to_halt_error())
+            let halt_error = tokio::runtime::Handle::current().block_on(async {
+                tokio::task::spawn_blocking(move || {
+                    // Create a new multi-threaded runtime explicitly.
+                    let rt = tokio::runtime::Builder::new_multi_thread()
+                        .enable_all()
+                        .build()
+                        .expect("Failed to create multi-threaded runtime");
+                    rt.block_on(reason_clone.to_halt_error())
+                })
+                .await
+                .expect("spawn_blocking failed")
             });
 
             print_execution_error(&halt_error, Some(&l2_tx));
