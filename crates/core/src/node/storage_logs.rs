@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::formatter::{self, PubdataBytesInfo};
 
+use anvil_zksync_common::sh_println;
 use anvil_zksync_types::ShowStorageLogs;
 use zksync_multivm::interface::VmExecutionResultAndLogs;
 use zksync_types::h256_to_u256;
@@ -62,8 +63,8 @@ pub fn print_storage_logs_details(
     show_storage_logs: ShowStorageLogs,
     result: &VmExecutionResultAndLogs,
 ) {
-    tracing::info!("");
-    tracing::info!(
+    sh_println!("\n");
+    sh_println!(
         "[Storage Logs] ({} entries)",
         result.logs.storage_logs.len()
     );

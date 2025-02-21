@@ -1,5 +1,12 @@
 name: Build and push Docker image
 
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+  attestations: write
+  packages: write
+
 on:
   workflow_dispatch:
     inputs:

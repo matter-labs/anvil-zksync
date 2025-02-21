@@ -1,12 +1,15 @@
-use crate::utils::parse_genesis_file;
+use crate::utils::{
+    get_cli_command_telemetry_props, parse_genesis_file, TELEMETRY_SENSITIVE_VALUE,
+};
 use alloy::signers::local::coins_bip39::{English, Mnemonic};
+use anvil_zksync_common::{sh_eprintln, sh_err};
 use anvil_zksync_config::constants::{
     DEFAULT_DISK_CACHE_DIR, DEFAULT_MNEMONIC, TEST_NODE_NETWORK_ID,
 };
 use anvil_zksync_config::types::{
     AccountGenerator, CacheConfig, CacheType, Genesis, SystemContractsOptions,
 };
-use anvil_zksync_config::TestNodeConfig;
+use anvil_zksync_config::{L1Config, TestNodeConfig};
 use anvil_zksync_core::node::fork::ForkConfig;
 use anvil_zksync_core::{
     node::{InMemoryNode, VersionedState},
@@ -33,7 +36,15 @@ use std::{
 };
 use tokio::time::{Instant, Interval};
 use url::Url;
+use zksync_telemetry::TelemetryProps;
 use zksync_types::{H256, U256};
+
+const DEFAULT_PORT: &str = "8011";
+const DEFAULT_HOST: &str = "0.0.0.0";
+const DEFAULT_ACCOUNTS: &str = "10";
+const DEFAULT_BALANCE: &str = "10000";
+const DEFAULT_ALLOW_ORIGIN: &str = "*";
+const DEFAULT_TX_ORDER: &str = "fifo";
 
 #[derive(Debug, Parser, Clone)]
 #[command(
@@ -61,7 +72,7 @@ pub struct Cli {
     #[arg(long, value_name = "OUT_FILE", help_heading = "General Options")]
     pub config_out: Option<String>,
 
-    #[arg(long, default_value = "8011", help_heading = "Network Options")]
+    #[arg(long, default_value = DEFAULT_PORT, help_heading = "Network Options")]
     /// Port to listen on (default: 8011).
     pub port: Option<u16>,
 
@@ -70,7 +81,7 @@ pub struct Cli {
         long,
         value_name = "IP_ADDR",
         env = "ANVIL_ZKSYNC_IP_ADDR",
-        default_value = "0.0.0.0",
+        default_value = DEFAULT_HOST,
         value_delimiter = ',',
         help_heading = "Network Options"
     )]
@@ -199,7 +210,7 @@ pub struct Cli {
     #[arg(
         long,
         short,
-        default_value = "10",
+        default_value = DEFAULT_ACCOUNTS,
         value_name = "NUM",
         help_heading = "Account Configuration"
     )]
@@ -208,7 +219,7 @@ pub struct Cli {
     /// The balance of every dev account in Ether.
     #[arg(
         long,
-        default_value = "10000",
+        default_value = DEFAULT_BALANCE,
         value_name = "NUM",
         help_heading = "Account Configuration"
     )]
@@ -305,7 +316,7 @@ pub struct Cli {
     pub no_mining: bool,
 
     /// The cors `allow_origin` header
-    #[arg(long, default_value = "*", help_heading = "Server options")]
+    #[arg(long, default_value = DEFAULT_ALLOW_ORIGIN, help_heading = "Server options")]
     pub allow_origin: String,
 
     /// Disable CORS.
@@ -313,8 +324,16 @@ pub struct Cli {
     pub no_cors: bool,
 
     /// Transaction ordering in the mempool.
-    #[arg(long, default_value = "fifo")]
+    #[arg(long, default_value = DEFAULT_TX_ORDER)]
     pub order: TransactionOrder,
+
+    /// Enable L1 support.
+    #[arg(long, help_heading = "UNSTABLE - L1")]
+    pub with_l1: bool,
+
+    /// Port the spawned L1 anvil node will listen on.
+    #[arg(long, requires = "with_l1", help_heading = "UNSTABLE - L1")]
+    pub l1_port: Option<u16>,
 }
 
 #[derive(Debug, Subcommand, Clone)]
@@ -337,11 +356,13 @@ pub struct ForkArgs {
     /// If set - will try to fork a remote network. Possible values:
     ///  - mainnet
     ///  - sepolia-testnet
+    ///  - abstract (mainnet)
+    ///  - abstract-testnet
     ///  - http://XXX:YY
     #[arg(
         long,
         alias = "network",
-        help = "Network to fork from (e.g., http://XXX:YY, mainnet, sepolia-testnet)."
+        help = "Network to fork from (e.g., http://XXX:YY, mainnet, sepolia-testnet, abstract, abstract-testnet)."
     )]
     pub fork_url: ForkUrl,
     // Fork at a given L2 miniblock height.
@@ -370,23 +391,37 @@ pub struct ForkArgs {
 pub enum ForkUrl {
     Mainnet,
     SepoliaTestnet,
+    AbstractMainnet,
+    AbstractTestnet,
     Other(Url),
 }
 
 impl ForkUrl {
     const MAINNET_URL: &'static str = "https://mainnet.era.zksync.io:443";
     const SEPOLIA_TESTNET_URL: &'static str = "https://sepolia.era.zksync.dev:443";
+    const ABSTRACT_MAINNET_URL: &'static str = "https://api.mainnet.abs.xyz";
+    const ABSTRACT_TESTNET_URL: &'static str = "https://api.testnet.abs.xyz";
 
     pub fn to_config(&self) -> ForkConfig {
         match self {
             ForkUrl::Mainnet => ForkConfig {
                 url: Self::MAINNET_URL.parse().unwrap(),
                 estimate_gas_price_scale_factor: 1.5,
-                estimate_gas_scale_factor: 1.4,
+                estimate_gas_scale_factor: 1.3,
             },
             ForkUrl::SepoliaTestnet => ForkConfig {
                 url: Self::SEPOLIA_TESTNET_URL.parse().unwrap(),
                 estimate_gas_price_scale_factor: 2.0,
+                estimate_gas_scale_factor: 1.3,
+            },
+            ForkUrl::AbstractMainnet => ForkConfig {
+                url: Self::ABSTRACT_MAINNET_URL.parse().unwrap(),
+                estimate_gas_price_scale_factor: 1.5,
+                estimate_gas_scale_factor: 1.3,
+            },
+            ForkUrl::AbstractTestnet => ForkConfig {
+                url: Self::ABSTRACT_TESTNET_URL.parse().unwrap(),
+                estimate_gas_price_scale_factor: 1.5,
                 estimate_gas_scale_factor: 1.3,
             },
             ForkUrl::Other(url) => ForkConfig::unknown(url.clone()),
@@ -402,6 +437,10 @@ impl FromStr for ForkUrl {
             Ok(ForkUrl::Mainnet)
         } else if s == "sepolia-testnet" {
             Ok(ForkUrl::SepoliaTestnet)
+        } else if s == "abstract" {
+            Ok(ForkUrl::AbstractMainnet)
+        } else if s == "abstract-testnet" {
+            Ok(ForkUrl::AbstractTestnet)
         } else {
             Ok(Url::from_str(s).map(ForkUrl::Other)?)
         }
@@ -415,12 +454,13 @@ pub struct ReplayArgs {
     /// If set - will try to fork a remote network. Possible values:
     ///  - mainnet
     ///  - sepolia-testnet
-    ///  - goerli-testnet
+    ///  - abstract (mainnet)
+    ///  - abstract-testnet
     ///  - http://XXX:YY
     #[arg(
         long,
         alias = "network",
-        help = "Network to fork from (e.g., http://XXX:YY, mainnet, sepolia-testnet)."
+        help = "Network to fork from (e.g., http://XXX:YY, mainnet, sepolia-testnet, abstract, abstract-testnet)."
     )]
     pub fork_url: ForkUrl,
     /// Transaction hash to replay.
@@ -432,7 +472,7 @@ impl Cli {
     /// Checks for deprecated options and warns users.
     pub fn deprecated_config_option() {
         if env::args().any(|arg| arg == "--config" || arg.starts_with("--config=")) {
-            eprintln!(
+            sh_eprintln!(
                 "Warning: The '--config' option has been removed. \
                 Please migrate to using other configuration options or defaults."
             );
@@ -503,7 +543,10 @@ impl Cli {
             .with_state_interval(self.state_interval)
             .with_dump_state(self.dump_state)
             .with_preserve_historical_states(self.preserve_historical_states)
-            .with_load_state(self.load_state);
+            .with_load_state(self.load_state)
+            .with_l1_config(self.with_l1.then(|| L1Config {
+                port: self.l1_port.unwrap_or(8012),
+            }));
 
         if self.emulate_evm && self.dev_system_contracts != Some(SystemContractsOptions::Local) {
             return Err(eyre::eyre!(
@@ -516,6 +559,148 @@ impl Cli {
         }
 
         Ok(config)
+    }
+
+    /// Converts the CLI arguments to a `TelemetryProps` to be used as event props.
+    pub fn into_telemetry_props(self) -> TelemetryProps {
+        TelemetryProps::new()
+            .insert("command", get_cli_command_telemetry_props(self.command))
+            .insert_with("offline", self.offline, |v| v.then_some(v))
+            .insert_with("health_check_endpoint", self.health_check_endpoint, |v| {
+                v.then_some(v)
+            })
+            .insert_with("config_out", self.config_out, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("port", self.port, |v| {
+                v.filter(|&p| p.to_string() != DEFAULT_PORT)
+                    .map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("host", &self.host, |v| {
+                v.first()
+                    .filter(|&h| h.to_string() != DEFAULT_HOST || self.host.len() != 1)
+                    .map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("chain_id", self.chain_id, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("debug_mode", self.debug_mode, |v| v.then_some(v))
+            .insert_with("show_node_config", self.show_node_config, |v| {
+                (!v.unwrap_or(false)).then_some(false)
+            })
+            .insert_with("show_tx_summary", self.show_tx_summary, |v| {
+                (!v.unwrap_or(false)).then_some(false)
+            })
+            .insert("disable_console_log", self.disable_console_log)
+            .insert("show_event_logs", self.show_event_logs)
+            .insert("show_calls", self.show_calls.map(|v| v.to_string()))
+            .insert("show_outputs", self.show_outputs)
+            .insert(
+                "show_storage_logs",
+                self.show_storage_logs.map(|v| v.to_string()),
+            )
+            .insert(
+                "show_vm_details",
+                self.show_vm_details.map(|v| v.to_string()),
+            )
+            .insert(
+                "show_gas_details",
+                self.show_gas_details.map(|v| v.to_string()),
+            )
+            .insert("resolve_hashes", self.resolve_hashes)
+            .insert(
+                "l1_gas_price",
+                self.l1_gas_price.map(serde_json::Number::from),
+            )
+            .insert(
+                "l2_gas_price",
+                self.l2_gas_price.map(serde_json::Number::from),
+            )
+            .insert(
+                "l1_pubdata_price",
+                self.l1_pubdata_price.map(serde_json::Number::from),
+            )
+            .insert(
+                "price_scale_factor",
+                self.price_scale_factor.map(|v| {
+                    serde_json::Number::from_f64(v).unwrap_or(serde_json::Number::from(0))
+                }),
+            )
+            .insert(
+                "limit_scale_factor",
+                self.limit_scale_factor.map(|v| {
+                    serde_json::Number::from_f64(v as f64).unwrap_or(serde_json::Number::from(0))
+                }),
+            )
+            .insert_with("override_bytecodes_dir", self.override_bytecodes_dir, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert(
+                "dev_system_contracts",
+                self.dev_system_contracts.map(|v| format!("{:?}", v)),
+            )
+            .insert_with("emulate_evm", self.emulate_evm, |v| v.then_some(v))
+            .insert("log", self.log.map(|v| v.to_string()))
+            .insert_with("log_file_path", self.log_file_path, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert("silent", self.silent)
+            .insert("cache", self.cache.map(|v| format!("{:?}", v)))
+            .insert("reset_cache", self.reset_cache)
+            .insert_with("cache_dir", self.cache_dir, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("accounts", self.accounts, |v| {
+                (v.to_string() != DEFAULT_ACCOUNTS).then_some(serde_json::Number::from(v))
+            })
+            .insert_with("balance", self.balance, |v| {
+                (v.to_string() != DEFAULT_BALANCE).then_some(serde_json::Number::from(v))
+            })
+            .insert("timestamp", self.timestamp.map(serde_json::Number::from))
+            .insert_with("init", self.init, |v| v.map(|_| TELEMETRY_SENSITIVE_VALUE))
+            .insert_with("state", self.state, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert(
+                "state_interval",
+                self.state_interval.map(serde_json::Number::from),
+            )
+            .insert_with("dump_state", self.dump_state, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with(
+                "preserve_historical_states",
+                self.preserve_historical_states,
+                |v| v.then_some(v),
+            )
+            .insert_with("load_state", self.load_state, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("mnemonic", self.mnemonic, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("mnemonic_random", self.mnemonic_random, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("mnemonic_seed", self.mnemonic_seed, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("derivation_path", self.derivation_path, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("auto_impersonate", self.auto_impersonate, |v| {
+                v.then_some(v)
+            })
+            .insert("block_time", self.block_time.map(|v| format!("{:?}", v)))
+            .insert_with("no_mining", self.no_mining, |v| v.then_some(v))
+            .insert_with("allow_origin", self.allow_origin, |v| {
+                (v != DEFAULT_ALLOW_ORIGIN).then_some(TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("no_cors", self.no_cors, |v| v.then_some(v))
+            .insert_with("order", self.order, |v| {
+                (v.to_string() != DEFAULT_TX_ORDER).then_some(v.to_string())
+            })
+            .take()
     }
 
     fn account_generator(&self) -> AccountGenerator {
@@ -600,7 +785,7 @@ impl PeriodicStateDumper {
         let state_bytes = match node.dump_state(preserve_historical_states).await {
             Ok(bytes) => bytes,
             Err(err) => {
-                tracing::error!("Failed to dump state: {:?}", err);
+                sh_err!("Failed to dump state: {:?}", err);
                 return;
             }
         };
@@ -608,20 +793,20 @@ impl PeriodicStateDumper {
         let mut decoder = GzDecoder::new(&state_bytes.0[..]);
         let mut json_str = String::new();
         if let Err(err) = decoder.read_to_string(&mut json_str) {
-            tracing::error!(?err, "Failed to decompress state bytes");
+            sh_err!("Failed to decompress state bytes: {}", err);
             return;
         }
 
         let state = match serde_json::from_str::<VersionedState>(&json_str) {
             Ok(state) => state,
             Err(err) => {
-                tracing::error!(?err, "Failed to parse state JSON");
+                sh_err!("Failed to parse state JSON: {}", err);
                 return;
             }
         };
 
         if let Err(err) = write_json_file(&dump_path, &state) {
-            tracing::error!(?err, "Failed to write state to file");
+            sh_err!("Failed to write state to file: {}", err);
         } else {
             tracing::trace!(path = ?dump_path, "Dumped state successfully");
         }
@@ -631,7 +816,7 @@ impl PeriodicStateDumper {
 // An endless future that periodically dumps the state to disk if configured.
 // Implementation adapted from: https://github.com/foundry-rs/foundry/blob/206dab285437bd6889463ab006b6a5fb984079d8/crates/anvil/src/cmd.rs#L658
 impl Future for PeriodicStateDumper {
-    type Output = ();
+    type Output = anyhow::Result<()>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
@@ -676,7 +861,7 @@ mod tests {
     use super::Cli;
     use anvil_zksync_core::node::InMemoryNode;
     use clap::Parser;
-    use serde_json::Value;
+    use serde_json::{json, Value};
     use std::{
         env,
         net::{IpAddr, Ipv4Addr},
@@ -819,6 +1004,51 @@ mod tests {
         let balance = new_node.get_balance_impl(test_address, None).await?;
         assert_eq!(balance, U256::from(1000000u64));
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_cli_telemetry_data_skips_missing_args() -> anyhow::Result<()> {
+        let args = Cli::parse_from(["anvil-zksync"]).into_telemetry_props();
+        let json = args.to_inner();
+        let expected_json: serde_json::Value = json!({});
+        assert_eq!(json, expected_json);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_cli_telemetry_data_hides_sensitive_data() -> anyhow::Result<()> {
+        let args = Cli::parse_from([
+            "anvil-zksync",
+            "--offline",
+            "--host",
+            "100.100.100.100",
+            "--port",
+            "3333",
+            "--chain-id",
+            "123",
+            "--config-out",
+            "/some/path",
+            "fork",
+            "--fork-url",
+            "mainnet",
+        ])
+        .into_telemetry_props();
+        let json = args.to_inner();
+        let expected_json: serde_json::Value = json!({
+            "command": {
+                "args": {
+                    "fork_url": "Mainnet"
+                },
+                "name": "fork"
+            },
+            "offline": true,
+            "config_out": "***",
+            "port": "***",
+            "host": "***",
+            "chain_id": "***"
+        });
+        assert_eq!(json, expected_json);
         Ok(())
     }
 }

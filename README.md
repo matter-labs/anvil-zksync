@@ -102,6 +102,21 @@ anvil-zksync --log=error --log-file-path=run.log run
 
 The logging can be configured during runtime via the [`config_setLogLevel`](./SUPPORTED_APIS.md#config_setloglevel) and [`config_setLogging`](./SUPPORTED_APIS.md#config_setlogging) methods.
 
+## Telemetry
+
+Anonymous usage data is collected only if user agrees by selecting corresponding option when prompted during first launch.
+User can opt-out any time by editing or removing telemetry configuration file at `$HOME/Library/Application Support/com.matter-labs.zksync-tooling/telemetry.json` for darwin, `$XDG_CONFIG_HOME/zksync-tooling/telemetry.json or $HOME/.config/zksync-tooling/telemetry.json` for linux.
+
+We collect:
+  - Basic usage statistics.
+  - Error reports.
+  - Platform information.
+
+We DO NOT collect:
+  - Personal information.
+  - Sensitive configuration.
+  - Private keys or addresses.
+
 ## 📃 Caching
 
 The node will cache certain network request by default to disk in the `.cache` directory. Alternatively the caching can be disabled or set to in-memory only
@@ -133,10 +148,10 @@ anvil-zksync --cache=disk --cache-dir=/tmp/foo --reset-cache run
 To fork the mainnet:
 
 ```bash
-anvil-zksync fork fork-url mainnet
+anvil-zksync fork --fork-url mainnet
 ```
 
-> Tip: You can also fork the zkSync Sepolia testnet with `anvil-zksync fork fork-url sepolia-testnet`.
+> Tip: You can also fork the zkSync Sepolia testnet with `anvil-zksync fork --fork-url sepolia-testnet`.
 
 ## 🔄 Replay Remote Transactions Locally
 

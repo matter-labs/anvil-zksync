@@ -2,6 +2,7 @@ use crate::bytecode_override::override_bytecodes;
 use crate::cli::{Cli, Command, ForkUrl, PeriodicStateDumper};
 use crate::utils::update_with_fork_details;
 use anvil_zksync_api_server::NodeServerBuilder;
+use anvil_zksync_common::{sh_eprintln, sh_err, sh_warn};
 use anvil_zksync_config::constants::{
     DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
     DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L1_GAS_PRICE, DEFAULT_L2_GAS_PRICE, LEGACY_RICH_WALLETS,
@@ -17,15 +18,22 @@ use anvil_zksync_core::node::{
 };
 use anvil_zksync_core::observability::Observability;
 use anvil_zksync_core::system_contracts::SystemContracts;
-use anyhow::{anyhow, Context};
+use anvil_zksync_l1_sidecar::L1Sidecar;
+use anyhow::Context;
 use clap::Parser;
 use std::fs::File;
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 use std::{env, net::SocketAddr, str::FromStr};
 use tokio::sync::RwLock;
 use tower_http::cors::AllowOrigin;
 use tracing_subscriber::filter::LevelFilter;
+use zksync_error::anvil_zksync::gen::{generic_error, to_domain};
+use zksync_error::anvil_zksync::AnvilZksyncError;
+use zksync_error::ICustomError;
+use zksync_telemetry::{get_telemetry, init_telemetry, TelemetryProps};
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
 use zksync_types::{L2BlockNumber, H160};
 
@@ -33,18 +41,31 @@ mod bytecode_override;
 mod cli;
 mod utils;
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+const POSTHOG_API_KEY: &str = "phc_TsD52JxwkT2OXPHA2oKX2Lc3mf30hItCBrE9s9g1MKe";
+const TELEMETRY_CONFIG_NAME: &str = "zksync-tooling";
+
+async fn start_program() -> Result<(), AnvilZksyncError> {
     // Check for deprecated options
     Cli::deprecated_config_option();
 
     let opt = Cli::parse();
     let command = opt.command.clone();
 
-    let mut config = opt.into_test_node_config().map_err(|e| anyhow!(e))?;
+    // Track node start
+    let telemetry = get_telemetry().expect("telemetry is not initialized");
+    let cli_telemetry_props = opt.clone().into_telemetry_props();
+    let _ = telemetry
+        .track_event(
+            "node_started",
+            TelemetryProps::new()
+                .insert("params", Some(cli_telemetry_props))
+                .take(),
+        )
+        .await;
 
+    let mut config = opt.into_test_node_config().map_err(to_domain)?;
     let log_level_filter = LevelFilter::from(config.log_level);
-    let log_file = File::create(&config.log_file_path)?;
+    let log_file = File::create(&config.log_file_path).map_err(to_domain)?;
 
     // Initialize the tracing subscriber
     let observability = Observability::init(
@@ -52,14 +73,15 @@ async fn main() -> anyhow::Result<()> {
         log_level_filter,
         log_file,
         config.silent,
-    )?;
+    )
+    .map_err(to_domain)?;
 
     // Use `Command::Run` as default.
     let command = command.as_ref().unwrap_or(&Command::Run);
     let (fork_client, transactions_to_replay) = match command {
         Command::Run => {
             if config.offline {
-                tracing::warn!("Running in offline mode: default fee parameters will be used.");
+                sh_warn!("Running in offline mode: default fee parameters will be used.");
                 config = config
                     .clone()
                     .with_l1_gas_price(config.l1_gas_price.or(Some(DEFAULT_L1_GAS_PRICE)))
@@ -81,9 +103,10 @@ async fn main() -> anyhow::Result<()> {
                 (None, Vec::new())
             } else {
                 // Initialize the client to get the fee params
-                let client =
-                    ForkClient::at_block_number(ForkUrl::Mainnet.to_config(), None).await?;
-                let fee = client.get_fee_params().await?;
+                let client = ForkClient::at_block_number(ForkUrl::Mainnet.to_config(), None)
+                    .await
+                    .map_err(to_domain)?;
+                let fee = client.get_fee_params().await.map_err(to_domain)?;
 
                 match fee {
                     FeeParams::V2(fee_v2) => {
@@ -111,7 +134,9 @@ async fn main() -> anyhow::Result<()> {
                             .with_chain_id(config.chain_id.or(Some(TEST_NODE_NETWORK_ID)));
                     }
                     FeeParams::V1(_) => {
-                        return Err(anyhow!("Unsupported FeeParams::V1 in this context"));
+                        return Err(
+                            generic_error!("Unsupported FeeParams::V1 in this context").into()
+                        );
                     }
                 }
 
@@ -121,7 +146,9 @@ async fn main() -> anyhow::Result<()> {
         Command::Fork(fork) => {
             let (fork_client, earlier_txs) = if let Some(tx_hash) = fork.fork_transaction_hash {
                 // If transaction hash is provided, we fork at the parent of block containing tx
-                ForkClient::at_before_tx(fork.fork_url.to_config(), tx_hash).await?
+                ForkClient::at_before_tx(fork.fork_url.to_config(), tx_hash)
+                    .await
+                    .map_err(to_domain)?
             } else {
                 // Otherwise, we fork at the provided block
                 (
@@ -129,7 +156,8 @@ async fn main() -> anyhow::Result<()> {
                         fork.fork_url.to_config(),
                         fork.fork_block_number.map(|bn| L2BlockNumber(bn as u32)),
                     )
-                    .await?,
+                    .await
+                    .map_err(to_domain)?,
                     Vec::new(),
                 )
             };
@@ -139,7 +167,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::ReplayTx(replay_tx) => {
             let (fork_client, earlier_txs) =
-                ForkClient::at_before_tx(replay_tx.fork_url.to_config(), replay_tx.tx).await?;
+                ForkClient::at_before_tx(replay_tx.fork_url.to_config(), replay_tx.tx)
+                    .await
+                    .map_err(to_domain)?;
 
             update_with_fork_details(&mut config, &fork_client.details).await;
             (Some(fork_client), earlier_txs)
@@ -151,7 +181,7 @@ async fn main() -> anyhow::Result<()> {
         SystemContractsOptions::Local
     ) {
         if let Some(path) = env::var_os("ZKSYNC_HOME") {
-            tracing::info!("+++++ Reading local contracts from {:?} +++++", path);
+            tracing::debug!("Reading local contracts from {:?}", path);
         }
     }
 
@@ -168,10 +198,12 @@ async fn main() -> anyhow::Result<()> {
                     max_pubdata_per_batch: config.max_pubdata_per_batch,
                 }
             }
-            _ => anyhow::bail!(
-                "fork is using unsupported fee parameters: {:?}",
-                fork_client.details.fee_params
-            ),
+            _ => {
+                return Err(to_domain(generic_error!(
+                    "fork is using unsupported fee parameters: {:?}",
+                    fork_client.details.fee_params
+                )))
+            }
         };
 
         Some(ForkPrintInfo {
@@ -184,6 +216,18 @@ async fn main() -> anyhow::Result<()> {
         })
     } else {
         None
+    };
+
+    let mut node_service_tasks: Vec<Pin<Box<dyn Future<Output = anyhow::Result<()>>>>> = Vec::new();
+    let l1_sidecar = match config.l1_config.as_ref() {
+        Some(l1_config) => {
+            let (l1_sidecar, l1_sidecar_runner) = L1Sidecar::builtin(l1_config.port)
+                .await
+                .map_err(to_domain)?;
+            node_service_tasks.push(Box::pin(l1_sidecar_runner.run()));
+            l1_sidecar
+        }
+        None => L1Sidecar::none(),
     };
 
     let impersonation = ImpersonationManager::default();
@@ -231,6 +275,7 @@ async fn main() -> anyhow::Result<()> {
     };
     let (block_sealer, block_sealer_state) =
         BlockSealer::new(sealing_mode, pool.clone(), node_handle.clone());
+    node_service_tasks.push(Box::pin(block_sealer.run()));
 
     let node: InMemoryNode = InMemoryNode::new(
         node_inner,
@@ -251,7 +296,10 @@ async fn main() -> anyhow::Result<()> {
     // during replay. Otherwise, replay would send commands and hang.
     tokio::spawn(async move {
         if let Err(err) = node_executor.run().await {
-            tracing::error!("node executor ended with error: {:?}", err);
+            let error = err.context("Node executor ended with error");
+            sh_err!("{:?}", error);
+
+            let _ = telemetry.track_error(Box::new(error.as_ref())).await;
         }
     });
 
@@ -263,37 +311,44 @@ async fn main() -> anyhow::Result<()> {
 
     if !transactions_to_replay.is_empty() {
         node.apply_txs(transactions_to_replay, config.max_transactions)
-            .await?;
+            .await
+            .map_err(to_domain)?;
+
+        // If we are in replay mode, we don't start the server
+        return Ok(());
     }
 
-    for signer in config.genesis_accounts.iter() {
-        let address = H160::from_slice(signer.address().as_ref());
+    // TODO: Consider moving to `InMemoryNodeInner::init`
+    let rich_addresses = itertools::chain!(
+        config
+            .genesis_accounts
+            .iter()
+            .map(|acc| H160::from_slice(acc.address().as_ref())),
+        config
+            .signer_accounts
+            .iter()
+            .map(|acc| H160::from_slice(acc.address().as_ref())),
+        LEGACY_RICH_WALLETS
+            .iter()
+            .map(|(address, _)| H160::from_str(address).unwrap()),
+        RICH_WALLETS
+            .iter()
+            .map(|(address, _, _)| H160::from_str(address).unwrap()),
+    )
+    .collect::<Vec<_>>();
+    for address in rich_addresses {
         node.set_rich_account(address, config.genesis_balance).await;
-    }
-    for signer in config.signer_accounts.iter() {
-        let address = H160::from_slice(signer.address().as_ref());
-        node.set_rich_account(address, config.genesis_balance).await;
-    }
-    // sets legacy rich wallets
-    for wallet in LEGACY_RICH_WALLETS.iter() {
-        let address = wallet.0;
-        node.set_rich_account(H160::from_str(address).unwrap(), config.genesis_balance)
-            .await;
-    }
-    // sets additional legacy rich wallets
-    for wallet in RICH_WALLETS.iter() {
-        let address = wallet.0;
-        node.set_rich_account(H160::from_str(address).unwrap(), config.genesis_balance)
-            .await;
     }
 
     let mut server_builder = NodeServerBuilder::new(
         node.clone(),
+        l1_sidecar,
         AllowOrigin::exact(
             config
                 .allow_origin
                 .parse()
-                .context("allow origin is malformed")?,
+                .context("allow origin is malformed")
+                .map_err(to_domain)?,
         ),
     );
     if config.health_check_endpoint {
@@ -312,7 +367,7 @@ async fn main() -> anyhow::Result<()> {
                 server_handles.push(server.run());
             }
             Err(err) => {
-                tracing::info!(
+                sh_eprintln!(
                     "Failed to bind to address {}:{}: {}. Retrying with a different port...",
                     host,
                     config.port,
@@ -332,11 +387,11 @@ async fn main() -> anyhow::Result<()> {
                         server_handles.push(server.run());
                     }
                     Err(err) => {
-                        return Err(anyhow!(
+                        return Err(to_domain(generic_error!(
                             "Failed to start server on host {} with port: {}",
                             host,
                             err
-                        ));
+                        )));
                     }
                 }
             }
@@ -348,11 +403,15 @@ async fn main() -> anyhow::Result<()> {
     // Load state from `--load-state` if provided
     if let Some(ref load_state_path) = config.load_state {
         let bytes = std::fs::read(load_state_path).expect("Failed to read load state file");
-        node.load_state(zksync_types::web3::Bytes(bytes)).await?;
+        node.load_state(zksync_types::web3::Bytes(bytes))
+            .await
+            .map_err(to_domain)?;
     }
     if let Some(ref state_path) = config.state {
         let bytes = std::fs::read(state_path).expect("Failed to read load state file");
-        node.load_state(zksync_types::web3::Bytes(bytes)).await?;
+        node.load_state(zksync_types::web3::Bytes(bytes))
+            .await
+            .map_err(to_domain)?;
     }
 
     let state_path = config.dump_state.clone().or_else(|| config.state.clone());
@@ -368,8 +427,10 @@ async fn main() -> anyhow::Result<()> {
         dump_interval,
         preserve_historical_states,
     );
+    node_service_tasks.push(Box::pin(state_dumper));
 
     config.print(fork_print_info.as_ref());
+    let node_service_stopped = futures::future::select_all(node_service_tasks);
 
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {
@@ -378,13 +439,31 @@ async fn main() -> anyhow::Result<()> {
         _ = any_server_stopped => {
             tracing::trace!("node server was stopped")
         },
-        _ = block_sealer.run() => {
-            tracing::trace!("block sealer was stopped")
-        },
-        _ = state_dumper => {
-            tracing::trace!("state dumper was stopped")
-        },
+        _ = node_service_stopped => {
+            tracing::trace!("node service was stopped")
+        }
     }
 
+    Ok(())
+}
+
+#[tokio::main]
+async fn main() -> Result<(), AnvilZksyncError> {
+    init_telemetry(
+        env!("CARGO_PKG_NAME"),
+        env!("CARGO_PKG_VERSION"),
+        TELEMETRY_CONFIG_NAME,
+        Some(POSTHOG_API_KEY.into()),
+        None,
+        None,
+    )
+    .await
+    .map_err(to_domain)?;
+
+    if let Err(err) = start_program().await {
+        let telemetry = get_telemetry().expect("telemetry is not initialized");
+        let _ = telemetry.track_error(Box::new(&err.to_unified())).await;
+        return Err(err);
+    }
     Ok(())
 }

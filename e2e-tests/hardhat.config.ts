@@ -4,7 +4,7 @@ import "@matterlabs/hardhat-zksync";
 
 const config: HardhatUserConfig = {
   zksolc: {
-    version: "1.5.8",
+    version: "1.5.11",
     settings: {},
   },
   defaultNetwork: "zkSyncTestnet",
