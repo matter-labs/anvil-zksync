@@ -1538,9 +1538,9 @@
           "summary": "An unknown error occurred.",
           "likely_causes": [
             {
-              "cause": "Unexpected or unhandled VM state.",
+              "cause": "Unexpected or unhandled VM state, or insufficient gas.",
               "fixes": [
-                "Contact the developers with transaction details that caused this error."
+                "Ensure the transaction parameters are correct and the gas limit is sufficient."
               ],
               "report": "",
               "owner": null,
@@ -1716,9 +1716,18 @@
           }
         ],
         "documentation": {
-          "description": "This error is emitted when the VM encounters a revert reason that is not recognized, including the function selector and raw data for debugging.",
+          "description": "This error is emitted when the VM encounters a revert reason that is not recognized. In most cases, this error may also indicate that the transaction exhausted all the gas allocated for its execution.",
           "summary": "An unknown VM revert reason was encountered.",
           "likely_causes": [
+            {
+              "cause": "The transaction exhausted all the gas allocated for execution.",
+              "fixes": [
+                "Increase the gas limit and verify that the contract logic is optimized. Review gas usage."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
             {
               "cause": "Reverting due unknown reason.",
               "fixes": [

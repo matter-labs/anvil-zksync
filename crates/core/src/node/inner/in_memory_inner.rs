@@ -476,9 +476,13 @@ impl InMemoryNodeInner {
             ExecutionResult::Halt { reason } => {
                 let reason_clone = reason.clone();
 
-                let halt_error = tokio::task::block_in_place(|| {
-                    tokio::runtime::Handle::current()
-                        .block_on(async { reason_clone.to_halt_error().await })
+                let halt_error = tokio::runtime::Handle::current().block_on(async {
+                    tokio::task::spawn_blocking(move || {
+                        tokio::runtime::Handle::current()
+                            .block_on(async { reason_clone.to_halt_error().await })
+                    })
+                    .await
+                    .expect("spawn_blocking failed")
                 });
 
                 print_execution_error(&halt_error, Some(&l2_tx));
@@ -493,9 +497,13 @@ impl InMemoryNodeInner {
             ExecutionResult::Revert { ref output } => {
                 let output_clone = output.clone();
 
-                let revert_error = tokio::task::block_in_place(|| {
-                    tokio::runtime::Handle::current()
-                        .block_on(async { output_clone.to_revert_reason().await })
+                let revert_error = tokio::runtime::Handle::current().block_on(async {
+                    tokio::task::spawn_blocking(move || {
+                        tokio::runtime::Handle::current()
+                            .block_on(async { output_clone.to_revert_reason().await })
+                    })
+                    .await
+                    .expect("spawn_blocking failed")
                 });
 
                 print_execution_error(&revert_error, Some(&l2_tx));

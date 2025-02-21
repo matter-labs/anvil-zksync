@@ -505,7 +505,7 @@ pub enum Revert {
     #[doc = "An unknown VM revert reason was encountered."]
     #[doc = ""]
     #[doc = "# Description"]
-    #[doc = "This error is emitted when the VM encounters a revert reason that is not recognized, including the function selector and raw data for debugging."]
+    #[doc = "This error is emitted when the VM encounters a revert reason that is not recognized. In most cases, this error may also indicate that the transaction exhausted all the gas allocated for its execution."]
     Unknown {
         function_selector: String,
         data: String,
