@@ -35,7 +35,7 @@
 //! ## Usage
 //!
 //! To start the node, use the command `anvil-zksync run`. For more advanced functionalities like forking or
-//! replaying transactions, refer to the [official documentation](https://era.zksync.io/docs/tools/testing/anvil-zksync.html).
+//! replaying transactions, refer to the [official documentation](https://docs.zksync.io/zksync-era/tooling/local-setup/anvil-zksync-node).
 //!
 //! ## Contributions
 //!
