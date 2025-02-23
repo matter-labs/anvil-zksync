@@ -32,7 +32,7 @@ RUST_LOG=vm=trace anvil-zksync --dev-use-local-contracts fork sepolia-testnet
 This section demonstrates how to author and execute tests locally against `anvil-zksync` using the `mocha` and `chai` testing frameworks.
 
 ### Project configuration
-Start by creating a new Hardhat project. If you need guidance, follow the [getting started guide](https://era.zksync.io/docs/tools/hardhat/getting-started.html).
+Start by creating a new Hardhat project. If you need guidance, follow the [getting started guide](https://docs.zksync.io/zksync-era/tooling/hardhat/guides/getting-started).
 
 To incorporate the test libraries, execute:
 ```sh
