@@ -38,7 +38,8 @@ zksync_contracts = { git = "https://github.com/matter-labs/zksync-era", tag = "c
 zksync_types = { git = "https://github.com/matter-labs/zksync-era", tag = "core-v26.4.0" }
 zksync_vm_interface = { git = "https://github.com/matter-labs/zksync-era", tag = "core-v26.4.0" }
 zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era", tag = "core-v26.4.0" }
-zksync_telemetry = { git = "https://github.com/matter-labs/zksync-telemetry.git", rev = "33fcc81" }
+zksync_telemetry = { git = "https://github.com/matter-labs/zksync-telemetry.git", rev = "ed600f46c74ccc15ae34ea38f27327d66458518a" }
+zksync-error-codegen = { git = "https://github.com/matter-labs/zksync-error", rev = "a5444af1fbcd6a18afeacad9ac2d09757e1a67e1", default-features = false }
 
 #########################
 # External dependencies #
@@ -105,10 +106,5 @@ anvil_zksync_config = { path = "crates/config" }
 anvil_zksync_core = { path = "crates/core" }
 anvil_zksync_l1_sidecar = { path = "crates/l1_sidecar" }
 anvil_zksync_types = { path = "crates/types" }
-zksync_error = { path = "crates/zksync_error" }
-
-#########################
-# Build dependencies    #
-#########################
-zksync-error-codegen = { git = "https://github.com/matter-labs/zksync-error", rev = "626df69" }
 anvil_zksync_common = { path = "crates/common" }
+zksync_error = { path = "crates/zksync_error" }
