@@ -10145,9 +10145,10 @@ dependencies = [
 [[package]]
 name = "zksync-error-codegen"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-error?rev=a5444af1fbcd6a18afeacad9ac2d09757e1a67e1#a5444af1fbcd6a18afeacad9ac2d09757e1a67e1"
+source = "git+https://github.com/matter-labs/zksync-error?rev=92d1b60d18686e0e261f04dc7efd74db60e112f1#92d1b60d18686e0e261f04dc7efd74db60e112f1"
 dependencies = [
  "cargo_metadata",
+ "derive_more 2.0.1",
  "include_dir",
  "maplit",
  "proc-macro2",
@@ -10162,34 +10163,26 @@ dependencies = [
  "syn 2.0.98",
  "tera",
  "thiserror 1.0.69",
+ "tracing",
  "vector-map",
- "zksync-error-description 0.1.0 (git+https://github.com/matter-labs/zksync-error?rev=a5444af1fbcd6a18afeacad9ac2d09757e1a67e1)",
+ "zksync-error-description",
  "zksync-error-model",
 ]
 
 [[package]]
 name = "zksync-error-description"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-error?rev=a5444af1fbcd6a18afeacad9ac2d09757e1a67e1#a5444af1fbcd6a18afeacad9ac2d09757e1a67e1"
+source = "git+https://github.com/matter-labs/zksync-error?rev=92d1b60d18686e0e261f04dc7efd74db60e112f1#92d1b60d18686e0e261f04dc7efd74db60e112f1"
 dependencies = [
  "serde",
  "serde_json",
  "zksync-error-model",
-]
-
-[[package]]
-name = "zksync-error-description"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-error?rev=cee7b79#cee7b799ede3d0af742f47c618a6e328aac0e21a"
-dependencies = [
- "serde",
- "serde_json",
 ]
 
 [[package]]
 name = "zksync-error-model"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-error?rev=a5444af1fbcd6a18afeacad9ac2d09757e1a67e1#a5444af1fbcd6a18afeacad9ac2d09757e1a67e1"
+source = "git+https://github.com/matter-labs/zksync-error?rev=92d1b60d18686e0e261f04dc7efd74db60e112f1#92d1b60d18686e0e261f04dc7efd74db60e112f1"
 dependencies = [
  "derive_more 2.0.1",
  "serde",
@@ -10330,7 +10323,7 @@ dependencies = [
  "serde_json",
  "strum",
  "strum_macros",
- "zksync-error-description 0.1.0 (git+https://github.com/matter-labs/zksync-error?rev=cee7b79)",
+ "zksync-error-description",
 ]
 
 [[package]]

@@ -7,7 +7,7 @@ lazy_static! {
     pub static ref model: ErrorHierarchy = get_model();
 }
 fn get_model() -> ErrorHierarchy {
-    zksync_error_description::ErrorHierarchy::from_str(include_str!(
+    zksync_error_description::ErrorHierarchy::deserialize(include_str!(
         "../resources/error-model-dump.json"
     ))
 }
