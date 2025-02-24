@@ -1,4 +1,6 @@
-use crate::utils::parse_genesis_file;
+use crate::utils::{
+    get_cli_command_telemetry_props, parse_genesis_file, TELEMETRY_SENSITIVE_VALUE,
+};
 use alloy::signers::local::coins_bip39::{English, Mnemonic};
 use anvil_zksync_common::{sh_eprintln, sh_err};
 use anvil_zksync_config::constants::{
@@ -34,7 +36,15 @@ use std::{
 };
 use tokio::time::{Instant, Interval};
 use url::Url;
+use zksync_telemetry::TelemetryProps;
 use zksync_types::{H256, U256};
+
+const DEFAULT_PORT: &str = "8011";
+const DEFAULT_HOST: &str = "0.0.0.0";
+const DEFAULT_ACCOUNTS: &str = "10";
+const DEFAULT_BALANCE: &str = "10000";
+const DEFAULT_ALLOW_ORIGIN: &str = "*";
+const DEFAULT_TX_ORDER: &str = "fifo";
 
 #[derive(Debug, Parser, Clone)]
 #[command(
@@ -62,7 +72,7 @@ pub struct Cli {
     #[arg(long, value_name = "OUT_FILE", help_heading = "General Options")]
     pub config_out: Option<String>,
 
-    #[arg(long, default_value = "8011", help_heading = "Network Options")]
+    #[arg(long, default_value = DEFAULT_PORT, help_heading = "Network Options")]
     /// Port to listen on (default: 8011).
     pub port: Option<u16>,
 
@@ -71,7 +81,7 @@ pub struct Cli {
         long,
         value_name = "IP_ADDR",
         env = "ANVIL_ZKSYNC_IP_ADDR",
-        default_value = "0.0.0.0",
+        default_value = DEFAULT_HOST,
         value_delimiter = ',',
         help_heading = "Network Options"
     )]
@@ -200,7 +210,7 @@ pub struct Cli {
     #[arg(
         long,
         short,
-        default_value = "10",
+        default_value = DEFAULT_ACCOUNTS,
         value_name = "NUM",
         help_heading = "Account Configuration"
     )]
@@ -209,7 +219,7 @@ pub struct Cli {
     /// The balance of every dev account in Ether.
     #[arg(
         long,
-        default_value = "10000",
+        default_value = DEFAULT_BALANCE,
         value_name = "NUM",
         help_heading = "Account Configuration"
     )]
@@ -306,7 +316,7 @@ pub struct Cli {
     pub no_mining: bool,
 
     /// The cors `allow_origin` header
-    #[arg(long, default_value = "*", help_heading = "Server options")]
+    #[arg(long, default_value = DEFAULT_ALLOW_ORIGIN, help_heading = "Server options")]
     pub allow_origin: String,
 
     /// Disable CORS.
@@ -314,7 +324,7 @@ pub struct Cli {
     pub no_cors: bool,
 
     /// Transaction ordering in the mempool.
-    #[arg(long, default_value = "fifo")]
+    #[arg(long, default_value = DEFAULT_TX_ORDER)]
     pub order: TransactionOrder,
 
     /// Enable L1 support.
@@ -551,6 +561,148 @@ impl Cli {
         Ok(config)
     }
 
+    /// Converts the CLI arguments to a `TelemetryProps` to be used as event props.
+    pub fn into_telemetry_props(self) -> TelemetryProps {
+        TelemetryProps::new()
+            .insert("command", get_cli_command_telemetry_props(self.command))
+            .insert_with("offline", self.offline, |v| v.then_some(v))
+            .insert_with("health_check_endpoint", self.health_check_endpoint, |v| {
+                v.then_some(v)
+            })
+            .insert_with("config_out", self.config_out, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("port", self.port, |v| {
+                v.filter(|&p| p.to_string() != DEFAULT_PORT)
+                    .map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("host", &self.host, |v| {
+                v.first()
+                    .filter(|&h| h.to_string() != DEFAULT_HOST || self.host.len() != 1)
+                    .map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("chain_id", self.chain_id, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("debug_mode", self.debug_mode, |v| v.then_some(v))
+            .insert_with("show_node_config", self.show_node_config, |v| {
+                (!v.unwrap_or(false)).then_some(false)
+            })
+            .insert_with("show_tx_summary", self.show_tx_summary, |v| {
+                (!v.unwrap_or(false)).then_some(false)
+            })
+            .insert("disable_console_log", self.disable_console_log)
+            .insert("show_event_logs", self.show_event_logs)
+            .insert("show_calls", self.show_calls.map(|v| v.to_string()))
+            .insert("show_outputs", self.show_outputs)
+            .insert(
+                "show_storage_logs",
+                self.show_storage_logs.map(|v| v.to_string()),
+            )
+            .insert(
+                "show_vm_details",
+                self.show_vm_details.map(|v| v.to_string()),
+            )
+            .insert(
+                "show_gas_details",
+                self.show_gas_details.map(|v| v.to_string()),
+            )
+            .insert("resolve_hashes", self.resolve_hashes)
+            .insert(
+                "l1_gas_price",
+                self.l1_gas_price.map(serde_json::Number::from),
+            )
+            .insert(
+                "l2_gas_price",
+                self.l2_gas_price.map(serde_json::Number::from),
+            )
+            .insert(
+                "l1_pubdata_price",
+                self.l1_pubdata_price.map(serde_json::Number::from),
+            )
+            .insert(
+                "price_scale_factor",
+                self.price_scale_factor.map(|v| {
+                    serde_json::Number::from_f64(v).unwrap_or(serde_json::Number::from(0))
+                }),
+            )
+            .insert(
+                "limit_scale_factor",
+                self.limit_scale_factor.map(|v| {
+                    serde_json::Number::from_f64(v as f64).unwrap_or(serde_json::Number::from(0))
+                }),
+            )
+            .insert_with("override_bytecodes_dir", self.override_bytecodes_dir, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert(
+                "dev_system_contracts",
+                self.dev_system_contracts.map(|v| format!("{:?}", v)),
+            )
+            .insert_with("emulate_evm", self.emulate_evm, |v| v.then_some(v))
+            .insert("log", self.log.map(|v| v.to_string()))
+            .insert_with("log_file_path", self.log_file_path, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert("silent", self.silent)
+            .insert("cache", self.cache.map(|v| format!("{:?}", v)))
+            .insert("reset_cache", self.reset_cache)
+            .insert_with("cache_dir", self.cache_dir, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("accounts", self.accounts, |v| {
+                (v.to_string() != DEFAULT_ACCOUNTS).then_some(serde_json::Number::from(v))
+            })
+            .insert_with("balance", self.balance, |v| {
+                (v.to_string() != DEFAULT_BALANCE).then_some(serde_json::Number::from(v))
+            })
+            .insert("timestamp", self.timestamp.map(serde_json::Number::from))
+            .insert_with("init", self.init, |v| v.map(|_| TELEMETRY_SENSITIVE_VALUE))
+            .insert_with("state", self.state, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert(
+                "state_interval",
+                self.state_interval.map(serde_json::Number::from),
+            )
+            .insert_with("dump_state", self.dump_state, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with(
+                "preserve_historical_states",
+                self.preserve_historical_states,
+                |v| v.then_some(v),
+            )
+            .insert_with("load_state", self.load_state, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("mnemonic", self.mnemonic, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("mnemonic_random", self.mnemonic_random, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("mnemonic_seed", self.mnemonic_seed, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("derivation_path", self.derivation_path, |v| {
+                v.map(|_| TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("auto_impersonate", self.auto_impersonate, |v| {
+                v.then_some(v)
+            })
+            .insert("block_time", self.block_time.map(|v| format!("{:?}", v)))
+            .insert_with("no_mining", self.no_mining, |v| v.then_some(v))
+            .insert_with("allow_origin", self.allow_origin, |v| {
+                (v != DEFAULT_ALLOW_ORIGIN).then_some(TELEMETRY_SENSITIVE_VALUE)
+            })
+            .insert_with("no_cors", self.no_cors, |v| v.then_some(v))
+            .insert_with("order", self.order, |v| {
+                (v.to_string() != DEFAULT_TX_ORDER).then_some(v.to_string())
+            })
+            .take()
+    }
+
     fn account_generator(&self) -> AccountGenerator {
         let mut gen = AccountGenerator::new(self.accounts as usize)
             .phrase(DEFAULT_MNEMONIC)
@@ -709,7 +861,7 @@ mod tests {
     use super::Cli;
     use anvil_zksync_core::node::InMemoryNode;
     use clap::Parser;
-    use serde_json::Value;
+    use serde_json::{json, Value};
     use std::{
         env,
         net::{IpAddr, Ipv4Addr},
@@ -852,6 +1004,51 @@ mod tests {
         let balance = new_node.get_balance_impl(test_address, None).await?;
         assert_eq!(balance, U256::from(1000000u64));
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_cli_telemetry_data_skips_missing_args() -> anyhow::Result<()> {
+        let args = Cli::parse_from(["anvil-zksync"]).into_telemetry_props();
+        let json = args.to_inner();
+        let expected_json: serde_json::Value = json!({});
+        assert_eq!(json, expected_json);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_cli_telemetry_data_hides_sensitive_data() -> anyhow::Result<()> {
+        let args = Cli::parse_from([
+            "anvil-zksync",
+            "--offline",
+            "--host",
+            "100.100.100.100",
+            "--port",
+            "3333",
+            "--chain-id",
+            "123",
+            "--config-out",
+            "/some/path",
+            "fork",
+            "--fork-url",
+            "mainnet",
+        ])
+        .into_telemetry_props();
+        let json = args.to_inner();
+        let expected_json: serde_json::Value = json!({
+            "command": {
+                "args": {
+                    "fork_url": "Mainnet"
+                },
+                "name": "fork"
+            },
+            "offline": true,
+            "config_out": "***",
+            "port": "***",
+            "host": "***",
+            "chain_id": "***"
+        });
+        assert_eq!(json, expected_json);
         Ok(())
     }
 }

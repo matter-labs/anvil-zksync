@@ -24,9 +24,9 @@ jobs:
       matrix:
         include:
           - arch: x86_64-unknown-linux-gnu
-            platform: ubuntu-24.04
+            platform: ubuntu-22.04
           - arch: aarch64-unknown-linux-gnu
-            platform: ubuntu-24.04
+            platform: ubuntu-22.04-arm
           - arch: x86_64-apple-darwin
             platform: macos-latest
           - arch: aarch64-apple-darwin
@@ -43,21 +43,14 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
-          rustflags: ""
-
-      - name: Install target
-        run: rustup target add ${{ matrix.arch }}
-
-      - name: Install cross v0.2.5 from source
-        run: cargo install cross --git https://github.com/cross-rs/cross --tag v0.2.5
+          target: ${{ matrix.arch }}
+          # Use statically linked glibc. This is likely overkill as foundry requires dynamically available glibc anyway.
+          # See https://book.getfoundry.sh/faq?highlight=allow#out-of-date-glibc
+          rustflags: "-C target-feature=+crt-static"
 
       - name: Build anvil-zksync for ${{ matrix.arch }}
         run: |
-          if [[ "${{ matrix.arch }}" == *"linux"* ]]; then
-            make build-static-${{ matrix.arch }}
-          else
-            make build-${{ matrix.arch }}
-          fi
+          cargo build --bin anvil-zksync --release --target ${{ matrix.arch }}
 
       - name: Pack anvil-zksync
         run: |
