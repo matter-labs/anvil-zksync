@@ -3,7 +3,8 @@ use crate::bootloader_debug::BootloaderDebug;
 use crate::resolver;
 use crate::utils::block_on;
 use crate::utils::{calculate_eth_cost, to_human_size};
-use anvil_zksync_common::sh_println;
+use alloy::hex::ToHexExt;
+use anvil_zksync_common::{sh_eprintln, sh_println};
 use anvil_zksync_config::utils::format_gwei;
 use anvil_zksync_types::ShowCalls;
 use colored::Colorize;
@@ -11,10 +12,12 @@ use futures::future::join_all;
 use lazy_static::lazy_static;
 use serde::Deserialize;
 use std::{collections::HashMap, str};
+use zksync_error::{documentation::Documented, CustomErrorMessage, NamedError};
+use zksync_error_description::ErrorDocumentation;
 use zksync_multivm::interface::{Call, VmEvent, VmExecutionResultAndLogs};
 use zksync_types::{
-    fee_model::FeeModelConfigV2, Address, StorageLogWithPreviousValue, Transaction, H160, H256,
-    U256,
+    fee_model::FeeModelConfigV2, l2::L2Tx, Address, StorageLogWithPreviousValue, Transaction, H160,
+    H256, U256,
 };
 
 // @dev elected to have GasDetails struct as we can do more with it in the future
@@ -860,5 +863,128 @@ Refunded: {:.10} ETH
         refunded = to_human_size(tx_result.refunds.gas_refunded.into()),
         paid = paid_in_eth,
         l2_gas_price_fmt = format_gwei(l2_gas_price.into())
+    );
+}
+
+/// Prints halt and revert execution errors.
+pub fn print_execution_error<E>(error: &E, tx: Option<&L2Tx>)
+where
+    E: NamedError + CustomErrorMessage + Documented<Documentation = &'static ErrorDocumentation>,
+{
+    let error_msg = error.get_message();
+    let doc = match error.get_documentation() {
+        Ok(opt) => opt,
+        Err(e) => {
+            sh_eprintln!("Failed to get error documentation: {}", e);
+            None
+        }
+    };
+
+    // Print error header
+    // TODO: should also include the exact error format (e.g. `FailedToChargeFee`)
+    sh_println!("{}: {}", "error".red().bold(), error_msg.red());
+    sh_println!("    |");
+    sh_println!(
+        "    = {} {}",
+        "error:".bright_red(),
+        doc.as_ref()
+            .map_or("An unknown error occurred", |d| d.summary.as_str())
+    );
+
+    if let Some(tx) = tx {
+        sh_println!("    | ");
+        sh_println!("    | {}", "Transaction details:".cyan());
+        sh_println!(
+            "    |   Transaction Type: {:?}",
+            tx.common_data.transaction_type
+        );
+        sh_println!("    |   Nonce: {}", tx.nonce());
+        if let Some(contract_address) = &tx.recipient_account() {
+            sh_println!("    |   To: {:?}", contract_address);
+        }
+        sh_println!("    |   From: {:?}", tx.initiator_account());
+        if let Some(input_data) = &tx.common_data.input {
+            let hex_data = &input_data.data.encode_hex();
+            sh_println!("    |   Input Data: 0x{}", hex_data);
+            sh_println!("    |   Hash: {:?}", tx.hash());
+        }
+        sh_println!("    |   Gas Limit: {}", tx.common_data.fee.gas_limit);
+        sh_println!(
+            "    |   Gas Price: {}",
+            format_gwei(tx.common_data.fee.max_fee_per_gas)
+        );
+        sh_println!(
+            "    |   Gas Per Pubdata Limit: {}",
+            tx.common_data.fee.gas_per_pubdata_limit
+        );
+
+        // Log paymaster details if available
+        let paymaster_address = tx.common_data.paymaster_params.paymaster;
+        let paymaster_input = &tx.common_data.paymaster_params.paymaster_input;
+        if paymaster_address != Address::zero() || !paymaster_input.is_empty() {
+            sh_println!("    | {}", "Paymaster details:".cyan());
+            sh_println!("    |   Paymaster Address: {:?}", paymaster_address);
+            sh_println!(
+                "    |   Paymaster Input: 0x{}",
+                if paymaster_input.is_empty() {
+                    "None".to_string()
+                } else {
+                    paymaster_input.encode_hex()
+                }
+            );
+        }
+    }
+
+    // Print likely causes if available
+    if let Some(doc) = doc {
+        if !doc.likely_causes.is_empty() {
+            sh_println!("    | ");
+            sh_println!("    | {}", "Likely causes:".cyan());
+            for cause in &doc.likely_causes {
+                sh_println!("    |   - {}", cause.cause);
+            }
+
+            // Collect fixes from all causes
+            let all_fixes: Vec<&String> = doc
+                .likely_causes
+                .iter()
+                .flat_map(|cause| &cause.fixes)
+                .collect();
+
+            if !all_fixes.is_empty() {
+                sh_println!("    | ");
+                sh_println!("    | {}", "Possible fixes:".green().bold());
+                for fix in &all_fixes {
+                    sh_println!("    |   - {}", fix);
+                }
+            }
+
+            // Collect references
+            let all_references: Vec<&String> = doc
+                .likely_causes
+                .iter()
+                .flat_map(|cause| &cause.references)
+                .collect();
+
+            if !all_references.is_empty() {
+                sh_println!(
+                    "\n{}",
+                    "For more information about this error, visit:"
+                        .cyan()
+                        .bold()
+                );
+                for reference in &all_references {
+                    sh_println!("  - {}", reference.underline());
+                }
+            }
+        }
+
+        sh_println!("    |");
+        sh_println!("{} {}", "note:".blue(), doc.description);
+    }
+
+    sh_println!(
+        "{} transaction execution halted due to the above error\n",
+        "error:".red()
     );
 }

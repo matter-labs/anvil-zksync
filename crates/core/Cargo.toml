@@ -19,6 +19,7 @@ zksync_contracts.workspace = true
 zksync_types.workspace = true
 zksync_web3_decl.workspace = true
 zksync_error.workspace = true
+zksync-error-description.workspace = true
 
 anyhow.workspace = true
 tokio.workspace = true

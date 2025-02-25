@@ -3,7 +3,7 @@ use crate::console_log::ConsoleLogHandler;
 use crate::deps::storage_view::StorageView;
 use crate::filters::EthFilters;
 use crate::node::call_error_tracer::CallErrorTracer;
-use crate::node::error::LoadStateError;
+use crate::node::error::{LoadStateError, ToHaltError, ToRevertReason};
 use crate::node::inner::blockchain::{Blockchain, ReadBlockchain};
 use crate::node::inner::fork::{Fork, ForkClient, ForkSource};
 use crate::node::inner::fork_storage::{ForkStorage, SerializableStorage};
@@ -45,6 +45,8 @@ use zksync_multivm::interface::{
 };
 use zksync_multivm::vm_latest::Vm;
 
+use crate::formatter::print_execution_error;
+use zksync_error::anvil_zksync::{halt::HaltError, revert::RevertError};
 use zksync_multivm::tracers::CallTracer;
 use zksync_multivm::utils::{
     adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
@@ -469,10 +471,22 @@ impl InMemoryNodeInner {
         } = self.run_l2_tx_raw(l2_tx.clone(), vm)?;
 
         if let ExecutionResult::Halt { reason } = result.result {
-            // Halt means that something went really bad with the transaction execution (in most cases invalid signature,
-            // but it could also be bootloader panic etc).
-            // In such case, we should not persist the VM data, and we should pretend that transaction never existed.
-            anyhow::bail!("Transaction HALT: {reason}");
+            let reason_clone = reason.clone();
+
+            let handle = tokio::runtime::Handle::current();
+            let halt_error =
+                std::thread::spawn(move || handle.block_on(reason_clone.to_halt_error()))
+                    .join()
+                    .expect("Thread panicked");
+
+            print_execution_error(&halt_error, Some(&l2_tx));
+
+            // Halt means that something went really bad with the transaction execution
+            // (in most cases invalid signature, but it could also be bootloader panic etc).
+            // In such cases, we should not persist the VM data and should pretend that
+            // the transaction never existed.
+            // We do not print the error here, as it was already printed above.
+            anyhow::bail!("Transaction halted due to critical error");
         }
 
         // Write all the factory deps.
@@ -929,7 +943,10 @@ impl InMemoryNodeInner {
                     message
                 );
                 let data = output.encoded_data();
-                sh_eprintln!("\n{}", pretty_message);
+
+                let revert_reason: RevertError = output.to_revert_reason().await;
+                print_execution_error(&revert_reason, Some(&l2_tx));
+
                 Err(Web3Error::SubmitTransactionError(pretty_message, data))
             }
             ExecutionResult::Halt { reason } => {
@@ -953,7 +970,9 @@ impl InMemoryNodeInner {
                     message
                 );
 
-                sh_eprintln!("\n{}", pretty_message);
+                let halt_error: HaltError = reason.to_halt_error().await;
+                print_execution_error(&halt_error, Some(&l2_tx));
+
                 Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
             }
             ExecutionResult::Success { .. } => {
