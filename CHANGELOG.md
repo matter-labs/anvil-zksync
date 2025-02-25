@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.2](https://github.com/matter-labs/anvil-zksync/compare/v0.3.1...v0.3.2) (2025-02-25)
+
+
+### Features
+
+* implement `anvil_zks_{prove,execute}Batch` ([#586](https://github.com/matter-labs/anvil-zksync/issues/586)) ([abbcf72](https://github.com/matter-labs/anvil-zksync/commit/abbcf72d0afbb662b5abbd621b4b959b6849e7ba))
+* update zksync error setup ([#596](https://github.com/matter-labs/anvil-zksync/issues/596)) ([18cdc30](https://github.com/matter-labs/anvil-zksync/commit/18cdc3035fb00c9e47998c770331536d782315e3))
+
 ## [0.3.1](https://github.com/matter-labs/anvil-zksync/compare/v0.3.0...v0.3.1) (2025-02-20)
 
 
