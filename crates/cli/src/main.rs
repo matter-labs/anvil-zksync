@@ -218,18 +218,6 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         None
     };
 
-    let mut node_service_tasks: Vec<Pin<Box<dyn Future<Output = anyhow::Result<()>>>>> = Vec::new();
-    let l1_sidecar = match config.l1_config.as_ref() {
-        Some(l1_config) => {
-            let (l1_sidecar, l1_sidecar_runner) = L1Sidecar::builtin(l1_config.port)
-                .await
-                .map_err(to_domain)?;
-            node_service_tasks.push(Box::pin(l1_sidecar_runner.run()));
-            l1_sidecar
-        }
-        None => L1Sidecar::none(),
-    };
-
     let impersonation = ImpersonationManager::default();
     if config.enable_auto_impersonate {
         // Enable auto impersonation if configured
@@ -260,6 +248,24 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         system_contracts.clone(),
         storage_key_layout,
     );
+
+    let mut node_service_tasks: Vec<Pin<Box<dyn Future<Output = anyhow::Result<()>>>>> = Vec::new();
+    let l1_sidecar = match config.l1_config.as_ref() {
+        Some(_) if fork_print_info.is_some() => {
+            return Err(to_domain(generic_error!(
+                "running L1 in forking mode is unsupported"
+            )))
+        }
+        Some(l1_config) => {
+            let (l1_sidecar, l1_sidecar_runner) =
+                L1Sidecar::builtin(l1_config.port, blockchain.clone())
+                    .await
+                    .map_err(to_domain)?;
+            node_service_tasks.push(Box::pin(l1_sidecar_runner.run()));
+            l1_sidecar
+        }
+        None => L1Sidecar::none(),
+    };
 
     let (node_executor, node_handle) = NodeExecutor::new(
         node_inner.clone(),

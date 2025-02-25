@@ -1,7 +1,13 @@
 [package]
 name = "zksync_error"
-version = "0.3.1"
-edition = "2021"
+authors.workspace = true
+categories.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
 
 [dependencies]
 anyhow.workspace = true
@@ -10,4 +16,4 @@ serde = { workspace = true, features = [ "rc" ] }
 serde_json.workspace = true
 strum.workspace = true
 strum_macros.workspace = true
-zksync-error-description = { git = "https://github.com/matter-labs/zksync-error", rev = "cee7b79" }
+zksync-error-description.workspace = true

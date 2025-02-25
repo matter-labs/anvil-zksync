@@ -383,7 +383,11 @@
           "typescript": "AnvilZKsync"
         },
         "identifier": "anvil_zksync",
-        "description": "Errors originating in Anvil for ZKsync."
+        "description": "Errors originating in Anvil for ZKsync.",
+        "origins": [
+          "<default zksync-root.json>",
+          "../../etc/errors/anvil.json"
+        ]
       },
       "Compiler": {
         "name": "Compiler",
@@ -401,7 +405,10 @@
           "typescript": "Compiler"
         },
         "identifier": "compiler",
-        "description": "Compilers such as zksolc, zkvyper, solc."
+        "description": "Compilers such as zksolc, zkvyper, solc.",
+        "origins": [
+          "<default zksync-root.json>"
+        ]
       },
       "Core": {
         "name": "Core",
@@ -417,7 +424,10 @@
           "typescript": "Core"
         },
         "identifier": "core",
-        "description": "Errors in core ZKsync components such as sequencer or mempool."
+        "description": "Errors in core ZKsync components such as sequencer or mempool.",
+        "origins": [
+          "<default zksync-root.json>"
+        ]
       },
       "Foundry": {
         "name": "Foundry",
@@ -431,7 +441,10 @@
           "typescript": "Foundry"
         },
         "identifier": "foundry",
-        "description": "Errors originating in Foundry."
+        "description": "Errors originating in Foundry.",
+        "origins": [
+          "<default zksync-root.json>"
+        ]
       },
       "Hardhat": {
         "name": "Hardhat",
@@ -445,7 +458,10 @@
           "typescript": "Hardhat"
         },
         "identifier": "hardhat",
-        "description": "Errors originating in HardHat."
+        "description": "Errors originating in HardHat.",
+        "origins": [
+          "<default zksync-root.json>"
+        ]
       }
     },
     "components": {
@@ -458,7 +474,10 @@
           "typescript": "API"
         },
         "identifier": "api",
-        "description": "Errors originating in the web3 API."
+        "description": "Errors originating in the web3 API.",
+        "origins": [
+          "<default zksync-root.json>"
+        ]
       },
       "AnvilEnvironment": {
         "name": "AnvilEnvironment",
@@ -469,7 +488,10 @@
           "typescript": "AnvilEnvironment"
         },
         "identifier": "env",
-        "description": ""
+        "description": "",
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
       },
       "AnvilGeneric": {
         "name": "AnvilGeneric",
@@ -480,7 +502,10 @@
           "typescript": "AnvilGeneric"
         },
         "identifier": "gen",
-        "description": ""
+        "description": "",
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
       },
       "EraVM": {
         "name": "EraVM",
@@ -491,7 +516,10 @@
           "typescript": "EraVM"
         },
         "identifier": "eravm",
-        "description": "Errors in EraVM virtual machine executing contracts."
+        "description": "Errors in EraVM virtual machine executing contracts.",
+        "origins": [
+          "<default zksync-root.json>"
+        ]
       },
       "ExecutionPlatform": {
         "name": "ExecutionPlatform",
@@ -502,7 +530,10 @@
           "typescript": "ExecutionPlatform"
         },
         "identifier": "exec",
-        "description": "Errors in the contract execution environment, bootloader, etc."
+        "description": "Errors in the contract execution environment, bootloader, etc.",
+        "origins": [
+          "<default zksync-root.json>"
+        ]
       },
       "FoundryUpstream": {
         "name": "FoundryUpstream",
@@ -513,7 +544,10 @@
           "typescript": "FoundryUpstream"
         },
         "identifier": "upstream",
-        "description": "Errors originating in the upstream Foundry implementation."
+        "description": "Errors originating in the upstream Foundry implementation.",
+        "origins": [
+          "<default zksync-root.json>"
+        ]
       },
       "FoundryZksync": {
         "name": "FoundryZksync",
@@ -524,7 +558,10 @@
           "typescript": "FoundryZksync"
         },
         "identifier": "zksync",
-        "description": "Errors originating in the ZKsync codebase for Foundry."
+        "description": "Errors originating in the ZKsync codebase for Foundry.",
+        "origins": [
+          "<default zksync-root.json>"
+        ]
       },
       "Halt": {
         "name": "Halt",
@@ -535,7 +572,10 @@
           "typescript": "Halt"
         },
         "identifier": "halt",
-        "description": ""
+        "description": "",
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
       },
       "HardhatUpstream": {
         "name": "HardhatUpstream",
@@ -546,7 +586,10 @@
           "typescript": "HardhatUpstream"
         },
         "identifier": "upstream",
-        "description": "Errors originating in the upstream Hardhat implementation."
+        "description": "Errors originating in the upstream Hardhat implementation.",
+        "origins": [
+          "<default zksync-root.json>"
+        ]
       },
       "HardhatZksync": {
         "name": "HardhatZksync",
@@ -557,7 +600,10 @@
           "typescript": "HardhatZksync"
         },
         "identifier": "zksync",
-        "description": "Errors originating in the ZKsync codebase for HardHat."
+        "description": "Errors originating in the ZKsync codebase for HardHat.",
+        "origins": [
+          "<default zksync-root.json>"
+        ]
       },
       "LLVM_EVM": {
         "name": "LLVM_EVM",
@@ -568,7 +614,10 @@
           "typescript": "LLVM_EVM"
         },
         "identifier": "llvm+evm",
-        "description": "Errors originating in the compiler backend for Ethereum VM (EVM)."
+        "description": "Errors originating in the compiler backend for Ethereum VM (EVM).",
+        "origins": [
+          "<default zksync-root.json>"
+        ]
       },
       "LLVM_Era": {
         "name": "LLVM_Era",
@@ -579,7 +628,10 @@
           "typescript": "LLVM_Era"
         },
         "identifier": "llvm+era",
-        "description": "Errors originating in the compiler backend for EraVM."
+        "description": "Errors originating in the compiler backend for EraVM.",
+        "origins": [
+          "<default zksync-root.json>"
+        ]
       },
       "Revert": {
         "name": "Revert",
@@ -590,7 +642,10 @@
           "typescript": "Revert"
         },
         "identifier": "revert",
-        "description": ""
+        "description": "",
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
       },
       "Sequencer": {
         "name": "Sequencer",
@@ -601,7 +656,10 @@
           "typescript": "Sequencer"
         },
         "identifier": "seq",
-        "description": "Errors in the sequencer node"
+        "description": "Errors in the sequencer node",
+        "origins": [
+          "<default zksync-root.json>"
+        ]
       },
       "Solc": {
         "name": "Solc",
@@ -612,7 +670,10 @@
           "typescript": "Solc"
         },
         "identifier": "solc",
-        "description": "Errors originating in the official Solidity compiler."
+        "description": "Errors originating in the official Solidity compiler.",
+        "origins": [
+          "<default zksync-root.json>"
+        ]
       },
       "SolcFork": {
         "name": "SolcFork",
@@ -623,7 +684,10 @@
           "typescript": "SolcFork"
         },
         "identifier": "solc+fork",
-        "description": "Errors originating in the ZKsync fork of Solidity compiler."
+        "description": "Errors originating in the ZKsync fork of Solidity compiler.",
+        "origins": [
+          "<default zksync-root.json>"
+        ]
       },
       "Zksolc": {
         "name": "Zksolc",
@@ -634,7 +698,10 @@
           "typescript": "Zksolc"
         },
         "identifier": "zksolc",
-        "description": "Errors originating in the ZKsync Solidity compiler for EraVM and EVM."
+        "description": "Errors originating in the ZKsync Solidity compiler for EraVM and EVM.",
+        "origins": [
+          "<default zksync-root.json>"
+        ]
       },
       "Zkvyper": {
         "name": "Zkvyper",
@@ -645,7 +712,10 @@
           "typescript": "Zkvyper"
         },
         "identifier": "zkvyper",
-        "description": "Errors originating in the ZKsync Vyper compiler for EraVM."
+        "description": "Errors originating in the ZKsync Vyper compiler for EraVM.",
+        "origins": [
+          "<default zksync-root.json>"
+        ]
       }
     },
     "errors": {
@@ -672,7 +742,8 @@
             "name": "GenericError",
             "path": ""
           }
-        }
+        },
+        "origins": []
       },
       "[anvil_zksync-gen-0]": {
         "domain": "AnvilZKsync",
@@ -697,7 +768,8 @@
             "name": "GenericError",
             "path": ""
           }
-        }
+        },
+        "origins": []
       },
       "[anvil_zksync-halt-0]": {
         "domain": "AnvilZKsync",
@@ -722,7 +794,8 @@
             "name": "GenericError",
             "path": ""
           }
-        }
+        },
+        "origins": []
       },
       "[anvil_zksync-halt-10]": {
         "domain": "AnvilZKsync",
@@ -763,7 +836,10 @@
             "name": "UnexpectedVMBehavior",
             "path": ""
           }
-        }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
       },
       "[anvil_zksync-halt-11]": {
         "domain": "AnvilZKsync",
@@ -798,7 +874,10 @@
             "name": "BootloaderOutOfGas",
             "path": ""
           }
-        }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
       },
       "[anvil_zksync-halt-12]": {
         "domain": "AnvilZKsync",
@@ -833,7 +912,10 @@
             "name": "ValidationOutOfGas",
             "path": ""
           }
-        }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
       },
       "[anvil_zksync-halt-13]": {
         "domain": "AnvilZKsync",
@@ -867,7 +949,10 @@
             "name": "TooBigGasLimit",
             "path": ""
           }
-        }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
       },
       "[anvil_zksync-halt-14]": {
         "domain": "AnvilZKsync",
@@ -902,7 +987,10 @@
             "name": "NotEnoughGasProvided",
             "path": ""
           }
-        }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
       },
       "[anvil_zksync-halt-15]": {
         "domain": "AnvilZKsync",
@@ -936,7 +1024,10 @@
             "name": "MissingInvocationLimitReached",
             "path": ""
           }
-        }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
       },
       "[anvil_zksync-halt-16]": {
         "domain": "AnvilZKsync",
@@ -976,7 +1067,10 @@
             "name": "FailedToSetL2Block",
             "path": ""
           }
-        }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
       },
       "[anvil_zksync-halt-17]": {
         "domain": "AnvilZKsync",
@@ -1016,7 +1110,10 @@
             "name": "FailedToAppendTransactionToL2Block",
             "path": ""
           }
-        }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
       },
       "[anvil_zksync-halt-18]": {
         "domain": "AnvilZKsync",
@@ -1050,7 +1147,10 @@
             "name": "VMPanic",
             "path": ""
           }
-        }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
       },
       "[anvil_zksync-halt-19]": {
         "domain": "AnvilZKsync",
@@ -1089,7 +1189,10 @@
             "name": "TracerCustom",
             "path": ""
           }
-        }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
       },
       "[anvil_zksync-halt-1]": {
         "domain": "AnvilZKsync",
@@ -1141,7 +1244,10 @@
             "name": "ValidationFailed",
             "path": ""
           }
-        }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
       },
       "[anvil_zksync-halt-20]": {
         "domain": "AnvilZKsync",
@@ -1175,7 +1281,10 @@
             "name": "FailedToPublishCompressedBytecodes",
             "path": ""
           }
-        }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
       },
       "[anvil_zksync-halt-21]": {
         "domain": "AnvilZKsync",
@@ -1210,7 +1319,10 @@
             "name": "FailedBlockTimestampAssertion",
             "path": ""
           }
-        }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
       },
       "[anvil_zksync-halt-2]": {
         "domain": "AnvilZKsync",
@@ -1254,7 +1366,10 @@
             "name": "PaymasterValidationFailed",
             "path": ""
           }
-        }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
       },
       "[anvil_zksync-halt-3]": {
         "domain": "AnvilZKsync",
@@ -1299,7 +1414,10 @@
             "name": "PrePaymasterPreparationFailed",
             "path": ""
           }
-        }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
       },
       "[anvil_zksync-halt-4]": {
         "domain": "AnvilZKsync",
@@ -1351,7 +1469,10 @@
             "name": "PayForTxFailed",
             "path": ""
           }
-        }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
       },
       "[anvil_zksync-halt-5]": {
         "domain": "AnvilZKsync",
@@ -1394,7 +1515,10 @@
             "name": "FailedToMarkFactoryDependencies",
             "path": ""
           }
-        }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
       },
       "[anvil_zksync-halt-6]": {
         "domain": "AnvilZKsync",
@@ -1446,7 +1570,10 @@
             "name": "FailedToChargeFee",
             "path": ""
           }
-        }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
       },
       "[anvil_zksync-halt-7]": {
         "domain": "AnvilZKsync",
@@ -1480,7 +1607,10 @@
             "name": "FromIsNotAnAccount",
             "path": ""
           }
-        }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
       },
       "[anvil_zksync-halt-8]": {
         "domain": "AnvilZKsync",
@@ -1514,7 +1644,10 @@
             "name": "InnerTxError",
             "path": ""
           }
-        }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
       },
       "[anvil_zksync-halt-9]": {
         "domain": "AnvilZKsync",
@@ -1557,7 +1690,10 @@
             "name": "Unknown",
             "path": ""
           }
-        }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
       },
       "[anvil_zksync-revert-0]": {
         "domain": "AnvilZKsync",
@@ -1582,7 +1718,8 @@
             "name": "GenericError",
             "path": ""
           }
-        }
+        },
+        "origins": []
       },
       "[anvil_zksync-revert-1]": {
         "domain": "AnvilZKsync",
@@ -1627,7 +1764,10 @@
             "name": "General",
             "path": ""
           }
-        }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
       },
       "[anvil_zksync-revert-2]": {
         "domain": "AnvilZKsync",
@@ -1662,7 +1802,10 @@
             "name": "InnerTxError",
             "path": ""
           }
-        }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
       },
       "[anvil_zksync-revert-3]": {
         "domain": "AnvilZKsync",
@@ -1696,7 +1839,10 @@
             "name": "VmError",
             "path": ""
           }
-        }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
       },
       "[anvil_zksync-revert-4]": {
         "domain": "AnvilZKsync",
@@ -1748,7 +1894,10 @@
             "name": "Unknown",
             "path": ""
           }
-        }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
       },
       "[compiler-llvm+era-0]": {
         "domain": "Compiler",
@@ -1773,7 +1922,8 @@
             "name": "GenericError",
             "path": ""
           }
-        }
+        },
+        "origins": []
       },
       "[compiler-llvm+evm-0]": {
         "domain": "Compiler",
@@ -1798,7 +1948,8 @@
             "name": "GenericError",
             "path": ""
           }
-        }
+        },
+        "origins": []
       },
       "[compiler-solc+fork-0]": {
         "domain": "Compiler",
@@ -1823,7 +1974,8 @@
             "name": "GenericError",
             "path": ""
           }
-        }
+        },
+        "origins": []
       },
       "[compiler-solc-0]": {
         "domain": "Compiler",
@@ -1848,7 +2000,8 @@
             "name": "GenericError",
             "path": ""
           }
-        }
+        },
+        "origins": []
       },
       "[compiler-zksolc-0]": {
         "domain": "Compiler",
@@ -1873,7 +2026,8 @@
             "name": "GenericError",
             "path": ""
           }
-        }
+        },
+        "origins": []
       },
       "[compiler-zkvyper-0]": {
         "domain": "Compiler",
@@ -1898,7 +2052,8 @@
             "name": "GenericError",
             "path": ""
           }
-        }
+        },
+        "origins": []
       },
       "[core-api-0]": {
         "domain": "Core",
@@ -1923,7 +2078,8 @@
             "name": "GenericError",
             "path": ""
           }
-        }
+        },
+        "origins": []
       },
       "[core-eravm-0]": {
         "domain": "Core",
@@ -1948,7 +2104,8 @@
             "name": "GenericError",
             "path": ""
           }
-        }
+        },
+        "origins": []
       },
       "[core-exec-0]": {
         "domain": "Core",
@@ -1973,7 +2130,8 @@
             "name": "GenericError",
             "path": ""
           }
-        }
+        },
+        "origins": []
       },
       "[core-seq-0]": {
         "domain": "Core",
@@ -1998,7 +2156,8 @@
             "name": "GenericError",
             "path": ""
           }
-        }
+        },
+        "origins": []
       },
       "[core-seq-1]": {
         "domain": "Core",
@@ -2023,7 +2182,10 @@
             "name": "GenericSequencerError",
             "path": ""
           }
-        }
+        },
+        "origins": [
+          "<default zksync-root.json>"
+        ]
       },
       "[foundry-upstream-0]": {
         "domain": "Foundry",
@@ -2048,7 +2210,8 @@
             "name": "GenericError",
             "path": ""
           }
-        }
+        },
+        "origins": []
       },
       "[foundry-zksync-0]": {
         "domain": "Foundry",
@@ -2073,7 +2236,8 @@
             "name": "GenericError",
             "path": ""
           }
-        }
+        },
+        "origins": []
       },
       "[hardhat-upstream-0]": {
         "domain": "Hardhat",
@@ -2098,7 +2262,8 @@
             "name": "GenericError",
             "path": ""
           }
-        }
+        },
+        "origins": []
       },
       "[hardhat-zksync-0]": {
         "domain": "Hardhat",
@@ -2123,7 +2288,8 @@
             "name": "GenericError",
             "path": ""
           }
-        }
+        },
+        "origins": []
       }
     }
   }
