@@ -45,7 +45,7 @@ use zksync_multivm::interface::{
 };
 use zksync_multivm::vm_latest::Vm;
 
-use crate::formatter::print_execution_error;
+use crate::formatter::ExecutionErrorReport;
 use zksync_error::anvil_zksync::{halt::HaltError, revert::RevertError};
 use zksync_multivm::tracers::CallTracer;
 use zksync_multivm::utils::{
@@ -479,7 +479,8 @@ impl InMemoryNodeInner {
                     .join()
                     .expect("Thread panicked");
 
-            print_execution_error(&halt_error, Some(&l2_tx));
+            let error_report = ExecutionErrorReport::new(&halt_error, Some(&l2_tx));
+            sh_println!("{}", error_report);
 
             // Halt means that something went really bad with the transaction execution
             // (in most cases invalid signature, but it could also be bootloader panic etc).
@@ -945,7 +946,8 @@ impl InMemoryNodeInner {
                 let data = output.encoded_data();
 
                 let revert_reason: RevertError = output.to_revert_reason().await;
-                print_execution_error(&revert_reason, Some(&l2_tx));
+                let error_report = ExecutionErrorReport::new(&revert_reason, Some(&l2_tx));
+                sh_println!("{}", error_report);
 
                 Err(Web3Error::SubmitTransactionError(pretty_message, data))
             }
@@ -971,7 +973,8 @@ impl InMemoryNodeInner {
                 );
 
                 let halt_error: HaltError = reason.to_halt_error().await;
-                print_execution_error(&halt_error, Some(&l2_tx));
+                let error_report = ExecutionErrorReport::new(&halt_error, Some(&l2_tx));
+                sh_println!("{}", error_report);
 
                 Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
             }

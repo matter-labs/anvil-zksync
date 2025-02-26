@@ -31,8 +31,10 @@ async fn handle_vm_revert_reason(reason: &VmRevertReason, default_msg: &str) -> 
             data,
         } => {
             if function_selector.is_empty() {
-                // Function selector is empty, so we return empty strings
-                (String::new(), String::new())
+                (
+                    "Error: no function selector available".to_string(),
+                    String::new(),
+                )
             } else {
                 let hex_selector = function_selector.encode_hex();
 

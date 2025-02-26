@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 
-use crate::formatter::print_execution_error;
+use crate::formatter::ExecutionErrorReport;
 use crate::node::error::{ToHaltError, ToRevertReason};
-use anvil_zksync_common::sh_err;
+use anvil_zksync_common::{sh_err, sh_println};
 use anyhow::Context as _;
 use zksync_error::anvil_zksync::{halt::HaltError, revert::RevertError};
 use zksync_multivm::interface::ExecutionResult;
@@ -59,7 +59,8 @@ impl InMemoryNode {
                 );
 
                 let revert_reason: RevertError = output.clone().to_revert_reason().await;
-                print_execution_error(&revert_reason, Some(&tx));
+                let error_report = ExecutionErrorReport::new(&revert_reason, Some(&tx));
+                sh_println!("{}", error_report);
 
                 Err(Web3Error::SubmitTransactionError(
                     pretty_message,
@@ -75,7 +76,8 @@ impl InMemoryNode {
                 );
 
                 let halt_error: HaltError = reason.clone().to_halt_error().await;
-                print_execution_error(&halt_error, Some(&tx));
+                let error_report = ExecutionErrorReport::new(&halt_error, Some(&tx));
+                sh_println!("{}", error_report);
 
                 Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
             }
