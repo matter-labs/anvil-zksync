@@ -46,6 +46,9 @@ jobs:
         with:
           toolchain: stable
 
+      - name: Install Foundry-ZKsync
+        uses: dutterbutter/foundry-zksync-toolchain@v1
+
       - name: Build Code
         run: make all
 
