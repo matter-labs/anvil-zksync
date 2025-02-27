@@ -866,7 +866,6 @@ mod tests {
         env,
         net::{IpAddr, Ipv4Addr},
     };
-    use tempdir::TempDir;
     use zksync_types::{H160, U256};
 
     #[test]
@@ -915,7 +914,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_dump_state() -> anyhow::Result<()> {
-        let temp_dir = TempDir::new("state-test").expect("failed creating temporary dir");
+        let temp_dir = tempfile::Builder::new()
+            .prefix("state-test")
+            .tempdir()
+            .expect("failed creating temporary dir");
         let dump_path = temp_dir.path().join("state.json");
 
         let config = anvil_zksync_config::TestNodeConfig {
@@ -956,7 +958,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_load_state() -> anyhow::Result<()> {
-        let temp_dir = TempDir::new("state-load-test").expect("failed creating temporary dir");
+        let temp_dir = tempfile::Builder::new()
+            .prefix("state-load-test")
+            .tempdir()
+            .expect("failed creating temporary dir");
         let state_path = temp_dir.path().join("state.json");
 
         let config = anvil_zksync_config::TestNodeConfig {

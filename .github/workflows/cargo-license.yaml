@@ -1,0 +1,12 @@
+name: cargo-deny check
+on: pull_request
+jobs:
+  cargo-deny:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: EmbarkStudios/cargo-deny-action@v2
+      with:
+        manifest-path: "./Cargo.toml"
+        command: check
+        command-arguments: "--hide-inclusion-graph"

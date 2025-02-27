@@ -49,7 +49,7 @@ url.workspace = true
 [dev-dependencies]
 maplit.workspace = true
 httptest.workspace = true
-tempdir.workspace = true
+tempfile.workspace = true
 test-case.workspace = true
 backon.workspace = true
 
