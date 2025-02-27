@@ -20,8 +20,8 @@ mod zks;
 
 pub use self::{
     fee_model::TestNodeFeeInputProvider, impersonate::ImpersonationManager, keys::StorageKeyLayout,
-    node_executor::NodeExecutor, pool::TxPool, sealer::BlockSealer, sealer::BlockSealerMode,
-    state::VersionedState,
+    node_executor::NodeExecutor, pool::TxBatch, pool::TxPool, sealer::BlockSealer,
+    sealer::BlockSealerMode, state::VersionedState,
 };
 pub use in_memory::*;
 pub use inner::{blockchain, fork, node_executor, time};

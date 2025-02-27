@@ -1193,6 +1193,7 @@ dependencies = [
  "async-trait",
  "foundry-common",
  "serde",
+ "serde_json",
  "serde_with",
  "serde_yaml",
  "tempdir",

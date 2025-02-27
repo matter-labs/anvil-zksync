@@ -18,10 +18,10 @@ use crate::node::{
     TransactionResult, TxExecutionInfo, VersionedState, ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION,
     MAX_PREVIOUS_STATES, MAX_TX_SIZE,
 };
-
 use crate::system_contracts::SystemContracts;
 use crate::utils::create_debug_output;
 use crate::{delegate_vm, formatter, utils};
+
 use anvil_zksync_common::{sh_eprintln, sh_err, sh_println};
 use anvil_zksync_config::constants::{
     LEGACY_RICH_WALLETS, NON_FORK_FIRST_BLOCK_TIMESTAMP, RICH_WALLETS,
@@ -37,14 +37,12 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_multivm::interface::storage::{ReadStorage, WriteStorage};
-use zksync_multivm::interface::VmFactory;
 use zksync_multivm::interface::{
-    Call, ExecutionResult, InspectExecutionMode, L1BatchEnv, L2BlockEnv, SystemEnv,
-    TxExecutionMode, VmExecutionResultAndLogs, VmInterface, VmInterfaceExt,
+    Call, ExecutionResult, FinishedL1Batch, InspectExecutionMode, L1BatchEnv, L2BlockEnv,
+    SystemEnv, TxExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt,
     VmInterfaceHistoryEnabled,
 };
-use zksync_multivm::vm_latest::Vm;
-
+use zksync_multivm::pubdata_builders::pubdata_params_to_builder;
 use zksync_multivm::tracers::CallTracer;
 use zksync_multivm::utils::{
     adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
@@ -53,13 +51,15 @@ use zksync_multivm::utils::{
 use zksync_multivm::vm_latest::constants::{
     BATCH_COMPUTATIONAL_GAS_LIMIT, BATCH_GAS_LIMIT, MAX_VM_PUBDATA_PER_BATCH,
 };
+use zksync_multivm::vm_latest::utils::l2_blocks::load_last_l2_block;
 use zksync_multivm::vm_latest::{
-    HistoryDisabled, HistoryEnabled, HistoryMode, ToTracerPointer, TracerPointer,
+    HistoryDisabled, HistoryEnabled, HistoryMode, ToTracerPointer, TracerPointer, Vm,
 };
 use zksync_multivm::VmVersion;
 use zksync_types::api::{BlockIdVariant, TransactionVariant};
 use zksync_types::block::build_bloom;
 use zksync_types::bytecode::BytecodeHash;
+use zksync_types::commitment::{PubdataParams, PubdataType};
 use zksync_types::fee::Fee;
 use zksync_types::fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput};
 use zksync_types::l2::{L2Tx, TransactionType};
@@ -68,8 +68,9 @@ use zksync_types::utils::{decompose_full_nonce, nonces_to_full_nonce};
 use zksync_types::web3::{Bytes, Index};
 use zksync_types::{
     api, h256_to_address, h256_to_u256, u256_to_h256, AccountTreeId, Address, Bloom, BloomInput,
-    L1BatchNumber, L2BlockNumber, L2ChainId, StorageKey, StorageValue, Transaction,
-    ACCOUNT_CODE_STORAGE_ADDRESS, H160, H256, MAX_L2_TX_GAS_LIMIT, U256, U64,
+    ExecuteTransactionCommon, L1BatchNumber, L2BlockNumber, L2ChainId, L2TxCommonData, StorageKey,
+    StorageValue, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS, H160, H256, MAX_L2_TX_GAS_LIMIT, U256,
+    U64,
 };
 use zksync_web3_decl::error::Web3Error;
 
@@ -212,7 +213,7 @@ impl InMemoryNodeInner {
         batch_timestamp: u64,
         base_system_contracts_hashes: BaseSystemContractsHashes,
         blocks: impl IntoIterator<Item = api::Block<api::TransactionVariant>>,
-        tx_results: impl IntoIterator<Item = TransactionResult>,
+        tx_results: Vec<TransactionResult>,
     ) {
         // TODO: `apply_batch` is leaking a lot of abstractions and should be wholly contained inside `Blockchain`.
         //       Additionally, a dedicated `PreviousStates` struct would help with separation of concern.
@@ -275,36 +276,34 @@ impl InMemoryNodeInner {
     }
 
     /// Validates L2 transaction
-    fn validate_tx(&self, tx: &L2Tx) -> anyhow::Result<()> {
+    fn validate_tx(&self, tx_hash: H256, tx_data: &L2TxCommonData) -> anyhow::Result<()> {
         let max_gas = U256::from(u64::MAX);
-        if tx.common_data.fee.gas_limit > max_gas
-            || tx.common_data.fee.gas_per_pubdata_limit > max_gas
-        {
+        if tx_data.fee.gas_limit > max_gas || tx_data.fee.gas_per_pubdata_limit > max_gas {
             anyhow::bail!("exceeds block gas limit");
         }
 
         let l2_gas_price = self.fee_input_provider.gas_price();
-        if tx.common_data.fee.max_fee_per_gas < l2_gas_price.into() {
+        if tx_data.fee.max_fee_per_gas < l2_gas_price.into() {
             sh_eprintln!(
                 "Submitted Tx is Unexecutable {:?} because of MaxFeePerGasTooLow {}",
-                tx.hash(),
-                tx.common_data.fee.max_fee_per_gas
+                tx_hash,
+                tx_data.fee.max_fee_per_gas
             );
             anyhow::bail!("block base fee higher than max fee per gas");
         }
 
-        if tx.common_data.fee.max_fee_per_gas < tx.common_data.fee.max_priority_fee_per_gas {
+        if tx_data.fee.max_fee_per_gas < tx_data.fee.max_priority_fee_per_gas {
             sh_eprintln!(
                 "Submitted Tx is Unexecutable {:?} because of MaxPriorityFeeGreaterThanMaxFee {}",
-                tx.hash(),
-                tx.common_data.fee.max_fee_per_gas
+                tx_hash,
+                tx_data.fee.max_fee_per_gas
             );
             anyhow::bail!("max priority fee per gas higher than max fee per gas");
         }
         Ok(())
     }
 
-    /// Executes the given L2 transaction and returns all the VM logs.
+    /// Executes the given transaction and returns all the VM logs.
     /// The bootloader can be omitted via specifying the `execute_bootloader` boolean.
     /// This causes the VM to produce 1 L2 block per L1 block, instead of the usual 2 blocks per L1 block.
     ///
@@ -325,17 +324,15 @@ impl InMemoryNodeInner {
     ///
     /// This is because external users of the library may call this function to perform an isolated
     /// VM operation (optionally without bootloader execution) with an external storage and get the results back.
-    /// So any data populated in [Self::run_l2_tx] will not be available for the next invocation.
-    fn run_l2_tx_raw<VM: VmInterface, W: WriteStorage, H: HistoryMode>(
+    /// So any data populated in [Self::run_tx] will not be available for the next invocation.
+    fn run_tx_raw<VM: VmInterface, W: WriteStorage, H: HistoryMode>(
         &self,
-        l2_tx: L2Tx,
+        tx: Transaction,
         vm: &mut VM,
     ) -> anyhow::Result<TxExecutionOutput>
     where
         <VM as VmInterface>::TracerDispatcher: From<Vec<TracerPointer<W, H>>>,
     {
-        let tx: Transaction = l2_tx.into();
-
         let call_tracer_result = Arc::new(OnceCell::default());
         let bootloader_debug_result = Arc::new(OnceCell::default());
         let error_flags_result = Arc::new(OnceCell::new());
@@ -348,11 +345,9 @@ impl InMemoryNodeInner {
             }
             .into_tracer_pointer(),
         ];
-        let compressed_bytecodes = vm
-            .push_transaction(tx.clone())
-            .compressed_bytecodes
-            .into_owned();
-        let tx_result = vm.inspect(&mut tracers.into(), InspectExecutionMode::OneTx);
+        let (compressed_bytecodes, tx_result) =
+            vm.inspect_transaction_with_bytecode_compression(&mut tracers.into(), tx.clone(), true);
+        let compressed_bytecodes = compressed_bytecodes?;
 
         let call_traces = call_tracer_result.get();
 
@@ -445,11 +440,11 @@ impl InMemoryNodeInner {
         })
     }
 
-    /// Runs L2 transaction and commits it to a new block.
-    fn run_l2_tx<VM: VmInterface, W: WriteStorage, H: HistoryMode>(
+    /// Runs transaction and commits it to a new block.
+    fn run_tx<VM: VmInterface, W: WriteStorage, H: HistoryMode>(
         &mut self,
-        l2_tx: L2Tx,
-        l2_tx_index: u64,
+        tx: Transaction,
+        tx_index: u64,
         block_ctx: &BlockContext,
         batch_env: &L1BatchEnv,
         vm: &mut VM,
@@ -457,16 +452,18 @@ impl InMemoryNodeInner {
     where
         <VM as VmInterface>::TracerDispatcher: From<Vec<TracerPointer<W, H>>>,
     {
-        let tx_hash = l2_tx.hash();
-        let transaction_type = l2_tx.common_data.transaction_type;
+        let tx_hash = tx.hash();
+        let transaction_type = tx.tx_format();
 
-        self.validate_tx(&l2_tx)?;
+        if let ExecuteTransactionCommon::L2(l2_tx_data) = &tx.common_data {
+            self.validate_tx(tx.hash(), l2_tx_data)?;
+        }
 
         let TxExecutionOutput {
             result,
             bytecodes,
             call_traces,
-        } = self.run_l2_tx_raw(l2_tx.clone(), vm)?;
+        } = self.run_tx_raw(tx.clone(), vm)?;
 
         if let ExecutionResult::Halt { reason } = result.result {
             // Halt means that something went really bad with the transaction execution (in most cases invalid signature,
@@ -493,7 +490,7 @@ impl InMemoryNodeInner {
                 block_number: Some(block_ctx.miniblock.into()),
                 l1_batch_number: Some(U64::from(batch_env.number.0)),
                 transaction_hash: Some(tx_hash),
-                transaction_index: Some(U64::from(l2_tx_index)),
+                transaction_index: Some(U64::from(tx_index)),
                 log_index: Some(U256::from(log_idx)),
                 transaction_log_index: Some(U256::from(log_idx)),
                 log_type: None,
@@ -503,15 +500,15 @@ impl InMemoryNodeInner {
             .collect();
         let tx_receipt = api::TransactionReceipt {
             transaction_hash: tx_hash,
-            transaction_index: U64::from(l2_tx_index),
+            transaction_index: U64::from(tx_index),
             block_hash: block_ctx.hash,
             block_number: block_ctx.miniblock.into(),
-            l1_batch_tx_index: None,
+            l1_batch_tx_index: Some(U64::from(tx_index)),
             l1_batch_number: Some(U64::from(batch_env.number.0)),
-            from: l2_tx.initiator_account(),
-            to: l2_tx.recipient_account(),
+            from: tx.initiator_account(),
+            to: tx.recipient_account(),
             cumulative_gas_used: Default::default(),
-            gas_used: Some(l2_tx.common_data.fee.gas_limit - result.refunds.gas_refunded),
+            gas_used: Some(tx.gas_limit() - result.refunds.gas_refunded),
             contract_address: contract_address_from_tx_result(&result),
             logs,
             l2_to_l1_logs: vec![],
@@ -524,11 +521,11 @@ impl InMemoryNodeInner {
             transaction_type: Some((transaction_type as u32).into()),
             logs_bloom: Default::default(),
         };
-        let debug = create_debug_output(&l2_tx, &result, call_traces).expect("create debug output"); // OK to unwrap here as Halt is handled above
+        let debug = create_debug_output(&tx, &result, call_traces).expect("create debug output"); // OK to unwrap here as Halt is handled above
 
         Ok(TransactionResult {
             info: TxExecutionInfo {
-                tx: l2_tx,
+                tx,
                 batch_number: batch_env.number.0,
                 miniblock_number: block_ctx.miniblock,
             },
@@ -537,13 +534,13 @@ impl InMemoryNodeInner {
         })
     }
 
-    fn run_l2_txs(
+    fn run_txs(
         &mut self,
-        txs: Vec<L2Tx>,
+        txs: Vec<Transaction>,
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         block_ctx: &mut BlockContext,
-    ) -> Vec<TransactionResult> {
+    ) -> (Vec<TransactionResult>, FinishedL1Batch) {
         let storage = StorageView::new(self.fork_storage.clone()).into_rc_ptr();
 
         let mut vm = if self.system_contracts.use_zkos {
@@ -573,16 +570,11 @@ impl InMemoryNodeInner {
             // Save pre-execution VM snapshot.
             delegate_vm!(vm, make_snapshot());
             let result = match vm {
-                AnvilVM::ZKSync(ref mut vm) => {
-                    self.run_l2_tx(tx, tx_index, block_ctx, &batch_env, vm)
-                }
-                AnvilVM::ZKOs(ref mut vm) => {
-                    self.run_l2_tx(tx, tx_index, block_ctx, &batch_env, vm)
-                }
+                AnvilVM::ZKSync(ref mut vm) => self.run_tx(tx, tx_index, block_ctx, &batch_env, vm),
+                AnvilVM::ZKOs(ref mut vm) => self.run_tx(tx, tx_index, block_ctx, &batch_env, vm),
             };
 
             match result {
-                //self.run_l2_tx(tx, tx_index, block_ctx, &batch_env, &mut vm) {
                 Ok(tx_result) => {
                     tx_results.push(tx_result);
                     tx_index += 1;
@@ -593,18 +585,45 @@ impl InMemoryNodeInner {
                 }
             }
         }
-        delegate_vm!(vm, execute(InspectExecutionMode::Bootloader));
 
-        // Write all the mutated keys (storage slots).
-        for (key, value) in storage.borrow().modified_storage_keys() {
-            self.fork_storage.set_value(*key, *value);
+        if !tx_results.is_empty() {
+            let last_l2_block = load_last_l2_block(&storage).unwrap();
+            let l2_block_env = L2BlockEnv {
+                number: last_l2_block.number + 1,
+                timestamp: last_l2_block.timestamp + 1,
+                prev_block_hash: last_l2_block.hash,
+                max_virtual_blocks_to_create: 1,
+            };
+            delegate_vm!(vm, start_new_l2_block(l2_block_env));
         }
-        tx_results
+
+        let pubdata_builder = pubdata_params_to_builder(PubdataParams {
+            l2_da_validator_address: Address::zero(),
+            pubdata_type: PubdataType::Rollup,
+        });
+        let finished_l1_batch = delegate_vm!(vm, finish_batch(pubdata_builder));
+        assert!(
+            !finished_l1_batch
+                .block_tip_execution_result
+                .result
+                .is_failed(),
+            "VM must not fail when finalizing block: {:#?}",
+            finished_l1_batch.block_tip_execution_result.result
+        );
+
+        for diff in finished_l1_batch.state_diffs.as_ref().unwrap() {
+            self.fork_storage.set_value(
+                StorageKey::new(AccountTreeId::new(diff.address), u256_to_h256(diff.key)),
+                u256_to_h256(diff.final_value),
+            );
+        }
+
+        (tx_results, finished_l1_batch)
     }
 
     pub(super) async fn seal_block(
         &mut self,
-        txs: Vec<L2Tx>,
+        txs: Vec<Transaction>,
         system_contracts: BaseSystemContracts,
     ) -> anyhow::Result<L2BlockNumber> {
         let base_system_contracts_hashes = system_contracts.hashes();
@@ -617,7 +636,8 @@ impl InMemoryNodeInner {
             "advancing clock produced different timestamp than expected"
         );
 
-        let tx_results = self.run_l2_txs(txs, batch_env.clone(), system_env, &mut block_ctx);
+        let (tx_results, _finished_l1_batch) =
+            self.run_txs(txs, batch_env.clone(), system_env, &mut block_ctx);
 
         let mut filters = self.filters.write().await;
         for tx_result in &tx_results {
@@ -631,7 +651,17 @@ impl InMemoryNodeInner {
 
         let mut transactions = Vec::new();
         for (index, tx_result) in tx_results.iter().enumerate() {
-            let mut transaction = zksync_types::api::Transaction::from(tx_result.info.tx.clone());
+            let mut transaction = if let Ok(l2_tx) =
+                <Transaction as TryInto<L2Tx>>::try_into(tx_result.info.tx.clone())
+            {
+                api::Transaction::from(l2_tx)
+            } else {
+                // TODO: Build proper API transaction for upgrade transactions
+                api::Transaction {
+                    hash: tx_result.info.tx.hash(),
+                    ..Default::default()
+                }
+            };
             transaction.block_hash = Some(block_ctx.hash);
             transaction.block_number = Some(U64::from(block_ctx.miniblock));
             transaction.transaction_index = Some(index.into());
