@@ -1,0 +1,10 @@
+[profile.default]
+src = "contracts"
+out = "out"
+libs = []
+evm_version = "paris"
+remappings = ["hardhat/=node_modules/hardhat/"]
+
+[profile.default.zksync]
+zksolc = "1.5.7"
+enable_eravm_extensions = true
