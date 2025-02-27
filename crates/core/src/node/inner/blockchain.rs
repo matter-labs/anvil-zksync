@@ -14,10 +14,11 @@ use std::sync::Arc;
 use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_multivm::interface::storage::{ReadStorage, StoragePtr};
-use zksync_multivm::interface::L2Block;
+use zksync_multivm::interface::{FinishedL1Batch, L2Block, VmEvent};
 use zksync_multivm::vm_latest::utils::l2_blocks::load_last_l2_block;
 use zksync_types::block::{unpack_block_info, L1BatchHeader, L2BlockHasher};
 use zksync_types::l2::L2Tx;
+use zksync_types::writes::StateDiffRecord;
 use zksync_types::{
     api, h256_to_u256, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId,
     StorageKey, H256, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_BLOCK_INFO_POSITION, U256, U64,
@@ -147,6 +148,15 @@ pub trait ReadBlockchain: Send + Sync + Debug {
 
     /// Retrieve batch header by its number.
     async fn get_batch_header(&self, batch_number: L1BatchNumber) -> Option<L1BatchHeader>;
+
+    /// Retrieve batch state diffs by its number.
+    async fn get_batch_state_diffs(
+        &self,
+        batch_number: L1BatchNumber,
+    ) -> Option<Vec<StateDiffRecord>>;
+
+    /// Retrieve batch aggregation root by its number.
+    async fn get_batch_aggregation_root(&self, batch_number: L1BatchNumber) -> Option<H256>;
 }
 
 impl Clone for Box<dyn ReadBlockchain> {
@@ -195,6 +205,14 @@ impl Blockchain {
         f: impl FnOnce(&TransactionResult) -> T,
     ) -> Option<T> {
         Some(f(self.inner.read().await.tx_results.get(tx_hash)?))
+    }
+
+    async fn inspect_batch<T>(
+        &self,
+        batch_number: &L1BatchNumber,
+        f: impl FnOnce(&StoredL1BatchInfo) -> T,
+    ) -> Option<T> {
+        Some(f(self.inner.read().await.batches.get(batch_number)?))
     }
 
     // FIXME: Do not use for new functionality and delete once its only usage is migrated away.
@@ -468,8 +486,31 @@ impl ReadBlockchain for Blockchain {
     }
 
     async fn get_batch_header(&self, batch_number: L1BatchNumber) -> Option<L1BatchHeader> {
-        let storage = self.inner.read().await;
-        storage.batches.get(&batch_number).cloned()
+        self.inspect_batch(&batch_number, |StoredL1BatchInfo { header, .. }| {
+            header.clone()
+        })
+        .await
+    }
+
+    async fn get_batch_state_diffs(
+        &self,
+        batch_number: L1BatchNumber,
+    ) -> Option<Vec<StateDiffRecord>> {
+        self.inspect_batch(
+            &batch_number,
+            |StoredL1BatchInfo { state_diffs, .. }| state_diffs.clone(),
+        )
+        .await
+    }
+
+    async fn get_batch_aggregation_root(&self, batch_number: L1BatchNumber) -> Option<H256> {
+        self.inspect_batch(
+            &batch_number,
+            |StoredL1BatchInfo {
+                 aggregation_root, ..
+             }| *aggregation_root,
+        )
+        .await
     }
 }
 
@@ -501,6 +542,11 @@ impl Blockchain {
             } else {
                 create_genesis(genesis_timestamp)
             };
+            let genesis_batch_info = StoredL1BatchInfo {
+                header: genesis_batch_header,
+                state_diffs: Vec::new(),
+                aggregation_root: H256::zero(),
+            };
 
             BlockchainState {
                 current_batch: L1BatchNumber(0),
@@ -509,7 +555,7 @@ impl Blockchain {
                 tx_results: Default::default(),
                 blocks: HashMap::from_iter([(block_hash, genesis_block)]),
                 hashes: HashMap::from_iter([(L2BlockNumber(0), block_hash)]),
-                batches: HashMap::from_iter([(L1BatchNumber(0), genesis_batch_header)]),
+                batches: HashMap::from_iter([(L1BatchNumber(0), genesis_batch_info)]),
             }
         };
         let inner = Arc::new(RwLock::new(state));
@@ -544,10 +590,18 @@ pub(super) struct BlockchainState {
     pub(super) blocks: HashMap<H256, api::Block<api::TransactionVariant>>,
     /// Map from block number to a block hash.
     pub(super) hashes: HashMap<L2BlockNumber, H256>,
-    /// Map from batch number to batch header. Hash is not used as the key because it is not
+    /// Map from batch number to batch info. Hash is not used as the key because it is not
     /// necessarily computed by the time this entry is inserted (i.e. it is not an inherent property
     /// of a batch).
-    pub(super) batches: HashMap<L1BatchNumber, L1BatchHeader>,
+    batches: HashMap<L1BatchNumber, StoredL1BatchInfo>,
+}
+
+/// Represents stored information about a particular batch.
+#[derive(Debug, Clone)]
+struct StoredL1BatchInfo {
+    header: L1BatchHeader,
+    state_diffs: Vec<StateDiffRecord>,
+    aggregation_root: H256,
 }
 
 impl BlockchainState {
@@ -634,17 +688,38 @@ impl BlockchainState {
         &mut self,
         batch_timestamp: u64,
         base_system_contracts_hashes: BaseSystemContractsHashes,
-        tx_results: impl IntoIterator<Item = TransactionResult>,
+        tx_results: Vec<TransactionResult>,
+        finished_l1_batch: FinishedL1Batch,
+        aggregation_root: H256,
     ) {
         self.current_batch += 1;
-        // As our use of batches is limited for now, most of their fields are zeroed out.
-        let header = L1BatchHeader::new(
-            self.current_batch,
-            batch_timestamp,
-            base_system_contracts_hashes,
-            ProtocolVersionId::latest(),
+
+        let l2_to_l1_messages = VmEvent::extract_long_l2_to_l1_messages(
+            &finished_l1_batch.final_execution_state.events,
         );
-        self.batches.insert(self.current_batch, header);
+        let header = L1BatchHeader {
+            number: self.current_batch,
+            timestamp: batch_timestamp,
+            l1_tx_count: 0, // Always 0 as we don't support L1 transactions yet
+            l2_tx_count: tx_results.len() as u16,
+            priority_ops_onchain_data: vec![], // Always empty as we don't support L1 transactions yet
+            l2_to_l1_logs: finished_l1_batch.final_execution_state.user_l2_to_l1_logs,
+            l2_to_l1_messages,
+            bloom: Default::default(), // This is unused in core
+            used_contract_hashes: finished_l1_batch.final_execution_state.used_contract_hashes,
+            base_system_contracts_hashes,
+            system_logs: finished_l1_batch.final_execution_state.system_logs,
+            protocol_version: Some(ProtocolVersionId::latest()),
+            pubdata_input: finished_l1_batch.pubdata_input,
+            fee_address: Default::default(), // TODO: Use real fee address
+            batch_fee_input: Default::default(), // TODO: Use real batch fee input
+        };
+        let batch_info = StoredL1BatchInfo {
+            header,
+            state_diffs: finished_l1_batch.state_diffs.unwrap_or_default(),
+            aggregation_root,
+        };
+        self.batches.insert(self.current_batch, batch_info);
         self.tx_results.extend(
             tx_results
                 .into_iter()

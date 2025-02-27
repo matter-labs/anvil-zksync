@@ -63,14 +63,15 @@ use zksync_types::commitment::{PubdataParams, PubdataType};
 use zksync_types::fee::Fee;
 use zksync_types::fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput};
 use zksync_types::l2::{L2Tx, TransactionType};
+use zksync_types::message_root::{AGG_TREE_HEIGHT_KEY, AGG_TREE_NODES_KEY};
 use zksync_types::transaction_request::CallRequest;
 use zksync_types::utils::{decompose_full_nonce, nonces_to_full_nonce};
-use zksync_types::web3::{Bytes, Index};
+use zksync_types::web3::{keccak256, Bytes, Index};
 use zksync_types::{
     api, h256_to_address, h256_to_u256, u256_to_h256, AccountTreeId, Address, Bloom, BloomInput,
     ExecuteTransactionCommon, L1BatchNumber, L2BlockNumber, L2ChainId, L2TxCommonData, StorageKey,
-    StorageValue, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS, H160, H256, MAX_L2_TX_GAS_LIMIT, U256,
-    U64,
+    StorageValue, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS, H160, H256, L2_MESSAGE_ROOT_ADDRESS,
+    MAX_L2_TX_GAS_LIMIT, U256, U64,
 };
 use zksync_web3_decl::error::Web3Error;
 
@@ -214,6 +215,8 @@ impl InMemoryNodeInner {
         base_system_contracts_hashes: BaseSystemContractsHashes,
         blocks: impl IntoIterator<Item = api::Block<api::TransactionVariant>>,
         tx_results: Vec<TransactionResult>,
+        finished_l1_batch: FinishedL1Batch,
+        aggregation_root: H256,
     ) {
         // TODO: `apply_batch` is leaking a lot of abstractions and should be wholly contained inside `Blockchain`.
         //       Additionally, a dedicated `PreviousStates` struct would help with separation of concern.
@@ -234,7 +237,13 @@ impl InMemoryNodeInner {
         }
 
         let mut storage = self.blockchain.write().await;
-        storage.apply_batch(batch_timestamp, base_system_contracts_hashes, tx_results);
+        storage.apply_batch(
+            batch_timestamp,
+            base_system_contracts_hashes,
+            tx_results,
+            finished_l1_batch,
+            aggregation_root,
+        );
         for (index, block) in blocks.into_iter().enumerate() {
             // archive current state before we produce new batch/blocks
             archive_state(
@@ -621,6 +630,42 @@ impl InMemoryNodeInner {
         (tx_results, finished_l1_batch)
     }
 
+    fn n_dim_array_key_in_layout(array_key: usize, indices: &[U256]) -> H256 {
+        let mut key: H256 = u256_to_h256(array_key.into());
+
+        for index in indices {
+            key = H256(keccak256(key.as_bytes()));
+            key = u256_to_h256(h256_to_u256(key).overflowing_add(*index).0);
+        }
+
+        key
+    }
+
+    fn read_aggregation_root(&self) -> H256 {
+        let agg_tree_height_slot = StorageKey::new(
+            AccountTreeId::new(L2_MESSAGE_ROOT_ADDRESS),
+            H256::from_low_u64_be(AGG_TREE_HEIGHT_KEY as u64),
+        );
+
+        let agg_tree_height = self
+            .fork_storage
+            .read_value_internal(&agg_tree_height_slot)
+            .unwrap();
+        let agg_tree_height = h256_to_u256(agg_tree_height);
+
+        // `nodes[height][0]`
+        let agg_tree_root_hash_key =
+            Self::n_dim_array_key_in_layout(AGG_TREE_NODES_KEY, &[agg_tree_height, U256::zero()]);
+        let agg_tree_root_hash_slot = StorageKey::new(
+            AccountTreeId::new(L2_MESSAGE_ROOT_ADDRESS),
+            agg_tree_root_hash_key,
+        );
+
+        self.fork_storage
+            .read_value_internal(&agg_tree_root_hash_slot)
+            .unwrap()
+    }
+
     pub(super) async fn seal_block(
         &mut self,
         txs: Vec<Transaction>,
@@ -636,8 +681,9 @@ impl InMemoryNodeInner {
             "advancing clock produced different timestamp than expected"
         );
 
-        let (tx_results, _finished_l1_batch) =
+        let (tx_results, finished_l1_batch) =
             self.run_txs(txs, batch_env.clone(), system_env, &mut block_ctx);
+        let aggregation_root = self.read_aggregation_root();
 
         let mut filters = self.filters.write().await;
         for tx_result in &tx_results {
@@ -743,6 +789,8 @@ impl InMemoryNodeInner {
             base_system_contracts_hashes,
             blocks,
             tx_results,
+            finished_l1_batch,
+            aggregation_root,
         )
         .await;
 

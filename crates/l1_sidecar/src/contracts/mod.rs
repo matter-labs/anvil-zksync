@@ -42,7 +42,7 @@ mod private {
 
 use self::private::{IExecutor, PriorityOpsBatchInfo};
 use alloy::sol_types::{SolCall, SolValue};
-use zksync_types::commitment::L1BatchWithMetadata;
+use zksync_types::commitment::{serialize_commitments, L1BatchWithMetadata};
 use zksync_types::L2ChainId;
 
 /// Current commitment encoding version as per protocol.
@@ -88,10 +88,15 @@ fn commit_calldata(
         alloy::primitives::FixedBytes::<32>::from(
             batch.metadata.events_queue_commitment.unwrap().0,
         ),
-        // System log verification is disabled on L1 so we pretend we don't have any
-        alloy::primitives::Bytes::new(),
-        // Same for DA input
-        alloy::primitives::Bytes::new(),
+        alloy::primitives::Bytes::from(serialize_commitments(&batch.header.system_logs)),
+        // Our DA input consists only of state diff hash. Executor is patched to not use anything else.
+        alloy::primitives::Bytes::from(
+            batch
+                .metadata
+                .state_diff_hash
+                .expect("Failed to get state_diff_hash from metadata")
+                .0,
+        ),
     ));
     let encoded_data = (stored_batch_info, vec![commit_batch_info]).abi_encode_params();
 
