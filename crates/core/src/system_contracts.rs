@@ -173,7 +173,10 @@ fn bsc_load_with_bootloader(
 fn playground(options: &SystemContractsOptions, use_evm_emulator: bool) -> BaseSystemContracts {
     let bootloader_bytecode = match options {
         SystemContractsOptions::BuiltIn | SystemContractsOptions::BuiltInWithoutSecurity => {
-            include_bytes!("deps/contracts/playground_batch.yul.zbin").to_vec()
+            bytecode_from_slice(
+                "playground_batch",
+                include_bytes!("deps/contracts/playground_batch.json"),
+            )
         }
         SystemContractsOptions::Local => read_bootloader_code("playground_batch"),
     };
@@ -193,7 +196,10 @@ fn fee_estimate_contracts(
 ) -> BaseSystemContracts {
     let bootloader_bytecode = match options {
         SystemContractsOptions::BuiltIn | SystemContractsOptions::BuiltInWithoutSecurity => {
-            include_bytes!("deps/contracts/fee_estimate.yul.zbin").to_vec()
+            bytecode_from_slice(
+                "fee_estimate",
+                include_bytes!("deps/contracts/fee_estimate.json"),
+            )
         }
         SystemContractsOptions::Local => read_bootloader_code("fee_estimate"),
     };
@@ -207,7 +213,10 @@ fn fee_estimate_impersonating_contracts(
 ) -> BaseSystemContracts {
     let bootloader_bytecode = match options {
         SystemContractsOptions::BuiltIn | SystemContractsOptions::BuiltInWithoutSecurity => {
-            include_bytes!("deps/contracts/fee_estimate_impersonating.yul.zbin").to_vec()
+            bytecode_from_slice(
+                "fee_estimate_impersonating",
+                include_bytes!("deps/contracts/fee_estimate_impersonating.json"),
+            )
         }
         // Account impersonating is not supported with the local contracts
         SystemContractsOptions::Local => read_bootloader_code("fee_estimate"),
@@ -222,7 +231,10 @@ fn baseline_contracts(
 ) -> BaseSystemContracts {
     let bootloader_bytecode = match options {
         SystemContractsOptions::BuiltIn | SystemContractsOptions::BuiltInWithoutSecurity => {
-            include_bytes!("deps/contracts/proved_batch.yul.zbin").to_vec()
+            bytecode_from_slice(
+                "proved_batch",
+                include_bytes!("deps/contracts/proved_batch.json"),
+            )
         }
         SystemContractsOptions::Local => read_bootloader_code("proved_batch"),
     };
@@ -235,7 +247,10 @@ fn baseline_impersonating_contracts(
 ) -> BaseSystemContracts {
     let bootloader_bytecode = match options {
         SystemContractsOptions::BuiltIn | SystemContractsOptions::BuiltInWithoutSecurity => {
-            include_bytes!("deps/contracts/proved_batch_impersonating.yul.zbin").to_vec()
+            bytecode_from_slice(
+                "proved_batch_impersonating",
+                include_bytes!("deps/contracts/proved_batch_impersonating.json"),
+            )
         }
         // Account impersonating is not supported with the local contracts
         SystemContractsOptions::Local => read_bootloader_code("proved_batch"),
