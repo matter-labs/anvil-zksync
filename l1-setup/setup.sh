@@ -82,7 +82,7 @@ echo "* Done"
 echo "* Dumping mandatory upgrade transaction..."
 psql postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era -t -c \
   "select jsonb_agg(transactions) from transactions join protocol_versions on transactions.hash = protocol_versions.upgrade_tx_hash;" \
-  | jq '.[0]' | sed -e 's/\\\\x/0x/g' > ./state/upgrade_tx.json
+  | jq -c '.[0]' | sed -e 's/\\\\x/0x/g' > ./state/upgrade_tx.json
 echo "* Done"
 
 echo "* Dumping anvil's state as payload..."
