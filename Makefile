@@ -4,8 +4,9 @@ fetch-contracts:
 
 # Build the system contracts
 build-contracts:
-	cd contracts/system-contracts && yarn install --frozen-lockfile; yarn build;
-	cd contracts/l2-contracts && yarn install --frozen-lockfile; yarn build;
+	cd contracts/system-contracts && yarn install --frozen-lockfile; yarn build:foundry;
+	cd contracts/l1-contracts && yarn install --frozen-lockfile; yarn build:foundry;
+	cd contracts/l2-contracts && yarn install --frozen-lockfile; yarn build:foundry;
 	./scripts/refresh_contracts.sh
 
 # Clean the system contracts

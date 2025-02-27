@@ -116,10 +116,14 @@ impl ZksNamespaceServer for ZksNamespace {
 
     async fn get_l2_to_l1_log_proof(
         &self,
-        _tx_hash: H256,
-        _index: Option<usize>,
+        tx_hash: H256,
+        index: Option<usize>,
     ) -> RpcResult<Option<L2ToL1LogProof>> {
-        Err(RpcError::Unsupported.into())
+        Ok(self
+            .node
+            .get_l2_to_l1_log_proof_impl(tx_hash, index)
+            .await
+            .map_err(RpcError::from)?)
     }
 
     async fn get_l1_batch_number(&self) -> RpcResult<U64> {

@@ -51,6 +51,7 @@ use zksync_types::api::{Block, DebugCall, TransactionReceipt, TransactionVariant
 use zksync_types::block::{unpack_block_info, L1BatchHeader};
 use zksync_types::fee_model::BatchFeeInput;
 use zksync_types::l2::L2Tx;
+use zksync_types::l2_to_l1_log::L2ToL1Log;
 use zksync_types::storage::{
     EMPTY_UNCLES_HASH, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
 };
@@ -203,7 +204,7 @@ pub fn create_block<TX>(
 /// Information about the executed transaction.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TxExecutionInfo {
-    pub tx: L2Tx,
+    pub tx: Transaction,
     // Batch number where transaction was executed.
     pub batch_number: u32,
     pub miniblock_number: u64,
@@ -214,6 +215,7 @@ pub struct TransactionResult {
     pub info: TxExecutionInfo,
     pub receipt: TransactionReceipt,
     pub debug: DebugCall,
+    pub l2_to_l1_logs: Vec<L2ToL1Log>,
 }
 
 impl TransactionResult {
@@ -313,7 +315,11 @@ impl InMemoryNode {
     /// Applies multiple transactions across multiple blocks. All transactions are expected to be
     /// executable. Note that on error this method may leave node in partially applied state (i.e.
     /// some txs have been applied while others have not).
-    pub async fn apply_txs(&self, txs: Vec<L2Tx>, max_transactions: usize) -> anyhow::Result<()> {
+    pub async fn apply_txs(
+        &self,
+        txs: Vec<Transaction>,
+        max_transactions: usize,
+    ) -> anyhow::Result<()> {
         tracing::debug!(count = txs.len(), "applying transactions");
 
         // Create a temporary tx pool (i.e. state is not shared with the node mempool).

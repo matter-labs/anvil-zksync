@@ -90,7 +90,7 @@ impl InMemoryNode {
             return Err(err.into());
         };
 
-        self.pool.add_tx(l2_tx);
+        self.pool.add_tx(l2_tx.into());
         Ok(hash)
     }
 
@@ -159,7 +159,7 @@ impl InMemoryNode {
             return Err(TransparentError(err).into());
         }
 
-        self.pool.add_tx(l2_tx);
+        self.pool.add_tx(l2_tx.into());
         Ok(hash)
     }
 }

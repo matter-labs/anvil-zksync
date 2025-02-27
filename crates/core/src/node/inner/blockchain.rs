@@ -14,13 +14,15 @@ use std::sync::Arc;
 use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_multivm::interface::storage::{ReadStorage, StoragePtr};
-use zksync_multivm::interface::L2Block;
+use zksync_multivm::interface::{FinishedL1Batch, L2Block};
 use zksync_multivm::vm_latest::utils::l2_blocks::load_last_l2_block;
 use zksync_types::block::{unpack_block_info, L1BatchHeader, L2BlockHasher};
+use zksync_types::l2::L2Tx;
+use zksync_types::l2_to_l1_log::UserL2ToL1Log;
+use zksync_types::writes::StateDiffRecord;
 use zksync_types::{
-    api, h256_to_u256, AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber,
-    L2BlockNumber, ProtocolVersionId, StorageKey, H256, SYSTEM_CONTEXT_ADDRESS,
-    SYSTEM_CONTEXT_BLOCK_INFO_POSITION, U256, U64,
+    api, h256_to_u256, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId,
+    StorageKey, H256, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_BLOCK_INFO_POSITION, U256, U64,
 };
 
 /// Read-only view on blockchain state.
@@ -147,6 +149,15 @@ pub trait ReadBlockchain: Send + Sync + Debug {
 
     /// Retrieve batch header by its number.
     async fn get_batch_header(&self, batch_number: L1BatchNumber) -> Option<L1BatchHeader>;
+
+    /// Retrieve batch state diffs by its number.
+    async fn get_batch_state_diffs(
+        &self,
+        batch_number: L1BatchNumber,
+    ) -> Option<Vec<StateDiffRecord>>;
+
+    /// Retrieve batch aggregation root by its number.
+    async fn get_batch_aggregation_root(&self, batch_number: L1BatchNumber) -> Option<H256>;
 }
 
 impl Clone for Box<dyn ReadBlockchain> {
@@ -353,20 +364,18 @@ impl ReadBlockchain for Blockchain {
 
     async fn get_tx_api(&self, tx_hash: &H256) -> anyhow::Result<Option<api::Transaction>> {
         self.inspect_tx(tx_hash, |TransactionResult { info, receipt, .. }| {
-            let input_data = info
-                .tx
-                .common_data
-                .input
-                .clone()
-                .context("tx is missing input data")?;
-            let chain_id = info
-                .tx
+            let l2_tx: L2Tx = info.tx.clone().try_into().unwrap();
+            let chain_id = l2_tx
                 .common_data
                 .extract_chain_id()
                 .context("tx has malformed chain id")?;
+            let input_data = l2_tx
+                .common_data
+                .input
+                .context("tx is missing input data")?;
             anyhow::Ok(api::Transaction {
                 hash: *tx_hash,
-                nonce: U256::from(info.tx.common_data.nonce.0),
+                nonce: U256::from(l2_tx.common_data.nonce.0),
                 // FIXME: This is mega-incorrect but this whole method should be reworked in general
                 block_hash: Some(*tx_hash),
                 block_number: Some(U64::from(info.miniblock_number)),
@@ -383,7 +392,7 @@ impl ReadBlockchain for Blockchain {
                 y_parity: Some(U64::zero()), // TODO: Shouldn't we set the signature?
                 raw: None,
                 transaction_type: {
-                    let tx_type = match info.tx.common_data.transaction_type {
+                    let tx_type = match l2_tx.common_data.transaction_type {
                         zksync_types::l2::TransactionType::LegacyTransaction => 0,
                         zksync_types::l2::TransactionType::EIP2930Transaction => 1,
                         zksync_types::l2::TransactionType::EIP1559Transaction => 2,
@@ -394,8 +403,8 @@ impl ReadBlockchain for Blockchain {
                     Some(tx_type.into())
                 },
                 access_list: None,
-                max_fee_per_gas: Some(info.tx.common_data.fee.max_fee_per_gas),
-                max_priority_fee_per_gas: Some(info.tx.common_data.fee.max_priority_fee_per_gas),
+                max_fee_per_gas: Some(l2_tx.common_data.fee.max_fee_per_gas),
+                max_priority_fee_per_gas: Some(l2_tx.common_data.fee.max_priority_fee_per_gas),
                 chain_id: U256::from(chain_id),
                 l1_batch_number: Some(U64::from(info.batch_number as u64)),
                 l1_batch_tx_index: None,
@@ -429,7 +438,7 @@ impl ReadBlockchain for Blockchain {
                 // if these are not set, fee is effectively 0
                 fee: receipt.effective_gas_price.unwrap_or_default()
                     * receipt.gas_used.unwrap_or_default(),
-                gas_per_pubdata: info.tx.common_data.fee.gas_per_pubdata_limit,
+                gas_per_pubdata: info.tx.gas_per_pubdata_byte_limit(),
                 initiator_address: info.tx.initiator_account(),
                 received_at: utc_datetime_from_epoch_ms(info.tx.received_timestamp_ms),
                 eth_commit_tx_hash: None,
@@ -441,15 +450,8 @@ impl ReadBlockchain for Blockchain {
     }
 
     async fn get_zksync_tx(&self, tx_hash: &H256) -> Option<zksync_types::Transaction> {
-        self.inspect_tx(tx_hash, |TransactionResult { info, .. }| {
-            zksync_types::Transaction {
-                common_data: ExecuteTransactionCommon::L2(info.tx.common_data.clone()),
-                execute: info.tx.execute.clone(),
-                received_timestamp_ms: info.tx.received_timestamp_ms,
-                raw_bytes: info.tx.raw_bytes.clone(),
-            }
-        })
-        .await
+        self.inspect_tx(tx_hash, |TransactionResult { info, .. }| info.tx.clone())
+            .await
     }
 
     async fn get_filter_logs(&self, log_filter: &LogFilter) -> Vec<api::Log> {
@@ -477,6 +479,22 @@ impl ReadBlockchain for Blockchain {
         let storage = self.inner.read().await;
         storage.batches.get(&batch_number).cloned()
     }
+
+    async fn get_batch_state_diffs(
+        &self,
+        batch_number: L1BatchNumber,
+    ) -> Option<Vec<StateDiffRecord>> {
+        let storage = self.inner.read().await;
+        storage.batch_state_diffs.get(&batch_number).cloned()
+    }
+
+    async fn get_batch_aggregation_root(&self, batch_number: L1BatchNumber) -> Option<H256> {
+        let storage = self.inner.read().await;
+        storage
+            .batch_aggregation_roots
+            .get(&batch_number)
+            .map(|h| *h)
+    }
 }
 
 impl Blockchain {
@@ -499,6 +517,8 @@ impl Blockchain {
                 // As we do not support L1-L2 communication when running in forking mode, batches are
                 // irrelevant.
                 batches: HashMap::from_iter([]),
+                batch_state_diffs: HashMap::from_iter([]),
+                batch_aggregation_roots: HashMap::from_iter([]),
             }
         } else {
             let block_hash = compute_hash(0, []);
@@ -516,6 +536,8 @@ impl Blockchain {
                 blocks: HashMap::from_iter([(block_hash, genesis_block)]),
                 hashes: HashMap::from_iter([(L2BlockNumber(0), block_hash)]),
                 batches: HashMap::from_iter([(L1BatchNumber(0), genesis_batch_header)]),
+                batch_state_diffs: HashMap::from_iter([(L1BatchNumber(0), Vec::new())]),
+                batch_aggregation_roots: HashMap::from_iter([(L1BatchNumber(0), H256::zero())]),
             }
         };
         let inner = Arc::new(RwLock::new(state));
@@ -554,6 +576,10 @@ pub(super) struct BlockchainState {
     /// necessarily computed by the time this entry is inserted (i.e. it is not an inherent property
     /// of a batch).
     pub(super) batches: HashMap<L1BatchNumber, L1BatchHeader>,
+    // TODO: document
+    pub(super) batch_state_diffs: HashMap<L1BatchNumber, Vec<StateDiffRecord>>,
+    // TODO: document
+    pub(super) batch_aggregation_roots: HashMap<L1BatchNumber, H256>,
 }
 
 impl BlockchainState {
@@ -599,6 +625,7 @@ impl BlockchainState {
     }
 
     pub(super) fn apply_block(&mut self, block: api::Block<api::TransactionVariant>, index: u32) {
+        println!("Applying block {}", block.number);
         let latest_block = self.blocks.get(&self.current_block_hash).unwrap();
         self.current_block += 1;
 
@@ -640,17 +667,36 @@ impl BlockchainState {
         &mut self,
         batch_timestamp: u64,
         base_system_contracts_hashes: BaseSystemContractsHashes,
-        tx_results: impl IntoIterator<Item = TransactionResult>,
+        tx_results: Vec<TransactionResult>,
+        finished_l1_batch: FinishedL1Batch,
+        aggregation_root: H256,
     ) {
+        println!(
+            "System logs: {:?}",
+            finished_l1_batch.final_execution_state.system_logs
+        );
         self.current_batch += 1;
         // As our use of batches is limited for now, most of their fields are zeroed out.
-        let header = L1BatchHeader::new(
+        let mut header = L1BatchHeader::new(
             self.current_batch,
             batch_timestamp,
             base_system_contracts_hashes,
             ProtocolVersionId::latest(),
         );
+        header.l2_to_l1_logs = tx_results
+            .iter()
+            .flat_map(|tx| tx.l2_to_l1_logs.clone())
+            .map(UserL2ToL1Log)
+            .collect();
+        header.pubdata_input = finished_l1_batch.pubdata_input;
+        header.system_logs = finished_l1_batch.final_execution_state.system_logs;
         self.batches.insert(self.current_batch, header);
+        self.batch_state_diffs.insert(
+            self.current_batch,
+            finished_l1_batch.state_diffs.unwrap_or_default(),
+        );
+        self.batch_aggregation_roots
+            .insert(self.current_batch, aggregation_root);
         self.tx_results.extend(
             tx_results
                 .into_iter()
@@ -725,6 +771,7 @@ fn load_last_l1_batch<S: ReadStorage>(storage: &StoragePtr<S>) -> Option<(u64, u
     let mut storage_ptr = storage.borrow_mut();
     let current_l1_batch_info = storage_ptr.read_value(&current_l1_batch_info_key);
     let (batch_number, batch_timestamp) = unpack_block_info(h256_to_u256(current_l1_batch_info));
+    println!("Unpacked {batch_number} {batch_timestamp}");
     let block_number = batch_number as u32;
     if block_number == 0 {
         // The block does not exist yet

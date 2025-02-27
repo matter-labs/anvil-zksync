@@ -35,7 +35,11 @@ use zksync_error::anvil_zksync::AnvilZksyncError;
 use zksync_error::ICustomError;
 use zksync_telemetry::{get_telemetry, init_telemetry, TelemetryProps};
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
-use zksync_types::{L2BlockNumber, H160};
+use zksync_types::protocol_upgrade::ProtocolUpgradeTxCommonData;
+use zksync_types::{
+    Address, Execute, ExecuteTransactionCommon, L2BlockNumber, ProtocolVersionId, Transaction,
+    H160, H256, U256,
+};
 
 mod bytecode_override;
 mod cli;
@@ -309,6 +313,38 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         }
     });
 
+    let upgrade_tx_execute = serde_json::from_slice::<Execute>(include_bytes!(
+        "../../../l1-setup/state/upgrade_tx_data.json"
+    ))
+    .map_err(|e| to_domain(anyhow::anyhow!("invalid json for upgrade tx: {:#?}", e)))?;
+    node.set_rich_account(
+        Address::from_str("0x0000000000000000000000000000000000008007").unwrap(),
+        config.genesis_balance,
+    )
+    .await;
+    let upgrade_tx = Transaction {
+        common_data: ExecuteTransactionCommon::ProtocolUpgrade(ProtocolUpgradeTxCommonData {
+            sender: Address::from_str("0x0000000000000000000000000000000000008007").unwrap(),
+            upgrade_id: ProtocolVersionId::latest(),
+            max_fee_per_gas: U256::zero(),
+            gas_limit: U256::from(72000000),
+            gas_per_pubdata_limit: U256::from(800),
+            eth_block: 74,
+            canonical_tx_hash: H256::from_str(
+                "0xC5CA05D0B33ECDE944BFD5A1DF484BF2DA147851BED06DBC8CDE70E60F4EB85D",
+            )
+            .unwrap(),
+            to_mint: U256::zero(),
+            refund_recipient: Address::zero(),
+        }),
+        execute: upgrade_tx_execute,
+        received_timestamp_ms: 0,
+        raw_bytes: None,
+    };
+    node.apply_txs(vec![upgrade_tx], 1)
+        .await
+        .map_err(to_domain)?;
+
     if let Some(ref bytecodes_dir) = config.override_bytecodes_dir {
         override_bytecodes(&node, bytecodes_dir.to_string())
             .await
@@ -316,9 +352,12 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
     }
 
     if !transactions_to_replay.is_empty() {
-        node.apply_txs(transactions_to_replay, config.max_transactions)
-            .await
-            .map_err(to_domain)?;
+        node.apply_txs(
+            transactions_to_replay.into_iter().map(Into::into).collect(),
+            config.max_transactions,
+        )
+        .await
+        .map_err(to_domain)?;
 
         // If we are in replay mode, we don't start the server
         return Ok(());
