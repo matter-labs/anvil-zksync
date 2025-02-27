@@ -5,7 +5,7 @@ use anyhow::Context;
 use foundry_anvil::{NodeConfig, NodeHandle};
 use foundry_common::Shell;
 use std::time::Duration;
-use tempdir::TempDir;
+use tempfile::TempDir;
 use tokio::io::AsyncWriteExt;
 
 /// Representation of an anvil process spawned onto an event loop.
@@ -34,7 +34,9 @@ pub async fn spawn_builtin(
     port: u16,
     zkstack_config: &ZkstackConfig,
 ) -> anyhow::Result<(AnvilHandle, Box<dyn Provider>)> {
-    let tmpdir = TempDir::new("anvil_zksync_l1")?;
+    let tmpdir = tempfile::Builder::new()
+        .prefix("anvil_zksync_l1")
+        .tempdir()?;
     let anvil_state_path = tmpdir.path().join("l1-state.json");
     let mut anvil_state_file = tokio::fs::File::create(&anvil_state_path).await?;
     anvil_state_file
