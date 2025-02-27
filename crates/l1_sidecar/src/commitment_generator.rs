@@ -345,6 +345,25 @@ mod tests {
         async fn get_batch_header(&self, batch_number: L1BatchNumber) -> Option<L1BatchHeader> {
             self.0.get(&batch_number).cloned()
         }
+
+        async fn get_batch_state_diffs(
+            &self,
+            batch_number: L1BatchNumber,
+        ) -> Option<Vec<StateDiffRecord>> {
+            if self.0.contains_key(&batch_number) {
+                Some(vec![])
+            } else {
+                None
+            }
+        }
+
+        async fn get_batch_aggregation_root(&self, batch_number: L1BatchNumber) -> Option<H256> {
+            if self.0.contains_key(&batch_number) {
+                Some(H256::zero())
+            } else {
+                None
+            }
+        }
     }
 
     #[tokio::test]

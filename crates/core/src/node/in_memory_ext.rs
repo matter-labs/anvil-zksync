@@ -588,7 +588,7 @@ mod tests {
         }
 
         // try to execute the tx- should fail without signature
-        assert!(node.apply_txs(vec![tx.clone()], 1).await.is_err());
+        assert!(node.apply_txs(vec![tx.clone().into()], 1).await.is_err());
 
         // impersonate the account
         let result = node
@@ -605,7 +605,7 @@ mod tests {
         assert!(!result);
 
         // execution should now succeed
-        assert!(node.apply_txs(vec![tx.clone()], 1).await.is_ok());
+        assert!(node.apply_txs(vec![tx.clone().into()], 1).await.is_ok());
 
         // stop impersonating the account
         let result = node
@@ -622,7 +622,7 @@ mod tests {
         assert!(!result);
 
         // execution should now fail again
-        assert!(node.apply_txs(vec![tx], 1).await.is_err());
+        assert!(node.apply_txs(vec![tx.into()], 1).await.is_err());
     }
 
     #[tokio::test]

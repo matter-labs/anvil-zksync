@@ -1576,7 +1576,7 @@ impl InMemoryNodeInner {
             .system_contracts
             .system_contracts_for_initiator(&self.impersonation, &tx.initiator_account());
         let block_number = self
-            .seal_block(vec![tx], system_contracts)
+            .seal_block(vec![tx.into()], system_contracts)
             .await
             .expect("failed deploying contract");
 
@@ -1602,7 +1602,7 @@ impl InMemoryNodeInner {
             .system_contracts
             .system_contracts_for_initiator(&self.impersonation, &tx.initiator_account());
         let block_number = self
-            .seal_block(vec![tx.clone()], system_contracts)
+            .seal_block(vec![tx.clone().into()], system_contracts)
             .await
             .expect("failed applying tx");
 
@@ -1706,7 +1706,7 @@ mod tests {
             .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
         let (block_ctx, batch_env, mut vm) = test_vm(&mut node, system_contracts).await;
         let err = node
-            .run_l2_tx(tx, 0, &block_ctx, &batch_env, &mut vm)
+            .run_tx(tx.into(), 0, &block_ctx, &batch_env, &mut vm)
             .unwrap_err();
         assert_eq!(err.to_string(), "exceeds block gas limit");
     }
@@ -1725,7 +1725,7 @@ mod tests {
             .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
         let (block_ctx, batch_env, mut vm) = test_vm(&mut node, system_contracts).await;
         let err = node
-            .run_l2_tx(tx, 0, &block_ctx, &batch_env, &mut vm)
+            .run_tx(tx.into(), 0, &block_ctx, &batch_env, &mut vm)
             .unwrap_err();
 
         assert_eq!(
@@ -1748,7 +1748,7 @@ mod tests {
             .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
         let (block_ctx, batch_env, mut vm) = test_vm(&mut node, system_contracts).await;
         let err = node
-            .run_l2_tx(tx, 0, &block_ctx, &batch_env, &mut vm)
+            .run_tx(tx.into(), 0, &block_ctx, &batch_env, &mut vm)
             .unwrap_err();
 
         assert_eq!(
@@ -1768,7 +1768,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_run_l2_tx_raw_does_not_panic_on_mock_fork_client_call() {
+    async fn test_run_tx_raw_does_not_panic_on_mock_fork_client_call() {
         // Perform a transaction to get storage to an intermediate state
         let inner = InMemoryNodeInner::test();
         let mut node = inner.write().await;
@@ -1778,7 +1778,9 @@ mod tests {
         let system_contracts = node
             .system_contracts
             .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
-        node.seal_block(vec![tx], system_contracts).await.unwrap();
+        node.seal_block(vec![tx.into()], system_contracts)
+            .await
+            .unwrap();
 
         // Execute next transaction using a fresh in-memory node and mocked fork client
         let fork_details = ForkDetails {
@@ -1817,7 +1819,7 @@ mod tests {
             .system_contracts
             .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
         let (_, _, mut vm) = test_vm(&mut node, system_contracts).await;
-        node.run_l2_tx_raw(tx, &mut vm)
+        node.run_tx_raw(tx.into(), &mut vm)
             .expect("transaction must pass with mock fork client");
     }
 
@@ -1867,7 +1869,8 @@ mod tests {
             .system_contracts
             .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
         let (_, _, mut vm) = test_vm(&mut node, system_contracts).await;
-        let TxExecutionOutput { result, .. } = node.run_l2_tx_raw(tx, &mut vm).expect("failed tx");
+        let TxExecutionOutput { result, .. } =
+            node.run_tx_raw(tx.into(), &mut vm).expect("failed tx");
 
         match result.result {
             ExecutionResult::Success { output } => {
