@@ -1,4 +1,5 @@
 use alloy::network::{Ethereum, ReceiptResponse};
+use alloy::primitives::B256;
 use alloy::providers::{Provider, ProviderBuilder, WalletProvider};
 use alloy::transports::{BoxTransport, Transport};
 use alloy_zksync::network::receipt_response::ReceiptResponse as ZkReceiptResponse;
@@ -209,17 +210,11 @@ async fn send_l2_to_l1_message() -> anyhow::Result<()> {
     let log = &msg_tx_receipt.l2_to_l1_logs()[0];
     assert_eq!(&log.sender, l1_messenger.address());
 
-    // Execute all batches up to the one including the log
+    let bridgehub = Bridgehub::new(l1_provider.clone(), &l2_provider).await?;
     let log_batch_number: u64 = msg_tx_receipt
         .l1_batch_number()
         .context("missing L1 batch number")?
         .try_into()?;
-    for batch_number in 1..=log_batch_number {
-        l2_provider.anvil_commit_batch(batch_number).await?;
-        l2_provider.anvil_prove_batch(batch_number).await?;
-        l2_provider.anvil_execute_batch(batch_number).await?;
-    }
-
     let msg_proof = l2_provider
         .get_l2_to_l1_log_proof(
             msg_tx_receipt.transaction_hash(),
@@ -227,26 +222,44 @@ async fn send_l2_to_l1_message() -> anyhow::Result<()> {
         )
         .await?
         .unwrap();
+    let l2_message = L2Message {
+        txNumberInBatch: msg_tx_receipt
+            .l1_batch_tx_index()
+            .context("missing L1 batch tx index")?
+            .try_into()?,
+        sender: l2_provider.default_signer_address(),
+        data: message.into(),
+    };
+    let prove_inclusion_call = bridgehub.prove_l2_message_inclusion(
+        log_batch_number,
+        msg_proof.id,
+        l2_message.clone(),
+        msg_proof.proof,
+    );
 
-    let bridgehub = Bridgehub::new(l1_provider.clone(), &l2_provider).await?;
-    let (is_included,) = bridgehub
-        .prove_l2_message_inclusion(
-            log_batch_number,
-            msg_proof.id,
-            L2Message {
-                txNumberInBatch: msg_tx_receipt
-                    .l1_batch_tx_index()
-                    .context("missing L1 batch tx index")?
-                    .try_into()?,
-                sender: l2_provider.default_signer_address(),
-                data: message.into(),
-            },
-            msg_proof.proof,
-        )
-        .call()
-        .await?
-        .into();
+    // Inclusion check fails as the batch has not been executed yet
+    assert!(prove_inclusion_call.call().await.is_err());
+
+    // Execute all batches up to the one including the log
+    for batch_number in 1..=log_batch_number {
+        l2_provider.anvil_commit_batch(batch_number).await?;
+        l2_provider.anvil_prove_batch(batch_number).await?;
+        l2_provider.anvil_execute_batch(batch_number).await?;
+    }
+
+    // Inclusion check succeeds as the batch has been executed
+    let (is_included,) = prove_inclusion_call.call().await?.into();
     assert!(is_included);
+
+    // Inclusion check with fake proof fails
+    let fake_prove_inclusion_call = bridgehub.prove_l2_message_inclusion(
+        log_batch_number,
+        msg_proof.id,
+        l2_message,
+        vec![B256::random()],
+    );
+    let (is_included,) = fake_prove_inclusion_call.call().await?.into();
+    assert!(!is_included);
 
     Ok(())
 }
