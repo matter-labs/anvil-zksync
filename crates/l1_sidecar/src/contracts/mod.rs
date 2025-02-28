@@ -21,6 +21,7 @@ mod private {
             bytes32[] itemHashes;
         }
     }
+    alloy::sol!(IZKChain, "src/contracts/artifacts/IZKChain.json");
 
     impl From<&L1BatchWithMetadata> for IExecutor::StoredBatchInfo {
         fn from(value: &L1BatchWithMetadata) -> Self {
@@ -39,6 +40,8 @@ mod private {
         }
     }
 }
+
+pub use self::private::IZKChain::NewPriorityRequest;
 
 use self::private::{IExecutor, PriorityOpsBatchInfo};
 use alloy::sol_types::{SolCall, SolValue};
