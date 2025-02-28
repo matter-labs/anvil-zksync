@@ -4,21 +4,16 @@ fetch-contracts:
 
 # Build the system contracts
 build-contracts:
-	cd contracts/system-contracts && yarn install --frozen-lockfile; yarn build;
-	cd contracts/l2-contracts && yarn install --frozen-lockfile; yarn build;
+	cd contracts/system-contracts && yarn install --frozen-lockfile; yarn build:foundry;
+	cd contracts/l1-contracts && yarn install --frozen-lockfile; yarn build:foundry;
+	cd contracts/l2-contracts && yarn install --frozen-lockfile; yarn build:foundry;
 	./scripts/refresh_contracts.sh
+	./scripts/refresh_test_contracts.sh
 
 # Clean the system contracts
 clean-contracts:
 	cd contracts/system-contracts && yarn clean
 	rm -rf src/deps/contracts
-
-# Rebuild the system contracts
-rebuild-contracts:
-	cd contracts/system-contracts && yarn build;
-	cd contracts/l2-contracts && yarn build;
-	./scripts/refresh_contracts.sh
-	./scripts/refresh_test_contracts.sh
 
 # Build the Rust project
 rust-build:
@@ -77,4 +72,4 @@ new-release-tag:
 book:
 	mdbook build docs/rustbook
 
-.PHONY: build-contracts clean-contracts rebuild-contracts rust-build lint test test-e2e all clean build-% new-release-tag book
+.PHONY: build-contracts clean-contracts rust-build lint test test-e2e all clean build-% new-release-tag book

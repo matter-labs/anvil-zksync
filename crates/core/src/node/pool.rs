@@ -4,8 +4,7 @@ use futures::channel::mpsc::{channel, Receiver, Sender};
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard};
-use zksync_types::l2::L2Tx;
-use zksync_types::H256;
+use zksync_types::{Transaction, H256};
 
 #[derive(Debug, Clone)]
 pub struct TxPool {
@@ -42,7 +41,7 @@ impl TxPool {
             .expect("transaction_order lock is poisoned")
     }
 
-    pub fn add_tx(&self, tx: L2Tx) {
+    pub fn add_tx(&self, tx: Transaction) {
         let hash = tx.hash();
         let priority = self.read_transaction_order().priority(&tx);
         let mut submission_number = self.lock_submission_number();
@@ -57,7 +56,7 @@ impl TxPool {
         self.notify_listeners(hash);
     }
 
-    pub fn add_txs(&self, txs: Vec<L2Tx>) {
+    pub fn add_txs(&self, txs: Vec<Transaction>) {
         let transaction_order = self.read_transaction_order();
         let mut submission_number = self.lock_submission_number();
 
@@ -76,13 +75,13 @@ impl TxPool {
     }
 
     /// Removes a single transaction from the pool
-    pub fn drop_transaction(&self, hash: H256) -> Option<L2Tx> {
+    pub fn drop_transaction(&self, hash: H256) -> Option<Transaction> {
         let dropped = self.drop_transactions(|tx| tx.transaction.hash() == hash);
         dropped.first().cloned()
     }
 
     /// Remove transactions matching the specified condition
-    pub fn drop_transactions<F>(&self, f: F) -> Vec<L2Tx>
+    pub fn drop_transactions<F>(&self, f: F) -> Vec<Transaction>
     where
         F: Fn(&PoolTransaction) -> bool,
     {
@@ -115,8 +114,7 @@ impl TxPool {
         let impersonating = self.impersonation.inspect(|state| {
             // First tx's impersonation status decides what all other txs' impersonation status is
             // expected to be.
-            let impersonating =
-                state.is_impersonating(&head_tx.transaction.common_data.initiator_address);
+            let impersonating = state.is_impersonating(&head_tx.transaction.initiator_account());
             taken_txs.insert(0, head_tx.transaction);
             let mut taken_txs_number = 1;
 
@@ -124,8 +122,7 @@ impl TxPool {
                 let Some(next_tx) = guard.last() else {
                     break;
                 };
-                if impersonating
-                    != state.is_impersonating(&next_tx.transaction.common_data.initiator_address)
+                if impersonating != state.is_impersonating(&next_tx.transaction.initiator_account())
                 {
                     break;
                 }
@@ -176,21 +173,22 @@ impl TxPool {
 #[cfg(test)]
 impl TxPool {
     /// Populates pool with `N` randomly generated transactions without impersonation.
-    pub fn populate<const N: usize>(&self) -> [L2Tx; N] {
+    pub fn populate<const N: usize>(&self) -> [Transaction; N] {
         let to_impersonate = [false; N];
         self.populate_impersonate(to_impersonate)
     }
 
     /// Populates pool with `N` randomly generated transactions where `i`-th transaction is using an
     /// impersonated account if `to_impersonate[i]` is `true`.
-    pub fn populate_impersonate<const N: usize>(&self, to_impersonate: [bool; N]) -> [L2Tx; N] {
+    pub fn populate_impersonate<const N: usize>(
+        &self,
+        to_impersonate: [bool; N],
+    ) -> [Transaction; N] {
         to_impersonate.map(|to_impersonate| {
-            let tx = crate::testing::TransactionBuilder::new().build();
+            let tx: Transaction = crate::testing::TransactionBuilder::new().build().into();
 
             if to_impersonate {
-                assert!(self
-                    .impersonation
-                    .impersonate(tx.common_data.initiator_address));
+                assert!(self.impersonation.impersonate(tx.initiator_account()));
             }
 
             self.add_tx(tx.clone());
@@ -214,14 +212,14 @@ impl TxPool {
 #[derive(PartialEq, Debug)]
 pub struct TxBatch {
     pub impersonating: bool,
-    pub txs: Vec<L2Tx>,
+    pub txs: Vec<Transaction>,
 }
 
 /// A reference to a transaction in the pool
 #[derive(Clone, Debug)]
 pub struct PoolTransaction {
     /// actual transaction
-    pub transaction: L2Tx,
+    pub transaction: Transaction,
     /// Used to internally compare the transaction in the pool
     pub submission_number: u64,
     /// priority of the transaction
@@ -258,7 +256,7 @@ mod tests {
     use crate::testing;
     use anvil_zksync_types::TransactionOrder;
     use test_case::test_case;
-    use zksync_types::{l2::L2Tx, U256};
+    use zksync_types::{Transaction, U256};
 
     #[test]
     fn take_from_empty() {
@@ -464,10 +462,9 @@ mod tests {
         // Change tx2's impersonation status to opposite
         if !imp {
             pool.impersonation
-                .stop_impersonating(&tx2.common_data.initiator_address);
+                .stop_impersonating(&tx2.initiator_account());
         } else {
-            pool.impersonation
-                .impersonate(tx2.common_data.initiator_address);
+            pool.impersonation.impersonate(tx2.initiator_account());
         }
 
         assert_eq!(
@@ -485,11 +482,9 @@ mod tests {
         let pool = TxPool::new(impersonation.clone(), TransactionOrder::Fifo);
 
         for _ in 0..4096 {
-            let tx = testing::TransactionBuilder::new().build();
+            let tx: Transaction = testing::TransactionBuilder::new().build().into();
 
-            assert!(pool
-                .impersonation
-                .impersonate(tx.common_data.initiator_address));
+            assert!(pool.impersonation.impersonate(tx.initiator_account()));
 
             pool.add_tx(tx.clone());
         }
@@ -516,12 +511,13 @@ mod tests {
         let pool_fifo = TxPool::new(impersonation.clone(), TransactionOrder::Fifo);
         let pool_fees = TxPool::new(impersonation.clone(), TransactionOrder::Fees);
 
-        let txs: Vec<L2Tx> = [1, 2, 3]
+        let txs: Vec<Transaction> = [1, 2, 3]
             .iter()
             .map(|index| {
-                let tx = testing::TransactionBuilder::new()
+                let tx: Transaction = testing::TransactionBuilder::new()
                     .set_max_fee_per_gas(U256::from(50_000_000 + index))
-                    .build();
+                    .build()
+                    .into();
                 pool_fifo.add_tx(tx.clone());
                 pool_fees.add_tx(tx.clone());
                 tx

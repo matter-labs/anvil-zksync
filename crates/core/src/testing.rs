@@ -21,7 +21,8 @@ use zksync_types::api::{BridgeAddresses, DebugCall, DebugCallType, Log};
 use zksync_types::fee::Fee;
 use zksync_types::l2::L2Tx;
 use zksync_types::{
-    Address, K256PrivateKey, L2ChainId, Nonce, ProtocolVersionId, H160, H256, U256, U64,
+    Address, ExecuteTransactionCommon, K256PrivateKey, L2ChainId, Nonce, ProtocolVersionId,
+    Transaction, H160, H256, U256, U64,
 };
 use zksync_web3_decl::jsonrpsee::types::TwoPointZero;
 
@@ -599,15 +600,10 @@ pub const STORAGE_CONTRACT_BYTECODE: &str    = "0000008003000039000000400030043f
 /// Returns a default instance for a successful [TxExecutionInfo]
 pub fn default_tx_execution_info() -> TxExecutionInfo {
     TxExecutionInfo {
-        tx: L2Tx {
-            execute: zksync_types::Execute {
-                contract_address: Default::default(),
-                calldata: Default::default(),
-                value: Default::default(),
-                factory_deps: Default::default(),
-            },
-            common_data: Default::default(),
-            received_timestamp_ms: Default::default(),
+        tx: Transaction {
+            common_data: ExecuteTransactionCommon::L2(Default::default()),
+            execute: Default::default(),
+            received_timestamp_ms: 0,
             raw_bytes: None,
         },
         batch_number: Default::default(),
