@@ -278,10 +278,14 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
             .into())
         }
         Some(l1_config) => {
-            let (l1_sidecar, l1_sidecar_runner) =
-                L1Sidecar::builtin(l1_config.port, blockchain.clone(), node_handle.clone())
-                    .await
-                    .map_err(to_domain)?;
+            let (l1_sidecar, l1_sidecar_runner) = L1Sidecar::builtin(
+                l1_config.port,
+                blockchain.clone(),
+                node_handle.clone(),
+                pool.clone(),
+            )
+            .await
+            .map_err(to_domain)?;
             node_service_tasks.push(Box::pin(l1_sidecar_runner.run()));
             l1_sidecar
         }

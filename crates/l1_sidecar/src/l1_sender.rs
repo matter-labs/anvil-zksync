@@ -4,13 +4,14 @@ use alloy::consensus::{SidecarBuilder, SimpleCoder};
 use alloy::network::{ReceiptResponse, TransactionBuilder, TransactionBuilder4844};
 use alloy::providers::Provider;
 use alloy::rpc::types::TransactionRequest;
+use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
 use zksync_types::commitment::L1BatchWithMetadata;
 use zksync_types::{Address, L2ChainId, H256};
 
 /// Node component responsible for sending transactions to L1.
 pub struct L1Sender {
-    provider: Box<dyn Provider>,
+    provider: Arc<dyn Provider + 'static>,
     l2_chain_id: L2ChainId,
     validator_timelock_addr: Address,
     command_receiver: mpsc::Receiver<Command>,
@@ -27,7 +28,7 @@ impl L1Sender {
     pub fn new(
         zkstack_config: &ZkstackConfig,
         genesis_metadata: L1BatchWithMetadata,
-        provider: Box<dyn Provider>,
+        provider: Arc<dyn Provider + 'static>,
     ) -> (Self, L1SenderHandle) {
         let (command_sender, command_receiver) = mpsc::channel(128);
         let this = Self {
