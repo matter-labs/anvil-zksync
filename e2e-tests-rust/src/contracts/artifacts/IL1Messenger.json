@@ -1,0 +1,1 @@
+{"abi":[{"type":"function","name":"sendToL1","inputs":[{"name":"_message","type":"bytes","internalType":"bytes"}],"outputs":[{"name":"","type":"bytes32","internalType":"bytes32"}],"stateMutability":"nonpayable"}],"storageLayout":{"storage":[],"types":{}},"userdoc":{},"devdoc":{},"factoryDependencies":{},"id":46}
