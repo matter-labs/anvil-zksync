@@ -33,6 +33,7 @@ categories = ["cryptography"]
 #########################
 # ZKsync dependencies  #
 #########################
+zksync_mini_merkle_tree = { git = "https://github.com/matter-labs/zksync-era", tag = "core-v26.4.0" }
 zksync_multivm = { git = "https://github.com/matter-labs/zksync-era", tag = "core-v26.4.0" }
 zksync_contracts = { git = "https://github.com/matter-labs/zksync-era", tag = "core-v26.4.0" }
 zksync_types = { git = "https://github.com/matter-labs/zksync-era", tag = "core-v26.4.0" }
