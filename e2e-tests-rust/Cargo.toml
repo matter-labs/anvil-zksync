@@ -12,7 +12,7 @@ publish = false
 [dependencies]
 # Keep `alloy-zksync` version in sync with base `alloy` crate to avoid two different sets of dependencies
 alloy-zksync = "0.9.0"
-alloy = { version = "0.9.2", features = ["full", "rlp", "serde", "sol-types", "getrandom", "provider-anvil-api", "json-rpc"] }
+alloy = { version = "0.9.2", features = ["full", "rlp", "serde", "getrandom", "provider-anvil-api", "json-rpc", "contract"] }
 
 anyhow = "1.0"
 fs2 = "0.4.3"

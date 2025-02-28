@@ -9,6 +9,7 @@ build-contracts:
 	cd contracts/l2-contracts && yarn install --frozen-lockfile; yarn build:foundry;
 	./scripts/refresh_contracts.sh
 	./scripts/refresh_test_contracts.sh
+	./scripts/refresh_e2e_contracts.sh
 
 # Clean the system contracts
 clean-contracts:

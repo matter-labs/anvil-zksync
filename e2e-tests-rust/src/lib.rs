@@ -1,5 +1,6 @@
 #![allow(async_fn_in_trait)]
 
+pub mod contracts;
 mod ext;
 mod http_middleware;
 mod provider;
