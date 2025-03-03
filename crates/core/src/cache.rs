@@ -377,7 +377,6 @@ impl Cache {
 
 #[cfg(test)]
 mod tests {
-    use tempdir::TempDir;
     use zksync_types::{Execute, ExecuteTransactionCommon};
     use zksync_types::{H160, U64};
 
@@ -504,7 +503,10 @@ mod tests {
             l2_legacy_shared_bridge: Some(H160::repeat_byte(0x6)),
         };
 
-        let cache_dir = TempDir::new("cache-test").expect("failed creating temporary dir");
+        let cache_dir = tempfile::Builder::new()
+            .prefix("cache-test")
+            .tempdir()
+            .expect("failed creating temporary dir");
         let cache_dir_path = cache_dir
             .path()
             .to_str()
@@ -605,7 +607,10 @@ mod tests {
             l2_legacy_shared_bridge: Some(H160::repeat_byte(0x6)),
         };
 
-        let cache_dir = TempDir::new("cache-test").expect("failed creating temporary dir");
+        let cache_dir = tempfile::Builder::new()
+            .prefix("cache-test")
+            .tempdir()
+            .expect("failed creating temporary dir");
         let cache_dir_path = cache_dir
             .path()
             .to_str()
@@ -660,7 +665,10 @@ mod tests {
 
     #[test]
     fn test_cache_config_disk_only_resets_created_data_on_disk() {
-        let cache_dir = TempDir::new("cache-test").expect("failed creating temporary dir");
+        let cache_dir = tempfile::Builder::new()
+            .prefix("cache-test")
+            .tempdir()
+            .expect("failed creating temporary dir");
         let cache_dir_path = cache_dir
             .path()
             .to_str()

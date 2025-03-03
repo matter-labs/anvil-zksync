@@ -1,6 +1,7 @@
 use crate::error::RpcError;
 use anvil_zksync_api_decl::NetNamespaceServer;
 use anvil_zksync_core::node::InMemoryNode;
+use anvil_zksync_core::utils::block_on;
 use jsonrpsee::core::RpcResult;
 use zksync_types::U256;
 
@@ -17,8 +18,8 @@ impl NetNamespace {
 // TODO: Make this namespace async in zksync-era
 impl NetNamespaceServer for NetNamespace {
     fn version(&self) -> RpcResult<String> {
-        let chain_id = tokio::runtime::Handle::current()
-            .block_on(async { self.node.get_chain_id().await.map_err(RpcError::from) })?;
+        let node = self.node.clone();
+        let chain_id = block_on(async move { node.get_chain_id().await.map_err(RpcError::from) })?;
         Ok(chain_id.to_string())
     }
 
