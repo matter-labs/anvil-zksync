@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.3](https://github.com/matter-labs/anvil-zksync/compare/v0.3.2...v0.3.3) (2025-03-04)
+
+
+### Features
+
+* introduces verbose actionable error messaging ([#592](https://github.com/matter-labs/anvil-zksync/issues/592)) ([690bf89](https://github.com/matter-labs/anvil-zksync/commit/690bf897fc3e22eace4b9d16e5b601bb3e35254a))
+
 ## [0.3.2](https://github.com/matter-labs/anvil-zksync/compare/v0.3.1...v0.3.2) (2025-02-28)
 
 
