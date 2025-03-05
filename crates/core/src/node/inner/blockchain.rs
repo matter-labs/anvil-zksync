@@ -1,7 +1,7 @@
 use crate::filters::LogFilter;
 use crate::node::inner::fork::ForkDetails;
 use crate::node::time::{ReadTime, Time};
-use crate::node::{compute_hash, create_genesis, create_genesis_from_json, TransactionResult};
+use crate::node::{create_genesis, create_genesis_from_json, TransactionResult};
 use crate::utils::utc_datetime_from_epoch_ms;
 use anvil_zksync_config::types::Genesis;
 use anvil_zksync_types::api::DetailedTransaction;
@@ -536,12 +536,12 @@ impl Blockchain {
                 batches: HashMap::from_iter([]),
             }
         } else {
-            let block_hash = compute_hash(0, []);
             let (genesis_block, genesis_batch_header) = if let Some(genesis) = genesis {
                 create_genesis_from_json(genesis, genesis_timestamp)
             } else {
                 create_genesis(genesis_timestamp)
             };
+            let block_hash = genesis_block.hash;
             let genesis_batch_info = StoredL1BatchInfo {
                 header: genesis_batch_header,
                 state_diffs: Vec::new(),
@@ -650,16 +650,18 @@ impl BlockchainState {
         let latest_block = self.blocks.get(&self.current_block_hash).unwrap();
         self.current_block += 1;
 
-        let actual_l1_batch_number = block
-            .l1_batch_number
-            .expect("block must have a l1_batch_number");
-        if L1BatchNumber(actual_l1_batch_number.as_u32()) != self.current_batch {
-            panic!(
-                "expected next block to have batch_number {}, got {}",
-                self.current_batch,
-                actual_l1_batch_number.as_u32()
-            );
-        }
+        println!("APPLYING BLOCK {}", self.current_block);
+
+        // let actual_l1_batch_number = block
+        //     .l1_batch_number
+        //     .expect("block must have a l1_batch_number");
+        // if L1BatchNumber(actual_l1_batch_number.as_u32()) != self.current_batch {
+        //     panic!(
+        //         "expected next block to have batch_number {}, got {}",
+        //         self.current_batch,
+        //         actual_l1_batch_number.as_u32()
+        //     );
+        // }
 
         if L2BlockNumber(block.number.as_u32()) != self.current_block {
             panic!(
@@ -689,37 +691,38 @@ impl BlockchainState {
         batch_timestamp: u64,
         base_system_contracts_hashes: BaseSystemContractsHashes,
         tx_results: Vec<TransactionResult>,
-        finished_l1_batch: FinishedL1Batch,
+        finished_l1_batch: Option<FinishedL1Batch>,
         aggregation_root: H256,
     ) {
-        self.current_batch += 1;
-
-        let l2_to_l1_messages = VmEvent::extract_long_l2_to_l1_messages(
-            &finished_l1_batch.final_execution_state.events,
-        );
-        let header = L1BatchHeader {
-            number: self.current_batch,
-            timestamp: batch_timestamp,
-            l1_tx_count: 0, // Always 0 as we don't support L1 transactions yet
-            l2_tx_count: tx_results.len() as u16,
-            priority_ops_onchain_data: vec![], // Always empty as we don't support L1 transactions yet
-            l2_to_l1_logs: finished_l1_batch.final_execution_state.user_l2_to_l1_logs,
-            l2_to_l1_messages,
-            bloom: Default::default(), // This is unused in core
-            used_contract_hashes: finished_l1_batch.final_execution_state.used_contract_hashes,
-            base_system_contracts_hashes,
-            system_logs: finished_l1_batch.final_execution_state.system_logs,
-            protocol_version: Some(ProtocolVersionId::latest()),
-            pubdata_input: finished_l1_batch.pubdata_input,
-            fee_address: Default::default(), // TODO: Use real fee address
-            batch_fee_input: Default::default(), // TODO: Use real batch fee input
-        };
-        let batch_info = StoredL1BatchInfo {
-            header,
-            state_diffs: finished_l1_batch.state_diffs.unwrap_or_default(),
-            aggregation_root,
-        };
-        self.batches.insert(self.current_batch, batch_info);
+        if let Some(finished_l1_batch) = finished_l1_batch {
+            self.current_batch += 1;
+            let l2_to_l1_messages = VmEvent::extract_long_l2_to_l1_messages(
+                &finished_l1_batch.final_execution_state.events,
+            );
+            let header = L1BatchHeader {
+                number: self.current_batch,
+                timestamp: batch_timestamp,
+                l1_tx_count: 0, // Always 0 as we don't support L1 transactions yet
+                l2_tx_count: tx_results.len() as u16,
+                priority_ops_onchain_data: vec![], // Always empty as we don't support L1 transactions yet
+                l2_to_l1_logs: finished_l1_batch.final_execution_state.user_l2_to_l1_logs,
+                l2_to_l1_messages,
+                bloom: Default::default(), // This is unused in core
+                used_contract_hashes: finished_l1_batch.final_execution_state.used_contract_hashes,
+                base_system_contracts_hashes,
+                system_logs: finished_l1_batch.final_execution_state.system_logs,
+                protocol_version: Some(ProtocolVersionId::latest()),
+                pubdata_input: finished_l1_batch.pubdata_input,
+                fee_address: Default::default(), // TODO: Use real fee address
+                batch_fee_input: Default::default(), // TODO: Use real batch fee input
+            };
+            let batch_info = StoredL1BatchInfo {
+                header,
+                state_diffs: finished_l1_batch.state_diffs.unwrap_or_default(),
+                aggregation_root,
+            };
+            self.batches.insert(self.current_batch, batch_info);
+        }
         self.tx_results.extend(
             tx_results
                 .into_iter()

@@ -1,5 +1,6 @@
 //! anvil-zksync, that supports forking other networks.
 
+mod batch;
 mod call_error_tracer;
 mod debug;
 pub mod error;

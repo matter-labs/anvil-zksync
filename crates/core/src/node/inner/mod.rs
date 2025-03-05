@@ -16,6 +16,7 @@ mod in_memory_inner;
 pub mod node_executor;
 pub mod storage;
 pub mod time;
+mod vm_runner;
 
 pub use fork_storage::{SerializableForkStorage, SerializableStorage};
 pub use in_memory_inner::{InMemoryNodeInner, TxExecutionOutput};
@@ -23,6 +24,7 @@ pub use in_memory_inner::{InMemoryNodeInner, TxExecutionOutput};
 use crate::filters::EthFilters;
 use crate::node::blockchain::Blockchain;
 use crate::node::inner::storage::ReadStorageDyn;
+use crate::node::inner::vm_runner::VmRunner;
 use crate::node::keys::StorageKeyLayout;
 use crate::node::{ImpersonationManager, TestNodeFeeInputProvider};
 use crate::system_contracts::SystemContracts;
@@ -52,6 +54,7 @@ impl InMemoryNodeInner {
         Box<dyn ReadBlockchain>,
         Box<dyn ReadTime>,
         Box<dyn ForkSource>,
+        VmRunner,
     ) {
         // TODO: We wouldn't have to clone cache config here if there was a proper per-component
         //       config separation.
@@ -75,6 +78,7 @@ impl InMemoryNodeInner {
             config.use_evm_emulator,
             config.chain_id,
         );
+        let vm_runner = VmRunner::new(time.clone(), fork_storage.clone(), system_contracts.clone());
 
         let node_inner = InMemoryNodeInner::new(
             blockchain.clone(),
@@ -85,7 +89,7 @@ impl InMemoryNodeInner {
             filters,
             config.clone(),
             impersonation.clone(),
-            system_contracts.clone(),
+            system_contracts,
             storage_key_layout,
         );
 
@@ -95,6 +99,7 @@ impl InMemoryNodeInner {
             Box::new(blockchain),
             Box::new(time),
             Box::new(fork),
+            vm_runner,
         )
     }
 }

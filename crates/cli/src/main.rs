@@ -239,7 +239,7 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         StorageKeyLayout::ZkEra
     };
 
-    let (node_inner, storage, blockchain, time, fork) = InMemoryNodeInner::init(
+    let (node_inner, storage, blockchain, time, fork, vm_runner) = InMemoryNodeInner::init(
         fork_client,
         fee_input_provider.clone(),
         filters,
@@ -250,11 +250,8 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
     );
 
     let mut node_service_tasks: Vec<Pin<Box<dyn Future<Output = anyhow::Result<()>>>>> = Vec::new();
-    let (node_executor, node_handle) = NodeExecutor::new(
-        node_inner.clone(),
-        system_contracts.clone(),
-        storage_key_layout,
-    );
+    let (node_executor, node_handle) =
+        NodeExecutor::new(node_inner.clone(), vm_runner, storage_key_layout);
     let l1_sidecar = match config.l1_config.as_ref() {
         Some(_) if fork_print_info.is_some() => {
             return Err(to_domain(generic_error!(
