@@ -138,7 +138,8 @@ impl InMemoryNode {
 
         let mut tx_req = TransactionRequest::from(tx.clone());
         tx_req.chain_id = Some(chain_id.as_u64());
-        // Needed to calculate hash
+        // Needed to calculate hash. `v` is set to 0 as EIP1559 tx hash calculation uses boolean
+        // parity instead of raw `v` value (i.e. 27 becomes 0, 28 becomes 1).
         tx_req.r = Some(U256::zero());
         tx_req.s = Some(U256::zero());
         tx_req.v = Some(U64::from(0));
