@@ -1,0 +1,12 @@
+# Ignore everything by default
+*
+
+# Allow files needed to build anvil-zksync
+!crates
+!l1-setup/configs
+!l1-setup/state
+!l1-setup/wallets.yaml
+!Cargo.toml
+!Cargo.lock
+!rust-toolchain.toml
+!etc/errors
