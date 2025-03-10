@@ -15,6 +15,8 @@ feature-depth = 1
 ignore = [
     { id = "RUSTSEC-2024-0370", reason = "`proc-macro-error` is unmaintained, but foundry relies on it" },
     { id = "RUSTSEC-2024-0388", reason = '`derivative` is unmaintained, crypto dependenicies (boojum, circuit_encodings and others) rely on it' },
+    { id = "RUSTSEC-2024-0436", reason = "paste! is unmaintained" },
+    { id = "RUSTSEC-2024-0437", reason = "protobuf! Crash due to uncontrolled recursion in protobuf crate." }
 ]
 
 [licenses]
