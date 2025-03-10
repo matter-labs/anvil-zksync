@@ -658,7 +658,14 @@ impl InMemoryNode {
             pool.clone(),
             node_handle.clone(),
         );
-        tokio::spawn(node_executor.run());
+        std::thread::spawn(move || {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed to build current-thread runtime");
+            let _ = rt.block_on(node_executor.run());
+        });
+
         tokio::spawn(block_sealer.run());
         Self::new(
             inner,

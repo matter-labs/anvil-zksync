@@ -300,13 +300,19 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
 
     // We start the node executor now so it can receive and handle commands
     // during replay. Otherwise, replay would send commands and hang.
-    tokio::spawn(async move {
-        if let Err(err) = node_executor.run().await {
-            let error = err.context("Node executor ended with error");
-            sh_err!("{:?}", error);
+    std::thread::spawn(move || {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("Failed to build current-thread runtime");
+        rt.block_on(async move {
+            if let Err(err) = node_executor.run().await {
+                let error = err.context("Node executor ended with error");
+                sh_err!("{:?}", error);
 
-            let _ = telemetry.track_error(Box::new(error.as_ref())).await;
-        }
+                let _ = telemetry.track_error(Box::new(error.as_ref())).await;
+            }
+        });
     });
 
     if let Some(ref bytecodes_dir) = config.override_bytecodes_dir {

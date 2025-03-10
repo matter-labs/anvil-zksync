@@ -448,7 +448,7 @@ impl InMemoryNodeInner {
     }
 
     /// Runs L2 transaction and commits it to a new block.
-    fn run_l2_tx<VM: VmInterface, W: WriteStorage, H: HistoryMode>(
+    async fn run_l2_tx<VM: VmInterface, W: WriteStorage, H: HistoryMode>(
         &mut self,
         l2_tx: L2Tx,
         l2_tx_index: u64,
@@ -472,13 +472,7 @@ impl InMemoryNodeInner {
 
         if let ExecutionResult::Halt { reason } = result.result {
             let reason_clone = reason.clone();
-
-            let handle = tokio::runtime::Handle::current();
-            let halt_error =
-                std::thread::spawn(move || handle.block_on(reason_clone.to_halt_error()))
-                    .join()
-                    .expect("Thread panicked");
-
+            let halt_error = reason_clone.to_halt_error().await;
             let error_report = ExecutionErrorReport::new(&halt_error, Some(&l2_tx));
             sh_println!("{}", error_report);
 
@@ -552,7 +546,7 @@ impl InMemoryNodeInner {
         })
     }
 
-    fn run_l2_txs(
+    async fn run_l2_txs(
         &mut self,
         txs: Vec<L2Tx>,
         batch_env: L1BatchEnv,
@@ -590,14 +584,15 @@ impl InMemoryNodeInner {
             let result = match vm {
                 AnvilVM::ZKSync(ref mut vm) => {
                     self.run_l2_tx(tx, tx_index, block_ctx, &batch_env, vm)
+                        .await
                 }
                 AnvilVM::ZKOs(ref mut vm) => {
                     self.run_l2_tx(tx, tx_index, block_ctx, &batch_env, vm)
+                        .await
                 }
             };
 
             match result {
-                //self.run_l2_tx(tx, tx_index, block_ctx, &batch_env, &mut vm) {
                 Ok(tx_result) => {
                     tx_results.push(tx_result);
                     tx_index += 1;
@@ -632,7 +627,9 @@ impl InMemoryNodeInner {
             "advancing clock produced different timestamp than expected"
         );
 
-        let tx_results = self.run_l2_txs(txs, batch_env.clone(), system_env, &mut block_ctx);
+        let tx_results = self
+            .run_l2_txs(txs, batch_env.clone(), system_env, &mut block_ctx)
+            .await;
 
         let mut filters = self.filters.write().await;
         for tx_result in &tx_results {
@@ -1651,6 +1648,7 @@ mod tests {
         let (block_ctx, batch_env, mut vm) = test_vm(&mut node, system_contracts).await;
         let err = node
             .run_l2_tx(tx, 0, &block_ctx, &batch_env, &mut vm)
+            .await
             .unwrap_err();
         assert_eq!(err.to_string(), "exceeds block gas limit");
     }
@@ -1670,6 +1668,7 @@ mod tests {
         let (block_ctx, batch_env, mut vm) = test_vm(&mut node, system_contracts).await;
         let err = node
             .run_l2_tx(tx, 0, &block_ctx, &batch_env, &mut vm)
+            .await
             .unwrap_err();
 
         assert_eq!(
@@ -1693,6 +1692,7 @@ mod tests {
         let (block_ctx, batch_env, mut vm) = test_vm(&mut node, system_contracts).await;
         let err = node
             .run_l2_tx(tx, 0, &block_ctx, &batch_env, &mut vm)
+            .await
             .unwrap_err();
 
         assert_eq!(
