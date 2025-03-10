@@ -207,11 +207,13 @@ impl Drop for SignaturesIdentifier {
 #[allow(clippy::needless_return)]
 mod tests {
     use super::*;
-    use tempdir::TempDir;
 
     #[tokio::test(flavor = "multi_thread")]
     async fn can_query_signatures() {
-        let tmp = TempDir::new("sig-test").expect("failed creating temporary dir");
+        let tmp = tempfile::Builder::new()
+            .prefix("sig-test")
+            .tempdir()
+            .expect("failed creating temporary dir");
         {
             let sigs = SignaturesIdentifier::new(Some(tmp.path().into()), false).unwrap();
 

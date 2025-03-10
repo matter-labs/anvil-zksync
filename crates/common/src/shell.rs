@@ -183,6 +183,7 @@ pub fn set_shell(shell: Shell) {
 ///
 /// Usage:
 /// ```
+/// use anvil_zksync_common::sh_print;
 /// sh_print!("Hello, {}!", "world");
 /// ```
 #[macro_export]
@@ -224,6 +225,7 @@ macro_rules! sh_eprintln {
 ///
 /// Usage:
 /// ```
+/// use anvil_zksync_common::sh_warn;
 /// sh_warn!("This is a warning: {}", "be careful!");
 /// ```
 #[macro_export]
@@ -238,6 +240,7 @@ macro_rules! sh_warn {
 ///
 /// Usage:
 /// ```
+/// use anvil_zksync_common::sh_err;
 /// sh_err!("Something went wrong: {}", "details");
 /// ```
 #[macro_export]
