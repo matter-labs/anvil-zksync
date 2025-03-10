@@ -24,9 +24,9 @@ jobs:
       matrix:
         include:
           - arch: x86_64-unknown-linux-gnu
-            platform: ubuntu-24.04
+            platform: ubuntu-22.04
           - arch: aarch64-unknown-linux-gnu
-            platform: ubuntu-24.04
+            platform: ubuntu-22.04-arm
           - arch: x86_64-apple-darwin
             platform: macos-latest
           - arch: aarch64-apple-darwin
@@ -44,16 +44,6 @@ jobs:
         with:
           toolchain: stable
           target: ${{ matrix.arch }}
-          # Use statically linked glibc. This is likely overkill as foundry requires dynamically available glibc anyway.
-          # See https://book.getfoundry.sh/faq?highlight=allow#out-of-date-glibc
-          rustflags: "-C target-feature=+crt-static"
-
-      - name: Linux ARM setup
-        if: matrix.arch == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
 
       - name: Build anvil-zksync for ${{ matrix.arch }}
         run: |

@@ -3,7 +3,7 @@ use crate::console_log::ConsoleLogHandler;
 use crate::deps::storage_view::StorageView;
 use crate::filters::EthFilters;
 use crate::node::call_error_tracer::CallErrorTracer;
-use crate::node::error::LoadStateError;
+use crate::node::error::{LoadStateError, ToHaltError, ToRevertReason};
 use crate::node::inner::blockchain::{Blockchain, ReadBlockchain};
 use crate::node::inner::fork::{Fork, ForkClient, ForkSource};
 use crate::node::inner::fork_storage::{ForkStorage, SerializableStorage};
@@ -39,7 +39,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use zksync_contracts::BaseSystemContracts;
+use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_multivm::interface::storage::{ReadStorage, WriteStorage};
 use zksync_multivm::interface::VmFactory;
 use zksync_multivm::interface::{
@@ -49,10 +49,12 @@ use zksync_multivm::interface::{
 };
 use zksync_multivm::vm_latest::Vm;
 
+use crate::formatter::ExecutionErrorReport;
 use crate::trace::signatures::SignaturesIdentifier;
 use crate::trace::{
     build_call_trace_arena, decode_trace_arena, filter_call_trace_arena, render_trace_arena_inner,
 };
+use zksync_error::anvil_zksync::{halt::HaltError, revert::RevertError};
 use zksync_multivm::tracers::CallTracer;
 use zksync_multivm::utils::{
     adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
@@ -217,10 +219,13 @@ impl InMemoryNodeInner {
 
     async fn apply_batch(
         &mut self,
+        batch_timestamp: u64,
+        base_system_contracts_hashes: BaseSystemContractsHashes,
         blocks: impl IntoIterator<Item = api::Block<api::TransactionVariant>>,
         tx_results: impl IntoIterator<Item = TransactionResult>,
     ) {
-        // TODO: Move this to a dedicated `PreviousStates` struct once we have one
+        // TODO: `apply_batch` is leaking a lot of abstractions and should be wholly contained inside `Blockchain`.
+        //       Additionally, a dedicated `PreviousStates` struct would help with separation of concern.
         /// Archives the current state for later queries.
         fn archive_state(
             previous_states: &mut IndexMap<H256, HashMap<StorageKey, StorageValue>>,
@@ -238,12 +243,7 @@ impl InMemoryNodeInner {
         }
 
         let mut storage = self.blockchain.write().await;
-        storage.current_batch += 1;
-        storage.tx_results.extend(
-            tx_results
-                .into_iter()
-                .map(|r| (r.receipt.transaction_hash, r)),
-        );
+        storage.apply_batch(batch_timestamp, base_system_contracts_hashes, tx_results);
         for (index, block) in blocks.into_iter().enumerate() {
             // archive current state before we produce new batch/blocks
             archive_state(
@@ -434,10 +434,11 @@ impl InMemoryNodeInner {
             })?;
 
             let verbosity = get_shell().verbosity;
-            let filtered_arena = filter_call_trace_arena(&arena, verbosity);
-            let trace_output = render_trace_arena_inner(&filtered_arena, false);
-
-            sh_println!("Traces:\n{}", trace_output);
+            if verbosity >= 2 {
+                let filtered_arena = filter_call_trace_arena(&arena, verbosity);
+                let trace_output = render_trace_arena_inner(&filtered_arena, false);
+                sh_println!("Traces:\n{}", trace_output);
+            }
             if !self.config.disable_console_log {
                 self.console_log_handler.handle_calls_recursive(call_traces);
             }
@@ -485,10 +486,23 @@ impl InMemoryNodeInner {
         } = self.run_l2_tx_raw(l2_tx.clone(), vm)?;
 
         if let ExecutionResult::Halt { reason } = result.result {
-            // Halt means that something went really bad with the transaction execution (in most cases invalid signature,
-            // but it could also be bootloader panic etc).
-            // In such case, we should not persist the VM data, and we should pretend that transaction never existed.
-            anyhow::bail!("Transaction HALT: {reason}");
+            let reason_clone = reason.clone();
+
+            let handle = tokio::runtime::Handle::current();
+            let halt_error =
+                std::thread::spawn(move || handle.block_on(reason_clone.to_halt_error()))
+                    .join()
+                    .expect("Thread panicked");
+
+            let error_report = ExecutionErrorReport::new(&halt_error, Some(&l2_tx));
+            sh_println!("{}", error_report);
+
+            // Halt means that something went really bad with the transaction execution
+            // (in most cases invalid signature, but it could also be bootloader panic etc).
+            // In such cases, we should not persist the VM data and should pretend that
+            // the transaction never existed.
+            // We do not print the error here, as it was already printed above.
+            anyhow::bail!("Transaction halted due to critical error");
         }
 
         // Write all the factory deps.
@@ -623,6 +637,7 @@ impl InMemoryNodeInner {
         txs: Vec<L2Tx>,
         system_contracts: BaseSystemContracts,
     ) -> anyhow::Result<L2BlockNumber> {
+        let base_system_contracts_hashes = system_contracts.hashes();
         // Prepare a new block context and a new batch env
         let system_env = self.create_system_env(system_contracts, TxExecutionMode::VerifyExecute);
         let (batch_env, mut block_ctx) = self.create_l1_batch_env().await;
@@ -722,7 +737,14 @@ impl InMemoryNodeInner {
             blocks.push(virtual_block);
         }
         let block_hashes = blocks.iter().map(|b| b.hash).collect::<Vec<_>>();
-        self.apply_batch(blocks, tx_results).await;
+        // Use first block's timestamp as batch timestamp
+        self.apply_batch(
+            block_ctx.timestamp,
+            base_system_contracts_hashes,
+            blocks,
+            tx_results,
+        )
+        .await;
 
         let mut filters = self.filters.write().await;
         for block_hash in block_hashes {
@@ -937,7 +959,11 @@ impl InMemoryNodeInner {
                     message
                 );
                 let data = output.encoded_data();
-                sh_eprintln!("\n{}", pretty_message);
+
+                let revert_reason: RevertError = output.to_revert_reason().await;
+                let error_report = ExecutionErrorReport::new(&revert_reason, Some(&l2_tx));
+                sh_println!("{}", error_report);
+
                 Err(Web3Error::SubmitTransactionError(pretty_message, data))
             }
             ExecutionResult::Halt { reason } => {
@@ -961,7 +987,10 @@ impl InMemoryNodeInner {
                     message
                 );
 
-                sh_eprintln!("\n{}", pretty_message);
+                let halt_error: HaltError = reason.to_halt_error().await;
+                let error_report = ExecutionErrorReport::new(&halt_error, Some(&l2_tx));
+                sh_println!("{}", error_report);
+
                 Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
             }
             ExecutionResult::Success { .. } => {
@@ -1689,10 +1718,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_genesis_creates_block_with_hash_and_zero_parent_hash() {
-        let first_block = create_genesis::<TransactionVariant>(Some(1000));
+        let (first_block, first_batch) = create_genesis::<TransactionVariant>(Some(1000));
 
         assert_eq!(first_block.hash, compute_hash(0, []));
         assert_eq!(first_block.parent_hash, H256::zero());
+
+        assert_eq!(first_batch.number, L1BatchNumber(0));
     }
 
     #[tokio::test]

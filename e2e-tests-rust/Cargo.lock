@@ -869,7 +869,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_common"
-version = "0.3.0"
+version = "0.3.2"
 dependencies = [
  "anstream",
  "anstyle",
@@ -877,7 +877,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_config"
-version = "0.3.0"
+version = "0.3.2"
 dependencies = [
  "alloy",
  "anvil_zksync_common",
@@ -896,7 +896,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_core"
-version = "0.3.0"
+version = "0.3.2"
 dependencies = [
  "alloy",
  "anstyle",
@@ -928,6 +928,7 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "zksync-error-codegen",
+ "zksync-error-description",
  "zksync_contracts",
  "zksync_error",
  "zksync_multivm",
@@ -937,7 +938,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_types"
-version = "0.3.0"
+version = "0.3.2"
 dependencies = [
  "clap",
  "serde",
@@ -7384,9 +7385,10 @@ dependencies = [
 [[package]]
 name = "zksync-error-codegen"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-error?rev=626df69#626df691838d6cc251d11f656a58348fcea1de04"
+source = "git+https://github.com/matter-labs/zksync-error?rev=92d1b60d18686e0e261f04dc7efd74db60e112f1#92d1b60d18686e0e261f04dc7efd74db60e112f1"
 dependencies = [
  "cargo_metadata",
+ "derive_more 2.0.1",
  "include_dir",
  "maplit",
  "proc-macro2",
@@ -7401,34 +7403,26 @@ dependencies = [
  "syn 2.0.98",
  "tera",
  "thiserror 1.0.69",
+ "tracing",
  "vector-map",
- "zksync-error-description 0.1.0 (git+https://github.com/matter-labs/zksync-error?rev=626df69)",
+ "zksync-error-description",
  "zksync-error-model",
 ]
 
 [[package]]
 name = "zksync-error-description"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-error?rev=626df69#626df691838d6cc251d11f656a58348fcea1de04"
+source = "git+https://github.com/matter-labs/zksync-error?rev=92d1b60d18686e0e261f04dc7efd74db60e112f1#92d1b60d18686e0e261f04dc7efd74db60e112f1"
 dependencies = [
  "serde",
  "serde_json",
  "zksync-error-model",
-]
-
-[[package]]
-name = "zksync-error-description"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-error?rev=cee7b79#cee7b799ede3d0af742f47c618a6e328aac0e21a"
-dependencies = [
- "serde",
- "serde_json",
 ]
 
 [[package]]
 name = "zksync-error-model"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-error?rev=626df69#626df691838d6cc251d11f656a58348fcea1de04"
+source = "git+https://github.com/matter-labs/zksync-error?rev=92d1b60d18686e0e261f04dc7efd74db60e112f1#92d1b60d18686e0e261f04dc7efd74db60e112f1"
 dependencies = [
  "derive_more 2.0.1",
  "serde",
@@ -7561,7 +7555,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_error"
-version = "0.1.0"
+version = "0.3.2"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -7569,7 +7563,7 @@ dependencies = [
  "serde_json",
  "strum",
  "strum_macros",
- "zksync-error-description 0.1.0 (git+https://github.com/matter-labs/zksync-error?rev=cee7b79)",
+ "zksync-error-description",
 ]
 
 [[package]]

@@ -33,6 +33,20 @@ where
             .request("anvil_zks_commitBatch", (batch_number,))
             .await
     }
+
+    /// Proves batch with given number on L1
+    async fn anvil_prove_batch(&self, batch_number: u64) -> TransportResult<TxHash> {
+        self.client()
+            .request("anvil_zks_proveBatch", (batch_number,))
+            .await
+    }
+
+    /// Executes batch with given number on L1
+    async fn anvil_execute_batch(&self, batch_number: u64) -> TransportResult<TxHash> {
+        self.client()
+            .request("anvil_zks_executeBatch", (batch_number,))
+            .await
+    }
 }
 
 impl<P, T> AnvilZKsyncApi<T> for P

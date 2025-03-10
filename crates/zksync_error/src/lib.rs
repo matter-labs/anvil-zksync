@@ -58,6 +58,67 @@ pub mod anvil_zksync {
             })
         }
     }
+    pub mod halt {
+        pub use crate::error::definitions::Halt as HaltError;
+        pub use crate::error::definitions::Halt::BootloaderOutOfGas;
+        pub use crate::error::definitions::Halt::FailedBlockTimestampAssertion;
+        pub use crate::error::definitions::Halt::FailedToAppendTransactionToL2Block;
+        pub use crate::error::definitions::Halt::FailedToChargeFee;
+        pub use crate::error::definitions::Halt::FailedToMarkFactoryDependencies;
+        pub use crate::error::definitions::Halt::FailedToPublishCompressedBytecodes;
+        pub use crate::error::definitions::Halt::FailedToSetL2Block;
+        pub use crate::error::definitions::Halt::FromIsNotAnAccount;
+        pub use crate::error::definitions::Halt::GenericError;
+        pub use crate::error::definitions::Halt::InnerTxError;
+        pub use crate::error::definitions::Halt::MissingInvocationLimitReached;
+        pub use crate::error::definitions::Halt::NotEnoughGasProvided;
+        pub use crate::error::definitions::Halt::PayForTxFailed;
+        pub use crate::error::definitions::Halt::PaymasterValidationFailed;
+        pub use crate::error::definitions::Halt::PrePaymasterPreparationFailed;
+        pub use crate::error::definitions::Halt::TooBigGasLimit;
+        pub use crate::error::definitions::Halt::TracerCustom;
+        pub use crate::error::definitions::Halt::UnexpectedVMBehavior;
+        pub use crate::error::definitions::Halt::Unknown;
+        pub use crate::error::definitions::Halt::VMPanic;
+        pub use crate::error::definitions::Halt::ValidationFailed;
+        pub use crate::error::definitions::Halt::ValidationOutOfGas;
+        pub use crate::error::definitions::HaltCode as ErrorCode;
+        #[macro_export]
+        macro_rules ! anvil_zksync_halt_generic_error { ($ ($ arg : tt) *) => { zksync_error :: anvil_zksync :: halt :: HaltError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
+        pub use crate::anvil_zksync_halt_generic_error as generic_error;
+        pub fn to_generic<T: std::fmt::Display>(err: T) -> HaltError {
+            GenericError {
+                message: err.to_string(),
+            }
+        }
+        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::AnvilZksyncError {
+            super::AnvilZksyncError::Halt(GenericError {
+                message: err.to_string(),
+            })
+        }
+    }
+    pub mod revert {
+        pub use crate::error::definitions::Revert as RevertError;
+        pub use crate::error::definitions::Revert::General;
+        pub use crate::error::definitions::Revert::GenericError;
+        pub use crate::error::definitions::Revert::InnerTxError;
+        pub use crate::error::definitions::Revert::Unknown;
+        pub use crate::error::definitions::Revert::VmError;
+        pub use crate::error::definitions::RevertCode as ErrorCode;
+        #[macro_export]
+        macro_rules ! anvil_zksync_revert_generic_error { ($ ($ arg : tt) *) => { zksync_error :: anvil_zksync :: revert :: RevertError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
+        pub use crate::anvil_zksync_revert_generic_error as generic_error;
+        pub fn to_generic<T: std::fmt::Display>(err: T) -> RevertError {
+            GenericError {
+                message: err.to_string(),
+            }
+        }
+        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::AnvilZksyncError {
+            super::AnvilZksyncError::Revert(GenericError {
+                message: err.to_string(),
+            })
+        }
+    }
 }
 pub mod compiler {
     pub use crate::error::domains::Compiler as CompilerError;

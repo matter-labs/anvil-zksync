@@ -1,6 +1,6 @@
 use alloy::network::ReceiptResponse;
 use alloy::providers::ext::AnvilApi;
-use alloy::providers::{Provider, ProviderBuilder};
+use alloy::providers::Provider;
 use alloy::{
     network::primitives::BlockTransactionsKind, primitives::U256, signers::local::PrivateKeySigner,
 };
@@ -803,56 +803,6 @@ async fn test_server_port_fallback() -> anyhow::Result<()> {
 
     drop(node1);
     drop(node2);
-
-    Ok(())
-}
-
-#[tokio::test]
-async fn commit_batch_to_l1() -> anyhow::Result<()> {
-    let l1_locked_port = LockedPort::acquire_unused().await?;
-
-    let l2_provider = init_testing_provider(|node| {
-        node.args([
-            "--with-l1",
-            "--l1-port",
-            l1_locked_port.port.to_string().as_str(),
-        ])
-    })
-    .await?;
-    let l1_provider = ProviderBuilder::new()
-        .with_recommended_fillers()
-        .on_builtin(&format!("http://localhost:{}", l1_locked_port.port))
-        .await?;
-
-    // Committing first batch after genesis should work
-    let tx_hash = l2_provider.anvil_commit_batch(1).await?;
-    let receipt = l1_provider
-        .get_transaction_receipt(tx_hash)
-        .await?
-        .expect("receipt not found on L1");
-    assert!(receipt.status());
-
-    // Committing same batch twice shouldn't work
-    let error = l2_provider
-        .anvil_commit_batch(1)
-        .await
-        .expect_err("commit batch expected to fail");
-    assert!(error.to_string().contains("commit transaction failed"));
-
-    // Next batch is committable
-    let tx_hash = l2_provider.anvil_commit_batch(2).await?;
-    let receipt = l1_provider
-        .get_transaction_receipt(tx_hash)
-        .await?
-        .expect("receipt not found on L1");
-    assert!(receipt.status());
-
-    // Skipping a batch shouldn't work
-    let error = l2_provider
-        .anvil_commit_batch(4)
-        .await
-        .expect_err("commit batch expected to fail");
-    assert!(error.to_string().contains("commit transaction failed"));
 
     Ok(())
 }

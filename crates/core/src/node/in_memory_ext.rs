@@ -368,12 +368,9 @@ impl InMemoryNode {
     }
 
     pub async fn set_next_block_base_fee_per_gas(&self, base_fee: U256) -> Result<()> {
-        self.inner
-            .write()
+        self.node_handle
+            .enforce_next_base_fee_per_gas_sync(base_fee)
             .await
-            .fee_input_provider
-            .set_base_fee(base_fee.as_u64());
-        Ok(())
     }
 
     pub async fn set_rpc_url(&self, url: String) -> Result<()> {

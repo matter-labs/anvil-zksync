@@ -1,10 +1,11 @@
 use crate::zkstack_config::ZkstackConfig;
 use alloy::network::EthereumWallet;
 use alloy::providers::{Provider, ProviderBuilder};
+use anyhow::Context;
 use foundry_anvil::{NodeConfig, NodeHandle};
 use foundry_common::Shell;
 use std::time::Duration;
-use tempdir::TempDir;
+use tempfile::TempDir;
 use tokio::io::AsyncWriteExt;
 
 /// Representation of an anvil process spawned onto an event loop.
@@ -33,7 +34,9 @@ pub async fn spawn_builtin(
     port: u16,
     zkstack_config: &ZkstackConfig,
 ) -> anyhow::Result<(AnvilHandle, Box<dyn Provider>)> {
-    let tmpdir = TempDir::new("anvil_zksync_l1")?;
+    let tmpdir = tempfile::Builder::new()
+        .prefix("anvil_zksync_l1")
+        .tempdir()?;
     let anvil_state_path = tmpdir.path().join("l1-state.json");
     let mut anvil_state_file = tokio::fs::File::create(&anvil_state_path).await?;
     anvil_state_file
@@ -92,18 +95,23 @@ async fn setup_provider(port: u16, config: &ZkstackConfig) -> anyhow::Result<Box
         .await?;
 
     // Wait for anvil to be up
-    loop {
-        match provider.get_accounts().await {
-            Ok(_) => {
-                break;
+    tokio::time::timeout(Duration::from_secs(60), async {
+        loop {
+            match provider.get_accounts().await {
+                Ok(_) => {
+                    return anyhow::Ok(());
+                }
+                Err(err) if err.is_transport_error() => {
+                    tracing::debug!(?err, "L1 Anvil is not up yet; sleeping");
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                }
+                Err(err) => return Err(err.into()),
             }
-            Err(err) if err.is_transport_error() => {
-                tracing::debug!(?err, "L1 Anvil is not up yet; sleeping");
-                tokio::time::sleep(Duration::from_millis(100)).await;
-            }
-            Err(err) => return Err(err.into()),
         }
-    }
+    })
+    .await
+    .context("L1 anvil failed to start")?
+    .context("unexpected response from L1 anvil")?;
 
     Ok(Box::new(provider))
 }

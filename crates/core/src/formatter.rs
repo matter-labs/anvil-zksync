@@ -3,6 +3,7 @@ use crate::bootloader_debug::BootloaderDebug;
 use crate::resolver;
 use crate::utils::block_on;
 use crate::utils::{calculate_eth_cost, to_human_size};
+use alloy::hex::ToHexExt;
 use anvil_zksync_common::sh_println;
 use anvil_zksync_config::utils::format_gwei;
 use anvil_zksync_types::ShowCalls;
@@ -10,11 +11,14 @@ use colored::Colorize;
 use futures::future::join_all;
 use lazy_static::lazy_static;
 use serde::Deserialize;
+use std::fmt;
 use std::{collections::HashMap, str};
+use zksync_error::{documentation::Documented, CustomErrorMessage, NamedError};
+use zksync_error_description::ErrorDocumentation;
 use zksync_multivm::interface::{Call, VmEvent, VmExecutionResultAndLogs};
 use zksync_types::{
-    fee_model::FeeModelConfigV2, Address, StorageLogWithPreviousValue, Transaction, H160, H256,
-    U256,
+    fee_model::FeeModelConfigV2, l2::L2Tx, Address, StorageLogWithPreviousValue, Transaction, H160,
+    H256, U256,
 };
 
 // @dev elected to have GasDetails struct as we can do more with it in the future
@@ -861,4 +865,158 @@ Refunded: {:.10} ETH
         paid = paid_in_eth,
         l2_gas_price_fmt = format_gwei(l2_gas_price.into())
     );
+}
+
+/// Encapsulates the execution error report.
+#[derive(Debug)]
+pub struct ExecutionErrorReport<'a, E> {
+    error: &'a E,
+    tx: Option<&'a L2Tx>,
+}
+
+impl<'a, E> ExecutionErrorReport<'a, E>
+where
+    E: NamedError + CustomErrorMessage + Documented<Documentation = &'static ErrorDocumentation>,
+{
+    pub fn new(error: &'a E, tx: Option<&'a L2Tx>) -> Self {
+        Self { error, tx }
+    }
+
+    /// Returns the error details.
+    fn error_report(&self) -> String {
+        let mut out = String::new();
+        let error_msg = self.error.get_message();
+
+        out += &format!("{}: {}\n", "error".red().bold(), error_msg.red());
+        out += "    |\n";
+        let doc = match self.error.get_documentation() {
+            Ok(opt) => opt,
+            Err(e) => {
+                tracing::info!("Failed to get error documentation: {}", e);
+                None
+            }
+        };
+        let summary = doc
+            .as_ref()
+            .map_or("An unknown error occurred", |d| d.summary.as_str());
+        out += &format!("    = {} {}\n", "error:".bright_red(), summary);
+        out
+    }
+
+    /// Returns the transaction details if available.
+    fn tx_details(&self) -> String {
+        let mut out = String::new();
+        if let Some(tx) = self.tx {
+            out += "    | \n";
+            out += &format!("    | {}\n", "Transaction details:".cyan());
+            out += &format!(
+                "    |   Transaction Type: {:?}\n",
+                tx.common_data.transaction_type
+            );
+            out += &format!("    |   Nonce: {}\n", tx.nonce());
+            if let Some(contract_address) = tx.recipient_account() {
+                out += &format!("    |   To: {:?}\n", contract_address);
+            }
+            out += &format!("    |   From: {:?}\n", tx.initiator_account());
+            if let Some(input_data) = &tx.common_data.input {
+                let hex_data = input_data.data.encode_hex();
+                out += &format!("    |   Input Data: 0x{}\n", hex_data);
+                out += &format!("    |   Hash: {:?}\n", tx.hash());
+            }
+            out += &format!("    |   Gas Limit: {}\n", tx.common_data.fee.gas_limit);
+            out += &format!(
+                "    |   Gas Price: {}\n",
+                format_gwei(tx.common_data.fee.max_fee_per_gas)
+            );
+            out += &format!(
+                "    |   Gas Per Pubdata Limit: {}\n",
+                tx.common_data.fee.gas_per_pubdata_limit
+            );
+
+            // Log paymaster details if available.
+            let paymaster_address = tx.common_data.paymaster_params.paymaster;
+            let paymaster_input = &tx.common_data.paymaster_params.paymaster_input;
+            if paymaster_address != Address::zero() || !paymaster_input.is_empty() {
+                out += &format!("    | {}\n", "Paymaster details:".cyan());
+                out += &format!("    |   Paymaster Address: {:?}\n", paymaster_address);
+                let paymaster_input_str = if paymaster_input.is_empty() {
+                    "None".to_string()
+                } else {
+                    paymaster_input.encode_hex()
+                };
+                out += &format!("    |   Paymaster Input: 0x{}\n", paymaster_input_str);
+            }
+        }
+        out
+    }
+
+    /// Returns documentation details including likely causes, fixes, and references.
+    fn docs(&self) -> String {
+        let mut out = String::new();
+        if let Ok(Some(doc)) = self.error.get_documentation() {
+            if !doc.likely_causes.is_empty() {
+                out += "    | \n";
+                out += &format!("    | {}\n", "Likely causes:".cyan());
+                for cause in &doc.likely_causes {
+                    out += &format!("    |   - {}\n", cause.cause);
+                }
+                // Collect fixes.
+                let all_fixes: Vec<&String> = doc
+                    .likely_causes
+                    .iter()
+                    .flat_map(|cause| &cause.fixes)
+                    .collect();
+                if !all_fixes.is_empty() {
+                    out += "    | \n";
+                    out += &format!("    | {}\n", "Possible fixes:".green().bold());
+                    for fix in &all_fixes {
+                        out += &format!("    |   - {}\n", fix);
+                    }
+                }
+                // Collect references.
+                let all_references: Vec<&String> = doc
+                    .likely_causes
+                    .iter()
+                    .flat_map(|cause| &cause.references)
+                    .collect();
+                if !all_references.is_empty() {
+                    out += &format!(
+                        "\n{} \n",
+                        "For more information about this error, visit:"
+                            .cyan()
+                            .bold()
+                    );
+                    for reference in &all_references {
+                        out += &format!("  - {}\n", reference.underline());
+                    }
+                }
+            }
+            out += "    |\n";
+            out += &format!("{} {}\n", "note:".blue(), doc.description);
+        }
+        out += &format!(
+            "{} transaction execution halted due to the above error\n",
+            "error:".red()
+        );
+        out
+    }
+
+    /// Combines all parts of the error report into one string.
+    pub fn report(&self) -> String {
+        let mut out = String::new();
+        out += &self.error_report();
+        out += &self.tx_details();
+        out += &self.docs();
+        out
+    }
+}
+
+/// Implementing Display allows the error report to be used in formatting macros.
+impl<E> fmt::Display for ExecutionErrorReport<'_, E>
+where
+    E: NamedError + CustomErrorMessage + Documented<Documentation = &'static ErrorDocumentation>,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.report())
+    }
 }

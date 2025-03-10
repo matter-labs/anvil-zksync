@@ -20,7 +20,7 @@ strip = "debuginfo" # Automatically strip symbols from the binary.
 lto = "thin"        # Enable link-time optimization.
 
 [workspace.package]
-version = "0.3.0" # x-release-please-version
+version = "0.3.2" # x-release-please-version
 edition = "2021"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
@@ -38,7 +38,9 @@ zksync_contracts = { git = "https://github.com/matter-labs/zksync-era", tag = "c
 zksync_types = { git = "https://github.com/matter-labs/zksync-era", tag = "core-v26.4.0" }
 zksync_vm_interface = { git = "https://github.com/matter-labs/zksync-era", tag = "core-v26.4.0" }
 zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era", tag = "core-v26.4.0" }
-zksync_telemetry = { git = "https://github.com/matter-labs/zksync-telemetry.git", rev = "33fcc81" }
+zksync_telemetry = { git = "https://github.com/matter-labs/zksync-telemetry.git", rev = "d5c35951843263765079545c31c908dcbaab1f30" }
+zksync-error-codegen = { git = "https://github.com/matter-labs/zksync-error", rev = "92d1b60d18686e0e261f04dc7efd74db60e112f1", default-features = false }
+zksync-error-description = { git = "https://github.com/matter-labs/zksync-error", rev = "92d1b60d18686e0e261f04dc7efd74db60e112f1" }
 
 #########################
 # External dependencies #
@@ -70,7 +72,7 @@ serde_json = "1.0"
 strum = "0.26.3"
 strum_macros = "0.26.4"
 serde_yaml = "0.9.33"
-tempdir = "0.3.7"
+tempfile = { version = "3.16.0", default-features = false }
 thiserror = "1"
 time = "0.3.36"
 tokio = { version = "1", features = ["full", "tracing"] }
@@ -106,13 +108,8 @@ anvil_zksync_config = { path = "crates/config" }
 anvil_zksync_core = { path = "crates/core" }
 anvil_zksync_l1_sidecar = { path = "crates/l1_sidecar" }
 anvil_zksync_types = { path = "crates/types" }
-zksync_error = { path = "crates/zksync_error" }
-
-#########################
-# Build dependencies    #
-#########################
-zksync-error-codegen = { git = "https://github.com/matter-labs/zksync-error", rev = "626df69" }
 anvil_zksync_common = { path = "crates/common" }
+zksync_error = { path = "crates/zksync_error" }
 
 # macros
 derive_more = { version = "1.0", features = ["full"] }

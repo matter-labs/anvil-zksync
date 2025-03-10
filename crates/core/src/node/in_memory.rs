@@ -44,7 +44,7 @@ use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use zksync_contracts::BaseSystemContracts;
+use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_multivm::interface::storage::{ReadStorage, StoragePtr};
 use zksync_multivm::interface::VmFactory;
 use zksync_multivm::interface::{
@@ -59,7 +59,7 @@ use crate::node::keys::StorageKeyLayout;
 use zksync_multivm::vm_latest::{HistoryDisabled, ToTracerPointer};
 use zksync_multivm::VmVersion;
 use zksync_types::api::{Block, DebugCall, TransactionReceipt, TransactionVariant};
-use zksync_types::block::unpack_block_info;
+use zksync_types::block::{unpack_block_info, L1BatchHeader};
 use zksync_types::fee_model::BatchFeeInput;
 use zksync_types::l2::L2Tx;
 use zksync_types::storage::{
@@ -68,7 +68,8 @@ use zksync_types::storage::{
 use zksync_types::web3::{keccak256, Bytes};
 use zksync_types::{
     h256_to_u256, AccountTreeId, Address, Bloom, L1BatchNumber, L2BlockNumber, L2ChainId,
-    PackedEthSignature, StorageKey, StorageValue, Transaction, H160, H256, H64, U256, U64,
+    PackedEthSignature, ProtocolVersionId, StorageKey, StorageValue, Transaction, H160, H256, H64,
+    U256, U64,
 };
 
 /// Max possible size of an ABI encoded tx (in bytes).
@@ -93,7 +94,7 @@ pub fn compute_hash<'a>(block_number: u64, tx_hashes: impl IntoIterator<Item = &
 pub fn create_genesis_from_json(
     genesis: &Genesis,
     timestamp: Option<u64>,
-) -> Block<TransactionVariant> {
+) -> (Block<TransactionVariant>, L1BatchHeader) {
     let hash = genesis.hash.unwrap_or_else(|| compute_hash(0, []));
     let timestamp = timestamp
         .or(genesis.timestamp)
@@ -114,7 +115,7 @@ pub fn create_genesis_from_json(
         },
     });
 
-    create_block(
+    let genesis_block = create_block(
         &l1_batch_env,
         hash,
         genesis.parent_hash.unwrap_or_else(H256::zero),
@@ -123,10 +124,18 @@ pub fn create_genesis_from_json(
         genesis.transactions.clone().unwrap_or_default(),
         genesis.gas_used.unwrap_or_else(U256::zero),
         genesis.logs_bloom.unwrap_or_else(Bloom::zero),
-    )
+    );
+    let genesis_batch_header = L1BatchHeader::new(
+        L1BatchNumber(0),
+        timestamp,
+        BaseSystemContractsHashes::default(),
+        ProtocolVersionId::latest(),
+    );
+
+    (genesis_block, genesis_batch_header)
 }
 
-pub fn create_genesis<TX>(timestamp: Option<u64>) -> Block<TX> {
+pub fn create_genesis<TX>(timestamp: Option<u64>) -> (Block<TX>, L1BatchHeader) {
     let hash = compute_hash(0, []);
     let timestamp = timestamp.unwrap_or(NON_FORK_FIRST_BLOCK_TIMESTAMP);
     let batch_env = L1BatchEnv {
@@ -143,7 +152,7 @@ pub fn create_genesis<TX>(timestamp: Option<u64>) -> Block<TX> {
             max_virtual_blocks_to_create: 0,
         },
     };
-    create_block(
+    let genesis_block = create_block(
         &batch_env,
         hash,
         H256::zero(),
@@ -152,7 +161,15 @@ pub fn create_genesis<TX>(timestamp: Option<u64>) -> Block<TX> {
         vec![],
         U256::zero(),
         Bloom::zero(),
-    )
+    );
+    let genesis_batch_header = L1BatchHeader::new(
+        L1BatchNumber(0),
+        timestamp,
+        BaseSystemContractsHashes::default(),
+        ProtocolVersionId::latest(),
+    );
+
+    (genesis_block, genesis_batch_header)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -456,10 +473,11 @@ impl InMemoryNode {
             })?;
 
             let verbosity = get_shell().verbosity;
-            let filtered_arena = filter_call_trace_arena(&arena, verbosity);
-            let trace_output = render_trace_arena_inner(&filtered_arena, false);
-
-            sh_println!("Traces:\n{}", trace_output);
+            if verbosity >= 2 {
+                let filtered_arena = filter_call_trace_arena(&arena, verbosity);
+                let trace_output = render_trace_arena_inner(&filtered_arena, false);
+                sh_println!("Traces:\n{}", trace_output);
+            }
         }
 
         Ok(tx_result.result)
