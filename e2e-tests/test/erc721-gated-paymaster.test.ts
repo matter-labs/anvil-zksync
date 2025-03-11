@@ -106,7 +106,7 @@ describe("ERC721GatedPaymaster", function () {
     expect(finalContractBalance).to.eql(0n);
   });
 
-  it.only("should prevent non-owners from withdrawing funds", async function () {
+  it("should prevent non-owners from withdrawing funds", async function () {
     const action = async () => {
       await (paymaster.connect(nftUserWallet) as Contract).withdraw(nftUserWallet.address);
     };
