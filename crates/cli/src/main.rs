@@ -469,6 +469,7 @@ async fn main() -> Result<(), AnvilZksyncError> {
     if let Err(err) = start_program().await {
         let telemetry = get_telemetry().expect("telemetry is not initialized");
         let _ = telemetry.track_error(Box::new(&err.to_unified())).await;
+        sh_eprintln!("{}", err.to_unified().get_message());
         return Err(err);
     }
     Ok(())
