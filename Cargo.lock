@@ -10160,7 +10160,7 @@ dependencies = [
 [[package]]
 name = "zksync-error-codegen"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-error?rev=92d1b60d18686e0e261f04dc7efd74db60e112f1#92d1b60d18686e0e261f04dc7efd74db60e112f1"
+source = "git+https://github.com/matter-labs/zksync-error?rev=48be45977152aa535f5a98d089082fd63d63dc5a#48be45977152aa535f5a98d089082fd63d63dc5a"
 dependencies = [
  "cargo_metadata",
  "derive_more 2.0.1",
@@ -10187,7 +10187,7 @@ dependencies = [
 [[package]]
 name = "zksync-error-description"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-error?rev=92d1b60d18686e0e261f04dc7efd74db60e112f1#92d1b60d18686e0e261f04dc7efd74db60e112f1"
+source = "git+https://github.com/matter-labs/zksync-error?rev=48be45977152aa535f5a98d089082fd63d63dc5a#48be45977152aa535f5a98d089082fd63d63dc5a"
 dependencies = [
  "serde",
  "serde_json",
@@ -10197,7 +10197,7 @@ dependencies = [
 [[package]]
 name = "zksync-error-model"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-error?rev=92d1b60d18686e0e261f04dc7efd74db60e112f1#92d1b60d18686e0e261f04dc7efd74db60e112f1"
+source = "git+https://github.com/matter-labs/zksync-error?rev=48be45977152aa535f5a98d089082fd63d63dc5a#48be45977152aa535f5a98d089082fd63d63dc5a"
 dependencies = [
  "derive_more 2.0.1",
  "serde",
