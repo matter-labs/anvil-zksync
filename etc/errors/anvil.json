@@ -19,7 +19,215 @@
           "component_name": "AnvilEnvironment",
           "component_code": 1,
           "identifier_encoding": "env",
-          "errors" : []
+          "errors" : [
+            {
+              "name": "InvalidArguments",
+              "code": 1,
+              "message": "Invalid arguments: {details}.",
+              "fields": [
+                {
+                  "name": "details",
+                  "type": "string"
+                },
+                {
+                  "name": "arguments",
+                  "type": "string"
+                }
+              ],
+              "doc": {
+                "summary": "Invalid command line arguments provided.",
+                "description": "There are missing or invalid command line arguments, or an invalid combination of arguments is provided.",
+                "likely_causes": [
+                  {
+                    "cause": "Missing an essential argument or an incorrect value is provided.",
+                    "fixes": [
+                      "Check the short help on the CLI arguments using `anvil-zksync -h`"
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "name": "ServerStartupFailed",
+              "code": 2,
+              "message": "Failed to start server at {host_requested}:{port_requested}, and failed to fall back to {host_requested}:{port_fallback_retried}: {details}.",
+              "fields": [
+                {
+                  "name": "host_requested",
+                  "type": "string"
+                },
+                {
+                  "name": "port_requested",
+                  "type": "uint"
+                },
+                {
+                  "name": "port_fallback_retried",
+                  "type": "uint"
+                },
+                {
+                  "name": "details",
+                  "type": "string"
+                }
+              ],
+              "doc": {
+                "summary": "Failed to start the server and bind it to the requested host and port.",
+                "description": [
+                  "Anvil-zksync starts the server and listens to requests on a specified host and port, 0.0.0.0:8011 by default. They are configurable using `--host` and `--port` command line arguments.",
+                  "",
+                  "The host and port used by anvil-zksync are also displayed when you start anvil-zksync:",
+                  "",
+                  "```",
+                  "========================================",
+                  "Listening on 0.0.0.0:8011",
+                  "========================================",
+                  "```",
+                  "",
+                  "This error indicates that listening on the specified host and port There are missing or invalid command line arguments, or an invalid combination of arguments is provided."
+                ],
+                "likely_causes": [
+                  {
+                    "cause": "You don't have permission to use specified host and port",
+                    "fixes": [
+                      "Check your firewall settings",
+                      "Try with a different port"
+                    ]
+                  },
+                  {
+                    "cause": "The selected port is in use",
+                    "fixes": [
+                      "Check currently running applications that might use the port you want",
+                      "Try with a different port"
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "name": "TelemetryCollectionFailed",
+              "code": 3,
+              "message": "Telemetry collection error: {details}",
+              "fields": [
+                {
+                  "name": "details",
+                  "type": "string"
+                },
+                {
+                  "name": "inner",
+                  "type": "string"
+                }
+              ],
+              "doc": {
+                "summary": "Error collecting telemetry data.",
+                "description": "Anvil-zksync collects telemetry data to help the anvil-zksync developers improving the user experience (only if you have explicitly agreed on it). This error indicates that something went wrong when initializing telemetry subsystem or sending telemetry data.",
+                "likely_causes": [
+                  {
+                    "cause": "Not enough space in the storage.",
+                    "fixes": [
+                      "Free up some space in your storage",
+                      "Turn off sending telemetry data"
+                    ]
+                  },
+                  {
+                    "cause": "Insufficient permissions.",
+                    "fixes": [
+                      "Check if you have permissions to write to the telemetry data file.",
+                      "Turn off sending telemetry data"
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "name": "LogFileAccessFailed",
+              "code": 10,
+              "message": "Unable to access log file: {log_file_path}. Details: {wrapped_error}",
+              "fields": [
+                {
+                  "name": "log_file_path",
+                  "type": "string"
+                },
+                {
+                  "name": "wrapped_error",
+                  "type": "string"
+                }
+              ],
+              "doc": {
+                "summary": "Unable to access log file.",
+                "description": [
+                  "Anvil-zksync was unable to open log file for writing.",
+                  "By default, the log file is searched for at `./anvil-zksync.log`.",
+                  "You may provide this path explicitly through the CLI argument `--log-file-path`."
+                  ],
+                "likely_causes": [
+                  {
+                    "cause": "Wrong path to log file.",
+                    "fixes": [
+                      "Check if you have provided a correct path through `--log-file-path` variable."
+                    ]
+                  },
+                  {
+                    "cause": "Not enough space in the storage.",
+                    "fixes": [
+                      "Free up some space in your storage",
+                      "Use the CLI argument `--log-file-path` to point anvil-zksync to a log file path on a different storage with sufficient free space available."
+                    ]
+                  },
+                  {
+                    "cause": "Insufficient permissions.",
+                    "fixes": [
+                      "Check if you have permissions to write to the selected log file.",
+                      "Use the CLI argument `--log-file-path` to point anvil-zksync to a log file path in a location where you have sufficient permissions to create and/or write to it"
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "name": "LogFileWriteFailed",
+              "code": 11,
+              "message": "Unable to append more lines to the log file `{log_filename}`: {wrapped_error}",
+              "fields": [
+                {
+                  "name": "log_filename",
+                  "type": "string"
+                },
+                {
+                  "name": "wrapped_error",
+                  "type": "string"
+                }
+              ],
+              "doc": {
+                "summary": "Unable to append to log file. Details: {wrapped_error}",
+                "description": [
+                  "Anvil-zksync was unable to write logs to the selected file.",
+                  "By default, the log file is searched for at `./anvil-zksync.log`.",
+                  "You may provide this path explicitly through the CLI argument `--log-file-path`."
+                ],
+                "likely_causes": [
+                  {
+                    "cause": "Wrong path to log file",
+                    "fixes": [
+                      "Check if you have provided a correct path through `--log-file-path` variable."
+                    ]
+                  },
+                  {
+                    "cause": "Not enough space in the storage.",
+                    "fixes": [
+                      "Free up some space in your storage",
+                      "Use the CLI argument `--log-file-path` to point anvil-zksync to a log file path on a different storage with sufficient free space available."
+                    ]
+                  },
+                  {
+                    "cause": "Insufficient permissions.",
+                    "fixes": [
+                      "Check if you have permissions to write to the selected log file.",
+                      "Use the CLI argument `--log-file-path` to point anvil-zksync to a log file path in a location where you have sufficient permissions to create and/or write to it"
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
         },
         {
         "component_name": "Halt",

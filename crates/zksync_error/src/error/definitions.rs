@@ -31,7 +31,70 @@ use strum_macros::FromRepr;
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
 #[non_exhaustive]
 pub enum AnvilEnvironment {
-    GenericError { message: String } = 0u32,
+    #[doc = "# Summary "]
+    #[doc = "Invalid command line arguments provided."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "There are missing or invalid command line arguments, or an invalid combination of arguments is provided."]
+    InvalidArguments {
+        details: String,
+        arguments: String,
+    } = 1u32,
+    #[doc = "# Summary "]
+    #[doc = "Failed to start the server and bind it to the requested host and port."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "Anvil-zksync starts the server and listens to requests on a specified host and port, 0.0.0.0:8011 by default. They are configurable using `--host` and `--port` command line arguments."]
+    #[doc = ""]
+    #[doc = "The host and port used by anvil-zksync are also displayed when you start anvil-zksync:"]
+    #[doc = ""]
+    #[doc = "```"]
+    #[doc = "========================================"]
+    #[doc = "Listening on 0.0.0.0:8011"]
+    #[doc = "========================================"]
+    #[doc = "```"]
+    #[doc = ""]
+    #[doc = "This error indicates that listening on the specified host and port There are missing or invalid command line arguments, or an invalid combination of arguments is provided."]
+    ServerStartupFailed {
+        host_requested: String,
+        port_requested: u32,
+        port_fallback_retried: u32,
+        details: String,
+    } = 2u32,
+    #[doc = "# Summary "]
+    #[doc = "Error collecting telemetry data."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "Anvil-zksync collects telemetry data to help the anvil-zksync developers improving the user experience (only if you have explicitly agreed on it). This error indicates that something went wrong when initializing telemetry subsystem or sending telemetry data."]
+    TelemetryCollectionFailed {
+        details: String,
+        inner: String,
+    } = 3u32,
+    #[doc = "# Summary "]
+    #[doc = "Unable to access log file."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "Anvil-zksync was unable to open log file for writing."]
+    #[doc = "By default, the log file is searched for at `./anvil-zksync.log`."]
+    #[doc = "You may provide this path explicitly through the CLI argument `--log-file-path`."]
+    LogFileAccessFailed {
+        log_file_path: String,
+        wrapped_error: String,
+    } = 10u32,
+    #[doc = "# Summary "]
+    #[doc = "Unable to append to log file. Details: {wrapped_error}"]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "Anvil-zksync was unable to write logs to the selected file."]
+    #[doc = "By default, the log file is searched for at `./anvil-zksync.log`."]
+    #[doc = "You may provide this path explicitly through the CLI argument `--log-file-path`."]
+    LogFileWriteFailed {
+        log_filename: String,
+        wrapped_error: String,
+    } = 11u32,
+    GenericError {
+        message: String,
+    } = 0u32,
 }
 impl std::error::Error for AnvilEnvironment {}
 impl NamedError for AnvilEnvironment {
@@ -82,6 +145,32 @@ impl From<AnvilEnvironment> for crate::serialized::SerializedError {
 impl CustomErrorMessage for AnvilEnvironment {
     fn get_message(&self) -> String {
         match self {
+            AnvilEnvironment::InvalidArguments { details, arguments } => {
+                format!("[anvil_zksync-env-1] Invalid arguments: {details}.")
+            }
+            AnvilEnvironment::ServerStartupFailed {
+                host_requested,
+                port_requested,
+                port_fallback_retried,
+                details,
+            } => {
+                format ! ("[anvil_zksync-env-2] Failed to start server at {host_requested}:{port_requested}, and failed to fall back to {host_requested}:{port_fallback_retried}: {details}.")
+            }
+            AnvilEnvironment::TelemetryCollectionFailed { details, inner } => {
+                format!("[anvil_zksync-env-3] Telemetry collection error: {details}")
+            }
+            AnvilEnvironment::LogFileAccessFailed {
+                log_file_path,
+                wrapped_error,
+            } => {
+                format ! ("[anvil_zksync-env-10] Unable to access log file: {log_file_path}. Details: {wrapped_error}")
+            }
+            AnvilEnvironment::LogFileWriteFailed {
+                log_filename,
+                wrapped_error,
+            } => {
+                format ! ("[anvil_zksync-env-11] Unable to append more lines to the log file `{log_filename}`: {wrapped_error}")
+            }
             AnvilEnvironment::GenericError { message } => {
                 format!("[anvil_zksync-env-0] Generic error: {message}")
             }
