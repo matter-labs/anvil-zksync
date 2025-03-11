@@ -402,13 +402,14 @@ impl InMemoryNodeInner {
         }
 
         if let Some(call_traces) = call_tracer_result.get() {
+            let project_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
             let call_traces_owned = call_traces.clone();
             let tx_result_for_arena = tx_result.clone();
             let mut builder = CallTraceDecoderBuilder::new();
 
             builder = builder.with_signature_identifier(
                 SignaturesIdentifier::new(
-                    Some(PathBuf::from(DEFAULT_DISK_CACHE_DIR)),
+                    Some(project_root.join(DEFAULT_DISK_CACHE_DIR)),
                     self.config.offline,
                 )
                 .map_err(|err| anyhow!("Failed to create SignaturesIdentifier: {:#}", err))?,
@@ -849,7 +850,7 @@ impl InMemoryNodeInner {
 
             // In theory, if the transaction has failed with such large gas limit, we could have returned an API error here right away,
             // but doing it later on keeps the code more lean.
-            let result = self.estimate_gas_step(
+            let (result, _) = self.estimate_gas_step(
                 l2_tx.clone(),
                 gas_per_pubdata_byte,
                 BATCH_GAS_LIMIT,
@@ -887,7 +888,7 @@ impl InMemoryNodeInner {
             );
             let try_gas_limit = additional_gas_for_pubdata + mid;
 
-            let estimate_gas_result = self.estimate_gas_step(
+            let (estimate_gas_result, _) = self.estimate_gas_step(
                 l2_tx.clone(),
                 gas_per_pubdata_byte,
                 try_gas_limit,
@@ -919,7 +920,7 @@ impl InMemoryNodeInner {
             * self.fee_input_provider.estimate_gas_scale_factor)
             as u64;
 
-        let estimate_gas_result = self.estimate_gas_step(
+        let (estimate_gas_result, call_trace) = self.estimate_gas_step(
             l2_tx.clone(),
             gas_per_pubdata_byte,
             suggested_gas_limit,
@@ -937,21 +938,35 @@ impl InMemoryNodeInner {
             VmVersion::latest(),
         ) as u64;
 
-        match estimate_gas_result.result {
-            ExecutionResult::Revert { output } => {
-                tracing::debug!("{}", format!("Unable to estimate gas for the request with our suggested gas limit of {}. The transaction is most likely unexecutable. Breakdown of estimation:", suggested_gas_limit + overhead));
-                tracing::debug!(
-                    "{}",
-                    format!(
-                        "\tEstimated transaction body gas cost: {}",
-                        tx_body_gas_limit
-                    )
-                );
-                tracing::debug!(
-                    "{}",
-                    format!("\tGas for pubdata: {}", additional_gas_for_pubdata)
-                );
-                tracing::debug!("{}", format!("\tOverhead: {}", overhead));
+        match &estimate_gas_result.result {
+            ExecutionResult::Revert { ref output } => {
+                if let Some(call_traces) = call_trace {
+                    let project_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+                    let tx_result_for_arena = estimate_gas_result.clone();
+                    let mut builder = CallTraceDecoderBuilder::new();
+
+                    builder = builder.with_signature_identifier(
+                        SignaturesIdentifier::new(
+                            Some(project_root.join(DEFAULT_DISK_CACHE_DIR)),
+                            self.config.offline,
+                        )
+                        .map_err(|err| {
+                            anyhow!("Failed to create SignaturesIdentifier: {:#}", err)
+                        })?,
+                    );
+
+                    let decoder = builder.build();
+                    let mut arena = build_call_trace_arena(&call_traces, tx_result_for_arena);
+                    decode_trace_arena(&mut arena, &decoder).await?;
+
+                    let verbosity = get_shell().verbosity;
+                    if verbosity >= 2 {
+                        let filtered_arena = filter_call_trace_arena(&arena, verbosity);
+                        let trace_output = render_trace_arena_inner(&filtered_arena, false);
+                        sh_println!("\nTraces:\n{}", trace_output);
+                    }
+                }
+
                 let message = output.to_string();
                 let pretty_message = format!(
                     "execution reverted{}{}",
@@ -960,26 +975,40 @@ impl InMemoryNodeInner {
                 );
                 let data = output.encoded_data();
 
-                let revert_reason: RevertError = output.to_revert_reason().await;
+                let revert_reason: RevertError = output.clone().to_revert_reason().await;
                 let error_report = ExecutionErrorReport::new(&revert_reason, Some(&l2_tx));
                 sh_println!("{}", error_report);
 
                 Err(Web3Error::SubmitTransactionError(pretty_message, data))
             }
             ExecutionResult::Halt { reason } => {
-                tracing::debug!("{}", format!("Unable to estimate gas for the request with our suggested gas limit of {}. The transaction is most likely unexecutable. Breakdown of estimation:", suggested_gas_limit + overhead));
-                tracing::debug!(
-                    "{}",
-                    format!(
-                        "\tEstimated transaction body gas cost: {}",
-                        tx_body_gas_limit
-                    )
-                );
-                tracing::debug!(
-                    "{}",
-                    format!("\tGas for pubdata: {}", additional_gas_for_pubdata)
-                );
-                tracing::debug!("{}", format!("\tOverhead: {}", overhead));
+                if let Some(call_traces) = call_trace {
+                    let project_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+                    let tx_result_for_arena = estimate_gas_result.clone();
+                    let mut builder = CallTraceDecoderBuilder::new();
+
+                    builder = builder.with_signature_identifier(
+                        SignaturesIdentifier::new(
+                            Some(project_root.join(DEFAULT_DISK_CACHE_DIR)),
+                            self.config.offline,
+                        )
+                        .map_err(|err| {
+                            anyhow!("Failed to create SignaturesIdentifier: {:#}", err)
+                        })?,
+                    );
+
+                    let decoder = builder.build();
+                    let mut arena = build_call_trace_arena(&call_traces, tx_result_for_arena);
+                    decode_trace_arena(&mut arena, &decoder).await?;
+
+                    let verbosity = get_shell().verbosity;
+                    if verbosity >= 2 {
+                        let filtered_arena = filter_call_trace_arena(&arena, verbosity);
+                        let trace_output = render_trace_arena_inner(&filtered_arena, false);
+                        sh_println!("\nTraces:\n{}", trace_output);
+                    }
+                }
+
                 let message = reason.to_string();
                 let pretty_message = format!(
                     "execution reverted{}{}",
@@ -987,7 +1016,7 @@ impl InMemoryNodeInner {
                     message
                 );
 
-                let halt_error: HaltError = reason.to_halt_error().await;
+                let halt_error: HaltError = reason.clone().to_halt_error().await;
                 let error_report = ExecutionErrorReport::new(&halt_error, Some(&l2_tx));
                 sh_println!("{}", error_report);
 
@@ -1042,7 +1071,7 @@ impl InMemoryNodeInner {
         system_env: SystemEnv,
         fork_storage: &ForkStorage,
         is_zkos: bool,
-    ) -> VmExecutionResultAndLogs {
+    ) -> (VmExecutionResultAndLogs, Option<Vec<Call>>) {
         let tx: Transaction = l2_tx.clone().into();
 
         // Set gas_limit for transaction
@@ -1099,9 +1128,17 @@ impl InMemoryNodeInner {
         };
 
         let tx: Transaction = l2_tx.into();
+        let call_tracer_result = Arc::new(OnceCell::default());
+        let tracers = vec![CallTracer::new(call_tracer_result.clone()).into_tracer_pointer()];
         delegate_vm!(vm, push_transaction(tx));
 
-        delegate_vm!(vm, execute(InspectExecutionMode::OneTx))
+        let results = delegate_vm!(
+            vm,
+            inspect(&mut tracers.into(), InspectExecutionMode::OneTx)
+        );
+        let call_traces = call_tracer_result.get();
+
+        (results, call_traces.cloned())
     }
 
     /// Creates a [Snapshot] of the current state of the node.

@@ -138,8 +138,9 @@ pub async fn decode_trace_arena(
     arena: &mut CallTraceArena,
     decoder: &CallTraceDecoder,
 ) -> Result<(), anyhow::Error> {
-    decoder.prefetch_signatures(arena.nodes()).await;
-    decoder.populate_traces(arena.nodes_mut()).await;
+    // TODO: change back?
+    decoder.prefetch_signatures(&arena.arena).await;
+    decoder.populate_traces(&mut arena.arena).await;
 
     Ok(())
 }

@@ -441,13 +441,14 @@ impl InMemoryNode {
         }
 
         if !call_traces.is_empty() {
+            let project_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
             let call_traces_owned = call_traces.clone();
             let tx_result_for_arena = tx_result.clone();
             let mut builder = CallTraceDecoderBuilder::new();
 
             builder = builder.with_signature_identifier(
                 SignaturesIdentifier::new(
-                    Some(PathBuf::from(DEFAULT_DISK_CACHE_DIR)),
+                    Some(project_root.join(DEFAULT_DISK_CACHE_DIR)),
                     inner.config.offline,
                 )
                 .map_err(|err| anyhow!("Failed to create SignaturesIdentifier: {:#}", err))?,

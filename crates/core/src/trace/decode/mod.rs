@@ -320,26 +320,28 @@ impl CallTraceDecoder {
             return;
         };
 
-        let events_it = nodes
+        let events: Vec<_> = nodes
             .iter()
             .flat_map(|node| {
                 node.logs
                     .iter()
-                    .filter_map(|log| log.raw_log.indexed_topics.first())
+                    .filter_map(|log| log.raw_log.indexed_topics.first().cloned())
             })
-            .unique();
-        identifier.write().await.identify_events(events_it).await;
+            .unique()
+            .collect();
+        identifier.write().await.identify_events(events).await;
 
-        let funcs_it = nodes
+        let funcs: Vec<_> = nodes
             .iter()
-            .filter_map(|n| n.trace.call.input.get(..SELECTOR_LEN))
-            .filter(|v| !self.functions.contains_key(*v));
+            .filter_map(|n| n.trace.call.input.get(..SELECTOR_LEN).map(|s| s.to_vec()))
+            .filter(|s| !self.functions.contains_key(s.as_slice()))
+            .collect();
+        identifier.write().await.identify_functions(funcs).await;
 
-        identifier.write().await.identify_functions(funcs_it).await;
+        // Need to decode revert reasons and errors as well
     }
 
     /// The default decoded return data for a trace.
-    // TODO: decode errors
     fn default_return_data(&self, trace: &CallTrace) -> Option<String> {
         (!trace.success).then(|| self.revert_decoder.decode(&trace.call.output))
     }

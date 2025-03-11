@@ -1,6 +1,13 @@
 //! Various utilities to decode test results.
+//////////////////////////////////////////////////////////////////////////////////////
+// Attribution: File adapted from the `foundry-evm` crate                           //
+//                                                                                  //
+// Full credit goes to its authors. See the original implementation here:           //
+// https://github.com/foundry-rs/foundry/blob/master/crates/evm/core/src/decode.rs. //
+//                                                                                  //
+// Note: These methods are used under the terms of the original project's license.  //
+//////////////////////////////////////////////////////////////////////////////////////
 
-// use crate::abi::{console};
 use super::SELECTOR_LEN;
 use crate::node::console;
 use crate::utils::format_token;
@@ -9,57 +16,24 @@ use alloy::json_abi::{Error, JsonAbi};
 use alloy::primitives::{hex, map::HashMap, Log, Selector};
 use alloy::sol_types::{SolEventInterface, SolInterface, SolValue};
 use itertools::Itertools;
-use std::{fmt, sync::OnceLock};
+use std::sync::OnceLock;
 
-/// A skip reason.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SkipReason(pub Option<String>);
+const EMPTY_REVERT_DATA: &str = "<empty revert data>";
 
-impl SkipReason {
-    /// Decodes a skip reason, if any.
-    pub fn decode(raw_result: &[u8]) -> Option<Self> {
-        if raw_result.is_empty() {
-            None
-        } else {
-            let reason = String::from_utf8_lossy(raw_result).into_owned();
-            Some(Self((!reason.is_empty()).then_some(reason)))
-        }
-    }
-
-    /// Decodes a skip reason from a string that was obtained by formatting `Self`.
-    ///
-    /// This is a hack to support re-decoding a skip reason in proptest.
-    pub fn decode_self(s: &str) -> Option<Self> {
-        s.strip_prefix("skipped")
-            .map(|rest| Self(rest.strip_prefix(": ").map(ToString::to_string)))
-    }
+/// Decode a set of logs, only returning logs from DSTest logging events and Hardhat's `console.log`
+pub fn decode_console_logs(logs: &[Log]) -> Vec<String> {
+    logs.iter().filter_map(decode_console_log).collect()
 }
 
-impl fmt::Display for SkipReason {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("skipped")?;
-        if let Some(reason) = &self.0 {
-            f.write_str(": ")?;
-            f.write_str(reason)?;
-        }
-        Ok(())
-    }
+/// Decode a single log.
+///
+/// This function returns [None] if it is not a DSTest log or the result of a Hardhat
+/// `console.log`.
+pub fn decode_console_log(log: &Log) -> Option<String> {
+    console::ConsoleEvents::decode_log(log, false)
+        .ok()
+        .map(|decoded| decoded.to_string())
 }
-
-// /// Decode a set of logs, only returning logs from DSTest logging events and Hardhat's `console.log`
-// pub fn decode_console_logs(logs: &[Log]) -> Vec<String> {
-//     logs.iter().filter_map(decode_console_log).collect()
-// }
-
-// /// Decode a single log.
-// ///
-// /// This function returns [None] if it is not a DSTest log or the result of a Hardhat
-// /// `console.log`.
-// pub fn decode_console_log(log: &Log) -> Option<String> {
-//     console::ConsoleEvents::decode_log(log, false)
-//         .ok()
-//         .map(|decoded| decoded.to_string())
-// }
 
 /// Decodes revert data.
 #[derive(Clone, Debug, Default)]
@@ -131,10 +105,9 @@ impl RevertDecoder {
     /// Note that this is just a best-effort guess, and should not be relied upon for anything other
     /// than user output.
     pub fn decode(&self, err: &[u8]) -> String {
-        println!("\n\n\n\n\nerr: {:?}", err);
         self.maybe_decode(err).unwrap_or_else(|| {
             if err.is_empty() {
-                "<empty revert data>".to_string()
+                EMPTY_REVERT_DATA.to_string()
             } else {
                 trimmed_hex(err)
             }
@@ -146,21 +119,12 @@ impl RevertDecoder {
     /// See [`decode`](Self::decode) for more information.
     pub fn maybe_decode(&self, err: &[u8]) -> Option<String> {
         let Some((selector, data)) = err.split_first_chunk::<SELECTOR_LEN>() else {
-            // if let Some(status) = status {
-            //     if !status.is_ok() {
-            //         return Some(format!("EvmError: {status:?}"));
-            //     }
-            // }
             return if err.is_empty() {
                 None
             } else {
                 Some(format!("custom error bytes {}", hex::encode_prefixed(err)))
             };
         };
-
-        if let Some(reason) = SkipReason::decode(err) {
-            return Some(reason.to_string());
-        }
 
         // Solidity's `Error(string)` or `Panic(uint256)`
         if let Ok(e) =

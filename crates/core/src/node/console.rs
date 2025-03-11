@@ -86,3 +86,5 @@ pub fn format_units_uint(x: &U256, decimals: &U256) -> String {
         None => x.to_string(),
     }
 }
+
+pub use Console::*;
