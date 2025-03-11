@@ -193,6 +193,12 @@ fn filter_node_recursively(
             child_copy.children.clear();
             child_copy.ordering.clear();
 
+            // Filter the L1-L2 logs within the node.
+            child_copy.l1_l2_logs.retain(|log| match &log.raw_log {
+                L1L2Log::User(_) => verbosity >= 2, // include user logs if verbosity is >= 2
+                L1L2Log::System(_) => verbosity >= 3, // include system logs if verbosity is >= 3
+            });
+
             filtered_arena.arena.push(child_copy);
 
             if let Some(p_idx) = parent_idx {
@@ -228,7 +234,7 @@ fn should_include_call(address: &H160, verbosity: u8) -> bool {
         3 => !is_precompile,
         // -vvvv => 4 => user + system + precompile
         4 => true,
-        // -vvvvv => 5 => everything + future logs
+        // -vvvvv => 5 => everything + future logs (e.g. maybe storage logs)
         _ => true,
     }
 }

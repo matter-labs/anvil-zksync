@@ -15,8 +15,7 @@ use crate::trace::types::KNOWN_ADDRESSES;
 use crate::utils::format_token;
 use alloy::dyn_abi::{DecodedEvent, DynSolValue, EventExt, FunctionExt, JsonAbiExt};
 use alloy::json_abi::{Event, Function};
-use alloy::primitives::LogData;
-use alloy::primitives::{Selector, B256};
+use alloy::primitives::{LogData, Selector, B256};
 use itertools::Itertools;
 use std::{
     collections::{BTreeMap, HashMap},
@@ -24,6 +23,9 @@ use std::{
 };
 use zksync_multivm::interface::VmEvent;
 use zksync_types::{Address, H160};
+
+pub mod revert_decoder;
+use revert_decoder::RevertDecoder;
 
 /// The first four bytes of the call data for a function call specifies the function to be called.
 pub const SELECTOR_LEN: usize = 4;
@@ -83,6 +85,8 @@ pub struct CallTraceDecoder {
     pub fallback_contracts: HashMap<Address, Vec<String>>,
     /// All known events.
     pub events: BTreeMap<(B256, usize), Vec<Event>>,
+    /// Revert decoder. Contains all known custom errors.
+    pub revert_decoder: RevertDecoder,
     /// All known functions.
     pub functions: HashMap<Selector, Vec<Function>>,
     /// A signature identifier for events and functions.
@@ -137,6 +141,7 @@ impl CallTraceDecoder {
                 .flatten()
                 .map(|event| ((event.selector(), indexed_inputs(&event)), vec![event]))
                 .collect(),
+            revert_decoder: Default::default(),
             signature_identifier: None,
         }
     }
@@ -336,7 +341,7 @@ impl CallTraceDecoder {
     /// The default decoded return data for a trace.
     // TODO: decode errors
     fn default_return_data(&self, trace: &CallTrace) -> Option<String> {
-        (!trace.success).then(|| "Revert - todo! decode output strings".to_string())
+        (!trace.success).then(|| self.revert_decoder.decode(&trace.call.output))
     }
 
     /// Pretty-prints a value.

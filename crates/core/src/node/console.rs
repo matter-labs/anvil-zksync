@@ -3,8 +3,6 @@ use alloy::sol;
 use derive_more::Display;
 use itertools::Itertools;
 
-// TODO: Use `UiFmt`
-
 sol! {
 #[sol(abi)]
 #[derive(Display)]

@@ -45,7 +45,7 @@ impl ConsoleLogHandler {
         }
 
         if !messages.is_empty() {
-            sh_println!("\nLogs: ");
+            sh_println!("===Logs===");
         }
         for message in messages {
             sh_println!("{}", message.bold());
@@ -73,7 +73,10 @@ impl ConsoleLogHandler {
                 .map_or("Unknown log call.".to_owned(), |func| {
                     let tokens = func.abi_decode_input(&current_call.input.as_slice()[4..], false);
                     tokens.map_or("Failed to parse inputs for log.".to_owned(), |tokens| {
-                        tokens.iter().map(|t| format_token(t, false)).join(" ")
+                        tokens
+                            .iter()
+                            .map(|t| format_token(t, false).trim_matches('"').to_string())
+                            .join(" ")
                     })
                 });
         Some(message)

@@ -437,7 +437,7 @@ impl InMemoryNodeInner {
             if verbosity >= 2 {
                 let filtered_arena = filter_call_trace_arena(&arena, verbosity);
                 let trace_output = render_trace_arena_inner(&filtered_arena, false);
-                sh_println!("Traces:\n{}", trace_output);
+                sh_println!("\nTraces:\n{}", trace_output);
             }
             if !self.config.disable_console_log {
                 self.console_log_handler.handle_calls_recursive(call_traces);

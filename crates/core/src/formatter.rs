@@ -850,8 +850,7 @@ Initiator: {initiator:?}
 Payer: {payer:?}
 Gas Limit: {gas_limit} | Used: {used} | Refunded: {refunded}
 Paid: {paid:.10} ETH ({} gas * {l2_gas_price_fmt})
-Refunded: {:.10} ETH
-"#,
+Refunded: {:.10} ETH"#,
         emoji,
         status,
         used_gas,
