@@ -413,7 +413,8 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
                             port_requested: port_requested.into(),
                             port_fallback_retried: config.port.into(),
                             details: err.to_string(),
-                        }.into());
+                        }
+                        .into());
                     }
                 }
             }
