@@ -98,6 +98,8 @@ pub struct InMemoryNodeInner {
     /// Keeps track of historical states indexed via block hash. Limited to [MAX_PREVIOUS_STATES].
     previous_states: IndexMap<H256, HashMap<StorageKey, StorageValue>>,
     storage_key_layout: StorageKeyLayout,
+    /// Whether VM should generate system logs.
+    generate_system_logs: bool,
 }
 
 impl InMemoryNodeInner {
@@ -114,6 +116,7 @@ impl InMemoryNodeInner {
         impersonation: ImpersonationManager,
         system_contracts: SystemContracts,
         storage_key_layout: StorageKeyLayout,
+        generate_system_logs: bool,
     ) -> Self {
         InMemoryNodeInner {
             blockchain,
@@ -129,6 +132,7 @@ impl InMemoryNodeInner {
             rich_accounts: HashSet::new(),
             previous_states: Default::default(),
             storage_key_layout,
+            generate_system_logs,
         }
     }
 
@@ -608,9 +612,18 @@ impl InMemoryNodeInner {
 
         let pubdata_builder = pubdata_params_to_builder(PubdataParams {
             l2_da_validator_address: Address::zero(),
-            pubdata_type: PubdataType::Rollup,
+            pubdata_type: PubdataType::NoDA,
         });
-        let finished_l1_batch = delegate_vm!(vm, finish_batch(pubdata_builder));
+        let finished_l1_batch = if self.generate_system_logs {
+            // If system log generation is enabled we run realistic (and time-consuming) bootloader flow
+            delegate_vm!(vm, finish_batch(pubdata_builder))
+        } else {
+            // Otherwise we mock the execution with a single bootloader iteration
+            let mut finished_l1_batch = FinishedL1Batch::mock();
+            finished_l1_batch.block_tip_execution_result =
+                delegate_vm!(vm, execute(InspectExecutionMode::Bootloader));
+            finished_l1_batch
+        };
         assert!(
             !finished_l1_batch
                 .block_tip_execution_result
@@ -620,11 +633,8 @@ impl InMemoryNodeInner {
             finished_l1_batch.block_tip_execution_result.result
         );
 
-        for diff in finished_l1_batch.state_diffs.as_ref().unwrap() {
-            self.fork_storage.set_value(
-                StorageKey::new(AccountTreeId::new(diff.address), u256_to_h256(diff.key)),
-                u256_to_h256(diff.final_value),
-            );
+        for (key, value) in storage.borrow().modified_storage_keys() {
+            self.fork_storage.set_value(*key, *value);
         }
 
         (tx_results, finished_l1_batch)

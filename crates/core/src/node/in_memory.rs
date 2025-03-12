@@ -649,6 +649,7 @@ impl InMemoryNode {
             impersonation.clone(),
             system_contracts.clone(),
             storage_key_layout,
+            false,
         );
         let (node_executor, node_handle) =
             NodeExecutor::new(inner.clone(), system_contracts.clone(), storage_key_layout);

@@ -247,6 +247,8 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         impersonation.clone(),
         system_contracts.clone(),
         storage_key_layout,
+        // Only produce system logs if L1 is enabled
+        config.l1_config.is_some(),
     );
 
     let mut node_service_tasks: Vec<Pin<Box<dyn Future<Output = anyhow::Result<()>>>>> = Vec::new();

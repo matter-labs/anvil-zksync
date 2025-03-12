@@ -46,6 +46,7 @@ impl InMemoryNodeInner {
         impersonation: ImpersonationManager,
         system_contracts: SystemContracts,
         storage_key_layout: StorageKeyLayout,
+        generate_system_logs: bool,
     ) -> (
         Arc<RwLock<Self>>,
         Box<dyn ReadStorageDyn>,
@@ -87,6 +88,7 @@ impl InMemoryNodeInner {
             impersonation.clone(),
             system_contracts.clone(),
             storage_key_layout,
+            generate_system_logs,
         );
 
         (
