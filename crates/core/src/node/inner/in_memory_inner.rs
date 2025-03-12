@@ -1034,7 +1034,6 @@ impl InMemoryNodeInner {
                 let data = output.encoded_data();
 
                 let revert_reason: RevertError = output.to_revert_reason().await;
-                let tx = Transaction::from(tx);
                 let error_report = ExecutionErrorReport::new(&revert_reason, Some(&tx));
                 sh_println!("{}", error_report);
 
@@ -1062,7 +1061,6 @@ impl InMemoryNodeInner {
                 );
 
                 let halt_error: HaltError = reason.to_halt_error().await;
-                let tx = Transaction::from(tx);
                 let error_report = ExecutionErrorReport::new(&halt_error, Some(&tx));
                 sh_println!("{}", error_report);
 
@@ -1521,6 +1519,7 @@ impl InMemoryNodeInner {
             impersonation.clone(),
             system_contracts.clone(),
             storage_key_layout,
+            false,
         );
         inner
     }
@@ -1844,6 +1843,7 @@ mod tests {
             impersonation,
             node.system_contracts.clone(),
             node.storage_key_layout,
+            false,
         );
         let mut node = node.write().await;
 
