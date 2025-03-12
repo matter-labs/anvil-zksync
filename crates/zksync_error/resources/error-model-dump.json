@@ -945,7 +945,7 @@
           }
         ],
         "documentation": {
-          "description": "Anvil-zksync starts the server and listens to requests on a specified host and port, 0.0.0.0:8011 by default. They are configurable using `--host` and `--port` command line arguments.\n\nThe host and port used by anvil-zksync are also displayed when you start anvil-zksync:\n\n```\n========================================\nListening on 0.0.0.0:8011\n========================================\n```\n\nThis error indicates that listening on the specified host and port There are missing or invalid command line arguments, or an invalid combination of arguments is provided.",
+          "description": "Anvil-zksync starts the server and listens to requests on a specified host and port, 0.0.0.0:8011 by default. They are configurable using `--host` and `--port` command line arguments.\n\nThe host and port used by anvil-zksync are also displayed when you start anvil-zksync:\n\n```\n========================================\nListening on 0.0.0.0:8011\n========================================\n```\n\nThis error indicates that listening on the specified host and port failed.",
           "summary": "Failed to start the server and bind it to the requested host and port.",
           "likely_causes": [
             {

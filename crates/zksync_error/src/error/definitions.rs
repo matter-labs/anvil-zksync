@@ -54,7 +54,7 @@ pub enum AnvilEnvironment {
     #[doc = "========================================"]
     #[doc = "```"]
     #[doc = ""]
-    #[doc = "This error indicates that listening on the specified host and port There are missing or invalid command line arguments, or an invalid combination of arguments is provided."]
+    #[doc = "This error indicates that listening on the specified host and port failed."]
     ServerStartupFailed {
         host_requested: String,
         port_requested: u32,
