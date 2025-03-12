@@ -869,7 +869,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_common"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "anstream",
  "anstyle",
@@ -877,7 +877,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_config"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "alloy",
  "anvil_zksync_common",
@@ -896,7 +896,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_core"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "alloy",
  "anvil_zksync_common",
@@ -925,6 +925,7 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "zksync-error-codegen",
+ "zksync-error-description",
  "zksync_contracts",
  "zksync_error",
  "zksync_multivm",
@@ -934,7 +935,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_types"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "clap",
  "serde",
@@ -7535,7 +7536,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_error"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "anyhow",
  "lazy_static",

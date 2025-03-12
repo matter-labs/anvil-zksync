@@ -84,6 +84,9 @@ impl NodeExecutor {
                 Command::RemoveTimestampInterval(reply) => {
                     self.remove_timestamp_interval(reply).await;
                 }
+                Command::EnforceNextBaseFeePerGas(base_fee, reply) => {
+                    self.enforce_next_base_fee_per_gas(base_fee, reply).await;
+                }
             }
         }
 
@@ -388,6 +391,18 @@ impl NodeExecutor {
             tracing::info!("failed to reply as receiver has been dropped");
         }
     }
+
+    async fn enforce_next_base_fee_per_gas(&mut self, base_fee: U256, reply: oneshot::Sender<()>) {
+        self.node_inner
+            .write()
+            .await
+            .fee_input_provider
+            .set_base_fee(base_fee.as_u64());
+        // Reply to sender if we can
+        if reply.send(()).is_err() {
+            tracing::info!("failed to reply as receiver has been dropped");
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -662,6 +677,27 @@ impl NodeExecutorHandle {
             Err(_) => anyhow::bail!("failed to remove block interval as node executor is dropped"),
         }
     }
+
+    /// Request [`NodeExecutor`] to enforce next block's base fee per gas. Waits for the change to take
+    /// place. Block might still not be produced by then.
+    pub async fn enforce_next_base_fee_per_gas_sync(&self, base_fee: U256) -> anyhow::Result<()> {
+        let (response_sender, response_receiver) = oneshot::channel();
+        self.command_sender
+            .send(Command::EnforceNextBaseFeePerGas(base_fee, response_sender))
+            .await
+            .map_err(|_| {
+                anyhow::anyhow!(
+                    "failed to enforce next base fee per gas as node executor is dropped"
+                )
+            })?;
+
+        match response_receiver.await {
+            Ok(result) => Ok(result),
+            Err(_) => {
+                anyhow::bail!("failed to enforce next base fee per gas as node executor is dropped")
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -697,6 +733,8 @@ enum Command {
     SetCurrentTimestamp(u64, oneshot::Sender<i128>),
     SetTimestampInterval(u64),
     RemoveTimestampInterval(oneshot::Sender<bool>),
+    // Fee manipulation commands
+    EnforceNextBaseFeePerGas(U256, oneshot::Sender<()>),
 }
 
 #[cfg(test)]

@@ -44,9 +44,6 @@ jobs:
         with:
           toolchain: stable
           target: ${{ matrix.arch }}
-          # Use statically linked glibc. This is likely overkill as foundry requires dynamically available glibc anyway.
-          # See https://book.getfoundry.sh/faq?highlight=allow#out-of-date-glibc
-          rustflags: "-C target-feature=+crt-static"
 
       - name: Build anvil-zksync for ${{ matrix.arch }}
         run: |

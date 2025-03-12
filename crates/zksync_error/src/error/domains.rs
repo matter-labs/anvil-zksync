@@ -15,6 +15,8 @@ use crate::error::definitions::FoundryUpstream;
 use crate::error::definitions::FoundryUpstreamCode;
 use crate::error::definitions::FoundryZksync;
 use crate::error::definitions::FoundryZksyncCode;
+use crate::error::definitions::Halt;
+use crate::error::definitions::HaltCode;
 use crate::error::definitions::HardhatUpstream;
 use crate::error::definitions::HardhatUpstreamCode;
 use crate::error::definitions::HardhatZksync;
@@ -22,6 +24,8 @@ use crate::error::definitions::HardhatZksyncCode;
 use crate::error::definitions::LLVM_EVMCode;
 use crate::error::definitions::LLVM_Era;
 use crate::error::definitions::LLVM_EraCode;
+use crate::error::definitions::Revert;
+use crate::error::definitions::RevertCode;
 use crate::error::definitions::Sequencer;
 use crate::error::definitions::SequencerCode;
 use crate::error::definitions::Solc;
@@ -68,6 +72,8 @@ impl crate::documentation::Documented for ZksyncError {
                 error.get_documentation()
             }
             ZksyncError::AnvilZksync(AnvilZksync::AnvilGeneric(error)) => error.get_documentation(),
+            ZksyncError::AnvilZksync(AnvilZksync::Halt(error)) => error.get_documentation(),
+            ZksyncError::AnvilZksync(AnvilZksync::Revert(error)) => error.get_documentation(),
             ZksyncError::Compiler(Compiler::LLVM_EVM(error)) => error.get_documentation(),
             ZksyncError::Compiler(Compiler::LLVM_Era(error)) => error.get_documentation(),
             ZksyncError::Compiler(Compiler::Solc(error)) => error.get_documentation(),
@@ -93,6 +99,12 @@ impl ZksyncError {
             }
             ZksyncError::AnvilZksync(AnvilZksync::AnvilGeneric(_)) => {
                 Kind::AnvilZksync(AnvilZksyncCode::AnvilGeneric)
+            }
+            ZksyncError::AnvilZksync(AnvilZksync::Halt(_)) => {
+                Kind::AnvilZksync(AnvilZksyncCode::Halt)
+            }
+            ZksyncError::AnvilZksync(AnvilZksync::Revert(_)) => {
+                Kind::AnvilZksync(AnvilZksyncCode::Revert)
             }
             ZksyncError::Compiler(Compiler::LLVM_EVM(_)) => Kind::Compiler(CompilerCode::LLVM_EVM),
             ZksyncError::Compiler(Compiler::LLVM_Era(_)) => Kind::Compiler(CompilerCode::LLVM_Era),
@@ -127,6 +139,12 @@ impl ZksyncError {
             }
             ZksyncError::AnvilZksync(AnvilZksync::AnvilGeneric(error)) => {
                 Into::<AnvilGenericCode>::into(error) as u32
+            }
+            ZksyncError::AnvilZksync(AnvilZksync::Halt(error)) => {
+                Into::<HaltCode>::into(error) as u32
+            }
+            ZksyncError::AnvilZksync(AnvilZksync::Revert(error)) => {
+                Into::<RevertCode>::into(error) as u32
             }
             ZksyncError::Compiler(Compiler::LLVM_EVM(error)) => {
                 Into::<LLVM_EVMCode>::into(error) as u32
@@ -189,6 +207,8 @@ impl std::error::Error for ZksyncError {}
 pub enum AnvilZksync {
     AnvilEnvironment(AnvilEnvironment),
     AnvilGeneric(AnvilGeneric),
+    Halt(Halt),
+    Revert(Revert),
 }
 impl AnvilZksync {
     pub fn get_name(&self) -> &str {
@@ -213,6 +233,26 @@ impl ICustomError<ZksyncError, ZksyncError> for AnvilGeneric {
 impl From<AnvilGeneric> for AnvilZksync {
     fn from(val: AnvilGeneric) -> Self {
         AnvilZksync::AnvilGeneric(val)
+    }
+}
+impl ICustomError<ZksyncError, ZksyncError> for Halt {
+    fn to_unified(&self) -> ZksyncError {
+        ZksyncError::AnvilZksync(AnvilZksync::Halt(self.clone()))
+    }
+}
+impl From<Halt> for AnvilZksync {
+    fn from(val: Halt) -> Self {
+        AnvilZksync::Halt(val)
+    }
+}
+impl ICustomError<ZksyncError, ZksyncError> for Revert {
+    fn to_unified(&self) -> ZksyncError {
+        ZksyncError::AnvilZksync(AnvilZksync::Revert(self.clone()))
+    }
+}
+impl From<Revert> for AnvilZksync {
+    fn from(val: Revert) -> Self {
+        AnvilZksync::Revert(val)
     }
 }
 impl ICustomError<ZksyncError, ZksyncError> for AnvilZksync {

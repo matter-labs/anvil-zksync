@@ -1,7 +1,10 @@
 use std::collections::HashSet;
 
-use anvil_zksync_common::{sh_eprintln, sh_err};
+use crate::formatter::ExecutionErrorReport;
+use crate::node::error::{ToHaltError, ToRevertReason};
+use anvil_zksync_common::{sh_err, sh_println};
 use anyhow::Context as _;
+use zksync_error::anvil_zksync::{halt::HaltError, revert::RevertError};
 use zksync_multivm::interface::ExecutionResult;
 use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use zksync_types::h256_to_u256;
@@ -41,7 +44,7 @@ impl InMemoryNode {
         )?;
         tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
         let call_result = self
-            .run_l2_call(tx, system_contracts)
+            .run_l2_call(tx.clone(), system_contracts)
             .await
             .context("Invalid data due to invalid name")?;
 
@@ -55,7 +58,10 @@ impl InMemoryNode {
                     message
                 );
 
-                sh_eprintln!("\n{}", pretty_message);
+                let revert_reason: RevertError = output.clone().to_revert_reason().await;
+                let error_report = ExecutionErrorReport::new(&revert_reason, Some(&tx));
+                sh_println!("{}", error_report);
+
                 Err(Web3Error::SubmitTransactionError(
                     pretty_message,
                     output.encoded_data(),
@@ -69,7 +75,10 @@ impl InMemoryNode {
                     message
                 );
 
-                sh_eprintln!("\n{}", pretty_message);
+                let halt_error: HaltError = reason.clone().to_halt_error().await;
+                let error_report = ExecutionErrorReport::new(&halt_error, Some(&tx));
+                sh_println!("{}", error_report);
+
                 Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
             }
         }
@@ -96,20 +105,17 @@ impl InMemoryNode {
 
     pub async fn send_transaction_impl(
         &self,
-        tx: zksync_types::transaction_request::CallRequest,
+        mut tx: zksync_types::transaction_request::CallRequest,
     ) -> Result<H256, Web3Error> {
         let (chain_id, l2_gas_price) = {
             let reader = self.inner.read().await;
             (self.chain_id().await, reader.fee_input_provider.gas_price())
         };
 
-        let mut tx_req = TransactionRequest::from(tx.clone());
         // Users might expect a "sensible default"
         if tx.gas.is_none() {
-            tx_req.gas = U256::from(MAX_L1_TRANSACTION_GAS_LIMIT);
+            tx.gas = Some(U256::from(MAX_L1_TRANSACTION_GAS_LIMIT));
         }
-
-        tx_req.chain_id = Some(chain_id.as_u64());
 
         // EIP-1559 gas fields should be processed separately
         if tx.gas_price.is_some() {
@@ -119,32 +125,35 @@ impl InMemoryNode {
                 return Err(TransparentError(err.into()).into());
             }
         } else {
-            tx_req.gas_price = tx.max_fee_per_gas.unwrap_or(U256::from(l2_gas_price));
-            tx_req.max_priority_fee_per_gas = tx.max_priority_fee_per_gas;
-            if tx_req.transaction_type.is_none() {
-                tx_req.transaction_type = Some(zksync_types::EIP_1559_TX_TYPE.into());
+            tx.gas_price = Some(tx.max_fee_per_gas.unwrap_or(U256::from(l2_gas_price)));
+            tx.max_priority_fee_per_gas = Some(tx.max_priority_fee_per_gas.unwrap_or(U256::zero()));
+            if tx.transaction_type.is_none() {
+                tx.transaction_type = Some(zksync_types::EIP_1559_TX_TYPE.into());
             }
         }
-        // Needed to calculate hash
-        tx_req.r = Some(U256::default());
-        tx_req.s = Some(U256::default());
-        tx_req.v = Some(U64::from(27));
+        if tx.nonce.is_none() {
+            let nonce_key = self.storage_key_layout.get_nonce_key(&tx.from.unwrap());
+            tx.nonce = Some(h256_to_u256(self.storage.read_value_alt(&nonce_key).await?) + 1);
+        }
 
-        let hash = tx_req.get_tx_hash()?;
+        let mut tx_req = TransactionRequest::from(tx.clone());
+        tx_req.chain_id = Some(chain_id.as_u64());
+        // Needed to calculate hash. `v` is set to 0 as EIP1559 tx hash calculation uses boolean
+        // parity instead of raw `v` value (i.e. 27 becomes 0, 28 becomes 1).
+        tx_req.r = Some(U256::zero());
+        tx_req.s = Some(U256::zero());
+        tx_req.v = Some(U64::from(0));
+
         let bytes = tx_req.get_signed_bytes(&PackedEthSignature::from_rsv(
-            &H256::default(),
-            &H256::default(),
-            27,
+            &H256::zero(),
+            &H256::zero(),
+            0,
         ))?;
 
+        let (mut tx_req, hash) = TransactionRequest::from_bytes(&bytes, chain_id)?;
+        tx_req.from = tx.from;
         let mut l2_tx: L2Tx =
             L2Tx::from_request(tx_req, MAX_TX_SIZE, self.system_contracts.allow_no_target())?;
-
-        // `v` was overwritten with 0 during converting into l2 tx
-        let mut signature = vec![0u8; 65];
-        signature[64] = 27;
-        l2_tx.common_data.signature = signature;
-
         l2_tx.set_input(bytes, hash);
 
         if !self
