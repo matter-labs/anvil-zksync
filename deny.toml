@@ -15,6 +15,8 @@ feature-depth = 1
 ignore = [
     { id = "RUSTSEC-2024-0370", reason = "`proc-macro-error` is unmaintained, but foundry relies on it" },
     { id = "RUSTSEC-2024-0388", reason = '`derivative` is unmaintained, crypto dependenicies (boojum, circuit_encodings and others) rely on it' },
+    { id = "RUSTSEC-2024-0436", reason = "`paste` is unmaintained, but is still widely used" },
+    { id = "RUSTSEC-2024-0437", reason = '`protobuf` needs to be updated to >=3.7.0, but is locked to 3.3.0 by foundry; will be resolved once we get rid of dependency on foundry-anvil' },
 ]
 
 [licenses]
