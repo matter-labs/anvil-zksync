@@ -22,6 +22,7 @@ use crate::system_contracts::SystemContracts;
 use crate::utils::create_debug_output;
 use crate::{delegate_vm, formatter, utils};
 
+use crate::formatter::ExecutionErrorReport;
 use anvil_zksync_common::{sh_eprintln, sh_err, sh_println};
 use anvil_zksync_config::constants::{
     LEGACY_RICH_WALLETS, NON_FORK_FIRST_BLOCK_TIMESTAMP, RICH_WALLETS,
@@ -36,16 +37,14 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
+use zksync_error::anvil_zksync::{halt::HaltError, revert::RevertError};
 use zksync_multivm::interface::storage::{ReadStorage, WriteStorage};
 use zksync_multivm::interface::{
     Call, ExecutionResult, FinishedL1Batch, InspectExecutionMode, L1BatchEnv, L2BlockEnv,
     SystemEnv, TxExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt,
     VmInterfaceHistoryEnabled,
 };
-use zksync_multivm::vm_latest::Vm;
 use zksync_multivm::pubdata_builders::pubdata_params_to_builder;
-use crate::formatter::ExecutionErrorReport;
-use zksync_error::anvil_zksync::{halt::HaltError, revert::RevertError};
 use zksync_multivm::tracers::CallTracer;
 use zksync_multivm::utils::{
     adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
@@ -490,7 +489,7 @@ impl InMemoryNodeInner {
                     .join()
                     .expect("Thread panicked");
 
-            let error_report = ExecutionErrorReport::new(&halt_error, Some(&l2_tx));
+            let error_report = ExecutionErrorReport::new(&halt_error, Some(&tx));
             sh_println!("{}", error_report);
 
             // Halt means that something went really bad with the transaction execution
@@ -1035,7 +1034,8 @@ impl InMemoryNodeInner {
                 let data = output.encoded_data();
 
                 let revert_reason: RevertError = output.to_revert_reason().await;
-                let error_report = ExecutionErrorReport::new(&revert_reason, Some(&l2_tx));
+                let tx = Transaction::from(tx);
+                let error_report = ExecutionErrorReport::new(&revert_reason, Some(&tx));
                 sh_println!("{}", error_report);
 
                 Err(Web3Error::SubmitTransactionError(pretty_message, data))
@@ -1062,7 +1062,8 @@ impl InMemoryNodeInner {
                 );
 
                 let halt_error: HaltError = reason.to_halt_error().await;
-                let error_report = ExecutionErrorReport::new(&halt_error, Some(&l2_tx));
+                let tx = Transaction::from(tx);
+                let error_report = ExecutionErrorReport::new(&halt_error, Some(&tx));
                 sh_println!("{}", error_report);
 
                 Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
