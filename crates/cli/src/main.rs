@@ -486,11 +486,9 @@ async fn main() -> Result<(), AnvilZksyncError> {
         None,
     )
     .await
-    .map_err(
-        |inner| zksync_error::anvil_zksync::env::GenericError {
-            message: format!("Failed to initialize telemetry collection subsystem: {inner}."),
-        },
-    )?;
+    .map_err(|inner| zksync_error::anvil_zksync::env::GenericError {
+        message: format!("Failed to initialize telemetry collection subsystem: {inner}."),
+    })?;
 
     if let Err(err) = start_program().await {
         let telemetry = get_telemetry().expect("telemetry is not initialized");
