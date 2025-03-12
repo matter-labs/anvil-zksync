@@ -61,15 +61,6 @@ pub enum AnvilEnvironment {
         details: String,
     } = 2u32,
     #[doc = "# Summary "]
-    #[doc = "Error collecting telemetry data."]
-    #[doc = ""]
-    #[doc = "# Description"]
-    #[doc = "Anvil-zksync collects telemetry data to help the anvil-zksync developers improving the user experience (only if you have explicitly agreed on it). This error indicates that something went wrong when initializing telemetry subsystem or sending telemetry data."]
-    TelemetryCollectionFailed {
-        details: String,
-        inner: String,
-    } = 3u32,
-    #[doc = "# Summary "]
     #[doc = "Unable to access log file."]
     #[doc = ""]
     #[doc = "# Description"]
@@ -153,9 +144,6 @@ impl CustomErrorMessage for AnvilEnvironment {
                 details,
             } => {
                 format ! ("[anvil_zksync-env-2] Failed to start server at {host_requested}:{port_requested}: {details}.")
-            }
-            AnvilEnvironment::TelemetryCollectionFailed { details, inner } => {
-                format!("[anvil_zksync-env-3] Telemetry collection error: {details}")
             }
             AnvilEnvironment::LogFileAccessFailed {
                 log_file_path,

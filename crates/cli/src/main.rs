@@ -481,9 +481,8 @@ async fn main() -> Result<(), AnvilZksyncError> {
     )
     .await
     .map_err(
-        |inner| zksync_error::anvil_zksync::env::TelemetryCollectionFailed {
-            details: "Failed to initialize telemetry collection.".into(),
-            inner: inner.to_string(),
+        |inner| zksync_error::anvil_zksync::env::GenericError {
+            message: format!("Failed to initialize telemetry collection subsystem: {inner}."),
         },
     )?;
 

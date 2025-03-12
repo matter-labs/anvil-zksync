@@ -99,41 +99,6 @@
               }
             },
             {
-              "name": "TelemetryCollectionFailed",
-              "code": 3,
-              "message": "Telemetry collection error: {details}",
-              "fields": [
-                {
-                  "name": "details",
-                  "type": "string"
-                },
-                {
-                  "name": "inner",
-                  "type": "string"
-                }
-              ],
-              "doc": {
-                "summary": "Error collecting telemetry data.",
-                "description": "Anvil-zksync collects telemetry data to help the anvil-zksync developers improving the user experience (only if you have explicitly agreed on it). This error indicates that something went wrong when initializing telemetry subsystem or sending telemetry data.",
-                "likely_causes": [
-                  {
-                    "cause": "Not enough space in the storage.",
-                    "fixes": [
-                      "Free up some space in your storage",
-                      "Turn off sending telemetry data"
-                    ]
-                  },
-                  {
-                    "cause": "Insufficient permissions.",
-                    "fixes": [
-                      "Check if you have permissions to write to the telemetry data file.",
-                      "Turn off sending telemetry data"
-                    ]
-                  }
-                ]
-              }
-            },
-            {
               "name": "LogFileAccessFailed",
               "code": 10,
               "message": "Unable to access log file: {log_file_path}. Details: {wrapped_error}",

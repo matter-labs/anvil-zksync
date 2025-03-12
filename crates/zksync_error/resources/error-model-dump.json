@@ -984,63 +984,6 @@
           "../../etc/errors/anvil.json"
         ]
       },
-      "[anvil_zksync-env-3]": {
-        "domain": "AnvilZKsync",
-        "component": "AnvilEnvironment",
-        "name": "TelemetryCollectionFailed",
-        "code": 3,
-        "identifier": "[anvil_zksync-env-3]",
-        "message": "Telemetry collection error: {details}",
-        "fields": [
-          {
-            "name": "details",
-            "type": "string"
-          },
-          {
-            "name": "inner",
-            "type": "string"
-          }
-        ],
-        "documentation": {
-          "description": "Anvil-zksync collects telemetry data to help the anvil-zksync developers improving the user experience (only if you have explicitly agreed on it). This error indicates that something went wrong when initializing telemetry subsystem or sending telemetry data.",
-          "summary": "Error collecting telemetry data.",
-          "likely_causes": [
-            {
-              "cause": "Not enough space in the storage.",
-              "fixes": [
-                "Free up some space in your storage",
-                "Turn off sending telemetry data"
-              ],
-              "report": "",
-              "owner": null,
-              "references": []
-            },
-            {
-              "cause": "Insufficient permissions.",
-              "fixes": [
-                "Check if you have permissions to write to the telemetry data file.",
-                "Turn off sending telemetry data"
-              ],
-              "report": "",
-              "owner": null,
-              "references": []
-            }
-          ]
-        },
-        "bindings": {
-          "rust": {
-            "name": "TelemetryCollectionFailed",
-            "path": ""
-          },
-          "typescript": {
-            "name": "TelemetryCollectionFailed",
-            "path": ""
-          }
-        },
-        "origins": [
-          "../../etc/errors/anvil.json"
-        ]
-      },
       "[anvil_zksync-gen-0]": {
         "domain": "AnvilZKsync",
         "component": "AnvilGeneric",
