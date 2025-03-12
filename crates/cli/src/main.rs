@@ -411,7 +411,6 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
                         return Err(zksync_error::anvil_zksync::env::ServerStartupFailed {
                             host_requested: host.to_string(),
                             port_requested: port_requested.into(),
-                            port_fallback_retried: config.port.into(),
                             details: err.to_string(),
                         }
                         .into());

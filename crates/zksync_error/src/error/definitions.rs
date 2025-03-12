@@ -58,7 +58,6 @@ pub enum AnvilEnvironment {
     ServerStartupFailed {
         host_requested: String,
         port_requested: u32,
-        port_fallback_retried: u32,
         details: String,
     } = 2u32,
     #[doc = "# Summary "]
@@ -151,10 +150,9 @@ impl CustomErrorMessage for AnvilEnvironment {
             AnvilEnvironment::ServerStartupFailed {
                 host_requested,
                 port_requested,
-                port_fallback_retried,
                 details,
             } => {
-                format ! ("[anvil_zksync-env-2] Failed to start server at {host_requested}:{port_requested}, and failed to fall back to {host_requested}:{port_fallback_retried}: {details}.")
+                format ! ("[anvil_zksync-env-2] Failed to start server at {host_requested}:{port_requested}: {details}.")
             }
             AnvilEnvironment::TelemetryCollectionFailed { details, inner } => {
                 format!("[anvil_zksync-env-3] Telemetry collection error: {details}")
