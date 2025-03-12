@@ -26,9 +26,7 @@ use crate::trace::{
 };
 use anvil_zksync_common::sh_println;
 use anvil_zksync_common::shell::get_shell;
-use anvil_zksync_config::constants::{
-    NON_FORK_FIRST_BLOCK_TIMESTAMP, TEST_NODE_NETWORK_ID,
-};
+use anvil_zksync_config::constants::{NON_FORK_FIRST_BLOCK_TIMESTAMP, TEST_NODE_NETWORK_ID};
 use anvil_zksync_config::types::{CacheConfig, Genesis};
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_types::{LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
