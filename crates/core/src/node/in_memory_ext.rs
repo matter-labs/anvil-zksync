@@ -363,7 +363,7 @@ impl InMemoryNode {
 
     pub fn remove_pool_transactions(&self, address: Address) -> Result<()> {
         self.pool
-            .drop_transactions(|tx| tx.transaction.common_data.initiator_address == address);
+            .drop_transactions(|tx| tx.transaction.initiator_account() == address);
         Ok(())
     }
 
@@ -585,7 +585,7 @@ mod tests {
         }
 
         // try to execute the tx- should fail without signature
-        assert!(node.apply_txs(vec![tx.clone()], 1).await.is_err());
+        assert!(node.apply_txs(vec![tx.clone().into()], 1).await.is_err());
 
         // impersonate the account
         let result = node
@@ -602,7 +602,7 @@ mod tests {
         assert!(!result);
 
         // execution should now succeed
-        assert!(node.apply_txs(vec![tx.clone()], 1).await.is_ok());
+        assert!(node.apply_txs(vec![tx.clone().into()], 1).await.is_ok());
 
         // stop impersonating the account
         let result = node
@@ -619,7 +619,7 @@ mod tests {
         assert!(!result);
 
         // execution should now fail again
-        assert!(node.apply_txs(vec![tx], 1).await.is_err());
+        assert!(node.apply_txs(vec![tx.into()], 1).await.is_err());
     }
 
     #[tokio::test]

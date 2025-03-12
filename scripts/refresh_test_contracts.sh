@@ -2,14 +2,16 @@
 
 set -xe
 
-TEST_CONTRACT_ARTIFACTS="etc/test-contracts/artifacts-zk/cache-zk/solpp-generated-contracts"
+TEST_CONTRACT_ARTIFACTS="etc/test-contracts/zkout"
 TEST_CONTRACT_TARGET="crates/core/src/deps/test-contracts"
 
 echo "Building test contracts"
-(cd etc/test-contracts && yarn && yarn build)
+(cd etc/test-contracts && forge build --zksync)
 
-echo "Copying test contracts"
-mkdir -p $TEST_CONTRACT_TARGET
-find $TEST_CONTRACT_ARTIFACTS -name "*.json" ! -iname "*.dbg.json" -exec cp {} $TEST_CONTRACT_TARGET \;
+test_contracts=("Primary" "Secondary")
+
+for test_contract in "${test_contracts[@]}"; do
+  cp "$TEST_CONTRACT_ARTIFACTS/$test_contract.sol/$test_contract.json" $TEST_CONTRACT_TARGET
+done
 
 echo "Done"
