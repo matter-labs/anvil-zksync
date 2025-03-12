@@ -46,6 +46,13 @@ jobs:
         with:
           toolchain: stable
 
+      - name: Install Foundry-ZKsync
+        uses: dutterbutter/foundry-zksync-toolchain@v1
+        with:
+          version: foundry-zksync-v0.0.10
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build Code
         run: make all
 

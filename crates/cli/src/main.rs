@@ -253,9 +253,16 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         impersonation.clone(),
         system_contracts.clone(),
         storage_key_layout,
+        // Only produce system logs if L1 is enabled
+        config.l1_config.is_some(),
     );
 
     let mut node_service_tasks: Vec<Pin<Box<dyn Future<Output = anyhow::Result<()>>>>> = Vec::new();
+    let (node_executor, node_handle) = NodeExecutor::new(
+        node_inner.clone(),
+        system_contracts.clone(),
+        storage_key_layout,
+    );
     let l1_sidecar = match config.l1_config.as_ref() {
         Some(_) if fork_print_info.is_some() => {
             return Err(to_domain(generic_error!(
@@ -264,7 +271,7 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         }
         Some(l1_config) => {
             let (l1_sidecar, l1_sidecar_runner) =
-                L1Sidecar::builtin(l1_config.port, blockchain.clone())
+                L1Sidecar::builtin(l1_config.port, blockchain.clone(), node_handle.clone())
                     .await
                     .map_err(to_domain)?;
             node_service_tasks.push(Box::pin(l1_sidecar_runner.run()));
@@ -272,12 +279,6 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         }
         None => L1Sidecar::none(),
     };
-
-    let (node_executor, node_handle) = NodeExecutor::new(
-        node_inner.clone(),
-        system_contracts.clone(),
-        storage_key_layout,
-    );
     let sealing_mode = if config.no_mining {
         BlockSealerMode::noop()
     } else if let Some(block_time) = config.block_time {
@@ -322,9 +323,12 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
     }
 
     if !transactions_to_replay.is_empty() {
-        node.apply_txs(transactions_to_replay, config.max_transactions)
-            .await
-            .map_err(to_domain)?;
+        node.apply_txs(
+            transactions_to_replay.into_iter().map(Into::into).collect(),
+            config.max_transactions,
+        )
+        .await
+        .map_err(to_domain)?;
 
         // If we are in replay mode, we don't start the server
         return Ok(());
@@ -451,7 +455,9 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         _ = any_server_stopped => {
             tracing::trace!("node server was stopped")
         },
-        _ = node_service_stopped => {
+        (result, _, _) = node_service_stopped => {
+            // Propagate error that might have happened inside one of the services
+            result.map_err(to_domain)?;
             tracing::trace!("node service was stopped")
         }
     }

@@ -19,9 +19,8 @@ use tokio::sync::{RwLock, RwLockReadGuard};
 use zksync_multivm::interface::{Call, CallType, ExecutionResult, VmExecutionResultAndLogs};
 use zksync_types::{
     api::{BlockNumber, DebugCall, DebugCallType},
-    l2::L2Tx,
     web3::Bytes,
-    CONTRACT_DEPLOYER_ADDRESS, H256, U256, U64,
+    Transaction, CONTRACT_DEPLOYER_ADDRESS, H256, U256, U64,
 };
 use zksync_web3_decl::error::Web3Error;
 
@@ -68,11 +67,11 @@ pub fn to_real_block_number(block_number: BlockNumber, latest_block_number: U64)
 
 /// Creates a [DebugCall] from a [L2Tx], [VmExecutionResultAndLogs] and a list of [Call]s.
 pub fn create_debug_output(
-    l2_tx: &L2Tx,
+    tx: &Transaction,
     result: &VmExecutionResultAndLogs,
     traces: Vec<Call>,
 ) -> Result<DebugCall, Web3Error> {
-    let calltype = if l2_tx
+    let calltype = if tx
         .recipient_account()
         .map(|addr| addr == CONTRACT_DEPLOYER_ADDRESS)
         .unwrap_or_default()
@@ -86,11 +85,11 @@ pub fn create_debug_output(
             gas_used: result.statistics.gas_used.into(),
             output: output.clone().into(),
             r#type: calltype,
-            from: l2_tx.initiator_account(),
-            to: l2_tx.recipient_account().unwrap_or_default(),
-            gas: l2_tx.common_data.fee.gas_limit,
-            value: l2_tx.execute.value,
-            input: l2_tx.execute.calldata().into(),
+            from: tx.initiator_account(),
+            to: tx.recipient_account().unwrap_or_default(),
+            gas: tx.gas_limit(),
+            value: tx.execute.value,
+            input: tx.execute.calldata().into(),
             error: None,
             revert_reason: None,
             calls: traces.into_iter().map(call_to_debug_call).collect(),
@@ -99,11 +98,11 @@ pub fn create_debug_output(
             gas_used: result.statistics.gas_used.into(),
             output: output.encoded_data().into(),
             r#type: calltype,
-            from: l2_tx.initiator_account(),
-            to: l2_tx.recipient_account().unwrap_or_default(),
-            gas: l2_tx.common_data.fee.gas_limit,
-            value: l2_tx.execute.value,
-            input: l2_tx.execute.calldata().into(),
+            from: tx.initiator_account(),
+            to: tx.recipient_account().unwrap_or_default(),
+            gas: tx.gas_limit(),
+            value: tx.execute.value,
+            input: tx.execute.calldata().into(),
             error: None,
             revert_reason: Some(output.to_string()),
             calls: traces.into_iter().map(call_to_debug_call).collect(),

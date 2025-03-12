@@ -588,6 +588,7 @@ impl Cli {
             .with_account_generator(self.account_generator())
             .with_auto_impersonate(self.auto_impersonate)
             .with_genesis_balance(genesis_balance)
+            .with_cache_dir(self.cache_dir.clone())
             .with_cache_config(self.cache.map(|cache_type| {
                 match cache_type {
                     CacheType::None => CacheConfig::None,
@@ -595,7 +596,6 @@ impl Cli {
                     CacheType::Disk => CacheConfig::Disk {
                         dir: self
                             .cache_dir
-                            .clone()
                             .unwrap_or_else(|| DEFAULT_DISK_CACHE_DIR.to_string()),
                         reset: self.reset_cache.unwrap_or(false),
                     },

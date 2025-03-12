@@ -2,8 +2,8 @@ use anvil_zksync_config::types::SystemContractsOptions;
 use std::collections::HashMap;
 use zksync_multivm::interface::storage::ReadStorage;
 use zksync_types::{
-    get_code_key, get_system_context_init_logs, L2ChainId, StorageKey, StorageLog, StorageValue,
-    H256,
+    get_code_key, get_known_code_key, get_system_context_init_logs, L2ChainId, StorageKey,
+    StorageLog, StorageValue, H256,
 };
 
 pub mod storage_view;
@@ -28,12 +28,18 @@ impl InMemoryStorage {
             system_contracts::get_deployed_contracts(system_contracts_options, use_evm_emulator);
 
         let system_context_init_log = get_system_context_init_logs(chain_id);
-
         let state = contracts
             .iter()
-            .map(|contract| {
+            .flat_map(|contract| {
+                let bytecode_hash = bytecode_hasher(&contract.bytecode);
+
                 let deployer_code_key = get_code_key(contract.account_id.address());
-                StorageLog::new_write_log(deployer_code_key, bytecode_hasher(&contract.bytecode))
+                let is_known_code_key = get_known_code_key(&bytecode_hash);
+
+                [
+                    StorageLog::new_write_log(deployer_code_key, bytecode_hash),
+                    StorageLog::new_write_log(is_known_code_key, H256::from_low_u64_be(1)),
+                ]
             })
             .chain(system_context_init_log)
             .filter_map(|log| (log.is_write()).then_some((log.key, log.value)))

@@ -7,7 +7,6 @@ use anyhow::Context as _;
 use zksync_error::anvil_zksync::{halt::HaltError, revert::RevertError};
 use zksync_multivm::interface::ExecutionResult;
 use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
-use zksync_types::h256_to_u256;
 use zksync_types::{
     api,
     api::{Block, BlockIdVariant, BlockNumber, TransactionVariant},
@@ -16,6 +15,7 @@ use zksync_types::{
     transaction_request::TransactionRequest,
     PackedEthSignature, MAX_L1_TRANSACTION_GAS_LIMIT,
 };
+use zksync_types::{h256_to_u256, Transaction};
 use zksync_types::{
     web3::{self, Bytes},
     Address, H160, H256, U256, U64,
@@ -59,6 +59,7 @@ impl InMemoryNode {
                 );
 
                 let revert_reason: RevertError = output.clone().to_revert_reason().await;
+                let tx = Transaction::from(tx);
                 let error_report = ExecutionErrorReport::new(&revert_reason, Some(&tx));
                 sh_println!("{}", error_report);
 
@@ -76,6 +77,7 @@ impl InMemoryNode {
                 );
 
                 let halt_error: HaltError = reason.clone().to_halt_error().await;
+                let tx = Transaction::from(tx);
                 let error_report = ExecutionErrorReport::new(&halt_error, Some(&tx));
                 sh_println!("{}", error_report);
 
@@ -99,7 +101,7 @@ impl InMemoryNode {
             return Err(err.into());
         };
 
-        self.pool.add_tx(l2_tx);
+        self.pool.add_tx(l2_tx.into());
         Ok(hash)
     }
 
@@ -168,7 +170,7 @@ impl InMemoryNode {
             return Err(TransparentError(err).into());
         }
 
-        self.pool.add_tx(l2_tx);
+        self.pool.add_tx(l2_tx.into());
         Ok(hash)
     }
 }

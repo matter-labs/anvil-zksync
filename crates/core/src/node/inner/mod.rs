@@ -38,6 +38,7 @@ use tokio::sync::RwLock;
 impl InMemoryNodeInner {
     // TODO: Bake in Arc<RwLock<_>> into the struct itself
     #[allow(clippy::type_complexity)]
+    #[allow(clippy::too_many_arguments)]
     pub fn init(
         fork_client_opt: Option<ForkClient>,
         fee_input_provider: TestNodeFeeInputProvider,
@@ -46,6 +47,7 @@ impl InMemoryNodeInner {
         impersonation: ImpersonationManager,
         system_contracts: SystemContracts,
         storage_key_layout: StorageKeyLayout,
+        generate_system_logs: bool,
     ) -> (
         Arc<RwLock<Self>>,
         Box<dyn ReadStorageDyn>,
@@ -87,6 +89,7 @@ impl InMemoryNodeInner {
             impersonation.clone(),
             system_contracts.clone(),
             storage_key_layout,
+            generate_system_logs,
         );
 
         (

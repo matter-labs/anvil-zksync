@@ -91,6 +91,8 @@ pub struct TestNodeConfig {
     pub log_level: LogLevel,
     /// Path to the log file
     pub log_file_path: String,
+    /// Directory to store cache files (defaults to `./cache`)
+    pub cache_dir: String,
     /// Cache configuration for the test node
     pub cache_config: CacheConfig,
     /// Signer accounts that will be initialized with `genesis_balance` in the genesis block.
@@ -184,6 +186,7 @@ impl Default for TestNodeConfig {
             log_file_path: String::from(DEFAULT_LOG_FILE_PATH),
 
             // Cache configuration default
+            cache_dir: String::from(DEFAULT_DISK_CACHE_DIR),
             cache_config: Default::default(),
 
             // Account generator
@@ -641,6 +644,20 @@ Port: {}
     /// Get the log level
     pub fn get_log_level(&self) -> LogLevel {
         self.log_level
+    }
+
+    /// Gets the cache directory
+    pub fn get_cache_dir(&self) -> &str {
+        &self.cache_dir
+    }
+
+    /// Set the cache directory
+    #[must_use]
+    pub fn with_cache_dir(mut self, dir: Option<String>) -> Self {
+        if let Some(dir) = dir {
+            self.cache_dir = dir;
+        }
+        self
     }
 
     /// Set the cache configuration
