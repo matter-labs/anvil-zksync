@@ -9,6 +9,7 @@ use zksync_types::commitment::{
     AuxCommitments, CommitmentCommonInput, CommitmentInput, L1BatchCommitment, L1BatchMetadata,
     L1BatchWithMetadata,
 };
+use zksync_types::writes::StateDiffRecord;
 use zksync_types::{Address, H256};
 use zksync_types::{L1BatchNumber, ProtocolVersionId};
 
@@ -94,13 +95,19 @@ impl CommitmentGenerator {
         header.fee_address = self.fee_address;
         header.base_system_contracts_hashes = self.base_system_contracts_hashes;
 
+        let state_diffs = self.blockchain.get_batch_state_diffs(batch_number).await?;
+        let aggregation_root = self
+            .blockchain
+            .get_batch_aggregation_root(batch_number)
+            .await?;
+
         // anvil-zksync does not store batches right now so we just generate dummy commitment input.
         // Root hash is random purely so that different batches have different commitments.
         let tree_data = L1BatchTreeData {
             hash: H256::random(),
             rollup_last_leaf_index: 42,
         };
-        let metadata = self.generate_metadata(header, tree_data);
+        let metadata = self.generate_metadata(header, state_diffs, aggregation_root, tree_data);
         self.batches
             .write()
             .unwrap()
@@ -111,6 +118,8 @@ impl CommitmentGenerator {
     fn generate_metadata(
         &self,
         header: L1BatchHeader,
+        state_diffs: Vec<StateDiffRecord>,
+        aggregation_root: H256,
         tree_data: L1BatchTreeData,
     ) -> L1BatchWithMetadata {
         let common = CommitmentCommonInput {
@@ -124,8 +133,8 @@ impl CommitmentGenerator {
         };
         let commitment_input = CommitmentInput::PostBoojum {
             common,
-            system_logs: Vec::new(),
-            state_diffs: Vec::new(),
+            system_logs: header.system_logs.clone(),
+            state_diffs,
             aux_commitments: AuxCommitments {
                 events_queue_commitment: H256::zero(),
                 bootloader_initial_content_commitment: H256::zero(),
@@ -134,7 +143,7 @@ impl CommitmentGenerator {
                 let num_blobs = num_blobs_required(&ProtocolVersionId::latest());
                 vec![Default::default(); num_blobs]
             },
-            aggregation_root: H256::zero(),
+            aggregation_root,
         };
 
         Self::generate_metadata_inner(header, commitment_input)
@@ -151,11 +160,6 @@ impl CommitmentGenerator {
         let mut commitment_artifacts = commitment.artifacts();
         if header.number == L1BatchNumber(0) {
             // `l2_l1_merkle_root` for genesis batch is set to 0 on L1 contract, same must be here.
-            commitment_artifacts.l2_l1_merkle_root = H256::zero();
-        } else {
-            // We don't send system logs containing the actual `l2_l1_merkle_root` so Executor contract
-            // is assuming `l2_l1_merkle_root` zeroed out hash for all batches by default. In reality
-            // even an empty Merkle tree has a non-trivial hash.
             commitment_artifacts.l2_l1_merkle_root = H256::zero();
         }
         tracing::debug!(
@@ -340,6 +344,25 @@ mod tests {
 
         async fn get_batch_header(&self, batch_number: L1BatchNumber) -> Option<L1BatchHeader> {
             self.0.get(&batch_number).cloned()
+        }
+
+        async fn get_batch_state_diffs(
+            &self,
+            batch_number: L1BatchNumber,
+        ) -> Option<Vec<StateDiffRecord>> {
+            if self.0.contains_key(&batch_number) {
+                Some(vec![])
+            } else {
+                None
+            }
+        }
+
+        async fn get_batch_aggregation_root(&self, batch_number: L1BatchNumber) -> Option<H256> {
+            if self.0.contains_key(&batch_number) {
+                Some(H256::zero())
+            } else {
+                None
+            }
         }
     }
 

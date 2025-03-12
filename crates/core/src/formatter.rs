@@ -17,8 +17,8 @@ use zksync_error::{documentation::Documented, CustomErrorMessage, NamedError};
 use zksync_error_description::ErrorDocumentation;
 use zksync_multivm::interface::{Call, VmEvent, VmExecutionResultAndLogs};
 use zksync_types::{
-    fee_model::FeeModelConfigV2, l2::L2Tx, Address, StorageLogWithPreviousValue, Transaction, H160,
-    H256, U256,
+    fee_model::FeeModelConfigV2, Address, ExecuteTransactionCommon, StorageLogWithPreviousValue,
+    Transaction, H160, H256, U256,
 };
 
 // @dev elected to have GasDetails struct as we can do more with it in the future
@@ -871,14 +871,14 @@ Refunded: {:.10} ETH
 #[derive(Debug)]
 pub struct ExecutionErrorReport<'a, E> {
     error: &'a E,
-    tx: Option<&'a L2Tx>,
+    tx: Option<&'a Transaction>,
 }
 
 impl<'a, E> ExecutionErrorReport<'a, E>
 where
     E: NamedError + CustomErrorMessage + Documented<Documentation = &'static ErrorDocumentation>,
 {
-    pub fn new(error: &'a E, tx: Option<&'a L2Tx>) -> Self {
+    pub fn new(error: &'a E, tx: Option<&'a Transaction>) -> Self {
         Self { error, tx }
     }
 
@@ -909,42 +909,42 @@ where
         if let Some(tx) = self.tx {
             out += "    | \n";
             out += &format!("    | {}\n", "Transaction details:".cyan());
-            out += &format!(
-                "    |   Transaction Type: {:?}\n",
-                tx.common_data.transaction_type
-            );
-            out += &format!("    |   Nonce: {}\n", tx.nonce());
+            out += &format!("    |   Transaction Type: {:?}\n", tx.tx_format());
+            if let Some(nonce) = tx.nonce() {
+                out += &format!("    |   Nonce: {}\n", nonce);
+            }
             if let Some(contract_address) = tx.recipient_account() {
                 out += &format!("    |   To: {:?}\n", contract_address);
             }
             out += &format!("    |   From: {:?}\n", tx.initiator_account());
-            if let Some(input_data) = &tx.common_data.input {
-                let hex_data = input_data.data.encode_hex();
-                out += &format!("    |   Input Data: 0x{}\n", hex_data);
-                out += &format!("    |   Hash: {:?}\n", tx.hash());
+            if let ExecuteTransactionCommon::L2(l2_tx) = &tx.common_data {
+                if let Some(input_data) = &l2_tx.input {
+                    let hex_data = input_data.data.encode_hex();
+                    out += &format!("    |   Input Data: 0x{}\n", hex_data);
+                    out += &format!("    |   Hash: {:?}\n", tx.hash());
+                }
             }
-            out += &format!("    |   Gas Limit: {}\n", tx.common_data.fee.gas_limit);
-            out += &format!(
-                "    |   Gas Price: {}\n",
-                format_gwei(tx.common_data.fee.max_fee_per_gas)
-            );
+            out += &format!("    |   Gas Limit: {}\n", tx.gas_limit());
+            out += &format!("    |   Gas Price: {}\n", format_gwei(tx.max_fee_per_gas()));
             out += &format!(
                 "    |   Gas Per Pubdata Limit: {}\n",
-                tx.common_data.fee.gas_per_pubdata_limit
+                tx.gas_per_pubdata_byte_limit()
             );
 
             // Log paymaster details if available.
-            let paymaster_address = tx.common_data.paymaster_params.paymaster;
-            let paymaster_input = &tx.common_data.paymaster_params.paymaster_input;
-            if paymaster_address != Address::zero() || !paymaster_input.is_empty() {
-                out += &format!("    | {}\n", "Paymaster details:".cyan());
-                out += &format!("    |   Paymaster Address: {:?}\n", paymaster_address);
-                let paymaster_input_str = if paymaster_input.is_empty() {
-                    "None".to_string()
-                } else {
-                    paymaster_input.encode_hex()
-                };
-                out += &format!("    |   Paymaster Input: 0x{}\n", paymaster_input_str);
+            if let ExecuteTransactionCommon::L2(l2_tx) = &tx.common_data {
+                let paymaster_address = l2_tx.paymaster_params.paymaster;
+                let paymaster_input = &l2_tx.paymaster_params.paymaster_input;
+                if paymaster_address != Address::zero() || !paymaster_input.is_empty() {
+                    out += &format!("    | {}\n", "Paymaster details:".cyan());
+                    out += &format!("    |   Paymaster Address: {:?}\n", paymaster_address);
+                    let paymaster_input_str = if paymaster_input.is_empty() {
+                        "None".to_string()
+                    } else {
+                        paymaster_input.encode_hex()
+                    };
+                    out += &format!("    |   Paymaster Input: 0x{}\n", paymaster_input_str);
+                }
             }
         }
         out

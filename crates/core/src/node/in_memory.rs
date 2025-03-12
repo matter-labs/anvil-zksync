@@ -203,7 +203,7 @@ pub fn create_block<TX>(
 /// Information about the executed transaction.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TxExecutionInfo {
-    pub tx: L2Tx,
+    pub tx: Transaction,
     // Batch number where transaction was executed.
     pub batch_number: u32,
     pub miniblock_number: u64,
@@ -313,7 +313,11 @@ impl InMemoryNode {
     /// Applies multiple transactions across multiple blocks. All transactions are expected to be
     /// executable. Note that on error this method may leave node in partially applied state (i.e.
     /// some txs have been applied while others have not).
-    pub async fn apply_txs(&self, txs: Vec<L2Tx>, max_transactions: usize) -> anyhow::Result<()> {
+    pub async fn apply_txs(
+        &self,
+        txs: Vec<Transaction>,
+        max_transactions: usize,
+    ) -> anyhow::Result<()> {
         tracing::debug!(count = txs.len(), "applying transactions");
 
         // Create a temporary tx pool (i.e. state is not shared with the node mempool).
@@ -645,6 +649,7 @@ impl InMemoryNode {
             impersonation.clone(),
             system_contracts.clone(),
             storage_key_layout,
+            false,
         );
         let (node_executor, node_handle) =
             NodeExecutor::new(inner.clone(), system_contracts.clone(), storage_key_layout);

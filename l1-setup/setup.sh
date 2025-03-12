@@ -67,12 +67,22 @@ echo "* Done"
 # Note: this requires a running postgres container and builds zksync-era server; neither is needed for us but there is
 #       no current way to turn off this behavior in zkstack
 pushd ./anvil_ecosystem > /dev/null
-zkstack ecosystem init --dev --update-submodules false
+zkstack ecosystem init \
+  --deploy-paymaster --deploy-erc20 --deploy-ecosystem \
+  --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 --server-db-name=zksync_server_localhost_era \
+  --l1-rpc-url=http://localhost:8545 --observability false --update-submodules false
+zkstack chain convert-to-gateway --chain anvil --ignore-prerequisites
 popd > /dev/null
 
 # Persist resulting configuration files in anvil-zksync's source control
 echo "* Copying resulting config files..."
 cp ./anvil_ecosystem/chains/anvil/configs/{contracts,genesis}.yaml ./configs/
+echo "* Done"
+
+echo "* Dumping mandatory upgrade transaction..."
+psql postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era -t -c \
+  "select jsonb_agg(transactions) from transactions join protocol_versions on transactions.hash = protocol_versions.upgrade_tx_hash;" \
+  | jq -c '.[0]' | sed -e 's/\\\\x/0x/g' > ./state/upgrade_tx.json
 echo "* Done"
 
 echo "* Dumping anvil's state as payload..."
