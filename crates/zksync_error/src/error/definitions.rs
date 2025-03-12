@@ -114,7 +114,7 @@ impl From<AnvilEnvironment> for crate::ZksyncError {
 }
 impl std::fmt::Display for AnvilEnvironment {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for AnvilEnvironment {
@@ -216,7 +216,7 @@ impl From<AnvilGeneric> for crate::ZksyncError {
 }
 impl std::fmt::Display for AnvilGeneric {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for AnvilGeneric {
@@ -449,7 +449,7 @@ impl From<Halt> for crate::ZksyncError {
 }
 impl std::fmt::Display for Halt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for Halt {
@@ -622,7 +622,7 @@ impl From<Revert> for crate::ZksyncError {
 }
 impl std::fmt::Display for Revert {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for Revert {
@@ -713,7 +713,7 @@ impl From<LLVM_EVM> for crate::ZksyncError {
 }
 impl std::fmt::Display for LLVM_EVM {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for LLVM_EVM {
@@ -789,7 +789,7 @@ impl From<LLVM_Era> for crate::ZksyncError {
 }
 impl std::fmt::Display for LLVM_Era {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for LLVM_Era {
@@ -865,7 +865,7 @@ impl From<Solc> for crate::ZksyncError {
 }
 impl std::fmt::Display for Solc {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for Solc {
@@ -941,7 +941,7 @@ impl From<SolcFork> for crate::ZksyncError {
 }
 impl std::fmt::Display for SolcFork {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for SolcFork {
@@ -1017,7 +1017,7 @@ impl From<Zksolc> for crate::ZksyncError {
 }
 impl std::fmt::Display for Zksolc {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for Zksolc {
@@ -1093,7 +1093,7 @@ impl From<Zkvyper> for crate::ZksyncError {
 }
 impl std::fmt::Display for Zkvyper {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for Zkvyper {
@@ -1169,7 +1169,7 @@ impl From<API> for crate::ZksyncError {
 }
 impl std::fmt::Display for API {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for API {
@@ -1245,7 +1245,7 @@ impl From<EraVM> for crate::ZksyncError {
 }
 impl std::fmt::Display for EraVM {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for EraVM {
@@ -1321,7 +1321,7 @@ impl From<ExecutionPlatform> for crate::ZksyncError {
 }
 impl std::fmt::Display for ExecutionPlatform {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for ExecutionPlatform {
@@ -1398,7 +1398,7 @@ impl From<Sequencer> for crate::ZksyncError {
 }
 impl std::fmt::Display for Sequencer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for Sequencer {
@@ -1477,7 +1477,7 @@ impl From<FoundryUpstream> for crate::ZksyncError {
 }
 impl std::fmt::Display for FoundryUpstream {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for FoundryUpstream {
@@ -1553,7 +1553,7 @@ impl From<FoundryZksync> for crate::ZksyncError {
 }
 impl std::fmt::Display for FoundryZksync {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for FoundryZksync {
@@ -1629,7 +1629,7 @@ impl From<HardhatUpstream> for crate::ZksyncError {
 }
 impl std::fmt::Display for HardhatUpstream {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for HardhatUpstream {
@@ -1705,7 +1705,7 @@ impl From<HardhatZksync> for crate::ZksyncError {
 }
 impl std::fmt::Display for HardhatZksync {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for HardhatZksync {
