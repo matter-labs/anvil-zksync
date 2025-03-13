@@ -264,13 +264,7 @@ impl VmRunner {
             .await?;
 
         if let ExecutionResult::Halt { reason } = result.result {
-            let reason_clone = reason.clone();
-
-            let handle = tokio::runtime::Handle::current();
-            let halt_error =
-                std::thread::spawn(move || handle.block_on(reason_clone.to_halt_error()))
-                    .join()
-                    .expect("Thread panicked");
+            let halt_error = reason.to_halt_error().await;
 
             let error_report = ExecutionErrorReport::new(&halt_error, Some(&tx));
             sh_println!("{}", error_report);
