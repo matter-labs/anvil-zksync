@@ -21,7 +21,7 @@ use anvil_zksync_types::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetai
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_multivm::interface::executor::{BatchExecutor, BatchExecutorFactory};
+use zksync_multivm::interface::executor::BatchExecutor;
 use zksync_multivm::interface::{
     BatchTransactionExecutionResult, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
     TxExecutionMode, VmEvent, VmExecutionResultAndLogs,
@@ -37,13 +37,15 @@ use zksync_types::{
 };
 
 pub struct VmRunner {
-    executor_factory: Box<dyn BatchExecutorFactory<StorageView<ForkStorage>>>,
+    executor_factory: MainBatchExecutorFactory<TraceCalls>,
     bootloader_debug_result: Arc<RwLock<eyre::Result<BootloaderDebug, String>>>,
 
     time: Time,
     fork_storage: ForkStorage,
     system_contracts: SystemContracts,
     console_log_handler: ConsoleLogHandler,
+    /// Whether VM should generate system logs.
+    generate_system_logs: bool,
 }
 
 pub(super) struct TxBatchExecutionResult {
@@ -59,21 +61,23 @@ impl VmRunner {
         time: Time,
         fork_storage: ForkStorage,
         system_contracts: SystemContracts,
+        generate_system_logs: bool,
     ) -> Self {
         let bootloader_debug_result = Arc::new(std::sync::RwLock::new(Err(
             "Tracer has not been run yet".to_string(),
         )));
         Self {
-            executor_factory: Box::new(MainBatchExecutorFactory::<TraceCalls>::new(
+            executor_factory: MainBatchExecutorFactory::<TraceCalls>::new(
                 false,
                 bootloader_debug_result.clone(),
-            )),
+            ),
             bootloader_debug_result,
 
             time,
             fork_storage,
             system_contracts,
             console_log_handler: ConsoleLogHandler::default(),
+            generate_system_logs,
         }
     }
 }
@@ -406,8 +410,12 @@ impl VmRunner {
         let mut executor = if self.system_contracts.use_zkos {
             todo!("BatchExecutor support for zkos is yet to be implemented")
         } else {
-            self.executor_factory
-                .init_batch(storage, batch_env.clone(), system_env, pubdata_params)
+            self.executor_factory.init_main_batch(
+                storage,
+                batch_env.clone(),
+                system_env,
+                pubdata_params,
+            )
         };
 
         // Compute block hash. Note that the computed block hash here will be different than that in production.
@@ -429,7 +437,7 @@ impl VmRunner {
                     tx_index,
                     &block_ctx,
                     &batch_env,
-                    executor.as_mut(),
+                    &mut executor,
                     &node_inner.config,
                     &node_inner.fee_input_provider,
                 )
@@ -478,21 +486,15 @@ impl VmRunner {
             block_ctxs.push(virtual_block_ctx);
         }
 
-        // let pubdata_builder = pubdata_params_to_builder(PubdataParams {
-        //     l2_da_validator_address: Address::zero(),
-        //     pubdata_type: PubdataType::NoDA,
-        // });
-        // let finished_l1_batch = if self.generate_system_logs {
-        //     // If system log generation is enabled we run realistic (and time-consuming) bootloader flow
-        //     executor.finish_batch().await?.0
-        // } else {
-        //     // Otherwise we mock the execution with a single bootloader iteration
-        //     let mut finished_l1_batch = FinishedL1Batch::mock();
-        //     finished_l1_batch.block_tip_execution_result =
-        //         delegate_vm!(executor, execute(InspectExecutionMode::Bootloader));
-        //     finished_l1_batch
-        // };
-        let finished_l1_batch = executor.finish_batch().await?.0;
+        let finished_l1_batch = if self.generate_system_logs {
+            // If system log generation is enabled we run realistic (and time-consuming) bootloader flow
+            Box::new(executor).finish_batch().await?.0
+        } else {
+            // Otherwise we mock the execution with a single bootloader iteration
+            let mut finished_l1_batch = FinishedL1Batch::mock();
+            finished_l1_batch.block_tip_execution_result = executor.bootloader().await?;
+            finished_l1_batch
+        };
         assert!(
             !finished_l1_batch
                 .block_tip_execution_result

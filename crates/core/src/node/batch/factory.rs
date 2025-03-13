@@ -7,6 +7,7 @@ use once_cell::sync::OnceCell;
 use std::sync::RwLock;
 use std::{fmt, marker::PhantomData, rc::Rc, sync::Arc};
 use tokio::sync::mpsc;
+use zksync_multivm::interface::{InspectExecutionMode, VmExecutionResultAndLogs};
 use zksync_multivm::{
     interface::{
         executor::{BatchExecutor, BatchExecutorFactory},
@@ -106,18 +107,18 @@ impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
             _tracer: PhantomData,
         }
     }
-}
 
-impl<S: ReadStorage + Send + 'static, Tr: BatchTracer> BatchExecutorFactory<S>
-    for MainBatchExecutorFactory<Tr>
-{
-    fn init_batch(
+    /// Custom method (not present in zksync-era) that intentionally leaks [`MainBatchExecutor`]
+    /// implementation to enable the usage of [`MainBatchExecutor::bootloader`].
+    ///
+    /// To be deleted once we stop sealing batches on every block.
+    pub(crate) fn init_main_batch<S: ReadStorage + Send + 'static>(
         &mut self,
         storage: S,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
         pubdata_params: PubdataParams,
-    ) -> Box<dyn BatchExecutor<S>> {
+    ) -> MainBatchExecutor<S> {
         // Since we process `BatchExecutor` commands one-by-one (the next command is never enqueued
         // until a previous command is processed), capacity 1 is enough for the commands channel.
         let (commands_sender, commands_receiver) = mpsc::channel(1);
@@ -140,7 +141,21 @@ impl<S: ReadStorage + Send + 'static, Tr: BatchTracer> BatchExecutorFactory<S>
                 pubdata_params_to_builder(pubdata_params),
             )
         });
-        Box::new(MainBatchExecutor::new(handle, commands_sender))
+        MainBatchExecutor::new(handle, commands_sender)
+    }
+}
+
+impl<S: ReadStorage + Send + 'static, Tr: BatchTracer> BatchExecutorFactory<S>
+    for MainBatchExecutorFactory<Tr>
+{
+    fn init_batch(
+        &mut self,
+        storage: S,
+        l1_batch_params: L1BatchEnv,
+        system_env: SystemEnv,
+        pubdata_params: PubdataParams,
+    ) -> Box<dyn BatchExecutor<S>> {
+        Box::new(self.init_main_batch(storage, l1_batch_params, system_env, pubdata_params))
     }
 }
 
@@ -191,6 +206,10 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
 
     fn finish_batch(&mut self, pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
         dispatch_batch_vm!(self.finish_batch(pubdata_builder))
+    }
+
+    fn bootloader(&mut self) -> VmExecutionResultAndLogs {
+        dispatch_batch_vm!(self.inspect(&mut Default::default(), InspectExecutionMode::Bootloader))
     }
 
     fn make_snapshot(&mut self) {
@@ -353,6 +372,14 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                     batch_finished = true;
                     break;
                 }
+                Command::Bootloader(resp) => {
+                    let bootloader_result = self.bootloader(&mut vm)?;
+                    if resp.send(bootloader_result).is_err() {
+                        break;
+                    }
+                    batch_finished = true;
+                    break;
+                }
             }
         }
 
@@ -487,5 +514,16 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                 call_traces: vec![],
             })
         }
+    }
+
+    fn bootloader(&self, vm: &mut BatchVm<S, Tr>) -> anyhow::Result<VmExecutionResultAndLogs> {
+        let result = vm.bootloader();
+        anyhow::ensure!(
+            !result.result.is_failed(),
+            "VM must not fail when running bootloader: {:#?}",
+            result.result
+        );
+
+        Ok(result)
     }
 }

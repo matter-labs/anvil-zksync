@@ -84,8 +84,6 @@ pub struct InMemoryNodeInner {
     /// Keeps track of historical states indexed via block hash. Limited to [MAX_PREVIOUS_STATES].
     previous_states: IndexMap<H256, HashMap<StorageKey, StorageValue>>,
     storage_key_layout: StorageKeyLayout,
-    /// Whether VM should generate system logs.
-    generate_system_logs: bool,
 }
 
 impl InMemoryNodeInner {
@@ -102,7 +100,6 @@ impl InMemoryNodeInner {
         impersonation: ImpersonationManager,
         system_contracts: SystemContracts,
         storage_key_layout: StorageKeyLayout,
-        generate_system_logs: bool,
     ) -> Self {
         InMemoryNodeInner {
             blockchain,
@@ -118,7 +115,6 @@ impl InMemoryNodeInner {
             rich_accounts: HashSet::new(),
             previous_states: Default::default(),
             storage_key_layout,
-            generate_system_logs,
         }
     }
 

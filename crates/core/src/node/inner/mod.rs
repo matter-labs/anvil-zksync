@@ -80,7 +80,12 @@ impl InMemoryNodeInner {
             config.use_evm_emulator,
             config.chain_id,
         );
-        let vm_runner = VmRunner::new(time.clone(), fork_storage.clone(), system_contracts.clone());
+        let vm_runner = VmRunner::new(
+            time.clone(),
+            fork_storage.clone(),
+            system_contracts.clone(),
+            generate_system_logs,
+        );
 
         let node_inner = InMemoryNodeInner::new(
             blockchain.clone(),
@@ -93,7 +98,6 @@ impl InMemoryNodeInner {
             impersonation.clone(),
             system_contracts.clone(),
             storage_key_layout,
-            generate_system_logs,
         );
 
         (

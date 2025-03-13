@@ -9,7 +9,7 @@ use tokio::{
 use zksync_multivm::interface::{
     executor::BatchExecutor,
     storage::{ReadStorage, StorageView},
-    BatchTransactionExecutionResult, FinishedL1Batch, L2BlockEnv,
+    BatchTransactionExecutionResult, FinishedL1Batch, L2BlockEnv, VmExecutionResultAndLogs,
 };
 use zksync_types::Transaction;
 
@@ -62,6 +62,29 @@ impl<S: ReadStorage> MainBatchExecutor<S> {
             handle: HandleOrError::Handle(handle),
             commands,
         }
+    }
+
+    /// Custom method (not present in zksync-era) that runs bootloader once thus applying the bare
+    /// minimum of changes to the state on batch sealing. Not as time-consuming as [`Self::finish_batch`].
+    ///
+    /// To be deleted once we stop sealing batches on every block.
+    pub(crate) async fn bootloader(&mut self) -> anyhow::Result<VmExecutionResultAndLogs> {
+        let (response_sender, response_receiver) = oneshot::channel();
+        let send_failed = self
+            .commands
+            .send(Command::Bootloader(response_sender))
+            .await
+            .is_err();
+        if send_failed {
+            return Err(self.handle.wait_for_error().await);
+        }
+
+        let bootloader_result = match response_receiver.await {
+            Ok(batch) => batch,
+            Err(_) => return Err(self.handle.wait_for_error().await),
+        };
+
+        Ok(bootloader_result)
     }
 }
 
@@ -165,4 +188,5 @@ pub(super) enum Command {
     StartNextL2Block(L2BlockEnv, oneshot::Sender<()>),
     RollbackLastTx(oneshot::Sender<()>),
     FinishBatch(oneshot::Sender<FinishedL1Batch>),
+    Bootloader(oneshot::Sender<VmExecutionResultAndLogs>),
 }
