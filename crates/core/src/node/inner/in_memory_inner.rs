@@ -1766,7 +1766,7 @@ mod tests {
             .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
         let (block_ctx, batch_env, mut vm) = test_vm(&mut node, system_contracts).await;
         let err = node
-            .run_tx(tx.into(), 0, &block_ctx, &batch_env, &mut vm)
+            .run_tx(tx.into(), 0, &mut 0, &block_ctx, &batch_env, &mut vm)
             .unwrap_err();
         assert_eq!(err.to_string(), "exceeds block gas limit");
     }
@@ -1785,7 +1785,7 @@ mod tests {
             .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
         let (block_ctx, batch_env, mut vm) = test_vm(&mut node, system_contracts).await;
         let err = node
-            .run_tx(tx.into(), 0, &block_ctx, &batch_env, &mut vm)
+            .run_tx(tx.into(), 0, &mut 0, &block_ctx, &batch_env, &mut vm)
             .unwrap_err();
 
         assert_eq!(
@@ -1808,7 +1808,7 @@ mod tests {
             .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
         let (block_ctx, batch_env, mut vm) = test_vm(&mut node, system_contracts).await;
         let err = node
-            .run_tx(tx.into(), 0, &block_ctx, &batch_env, &mut vm)
+            .run_tx(tx.into(), 0, &mut 0, &block_ctx, &batch_env, &mut vm)
             .unwrap_err();
 
         assert_eq!(
