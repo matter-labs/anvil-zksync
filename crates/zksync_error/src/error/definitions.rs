@@ -253,6 +253,144 @@ impl CustomErrorMessage for AnvilGeneric {
     serde :: Serialize,
     serde :: Deserialize,
 )]
+#[strum_discriminants(name(AnvilNodeCode))]
+#[strum_discriminants(vis(pub))]
+#[strum_discriminants(derive(AsRefStr, FromRepr))]
+#[non_exhaustive]
+pub enum AnvilNode {
+    TransactionValidationFailedGasLimit {
+        transaction_hash: zksync_types::H256,
+        tx_gas_limit: zksync_types::U256,
+        tx_gas_per_pubdata_limit: zksync_types::U256,
+        max_gas: zksync_types::U256,
+    } = 1u32,
+    TransactionValidationFailedMaxFeePerGasTooLow {
+        max_fee_per_gas: zksync_types::U256,
+        transaction_hash: zksync_types::H256,
+        l2_gas_price: zksync_types::U256,
+    } = 2u32,
+    MaxPriorityFeeGreaterThanMaxFee {
+        max_fee_per_gas: zksync_types::U256,
+        max_priority_fee_per_gas: zksync_types::U256,
+        transaction_hash: zksync_types::H256,
+    } = 3u32,
+    TransactionHalt {
+        inner: Box<Halt>,
+    } = 10u32,
+    TransactionFailed {
+        failed_transactions_hashes: String,
+    } = 11u32,
+    SealingBlockFailed {
+        block_transactions_hashes: String,
+    } = 21u32,
+    GenericError {
+        message: String,
+    } = 0u32,
+}
+impl std::error::Error for AnvilNode {}
+impl NamedError for AnvilNode {
+    fn get_error_name(&self) -> String {
+        self.as_ref().to_owned()
+    }
+}
+impl NamedError for AnvilNodeCode {
+    fn get_error_name(&self) -> String {
+        self.as_ref().to_owned()
+    }
+}
+impl From<AnvilNode> for crate::ZksyncError {
+    fn from(val: AnvilNode) -> Self {
+        val.to_unified()
+    }
+}
+impl std::fmt::Display for AnvilNode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.get_message())
+    }
+}
+impl Documented for AnvilNode {
+    type Documentation = &'static zksync_error_description::ErrorDocumentation;
+    fn get_documentation(
+        &self,
+    ) -> Result<Option<Self::Documentation>, crate::documentation::DocumentationError> {
+        self.to_unified().get_identifier().get_documentation()
+    }
+}
+impl From<anyhow::Error> for AnvilNode {
+    fn from(value: anyhow::Error) -> Self {
+        let message = format!("{value:#?}");
+        AnvilNode::GenericError { message }
+    }
+}
+impl From<AnvilNode> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
+    fn from(value: AnvilNode) -> Self {
+        crate::packed::pack(value)
+    }
+}
+impl From<AnvilNode> for crate::serialized::SerializedError {
+    fn from(value: AnvilNode) -> Self {
+        let packed = crate::packed::pack(value);
+        crate::serialized::serialize(packed).expect("Internal serialization error.")
+    }
+}
+impl CustomErrorMessage for AnvilNode {
+    fn get_message(&self) -> String {
+        match self {
+            AnvilNode::TransactionValidationFailedGasLimit {
+                transaction_hash,
+                tx_gas_limit,
+                tx_gas_per_pubdata_limit,
+                max_gas,
+            } => {
+                format!("[anvil_zksync-node-1] ")
+            }
+            AnvilNode::TransactionValidationFailedMaxFeePerGasTooLow {
+                max_fee_per_gas,
+                transaction_hash,
+                l2_gas_price,
+            } => {
+                format!("[anvil_zksync-node-2] ")
+            }
+            AnvilNode::MaxPriorityFeeGreaterThanMaxFee {
+                max_fee_per_gas,
+                max_priority_fee_per_gas,
+                transaction_hash,
+            } => {
+                format!("[anvil_zksync-node-3] ")
+            }
+            AnvilNode::TransactionHalt { inner } => {
+                format!("[anvil_zksync-node-10] ")
+            }
+            AnvilNode::TransactionFailed {
+                failed_transactions_hashes,
+            } => {
+                format!("[anvil_zksync-node-11] ")
+            }
+            AnvilNode::SealingBlockFailed {
+                block_transactions_hashes,
+            } => {
+                format!("[anvil_zksync-node-21] ")
+            }
+            AnvilNode::GenericError { message } => {
+                format!("[anvil_zksync-node-0] Generic error: {message}")
+            }
+        }
+    }
+}
+#[doc = ""]
+#[doc = ""]
+#[doc = "Domain: AnvilZKsync"]
+#[repr(u32)]
+#[derive(
+    AsRefStr,
+    Clone,
+    Debug,
+    Eq,
+    EnumDiscriminants,
+    PartialEq,
+    serde :: Serialize,
+    serde :: Deserialize,
+)]
 #[strum_discriminants(name(HaltCode))]
 #[strum_discriminants(vis(pub))]
 #[strum_discriminants(derive(AsRefStr, FromRepr))]

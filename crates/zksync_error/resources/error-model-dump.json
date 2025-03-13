@@ -55,6 +55,22 @@
           }
         }
       },
+      "AnvilNode": {
+        "name": "AnvilNode",
+        "meta": {
+          "description": ""
+        },
+        "bindings": {
+          "rust": {
+            "name": "Box<AnvilNode>",
+            "path": ""
+          },
+          "typescript": {
+            "name": "Box<AnvilNode>",
+            "path": ""
+          }
+        }
+      },
       "EraVM": {
         "name": "EraVM",
         "meta": {
@@ -115,6 +131,30 @@
           },
           "typescript": {
             "name": "Box<FoundryZksync>",
+            "path": ""
+          }
+        }
+      },
+      "H160": {
+        "name": "H160",
+        "meta": {
+          "description": "160-bit hash"
+        },
+        "bindings": {
+          "rust": {
+            "name": "H160",
+            "path": ""
+          }
+        }
+      },
+      "H256": {
+        "name": "H256",
+        "meta": {
+          "description": "256-bit hash"
+        },
+        "bindings": {
+          "rust": {
+            "name": "H256",
             "path": ""
           }
         }
@@ -263,6 +303,18 @@
           }
         }
       },
+      "U256": {
+        "name": "U256",
+        "meta": {
+          "description": "256-bit unsigned integer"
+        },
+        "bindings": {
+          "rust": {
+            "name": "U256",
+            "path": ""
+          }
+        }
+      },
       "WrappedError": {
         "name": "WrappedError",
         "meta": {
@@ -375,6 +427,7 @@
         "components": [
           "AnvilEnvironment",
           "AnvilGeneric",
+          "AnvilNode",
           "Halt",
           "Revert"
         ],
@@ -502,6 +555,20 @@
           "typescript": "AnvilGeneric"
         },
         "identifier": "gen",
+        "description": "",
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "AnvilNode": {
+        "name": "AnvilNode",
+        "code": 10,
+        "domain_name": "AnvilZKsync",
+        "bindings": {
+          "rust": "AnvilNode",
+          "typescript": "AnvilNode"
+        },
+        "identifier": "node",
         "description": "",
         "origins": [
           "../../etc/errors/anvil.json"
@@ -1927,6 +1994,228 @@
           },
           "typescript": {
             "name": "Unknown",
+            "path": ""
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-node-0]": {
+        "domain": "AnvilZKsync",
+        "component": "AnvilNode",
+        "name": "GenericError",
+        "code": 0,
+        "identifier": "[anvil_zksync-node-0]",
+        "message": "Generic error: {message}",
+        "fields": [
+          {
+            "name": "message",
+            "type": "string"
+          }
+        ],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "name": "GenericError",
+            "path": ""
+          },
+          "typescript": {
+            "name": "GenericError",
+            "path": ""
+          }
+        },
+        "origins": []
+      },
+      "[anvil_zksync-node-10]": {
+        "domain": "AnvilZKsync",
+        "component": "AnvilNode",
+        "name": "TransactionHalt",
+        "code": 10,
+        "identifier": "[anvil_zksync-node-10]",
+        "message": "",
+        "fields": [
+          {
+            "name": "inner",
+            "type": "Halt"
+          }
+        ],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "name": "TransactionHalt",
+            "path": ""
+          },
+          "typescript": {
+            "name": "TransactionHalt",
+            "path": ""
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-node-11]": {
+        "domain": "AnvilZKsync",
+        "component": "AnvilNode",
+        "name": "TransactionFailed",
+        "code": 11,
+        "identifier": "[anvil_zksync-node-11]",
+        "message": "",
+        "fields": [
+          {
+            "name": "failed_transactions_hashes",
+            "type": "string"
+          }
+        ],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "name": "TransactionFailed",
+            "path": ""
+          },
+          "typescript": {
+            "name": "TransactionFailed",
+            "path": ""
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-node-1]": {
+        "domain": "AnvilZKsync",
+        "component": "AnvilNode",
+        "name": "TransactionValidationFailedGasLimit",
+        "code": 1,
+        "identifier": "[anvil_zksync-node-1]",
+        "message": "",
+        "fields": [
+          {
+            "name": "transaction_hash",
+            "type": "H256"
+          },
+          {
+            "name": "tx_gas_limit",
+            "type": "U256"
+          },
+          {
+            "name": "tx_gas_per_pubdata_limit",
+            "type": "U256"
+          },
+          {
+            "name": "max_gas",
+            "type": "U256"
+          }
+        ],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "name": "TransactionValidationFailedGasLimit",
+            "path": ""
+          },
+          "typescript": {
+            "name": "TransactionValidationFailedGasLimit",
+            "path": ""
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-node-21]": {
+        "domain": "AnvilZKsync",
+        "component": "AnvilNode",
+        "name": "SealingBlockFailed",
+        "code": 21,
+        "identifier": "[anvil_zksync-node-21]",
+        "message": "",
+        "fields": [
+          {
+            "name": "block_transactions_hashes",
+            "type": "string"
+          }
+        ],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "name": "SealingBlockFailed",
+            "path": ""
+          },
+          "typescript": {
+            "name": "SealingBlockFailed",
+            "path": ""
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-node-2]": {
+        "domain": "AnvilZKsync",
+        "component": "AnvilNode",
+        "name": "TransactionValidationFailedMaxFeePerGasTooLow",
+        "code": 2,
+        "identifier": "[anvil_zksync-node-2]",
+        "message": "",
+        "fields": [
+          {
+            "name": "max_fee_per_gas",
+            "type": "U256"
+          },
+          {
+            "name": "transaction_hash",
+            "type": "H256"
+          },
+          {
+            "name": "l2_gas_price",
+            "type": "U256"
+          }
+        ],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "name": "TransactionValidationFailedMaxFeePerGasTooLow",
+            "path": ""
+          },
+          "typescript": {
+            "name": "TransactionValidationFailedMaxFeePerGasTooLow",
+            "path": ""
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-node-3]": {
+        "domain": "AnvilZKsync",
+        "component": "AnvilNode",
+        "name": "MaxPriorityFeeGreaterThanMaxFee",
+        "code": 3,
+        "identifier": "[anvil_zksync-node-3]",
+        "message": "",
+        "fields": [
+          {
+            "name": "max_fee_per_gas",
+            "type": "U256"
+          },
+          {
+            "name": "max_priority_fee_per_gas",
+            "type": "U256"
+          },
+          {
+            "name": "transaction_hash",
+            "type": "H256"
+          }
+        ],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "name": "MaxPriorityFeeGreaterThanMaxFee",
+            "path": ""
+          },
+          "typescript": {
+            "name": "MaxPriorityFeeGreaterThanMaxFee",
             "path": ""
           }
         },
