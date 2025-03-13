@@ -460,6 +460,7 @@ impl InMemoryNodeInner {
         &mut self,
         tx: Transaction,
         tx_index: u64,
+        next_log_index: &mut usize,
         block_ctx: &BlockContext,
         batch_env: &L1BatchEnv,
         vm: &mut VM,
@@ -539,7 +540,27 @@ impl InMemoryNodeInner {
             gas_used: Some(tx.gas_limit() - result.refunds.gas_refunded),
             contract_address: contract_address_from_tx_result(&result),
             logs,
-            l2_to_l1_logs: vec![],
+            l2_to_l1_logs: result
+                .logs
+                .user_l2_to_l1_logs
+                .iter()
+                .enumerate()
+                .map(|(log_index, log)| api::L2ToL1Log {
+                    block_hash: Some(block_ctx.hash),
+                    block_number: block_ctx.miniblock.into(),
+                    l1_batch_number: Some(U64::from(batch_env.number.0)),
+                    log_index: U256::from(*next_log_index + log_index),
+                    transaction_index: U64::from(tx_index),
+                    transaction_hash: tx_hash,
+                    transaction_log_index: U256::from(log_index),
+                    tx_index_in_l1_batch: Some(U64::from(tx_index)),
+                    shard_id: log.0.shard_id.into(),
+                    is_service: log.0.is_service,
+                    sender: log.0.sender,
+                    key: log.0.key,
+                    value: log.0.value,
+                })
+                .collect(),
             status: if result.result.is_failed() {
                 U64::from(0)
             } else {
@@ -549,6 +570,7 @@ impl InMemoryNodeInner {
             transaction_type: Some((transaction_type as u32).into()),
             logs_bloom: Default::default(),
         };
+        *next_log_index += result.logs.user_l2_to_l1_logs.len();
         let debug = create_debug_output(&tx, &result, call_traces).expect("create debug output"); // OK to unwrap here as Halt is handled above
 
         Ok(TransactionResult {
@@ -591,6 +613,7 @@ impl InMemoryNodeInner {
         // Execute transactions and bootloader
         let mut tx_results = Vec::with_capacity(tx_hashes.len());
         let mut tx_index = 0;
+        let mut next_log_index = 0;
         for tx in txs {
             // Executing a next transaction means that a previous transaction was either rolled back (in which case its snapshot
             // was already removed), or that we build on top of it (in which case, it can be removed now).
@@ -598,8 +621,12 @@ impl InMemoryNodeInner {
             // Save pre-execution VM snapshot.
             delegate_vm!(vm, make_snapshot());
             let result = match vm {
-                AnvilVM::ZKSync(ref mut vm) => self.run_tx(tx, tx_index, block_ctx, &batch_env, vm),
-                AnvilVM::ZKOs(ref mut vm) => self.run_tx(tx, tx_index, block_ctx, &batch_env, vm),
+                AnvilVM::ZKSync(ref mut vm) => {
+                    self.run_tx(tx, tx_index, &mut next_log_index, block_ctx, &batch_env, vm)
+                }
+                AnvilVM::ZKOs(ref mut vm) => {
+                    self.run_tx(tx, tx_index, &mut next_log_index, block_ctx, &batch_env, vm)
+                }
             };
 
             match result {
@@ -1739,7 +1766,7 @@ mod tests {
             .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
         let (block_ctx, batch_env, mut vm) = test_vm(&mut node, system_contracts).await;
         let err = node
-            .run_tx(tx.into(), 0, &block_ctx, &batch_env, &mut vm)
+            .run_tx(tx.into(), 0, &mut 0, &block_ctx, &batch_env, &mut vm)
             .unwrap_err();
         assert_eq!(err.to_string(), "exceeds block gas limit");
     }
@@ -1758,7 +1785,7 @@ mod tests {
             .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
         let (block_ctx, batch_env, mut vm) = test_vm(&mut node, system_contracts).await;
         let err = node
-            .run_tx(tx.into(), 0, &block_ctx, &batch_env, &mut vm)
+            .run_tx(tx.into(), 0, &mut 0, &block_ctx, &batch_env, &mut vm)
             .unwrap_err();
 
         assert_eq!(
@@ -1781,7 +1808,7 @@ mod tests {
             .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
         let (block_ctx, batch_env, mut vm) = test_vm(&mut node, system_contracts).await;
         let err = node
-            .run_tx(tx.into(), 0, &block_ctx, &batch_env, &mut vm)
+            .run_tx(tx.into(), 0, &mut 0, &block_ctx, &batch_env, &mut vm)
             .unwrap_err();
 
         assert_eq!(

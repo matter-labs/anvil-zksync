@@ -928,6 +928,7 @@ dependencies = [
  "zksync-error-description",
  "zksync_contracts",
  "zksync_error",
+ "zksync_mini_merkle_tree",
  "zksync_multivm",
  "zksync_types",
  "zksync_web3_decl",

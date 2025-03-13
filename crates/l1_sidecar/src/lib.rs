@@ -1,6 +1,7 @@
 use crate::anvil::AnvilHandle;
 use crate::commitment_generator::CommitmentGenerator;
 use crate::l1_sender::{L1Sender, L1SenderHandle};
+use crate::zkstack_config::contracts::ContractsConfig;
 use crate::zkstack_config::ZkstackConfig;
 use anvil_zksync_core::node::blockchain::ReadBlockchain;
 use anvil_zksync_core::node::node_executor::NodeExecutorHandle;
@@ -29,6 +30,7 @@ pub struct L1Sidecar {
 struct L1SidecarInner {
     commitment_generator: CommitmentGenerator,
     l1_sender_handle: L1SenderHandle,
+    zkstack_config: ZkstackConfig,
 }
 
 impl L1Sidecar {
@@ -56,6 +58,7 @@ impl L1Sidecar {
             inner: Some(L1SidecarInner {
                 commitment_generator,
                 l1_sender_handle,
+                zkstack_config,
             }),
         };
         let upgrade_handle = tokio::spawn(Self::upgrade(node_handle));
@@ -188,5 +191,14 @@ impl L1Sidecar {
             .l1_sender_handle
             .execute_sync(batch_with_metadata)
             .await
+    }
+
+    pub fn contracts_config(&self) -> anyhow::Result<&ContractsConfig> {
+        let Some(inner) = self.inner.as_ref() else {
+            return Err(anyhow::anyhow!(
+                "cannot get contracts config is no L1 configured"
+            ));
+        };
+        Ok(&inner.zkstack_config.contracts)
     }
 }
