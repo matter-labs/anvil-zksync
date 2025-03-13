@@ -1058,429 +1058,99 @@ impl BlockContext {
 
 // Test utils
 #[cfg(test)]
-impl InMemoryNodeInner {
-    pub fn test_config(config: TestNodeConfig) -> Arc<RwLock<Self>> {
-        let fee_provider = TestNodeFeeInputProvider::default();
-        let impersonation = ImpersonationManager::default();
-        let system_contracts = SystemContracts::from_options(
-            &config.system_contracts_options,
-            config.use_evm_emulator,
-            config.use_zkos,
-        );
-        let storage_key_layout = if config.use_zkos {
-            StorageKeyLayout::ZkOs
-        } else {
-            StorageKeyLayout::ZkEra
-        };
-        let (inner, _, _, _, _) = InMemoryNodeInner::init(
-            None,
-            fee_provider,
-            Arc::new(RwLock::new(Default::default())),
-            config,
-            impersonation.clone(),
-            system_contracts.clone(),
-            storage_key_layout,
-            false,
-        );
-        inner
+pub mod testing {
+    use super::*;
+
+    pub struct InnerNodeTester {
+        pub node: Arc<RwLock<InMemoryNodeInner>>,
     }
 
-    pub fn test() -> Arc<RwLock<Self>> {
-        Self::test_config(TestNodeConfig::default())
+    impl InnerNodeTester {
+        pub fn test() -> Self {
+            let config = TestNodeConfig::default();
+            let fee_provider = TestNodeFeeInputProvider::default();
+            let impersonation = ImpersonationManager::default();
+            let system_contracts = SystemContracts::from_options(
+                &config.system_contracts_options,
+                config.use_evm_emulator,
+                config.use_zkos,
+            );
+            let storage_key_layout = if config.use_zkos {
+                StorageKeyLayout::ZkOs
+            } else {
+                StorageKeyLayout::ZkEra
+            };
+            let (node, _, _, _, _, _) = InMemoryNodeInner::init(
+                None,
+                fee_provider,
+                Arc::new(RwLock::new(Default::default())),
+                config,
+                impersonation.clone(),
+                system_contracts.clone(),
+                storage_key_layout,
+                false,
+            );
+            InnerNodeTester { node }
+        }
     }
 
-    /// Deploys a contract with the given bytecode.
-    pub async fn deploy_contract(
-        &mut self,
-        tx_hash: H256,
-        private_key: &zksync_types::K256PrivateKey,
-        bytecode: Vec<u8>,
-        calldata: Option<Vec<u8>>,
-        nonce: zksync_types::Nonce,
-    ) -> H256 {
-        use alloy::dyn_abi::{DynSolValue, JsonAbiExt};
-        use alloy::json_abi::{Function, Param, StateMutability};
+    impl InMemoryNodeInner {
+        pub async fn insert_block(&mut self, hash: H256, block: api::Block<TransactionVariant>) {
+            self.blockchain.write().await.blocks.insert(hash, block);
+        }
 
-        let salt = [0u8; 32];
-        let bytecode_hash = BytecodeHash::for_bytecode(&bytecode).value().0;
-        let call_data = calldata.unwrap_or_default();
+        pub async fn insert_block_hash(&mut self, number: L2BlockNumber, hash: H256) {
+            self.blockchain.write().await.hashes.insert(number, hash);
+        }
 
-        let create = Function {
-            name: "create".to_string(),
-            inputs: vec![
-                Param {
-                    name: "_salt".to_string(),
-                    ty: "bytes32".to_string(),
-                    components: vec![],
-                    internal_type: None,
-                },
-                Param {
-                    name: "_bytecodeHash".to_string(),
-                    ty: "bytes32".to_string(),
-                    components: vec![],
-                    internal_type: None,
-                },
-                Param {
-                    name: "_input".to_string(),
-                    ty: "bytes".to_string(),
-                    components: vec![],
-                    internal_type: None,
-                },
-            ],
-            outputs: vec![Param {
-                name: "".to_string(),
-                ty: "address".to_string(),
-                components: vec![],
-                internal_type: None,
-            }],
-            state_mutability: StateMutability::Payable,
-        };
+        pub async fn insert_tx_result(&mut self, hash: H256, tx_result: TransactionResult) {
+            self.blockchain
+                .write()
+                .await
+                .tx_results
+                .insert(hash, tx_result);
+        }
 
-        let data = create
-            .abi_encode_input(&[
-                DynSolValue::FixedBytes(salt.into(), salt.len()),
-                DynSolValue::FixedBytes(
-                    bytecode_hash[..].try_into().expect("invalid hash length"),
-                    bytecode_hash.len(),
-                ),
-                DynSolValue::Bytes(call_data),
-            ])
-            .expect("failed to encode function data");
+        pub fn insert_previous_state(
+            &mut self,
+            hash: H256,
+            state: HashMap<StorageKey, StorageValue>,
+        ) {
+            self.previous_states.insert(hash, state);
+        }
 
-        let mut tx = L2Tx::new_signed(
-            Some(zksync_types::CONTRACT_DEPLOYER_ADDRESS),
-            data.to_vec(),
-            nonce,
-            Fee {
-                gas_limit: U256::from(400_000_000),
-                max_fee_per_gas: U256::from(50_000_000),
-                max_priority_fee_per_gas: U256::from(50_000_000),
-                gas_per_pubdata_limit: U256::from(50000),
-            },
-            U256::from(0),
-            zksync_types::L2ChainId::from(260),
-            private_key,
-            vec![bytecode],
-            Default::default(),
-        )
-        .expect("failed signing tx");
-        tx.set_input(vec![], tx_hash);
-
-        let system_contracts = self
-            .system_contracts
-            .system_contracts_for_initiator(&self.impersonation, &tx.initiator_account());
-        let block_number = self
-            .seal_block(vec![tx.into()], system_contracts)
-            .await
-            .expect("failed deploying contract");
-
-        self.blockchain
-            .read()
-            .await
-            .get_block_hash_by_number(block_number)
-            .unwrap()
-    }
-
-    // TODO: Return L2BlockNumber
-    /// Applies a transaction with a given hash to the node and returns the block hash.
-    pub async fn apply_tx(&mut self, tx_hash: H256) -> (H256, U64, L2Tx) {
-        let tx = crate::testing::TransactionBuilder::new()
-            .set_hash(tx_hash)
-            .build();
-
-        self.set_rich_account(
-            tx.common_data.initiator_address,
-            U256::from(100u128 * 10u128.pow(18)),
-        );
-        let system_contracts = self
-            .system_contracts
-            .system_contracts_for_initiator(&self.impersonation, &tx.initiator_account());
-        let block_number = self
-            .seal_block(vec![tx.clone().into()], system_contracts)
-            .await
-            .expect("failed applying tx");
-
-        let block_hash = self
-            .blockchain
-            .read()
-            .await
-            .get_block_hash_by_number(block_number)
-            .unwrap();
-
-        (block_hash, U64::from(block_number.0), tx)
-    }
-
-    pub async fn insert_block(&mut self, hash: H256, block: api::Block<TransactionVariant>) {
-        self.blockchain.write().await.blocks.insert(hash, block);
-    }
-
-    pub async fn insert_block_hash(&mut self, number: L2BlockNumber, hash: H256) {
-        self.blockchain.write().await.hashes.insert(number, hash);
-    }
-
-    pub async fn insert_tx_result(&mut self, hash: H256, tx_result: TransactionResult) {
-        self.blockchain
-            .write()
-            .await
-            .tx_results
-            .insert(hash, tx_result);
-    }
-
-    pub fn insert_previous_state(&mut self, hash: H256, state: HashMap<StorageKey, StorageValue>) {
-        self.previous_states.insert(hash, state);
-    }
-
-    pub fn get_previous_state(&self, hash: H256) -> Option<HashMap<StorageKey, StorageValue>> {
-        self.previous_states.get(&hash).cloned()
+        pub fn get_previous_state(&self, hash: H256) -> Option<HashMap<StorageKey, StorageValue>> {
+            self.previous_states.get(&hash).cloned()
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::testing::*;
     use super::*;
     use crate::node::create_genesis;
-    use crate::node::fork::ForkDetails;
-    use crate::node::inner::fork_storage::ForkStorage;
     use crate::testing;
-    use crate::testing::{TransactionBuilder, STORAGE_CONTRACT_BYTECODE};
-    use alloy::dyn_abi::{DynSolType, DynSolValue};
-    use alloy::primitives::U256 as AlloyU256;
-    use anvil_zksync_config::constants::{
-        DEFAULT_ACCOUNT_BALANCE, DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
-        DEFAULT_ESTIMATE_GAS_SCALE_FACTOR, DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L2_GAS_PRICE,
-        TEST_NODE_NETWORK_ID,
-    };
-    use anvil_zksync_config::types::SystemContractsOptions;
-    use anvil_zksync_config::TestNodeConfig;
     use itertools::Itertools;
-    use zksync_types::{utils::deployed_address_create, K256PrivateKey, Nonce};
-
-    async fn test_vm(
-        node: &mut InMemoryNodeInner,
-        system_contracts: BaseSystemContracts,
-    ) -> (
-        BlockContext,
-        L1BatchEnv,
-        Vm<StorageView<ForkStorage>, HistoryDisabled>,
-    ) {
-        let storage = StorageView::new(node.fork_storage.clone()).into_rc_ptr();
-        let system_env = node.create_system_env(system_contracts, TxExecutionMode::VerifyExecute);
-        let (batch_env, block_ctx) = node.create_l1_batch_env().await;
-        let vm: Vm<_, HistoryDisabled> = Vm::new(batch_env.clone(), system_env, storage);
-
-        (block_ctx, batch_env, vm)
-    }
-
-    /// Decodes a `bytes` tx result to its concrete parameter type.
-    fn decode_tx_result(output: &[u8], param_type: DynSolType) -> DynSolValue {
-        let result = DynSolType::Bytes
-            .abi_decode(output)
-            .expect("failed decoding output");
-        let result_bytes = match result {
-            DynSolValue::Bytes(bytes) => bytes,
-            _ => panic!("expected bytes but got a different type"),
-        };
-
-        param_type
-            .abi_decode(&result_bytes)
-            .expect("failed decoding output")
-    }
-
-    #[tokio::test]
-    async fn test_run_l2_tx_validates_tx_gas_limit_too_high() {
-        let inner = InMemoryNodeInner::test();
-        let mut node = inner.write().await;
-        let tx = TransactionBuilder::new()
-            .set_gas_limit(U256::from(u64::MAX) + 1)
-            .build();
-        node.set_rich_account(tx.initiator_account(), U256::from(100u128 * 10u128.pow(18)));
-
-        let system_contracts = node
-            .system_contracts
-            .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
-        let (block_ctx, batch_env, mut vm) = test_vm(&mut node, system_contracts).await;
-        let err = node
-            .run_tx(tx.into(), 0, &block_ctx, &batch_env, &mut vm)
-            .unwrap_err();
-        assert_eq!(err.to_string(), "exceeds block gas limit");
-    }
-
-    #[tokio::test]
-    async fn test_run_l2_tx_validates_tx_max_fee_per_gas_too_low() {
-        let inner = InMemoryNodeInner::test();
-        let mut node = inner.write().await;
-        let tx = TransactionBuilder::new()
-            .set_max_fee_per_gas(U256::from(DEFAULT_L2_GAS_PRICE - 1))
-            .build();
-        node.set_rich_account(tx.initiator_account(), U256::from(100u128 * 10u128.pow(18)));
-
-        let system_contracts = node
-            .system_contracts
-            .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
-        let (block_ctx, batch_env, mut vm) = test_vm(&mut node, system_contracts).await;
-        let err = node
-            .run_tx(tx.into(), 0, &block_ctx, &batch_env, &mut vm)
-            .unwrap_err();
-
-        assert_eq!(
-            err.to_string(),
-            "block base fee higher than max fee per gas"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_run_l2_tx_validates_tx_max_priority_fee_per_gas_higher_than_max_fee_per_gas() {
-        let inner = InMemoryNodeInner::test();
-        let mut node = inner.write().await;
-        let tx = TransactionBuilder::new()
-            .set_max_priority_fee_per_gas(U256::from(250_000_000 + 1))
-            .build();
-        node.set_rich_account(tx.initiator_account(), U256::from(100u128 * 10u128.pow(18)));
-
-        let system_contracts = node
-            .system_contracts
-            .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
-        let (block_ctx, batch_env, mut vm) = test_vm(&mut node, system_contracts).await;
-        let err = node
-            .run_tx(tx.into(), 0, &block_ctx, &batch_env, &mut vm)
-            .unwrap_err();
-
-        assert_eq!(
-            err.to_string(),
-            "max priority fee per gas higher than max fee per gas"
-        );
-    }
+    use zksync_types::block::L2BlockHasher;
 
     #[tokio::test]
     async fn test_create_genesis_creates_block_with_hash_and_zero_parent_hash() {
         let (first_block, first_batch) = create_genesis::<TransactionVariant>(Some(1000));
 
-        assert_eq!(first_block.hash, compute_hash(0, []));
+        assert_eq!(
+            first_block.hash,
+            L2BlockHasher::legacy_hash(L2BlockNumber(0))
+        );
         assert_eq!(first_block.parent_hash, H256::zero());
 
         assert_eq!(first_batch.number, L1BatchNumber(0));
     }
 
     #[tokio::test]
-    async fn test_run_tx_raw_does_not_panic_on_mock_fork_client_call() {
-        // Perform a transaction to get storage to an intermediate state
-        let inner = InMemoryNodeInner::test();
-        let mut node = inner.write().await;
-        let tx = TransactionBuilder::new().build();
-        node.set_rich_account(tx.initiator_account(), U256::from(100u128 * 10u128.pow(18)));
-
-        let system_contracts = node
-            .system_contracts
-            .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
-        node.seal_block(vec![tx.into()], system_contracts)
-            .await
-            .unwrap();
-
-        // Execute next transaction using a fresh in-memory node and mocked fork client
-        let fork_details = ForkDetails {
-            chain_id: TEST_NODE_NETWORK_ID.into(),
-            batch_number: L1BatchNumber(1),
-            block_number: L2BlockNumber(2),
-            block_hash: Default::default(),
-            block_timestamp: 1002,
-            api_block: api::Block::default(),
-            l1_gas_price: 1000,
-            l2_fair_gas_price: DEFAULT_L2_GAS_PRICE,
-            fair_pubdata_price: DEFAULT_FAIR_PUBDATA_PRICE,
-            estimate_gas_price_scale_factor: DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
-            estimate_gas_scale_factor: DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
-            ..Default::default()
-        };
-        let mock_fork_client = ForkClient::mock(
-            fork_details,
-            node.fork_storage.inner.read().unwrap().raw_storage.clone(),
-        );
-        let impersonation = ImpersonationManager::default();
-        let (node, _, _, _, _) = InMemoryNodeInner::init(
-            Some(mock_fork_client),
-            TestNodeFeeInputProvider::default(),
-            Arc::new(RwLock::new(Default::default())),
-            TestNodeConfig::default(),
-            impersonation,
-            node.system_contracts.clone(),
-            node.storage_key_layout,
-            false,
-        );
-        let mut node = node.write().await;
-
-        let tx = TransactionBuilder::new().build();
-
-        let system_contracts = node
-            .system_contracts
-            .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
-        let (_, _, mut vm) = test_vm(&mut node, system_contracts).await;
-        node.run_tx_raw(tx.into(), &mut vm)
-            .expect("transaction must pass with mock fork client");
-    }
-
-    #[tokio::test]
-    async fn test_transact_returns_data_in_built_in_without_security_mode() {
-        let inner = InMemoryNodeInner::test_config(TestNodeConfig {
-            system_contracts_options: SystemContractsOptions::BuiltInWithoutSecurity,
-            ..Default::default()
-        });
-        let mut node = inner.write().await;
-
-        let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(0xef)).unwrap();
-        let from_account = private_key.address();
-        node.set_rich_account(from_account, U256::from(DEFAULT_ACCOUNT_BALANCE));
-
-        let deployed_address = deployed_address_create(from_account, U256::zero());
-        node.deploy_contract(
-            H256::repeat_byte(0x1),
-            &private_key,
-            hex::decode(STORAGE_CONTRACT_BYTECODE).unwrap(),
-            None,
-            Nonce(0),
-        )
-        .await;
-
-        let mut tx = L2Tx::new_signed(
-            Some(deployed_address),
-            hex::decode("bbf55335").unwrap(), // keccak selector for "transact_retrieve1()"
-            Nonce(1),
-            Fee {
-                gas_limit: U256::from(4_000_000),
-                max_fee_per_gas: U256::from(250_000_000),
-                max_priority_fee_per_gas: U256::from(250_000_000),
-                gas_per_pubdata_limit: U256::from(50000),
-            },
-            U256::from(0),
-            zksync_types::L2ChainId::from(260),
-            &private_key,
-            vec![],
-            Default::default(),
-        )
-        .expect("failed signing tx");
-        tx.common_data.transaction_type = TransactionType::LegacyTransaction;
-        tx.set_input(vec![], H256::repeat_byte(0x2));
-
-        let system_contracts = node
-            .system_contracts
-            .system_contracts_for_initiator(&node.impersonation, &tx.initiator_account());
-        let (_, _, mut vm) = test_vm(&mut node, system_contracts).await;
-        let TxExecutionOutput { result, .. } =
-            node.run_tx_raw(tx.into(), &mut vm).expect("failed tx");
-
-        match result.result {
-            ExecutionResult::Success { output } => {
-                let actual = decode_tx_result(&output, DynSolType::Uint(256));
-                let expected = DynSolValue::Uint(AlloyU256::from(1024), 256);
-                assert_eq!(expected, actual, "invalid result");
-            }
-            _ => panic!("invalid result {:?}", result.result),
-        }
-    }
-
-    #[tokio::test]
     async fn test_snapshot() {
-        let node = InMemoryNodeInner::test();
-        let mut writer = node.write().await;
+        let tester = InnerNodeTester::test();
+        let mut writer = tester.node.write().await;
 
         {
             let mut blockchain = writer.blockchain.write().await;
@@ -1588,8 +1258,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_snapshot_restore() {
-        let node = InMemoryNodeInner::test();
-        let mut writer = node.write().await;
+        let tester = InnerNodeTester::test();
+        let mut writer = tester.node.write().await;
 
         {
             let mut blockchain = writer.blockchain.write().await;

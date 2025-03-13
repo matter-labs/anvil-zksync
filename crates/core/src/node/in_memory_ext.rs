@@ -396,10 +396,11 @@ impl InMemoryNode {
 mod tests {
     use super::*;
     use crate::node::InMemoryNode;
+    use crate::testing::TransactionBuilder;
     use std::str::FromStr;
     use zksync_multivm::interface::storage::ReadStorage;
-    use zksync_types::{api, fee::Fee, l2::L2Tx, L1BatchNumber, PackedEthSignature};
-    use zksync_types::{h256_to_u256, L2ChainId, Nonce, H256};
+    use zksync_types::{api, L1BatchNumber};
+    use zksync_types::{h256_to_u256, L2ChainId, H256};
 
     #[tokio::test]
     async fn test_set_balance() {
@@ -564,25 +565,7 @@ mod tests {
         assert!(result);
 
         // construct a tx
-        let mut tx = L2Tx::new(
-            Some(Address::random()),
-            vec![],
-            Nonce(0),
-            Fee {
-                gas_limit: U256::from(100_000_000),
-                max_fee_per_gas: U256::from(50_000_000),
-                max_priority_fee_per_gas: U256::from(50_000_000),
-                gas_per_pubdata_limit: U256::from(50000),
-            },
-            to_impersonate,
-            U256::one(),
-            vec![],
-            Default::default(),
-        );
-        tx.set_input(vec![], H256::random());
-        if tx.common_data.signature.is_empty() {
-            tx.common_data.signature = PackedEthSignature::default().serialize_packed().into();
-        }
+        let tx = TransactionBuilder::new().impersonate(to_impersonate);
 
         // try to execute the tx- should fail without signature
         assert!(node.apply_txs(vec![tx.clone().into()], 1).await.is_err());

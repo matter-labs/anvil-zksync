@@ -158,7 +158,6 @@ mod tests {
 
         testing::deploy_contract(
             node,
-            H256::repeat_byte(0x1),
             &private_key,
             secondary_bytecode,
             Some(secondary_constructor_calldata),
@@ -177,7 +176,6 @@ mod tests {
 
         testing::deploy_contract(
             node,
-            H256::repeat_byte(0x1),
             &private_key,
             primary_bytecode,
             Some(primary_constructor_calldata),

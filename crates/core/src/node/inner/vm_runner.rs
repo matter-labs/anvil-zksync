@@ -530,3 +530,300 @@ fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) 
     }
     None
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::node::fork::{Fork, ForkClient, ForkDetails};
+    use crate::testing::{TransactionBuilder, STORAGE_CONTRACT_BYTECODE};
+    use alloy::dyn_abi::{DynSolType, DynSolValue};
+    use alloy::primitives::U256 as AlloyU256;
+    use anvil_zksync_config::constants::{
+        DEFAULT_ACCOUNT_BALANCE, DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
+        DEFAULT_ESTIMATE_GAS_SCALE_FACTOR, DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L1_GAS_PRICE,
+        DEFAULT_L2_GAS_PRICE, TEST_NODE_NETWORK_ID,
+    };
+    use anvil_zksync_config::types::{CacheConfig, SystemContractsOptions};
+    use std::str::FromStr;
+    use zksync_multivm::interface::executor::BatchExecutorFactory;
+    use zksync_multivm::interface::{L2Block, SystemEnv};
+    use zksync_multivm::vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT;
+    use zksync_multivm::vm_latest::utils::l2_blocks::load_last_l2_block;
+    use zksync_types::fee::Fee;
+    use zksync_types::fee_model::BatchFeeInput;
+    use zksync_types::l2::{L2Tx, TransactionType};
+    use zksync_types::utils::deployed_address_create;
+    use zksync_types::{u256_to_h256, K256PrivateKey, L1BatchNumber, L2ChainId, Nonce};
+
+    struct VmRunnerTester {
+        vm_runner: VmRunner,
+        config: TestNodeConfig,
+        system_contracts: SystemContracts,
+    }
+
+    impl VmRunnerTester {
+        fn new_custom(fork_client: Option<ForkClient>, config: TestNodeConfig) -> Self {
+            let time = Time::new(0);
+            let fork_storage = ForkStorage::new(
+                Fork::new(fork_client, CacheConfig::None),
+                &SystemContractsOptions::BuiltIn,
+                false,
+                None,
+            );
+            let system_contracts = SystemContracts::from_options(
+                &config.system_contracts_options,
+                config.use_evm_emulator,
+                config.use_zkos,
+            );
+            let vm_runner = VmRunner::new(time, fork_storage, system_contracts.clone(), false);
+            VmRunnerTester {
+                vm_runner,
+                config,
+                system_contracts,
+            }
+        }
+
+        fn new() -> Self {
+            Self::new_custom(None, TestNodeConfig::default())
+        }
+
+        fn make_rich(&self, account: &Address) {
+            let key = zksync_types::utils::storage_key_for_eth_balance(account);
+            self.vm_runner
+                .fork_storage
+                .set_value(key, u256_to_h256(U256::from(DEFAULT_ACCOUNT_BALANCE)));
+        }
+
+        async fn test_tx(&mut self, tx: Transaction) -> anyhow::Result<TransactionResult> {
+            let system_env = SystemEnv {
+                zk_porter_available: false,
+                version: ProtocolVersionId::latest(),
+                base_system_smart_contracts: self
+                    .system_contracts
+                    .contracts(TxExecutionMode::VerifyExecute, false)
+                    .clone(),
+                bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
+                execution_mode: TxExecutionMode::VerifyExecute,
+                default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
+                chain_id: L2ChainId::from(TEST_NODE_NETWORK_ID),
+            };
+            let last_l2_block = load_last_l2_block(
+                &StorageView::new(self.vm_runner.fork_storage.clone()).into_rc_ptr(),
+            )
+            .unwrap_or_else(|| L2Block {
+                number: 0,
+                hash: H256::from_str(
+                    "0xe8e77626586f73b955364c7b4bbf0bb7f7685ebd40e852b164633a4acbd3244c",
+                )
+                .unwrap(),
+                timestamp: 0,
+            });
+            let block_ctx = BlockContext {
+                hash: Default::default(),
+                batch: last_l2_block.number + 1,
+                miniblock: (last_l2_block.number + 1) as u64,
+                timestamp: last_l2_block.timestamp + 1,
+                prev_block_hash: last_l2_block.hash,
+            };
+            let batch_env = L1BatchEnv {
+                previous_batch_hash: None,
+                number: L1BatchNumber::from(block_ctx.batch),
+                timestamp: block_ctx.timestamp,
+                fee_input: BatchFeeInput::l1_pegged(DEFAULT_L1_GAS_PRICE, DEFAULT_L2_GAS_PRICE),
+                fee_account: H160::zero(),
+                enforced_base_fee: None,
+                first_l2_block: L2BlockEnv {
+                    number: block_ctx.miniblock as u32,
+                    timestamp: block_ctx.timestamp,
+                    prev_block_hash: block_ctx.prev_block_hash,
+                    max_virtual_blocks_to_create: 1,
+                },
+            };
+            let storage = StorageView::new(self.vm_runner.fork_storage.clone());
+            let mut executor = self.vm_runner.executor_factory.init_batch(
+                storage,
+                batch_env.clone(),
+                system_env,
+                PubdataParams::default(),
+            );
+
+            self.vm_runner
+                .run_tx(
+                    tx,
+                    0,
+                    &block_ctx,
+                    &batch_env,
+                    executor.as_mut(),
+                    &self.config,
+                    &TestNodeFeeInputProvider::default(),
+                )
+                .await
+        }
+
+        async fn deploy_contract(
+            &mut self,
+            private_key: &K256PrivateKey,
+            bytecode: Vec<u8>,
+            calldata: Option<Vec<u8>>,
+            nonce: Nonce,
+        ) -> anyhow::Result<TransactionResult> {
+            let tx = TransactionBuilder::deploy_contract(private_key, bytecode, calldata, nonce);
+            self.test_tx(tx.into()).await
+        }
+    }
+
+    /// Decodes a `bytes` tx result to its concrete parameter type.
+    fn decode_tx_result(output: &[u8], param_type: DynSolType) -> DynSolValue {
+        let result = DynSolType::Bytes
+            .abi_decode(output)
+            .expect("failed decoding output");
+        let result_bytes = match result {
+            DynSolValue::Bytes(bytes) => bytes,
+            _ => panic!("expected bytes but got a different type"),
+        };
+
+        param_type
+            .abi_decode(&result_bytes)
+            .expect("failed decoding output")
+    }
+
+    #[tokio::test]
+    async fn test_run_l2_tx_validates_tx_gas_limit_too_high() {
+        let mut tester = VmRunnerTester::new();
+        let tx = TransactionBuilder::new()
+            .set_gas_limit(U256::from(u64::MAX) + 1)
+            .build();
+        let err = tester.test_tx(tx.into()).await.unwrap_err();
+        assert_eq!(err.to_string(), "exceeds block gas limit");
+    }
+
+    #[tokio::test]
+    async fn test_run_l2_tx_validates_tx_max_fee_per_gas_too_low() {
+        let mut tester = VmRunnerTester::new();
+        let tx = TransactionBuilder::new()
+            .set_max_fee_per_gas(U256::from(DEFAULT_L2_GAS_PRICE - 1))
+            .build();
+        let err = tester.test_tx(tx.into()).await.unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "block base fee higher than max fee per gas"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_l2_tx_validates_tx_max_priority_fee_per_gas_higher_than_max_fee_per_gas() {
+        let mut tester = VmRunnerTester::new();
+        let tx = TransactionBuilder::new()
+            .set_max_priority_fee_per_gas(U256::from(250_000_000 + 1))
+            .build();
+        let err = tester.test_tx(tx.into()).await.unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "max priority fee per gas higher than max fee per gas"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_tx_raw_does_not_panic_on_mock_fork_client_call() {
+        let mut tester = VmRunnerTester::new();
+
+        // Perform a transaction to get storage to an intermediate state
+        let tx = TransactionBuilder::new().build();
+        tester.make_rich(&tx.initiator_account());
+        let res = tester.test_tx(tx.into()).await.unwrap();
+        assert_eq!(res.receipt.status, U64::from(1));
+
+        // Execute next transaction using a fresh in-memory node and mocked fork client
+        let fork_details = ForkDetails {
+            chain_id: TEST_NODE_NETWORK_ID.into(),
+            batch_number: L1BatchNumber(1),
+            block_number: L2BlockNumber(2),
+            block_hash: Default::default(),
+            block_timestamp: 1002,
+            api_block: api::Block::default(),
+            l1_gas_price: 1000,
+            l2_fair_gas_price: DEFAULT_L2_GAS_PRICE,
+            fair_pubdata_price: DEFAULT_FAIR_PUBDATA_PRICE,
+            estimate_gas_price_scale_factor: DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
+            estimate_gas_scale_factor: DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
+            ..Default::default()
+        };
+        let mock_fork_client = ForkClient::mock(
+            fork_details,
+            tester
+                .vm_runner
+                .fork_storage
+                .inner
+                .read()
+                .unwrap()
+                .raw_storage
+                .clone(),
+        );
+        let mut tester =
+            VmRunnerTester::new_custom(Some(mock_fork_client), TestNodeConfig::default());
+        let tx = TransactionBuilder::new().build();
+        tester.make_rich(&tx.initiator_account());
+        tester
+            .test_tx(tx.into())
+            .await
+            .expect("transaction must pass with mock fork client");
+    }
+
+    #[tokio::test]
+    async fn test_transact_returns_data_in_built_in_without_security_mode() {
+        let mut tester = VmRunnerTester::new_custom(
+            None,
+            TestNodeConfig {
+                system_contracts_options: SystemContractsOptions::BuiltInWithoutSecurity,
+                ..Default::default()
+            },
+        );
+
+        let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(0xef)).unwrap();
+        let from_account = private_key.address();
+        tester.make_rich(&from_account);
+
+        let deployed_address = deployed_address_create(from_account, U256::zero());
+        tester
+            .deploy_contract(
+                &private_key,
+                hex::decode(STORAGE_CONTRACT_BYTECODE).unwrap(),
+                None,
+                Nonce(0),
+            )
+            .await
+            .expect("failed to deploy storage contract");
+
+        let mut tx = L2Tx::new_signed(
+            Some(deployed_address),
+            hex::decode("bbf55335").unwrap(), // keccak selector for "transact_retrieve1()"
+            Nonce(1),
+            Fee {
+                gas_limit: U256::from(4_000_000),
+                max_fee_per_gas: U256::from(250_000_000),
+                max_priority_fee_per_gas: U256::from(250_000_000),
+                gas_per_pubdata_limit: U256::from(50000),
+            },
+            U256::from(0),
+            zksync_types::L2ChainId::from(260),
+            &private_key,
+            vec![],
+            Default::default(),
+        )
+        .expect("failed signing tx");
+        tx.common_data.transaction_type = TransactionType::LegacyTransaction;
+        tx.set_input(vec![], H256::repeat_byte(0x2));
+
+        let result = tester.test_tx(tx.into()).await.expect("failed tx");
+        assert_eq!(
+            result.receipt.status,
+            U64::from(1),
+            "invalid status {:?}",
+            result.receipt.status
+        );
+
+        let actual = decode_tx_result(&result.debug.output.0, DynSolType::Uint(256));
+        let expected = DynSolValue::Uint(AlloyU256::from(1024), 256);
+        assert_eq!(expected, actual, "invalid result");
+    }
+}

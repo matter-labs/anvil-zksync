@@ -87,9 +87,7 @@ pub fn create_genesis_from_json(
     genesis: &Genesis,
     timestamp: Option<u64>,
 ) -> (Block<TransactionVariant>, L1BatchHeader) {
-    let hash = genesis
-        .hash
-        .unwrap_or_else(|| compute_hash(L2BlockNumber(0), 0, H256::zero(), &[]));
+    let hash = L2BlockHasher::legacy_hash(L2BlockNumber(0));
     let timestamp = timestamp
         .or(genesis.timestamp)
         .unwrap_or(NON_FORK_FIRST_BLOCK_TIMESTAMP);
@@ -130,7 +128,7 @@ pub fn create_genesis_from_json(
 }
 
 pub fn create_genesis<TX>(timestamp: Option<u64>) -> (Block<TX>, L1BatchHeader) {
-    let hash = compute_hash(L2BlockNumber(0), 0, H256::zero(), []);
+    let hash = L2BlockHasher::legacy_hash(L2BlockNumber(0));
     let timestamp = timestamp.unwrap_or(NON_FORK_FIRST_BLOCK_TIMESTAMP);
     let batch_env = L1BatchEnv {
         previous_batch_hash: None,
