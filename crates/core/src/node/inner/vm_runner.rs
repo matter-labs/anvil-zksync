@@ -237,6 +237,7 @@ impl VmRunner {
     }
 
     /// Runs transaction and commits it to a new block.
+    #[allow(clippy::too_many_arguments)]
     async fn run_tx(
         &mut self,
         tx: Transaction,
