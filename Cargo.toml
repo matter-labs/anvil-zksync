@@ -38,7 +38,7 @@ zksync_contracts = { git = "https://github.com/matter-labs/zksync-era", rev = "7
 zksync_types = { git = "https://github.com/matter-labs/zksync-era", rev = "7a3fea5ebb8e90cedff749a45f3b78538443b3d6" }
 zksync_vm_interface = { git = "https://github.com/matter-labs/zksync-era", rev = "7a3fea5ebb8e90cedff749a45f3b78538443b3d6" }
 zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era", rev = "7a3fea5ebb8e90cedff749a45f3b78538443b3d6" }
-zksync_telemetry = { git = "https://github.com/matter-labs/zksync-telemetry.git", rev = "ed600f46c74ccc15ae34ea38f27327d66458518a" }
+zksync_telemetry = { git = "https://github.com/matter-labs/zksync-telemetry.git", rev = "d5c35951843263765079545c31c908dcbaab1f30" }
 zksync-error-codegen = { git = "https://github.com/matter-labs/zksync-error", rev = "92d1b60d18686e0e261f04dc7efd74db60e112f1", default-features = false }
 zksync-error-description = { git = "https://github.com/matter-labs/zksync-error", rev = "92d1b60d18686e0e261f04dc7efd74db60e112f1" }
 
