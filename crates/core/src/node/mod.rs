@@ -1,10 +1,12 @@
 //! anvil-zksync, that supports forking other networks.
 
 mod call_error_tracer;
+pub mod console;
 mod debug;
 pub mod error;
 mod eth;
 mod fee_model;
+pub mod hardhat;
 mod impersonate;
 mod in_memory;
 mod in_memory_ext;

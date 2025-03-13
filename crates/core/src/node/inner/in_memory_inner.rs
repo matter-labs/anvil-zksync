@@ -2,6 +2,7 @@ use crate::bootloader_debug::{BootloaderDebug, BootloaderDebugTracer};
 use crate::console_log::ConsoleLogHandler;
 use crate::deps::storage_view::StorageView;
 use crate::filters::EthFilters;
+use crate::formatter::ExecutionErrorReport;
 use crate::node::call_error_tracer::CallErrorTracer;
 use crate::node::error::{LoadStateError, ToHaltError, ToRevertReason};
 use crate::node::inner::blockchain::{Blockchain, ReadBlockchain};
@@ -19,20 +20,25 @@ use crate::node::{
     MAX_PREVIOUS_STATES, MAX_TX_SIZE,
 };
 use crate::system_contracts::SystemContracts;
+use crate::trace::decode::CallTraceDecoderBuilder;
+use crate::trace::types::CallTraceArena;
+use crate::trace::{
+    build_call_trace_arena, decode_trace_arena, filter_call_trace_arena, render_trace_arena_inner,
+    signatures::SignaturesIdentifier,
+};
 use crate::utils::create_debug_output;
 use crate::{delegate_vm, formatter, utils};
-
-use crate::formatter::ExecutionErrorReport;
-use anvil_zksync_common::{sh_eprintln, sh_err, sh_println};
+use anvil_zksync_common::{sh_eprintln, sh_err, sh_println, shell::get_shell};
 use anvil_zksync_config::constants::{
     LEGACY_RICH_WALLETS, NON_FORK_FIRST_BLOCK_TIMESTAMP, RICH_WALLETS,
 };
 use anvil_zksync_config::TestNodeConfig;
-use anvil_zksync_types::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
-use anyhow::Context;
+use anvil_zksync_types::{ShowGasDetails, ShowStorageLogs, ShowVMDetails};
+use anyhow::{anyhow, Context, Result};
 use indexmap::IndexMap;
 use once_cell::sync::OnceCell;
 use std::collections::{HashMap, HashSet};
+
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -401,39 +407,46 @@ impl InMemoryNodeInner {
             formatter.print_vm_details(&tx_result);
         }
 
-        if let Some(call_traces) = call_traces {
+        if let Some(call_traces) = call_tracer_result.get() {
+            let call_traces_owned = call_traces.clone();
+            let tx_result_for_arena = tx_result.clone();
+            let mut builder = CallTraceDecoderBuilder::new();
+
+            builder = builder.with_signature_identifier(
+                SignaturesIdentifier::new(
+                    Some(self.config.get_cache_dir().into()),
+                    self.config.offline,
+                )
+                .map_err(|err| anyhow!("Failed to create SignaturesIdentifier: {:#}", err))?,
+            );
+
+            let decoder = builder.build();
+            let arena: CallTraceArena = futures::executor::block_on(async {
+                let blocking_result = tokio::task::spawn_blocking(move || {
+                    let mut arena = build_call_trace_arena(&call_traces_owned, tx_result_for_arena);
+                    let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
+                    rt.block_on(async {
+                        decode_trace_arena(&mut arena, &decoder)
+                            .await
+                            .context("Failed to decode trace arena")?;
+                        Ok::<CallTraceArena, anyhow::Error>(arena)
+                    })
+                })
+                .await;
+
+                let inner_result: Result<CallTraceArena, anyhow::Error> =
+                    blocking_result.expect("spawn_blocking failed");
+                inner_result
+            })?;
+
+            let verbosity = get_shell().verbosity;
+            if verbosity >= 2 {
+                let filtered_arena = filter_call_trace_arena(&arena, verbosity);
+                let trace_output = render_trace_arena_inner(&filtered_arena, false);
+                sh_println!("\nTraces:\n{}", trace_output);
+            }
             if !self.config.disable_console_log {
                 self.console_log_handler.handle_calls_recursive(call_traces);
-            }
-
-            if self.config.show_calls != ShowCalls::None {
-                sh_println!(
-                    "[Transaction Execution] ({} calls)",
-                    call_traces[0].calls.len()
-                );
-                let num_calls = call_traces.len();
-                for (i, call) in call_traces.iter().enumerate() {
-                    let is_last_sibling = i == num_calls - 1;
-                    let mut formatter = formatter::Formatter::new();
-                    formatter.print_call(
-                        tx.initiator_account(),
-                        tx.execute.contract_address,
-                        call,
-                        is_last_sibling,
-                        self.config.show_calls,
-                        self.config.show_outputs,
-                        self.config.resolve_hashes,
-                    );
-                }
-            }
-        }
-        // Print event logs if enabled
-        if self.config.show_event_logs {
-            sh_println!("[Events] ({} events)", tx_result.logs.events.len());
-            for (i, event) in tx_result.logs.events.iter().enumerate() {
-                let is_last = i == tx_result.logs.events.len() - 1;
-                let mut formatter = formatter::Formatter::new();
-                formatter.print_event(event, self.config.resolve_hashes, is_last);
             }
         }
 
@@ -949,7 +962,7 @@ impl InMemoryNodeInner {
 
             // In theory, if the transaction has failed with such large gas limit, we could have returned an API error here right away,
             // but doing it later on keeps the code more lean.
-            let result = self.estimate_gas_step(
+            let (result, _) = self.estimate_gas_step(
                 l2_tx.clone(),
                 gas_per_pubdata_byte,
                 BATCH_GAS_LIMIT,
@@ -987,7 +1000,7 @@ impl InMemoryNodeInner {
             );
             let try_gas_limit = additional_gas_for_pubdata + mid;
 
-            let estimate_gas_result = self.estimate_gas_step(
+            let (estimate_gas_result, _) = self.estimate_gas_step(
                 l2_tx.clone(),
                 gas_per_pubdata_byte,
                 try_gas_limit,
@@ -1019,7 +1032,7 @@ impl InMemoryNodeInner {
             * self.fee_input_provider.estimate_gas_scale_factor)
             as u64;
 
-        let estimate_gas_result = self.estimate_gas_step(
+        let (estimate_gas_result, call_trace) = self.estimate_gas_step(
             l2_tx.clone(),
             gas_per_pubdata_byte,
             suggested_gas_limit,
@@ -1037,21 +1050,34 @@ impl InMemoryNodeInner {
             VmVersion::latest(),
         ) as u64;
 
-        match estimate_gas_result.result {
-            ExecutionResult::Revert { output } => {
-                tracing::debug!("{}", format!("Unable to estimate gas for the request with our suggested gas limit of {}. The transaction is most likely unexecutable. Breakdown of estimation:", suggested_gas_limit + overhead));
-                tracing::debug!(
-                    "{}",
-                    format!(
-                        "\tEstimated transaction body gas cost: {}",
-                        tx_body_gas_limit
-                    )
-                );
-                tracing::debug!(
-                    "{}",
-                    format!("\tGas for pubdata: {}", additional_gas_for_pubdata)
-                );
-                tracing::debug!("{}", format!("\tOverhead: {}", overhead));
+        match &estimate_gas_result.result {
+            ExecutionResult::Revert { ref output } => {
+                if let Some(call_traces) = call_trace {
+                    let tx_result_for_arena = estimate_gas_result.clone();
+                    let mut builder = CallTraceDecoderBuilder::new();
+
+                    builder = builder.with_signature_identifier(
+                        SignaturesIdentifier::new(
+                            Some(self.config.get_cache_dir().into()),
+                            self.config.offline,
+                        )
+                        .map_err(|err| {
+                            anyhow!("Failed to create SignaturesIdentifier: {:#}", err)
+                        })?,
+                    );
+
+                    let decoder = builder.build();
+                    let mut arena = build_call_trace_arena(&call_traces, tx_result_for_arena);
+                    decode_trace_arena(&mut arena, &decoder).await?;
+
+                    let verbosity = get_shell().verbosity;
+                    if verbosity >= 2 {
+                        let filtered_arena = filter_call_trace_arena(&arena, verbosity);
+                        let trace_output = render_trace_arena_inner(&filtered_arena, false);
+                        sh_println!("\nTraces:\n{}", trace_output);
+                    }
+                }
+
                 let message = output.to_string();
                 let pretty_message = format!(
                     "execution reverted{}{}",
@@ -1060,26 +1086,39 @@ impl InMemoryNodeInner {
                 );
                 let data = output.encoded_data();
 
-                let revert_reason: RevertError = output.to_revert_reason().await;
+                let revert_reason: RevertError = output.clone().to_revert_reason().await;
                 let error_report = ExecutionErrorReport::new(&revert_reason, Some(&tx));
                 sh_println!("{}", error_report);
 
                 Err(Web3Error::SubmitTransactionError(pretty_message, data))
             }
             ExecutionResult::Halt { reason } => {
-                tracing::debug!("{}", format!("Unable to estimate gas for the request with our suggested gas limit of {}. The transaction is most likely unexecutable. Breakdown of estimation:", suggested_gas_limit + overhead));
-                tracing::debug!(
-                    "{}",
-                    format!(
-                        "\tEstimated transaction body gas cost: {}",
-                        tx_body_gas_limit
-                    )
-                );
-                tracing::debug!(
-                    "{}",
-                    format!("\tGas for pubdata: {}", additional_gas_for_pubdata)
-                );
-                tracing::debug!("{}", format!("\tOverhead: {}", overhead));
+                if let Some(call_traces) = call_trace {
+                    let tx_result_for_arena = estimate_gas_result.clone();
+                    let mut builder = CallTraceDecoderBuilder::new();
+
+                    builder = builder.with_signature_identifier(
+                        SignaturesIdentifier::new(
+                            Some(self.config.get_cache_dir().into()),
+                            self.config.offline,
+                        )
+                        .map_err(|err| {
+                            anyhow!("Failed to create SignaturesIdentifier: {:#}", err)
+                        })?,
+                    );
+
+                    let decoder = builder.build();
+                    let mut arena = build_call_trace_arena(&call_traces, tx_result_for_arena);
+                    decode_trace_arena(&mut arena, &decoder).await?;
+
+                    let verbosity = get_shell().verbosity;
+                    if verbosity >= 2 {
+                        let filtered_arena = filter_call_trace_arena(&arena, verbosity);
+                        let trace_output = render_trace_arena_inner(&filtered_arena, false);
+                        sh_println!("\nTraces:\n{}", trace_output);
+                    }
+                }
+
                 let message = reason.to_string();
                 let pretty_message = format!(
                     "execution reverted{}{}",
@@ -1087,7 +1126,7 @@ impl InMemoryNodeInner {
                     message
                 );
 
-                let halt_error: HaltError = reason.to_halt_error().await;
+                let halt_error: HaltError = reason.clone().to_halt_error().await;
                 let error_report = ExecutionErrorReport::new(&halt_error, Some(&tx));
                 sh_println!("{}", error_report);
 
@@ -1142,7 +1181,7 @@ impl InMemoryNodeInner {
         system_env: SystemEnv,
         fork_storage: &ForkStorage,
         is_zkos: bool,
-    ) -> VmExecutionResultAndLogs {
+    ) -> (VmExecutionResultAndLogs, Option<Vec<Call>>) {
         let tx: Transaction = l2_tx.clone().into();
 
         // Set gas_limit for transaction
@@ -1199,9 +1238,17 @@ impl InMemoryNodeInner {
         };
 
         let tx: Transaction = l2_tx.into();
+        let call_tracer_result = Arc::new(OnceCell::default());
+        let tracers = vec![CallTracer::new(call_tracer_result.clone()).into_tracer_pointer()];
         delegate_vm!(vm, push_transaction(tx));
 
-        delegate_vm!(vm, execute(InspectExecutionMode::OneTx))
+        let results = delegate_vm!(
+            vm,
+            inspect(&mut tracers.into(), InspectExecutionMode::OneTx)
+        );
+        let call_traces = call_tracer_result.get();
+
+        (results, call_traces.cloned())
     }
 
     /// Creates a [Snapshot] of the current state of the node.

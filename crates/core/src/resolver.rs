@@ -161,7 +161,7 @@ impl SignEthClient {
         // using openchain signature database over 4byte
         // see https://github.com/foundry-rs/foundry/issues/1672
         let url = match selector_type {
-            SelectorType::Function => {
+            SelectorType::Function | SelectorType::Error => {
                 format!("{SELECTOR_DATABASE_URL}?function={selector}&filter=true")
             }
             SelectorType::Event => format!("{SELECTOR_DATABASE_URL}?event={selector}&filter=true"),
@@ -180,7 +180,7 @@ impl SignEthClient {
         }
 
         let decoded = match selector_type {
-            SelectorType::Function => api_response.result.function,
+            SelectorType::Function | SelectorType::Error => api_response.result.function,
             SelectorType::Event => api_response.result.event,
         };
 
@@ -203,6 +203,97 @@ impl SignEthClient {
             .cloned())
     }
 
+    /// Decodes the given function, error or event selectors using OpenChain.
+    pub async fn decode_selectors(
+        &self,
+        selector_type: SelectorType,
+        selectors: impl IntoIterator<Item = impl Into<String>>,
+    ) -> eyre::Result<Vec<Option<Vec<String>>>> {
+        let selectors: Vec<String> = selectors
+            .into_iter()
+            .map(Into::into)
+            .map(|s| s.to_lowercase())
+            .map(|s| {
+                if s.starts_with("0x") {
+                    s
+                } else {
+                    format!("0x{s}")
+                }
+            })
+            .collect();
+
+        if selectors.is_empty() {
+            return Ok(vec![]);
+        }
+
+        tracing::debug!(len = selectors.len(), "decoding selectors");
+        tracing::trace!(?selectors, "decoding selectors");
+
+        // exit early if spurious connection
+        self.ensure_not_spurious()?;
+
+        let expected_len = match selector_type {
+            SelectorType::Function | SelectorType::Error => 10, // 0x + hex(4bytes)
+            SelectorType::Event => 66,                          // 0x + hex(32bytes)
+        };
+        if let Some(s) = selectors.iter().find(|s| s.len() != expected_len) {
+            eyre::bail!(
+                "Invalid selector {s}: expected {expected_len} characters (including 0x prefix)."
+            )
+        }
+
+        #[derive(Deserialize)]
+        struct Decoded {
+            name: String,
+        }
+
+        #[derive(Deserialize)]
+        struct ApiResult {
+            event: HashMap<String, Option<Vec<Decoded>>>,
+            function: HashMap<String, Option<Vec<Decoded>>>,
+        }
+
+        #[derive(Deserialize)]
+        struct ApiResponse {
+            ok: bool,
+            result: ApiResult,
+        }
+
+        let url = format!(
+            "{SELECTOR_DATABASE_URL}?{ltype}={selectors_str}",
+            ltype = match selector_type {
+                SelectorType::Function | SelectorType::Error => "function",
+                SelectorType::Event => "event",
+            },
+            selectors_str = selectors.join(",")
+        );
+
+        let res = self.get_text(&url).await?;
+        let api_response = match serde_json::from_str::<ApiResponse>(&res) {
+            Ok(inner) => inner,
+            Err(err) => {
+                eyre::bail!("Could not decode response:\n {res}.\nError: {err}")
+            }
+        };
+
+        if !api_response.ok {
+            eyre::bail!("Failed to decode:\n {res}")
+        }
+
+        let decoded = match selector_type {
+            SelectorType::Function | SelectorType::Error => api_response.result.function,
+            SelectorType::Event => api_response.result.event,
+        };
+
+        Ok(selectors
+            .into_iter()
+            .map(|selector| match decoded.get(&selector) {
+                Some(Some(r)) => Some(r.iter().map(|d| d.name.clone()).collect()),
+                _ => None,
+            })
+            .collect())
+    }
+
     /// Fetches a function signature given the selector using api.openchain.xyz
     pub async fn decode_function_selector(&self, selector: &str) -> eyre::Result<Option<String>> {
         let prefixed_selector = format!("0x{}", selector.strip_prefix("0x").unwrap_or(selector));
@@ -223,6 +314,7 @@ impl SignEthClient {
 pub enum SelectorType {
     Function,
     Event,
+    Error,
 }
 /// Fetches a function signature given the selector using api.openchain.xyz
 pub async fn decode_function_selector(selector: &str) -> eyre::Result<Option<String>> {
