@@ -42,10 +42,13 @@ mod private {
 }
 
 pub use self::private::IZKChain::NewPriorityRequest;
+use alloy::primitives::TxHash;
 
 use self::private::{IExecutor, PriorityOpsBatchInfo};
 use alloy::sol_types::{SolCall, SolValue};
+use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::commitment::{serialize_commitments, L1BatchWithMetadata};
+use zksync_types::l1::L1Tx;
 use zksync_types::L2ChainId;
 
 /// Current commitment encoding version as per protocol.
@@ -146,24 +149,50 @@ fn prove_calldata(
 pub fn execute_batches_shared_bridge_call(
     l2_chain_id: L2ChainId,
     batch: &L1BatchWithMetadata,
+    l1_tx_merkle_tree: &MiniMerkleTree<L1Tx>,
 ) -> impl SolCall {
     IExecutor::executeBatchesSharedBridgeCall::new((
         alloy::primitives::U256::from(l2_chain_id.as_u64()),
         alloy::primitives::U256::from(batch.header.number.0),
         alloy::primitives::U256::from(batch.header.number.0),
-        execute_calldata(batch).into(),
+        execute_calldata(batch, l1_tx_merkle_tree).into(),
     ))
 }
 
 /// `executeBatchesSharedBridge` expects the rest of calldata to be of very specific form. This
 /// function makes sure batch and its priority operations are encoded correctly (assumes post gateway).
-fn execute_calldata(batch: &L1BatchWithMetadata) -> Vec<u8> {
+fn execute_calldata(
+    batch: &L1BatchWithMetadata,
+    l1_tx_merkle_tree: &MiniMerkleTree<L1Tx>,
+) -> Vec<u8> {
+    let count = batch.header.l1_tx_count as usize;
+    let priority_ops_proofs = if count > 0 {
+        let (_, left, right) = l1_tx_merkle_tree.merkle_root_and_paths_for_range(..count);
+        let hashes = l1_tx_merkle_tree.hashes_prefix(count);
+        vec![PriorityOpsBatchInfo {
+            leftPath: left
+                .into_iter()
+                .map(Option::unwrap_or_default)
+                .map(|hash| TxHash::from(hash.0))
+                .collect(),
+            rightPath: right
+                .into_iter()
+                .map(Option::unwrap_or_default)
+                .map(|hash| TxHash::from(hash.0))
+                .collect(),
+            itemHashes: hashes
+                .into_iter()
+                .map(|hash| TxHash::from(hash.0))
+                .collect(),
+        }]
+    } else {
+        vec![PriorityOpsBatchInfo {
+            leftPath: vec![],
+            rightPath: vec![],
+            itemHashes: vec![],
+        }]
+    };
     let batches_arg = vec![IExecutor::StoredBatchInfo::from(batch)];
-    let priority_ops_proofs = vec![PriorityOpsBatchInfo {
-        leftPath: vec![],
-        rightPath: vec![],
-        itemHashes: vec![],
-    }];
     let encoded_data = (batches_arg, priority_ops_proofs).abi_encode_params();
 
     // Prefixed by current encoding version as expected by protocol
