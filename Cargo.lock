@@ -10347,7 +10347,7 @@ dependencies = [
  "strum",
  "strum_macros",
  "zksync-error-description 0.1.0 (git+https://github.com/matter-labs/zksync-error?rev=5d4783b83291b63f5fd1cbf5647fdbfd9fabc070)",
- "zksync_types",
+ "zksync_basic_types",
 ]
 
 [[package]]
