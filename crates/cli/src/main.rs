@@ -32,7 +32,7 @@ use tower_http::cors::AllowOrigin;
 use tracing_subscriber::filter::LevelFilter;
 use zksync_error::anvil_zksync::gen::{generic_error, to_domain};
 use zksync_error::anvil_zksync::AnvilZksyncError;
-use zksync_error::ICustomError;
+use zksync_error::{ICustomError, IError as _};
 use zksync_telemetry::{get_telemetry, init_telemetry, TelemetryProps};
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
 use zksync_types::{L2BlockNumber, H160};
@@ -49,6 +49,9 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
     Cli::deprecated_config_option();
 
     let opt = Cli::parse();
+    // We keep a serialized version of the provided arguments to communicate them later if the arguments were incorrect.
+    let debug_opt_string_repr = format!("{opt:#?}");
+
     let command = opt.command.clone();
 
     // Track node start
@@ -63,9 +66,14 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         )
         .await;
 
-    let mut config = opt.into_test_node_config().map_err(to_domain)?;
+    let mut config = opt.into_test_node_config()?;
     let log_level_filter = LevelFilter::from(config.log_level);
-    let log_file = File::create(&config.log_file_path).map_err(to_domain)?;
+    let log_file = File::create(&config.log_file_path).map_err(|inner| {
+        zksync_error::anvil_zksync::env::LogFileAccessFailed {
+            log_file_path: config.log_file_path.to_string(),
+            wrapped_error: inner.to_string(),
+        }
+    })?;
 
     // Initialize the tracing subscriber
     let observability = Observability::init(
@@ -74,7 +82,11 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         log_file,
         config.silent,
     )
-    .map_err(to_domain)?;
+    .map_err(|error| zksync_error::anvil_zksync::env::GenericError {
+        message: format!(
+            "Internal error: Unable to set up observability. Please report. \n{error:#?}"
+        ),
+    })?;
 
     // Use `Command::Run` as default.
     let command = command.as_ref().unwrap_or(&Command::Run);
@@ -256,15 +268,21 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         NodeExecutor::new(node_inner.clone(), vm_runner, storage_key_layout);
     let l1_sidecar = match config.l1_config.as_ref() {
         Some(_) if fork_print_info.is_some() => {
-            return Err(to_domain(generic_error!(
-                "running L1 in forking mode is unsupported"
-            )))
+            return Err(zksync_error::anvil_zksync::env::InvalidArguments {
+                details: "Running L1 in forking mode is unsupported".into(),
+                arguments: debug_opt_string_repr,
+            }
+            .into())
         }
         Some(l1_config) => {
-            let (l1_sidecar, l1_sidecar_runner) =
-                L1Sidecar::builtin(l1_config.port, blockchain.clone(), node_handle.clone())
-                    .await
-                    .map_err(to_domain)?;
+            let (l1_sidecar, l1_sidecar_runner) = L1Sidecar::builtin(
+                l1_config.port,
+                blockchain.clone(),
+                node_handle.clone(),
+                pool.clone(),
+            )
+            .await
+            .map_err(to_domain)?;
             node_service_tasks.push(Box::pin(l1_sidecar_runner.run()));
             l1_sidecar
         }
@@ -374,6 +392,7 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
                 server_handles.push(server.run());
             }
             Err(err) => {
+                let port_requested = config.port;
                 sh_eprintln!(
                     "Failed to bind to address {}:{}: {}. Retrying with a different port...",
                     host,
@@ -394,11 +413,12 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
                         server_handles.push(server.run());
                     }
                     Err(err) => {
-                        return Err(to_domain(generic_error!(
-                            "Failed to start server on host {} with port: {}",
-                            host,
-                            err
-                        )));
+                        return Err(zksync_error::anvil_zksync::env::ServerStartupFailed {
+                            host_requested: host.to_string(),
+                            port_requested: port_requested.into(),
+                            details: err.to_string(),
+                        }
+                        .into());
                     }
                 }
             }
@@ -467,11 +487,14 @@ async fn main() -> Result<(), AnvilZksyncError> {
         None,
     )
     .await
-    .map_err(to_domain)?;
+    .map_err(|inner| zksync_error::anvil_zksync::env::GenericError {
+        message: format!("Failed to initialize telemetry collection subsystem: {inner}."),
+    })?;
 
     if let Err(err) = start_program().await {
         let telemetry = get_telemetry().expect("telemetry is not initialized");
         let _ = telemetry.track_error(Box::new(&err.to_unified())).await;
+        sh_eprintln!("{}", err.to_unified().get_message());
         return Err(err);
     }
     Ok(())

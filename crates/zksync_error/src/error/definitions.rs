@@ -31,7 +31,60 @@ use strum_macros::FromRepr;
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
 #[non_exhaustive]
 pub enum AnvilEnvironment {
-    GenericError { message: String } = 0u32,
+    #[doc = "# Summary "]
+    #[doc = "Invalid command line arguments provided."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "There are missing or invalid command line arguments, or an invalid combination of arguments is provided."]
+    InvalidArguments {
+        details: String,
+        arguments: String,
+    } = 1u32,
+    #[doc = "# Summary "]
+    #[doc = "Failed to start the server and bind it to the requested host and port."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "Anvil-zksync starts the server and listens to requests on a specified host and port, 0.0.0.0:8011 by default. They are configurable using `--host` and `--port` command line arguments."]
+    #[doc = ""]
+    #[doc = "The host and port used by anvil-zksync are also displayed when you start anvil-zksync:"]
+    #[doc = ""]
+    #[doc = "```"]
+    #[doc = "========================================"]
+    #[doc = "Listening on 0.0.0.0:8011"]
+    #[doc = "========================================"]
+    #[doc = "```"]
+    #[doc = ""]
+    #[doc = "This error indicates that listening on the specified host and port failed."]
+    ServerStartupFailed {
+        host_requested: String,
+        port_requested: u32,
+        details: String,
+    } = 2u32,
+    #[doc = "# Summary "]
+    #[doc = "Unable to access log file."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "Anvil-zksync was unable to open log file for writing."]
+    #[doc = "By default, the log file is searched for at `./anvil-zksync.log`."]
+    #[doc = "You may provide this path explicitly through the CLI argument `--log-file-path`."]
+    LogFileAccessFailed {
+        log_file_path: String,
+        wrapped_error: String,
+    } = 10u32,
+    #[doc = "# Summary "]
+    #[doc = "Unable to append to log file. Details: {wrapped_error}"]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "Anvil-zksync was unable to write logs to the selected file."]
+    #[doc = "By default, the log file is searched for at `./anvil-zksync.log`."]
+    #[doc = "You may provide this path explicitly through the CLI argument `--log-file-path`."]
+    LogFileWriteFailed {
+        log_filename: String,
+        wrapped_error: String,
+    } = 11u32,
+    GenericError {
+        message: String,
+    } = 0u32,
 }
 impl std::error::Error for AnvilEnvironment {}
 impl NamedError for AnvilEnvironment {
@@ -51,7 +104,7 @@ impl From<AnvilEnvironment> for crate::ZksyncError {
 }
 impl std::fmt::Display for AnvilEnvironment {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for AnvilEnvironment {
@@ -82,6 +135,28 @@ impl From<AnvilEnvironment> for crate::serialized::SerializedError {
 impl CustomErrorMessage for AnvilEnvironment {
     fn get_message(&self) -> String {
         match self {
+            AnvilEnvironment::InvalidArguments { details, arguments } => {
+                format!("[anvil_zksync-env-1] Invalid arguments: {details}.")
+            }
+            AnvilEnvironment::ServerStartupFailed {
+                host_requested,
+                port_requested,
+                details,
+            } => {
+                format ! ("[anvil_zksync-env-2] Failed to start server at {host_requested}:{port_requested}: {details}.")
+            }
+            AnvilEnvironment::LogFileAccessFailed {
+                log_file_path,
+                wrapped_error,
+            } => {
+                format ! ("[anvil_zksync-env-10] Unable to access log file: {log_file_path}. Details: {wrapped_error}")
+            }
+            AnvilEnvironment::LogFileWriteFailed {
+                log_filename,
+                wrapped_error,
+            } => {
+                format ! ("[anvil_zksync-env-11] Unable to append more lines to the log file `{log_filename}`: {wrapped_error}")
+            }
             AnvilEnvironment::GenericError { message } => {
                 format!("[anvil_zksync-env-0] Generic error: {message}")
             }
@@ -127,7 +202,7 @@ impl From<AnvilGeneric> for crate::ZksyncError {
 }
 impl std::fmt::Display for AnvilGeneric {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for AnvilGeneric {
@@ -360,7 +435,7 @@ impl From<Halt> for crate::ZksyncError {
 }
 impl std::fmt::Display for Halt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for Halt {
@@ -533,7 +608,7 @@ impl From<Revert> for crate::ZksyncError {
 }
 impl std::fmt::Display for Revert {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for Revert {
@@ -624,7 +699,7 @@ impl From<LLVM_EVM> for crate::ZksyncError {
 }
 impl std::fmt::Display for LLVM_EVM {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for LLVM_EVM {
@@ -700,7 +775,7 @@ impl From<LLVM_Era> for crate::ZksyncError {
 }
 impl std::fmt::Display for LLVM_Era {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for LLVM_Era {
@@ -776,7 +851,7 @@ impl From<Solc> for crate::ZksyncError {
 }
 impl std::fmt::Display for Solc {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for Solc {
@@ -852,7 +927,7 @@ impl From<SolcFork> for crate::ZksyncError {
 }
 impl std::fmt::Display for SolcFork {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for SolcFork {
@@ -928,7 +1003,7 @@ impl From<Zksolc> for crate::ZksyncError {
 }
 impl std::fmt::Display for Zksolc {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for Zksolc {
@@ -1004,7 +1079,7 @@ impl From<Zkvyper> for crate::ZksyncError {
 }
 impl std::fmt::Display for Zkvyper {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for Zkvyper {
@@ -1080,7 +1155,7 @@ impl From<API> for crate::ZksyncError {
 }
 impl std::fmt::Display for API {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for API {
@@ -1156,7 +1231,7 @@ impl From<EraVM> for crate::ZksyncError {
 }
 impl std::fmt::Display for EraVM {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for EraVM {
@@ -1232,7 +1307,7 @@ impl From<ExecutionPlatform> for crate::ZksyncError {
 }
 impl std::fmt::Display for ExecutionPlatform {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for ExecutionPlatform {
@@ -1309,7 +1384,7 @@ impl From<Sequencer> for crate::ZksyncError {
 }
 impl std::fmt::Display for Sequencer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for Sequencer {
@@ -1388,7 +1463,7 @@ impl From<FoundryUpstream> for crate::ZksyncError {
 }
 impl std::fmt::Display for FoundryUpstream {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for FoundryUpstream {
@@ -1464,7 +1539,7 @@ impl From<FoundryZksync> for crate::ZksyncError {
 }
 impl std::fmt::Display for FoundryZksync {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for FoundryZksync {
@@ -1540,7 +1615,7 @@ impl From<HardhatUpstream> for crate::ZksyncError {
 }
 impl std::fmt::Display for HardhatUpstream {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for HardhatUpstream {
@@ -1616,7 +1691,7 @@ impl From<HardhatZksync> for crate::ZksyncError {
 }
 impl std::fmt::Display for HardhatZksync {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{self:?}"))
+        f.write_str(&self.get_message())
     }
 }
 impl Documented for HardhatZksync {

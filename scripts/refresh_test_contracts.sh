@@ -6,7 +6,6 @@ TEST_CONTRACT_ARTIFACTS="etc/test-contracts/zkout"
 TEST_CONTRACT_TARGET="crates/core/src/deps/test-contracts"
 
 echo "Building test contracts"
-(cd etc/test-contracts && forge build --zksync)
 
 test_contracts=("Primary" "Secondary")
 

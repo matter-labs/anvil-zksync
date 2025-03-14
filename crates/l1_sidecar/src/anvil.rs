@@ -4,6 +4,7 @@ use alloy::providers::{Provider, ProviderBuilder};
 use anyhow::Context;
 use foundry_anvil::{NodeConfig, NodeHandle};
 use foundry_common::Shell;
+use std::sync::Arc;
 use std::time::Duration;
 use tempfile::TempDir;
 use tokio::io::AsyncWriteExt;
@@ -33,7 +34,7 @@ impl AnvilHandle {
 pub async fn spawn_builtin(
     port: u16,
     zkstack_config: &ZkstackConfig,
-) -> anyhow::Result<(AnvilHandle, Box<dyn Provider>)> {
+) -> anyhow::Result<(AnvilHandle, Arc<dyn Provider + 'static>)> {
     let tmpdir = tempfile::Builder::new()
         .prefix("anvil_zksync_l1")
         .tempdir()?;
@@ -85,7 +86,10 @@ struct BuiltinAnvil {
     _tmpdir: TempDir,
 }
 
-async fn setup_provider(port: u16, config: &ZkstackConfig) -> anyhow::Result<Box<dyn Provider>> {
+async fn setup_provider(
+    port: u16,
+    config: &ZkstackConfig,
+) -> anyhow::Result<Arc<dyn Provider + 'static>> {
     let blob_operator_wallet =
         EthereumWallet::from(config.wallets.blob_operator.private_key.clone());
     let provider = ProviderBuilder::new()
@@ -113,5 +117,5 @@ async fn setup_provider(port: u16, config: &ZkstackConfig) -> anyhow::Result<Box
     .context("L1 anvil failed to start")?
     .context("unexpected response from L1 anvil")?;
 
-    Ok(Box::new(provider))
+    Ok(Arc::new(provider))
 }

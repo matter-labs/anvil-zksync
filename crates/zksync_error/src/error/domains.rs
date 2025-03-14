@@ -68,26 +68,22 @@ impl crate::documentation::Documented for ZksyncError {
         &self,
     ) -> Result<Option<Self::Documentation>, crate::documentation::DocumentationError> {
         match self {
-            ZksyncError::AnvilZksync(AnvilZksync::AnvilEnvironment(error)) => {
-                error.get_documentation()
-            }
-            ZksyncError::AnvilZksync(AnvilZksync::AnvilGeneric(error)) => error.get_documentation(),
-            ZksyncError::AnvilZksync(AnvilZksync::Halt(error)) => error.get_documentation(),
-            ZksyncError::AnvilZksync(AnvilZksync::Revert(error)) => error.get_documentation(),
-            ZksyncError::Compiler(Compiler::LLVM_EVM(error)) => error.get_documentation(),
-            ZksyncError::Compiler(Compiler::LLVM_Era(error)) => error.get_documentation(),
-            ZksyncError::Compiler(Compiler::Solc(error)) => error.get_documentation(),
-            ZksyncError::Compiler(Compiler::SolcFork(error)) => error.get_documentation(),
-            ZksyncError::Compiler(Compiler::Zksolc(error)) => error.get_documentation(),
-            ZksyncError::Compiler(Compiler::Zkvyper(error)) => error.get_documentation(),
-            ZksyncError::Core(Core::API(error)) => error.get_documentation(),
-            ZksyncError::Core(Core::EraVM(error)) => error.get_documentation(),
-            ZksyncError::Core(Core::ExecutionPlatform(error)) => error.get_documentation(),
-            ZksyncError::Core(Core::Sequencer(error)) => error.get_documentation(),
-            ZksyncError::Foundry(Foundry::FoundryUpstream(error)) => error.get_documentation(),
-            ZksyncError::Foundry(Foundry::FoundryZksync(error)) => error.get_documentation(),
-            ZksyncError::Hardhat(Hardhat::HardhatUpstream(error)) => error.get_documentation(),
-            ZksyncError::Hardhat(Hardhat::HardhatZksync(error)) => error.get_documentation(),
+            ZksyncError::AnvilZksync(error) => error.get_documentation(),
+            ZksyncError::Compiler(error) => error.get_documentation(),
+            ZksyncError::Core(error) => error.get_documentation(),
+            ZksyncError::Foundry(error) => error.get_documentation(),
+            ZksyncError::Hardhat(error) => error.get_documentation(),
+        }
+    }
+}
+impl std::fmt::Display for ZksyncError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ZksyncError::AnvilZksync(domain_error) => domain_error.fmt(f),
+            ZksyncError::Compiler(domain_error) => domain_error.fmt(f),
+            ZksyncError::Core(domain_error) => domain_error.fmt(f),
+            ZksyncError::Foundry(domain_error) => domain_error.fmt(f),
+            ZksyncError::Hardhat(domain_error) => domain_error.fmt(f),
         }
     }
 }
@@ -183,11 +179,6 @@ impl ZksyncError {
         }
     }
 }
-impl std::fmt::Display for ZksyncError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{:#?}", self))
-    }
-}
 impl IUnifiedError<ZksyncError> for ZksyncError {}
 impl std::error::Error for ZksyncError {}
 #[repr(u32)]
@@ -217,7 +208,7 @@ impl AnvilZksync {
 }
 impl ICustomError<ZksyncError, ZksyncError> for AnvilEnvironment {
     fn to_unified(&self) -> ZksyncError {
-        ZksyncError::AnvilZksync(AnvilZksync::AnvilEnvironment(self.clone()))
+        AnvilZksync::AnvilEnvironment(self.clone()).to_unified()
     }
 }
 impl From<AnvilEnvironment> for AnvilZksync {
@@ -227,7 +218,7 @@ impl From<AnvilEnvironment> for AnvilZksync {
 }
 impl ICustomError<ZksyncError, ZksyncError> for AnvilGeneric {
     fn to_unified(&self) -> ZksyncError {
-        ZksyncError::AnvilZksync(AnvilZksync::AnvilGeneric(self.clone()))
+        AnvilZksync::AnvilGeneric(self.clone()).to_unified()
     }
 }
 impl From<AnvilGeneric> for AnvilZksync {
@@ -237,7 +228,7 @@ impl From<AnvilGeneric> for AnvilZksync {
 }
 impl ICustomError<ZksyncError, ZksyncError> for Halt {
     fn to_unified(&self) -> ZksyncError {
-        ZksyncError::AnvilZksync(AnvilZksync::Halt(self.clone()))
+        AnvilZksync::Halt(self.clone()).to_unified()
     }
 }
 impl From<Halt> for AnvilZksync {
@@ -247,7 +238,7 @@ impl From<Halt> for AnvilZksync {
 }
 impl ICustomError<ZksyncError, ZksyncError> for Revert {
     fn to_unified(&self) -> ZksyncError {
-        ZksyncError::AnvilZksync(AnvilZksync::Revert(self.clone()))
+        AnvilZksync::Revert(self.clone()).to_unified()
     }
 }
 impl From<Revert> for AnvilZksync {
@@ -265,6 +256,30 @@ impl From<AnvilZksync> for ZksyncError {
         value.to_unified()
     }
 }
+impl crate::documentation::Documented for AnvilZksync {
+    type Documentation = &'static zksync_error_description::ErrorDocumentation;
+    fn get_documentation(
+        &self,
+    ) -> Result<Option<Self::Documentation>, crate::documentation::DocumentationError> {
+        match self {
+            AnvilZksync::AnvilEnvironment(error) => error.get_documentation(),
+            AnvilZksync::AnvilGeneric(error) => error.get_documentation(),
+            AnvilZksync::Halt(error) => error.get_documentation(),
+            AnvilZksync::Revert(error) => error.get_documentation(),
+        }
+    }
+}
+impl std::fmt::Display for AnvilZksync {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AnvilZksync::AnvilEnvironment(component) => component.fmt(f),
+            AnvilZksync::AnvilGeneric(component) => component.fmt(f),
+            AnvilZksync::Halt(component) => component.fmt(f),
+            AnvilZksync::Revert(component) => component.fmt(f),
+        }
+    }
+}
+impl std::error::Error for AnvilZksync {}
 #[repr(u32)]
 #[derive(
     AsRefStr,
@@ -294,7 +309,7 @@ impl Compiler {
 }
 impl ICustomError<ZksyncError, ZksyncError> for LLVM_EVM {
     fn to_unified(&self) -> ZksyncError {
-        ZksyncError::Compiler(Compiler::LLVM_EVM(self.clone()))
+        Compiler::LLVM_EVM(self.clone()).to_unified()
     }
 }
 impl From<LLVM_EVM> for Compiler {
@@ -304,7 +319,7 @@ impl From<LLVM_EVM> for Compiler {
 }
 impl ICustomError<ZksyncError, ZksyncError> for LLVM_Era {
     fn to_unified(&self) -> ZksyncError {
-        ZksyncError::Compiler(Compiler::LLVM_Era(self.clone()))
+        Compiler::LLVM_Era(self.clone()).to_unified()
     }
 }
 impl From<LLVM_Era> for Compiler {
@@ -314,7 +329,7 @@ impl From<LLVM_Era> for Compiler {
 }
 impl ICustomError<ZksyncError, ZksyncError> for Solc {
     fn to_unified(&self) -> ZksyncError {
-        ZksyncError::Compiler(Compiler::Solc(self.clone()))
+        Compiler::Solc(self.clone()).to_unified()
     }
 }
 impl From<Solc> for Compiler {
@@ -324,7 +339,7 @@ impl From<Solc> for Compiler {
 }
 impl ICustomError<ZksyncError, ZksyncError> for SolcFork {
     fn to_unified(&self) -> ZksyncError {
-        ZksyncError::Compiler(Compiler::SolcFork(self.clone()))
+        Compiler::SolcFork(self.clone()).to_unified()
     }
 }
 impl From<SolcFork> for Compiler {
@@ -334,7 +349,7 @@ impl From<SolcFork> for Compiler {
 }
 impl ICustomError<ZksyncError, ZksyncError> for Zksolc {
     fn to_unified(&self) -> ZksyncError {
-        ZksyncError::Compiler(Compiler::Zksolc(self.clone()))
+        Compiler::Zksolc(self.clone()).to_unified()
     }
 }
 impl From<Zksolc> for Compiler {
@@ -344,7 +359,7 @@ impl From<Zksolc> for Compiler {
 }
 impl ICustomError<ZksyncError, ZksyncError> for Zkvyper {
     fn to_unified(&self) -> ZksyncError {
-        ZksyncError::Compiler(Compiler::Zkvyper(self.clone()))
+        Compiler::Zkvyper(self.clone()).to_unified()
     }
 }
 impl From<Zkvyper> for Compiler {
@@ -362,6 +377,34 @@ impl From<Compiler> for ZksyncError {
         value.to_unified()
     }
 }
+impl crate::documentation::Documented for Compiler {
+    type Documentation = &'static zksync_error_description::ErrorDocumentation;
+    fn get_documentation(
+        &self,
+    ) -> Result<Option<Self::Documentation>, crate::documentation::DocumentationError> {
+        match self {
+            Compiler::LLVM_EVM(error) => error.get_documentation(),
+            Compiler::LLVM_Era(error) => error.get_documentation(),
+            Compiler::Solc(error) => error.get_documentation(),
+            Compiler::SolcFork(error) => error.get_documentation(),
+            Compiler::Zksolc(error) => error.get_documentation(),
+            Compiler::Zkvyper(error) => error.get_documentation(),
+        }
+    }
+}
+impl std::fmt::Display for Compiler {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Compiler::LLVM_EVM(component) => component.fmt(f),
+            Compiler::LLVM_Era(component) => component.fmt(f),
+            Compiler::Solc(component) => component.fmt(f),
+            Compiler::SolcFork(component) => component.fmt(f),
+            Compiler::Zksolc(component) => component.fmt(f),
+            Compiler::Zkvyper(component) => component.fmt(f),
+        }
+    }
+}
+impl std::error::Error for Compiler {}
 #[repr(u32)]
 #[derive(
     AsRefStr,
@@ -389,7 +432,7 @@ impl Core {
 }
 impl ICustomError<ZksyncError, ZksyncError> for API {
     fn to_unified(&self) -> ZksyncError {
-        ZksyncError::Core(Core::API(self.clone()))
+        Core::API(self.clone()).to_unified()
     }
 }
 impl From<API> for Core {
@@ -399,7 +442,7 @@ impl From<API> for Core {
 }
 impl ICustomError<ZksyncError, ZksyncError> for EraVM {
     fn to_unified(&self) -> ZksyncError {
-        ZksyncError::Core(Core::EraVM(self.clone()))
+        Core::EraVM(self.clone()).to_unified()
     }
 }
 impl From<EraVM> for Core {
@@ -409,7 +452,7 @@ impl From<EraVM> for Core {
 }
 impl ICustomError<ZksyncError, ZksyncError> for ExecutionPlatform {
     fn to_unified(&self) -> ZksyncError {
-        ZksyncError::Core(Core::ExecutionPlatform(self.clone()))
+        Core::ExecutionPlatform(self.clone()).to_unified()
     }
 }
 impl From<ExecutionPlatform> for Core {
@@ -419,7 +462,7 @@ impl From<ExecutionPlatform> for Core {
 }
 impl ICustomError<ZksyncError, ZksyncError> for Sequencer {
     fn to_unified(&self) -> ZksyncError {
-        ZksyncError::Core(Core::Sequencer(self.clone()))
+        Core::Sequencer(self.clone()).to_unified()
     }
 }
 impl From<Sequencer> for Core {
@@ -437,6 +480,30 @@ impl From<Core> for ZksyncError {
         value.to_unified()
     }
 }
+impl crate::documentation::Documented for Core {
+    type Documentation = &'static zksync_error_description::ErrorDocumentation;
+    fn get_documentation(
+        &self,
+    ) -> Result<Option<Self::Documentation>, crate::documentation::DocumentationError> {
+        match self {
+            Core::API(error) => error.get_documentation(),
+            Core::EraVM(error) => error.get_documentation(),
+            Core::ExecutionPlatform(error) => error.get_documentation(),
+            Core::Sequencer(error) => error.get_documentation(),
+        }
+    }
+}
+impl std::fmt::Display for Core {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Core::API(component) => component.fmt(f),
+            Core::EraVM(component) => component.fmt(f),
+            Core::ExecutionPlatform(component) => component.fmt(f),
+            Core::Sequencer(component) => component.fmt(f),
+        }
+    }
+}
+impl std::error::Error for Core {}
 #[repr(u32)]
 #[derive(
     AsRefStr,
@@ -462,7 +529,7 @@ impl Foundry {
 }
 impl ICustomError<ZksyncError, ZksyncError> for FoundryUpstream {
     fn to_unified(&self) -> ZksyncError {
-        ZksyncError::Foundry(Foundry::FoundryUpstream(self.clone()))
+        Foundry::FoundryUpstream(self.clone()).to_unified()
     }
 }
 impl From<FoundryUpstream> for Foundry {
@@ -472,7 +539,7 @@ impl From<FoundryUpstream> for Foundry {
 }
 impl ICustomError<ZksyncError, ZksyncError> for FoundryZksync {
     fn to_unified(&self) -> ZksyncError {
-        ZksyncError::Foundry(Foundry::FoundryZksync(self.clone()))
+        Foundry::FoundryZksync(self.clone()).to_unified()
     }
 }
 impl From<FoundryZksync> for Foundry {
@@ -490,6 +557,26 @@ impl From<Foundry> for ZksyncError {
         value.to_unified()
     }
 }
+impl crate::documentation::Documented for Foundry {
+    type Documentation = &'static zksync_error_description::ErrorDocumentation;
+    fn get_documentation(
+        &self,
+    ) -> Result<Option<Self::Documentation>, crate::documentation::DocumentationError> {
+        match self {
+            Foundry::FoundryUpstream(error) => error.get_documentation(),
+            Foundry::FoundryZksync(error) => error.get_documentation(),
+        }
+    }
+}
+impl std::fmt::Display for Foundry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Foundry::FoundryUpstream(component) => component.fmt(f),
+            Foundry::FoundryZksync(component) => component.fmt(f),
+        }
+    }
+}
+impl std::error::Error for Foundry {}
 #[repr(u32)]
 #[derive(
     AsRefStr,
@@ -515,7 +602,7 @@ impl Hardhat {
 }
 impl ICustomError<ZksyncError, ZksyncError> for HardhatUpstream {
     fn to_unified(&self) -> ZksyncError {
-        ZksyncError::Hardhat(Hardhat::HardhatUpstream(self.clone()))
+        Hardhat::HardhatUpstream(self.clone()).to_unified()
     }
 }
 impl From<HardhatUpstream> for Hardhat {
@@ -525,7 +612,7 @@ impl From<HardhatUpstream> for Hardhat {
 }
 impl ICustomError<ZksyncError, ZksyncError> for HardhatZksync {
     fn to_unified(&self) -> ZksyncError {
-        ZksyncError::Hardhat(Hardhat::HardhatZksync(self.clone()))
+        Hardhat::HardhatZksync(self.clone()).to_unified()
     }
 }
 impl From<HardhatZksync> for Hardhat {
@@ -543,3 +630,23 @@ impl From<Hardhat> for ZksyncError {
         value.to_unified()
     }
 }
+impl crate::documentation::Documented for Hardhat {
+    type Documentation = &'static zksync_error_description::ErrorDocumentation;
+    fn get_documentation(
+        &self,
+    ) -> Result<Option<Self::Documentation>, crate::documentation::DocumentationError> {
+        match self {
+            Hardhat::HardhatUpstream(error) => error.get_documentation(),
+            Hardhat::HardhatZksync(error) => error.get_documentation(),
+        }
+    }
+}
+impl std::fmt::Display for Hardhat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Hardhat::HardhatUpstream(component) => component.fmt(f),
+            Hardhat::HardhatZksync(component) => component.fmt(f),
+        }
+    }
+}
+impl std::error::Error for Hardhat {}
