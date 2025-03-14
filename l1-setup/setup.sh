@@ -71,7 +71,6 @@ zkstack ecosystem init \
   --deploy-paymaster --deploy-erc20 --deploy-ecosystem \
   --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 --server-db-name=zksync_server_localhost_era \
   --l1-rpc-url=http://localhost:8545 --observability false --update-submodules false
-zkstack chain convert-to-gateway --chain anvil --ignore-prerequisites
 popd > /dev/null
 
 # Persist resulting configuration files in anvil-zksync's source control

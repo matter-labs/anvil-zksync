@@ -14,10 +14,10 @@ You will need:
 
 ⚠️ Note: all commands below assume you are running them from the `l1-setup` directory.
 
-Run foundry anvil from the `./bin` directory (adjust current anvil version if necessary):
+Run foundry anvil (make sure you are using version >=1.0.0):
 
 ```bash
-$ ./bin/anvil-v0.3.0 --port 8545  --dump-state state/l1-state.json
+$ anvil --port 8545  --dump-state state/l1-state.json
 ```
 
 Once it is up just run the setup script:
@@ -29,7 +29,7 @@ $ ./setup.sh
 Finally, if everything went smoothly, stop anvil (thus dumping the state) and then verify that the state is loadable like this:
 
 ```bash
-$ ./bin/anvil-v0.3.0 --port 8545 --load-state state/l1-state.json
+$ anvil --port 8545 --load-state state/l1-state.json
 ```
 
 Additionally, `state/l1-state-payload.txt` contains the payload version of anvil's state. In other words, you can inject state into a running anvil instance by submitting `anvil_loadState` JSON-RPC request with the contents of this file as the payload.
