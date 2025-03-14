@@ -56,9 +56,9 @@ use zksync_types::transaction_request::CallRequest;
 use zksync_types::utils::{decompose_full_nonce, nonces_to_full_nonce};
 use zksync_types::web3::{keccak256, Index};
 use zksync_types::{
-    api, h256_to_u256, u256_to_h256, AccountTreeId, Address, Bloom, BloomInput, L1BatchNumber,
-    L2BlockNumber, L2ChainId, StorageKey, StorageValue, Transaction, H160, H256,
-    L2_MESSAGE_ROOT_ADDRESS, MAX_L2_TX_GAS_LIMIT, U256, U64,
+    api, h256_to_u256, u256_to_h256, AccountTreeId, Address, Bloom, BloomInput,
+    ExecuteTransactionCommon, L1BatchNumber, L2BlockNumber, L2ChainId, StorageKey, StorageValue,
+    Transaction, H160, H256, L2_MESSAGE_ROOT_ADDRESS, MAX_L2_TX_GAS_LIMIT, U256, U64,
 };
 use zksync_web3_decl::error::Web3Error;
 
