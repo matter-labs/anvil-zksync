@@ -1,10 +1,12 @@
 use crate::anvil::AnvilHandle;
 use crate::commitment_generator::CommitmentGenerator;
 use crate::l1_sender::{L1Sender, L1SenderHandle};
+use crate::l1_watcher::L1Watcher;
+use crate::zkstack_config::contracts::ContractsConfig;
 use crate::zkstack_config::ZkstackConfig;
 use anvil_zksync_core::node::blockchain::ReadBlockchain;
 use anvil_zksync_core::node::node_executor::NodeExecutorHandle;
-use anvil_zksync_core::node::TxBatch;
+use anvil_zksync_core::node::{TxBatch, TxPool};
 use anyhow::Context;
 use serde::Deserialize;
 use tokio::task::JoinHandle;
@@ -18,6 +20,7 @@ mod anvil;
 mod commitment_generator;
 mod contracts;
 mod l1_sender;
+mod l1_watcher;
 mod zkstack_config;
 
 #[derive(Debug, Clone)]
@@ -29,6 +32,7 @@ pub struct L1Sidecar {
 struct L1SidecarInner {
     commitment_generator: CommitmentGenerator,
     l1_sender_handle: L1SenderHandle,
+    zkstack_config: ZkstackConfig,
 }
 
 impl L1Sidecar {
@@ -40,6 +44,7 @@ impl L1Sidecar {
         port: u16,
         blockchain: Box<dyn ReadBlockchain>,
         node_handle: NodeExecutorHandle,
+        pool: TxPool,
     ) -> anyhow::Result<(Self, L1SidecarRunner)> {
         let zkstack_config = ZkstackConfig::builtin();
         let (anvil_handle, anvil_provider) = anvil::spawn_builtin(port, &zkstack_config).await?;
@@ -50,18 +55,24 @@ impl L1Sidecar {
             .ok_or(anyhow::anyhow!(
                 "genesis is missing from local storage, can't start L1 sidecar"
             ))?;
-        let (l1_sender, l1_sender_handle) =
-            L1Sender::new(&zkstack_config, genesis_with_metadata, anvil_provider);
+        let (l1_sender, l1_sender_handle) = L1Sender::new(
+            &zkstack_config,
+            genesis_with_metadata,
+            anvil_provider.clone(),
+        );
+        let l1_watcher = L1Watcher::new(&zkstack_config, anvil_provider, pool);
         let this = Self {
             inner: Some(L1SidecarInner {
                 commitment_generator,
                 l1_sender_handle,
+                zkstack_config,
             }),
         };
         let upgrade_handle = tokio::spawn(Self::upgrade(node_handle));
         let runner = L1SidecarRunner {
             anvil_handle,
             l1_sender,
+            l1_watcher,
             upgrade_handle,
         };
         Ok((this, runner))
@@ -122,6 +133,7 @@ impl L1Sidecar {
 pub struct L1SidecarRunner {
     anvil_handle: AnvilHandle,
     l1_sender: L1Sender,
+    l1_watcher: L1Watcher,
     upgrade_handle: JoinHandle<anyhow::Result<()>>,
 }
 
@@ -130,14 +142,19 @@ impl L1SidecarRunner {
         // We ensure L2 upgrade finishes before the rest of L1 logic can be run.
         self.upgrade_handle.await??;
         tokio::select! {
-            _ = self.l1_sender.run() => {
+            result = self.l1_sender.run() => {
                 tracing::trace!("L1 sender was stopped");
+                result
             },
-            _ = self.anvil_handle.run() => {
+            result = self.l1_watcher.run() => {
+                tracing::trace!("L1 watcher was stopped");
+                result
+            },
+            result = self.anvil_handle.run() => {
                 tracing::trace!("L1 anvil exited unexpectedly");
+                result
             },
         }
-        Ok(())
     }
 }
 
@@ -188,5 +205,14 @@ impl L1Sidecar {
             .l1_sender_handle
             .execute_sync(batch_with_metadata)
             .await
+    }
+
+    pub fn contracts_config(&self) -> anyhow::Result<&ContractsConfig> {
+        let Some(inner) = self.inner.as_ref() else {
+            return Err(anyhow::anyhow!(
+                "cannot get contracts config is no L1 configured"
+            ));
+        };
+        Ok(&inner.zkstack_config.contracts)
     }
 }

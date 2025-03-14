@@ -1,7 +1,7 @@
 use crate::filters::LogFilter;
 use crate::node::inner::fork::ForkDetails;
 use crate::node::time::{ReadTime, Time};
-use crate::node::{compute_hash, create_genesis, create_genesis_from_json, TransactionResult};
+use crate::node::{create_genesis, create_genesis_from_json, TransactionResult};
 use crate::utils::utc_datetime_from_epoch_ms;
 use anvil_zksync_config::types::Genesis;
 use anvil_zksync_types::api::DetailedTransaction;
@@ -20,8 +20,9 @@ use zksync_types::block::{unpack_block_info, L1BatchHeader, L2BlockHasher};
 use zksync_types::l2::L2Tx;
 use zksync_types::writes::StateDiffRecord;
 use zksync_types::{
-    api, h256_to_u256, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId,
-    StorageKey, H256, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_BLOCK_INFO_POSITION, U256, U64,
+    api, h256_to_u256, AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber,
+    L2BlockNumber, ProtocolVersionId, StorageKey, H256, SYSTEM_CONTEXT_ADDRESS,
+    SYSTEM_CONTEXT_BLOCK_INFO_POSITION, U256, U64,
 };
 
 /// Read-only view on blockchain state.
@@ -536,12 +537,12 @@ impl Blockchain {
                 batches: HashMap::from_iter([]),
             }
         } else {
-            let block_hash = compute_hash(0, []);
             let (genesis_block, genesis_batch_header) = if let Some(genesis) = genesis {
                 create_genesis_from_json(genesis, genesis_timestamp)
             } else {
                 create_genesis(genesis_timestamp)
             };
+            let block_hash = genesis_block.hash;
             let genesis_batch_info = StoredL1BatchInfo {
                 header: genesis_batch_header,
                 state_diffs: Vec::new(),
@@ -697,12 +698,26 @@ impl BlockchainState {
         let l2_to_l1_messages = VmEvent::extract_long_l2_to_l1_messages(
             &finished_l1_batch.final_execution_state.events,
         );
+        let l1_tx_count = tx_results
+            .iter()
+            .filter(|tx| matches!(tx.info.tx.common_data, ExecuteTransactionCommon::L1(_)))
+            .count() as u16;
+        let priority_ops_onchain_data = tx_results
+            .iter()
+            .filter_map(|tx| match &tx.info.tx.common_data {
+                ExecuteTransactionCommon::L1(l1_tx) => {
+                    Some(l1_tx.onchain_metadata().onchain_data.clone())
+                }
+                ExecuteTransactionCommon::L2(_) => None,
+                ExecuteTransactionCommon::ProtocolUpgrade(_) => None,
+            })
+            .collect();
         let header = L1BatchHeader {
             number: self.current_batch,
             timestamp: batch_timestamp,
-            l1_tx_count: 0, // Always 0 as we don't support L1 transactions yet
-            l2_tx_count: tx_results.len() as u16,
-            priority_ops_onchain_data: vec![], // Always empty as we don't support L1 transactions yet
+            l1_tx_count,
+            l2_tx_count: tx_results.len() as u16 - l1_tx_count,
+            priority_ops_onchain_data,
             l2_to_l1_logs: finished_l1_batch.final_execution_state.user_l2_to_l1_logs,
             l2_to_l1_messages,
             bloom: Default::default(), // This is unused in core

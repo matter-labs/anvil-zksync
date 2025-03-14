@@ -4,18 +4,24 @@ use alloy::consensus::{SidecarBuilder, SimpleCoder};
 use alloy::network::{ReceiptResponse, TransactionBuilder, TransactionBuilder4844};
 use alloy::providers::Provider;
 use alloy::rpc::types::TransactionRequest;
+use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
+use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::commitment::L1BatchWithMetadata;
+use zksync_types::hasher::keccak::KeccakHasher;
+use zksync_types::l1::L1Tx;
 use zksync_types::{Address, L2ChainId, H256};
 
 /// Node component responsible for sending transactions to L1.
 pub struct L1Sender {
-    provider: Box<dyn Provider>,
+    provider: Arc<dyn Provider + 'static>,
     l2_chain_id: L2ChainId,
     validator_timelock_addr: Address,
     command_receiver: mpsc::Receiver<Command>,
     last_committed_l1_batch: L1BatchWithMetadata,
     last_proved_l1_batch: L1BatchWithMetadata,
+    /// Merkle tree with all priority transactions ever processed.
+    l1_tx_merkle_tree: MiniMerkleTree<L1Tx>,
 }
 
 impl L1Sender {
@@ -27,7 +33,7 @@ impl L1Sender {
     pub fn new(
         zkstack_config: &ZkstackConfig,
         genesis_metadata: L1BatchWithMetadata,
-        provider: Box<dyn Provider>,
+        provider: Arc<dyn Provider + 'static>,
     ) -> (Self, L1SenderHandle) {
         let (command_sender, command_receiver) = mpsc::channel(128);
         let this = Self {
@@ -37,6 +43,11 @@ impl L1Sender {
             command_receiver,
             last_committed_l1_batch: genesis_metadata.clone(),
             last_proved_l1_batch: genesis_metadata,
+            l1_tx_merkle_tree: MiniMerkleTree::<L1Tx>::from_hashes(
+                KeccakHasher,
+                std::iter::empty(),
+                None,
+            ),
         };
         let handle = L1SenderHandle { command_sender };
         (this, handle)
@@ -237,11 +248,21 @@ impl L1Sender {
         }
     }
 
-    async fn execute_fallible(&self, batch: &L1BatchWithMetadata) -> anyhow::Result<H256> {
+    async fn execute_fallible(&mut self, batch: &L1BatchWithMetadata) -> anyhow::Result<H256> {
         // Create a blob sidecar with empty data
         let sidecar = SidecarBuilder::<SimpleCoder>::from_slice(&[]).build()?;
 
-        let call = contracts::execute_batches_shared_bridge_call(self.l2_chain_id, batch);
+        // Push new priority transactions into the Merkle tree
+        for priority_op in &batch.header.priority_ops_onchain_data {
+            self.l1_tx_merkle_tree
+                .push_hash(priority_op.onchain_data_hash);
+        }
+        // Generate execution call based on the batch and the new priority transaction Merkle tree
+        let call = contracts::execute_batches_shared_bridge_call(
+            self.l2_chain_id,
+            batch,
+            &self.l1_tx_merkle_tree,
+        );
 
         let gas_price = self.provider.get_gas_price().await?;
         let eip1559_est = self.provider.estimate_eip1559_fees(None).await?;

@@ -25,6 +25,10 @@ pub mod anvil_zksync {
     pub mod env {
         pub use crate::error::definitions::AnvilEnvironment as AnvilEnvironmentError;
         pub use crate::error::definitions::AnvilEnvironment::GenericError;
+        pub use crate::error::definitions::AnvilEnvironment::InvalidArguments;
+        pub use crate::error::definitions::AnvilEnvironment::LogFileAccessFailed;
+        pub use crate::error::definitions::AnvilEnvironment::LogFileWriteFailed;
+        pub use crate::error::definitions::AnvilEnvironment::ServerStartupFailed;
         pub use crate::error::definitions::AnvilEnvironmentCode as ErrorCode;
         #[macro_export]
         macro_rules ! anvil_zksync_env_generic_error { ($ ($ arg : tt) *) => { zksync_error :: anvil_zksync :: env :: AnvilEnvironmentError :: GenericError { message : format ! ($ ($ arg) *) } } ; }

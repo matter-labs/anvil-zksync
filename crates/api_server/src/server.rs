@@ -57,7 +57,7 @@ impl NodeServerBuilder {
             .unwrap();
         rpc.merge(AnvilNamespace::new(node.clone()).into_rpc())
             .unwrap();
-        rpc.merge(AnvilZksNamespace::new(l1_sidecar).into_rpc())
+        rpc.merge(AnvilZksNamespace::new(l1_sidecar.clone()).into_rpc())
             .unwrap();
         rpc.merge(EvmNamespace::new(node.clone()).into_rpc())
             .unwrap();
@@ -67,7 +67,8 @@ impl NodeServerBuilder {
             .unwrap();
         rpc.merge(ConfigNamespace::new(node.clone()).into_rpc())
             .unwrap();
-        rpc.merge(ZksNamespace::new(node).into_rpc()).unwrap();
+        rpc.merge(ZksNamespace::new(node, l1_sidecar).into_rpc())
+            .unwrap();
         rpc.merge(Web3Namespace.into_rpc()).unwrap();
         rpc
     }

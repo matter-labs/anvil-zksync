@@ -1,20 +1,19 @@
 use super::InMemoryNodeInner;
 use crate::node::fork::ForkConfig;
 use crate::node::inner::fork::{ForkClient, ForkSource};
+use crate::node::inner::vm_runner::VmRunner;
 use crate::node::keys::StorageKeyLayout;
 use crate::node::pool::TxBatch;
-use crate::system_contracts::SystemContracts;
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot, RwLock};
 use url::Url;
-use zksync_multivm::interface::TxExecutionMode;
 use zksync_types::bytecode::BytecodeHash;
 use zksync_types::utils::nonces_to_full_nonce;
 use zksync_types::{get_code_key, u256_to_h256, Address, L2BlockNumber, StorageKey, U256};
 
 pub struct NodeExecutor {
     node_inner: Arc<RwLock<InMemoryNodeInner>>,
-    system_contracts: SystemContracts,
+    vm_runner: VmRunner,
     command_receiver: mpsc::Receiver<Command>,
     storage_key_layout: StorageKeyLayout,
 }
@@ -22,13 +21,13 @@ pub struct NodeExecutor {
 impl NodeExecutor {
     pub fn new(
         node_inner: Arc<RwLock<InMemoryNodeInner>>,
-        system_contracts: SystemContracts,
+        vm_runner: VmRunner,
         storage_key_layout: StorageKeyLayout,
     ) -> (Self, NodeExecutorHandle) {
         let (command_sender, command_receiver) = mpsc::channel(128);
         let this = Self {
             node_inner,
-            system_contracts,
+            vm_runner,
             command_receiver,
             storage_key_layout,
         };
@@ -97,20 +96,18 @@ impl NodeExecutor {
 
 impl NodeExecutor {
     async fn seal_block(
-        &self,
-        TxBatch { impersonating, txs }: TxBatch,
+        &mut self,
+        tx_batch: TxBatch,
         reply: Option<oneshot::Sender<anyhow::Result<L2BlockNumber>>>,
     ) {
-        let base_system_contracts = self
-            .system_contracts
-            .contracts(TxExecutionMode::VerifyExecute, impersonating)
-            .clone();
-        let result = self
-            .node_inner
-            .write()
+        let mut node_inner = self.node_inner.write().await;
+        let tx_batch_execution_result = self
+            .vm_runner
+            .run_tx_batch(tx_batch, &mut node_inner)
             .await
-            .seal_block(txs, base_system_contracts)
-            .await;
+            .unwrap();
+        let result = node_inner.seal_block(tx_batch_execution_result).await;
+        drop(node_inner);
         // Reply to sender if we can, otherwise hold result for further processing
         let result = if let Some(reply) = reply {
             if let Err(result) = reply.send(result) {
@@ -129,7 +126,7 @@ impl NodeExecutor {
     }
 
     async fn seal_blocks(
-        &self,
+        &mut self,
         tx_batches: Vec<TxBatch>,
         interval: u64,
         reply: oneshot::Sender<anyhow::Result<Vec<L2BlockNumber>>>,
@@ -142,17 +139,17 @@ impl NodeExecutor {
             let mut block_numbers = Vec::with_capacity(tx_batches.len());
             // Processing the entire vector is essentially atomic here because `NodeExecutor` is
             // the only component that seals blocks.
-            for (i, TxBatch { txs, impersonating }) in tx_batches.into_iter().enumerate() {
+            for (i, tx_batch) in tx_batches.into_iter().enumerate() {
                 // Enforce provided interval starting from the second block (i.e. first block should
                 // use the existing interval).
                 if i == 1 {
                     node_inner.time.set_block_timestamp_interval(Some(interval));
                 }
-                let base_system_contracts = self
-                    .system_contracts
-                    .contracts(TxExecutionMode::VerifyExecute, impersonating)
-                    .clone();
-                let number = node_inner.seal_block(txs, base_system_contracts).await?;
+                let tx_batch_execution_result = self
+                    .vm_runner
+                    .run_tx_batch(tx_batch, &mut node_inner)
+                    .await?;
+                let number = node_inner.seal_block(tx_batch_execution_result).await?;
                 block_numbers.push(number);
             }
             anyhow::Ok(block_numbers)
@@ -174,7 +171,7 @@ impl NodeExecutor {
         }
     }
 
-    async fn set_code(&self, address: Address, bytecode: Vec<u8>, reply: oneshot::Sender<()>) {
+    async fn set_code(&mut self, address: Address, bytecode: Vec<u8>, reply: oneshot::Sender<()>) {
         let code_key = get_code_key(&address);
         let bytecode_hash = BytecodeHash::for_bytecode(&bytecode).value();
         // TODO: Likely fork_storage can be moved to `NodeExecutor` instead
@@ -190,7 +187,7 @@ impl NodeExecutor {
         }
     }
 
-    async fn set_storage(&self, key: StorageKey, value: U256, reply: oneshot::Sender<()>) {
+    async fn set_storage(&mut self, key: StorageKey, value: U256, reply: oneshot::Sender<()>) {
         // TODO: Likely fork_storage can be moved to `NodeExecutor` instead
         self.node_inner
             .read()
@@ -203,7 +200,7 @@ impl NodeExecutor {
         }
     }
 
-    async fn set_balance(&self, address: Address, balance: U256, reply: oneshot::Sender<()>) {
+    async fn set_balance(&mut self, address: Address, balance: U256, reply: oneshot::Sender<()>) {
         let balance_key = self
             .storage_key_layout
             .get_storage_key_for_base_token(&address);
@@ -219,7 +216,7 @@ impl NodeExecutor {
         }
     }
 
-    async fn set_nonce(&self, address: Address, nonce: U256, reply: oneshot::Sender<()>) {
+    async fn set_nonce(&mut self, address: Address, nonce: U256, reply: oneshot::Sender<()>) {
         let nonce_key = self.storage_key_layout.get_nonce_key(&address);
         let enforced_full_nonce = nonces_to_full_nonce(nonce, nonce);
         // TODO: Likely fork_storage can be moved to `NodeExecutor` instead
@@ -235,7 +232,7 @@ impl NodeExecutor {
     }
 
     async fn reset_fork(
-        &self,
+        &mut self,
         url: Url,
         block_number: Option<L2BlockNumber>,
         reply: oneshot::Sender<anyhow::Result<()>>,
@@ -264,7 +261,7 @@ impl NodeExecutor {
     }
 
     async fn reset_fork_block_number(
-        &self,
+        &mut self,
         block_number: L2BlockNumber,
         reply: oneshot::Sender<anyhow::Result<()>>,
     ) {
@@ -307,7 +304,7 @@ impl NodeExecutor {
         }
     }
 
-    async fn set_fork_url(&self, url: Url, reply: oneshot::Sender<Option<Url>>) {
+    async fn set_fork_url(&mut self, url: Url, reply: oneshot::Sender<Option<Url>>) {
         let node_inner = self.node_inner.write().await;
         let old_url = node_inner.fork.set_fork_url(url);
 
@@ -317,7 +314,7 @@ impl NodeExecutor {
         }
     }
 
-    async fn remove_fork(&self, reply: oneshot::Sender<()>) {
+    async fn remove_fork(&mut self, reply: oneshot::Sender<()>) {
         self.node_inner.write().await.reset(None).await;
 
         // Reply to sender if we can
@@ -326,7 +323,7 @@ impl NodeExecutor {
         }
     }
 
-    async fn increase_time(&self, delta: u64, reply: oneshot::Sender<()>) {
+    async fn increase_time(&mut self, delta: u64, reply: oneshot::Sender<()>) {
         self.node_inner.write().await.time.increase_time(delta);
         // Reply to sender if we can
         if reply.send(()).is_err() {
@@ -335,7 +332,7 @@ impl NodeExecutor {
     }
 
     async fn enforce_next_timestamp(
-        &self,
+        &mut self,
         timestamp: u64,
         reply: oneshot::Sender<anyhow::Result<()>>,
     ) {
@@ -358,7 +355,7 @@ impl NodeExecutor {
         }
     }
 
-    async fn set_current_timestamp(&self, timestamp: u64, reply: oneshot::Sender<i128>) {
+    async fn set_current_timestamp(&mut self, timestamp: u64, reply: oneshot::Sender<i128>) {
         let result = self
             .node_inner
             .write()
@@ -371,7 +368,7 @@ impl NodeExecutor {
         }
     }
 
-    async fn set_timestamp_interval(&self, delta: u64) {
+    async fn set_timestamp_interval(&mut self, delta: u64) {
         self.node_inner
             .write()
             .await
@@ -379,7 +376,7 @@ impl NodeExecutor {
             .set_block_timestamp_interval(Some(delta));
     }
 
-    async fn remove_timestamp_interval(&self, reply: oneshot::Sender<bool>) {
+    async fn remove_timestamp_interval(&mut self, reply: oneshot::Sender<bool>) {
         let result = self
             .node_inner
             .write()

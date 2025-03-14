@@ -1,11 +1,17 @@
 use crate::node::InMemoryNode;
 use anyhow::Context;
 use std::collections::HashMap;
-use zksync_types::api;
+use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::fee::Fee;
-use zksync_types::h256_to_u256;
+use zksync_types::hasher::keccak::KeccakHasher;
+use zksync_types::hasher::Hasher;
+use zksync_types::l2_to_l1_log::{
+    l2_to_l1_logs_tree_size, L2ToL1Log, LOG_PROOF_SUPPORTED_METADATA_VERSION,
+};
 use zksync_types::transaction_request::CallRequest;
 use zksync_types::utils::storage_key_for_standard_token_balance;
+use zksync_types::{api, ProtocolVersionId};
+use zksync_types::{h256_to_u256, L1BatchNumber};
 use zksync_types::{
     AccountTreeId, Address, L2BlockNumber, Transaction, H160, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
@@ -14,6 +20,14 @@ use zksync_web3_decl::error::Web3Error;
 impl InMemoryNode {
     pub async fn estimate_fee_impl(&self, req: CallRequest) -> Result<Fee, Web3Error> {
         self.inner.read().await.estimate_gas_impl(req).await
+    }
+
+    pub async fn estimate_gas_l1_to_l2(&self, req: CallRequest) -> Result<U256, Web3Error> {
+        self.inner
+            .read()
+            .await
+            .estimate_l1_to_l2_gas_impl(req)
+            .await
     }
 
     pub async fn get_raw_block_transactions_impl(
@@ -145,6 +159,77 @@ impl InMemoryNode {
 
     pub async fn get_base_token_l1_address_impl(&self) -> anyhow::Result<Address> {
         Ok(H160::from_low_u64_be(1))
+    }
+
+    pub async fn get_l2_to_l1_log_proof_impl(
+        &self,
+        tx_hash: H256,
+        index: Option<usize>,
+    ) -> anyhow::Result<Option<api::L2ToL1LogProof>> {
+        let Some(tx_receipt) = self.blockchain.get_tx_receipt(&tx_hash).await else {
+            return Ok(None);
+        };
+        let l1_batch_number = L1BatchNumber(tx_receipt.l1_batch_number.expect("").as_u32());
+        let Some(l1_batch) = self.blockchain.get_batch_header(l1_batch_number).await else {
+            return Ok(None);
+        };
+        let all_l1_logs_in_batch = l1_batch
+            .l2_to_l1_logs
+            .into_iter()
+            .map(|log| log.0)
+            .collect::<Vec<_>>();
+        let l1_batch_tx_index = tx_receipt.l1_batch_tx_index.expect("").as_u32() as u16;
+        let log_filter = |log: &L2ToL1Log| log.tx_number_in_block == l1_batch_tx_index;
+        let index_in_filtered_logs = index.unwrap_or(0);
+
+        // Copied from zksync-era
+        let Some((l1_log_index, _)) = all_l1_logs_in_batch
+            .iter()
+            .enumerate()
+            .filter(|(_, log)| log_filter(log))
+            .nth(index_in_filtered_logs)
+        else {
+            return Ok(None);
+        };
+        let merkle_tree_leaves = all_l1_logs_in_batch.iter().map(L2ToL1Log::to_bytes);
+        let tree_size = l2_to_l1_logs_tree_size(ProtocolVersionId::latest());
+
+        let (local_root, proof) = MiniMerkleTree::new(merkle_tree_leaves, Some(tree_size))
+            .merkle_root_and_path(l1_log_index);
+        let Some(aggregated_root) = self
+            .blockchain
+            .get_batch_aggregation_root(l1_batch_number)
+            .await
+        else {
+            return Ok(None);
+        };
+        let root = KeccakHasher.compress(&local_root, &aggregated_root);
+
+        let mut log_leaf_proof = proof;
+        log_leaf_proof.push(aggregated_root);
+
+        let (batch_proof_len, batch_chain_proof, is_final_node) = (0, Vec::<H256>::new(), true);
+
+        let proof = {
+            let mut metadata = [0u8; 32];
+            metadata[0] = LOG_PROOF_SUPPORTED_METADATA_VERSION;
+            metadata[1] = log_leaf_proof.len() as u8;
+            metadata[2] = batch_proof_len as u8;
+            metadata[3] = if is_final_node { 1 } else { 0 };
+
+            let mut result = vec![H256(metadata)];
+
+            result.extend(log_leaf_proof);
+            result.extend(batch_chain_proof);
+
+            result
+        };
+
+        Ok(Some(api::L2ToL1LogProof {
+            proof,
+            root,
+            id: l1_log_index as u32,
+        }))
     }
 }
 

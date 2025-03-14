@@ -557,9 +557,13 @@ impl Cli {
     }
 
     /// Converts the CLI arguments to a `TestNodeConfig`.
-    pub fn into_test_node_config(self) -> eyre::Result<TestNodeConfig> {
-        let genesis_balance = U256::from(self.balance as u128 * 10u128.pow(18));
+    pub fn into_test_node_config(
+        self,
+    ) -> Result<TestNodeConfig, zksync_error::anvil_zksync::env::AnvilEnvironmentError> {
+        // We keep a serialized version of the provided arguments to communicate them later if the arguments were incorrect.
+        let debug_self_repr = format!("{self:#?}");
 
+        let genesis_balance = U256::from(self.balance as u128 * 10u128.pow(18));
         let mut config = TestNodeConfig::default()
             .with_port(self.port)
             .with_offline(if self.offline { Some(true) } else { None })
@@ -627,9 +631,10 @@ impl Cli {
             }));
 
         if self.emulate_evm && self.dev_system_contracts != Some(SystemContractsOptions::Local) {
-            return Err(eyre::eyre!(
-                "EVM emulation requires the 'local' system contracts option."
-            ));
+            return Err(zksync_error::anvil_zksync::env::InvalidArguments {
+                details: "EVM emulation requires the 'local' system contracts option.".into(),
+                arguments: debug_self_repr,
+            });
         }
 
         if self.debug_mode {
