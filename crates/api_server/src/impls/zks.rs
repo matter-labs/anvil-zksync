@@ -44,10 +44,15 @@ impl ZksNamespaceServer for ZksNamespace {
 
     async fn estimate_gas_l1_to_l2(
         &self,
-        _req: CallRequest,
+        req: CallRequest,
+        // TODO: Support
         _state_override: Option<StateOverride>,
     ) -> RpcResult<U256> {
-        Err(RpcError::Unsupported.into())
+        Ok(self
+            .node
+            .estimate_gas_l1_to_l2(req)
+            .await
+            .map_err(RpcError::from)?)
     }
 
     async fn get_bridgehub_contract(&self) -> RpcResult<Option<Address>> {

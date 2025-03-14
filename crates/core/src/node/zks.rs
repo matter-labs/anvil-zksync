@@ -22,6 +22,14 @@ impl InMemoryNode {
         self.inner.read().await.estimate_gas_impl(req).await
     }
 
+    pub async fn estimate_gas_l1_to_l2(&self, req: CallRequest) -> Result<U256, Web3Error> {
+        self.inner
+            .read()
+            .await
+            .estimate_l1_to_l2_gas_impl(req)
+            .await
+    }
+
     pub async fn get_raw_block_transactions_impl(
         &self,
         block_number: L2BlockNumber,

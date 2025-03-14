@@ -64,6 +64,7 @@ use zksync_types::bytecode::BytecodeHash;
 use zksync_types::commitment::{PubdataParams, PubdataType};
 use zksync_types::fee::Fee;
 use zksync_types::fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput};
+use zksync_types::l1::L1Tx;
 use zksync_types::l2::{L2Tx, TransactionType};
 use zksync_types::message_root::{AGG_TREE_HEIGHT_KEY, AGG_TREE_NODES_KEY};
 use zksync_types::transaction_request::CallRequest;
@@ -877,14 +878,6 @@ impl InMemoryNodeInner {
         let is_eip712 = request_with_gas_per_pubdata_overridden
             .eip712_meta
             .is_some();
-        let initiator_address = request_with_gas_per_pubdata_overridden
-            .from
-            .unwrap_or_default();
-        let impersonating = self.impersonation.is_impersonating(&initiator_address);
-        let system_contracts = self
-            .system_contracts
-            .contracts_for_fee_estimate(impersonating)
-            .clone();
 
         let mut l2_tx = L2Tx::from_request(
             request_with_gas_per_pubdata_overridden.into(),
@@ -892,23 +885,6 @@ impl InMemoryNodeInner {
             self.system_contracts.allow_no_target(),
         )
         .map_err(Web3Error::SerializationError)?;
-
-        let tx: Transaction = l2_tx.clone().into();
-
-        let fee_input = {
-            let fee_input = self.fee_input_provider.get_batch_fee_input_scaled();
-            // In order for execution to pass smoothly, we need to ensure that block's required gasPerPubdata will be
-            // <= to the one in the transaction itself.
-            adjust_pubdata_price_for_tx(
-                fee_input,
-                tx.gas_per_pubdata_byte_limit(),
-                None,
-                VmVersion::latest(),
-            )
-        };
-
-        let (base_fee, gas_per_pubdata_byte) =
-            derive_base_fee_and_gas_per_pubdata(fee_input, VmVersion::latest());
 
         // Properly format signature
         if l2_tx.common_data.signature.is_empty() {
@@ -924,13 +900,65 @@ impl InMemoryNodeInner {
 
         l2_tx.common_data.fee.gas_per_pubdata_limit =
             get_max_gas_per_pubdata_byte(VmVersion::latest()).into();
-        l2_tx.common_data.fee.max_fee_per_gas = base_fee.into();
-        l2_tx.common_data.fee.max_priority_fee_per_gas = base_fee.into();
+
+        self.estimate_gas_inner(l2_tx.into()).await
+    }
+
+    pub async fn estimate_l1_to_l2_gas_impl(&self, req: CallRequest) -> Result<U256, Web3Error> {
+        let mut request_with_gas_per_pubdata_overridden = req;
+
+        if let Some(ref mut eip712_meta) = request_with_gas_per_pubdata_overridden.eip712_meta {
+            if eip712_meta.gas_per_pubdata == U256::zero() {
+                eip712_meta.gas_per_pubdata =
+                    get_max_gas_per_pubdata_byte(VmVersion::latest()).into();
+            }
+        }
+
+        let l1_tx = L1Tx::from_request(
+            request_with_gas_per_pubdata_overridden,
+            self.system_contracts.allow_no_target(),
+        )
+        .map_err(Web3Error::SerializationError)?;
+
+        Ok(self.estimate_gas_inner(l1_tx.into()).await?.gas_limit)
+    }
+
+    async fn estimate_gas_inner(&self, mut tx: Transaction) -> Result<Fee, Web3Error> {
+        let fee_input = {
+            let fee_input = self.fee_input_provider.get_batch_fee_input_scaled();
+            // In order for execution to pass smoothly, we need to ensure that block's required gasPerPubdata will be
+            // <= to the one in the transaction itself.
+            adjust_pubdata_price_for_tx(
+                fee_input,
+                tx.gas_per_pubdata_byte_limit(),
+                None,
+                VmVersion::latest(),
+            )
+        };
+
+        let (base_fee, gas_per_pubdata_byte) =
+            derive_base_fee_and_gas_per_pubdata(fee_input, VmVersion::latest());
+        match &mut tx.common_data {
+            ExecuteTransactionCommon::L1(l1_common_data) => {
+                l1_common_data.max_fee_per_gas = base_fee.into();
+            }
+            ExecuteTransactionCommon::L2(l2_common_data) => {
+                l2_common_data.fee.max_fee_per_gas = base_fee.into();
+                l2_common_data.fee.max_priority_fee_per_gas = base_fee.into();
+            }
+            ExecuteTransactionCommon::ProtocolUpgrade(_) => unimplemented!(),
+        }
 
         let execution_mode = TxExecutionMode::EstimateFee;
         let (mut batch_env, _) = self.create_l1_batch_env().await;
         batch_env.fee_input = fee_input;
 
+        let initiator_address = tx.initiator_account();
+        let impersonating = self.impersonation.is_impersonating(&initiator_address);
+        let system_contracts = self
+            .system_contracts
+            .contracts_for_fee_estimate(impersonating)
+            .clone();
         let system_env = self.create_system_env(system_contracts, execution_mode);
 
         // When the pubdata cost grows very high, the total gas limit required may become very high as well. If
@@ -950,7 +978,7 @@ impl InMemoryNodeInner {
             // In theory, if the transaction has failed with such large gas limit, we could have returned an API error here right away,
             // but doing it later on keeps the code more lean.
             let result = self.estimate_gas_step(
-                l2_tx.clone(),
+                tx.clone(),
                 gas_per_pubdata_byte,
                 BATCH_GAS_LIMIT,
                 batch_env.clone(),
@@ -988,7 +1016,7 @@ impl InMemoryNodeInner {
             let try_gas_limit = additional_gas_for_pubdata + mid;
 
             let estimate_gas_result = self.estimate_gas_step(
-                l2_tx.clone(),
+                tx.clone(),
                 gas_per_pubdata_byte,
                 try_gas_limit,
                 batch_env.clone(),
@@ -1020,7 +1048,7 @@ impl InMemoryNodeInner {
             as u64;
 
         let estimate_gas_result = self.estimate_gas_step(
-            l2_tx.clone(),
+            tx.clone(),
             gas_per_pubdata_byte,
             suggested_gas_limit,
             batch_env,
@@ -1033,7 +1061,7 @@ impl InMemoryNodeInner {
             suggested_gas_limit,
             gas_per_pubdata_byte as u32,
             tx.encoding_len(),
-            l2_tx.common_data.transaction_type as u8,
+            tx.tx_format() as u8,
             VmVersion::latest(),
         ) as u64;
 
@@ -1135,7 +1163,7 @@ impl InMemoryNodeInner {
     #[allow(clippy::too_many_arguments)]
     fn estimate_gas_step(
         &self,
-        mut l2_tx: L2Tx,
+        mut tx: Transaction,
         gas_per_pubdata_byte: u64,
         tx_gas_limit: u64,
         batch_env: L1BatchEnv,
@@ -1143,44 +1171,70 @@ impl InMemoryNodeInner {
         fork_storage: &ForkStorage,
         is_zkos: bool,
     ) -> VmExecutionResultAndLogs {
-        let tx: Transaction = l2_tx.clone().into();
-
         // Set gas_limit for transaction
         let gas_limit_with_overhead = tx_gas_limit
             + derive_overhead(
                 tx_gas_limit,
                 gas_per_pubdata_byte as u32,
                 tx.encoding_len(),
-                l2_tx.common_data.transaction_type as u8,
+                tx.tx_format() as u8,
                 VmVersion::latest(),
             ) as u64;
-        l2_tx.common_data.fee.gas_limit = gas_limit_with_overhead.into();
+        match &mut tx.common_data {
+            ExecuteTransactionCommon::L1(l1_common_data) => {
+                l1_common_data.gas_limit = gas_limit_with_overhead.into();
+                // Since `tx.execute.value` is supplied by the client and is not checked against the current balance (unlike for L2 transactions),
+                // we may hit an integer overflow. Ditto for protocol upgrade transactions below.
+                let required_funds = (l1_common_data.gas_limit * l1_common_data.max_fee_per_gas)
+                    .checked_add(tx.execute.value)
+                    .unwrap();
+                l1_common_data.to_mint = required_funds;
+            }
+            ExecuteTransactionCommon::L2(l2_common_data) => {
+                l2_common_data.fee.gas_limit = gas_limit_with_overhead.into();
+            }
+            ExecuteTransactionCommon::ProtocolUpgrade(_) => unimplemented!(),
+        }
 
         let storage = StorageView::new(fork_storage).into_rc_ptr();
 
         // The nonce needs to be updated
-        let nonce = l2_tx.nonce();
         let nonce_key = self
             .storage_key_layout
-            .get_nonce_key(&l2_tx.initiator_account());
-        let full_nonce = storage.borrow_mut().read_value(&nonce_key);
-        let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
-        let enforced_full_nonce = nonces_to_full_nonce(U256::from(nonce.0), deployment_nonce);
-        storage
-            .borrow_mut()
-            .set_value(nonce_key, u256_to_h256(enforced_full_nonce));
+            .get_nonce_key(&tx.initiator_account());
+        if let Some(nonce) = tx.nonce() {
+            let full_nonce = storage.borrow_mut().read_value(&nonce_key);
+            let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
+            let enforced_full_nonce = nonces_to_full_nonce(U256::from(nonce.0), deployment_nonce);
+            storage
+                .borrow_mut()
+                .set_value(nonce_key, u256_to_h256(enforced_full_nonce));
+        }
 
         // We need to explicitly put enough balance into the account of the users
-        let payer = l2_tx.payer();
+        let payer = tx.payer();
         let balance_key = self
             .storage_key_layout
             .get_storage_key_for_base_token(&payer);
         let mut current_balance = h256_to_u256(storage.borrow_mut().read_value(&balance_key));
-        let added_balance = l2_tx.common_data.fee.gas_limit * l2_tx.common_data.fee.max_fee_per_gas;
-        current_balance += added_balance;
-        storage
-            .borrow_mut()
-            .set_value(balance_key, u256_to_h256(current_balance));
+        match &mut tx.common_data {
+            ExecuteTransactionCommon::L1(l1_common_data) => {
+                let added_balance = l1_common_data.gas_limit * l1_common_data.max_fee_per_gas;
+                current_balance += added_balance;
+                storage
+                    .borrow_mut()
+                    .set_value(balance_key, u256_to_h256(current_balance));
+            }
+            ExecuteTransactionCommon::L2(l2_common_data) => {
+                let added_balance =
+                    l2_common_data.fee.gas_limit * l2_common_data.fee.max_fee_per_gas;
+                current_balance += added_balance;
+                storage
+                    .borrow_mut()
+                    .set_value(balance_key, u256_to_h256(current_balance));
+            }
+            ExecuteTransactionCommon::ProtocolUpgrade(_) => unimplemented!(),
+        }
 
         let mut vm = if is_zkos {
             let mut vm = ZKOsVM::<_, HistoryDisabled>::new(
@@ -1198,7 +1252,6 @@ impl InMemoryNodeInner {
             AnvilVM::ZKSync(Vm::new(batch_env, system_env, storage))
         };
 
-        let tx: Transaction = l2_tx.into();
         delegate_vm!(vm, push_transaction(tx));
 
         delegate_vm!(vm, execute(InspectExecutionMode::OneTx))
