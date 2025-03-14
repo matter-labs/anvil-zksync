@@ -259,20 +259,20 @@ impl CustomErrorMessage for AnvilGeneric {
 #[non_exhaustive]
 pub enum AnvilNode {
     TransactionValidationFailedGasLimit {
-        transaction_hash: zksync_types::H256,
-        tx_gas_limit: zksync_types::U256,
-        tx_gas_per_pubdata_limit: zksync_types::U256,
-        max_gas: zksync_types::U256,
+        transaction_hash: zksync_basic_types::H256,
+        tx_gas_limit: zksync_basic_types::U256,
+        tx_gas_per_pubdata_limit: zksync_basic_types::U256,
+        max_gas: zksync_basic_types::U256,
     } = 1u32,
     TransactionValidationFailedMaxFeePerGasTooLow {
-        max_fee_per_gas: zksync_types::U256,
-        transaction_hash: zksync_types::H256,
-        l2_gas_price: zksync_types::U256,
+        max_fee_per_gas: zksync_basic_types::U256,
+        transaction_hash: zksync_basic_types::H256,
+        l2_gas_price: zksync_basic_types::U256,
     } = 2u32,
     MaxPriorityFeeGreaterThanMaxFee {
-        max_fee_per_gas: zksync_types::U256,
-        max_priority_fee_per_gas: zksync_types::U256,
-        transaction_hash: zksync_types::H256,
+        max_fee_per_gas: zksync_basic_types::U256,
+        max_priority_fee_per_gas: zksync_basic_types::U256,
+        transaction_hash: zksync_basic_types::H256,
     } = 3u32,
     TransactionHalt {
         inner: Box<Halt>,
