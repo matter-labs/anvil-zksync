@@ -34,6 +34,8 @@ use std::io::{Read, Write};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
+use zksync_error::anvil_zksync;
+use zksync_error::anvil_zksync::node::AnvilNodeError;
 use zksync_multivm::interface::storage::{ReadStorage, StoragePtr};
 use zksync_multivm::interface::VmFactory;
 use zksync_multivm::interface::{
@@ -317,7 +319,7 @@ impl InMemoryNode {
         &self,
         txs: Vec<Transaction>,
         max_transactions: usize,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), AnvilNodeError> {
         tracing::debug!(count = txs.len(), "applying transactions");
 
         // Create a temporary tx pool (i.e. state is not shared with the node mempool).
@@ -361,7 +363,9 @@ impl InMemoryNode {
                 .difference(&actual_tx_hashes)
                 .collect::<Vec<_>>();
             if !diff_tx_hashes.is_empty() {
-                anyhow::bail!("Failed to apply some transactions: {:?}", diff_tx_hashes);
+                return Err(anvil_zksync::node::TransactionFailed {
+                    failed_transactions_hashes: format!("{diff_tx_hashes:?}"),
+                });
             }
         }
 

@@ -37,6 +37,8 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
+use zksync_error::anvil_zksync;
+use zksync_error::anvil_zksync::node::AnvilNodeError;
 use zksync_error::anvil_zksync::{halt::HaltError, revert::RevertError};
 use zksync_multivm::interface::storage::{ReadStorage, WriteStorage};
 use zksync_multivm::interface::{
@@ -292,10 +294,15 @@ impl InMemoryNodeInner {
     }
 
     /// Validates L2 transaction
-    fn validate_tx(&self, tx_hash: H256, tx_data: &L2TxCommonData) -> anyhow::Result<()> {
+    fn validate_tx(&self, tx_hash: H256, tx_data: &L2TxCommonData) -> Result<(), AnvilNodeError> {
         let max_gas = U256::from(u64::MAX);
         if tx_data.fee.gas_limit > max_gas || tx_data.fee.gas_per_pubdata_limit > max_gas {
-            anyhow::bail!("exceeds block gas limit");
+            return Err(anvil_zksync::node::TransactionValidationFailedGasLimit {
+                transaction_hash: tx_hash,
+                tx_gas_limit: tx_data.fee.gas_limit,
+                tx_gas_per_pubdata_limit: tx_data.fee.gas_per_pubdata_limit,
+                max_gas,
+            });
         }
 
         let l2_gas_price = self.fee_input_provider.gas_price();
@@ -305,7 +312,13 @@ impl InMemoryNodeInner {
                 tx_hash,
                 tx_data.fee.max_fee_per_gas
             );
-            anyhow::bail!("block base fee higher than max fee per gas");
+            let error = anvil_zksync::node::TransactionValidationFailedMaxFeePerGasTooLow {
+                max_fee_per_gas: tx_data.fee.max_fee_per_gas,
+                transaction_hash: tx_hash,
+                l2_gas_price: l2_gas_price.into(),
+            };
+            sh_eprintln!("{error}");
+            return Err(error);
         }
 
         if tx_data.fee.max_fee_per_gas < tx_data.fee.max_priority_fee_per_gas {
@@ -314,7 +327,11 @@ impl InMemoryNodeInner {
                 tx_hash,
                 tx_data.fee.max_fee_per_gas
             );
-            anyhow::bail!("max priority fee per gas higher than max fee per gas");
+            return Err(anvil_zksync::node::MaxPriorityFeeGreaterThanMaxFee {
+                max_fee_per_gas: tx_data.fee.max_fee_per_gas,
+                max_priority_fee_per_gas: tx_data.fee.max_priority_fee_per_gas,
+                transaction_hash: tx_hash,
+            });
         }
         Ok(())
     }
@@ -465,7 +482,7 @@ impl InMemoryNodeInner {
         block_ctx: &BlockContext,
         batch_env: &L1BatchEnv,
         vm: &mut VM,
-    ) -> anyhow::Result<TransactionResult>
+    ) -> Result<TransactionResult, AnvilNodeError>
     where
         <VM as VmInterface>::TracerDispatcher: From<Vec<TracerPointer<W, H>>>,
     {
@@ -499,7 +516,9 @@ impl InMemoryNodeInner {
             // In such cases, we should not persist the VM data and should pretend that
             // the transaction never existed.
             // We do not print the error here, as it was already printed above.
-            anyhow::bail!("Transaction halted due to critical error");
+            return Err(anvil_zksync::node::TransactionHalt {
+                inner: Box::new(halt_error),
+            });
         }
 
         // Write all the factory deps.
@@ -723,16 +742,17 @@ impl InMemoryNodeInner {
         &mut self,
         txs: Vec<Transaction>,
         system_contracts: BaseSystemContracts,
-    ) -> anyhow::Result<L2BlockNumber> {
+    ) -> Result<L2BlockNumber, AnvilNodeError> {
         let base_system_contracts_hashes = system_contracts.hashes();
         // Prepare a new block context and a new batch env
         let system_env = self.create_system_env(system_contracts, TxExecutionMode::VerifyExecute);
         let (batch_env, mut block_ctx) = self.create_l1_batch_env().await;
         // Advance clock as we are consuming next timestamp for this block
-        anyhow::ensure!(
-            self.time.advance_timestamp() == block_ctx.timestamp,
-            "advancing clock produced different timestamp than expected"
-        );
+        if self.time.advance_timestamp() != block_ctx.timestamp {
+            return Err(anvil_zksync::node::generic_error!(
+                "advancing clock produced different timestamp than expected"
+            ));
+        };
 
         let (tx_results, finished_l1_batch) =
             self.run_txs(txs, batch_env.clone(), system_env, &mut block_ctx);
@@ -1258,14 +1278,12 @@ impl InMemoryNodeInner {
     }
 
     /// Creates a [Snapshot] of the current state of the node.
-    pub async fn snapshot(&self) -> Result<Snapshot, String> {
+    pub async fn snapshot(&self) -> Result<Snapshot, AnvilNodeError> {
         let blockchain = self.blockchain.read().await;
         let filters = self.filters.read().await.clone();
-        let storage = self
-            .fork_storage
-            .inner
-            .read()
-            .map_err(|err| format!("failed acquiring read lock on storage: {:?}", err))?;
+        let storage = self.fork_storage.inner.read().map_err(|err| {
+            anvil_zksync::node::generic_error!("failed acquiring read lock on storage: {err:?}")
+        })?;
 
         Ok(Snapshot {
             current_batch: blockchain.current_batch,
@@ -1286,13 +1304,11 @@ impl InMemoryNodeInner {
     }
 
     /// Restores a previously created [Snapshot] of the node.
-    pub async fn restore_snapshot(&mut self, snapshot: Snapshot) -> Result<(), String> {
+    pub async fn restore_snapshot(&mut self, snapshot: Snapshot) -> Result<(), AnvilNodeError> {
         let mut blockchain = self.blockchain.write().await;
-        let mut storage = self
-            .fork_storage
-            .inner
-            .write()
-            .map_err(|err| format!("failed acquiring write lock on storage: {:?}", err))?;
+        let mut storage = self.fork_storage.inner.write().map_err(|err| {
+            anvil_zksync::node::generic_error!("failed acquiring write lock on storage: {err:?}")
+        })?;
 
         blockchain.current_batch = snapshot.current_batch;
         blockchain.current_block = snapshot.current_block;

@@ -321,10 +321,9 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
     // during replay. Otherwise, replay would send commands and hang.
     tokio::spawn(async move {
         if let Err(err) = node_executor.run().await {
-            let error = err.context("Node executor ended with error");
-            sh_err!("{:?}", error);
+            sh_err!("{err}");
 
-            let _ = telemetry.track_error(Box::new(error.as_ref())).await;
+            let _ = telemetry.track_error(Box::new(&err)).await;
         }
     });
 

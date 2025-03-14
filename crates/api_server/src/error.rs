@@ -1,5 +1,6 @@
 use anvil_zksync_core::node::error::LoadStateError;
 use jsonrpsee::types::{ErrorCode, ErrorObjectOwned};
+use zksync_error::anvil_zksync::node::AnvilNodeError;
 use zksync_web3_decl::error::Web3Error;
 
 #[derive(thiserror::Error, Debug)]
@@ -10,6 +11,8 @@ pub enum RpcError {
     Unsupported,
     #[error("{0}")]
     Web3Error(#[from] Web3Error),
+    #[error("{0}")]
+    NodeError(#[from] AnvilNodeError),
     // TODO: Shouldn't exist once we create a proper error hierarchy
     #[error("internal error: {0}")]
     Other(#[from] anyhow::Error),
@@ -29,6 +32,7 @@ impl From<RpcError> for ErrorObjectOwned {
             RpcError::Unsupported => unsupported(),
             RpcError::Web3Error(error) => into_jsrpc_error(error),
             RpcError::Other(error) => internal(error.to_string()),
+            RpcError::NodeError(error) => internal(error.to_string()),
         }
     }
 }
