@@ -36,12 +36,13 @@ categories = ["cryptography"]
 zksync_mini_merkle_tree = { git = "https://github.com/matter-labs/zksync-era", rev = "7a3fea5ebb8e90cedff749a45f3b78538443b3d6" }
 zksync_multivm = { git = "https://github.com/matter-labs/zksync-era", rev = "7a3fea5ebb8e90cedff749a45f3b78538443b3d6" }
 zksync_contracts = { git = "https://github.com/matter-labs/zksync-era", rev = "7a3fea5ebb8e90cedff749a45f3b78538443b3d6" }
+zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era", rev = "7a3fea5ebb8e90cedff749a45f3b78538443b3d6" }
 zksync_types = { git = "https://github.com/matter-labs/zksync-era", rev = "7a3fea5ebb8e90cedff749a45f3b78538443b3d6" }
 zksync_vm_interface = { git = "https://github.com/matter-labs/zksync-era", rev = "7a3fea5ebb8e90cedff749a45f3b78538443b3d6" }
 zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era", rev = "7a3fea5ebb8e90cedff749a45f3b78538443b3d6" }
 zksync_telemetry = { git = "https://github.com/matter-labs/zksync-telemetry.git", rev = "d5c35951843263765079545c31c908dcbaab1f30" }
-zksync-error-codegen = { git = "https://github.com/matter-labs/zksync-error", rev = "76e8e471b048461d2754092fa159c87a47db5972", default-features = false }
-zksync-error-description = { git = "https://github.com/matter-labs/zksync-error", rev = "76e8e471b048461d2754092fa159c87a47db5972" }
+zksync-error-codegen = { git = "https://github.com/matter-labs/zksync-error", rev = "a05b0f540715b92a1a9044a7abc4c4855b911ca5", default-features = false }
+zksync-error-description = { git = "https://github.com/matter-labs/zksync-error", rev = "a05b0f540715b92a1a9044a7abc4c4855b911ca5" }
 
 #########################
 # External dependencies #
@@ -110,3 +111,6 @@ anvil_zksync_l1_sidecar = { path = "crates/l1_sidecar" }
 anvil_zksync_types = { path = "crates/types" }
 anvil_zksync_common = { path = "crates/common" }
 zksync_error = { path = "crates/zksync_error" }
+
+[patch."https://github.com/matter-labs/zksync-error"]
+zksync-error-codegen = { path = "../devex/zksync-error/crates/zksync-error-codegen" }

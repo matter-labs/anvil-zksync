@@ -780,6 +780,109 @@
               }
             }
           ]
+        },
+        {
+          "component_name": "AnvilNode",
+          "component_code": 10,
+          "identifier_encoding": "node",
+          "errors" : [
+            {
+              "name": "TransactionValidationFailedGasLimit",
+              "code": 1,
+              "message": "",
+              "fields": [
+                {
+                  "name": "transaction_hash",
+                  "type": "H256"
+                },
+                {
+                  "name": "tx_gas_limit",
+                  "type": "U256"
+                },
+                {
+                  "name": "tx_gas_per_pubdata_limit",
+                  "type": "U256"
+                },
+                {
+                  "name": "max_gas",
+                  "type": "U256"
+                }
+              ]
+            },
+            {
+              "name": "TransactionValidationFailedMaxFeePerGasTooLow",
+              "code": 2,
+              "message": "",
+              "fields": [
+                {
+                  "name": "max_fee_per_gas",
+                  "type": "U256"
+                },
+                {
+                  "name": "transaction_hash",
+                  "type": "H256"
+                },
+                {
+                  "name": "l2_gas_price",
+                  "type": "U256"
+                }
+              ]
+            },
+            {
+              "name": "MaxPriorityFeeGreaterThanMaxFee",
+              "code": 3,
+              "message": "",
+              "fields": [
+                {
+                  "name": "max_fee_per_gas",
+                  "type": "U256"
+                },
+                {
+                  "name": "max_priority_fee_per_gas",
+                  "type": "U256"
+                },
+                {
+                  "name": "transaction_hash",
+                  "type": "H256"
+                }
+              ]
+            },
+            {
+              "name": "TransactionHalt",
+              "code": 10,
+              "message": "",
+              "fields": [
+                {
+                  "name": "inner",
+                  "type": "Halt"
+                }
+              ]
+            },
+            {
+              "name": "TransactionFailed",
+              "code": 11,
+              "message": "",
+              "fields": [
+                {
+                  "name": "failed_transactions_hashes",
+                  "type": "string"
+                }
+              ]
+            },
+            {
+              "name": "SealingBlockFailed",
+              "code": 21,
+              "message": "",
+              "fields": [
+                {
+                  "name": "block_transactions_hashes",
+                  "type": "string"
+                }
+              ]
+            }
+
+
+          ]
         }
       ]
     }
