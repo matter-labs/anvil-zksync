@@ -118,6 +118,10 @@ impl L1Watcher {
 
         let next_expected_priority_id = last.serial_id().next();
         for tx in new_txs {
+            tracing::debug!(
+                hash = ?tx.hash(),
+                "adding new priority transaction to mempool",
+            );
             self.pool.add_tx(tx.into());
         }
         self.next_expected_priority_id = next_expected_priority_id;
