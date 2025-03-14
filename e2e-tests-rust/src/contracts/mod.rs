@@ -1,8 +1,9 @@
 use alloy::contract::SolCallBuilder;
-use alloy::network::Ethereum;
+use alloy::network::{Ethereum, TransactionBuilder};
 use alloy::primitives::{address, Address, Bytes, ChainId, FixedBytes, U256};
-use alloy::providers::Provider;
+use alloy::providers::{PendingTransactionBuilder, Provider};
 use alloy::transports::Transport;
+use alloy_zksync::network::transaction_request::TransactionRequest;
 use alloy_zksync::network::Zksync;
 use alloy_zksync::provider::ZksyncProvider;
 use anyhow::Context;
@@ -21,6 +22,8 @@ mod private {
         IBridgehub,
         "src/contracts/artifacts/IBridgehub.json"
     );
+
+    alloy::sol!(IMailbox, "src/contracts/artifacts/IMailbox.json");
 }
 
 const L1_MESSENGER_ADDRESS: Address = address!("0000000000000000000000000000000000008008");
@@ -88,5 +91,82 @@ impl<T: Transport + Clone, P: Provider<T, Ethereum>> Bridgehub<T, P> {
             msg,
             proof,
         )
+    }
+
+    // TODO: Port logic to alloy-zksync
+    /// Requests execution of an L2 transaction from L1.
+    pub async fn request_execute<T2: Transport + Clone>(
+        &self,
+        l2_provider: &impl Provider<T2, Zksync>,
+        tx: TransactionRequest,
+    ) -> anyhow::Result<PendingTransactionBuilder<T2, Zksync>> {
+        let max_fee_per_gas = tx.max_fee_per_gas().unwrap();
+        let max_priority_fee_per_gas = tx.max_priority_fee_per_gas().unwrap_or(0);
+        let gas_per_pubdata_byte_limit = tx.gas_per_pubdata().unwrap_or(U256::from(800));
+        let l2_value = tx.value().unwrap_or(U256::from(0));
+        let to = tx.to().unwrap();
+        let from = tx.from().unwrap();
+        let calldata = tx.input().cloned().unwrap_or(Bytes::new());
+        let factory_deps = tx.factory_deps().cloned().unwrap_or(vec![]);
+
+        let gas_limit = l2_provider.estimate_gas_l1_to_l2(tx).await?;
+        let base_cost = self
+            .instance
+            .l2TransactionBaseCost(
+                U256::from(self.chain_id),
+                U256::from(max_fee_per_gas),
+                gas_limit,
+                gas_per_pubdata_byte_limit,
+            )
+            .call()
+            .await?
+            ._0;
+        // Assuming no operator tip for now
+        let operator_tip = U256::from(0);
+        let l2_costs = base_cost + operator_tip + l2_value;
+        let request = private::IBridgehub::L2TransactionRequestDirect {
+            chainId: U256::from(self.chain_id),
+            mintValue: l2_costs,
+            l2Contract: to,
+            l2Value: l2_value,
+            l2Calldata: calldata,
+            l2GasLimit: gas_limit,
+            l2GasPerPubdataByteLimit: gas_per_pubdata_byte_limit,
+            factoryDeps: factory_deps,
+            refundRecipient: from,
+        };
+        let l1_value = base_cost + l2_value;
+        let l1_tx = self
+            .instance
+            .requestL2TransactionDirect(request)
+            .from(from)
+            .value(l1_value)
+            .max_fee_per_gas(max_fee_per_gas)
+            .max_priority_fee_per_gas(max_priority_fee_per_gas)
+            .into_transaction_request();
+        let l1_tx_receipt = self
+            .instance
+            .provider()
+            .send_transaction(l1_tx)
+            .await?
+            .get_receipt()
+            .await?;
+        let l2_tx_hash = l1_tx_receipt
+            .inner
+            .logs()
+            .iter()
+            .find_map(|log| {
+                // TODO: Check that the log came from diamond proxy
+                if let Ok(request) = log.log_decode::<private::IMailbox::NewPriorityRequest>() {
+                    Some(request.inner.data.txHash)
+                } else {
+                    None
+                }
+            })
+            .context("NewPriorityRequest event log was not found in L1 -> L2 transaction")?;
+        Ok(PendingTransactionBuilder::new(
+            l2_provider.root().clone(),
+            l2_tx_hash,
+        ))
     }
 }

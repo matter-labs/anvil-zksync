@@ -1,15 +1,17 @@
-use alloy::network::{Ethereum, ReceiptResponse};
-use alloy::primitives::B256;
+use alloy::network::{Ethereum, ReceiptResponse, TransactionBuilder};
+use alloy::primitives::{Address, B256, U256};
 use alloy::providers::{Provider, ProviderBuilder, WalletProvider};
 use alloy::transports::{BoxTransport, Transport};
 use alloy_zksync::network::receipt_response::ReceiptResponse as ZkReceiptResponse;
 use alloy_zksync::provider::ZksyncProvider;
 use anvil_zksync_e2e_tests::contracts::{Bridgehub, L1Messenger, L2Message};
+use anvil_zksync_e2e_tests::test_contracts::Counter;
 use anvil_zksync_e2e_tests::{
     init_testing_provider, AnvilZKsyncApi, FullZksyncProvider, LockedPort, ReceiptExt,
     TestingProvider,
 };
 use anyhow::Context;
+use std::str::FromStr;
 
 async fn init_l1_provider<P: FullZksyncProvider<T> + 'static, T: Transport + Clone>(
     l2_provider: &TestingProvider<P, T>,
@@ -260,6 +262,43 @@ async fn send_l2_to_l1_message() -> anyhow::Result<()> {
     );
     let (is_included,) = fake_prove_inclusion_call.call().await?.into();
     assert!(!is_included);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn l1_priority_tx() -> anyhow::Result<()> {
+    let l1_locked_port = LockedPort::acquire_unused().await?;
+
+    let l1_port = l1_locked_port.port.to_string();
+    let l2_provider = init_testing_provider(move |node| {
+        node.args(["--log", "debug", "--with-l1", "--l1-port", l1_port.as_str()])
+    })
+    .await?;
+    let l1_provider = init_l1_provider(&l2_provider, l1_locked_port.port).await?;
+
+    // Deploy `Counter` contract and validate that it is initialized with `0`
+    let counter = Counter::deploy(l2_provider.clone()).await?;
+    assert_eq!(counter.get().await?, U256::from(0));
+
+    // Prepare a transaction from a rich account that will increment `Counter` by 1
+    let alice = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")?;
+    let eip1559_est = l1_provider.estimate_eip1559_fees(None).await?;
+    let tx = counter
+        .increment(1)
+        .into_transaction_request()
+        .with_from(alice)
+        .with_max_fee_per_gas(eip1559_est.max_fee_per_gas);
+
+    // But submit it as an L1 transaction through Bridgehub
+    let bridgehub = Bridgehub::new(l1_provider.clone(), &l2_provider).await?;
+    bridgehub
+        .request_execute(&l2_provider, tx.clone())
+        .await?
+        .watch()
+        .await?;
+    // Validate that the counter was increased
+    assert_eq!(counter.get().await?, U256::from(1));
 
     Ok(())
 }
