@@ -1,10 +1,11 @@
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use zksync_multivm::{
     interface::tracer::VmExecutionStopReason, tracers::dynamic::vm_1_5_0::DynTracer,
+    IntoOldVmTracer,
 };
 
-use once_cell::sync::OnceCell;
 use zksync_multivm::interface::storage::WriteStorage;
+use zksync_multivm::tracers::old::OldTracers;
 use zksync_multivm::vm_latest::{
     constants::BOOTLOADER_HEAP_PAGE, BootloaderState, HistoryMode, SimpleMemory, VmTracer,
     ZkSyncVmState,
@@ -77,8 +78,15 @@ pub struct BootloaderDebug {
 
 /// The role of this tracer is to read the memory slots directly from bootloader memory at
 /// the end of VM execution - and put them into BootloaderDebug object.
+#[derive(Debug, Clone)]
 pub struct BootloaderDebugTracer {
-    pub result: Arc<OnceCell<eyre::Result<BootloaderDebug, String>>>,
+    pub result: Arc<RwLock<Result<BootloaderDebug, String>>>,
+}
+
+impl BootloaderDebugTracer {
+    pub fn new(result: Arc<RwLock<Result<BootloaderDebug, String>>>) -> Self {
+        Self { result }
+    }
 }
 
 impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for BootloaderDebugTracer {}
@@ -96,16 +104,12 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for BootloaderDebugTracer {
         _bootloader_state: &BootloaderState,
         _stop_reason: VmExecutionStopReason,
     ) {
-        self.result
-            .set(BootloaderDebug::load_from_memory(&state.memory))
-            .unwrap();
+        *self.result.write().unwrap() = BootloaderDebug::load_from_memory(&state.memory);
     }
 }
 
 impl BootloaderDebug {
-    pub fn load_from_memory<H: HistoryMode>(
-        memory: &SimpleMemory<H>,
-    ) -> eyre::Result<Self, String> {
+    pub fn load_from_memory<H: HistoryMode>(memory: &SimpleMemory<H>) -> Result<Self, String> {
         if load_debug_slot(memory, 0) != U256::from(DEBUG_START_SENTINEL) {
             Err(
                 "Debug slot has wrong value. Probably bootloader slot mapping has changed."
@@ -129,5 +133,124 @@ impl BootloaderDebug {
                 overhead_for_slot: load_debug_slot(memory, 14),
             })
         }
+    }
+}
+
+//
+// The rest of the file contains stub tracer implementations for older VM versions.
+// Reasoning: `BootloaderDebugTracer` needs to implement `MultiVmTracer` to be compatible with era
+// abstractions such as `BatchExecutor` and `BatchExecutorFactory`.
+//
+
+impl<S, H: zksync_multivm::vm_1_4_1::HistoryMode>
+    zksync_multivm::tracers::dynamic::vm_1_4_1::DynTracer<
+        S,
+        zksync_multivm::vm_1_4_1::SimpleMemory<H>,
+    > for BootloaderDebugTracer
+{
+}
+
+impl<S: WriteStorage, H: zksync_multivm::vm_1_4_1::HistoryMode>
+    zksync_multivm::vm_1_4_1::VmTracer<S, H> for BootloaderDebugTracer
+{
+    fn after_vm_execution(
+        &mut self,
+        _state: &mut zksync_multivm::vm_1_4_1::ZkSyncVmState<S, H>,
+        _bootloader_state: &zksync_multivm::vm_1_4_1::BootloaderState,
+        _stop_reason: VmExecutionStopReason,
+    ) {
+        todo!()
+    }
+}
+
+impl<S, H: zksync_multivm::vm_1_4_2::HistoryMode>
+    zksync_multivm::tracers::dynamic::vm_1_4_1::DynTracer<
+        S,
+        zksync_multivm::vm_1_4_2::SimpleMemory<H>,
+    > for BootloaderDebugTracer
+{
+}
+
+impl<S: WriteStorage, H: zksync_multivm::vm_1_4_2::HistoryMode>
+    zksync_multivm::vm_1_4_2::VmTracer<S, H> for BootloaderDebugTracer
+{
+    fn after_vm_execution(
+        &mut self,
+        _state: &mut zksync_multivm::vm_1_4_2::ZkSyncVmState<S, H>,
+        _bootloader_state: &zksync_multivm::vm_1_4_2::BootloaderState,
+        _stop_reason: VmExecutionStopReason,
+    ) {
+        todo!()
+    }
+}
+
+impl<S: WriteStorage, H: zksync_multivm::vm_boojum_integration::HistoryMode>
+    zksync_multivm::tracers::dynamic::vm_1_4_0::DynTracer<
+        S,
+        zksync_multivm::vm_boojum_integration::SimpleMemory<H>,
+    > for BootloaderDebugTracer
+{
+}
+
+impl<S: WriteStorage, H: zksync_multivm::vm_boojum_integration::HistoryMode>
+    zksync_multivm::vm_boojum_integration::VmTracer<S, H> for BootloaderDebugTracer
+{
+    fn after_vm_execution(
+        &mut self,
+        _state: &mut zksync_multivm::vm_boojum_integration::ZkSyncVmState<S, H>,
+        _bootloader_state: &zksync_multivm::vm_boojum_integration::BootloaderState,
+        _stop_reason: VmExecutionStopReason,
+    ) {
+        todo!()
+    }
+}
+
+impl<S: WriteStorage, H: zksync_multivm::vm_refunds_enhancement::HistoryMode>
+    zksync_multivm::tracers::dynamic::vm_1_3_3::DynTracer<
+        S,
+        zksync_multivm::vm_refunds_enhancement::SimpleMemory<H>,
+    > for BootloaderDebugTracer
+{
+}
+
+impl<S: WriteStorage, H: zksync_multivm::vm_refunds_enhancement::HistoryMode>
+    zksync_multivm::vm_refunds_enhancement::VmTracer<S, H> for BootloaderDebugTracer
+{
+    fn after_vm_execution(
+        &mut self,
+        _state: &mut zksync_multivm::vm_refunds_enhancement::ZkSyncVmState<S, H>,
+        _bootloader_state: &zksync_multivm::vm_refunds_enhancement::BootloaderState,
+        _stop_reason: VmExecutionStopReason,
+    ) {
+        todo!()
+    }
+}
+
+impl<S: WriteStorage, H: zksync_multivm::vm_virtual_blocks::HistoryMode>
+    zksync_multivm::tracers::dynamic::vm_1_3_3::DynTracer<
+        S,
+        zksync_multivm::vm_virtual_blocks::SimpleMemory<H>,
+    > for BootloaderDebugTracer
+{
+}
+
+impl<H: zksync_multivm::vm_virtual_blocks::HistoryMode>
+    zksync_multivm::vm_virtual_blocks::ExecutionEndTracer<H> for BootloaderDebugTracer
+{
+}
+
+impl<S: WriteStorage, H: zksync_multivm::vm_virtual_blocks::HistoryMode>
+    zksync_multivm::vm_virtual_blocks::ExecutionProcessing<S, H> for BootloaderDebugTracer
+{
+}
+
+impl<S: WriteStorage, H: zksync_multivm::vm_virtual_blocks::HistoryMode>
+    zksync_multivm::vm_virtual_blocks::VmTracer<S, H> for BootloaderDebugTracer
+{
+}
+
+impl IntoOldVmTracer for BootloaderDebugTracer {
+    fn old_tracer(&self) -> OldTracers {
+        todo!()
     }
 }

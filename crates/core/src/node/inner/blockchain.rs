@@ -1,7 +1,7 @@
 use crate::filters::LogFilter;
 use crate::node::inner::fork::ForkDetails;
 use crate::node::time::{ReadTime, Time};
-use crate::node::{compute_hash, create_genesis, create_genesis_from_json, TransactionResult};
+use crate::node::{create_genesis, create_genesis_from_json, TransactionResult};
 use crate::utils::utc_datetime_from_epoch_ms;
 use anvil_zksync_config::types::Genesis;
 use anvil_zksync_types::api::DetailedTransaction;
@@ -537,12 +537,12 @@ impl Blockchain {
                 batches: HashMap::from_iter([]),
             }
         } else {
-            let block_hash = compute_hash(0, []);
             let (genesis_block, genesis_batch_header) = if let Some(genesis) = genesis {
                 create_genesis_from_json(genesis, genesis_timestamp)
             } else {
                 create_genesis(genesis_timestamp)
             };
+            let block_hash = genesis_block.hash;
             let genesis_batch_info = StoredL1BatchInfo {
                 header: genesis_batch_header,
                 state_diffs: Vec::new(),

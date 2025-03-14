@@ -1,5 +1,6 @@
 //! anvil-zksync, that supports forking other networks.
 
+mod batch;
 mod call_error_tracer;
 mod debug;
 pub mod error;
@@ -24,5 +25,5 @@ pub use self::{
     sealer::BlockSealerMode, state::VersionedState,
 };
 pub use in_memory::*;
+pub use inner::InMemoryNodeInner;
 pub use inner::{blockchain, fork, node_executor, time};
-pub use inner::{InMemoryNodeInner, TxExecutionOutput};

@@ -50,13 +50,13 @@ use crate::node::keys::StorageKeyLayout;
 use zksync_multivm::vm_latest::{HistoryDisabled, ToTracerPointer};
 use zksync_multivm::VmVersion;
 use zksync_types::api::{Block, DebugCall, TransactionReceipt, TransactionVariant};
-use zksync_types::block::{unpack_block_info, L1BatchHeader};
+use zksync_types::block::{unpack_block_info, L1BatchHeader, L2BlockHasher};
 use zksync_types::fee_model::BatchFeeInput;
 use zksync_types::l2::L2Tx;
 use zksync_types::storage::{
     EMPTY_UNCLES_HASH, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
 };
-use zksync_types::web3::{keccak256, Bytes};
+use zksync_types::web3::Bytes;
 use zksync_types::{
     h256_to_u256, AccountTreeId, Address, Bloom, L1BatchNumber, L2BlockNumber, L2ChainId,
     PackedEthSignature, ProtocolVersionId, StorageKey, StorageValue, Transaction, H160, H256, H64,
@@ -72,21 +72,24 @@ pub const MAX_PREVIOUS_STATES: u16 = 128;
 /// The zks protocol version.
 pub const PROTOCOL_VERSION: &str = "zks/1";
 
-// TODO: Use L2BlockNumber
-pub fn compute_hash<'a>(block_number: u64, tx_hashes: impl IntoIterator<Item = &'a H256>) -> H256 {
-    let tx_bytes = tx_hashes
-        .into_iter()
-        .flat_map(|h| h.to_fixed_bytes())
-        .collect::<Vec<_>>();
-    let digest = [&block_number.to_be_bytes()[..], tx_bytes.as_slice()].concat();
-    H256(keccak256(&digest))
+pub fn compute_hash<'a>(
+    number: L2BlockNumber,
+    timestamp: u64,
+    prev_l2_block_hash: H256,
+    tx_hashes: impl IntoIterator<Item = &'a H256>,
+) -> H256 {
+    let mut block_hasher = L2BlockHasher::new(number, timestamp, prev_l2_block_hash);
+    for tx_hash in tx_hashes.into_iter() {
+        block_hasher.push_tx_hash(*tx_hash);
+    }
+    block_hasher.finalize(ProtocolVersionId::latest())
 }
 
 pub fn create_genesis_from_json(
     genesis: &Genesis,
     timestamp: Option<u64>,
 ) -> (Block<TransactionVariant>, L1BatchHeader) {
-    let hash = genesis.hash.unwrap_or_else(|| compute_hash(0, []));
+    let hash = L2BlockHasher::legacy_hash(L2BlockNumber(0));
     let timestamp = timestamp
         .or(genesis.timestamp)
         .unwrap_or(NON_FORK_FIRST_BLOCK_TIMESTAMP);
@@ -127,7 +130,7 @@ pub fn create_genesis_from_json(
 }
 
 pub fn create_genesis<TX>(timestamp: Option<u64>) -> (Block<TX>, L1BatchHeader) {
-    let hash = compute_hash(0, []);
+    let hash = L2BlockHasher::legacy_hash(L2BlockNumber(0));
     let timestamp = timestamp.unwrap_or(NON_FORK_FIRST_BLOCK_TIMESTAMP);
     let batch_env = L1BatchEnv {
         previous_batch_hash: None,
@@ -645,7 +648,7 @@ impl InMemoryNode {
         } else {
             StorageKeyLayout::ZkEra
         };
-        let (inner, storage, blockchain, time, fork) = InMemoryNodeInner::init(
+        let (inner, storage, blockchain, time, fork, vm_runner) = InMemoryNodeInner::init(
             fork_client_opt,
             fee_provider,
             Arc::new(RwLock::new(Default::default())),
@@ -656,7 +659,7 @@ impl InMemoryNode {
             false,
         );
         let (node_executor, node_handle) =
-            NodeExecutor::new(inner.clone(), system_contracts.clone(), storage_key_layout);
+            NodeExecutor::new(inner.clone(), vm_runner, storage_key_layout);
         let pool = TxPool::new(
             impersonation.clone(),
             anvil_zksync_types::TransactionOrder::Fifo,
