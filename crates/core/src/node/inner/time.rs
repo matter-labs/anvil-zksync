@@ -64,6 +64,8 @@ impl Time {
         diff
     }
 
+    // FIXME: to be removed soon when zksync-error supports boxed types better
+    #[allow(clippy::result_large_err)]
     /// Forces clock to return provided value as the next timestamp. Time skip will not be performed
     /// before the next invocation of `advance_timestamp`.
     ///

@@ -108,6 +108,8 @@ impl VmRunner {
         }
     }
 
+    // FIXME: to be removed soon when zksync-error supports boxed types better
+    #[allow(clippy::result_large_err)]
     /// Validates L2 transaction
     fn validate_tx(
         &self,

@@ -475,6 +475,8 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
     Ok(())
 }
 
+// FIXME: to be removed soon when zksync-error supports boxed types better
+#[allow(clippy::result_large_err)]
 #[tokio::main]
 async fn main() -> Result<(), AnvilZksyncError> {
     init_telemetry(
