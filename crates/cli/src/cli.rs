@@ -328,11 +328,11 @@ pub struct Cli {
     pub order: TransactionOrder,
 
     /// Enable L1 support and spawn L1 anvil node on the provided port (defaults to 8012).
-    #[arg(long, conflicts_with = "use_l1", default_missing_value = "8012", num_args(0..=1), help_heading = "UNSTABLE - L1")]
+    #[arg(long, conflicts_with = "external_l1", default_missing_value = "8012", num_args(0..=1), help_heading = "UNSTABLE - L1")]
     pub spawn_l1: Option<u16>,
 
     /// Enable L1 support and use provided address as L1 JSON-RPC endpoint.
-    #[arg(long, help_heading = "UNSTABLE - L1")]
+    #[arg(long, conflicts_with = "spawn_l1", help_heading = "UNSTABLE - L1")]
     pub external_l1: Option<String>,
 }
 
