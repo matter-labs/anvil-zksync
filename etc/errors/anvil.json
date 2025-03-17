@@ -789,7 +789,7 @@
             {
               "name": "TransactionValidationFailedGasLimit",
               "code": 1,
-              "message": "",
+              "message": "Transaction gas limit too high: tx {transaction_hash} with gas limit {tx_gas_limit} and gas per pubdata limit {tx_gas_per_pubdata_limit} exceeds maximum allowed gas {max_gas}",
               "fields": [
                 {
                   "name": "transaction_hash",
@@ -807,12 +807,51 @@
                   "name": "max_gas",
                   "type": "U256"
                 }
-              ]
+              ],
+              "doc": {
+                "summary": "Transaction validation failed due to excessive gas limit.",
+                "description": [
+                  "This error occurs when a transaction's gas limit exceeds the maximum allowed gas for a block.",
+                  "The transaction's gas limit combined with its gas per pubdata limit results in total gas usage that exceeds the block gas limit.",
+                  "",
+                  "In ZKSync, gas usage is calculated using a dual gas model where:",
+                  "1. Regular gas is used for computational resources similar to Ethereum",
+                  "2. 'Pubdata gas' is used for data that would normally be published to L1 in a production environment",
+                  "",
+                  "Even though anvil-zksync is an in-memory testing node that doesn't actually publish data to L1, it still enforces gas limits that simulate those of the real ZKSync network to ensure testing accuracy."
+                ],
+                "likely_causes": [
+                  {
+                    "cause": "The transaction's gas limit is set too high relative to the configured block gas limit in anvil-zksync.",
+                    "fixes": [
+                      "Reduce the transaction's gas limit to be below the maximum allowed gas.",
+                      "Consider decreasing the gas per pubdata limit since it contributes to the total effective gas used.",
+                      "In testing environments, you can reconfigure anvil-zksync with higher gas limits using available CLI options.",
+                      "If applicable, optimize the transaction to consume less gas."
+                    ]
+                  },
+                  {
+                    "cause": "Transaction involves too many storage operations or contract deployments requiring excessive pubdata.",
+                    "fixes": [
+                      "Optimize your contract to minimize storage operations.",
+                      "Consider using events instead of storage when appropriate.",
+                      "For contract deployments, optimize bytecode size.",
+                      "In a testing context, you may want to test with smaller contracts first to validate your logic."
+                    ]
+                  },
+                  {
+                    "cause": "When using anvil-zksync for testing, the default gas limits may be exceeded by complex test scenarios.",
+                    "fixes": [
+                      "Split complex test cases into multiple smaller transactions."
+                    ]
+                  }
+                ]
+              }
             },
             {
               "name": "TransactionValidationFailedMaxFeePerGasTooLow",
               "code": 2,
-              "message": "",
+              "message": "Transaction {transaction_hash} allows paying a maximum of {max_fee_per_gas} fee per gar, but the current L2 gas price is {l2_gas_price}, which makes it too expensive.",
               "fields": [
                 {
                   "name": "max_fee_per_gas",
@@ -826,12 +865,51 @@
                   "name": "l2_gas_price",
                   "type": "U256"
                 }
-              ]
+              ],
+              "doc": {
+                "summary": "Transaction's maxFeePerGas is lower than the current gas price in anvil-zksync.",
+                "description": [
+                  "This error occurs when the maximum fee per gas specified in the transaction is lower than the current gas price set in the anvil-zksync node.",
+                  "To be considered valid, transactions must specify a maxFeePerGas that is greater or equal to the current gas price",
+                  "",
+                  "In anvil-zksync, the gas price can be configured when starting the node using `--l1-gas-price` argument or can be modified dynamically. By default, the node simulates a gas price model similar to the real ZKSync network, including:",
+                  "1. A base computation fee (similar to Ethereum's base fee)",
+                  "2. A simulated pubdata posting fee",
+                  "",
+                  "Even though anvil-zksync is a testing environment, it enforces these gas price validations to ensure that your tests accurately reflect how transactions would behave on the actual ZKSync network."
+                ],
+                "likely_causes": [
+                  {
+                    "cause": "The transaction's maxFeePerGas is set too low compared to the current gas price in the anvil-zksync node.",
+                    "fixes": [
+                      "Increase the maxFeePerGas to be at least equal to the current gas price.",
+                      "Use the eth_gasPrice RPC method to query the current gas price from your anvil-zksync node.",
+                      "In testing environments, you can also configure anvil-zksync to use a lower gas price if needed."
+                    ]
+                  },
+                  {
+                    "cause": "Gas price has changed in the anvil-zksync node since the transaction was created.",
+                    "fixes": [
+                      "If you've manually adjusted the gas price in anvil-zksync during testing, ensure your transactions use updated values.",
+                      "Query the current gas price before each transaction submission in your tests.",
+                      "For testing series of transactions with consistent gas prices, consider setting a fixed gas price when starting anvil-zksync."
+                    ]
+                  },
+                  {
+                    "cause": "Using hardcoded gas prices in test scripts instead of querying the actual price.",
+                    "fixes": [
+                      "Always query the current gas price from anvil-zksync before creating transactions.",
+                      "Add a small buffer to the queried gas price to account for potential minor fluctuations.",
+                      "When writing tests, consider making the gas price configuration explicit to avoid inconsistent test behavior."
+                    ]
+                  }
+                ]
+              }
             },
             {
-              "name": "MaxPriorityFeeGreaterThanMaxFee",
+              "name": "TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee",
               "code": 3,
-              "message": "",
+              "message": "Invalid transaction {transaction_hash}: its maxPriorityFeePerGas={max_priority_fee_per_gas} exceeds the limit value maxFeePerGas={max_fee_per_gas}",
               "fields": [
                 {
                   "name": "max_fee_per_gas",
@@ -845,40 +923,232 @@
                   "name": "transaction_hash",
                   "type": "H256"
                 }
-              ]
+              ],
+              "doc": {
+                "summary": "Transaction's maxPriorityFeePerGas exceeds maxFeePerGas.",
+                "description": [
+                  "This error occurs when a transaction's maximum priority fee per gas is greater than its maximum fee per gas in anvil-zksync.",
+                  "Anvil-zksync implements the EIP-1559 fee model (just like the real ZKSync network), where the total fee consists of a base fee and a priority fee.",
+                  "",
+                  "In this model, even in a testing environment, maxPriorityFeePerGas must always be less than or equal to maxFeePerGas because:",
+                  "- maxFeePerGas represents the maximum total fee a user is willing to pay per unit of gas",
+                  "- maxPriorityFeePerGas represents the portion of that fee that goes to validators/sequencers",
+                  "- The remainder (maxFeePerGas - maxPriorityFeePerGas) is available to cover the base fee",
+                  "",
+                  "This validation is enforced in anvil-zksync to ensure that your tests accurately simulate transaction behavior on the actual ZKSync network."
+                ],
+                "likely_causes": [
+                  {
+                    "cause": "Incorrect transaction parameter values in your test where maxPriorityFeePerGas > maxFeePerGas.",
+                    "fixes": [
+                      "Ensure maxPriorityFeePerGas is less than or equal to maxFeePerGas in your test transactions.",
+                      "Either increase maxFeePerGas or decrease maxPriorityFeePerGas to ensure correct relationship.",
+                      "When using testing libraries or scripts with anvil-zksync, verify that fee calculations follow EIP-1559 rules."
+                    ]
+                  },
+                  {
+                    "cause": "Test automation that generates random or incorrect fee values.",
+                    "fixes": [
+                      "Ensure your test framework validates transaction parameters before submission.",
+                      "Use helper functions that properly calculate and relate the fee values.",
+                      "If using fuzz testing, add constraints to ensure maxPriorityFeePerGas <= maxFeePerGas."
+                    ]
+                  },
+                  {
+                    "cause": "Confusion about EIP-1559 fee mechanics when writing tests.",
+                    "fixes": [
+                      "Remember the relationship: maxFeePerGas >= baseFee + maxPriorityFeePerGas.",
+                      "For testing, you can query anvil-zksync for the current baseFee using eth_getBlockByNumber and calculate appropriate values.",
+                      "Consider creating test helper functions that generate valid fee parameters for your test transactions."
+                    ]
+                  },
+                  {
+                    "cause": "When migrating tests from non-EIP-1559 environments to anvil-zksync.",
+                    "fixes": [
+                      "Update legacy tests that might be using pre-EIP-1559 fee models.",
+                      "Ensure all transaction creation code properly handles EIP-1559 style fee parameters.",
+                      "Add validation checks in your test setup to catch this type of error early."
+                    ]
+                  }
+                ]
+              }
             },
             {
               "name": "TransactionHalt",
               "code": 10,
-              "message": "",
+              "message": "Transaction execution halted, reason: {inner}",
               "fields": [
                 {
                   "name": "inner",
                   "type": "Halt"
                 }
-              ]
+              ],
+              "doc": {
+                "summary": "Transaction execution halted in anvil-zksync.",
+                "description": [
+                  "This error occurs when a transaction execution is halted due to an error in the anvil-zksync virtual machine execution.",
+                  "This is a wrapper error that contains a more specific halt error inside it, which provides details about the cause of the halt.",
+                  "",
+                  "The VM may halt execution for various reasons including:",
+                  "- Account validation failures (signature issues, nonce mismatches)",
+                  "- Paymaster-related errors (when testing account abstraction features)",
+                  "- Gas limit exceedance",
+                  "- Storage access limitations",
+                  "- Contract execution failures",
+                  "",
+                  "When using anvil-zksync for testing, these halts are valuable signals that help you identify issues with your contracts or transactions before deploying to the real ZKSync network."
+                ],
+                "likely_causes": [
+                  {
+                    "cause": "Transaction execution in your test encountered a condition that forced it to halt prematurely.",
+                    "fixes": [
+                      "Fix the underlying issue based on the specific halt reason provided in the inner error.",
+                      "Use anvil-zksync's debugging capabilities to trace the execution and identify the exact point of failure.",
+                      "For account-related halts, check account balance, nonce, and signature in your test setup."
+                    ]
+                  },
+                  {
+                    "cause": "Test transaction interacts with ZKSync-specific components like paymasters or account abstraction features incorrectly.",
+                    "fixes": [
+                      "If testing account abstraction features, ensure your test paymaster implementation follows proper specifications.",
+                      "Review the test transaction's paymaster parameters and allowances if applicable.",
+                      "Check factory dependencies for contract deployments in your test environment.",
+                      "Use anvil-zksync's tracing capabilities to debug complex transactions."
+                    ]
+                  },
+                  {
+                    "cause": "Test involves operations that behave differently in ZKSync compared to standard Ethereum.",
+                    "fixes": [
+                      "Review ZKSync documentation for operation-specific limitations compared to Ethereum.",
+                      "Adapt your tests to account for ZKSync-specific behavior.",
+                      "Use anvil-zksync's configuration options to match the specific ZKSync environment you're targeting.",
+                      "Consider writing separate test cases for Ethereum and ZKSync-specific behaviors."
+                    ]
+                  },
+                  {
+                    "cause": "Test environment setup issue in anvil-zksync.",
+                    "fixes": [
+                      "Verify that your anvil-zksync instance is properly configured for your test case.",
+                      "Check if you need to deploy or fund specific accounts before running your test transactions.",
+                      "Ensure system contracts are properly initialized in your test environment if you're testing complex ZKSync features.",
+                      "Consider resetting the anvil-zksync instance between test runs for a clean state."
+                    ]
+                  }
+                ]
+              }
             },
             {
               "name": "TransactionFailed",
               "code": 11,
-              "message": "",
+              "message": "Failed to execute transactions with hashes: {failed_transactions_hashes}",
               "fields": [
                 {
                   "name": "failed_transactions_hashes",
                   "type": "string"
                 }
-              ]
+              ],
+              "doc": {
+                "summary": "One or more transactions failed during execution in anvil-zksync.",
+                "description": [
+                  "This error is raised when one or more transactions in a batch or block fail during execution.",
+                  "The error contains a list of transaction hashes that failed, allowing you to identify the problematic transactions in your test suite.",
+                  "",
+                  "Anvil-zksync can process transactions in batches. When testing with multiple transactions, understanding how they interact is important:",
+                  "- A batch is a group of transactions executed together",
+                  "- When one transaction fails, it doesn't necessarily cause the entire batch to fail",
+                  "- If a transaction failed and other transactions depend on it, these transactions may fail too.",
+                  "",
+                  "This error may appear while debugging complex test scenarios with multiple interdependent transactions."
+                ],
+                "likely_causes": [
+                  {
+                    "cause": "Test transaction execution errors such as out of gas, reverts, or other VM execution issues.",
+                    "fixes": [
+                      "Examine each failed transaction in your test individually using the reported hashes.",
+                      "Use anvil-zksync's debug_traceTransaction RPC method to get detailed execution traces.",
+                      "Check transaction logs and event emissions for error information.",
+                      "For gas-related test failures, consider increasing the gas limit or optimizing contract code.",
+                      "Add explicit error handling in your test scripts to detect and report specific failure conditions."
+                    ]
+                  },
+                  {
+                    "cause": "State dependency issues between test transactions in a batch.",
+                    "fixes": [
+                      "Ensure your test transactions are ordered correctly if they depend on each other.",
+                      "Add assertions to verify state prerequisites before executing dependent transactions.",
+                      "Consider breaking complex tests into smaller, more isolated test cases.",
+                      "Use anvil-zksync's snapshot and revert capabilities to test different transaction ordering scenarios."
+                    ]
+                  },
+                  {
+                    "cause": "Test setup issues in anvil-zksync environment.",
+                    "fixes": [
+                      "Verify that accounts used in tests have sufficient balance and correct permissions.",
+                      "Check that all required contracts and dependencies are properly deployed before running transactions.",
+                      "When testing complex scenarios, verify that system contracts are properly initialized.",
+                      "Consider resetting the anvil-zksync instance between test runs for a clean state."
+                    ]
+                  },
+                  {
+                    "cause": "Testing contracts with behaviors that differ between Ethereum and ZKSync.",
+                    "fixes": [
+                      "Review your contracts for operations that might behave differently in ZKSync.",
+                      "Add ZKSync-specific test cases to verify compatibility.",
+                      "Use anvil-zksync's configuration options to accurately simulate the target ZKSync environment.",
+                      "For cross-chain applications, test each component in its respective environment."
+                    ]
+                  }
+                ]
+              }
             },
             {
               "name": "SealingBlockFailed",
               "code": 21,
-              "message": "",
+              "message": "Failed to seal a block containing transactions: {block_transactions_hashes}.\nDetails: {details}",
               "fields": [
                 {
                   "name": "block_transactions_hashes",
                   "type": "string"
+                },
+                {
+                  "name": "details",
+                  "type": "string"
                 }
-              ]
+              ],
+              "doc": {
+                "summary": "Failed to seal a block.",
+                "description": [
+                  "This error occurs when anvil-zksync fails to seal (finalize) a block containing the specified transactions during testing."
+                ],
+                "likely_causes": [
+                  {
+                    "cause": "Test transaction execution errors or state inconsistencies during testing.",
+                    "fixes": [
+                      "Examine the error details and logs for specific transaction failures within the block.",
+                      "Check that all test transactions are valid and properly formed.",
+                      "Review your test setup to ensure it creates a valid initial state."
+                    ]
+                  },
+                  {
+                    "cause": "Testing complex scenarios that stress anvil-zksync's capabilities.",
+                    "fixes": [
+                      "Break complex test scenarios into smaller, more manageable tests.",
+                      "If testing very large contracts or complex interactions, ensure your test environment has sufficient resources.",
+                      "Consider using anvil-zksync's mining control features to more explicitly manage block creation in tests.",
+                      "For particularly complex tests, try increasing timeout values or resource allocations for the anvil-zksync process."
+                    ]
+                  },
+                  {
+                    "cause": "Anvil-zksync configuration issues or environment-specific problems.",
+                    "fixes": [
+                      "Make sure you are running the latest version of anvil-zksync",
+                      "Check your anvil-zksync configuration settings, particularly those related to block gas limits and state management.",
+                      "Try resetting the anvil-zksync instance between test runs to ensure a clean state.",
+                      "Review the error details and logs for specific hints about the configuration problem."
+                    ]
+                  }
+                ]
+              }
             }
 
 
