@@ -1,10 +1,11 @@
 use alloy::network::{Ethereum, ReceiptResponse, TransactionBuilder};
 use alloy::primitives::{Address, B256, U256};
 use alloy::providers::{Provider, ProviderBuilder, WalletProvider};
-use alloy::transports::{BoxTransport, Transport};
+use alloy::transports::BoxTransport;
 use alloy_zksync::network::receipt_response::ReceiptResponse as ZkReceiptResponse;
 use alloy_zksync::provider::ZksyncProvider;
 use anvil_zksync_e2e_tests::contracts::{Bridgehub, L1Messenger, L2Message};
+use anvil_zksync_e2e_tests::http_middleware::HttpWithMiddleware;
 use anvil_zksync_e2e_tests::test_contracts::Counter;
 use anvil_zksync_e2e_tests::{
     init_testing_provider, AnvilZKsyncApi, FullZksyncProvider, LockedPort, ReceiptExt,
@@ -13,32 +14,34 @@ use anvil_zksync_e2e_tests::{
 use anyhow::Context;
 use std::str::FromStr;
 
-async fn init_l1_provider<P: FullZksyncProvider<T> + 'static, T: Transport + Clone>(
-    l2_provider: &TestingProvider<P, T>,
-    l1_port: u16,
-) -> anyhow::Result<impl Provider<BoxTransport, Ethereum> + Clone> {
+async fn init_l1_l2_providers() -> anyhow::Result<(
+    impl Provider<BoxTransport, Ethereum> + Clone,
+    TestingProvider<impl FullZksyncProvider<HttpWithMiddleware>, HttpWithMiddleware>,
+)> {
+    let l1_locked_port = LockedPort::acquire_unused().await?;
     let l1_provider = ProviderBuilder::new()
         .with_recommended_fillers()
-        .on_builtin(&format!("http://localhost:{}", l1_port))
-        .await?;
+        .on_anvil_with_config(|anvil| {
+            anvil
+                .port(l1_locked_port.port)
+                .arg("--no-request-size-limit")
+        });
+    let l1_address = format!("http://localhost:{}", l1_locked_port.port);
+    let l2_provider =
+        init_testing_provider(move |node| node.args(["--external-l1", l1_address.as_str()]))
+            .await?;
 
     // Pre-generate a few batches for the rest of the test
     for _ in 0..5 {
         l2_provider.tx().finalize().await?.assert_successful()?;
     }
 
-    Ok(l1_provider)
+    Ok((l1_provider, l2_provider))
 }
 
 #[tokio::test]
 async fn commit_batch_to_l1() -> anyhow::Result<()> {
-    let l1_locked_port = LockedPort::acquire_unused().await?;
-
-    let l1_port = l1_locked_port.port.to_string();
-    let l2_provider =
-        init_testing_provider(move |node| node.args(["--with-l1", "--l1-port", l1_port.as_str()]))
-            .await?;
-    let l1_provider = init_l1_provider(&l2_provider, l1_locked_port.port).await?;
+    let (l1_provider, l2_provider) = init_l1_l2_providers().await?;
 
     // Committing first batch after genesis should work
     let tx_hash = l2_provider.anvil_commit_batch(1).await?;
@@ -75,13 +78,7 @@ async fn commit_batch_to_l1() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn prove_batch_on_l1() -> anyhow::Result<()> {
-    let l1_locked_port = LockedPort::acquire_unused().await?;
-
-    let l1_port = l1_locked_port.port.to_string();
-    let l2_provider =
-        init_testing_provider(move |node| node.args(["--with-l1", "--l1-port", l1_port.as_str()]))
-            .await?;
-    let l1_provider = init_l1_provider(&l2_provider, l1_locked_port.port).await?;
+    let (l1_provider, l2_provider) = init_l1_l2_providers().await?;
 
     // Proving batch without committing shouldn't work
     let error = l2_provider
@@ -127,13 +124,7 @@ async fn prove_batch_on_l1() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn execute_batch_on_l1() -> anyhow::Result<()> {
-    let l1_locked_port = LockedPort::acquire_unused().await?;
-
-    let l1_port = l1_locked_port.port.to_string();
-    let l2_provider =
-        init_testing_provider(move |node| node.args(["--with-l1", "--l1-port", l1_port.as_str()]))
-            .await?;
-    let l1_provider = init_l1_provider(&l2_provider, l1_locked_port.port).await?;
+    let (l1_provider, l2_provider) = init_l1_l2_providers().await?;
 
     // Executing batch without committing shouldn't work
     let error = l2_provider
@@ -188,13 +179,7 @@ async fn execute_batch_on_l1() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn send_l2_to_l1_message() -> anyhow::Result<()> {
-    let l1_locked_port = LockedPort::acquire_unused().await?;
-
-    let l1_port = l1_locked_port.port.to_string();
-    let l2_provider =
-        init_testing_provider(move |node| node.args(["--with-l1", "--l1-port", l1_port.as_str()]))
-            .await?;
-    let l1_provider = init_l1_provider(&l2_provider, l1_locked_port.port).await?;
+    let (l1_provider, l2_provider) = init_l1_l2_providers().await?;
 
     let message = "Some L2->L1 message";
     let l1_messenger = L1Messenger::new(l2_provider.clone());
@@ -268,14 +253,7 @@ async fn send_l2_to_l1_message() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn l1_priority_tx() -> anyhow::Result<()> {
-    let l1_locked_port = LockedPort::acquire_unused().await?;
-
-    let l1_port = l1_locked_port.port.to_string();
-    let l2_provider = init_testing_provider(move |node| {
-        node.args(["--log", "debug", "--with-l1", "--l1-port", l1_port.as_str()])
-    })
-    .await?;
-    let l1_provider = init_l1_provider(&l2_provider, l1_locked_port.port).await?;
+    let (l1_provider, l2_provider) = init_l1_l2_providers().await?;
 
     // Deploy `Counter` contract and validate that it is initialized with `0`
     let counter = Counter::deploy(l2_provider.clone()).await?;
