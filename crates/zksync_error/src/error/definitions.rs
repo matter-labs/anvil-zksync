@@ -413,7 +413,7 @@ impl CustomErrorMessage for AnvilNode {
                 tx_gas_per_pubdata_limit,
                 max_gas,
             } => {
-                format ! ("[anvil_zksync-node-1] Transaction gas limit too high: tx {transaction_hash} with gas limit {tx_gas_limit} and gas per pubdata limit {tx_gas_per_pubdata_limit} exceeds maximum allowed gas {max_gas}")
+                format ! ("[anvil_zksync-node-1] Transaction {transaction_hash} with gas limit={tx_gas_limit} and gas per pubdata limit={tx_gas_per_pubdata_limit} exceeds maximum allowed gas {max_gas}")
             }
             AnvilNode::TransactionValidationFailedMaxFeePerGasTooLow {
                 max_fee_per_gas,

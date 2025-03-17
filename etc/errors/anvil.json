@@ -789,7 +789,7 @@
             {
               "name": "TransactionValidationFailedGasLimit",
               "code": 1,
-              "message": "Transaction gas limit too high: tx {transaction_hash} with gas limit {tx_gas_limit} and gas per pubdata limit {tx_gas_per_pubdata_limit} exceeds maximum allowed gas {max_gas}",
+              "message": "Transaction {transaction_hash} with gas limit={tx_gas_limit} and gas per pubdata limit={tx_gas_per_pubdata_limit} exceeds maximum allowed gas {max_gas}",
               "fields": [
                 {
                   "name": "transaction_hash",
