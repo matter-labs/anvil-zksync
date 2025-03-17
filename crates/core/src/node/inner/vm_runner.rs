@@ -18,6 +18,8 @@ use crate::utils::create_debug_output;
 use anvil_zksync_common::{sh_eprintln, sh_err, sh_println};
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_types::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
+use zksync_error::anvil_zksync;
+use zksync_error::anvil_zksync::node::AnvilNodeError;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use zksync_contracts::BaseSystemContractsHashes;
@@ -112,10 +114,15 @@ impl VmRunner {
         batch_env: &L1BatchEnv,
         tx_hash: H256,
         tx_data: &L2TxCommonData,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), AnvilNodeError> {
         let max_gas = U256::from(u64::MAX);
         if tx_data.fee.gas_limit > max_gas || tx_data.fee.gas_per_pubdata_limit > max_gas {
-            anyhow::bail!("exceeds block gas limit");
+            return Err(anvil_zksync::node::TransactionValidationFailedGasLimit {
+                transaction_hash: tx_hash,
+                tx_gas_limit: tx_data.fee.gas_limit,
+                tx_gas_per_pubdata_limit: tx_data.fee.gas_per_pubdata_limit,
+                max_gas,
+            });
         }
 
         let l2_gas_price = batch_env.fee_input.fair_l2_gas_price();
@@ -125,7 +132,13 @@ impl VmRunner {
                 tx_hash,
                 tx_data.fee.max_fee_per_gas
             );
-            anyhow::bail!("block base fee higher than max fee per gas");
+            let error = anvil_zksync::node::TransactionValidationFailedMaxFeePerGasTooLow {
+                max_fee_per_gas: tx_data.fee.max_fee_per_gas,
+                transaction_hash: tx_hash,
+                l2_gas_price: l2_gas_price.into(),
+            };
+            sh_eprintln!("{error}");
+            return Err(error);
         }
 
         if tx_data.fee.max_fee_per_gas < tx_data.fee.max_priority_fee_per_gas {
@@ -134,7 +147,11 @@ impl VmRunner {
                 tx_hash,
                 tx_data.fee.max_fee_per_gas
             );
-            anyhow::bail!("max priority fee per gas higher than max fee per gas");
+            return Err(anvil_zksync::node::TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee {
+                max_fee_per_gas: tx_data.fee.max_fee_per_gas,
+                max_priority_fee_per_gas: tx_data.fee.max_priority_fee_per_gas,
+                transaction_hash: tx_hash,
+            });
         }
         Ok(())
     }
@@ -145,13 +162,13 @@ impl VmRunner {
         executor: &mut dyn BatchExecutor<StorageView<ForkStorage>>,
         config: &TestNodeConfig,
         fee_input_provider: &TestNodeFeeInputProvider,
-    ) -> anyhow::Result<BatchTransactionExecutionResult> {
+    ) -> Result<BatchTransactionExecutionResult, AnvilNodeError> {
         let BatchTransactionExecutionResult {
             tx_result,
             compression_result,
             call_traces,
         } = executor.execute_tx(tx.clone()).await?;
-        compression_result?;
+        compression_result.map_err( |inner| anvil_zksync::node::generic_error!("Compression error while running transaction {tx:?}: {inner}")) ?;
 
         let spent_on_pubdata =
             tx_result.statistics.gas_used - tx_result.statistics.computational_gas_used as u64;
@@ -248,7 +265,7 @@ impl VmRunner {
         executor: &mut dyn BatchExecutor<StorageView<ForkStorage>>,
         config: &TestNodeConfig,
         fee_input_provider: &TestNodeFeeInputProvider,
-    ) -> anyhow::Result<TransactionResult> {
+    ) -> Result<TransactionResult, AnvilNodeError> {
         let tx_hash = tx.hash();
         let transaction_type = tx.tx_format();
 
@@ -275,7 +292,9 @@ impl VmRunner {
             // In such cases, we should not persist the VM data and should pretend that
             // the transaction never existed.
             // We do not print the error here, as it was already printed above.
-            anyhow::bail!("Transaction halted due to critical error");
+            return Err(anvil_zksync::node::TransactionHalt {
+                inner: Box::new(halt_error),
+            });
         }
 
         let saved_factory_deps = VmEvent::extract_bytecodes_marked_as_known(&result.logs.events);
@@ -404,7 +423,7 @@ impl VmRunner {
         &mut self,
         TxBatch { txs, impersonating }: TxBatch,
         node_inner: &mut InMemoryNodeInner,
-    ) -> anyhow::Result<TxBatchExecutionResult> {
+    ) -> Result<TxBatchExecutionResult, AnvilNodeError> {
         let system_contracts = self
             .system_contracts
             .contracts(TxExecutionMode::VerifyExecute, impersonating)
@@ -415,10 +434,13 @@ impl VmRunner {
             node_inner.create_system_env(system_contracts, TxExecutionMode::VerifyExecute);
         let (batch_env, mut block_ctx) = node_inner.create_l1_batch_env().await;
         // Advance clock as we are consuming next timestamp for this block
-        anyhow::ensure!(
-            self.time.advance_timestamp() == block_ctx.timestamp,
-            "advancing clock produced different timestamp than expected"
-        );
+
+        if self.time.advance_timestamp() != block_ctx.timestamp {
+            return Err(anvil_zksync::node::generic_error!(
+                "advancing clock produced different timestamp than expected"
+            ));
+        };
+
         let storage = StorageView::new(self.fork_storage.clone());
         let pubdata_params = PubdataParams {
             l2_da_validator_address: Address::zero(),
@@ -618,7 +640,7 @@ mod test {
                 .set_value(key, u256_to_h256(U256::from(DEFAULT_ACCOUNT_BALANCE)));
         }
 
-        async fn test_tx(&mut self, tx: Transaction) -> anyhow::Result<TransactionResult> {
+        async fn test_tx(&mut self, tx: Transaction) -> Result<TransactionResult, AnvilNodeError> {
             let system_env = SystemEnv {
                 zk_porter_available: false,
                 version: ProtocolVersionId::latest(),
@@ -691,7 +713,7 @@ mod test {
             bytecode: Vec<u8>,
             calldata: Option<Vec<u8>>,
             nonce: Nonce,
-        ) -> anyhow::Result<TransactionResult> {
+        ) -> Result<TransactionResult, AnvilNodeError> {
             let tx = TransactionBuilder::deploy_contract(private_key, bytecode, calldata, nonce);
             self.test_tx(tx.into()).await
         }

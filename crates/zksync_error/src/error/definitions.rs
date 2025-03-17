@@ -269,7 +269,7 @@ pub enum AnvilNode {
         transaction_hash: zksync_basic_types::H256,
         l2_gas_price: zksync_basic_types::U256,
     } = 2u32,
-    MaxPriorityFeeGreaterThanMaxFee {
+    TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee {
         max_fee_per_gas: zksync_basic_types::U256,
         max_priority_fee_per_gas: zksync_basic_types::U256,
         transaction_hash: zksync_basic_types::H256,
@@ -351,7 +351,7 @@ impl CustomErrorMessage for AnvilNode {
             } => {
                 format!("[anvil_zksync-node-2] ")
             }
-            AnvilNode::MaxPriorityFeeGreaterThanMaxFee {
+            AnvilNode::TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee {
                 max_fee_per_gas,
                 max_priority_fee_per_gas,
                 transaction_hash,

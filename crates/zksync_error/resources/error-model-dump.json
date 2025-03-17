@@ -2190,7 +2190,7 @@
       "[anvil_zksync-node-3]": {
         "domain": "AnvilZKsync",
         "component": "AnvilNode",
-        "name": "MaxPriorityFeeGreaterThanMaxFee",
+        "name": "TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee",
         "code": 3,
         "identifier": "[anvil_zksync-node-3]",
         "message": "",
@@ -2211,11 +2211,11 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "MaxPriorityFeeGreaterThanMaxFee",
+            "name": "TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee",
             "path": ""
           },
           "typescript": {
-            "name": "MaxPriorityFeeGreaterThanMaxFee",
+            "name": "TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee",
             "path": ""
           }
         },

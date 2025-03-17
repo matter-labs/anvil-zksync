@@ -273,12 +273,12 @@ impl NodeExecutor {
             let url = node_inner
                 .fork
                 .url()
-                .ok_or_else(|| anyhow::anyhow!("no existing fork found"))?;
+                .ok_or_else(|| anvil_zksync::node::generic_error!("no existing fork found"))?;
             // Keep scale factors as this is the same chain.
             let details = node_inner
                 .fork
                 .details()
-                .ok_or_else(|| anyhow::anyhow!("no existing fork found"))?;
+                .ok_or_else(|| anvil_zksync::node::generic_error!("no existing fork found"))?;
             let fork_client = ForkClient::at_block_number(
                 ForkConfig {
                     url,
@@ -416,11 +416,15 @@ impl NodeExecutorHandle {
     ///
     /// It is sender's responsibility to make sure [`TxBatch`] is constructed correctly (see its
     /// docs).
-    pub async fn seal_block(&self, tx_batch: TxBatch) -> anyhow::Result<()> {
+    pub async fn seal_block(&self, tx_batch: TxBatch) -> Result<(), AnvilNodeError> {
+        let block_transactions_hashes = format!("{:?}", tx_batch.txs);
         Ok(self
             .command_sender
             .send(Command::SealBlock(tx_batch, None))
-            .await?)
+            .await
+            .map_err(|inner| anvil_zksync::node::SealingBlockFailed {
+                block_transactions_hashes,
+                details: inner.to_string() })?)
     }
 
     /// Request [`NodeExecutor`] to seal a new block from the provided transaction batch. Waits for
@@ -441,6 +445,7 @@ impl NodeExecutorHandle {
             .await
             .map_err(|_| zksync_error::anvil_zksync::node::SealingBlockFailed {
                 block_transactions_hashes: debug_transactions_repr.clone(),
+                details: "Inner error while sending the block seal request.".to_string(),
             })?;
 
         match response_receiver.await {
@@ -450,6 +455,7 @@ impl NodeExecutorHandle {
                 sh_eprintln!("Internal error while receiving response to the block seal request for transactions {debug_transactions_repr}: {inner_masked_error:?}. Please report.");
                 Err(zksync_error::anvil_zksync::node::SealingBlockFailed {
                     block_transactions_hashes: debug_transactions_repr.clone(),
+                    details: "Inner error while receiving response to the block seal request.".to_string(),
                 })
             }
         }
