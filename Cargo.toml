@@ -111,6 +111,3 @@ anvil_zksync_l1_sidecar = { path = "crates/l1_sidecar" }
 anvil_zksync_types = { path = "crates/types" }
 anvil_zksync_common = { path = "crates/common" }
 zksync_error = { path = "crates/zksync_error" }
-
-[patch."https://github.com/matter-labs/zksync-error"]
-zksync-error-codegen = { path = "../devex/zksync-error/crates/zksync-error-codegen" }
