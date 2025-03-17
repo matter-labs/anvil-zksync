@@ -4,11 +4,13 @@ use crate::l1_sender::{L1Sender, L1SenderHandle};
 use crate::l1_watcher::L1Watcher;
 use crate::zkstack_config::contracts::ContractsConfig;
 use crate::zkstack_config::ZkstackConfig;
+use alloy::providers::Provider;
 use anvil_zksync_core::node::blockchain::ReadBlockchain;
 use anvil_zksync_core::node::node_executor::NodeExecutorHandle;
 use anvil_zksync_core::node::{TxBatch, TxPool};
 use anyhow::Context;
 use serde::Deserialize;
+use std::sync::Arc;
 use tokio::task::JoinHandle;
 use zksync_types::protocol_upgrade::ProtocolUpgradeTxCommonData;
 use zksync_types::{
@@ -40,14 +42,14 @@ impl L1Sidecar {
         Self { inner: None }
     }
 
-    pub async fn process(
-        port: u16,
+    async fn new(
         blockchain: Box<dyn ReadBlockchain>,
         node_handle: NodeExecutorHandle,
         pool: TxPool,
+        zkstack_config: ZkstackConfig,
+        anvil_handle: AnvilHandle,
+        anvil_provider: Arc<dyn Provider + 'static>,
     ) -> anyhow::Result<(Self, L1SidecarRunner)> {
-        let zkstack_config = ZkstackConfig::builtin();
-        let (anvil_handle, anvil_provider) = anvil::spawn_process(port, &zkstack_config).await?;
         let commitment_generator = CommitmentGenerator::new(&zkstack_config, blockchain);
         let genesis_with_metadata = commitment_generator
             .get_or_generate_metadata(L1BatchNumber(0))
@@ -76,6 +78,44 @@ impl L1Sidecar {
             upgrade_handle,
         };
         Ok((this, runner))
+    }
+
+    pub async fn process(
+        port: u16,
+        blockchain: Box<dyn ReadBlockchain>,
+        node_handle: NodeExecutorHandle,
+        pool: TxPool,
+    ) -> anyhow::Result<(Self, L1SidecarRunner)> {
+        let zkstack_config = ZkstackConfig::builtin();
+        let (anvil_handle, anvil_provider) = anvil::spawn_process(port, &zkstack_config).await?;
+        Self::new(
+            blockchain,
+            node_handle,
+            pool,
+            zkstack_config,
+            anvil_handle,
+            anvil_provider,
+        )
+        .await
+    }
+
+    pub async fn external(
+        address: &str,
+        blockchain: Box<dyn ReadBlockchain>,
+        node_handle: NodeExecutorHandle,
+        pool: TxPool,
+    ) -> anyhow::Result<(Self, L1SidecarRunner)> {
+        let zkstack_config = ZkstackConfig::builtin();
+        let (anvil_handle, anvil_provider) = anvil::external(address, &zkstack_config).await?;
+        Self::new(
+            blockchain,
+            node_handle,
+            pool,
+            zkstack_config,
+            anvil_handle,
+            anvil_provider,
+        )
+        .await
     }
 
     /// Clean L1 always expects the very first transaction to upgrade system contracts. Thus, L1

@@ -1,6 +1,11 @@
 use crate::zkstack_config::ZkstackConfig;
 use alloy::network::EthereumWallet;
+use alloy::primitives::{Address, Bytes, U256};
+use alloy::providers::ext::AnvilApi;
 use alloy::providers::{Provider, ProviderBuilder};
+use alloy::rpc::types::TransactionRequest;
+use alloy::transports::RpcError;
+use anvil_zksync_common::sh_println;
 use anyhow::Context;
 use semver::Version;
 use std::fs::File;
@@ -27,6 +32,7 @@ impl AnvilHandle {
             L1AnvilEnv::Process(ProcessAnvil { mut node_child, .. }) => {
                 node_child.wait().await?;
             }
+            L1AnvilEnv::External => tokio::signal::ctrl_c().await?,
         }
         Ok(())
     }
@@ -99,9 +105,35 @@ pub async fn spawn_process(
         node_child,
         _tmpdir: tmpdir,
     });
-    let provider = setup_provider(port, zkstack_config).await?;
+    let provider = setup_provider(&format!("http://localhost:{port}"), zkstack_config).await?;
 
-    Ok((AnvilHandle { env }, provider))
+    Ok((AnvilHandle { env }, Arc::new(provider)))
+}
+
+pub async fn external(
+    address: &str,
+    zkstack_config: &ZkstackConfig,
+) -> anyhow::Result<(AnvilHandle, Arc<dyn Provider + 'static>)> {
+    let env = L1AnvilEnv::External;
+    let provider = setup_provider(address, zkstack_config).await?;
+    inject_l1_state(&provider).await?;
+
+    // Submit a transaction with very high gas to refresh anvil's fee estimator. Seems like some
+    // >=1.0.0 versions are still affected by this bug.
+    let fees = provider.estimate_eip1559_fees(None).await?;
+    provider
+        .send_transaction(
+            TransactionRequest::default()
+                .to(Address::default())
+                .value(U256::from(1))
+                .max_fee_per_gas(fees.max_fee_per_gas * 1000000)
+                .max_priority_fee_per_gas(fees.max_priority_fee_per_gas * 1000000),
+        )
+        .await?
+        .get_receipt()
+        .await?;
+
+    Ok((AnvilHandle { env }, Arc::new(provider)))
 }
 
 /// An environment that holds live resources that were used to spawn an anvil node.
@@ -109,6 +141,7 @@ pub async fn spawn_process(
 /// This is not supposed to be dropped until anvil has finished running.
 enum L1AnvilEnv {
     Process(ProcessAnvil),
+    External,
 }
 
 /// An [anvil](https://github.com/foundry-rs/foundry/tree/master/crates/anvil) instance running in
@@ -120,16 +153,13 @@ struct ProcessAnvil {
     _tmpdir: TempDir,
 }
 
-async fn setup_provider(
-    port: u16,
-    config: &ZkstackConfig,
-) -> anyhow::Result<Arc<dyn Provider + 'static>> {
+async fn setup_provider(address: &str, config: &ZkstackConfig) -> anyhow::Result<impl Provider> {
     let blob_operator_wallet =
         EthereumWallet::from(config.wallets.blob_operator.private_key.clone());
     let provider = ProviderBuilder::new()
         .with_recommended_fillers()
         .wallet(blob_operator_wallet)
-        .on_builtin(&format!("http://localhost:{port}"))
+        .on_builtin(address)
         .await?;
 
     // Wait for anvil to be up
@@ -141,7 +171,8 @@ async fn setup_provider(
                 }
                 Err(err) if err.is_transport_error() => {
                     tracing::debug!(?err, "L1 Anvil is not up yet; sleeping");
-                    tokio::time::sleep(Duration::from_millis(100)).await;
+                    sh_println!("Waiting for L1 to become available at {address}...");
+                    tokio::time::sleep(Duration::from_millis(500)).await;
                 }
                 Err(err) => return Err(err.into()),
             }
@@ -151,5 +182,26 @@ async fn setup_provider(
     .context("L1 anvil failed to start")?
     .context("unexpected response from L1 anvil")?;
 
-    Ok(Arc::new(provider))
+    Ok(provider)
+}
+
+/// Injects pre-computed L1 state into provider.
+async fn inject_l1_state(provider: &impl Provider) -> anyhow::Result<()> {
+    // Trim trailing EOL and drop the `0x` prefix
+    let state_payload = &include_str!("../../../l1-setup/state/l1-state-payload.txt").trim()[2..];
+    let state_payload = Bytes::from(hex::decode(state_payload)?);
+    match provider.anvil_load_state(state_payload).await {
+        Ok(true) => Ok(()),
+        Ok(false) => Err(anyhow::anyhow!(
+            "`anvil` refused to inject L1 state; see its logs for more details"
+        )),
+        Err(RpcError::ErrorResp(e))
+            if e.code == -32600 && e.message.contains("Invalid request") =>
+        {
+            Err(anyhow::anyhow!(
+                "`anvil` rejected `anvil_loadState` request; likely because of the request size limit - try running it with `--no-request-size-limit`: {e}"
+            ))
+        }
+        Err(e) => Err(e.into()),
+    }
 }
