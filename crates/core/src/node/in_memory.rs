@@ -445,10 +445,8 @@ impl InMemoryNode {
         }
 
         if !call_traces.is_empty() {
-            let call_traces_owned = call_traces.clone();
             let tx_result_for_arena = tx_result.clone();
             let mut builder = CallTraceDecoderBuilder::new();
-
             builder = builder.with_signature_identifier(
                 SignaturesIdentifier::new(
                     Some(inner.config.get_cache_dir().into()),
@@ -456,11 +454,11 @@ impl InMemoryNode {
                 )
                 .map_err(|err| anyhow!("Failed to create SignaturesIdentifier: {:#}", err))?,
             );
-            let decoder = builder.build();
 
+            let decoder = builder.build();
             let arena: CallTraceArena = futures::executor::block_on(async {
                 let blocking_result = tokio::task::spawn_blocking(move || {
-                    let mut arena = build_call_trace_arena(&call_traces_owned, tx_result_for_arena);
+                    let mut arena = build_call_trace_arena(&call_traces, &tx_result_for_arena);
                     let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
                     rt.block_on(async {
                         decode_trace_arena(&mut arena, &decoder)

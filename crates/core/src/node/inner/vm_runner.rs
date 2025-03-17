@@ -14,10 +14,16 @@ use crate::node::{
     TxExecutionInfo,
 };
 use crate::system_contracts::SystemContracts;
+use crate::trace::decode::CallTraceDecoderBuilder;
+use crate::trace::{
+    build_call_trace_arena, decode_trace_arena, filter_call_trace_arena, render_trace_arena_inner,
+    signatures::SignaturesIdentifier,
+};
 use crate::utils::create_debug_output;
+use anvil_zksync_common::shell::get_shell;
 use anvil_zksync_common::{sh_eprintln, sh_err, sh_println};
 use anvil_zksync_config::TestNodeConfig;
-use anvil_zksync_types::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
+use anvil_zksync_types::{ShowGasDetails, ShowStorageLogs, ShowVMDetails};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use zksync_contracts::BaseSystemContractsHashes;
@@ -193,39 +199,28 @@ impl VmRunner {
         }
 
         if !call_traces.is_empty() {
+            let mut builder = CallTraceDecoderBuilder::new();
+
+            builder = builder.with_signature_identifier(
+                SignaturesIdentifier::new(Some(config.get_cache_dir().into()), config.offline)
+                    .map_err(|err| {
+                        anyhow::anyhow!("Failed to create SignaturesIdentifier: {:#}", err)
+                    })?,
+            );
+
+            let decoder = builder.build();
+            let mut arena = build_call_trace_arena(&call_traces, &tx_result);
+            decode_trace_arena(&mut arena, &decoder).await?;
+
+            let verbosity = get_shell().verbosity;
+            if verbosity >= 2 {
+                let filtered_arena = filter_call_trace_arena(&arena, verbosity);
+                let trace_output = render_trace_arena_inner(&filtered_arena, false);
+                sh_println!("\nTraces:\n{}", trace_output);
+            }
             if !config.disable_console_log {
                 self.console_log_handler
                     .handle_calls_recursive(&call_traces);
-            }
-
-            if config.show_calls != ShowCalls::None {
-                sh_println!(
-                    "[Transaction Execution] ({} calls)",
-                    call_traces[0].calls.len()
-                );
-                let num_calls = call_traces.len();
-                for (i, call) in call_traces.iter().enumerate() {
-                    let is_last_sibling = i == num_calls - 1;
-                    let mut formatter = formatter::Formatter::new();
-                    formatter.print_call(
-                        tx.initiator_account(),
-                        tx.execute.contract_address,
-                        call,
-                        is_last_sibling,
-                        config.show_calls,
-                        config.show_outputs,
-                        config.resolve_hashes,
-                    );
-                }
-            }
-        }
-        // Print event logs if enabled
-        if config.show_event_logs {
-            sh_println!("[Events] ({} events)", tx_result.logs.events.len());
-            for (i, event) in tx_result.logs.events.iter().enumerate() {
-                let is_last = i == tx_result.logs.events.len() - 1;
-                let mut formatter = formatter::Formatter::new();
-                formatter.print_event(event, config.resolve_hashes, is_last);
             }
         }
 

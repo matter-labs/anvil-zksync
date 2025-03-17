@@ -8,9 +8,8 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 use super::types::{CallTrace, CallTraceNode, DecodedCallData, DecodedCallEvent, DecodedCallTrace};
-use crate::trace::signatures::SingleSignaturesIdentifier;
-use crate::trace::types::KNOWN_ADDRESSES;
-use crate::utils::format_token;
+use super::types::KNOWN_ADDRESSES;
+use super::utils::format_token;
 use alloy::dyn_abi::{DecodedEvent, DynSolValue, EventExt, FunctionExt, JsonAbiExt};
 use alloy::json_abi::{Event, Function};
 use alloy::primitives::{LogData, Selector, B256};
@@ -25,6 +24,11 @@ use zksync_types::{Address, H160};
 
 pub mod revert_decoder;
 use revert_decoder::RevertDecoder;
+
+pub mod signatures;
+use signatures::SingleSignaturesIdentifier;
+
+pub mod resolver;
 
 /// The first four bytes of the call data for a function call specifies the function to be called.
 pub const SELECTOR_LEN: usize = 4;

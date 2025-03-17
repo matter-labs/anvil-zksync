@@ -1,16 +1,17 @@
-use crate::trace::decode::CallTraceDecoder;
-use crate::trace::types::{
+use decode::CallTraceDecoder;
+use types::{
     CallTrace, CallTraceArena, CallTraceNode, DecodedCallTrace, TraceMemberOrder, KNOWN_ADDRESSES,
 };
-use crate::trace::writer::TraceWriter;
+use writer::TraceWriter;
 use types::{CallLog, DecodedCallEvent, L1L2Log, L1L2Logs};
 use zksync_multivm::interface::{Call, VmExecutionResultAndLogs};
 use zksync_types::H160;
+
 pub mod abi_utils;
 pub mod decode;
-pub mod signatures;
 pub mod types;
 pub mod writer;
+pub mod utils;
 
 /// Converts a single call into a CallTrace.
 #[inline]

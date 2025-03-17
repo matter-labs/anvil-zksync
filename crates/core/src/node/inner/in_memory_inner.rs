@@ -1,11 +1,13 @@
 use crate::console_log::ConsoleLogHandler;
 use crate::deps::storage_view::StorageView;
 use crate::filters::EthFilters;
+use crate::formatter::ExecutionErrorReport;
 use crate::node::error::{LoadStateError, ToHaltError, ToRevertReason};
 use crate::node::inner::blockchain::Blockchain;
 use crate::node::inner::fork::{Fork, ForkClient, ForkSource};
 use crate::node::inner::fork_storage::{ForkStorage, SerializableStorage};
 use crate::node::inner::time::Time;
+use crate::node::inner::vm_runner::TxBatchExecutionResult;
 use crate::node::keys::StorageKeyLayout;
 use crate::node::state::StateV1;
 use crate::node::vm::AnvilVM;
@@ -16,9 +18,6 @@ use crate::node::{
 };
 use crate::system_contracts::SystemContracts;
 use crate::{delegate_vm, utils};
-
-use crate::formatter::ExecutionErrorReport;
-use crate::node::inner::vm_runner::TxBatchExecutionResult;
 use anvil_zksync_common::sh_println;
 use anvil_zksync_config::constants::{
     LEGACY_RICH_WALLETS, NON_FORK_FIRST_BLOCK_TIMESTAMP, RICH_WALLETS,
@@ -616,32 +615,6 @@ impl InMemoryNodeInner {
 
         match &estimate_gas_result.result {
             ExecutionResult::Revert { ref output } => {
-                // if let Some(call_traces) = call_trace {
-                //     let tx_result_for_arena = estimate_gas_result.clone();
-                //     let mut builder = CallTraceDecoderBuilder::new();
-
-                //     builder = builder.with_signature_identifier(
-                //         SignaturesIdentifier::new(
-                //             Some(self.config.get_cache_dir().into()),
-                //             self.config.offline,
-                //         )
-                //         .map_err(|err| {
-                //             anyhow!("Failed to create SignaturesIdentifier: {:#}", err)
-                //         })?,
-                //     );
-
-                //     let decoder = builder.build();
-                //     let mut arena = build_call_trace_arena(&call_traces, tx_result_for_arena);
-                //     decode_trace_arena(&mut arena, &decoder).await?;
-
-                //     let verbosity = get_shell().verbosity;
-                //     if verbosity >= 2 {
-                //         let filtered_arena = filter_call_trace_arena(&arena, verbosity);
-                //         let trace_output = render_trace_arena_inner(&filtered_arena, false);
-                //         sh_println!("\nTraces:\n{}", trace_output);
-                //     }
-                // }
-
                 let message = output.to_string();
                 let pretty_message = format!(
                     "execution reverted{}{}",
@@ -657,32 +630,6 @@ impl InMemoryNodeInner {
                 Err(Web3Error::SubmitTransactionError(pretty_message, data))
             }
             ExecutionResult::Halt { reason } => {
-                // if let Some(call_traces) = call_trace {
-                //     let tx_result_for_arena = estimate_gas_result.clone();
-                //     let mut builder = CallTraceDecoderBuilder::new();
-
-                //     builder = builder.with_signature_identifier(
-                //         SignaturesIdentifier::new(
-                //             Some(self.config.get_cache_dir().into()),
-                //             self.config.offline,
-                //         )
-                //         .map_err(|err| {
-                //             anyhow!("Failed to create SignaturesIdentifier: {:#}", err)
-                //         })?,
-                //     );
-
-                //     let decoder = builder.build();
-                //     let mut arena = build_call_trace_arena(&call_traces, tx_result_for_arena);
-                //     decode_trace_arena(&mut arena, &decoder).await?;
-
-                //     let verbosity = get_shell().verbosity;
-                //     if verbosity >= 2 {
-                //         let filtered_arena = filter_call_trace_arena(&arena, verbosity);
-                //         let trace_output = render_trace_arena_inner(&filtered_arena, false);
-                //         sh_println!("\nTraces:\n{}", trace_output);
-                //     }
-                // }
-
                 let message = reason.to_string();
                 let pretty_message = format!(
                     "execution reverted{}{}",
