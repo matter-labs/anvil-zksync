@@ -40,14 +40,14 @@ impl L1Sidecar {
         Self { inner: None }
     }
 
-    pub async fn builtin(
+    pub async fn process(
         port: u16,
         blockchain: Box<dyn ReadBlockchain>,
         node_handle: NodeExecutorHandle,
         pool: TxPool,
     ) -> anyhow::Result<(Self, L1SidecarRunner)> {
         let zkstack_config = ZkstackConfig::builtin();
-        let (anvil_handle, anvil_provider) = anvil::spawn_builtin(port, &zkstack_config).await?;
+        let (anvil_handle, anvil_provider) = anvil::spawn_process(port, &zkstack_config).await?;
         let commitment_generator = CommitmentGenerator::new(&zkstack_config, blockchain);
         let genesis_with_metadata = commitment_generator
             .get_or_generate_metadata(L1BatchNumber(0))

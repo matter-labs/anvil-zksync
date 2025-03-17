@@ -275,7 +275,7 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
             .into())
         }
         Some(l1_config) => {
-            let (l1_sidecar, l1_sidecar_runner) = L1Sidecar::builtin(
+            let (l1_sidecar, l1_sidecar_runner) = L1Sidecar::process(
                 l1_config.port,
                 blockchain.clone(),
                 node_handle.clone(),

@@ -19,10 +19,9 @@ zksync_mini_merkle_tree.workspace = true
 zksync_types.workspace = true
 
 alloy = { workspace = true, default-features = false, features = ["sol-types", "rpc-types", "providers", "kzg"] }
-foundry-anvil.workspace = true
-foundry-common.workspace = true
 anyhow.workspace = true
 tempfile.workspace = true
+semver.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true

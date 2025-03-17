@@ -2,12 +2,14 @@ use crate::zkstack_config::ZkstackConfig;
 use alloy::network::EthereumWallet;
 use alloy::providers::{Provider, ProviderBuilder};
 use anyhow::Context;
-use foundry_anvil::{NodeConfig, NodeHandle};
-use foundry_common::Shell;
+use semver::Version;
+use std::fs::File;
+use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
 use tempfile::TempDir;
 use tokio::io::AsyncWriteExt;
+use tokio::process::{Child as AsyncChild, Command as AsyncCommand};
 
 /// Representation of an anvil process spawned onto an event loop.
 ///
@@ -22,19 +24,51 @@ impl AnvilHandle {
     /// Runs anvil and its services. Returns on anvil exiting.
     pub async fn run(self) -> anyhow::Result<()> {
         match self.env {
-            L1AnvilEnv::Builtin(BuiltinAnvil { node_handle, .. }) => {
-                node_handle.await??;
+            L1AnvilEnv::Process(ProcessAnvil { mut node_child, .. }) => {
+                node_child.wait().await?;
             }
         }
         Ok(())
     }
 }
 
-/// Spawns an anvil instance using the built-in binary and built-in precomputed state.
-pub async fn spawn_builtin(
+async fn ensure_anvil_1_x_x() -> anyhow::Result<()> {
+    let child = AsyncCommand::new("anvil")
+        .arg("--version")
+        .stdout(Stdio::piped())
+        .spawn()
+        .context("could not detect `anvil` version; make sure it is installed on your machine")?;
+    let output = child.wait_with_output().await?;
+    let output = std::str::from_utf8(&output.stdout)?;
+    let version_line = output
+        .lines()
+        .next()
+        .with_context(|| format!("`anvil --version` output did not contain any lines: {output}"))?;
+    let version = version_line
+        .strip_prefix("anvil Version: ")
+        .with_context(|| {
+            format!("`anvil --version` output started with unexpected prefix: {version_line}")
+        })?;
+    let version = Version::parse(version)?;
+    tracing::debug!(%version, "detected installed anvil version");
+    // Allow any version above `1.0.0-rc` (including `1.0.0-stable`)
+    if version > Version::parse("1.0.0-rc")? {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!(
+            "unsupported `anvil` version ({}), please upgrade to >1.0.0-rc",
+            version
+        ))
+    }
+}
+
+/// Spawns an anvil instance using the system-provided `anvil` command and built-in precomputed state.
+pub async fn spawn_process(
     port: u16,
     zkstack_config: &ZkstackConfig,
 ) -> anyhow::Result<(AnvilHandle, Arc<dyn Provider + 'static>)> {
+    ensure_anvil_1_x_x().await?;
+
     let tmpdir = tempfile::Builder::new()
         .prefix("anvil_zksync_l1")
         .tempdir()?;
@@ -48,21 +82,21 @@ pub async fn spawn_builtin(
 
     tracing::debug!(
         ?anvil_state_path,
-        "unpacked built-in anvil state into a temporary directory"
+        "unpacked anvil state into a temporary directory"
     );
 
-    // Set up empty shell to disable anvil's stdout. Ideally we would re-direct it into a file but
-    // this doesn't seem possible right now.
-    Shell::empty().set();
-    let (_, node_handle) = foundry_anvil::spawn(
-        NodeConfig::default()
-            .with_port(port)
-            .with_init_state_path(anvil_state_path),
-    )
-    .await;
+    // TODO: Make log location configurable
+    let log_file = File::create("./anvil-zksync-l1.log")?;
+    let node_child = AsyncCommand::new("anvil")
+        .arg("--port")
+        .arg(port.to_string())
+        .arg("--load-state")
+        .arg(anvil_state_path)
+        .stdout(log_file)
+        .spawn()?;
 
-    let env = L1AnvilEnv::Builtin(BuiltinAnvil {
-        node_handle,
+    let env = L1AnvilEnv::Process(ProcessAnvil {
+        node_child,
         _tmpdir: tmpdir,
     });
     let provider = setup_provider(port, zkstack_config).await?;
@@ -74,14 +108,14 @@ pub async fn spawn_builtin(
 ///
 /// This is not supposed to be dropped until anvil has finished running.
 enum L1AnvilEnv {
-    Builtin(BuiltinAnvil),
+    Process(ProcessAnvil),
 }
 
-/// A built-in [anvil](https://github.com/foundry-rs/foundry/tree/master/crates/anvil) instance
-/// bundled with anvil-zksync.
-struct BuiltinAnvil {
+/// An [anvil](https://github.com/foundry-rs/foundry/tree/master/crates/anvil) instance running in
+/// a separate process spawned from anvil-zksync.
+struct ProcessAnvil {
     /// A handle to the spawned anvil node and its tasks.
-    node_handle: NodeHandle,
+    node_child: AsyncChild,
     /// Temporary directory containing state file. Holding it to ensure it does not get deleted prematurely.
     _tmpdir: TempDir,
 }
