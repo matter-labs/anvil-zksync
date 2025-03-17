@@ -418,14 +418,13 @@ impl NodeExecutorHandle {
     /// docs).
     pub async fn seal_block(&self, tx_batch: TxBatch) -> Result<(), AnvilNodeError> {
         let block_transactions_hashes = format!("{:?}", tx_batch.txs);
-        Ok(self
-            .command_sender
+        self.command_sender
             .send(Command::SealBlock(tx_batch, None))
             .await
             .map_err(|inner| anvil_zksync::node::SealingBlockFailed {
                 block_transactions_hashes,
                 details: inner.to_string(),
-            })?)
+            })
     }
 
     /// Request [`NodeExecutor`] to seal a new block from the provided transaction batch. Waits for

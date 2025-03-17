@@ -747,10 +747,12 @@ mod test {
             .set_gas_limit(U256::from(u64::MAX) + 1)
             .build();
         let max_gas = U256::from(u64::MAX);
-        let expected = AnvilNodeError::TransactionValidationFailedGasLimit { transaction_hash: tx.hash(),
-                                                              tx_gas_limit: tx.common_data.fee.gas_limit.clone(),
-                                                              tx_gas_per_pubdata_limit: tx.common_data.fee.gas_per_pubdata_limit.clone(),
-                                                              max_gas,};
+        let expected = AnvilNodeError::TransactionValidationFailedGasLimit {
+            transaction_hash: tx.hash(),
+            tx_gas_limit: tx.common_data.fee.gas_limit,
+            tx_gas_per_pubdata_limit: tx.common_data.fee.gas_per_pubdata_limit,
+            max_gas,
+        };
         let err = tester.test_tx(tx.into()).await.unwrap_err();
         assert_eq!(err, expected);
     }
@@ -767,10 +769,7 @@ mod test {
             l2_gas_price: DEFAULT_L2_GAS_PRICE.into(),
         };
         let err = tester.test_tx(tx.into()).await.unwrap_err();
-        assert_eq!(
-            err,
-            expected
-        );
+        assert_eq!(err, expected);
     }
 
     #[tokio::test]
@@ -783,12 +782,10 @@ mod test {
         let expected = AnvilNodeError::TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee {
             max_fee_per_gas: tx.common_data.fee.max_fee_per_gas,
             max_priority_fee_per_gas: tx.common_data.fee.max_priority_fee_per_gas,
-            transaction_hash: tx.hash() };
+            transaction_hash: tx.hash(),
+        };
         let err = tester.test_tx(tx.into()).await.unwrap_err();
-        assert_eq!(
-            err,
-            expected
-        );
+        assert_eq!(err, expected);
     }
 
     #[tokio::test]
