@@ -746,8 +746,13 @@ mod test {
         let tx = TransactionBuilder::new()
             .set_gas_limit(U256::from(u64::MAX) + 1)
             .build();
+        let max_gas = U256::from(u64::MAX);
+        let expected = AnvilNodeError::TransactionValidationFailedGasLimit { transaction_hash: tx.hash(),
+                                                              tx_gas_limit: tx.common_data.fee.gas_limit.clone(),
+                                                              tx_gas_per_pubdata_limit: tx.common_data.fee.gas_per_pubdata_limit.clone(),
+                                                              max_gas,};
         let err = tester.test_tx(tx.into()).await.unwrap_err();
-        assert_eq!(err.to_string(), "exceeds block gas limit");
+        assert_eq!(err, expected);
     }
 
     #[tokio::test]
@@ -756,23 +761,33 @@ mod test {
         let tx = TransactionBuilder::new()
             .set_max_fee_per_gas(U256::from(DEFAULT_L2_GAS_PRICE - 1))
             .build();
+        let expected = AnvilNodeError::TransactionValidationFailedMaxFeePerGasTooLow {
+            max_fee_per_gas: tx.common_data.fee.max_fee_per_gas,
+            transaction_hash: tx.hash(),
+            l2_gas_price: DEFAULT_L2_GAS_PRICE.into(),
+        };
         let err = tester.test_tx(tx.into()).await.unwrap_err();
         assert_eq!(
-            err.to_string(),
-            "block base fee higher than max fee per gas"
+            err,
+            expected
         );
     }
 
     #[tokio::test]
     async fn test_run_l2_tx_validates_tx_max_priority_fee_per_gas_higher_than_max_fee_per_gas() {
         let mut tester = VmRunnerTester::new();
+        let max_priority_fee_per_gas = U256::from(250_000_000 + 1);
         let tx = TransactionBuilder::new()
-            .set_max_priority_fee_per_gas(U256::from(250_000_000 + 1))
+            .set_max_priority_fee_per_gas(max_priority_fee_per_gas)
             .build();
+        let expected = AnvilNodeError::TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee {
+            max_fee_per_gas: tx.common_data.fee.max_fee_per_gas,
+            max_priority_fee_per_gas: tx.common_data.fee.max_priority_fee_per_gas,
+            transaction_hash: tx.hash() };
         let err = tester.test_tx(tx.into()).await.unwrap_err();
         assert_eq!(
-            err.to_string(),
-            "max priority fee per gas higher than max fee per gas"
+            err,
+            expected
         );
     }
 
