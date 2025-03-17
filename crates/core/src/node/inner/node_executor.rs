@@ -424,7 +424,8 @@ impl NodeExecutorHandle {
             .await
             .map_err(|inner| anvil_zksync::node::SealingBlockFailed {
                 block_transactions_hashes,
-                details: inner.to_string() })?)
+                details: inner.to_string(),
+            })?)
     }
 
     /// Request [`NodeExecutor`] to seal a new block from the provided transaction batch. Waits for
@@ -455,7 +456,8 @@ impl NodeExecutorHandle {
                 sh_eprintln!("Internal error while receiving response to the block seal request for transactions {debug_transactions_repr}: {inner_masked_error:?}. Please report.");
                 Err(zksync_error::anvil_zksync::node::SealingBlockFailed {
                     block_transactions_hashes: debug_transactions_repr.clone(),
-                    details: "Inner error while receiving response to the block seal request.".to_string(),
+                    details: "Inner error while receiving response to the block seal request."
+                        .to_string(),
                 })
             }
         }

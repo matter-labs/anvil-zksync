@@ -18,11 +18,11 @@ use crate::utils::create_debug_output;
 use anvil_zksync_common::{sh_eprintln, sh_err, sh_println};
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_types::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
-use zksync_error::anvil_zksync;
-use zksync_error::anvil_zksync::node::AnvilNodeError;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_error::anvil_zksync;
+use zksync_error::anvil_zksync::node::AnvilNodeError;
 use zksync_multivm::interface::executor::BatchExecutor;
 use zksync_multivm::interface::{
     BatchTransactionExecutionResult, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
@@ -147,11 +147,13 @@ impl VmRunner {
                 tx_hash,
                 tx_data.fee.max_fee_per_gas
             );
-            return Err(anvil_zksync::node::TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee {
-                max_fee_per_gas: tx_data.fee.max_fee_per_gas,
-                max_priority_fee_per_gas: tx_data.fee.max_priority_fee_per_gas,
-                transaction_hash: tx_hash,
-            });
+            return Err(
+                anvil_zksync::node::TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee {
+                    max_fee_per_gas: tx_data.fee.max_fee_per_gas,
+                    max_priority_fee_per_gas: tx_data.fee.max_priority_fee_per_gas,
+                    transaction_hash: tx_hash,
+                },
+            );
         }
         Ok(())
     }
@@ -168,7 +170,11 @@ impl VmRunner {
             compression_result,
             call_traces,
         } = executor.execute_tx(tx.clone()).await?;
-        compression_result.map_err( |inner| anvil_zksync::node::generic_error!("Compression error while running transaction {tx:?}: {inner}")) ?;
+        compression_result.map_err(|inner| {
+            anvil_zksync::node::generic_error!(
+                "Compression error while running transaction {tx:?}: {inner}"
+            )
+        })?;
 
         let spent_on_pubdata =
             tx_result.statistics.gas_used - tx_result.statistics.computational_gas_used as u64;
