@@ -10,7 +10,7 @@ use anvil_zksync_config::constants::{
     RICH_WALLETS, TEST_NODE_NETWORK_ID,
 };
 use anvil_zksync_config::types::SystemContractsOptions;
-use anvil_zksync_config::ForkPrintInfo;
+use anvil_zksync_config::{ForkPrintInfo, L1Config};
 use anvil_zksync_core::filters::EthFilters;
 use anvil_zksync_core::node::fork::ForkClient;
 use anvil_zksync_core::node::{
@@ -280,9 +280,17 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
             }
             .into())
         }
-        Some(l1_config) => {
-            let (l1_sidecar, l1_sidecar_runner) = L1Sidecar::builtin(
-                l1_config.port,
+        Some(L1Config::Spawn { port }) => {
+            let (l1_sidecar, l1_sidecar_runner) =
+                L1Sidecar::process(*port, blockchain.clone(), node_handle.clone(), pool.clone())
+                    .await
+                    .map_err(to_domain)?;
+            node_service_tasks.push(Box::pin(l1_sidecar_runner.run()));
+            l1_sidecar
+        }
+        Some(L1Config::External { address }) => {
+            let (l1_sidecar, l1_sidecar_runner) = L1Sidecar::external(
+                address,
                 blockchain.clone(),
                 node_handle.clone(),
                 pool.clone(),

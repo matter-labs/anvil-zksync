@@ -143,9 +143,17 @@ pub struct TestNodeConfig {
 }
 
 #[derive(Debug, Clone)]
-pub struct L1Config {
-    /// Port the spawned L1 anvil node will listen on
-    pub port: u16,
+pub enum L1Config {
+    /// Spawn a separate `anvil` process and initialize it to use as L1.
+    Spawn {
+        /// Port the spawned L1 anvil node will listen on
+        port: u16,
+    },
+    /// Use externally set up L1.
+    External {
+        /// Address of L1 node's JSON-RPC endpoint
+        address: String,
+    },
 }
 
 impl Default for TestNodeConfig {
@@ -416,15 +424,26 @@ L1:                    {}
         );
 
         // L1 Configuration
-        if let Some(l1_config) = self.l1_config.as_ref() {
-            sh_println!(
-                r#"
-L1 Configuration
+        match self.l1_config.as_ref() {
+            Some(L1Config::Spawn { port }) => {
+                sh_println!(
+                    r#"
+L1 Configuration (Spawned)
 ========================
-Port: {}
-"#,
-                l1_config.port
-            );
+Port: {port}
+"#
+                );
+            }
+            Some(L1Config::External { address }) => {
+                sh_println!(
+                    r#"
+L1 Configuration (External)
+========================
+Address: {address}
+"#
+                );
+            }
+            None => {}
         }
 
         // Listening addresses.

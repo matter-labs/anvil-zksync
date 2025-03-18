@@ -2,7 +2,7 @@
 
 pub mod contracts;
 mod ext;
-mod http_middleware;
+pub mod http_middleware;
 mod provider;
 pub mod test_contracts;
 mod utils;
