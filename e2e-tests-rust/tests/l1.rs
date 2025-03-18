@@ -1,13 +1,13 @@
 use alloy::network::{ReceiptResponse, TransactionBuilder};
-use alloy::primitives::{Address, B256, U256};
+use alloy::primitives::{address, B256, U256};
 use alloy::providers::{Provider, WalletProvider};
 use alloy_zksync::network::receipt_response::ReceiptResponse as ZkReceiptResponse;
-use alloy_zksync::provider::ZksyncProvider;
+use alloy_zksync::provider::{DepositRequest, ZksyncProvider, ZksyncProviderWithWallet};
+use alloy_zksync::utils::ETHER_L1_ADDRESS;
 use anvil_zksync_e2e_tests::contracts::{Bridgehub, L1Messenger, L2Message};
 use anvil_zksync_e2e_tests::test_contracts::Counter;
 use anvil_zksync_e2e_tests::{AnvilZKsyncApi, AnvilZksyncTesterBuilder, ReceiptExt};
 use anyhow::Context;
-use std::str::FromStr;
 
 #[tokio::test]
 async fn commit_batch_to_l1() -> anyhow::Result<()> {
@@ -282,7 +282,7 @@ async fn l1_priority_tx() -> anyhow::Result<()> {
     assert_eq!(counter.get().await?, U256::from(0));
 
     // Prepare a transaction from a rich account that will increment `Counter` by 1
-    let alice = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")?;
+    let alice = tester.l2_provider().default_signer_address();
     let eip1559_est = tester.l1_provider().estimate_eip1559_fees().await?;
     let tx = counter
         .increment(1)
@@ -299,6 +299,42 @@ async fn l1_priority_tx() -> anyhow::Result<()> {
         .await?;
     // Validate that the counter was increased
     assert_eq!(counter.get().await?, U256::from(1));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn deposit() -> anyhow::Result<()> {
+    let tester = AnvilZksyncTesterBuilder::default()
+        .with_l1()
+        .build()
+        .await?;
+
+    let alice = tester.l2_provider().default_signer_address();
+    let alice_l1_initial_balance = tester.l1_provider().get_balance(alice).await?;
+    let alice_l2_initial_balance = tester.l2_provider().get_balance(alice).await?;
+    let amount = U256::from(1);
+
+    let deposit_l1_receipt = tester
+        .l2_provider()
+        .deposit(
+            &DepositRequest::new(amount)
+                .with_receiver(alice)
+                .with_token(ETHER_L1_ADDRESS),
+            &tester.l1_provider(),
+        )
+        .await?;
+    deposit_l1_receipt.get_l2_tx()?.get_receipt().await?;
+    let deposit_l1_receipt = deposit_l1_receipt.get_receipt();
+    let fee =
+        U256::from(deposit_l1_receipt.effective_gas_price * deposit_l1_receipt.gas_used as u128);
+
+    let alice_l1_final_balance = tester.l1_provider().get_balance(alice).await?;
+    let alice_l2_final_balance = tester.l2_provider().get_balance(alice).await?;
+    // Non-strict equality because somehow we spend more than expected and also more than expected
+    // gets deposited to L2. Assuming this is expected as zksync-era e2e tests assert the same behavior.
+    assert!(alice_l1_final_balance <= alice_l1_initial_balance - fee - amount);
+    assert!(alice_l2_final_balance >= alice_l2_initial_balance + amount);
 
     Ok(())
 }
