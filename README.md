@@ -10,8 +10,6 @@ The goal of this crate is to offer a fast solution for integration testing, boot
 🔗 **For a detailed walkthrough, refer to the following resources:**
 
 - [Official documentation: Anvil-ZKsync](https://docs.zksync.io/build/test-and-debug/in-memory-node)
-- [Foundry Book: Anvil for zkSync](https://foundry-book.zksync.io/reference/anvil-zksync/)
-- [Rust Book: Anvil-ZKsync](https://matter-labs.github.io/era-test-node/era_test_node/index.html)
 
 ## 📌 Overview
 
