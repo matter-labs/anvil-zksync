@@ -74,6 +74,18 @@ impl ZksNamespaceServer for ZksNamespace {
     }
 
     async fn get_bridge_contracts(&self) -> RpcResult<BridgeAddresses> {
+        if let Ok(contracts_config) = self.l1_sidecar.contracts_config() {
+            return Ok(BridgeAddresses {
+                l1_shared_default_bridge: Some(contracts_config.bridges.shared.l1_address),
+                l2_shared_default_bridge: contracts_config.bridges.shared.l2_address,
+                l1_erc20_default_bridge: Some(contracts_config.bridges.erc20.l1_address),
+                l2_erc20_default_bridge: contracts_config.bridges.erc20.l2_address,
+                l1_weth_bridge: None,
+                l2_weth_bridge: None,
+                l2_legacy_shared_bridge: contracts_config.l2.legacy_shared_bridge_addr,
+            });
+        }
+
         Ok(self
             .node
             .get_bridge_contracts_impl()
