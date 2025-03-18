@@ -120,10 +120,10 @@ impl VmRunner {
         let max_gas = U256::from(u64::MAX);
         if tx_data.fee.gas_limit > max_gas || tx_data.fee.gas_per_pubdata_limit > max_gas {
             return Err(anvil_zksync::node::TransactionValidationFailedGasLimit {
-                transaction_hash: tx_hash,
-                tx_gas_limit: tx_data.fee.gas_limit,
-                tx_gas_per_pubdata_limit: tx_data.fee.gas_per_pubdata_limit,
-                max_gas,
+                transaction_hash: Box::new(tx_hash),
+                tx_gas_limit: Box::new(tx_data.fee.gas_limit),
+                tx_gas_per_pubdata_limit: Box::new(tx_data.fee.gas_per_pubdata_limit),
+                max_gas: Box::new(max_gas),
             });
         }
 
@@ -135,9 +135,9 @@ impl VmRunner {
                 tx_data.fee.max_fee_per_gas
             );
             let error = anvil_zksync::node::TransactionValidationFailedMaxFeePerGasTooLow {
-                max_fee_per_gas: tx_data.fee.max_fee_per_gas,
-                transaction_hash: tx_hash,
-                l2_gas_price: l2_gas_price.into(),
+                max_fee_per_gas: Box::new(tx_data.fee.max_fee_per_gas),
+                transaction_hash: Box::new(tx_hash),
+                l2_gas_price: Box::new(l2_gas_price.into()),
             };
             sh_eprintln!("{error}");
             return Err(error);
@@ -151,9 +151,9 @@ impl VmRunner {
             );
             return Err(
                 anvil_zksync::node::TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee {
-                    max_fee_per_gas: tx_data.fee.max_fee_per_gas,
-                    max_priority_fee_per_gas: tx_data.fee.max_priority_fee_per_gas,
-                    transaction_hash: tx_hash,
+                    max_fee_per_gas: Box::new(tx_data.fee.max_fee_per_gas),
+                    max_priority_fee_per_gas: Box::new(tx_data.fee.max_priority_fee_per_gas),
+                    transaction_hash: Box::new(tx_hash),
                 },
             );
         }
@@ -750,10 +750,10 @@ mod test {
             .build();
         let max_gas = U256::from(u64::MAX);
         let expected = AnvilNodeError::TransactionValidationFailedGasLimit {
-            transaction_hash: tx.hash(),
-            tx_gas_limit: tx.common_data.fee.gas_limit,
-            tx_gas_per_pubdata_limit: tx.common_data.fee.gas_per_pubdata_limit,
-            max_gas,
+            transaction_hash: Box::new(tx.hash()),
+            tx_gas_limit: Box::new(tx.common_data.fee.gas_limit),
+            tx_gas_per_pubdata_limit: Box::new(tx.common_data.fee.gas_per_pubdata_limit),
+            max_gas: Box::new(max_gas),
         };
         let err = tester.test_tx(tx.into()).await.unwrap_err();
         assert_eq!(err, expected);
@@ -766,9 +766,9 @@ mod test {
             .set_max_fee_per_gas(U256::from(DEFAULT_L2_GAS_PRICE - 1))
             .build();
         let expected = AnvilNodeError::TransactionValidationFailedMaxFeePerGasTooLow {
-            max_fee_per_gas: tx.common_data.fee.max_fee_per_gas,
-            transaction_hash: tx.hash(),
-            l2_gas_price: DEFAULT_L2_GAS_PRICE.into(),
+            max_fee_per_gas: Box::new(tx.common_data.fee.max_fee_per_gas),
+            transaction_hash: Box::new(tx.hash()),
+            l2_gas_price: Box::new(DEFAULT_L2_GAS_PRICE.into()),
         };
         let err = tester.test_tx(tx.into()).await.unwrap_err();
         assert_eq!(err, expected);
@@ -782,9 +782,9 @@ mod test {
             .set_max_priority_fee_per_gas(max_priority_fee_per_gas)
             .build();
         let expected = AnvilNodeError::TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee {
-            max_fee_per_gas: tx.common_data.fee.max_fee_per_gas,
-            max_priority_fee_per_gas: tx.common_data.fee.max_priority_fee_per_gas,
-            transaction_hash: tx.hash(),
+            max_fee_per_gas: Box::new(tx.common_data.fee.max_fee_per_gas),
+            max_priority_fee_per_gas: Box::new(tx.common_data.fee.max_priority_fee_per_gas),
+            transaction_hash: Box::new(tx.hash()),
         };
         let err = tester.test_tx(tx.into()).await.unwrap_err();
         assert_eq!(err, expected);

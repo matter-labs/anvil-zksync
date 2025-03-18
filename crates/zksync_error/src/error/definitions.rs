@@ -271,10 +271,10 @@ pub enum AnvilNode {
     #[doc = ""]
     #[doc = "Even though anvil-zksync is an in-memory testing node that doesn't actually publish data to L1, it still enforces gas limits that simulate those of the real ZKSync network to ensure testing accuracy."]
     TransactionValidationFailedGasLimit {
-        transaction_hash: zksync_basic_types::H256,
-        tx_gas_limit: zksync_basic_types::U256,
-        tx_gas_per_pubdata_limit: zksync_basic_types::U256,
-        max_gas: zksync_basic_types::U256,
+        transaction_hash: Box<zksync_basic_types::H256>,
+        tx_gas_limit: Box<zksync_basic_types::U256>,
+        tx_gas_per_pubdata_limit: Box<zksync_basic_types::U256>,
+        max_gas: Box<zksync_basic_types::U256>,
     } = 1u32,
     #[doc = "# Summary "]
     #[doc = "Transaction's maxFeePerGas is lower than the current gas price in anvil-zksync."]
@@ -289,9 +289,9 @@ pub enum AnvilNode {
     #[doc = ""]
     #[doc = "Even though anvil-zksync is a testing environment, it enforces these gas price validations to ensure that your tests accurately reflect how transactions would behave on the actual ZKSync network."]
     TransactionValidationFailedMaxFeePerGasTooLow {
-        max_fee_per_gas: zksync_basic_types::U256,
-        transaction_hash: zksync_basic_types::H256,
-        l2_gas_price: zksync_basic_types::U256,
+        max_fee_per_gas: Box<zksync_basic_types::U256>,
+        transaction_hash: Box<zksync_basic_types::H256>,
+        l2_gas_price: Box<zksync_basic_types::U256>,
     } = 2u32,
     #[doc = "# Summary "]
     #[doc = "Transaction's maxPriorityFeePerGas exceeds maxFeePerGas."]
@@ -307,9 +307,9 @@ pub enum AnvilNode {
     #[doc = ""]
     #[doc = "This validation is enforced in anvil-zksync to ensure that your tests accurately simulate transaction behavior on the actual ZKSync network."]
     TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee {
-        max_fee_per_gas: zksync_basic_types::U256,
-        max_priority_fee_per_gas: zksync_basic_types::U256,
-        transaction_hash: zksync_basic_types::H256,
+        max_fee_per_gas: Box<zksync_basic_types::U256>,
+        max_priority_fee_per_gas: Box<zksync_basic_types::U256>,
+        transaction_hash: Box<zksync_basic_types::H256>,
     } = 3u32,
     #[doc = "# Summary "]
     #[doc = "Transaction execution halted in anvil-zksync."]

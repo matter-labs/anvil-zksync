@@ -14,12 +14,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<API>",
-            "path": ""
+            "expression": "Box<API>"
           },
           "typescript": {
-            "name": "Box<API>",
-            "path": ""
+            "expression": "Box<API>"
           }
         }
       },
@@ -30,12 +28,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<AnvilEnvironment>",
-            "path": ""
+            "expression": "Box<AnvilEnvironment>"
           },
           "typescript": {
-            "name": "Box<AnvilEnvironment>",
-            "path": ""
+            "expression": "Box<AnvilEnvironment>"
           }
         }
       },
@@ -46,12 +42,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<AnvilGeneric>",
-            "path": ""
+            "expression": "Box<AnvilGeneric>"
           },
           "typescript": {
-            "name": "Box<AnvilGeneric>",
-            "path": ""
+            "expression": "Box<AnvilGeneric>"
           }
         }
       },
@@ -62,12 +56,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<AnvilNode>",
-            "path": ""
+            "expression": "Box<AnvilNode>"
           },
           "typescript": {
-            "name": "Box<AnvilNode>",
-            "path": ""
+            "expression": "Box<AnvilNode>"
           }
         }
       },
@@ -78,12 +70,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<EraVM>",
-            "path": ""
+            "expression": "Box<EraVM>"
           },
           "typescript": {
-            "name": "Box<EraVM>",
-            "path": ""
+            "expression": "Box<EraVM>"
           }
         }
       },
@@ -94,12 +84,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<ExecutionPlatform>",
-            "path": ""
+            "expression": "Box<ExecutionPlatform>"
           },
           "typescript": {
-            "name": "Box<ExecutionPlatform>",
-            "path": ""
+            "expression": "Box<ExecutionPlatform>"
           }
         }
       },
@@ -110,12 +98,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<FoundryUpstream>",
-            "path": ""
+            "expression": "Box<FoundryUpstream>"
           },
           "typescript": {
-            "name": "Box<FoundryUpstream>",
-            "path": ""
+            "expression": "Box<FoundryUpstream>"
           }
         }
       },
@@ -126,12 +112,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<FoundryZksync>",
-            "path": ""
+            "expression": "Box<FoundryZksync>"
           },
           "typescript": {
-            "name": "Box<FoundryZksync>",
-            "path": ""
+            "expression": "Box<FoundryZksync>"
           }
         }
       },
@@ -142,8 +126,7 @@
         },
         "bindings": {
           "rust": {
-            "name": "H160",
-            "path": ""
+            "expression": "Box<zksync_basic_types::H160>"
           }
         }
       },
@@ -154,8 +137,7 @@
         },
         "bindings": {
           "rust": {
-            "name": "H256",
-            "path": ""
+            "expression": "Box<zksync_basic_types::H256>"
           }
         }
       },
@@ -166,12 +148,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<Halt>",
-            "path": ""
+            "expression": "Box<Halt>"
           },
           "typescript": {
-            "name": "Box<Halt>",
-            "path": ""
+            "expression": "Box<Halt>"
           }
         }
       },
@@ -182,12 +162,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<HardhatUpstream>",
-            "path": ""
+            "expression": "Box<HardhatUpstream>"
           },
           "typescript": {
-            "name": "Box<HardhatUpstream>",
-            "path": ""
+            "expression": "Box<HardhatUpstream>"
           }
         }
       },
@@ -198,12 +176,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<HardhatZksync>",
-            "path": ""
+            "expression": "Box<HardhatZksync>"
           },
           "typescript": {
-            "name": "Box<HardhatZksync>",
-            "path": ""
+            "expression": "Box<HardhatZksync>"
           }
         }
       },
@@ -214,12 +190,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<LLVM_EVM>",
-            "path": ""
+            "expression": "Box<LLVM_EVM>"
           },
           "typescript": {
-            "name": "Box<LLVM_EVM>",
-            "path": ""
+            "expression": "Box<LLVM_EVM>"
           }
         }
       },
@@ -230,12 +204,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<LLVM_Era>",
-            "path": ""
+            "expression": "Box<LLVM_Era>"
           },
           "typescript": {
-            "name": "Box<LLVM_Era>",
-            "path": ""
+            "expression": "Box<LLVM_Era>"
           }
         }
       },
@@ -246,12 +218,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<Revert>",
-            "path": ""
+            "expression": "Box<Revert>"
           },
           "typescript": {
-            "name": "Box<Revert>",
-            "path": ""
+            "expression": "Box<Revert>"
           }
         }
       },
@@ -262,12 +232,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<Sequencer>",
-            "path": ""
+            "expression": "Box<Sequencer>"
           },
           "typescript": {
-            "name": "Box<Sequencer>",
-            "path": ""
+            "expression": "Box<Sequencer>"
           }
         }
       },
@@ -278,12 +246,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<Solc>",
-            "path": ""
+            "expression": "Box<Solc>"
           },
           "typescript": {
-            "name": "Box<Solc>",
-            "path": ""
+            "expression": "Box<Solc>"
           }
         }
       },
@@ -294,12 +260,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<SolcFork>",
-            "path": ""
+            "expression": "Box<SolcFork>"
           },
           "typescript": {
-            "name": "Box<SolcFork>",
-            "path": ""
+            "expression": "Box<SolcFork>"
           }
         }
       },
@@ -310,8 +274,7 @@
         },
         "bindings": {
           "rust": {
-            "name": "U256",
-            "path": ""
+            "expression": "Box<zksync_basic_types::U256>"
           }
         }
       },
@@ -322,8 +285,7 @@
         },
         "bindings": {
           "rust": {
-            "name": "serde_json::Value",
-            "path": ""
+            "expression": "serde_json::Value"
           }
         }
       },
@@ -334,12 +296,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<Zksolc>",
-            "path": ""
+            "expression": "Box<Zksolc>"
           },
           "typescript": {
-            "name": "Box<Zksolc>",
-            "path": ""
+            "expression": "Box<Zksolc>"
           }
         }
       },
@@ -350,12 +310,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<Zkvyper>",
-            "path": ""
+            "expression": "Box<Zkvyper>"
           },
           "typescript": {
-            "name": "Box<Zkvyper>",
-            "path": ""
+            "expression": "Box<Zkvyper>"
           }
         }
       },
@@ -366,8 +324,7 @@
         },
         "bindings": {
           "rust": {
-            "name": "Vec<u8>",
-            "path": ""
+            "expression": "Vec<u8>"
           }
         }
       },
@@ -378,8 +335,7 @@
         },
         "bindings": {
           "rust": {
-            "name": "i32",
-            "path": ""
+            "expression": "i32"
           }
         }
       },
@@ -390,8 +346,7 @@
         },
         "bindings": {
           "rust": {
-            "name": "Vec<(String,String)>",
-            "path": ""
+            "expression": "Vec<(String,String)>"
           }
         }
       },
@@ -402,8 +357,7 @@
         },
         "bindings": {
           "rust": {
-            "name": "String",
-            "path": ""
+            "expression": "String"
           }
         }
       },
@@ -414,8 +368,7 @@
         },
         "bindings": {
           "rust": {
-            "name": "u32",
-            "path": ""
+            "expression": "u32"
           }
         }
       }
@@ -439,7 +392,7 @@
         "description": "Errors originating in Anvil for ZKsync.",
         "origins": [
           "<default zksync-root.json>",
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "Compiler": {
@@ -543,7 +496,7 @@
         "identifier": "env",
         "description": "",
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "AnvilGeneric": {
@@ -557,7 +510,7 @@
         "identifier": "gen",
         "description": "",
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "AnvilNode": {
@@ -571,7 +524,7 @@
         "identifier": "node",
         "description": "",
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "EraVM": {
@@ -641,7 +594,7 @@
         "identifier": "halt",
         "description": "",
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "HardhatUpstream": {
@@ -711,7 +664,7 @@
         "identifier": "revert",
         "description": "",
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "Sequencer": {
@@ -802,12 +755,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -866,16 +817,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "LogFileAccessFailed",
-            "path": ""
+            "expression": "LogFileAccessFailed"
           },
           "typescript": {
-            "name": "LogFileAccessFailed",
-            "path": ""
+            "expression": "LogFileAccessFailed"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-env-11]": {
@@ -932,16 +881,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "LogFileWriteFailed",
-            "path": ""
+            "expression": "LogFileWriteFailed"
           },
           "typescript": {
-            "name": "LogFileWriteFailed",
-            "path": ""
+            "expression": "LogFileWriteFailed"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-env-1]": {
@@ -978,16 +925,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "InvalidArguments",
-            "path": ""
+            "expression": "InvalidArguments"
           },
           "typescript": {
-            "name": "InvalidArguments",
-            "path": ""
+            "expression": "InvalidArguments"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-env-2]": {
@@ -1039,16 +984,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "ServerStartupFailed",
-            "path": ""
+            "expression": "ServerStartupFailed"
           },
           "typescript": {
-            "name": "ServerStartupFailed",
-            "path": ""
+            "expression": "ServerStartupFailed"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-gen-0]": {
@@ -1067,12 +1010,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -1093,12 +1034,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -1135,16 +1074,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "UnexpectedVMBehavior",
-            "path": ""
+            "expression": "UnexpectedVMBehavior"
           },
           "typescript": {
-            "name": "UnexpectedVMBehavior",
-            "path": ""
+            "expression": "UnexpectedVMBehavior"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-halt-11]": {
@@ -1173,16 +1110,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "BootloaderOutOfGas",
-            "path": ""
+            "expression": "BootloaderOutOfGas"
           },
           "typescript": {
-            "name": "BootloaderOutOfGas",
-            "path": ""
+            "expression": "BootloaderOutOfGas"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-halt-12]": {
@@ -1211,16 +1146,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "ValidationOutOfGas",
-            "path": ""
+            "expression": "ValidationOutOfGas"
           },
           "typescript": {
-            "name": "ValidationOutOfGas",
-            "path": ""
+            "expression": "ValidationOutOfGas"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-halt-13]": {
@@ -1248,16 +1181,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "TooBigGasLimit",
-            "path": ""
+            "expression": "TooBigGasLimit"
           },
           "typescript": {
-            "name": "TooBigGasLimit",
-            "path": ""
+            "expression": "TooBigGasLimit"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-halt-14]": {
@@ -1286,16 +1217,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "NotEnoughGasProvided",
-            "path": ""
+            "expression": "NotEnoughGasProvided"
           },
           "typescript": {
-            "name": "NotEnoughGasProvided",
-            "path": ""
+            "expression": "NotEnoughGasProvided"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-halt-15]": {
@@ -1323,16 +1252,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "MissingInvocationLimitReached",
-            "path": ""
+            "expression": "MissingInvocationLimitReached"
           },
           "typescript": {
-            "name": "MissingInvocationLimitReached",
-            "path": ""
+            "expression": "MissingInvocationLimitReached"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-halt-16]": {
@@ -1366,16 +1293,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "FailedToSetL2Block",
-            "path": ""
+            "expression": "FailedToSetL2Block"
           },
           "typescript": {
-            "name": "FailedToSetL2Block",
-            "path": ""
+            "expression": "FailedToSetL2Block"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-halt-17]": {
@@ -1409,16 +1334,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "FailedToAppendTransactionToL2Block",
-            "path": ""
+            "expression": "FailedToAppendTransactionToL2Block"
           },
           "typescript": {
-            "name": "FailedToAppendTransactionToL2Block",
-            "path": ""
+            "expression": "FailedToAppendTransactionToL2Block"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-halt-18]": {
@@ -1446,16 +1369,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "VMPanic",
-            "path": ""
+            "expression": "VMPanic"
           },
           "typescript": {
-            "name": "VMPanic",
-            "path": ""
+            "expression": "VMPanic"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-halt-19]": {
@@ -1488,16 +1409,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "TracerCustom",
-            "path": ""
+            "expression": "TracerCustom"
           },
           "typescript": {
-            "name": "TracerCustom",
-            "path": ""
+            "expression": "TracerCustom"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-halt-1]": {
@@ -1543,16 +1462,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "ValidationFailed",
-            "path": ""
+            "expression": "ValidationFailed"
           },
           "typescript": {
-            "name": "ValidationFailed",
-            "path": ""
+            "expression": "ValidationFailed"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-halt-20]": {
@@ -1580,16 +1497,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "FailedToPublishCompressedBytecodes",
-            "path": ""
+            "expression": "FailedToPublishCompressedBytecodes"
           },
           "typescript": {
-            "name": "FailedToPublishCompressedBytecodes",
-            "path": ""
+            "expression": "FailedToPublishCompressedBytecodes"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-halt-21]": {
@@ -1618,16 +1533,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "FailedBlockTimestampAssertion",
-            "path": ""
+            "expression": "FailedBlockTimestampAssertion"
           },
           "typescript": {
-            "name": "FailedBlockTimestampAssertion",
-            "path": ""
+            "expression": "FailedBlockTimestampAssertion"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-halt-2]": {
@@ -1665,16 +1578,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "PaymasterValidationFailed",
-            "path": ""
+            "expression": "PaymasterValidationFailed"
           },
           "typescript": {
-            "name": "PaymasterValidationFailed",
-            "path": ""
+            "expression": "PaymasterValidationFailed"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-halt-3]": {
@@ -1713,16 +1624,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "PrePaymasterPreparationFailed",
-            "path": ""
+            "expression": "PrePaymasterPreparationFailed"
           },
           "typescript": {
-            "name": "PrePaymasterPreparationFailed",
-            "path": ""
+            "expression": "PrePaymasterPreparationFailed"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-halt-4]": {
@@ -1768,16 +1677,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "PayForTxFailed",
-            "path": ""
+            "expression": "PayForTxFailed"
           },
           "typescript": {
-            "name": "PayForTxFailed",
-            "path": ""
+            "expression": "PayForTxFailed"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-halt-5]": {
@@ -1814,16 +1721,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "FailedToMarkFactoryDependencies",
-            "path": ""
+            "expression": "FailedToMarkFactoryDependencies"
           },
           "typescript": {
-            "name": "FailedToMarkFactoryDependencies",
-            "path": ""
+            "expression": "FailedToMarkFactoryDependencies"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-halt-6]": {
@@ -1869,16 +1774,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "FailedToChargeFee",
-            "path": ""
+            "expression": "FailedToChargeFee"
           },
           "typescript": {
-            "name": "FailedToChargeFee",
-            "path": ""
+            "expression": "FailedToChargeFee"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-halt-7]": {
@@ -1906,16 +1809,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "FromIsNotAnAccount",
-            "path": ""
+            "expression": "FromIsNotAnAccount"
           },
           "typescript": {
-            "name": "FromIsNotAnAccount",
-            "path": ""
+            "expression": "FromIsNotAnAccount"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-halt-8]": {
@@ -1943,16 +1844,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "InnerTxError",
-            "path": ""
+            "expression": "InnerTxError"
           },
           "typescript": {
-            "name": "InnerTxError",
-            "path": ""
+            "expression": "InnerTxError"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-halt-9]": {
@@ -1989,16 +1888,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "Unknown",
-            "path": ""
+            "expression": "Unknown"
           },
           "typescript": {
-            "name": "Unknown",
-            "path": ""
+            "expression": "Unknown"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-node-0]": {
@@ -2017,12 +1914,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -2095,16 +1990,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "TransactionHalt",
-            "path": ""
+            "expression": "TransactionHalt"
           },
           "typescript": {
-            "name": "TransactionHalt",
-            "path": ""
+            "expression": "TransactionHalt"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-node-11]": {
@@ -2177,16 +2070,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "TransactionFailed",
-            "path": ""
+            "expression": "TransactionFailed"
           },
           "typescript": {
-            "name": "TransactionFailed",
-            "path": ""
+            "expression": "TransactionFailed"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-node-1]": {
@@ -2255,16 +2146,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "TransactionValidationFailedGasLimit",
-            "path": ""
+            "expression": "TransactionValidationFailedGasLimit"
           },
           "typescript": {
-            "name": "TransactionValidationFailedGasLimit",
-            "path": ""
+            "expression": "TransactionValidationFailedGasLimit"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-node-21]": {
@@ -2327,16 +2216,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "SealingBlockFailed",
-            "path": ""
+            "expression": "SealingBlockFailed"
           },
           "typescript": {
-            "name": "SealingBlockFailed",
-            "path": ""
+            "expression": "SealingBlockFailed"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-node-2]": {
@@ -2401,16 +2288,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "TransactionValidationFailedMaxFeePerGasTooLow",
-            "path": ""
+            "expression": "TransactionValidationFailedMaxFeePerGasTooLow"
           },
           "typescript": {
-            "name": "TransactionValidationFailedMaxFeePerGasTooLow",
-            "path": ""
+            "expression": "TransactionValidationFailedMaxFeePerGasTooLow"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-node-3]": {
@@ -2486,16 +2371,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee",
-            "path": ""
+            "expression": "TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee"
           },
           "typescript": {
-            "name": "TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee",
-            "path": ""
+            "expression": "TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-revert-0]": {
@@ -2514,12 +2397,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -2560,16 +2441,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "General",
-            "path": ""
+            "expression": "General"
           },
           "typescript": {
-            "name": "General",
-            "path": ""
+            "expression": "General"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-revert-2]": {
@@ -2598,16 +2477,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "InnerTxError",
-            "path": ""
+            "expression": "InnerTxError"
           },
           "typescript": {
-            "name": "InnerTxError",
-            "path": ""
+            "expression": "InnerTxError"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-revert-3]": {
@@ -2635,16 +2512,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "VmError",
-            "path": ""
+            "expression": "VmError"
           },
           "typescript": {
-            "name": "VmError",
-            "path": ""
+            "expression": "VmError"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[anvil_zksync-revert-4]": {
@@ -2690,16 +2565,14 @@
         },
         "bindings": {
           "rust": {
-            "name": "Unknown",
-            "path": ""
+            "expression": "Unknown"
           },
           "typescript": {
-            "name": "Unknown",
-            "path": ""
+            "expression": "Unknown"
           }
         },
         "origins": [
-          "../../etc/errors/anvil.json"
+          "../../anvil-zksync/etc/errors/anvil.json"
         ]
       },
       "[compiler-llvm+era-0]": {
@@ -2718,12 +2591,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -2744,12 +2615,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -2770,12 +2639,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -2796,12 +2663,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -2822,12 +2687,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -2848,12 +2711,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -2874,12 +2735,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -2900,12 +2759,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -2926,12 +2783,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -2952,12 +2807,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -2978,12 +2831,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericSequencerError",
-            "path": ""
+            "expression": "GenericSequencerError"
           },
           "typescript": {
-            "name": "GenericSequencerError",
-            "path": ""
+            "expression": "GenericSequencerError"
           }
         },
         "origins": [
@@ -3006,12 +2857,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -3032,12 +2881,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -3058,12 +2905,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -3084,12 +2929,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
