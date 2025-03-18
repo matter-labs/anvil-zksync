@@ -120,7 +120,7 @@ pub async fn external(
 
     // Submit a transaction with very high gas to refresh anvil's fee estimator. Seems like some
     // >=1.0.0 versions are still affected by this bug.
-    let fees = provider.estimate_eip1559_fees(None).await?;
+    let fees = provider.estimate_eip1559_fees().await?;
     provider
         .send_transaction(
             TransactionRequest::default()
@@ -157,9 +157,8 @@ async fn setup_provider(address: &str, config: &ZkstackConfig) -> anyhow::Result
     let blob_operator_wallet =
         EthereumWallet::from(config.wallets.blob_operator.private_key.clone());
     let provider = ProviderBuilder::new()
-        .with_recommended_fillers()
         .wallet(blob_operator_wallet)
-        .on_builtin(address)
+        .connect(address)
         .await?;
 
     // Wait for anvil to be up

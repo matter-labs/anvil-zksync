@@ -2,7 +2,7 @@ use crate::contracts::NewPriorityRequest;
 use crate::zkstack_config::ZkstackConfig;
 use alloy::eips::BlockId;
 use alloy::providers::Provider;
-use alloy::rpc::types::{BlockTransactionsKind, Filter};
+use alloy::rpc::types::Filter;
 use alloy::sol_types::SolEvent;
 use anvil_zksync_core::node::TxPool;
 use anyhow::Context;
@@ -63,7 +63,7 @@ impl L1Watcher {
     async fn poll(&mut self) -> anyhow::Result<()> {
         let latest_block = self
             .provider
-            .get_block(BlockId::latest(), BlockTransactionsKind::Hashes)
+            .get_block(BlockId::latest())
             .await?
             .context("L1 does not have any block")?;
         let to_block = latest_block.header.number;
