@@ -167,6 +167,10 @@ pub struct Cli {
     /// Directory to override bytecodes.
     pub override_bytecodes_dir: Option<String>,
 
+    #[arg(long, help_heading = "System Configuration")]
+    /// Enable bytecode compression (default: false).
+    pub bytecode_compression: Option<bool>,
+
     // System Configuration
     #[arg(long, help_heading = "System Configuration")]
     /// Option for system contracts (default: built-in).
@@ -508,7 +512,8 @@ impl Cli {
             .with_show_node_config(self.show_node_config)
             .with_silent(self.silent)
             .with_system_contracts(self.dev_system_contracts)
-            .with_override_bytecodes_dir(self.override_bytecodes_dir.clone()) // Added
+            .with_override_bytecodes_dir(self.override_bytecodes_dir.clone())
+            .with_bytecode_compression(self.bytecode_compression)
             .with_log_level(self.log)
             .with_log_file_path(self.log_file_path.clone())
             .with_account_generator(self.account_generator())
