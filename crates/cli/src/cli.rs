@@ -327,13 +327,13 @@ pub struct Cli {
     #[arg(long, default_value = DEFAULT_TX_ORDER)]
     pub order: TransactionOrder,
 
-    /// Enable L1 support.
-    #[arg(long, help_heading = "UNSTABLE - L1")]
-    pub with_l1: bool,
+    /// Enable L1 support and spawn L1 anvil node on the provided port (defaults to 8012).
+    #[arg(long, conflicts_with = "external_l1", default_missing_value = "8012", num_args(0..=1), help_heading = "UNSTABLE - L1")]
+    pub spawn_l1: Option<u16>,
 
-    /// Port the spawned L1 anvil node will listen on.
-    #[arg(long, requires = "with_l1", help_heading = "UNSTABLE - L1")]
-    pub l1_port: Option<u16>,
+    /// Enable L1 support and use provided address as L1 JSON-RPC endpoint.
+    #[arg(long, conflicts_with = "spawn_l1", help_heading = "UNSTABLE - L1")]
+    pub external_l1: Option<String>,
 }
 
 #[derive(Debug, Subcommand, Clone)]
@@ -548,9 +548,11 @@ impl Cli {
             .with_dump_state(self.dump_state)
             .with_preserve_historical_states(self.preserve_historical_states)
             .with_load_state(self.load_state)
-            .with_l1_config(self.with_l1.then(|| L1Config {
-                port: self.l1_port.unwrap_or(8012),
-            }));
+            .with_l1_config(
+                self.spawn_l1.map(|port| L1Config::Spawn { port }).or(self
+                    .external_l1
+                    .map(|address| L1Config::External { address })),
+            );
 
         if self.emulate_evm && self.dev_system_contracts != Some(SystemContractsOptions::Local) {
             return Err(zksync_error::anvil_zksync::env::InvalidArguments {
