@@ -2,7 +2,6 @@ use alloy::contract::SolCallBuilder;
 use alloy::network::ReceiptResponse;
 use alloy::primitives::{Address, U256};
 use alloy::providers::Provider;
-use alloy::transports::Transport;
 use alloy_zksync::network::transaction_request::TransactionRequest;
 use alloy_zksync::network::Zksync;
 use std::fmt::Debug;
@@ -16,11 +15,9 @@ mod private {
     );
 }
 
-pub struct Counter<T: Transport + Clone, P: Provider<T, Zksync>>(
-    private::Counter::CounterInstance<T, P, Zksync>,
-);
+pub struct Counter<P: Provider<Zksync>>(private::Counter::CounterInstance<(), P, Zksync>);
 
-impl<T: Transport + Clone, P: Provider<T, Zksync>> Counter<T, P> {
+impl<P: Provider<Zksync>> Counter<P> {
     pub async fn deploy(provider: P) -> anyhow::Result<Self> {
         let tx = TransactionRequest::default().with_create_params(
             private::Counter::BYTECODE.clone().into(),
@@ -46,7 +43,7 @@ impl<T: Transport + Clone, P: Provider<T, Zksync>> Counter<T, P> {
     pub fn increment(
         &self,
         x: impl TryInto<U256, Error = impl Debug>,
-    ) -> SolCallBuilder<T, &P, private::Counter::incrementCall, Zksync> {
+    ) -> SolCallBuilder<(), &P, private::Counter::incrementCall, Zksync> {
         self.0.increment(x.try_into().unwrap())
     }
 }

@@ -1,7 +1,7 @@
 use crate::http_middleware::HttpWithMiddleware;
 use crate::utils::{get_node_binary_path, LockedPort};
 use crate::ReceiptExt;
-use alloy::network::primitives::{BlockTransactionsKind, HeaderResponse as _};
+use alloy::network::primitives::HeaderResponse as _;
 use alloy::network::{Network, ReceiptResponse as _, TransactionBuilder};
 use alloy::primitives::{Address, U256};
 use alloy::providers::{
@@ -14,7 +14,7 @@ use alloy::rpc::{
 };
 use alloy::signers::local::LocalSigner;
 use alloy::signers::Signer;
-use alloy::transports::{RpcError, Transport, TransportErrorKind, TransportResult};
+use alloy::transports::{RpcError, TransportErrorKind, TransportResult};
 use alloy_zksync::network::header_response::HeaderResponse;
 use alloy_zksync::network::receipt_response::ReceiptResponse;
 use alloy_zksync::network::transaction_response::TransactionResponse;
@@ -29,7 +29,6 @@ use itertools::Itertools;
 use reqwest_middleware::{Middleware, Next};
 use std::convert::identity;
 use std::future::Future;
-use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::sync::Arc;
@@ -41,16 +40,12 @@ use tokio::task::JoinHandle;
 pub const DEFAULT_TX_VALUE: u64 = 100;
 
 /// Full requirements for the underlying Zksync provider.
-pub trait FullZksyncProvider<T>:
-    Provider<T, Zksync> + WalletProvider<Zksync, Wallet = ZksyncWallet> + Clone
-where
-    T: Transport + Clone,
+pub trait FullZksyncProvider:
+    Provider<Zksync> + WalletProvider<Zksync, Wallet = ZksyncWallet> + Clone
 {
 }
-impl<P, T> FullZksyncProvider<T> for P
-where
-    P: Provider<T, Zksync> + WalletProvider<Zksync, Wallet = ZksyncWallet> + Clone,
-    T: Transport + Clone,
+impl<P> FullZksyncProvider for P where
+    P: Provider<Zksync> + WalletProvider<Zksync, Wallet = ZksyncWallet> + Clone
 {
 }
 
@@ -61,16 +56,14 @@ where
 /// as signer set can change dynamically over time if, for example, user registers a new signer on
 /// their side.
 #[derive(Debug, Clone)]
-pub struct TestingProvider<P, T>
+pub struct TestingProvider<P>
 where
-    P: FullZksyncProvider<T>,
-    T: Transport + Clone,
+    P: FullZksyncProvider,
 {
     inner: P,
     rich_accounts: Vec<Address>,
     /// Last seen response headers
     last_response_headers: Arc<RwLock<Option<HeaderMap>>>,
-    _pd: PhantomData<T>,
 
     /// Underlying anvil-zksync instance's URL
     pub url: reqwest::Url,
@@ -79,16 +72,14 @@ where
 // TODO: Consider creating a builder pattern
 pub async fn init_testing_provider(
     node_fn: impl FnOnce(AnvilZKsync) -> AnvilZKsync,
-) -> anyhow::Result<TestingProvider<impl FullZksyncProvider<HttpWithMiddleware>, HttpWithMiddleware>>
-{
+) -> anyhow::Result<TestingProvider<impl FullZksyncProvider>> {
     init_testing_provider_with_client(node_fn, identity).await
 }
 
 pub async fn init_testing_provider_with_client(
     node_fn: impl FnOnce(AnvilZKsync) -> AnvilZKsync,
     client_fn: impl FnOnce(reqwest::ClientBuilder) -> reqwest::ClientBuilder,
-) -> anyhow::Result<TestingProvider<impl FullZksyncProvider<HttpWithMiddleware>, HttpWithMiddleware>>
-{
+) -> anyhow::Result<TestingProvider<impl FullZksyncProvider>> {
     let locked_port = LockedPort::acquire_unused().await?;
     let node_layer = AnvilZKsyncLayer::from(node_fn(
         AnvilZKsync::new()
@@ -135,16 +126,14 @@ pub async fn init_testing_provider_with_client(
         inner: provider,
         rich_accounts,
         last_response_headers,
-        _pd: Default::default(),
 
         url,
     })
 }
 
-impl<P, T> TestingProvider<P, T>
+impl<P> TestingProvider<P>
 where
-    P: FullZksyncProvider<T>,
-    T: Transport + Clone,
+    P: FullZksyncProvider,
 {
     /// Returns a rich account under the requested index. Rich accounts returned from this method
     /// are guaranteed to not change over the node's lifetime.
@@ -165,23 +154,21 @@ where
     }
 }
 
-impl<P, T> TestingProvider<P, T>
+impl<P> TestingProvider<P>
 where
-    P: FullZksyncProvider<T>,
-    T: Transport + Clone,
+    P: FullZksyncProvider,
     Self: 'static,
 {
     /// Creates a default transaction (transfers 100 wei to a random account from the default signer)
     /// and returns it as a builder. The builder can then be used to populate transaction with custom
     /// data and then to register it or wait until it is finalized.
-    pub fn tx(&self) -> TestTxBuilder<P, T> {
+    pub fn tx(&self) -> TestTxBuilder<P> {
         let tx = TransactionRequest::default()
             .with_to(Address::random())
             .with_value(U256::from(DEFAULT_TX_VALUE));
         TestTxBuilder {
             inner: tx,
             provider: (*self).clone(),
-            _pd: Default::default(),
         }
     }
 
@@ -190,10 +177,10 @@ where
     /// at the same time).
     pub async fn race_n_txs<const N: usize>(
         &self,
-        f: impl Fn(usize, TestTxBuilder<P, T>) -> TestTxBuilder<P, T>,
+        f: impl Fn(usize, TestTxBuilder<P>) -> TestTxBuilder<P>,
     ) -> Result<RacedReceipts<N>, PendingTransactionError> {
         let pending_txs: [JoinHandle<
-            Result<PendingTransactionFinalizable<T, Zksync>, PendingTransactionError>,
+            Result<PendingTransactionFinalizable<Zksync>, PendingTransactionError>,
         >; N] = std::array::from_fn(|i| {
             let tx = f(i, self.tx());
             tokio::spawn(tx.register())
@@ -230,7 +217,8 @@ where
         receipt: &ReceiptResponse,
     ) -> anyhow::Result<Block<TransactionResponse, HeaderResponse>> {
         let hash = receipt.block_hash_ext()?;
-        self.get_block_by_hash(receipt.block_hash_ext()?, BlockTransactionsKind::Full)
+        self.get_block_by_hash(receipt.block_hash_ext()?)
+            .full()
             .await?
             .with_context(|| format!("block (hash={}) not found", hash))
     }
@@ -312,7 +300,8 @@ where
             "expected block did not have full transactions"
         );
         let Some(actual_block) = self
-            .get_block_by_hash(expected_block.header.hash(), BlockTransactionsKind::Full)
+            .get_block_by_hash(expected_block.header.hash())
+            .full()
             .await?
         else {
             anyhow::bail!("block (hash={}) not found", expected_block.header.hash());
@@ -336,7 +325,8 @@ where
         expected_block: &Block<TransactionResponse, HeaderResponse>,
     ) -> anyhow::Result<()> {
         if let Some(actual_block) = self
-            .get_block_by_hash(expected_block.header.hash(), BlockTransactionsKind::Full)
+            .get_block_by_hash(expected_block.header.hash())
+            .full()
             .await?
         {
             anyhow::bail!(
@@ -377,26 +367,23 @@ where
 }
 
 #[async_trait::async_trait]
-impl<P, T> Provider<T, Zksync> for TestingProvider<P, T>
+impl<P> Provider<Zksync> for TestingProvider<P>
 where
-    P: FullZksyncProvider<T>,
-    T: Transport + Clone,
+    P: FullZksyncProvider,
 {
-    fn root(&self) -> &RootProvider<T, Zksync> {
+    fn root(&self) -> &RootProvider<Zksync> {
         self.inner.root()
     }
 
     async fn send_transaction_internal(
         &self,
         tx: SendableTx<Zksync>,
-    ) -> TransportResult<PendingTransactionBuilder<T, Zksync>> {
+    ) -> TransportResult<PendingTransactionBuilder<Zksync>> {
         self.inner.send_transaction_internal(tx).await
     }
 }
 
-impl<P: FullZksyncProvider<T>, T: Transport + Clone> WalletProvider<Zksync>
-    for TestingProvider<P, T>
-{
+impl<P: FullZksyncProvider> WalletProvider<Zksync> for TestingProvider<P> {
     type Wallet = ZksyncWallet;
 
     fn wallet(&self) -> &Self::Wallet {
@@ -412,20 +399,17 @@ impl<P: FullZksyncProvider<T>, T: Transport + Clone> WalletProvider<Zksync>
 /// of boilerplate for users who just want to submit default transactions (see [`TestingProvider::tx`])
 /// most of the time. Also returns wrapped pending transaction in the form of [`PendingTransactionFinalizable`],
 /// which can be finalized without a user-supplied provider instance.
-pub struct TestTxBuilder<P, T>
+pub struct TestTxBuilder<P>
 where
-    P: FullZksyncProvider<T>,
-    T: Transport + Clone,
+    P: FullZksyncProvider,
 {
     inner: TransactionRequest,
-    provider: TestingProvider<P, T>,
-    _pd: PhantomData<T>,
+    provider: TestingProvider<P>,
 }
 
-impl<P, T> TestTxBuilder<P, T>
+impl<P> TestTxBuilder<P>
 where
-    T: Transport + Clone,
-    P: FullZksyncProvider<T>,
+    P: FullZksyncProvider,
 {
     /// Builder-pattern method for setting the sender.
     pub fn with_from(mut self, from: Address) -> Self {
@@ -470,7 +454,7 @@ where
     /// that can be awaited at a later moment.
     pub async fn register(
         self,
-    ) -> Result<PendingTransactionFinalizable<T, Zksync>, PendingTransactionError> {
+    ) -> Result<PendingTransactionFinalizable<Zksync>, PendingTransactionError> {
         let pending_tx = self
             .provider
             .send_transaction(self.inner.into())
@@ -497,24 +481,24 @@ where
 /// A wrapper around [`PendingTransaction`] that holds a provider instance which can be used to check
 /// if the transaction is finalized or not without user supplying it again. Also contains helper
 /// methods to assert different finalization scenarios.
-pub struct PendingTransactionFinalizable<T, N: Network> {
+pub struct PendingTransactionFinalizable<N: Network> {
     inner: PendingTransaction,
-    provider: RootProvider<T, N>,
+    provider: RootProvider<N>,
 }
 
-impl<T, N: Network> AsRef<PendingTransaction> for PendingTransactionFinalizable<T, N> {
+impl<N: Network> AsRef<PendingTransaction> for PendingTransactionFinalizable<N> {
     fn as_ref(&self) -> &PendingTransaction {
         &self.inner
     }
 }
 
-impl<T, N: Network> AsMut<PendingTransaction> for PendingTransactionFinalizable<T, N> {
+impl<N: Network> AsMut<PendingTransaction> for PendingTransactionFinalizable<N> {
     fn as_mut(&mut self) -> &mut PendingTransaction {
         &mut self.inner
     }
 }
 
-impl<T, N: Network> Deref for PendingTransactionFinalizable<T, N> {
+impl<N: Network> Deref for PendingTransactionFinalizable<N> {
     type Target = PendingTransaction;
 
     fn deref(&self) -> &PendingTransaction {
@@ -522,13 +506,13 @@ impl<T, N: Network> Deref for PendingTransactionFinalizable<T, N> {
     }
 }
 
-impl<T, N: Network> DerefMut for PendingTransactionFinalizable<T, N> {
+impl<N: Network> DerefMut for PendingTransactionFinalizable<N> {
     fn deref_mut(&mut self) -> &mut PendingTransaction {
         &mut self.inner
     }
 }
 
-impl<T, N: Network> Future for PendingTransactionFinalizable<T, N> {
+impl<N: Network> Future for PendingTransactionFinalizable<N> {
     type Output = <PendingTransaction as Future>::Output;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -536,7 +520,7 @@ impl<T, N: Network> Future for PendingTransactionFinalizable<T, N> {
     }
 }
 
-impl<T: Transport + Clone, N: Network> PendingTransactionFinalizable<T, N> {
+impl<N: Network> PendingTransactionFinalizable<N> {
     /// Asserts that transaction is finalizable by waiting until its receipt gets resolved.
     pub async fn wait_until_finalized(self) -> Result<N::ReceiptResponse, PendingTransactionError> {
         let tx_hash = self.inner.await?;

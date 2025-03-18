@@ -1,11 +1,9 @@
 use alloy::network::{Ethereum, ReceiptResponse, TransactionBuilder};
 use alloy::primitives::{Address, B256, U256};
 use alloy::providers::{Provider, ProviderBuilder, WalletProvider};
-use alloy::transports::BoxTransport;
 use alloy_zksync::network::receipt_response::ReceiptResponse as ZkReceiptResponse;
 use alloy_zksync::provider::ZksyncProvider;
 use anvil_zksync_e2e_tests::contracts::{Bridgehub, L1Messenger, L2Message};
-use anvil_zksync_e2e_tests::http_middleware::HttpWithMiddleware;
 use anvil_zksync_e2e_tests::test_contracts::Counter;
 use anvil_zksync_e2e_tests::{
     init_testing_provider, AnvilZKsyncApi, FullZksyncProvider, LockedPort, ReceiptExt,
@@ -15,17 +13,15 @@ use anyhow::Context;
 use std::str::FromStr;
 
 async fn init_l1_l2_providers() -> anyhow::Result<(
-    impl Provider<BoxTransport, Ethereum> + Clone,
-    TestingProvider<impl FullZksyncProvider<HttpWithMiddleware>, HttpWithMiddleware>,
+    impl Provider<Ethereum> + Clone,
+    TestingProvider<impl FullZksyncProvider>,
 )> {
     let l1_locked_port = LockedPort::acquire_unused().await?;
-    let l1_provider = ProviderBuilder::new()
-        .with_recommended_fillers()
-        .on_anvil_with_config(|anvil| {
-            anvil
-                .port(l1_locked_port.port)
-                .arg("--no-request-size-limit")
-        });
+    let l1_provider = ProviderBuilder::new().on_anvil_with_config(|anvil| {
+        anvil
+            .port(l1_locked_port.port)
+            .arg("--no-request-size-limit")
+    });
     let l1_address = format!("http://localhost:{}", l1_locked_port.port);
     let l2_provider =
         init_testing_provider(move |node| node.args(["--external-l1", l1_address.as_str()]))
@@ -261,7 +257,7 @@ async fn l1_priority_tx() -> anyhow::Result<()> {
 
     // Prepare a transaction from a rich account that will increment `Counter` by 1
     let alice = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")?;
-    let eip1559_est = l1_provider.estimate_eip1559_fees(None).await?;
+    let eip1559_est = l1_provider.estimate_eip1559_fees().await?;
     let tx = counter
         .increment(1)
         .into_transaction_request()

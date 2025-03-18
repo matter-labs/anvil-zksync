@@ -1,9 +1,7 @@
 use alloy::network::ReceiptResponse;
 use alloy::providers::ext::AnvilApi;
 use alloy::providers::Provider;
-use alloy::{
-    network::primitives::BlockTransactionsKind, primitives::U256, signers::local::PrivateKeySigner,
-};
+use alloy::{primitives::U256, signers::local::PrivateKeySigner};
 use alloy_zksync::node_bindings::AnvilZKsync;
 use anvil_zksync_core::node::VersionedState;
 use anvil_zksync_core::utils::write_json_file;
@@ -488,12 +486,9 @@ async fn pool_txs_order_fifo() -> anyhow::Result<()> {
         .register()
         .await?;
 
-    provider_fifo.anvil_mine(Some(U256::from(1)), None).await?;
+    provider_fifo.anvil_mine(Some(1), None).await?;
 
-    let block = provider_fifo
-        .get_block(1.into(), BlockTransactionsKind::Hashes)
-        .await?
-        .unwrap();
+    let block = provider_fifo.get_block(1.into()).await?.unwrap();
     let tx_hashes = block.transactions.as_hashes().unwrap();
     assert_eq!(&tx_hashes[0], pending_tx0.tx_hash());
     assert_eq!(&tx_hashes[1], pending_tx1.tx_hash());
@@ -524,12 +519,9 @@ async fn pool_txs_order_fees() -> anyhow::Result<()> {
         .register()
         .await?;
 
-    provider_fees.anvil_mine(Some(U256::from(1)), None).await?;
+    provider_fees.anvil_mine(Some(1), None).await?;
 
-    let block = provider_fees
-        .get_block(1.into(), BlockTransactionsKind::Hashes)
-        .await?
-        .unwrap();
+    let block = provider_fees.get_block(1.into()).await?.unwrap();
     let tx_hashes = block.transactions.as_hashes().unwrap();
     assert_eq!(&tx_hashes[0], pending_tx2.tx_hash());
     assert_eq!(&tx_hashes[1], pending_tx1.tx_hash());
@@ -543,7 +535,7 @@ async fn transactions_have_index() -> anyhow::Result<()> {
     let tx1 = provider.tx().with_rich_from(0).register().await?;
     let tx2 = provider.tx().with_rich_from(1).register().await?;
 
-    provider.anvil_mine(Some(U256::from(1)), None).await?;
+    provider.anvil_mine(Some(1), None).await?;
 
     let receipt1 = tx1.wait_until_finalized().await?;
     let receipt2 = tx2.wait_until_finalized().await?;
