@@ -11,9 +11,15 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+anvil_zksync_common.workspace = true
+
+zksync_types.workspace = true
+zksync_multivm.workspace = true
+
 alloy-sol-types = "0.8.21"
 alloy.workspace = true
 foundry-common-fmt.workspace = true
 foundry-macros.workspace = true
 derive_more.workspace = true
 itertools.workspace = true
+colored.workspace = true

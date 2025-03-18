@@ -1,5 +1,4 @@
 use crate::bootloader_debug::BootloaderDebug;
-use crate::console_log::ConsoleLogHandler;
 use crate::deps::storage_view::StorageView;
 use crate::formatter;
 use crate::formatter::ExecutionErrorReport;
@@ -18,6 +17,7 @@ use crate::utils::create_debug_output;
 use anvil_zksync_common::shell::get_shell;
 use anvil_zksync_common::{sh_eprintln, sh_err, sh_println};
 use anvil_zksync_config::TestNodeConfig;
+use anvil_zksync_console::console_log::ConsoleLogHandler;
 use anvil_zksync_traces::decode::CallTraceDecoderBuilder;
 use anvil_zksync_traces::{
     build_call_trace_arena, decode_trace_arena, filter_call_trace_arena,

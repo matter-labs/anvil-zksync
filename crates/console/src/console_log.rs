@@ -10,6 +10,8 @@ use itertools::Itertools;
 use zksync_multivm::interface::Call;
 use zksync_types::H160;
 
+// TODO: consolidate with hh.rs
+
 /// ConsoleLogHandler is responsible for printing the logs, that are created when contract calls 'console.log' method.
 /// This is a popular debugging method used by hardhat and foundry.
 /// When user wants to log something, these tools are doing a call to a contract at a given (fake) address.

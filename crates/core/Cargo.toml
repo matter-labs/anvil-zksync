@@ -13,6 +13,7 @@ categories.workspace = true
 anvil_zksync_types.workspace = true
 anvil_zksync_config.workspace = true
 anvil_zksync_common.workspace = true
+anvil_zksync_console.workspace = true
 anvil_zksync_traces.workspace = true
 
 zksync_mini_merkle_tree.workspace = true

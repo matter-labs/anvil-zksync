@@ -844,10 +844,14 @@ version = "0.3.2"
 dependencies = [
  "alloy",
  "alloy-sol-types",
+ "anvil_zksync_common",
+ "colored",
  "derive_more 1.0.0",
  "foundry-common-fmt",
  "foundry-macros",
  "itertools 0.13.0",
+ "zksync_multivm",
+ "zksync_types",
 ]
 
 [[package]]
@@ -857,6 +861,7 @@ dependencies = [
  "alloy",
  "anvil_zksync_common",
  "anvil_zksync_config",
+ "anvil_zksync_console",
  "anvil_zksync_traces",
  "anvil_zksync_types",
  "anyhow",

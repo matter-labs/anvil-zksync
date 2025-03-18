@@ -1,4 +1,3 @@
-use crate::console_log::ConsoleLogHandler;
 use crate::deps::storage_view::StorageView;
 use crate::filters::EthFilters;
 use crate::formatter::ExecutionErrorReport;
@@ -23,6 +22,7 @@ use anvil_zksync_config::constants::{
     LEGACY_RICH_WALLETS, NON_FORK_FIRST_BLOCK_TIMESTAMP, RICH_WALLETS,
 };
 use anvil_zksync_config::TestNodeConfig;
+use anvil_zksync_console::console_log::ConsoleLogHandler;
 use indexmap::IndexMap;
 use std::collections::{HashMap, HashSet};
 
