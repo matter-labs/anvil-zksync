@@ -2,11 +2,11 @@ use crate::http_middleware::HttpWithMiddleware;
 use crate::utils::{get_node_binary_path, LockedPort};
 use crate::ReceiptExt;
 use alloy::network::primitives::HeaderResponse as _;
-use alloy::network::{Network, ReceiptResponse as _, TransactionBuilder};
+use alloy::network::{Ethereum, Network, ReceiptResponse as _, TransactionBuilder};
 use alloy::primitives::{Address, U256};
 use alloy::providers::{
-    PendingTransaction, PendingTransactionBuilder, PendingTransactionError, Provider, RootProvider,
-    SendableTx, WalletProvider,
+    DynProvider, PendingTransaction, PendingTransactionError, Provider, ProviderBuilder,
+    RootProvider, WalletProvider,
 };
 use alloy::rpc::{
     client::RpcClient,
@@ -14,7 +14,7 @@ use alloy::rpc::{
 };
 use alloy::signers::local::LocalSigner;
 use alloy::signers::Signer;
-use alloy::transports::{RpcError, TransportErrorKind, TransportResult};
+use alloy::transports::{RpcError, TransportErrorKind};
 use alloy_zksync::network::header_response::HeaderResponse;
 use alloy_zksync::network::receipt_response::ReceiptResponse;
 use alloy_zksync::network::transaction_response::TransactionResponse;
@@ -51,26 +51,33 @@ impl<P> FullZksyncProvider for P where
 /// as signer set can change dynamically over time if, for example, user registers a new signer on
 /// their side.
 #[derive(Debug, Clone)]
-pub struct TestingProvider<P>
+pub struct AnvilZksyncTester<P>
 where
     P: FullZksyncProvider,
 {
-    inner: P,
+    l1_provider: Option<DynProvider<Ethereum>>,
+    l2_provider: P,
     rich_accounts: Vec<Address>,
 
     /// Underlying anvil-zksync instance's URL
-    pub url: reqwest::Url,
+    pub l2_url: reqwest::Url,
 }
 
 #[derive(Default)]
-pub struct TestingProviderBuilder<'a> {
+pub struct AnvilZksyncTesterBuilder<'a> {
+    spawn_l1: bool,
     node_fn: Option<&'a dyn Fn(AnvilZKsync) -> AnvilZKsync>,
     client_fn: Option<&'a dyn Fn(reqwest::ClientBuilder) -> reqwest::ClientBuilder>,
     client_middleware_fn:
         Option<&'a dyn Fn(reqwest_middleware::ClientBuilder) -> reqwest_middleware::ClientBuilder>,
 }
 
-impl<'a> TestingProviderBuilder<'a> {
+impl<'a> AnvilZksyncTesterBuilder<'a> {
+    pub fn with_l1(mut self) -> Self {
+        self.spawn_l1 = true;
+        self
+    }
+
     pub fn with_node_fn(mut self, node_fn: &'a dyn Fn(AnvilZKsync) -> AnvilZKsync) -> Self {
         self.node_fn = Some(node_fn);
         self
@@ -94,22 +101,39 @@ impl<'a> TestingProviderBuilder<'a> {
         self
     }
 
-    pub async fn build(self) -> anyhow::Result<TestingProvider<impl FullZksyncProvider>> {
+    pub async fn build(self) -> anyhow::Result<AnvilZksyncTester<impl FullZksyncProvider>> {
         let node_fn = self.node_fn.unwrap_or(&identity);
         let client_fn = self.client_fn.unwrap_or(&identity);
         let client_middleware_fn = self.client_middleware_fn.unwrap_or(&identity);
 
+        let (l1_provider, l1_address) = if self.spawn_l1 {
+            let l1_locked_port = LockedPort::acquire_unused().await?;
+            let l1_provider = ProviderBuilder::new().on_anvil_with_config(|anvil| {
+                anvil
+                    .port(l1_locked_port.port)
+                    .arg("--no-request-size-limit")
+            });
+            let l1_address = format!("http://localhost:{}", l1_locked_port.port);
+            (Some(DynProvider::new(l1_provider)), Some(l1_address))
+        } else {
+            (None, None)
+        };
+
         let locked_port = LockedPort::acquire_unused().await?;
-        let node_layer = AnvilZKsyncLayer::from(node_fn(
-            AnvilZKsync::new()
+        let node_layer = AnvilZKsyncLayer::from(node_fn({
+            let mut node = AnvilZKsync::new()
                 .path(get_node_binary_path())
-                .port(locked_port.port),
-        ));
+                .port(locked_port.port);
+            if let Some(l1_address) = l1_address {
+                node = node.args(["--external-l1", l1_address.as_str()])
+            }
+            node
+        }));
 
         let client = client_fn(reqwest::Client::builder()).build()?;
         let client = client_middleware_fn(reqwest_middleware::ClientBuilder::new(client)).build();
-        let url = node_layer.endpoint_url();
-        let http = HttpWithMiddleware::with_client(client, url.clone());
+        let l2_url = node_layer.endpoint_url();
+        let http = HttpWithMiddleware::with_client(client, l2_url.clone());
         let rpc_client = RpcClient::new(http, true);
 
         let rich_accounts = node_layer.instance().addresses().to_vec();
@@ -138,16 +162,17 @@ impl<'a> TestingProviderBuilder<'a> {
         // Explicitly unlock the port to showcase why we waited above
         drop(locked_port);
 
-        Ok(TestingProvider {
-            inner: provider,
+        Ok(AnvilZksyncTester {
+            l1_provider,
+            l2_provider: provider,
             rich_accounts,
 
-            url,
+            l2_url,
         })
     }
 }
 
-impl<P> TestingProvider<P>
+impl<P> AnvilZksyncTester<P>
 where
     P: FullZksyncProvider,
 {
@@ -159,9 +184,23 @@ where
             .get(index)
             .unwrap_or_else(|| panic!("not enough rich accounts (#{} was requested)", index,))
     }
+
+    pub fn l1_provider(&self) -> DynProvider<Ethereum> {
+        self.l1_provider
+            .clone()
+            .expect("anvil-zksync is not running in L1 mode")
+    }
+
+    pub fn l2_provider(&self) -> &P {
+        &self.l2_provider
+    }
+
+    pub fn l2_provider_mut(&mut self) -> &mut P {
+        &mut self.l2_provider
+    }
 }
 
-impl<P> TestingProvider<P>
+impl<P> AnvilZksyncTester<P>
 where
     P: FullZksyncProvider,
     Self: 'static,
@@ -175,7 +214,7 @@ where
             .with_value(U256::from(DEFAULT_TX_VALUE));
         TestTxBuilder {
             inner: tx,
-            provider: (*self).clone(),
+            tester: (*self).clone(),
         }
     }
 
@@ -224,7 +263,8 @@ where
         receipt: &ReceiptResponse,
     ) -> anyhow::Result<Block<TransactionResponse, HeaderResponse>> {
         let hash = receipt.block_hash_ext()?;
-        self.get_block_by_hash(receipt.block_hash_ext()?)
+        self.l2_provider
+            .get_block_by_hash(receipt.block_hash_ext()?)
             .full()
             .await?
             .with_context(|| format!("block (hash={}) not found", hash))
@@ -249,6 +289,7 @@ where
         expected_receipt: &ReceiptResponse,
     ) -> anyhow::Result<()> {
         let Some(actual_receipt) = self
+            .l2_provider
             .get_transaction_receipt(expected_receipt.transaction_hash())
             .await?
         else {
@@ -276,6 +317,7 @@ where
         expected_receipt: &ReceiptResponse,
     ) -> anyhow::Result<()> {
         if let Some(actual_receipt) = self
+            .l2_provider
             .get_transaction_receipt(expected_receipt.transaction_hash())
             .await?
         {
@@ -307,6 +349,7 @@ where
             "expected block did not have full transactions"
         );
         let Some(actual_block) = self
+            .l2_provider
             .get_block_by_hash(expected_block.header.hash())
             .full()
             .await?
@@ -332,6 +375,7 @@ where
         expected_block: &Block<TransactionResponse, HeaderResponse>,
     ) -> anyhow::Result<()> {
         if let Some(actual_block) = self
+            .l2_provider
             .get_block_by_hash(expected_block.header.hash())
             .full()
             .await?
@@ -360,7 +404,7 @@ where
         address: Address,
         expected_balance: u64,
     ) -> anyhow::Result<()> {
-        let actual_balance = self.get_balance(address).await?;
+        let actual_balance = self.l2_provider.get_balance(address).await?;
         let expected_balance = U256::from(expected_balance);
         anyhow::ensure!(
             actual_balance == expected_balance,
@@ -373,35 +417,6 @@ where
     }
 }
 
-#[async_trait::async_trait]
-impl<P> Provider<Zksync> for TestingProvider<P>
-where
-    P: FullZksyncProvider,
-{
-    fn root(&self) -> &RootProvider<Zksync> {
-        self.inner.root()
-    }
-
-    async fn send_transaction_internal(
-        &self,
-        tx: SendableTx<Zksync>,
-    ) -> TransportResult<PendingTransactionBuilder<Zksync>> {
-        self.inner.send_transaction_internal(tx).await
-    }
-}
-
-impl<P: FullZksyncProvider> WalletProvider<Zksync> for TestingProvider<P> {
-    type Wallet = ZksyncWallet;
-
-    fn wallet(&self) -> &Self::Wallet {
-        self.inner.wallet()
-    }
-
-    fn wallet_mut(&mut self) -> &mut Self::Wallet {
-        self.inner.wallet_mut()
-    }
-}
-
 /// Helper struct for building and submitting transactions. Main idea here is to reduce the amount
 /// of boilerplate for users who just want to submit default transactions (see [`TestingProvider::tx`])
 /// most of the time. Also returns wrapped pending transaction in the form of [`PendingTransactionFinalizable`],
@@ -411,7 +426,7 @@ where
     P: FullZksyncProvider,
 {
     inner: TransactionRequest,
-    provider: TestingProvider<P>,
+    tester: AnvilZksyncTester<P>,
 }
 
 impl<P> TestTxBuilder<P>
@@ -426,7 +441,7 @@ where
 
     /// Sets the sender to an indexed rich account (see [`TestingProvider::rich_account`]).
     pub fn with_rich_from(mut self, index: usize) -> Self {
-        let from = self.provider.rich_account(index);
+        let from = self.tester.rich_account(index);
         self.inner = self.inner.with_from(from);
         self
     }
@@ -463,21 +478,23 @@ where
         self,
     ) -> Result<PendingTransactionFinalizable<Zksync>, PendingTransactionError> {
         let pending_tx = self
-            .provider
+            .tester
+            .l2_provider
             .send_transaction(self.inner.into())
             .await?
             .register()
             .await?;
         Ok(PendingTransactionFinalizable {
             inner: pending_tx,
-            provider: self.provider.root().clone(),
+            provider: self.tester.l2_provider.root().clone(),
         })
     }
 
     /// Waits for the transaction to finalize with the given number of confirmations and then fetches
     /// its receipt.
     pub async fn finalize(self) -> Result<ReceiptResponse, PendingTransactionError> {
-        self.provider
+        self.tester
+            .l2_provider
             .send_transaction(self.inner.into())
             .await?
             .get_receipt()

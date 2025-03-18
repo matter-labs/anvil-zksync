@@ -6,8 +6,8 @@ use alloy_zksync::node_bindings::AnvilZKsync;
 use anvil_zksync_core::node::VersionedState;
 use anvil_zksync_core::utils::write_json_file;
 use anvil_zksync_e2e_tests::{
-    get_node_binary_path, AnvilZKsyncApi, LockedPort, ReceiptExt, ResponseHeadersInspector,
-    TestingProviderBuilder, ZksyncWalletProviderExt, DEFAULT_TX_VALUE,
+    get_node_binary_path, AnvilZKsyncApi, AnvilZksyncTesterBuilder, LockedPort, ReceiptExt,
+    ResponseHeadersInspector, ZksyncWalletProviderExt, DEFAULT_TX_VALUE,
 };
 use anyhow::Context;
 use flate2::read::GzDecoder;
@@ -28,12 +28,12 @@ const ANY_ORIGIN: HeaderValue = HeaderValue::from_static("*");
 async fn interval_sealing_finalization() -> anyhow::Result<()> {
     // Test that we can submit a transaction and wait for it to finalize when anvil-zksync is
     // operating in interval sealing mode.
-    let provider = TestingProviderBuilder::default()
+    let tester = AnvilZksyncTesterBuilder::default()
         .with_node_fn(&|node| node.block_time(1))
         .build()
         .await?;
 
-    provider.tx().finalize().await?.assert_successful()?;
+    tester.tx().finalize().await?.assert_successful()?;
 
     Ok(())
 }
@@ -43,12 +43,12 @@ async fn interval_sealing_multiple_txs() -> anyhow::Result<()> {
     // Test that we can submit two transactions and wait for them to finalize in the same block when
     // anvil-zksync is operating in interval sealing mode. 3 seconds should be long enough for
     // the entire flow to execute before the first block is produced.
-    let provider = TestingProviderBuilder::default()
+    let tester = AnvilZksyncTesterBuilder::default()
         .with_node_fn(&|node| node.block_time(3))
         .build()
         .await?;
 
-    provider
+    tester
         .race_n_txs_rich::<2>()
         .await?
         .assert_successful()?
@@ -61,18 +61,18 @@ async fn interval_sealing_multiple_txs() -> anyhow::Result<()> {
 async fn no_sealing_timeout() -> anyhow::Result<()> {
     // Test that we can submit a transaction and timeout while waiting for it to finalize when
     // anvil-zksync is operating in no sealing mode.
-    let provider = TestingProviderBuilder::default()
+    let tester = AnvilZksyncTesterBuilder::default()
         .with_node_fn(&|node| node.no_mine())
         .build()
         .await?;
 
-    let pending_tx = provider.tx().register().await?;
+    let pending_tx = tester.tx().register().await?;
     let pending_tx = pending_tx
         .assert_not_finalizable(Duration::from_secs(3))
         .await?;
 
     // Mine a block manually and assert that the transaction is finalized now
-    provider.anvil_mine(None, None).await?;
+    tester.l2_provider().anvil_mine(None, None).await?;
     pending_tx
         .wait_until_finalized()
         .await?
@@ -84,37 +84,37 @@ async fn no_sealing_timeout() -> anyhow::Result<()> {
 #[tokio::test]
 async fn dynamic_sealing_mode() -> anyhow::Result<()> {
     // Test that we can successfully switch between different sealing modes
-    let provider = TestingProviderBuilder::default()
+    let tester = AnvilZksyncTesterBuilder::default()
         .with_node_fn(&|node| node.no_mine())
         .build()
         .await?;
-    assert!(!(provider.anvil_get_auto_mine().await?));
+    assert!(!tester.l2_provider().anvil_get_auto_mine().await?);
 
     // Enable immediate block sealing
-    provider.anvil_set_auto_mine(true).await?;
-    assert!(provider.anvil_get_auto_mine().await?);
+    tester.l2_provider().anvil_set_auto_mine(true).await?;
+    assert!(tester.l2_provider().anvil_get_auto_mine().await?);
 
     // Check that we can finalize transactions now
-    let receipt = provider.tx().finalize().await?;
+    let receipt = tester.tx().finalize().await?;
     assert!(receipt.status());
 
     // Enable interval block sealing
-    provider.anvil_set_interval_mining(3).await?;
-    assert!(!(provider.anvil_get_auto_mine().await?));
+    tester.l2_provider().anvil_set_interval_mining(3).await?;
+    assert!(!tester.l2_provider().anvil_get_auto_mine().await?);
 
     // Check that we can finalize two txs in the same block now
-    provider
+    tester
         .race_n_txs_rich::<2>()
         .await?
         .assert_successful()?
         .assert_same_block()?;
 
     // Disable block sealing entirely
-    provider.anvil_set_auto_mine(false).await?;
-    assert!(!(provider.anvil_get_auto_mine().await?));
+    tester.l2_provider().anvil_set_auto_mine(false).await?;
+    assert!(!tester.l2_provider().anvil_get_auto_mine().await?);
 
     // Check that transactions do not get finalized now
-    provider
+    tester
         .tx()
         .register()
         .await?
@@ -129,16 +129,17 @@ async fn drop_transaction() -> anyhow::Result<()> {
     // Test that we can submit two transactions and then remove one from the pool before it gets
     // finalized. 3 seconds should be long enough for the entire flow to execute before the first
     // block is produced.
-    let provider = TestingProviderBuilder::default()
+    let tester = AnvilZksyncTesterBuilder::default()
         .with_node_fn(&|node| node.block_time(3))
         .build()
         .await?;
 
-    let pending_tx0 = provider.tx().with_rich_from(0).register().await?;
-    let pending_tx1 = provider.tx().with_rich_from(1).register().await?;
+    let pending_tx0 = tester.tx().with_rich_from(0).register().await?;
+    let pending_tx1 = tester.tx().with_rich_from(1).register().await?;
 
     // Drop first
-    provider
+    tester
+        .l2_provider()
         .anvil_drop_transaction(*pending_tx0.tx_hash())
         .await?;
 
@@ -159,16 +160,16 @@ async fn drop_all_transactions() -> anyhow::Result<()> {
     // Test that we can submit two transactions and then remove them from the pool before they get
     // finalized. 3 seconds should be long enough for the entire flow to execute before the first
     // block is produced.
-    let provider = TestingProviderBuilder::default()
+    let tester = AnvilZksyncTesterBuilder::default()
         .with_node_fn(&|node| node.block_time(3))
         .build()
         .await?;
 
-    let pending_tx0 = provider.tx().with_rich_from(0).register().await?;
-    let pending_tx1 = provider.tx().with_rich_from(1).register().await?;
+    let pending_tx0 = tester.tx().with_rich_from(0).register().await?;
+    let pending_tx1 = tester.tx().with_rich_from(1).register().await?;
 
     // Drop all transactions
-    provider.anvil_drop_all_transactions().await?;
+    tester.l2_provider().anvil_drop_all_transactions().await?;
 
     // Neither transaction gets finalized
     pending_tx0
@@ -186,18 +187,19 @@ async fn remove_pool_transactions() -> anyhow::Result<()> {
     // Test that we can submit two transactions from two senders and then remove first sender's
     // transaction from the pool before it gets finalized. 3 seconds should be long enough for the
     // entire flow to execute before the first block is produced.
-    let provider = TestingProviderBuilder::default()
+    let tester = AnvilZksyncTesterBuilder::default()
         .with_node_fn(&|node| node.block_time(3))
         .build()
         .await?;
 
     // Submit two transactions
-    let pending_tx0 = provider.tx().with_rich_from(0).register().await?;
-    let pending_tx1 = provider.tx().with_rich_from(1).register().await?;
+    let pending_tx0 = tester.tx().with_rich_from(0).register().await?;
+    let pending_tx1 = tester.tx().with_rich_from(1).register().await?;
 
     // Drop first
-    provider
-        .anvil_remove_pool_transactions(provider.rich_account(0))
+    tester
+        .l2_provider()
+        .anvil_remove_pool_transactions(tester.rich_account(0))
         .await?;
 
     // Assert first never gets finalized but the second one does
@@ -216,16 +218,16 @@ async fn remove_pool_transactions() -> anyhow::Result<()> {
 async fn manual_mining_two_txs_in_one_block() -> anyhow::Result<()> {
     // Test that we can submit two transaction and then manually mine one block that contains both
     // transactions in it.
-    let provider = TestingProviderBuilder::default()
+    let tester = AnvilZksyncTesterBuilder::default()
         .with_node_fn(&|node| node.no_mine())
         .build()
         .await?;
 
-    let pending_tx0 = provider.tx().with_rich_from(0).register().await?;
-    let pending_tx1 = provider.tx().with_rich_from(1).register().await?;
+    let pending_tx0 = tester.tx().with_rich_from(0).register().await?;
+    let pending_tx1 = tester.tx().with_rich_from(1).register().await?;
 
     // Mine a block manually and assert that both transactions are finalized now
-    provider.anvil_mine(None, None).await?;
+    tester.l2_provider().anvil_mine(None, None).await?;
 
     let receipt0 = pending_tx0.wait_until_finalized().await?;
     receipt0.assert_successful()?;
@@ -239,15 +241,15 @@ async fn manual_mining_two_txs_in_one_block() -> anyhow::Result<()> {
 #[tokio::test]
 async fn detailed_mining_success() -> anyhow::Result<()> {
     // Test that we can call detailed mining after a successful transaction and match output from it.
-    let provider = TestingProviderBuilder::default()
+    let tester = AnvilZksyncTesterBuilder::default()
         .with_node_fn(&|node| node.no_mine())
         .build()
         .await?;
 
-    provider.tx().register().await?;
+    tester.tx().register().await?;
 
     // Mine a block manually and assert that it has our transaction with extra fields
-    let block = provider.anvil_zksync_mine_detailed().await?;
+    let block = tester.l2_provider().anvil_zksync_mine_detailed().await?;
     assert_eq!(block.transactions.len(), 1);
     let actual_tx = block
         .transactions
@@ -269,21 +271,25 @@ async fn detailed_mining_success() -> anyhow::Result<()> {
 async fn seal_block_ignoring_halted_transaction() -> anyhow::Result<()> {
     // Test that we can submit three transactions (1 and 3 are successful, 2 is halting). And then
     // observe a block that finalizes 1 and 3 while ignoring 2.
-    let mut provider = TestingProviderBuilder::default()
+    let mut tester = AnvilZksyncTesterBuilder::default()
         .with_node_fn(&|node| node.block_time(3))
         .build()
         .await?;
-    let random_account = provider.register_random_signer();
+    let random_account = tester.l2_provider_mut().register_random_signer();
 
     // Impersonate random account for now so that gas estimation works as expected
-    provider.anvil_impersonate_account(random_account).await?;
+    tester
+        .l2_provider()
+        .anvil_impersonate_account(random_account)
+        .await?;
 
-    let pending_tx0 = provider.tx().with_rich_from(0).register().await?;
-    let pending_tx1 = provider.tx().with_from(random_account).register().await?;
-    let pending_tx2 = provider.tx().with_rich_from(1).register().await?;
+    let pending_tx0 = tester.tx().with_rich_from(0).register().await?;
+    let pending_tx1 = tester.tx().with_from(random_account).register().await?;
+    let pending_tx2 = tester.tx().with_rich_from(1).register().await?;
 
     // Stop impersonating random account so that tx is going to halt
-    provider
+    tester
+        .l2_provider()
         .anvil_stop_impersonating_account(random_account)
         .await?;
 
@@ -307,31 +313,28 @@ async fn dump_and_load_state() -> anyhow::Result<()> {
     // Test that we can submit transactions, then dump state and shutdown the node. Following that we
     // should be able to spin up a new node and load state into it. Previous transactions/block should
     // be present on the new node along with the old state.
-    let provider = TestingProviderBuilder::default().build().await?;
+    let tester = AnvilZksyncTesterBuilder::default().build().await?;
 
-    let receipts = [
-        provider.tx().finalize().await?,
-        provider.tx().finalize().await?,
-    ];
-    let blocks = provider.get_blocks_by_receipts(&receipts).await?;
+    let receipts = [tester.tx().finalize().await?, tester.tx().finalize().await?];
+    let blocks = tester.get_blocks_by_receipts(&receipts).await?;
 
     // Dump node's state, re-create it and load old state
-    let state = provider.anvil_dump_state().await?;
-    let provider = TestingProviderBuilder::default().build().await?;
-    provider.anvil_load_state(state).await?;
+    let state = tester.l2_provider().anvil_dump_state().await?;
+    let tester = AnvilZksyncTesterBuilder::default().build().await?;
+    tester.l2_provider().anvil_load_state(state).await?;
 
     // Assert that new node has pre-restart receipts, blocks and state
-    provider.assert_has_receipts(&receipts).await?;
-    provider.assert_has_blocks(&blocks).await?;
-    provider
+    tester.assert_has_receipts(&receipts).await?;
+    tester.assert_has_blocks(&blocks).await?;
+    tester
         .assert_balance(receipts[0].sender()?, DEFAULT_TX_VALUE)
         .await?;
-    provider
+    tester
         .assert_balance(receipts[1].sender()?, DEFAULT_TX_VALUE)
         .await?;
 
     // Assert we can still finalize transactions after loading state
-    provider.tx().finalize().await?;
+    tester.tx().finalize().await?;
 
     Ok(())
 }
@@ -339,58 +342,48 @@ async fn dump_and_load_state() -> anyhow::Result<()> {
 #[tokio::test]
 async fn cant_load_into_existing_state() -> anyhow::Result<()> {
     // Test that we can't load new state into a node with existing state.
-    let provider = TestingProviderBuilder::default().build().await?;
+    let tester = AnvilZksyncTesterBuilder::default().build().await?;
 
-    let old_receipts = [
-        provider.tx().finalize().await?,
-        provider.tx().finalize().await?,
-    ];
-    let old_blocks = provider.get_blocks_by_receipts(&old_receipts).await?;
+    let old_receipts = [tester.tx().finalize().await?, tester.tx().finalize().await?];
+    let old_blocks = tester.get_blocks_by_receipts(&old_receipts).await?;
 
     // Dump node's state and re-create it
-    let state = provider.anvil_dump_state().await?;
-    let provider = TestingProviderBuilder::default().build().await?;
+    let state = tester.l2_provider().anvil_dump_state().await?;
+    let tester = AnvilZksyncTesterBuilder::default().build().await?;
 
-    let new_receipts = [
-        provider.tx().finalize().await?,
-        provider.tx().finalize().await?,
-    ];
-    let new_blocks = provider.get_blocks_by_receipts(&new_receipts).await?;
+    let new_receipts = [tester.tx().finalize().await?, tester.tx().finalize().await?];
+    let new_blocks = tester.get_blocks_by_receipts(&new_receipts).await?;
 
     // Load state into the new node, make sure it fails and assert that the node still has new
     // receipts, blocks and state.
-    assert!(provider.anvil_load_state(state).await.is_err());
-    provider.assert_has_receipts(&new_receipts).await?;
-    provider.assert_has_blocks(&new_blocks).await?;
-    provider
+    assert!(tester.l2_provider().anvil_load_state(state).await.is_err());
+    tester.assert_has_receipts(&new_receipts).await?;
+    tester.assert_has_blocks(&new_blocks).await?;
+    tester
         .assert_balance(new_receipts[0].sender()?, DEFAULT_TX_VALUE)
         .await?;
-    provider
+    tester
         .assert_balance(new_receipts[1].sender()?, DEFAULT_TX_VALUE)
         .await?;
 
     // Assert the node does not have old state
-    provider.assert_no_receipts(&old_receipts).await?;
-    provider.assert_no_blocks(&old_blocks).await?;
-    provider
-        .assert_balance(old_receipts[0].sender()?, 0)
-        .await?;
-    provider
-        .assert_balance(old_receipts[1].sender()?, 0)
-        .await?;
+    tester.assert_no_receipts(&old_receipts).await?;
+    tester.assert_no_blocks(&old_blocks).await?;
+    tester.assert_balance(old_receipts[0].sender()?, 0).await?;
+    tester.assert_balance(old_receipts[1].sender()?, 0).await?;
 
     Ok(())
 }
 
 #[tokio::test]
 async fn set_chain_id() -> anyhow::Result<()> {
-    let mut provider = TestingProviderBuilder::default().build().await?;
+    let mut tester = AnvilZksyncTesterBuilder::default().build().await?;
 
     let random_signer = PrivateKeySigner::random();
     let random_signer_address = random_signer.address();
 
     // Send transaction before changing chain id
-    provider
+    tester
         .tx()
         .with_to(random_signer_address)
         .with_value(U256::from(1e18 as u64))
@@ -399,15 +392,18 @@ async fn set_chain_id() -> anyhow::Result<()> {
 
     // Change chain id
     let new_chain_id = 123;
-    provider.anvil_set_chain_id(new_chain_id).await?;
+    tester
+        .l2_provider()
+        .anvil_set_chain_id(new_chain_id)
+        .await?;
 
     // Verify new chain id
-    assert_eq!(new_chain_id, provider.get_chain_id().await?);
+    assert_eq!(new_chain_id, tester.l2_provider().get_chain_id().await?);
 
     // Verify transactions can be executed after chain id change
     // Registering and using new signer to get new chain id applied
-    provider.register_signer(random_signer);
-    provider
+    tester.l2_provider_mut().register_signer(random_signer);
+    tester
         .tx()
         .with_from(random_signer_address)
         .with_chain_id(new_chain_id)
@@ -421,13 +417,13 @@ async fn set_chain_id() -> anyhow::Result<()> {
 async fn cli_no_cors() -> anyhow::Result<()> {
     // Verify all origins are allowed by default
     let response_inspector = ResponseHeadersInspector::default();
-    let provider = TestingProviderBuilder::default()
+    let tester = AnvilZksyncTesterBuilder::default()
         .with_client_middleware_fn(&|client_builder| {
             client_builder.with(response_inspector.clone())
         })
         .build()
         .await?;
-    provider.get_chain_id().await?;
+    tester.l2_provider().get_chain_id().await?;
     let resp_headers = response_inspector.last_unwrap();
     assert_eq!(
         resp_headers.get(ACCESS_CONTROL_ALLOW_ORIGIN),
@@ -436,8 +432,11 @@ async fn cli_no_cors() -> anyhow::Result<()> {
 
     // Making OPTIONS request reveals all access control settings
     let client = reqwest::Client::new();
-    let url = provider.url.clone();
-    let resp = client.request(reqwest::Method::OPTIONS, url).send().await?;
+    let l2_url = tester.l2_url.clone();
+    let resp = client
+        .request(reqwest::Method::OPTIONS, l2_url)
+        .send()
+        .await?;
     assert_eq!(
         resp.headers().get(ACCESS_CONTROL_ALLOW_METHODS),
         Some(&HeaderValue::from_static("GET,POST"))
@@ -450,18 +449,18 @@ async fn cli_no_cors() -> anyhow::Result<()> {
         resp.headers().get(ACCESS_CONTROL_ALLOW_ORIGIN),
         Some(&ANY_ORIGIN)
     );
-    drop(provider);
+    drop(tester);
 
     // Verify access control is disabled with --no-cors
     let response_inspector_no_cors = ResponseHeadersInspector::default();
-    let provider_no_cors = TestingProviderBuilder::default()
+    let tester_no_cors = AnvilZksyncTesterBuilder::default()
         .with_node_fn(&|node| node.arg("--no-cors"))
         .with_client_middleware_fn(&|client_builder| {
             client_builder.with(response_inspector_no_cors.clone())
         })
         .build()
         .await?;
-    provider_no_cors.get_chain_id().await?;
+    tester_no_cors.l2_provider().get_chain_id().await?;
     let resp_headers = response_inspector_no_cors.last_unwrap();
     assert_eq!(resp_headers.get(ACCESS_CONTROL_ALLOW_ORIGIN), None);
 
@@ -474,7 +473,7 @@ async fn cli_allow_origin() -> anyhow::Result<()> {
 
     // Verify allowed origin can make requests
     let response_inspector = ResponseHeadersInspector::default();
-    let provider_with_allowed_origin = TestingProviderBuilder::default()
+    let tester_with_allowed_origin = AnvilZksyncTesterBuilder::default()
         .with_node_fn(&|node| node.arg(format!("--allow-origin={}", SOME_ORIGIN.to_str().unwrap())))
         .with_client_fn(&|client| client.default_headers(req_headers.clone()))
         .with_client_middleware_fn(&|client_builder| {
@@ -482,18 +481,21 @@ async fn cli_allow_origin() -> anyhow::Result<()> {
         })
         .build()
         .await?;
-    provider_with_allowed_origin.get_chain_id().await?;
+    tester_with_allowed_origin
+        .l2_provider()
+        .get_chain_id()
+        .await?;
     let resp_headers = response_inspector.last_unwrap();
     assert_eq!(
         resp_headers.get(ACCESS_CONTROL_ALLOW_ORIGIN),
         Some(&SOME_ORIGIN)
     );
-    drop(provider_with_allowed_origin);
+    drop(tester_with_allowed_origin);
 
     // Verify different origin are also allowed to make requests. CORS is reliant on the browser
     // to respect access control headers reported by the server.
     let response_inspector_not_allowed = ResponseHeadersInspector::default();
-    let provider_with_not_allowed_origin = TestingProviderBuilder::default()
+    let tester_with_not_allowed_origin = AnvilZksyncTesterBuilder::default()
         .with_node_fn(&|node| {
             node.arg(format!("--allow-origin={}", OTHER_ORIGIN.to_str().unwrap()))
         })
@@ -503,7 +505,10 @@ async fn cli_allow_origin() -> anyhow::Result<()> {
         })
         .build()
         .await?;
-    provider_with_not_allowed_origin.get_chain_id().await?;
+    tester_with_not_allowed_origin
+        .l2_provider()
+        .get_chain_id()
+        .await?;
     let resp_headers = response_inspector_not_allowed.last_unwrap();
     assert_eq!(
         resp_headers.get(ACCESS_CONTROL_ALLOW_ORIGIN),
@@ -515,33 +520,37 @@ async fn cli_allow_origin() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn pool_txs_order_fifo() -> anyhow::Result<()> {
-    let provider_fifo = TestingProviderBuilder::default()
+    let tester_fifo = AnvilZksyncTesterBuilder::default()
         .with_node_fn(&|node| node.no_mine())
         .build()
         .await?;
 
-    let pending_tx0 = provider_fifo
+    let pending_tx0 = tester_fifo
         .tx()
         .with_rich_from(0)
         .with_max_fee_per_gas(50_000_000)
         .register()
         .await?;
-    let pending_tx1 = provider_fifo
+    let pending_tx1 = tester_fifo
         .tx()
         .with_rich_from(1)
         .with_max_fee_per_gas(100_000_000)
         .register()
         .await?;
-    let pending_tx2 = provider_fifo
+    let pending_tx2 = tester_fifo
         .tx()
         .with_rich_from(2)
         .with_max_fee_per_gas(150_000_000)
         .register()
         .await?;
 
-    provider_fifo.anvil_mine(Some(1), None).await?;
+    tester_fifo.l2_provider().anvil_mine(Some(1), None).await?;
 
-    let block = provider_fifo.get_block(1.into()).await?.unwrap();
+    let block = tester_fifo
+        .l2_provider()
+        .get_block(1.into())
+        .await?
+        .unwrap();
     let tx_hashes = block.transactions.as_hashes().unwrap();
     assert_eq!(&tx_hashes[0], pending_tx0.tx_hash());
     assert_eq!(&tx_hashes[1], pending_tx1.tx_hash());
@@ -551,33 +560,37 @@ async fn pool_txs_order_fifo() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn pool_txs_order_fees() -> anyhow::Result<()> {
-    let provider_fees = TestingProviderBuilder::default()
+    let tester_fees = AnvilZksyncTesterBuilder::default()
         .with_node_fn(&|node| node.no_mine().arg("--order=fees"))
         .build()
         .await?;
 
-    let pending_tx0 = provider_fees
+    let pending_tx0 = tester_fees
         .tx()
         .with_rich_from(0)
         .with_max_fee_per_gas(50_000_000)
         .register()
         .await?;
-    let pending_tx1 = provider_fees
+    let pending_tx1 = tester_fees
         .tx()
         .with_rich_from(1)
         .with_max_fee_per_gas(100_000_000)
         .register()
         .await?;
-    let pending_tx2 = provider_fees
+    let pending_tx2 = tester_fees
         .tx()
         .with_rich_from(2)
         .with_max_fee_per_gas(150_000_000)
         .register()
         .await?;
 
-    provider_fees.anvil_mine(Some(1), None).await?;
+    tester_fees.l2_provider().anvil_mine(Some(1), None).await?;
 
-    let block = provider_fees.get_block(1.into()).await?.unwrap();
+    let block = tester_fees
+        .l2_provider()
+        .get_block(1.into())
+        .await?
+        .unwrap();
     let tx_hashes = block.transactions.as_hashes().unwrap();
     assert_eq!(&tx_hashes[0], pending_tx2.tx_hash());
     assert_eq!(&tx_hashes[1], pending_tx1.tx_hash());
@@ -587,14 +600,14 @@ async fn pool_txs_order_fees() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn transactions_have_index() -> anyhow::Result<()> {
-    let provider = TestingProviderBuilder::default()
+    let tester = AnvilZksyncTesterBuilder::default()
         .with_node_fn(&|node| node.no_mine())
         .build()
         .await?;
-    let tx1 = provider.tx().with_rich_from(0).register().await?;
-    let tx2 = provider.tx().with_rich_from(1).register().await?;
+    let tx1 = tester.tx().with_rich_from(0).register().await?;
+    let tx2 = tester.tx().with_rich_from(1).register().await?;
 
-    provider.anvil_mine(Some(1), None).await?;
+    tester.l2_provider().anvil_mine(Some(1), None).await?;
 
     let receipt1 = tx1.wait_until_finalized().await?;
     let receipt2 = tx2.wait_until_finalized().await?;
@@ -610,7 +623,7 @@ async fn dump_state_on_run() -> anyhow::Result<()> {
     let dump_path = temp_dir.path().join("state_dump.json");
 
     let dump_path_clone = dump_path.clone();
-    let provider = TestingProviderBuilder::default()
+    let tester = AnvilZksyncTesterBuilder::default()
         .with_node_fn(&|node| {
             node.path(get_node_binary_path())
                 .arg("--state-interval")
@@ -621,12 +634,12 @@ async fn dump_state_on_run() -> anyhow::Result<()> {
         .build()
         .await?;
 
-    let receipt = provider.tx().finalize().await?;
+    let receipt = tester.tx().finalize().await?;
     let tx_hash = receipt.transaction_hash().to_string();
 
     tokio::time::sleep(Duration::from_secs(2)).await;
 
-    drop(provider);
+    drop(tester);
 
     assert!(
         dump_path.exists(),
@@ -676,7 +689,7 @@ async fn dump_state_on_fork() -> anyhow::Result<()> {
     let dump_path = temp_dir.path().join("state_dump_fork.json");
 
     let dump_path_clone = dump_path.clone();
-    let provider = TestingProviderBuilder::default()
+    let tester = AnvilZksyncTesterBuilder::default()
         .with_node_fn(&|node| {
             node.path(get_node_binary_path())
                 .arg("--state-interval")
@@ -688,12 +701,12 @@ async fn dump_state_on_fork() -> anyhow::Result<()> {
         .build()
         .await?;
 
-    let receipt = provider.tx().finalize().await?;
+    let receipt = tester.tx().finalize().await?;
     let tx_hash = receipt.transaction_hash().to_string();
 
     tokio::time::sleep(Duration::from_secs(2)).await;
 
-    drop(provider);
+    drop(tester);
 
     assert!(
         dump_path.exists(),
@@ -738,14 +751,11 @@ async fn dump_state_on_fork() -> anyhow::Result<()> {
 async fn load_state_on_run() -> anyhow::Result<()> {
     let temp_dir = TempDir::new("load-state-test").expect("failed creating temporary dir");
     let dump_path = temp_dir.path().join("load_state_run.json");
-    let provider = TestingProviderBuilder::default().build().await?;
-    let receipts = [
-        provider.tx().finalize().await?,
-        provider.tx().finalize().await?,
-    ];
-    let blocks = provider.get_blocks_by_receipts(&receipts).await?;
-    let state_bytes = provider.anvil_dump_state().await?;
-    drop(provider);
+    let tester = AnvilZksyncTesterBuilder::default().build().await?;
+    let receipts = [tester.tx().finalize().await?, tester.tx().finalize().await?];
+    let blocks = tester.get_blocks_by_receipts(&receipts).await?;
+    let state_bytes = tester.l2_provider().anvil_dump_state().await?;
+    drop(tester);
 
     let mut decoder = GzDecoder::new(&state_bytes.0[..]);
     let mut json_str = String::new();
@@ -754,7 +764,7 @@ async fn load_state_on_run() -> anyhow::Result<()> {
     write_json_file(&dump_path, &state)?;
 
     let dump_path_clone = dump_path.clone();
-    let new_provider = TestingProviderBuilder::default()
+    let new_provider = AnvilZksyncTesterBuilder::default()
         .with_node_fn(&|node| {
             node.path(get_node_binary_path())
                 .arg("--state-interval")
@@ -791,14 +801,11 @@ async fn load_state_on_run() -> anyhow::Result<()> {
 async fn load_state_on_fork() -> anyhow::Result<()> {
     let temp_dir = TempDir::new("load-state-fork-test").expect("failed creating temporary dir");
     let dump_path = temp_dir.path().join("load_state_fork.json");
-    let provider = TestingProviderBuilder::default().build().await?;
-    let receipts = [
-        provider.tx().finalize().await?,
-        provider.tx().finalize().await?,
-    ];
-    let blocks = provider.get_blocks_by_receipts(&receipts).await?;
-    let state_bytes = provider.anvil_dump_state().await?;
-    drop(provider);
+    let tester = AnvilZksyncTesterBuilder::default().build().await?;
+    let receipts = [tester.tx().finalize().await?, tester.tx().finalize().await?];
+    let blocks = tester.get_blocks_by_receipts(&receipts).await?;
+    let state_bytes = tester.l2_provider().anvil_dump_state().await?;
+    drop(tester);
 
     let mut decoder = GzDecoder::new(&state_bytes.0[..]);
     let mut json_str = String::new();
@@ -807,7 +814,7 @@ async fn load_state_on_fork() -> anyhow::Result<()> {
     write_json_file(&dump_path, &state)?;
 
     let dump_path_clone = dump_path.clone();
-    let new_provider = TestingProviderBuilder::default()
+    let new_provider = AnvilZksyncTesterBuilder::default()
         .with_node_fn(&|node| {
             node.path(get_node_binary_path())
                 .arg("--state-interval")
