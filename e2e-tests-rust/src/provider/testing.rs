@@ -23,18 +23,13 @@ use alloy_zksync::node_bindings::{AnvilZKsync, AnvilZKsyncError::NoKeysAvailable
 use alloy_zksync::provider::{layers::anvil_zksync::AnvilZKsyncLayer, zksync_provider};
 use alloy_zksync::wallet::ZksyncWallet;
 use anyhow::Context as _;
-use async_trait::async_trait;
-use http::HeaderMap;
 use itertools::Itertools;
-use reqwest_middleware::{Middleware, Next};
 use std::convert::identity;
 use std::future::Future;
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
-use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
-use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
 pub const DEFAULT_TX_VALUE: u64 = 100;
@@ -62,39 +57,47 @@ where
 {
     inner: P,
     rich_accounts: Vec<Address>,
-    /// Last seen response headers
-    last_response_headers: Arc<RwLock<Option<HeaderMap>>>,
 
     /// Underlying anvil-zksync instance's URL
     pub url: reqwest::Url,
 }
 
 #[derive(Default)]
-pub struct TestingProviderBuilder {
-    node_fn: Option<Box<dyn FnOnce(AnvilZKsync) -> AnvilZKsync>>,
-    client_fn: Option<Box<dyn FnOnce(reqwest::ClientBuilder) -> reqwest::ClientBuilder>>,
+pub struct TestingProviderBuilder<'a> {
+    node_fn: Option<&'a dyn Fn(AnvilZKsync) -> AnvilZKsync>,
+    client_fn: Option<&'a dyn Fn(reqwest::ClientBuilder) -> reqwest::ClientBuilder>,
+    client_middleware_fn:
+        Option<&'a dyn Fn(reqwest_middleware::ClientBuilder) -> reqwest_middleware::ClientBuilder>,
 }
 
-impl TestingProviderBuilder {
-    pub fn with_node_fn(
-        mut self,
-        node_fn: impl FnOnce(AnvilZKsync) -> AnvilZKsync + 'static,
-    ) -> Self {
-        self.node_fn = Some(Box::new(node_fn));
+impl<'a> TestingProviderBuilder<'a> {
+    pub fn with_node_fn(mut self, node_fn: &'a dyn Fn(AnvilZKsync) -> AnvilZKsync) -> Self {
+        self.node_fn = Some(node_fn);
         self
     }
 
     pub fn with_client_fn(
         mut self,
-        client_fn: impl FnOnce(reqwest::ClientBuilder) -> reqwest::ClientBuilder + 'static,
+        client_fn: &'a dyn Fn(reqwest::ClientBuilder) -> reqwest::ClientBuilder,
     ) -> Self {
-        self.client_fn = Some(Box::new(client_fn));
+        self.client_fn = Some(client_fn);
+        self
+    }
+
+    pub fn with_client_middleware_fn(
+        mut self,
+        client_middleware_fn: &'a dyn Fn(
+            reqwest_middleware::ClientBuilder,
+        ) -> reqwest_middleware::ClientBuilder,
+    ) -> Self {
+        self.client_middleware_fn = Some(client_middleware_fn);
         self
     }
 
     pub async fn build(self) -> anyhow::Result<TestingProvider<impl FullZksyncProvider>> {
-        let node_fn = self.node_fn.unwrap_or(Box::new(identity));
-        let client_fn = self.client_fn.unwrap_or(Box::new(identity));
+        let node_fn = self.node_fn.unwrap_or(&identity);
+        let client_fn = self.client_fn.unwrap_or(&identity);
+        let client_middleware_fn = self.client_middleware_fn.unwrap_or(&identity);
 
         let locked_port = LockedPort::acquire_unused().await?;
         let node_layer = AnvilZKsyncLayer::from(node_fn(
@@ -103,11 +106,8 @@ impl TestingProviderBuilder {
                 .port(locked_port.port),
         ));
 
-        let last_response_headers = Arc::new(RwLock::new(None));
-        let client =
-            reqwest_middleware::ClientBuilder::new(client_fn(reqwest::Client::builder()).build()?)
-                .with(ResponseHeadersInspector(last_response_headers.clone()))
-                .build();
+        let client = client_fn(reqwest::Client::builder()).build()?;
+        let client = client_middleware_fn(reqwest_middleware::ClientBuilder::new(client)).build();
         let url = node_layer.endpoint_url();
         let http = HttpWithMiddleware::with_client(client, url.clone());
         let rpc_client = RpcClient::new(http, true);
@@ -141,7 +141,6 @@ impl TestingProviderBuilder {
         Ok(TestingProvider {
             inner: provider,
             rich_accounts,
-            last_response_headers,
 
             url,
         })
@@ -159,15 +158,6 @@ where
             .rich_accounts
             .get(index)
             .unwrap_or_else(|| panic!("not enough rich accounts (#{} was requested)", index,))
-    }
-
-    /// Returns last seen response headers. Panics if there is none.
-    pub async fn last_response_headers_unwrap(&self) -> HeaderMap {
-        self.last_response_headers
-            .read()
-            .await
-            .clone()
-            .expect("no headers found")
     }
 }
 
@@ -594,22 +584,5 @@ impl<const N: usize> RacedReceipts<N> {
         }
 
         Ok(self)
-    }
-}
-
-/// A [`reqwest_middleware`]-compliant middleware that allows to inspect last seen response headers.
-struct ResponseHeadersInspector(Arc<RwLock<Option<HeaderMap>>>);
-
-#[async_trait]
-impl Middleware for ResponseHeadersInspector {
-    async fn handle(
-        &self,
-        req: reqwest::Request,
-        extensions: &mut http::Extensions,
-        next: Next<'_>,
-    ) -> reqwest_middleware::Result<reqwest::Response> {
-        let resp = next.run(req, extensions).await?;
-        *self.0.write().await = Some(resp.headers().clone());
-        Ok(resp)
     }
 }

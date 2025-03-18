@@ -2,12 +2,14 @@
 
 pub mod contracts;
 mod ext;
-pub mod http_middleware;
+mod headers_inspector;
+mod http_middleware;
 mod provider;
 pub mod test_contracts;
 mod utils;
 
 pub use ext::{ReceiptExt, ZksyncWalletProviderExt};
+pub use headers_inspector::ResponseHeadersInspector;
 pub use provider::{
     AnvilZKsyncApi, FullZksyncProvider, TestingProvider, TestingProviderBuilder, DEFAULT_TX_VALUE,
 };

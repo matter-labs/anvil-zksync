@@ -24,7 +24,7 @@ async fn init_l1_l2_providers() -> anyhow::Result<(
     });
     let l1_address = format!("http://localhost:{}", l1_locked_port.port);
     let l2_provider = TestingProviderBuilder::default()
-        .with_node_fn(move |node| node.args(["--external-l1", l1_address.as_str()]))
+        .with_node_fn(&|node| node.args(["--external-l1", l1_address.as_str()]))
         .build()
         .await?;
 

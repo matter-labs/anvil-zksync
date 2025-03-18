@@ -6,8 +6,8 @@ use alloy_zksync::node_bindings::AnvilZKsync;
 use anvil_zksync_core::node::VersionedState;
 use anvil_zksync_core::utils::write_json_file;
 use anvil_zksync_e2e_tests::{
-    get_node_binary_path, AnvilZKsyncApi, LockedPort, ReceiptExt, TestingProviderBuilder,
-    ZksyncWalletProviderExt, DEFAULT_TX_VALUE,
+    get_node_binary_path, AnvilZKsyncApi, LockedPort, ReceiptExt, ResponseHeadersInspector,
+    TestingProviderBuilder, ZksyncWalletProviderExt, DEFAULT_TX_VALUE,
 };
 use anyhow::Context;
 use flate2::read::GzDecoder;
@@ -29,7 +29,7 @@ async fn interval_sealing_finalization() -> anyhow::Result<()> {
     // Test that we can submit a transaction and wait for it to finalize when anvil-zksync is
     // operating in interval sealing mode.
     let provider = TestingProviderBuilder::default()
-        .with_node_fn(|node| node.block_time(1))
+        .with_node_fn(&|node| node.block_time(1))
         .build()
         .await?;
 
@@ -44,7 +44,7 @@ async fn interval_sealing_multiple_txs() -> anyhow::Result<()> {
     // anvil-zksync is operating in interval sealing mode. 3 seconds should be long enough for
     // the entire flow to execute before the first block is produced.
     let provider = TestingProviderBuilder::default()
-        .with_node_fn(|node| node.block_time(3))
+        .with_node_fn(&|node| node.block_time(3))
         .build()
         .await?;
 
@@ -62,7 +62,7 @@ async fn no_sealing_timeout() -> anyhow::Result<()> {
     // Test that we can submit a transaction and timeout while waiting for it to finalize when
     // anvil-zksync is operating in no sealing mode.
     let provider = TestingProviderBuilder::default()
-        .with_node_fn(|node| node.no_mine())
+        .with_node_fn(&|node| node.no_mine())
         .build()
         .await?;
 
@@ -85,7 +85,7 @@ async fn no_sealing_timeout() -> anyhow::Result<()> {
 async fn dynamic_sealing_mode() -> anyhow::Result<()> {
     // Test that we can successfully switch between different sealing modes
     let provider = TestingProviderBuilder::default()
-        .with_node_fn(|node| node.no_mine())
+        .with_node_fn(&|node| node.no_mine())
         .build()
         .await?;
     assert!(!(provider.anvil_get_auto_mine().await?));
@@ -130,7 +130,7 @@ async fn drop_transaction() -> anyhow::Result<()> {
     // finalized. 3 seconds should be long enough for the entire flow to execute before the first
     // block is produced.
     let provider = TestingProviderBuilder::default()
-        .with_node_fn(|node| node.block_time(3))
+        .with_node_fn(&|node| node.block_time(3))
         .build()
         .await?;
 
@@ -160,7 +160,7 @@ async fn drop_all_transactions() -> anyhow::Result<()> {
     // finalized. 3 seconds should be long enough for the entire flow to execute before the first
     // block is produced.
     let provider = TestingProviderBuilder::default()
-        .with_node_fn(|node| node.block_time(3))
+        .with_node_fn(&|node| node.block_time(3))
         .build()
         .await?;
 
@@ -187,7 +187,7 @@ async fn remove_pool_transactions() -> anyhow::Result<()> {
     // transaction from the pool before it gets finalized. 3 seconds should be long enough for the
     // entire flow to execute before the first block is produced.
     let provider = TestingProviderBuilder::default()
-        .with_node_fn(|node| node.block_time(3))
+        .with_node_fn(&|node| node.block_time(3))
         .build()
         .await?;
 
@@ -217,7 +217,7 @@ async fn manual_mining_two_txs_in_one_block() -> anyhow::Result<()> {
     // Test that we can submit two transaction and then manually mine one block that contains both
     // transactions in it.
     let provider = TestingProviderBuilder::default()
-        .with_node_fn(|node| node.no_mine())
+        .with_node_fn(&|node| node.no_mine())
         .build()
         .await?;
 
@@ -240,7 +240,7 @@ async fn manual_mining_two_txs_in_one_block() -> anyhow::Result<()> {
 async fn detailed_mining_success() -> anyhow::Result<()> {
     // Test that we can call detailed mining after a successful transaction and match output from it.
     let provider = TestingProviderBuilder::default()
-        .with_node_fn(|node| node.no_mine())
+        .with_node_fn(&|node| node.no_mine())
         .build()
         .await?;
 
@@ -270,7 +270,7 @@ async fn seal_block_ignoring_halted_transaction() -> anyhow::Result<()> {
     // Test that we can submit three transactions (1 and 3 are successful, 2 is halting). And then
     // observe a block that finalizes 1 and 3 while ignoring 2.
     let mut provider = TestingProviderBuilder::default()
-        .with_node_fn(|node| node.block_time(3))
+        .with_node_fn(&|node| node.block_time(3))
         .build()
         .await?;
     let random_account = provider.register_random_signer();
@@ -420,9 +420,15 @@ async fn set_chain_id() -> anyhow::Result<()> {
 #[tokio::test]
 async fn cli_no_cors() -> anyhow::Result<()> {
     // Verify all origins are allowed by default
-    let provider = TestingProviderBuilder::default().build().await?;
+    let response_inspector = ResponseHeadersInspector::default();
+    let provider = TestingProviderBuilder::default()
+        .with_client_middleware_fn(&|client_builder| {
+            client_builder.with(response_inspector.clone())
+        })
+        .build()
+        .await?;
     provider.get_chain_id().await?;
-    let resp_headers = provider.last_response_headers_unwrap().await;
+    let resp_headers = response_inspector.last_unwrap();
     assert_eq!(
         resp_headers.get(ACCESS_CONTROL_ALLOW_ORIGIN),
         Some(&ANY_ORIGIN)
@@ -447,12 +453,16 @@ async fn cli_no_cors() -> anyhow::Result<()> {
     drop(provider);
 
     // Verify access control is disabled with --no-cors
+    let response_inspector_no_cors = ResponseHeadersInspector::default();
     let provider_no_cors = TestingProviderBuilder::default()
-        .with_node_fn(|node| node.arg("--no-cors"))
+        .with_node_fn(&|node| node.arg("--no-cors"))
+        .with_client_middleware_fn(&|client_builder| {
+            client_builder.with(response_inspector_no_cors.clone())
+        })
         .build()
         .await?;
     provider_no_cors.get_chain_id().await?;
-    let resp_headers = provider_no_cors.last_response_headers_unwrap().await;
+    let resp_headers = response_inspector_no_cors.last_unwrap();
     assert_eq!(resp_headers.get(ACCESS_CONTROL_ALLOW_ORIGIN), None);
 
     Ok(())
@@ -461,18 +471,19 @@ async fn cli_no_cors() -> anyhow::Result<()> {
 #[tokio::test]
 async fn cli_allow_origin() -> anyhow::Result<()> {
     let req_headers = HeaderMap::from_iter([(ORIGIN, SOME_ORIGIN)]);
-    let req_headers_cloned = req_headers.clone();
 
     // Verify allowed origin can make requests
+    let response_inspector = ResponseHeadersInspector::default();
     let provider_with_allowed_origin = TestingProviderBuilder::default()
-        .with_node_fn(|node| node.arg(format!("--allow-origin={}", SOME_ORIGIN.to_str().unwrap())))
-        .with_client_fn(move |client| client.default_headers(req_headers))
+        .with_node_fn(&|node| node.arg(format!("--allow-origin={}", SOME_ORIGIN.to_str().unwrap())))
+        .with_client_fn(&|client| client.default_headers(req_headers.clone()))
+        .with_client_middleware_fn(&|client_builder| {
+            client_builder.with(response_inspector.clone())
+        })
         .build()
         .await?;
     provider_with_allowed_origin.get_chain_id().await?;
-    let resp_headers = provider_with_allowed_origin
-        .last_response_headers_unwrap()
-        .await;
+    let resp_headers = response_inspector.last_unwrap();
     assert_eq!(
         resp_headers.get(ACCESS_CONTROL_ALLOW_ORIGIN),
         Some(&SOME_ORIGIN)
@@ -481,15 +492,19 @@ async fn cli_allow_origin() -> anyhow::Result<()> {
 
     // Verify different origin are also allowed to make requests. CORS is reliant on the browser
     // to respect access control headers reported by the server.
+    let response_inspector_not_allowed = ResponseHeadersInspector::default();
     let provider_with_not_allowed_origin = TestingProviderBuilder::default()
-        .with_node_fn(|node| node.arg(format!("--allow-origin={}", OTHER_ORIGIN.to_str().unwrap())))
-        .with_client_fn(move |client| client.default_headers(req_headers_cloned))
+        .with_node_fn(&|node| {
+            node.arg(format!("--allow-origin={}", OTHER_ORIGIN.to_str().unwrap()))
+        })
+        .with_client_fn(&|client| client.default_headers(req_headers.clone()))
+        .with_client_middleware_fn(&|client_builder| {
+            client_builder.with(response_inspector_not_allowed.clone())
+        })
         .build()
         .await?;
     provider_with_not_allowed_origin.get_chain_id().await?;
-    let resp_headers = provider_with_not_allowed_origin
-        .last_response_headers_unwrap()
-        .await;
+    let resp_headers = response_inspector_not_allowed.last_unwrap();
     assert_eq!(
         resp_headers.get(ACCESS_CONTROL_ALLOW_ORIGIN),
         Some(&OTHER_ORIGIN)
@@ -501,7 +516,7 @@ async fn cli_allow_origin() -> anyhow::Result<()> {
 #[tokio::test]
 async fn pool_txs_order_fifo() -> anyhow::Result<()> {
     let provider_fifo = TestingProviderBuilder::default()
-        .with_node_fn(|node| node.no_mine())
+        .with_node_fn(&|node| node.no_mine())
         .build()
         .await?;
 
@@ -537,7 +552,7 @@ async fn pool_txs_order_fifo() -> anyhow::Result<()> {
 #[tokio::test]
 async fn pool_txs_order_fees() -> anyhow::Result<()> {
     let provider_fees = TestingProviderBuilder::default()
-        .with_node_fn(|node| node.no_mine().arg("--order=fees"))
+        .with_node_fn(&|node| node.no_mine().arg("--order=fees"))
         .build()
         .await?;
 
@@ -573,7 +588,7 @@ async fn pool_txs_order_fees() -> anyhow::Result<()> {
 #[tokio::test]
 async fn transactions_have_index() -> anyhow::Result<()> {
     let provider = TestingProviderBuilder::default()
-        .with_node_fn(|node| node.no_mine())
+        .with_node_fn(&|node| node.no_mine())
         .build()
         .await?;
     let tx1 = provider.tx().with_rich_from(0).register().await?;
@@ -596,7 +611,7 @@ async fn dump_state_on_run() -> anyhow::Result<()> {
 
     let dump_path_clone = dump_path.clone();
     let provider = TestingProviderBuilder::default()
-        .with_node_fn(move |node| {
+        .with_node_fn(&|node| {
             node.path(get_node_binary_path())
                 .arg("--state-interval")
                 .arg("1")
@@ -662,7 +677,7 @@ async fn dump_state_on_fork() -> anyhow::Result<()> {
 
     let dump_path_clone = dump_path.clone();
     let provider = TestingProviderBuilder::default()
-        .with_node_fn(move |node| {
+        .with_node_fn(&|node| {
             node.path(get_node_binary_path())
                 .arg("--state-interval")
                 .arg("1")
@@ -740,7 +755,7 @@ async fn load_state_on_run() -> anyhow::Result<()> {
 
     let dump_path_clone = dump_path.clone();
     let new_provider = TestingProviderBuilder::default()
-        .with_node_fn(move |node| {
+        .with_node_fn(&|node| {
             node.path(get_node_binary_path())
                 .arg("--state-interval")
                 .arg("1")
@@ -793,7 +808,7 @@ async fn load_state_on_fork() -> anyhow::Result<()> {
 
     let dump_path_clone = dump_path.clone();
     let new_provider = TestingProviderBuilder::default()
-        .with_node_fn(move |node| {
+        .with_node_fn(&|node| {
             node.path(get_node_binary_path())
                 .arg("--state-interval")
                 .arg("1")
