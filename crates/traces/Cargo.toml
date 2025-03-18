@@ -1,5 +1,5 @@
 [package]
-name = "anvil_zksync_trace"
+name = "anvil_zksync_traces"
 description = "anvil-zksync Foundry style tracing"
 version.workspace = true
 edition.workspace = true

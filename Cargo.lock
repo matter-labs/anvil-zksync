@@ -1118,9 +1118,11 @@ version = "0.3.2"
 dependencies = [
  "anstream",
  "anstyle",
+ "clap",
  "rustc-hash 1.1.0",
  "serde",
  "zksync_types",
+ "zksync_web3_decl",
 ]
 
 [[package]]
@@ -1227,11 +1229,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "anvil_zksync_trace"
+name = "anvil_zksync_traces"
 version = "0.3.2"
 dependencies = [
  "alloy",
  "anstyle",
+ "anvil_zksync_common",
  "anvil_zksync_console",
  "anvil_zksync_types",
  "anyhow",

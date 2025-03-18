@@ -16,4 +16,5 @@ anstyle.workspace = true
 zksync_types.workspace = true
 serde.workspace = true
 rustc-hash.workspace = true
-anvil_zksync_config.workspace = true
+clap.workspace = true
+zksync_web3_decl.workspace = true

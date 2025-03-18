@@ -3,6 +3,7 @@ mod log;
 mod serde_helpers;
 mod show_details;
 mod transaction_order;
+pub mod traces;
 
 pub use self::{
     log::LogLevel,

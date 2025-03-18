@@ -10,7 +10,7 @@ members = [
     "crates/common",
     "crates/zksync_error",
     "crates/console",
-    "crates/trace",
+    "crates/traces",
 ]
 resolver = "2"
 
@@ -116,7 +116,7 @@ anvil_zksync_types = { path = "crates/types" }
 anvil_zksync_common = { path = "crates/common" }
 zksync_error = { path = "crates/zksync_error" }
 anvil_zksync_console = { path = "crates/console" }
-anvil_zksync_trace = { path = "crates/trace" }
+anvil_zksync_traces = { path = "crates/traces" }
 
 # macros
 derive_more = { version = "1.0", features = ["full"] }
