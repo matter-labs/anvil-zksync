@@ -1,9 +1,9 @@
 //! Helper methods to display transaction data in more human readable way.
 use crate::bootloader_debug::BootloaderDebug;
-use crate::resolver;
 use crate::utils::block_on;
 use crate::utils::{calculate_eth_cost, to_human_size};
 use alloy::hex::ToHexExt;
+use anvil_zksync_common::resolver;
 use anvil_zksync_common::sh_println;
 use anvil_zksync_config::utils::format_gwei;
 use anvil_zksync_types::ShowCalls;

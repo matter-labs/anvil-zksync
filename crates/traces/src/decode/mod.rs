@@ -7,13 +7,15 @@
 // Note: These methods are used under the terms of the original project's license.                        //
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-use super::types::{CallTrace, CallTraceNode, DecodedCallData, DecodedCallEvent, DecodedCallTrace};
-use super::types::KNOWN_ADDRESSES;
-use super::utils::format_token;
+use crate::identifier::SingleSignaturesIdentifier;
 use alloy::dyn_abi::{DecodedEvent, DynSolValue, EventExt, FunctionExt, JsonAbiExt};
 use alloy::json_abi::{Event, Function};
-use alloy::primitives::{LogData, Selector, B256};
+use alloy::primitives::{hex, LogData, Selector, B256};
+use anvil_zksync_common::utils::format_token;
 use anvil_zksync_console::{ds::abi as ds_abi, hh::abi};
+use anvil_zksync_types::traces::{
+    CallTrace, CallTraceNode, DecodedCallData, DecodedCallEvent, DecodedCallTrace, KNOWN_ADDRESSES,
+};
 use itertools::Itertools;
 use std::{
     collections::{BTreeMap, HashMap},
@@ -24,9 +26,6 @@ use zksync_types::{Address, H160};
 
 pub mod revert_decoder;
 use revert_decoder::RevertDecoder;
-
-pub mod signatures;
-use signatures::SingleSignaturesIdentifier;
 
 /// The first four bytes of the call data for a function call specifies the function to be called.
 pub const SELECTOR_LEN: usize = 4;

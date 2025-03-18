@@ -1,0 +1,394 @@
+[
+    [
+        "0x00000000",
+        "0x00000000"
+    ],
+    [
+        "0x310ab089",
+        "getImmutable(address, uint256)"
+    ],
+    [
+        "0xad7e232e",
+        "setImmutables(address, tuple[])"
+    ],
+    [
+        "0xdf9c1589",
+        "executeTransaction(bytes32, bytes32, tuple)"
+    ],
+    [
+        "0xeeb8cb09",
+        "executeTransactionFromOutside(tuple)"
+    ],
+    [
+        "0xe2f318e3",
+        "payForTransaction(bytes32, bytes32, tuple)"
+    ],
+    [
+        "0xa28c1aee",
+        "prepareForPaymaster(bytes32, bytes32, tuple)"
+    ],
+    [
+        "0x202bcce7",
+        "validateTransaction(bytes32, bytes32, tuple)"
+    ],
+    [
+        "0x9c4d535b",
+        "create(bytes32, bytes32, bytes)"
+    ],
+    [
+        "0x3cda3351",
+        "create2(bytes32, bytes32, bytes)"
+    ],
+    [
+        "0x5d382700",
+        "create2Account(bytes32, bytes32, bytes, uint8)"
+    ],
+    [
+        "0xecf95b8a",
+        "createAccount(bytes32, bytes32, bytes, uint8)"
+    ],
+    [
+        "0xbb0fd610",
+        "extendedAccountVersion(address)"
+    ],
+    [
+        "0xf3385fb6",
+        "forceDeployOnAddress(tuple, address)"
+    ],
+    [
+        "0xe9f18c17",
+        "forceDeployOnAddresses(tuple[])"
+    ],
+    [
+        "0x7b510fe8",
+        "getAccountInfo(address)"
+    ],
+    [
+        "0x187598a5",
+        "getNewAddressCreate(address, uint256)"
+    ],
+    [
+        "0x84da1fb4",
+        "getNewAddressCreate2(address, bytes32, bytes32, bytes)"
+    ],
+    [
+        "0x57180981",
+        "updateAccountVersion(uint8)"
+    ],
+    [
+        "0xec8067c7",
+        "updateNonceOrdering(uint8)"
+    ],
+    [
+        "0x62f84b24",
+        "sendToL1(bytes)"
+    ],
+    [
+        "0xfb1a9a57",
+        "getDeploymentNonce(address)"
+    ],
+    [
+        "0x896909dc",
+        "getMinNonce(address)"
+    ],
+    [
+        "0x5aa9b6b5",
+        "getRawNonce(address)"
+    ],
+    [
+        "0x55d35d18",
+        "getValueUnderNonce(uint256)"
+    ],
+    [
+        "0x38a78092",
+        "increaseMinNonce(uint256)"
+    ],
+    [
+        "0x306395c6",
+        "incrementDeploymentNonce(address)"
+    ],
+    [
+        "0xe1239cd8",
+        "incrementMinNonceIfEquals(uint256)"
+    ],
+    [
+        "0xcab7e8eb",
+        "isNonceUsed(address, uint256)"
+    ],
+    [
+        "0x155fd27a",
+        "setValueUnderNonce(uint256, uint256)"
+    ],
+    [
+        "0x6ee1dc20",
+        "validateNonceUsage(address, uint256, bool)"
+    ],
+    [
+        "0x9cc7f708",
+        "balanceOf(uint256)"
+    ],
+    [
+        "0x313ce567",
+        "decimals()"
+    ],
+    [
+        "0x40c10f19",
+        "mint(address, uint256)"
+    ],
+    [
+        "0x06fdde03",
+        "name()"
+    ],
+    [
+        "0x95d89b41",
+        "symbol()"
+    ],
+    [
+        "0x18160ddd",
+        "totalSupply()"
+    ],
+    [
+        "0x579952fc",
+        "transferFromTo(address, address, uint256)"
+    ],
+    [
+        "0x51cff8d9",
+        "withdraw(address)"
+    ],
+    [
+        "0xebe4a3d7",
+        "getTransactionHashes(tuple)"
+    ],
+    [
+        "0x6ef25c3a",
+        "baseFee()"
+    ],
+    [
+        "0x7877a797",
+        "blockGasLimit()"
+    ],
+    [
+        "0x85df51fd",
+        "blockHash(uint256)"
+    ],
+    [
+        "0x9a8a0592",
+        "chainId()"
+    ],
+    [
+        "0xa6ae0aac",
+        "coinbase()"
+    ],
+    [
+        "0xa0803ef7",
+        "currentBlockInfo()"
+    ],
+    [
+        "0x19cae462",
+        "difficulty()"
+    ],
+    [
+        "0xfe173b97",
+        "gasPrice()"
+    ],
+    [
+        "0x80b41246",
+        "getBlockHashEVM(uint256)"
+    ],
+    [
+        "0x42cbb15c",
+        "getBlockNumber()"
+    ],
+    [
+        "0xd4a4ca0d",
+        "getBlockNumberAndTimestamp()"
+    ],
+    [
+        "0x796b89b9",
+        "getBlockTimestamp()"
+    ],
+    [
+        "0x938b5f32",
+        "origin()"
+    ],
+    [
+        "0xbf1fe420",
+        "setGasPrice(uint256)"
+    ],
+    [
+        "0x9e830ad3",
+        "setNewBlock(bytes32, uint256, uint256, uint256)"
+    ],
+    [
+        "0xa851ae78",
+        "setTxOrigin(address)"
+    ],
+    [
+        "0x4d59979f",
+        "unsafeOverrideBlock(uint256, uint256, uint256)"
+    ],
+    [
+        "0xe03fe177",
+        "getCodeHash(uint256)"
+    ],
+    [
+        "0x1806aa18",
+        "getCodeSize(uint256)"
+    ],
+    [
+        "0x4de2e468",
+        "getRawCodeHash(address)"
+    ],
+    [
+        "0xc2e4ff97",
+        "markAccountCodeHashAsConstructed(address)"
+    ],
+    [
+        "0x0d4651aa",
+        "storeAccountConstructedCodeHash(address, bytes32)"
+    ],
+    [
+        "0x4f1e1be0",
+        "storeAccountConstructingCodeHash(address, bytes32)"
+    ],
+    [
+        "0xf5e69a47",
+        "publishCompressedBytecode(bytes, bytes)"
+    ],
+    [
+        "0x1c9d7eb3",
+        "log(uint256, bool)"
+    ],
+    [
+        "0x2a110e83",
+        "log(bool, bool)"
+    ],
+    [
+        "0x2c2ecbc2",
+        "log(address)"
+    ],
+    [
+        "0x319af333",
+        "log(string, address)"
+    ],
+    [
+        "0x32458eed",
+        "log(bool)"
+    ],
+    [
+        "0x399174d3",
+        "log(bool, uint256)"
+    ],
+    [
+        "0x41304fac",
+        "log(string)"
+    ],
+    [
+        "0x4b5c4277",
+        "log(string, string)"
+    ],
+    [
+        "0x51973ec9",
+        "log()"
+    ],
+    [
+        "0x643fd0df",
+        "log(uint256, string)"
+    ],
+    [
+        "0x69276c86",
+        "log(uint256, address)"
+    ],
+    [
+        "0x759f86bb",
+        "log(address, string)"
+    ],
+    [
+        "0x75b605d3",
+        "log(address, bool)"
+    ],
+    [
+        "0x8309e8a8",
+        "log(address, uint256)"
+    ],
+    [
+        "0x853c4849",
+        "log(bool, address)"
+    ],
+    [
+        "0x8feac525",
+        "log(bool, string)"
+    ],
+    [
+        "0xb60e72cc",
+        "log(string, uint256)"
+    ],
+    [
+        "0xc3b55635",
+        "log(string, bool)"
+    ],
+    [
+        "0xdaf0d4aa",
+        "log(address, address)"
+    ],
+    [
+        "0xf666715a",
+        "log(uint256, uint256)"
+    ],
+    [
+        "0xf82c50f1",
+        "log(uint256)"
+    ],
+    [
+        "0x5f91b0af",
+        "logAddress(address)"
+    ],
+    [
+        "0xba7ab84e",
+        "logBool(bool)"
+    ],
+    [
+        "0xe17bf956",
+        "logBytes(bytes)"
+    ],
+    [
+        "0x6f4171c9",
+        "logBytes1(bytes1)"
+    ],
+    [
+        "0x9b5e943e",
+        "logBytes2(bytes2)"
+    ],
+    [
+        "0x7782fa2d",
+        "logBytes3(bytes3)"
+    ],
+    [
+        "0xfba3ad39",
+        "logBytes4(bytes4)"
+    ],
+    [
+        "0x6525b5f5",
+        "logInt(int256)"
+    ],
+    [
+        "0x0bb563d6",
+        "logString(string)"
+    ],
+    [
+        "0x9905b744",
+        "logUint(uint256)"
+    ],
+    [
+        "0x4c6314f0",
+        "getMarker(bytes32)"
+    ],
+    [
+        "0x24a55db9",
+        "markBytecodeAsPublished(bytes32, bytes32, uint256)"
+    ],
+    [
+        "0xe516761e",
+        "markFactoryDeps(bool, bytes32[])"
+    ]
+]

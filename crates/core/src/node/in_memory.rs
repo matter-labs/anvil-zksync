@@ -18,18 +18,19 @@ use crate::node::state::VersionedState;
 use crate::node::{BlockSealer, BlockSealerMode, NodeExecutor, TxPool};
 use crate::observability::Observability;
 use crate::system_contracts::SystemContracts;
-use crate::trace::decode::CallTraceDecoderBuilder;
-use crate::trace::signatures::SignaturesIdentifier;
-use crate::trace::types::CallTraceArena;
-use crate::trace::{
-    build_call_trace_arena, decode_trace_arena, filter_call_trace_arena, render_trace_arena_inner,
-};
+use anvil_zksync_common::cache::CacheConfig;
 use anvil_zksync_common::sh_println;
 use anvil_zksync_common::shell::get_shell;
 use anvil_zksync_config::constants::{NON_FORK_FIRST_BLOCK_TIMESTAMP, TEST_NODE_NETWORK_ID};
-use anvil_zksync_config::types::{CacheConfig, Genesis};
+use anvil_zksync_config::types::Genesis;
 use anvil_zksync_config::TestNodeConfig;
-use anvil_zksync_types::{LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
+use anvil_zksync_traces::{
+    build_call_trace_arena, decode::CallTraceDecoderBuilder, decode_trace_arena,
+    filter_call_trace_arena, identifier::SignaturesIdentifier, render_trace_arena_inner,
+};
+use anvil_zksync_types::{
+    traces::CallTraceArena, LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails,
+};
 use anyhow::{anyhow, Context};
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;

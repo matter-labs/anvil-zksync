@@ -1,10 +1,10 @@
 use std::{collections::HashMap, str::FromStr};
 
-use crate::utils::format_token;
 use alloy::dyn_abi::JsonAbiExt;
 use alloy::json_abi::{Function, Param, StateMutability};
 use alloy::primitives::Selector;
 use anvil_zksync_common::sh_println;
+use anvil_zksync_common::utils::format_token;
 use colored::Colorize;
 use itertools::Itertools;
 use zksync_multivm::interface::Call;

@@ -14,15 +14,15 @@ use crate::node::{
     TxExecutionInfo,
 };
 use crate::system_contracts::SystemContracts;
-use crate::trace::decode::CallTraceDecoderBuilder;
-use crate::trace::{
-    build_call_trace_arena, decode_trace_arena, filter_call_trace_arena, render_trace_arena_inner,
-    signatures::SignaturesIdentifier,
-};
 use crate::utils::create_debug_output;
 use anvil_zksync_common::shell::get_shell;
 use anvil_zksync_common::{sh_eprintln, sh_err, sh_println};
 use anvil_zksync_config::TestNodeConfig;
+use anvil_zksync_traces::decode::CallTraceDecoderBuilder;
+use anvil_zksync_traces::{
+    build_call_trace_arena, decode_trace_arena, filter_call_trace_arena,
+    identifier::SignaturesIdentifier, render_trace_arena_inner,
+};
 use anvil_zksync_types::{ShowGasDetails, ShowStorageLogs, ShowVMDetails};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -557,12 +557,13 @@ mod test {
     use crate::testing::{TransactionBuilder, STORAGE_CONTRACT_BYTECODE};
     use alloy::dyn_abi::{DynSolType, DynSolValue};
     use alloy::primitives::U256 as AlloyU256;
+    use anvil_zksync_common::cache::CacheConfig;
     use anvil_zksync_config::constants::{
         DEFAULT_ACCOUNT_BALANCE, DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
         DEFAULT_ESTIMATE_GAS_SCALE_FACTOR, DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L1_GAS_PRICE,
         DEFAULT_L2_GAS_PRICE, TEST_NODE_NETWORK_ID,
     };
-    use anvil_zksync_config::types::{CacheConfig, SystemContractsOptions};
+    use anvil_zksync_config::types::SystemContractsOptions;
     use std::str::FromStr;
     use zksync_multivm::interface::executor::BatchExecutorFactory;
     use zksync_multivm::interface::{L2Block, SystemEnv};

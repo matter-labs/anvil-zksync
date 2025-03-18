@@ -9,11 +9,11 @@
 //////////////////////////////////////////////////////////////////////////////////////
 
 use super::SELECTOR_LEN;
-use crate::utils::format_token;
 use alloy::dyn_abi::JsonAbiExt;
 use alloy::json_abi::{Error, JsonAbi};
 use alloy::primitives::{hex, map::HashMap, Log, Selector};
 use alloy::sol_types::{SolEventInterface, SolInterface, SolValue};
+use anvil_zksync_common::utils::format_token;
 use anvil_zksync_console::ds;
 use itertools::Itertools;
 use std::sync::OnceLock;

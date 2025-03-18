@@ -1,7 +1,5 @@
 //! Resolving the selectors (both method & event) with external database.
-use anvil_zksync_common::cache::Cache;
-use anvil_zksync_common::sh_warn;
-use anvil_zksync_config::types::CacheConfig;
+use super::{cache::Cache, cache::CacheConfig, sh_warn};
 use lazy_static::lazy_static;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde::Deserialize;

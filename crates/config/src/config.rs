@@ -1,7 +1,9 @@
 use crate::constants::*;
 use crate::types::*;
 use crate::utils::{format_eth, format_gwei};
+use alloy::primitives::hex;
 use alloy::signers::local::PrivateKeySigner;
+use anvil_zksync_common::cache::{CacheConfig, DEFAULT_DISK_CACHE_DIR};
 use anvil_zksync_common::sh_println;
 use anvil_zksync_types::{
     LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails, TransactionOrder,

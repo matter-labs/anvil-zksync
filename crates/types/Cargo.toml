@@ -11,10 +11,12 @@ categories.workspace = true
 
 [dependencies]
 zksync_types.workspace = true
-
+lazy_static.workspace = true
+zksync_multivm.workspace = true
 # TODO: Depending on `clap` here is not the worst thing for now but need to reconsider if this is strictly necessary
 clap.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]

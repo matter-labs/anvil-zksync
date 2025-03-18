@@ -18,21 +18,16 @@ anvil_zksync_common.workspace = true
 zksync_multivm.workspace = true
 zksync_types.workspace = true
 
-alloy = { workspace = true, default-features = false, features = ["json-abi", "dyn-abi", "sol-types", "eip712"] }
+alloy = { workspace = true, default-features = false, features = ["json-abi", "dyn-abi",] }
 anyhow.workspace = true
 serde.workspace = true
-serde_json.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 lazy_static.workspace = true
-derive_more.workspace = true
 anstyle.workspace = true
 colorchoice.workspace = true
 itertools.workspace = true
 eyre.workspace = true
-hex.workspace = true
-colored.workspace = true
 
 [dev-dependencies]
-async-trait.workspace = true
 tempfile.workspace = true

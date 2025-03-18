@@ -1,4 +1,3 @@
-use alloy::dyn_abi::DynSolValue;
 use alloy::primitives::{Sign, I256, U256 as AlloyU256};
 use anvil_zksync_common::sh_err;
 use anyhow::Context;

@@ -7,11 +7,14 @@
 // Note: These methods are used under the terms of the original project's license.                        //
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-use resolver::{SelectorType, SignEthClient};
-// utils?
-use super::abi_utils::{get_error, get_event, get_func};
+use crate::abi_utils::{get_error, get_event, get_func};
 use alloy::json_abi::{Error, Event, Function};
 use alloy::primitives::hex;
+use anvil_zksync_common::{
+    resolver::{SelectorType, SignEthClient},
+    utils::read_json_file,
+    utils::write_json_file,
+};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, HashMap},

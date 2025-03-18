@@ -2,13 +2,12 @@ use crate::utils::{
     get_cli_command_telemetry_props, parse_genesis_file, TELEMETRY_SENSITIVE_VALUE,
 };
 use alloy::signers::local::coins_bip39::{English, Mnemonic};
-use anvil_zksync_common::{sh_err, sh_warn};
-use anvil_zksync_config::constants::{
-    DEFAULT_DISK_CACHE_DIR, DEFAULT_MNEMONIC, TEST_NODE_NETWORK_ID,
+use anvil_zksync_common::{
+    cache::{CacheConfig, CacheType, DEFAULT_DISK_CACHE_DIR},
+    sh_err, sh_warn,
 };
-use anvil_zksync_config::types::{
-    AccountGenerator, CacheConfig, CacheType, Genesis, SystemContractsOptions,
-};
+use anvil_zksync_config::constants::{DEFAULT_MNEMONIC, TEST_NODE_NETWORK_ID};
+use anvil_zksync_config::types::{AccountGenerator, Genesis, SystemContractsOptions};
 use anvil_zksync_config::{L1Config, TestNodeConfig};
 use anvil_zksync_core::node::fork::ForkConfig;
 use anvil_zksync_core::{

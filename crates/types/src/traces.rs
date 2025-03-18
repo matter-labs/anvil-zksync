@@ -3,8 +3,8 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use zksync_multivm::interface::{Call, ExecutionResult, VmEvent, VmExecutionResultAndLogs};
 use zksync_types::{
-    web3::Bytes,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
+    web3::Bytes,
     Address, H160, H256,
 };
 
@@ -278,7 +278,7 @@ pub enum TraceMemberOrder {
 #[derive(Clone, Debug)]
 pub struct CallTraceArena {
     /// The arena of recorded trace nodes
-    pub(crate) arena: Vec<CallTraceNode>,
+    pub arena: Vec<CallTraceNode>,
 }
 
 impl Default for CallTraceArena {

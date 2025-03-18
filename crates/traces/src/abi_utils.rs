@@ -8,10 +8,10 @@
 // Note: These methods are used under the terms of the original project's license.  //
 //////////////////////////////////////////////////////////////////////////////////////
 
-use super::types::LogData;
 use alloy::dyn_abi::{DynSolType, DynSolValue, FunctionExt, JsonAbiExt};
 use alloy::json_abi::{Error, Event, Function, Param};
 use alloy::primitives::hex;
+use anvil_zksync_types::traces::LogData;
 use eyre::{Context, Result};
 
 pub fn encode_args<I, S>(inputs: &[Param], args: I) -> Result<Vec<DynSolValue>>

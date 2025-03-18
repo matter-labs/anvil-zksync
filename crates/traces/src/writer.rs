@@ -9,10 +9,13 @@
 // Note: These methods are used under the terms of the original project's license.                        //
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-use super::types::{CallLog, L1L2Log, L1L2Logs, TraceMemberOrder, CallTrace, CallTraceArena, CallTraceNode, DecodedCallData, ExecutionResultDisplay};
+use alloy::primitives::hex::encode;
 use anstyle::{AnsiColor, Color, Style};
+use anvil_zksync_types::traces::{
+    CallLog, CallTrace, CallTraceArena, CallTraceNode, DecodedCallData, ExecutionResultDisplay,
+    L1L2Log, L1L2Logs, TraceMemberOrder,
+};
 use colorchoice::ColorChoice;
-use hex::encode;
 use std::io::{self, Write};
 use std::str;
 use zksync_multivm::interface::CallType;
@@ -245,7 +248,7 @@ impl<W: Write> TraceWriter<W> {
                     label = trace.decoded.label.as_deref().unwrap_or("<unknown>")
                 )?;
                 if self.config.write_bytecodes {
-                    write!(self.writer, "({})", hex::encode(&trace.call.input))?;
+                    write!(self.writer, "({})", encode(&trace.call.input))?;
                 }
             }
             CallType::Call(_) | CallType::NearCall => {
@@ -256,10 +259,10 @@ impl<W: Write> TraceWriter<W> {
                     }
                     None => {
                         if trace.call.input.len() < 4 {
-                            ("fallback".to_string(), hex::encode(&trace.call.input))
+                            ("fallback".to_string(), encode(&trace.call.input))
                         } else {
                             let (selector, data) = trace.call.input.split_at(4);
-                            (hex::encode(selector), hex::encode(data))
+                            (encode(selector), encode(data))
                         }
                     }
                 };
@@ -382,7 +385,7 @@ impl<W: Write> TraceWriter<W> {
         {
             write!(self.writer, " {} bytes of code", trace.call.output.len())?;
         } else if !trace.call.output.is_empty() {
-            write!(self.writer, " {}", hex::encode(&trace.call.output))?;
+            write!(self.writer, " {}", encode(&trace.call.output))?;
         }
 
         Ok(())

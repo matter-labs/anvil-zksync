@@ -48,10 +48,7 @@ pub mod filters;
 pub mod formatter;
 pub mod node;
 pub mod observability;
-pub mod resolver;
 pub mod system_contracts;
-pub mod trace;
 pub mod utils;
 
-mod cache;
 mod testing;

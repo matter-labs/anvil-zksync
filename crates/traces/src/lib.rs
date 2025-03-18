@@ -1,17 +1,16 @@
-use decode::CallTraceDecoder;
-use types::{
-    CallTrace, CallTraceArena, CallTraceNode, DecodedCallTrace, TraceMemberOrder, KNOWN_ADDRESSES,
+use anvil_zksync_types::traces::{
+    CallLog, CallTrace, CallTraceArena, CallTraceNode, DecodedCallEvent, DecodedCallTrace, L1L2Log,
+    L1L2Logs, TraceMemberOrder, KNOWN_ADDRESSES,
 };
+use decode::CallTraceDecoder;
 use writer::TraceWriter;
-use types::{CallLog, DecodedCallEvent, L1L2Log, L1L2Logs};
 use zksync_multivm::interface::{Call, VmExecutionResultAndLogs};
 use zksync_types::H160;
 
 pub mod abi_utils;
 pub mod decode;
-pub mod types;
+pub mod identifier;
 pub mod writer;
-pub mod utils;
 
 /// Converts a single call into a CallTrace.
 #[inline]
@@ -139,7 +138,6 @@ pub async fn decode_trace_arena(
     arena: &mut CallTraceArena,
     decoder: &CallTraceDecoder,
 ) -> Result<(), anyhow::Error> {
-    // TODO: change back?
     decoder.prefetch_signatures(&arena.arena).await;
     decoder.populate_traces(&mut arena.arena).await;
 
