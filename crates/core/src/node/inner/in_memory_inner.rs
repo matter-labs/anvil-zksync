@@ -25,7 +25,6 @@ use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_console::console_log::ConsoleLogHandler;
 use indexmap::IndexMap;
 use std::collections::{HashMap, HashSet};
-
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -614,7 +613,7 @@ impl InMemoryNodeInner {
         ) as u64;
 
         match &estimate_gas_result.result {
-            ExecutionResult::Revert { ref output } => {
+            ExecutionResult::Revert { output } => {
                 let message = output.to_string();
                 let pretty_message = format!(
                     "execution reverted{}{}",
@@ -775,9 +774,7 @@ impl InMemoryNodeInner {
         };
 
         delegate_vm!(vm, push_transaction(tx));
-        // TODO: inspect and use tracers
         delegate_vm!(vm, execute(InspectExecutionMode::OneTx))
-        //let call_traces = call_tracer_result.get();
     }
 
     /// Creates a [Snapshot] of the current state of the node.
