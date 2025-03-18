@@ -6,8 +6,8 @@ use alloy_zksync::node_bindings::AnvilZKsync;
 use anvil_zksync_core::node::VersionedState;
 use anvil_zksync_core::utils::write_json_file;
 use anvil_zksync_e2e_tests::{
-    get_node_binary_path, init_testing_provider, init_testing_provider_with_client, AnvilZKsyncApi,
-    LockedPort, ReceiptExt, ZksyncWalletProviderExt, DEFAULT_TX_VALUE,
+    get_node_binary_path, AnvilZKsyncApi, LockedPort, ReceiptExt, TestingProviderBuilder,
+    ZksyncWalletProviderExt, DEFAULT_TX_VALUE,
 };
 use anyhow::Context;
 use flate2::read::GzDecoder;
@@ -15,8 +15,9 @@ use http::header::{
     HeaderMap, HeaderValue, ACCESS_CONTROL_ALLOW_HEADERS, ACCESS_CONTROL_ALLOW_METHODS,
     ACCESS_CONTROL_ALLOW_ORIGIN, ORIGIN,
 };
+use std::fs;
 use std::io::Read;
-use std::{convert::identity, fs, thread::sleep, time::Duration};
+use std::time::Duration;
 use tempdir::TempDir;
 
 const SOME_ORIGIN: HeaderValue = HeaderValue::from_static("http://some.origin");
@@ -27,7 +28,10 @@ const ANY_ORIGIN: HeaderValue = HeaderValue::from_static("*");
 async fn interval_sealing_finalization() -> anyhow::Result<()> {
     // Test that we can submit a transaction and wait for it to finalize when anvil-zksync is
     // operating in interval sealing mode.
-    let provider = init_testing_provider(|node| node.block_time(1)).await?;
+    let provider = TestingProviderBuilder::default()
+        .with_node_fn(|node| node.block_time(1))
+        .build()
+        .await?;
 
     provider.tx().finalize().await?.assert_successful()?;
 
@@ -39,7 +43,10 @@ async fn interval_sealing_multiple_txs() -> anyhow::Result<()> {
     // Test that we can submit two transactions and wait for them to finalize in the same block when
     // anvil-zksync is operating in interval sealing mode. 3 seconds should be long enough for
     // the entire flow to execute before the first block is produced.
-    let provider = init_testing_provider(|node| node.block_time(3)).await?;
+    let provider = TestingProviderBuilder::default()
+        .with_node_fn(|node| node.block_time(3))
+        .build()
+        .await?;
 
     provider
         .race_n_txs_rich::<2>()
@@ -54,7 +61,10 @@ async fn interval_sealing_multiple_txs() -> anyhow::Result<()> {
 async fn no_sealing_timeout() -> anyhow::Result<()> {
     // Test that we can submit a transaction and timeout while waiting for it to finalize when
     // anvil-zksync is operating in no sealing mode.
-    let provider = init_testing_provider(|node| node.no_mine()).await?;
+    let provider = TestingProviderBuilder::default()
+        .with_node_fn(|node| node.no_mine())
+        .build()
+        .await?;
 
     let pending_tx = provider.tx().register().await?;
     let pending_tx = pending_tx
@@ -74,7 +84,10 @@ async fn no_sealing_timeout() -> anyhow::Result<()> {
 #[tokio::test]
 async fn dynamic_sealing_mode() -> anyhow::Result<()> {
     // Test that we can successfully switch between different sealing modes
-    let provider = init_testing_provider(|node| node.no_mine()).await?;
+    let provider = TestingProviderBuilder::default()
+        .with_node_fn(|node| node.no_mine())
+        .build()
+        .await?;
     assert!(!(provider.anvil_get_auto_mine().await?));
 
     // Enable immediate block sealing
@@ -116,7 +129,10 @@ async fn drop_transaction() -> anyhow::Result<()> {
     // Test that we can submit two transactions and then remove one from the pool before it gets
     // finalized. 3 seconds should be long enough for the entire flow to execute before the first
     // block is produced.
-    let provider = init_testing_provider(|node| node.block_time(3)).await?;
+    let provider = TestingProviderBuilder::default()
+        .with_node_fn(|node| node.block_time(3))
+        .build()
+        .await?;
 
     let pending_tx0 = provider.tx().with_rich_from(0).register().await?;
     let pending_tx1 = provider.tx().with_rich_from(1).register().await?;
@@ -143,7 +159,10 @@ async fn drop_all_transactions() -> anyhow::Result<()> {
     // Test that we can submit two transactions and then remove them from the pool before they get
     // finalized. 3 seconds should be long enough for the entire flow to execute before the first
     // block is produced.
-    let provider = init_testing_provider(|node| node.block_time(3)).await?;
+    let provider = TestingProviderBuilder::default()
+        .with_node_fn(|node| node.block_time(3))
+        .build()
+        .await?;
 
     let pending_tx0 = provider.tx().with_rich_from(0).register().await?;
     let pending_tx1 = provider.tx().with_rich_from(1).register().await?;
@@ -167,7 +186,10 @@ async fn remove_pool_transactions() -> anyhow::Result<()> {
     // Test that we can submit two transactions from two senders and then remove first sender's
     // transaction from the pool before it gets finalized. 3 seconds should be long enough for the
     // entire flow to execute before the first block is produced.
-    let provider = init_testing_provider(|node| node.block_time(3)).await?;
+    let provider = TestingProviderBuilder::default()
+        .with_node_fn(|node| node.block_time(3))
+        .build()
+        .await?;
 
     // Submit two transactions
     let pending_tx0 = provider.tx().with_rich_from(0).register().await?;
@@ -194,7 +216,10 @@ async fn remove_pool_transactions() -> anyhow::Result<()> {
 async fn manual_mining_two_txs_in_one_block() -> anyhow::Result<()> {
     // Test that we can submit two transaction and then manually mine one block that contains both
     // transactions in it.
-    let provider = init_testing_provider(|node| node.no_mine()).await?;
+    let provider = TestingProviderBuilder::default()
+        .with_node_fn(|node| node.no_mine())
+        .build()
+        .await?;
 
     let pending_tx0 = provider.tx().with_rich_from(0).register().await?;
     let pending_tx1 = provider.tx().with_rich_from(1).register().await?;
@@ -214,7 +239,10 @@ async fn manual_mining_two_txs_in_one_block() -> anyhow::Result<()> {
 #[tokio::test]
 async fn detailed_mining_success() -> anyhow::Result<()> {
     // Test that we can call detailed mining after a successful transaction and match output from it.
-    let provider = init_testing_provider(|node| node.no_mine()).await?;
+    let provider = TestingProviderBuilder::default()
+        .with_node_fn(|node| node.no_mine())
+        .build()
+        .await?;
 
     provider.tx().register().await?;
 
@@ -241,7 +269,10 @@ async fn detailed_mining_success() -> anyhow::Result<()> {
 async fn seal_block_ignoring_halted_transaction() -> anyhow::Result<()> {
     // Test that we can submit three transactions (1 and 3 are successful, 2 is halting). And then
     // observe a block that finalizes 1 and 3 while ignoring 2.
-    let mut provider = init_testing_provider(|node| node.block_time(3)).await?;
+    let mut provider = TestingProviderBuilder::default()
+        .with_node_fn(|node| node.block_time(3))
+        .build()
+        .await?;
     let random_account = provider.register_random_signer();
 
     // Impersonate random account for now so that gas estimation works as expected
@@ -276,7 +307,7 @@ async fn dump_and_load_state() -> anyhow::Result<()> {
     // Test that we can submit transactions, then dump state and shutdown the node. Following that we
     // should be able to spin up a new node and load state into it. Previous transactions/block should
     // be present on the new node along with the old state.
-    let provider = init_testing_provider(identity).await?;
+    let provider = TestingProviderBuilder::default().build().await?;
 
     let receipts = [
         provider.tx().finalize().await?,
@@ -286,7 +317,7 @@ async fn dump_and_load_state() -> anyhow::Result<()> {
 
     // Dump node's state, re-create it and load old state
     let state = provider.anvil_dump_state().await?;
-    let provider = init_testing_provider(identity).await?;
+    let provider = TestingProviderBuilder::default().build().await?;
     provider.anvil_load_state(state).await?;
 
     // Assert that new node has pre-restart receipts, blocks and state
@@ -308,7 +339,7 @@ async fn dump_and_load_state() -> anyhow::Result<()> {
 #[tokio::test]
 async fn cant_load_into_existing_state() -> anyhow::Result<()> {
     // Test that we can't load new state into a node with existing state.
-    let provider = init_testing_provider(identity).await?;
+    let provider = TestingProviderBuilder::default().build().await?;
 
     let old_receipts = [
         provider.tx().finalize().await?,
@@ -318,7 +349,7 @@ async fn cant_load_into_existing_state() -> anyhow::Result<()> {
 
     // Dump node's state and re-create it
     let state = provider.anvil_dump_state().await?;
-    let provider = init_testing_provider(identity).await?;
+    let provider = TestingProviderBuilder::default().build().await?;
 
     let new_receipts = [
         provider.tx().finalize().await?,
@@ -353,7 +384,7 @@ async fn cant_load_into_existing_state() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn set_chain_id() -> anyhow::Result<()> {
-    let mut provider = init_testing_provider(identity).await?;
+    let mut provider = TestingProviderBuilder::default().build().await?;
 
     let random_signer = PrivateKeySigner::random();
     let random_signer_address = random_signer.address();
@@ -389,7 +420,7 @@ async fn set_chain_id() -> anyhow::Result<()> {
 #[tokio::test]
 async fn cli_no_cors() -> anyhow::Result<()> {
     // Verify all origins are allowed by default
-    let provider = init_testing_provider(identity).await?;
+    let provider = TestingProviderBuilder::default().build().await?;
     provider.get_chain_id().await?;
     let resp_headers = provider.last_response_headers_unwrap().await;
     assert_eq!(
@@ -416,7 +447,10 @@ async fn cli_no_cors() -> anyhow::Result<()> {
     drop(provider);
 
     // Verify access control is disabled with --no-cors
-    let provider_no_cors = init_testing_provider(|node| node.arg("--no-cors")).await?;
+    let provider_no_cors = TestingProviderBuilder::default()
+        .with_node_fn(|node| node.arg("--no-cors"))
+        .build()
+        .await?;
     provider_no_cors.get_chain_id().await?;
     let resp_headers = provider_no_cors.last_response_headers_unwrap().await;
     assert_eq!(resp_headers.get(ACCESS_CONTROL_ALLOW_ORIGIN), None);
@@ -427,13 +461,14 @@ async fn cli_no_cors() -> anyhow::Result<()> {
 #[tokio::test]
 async fn cli_allow_origin() -> anyhow::Result<()> {
     let req_headers = HeaderMap::from_iter([(ORIGIN, SOME_ORIGIN)]);
+    let req_headers_cloned = req_headers.clone();
 
     // Verify allowed origin can make requests
-    let provider_with_allowed_origin = init_testing_provider_with_client(
-        |node| node.arg(format!("--allow-origin={}", SOME_ORIGIN.to_str().unwrap())),
-        |client| client.default_headers(req_headers.clone()),
-    )
-    .await?;
+    let provider_with_allowed_origin = TestingProviderBuilder::default()
+        .with_node_fn(|node| node.arg(format!("--allow-origin={}", SOME_ORIGIN.to_str().unwrap())))
+        .with_client_fn(move |client| client.default_headers(req_headers))
+        .build()
+        .await?;
     provider_with_allowed_origin.get_chain_id().await?;
     let resp_headers = provider_with_allowed_origin
         .last_response_headers_unwrap()
@@ -446,11 +481,11 @@ async fn cli_allow_origin() -> anyhow::Result<()> {
 
     // Verify different origin are also allowed to make requests. CORS is reliant on the browser
     // to respect access control headers reported by the server.
-    let provider_with_not_allowed_origin = init_testing_provider_with_client(
-        |node| node.arg(format!("--allow-origin={}", OTHER_ORIGIN.to_str().unwrap())),
-        |client| client.default_headers(req_headers),
-    )
-    .await?;
+    let provider_with_not_allowed_origin = TestingProviderBuilder::default()
+        .with_node_fn(|node| node.arg(format!("--allow-origin={}", OTHER_ORIGIN.to_str().unwrap())))
+        .with_client_fn(move |client| client.default_headers(req_headers_cloned))
+        .build()
+        .await?;
     provider_with_not_allowed_origin.get_chain_id().await?;
     let resp_headers = provider_with_not_allowed_origin
         .last_response_headers_unwrap()
@@ -465,7 +500,10 @@ async fn cli_allow_origin() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn pool_txs_order_fifo() -> anyhow::Result<()> {
-    let provider_fifo = init_testing_provider(|node| node.no_mine()).await?;
+    let provider_fifo = TestingProviderBuilder::default()
+        .with_node_fn(|node| node.no_mine())
+        .build()
+        .await?;
 
     let pending_tx0 = provider_fifo
         .tx()
@@ -498,7 +536,10 @@ async fn pool_txs_order_fifo() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn pool_txs_order_fees() -> anyhow::Result<()> {
-    let provider_fees = init_testing_provider(|node| node.no_mine().arg("--order=fees")).await?;
+    let provider_fees = TestingProviderBuilder::default()
+        .with_node_fn(|node| node.no_mine().arg("--order=fees"))
+        .build()
+        .await?;
 
     let pending_tx0 = provider_fees
         .tx()
@@ -531,7 +572,10 @@ async fn pool_txs_order_fees() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn transactions_have_index() -> anyhow::Result<()> {
-    let provider = init_testing_provider(|node| node.no_mine()).await?;
+    let provider = TestingProviderBuilder::default()
+        .with_node_fn(|node| node.no_mine())
+        .build()
+        .await?;
     let tx1 = provider.tx().with_rich_from(0).register().await?;
     let tx2 = provider.tx().with_rich_from(1).register().await?;
 
@@ -551,19 +595,21 @@ async fn dump_state_on_run() -> anyhow::Result<()> {
     let dump_path = temp_dir.path().join("state_dump.json");
 
     let dump_path_clone = dump_path.clone();
-    let provider = init_testing_provider(move |node| {
-        node.path(get_node_binary_path())
-            .arg("--state-interval")
-            .arg("1")
-            .arg("--dump-state")
-            .arg(dump_path_clone.to_str().unwrap())
-    })
-    .await?;
+    let provider = TestingProviderBuilder::default()
+        .with_node_fn(move |node| {
+            node.path(get_node_binary_path())
+                .arg("--state-interval")
+                .arg("1")
+                .arg("--dump-state")
+                .arg(dump_path_clone.to_str().unwrap())
+        })
+        .build()
+        .await?;
 
     let receipt = provider.tx().finalize().await?;
     let tx_hash = receipt.transaction_hash().to_string();
 
-    sleep(Duration::from_secs(2));
+    tokio::time::sleep(Duration::from_secs(2)).await;
 
     drop(provider);
 
@@ -615,20 +661,22 @@ async fn dump_state_on_fork() -> anyhow::Result<()> {
     let dump_path = temp_dir.path().join("state_dump_fork.json");
 
     let dump_path_clone = dump_path.clone();
-    let provider = init_testing_provider(move |node| {
-        node.path(get_node_binary_path())
-            .arg("--state-interval")
-            .arg("1")
-            .arg("--dump-state")
-            .arg(dump_path_clone.to_str().unwrap())
-            .fork("sepolia-testnet")
-    })
-    .await?;
+    let provider = TestingProviderBuilder::default()
+        .with_node_fn(move |node| {
+            node.path(get_node_binary_path())
+                .arg("--state-interval")
+                .arg("1")
+                .arg("--dump-state")
+                .arg(dump_path_clone.to_str().unwrap())
+                .fork("sepolia-testnet")
+        })
+        .build()
+        .await?;
 
     let receipt = provider.tx().finalize().await?;
     let tx_hash = receipt.transaction_hash().to_string();
 
-    sleep(Duration::from_secs(2));
+    tokio::time::sleep(Duration::from_secs(2)).await;
 
     drop(provider);
 
@@ -675,7 +723,7 @@ async fn dump_state_on_fork() -> anyhow::Result<()> {
 async fn load_state_on_run() -> anyhow::Result<()> {
     let temp_dir = TempDir::new("load-state-test").expect("failed creating temporary dir");
     let dump_path = temp_dir.path().join("load_state_run.json");
-    let provider = init_testing_provider(identity).await?;
+    let provider = TestingProviderBuilder::default().build().await?;
     let receipts = [
         provider.tx().finalize().await?,
         provider.tx().finalize().await?,
@@ -691,14 +739,16 @@ async fn load_state_on_run() -> anyhow::Result<()> {
     write_json_file(&dump_path, &state)?;
 
     let dump_path_clone = dump_path.clone();
-    let new_provider = init_testing_provider(move |node| {
-        node.path(get_node_binary_path())
-            .arg("--state-interval")
-            .arg("1")
-            .arg("--load-state")
-            .arg(dump_path_clone.to_str().unwrap())
-    })
-    .await?;
+    let new_provider = TestingProviderBuilder::default()
+        .with_node_fn(move |node| {
+            node.path(get_node_binary_path())
+                .arg("--state-interval")
+                .arg("1")
+                .arg("--load-state")
+                .arg(dump_path_clone.to_str().unwrap())
+        })
+        .build()
+        .await?;
 
     new_provider.assert_has_receipts(&receipts).await?;
     new_provider.assert_has_blocks(&blocks).await?;
@@ -726,7 +776,7 @@ async fn load_state_on_run() -> anyhow::Result<()> {
 async fn load_state_on_fork() -> anyhow::Result<()> {
     let temp_dir = TempDir::new("load-state-fork-test").expect("failed creating temporary dir");
     let dump_path = temp_dir.path().join("load_state_fork.json");
-    let provider = init_testing_provider(identity).await?;
+    let provider = TestingProviderBuilder::default().build().await?;
     let receipts = [
         provider.tx().finalize().await?,
         provider.tx().finalize().await?,
@@ -742,15 +792,17 @@ async fn load_state_on_fork() -> anyhow::Result<()> {
     write_json_file(&dump_path, &state)?;
 
     let dump_path_clone = dump_path.clone();
-    let new_provider = init_testing_provider(move |node| {
-        node.path(get_node_binary_path())
-            .arg("--state-interval")
-            .arg("1")
-            .arg("--load-state")
-            .arg(dump_path_clone.to_str().unwrap())
-            .fork("sepolia-testnet")
-    })
-    .await?;
+    let new_provider = TestingProviderBuilder::default()
+        .with_node_fn(move |node| {
+            node.path(get_node_binary_path())
+                .arg("--state-interval")
+                .arg("1")
+                .arg("--load-state")
+                .arg(dump_path_clone.to_str().unwrap())
+                .fork("sepolia-testnet")
+        })
+        .build()
+        .await?;
 
     new_provider.assert_has_receipts(&receipts).await?;
     new_provider.assert_has_blocks(&blocks).await?;

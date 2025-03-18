@@ -6,8 +6,8 @@ use alloy_zksync::provider::ZksyncProvider;
 use anvil_zksync_e2e_tests::contracts::{Bridgehub, L1Messenger, L2Message};
 use anvil_zksync_e2e_tests::test_contracts::Counter;
 use anvil_zksync_e2e_tests::{
-    init_testing_provider, AnvilZKsyncApi, FullZksyncProvider, LockedPort, ReceiptExt,
-    TestingProvider,
+    AnvilZKsyncApi, FullZksyncProvider, LockedPort, ReceiptExt, TestingProvider,
+    TestingProviderBuilder,
 };
 use anyhow::Context;
 use std::str::FromStr;
@@ -23,9 +23,10 @@ async fn init_l1_l2_providers() -> anyhow::Result<(
             .arg("--no-request-size-limit")
     });
     let l1_address = format!("http://localhost:{}", l1_locked_port.port);
-    let l2_provider =
-        init_testing_provider(move |node| node.args(["--external-l1", l1_address.as_str()]))
-            .await?;
+    let l2_provider = TestingProviderBuilder::default()
+        .with_node_fn(move |node| node.args(["--external-l1", l1_address.as_str()]))
+        .build()
+        .await?;
 
     // Pre-generate a few batches for the rest of the test
     for _ in 0..5 {

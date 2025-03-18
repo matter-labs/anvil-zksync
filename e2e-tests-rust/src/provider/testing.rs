@@ -69,66 +69,83 @@ where
     pub url: reqwest::Url,
 }
 
-// TODO: Consider creating a builder pattern
-pub async fn init_testing_provider(
-    node_fn: impl FnOnce(AnvilZKsync) -> AnvilZKsync,
-) -> anyhow::Result<TestingProvider<impl FullZksyncProvider>> {
-    init_testing_provider_with_client(node_fn, identity).await
+#[derive(Default)]
+pub struct TestingProviderBuilder {
+    node_fn: Option<Box<dyn FnOnce(AnvilZKsync) -> AnvilZKsync>>,
+    client_fn: Option<Box<dyn FnOnce(reqwest::ClientBuilder) -> reqwest::ClientBuilder>>,
 }
 
-pub async fn init_testing_provider_with_client(
-    node_fn: impl FnOnce(AnvilZKsync) -> AnvilZKsync,
-    client_fn: impl FnOnce(reqwest::ClientBuilder) -> reqwest::ClientBuilder,
-) -> anyhow::Result<TestingProvider<impl FullZksyncProvider>> {
-    let locked_port = LockedPort::acquire_unused().await?;
-    let node_layer = AnvilZKsyncLayer::from(node_fn(
-        AnvilZKsync::new()
-            .path(get_node_binary_path())
-            .port(locked_port.port),
-    ));
-
-    let last_response_headers = Arc::new(RwLock::new(None));
-    let client =
-        reqwest_middleware::ClientBuilder::new(client_fn(reqwest::Client::builder()).build()?)
-            .with(ResponseHeadersInspector(last_response_headers.clone()))
-            .build();
-    let url = node_layer.endpoint_url();
-    let http = HttpWithMiddleware::with_client(client, url.clone());
-    let rpc_client = RpcClient::new(http, true);
-
-    let rich_accounts = node_layer.instance().addresses().to_vec();
-    let default_keys = node_layer.instance().keys().to_vec();
-    let (default_key, remaining_keys) = default_keys.split_first().ok_or(NoKeysAvailable)?;
-
-    let default_signer = LocalSigner::from(default_key.clone())
-        .with_chain_id(Some(node_layer.instance().chain_id()));
-    let mut wallet = ZksyncWallet::from(default_signer);
-
-    for key in remaining_keys {
-        let signer = LocalSigner::from(key.clone());
-        wallet.register_signer(signer)
+impl TestingProviderBuilder {
+    pub fn with_node_fn(
+        mut self,
+        node_fn: impl FnOnce(AnvilZKsync) -> AnvilZKsync + 'static,
+    ) -> Self {
+        self.node_fn = Some(Box::new(node_fn));
+        self
     }
 
-    let provider = zksync_provider()
-        .with_recommended_fillers()
-        .wallet(wallet)
-        .layer(node_layer)
-        .on_client(rpc_client);
+    pub fn with_client_fn(
+        mut self,
+        client_fn: impl FnOnce(reqwest::ClientBuilder) -> reqwest::ClientBuilder + 'static,
+    ) -> Self {
+        self.client_fn = Some(Box::new(client_fn));
+        self
+    }
 
-    // Wait for anvil-zksync to get up and be able to respond.
-    // Ignore error response (should not fail here if provider is used with intentionally wrong
-    // configuration for testing purposes).
-    let _ = provider.get_chain_id().await;
-    // Explicitly unlock the port to showcase why we waited above
-    drop(locked_port);
+    pub async fn build(self) -> anyhow::Result<TestingProvider<impl FullZksyncProvider>> {
+        let node_fn = self.node_fn.unwrap_or(Box::new(identity));
+        let client_fn = self.client_fn.unwrap_or(Box::new(identity));
 
-    Ok(TestingProvider {
-        inner: provider,
-        rich_accounts,
-        last_response_headers,
+        let locked_port = LockedPort::acquire_unused().await?;
+        let node_layer = AnvilZKsyncLayer::from(node_fn(
+            AnvilZKsync::new()
+                .path(get_node_binary_path())
+                .port(locked_port.port),
+        ));
 
-        url,
-    })
+        let last_response_headers = Arc::new(RwLock::new(None));
+        let client =
+            reqwest_middleware::ClientBuilder::new(client_fn(reqwest::Client::builder()).build()?)
+                .with(ResponseHeadersInspector(last_response_headers.clone()))
+                .build();
+        let url = node_layer.endpoint_url();
+        let http = HttpWithMiddleware::with_client(client, url.clone());
+        let rpc_client = RpcClient::new(http, true);
+
+        let rich_accounts = node_layer.instance().addresses().to_vec();
+        let default_keys = node_layer.instance().keys().to_vec();
+        let (default_key, remaining_keys) = default_keys.split_first().ok_or(NoKeysAvailable)?;
+
+        let default_signer = LocalSigner::from(default_key.clone())
+            .with_chain_id(Some(node_layer.instance().chain_id()));
+        let mut wallet = ZksyncWallet::from(default_signer);
+
+        for key in remaining_keys {
+            let signer = LocalSigner::from(key.clone());
+            wallet.register_signer(signer)
+        }
+
+        let provider = zksync_provider()
+            .with_recommended_fillers()
+            .wallet(wallet)
+            .layer(node_layer)
+            .on_client(rpc_client);
+
+        // Wait for anvil-zksync to get up and be able to respond.
+        // Ignore error response (should not fail here if provider is used with intentionally wrong
+        // configuration for testing purposes).
+        let _ = provider.get_chain_id().await;
+        // Explicitly unlock the port to showcase why we waited above
+        drop(locked_port);
+
+        Ok(TestingProvider {
+            inner: provider,
+            rich_accounts,
+            last_response_headers,
+
+            url,
+        })
+    }
 }
 
 impl<P> TestingProvider<P>
