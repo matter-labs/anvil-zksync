@@ -105,7 +105,7 @@ impl L1Sender {
         );
 
         let gas_price = self.provider.get_gas_price().await?;
-        let eip1559_est = self.provider.estimate_eip1559_fees(None).await?;
+        let eip1559_est = self.provider.estimate_eip1559_fees().await?;
         let tx = TransactionRequest::default()
             .with_to(self.validator_timelock_addr.0.into())
             .with_max_fee_per_blob_gas(gas_price)
@@ -184,7 +184,7 @@ impl L1Sender {
         );
 
         let gas_price = self.provider.get_gas_price().await?;
-        let eip1559_est = self.provider.estimate_eip1559_fees(None).await?;
+        let eip1559_est = self.provider.estimate_eip1559_fees().await?;
         let tx = TransactionRequest::default()
             .with_to(self.validator_timelock_addr.0.into())
             .with_max_fee_per_blob_gas(gas_price)
@@ -265,7 +265,7 @@ impl L1Sender {
         );
 
         let gas_price = self.provider.get_gas_price().await?;
-        let eip1559_est = self.provider.estimate_eip1559_fees(None).await?;
+        let eip1559_est = self.provider.estimate_eip1559_fees().await?;
         let tx = TransactionRequest::default()
             .with_to(self.validator_timelock_addr.0.into())
             .with_max_fee_per_blob_gas(gas_price)

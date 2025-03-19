@@ -2,7 +2,6 @@ use alloy::contract::SolCallBuilder;
 use alloy::network::{Ethereum, TransactionBuilder};
 use alloy::primitives::{address, Address, Bytes, ChainId, FixedBytes, U256};
 use alloy::providers::{PendingTransactionBuilder, Provider};
-use alloy::transports::Transport;
 use alloy_zksync::network::transaction_request::TransactionRequest;
 use alloy_zksync::network::Zksync;
 use alloy_zksync::provider::ZksyncProvider;
@@ -28,11 +27,11 @@ mod private {
 
 const L1_MESSENGER_ADDRESS: Address = address!("0000000000000000000000000000000000008008");
 
-pub struct L1Messenger<T: Transport + Clone, P: Provider<T, Zksync>>(
-    private::IL1Messenger::IL1MessengerInstance<T, P, Zksync>,
+pub struct L1Messenger<P: Provider<Zksync>>(
+    private::IL1Messenger::IL1MessengerInstance<(), P, Zksync>,
 );
 
-impl<T: Transport + Clone, P: Provider<T, Zksync>> L1Messenger<T, P> {
+impl<P: Provider<Zksync>> L1Messenger<P> {
     pub fn new(provider: P) -> Self {
         Self(private::IL1Messenger::new(L1_MESSENGER_ADDRESS, provider))
     }
@@ -44,7 +43,7 @@ impl<T: Transport + Clone, P: Provider<T, Zksync>> L1Messenger<T, P> {
     pub fn send_to_l1(
         &self,
         bytes: impl Into<Bytes>,
-    ) -> SolCallBuilder<T, &P, private::IL1Messenger::sendToL1Call, Zksync> {
+    ) -> SolCallBuilder<(), &P, private::IL1Messenger::sendToL1Call, Zksync> {
         self.0.sendToL1(bytes.into())
     }
 }
@@ -52,16 +51,13 @@ impl<T: Transport + Clone, P: Provider<T, Zksync>> L1Messenger<T, P> {
 pub type L2Log = private::IBridgehub::L2Log;
 pub type L2Message = private::IBridgehub::L2Message;
 
-pub struct Bridgehub<T: Transport + Clone, P: Provider<T, Ethereum>> {
-    instance: private::IBridgehub::IBridgehubInstance<T, P, Ethereum>,
+pub struct Bridgehub<P: Provider<Ethereum>> {
+    instance: private::IBridgehub::IBridgehubInstance<(), P, Ethereum>,
     chain_id: ChainId,
 }
 
-impl<T: Transport + Clone, P: Provider<T, Ethereum>> Bridgehub<T, P> {
-    pub async fn new<T2: Transport + Clone>(
-        l1_provider: P,
-        l2_provider: &impl Provider<T2, Zksync>,
-    ) -> anyhow::Result<Self> {
+impl<P: Provider<Ethereum>> Bridgehub<P> {
+    pub async fn new(l1_provider: P, l2_provider: &impl Provider<Zksync>) -> anyhow::Result<Self> {
         let chain_id = l2_provider.get_chain_id().await?;
         let birdgehub_address = l2_provider
             .get_bridgehub_contract()
@@ -83,7 +79,7 @@ impl<T: Transport + Clone, P: Provider<T, Ethereum>> Bridgehub<T, P> {
         index: impl TryInto<U256, Error = impl Debug>,
         msg: L2Message,
         proof: Vec<FixedBytes<32>>,
-    ) -> SolCallBuilder<T, &P, private::IBridgehub::proveL2MessageInclusionCall, Ethereum> {
+    ) -> SolCallBuilder<(), &P, private::IBridgehub::proveL2MessageInclusionCall, Ethereum> {
         self.instance.proveL2MessageInclusion(
             U256::from(self.chain_id),
             batch_number.try_into().unwrap(),
@@ -95,11 +91,11 @@ impl<T: Transport + Clone, P: Provider<T, Ethereum>> Bridgehub<T, P> {
 
     // TODO: Port logic to alloy-zksync
     /// Requests execution of an L2 transaction from L1.
-    pub async fn request_execute<T2: Transport + Clone>(
+    pub async fn request_execute(
         &self,
-        l2_provider: &impl Provider<T2, Zksync>,
+        l2_provider: &impl Provider<Zksync>,
         tx: TransactionRequest,
-    ) -> anyhow::Result<PendingTransactionBuilder<T2, Zksync>> {
+    ) -> anyhow::Result<PendingTransactionBuilder<Zksync>> {
         let max_fee_per_gas = tx.max_fee_per_gas().unwrap();
         let max_priority_fee_per_gas = tx.max_priority_fee_per_gas().unwrap_or(0);
         let gas_per_pubdata_byte_limit = tx.gas_per_pubdata().unwrap_or(U256::from(800));
