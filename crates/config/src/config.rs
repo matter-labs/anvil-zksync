@@ -73,6 +73,8 @@ pub struct TestNodeConfig {
     pub system_contracts_options: SystemContractsOptions,
     /// Directory to override bytecodes
     pub override_bytecodes_dir: Option<String>,
+    /// Enable bytecode compression
+    pub bytecode_compression: bool,
     /// Enables EVM emulation mode
     pub use_evm_emulator: bool,
     /// Enables ZKOS mode (experimental)
@@ -180,6 +182,7 @@ impl Default for TestNodeConfig {
             silent: false,
             system_contracts_options: Default::default(),
             override_bytecodes_dir: None,
+            bytecode_compression: false,
             use_evm_emulator: false,
             use_zkos: false,
             chain_id: None,
@@ -579,6 +582,20 @@ Address: {address}
     /// Get the override bytecodes directory
     pub fn get_override_bytecodes_dir(&self) -> Option<&String> {
         self.override_bytecodes_dir.as_ref()
+    }
+
+    /// Set the bytecode compression option
+    #[must_use]
+    pub fn with_bytecode_compression(mut self, enable: Option<bool>) -> Self {
+        if let Some(enable) = enable {
+            self.bytecode_compression = enable;
+        }
+        self
+    }
+
+    /// Get the bytecode compression option
+    pub fn is_bytecode_compression_enabled(&self) -> bool {
+        self.bytecode_compression
     }
 
     /// Enable or disable EVM emulation
