@@ -11,7 +11,8 @@ The goal of this crate is to offer a fast solution for integration testing, boot
 
 - [Official documentation: Anvil-ZKsync](https://docs.zksync.io/build/test-and-debug/in-memory-node)
 - [Foundry Book: Anvil for zkSync](https://foundry-book.zksync.io/reference/anvil-zksync/)
-
+- [Rust Book: Anvil-ZKsync](https://matter-labs.github.io/anvil-zksync/anvil_zksync/index.html)
+ 
 ## 📌 Overview
 
 `anvil-zksync` is designed for local testing and uses an in-memory database for storing state information. It also employs simplified hashmaps for tracking blocks and transactions. When in fork mode, it fetches missing storage data from a remote source if not available locally. Additionally, it uses the remote server (openchain) to resolve the ABI and topics to human-readable names.
