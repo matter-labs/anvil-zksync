@@ -538,8 +538,8 @@ impl Cli {
         for arg in &args {
             if let Some(warning) = deprecated_flags.get(arg.as_str()) {
                 if !detected {
-                    sh_warn!("⚠ Deprecated CLI Options Detected (as of v0.3.1):\n");
-                    sh_warn!("[Options below will be removed in v0.4.0]\n");
+                    sh_warn!("⚠ Deprecated CLI Options Detected (as of v0.4.0):\n");
+                    sh_warn!("[Options below will be removed in v0.4.1]\n");
                     detected = true;
                 }
                 sh_warn!("{}", warning);
@@ -550,8 +550,8 @@ impl Cli {
                     .get(base_flag.trim_end_matches("="))
                     .unwrap_or(&"⚠ Unknown deprecated option.");
                 if !detected {
-                    sh_warn!("⚠ Deprecated CLI Options Detected (as of v0.3.1):\n");
-                    sh_warn!("[Options below will be removed in v0.4.0]\n");
+                    sh_warn!("⚠ Deprecated CLI Options Detected (as of v0.4.0):\n");
+                    sh_warn!("[Options below will be removed in v0.4.1]\n");
                     detected = true;
                 }
                 sh_warn!("{}", warning);

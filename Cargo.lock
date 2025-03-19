@@ -843,7 +843,6 @@ name = "anvil_zksync_console"
 version = "0.3.2"
 dependencies = [
  "alloy",
- "alloy-sol-types",
  "anvil_zksync_common",
  "colored",
  "derive_more 1.0.0",

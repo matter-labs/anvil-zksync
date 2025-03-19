@@ -1,5 +1,5 @@
 //! Hardhat `console.sol` interface.
-use alloy_sol_types::sol;
+use alloy::sol;
 use foundry_common_fmt::*;
 use foundry_macros::ConsoleFmt;
 
