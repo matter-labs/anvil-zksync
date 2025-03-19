@@ -64,13 +64,14 @@ impl VmRunner {
         fork_storage: ForkStorage,
         system_contracts: SystemContracts,
         generate_system_logs: bool,
+        bytecode_compression: bool,
     ) -> Self {
         let bootloader_debug_result = Arc::new(std::sync::RwLock::new(Err(
             "Tracer has not been run yet".to_string(),
         )));
         Self {
             executor_factory: MainBatchExecutorFactory::<TraceCalls>::new(
-                false,
+                bytecode_compression,
                 bootloader_debug_result.clone(),
             ),
             bootloader_debug_result,
@@ -627,7 +628,13 @@ mod test {
                 config.use_evm_emulator,
                 config.use_zkos,
             );
-            let vm_runner = VmRunner::new(time, fork_storage, system_contracts.clone(), false);
+            let vm_runner = VmRunner::new(
+                time,
+                fork_storage,
+                system_contracts.clone(),
+                false,
+                config.is_bytecode_compression_enabled(),
+            );
             VmRunnerTester {
                 vm_runner,
                 config,
