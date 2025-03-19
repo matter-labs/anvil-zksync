@@ -10,7 +10,7 @@ use zksync_types::{
 
 /// Enum to represent both user and system L1-L2 logs
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum L1L2Log {
+pub enum L2L1Log {
     User(UserL2ToL1Log),
     System(SystemL2ToL1Log),
 }
@@ -169,9 +169,9 @@ pub struct CallLog {
 
 /// A log with optional decoded data.
 #[derive(Clone, Debug)]
-pub struct L1L2Logs {
+pub struct L2L1Logs {
     /// The raw log data.
-    pub raw_log: L1L2Log,
+    pub raw_log: L2L1Log,
     /// The position of the log relative to subcalls within the same trace.
     pub position: u64,
 }
@@ -231,8 +231,8 @@ pub struct CallTraceNode {
     pub trace: CallTrace,
     /// Event logs
     pub logs: Vec<CallLog>,
-    /// L1-L2 logs
-    pub l1_l2_logs: Vec<L1L2Logs>,
+    /// L2-L1 logs
+    pub l2_l1_logs: Vec<L2L1Logs>,
     /// Ordering of child calls and logs
     pub ordering: Vec<TraceMemberOrder>,
 }
@@ -255,7 +255,7 @@ impl Default for CallTraceNode {
                 call: Call::default(),
             },
             logs: Vec::new(),
-            l1_l2_logs: Vec::new(),
+            l2_l1_logs: Vec::new(),
             ordering: Vec::new(),
         }
     }
@@ -299,7 +299,7 @@ impl Default for CallTraceArena {
                 call: Call::default(),
             },
             logs: Vec::new(),
-            l1_l2_logs: Vec::new(),
+            l2_l1_logs: Vec::new(),
             ordering: Vec::new(),
         };
 

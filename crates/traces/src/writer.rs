@@ -13,7 +13,7 @@ use alloy::primitives::hex::encode;
 use anstyle::{AnsiColor, Color, Style};
 use anvil_zksync_types::traces::{
     CallLog, CallTrace, CallTraceArena, CallTraceNode, DecodedCallData, ExecutionResultDisplay,
-    L1L2Log, L1L2Logs, TraceMemberOrder,
+    L2L1Log, L2L1Logs, TraceMemberOrder,
 };
 use colorchoice::ColorChoice;
 use std::io::{self, Write};
@@ -179,7 +179,7 @@ impl<W: Write> TraceWriter<W> {
                 Ok(item_idx + 1)
             }
             TraceMemberOrder::L1L2Log(index) => {
-                self.write_l1_l2_log(&node.l1_l2_logs[*index])?;
+                self.write_l1_l2_log(&node.l2_l1_logs[*index])?;
                 Ok(item_idx + 1)
             }
         }
@@ -302,13 +302,13 @@ impl<W: Write> TraceWriter<W> {
         Ok(())
     }
 
-    fn write_l1_l2_log(&mut self, log: &L1L2Logs) -> io::Result<()> {
+    fn write_l1_l2_log(&mut self, log: &L2L1Logs) -> io::Result<()> {
         let log_style = self.log_style();
         self.write_branch()?; // Write indentation/pipes if needed
 
         let (log_type, l2_log) = match &log.raw_log {
-            L1L2Log::User(user_log) => ("UserL1L2Log", &user_log.0),
-            L1L2Log::System(system_log) => ("SystemL1L2Log", &system_log.0),
+            L2L1Log::User(user_log) => ("UserL2L1Log", &user_log.0),
+            L2L1Log::System(system_log) => ("SystemL2L1Log", &system_log.0),
         };
 
         write!(

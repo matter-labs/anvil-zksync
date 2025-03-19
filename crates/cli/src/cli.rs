@@ -145,8 +145,8 @@ pub struct Cli {
     /// Increments verbosity each time it is used. (-vv, -vvv)
     ///
     /// Example usage:
-    ///   - `-vv` => verbosity level 2 (includes user calls and event calls)
-    ///   - `-vvv` => level 3 (includes system calls, system event calls)
+    ///   - `-vv` => verbosity level 2 (includes user calls, user L1-L2 logs, and event calls)
+    ///   - `-vvv` => level 3 (includes system calls, system L1-L2 logs, and system event calls)
     ///   - `-vvvv` => level 4 (includes system calls, system event calls, and precompiles)
     ///   - `-vvvvv` => level 5 (includes everything)
     #[arg(short = 'v', long = "verbosity", action = ArgAction::Count, help_heading = "Debugging Options")]

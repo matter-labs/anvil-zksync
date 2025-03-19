@@ -1,6 +1,6 @@
 use anvil_zksync_types::traces::{
-    CallLog, CallTrace, CallTraceArena, CallTraceNode, DecodedCallEvent, DecodedCallTrace, L1L2Log,
-    L1L2Logs, TraceMemberOrder, KNOWN_ADDRESSES,
+    CallLog, CallTrace, CallTraceArena, CallTraceNode, DecodedCallEvent, DecodedCallTrace, L2L1Log,
+    L2L1Logs, TraceMemberOrder, KNOWN_ADDRESSES,
 };
 use decode::CallTraceDecoder;
 use writer::TraceWriter;
@@ -81,14 +81,14 @@ fn process_call_and_subcalls(
         })
         .collect();
 
-    // Collect user and system L1-L2 logs associated with this call.
-    let l1_l2_logs_for_call: Vec<L1L2Logs> = tx_result
+    // Collect user and system L2-L1 logs associated with this call.
+    let l1_l2_logs_for_call: Vec<L2L1Logs> = tx_result
         .logs
         .user_l2_to_l1_logs
         .iter()
         .filter(|log| log.0.sender == call.to)
-        .map(|log| L1L2Logs {
-            raw_log: L1L2Log::User(log.clone()),
+        .map(|log| L2L1Logs {
+            raw_log: L2L1Log::User(log.clone()),
             position: log.0.tx_number_in_block as u64,
         })
         .chain(
@@ -97,8 +97,8 @@ fn process_call_and_subcalls(
                 .system_l2_to_l1_logs
                 .iter()
                 .filter(|log| log.0.sender == call.to)
-                .map(|log| L1L2Logs {
-                    raw_log: L1L2Log::System(log.clone()),
+                .map(|log| L2L1Logs {
+                    raw_log: L2L1Log::System(log.clone()),
                     position: log.0.tx_number_in_block as u64,
                 }),
         )
@@ -112,7 +112,7 @@ fn process_call_and_subcalls(
         idx: 0,
         trace: call_trace,
         logs: logs_for_call,
-        l1_l2_logs: l1_l2_logs_for_call,
+        l2_l1_logs: l1_l2_logs_for_call,
         ordering: Vec::new(),
     };
 
@@ -193,10 +193,10 @@ fn filter_node_recursively(
             child_copy.children.clear();
             child_copy.ordering.clear();
 
-            // Filter the L1-L2 logs within the node.
-            child_copy.l1_l2_logs.retain(|log| match &log.raw_log {
-                L1L2Log::User(_) => verbosity >= 2, // include user logs if verbosity is >= 2
-                L1L2Log::System(_) => verbosity >= 3, // include system logs if verbosity is >= 3
+            // Filter the L2-L1 logs within the node.
+            child_copy.l2_l1_logs.retain(|log| match &log.raw_log {
+                L2L1Log::User(_) => verbosity >= 2, // include user logs if verbosity is >= 2
+                L2L1Log::System(_) => verbosity >= 3, // include system logs if verbosity is >= 3
             });
 
             filtered_arena.arena.push(child_copy);
@@ -228,9 +228,9 @@ fn should_include_call(address: &H160, verbosity: u8) -> bool {
     match verbosity {
         // -v or less => 0 or 1 => show nothing
         0 | 1 => false,
-        // -vv => 2 => user calls only (incl. L1–L2 user logs)
+        // -vv => 2 => user calls only (incl. L2–L1 user logs)
         2 => !(is_system || is_precompile),
-        // -vvv => 3 => user + system (incl. L1–L2 system logs)
+        // -vvv => 3 => user + system (incl. L2–L1 system logs)
         3 => !is_precompile,
         // -vvvv => 4 => user + system + precompile
         4 => true,
@@ -244,7 +244,7 @@ fn rebuild_ordering(node: &mut CallTraceNode) {
     for i in 0..node.logs.len() {
         node.ordering.push(TraceMemberOrder::Log(i));
     }
-    for i in 0..node.l1_l2_logs.len() {
+    for i in 0..node.l2_l1_logs.len() {
         node.ordering.push(TraceMemberOrder::L1L2Log(i));
     }
     for i in 0..node.children.len() {
