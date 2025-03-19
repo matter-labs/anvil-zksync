@@ -602,12 +602,12 @@ impl NodeExecutorHandle {
                     "failed to reset fork block number as node executor is dropped"
                 )
             })?;
-        // FIXME
-        let _ = response_receiver.await.map_err(|_| {
+        
+        response_receiver.await.map_err(|_| {
             anvil_zksync::node::generic_error!(
                 "failed to reset fork block number as node executor is dropped"
             )
-        })?;
+        })??;
         Ok(())
     }
 
