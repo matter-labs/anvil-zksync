@@ -90,7 +90,7 @@ anvil-zksync --spawn-l1
 anvil-zksync --spawn-l1 9000
 ```
 
-This command relies on Anvil being installed on the host system, removing the need for additional dependencies within `anvil-zksync`. To install Anvil, please refer to documentation [here](https://book.getfoundry.sh/getting-started/installation).
+This command relies on Anvil being installed. To install Anvil, please refer to documentation [here](https://book.getfoundry.sh/getting-started/installation).
 
 ### 2. Connect to an External L1 Node
 
