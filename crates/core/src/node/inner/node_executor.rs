@@ -477,20 +477,29 @@ impl NodeExecutorHandle {
         interval: u64,
     ) -> Result<Vec<L2BlockNumber>, AnvilNodeError> {
         let (response_sender, response_receiver) = oneshot::channel();
+        let tx_batches_repr = format!("{tx_batches:?}");
         self.command_sender
             .send(Command::SealBlocks(tx_batches, interval, response_sender))
             .await
-            .map_err(|_| {
-                anvil_zksync::node::generic_error!(
-                    "failed to seal a block as node executor is dropped"
-                )
+            .map_err(|inner_masked_error| {
+                // Log this error so that it does not get lost
+                sh_eprintln!("Internal error while sending request to seal multiple blocks for transactions {tx_batches_repr}: \n{inner_masked_error:?}. Please report.");
+                anvil_zksync::node::SealingMultipleBlocksFailed {
+                    transactions_batches: tx_batches_repr.clone(),
+                    details: "Failed to seal a block as node executor is dropped".to_string(),
+                }
             })?;
 
         match response_receiver.await {
             Ok(result) => result,
-            Err(_) => Err(anvil_zksync::node::generic_error!(
-                "failed to seal a block as node executor is dropped"
-            )),
+            Err(inner_masked_error) => {
+                // Log this error so that it does not get lost
+                sh_eprintln!("Internal error while receiving response to the request of sealing multiple blocks for transactions {tx_batches_repr}: \n{inner_masked_error:?}. Please report.");
+                Err(anvil_zksync::node::SealingMultipleBlocksFailed {
+                    transactions_batches: tx_batches_repr,
+                    details: "Failed to seal a block as node executor is dropped".to_string(),
+                })
+            }
         }
     }
 

@@ -354,6 +354,19 @@ pub enum AnvilNode {
         block_transactions_hashes: String,
         details: String,
     } = 21u32,
+    #[doc = "# Summary "]
+    #[doc = "Request to seal multiple blocks with transaction batches failed."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "This error occurs when anvil-zksync fails to seal multiple blocks containing various batches of transactions."]
+    #[doc = ""]
+    #[doc = "In anvil-zksync, transactions can be organized into batches, where each batch may be assigned to a separate block. When processing multiple batches simultaneously (such as during complex test scenarios or parallel transaction processing), anvil-zksync attempts to seal all corresponding blocks in succession."]
+    #[doc = ""]
+    #[doc = "This error indicates that one or more of these block sealing operations failed. The error contains information about the transaction batches that were attempted to be included in the blocks."]
+    SealingMultipleBlocksFailed {
+        transactions_batches: String,
+        details: String,
+    } = 22u32,
     GenericError {
         message: String,
     } = 0u32,
@@ -442,6 +455,12 @@ impl CustomErrorMessage for AnvilNode {
                 details,
             } => {
                 format ! ("[anvil_zksync-node-21] Failed to seal a block containing transactions: {block_transactions_hashes}.\nDetails: {details}")
+            }
+            AnvilNode::SealingMultipleBlocksFailed {
+                transactions_batches,
+                details,
+            } => {
+                format ! ("[anvil_zksync-node-22] Failed to seal multiple blocks containing transaction batches: {transactions_batches}.\nDetails: {details}")
             }
             AnvilNode::GenericError { message } => {
                 format!("[anvil_zksync-node-0] Generic error: {message}")

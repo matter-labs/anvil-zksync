@@ -2226,6 +2226,76 @@
           "../../etc/errors/anvil.json"
         ]
       },
+      "[anvil_zksync-node-22]": {
+        "domain": "AnvilZKsync",
+        "component": "AnvilNode",
+        "name": "SealingMultipleBlocksFailed",
+        "code": 22,
+        "identifier": "[anvil_zksync-node-22]",
+        "message": "Failed to seal multiple blocks containing transaction batches: {transactions_batches}.\nDetails: {details}",
+        "fields": [
+          {
+            "name": "transactions_batches",
+            "type": "string"
+          },
+          {
+            "name": "details",
+            "type": "string"
+          }
+        ],
+        "documentation": {
+          "description": "This error occurs when anvil-zksync fails to seal multiple blocks containing various batches of transactions.\n\nIn anvil-zksync, transactions can be organized into batches, where each batch may be assigned to a separate block. When processing multiple batches simultaneously (such as during complex test scenarios or parallel transaction processing), anvil-zksync attempts to seal all corresponding blocks in succession.\n\nThis error indicates that one or more of these block sealing operations failed. The error contains information about the transaction batches that were attempted to be included in the blocks.",
+          "summary": "Request to seal multiple blocks with transaction batches failed.",
+          "likely_causes": [
+            {
+              "cause": "Batch dependency conflicts or transaction ordering issues across multiple blocks.",
+              "fixes": [
+                "Review transaction dependencies between batches to ensure they're properly ordered.",
+                "Check if transactions in later batches depend on state changes from earlier batches that may have failed.",
+                "Consider breaking your test into smaller sequential batches rather than parallel ones.",
+                "Use debug traces to identify specific transactions that might be causing conflicts between batches."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
+              "cause": "State inconsistencies when processing multiple blocks in succession.",
+              "fixes": [
+                "Examine the logs to identify which specific batch operations failed.",
+                "Check for transactions that modify the same state variables across different batches.",
+                "Ensure your test has proper state setup before attempting to process multiple blocks.",
+                "Consider using anvil-zksync's snapshot features to create clean states between batch tests."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
+              "cause": "Resource limitations when processing multiple complex blocks simultaneously.",
+              "fixes": [
+                "Reduce the number or complexity of transaction batches being processed at once.",
+                "Ensure your system has sufficient memory and CPU resources for multi-block processing.",
+                "Break your test into smaller sequential test cases rather than parallel ones."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "expression": "SealingMultipleBlocksFailed"
+          },
+          "typescript": {
+            "expression": "SealingMultipleBlocksFailed"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
       "[anvil_zksync-node-2]": {
         "domain": "AnvilZKsync",
         "component": "AnvilNode",
