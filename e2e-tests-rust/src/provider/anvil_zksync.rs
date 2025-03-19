@@ -3,21 +3,17 @@ use alloy::primitives::TxHash;
 use alloy::providers::{Provider, ProviderCall};
 use alloy::rpc::client::NoParams;
 use alloy::serde::WithOtherFields;
-use alloy::transports::{Transport, TransportResult};
+use alloy::transports::TransportResult;
 use alloy_zksync::network::Zksync;
 
 /// RPC interface that gives access to methods specific to anvil-zksync.
 #[allow(clippy::type_complexity)]
-pub trait AnvilZKsyncApi<T>: Provider<T, Zksync>
-where
-    T: Transport + Clone,
-{
+pub trait AnvilZKsyncApi: Provider<Zksync> {
     /// Custom version of [`alloy::providers::ext::AnvilApi::anvil_mine_detailed`] that returns
     /// block representation with transactions that contain extra custom fields.
     fn anvil_zksync_mine_detailed(
         &self,
     ) -> ProviderCall<
-        T,
         NoParams,
         alloy::rpc::types::Block<
             WithOtherFields<<Zksync as Network>::TransactionResponse>,
@@ -49,9 +45,4 @@ where
     }
 }
 
-impl<P, T> AnvilZKsyncApi<T> for P
-where
-    T: Transport + Clone,
-    P: Provider<T, Zksync>,
-{
-}
+impl<P> AnvilZKsyncApi for P where P: Provider<Zksync> {}
