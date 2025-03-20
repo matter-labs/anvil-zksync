@@ -1,14 +1,16 @@
 use std::{collections::HashMap, str::FromStr};
 
-use crate::utils::format_token;
 use alloy::dyn_abi::JsonAbiExt;
 use alloy::json_abi::{Function, Param, StateMutability};
 use alloy::primitives::Selector;
 use anvil_zksync_common::sh_println;
+use anvil_zksync_common::utils::format_token;
 use colored::Colorize;
 use itertools::Itertools;
 use zksync_multivm::interface::Call;
 use zksync_types::H160;
+
+// TODO: consolidate with hh.rs
 
 /// ConsoleLogHandler is responsible for printing the logs, that are created when contract calls 'console.log' method.
 /// This is a popular debugging method used by hardhat and foundry.
@@ -45,7 +47,7 @@ impl ConsoleLogHandler {
         }
 
         if !messages.is_empty() {
-            sh_println!("\nLogs: ");
+            sh_println!("===Logs===");
         }
         for message in messages {
             sh_println!("{}", message.bold());
@@ -73,7 +75,10 @@ impl ConsoleLogHandler {
                 .map_or("Unknown log call.".to_owned(), |func| {
                     let tokens = func.abi_decode_input(&current_call.input.as_slice()[4..], false);
                     tokens.map_or("Failed to parse inputs for log.".to_owned(), |tokens| {
-                        tokens.iter().map(|t| format_token(t, false)).join(" ")
+                        tokens
+                            .iter()
+                            .map(|t| format_token(t, false).trim_matches('"').to_string())
+                            .join(" ")
                     })
                 });
         Some(message)

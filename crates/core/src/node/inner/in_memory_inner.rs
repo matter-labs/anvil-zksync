@@ -1,11 +1,12 @@
-use crate::console_log::ConsoleLogHandler;
 use crate::deps::storage_view::StorageView;
 use crate::filters::EthFilters;
+use crate::formatter::ExecutionErrorReport;
 use crate::node::error::{LoadStateError, ToHaltError, ToRevertReason};
 use crate::node::inner::blockchain::Blockchain;
 use crate::node::inner::fork::{Fork, ForkClient, ForkSource};
 use crate::node::inner::fork_storage::{ForkStorage, SerializableStorage};
 use crate::node::inner::time::Time;
+use crate::node::inner::vm_runner::TxBatchExecutionResult;
 use crate::node::keys::StorageKeyLayout;
 use crate::node::state::StateV1;
 use crate::node::vm::AnvilVM;
@@ -16,14 +17,12 @@ use crate::node::{
 };
 use crate::system_contracts::SystemContracts;
 use crate::{delegate_vm, utils};
-
-use crate::formatter::ExecutionErrorReport;
-use crate::node::inner::vm_runner::TxBatchExecutionResult;
 use anvil_zksync_common::sh_println;
 use anvil_zksync_config::constants::{
     LEGACY_RICH_WALLETS, NON_FORK_FIRST_BLOCK_TIMESTAMP, RICH_WALLETS,
 };
 use anvil_zksync_config::TestNodeConfig;
+use anvil_zksync_console::console_log::ConsoleLogHandler;
 use indexmap::IndexMap;
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
@@ -615,21 +614,8 @@ impl InMemoryNodeInner {
             VmVersion::latest(),
         ) as u64;
 
-        match estimate_gas_result.result {
+        match &estimate_gas_result.result {
             ExecutionResult::Revert { output } => {
-                tracing::debug!("{}", format!("Unable to estimate gas for the request with our suggested gas limit of {}. The transaction is most likely unexecutable. Breakdown of estimation:", suggested_gas_limit + overhead));
-                tracing::debug!(
-                    "{}",
-                    format!(
-                        "\tEstimated transaction body gas cost: {}",
-                        tx_body_gas_limit
-                    )
-                );
-                tracing::debug!(
-                    "{}",
-                    format!("\tGas for pubdata: {}", additional_gas_for_pubdata)
-                );
-                tracing::debug!("{}", format!("\tOverhead: {}", overhead));
                 let message = output.to_string();
                 let pretty_message = format!(
                     "execution reverted{}{}",
@@ -638,26 +624,13 @@ impl InMemoryNodeInner {
                 );
                 let data = output.encoded_data();
 
-                let revert_reason: RevertError = output.to_revert_reason().await;
+                let revert_reason: RevertError = output.clone().to_revert_reason().await;
                 let error_report = ExecutionErrorReport::new(&revert_reason, Some(&tx));
                 sh_println!("{}", error_report);
 
                 Err(Web3Error::SubmitTransactionError(pretty_message, data))
             }
             ExecutionResult::Halt { reason } => {
-                tracing::debug!("{}", format!("Unable to estimate gas for the request with our suggested gas limit of {}. The transaction is most likely unexecutable. Breakdown of estimation:", suggested_gas_limit + overhead));
-                tracing::debug!(
-                    "{}",
-                    format!(
-                        "\tEstimated transaction body gas cost: {}",
-                        tx_body_gas_limit
-                    )
-                );
-                tracing::debug!(
-                    "{}",
-                    format!("\tGas for pubdata: {}", additional_gas_for_pubdata)
-                );
-                tracing::debug!("{}", format!("\tOverhead: {}", overhead));
                 let message = reason.to_string();
                 let pretty_message = format!(
                     "execution reverted{}{}",
@@ -665,7 +638,7 @@ impl InMemoryNodeInner {
                     message
                 );
 
-                let halt_error: HaltError = reason.to_halt_error().await;
+                let halt_error: HaltError = reason.clone().to_halt_error().await;
                 let error_report = ExecutionErrorReport::new(&halt_error, Some(&tx));
                 sh_println!("{}", error_report);
 
@@ -803,7 +776,6 @@ impl InMemoryNodeInner {
         };
 
         delegate_vm!(vm, push_transaction(tx));
-
         delegate_vm!(vm, execute(InspectExecutionMode::OneTx))
     }
 

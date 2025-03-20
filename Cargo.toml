@@ -9,6 +9,8 @@ members = [
     "crates/types",
     "crates/common",
     "crates/zksync_error",
+    "crates/console",
+    "crates/traces",
 ]
 resolver = "2"
 
@@ -49,6 +51,8 @@ zksync-error-description = { git = "https://github.com/matter-labs/zksync-error"
 #########################
 anyhow = "1.0"
 alloy = { version = "0.12.5", default-features = false }
+foundry-common-fmt = { git = "https://github.com/foundry-rs/foundry", rev = "v1.0.0", package = "foundry-common-fmt" }
+foundry-macros = { git = "https://github.com/foundry-rs/foundry", rev = "v1.0.0", package = "foundry-macros" }
 async-trait = "0.1.85"
 chrono = { version = "0.4.31", default-features = false }
 clap = { version = "4.2.4", features = ["derive", "env"] }
@@ -88,6 +92,7 @@ tracing-subscriber = { version = "0.3", features = [
     "local-time",
 ] }
 url = "2.5.4"
+colorchoice = "1.0"
 anstream = "0.6.18"
 anstyle = "1.0.10"
 
@@ -110,3 +115,8 @@ anvil_zksync_l1_sidecar = { path = "crates/l1_sidecar" }
 anvil_zksync_types = { path = "crates/types" }
 anvil_zksync_common = { path = "crates/common" }
 zksync_error = { path = "crates/zksync_error" }
+anvil_zksync_console = { path = "crates/console" }
+anvil_zksync_traces = { path = "crates/traces" }
+
+# macros
+derive_more = { version = "1.0", features = ["full"] }

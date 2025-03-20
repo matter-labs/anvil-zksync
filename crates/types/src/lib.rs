@@ -2,6 +2,7 @@ pub mod api;
 mod log;
 mod serde_helpers;
 mod show_details;
+pub mod traces;
 mod transaction_order;
 
 pub use self::{
