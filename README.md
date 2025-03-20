@@ -17,10 +17,6 @@ The goal of this crate is to offer a fast solution for integration testing, boot
 
 `anvil-zksync` is designed for local testing and uses an in-memory database for storing state information. It also employs simplified hashmaps for tracking blocks and transactions. When in fork mode, it fetches missing storage data from a remote source if not available locally. Additionally, it uses the remote server (openchain) to resolve the ABI and topics to human-readable names.
 
-## ⚠️ Caution
-
-Please note that `anvil-zksync` is still in its **alpha** stage. Some features might not be fully supported yet and may not work as intended. However, it is open-sourced, and contributions are welcome!
-
 ## 📊 Limitations & Features
 
 | 🚫 Limitations                                  | ✅ Features                                                 |
