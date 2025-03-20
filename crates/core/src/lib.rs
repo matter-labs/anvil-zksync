@@ -42,15 +42,12 @@
 //! Contributions to improve `anvil-zksync` are welcome. Please refer to the [contribution guidelines](https://github.com/matter-labs/anvil-zksync/blob/main/.github/CONTRIBUTING.md) for more details.
 
 pub mod bootloader_debug;
-pub mod console_log;
 pub mod deps;
 pub mod filters;
 pub mod formatter;
 pub mod node;
 pub mod observability;
-pub mod resolver;
 pub mod system_contracts;
 pub mod utils;
 
-mod cache;
 mod testing;

@@ -1,0 +1,33 @@
+[package]
+name = "anvil_zksync_traces"
+description = "anvil-zksync Foundry style tracing"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+anvil_zksync_types.workspace = true
+anvil_zksync_console.workspace = true
+anvil_zksync_common.workspace = true
+
+zksync_multivm.workspace = true
+zksync_types.workspace = true
+
+alloy = { workspace = true, default-features = false, features = ["json-abi", "dyn-abi",] }
+anyhow.workspace = true
+serde.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+lazy_static.workspace = true
+anstyle.workspace = true
+colorchoice.workspace = true
+itertools.workspace = true
+eyre.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

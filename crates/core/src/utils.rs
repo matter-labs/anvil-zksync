@@ -1,9 +1,9 @@
-use alloy::dyn_abi::DynSolValue;
 use alloy::primitives::{Sign, I256, U256 as AlloyU256};
 use anvil_zksync_common::sh_err;
 use anyhow::Context;
 use chrono::{DateTime, Utc};
 use colored::Colorize;
+use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::future::Future;
 use std::sync::Arc;
@@ -206,78 +206,14 @@ pub fn write_json_file<T: Serialize>(path: &Path, obj: &T) -> anyhow::Result<()>
     Ok(())
 }
 
-/// Formats a token value for display. Adapted from `foundry-common-fmt`.
-pub fn format_token(value: &DynSolValue, raw: bool) -> String {
-    match value {
-        DynSolValue::Address(inner) => inner.to_string(),
-        DynSolValue::Function(inner) => inner.to_string(),
-        DynSolValue::Bytes(inner) => format!("0x{}", hex::encode(inner)),
-        DynSolValue::FixedBytes(word, size) => format!("0x{}", hex::encode(&word[..*size])),
-        DynSolValue::Uint(inner, _) => {
-            if raw {
-                inner.to_string()
-            } else {
-                format_uint_exp(*inner)
-            }
-        }
-        DynSolValue::Int(inner, _) => {
-            if raw {
-                inner.to_string()
-            } else {
-                format_int_exp(*inner)
-            }
-        }
-        DynSolValue::Array(values) | DynSolValue::FixedArray(values) => {
-            let formatted_values: Vec<String> =
-                values.iter().map(|v| format_token(v, raw)).collect();
-            format!("[{}]", formatted_values.join(", "))
-        }
-        DynSolValue::Tuple(values) => format_tuple(values, raw),
-        DynSolValue::String(inner) => {
-            if raw {
-                inner.escape_debug().to_string()
-            } else {
-                format!("{:?}", inner) // Escape strings
-            }
-        }
-        DynSolValue::Bool(inner) => inner.to_string(),
-        DynSolValue::CustomStruct {
-            name,
-            prop_names,
-            tuple,
-        } => {
-            if raw {
-                return format_token(&DynSolValue::Tuple(tuple.clone()), true);
-            }
+/// Reads the JSON file at the specified path and deserializes it into the provided type.
+/// Returns an error if the file cannot be read or deserialization fails.
+pub fn read_json_file<T: DeserializeOwned>(path: &Path) -> anyhow::Result<T> {
+    let file_content = std::fs::read_to_string(path)
+        .with_context(|| format!("Failed to read file '{}'", path.display()))?;
 
-            let mut s = String::new();
-
-            s.push_str(name);
-
-            if prop_names.len() == tuple.len() {
-                s.push_str("({ ");
-
-                for (i, (prop_name, value)) in std::iter::zip(prop_names, tuple).enumerate() {
-                    if i > 0 {
-                        s.push_str(", ");
-                    }
-                    s.push_str(prop_name);
-                    s.push_str(": ");
-                    s.push_str(&format_token(value, raw));
-                }
-
-                s.push_str(" })");
-            } else {
-                s.push_str(&format_tuple(tuple, raw));
-            }
-            s
-        }
-    }
-}
-
-fn format_tuple(values: &[DynSolValue], raw: bool) -> String {
-    let formatted_values: Vec<String> = values.iter().map(|v| format_token(v, raw)).collect();
-    format!("({})", formatted_values.join(", "))
+    serde_json::from_str(&file_content)
+        .with_context(|| format!("Failed to deserialize JSON from '{}'", path.display()))
 }
 
 pub fn block_on<F: Future + Send + 'static>(future: F) -> F::Output
@@ -317,16 +253,6 @@ impl<T> ArcRLock<T> {
         self.0.read().await
     }
 }
-
-//////////////////////////////////////////////////////////////////////////////////////
-// Attribution: Methods `to_exp_notation`, `format_uint_exp`, and `format_int_exp`  //
-// are adapted from the `foundry-common-fmt` crate.                                 //
-//                                                                                  //
-// Full credit goes to its authors. See the original implementation here:           //
-// https://github.com/foundry-rs/foundry/blob/master/crates/common/fmt/src/exp.rs.  //
-//                                                                                  //
-// Note: These methods are used under the terms of the original project's license.  //
-//////////////////////////////////////////////////////////////////////////////////////
 
 /// Returns the number expressed as a string in exponential notation
 /// with the given precision (number of significant figures),

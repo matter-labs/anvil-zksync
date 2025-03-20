@@ -2,6 +2,7 @@ use crate::bytecode_override::override_bytecodes;
 use crate::cli::{Cli, Command, ForkUrl, PeriodicStateDumper};
 use crate::utils::update_with_fork_details;
 use anvil_zksync_api_server::NodeServerBuilder;
+use anvil_zksync_common::shell::get_shell;
 use anvil_zksync_common::{sh_eprintln, sh_err, sh_warn};
 use anvil_zksync_config::constants::{
     DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
@@ -66,7 +67,12 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         )
         .await;
 
-    let mut config = opt.into_test_node_config()?;
+    let mut config = opt.into_test_node_config().map_err(to_domain)?;
+    // Set verbosity level for the shell
+    {
+        let mut shell = get_shell();
+        shell.verbosity = config.verbosity;
+    }
     let log_level_filter = LevelFilter::from(config.log_level);
     let log_file = File::create(&config.log_file_path).map_err(|inner| {
         zksync_error::anvil_zksync::env::LogFileAccessFailed {

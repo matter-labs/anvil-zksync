@@ -13,6 +13,8 @@ categories.workspace = true
 anvil_zksync_types.workspace = true
 anvil_zksync_config.workspace = true
 anvil_zksync_common.workspace = true
+anvil_zksync_console.workspace = true
+anvil_zksync_traces.workspace = true
 
 zksync_mini_merkle_tree.workspace = true
 zksync_multivm.workspace = true
@@ -27,9 +29,8 @@ tokio.workspace = true
 futures.workspace = true
 once_cell.workspace = true
 
-alloy = { workspace = true, default-features = false, features = ["json-abi", "dyn-abi", "eip712"] }
+alloy = { workspace = true, default-features = false, features = ["json-abi", "dyn-abi", "sol-types", "eip712"] }
 
-reqwest = { workspace = true, default-features = false, features = ["rustls-tls", "rustls-tls-native-roots"] }
 serde.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
@@ -39,7 +40,6 @@ eyre.workspace = true
 serde_json.workspace = true
 hex.workspace = true
 itertools.workspace = true
-rustc-hash.workspace = true
 indexmap.workspace = true
 chrono.workspace = true
 time.workspace = true

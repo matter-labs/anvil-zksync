@@ -1,5 +1,5 @@
-use crate::resolver::decode_function_selector;
 use alloy::hex::ToHexExt;
+use anvil_zksync_common::resolver::decode_function_selector;
 use async_trait::async_trait;
 use zksync_error::anvil_zksync::halt::HaltError;
 use zksync_error::anvil_zksync::revert::RevertError;

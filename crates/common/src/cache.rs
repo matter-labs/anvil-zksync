@@ -1,7 +1,7 @@
-use anvil_zksync_common::{sh_err, sh_warn};
-use anvil_zksync_config::types::CacheConfig;
+use super::{sh_err, sh_warn};
+use clap::ValueEnum;
 use rustc_hash::FxHashMap;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
@@ -12,6 +12,7 @@ use zksync_types::api::{Block, BridgeAddresses, Transaction, TransactionVariant}
 use zksync_types::Transaction as RawTransaction;
 use zksync_types::H256;
 
+pub const DEFAULT_DISK_CACHE_DIR: &str = ".cache";
 /// Caches full blocks by their hashes
 const CACHE_TYPE_BLOCKS_FULL: &str = "blocks_full";
 /// Caches minimal blocks by their hashes
@@ -28,9 +29,38 @@ const CACHE_TYPE_KEY_VALUE: &str = "key_value";
 /// Caching key for bridge addresses
 const CACHE_KEY_BRIDGE_ADDRESSES: &str = "bridge_addresses";
 
+/// Cache type for the node.
+#[derive(ValueEnum, Deserialize, Default, Debug, Copy, Clone)]
+pub enum CacheType {
+    None,
+    Memory,
+    #[default]
+    Disk,
+}
+
+/// Cache configuration options.
+#[derive(Deserialize, Debug, Clone)]
+pub enum CacheConfig {
+    #[serde(rename = "none")]
+    None,
+    #[serde(rename = "memory")]
+    Memory,
+    #[serde(rename = "disk")]
+    Disk { dir: String, reset: bool },
+}
+
+impl Default for CacheConfig {
+    fn default() -> Self {
+        Self::Disk {
+            dir: String::from(DEFAULT_DISK_CACHE_DIR),
+            reset: false,
+        }
+    }
+}
+
 /// A general purpose cache.
 #[derive(Default, Debug, Clone)]
-pub(crate) struct Cache {
+pub struct Cache {
     config: CacheConfig,
     block_hashes: FxHashMap<u64, H256>,
     blocks_full: FxHashMap<H256, Block<TransactionVariant>>,
@@ -44,7 +74,7 @@ pub(crate) struct Cache {
 
 impl Cache {
     /// Creates a new cache with the provided config.
-    pub(crate) fn new(config: CacheConfig) -> Self {
+    pub fn new(config: CacheConfig) -> Self {
         let mut cache = Cache {
             config: config.clone(),
             ..Default::default()
@@ -94,7 +124,7 @@ impl Cache {
     }
 
     /// Returns the cached full/minimal block for the provided hash.
-    pub(crate) fn get_block(
+    pub fn get_block(
         &self,
         hash: &H256,
         full_transactions: bool,
@@ -111,7 +141,7 @@ impl Cache {
     }
 
     /// Cache a full/minimal block for the provided hash.
-    pub(crate) fn insert_block(
+    pub fn insert_block(
         &mut self,
         hash: H256,
         full_transactions: bool,
@@ -132,7 +162,7 @@ impl Cache {
     }
 
     /// Returns the cached full/minimal block for the provided hash.
-    pub(crate) fn get_block_hash(&self, number: &u64) -> Option<&H256> {
+    pub fn get_block_hash(&self, number: &u64) -> Option<&H256> {
         if matches!(self.config, CacheConfig::None) {
             return None;
         }
@@ -141,7 +171,7 @@ impl Cache {
     }
 
     /// Returns the cached raw transactions for the provided block number.
-    pub(crate) fn get_block_raw_transactions(&self, number: &u64) -> Option<&Vec<RawTransaction>> {
+    pub fn get_block_raw_transactions(&self, number: &u64) -> Option<&Vec<RawTransaction>> {
         if matches!(self.config, CacheConfig::None) {
             return None;
         }
@@ -150,7 +180,7 @@ impl Cache {
     }
 
     /// Returns the cached confirmed tokens.
-    pub(crate) fn get_confirmed_tokens(
+    pub fn get_confirmed_tokens(
         &self,
         from: u32,
         limit: u8,
@@ -162,7 +192,7 @@ impl Cache {
     }
 
     /// Cache confirmed tokens
-    pub(crate) fn set_confirmed_tokens(
+    pub fn set_confirmed_tokens(
         &mut self,
         from: u32,
         limit: u8,
@@ -176,7 +206,7 @@ impl Cache {
     }
 
     /// Cache the raw transactions for the provided block number.
-    pub(crate) fn insert_block_raw_transactions(
+    pub fn insert_block_raw_transactions(
         &mut self,
         number: u64,
         transactions: Vec<RawTransaction>,
@@ -194,7 +224,7 @@ impl Cache {
     }
 
     /// Returns the cached transaction for the provided hash.
-    pub(crate) fn get_transaction(&self, hash: &H256) -> Option<&Transaction> {
+    pub fn get_transaction(&self, hash: &H256) -> Option<&Transaction> {
         if matches!(self.config, CacheConfig::None) {
             return None;
         }
@@ -203,7 +233,7 @@ impl Cache {
     }
 
     /// Returns the cached resolved function/event selector for the provided selector.
-    pub(crate) fn get_resolver_selector(&self, selector: &String) -> Option<&String> {
+    pub fn get_resolver_selector(&self, selector: &String) -> Option<&String> {
         if matches!(self.config, CacheConfig::None) {
             return None;
         }
@@ -212,7 +242,7 @@ impl Cache {
     }
 
     /// Cache a transaction for the provided hash.
-    pub(crate) fn insert_transaction(&mut self, hash: H256, transaction: Transaction) {
+    pub fn insert_transaction(&mut self, hash: H256, transaction: Transaction) {
         if matches!(self.config, CacheConfig::None) {
             return;
         }
@@ -226,7 +256,7 @@ impl Cache {
     }
 
     /// Cache a resolver function for the provided selector.
-    pub(crate) fn insert_resolver_selector(&mut self, selector: String, selector_value: String) {
+    pub fn insert_resolver_selector(&mut self, selector: String, selector_value: String) {
         if matches!(self.config, CacheConfig::None) {
             return;
         }
@@ -240,7 +270,7 @@ impl Cache {
     }
 
     /// Returns the cached bridge addresses for the provided hash.
-    pub(crate) fn get_bridge_addresses(&self) -> Option<&BridgeAddresses> {
+    pub fn get_bridge_addresses(&self) -> Option<&BridgeAddresses> {
         if matches!(self.config, CacheConfig::None) {
             return None;
         }
@@ -249,7 +279,7 @@ impl Cache {
     }
 
     /// Cache default bridge addresses.
-    pub(crate) fn set_bridge_addresses(&mut self, bridge_addresses: BridgeAddresses) {
+    pub fn set_bridge_addresses(&mut self, bridge_addresses: BridgeAddresses) {
         if matches!(self.config, CacheConfig::None) {
             return;
         }
@@ -380,7 +410,7 @@ mod tests {
     use zksync_types::{Execute, ExecuteTransactionCommon};
     use zksync_types::{H160, U64};
 
-    use crate::testing;
+    // use crate::testing;
 
     use super::*;
 
@@ -463,7 +493,7 @@ mod tests {
         assert_eq!(Some(&transaction), cache.get_transaction(&H256::zero()));
 
         cache.set_bridge_addresses(bridge_addresses.clone());
-        testing::assert_bridge_addresses_eq(
+        assert_bridge_addresses_eq(
             &bridge_addresses,
             cache.get_bridge_addresses().expect("expected addresses"),
         );
@@ -541,7 +571,7 @@ mod tests {
         assert_eq!(Some(&transaction), cache.get_transaction(&H256::zero()));
 
         cache.set_bridge_addresses(bridge_addresses.clone());
-        testing::assert_bridge_addresses_eq(
+        assert_bridge_addresses_eq(
             &bridge_addresses,
             cache.get_bridge_addresses().expect("expected addresses"),
         );
@@ -565,7 +595,7 @@ mod tests {
             new_cache.get_block_raw_transactions(&0)
         );
         assert_eq!(Some(&transaction), new_cache.get_transaction(&H256::zero()));
-        testing::assert_bridge_addresses_eq(
+        assert_bridge_addresses_eq(
             &bridge_addresses,
             new_cache
                 .get_bridge_addresses()
@@ -645,7 +675,7 @@ mod tests {
         assert_eq!(Some(&transaction), cache.get_transaction(&H256::zero()));
 
         cache.set_bridge_addresses(bridge_addresses.clone());
-        testing::assert_bridge_addresses_eq(
+        assert_bridge_addresses_eq(
             &bridge_addresses,
             cache.get_bridge_addresses().expect("expected addresses"),
         );
@@ -702,5 +732,28 @@ mod tests {
             "cached transaction was not reset on disk"
         );
         assert!(random_file_path.exists(), "random file was reset from disk");
+    }
+
+    /// Asserts that two instances of [BridgeAddresses] are equal
+    pub fn assert_bridge_addresses_eq(
+        expected_bridge_addresses: &BridgeAddresses,
+        actual_bridge_addresses: &BridgeAddresses,
+    ) {
+        assert_eq!(
+            expected_bridge_addresses.l1_erc20_default_bridge,
+            actual_bridge_addresses.l1_erc20_default_bridge
+        );
+        assert_eq!(
+            expected_bridge_addresses.l2_erc20_default_bridge,
+            actual_bridge_addresses.l2_erc20_default_bridge
+        );
+        assert_eq!(
+            expected_bridge_addresses.l1_weth_bridge,
+            actual_bridge_addresses.l1_weth_bridge
+        );
+        assert_eq!(
+            expected_bridge_addresses.l2_weth_bridge,
+            actual_bridge_addresses.l2_weth_bridge
+        );
     }
 }
