@@ -108,11 +108,11 @@ impl<'a> AnvilZksyncTesterBuilder<'a> {
 
         let (l1_provider, l1_address) = if self.spawn_l1 {
             let l1_locked_port = LockedPort::acquire_unused().await?;
-            let l1_provider = ProviderBuilder::new().on_anvil_with_config(|anvil| {
+            let l1_provider = ProviderBuilder::new().on_anvil_with_wallet_and_config(|anvil| {
                 anvil
                     .port(l1_locked_port.port)
                     .arg("--no-request-size-limit")
-            });
+            })?;
             let l1_address = format!("http://localhost:{}", l1_locked_port.port);
             (Some(DynProvider::new(l1_provider)), Some(l1_address))
         } else {
