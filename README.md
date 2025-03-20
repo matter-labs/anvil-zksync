@@ -130,6 +130,8 @@ anvil-zksync --log=error --log-file-path=run.log run
 
 The logging can be configured during runtime via the [`config_setLogLevel`](./SUPPORTED_APIS.md#config_setloglevel) and [`config_setLogging`](./SUPPORTED_APIS.md#config_setlogging) methods.
 
+## 📊 Telemetry
+
 Anonymous usage data is collected **only if you opt in** when first prompted. You can opt out at any time by editing or removing the telemetry configuration file:
 
 - macOS (Darwin):
