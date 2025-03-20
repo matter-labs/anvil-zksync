@@ -70,14 +70,14 @@ impl VmRunner {
         fork_storage: ForkStorage,
         system_contracts: SystemContracts,
         generate_system_logs: bool,
-        bytecode_compression: bool,
+        enforced_bytecode_compression: bool,
     ) -> Self {
         let bootloader_debug_result = Arc::new(std::sync::RwLock::new(Err(
             "Tracer has not been run yet".to_string(),
         )));
         Self {
             executor_factory: MainBatchExecutorFactory::<TraceCalls>::new(
-                bytecode_compression,
+                enforced_bytecode_compression,
                 bootloader_debug_result.clone(),
             ),
             bootloader_debug_result,
@@ -629,7 +629,7 @@ mod test {
                 fork_storage,
                 system_contracts.clone(),
                 false,
-                config.is_bytecode_compression_enabled(),
+                config.is_bytecode_compression_enforced(),
             );
             VmRunnerTester {
                 vm_runner,

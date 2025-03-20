@@ -584,17 +584,17 @@ Address: {address}
         self.override_bytecodes_dir.as_ref()
     }
 
-    /// Set the bytecode compression option
+    /// Set whether bytecode compression is enforced
     #[must_use]
-    pub fn with_bytecode_compression(mut self, enable: Option<bool>) -> Self {
-        if let Some(enable) = enable {
-            self.bytecode_compression = enable;
+    pub fn with_enforce_bytecode_compression(mut self, enforce: Option<bool>) -> Self {
+        if let Some(enforce) = enforce {
+            self.bytecode_compression = enforce;
         }
         self
     }
 
-    /// Get the bytecode compression option
-    pub fn is_bytecode_compression_enabled(&self) -> bool {
+    /// Check if bytecode compression enforcement is enabled
+    pub fn is_bytecode_compression_enforced(&self) -> bool {
         self.bytecode_compression
     }
 

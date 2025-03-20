@@ -85,7 +85,7 @@ pub struct MainBatchExecutorFactory<Tr> {
     /// Note that this flag, if set to `true`, is strictly more permissive than if set to `false`. It means
     /// that in cases where the node is expected to process any transactions processed by the sequencer
     /// regardless of its configuration, this flag should be set to `true`.
-    optional_bytecode_compression: bool,
+    enforced_bytecode_compression: bool,
     fast_vm_mode: FastVmMode,
     skip_signature_verification: bool,
     divergence_handler: Option<DivergenceHandler>,
@@ -95,11 +95,11 @@ pub struct MainBatchExecutorFactory<Tr> {
 
 impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
     pub fn new(
-        optional_bytecode_compression: bool,
+        enforced_bytecode_compression: bool,
         legacy_bootloader_debug_result: Arc<RwLock<eyre::Result<BootloaderDebug, String>>>,
     ) -> Self {
         Self {
-            optional_bytecode_compression,
+            enforced_bytecode_compression,
             fast_vm_mode: FastVmMode::Old,
             skip_signature_verification: false,
             divergence_handler: None,
@@ -123,7 +123,7 @@ impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
         // until a previous command is processed), capacity 1 is enough for the commands channel.
         let (commands_sender, commands_receiver) = mpsc::channel(1);
         let executor = CommandReceiver {
-            optional_bytecode_compression: self.optional_bytecode_compression,
+            enforced_bytecode_compression: self.enforced_bytecode_compression,
             fast_vm_mode: self.fast_vm_mode,
             skip_signature_verification: self.skip_signature_verification,
             divergence_handler: self.divergence_handler.clone(),
@@ -299,7 +299,7 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
 /// be constructed.
 #[derive(Debug)]
 struct CommandReceiver<S, Tr> {
-    optional_bytecode_compression: bool,
+    enforced_bytecode_compression: bool,
     fast_vm_mode: FastVmMode,
     skip_signature_verification: bool,
     divergence_handler: Option<DivergenceHandler>,
@@ -406,10 +406,10 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         vm.make_snapshot();
 
         // Execute the transaction.
-        let result = if self.optional_bytecode_compression {
-            self.execute_tx_in_vm_with_optional_compression(&transaction, vm)?
-        } else {
+        let result = if self.enforced_bytecode_compression {
             self.execute_tx_in_vm(&transaction, vm)?
+        } else {
+            self.execute_tx_in_vm_with_optional_compression(&transaction, vm)?
         };
 
         Ok(result)
