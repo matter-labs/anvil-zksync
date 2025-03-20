@@ -1,24 +1,20 @@
 //! Helper methods to display transaction data in more human readable way.
 use crate::bootloader_debug::BootloaderDebug;
-use crate::resolver;
-use crate::utils::block_on;
 use crate::utils::{calculate_eth_cost, to_human_size};
 use alloy::hex::ToHexExt;
 use anvil_zksync_common::sh_println;
 use anvil_zksync_config::utils::format_gwei;
-use anvil_zksync_types::ShowCalls;
 use colored::Colorize;
-use futures::future::join_all;
 use lazy_static::lazy_static;
 use serde::Deserialize;
 use std::fmt;
 use std::{collections::HashMap, str};
 use zksync_error::{documentation::Documented, CustomErrorMessage, NamedError};
 use zksync_error_description::ErrorDocumentation;
-use zksync_multivm::interface::{Call, VmEvent, VmExecutionResultAndLogs};
+use zksync_multivm::interface::VmExecutionResultAndLogs;
 use zksync_types::{
     fee_model::FeeModelConfigV2, Address, ExecuteTransactionCommon, StorageLogWithPreviousValue,
-    Transaction, H160, H256, U256,
+    Transaction, H160, U256,
 };
 
 // @dev elected to have GasDetails struct as we can do more with it in the future
@@ -368,195 +364,6 @@ impl Formatter {
             });
         });
     }
-    /// Prints the events of a contract in a structured log.
-    pub fn print_event(&mut self, event: &VmEvent, resolve_hashes: bool, is_last_sibling: bool) {
-        let event = event.clone();
-
-        let resolved_topics = resolve_topics(&event.indexed_topics, resolve_hashes);
-        let topics: Vec<String> = event
-            .indexed_topics
-            .iter()
-            .zip(resolved_topics.iter())
-            .map(|(original, resolved)| {
-                if resolved.is_empty() {
-                    format!("{:#x}", original)
-                } else {
-                    resolved.clone()
-                }
-            })
-            .collect();
-
-        let contract_display = address_to_human_readable(event.address)
-            .map(|x| format!("{:42}", x.blue()))
-            .unwrap_or_else(|| format!("{:42}", format!("{:?}", event.address).blue()));
-
-        self.section(
-            &format!("Event [{}]", contract_display),
-            is_last_sibling,
-            |event_section| {
-                event_section.section("Topics", false, |topics_section| {
-                    let num_topics = topics.len();
-                    if num_topics == 0 {
-                        topics_section.item(true, "Topics", "EMPTY");
-                    } else {
-                        for (i, topic) in topics.iter().enumerate() {
-                            let is_last_topic = i == num_topics - 1;
-                            topics_section.item(is_last_topic, &format!("Topic[{}]", i), topic);
-                        }
-                    }
-                });
-
-                event_section.item(true, "Data", &format_data(&event.value));
-            },
-        );
-    }
-    /// Prints the call stack of either the system or user calls in a structured log.
-    #[allow(clippy::too_many_arguments)]
-    pub fn print_call(
-        &mut self,
-        initiator: Address,
-        contract_address: Option<H160>,
-        call: &Call,
-        is_last_sibling: bool,
-        show_calls: ShowCalls,
-        show_outputs: bool,
-        resolve_hashes: bool,
-    ) {
-        let contract_type = KNOWN_ADDRESSES
-            .get(&call.to)
-            .cloned()
-            .map(|known_address| known_address.contract_type)
-            .unwrap_or(ContractType::Unknown);
-
-        let should_print = match (&contract_type, &show_calls) {
-            (_, ShowCalls::All) => true,
-            (_, ShowCalls::None) => false,
-            (ContractType::Unknown, _) => true,
-            (ContractType::Popular, _) => true,
-            (ContractType::Precompile, _) => false,
-            (ContractType::System, ShowCalls::User) => false,
-            (ContractType::System, ShowCalls::System) => true,
-        };
-
-        // Collect subcalls that should be printed (e.g. handle filtering)
-        let subcalls_to_print: Vec<&Call> = call
-            .calls
-            .iter()
-            .filter(|subcall| {
-                let subcall_contract_type = KNOWN_ADDRESSES
-                    .get(&subcall.to)
-                    .cloned()
-                    .map(|known_address| known_address.contract_type)
-                    .unwrap_or(ContractType::Unknown);
-
-                match (&subcall_contract_type, &show_calls) {
-                    (_, ShowCalls::All) => true,
-                    (_, ShowCalls::None) => false,
-                    (ContractType::Unknown, _) => true,
-                    (ContractType::Popular, _) => true,
-                    (ContractType::Precompile, _) => false,
-                    (ContractType::System, ShowCalls::User) => false,
-                    (ContractType::System, ShowCalls::System) => true,
-                }
-            })
-            .collect();
-
-        if should_print {
-            let call_type_display = format!("{:?}", call.r#type).blue();
-            let remaining_gas_display = to_human_size(call.gas.into()).yellow();
-            let gas_used_display = format!("({})", to_human_size(call.gas_used.into())).bold();
-
-            let contract_display = format_address_human_readable(
-                call.to,
-                initiator,
-                contract_address,
-                format!("{:?}", call.r#type).as_str(),
-            )
-            .unwrap_or_else(|| format!("{:}", format!("{:?}", call.to).bold()));
-
-            // Get function signature
-            let function_signature = if call.input.len() >= 4 {
-                let sig = hex::encode(&call.input[0..4]);
-                if contract_type == ContractType::Precompile || !resolve_hashes {
-                    format!("0x{}", sig)
-                } else {
-                    block_on(async move {
-                        match resolver::decode_function_selector(&sig).await {
-                            Ok(Some(name)) => name,
-                            Ok(None) | Err(_) => format!("0x{}", sig),
-                        }
-                    })
-                }
-            } else {
-                "unknown".to_string()
-            };
-
-            let function_display = function_signature.cyan().bold();
-
-            let line = format!(
-                "{} [{}] {}::{} {}",
-                call_type_display,
-                remaining_gas_display,
-                contract_display,
-                function_display,
-                gas_used_display
-            );
-
-            // Handle errors and outputs within a new indentation scope
-            // TODO: can make this more informative by adding "Suggested action" for errors
-            self.section(&line, is_last_sibling, |call_section| {
-                if call.revert_reason.is_some() || call.error.is_some() {
-                    if let Some(ref reason) = call.revert_reason {
-                        call_section.format_error(true, &format!("🔴 Revert reason: {}", reason));
-                    }
-                    if let Some(ref error) = call.error {
-                        call_section.format_error(true, &format!("🔴 Error: {}", error));
-                    }
-                }
-
-                if show_outputs && !call.output.is_empty() {
-                    let output_display = call
-                        .output
-                        .as_slice()
-                        .iter()
-                        .map(|byte| format!("{:02x}", byte))
-                        .collect::<Vec<_>>()
-                        .join("");
-                    call_section.format_log(true, &format!("Output: {}", output_display.dimmed()));
-                }
-
-                // Process subcalls that should be printed
-                let num_subcalls = subcalls_to_print.len();
-                for (i, subcall) in subcalls_to_print.iter().enumerate() {
-                    let is_last_subcall = i == num_subcalls - 1;
-                    call_section.print_call(
-                        initiator,
-                        contract_address,
-                        subcall,
-                        is_last_subcall,
-                        show_calls,
-                        show_outputs,
-                        resolve_hashes,
-                    );
-                }
-            });
-        } else {
-            // Call is not printed; process subcalls at the same indentation level
-            let num_subcalls = subcalls_to_print.len();
-            for (i, subcall) in subcalls_to_print.iter().enumerate() {
-                let is_last_subcall = is_last_sibling && (i == num_subcalls - 1);
-                self.print_call(
-                    initiator,
-                    contract_address,
-                    subcall,
-                    is_last_subcall,
-                    show_calls,
-                    show_outputs,
-                    resolve_hashes,
-                );
-            }
-        }
-    }
     /// Prints the storage logs of the system in a structured log.
     pub fn print_storage_logs(
         &mut self,
@@ -698,84 +505,8 @@ fn format_known_address(address: H160) -> Option<String> {
     })
 }
 
-fn format_address(name: &str, address: H160, color: impl FnOnce(&str) -> String) -> String {
-    let name_colored = color(name);
-    let formatted_address = format!("{:#x}", address).dimmed();
-    format!("{}{}{}", name_colored, "@".dimmed(), formatted_address)
-}
-
 fn address_to_human_readable(address: H160) -> Option<String> {
     format_known_address(address)
-}
-
-fn format_address_human_readable(
-    address: H160,
-    initiator: H160,
-    contract_address: Option<H160>,
-    call_type: &str,
-) -> Option<String> {
-    // Exclude ContractDeployer and Create2Factory addresses
-    let excluded_addresses = [
-        H160::from_slice(&hex::decode("0000000000000000000000000000000000008006").unwrap()),
-        H160::from_slice(&hex::decode("0000000000000000000000000000000000010000").unwrap()),
-    ];
-
-    let is_initiator = address == initiator;
-    let is_contract = Some(address) == contract_address && !excluded_addresses.contains(&address);
-
-    if is_initiator {
-        return Some(format_address("initiator", address, |s| {
-            s.bold().green().to_string()
-        }));
-    }
-    if call_type == "Create" {
-        return Some(format_address("deployed", address, |s| {
-            s.bold().bright_green().to_string()
-        }));
-    }
-    if is_contract {
-        return Some(format_address("contract", address, |s| {
-            s.bold().bright_green().to_string()
-        }));
-    }
-
-    format_known_address(address)
-}
-
-fn format_data(value: &[u8]) -> String {
-    if value.is_empty() {
-        "EMPTY".to_string()
-    } else {
-        match std::str::from_utf8(value) {
-            Ok(v) => format!("{}", v.truecolor(128, 128, 128)),
-            Err(_) => {
-                let hex_str = hex::encode(value);
-                if hex_str.len() > 200 {
-                    format!("0x{}...", &hex_str[..200])
-                } else {
-                    format!("0x{}", hex_str)
-                }
-            }
-        }
-    }
-}
-// Separated from print_events. Consider the same for print_calls.
-fn resolve_topics(topics: &[H256], resolve_hashes: bool) -> Vec<String> {
-    let topics = topics.to_owned();
-    block_on(async move {
-        let futures = topics.into_iter().map(|topic| async move {
-            if resolve_hashes {
-                match resolver::decode_event_selector(&format!("{:#x}", topic)).await {
-                    Ok(Some(resolved)) => resolved,
-                    Ok(None) | Err(_) => format!("{:#x}", topic),
-                }
-            } else {
-                format!("{:#x}", topic)
-            }
-        });
-
-        join_all(futures).await
-    })
 }
 
 /// Amount of pubdata that given write has cost.
@@ -850,8 +581,7 @@ Initiator: {initiator:?}
 Payer: {payer:?}
 Gas Limit: {gas_limit} | Used: {used} | Refunded: {refunded}
 Paid: {paid:.10} ETH ({} gas * {l2_gas_price_fmt})
-Refunded: {:.10} ETH
-"#,
+Refunded: {:.10} ETH"#,
         emoji,
         status,
         used_gas,

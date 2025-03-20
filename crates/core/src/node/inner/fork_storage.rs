@@ -349,11 +349,12 @@ mod tests {
     use super::ForkStorage;
     use crate::deps::InMemoryStorage;
     use crate::node::fork::{Fork, ForkClient, ForkDetails};
+    use anvil_zksync_common::cache::CacheConfig;
     use anvil_zksync_config::constants::{
         DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
         DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L2_GAS_PRICE, TEST_NODE_NETWORK_ID,
     };
-    use anvil_zksync_config::types::{CacheConfig, SystemContractsOptions};
+    use anvil_zksync_config::types::SystemContractsOptions;
     use zksync_multivm::interface::storage::ReadStorage;
     use zksync_types::{api::TransactionVariant, L2BlockNumber, StorageKey};
     use zksync_types::{

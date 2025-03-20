@@ -2,6 +2,7 @@
 use super::inner::node_executor::NodeExecutorHandle;
 use super::inner::InMemoryNodeInner;
 use super::vm::AnvilVM;
+use crate::delegate_vm;
 use crate::deps::storage_view::StorageView;
 use crate::deps::InMemoryStorage;
 use crate::filters::EthFilters;
@@ -17,12 +18,20 @@ use crate::node::state::VersionedState;
 use crate::node::{BlockSealer, BlockSealerMode, NodeExecutor, TxPool};
 use crate::observability::Observability;
 use crate::system_contracts::SystemContracts;
-use crate::{delegate_vm, formatter};
+use anvil_zksync_common::cache::CacheConfig;
 use anvil_zksync_common::sh_println;
+use anvil_zksync_common::shell::get_shell;
 use anvil_zksync_config::constants::{NON_FORK_FIRST_BLOCK_TIMESTAMP, TEST_NODE_NETWORK_ID};
-use anvil_zksync_config::types::{CacheConfig, Genesis};
+use anvil_zksync_config::types::Genesis;
 use anvil_zksync_config::TestNodeConfig;
-use anvil_zksync_types::{LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
+use anvil_zksync_traces::{
+    build_call_trace_arena, decode::CallTraceDecoderBuilder, decode_trace_arena,
+    filter_call_trace_arena, identifier::SignaturesIdentifier, render_trace_arena_inner,
+};
+use anvil_zksync_types::{
+    traces::CallTraceArena, LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails,
+};
+use anyhow::{anyhow, Context};
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
@@ -436,24 +445,41 @@ impl InMemoryNode {
                 .handle_calls_recursive(&call_traces);
         }
 
-        if inner.config.show_calls != ShowCalls::None {
-            sh_println!(
-                "[Transaction Execution] ({} calls)",
-                call_traces[0].calls.len()
+        if !call_traces.is_empty() {
+            let tx_result_for_arena = tx_result.clone();
+            let mut builder = CallTraceDecoderBuilder::new();
+            builder = builder.with_signature_identifier(
+                SignaturesIdentifier::new(
+                    Some(inner.config.get_cache_dir().into()),
+                    inner.config.offline,
+                )
+                .map_err(|err| anyhow!("Failed to create SignaturesIdentifier: {:#}", err))?,
             );
-            let num_calls = call_traces.len();
-            for (i, call) in call_traces.iter().enumerate() {
-                let is_last_sibling = i == num_calls - 1;
-                let mut formatter = formatter::Formatter::new();
-                formatter.print_call(
-                    tx.initiator_account(),
-                    tx.execute.contract_address,
-                    call,
-                    is_last_sibling,
-                    inner.config.show_calls,
-                    inner.config.show_outputs,
-                    inner.config.resolve_hashes,
-                );
+
+            let decoder = builder.build();
+            let arena: CallTraceArena = futures::executor::block_on(async {
+                let blocking_result = tokio::task::spawn_blocking(move || {
+                    let mut arena = build_call_trace_arena(&call_traces, &tx_result_for_arena);
+                    let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
+                    rt.block_on(async {
+                        decode_trace_arena(&mut arena, &decoder)
+                            .await
+                            .context("Failed to decode trace arena")?;
+                        Ok::<CallTraceArena, anyhow::Error>(arena)
+                    })
+                })
+                .await;
+
+                let inner_result: Result<CallTraceArena, anyhow::Error> =
+                    blocking_result.expect("spawn_blocking failed");
+                inner_result
+            })?;
+
+            let verbosity = get_shell().verbosity;
+            if verbosity >= 2 {
+                let filtered_arena = filter_call_trace_arena(&arena, verbosity);
+                let trace_output = render_trace_arena_inner(&filtered_arena, false);
+                sh_println!("\nTraces:\n{}", trace_output);
             }
         }
 

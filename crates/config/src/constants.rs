@@ -1,5 +1,3 @@
-/// Default directory for disk cache
-pub const DEFAULT_DISK_CACHE_DIR: &str = ".cache";
 /// Default L1 gas price for transactions
 pub const DEFAULT_L1_GAS_PRICE: u64 = 35_932_364_075;
 /// Default L2 gas price for transactions if not provided via CLI
