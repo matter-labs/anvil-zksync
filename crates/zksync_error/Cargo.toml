@@ -11,6 +11,7 @@ version.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+zksync_basic_types.workspace = true
 lazy_static.workspace = true
 serde = { workspace = true, features = [ "rc" ] }
 serde_json.workspace = true

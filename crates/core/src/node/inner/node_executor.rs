@@ -4,9 +4,12 @@ use crate::node::inner::fork::{ForkClient, ForkSource};
 use crate::node::inner::vm_runner::VmRunner;
 use crate::node::keys::StorageKeyLayout;
 use crate::node::pool::TxBatch;
+use anvil_zksync_common::sh_eprintln;
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot, RwLock};
 use url::Url;
+use zksync_error::anvil_zksync;
+use zksync_error::anvil_zksync::node::AnvilNodeError;
 use zksync_types::bytecode::BytecodeHash;
 use zksync_types::utils::nonces_to_full_nonce;
 use zksync_types::{get_code_key, u256_to_h256, Address, L2BlockNumber, StorageKey, U256};
@@ -35,7 +38,7 @@ impl NodeExecutor {
         (this, handle)
     }
 
-    pub async fn run(mut self) -> anyhow::Result<()> {
+    pub async fn run(mut self) -> Result<(), AnvilNodeError> {
         while let Some(command) = self.command_receiver.recv().await {
             match command {
                 Command::SealBlock(tx_batch, reply) => {
@@ -98,7 +101,7 @@ impl NodeExecutor {
     async fn seal_block(
         &mut self,
         tx_batch: TxBatch,
-        reply: Option<oneshot::Sender<anyhow::Result<L2BlockNumber>>>,
+        reply: Option<oneshot::Sender<Result<L2BlockNumber, AnvilNodeError>>>,
     ) {
         let mut node_inner = self.node_inner.write().await;
         let tx_batch_execution_result = self
@@ -129,7 +132,7 @@ impl NodeExecutor {
         &mut self,
         tx_batches: Vec<TxBatch>,
         interval: u64,
-        reply: oneshot::Sender<anyhow::Result<Vec<L2BlockNumber>>>,
+        reply: oneshot::Sender<Result<Vec<L2BlockNumber>, AnvilNodeError>>,
     ) {
         let mut node_inner = self.node_inner.write().await;
 
@@ -152,7 +155,7 @@ impl NodeExecutor {
                 let number = node_inner.seal_block(tx_batch_execution_result).await?;
                 block_numbers.push(number);
             }
-            anyhow::Ok(block_numbers)
+            Ok(block_numbers)
         }
         .await;
         // Restore old interval
@@ -235,7 +238,7 @@ impl NodeExecutor {
         &mut self,
         url: Url,
         block_number: Option<L2BlockNumber>,
-        reply: oneshot::Sender<anyhow::Result<()>>,
+        reply: oneshot::Sender<Result<(), AnvilNodeError>>,
     ) {
         let result = async {
             // We don't know what chain this is so we assume default scale configuration.
@@ -243,7 +246,7 @@ impl NodeExecutor {
                 ForkClient::at_block_number(ForkConfig::unknown(url), block_number).await?;
             self.node_inner.write().await.reset(Some(fork_client)).await;
 
-            anyhow::Ok(())
+            Ok(())
         }
         .await;
 
@@ -263,19 +266,19 @@ impl NodeExecutor {
     async fn reset_fork_block_number(
         &mut self,
         block_number: L2BlockNumber,
-        reply: oneshot::Sender<anyhow::Result<()>>,
+        reply: oneshot::Sender<Result<(), AnvilNodeError>>,
     ) {
         let result = async {
             let node_inner = self.node_inner.write().await;
             let url = node_inner
                 .fork
                 .url()
-                .ok_or_else(|| anyhow::anyhow!("no existing fork found"))?;
+                .ok_or_else(|| anvil_zksync::node::generic_error!("no existing fork found"))?;
             // Keep scale factors as this is the same chain.
             let details = node_inner
                 .fork
                 .details()
-                .ok_or_else(|| anyhow::anyhow!("no existing fork found"))?;
+                .ok_or_else(|| anvil_zksync::node::generic_error!("no existing fork found"))?;
             let fork_client = ForkClient::at_block_number(
                 ForkConfig {
                     url,
@@ -287,7 +290,7 @@ impl NodeExecutor {
             .await?;
             self.node_inner.write().await.reset(Some(fork_client)).await;
 
-            anyhow::Ok(())
+            Ok(())
         }
         .await;
 
@@ -334,7 +337,7 @@ impl NodeExecutor {
     async fn enforce_next_timestamp(
         &mut self,
         timestamp: u64,
-        reply: oneshot::Sender<anyhow::Result<()>>,
+        reply: oneshot::Sender<Result<(), AnvilNodeError>>,
     ) {
         let result = self
             .node_inner
@@ -413,11 +416,15 @@ impl NodeExecutorHandle {
     ///
     /// It is sender's responsibility to make sure [`TxBatch`] is constructed correctly (see its
     /// docs).
-    pub async fn seal_block(&self, tx_batch: TxBatch) -> anyhow::Result<()> {
-        Ok(self
-            .command_sender
+    pub async fn seal_block(&self, tx_batch: TxBatch) -> Result<(), AnvilNodeError> {
+        let block_transactions_hashes = format!("{:?}", tx_batch.txs);
+        self.command_sender
             .send(Command::SealBlock(tx_batch, None))
-            .await?)
+            .await
+            .map_err(|inner| anvil_zksync::node::SealingBlockFailed {
+                block_transactions_hashes,
+                details: inner.to_string(),
+            })
     }
 
     /// Request [`NodeExecutor`] to seal a new block from the provided transaction batch. Waits for
@@ -425,16 +432,33 @@ impl NodeExecutorHandle {
     ///
     /// It is sender's responsibility to make sure [`TxBatch`] is constructed correctly (see its
     /// docs).
-    pub async fn seal_block_sync(&self, tx_batch: TxBatch) -> anyhow::Result<L2BlockNumber> {
+    pub async fn seal_block_sync(
+        &self,
+        tx_batch: TxBatch,
+    ) -> Result<L2BlockNumber, AnvilNodeError> {
         let (response_sender, response_receiver) = oneshot::channel();
+
+        let debug_transactions_repr = format!("{:?}", tx_batch.txs);
+
         self.command_sender
             .send(Command::SealBlock(tx_batch, Some(response_sender)))
             .await
-            .map_err(|_| anyhow::anyhow!("failed to seal a block as node executor is dropped"))?;
+            .map_err(|_| zksync_error::anvil_zksync::node::SealingBlockFailed {
+                block_transactions_hashes: debug_transactions_repr.clone(),
+                details: "Inner error while sending the block seal request.".to_string(),
+            })?;
 
         match response_receiver.await {
             Ok(result) => result,
-            Err(_) => anyhow::bail!("failed to seal a block as node executor is dropped"),
+            Err(inner_masked_error) => {
+                // Log this error so that it does not get lost
+                sh_eprintln!("Internal error while receiving response to the block seal request for transactions {debug_transactions_repr}: {inner_masked_error:?}. Please report.");
+                Err(zksync_error::anvil_zksync::node::SealingBlockFailed {
+                    block_transactions_hashes: debug_transactions_repr.clone(),
+                    details: "Inner error while receiving response to the block seal request."
+                        .to_string(),
+                })
+            }
         }
     }
 
@@ -451,16 +475,31 @@ impl NodeExecutorHandle {
         &self,
         tx_batches: Vec<TxBatch>,
         interval: u64,
-    ) -> anyhow::Result<Vec<L2BlockNumber>> {
+    ) -> Result<Vec<L2BlockNumber>, AnvilNodeError> {
         let (response_sender, response_receiver) = oneshot::channel();
+        let tx_batches_repr = format!("{tx_batches:?}");
         self.command_sender
             .send(Command::SealBlocks(tx_batches, interval, response_sender))
             .await
-            .map_err(|_| anyhow::anyhow!("failed to seal a block as node executor is dropped"))?;
+            .map_err(|inner_masked_error| {
+                // Log this error so that it does not get lost
+                sh_eprintln!("Internal error while sending request to seal multiple blocks for transactions {tx_batches_repr}: \n{inner_masked_error:?}. Please report.");
+                anvil_zksync::node::SealingMultipleBlocksFailed {
+                    transactions_batches: tx_batches_repr.clone(),
+                    details: "Failed to seal a block as node executor is dropped".to_string(),
+                }
+            })?;
 
         match response_receiver.await {
             Ok(result) => result,
-            Err(_) => anyhow::bail!("failed to seal a block as node executor is dropped"),
+            Err(inner_masked_error) => {
+                // Log this error so that it does not get lost
+                sh_eprintln!("Internal error while receiving response to the request of sealing multiple blocks for transactions {tx_batches_repr}: \n{inner_masked_error:?}. Please report.");
+                Err(anvil_zksync::node::SealingMultipleBlocksFailed {
+                    transactions_batches: tx_batches_repr,
+                    details: "Failed to seal a block as node executor is dropped".to_string(),
+                })
+            }
         }
     }
 
@@ -532,18 +571,20 @@ impl NodeExecutorHandle {
         &self,
         url: Url,
         block_number: Option<L2BlockNumber>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), AnvilNodeError> {
         let (response_sender, response_receiver) = oneshot::channel();
         self.command_sender
             .send(Command::ResetFork(url, block_number, response_sender))
             .await
-            .map_err(|_| anyhow::anyhow!("failed to reset fork as node executor is dropped"))?;
-        match response_receiver.await {
-            Ok(result) => result,
-            Err(_) => {
-                anyhow::bail!("failed to reset fork as node executor is dropped")
-            }
-        }
+            .map_err(|_| {
+                anvil_zksync::node::generic_error!(
+                    "failed to reset fork as node executor is dropped"
+                )
+            })?;
+
+        response_receiver.await.map_err(|_| {
+            anvil_zksync::node::generic_error!("failed to reset fork as node executor is dropped")
+        })?
     }
 
     /// Request [`NodeExecutor`] to reset fork at the given block number. All state will be wiped.
@@ -551,20 +592,23 @@ impl NodeExecutorHandle {
     pub async fn reset_fork_block_number_sync(
         &self,
         block_number: L2BlockNumber,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), AnvilNodeError> {
         let (response_sender, response_receiver) = oneshot::channel();
         self.command_sender
             .send(Command::ResetForkBlockNumber(block_number, response_sender))
             .await
             .map_err(|_| {
-                anyhow::anyhow!("failed to reset fork block number as node executor is dropped")
+                anvil_zksync::node::generic_error!(
+                    "failed to reset fork block number as node executor is dropped"
+                )
             })?;
-        match response_receiver.await {
-            Ok(result) => result,
-            Err(_) => {
-                anyhow::bail!("failed to reset fork block number as node executor is dropped")
-            }
-        }
+
+        response_receiver.await.map_err(|_| {
+            anvil_zksync::node::generic_error!(
+                "failed to reset fork block number as node executor is dropped"
+            )
+        })??;
+        Ok(())
     }
 
     /// Request [`NodeExecutor`] to set fork's RPC URL without resetting the state. Waits for the
@@ -616,36 +660,41 @@ impl NodeExecutorHandle {
 
     /// Request [`NodeExecutor`] to enforce next block's timestamp (in seconds). Waits for the
     /// timestamp validity to be confirmed. Block might still not be produced by then.
-    pub async fn enforce_next_timestamp_sync(&self, timestamp: u64) -> anyhow::Result<()> {
+    pub async fn enforce_next_timestamp_sync(&self, timestamp: u64) -> Result<(), AnvilNodeError> {
         let (response_sender, response_receiver) = oneshot::channel();
         self.command_sender
             .send(Command::EnforceNextTimestamp(timestamp, response_sender))
             .await
             .map_err(|_| {
-                anyhow::anyhow!("failed to enforce next timestamp as node executor is dropped")
+                anvil_zksync::node::generic_error!(
+                    "failed to enforce next timestamp as node executor is dropped"
+                )
             })?;
         match response_receiver.await {
             Ok(result) => result,
-            Err(_) => {
-                anyhow::bail!("failed to enforce next timestamp as node executor is dropped")
-            }
+            Err(_) => Err(anvil_zksync::node::generic_error!(
+                "failed to enforce next timestamp as node executor is dropped"
+            )),
         }
     }
 
     /// Request [`NodeExecutor`] to set current timestamp (in seconds). Waits for the
     /// change to take place.
-    pub async fn set_current_timestamp_sync(&self, timestamp: u64) -> anyhow::Result<i128> {
+    pub async fn set_current_timestamp_sync(&self, timestamp: u64) -> Result<i128, AnvilNodeError> {
         let (response_sender, response_receiver) = oneshot::channel();
         self.command_sender
             .send(Command::SetCurrentTimestamp(timestamp, response_sender))
             .await
             .map_err(|_| {
-                anyhow::anyhow!("failed to set current timestamp as node executor is dropped")
+                anvil_zksync::node::generic_error!(
+                    "failed to set current timestamp as node executor is dropped"
+                )
             })?;
-
         match response_receiver.await {
             Ok(result) => Ok(result),
-            Err(_) => anyhow::bail!("failed to set current timestamp as node executor is dropped"),
+            Err(_) => Err(anvil_zksync::node::generic_error!(
+                "failed to set current timestamp as node executor is dropped"
+            )),
         }
     }
 
@@ -702,12 +751,12 @@ enum Command {
     // Block sealing commands
     SealBlock(
         TxBatch,
-        Option<oneshot::Sender<anyhow::Result<L2BlockNumber>>>,
+        Option<oneshot::Sender<Result<L2BlockNumber, AnvilNodeError>>>,
     ),
     SealBlocks(
         Vec<TxBatch>,
         u64,
-        oneshot::Sender<anyhow::Result<Vec<L2BlockNumber>>>,
+        oneshot::Sender<Result<Vec<L2BlockNumber>, AnvilNodeError>>,
     ),
     // Storage manipulation commands
     SetCode(Address, Vec<u8>, oneshot::Sender<()>),
@@ -718,15 +767,15 @@ enum Command {
     ResetFork(
         Url,
         Option<L2BlockNumber>,
-        oneshot::Sender<anyhow::Result<()>>,
+        oneshot::Sender<Result<(), AnvilNodeError>>,
     ),
-    ResetForkBlockNumber(L2BlockNumber, oneshot::Sender<anyhow::Result<()>>),
+    ResetForkBlockNumber(L2BlockNumber, oneshot::Sender<Result<(), AnvilNodeError>>),
     SetForkUrl(Url, oneshot::Sender<Option<Url>>),
     RemoveFork(oneshot::Sender<()>),
     // Time manipulation commands. Caveat: reply-able commands can hold user connections alive for
     // a long time (until the command is processed).
     IncreaseTime(u64, oneshot::Sender<()>),
-    EnforceNextTimestamp(u64, oneshot::Sender<anyhow::Result<()>>),
+    EnforceNextTimestamp(u64, oneshot::Sender<Result<(), AnvilNodeError>>),
     SetCurrentTimestamp(u64, oneshot::Sender<i128>),
     SetTimestampInterval(u64),
     RemoveTimestampInterval(oneshot::Sender<bool>),

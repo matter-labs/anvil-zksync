@@ -1,5 +1,5 @@
-use anyhow::anyhow;
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use zksync_error::anvil_zksync::{self, node::AnvilNodeError};
 
 /// Read-only view on time.
 pub trait ReadTime: Send + Sync {
@@ -68,10 +68,10 @@ impl Time {
     /// before the next invocation of `advance_timestamp`.
     ///
     /// Expects provided timestamp to be in the future, returns error otherwise.
-    pub(super) fn enforce_next_timestamp(&self, timestamp: u64) -> anyhow::Result<()> {
+    pub(super) fn enforce_next_timestamp(&self, timestamp: u64) -> Result<(), AnvilNodeError> {
         let mut this = self.get_mut();
         if timestamp <= this.current_timestamp {
-            Err(anyhow!(
+            Err(anvil_zksync::node::generic_error!(
                 "timestamp ({}) must be greater than the last used timestamp ({})",
                 timestamp,
                 this.current_timestamp

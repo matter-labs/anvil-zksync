@@ -253,6 +253,235 @@ impl CustomErrorMessage for AnvilGeneric {
     serde :: Serialize,
     serde :: Deserialize,
 )]
+#[strum_discriminants(name(AnvilNodeCode))]
+#[strum_discriminants(vis(pub))]
+#[strum_discriminants(derive(AsRefStr, FromRepr))]
+#[non_exhaustive]
+pub enum AnvilNode {
+    #[doc = "# Summary "]
+    #[doc = "Transaction validation failed due to excessive gas limit."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "This error occurs when a transaction's gas limit exceeds the maximum allowed gas for a block."]
+    #[doc = "The transaction's gas limit combined with its gas per pubdata limit results in total gas usage that exceeds the block gas limit."]
+    #[doc = ""]
+    #[doc = "In ZKSync, gas usage is calculated using a dual gas model where:"]
+    #[doc = "1. Regular gas is used for computational resources similar to Ethereum"]
+    #[doc = "2. 'Pubdata gas' is used for data that would normally be published to L1 in a production environment"]
+    #[doc = ""]
+    #[doc = "Even though anvil-zksync is an in-memory testing node that doesn't actually publish data to L1, it still enforces gas limits that simulate those of the real ZKSync network to ensure testing accuracy."]
+    TransactionValidationFailedGasLimit {
+        transaction_hash: Box<zksync_basic_types::H256>,
+        tx_gas_limit: Box<zksync_basic_types::U256>,
+        tx_gas_per_pubdata_limit: Box<zksync_basic_types::U256>,
+        max_gas: Box<zksync_basic_types::U256>,
+    } = 1u32,
+    #[doc = "# Summary "]
+    #[doc = "Transaction's maxFeePerGas is lower than the current gas price in anvil-zksync."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "This error occurs when the maximum fee per gas specified in the transaction is lower than the current gas price set in the anvil-zksync node."]
+    #[doc = "To be considered valid, transactions must specify a maxFeePerGas that is greater or equal to the current gas price"]
+    #[doc = ""]
+    #[doc = "In anvil-zksync, the gas price can be configured when starting the node using `--l1-gas-price` argument or can be modified dynamically. By default, the node simulates a gas price model similar to the real ZKSync network, including:"]
+    #[doc = "1. A base computation fee (similar to Ethereum's base fee)"]
+    #[doc = "2. A simulated pubdata posting fee"]
+    #[doc = ""]
+    #[doc = "Even though anvil-zksync is a testing environment, it enforces these gas price validations to ensure that your tests accurately reflect how transactions would behave on the actual ZKSync network."]
+    TransactionValidationFailedMaxFeePerGasTooLow {
+        max_fee_per_gas: Box<zksync_basic_types::U256>,
+        transaction_hash: Box<zksync_basic_types::H256>,
+        l2_gas_price: Box<zksync_basic_types::U256>,
+    } = 2u32,
+    #[doc = "# Summary "]
+    #[doc = "Transaction's maxPriorityFeePerGas exceeds maxFeePerGas."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "This error occurs when a transaction's maximum priority fee per gas is greater than its maximum fee per gas in anvil-zksync."]
+    #[doc = "Anvil-zksync implements the EIP-1559 fee model (just like the real ZKSync network), where the total fee consists of a base fee and a priority fee."]
+    #[doc = ""]
+    #[doc = "In this model, even in a testing environment, maxPriorityFeePerGas must always be less than or equal to maxFeePerGas because:"]
+    #[doc = "- maxFeePerGas represents the maximum total fee a user is willing to pay per unit of gas"]
+    #[doc = "- maxPriorityFeePerGas represents the portion of that fee that goes to validators/sequencers"]
+    #[doc = "- The remainder (maxFeePerGas - maxPriorityFeePerGas) is available to cover the base fee"]
+    #[doc = ""]
+    #[doc = "This validation is enforced in anvil-zksync to ensure that your tests accurately simulate transaction behavior on the actual ZKSync network."]
+    TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee {
+        max_fee_per_gas: Box<zksync_basic_types::U256>,
+        max_priority_fee_per_gas: Box<zksync_basic_types::U256>,
+        transaction_hash: Box<zksync_basic_types::H256>,
+    } = 3u32,
+    #[doc = "# Summary "]
+    #[doc = "Transaction execution halted in anvil-zksync."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "This error occurs when a transaction execution is halted due to an error in the anvil-zksync virtual machine execution."]
+    #[doc = "This is a wrapper error that contains a more specific halt error inside it, which provides details about the cause of the halt."]
+    #[doc = ""]
+    #[doc = "The VM may halt execution for various reasons including:"]
+    #[doc = "- Account validation failures (signature issues, nonce mismatches)"]
+    #[doc = "- Paymaster-related errors (when testing account abstraction features)"]
+    #[doc = "- Gas limit exceedance"]
+    #[doc = "- Storage access limitations"]
+    #[doc = "- Contract execution failures"]
+    #[doc = ""]
+    #[doc = "When using anvil-zksync for testing, these halts are valuable signals that help you identify issues with your contracts or transactions before deploying to the real ZKSync network."]
+    TransactionHalt {
+        inner: Box<Halt>,
+    } = 10u32,
+    #[doc = "# Summary "]
+    #[doc = "One or more transactions failed during execution in anvil-zksync."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "This error is raised when one or more transactions in a batch or block fail during execution."]
+    #[doc = "The error contains a list of transaction hashes that failed, allowing you to identify the problematic transactions in your test suite."]
+    #[doc = ""]
+    #[doc = "Anvil-zksync can process transactions in batches. When testing with multiple transactions, understanding how they interact is important:"]
+    #[doc = "- A batch is a group of transactions executed together"]
+    #[doc = "- When one transaction fails, it doesn't necessarily cause the entire batch to fail"]
+    #[doc = "- If a transaction failed and other transactions depend on it, these transactions may fail too."]
+    #[doc = ""]
+    #[doc = "This error may appear while debugging complex test scenarios with multiple interdependent transactions."]
+    TransactionFailed {
+        failed_transactions_hashes: String,
+    } = 11u32,
+    #[doc = "# Summary "]
+    #[doc = "Failed to seal a block."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "This error occurs when anvil-zksync fails to seal (finalize) a block containing the specified transactions during testing."]
+    SealingBlockFailed {
+        block_transactions_hashes: String,
+        details: String,
+    } = 21u32,
+    #[doc = "# Summary "]
+    #[doc = "Request to seal multiple blocks with transaction batches failed."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "This error occurs when anvil-zksync fails to seal multiple blocks containing various batches of transactions."]
+    #[doc = ""]
+    #[doc = "In anvil-zksync, transactions can be organized into batches, where each batch may be assigned to a separate block. When processing multiple batches simultaneously (such as during complex test scenarios or parallel transaction processing), anvil-zksync attempts to seal all corresponding blocks in succession."]
+    #[doc = ""]
+    #[doc = "This error indicates that one or more of these block sealing operations failed. The error contains information about the transaction batches that were attempted to be included in the blocks."]
+    SealingMultipleBlocksFailed {
+        transactions_batches: String,
+        details: String,
+    } = 22u32,
+    GenericError {
+        message: String,
+    } = 0u32,
+}
+impl std::error::Error for AnvilNode {}
+impl NamedError for AnvilNode {
+    fn get_error_name(&self) -> String {
+        self.as_ref().to_owned()
+    }
+}
+impl NamedError for AnvilNodeCode {
+    fn get_error_name(&self) -> String {
+        self.as_ref().to_owned()
+    }
+}
+impl From<AnvilNode> for crate::ZksyncError {
+    fn from(val: AnvilNode) -> Self {
+        val.to_unified()
+    }
+}
+impl std::fmt::Display for AnvilNode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.get_message())
+    }
+}
+impl Documented for AnvilNode {
+    type Documentation = &'static zksync_error_description::ErrorDocumentation;
+    fn get_documentation(
+        &self,
+    ) -> Result<Option<Self::Documentation>, crate::documentation::DocumentationError> {
+        self.to_unified().get_identifier().get_documentation()
+    }
+}
+impl From<anyhow::Error> for AnvilNode {
+    fn from(value: anyhow::Error) -> Self {
+        let message = format!("{value:#?}");
+        AnvilNode::GenericError { message }
+    }
+}
+impl From<AnvilNode> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
+    fn from(value: AnvilNode) -> Self {
+        crate::packed::pack(value)
+    }
+}
+impl From<AnvilNode> for crate::serialized::SerializedError {
+    fn from(value: AnvilNode) -> Self {
+        let packed = crate::packed::pack(value);
+        crate::serialized::serialize(packed).expect("Internal serialization error.")
+    }
+}
+impl CustomErrorMessage for AnvilNode {
+    fn get_message(&self) -> String {
+        match self {
+            AnvilNode::TransactionValidationFailedGasLimit {
+                transaction_hash,
+                tx_gas_limit,
+                tx_gas_per_pubdata_limit,
+                max_gas,
+            } => {
+                format ! ("[anvil_zksync-node-1] Transaction {transaction_hash} with gas limit={tx_gas_limit} and gas per pubdata limit={tx_gas_per_pubdata_limit} exceeds maximum allowed gas {max_gas}")
+            }
+            AnvilNode::TransactionValidationFailedMaxFeePerGasTooLow {
+                max_fee_per_gas,
+                transaction_hash,
+                l2_gas_price,
+            } => {
+                format ! ("[anvil_zksync-node-2] Transaction {transaction_hash} allows paying a maximum of {max_fee_per_gas} fee per gar, but the current L2 gas price is {l2_gas_price}, which makes it too expensive.")
+            }
+            AnvilNode::TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee {
+                max_fee_per_gas,
+                max_priority_fee_per_gas,
+                transaction_hash,
+            } => {
+                format ! ("[anvil_zksync-node-3] Invalid transaction {transaction_hash}: its maxPriorityFeePerGas={max_priority_fee_per_gas} exceeds the limit value maxFeePerGas={max_fee_per_gas}")
+            }
+            AnvilNode::TransactionHalt { inner } => {
+                format!("[anvil_zksync-node-10] Transaction execution halted, reason: {inner}")
+            }
+            AnvilNode::TransactionFailed {
+                failed_transactions_hashes,
+            } => {
+                format ! ("[anvil_zksync-node-11] Failed to execute transactions with hashes: {failed_transactions_hashes}")
+            }
+            AnvilNode::SealingBlockFailed {
+                block_transactions_hashes,
+                details,
+            } => {
+                format ! ("[anvil_zksync-node-21] Failed to seal a block containing transactions: {block_transactions_hashes}.\nDetails: {details}")
+            }
+            AnvilNode::SealingMultipleBlocksFailed {
+                transactions_batches,
+                details,
+            } => {
+                format ! ("[anvil_zksync-node-22] Failed to seal multiple blocks containing transaction batches: {transactions_batches}.\nDetails: {details}")
+            }
+            AnvilNode::GenericError { message } => {
+                format!("[anvil_zksync-node-0] Generic error: {message}")
+            }
+        }
+    }
+}
+#[doc = ""]
+#[doc = ""]
+#[doc = "Domain: AnvilZKsync"]
+#[repr(u32)]
+#[derive(
+    AsRefStr,
+    Clone,
+    Debug,
+    Eq,
+    EnumDiscriminants,
+    PartialEq,
+    serde :: Serialize,
+    serde :: Deserialize,
+)]
 #[strum_discriminants(name(HaltCode))]
 #[strum_discriminants(vis(pub))]
 #[strum_discriminants(derive(AsRefStr, FromRepr))]

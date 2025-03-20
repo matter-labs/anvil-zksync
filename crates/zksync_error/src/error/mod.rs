@@ -49,6 +49,7 @@ impl IError<ZksyncError> for ZksyncError {
         match self {
             ZksyncError::AnvilZksync(AnvilZksync::AnvilEnvironment(error)) => error.get_message(),
             ZksyncError::AnvilZksync(AnvilZksync::AnvilGeneric(error)) => error.get_message(),
+            ZksyncError::AnvilZksync(AnvilZksync::AnvilNode(error)) => error.get_message(),
             ZksyncError::AnvilZksync(AnvilZksync::Halt(error)) => error.get_message(),
             ZksyncError::AnvilZksync(AnvilZksync::Revert(error)) => error.get_message(),
             ZksyncError::Compiler(Compiler::LLVM_EVM(error)) => error.get_message(),
