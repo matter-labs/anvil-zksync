@@ -21,9 +21,9 @@ The goal of this crate is to offer a fast solution for integration testing, boot
 
 | 🚫 Limitations                                  | ✅ Features                                                 |
 | ----------------------------------------------- | ----------------------------------------------------------- |
-| Cannot fork state with L1-L2 communication | Can fork the state of mainnet, testnet, or custom network.  |
-| No support for accessing historical data.       | Uses local bootloader and system contracts.                 |
-| Only one transaction allowed per Layer 1 batch. | Operates deterministically in non-fork mode.                |
+| Cannot fork state with L1-L2 communication     | Can fork the state of mainnet, testnet, or custom network.  |
+| Limited support for accessing historical data.  | Uses local bootloader and system contracts.                 |
+| Only one block allowed per Layer 1 batch.       | Operates deterministically in non-fork mode.                |
 | Redeploy requires MetaMask cache reset.         | Supports hardhat's console.log debugging.                   |
 |                                                 | Resolves names of ABI functions and Events using openchain. |
 |                                                 | Can replay existing mainnet or testnet transactions.        |
