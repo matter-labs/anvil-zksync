@@ -112,7 +112,7 @@ fn process_call_and_subcalls(
         idx: 0,
         trace: call_trace,
         logs: logs_for_call,
-        l2_l1_logs: l1_l2_logs_for_call,
+        l2_l1_logs: l2_l1_logs_for_call,
         ordering: Vec::new(),
     };
 
