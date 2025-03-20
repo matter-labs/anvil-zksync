@@ -82,7 +82,7 @@ fn process_call_and_subcalls(
         .collect();
 
     // Collect user and system L2-L1 logs associated with this call.
-    let l1_l2_logs_for_call: Vec<L2L1Logs> = tx_result
+    let l2_l1_logs_for_call: Vec<L2L1Logs> = tx_result
         .logs
         .user_l2_to_l1_logs
         .iter()
