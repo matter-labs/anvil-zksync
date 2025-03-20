@@ -94,7 +94,13 @@ This command relies on Anvil being installed. To install Anvil, please refer to 
 
 ### 2. Connect to an External L1 Node
 
-If you already have an Anvil L1 node running, provide its JSON-RPC endpoint via:
+If you already have an Anvil L1 node running, ensure it was started with the `--no-request-size-limit` option:
+
+```bash
+anvil --no-request-size-limit
+```
+
+Then, provide its JSON-RPC endpoint to `anvil-zksync` via:
 
 ```bash
 anvil-zksync --external-l1 http://localhost:8545
@@ -192,14 +198,14 @@ anvil-zksync fork --fork-url mainnet
 If you wish to replay a remote transaction locally for deep debugging, use the following command:
 
 ```bash
-anvil-zksync replay_tx fork --fork-url <network> <transaction_hash>
+anvil-zksync replay_tx --fork-url <network> <transaction_hash>
 ```
 
 Example:
 
 ```bash
-anvil-zksync --show-calls=all --resolve-hashes=true replay_tx fork --fork-url sepolia-testnet \
-0x7119045573862797257e4441ff48bf5a3bc4d133a00d167c18dc955eda12cfa
+anvil-zksync --show-calls=all --resolve-hashes=true replay_tx --fork-url sepolia-testnet \
+0x0d53f06d3f3734d1f2dd6456c2f9de05d333be0b83ea6caed2a52f4103849fe4
 ```
 
 ## Replacing bytecodes
@@ -212,7 +218,7 @@ You have to prepare a directory, with files in format `0xabc..93f.json` that con
 Then you have to add `--override-bytecodes-dir=XX` flag to point at that directory. See the `example_override` dir for more details.
 
 ```bash
-cargo run -- --override-bytecodes-dir=example_override --show-storage-logs all fork --fork-url mainnet
+anvil-zksync --override-bytecodes-dir=example_override --show-storage-logs all fork --fork-url mainnet
 ```
 
 ## 📞 Sending Network Calls
