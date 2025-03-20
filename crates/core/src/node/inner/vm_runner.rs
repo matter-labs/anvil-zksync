@@ -605,7 +605,7 @@ mod test {
                 fork_storage,
                 system_contracts.clone(),
                 false,
-                config.is_bytecode_compression_enabled(),
+                config.is_bytecode_compression_enforced(),
             );
             VmRunnerTester {
                 vm_runner,
