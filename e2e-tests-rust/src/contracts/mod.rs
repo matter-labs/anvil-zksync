@@ -1,7 +1,10 @@
 use alloy::contract::SolCallBuilder;
+use alloy::network::ReceiptResponse as _;
 use alloy::network::{Ethereum, TransactionBuilder};
 use alloy::primitives::{address, Address, Bytes, ChainId, FixedBytes, U256};
-use alloy::providers::{PendingTransactionBuilder, Provider};
+use alloy::providers::{DynProvider, PendingTransactionBuilder, Provider};
+use alloy::rpc::types::TransactionReceipt;
+use alloy_zksync::network::receipt_response::ReceiptResponse;
 use alloy_zksync::network::transaction_request::TransactionRequest;
 use alloy_zksync::network::Zksync;
 use alloy_zksync::provider::ZksyncProvider;
@@ -12,6 +15,7 @@ use std::fmt::Debug;
 mod private {
     alloy::sol!(
         #[sol(rpc)]
+        #[derive(Debug)]
         IL1Messenger,
         "src/contracts/artifacts/IL1Messenger.json"
     );
@@ -22,10 +26,29 @@ mod private {
         "src/contracts/artifacts/IBridgehub.json"
     );
 
+    alloy::sol!(
+        #[sol(rpc)]
+        IBaseToken,
+        "src/contracts/artifacts/IBaseToken.json"
+    );
+
+    alloy::sol!(
+        #[sol(rpc)]
+        IL1Nullifier,
+        "src/contracts/artifacts/IL1Nullifier.json"
+    );
+
+    alloy::sol!(
+        #[sol(rpc)]
+        IL1AssetRouter,
+        "src/contracts/artifacts/IL1AssetRouter.json"
+    );
+
     alloy::sol!(IMailbox, "src/contracts/artifacts/IMailbox.json");
 }
 
 const L1_MESSENGER_ADDRESS: Address = address!("0000000000000000000000000000000000008008");
+const L2_BASE_TOKEN_ADDRESS: Address = address!("000000000000000000000000000000000000800a");
 
 pub struct L1Messenger<P: Provider<Zksync>>(
     private::IL1Messenger::IL1MessengerInstance<(), P, Zksync>,
@@ -163,6 +186,144 @@ impl<P: Provider<Ethereum>> Bridgehub<P> {
         Ok(PendingTransactionBuilder::new(
             l2_provider.root().clone(),
             l2_tx_hash,
+        ))
+    }
+}
+
+pub struct L2BaseToken<P: Provider<Zksync>>(private::IBaseToken::IBaseTokenInstance<(), P, Zksync>);
+
+impl<P: Provider<Zksync>> L2BaseToken<P> {
+    pub fn new(l2_provider: P) -> Self {
+        Self(private::IBaseToken::new(L2_BASE_TOKEN_ADDRESS, l2_provider))
+    }
+
+    pub fn address(&self) -> &Address {
+        self.0.address()
+    }
+
+    pub async fn withdraw(
+        &self,
+        l1_receiver: Address,
+        value: U256,
+    ) -> anyhow::Result<ReceiptResponse> {
+        let receipt = self
+            .0
+            .withdraw(l1_receiver)
+            .value(value)
+            .send()
+            .await?
+            .get_receipt()
+            .await?;
+        assert!(receipt.status(), "L2->L1 withdraw failed");
+        Ok(receipt)
+    }
+}
+
+pub struct L1Nullifier<P: Provider<Ethereum>> {
+    instance: private::IL1Nullifier::IL1NullifierInstance<(), P, Ethereum>,
+    l2_provider: DynProvider<Zksync>,
+}
+
+impl<P: Provider<Ethereum>> L1Nullifier<P> {
+    pub fn new(address: Address, l1_provider: P, l2_provider: DynProvider<Zksync>) -> Self {
+        Self {
+            instance: private::IL1Nullifier::new(address, l1_provider),
+            l2_provider,
+        }
+    }
+
+    pub fn address(&self) -> &Address {
+        self.instance.address()
+    }
+
+    pub async fn finalize_withdrawal(
+        &self,
+        withdrawal_l2_receipt: ReceiptResponse,
+    ) -> anyhow::Result<TransactionReceipt> {
+        let l1_message_sent = withdrawal_l2_receipt
+            .logs()
+            .iter()
+            .find_map(|log| {
+                if log.address() != L1_MESSENGER_ADDRESS {
+                    return None;
+                }
+                if let Ok(l1_message_sent) =
+                    log.log_decode::<private::IL1Messenger::L1MessageSent>()
+                {
+                    Some(l1_message_sent)
+                } else {
+                    None
+                }
+            })
+            .expect("no `L1MessageSent` events found in withdrawal receipt");
+        let (l2_to_l1_log_index, _) = withdrawal_l2_receipt
+            .l2_to_l1_logs()
+            .iter()
+            .enumerate()
+            .find(|(_, log)| log.sender == L1_MESSENGER_ADDRESS)
+            .expect("no L2->L1 logs found in withdrawal receipt");
+        let proof = self
+            .l2_provider
+            .get_l2_to_l1_log_proof(
+                withdrawal_l2_receipt.transaction_hash(),
+                Some(l2_to_l1_log_index),
+            )
+            .await?
+            .expect("anvil-zksync failed to provide proof for withdrawal log");
+        let finalize_withdrawal_l1_receipt = self
+            .instance
+            .finalizeDeposit(private::IL1Nullifier::FinalizeL1DepositParams {
+                chainId: U256::from(self.l2_provider.get_chain_id().await?),
+                l2BatchNumber: U256::from(withdrawal_l2_receipt.l1_batch_number().unwrap()),
+                l2MessageIndex: U256::from(proof.id),
+                l2Sender: l1_message_sent.inner._sender,
+                l2TxNumberInBatch: withdrawal_l2_receipt
+                    .l1_batch_tx_index()
+                    .unwrap()
+                    .try_into()
+                    .unwrap(),
+                message: l1_message_sent.inner._message.clone(),
+                merkleProof: proof.proof,
+            })
+            .send()
+            .await?
+            .get_receipt()
+            .await?;
+        assert!(
+            finalize_withdrawal_l1_receipt.status(),
+            "failed to finalize L2->L1 withdrawal"
+        );
+        Ok(finalize_withdrawal_l1_receipt)
+    }
+}
+
+pub struct L1AssetRouter<P: Provider<Ethereum>> {
+    instance: private::IL1AssetRouter::IL1AssetRouterInstance<(), P, Ethereum>,
+    l2_provider: DynProvider<Zksync>,
+}
+
+impl<P: Provider<Ethereum> + Clone> L1AssetRouter<P> {
+    pub async fn new(l1_provider: P, l2_provider: DynProvider<Zksync>) -> Self {
+        let bridge_addresses = l2_provider.get_bridge_contracts().await.unwrap();
+        Self {
+            instance: private::IL1AssetRouter::new(
+                bridge_addresses.l1_shared_default_bridge.unwrap(),
+                l1_provider,
+            ),
+            l2_provider,
+        }
+    }
+
+    pub fn address(&self) -> &Address {
+        self.instance.address()
+    }
+
+    pub async fn l1_nullifier(&self) -> anyhow::Result<L1Nullifier<P>> {
+        let l1_nullifier_address = self.instance.L1_NULLIFIER().call().await?._0;
+        Ok(L1Nullifier::new(
+            l1_nullifier_address,
+            self.instance.provider().clone(),
+            self.l2_provider.clone(),
         ))
     }
 }

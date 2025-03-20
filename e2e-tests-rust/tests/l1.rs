@@ -1,10 +1,12 @@
 use alloy::network::{ReceiptResponse, TransactionBuilder};
-use alloy::primitives::{address, B256, U256};
-use alloy::providers::{Provider, WalletProvider};
+use alloy::primitives::{B256, U256};
+use alloy::providers::{DynProvider, Provider, WalletProvider};
 use alloy_zksync::network::receipt_response::ReceiptResponse as ZkReceiptResponse;
 use alloy_zksync::provider::{DepositRequest, ZksyncProvider, ZksyncProviderWithWallet};
 use alloy_zksync::utils::ETHER_L1_ADDRESS;
-use anvil_zksync_e2e_tests::contracts::{Bridgehub, L1Messenger, L2Message};
+use anvil_zksync_e2e_tests::contracts::{
+    Bridgehub, L1AssetRouter, L1Messenger, L2BaseToken, L2Message,
+};
 use anvil_zksync_e2e_tests::test_contracts::Counter;
 use anvil_zksync_e2e_tests::{AnvilZKsyncApi, AnvilZksyncTesterBuilder, ReceiptExt};
 use anyhow::Context;
@@ -335,6 +337,69 @@ async fn deposit() -> anyhow::Result<()> {
     // gets deposited to L2. Assuming this is expected as zksync-era e2e tests assert the same behavior.
     assert!(alice_l1_final_balance <= alice_l1_initial_balance - fee - amount);
     assert!(alice_l2_final_balance >= alice_l2_initial_balance + amount);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn withdraw() -> anyhow::Result<()> {
+    let tester = AnvilZksyncTesterBuilder::default()
+        .with_l1()
+        .build()
+        .await?;
+
+    let alice = tester.l2_provider().default_signer_address();
+    let alice_l1_initial_balance = tester.l1_provider().get_balance(alice).await?;
+    let alice_l2_initial_balance = tester.l2_provider().get_balance(alice).await?;
+    let amount = U256::from(1);
+
+    let l2_base_token = L2BaseToken::new(tester.l2_provider().clone());
+    let withdrawal_l2_receipt = l2_base_token.withdraw(alice, amount).await?;
+    let l2_fee = U256::from(
+        withdrawal_l2_receipt.effective_gas_price() * withdrawal_l2_receipt.gas_used() as u128,
+    );
+
+    // Execute all batches up to the one including the log
+    let withdrawal_batch_number: u64 = withdrawal_l2_receipt
+        .l1_batch_number()
+        .context("missing L1 batch number")?
+        .try_into()?;
+    for batch_number in 1..=withdrawal_batch_number {
+        tester
+            .l2_provider()
+            .anvil_commit_batch(batch_number)
+            .await?;
+        tester.l2_provider().anvil_prove_batch(batch_number).await?;
+        tester
+            .l2_provider()
+            .anvil_execute_batch(batch_number)
+            .await?;
+    }
+
+    let l1_asset_router = L1AssetRouter::new(
+        tester.l1_provider(),
+        DynProvider::new(tester.l2_provider().clone()),
+    )
+    .await;
+    let l1_nullifier = l1_asset_router.l1_nullifier().await?;
+    let finalize_withdrawal_l1_receipt = l1_nullifier
+        .finalize_withdrawal(withdrawal_l2_receipt)
+        .await?;
+    let l1_fee = U256::from(
+        finalize_withdrawal_l1_receipt.effective_gas_price()
+            * finalize_withdrawal_l1_receipt.gas_used() as u128,
+    );
+
+    let alice_l1_final_balance = tester.l1_provider().get_balance(alice).await?;
+    let alice_l2_final_balance = tester.l2_provider().get_balance(alice).await?;
+    assert_eq!(
+        alice_l1_final_balance,
+        alice_l1_initial_balance - l1_fee + amount
+    );
+    assert_eq!(
+        alice_l2_final_balance,
+        alice_l2_initial_balance - l2_fee - amount
+    );
 
     Ok(())
 }
