@@ -388,7 +388,7 @@ mod tests {
         let fork = Fork::new(Some(client), CacheConfig::None);
 
         let options = SystemContractsOptions::default();
-        let mut fork_storage: ForkStorage = ForkStorage::new(fork, &options, false, None);
+        let mut fork_storage: ForkStorage = ForkStorage::new(fork, &options, None);
 
         assert!(fork_storage.is_write_initial(&never_written_key));
         assert!(!fork_storage.is_write_initial(&key_with_some_value));
@@ -420,7 +420,7 @@ mod tests {
         let client = ForkClient::mock(fork_details, InMemoryStorage::default());
         let fork = Fork::new(Some(client), CacheConfig::None);
         let mut fork_storage: ForkStorage =
-            ForkStorage::new(fork, &SystemContractsOptions::default(), false, None);
+            ForkStorage::new(fork, &SystemContractsOptions::default(), None);
         let new_chain_id = L2ChainId::from(261);
         fork_storage.set_chain_id(new_chain_id);
 
