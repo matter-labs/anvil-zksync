@@ -588,7 +588,6 @@ mod test {
             let fork_storage = ForkStorage::new(
                 Fork::new(fork_client, CacheConfig::None),
                 &SystemContractsOptions::BuiltIn,
-                false,
                 None,
             );
             let system_contracts = SystemContracts::from_options(

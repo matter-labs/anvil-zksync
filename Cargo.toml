@@ -35,12 +35,12 @@ categories = ["cryptography"]
 #########################
 # ZKsync dependencies  #
 #########################
-zksync_mini_merkle_tree = { git = "https://github.com/matter-labs/zksync-era", rev = "7a3fea5ebb8e90cedff749a45f3b78538443b3d6" }
-zksync_multivm = { git = "https://github.com/matter-labs/zksync-era", rev = "7a3fea5ebb8e90cedff749a45f3b78538443b3d6" }
-zksync_contracts = { git = "https://github.com/matter-labs/zksync-era", rev = "7a3fea5ebb8e90cedff749a45f3b78538443b3d6" }
-zksync_types = { git = "https://github.com/matter-labs/zksync-era", rev = "7a3fea5ebb8e90cedff749a45f3b78538443b3d6" }
-zksync_vm_interface = { git = "https://github.com/matter-labs/zksync-era", rev = "7a3fea5ebb8e90cedff749a45f3b78538443b3d6" }
-zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era", rev = "7a3fea5ebb8e90cedff749a45f3b78538443b3d6" }
+zksync_mini_merkle_tree = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v27.0.0" }
+zksync_multivm = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v27.0.0" }
+zksync_contracts = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v27.0.0" }
+zksync_types = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v27.0.0" }
+zksync_vm_interface = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v27.0.0" }
+zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v27.0.0" }
 zksync_telemetry = { git = "https://github.com/matter-labs/zksync-telemetry.git", rev = "d5c35951843263765079545c31c908dcbaab1f30" }
 zksync-error-codegen = { git = "https://github.com/matter-labs/zksync-error", rev = "76e8e471b048461d2754092fa159c87a47db5972", default-features = false }
 zksync-error-description = { git = "https://github.com/matter-labs/zksync-error", rev = "76e8e471b048461d2754092fa159c87a47db5972" }

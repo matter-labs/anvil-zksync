@@ -77,7 +77,6 @@ impl InMemoryNodeInner {
         let fork_storage = ForkStorage::new(
             fork.clone(),
             &config.system_contracts_options,
-            config.use_evm_emulator,
             config.chain_id,
         );
         let vm_runner = VmRunner::new(

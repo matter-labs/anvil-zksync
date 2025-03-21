@@ -12,8 +12,8 @@ use zksync_types::{
     L2_ASSET_ROUTER_ADDRESS, L2_BASE_TOKEN_ADDRESS, L2_BRIDGEHUB_ADDRESS,
     L2_GENESIS_UPGRADE_ADDRESS, L2_MESSAGE_ROOT_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS,
     L2_WRAPPED_BASE_TOKEN_IMPL, MSG_VALUE_SIMULATOR_ADDRESS, NONCE_HOLDER_ADDRESS,
-    P256VERIFY_PRECOMPILE_ADDRESS, PUBDATA_CHUNK_PUBLISHER_ADDRESS, SHA256_PRECOMPILE_ADDRESS,
-    SLOAD_CONTRACT_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
+    PUBDATA_CHUNK_PUBLISHER_ADDRESS, SECP256R1_VERIFY_PRECOMPILE_ADDRESS,
+    SHA256_PRECOMPILE_ADDRESS, SLOAD_CONTRACT_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
 };
 use zksync_types::{AccountTreeId, Address, H160};
 
@@ -194,7 +194,7 @@ pub static COMPILED_IN_SYSTEM_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new
         ),
         (
             "P256Verify",
-            P256VERIFY_PRECOMPILE_ADDRESS,
+            SECP256R1_VERIFY_PRECOMPILE_ADDRESS,
             include_bytes!("contracts/P256Verify.json").to_vec(),
         ),
         // TODO: It might make more sense to source address for these from zkstack config
@@ -231,12 +231,11 @@ pub static COMPILED_IN_SYSTEM_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new
 
 pub fn get_deployed_contracts(
     options: &SystemContractsOptions,
-    use_evm_emulator: bool,
 ) -> Vec<zksync_types::block::DeployedContract> {
     match options {
         SystemContractsOptions::BuiltIn | SystemContractsOptions::BuiltInWithoutSecurity => {
             COMPILED_IN_SYSTEM_CONTRACTS.clone()
         }
-        SystemContractsOptions::Local => get_system_smart_contracts(use_evm_emulator),
+        SystemContractsOptions::Local => get_system_smart_contracts(),
     }
 }
