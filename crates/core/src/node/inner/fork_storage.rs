@@ -49,7 +49,6 @@ impl ForkStorage {
     pub(super) fn new(
         fork: Fork,
         system_contracts_options: &SystemContractsOptions,
-        use_evm_emulator: bool,
         override_chain_id: Option<u32>,
     ) -> Self {
         let chain_id = if let Some(override_id) = override_chain_id {
@@ -66,7 +65,6 @@ impl ForkStorage {
                     chain_id,
                     |b| BytecodeHash::for_bytecode(b).value(),
                     system_contracts_options,
-                    use_evm_emulator,
                 ),
                 value_read_cache: Default::default(),
                 fork,

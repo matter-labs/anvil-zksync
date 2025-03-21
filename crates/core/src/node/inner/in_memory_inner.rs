@@ -991,7 +991,6 @@ impl InMemoryNodeInner {
         let fork_storage = ForkStorage::new(
             self.fork.clone(),
             &self.config.system_contracts_options,
-            self.config.use_evm_emulator,
             self.config.chain_id,
         );
         let mut old_storage = self.fork_storage.inner.write().unwrap();
