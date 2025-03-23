@@ -24,7 +24,7 @@ while [ $COUNTER -lt $MAX_RETRIES ]; do
         break
     else
         echo "Node not ready, retrying in 1 second..."
-        let COUNTER=COUNTER+1
+        ((COUNTER++))
         sleep 1
     fi
 done
