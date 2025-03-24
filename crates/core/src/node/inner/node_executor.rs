@@ -440,22 +440,27 @@ impl NodeExecutorHandle {
 
         let debug_transactions_repr = format!("{:?}", tx_batch.txs);
 
-        const MSG_INTERNAL_ERROR : &'static str = concat!(
-                        "Internal error: failed to seal a block because node executor is dropped. ",
-                        "Another error was likely propagated from the main execution loop. ",
-                        "Please, report this as a bug.");
+        const MSG_INTERNAL_ERROR: &str = concat!(
+            "Internal error: failed to seal a block because node executor is dropped. ",
+            "Another error was likely propagated from the main execution loop. ",
+            "Please, report this as a bug."
+        );
 
         self.command_sender
             .send(Command::SealBlock(tx_batch, Some(response_sender)))
             .await
-            .map_err(|_| zksync_error::anvil_zksync::node::generic_error!("{MSG_INTERNAL_ERROR}"))?;
+            .map_err(|_| {
+                zksync_error::anvil_zksync::node::generic_error!("{MSG_INTERNAL_ERROR}")
+            })?;
 
         match response_receiver.await {
             Ok(result) => result,
             Err(inner_masked_error) => {
                 // Log this error so that it does not get lost
                 sh_eprintln!("Internal error while receiving response to the block seal request for transactions {debug_transactions_repr}: {inner_masked_error:?}. Please report.");
-                Err(zksync_error::anvil_zksync::node::generic_error!("{MSG_INTERNAL_ERROR}"))
+                Err(zksync_error::anvil_zksync::node::generic_error!(
+                    "{MSG_INTERNAL_ERROR}"
+                ))
             }
         }
     }
@@ -661,7 +666,8 @@ impl NodeExecutorHandle {
     pub async fn enforce_next_timestamp_sync(&self, timestamp: u64) -> Result<(), AnvilNodeError> {
         let (response_sender, response_receiver) = oneshot::channel();
 
-        let error_msg = error_msg_node_executor_dropped(&format!("enforce next timestamp to {timestamp}"));
+        let error_msg =
+            error_msg_node_executor_dropped(&format!("enforce next timestamp to {timestamp}"));
 
         self.command_sender
             .send(Command::EnforceNextTimestamp(timestamp, response_sender))
@@ -678,7 +684,8 @@ impl NodeExecutorHandle {
     pub async fn set_current_timestamp_sync(&self, timestamp: u64) -> Result<i128, AnvilNodeError> {
         let (response_sender, response_receiver) = oneshot::channel();
 
-        let error_msg = error_msg_node_executor_dropped(&format!("set current timestamp to {timestamp}"));
+        let error_msg =
+            error_msg_node_executor_dropped(&format!("set current timestamp to {timestamp}"));
 
         self.command_sender
             .send(Command::SetCurrentTimestamp(timestamp, response_sender))
@@ -719,7 +726,10 @@ impl NodeExecutorHandle {
 
     /// Request [`NodeExecutor`] to enforce next block's base fee per gas. Waits for the change to take
     /// place. Block might still not be produced by then.
-    pub async fn enforce_next_base_fee_per_gas_sync(&self, base_fee: U256) -> Result<(), AnvilNodeError> {
+    pub async fn enforce_next_base_fee_per_gas_sync(
+        &self,
+        base_fee: U256,
+    ) -> Result<(), AnvilNodeError> {
         let (response_sender, response_receiver) = oneshot::channel();
 
         let error_msg = error_msg_node_executor_dropped("enforce next base fee per gas");
@@ -771,6 +781,16 @@ enum Command {
     RemoveTimestampInterval(oneshot::Sender<bool>),
     // Fee manipulation commands
     EnforceNextBaseFeePerGas(U256, oneshot::Sender<()>),
+}
+
+/// Helper function to produce uniform error messages when node executor is
+/// dropped. This happens across several functions in this file.
+fn error_msg_node_executor_dropped(action: &str) -> String {
+    format!(
+        "Internal error: failed to {action} because node executor is dropped. \
+            Another error was likely propagated from the main execution loop. \
+            Please, report this as a bug."
+    )
 }
 
 #[cfg(test)]
@@ -868,11 +888,4 @@ pub mod testing {
             }
         }
     }
-}
-
-fn error_msg_node_executor_dropped(action: &str) -> String {
-        format!(
-            "Internal error: failed to {action} because node executor is dropped. \
-            Another error was likely propagated from the main execution loop. \
-            Please, report this as a bug.")
 }
