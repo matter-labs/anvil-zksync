@@ -440,24 +440,22 @@ impl NodeExecutorHandle {
 
         let debug_transactions_repr = format!("{:?}", tx_batch.txs);
 
+        const MSG_INTERNAL_ERROR : &'static str = concat!(
+                        "Internal error: failed to seal a block because node executor is dropped. ",
+                        "Another error was likely propagated from the main execution loop. ",
+                        "Please, report this as a bug.");
+
         self.command_sender
             .send(Command::SealBlock(tx_batch, Some(response_sender)))
             .await
-            .map_err(|_| zksync_error::anvil_zksync::node::SealingBlockFailed {
-                block_transactions_hashes: debug_transactions_repr.clone(),
-                details: "Inner error while sending the block seal request.".to_string(),
-            })?;
+            .map_err(|_| zksync_error::anvil_zksync::node::generic_error!("{MSG_INTERNAL_ERROR}"))?;
 
         match response_receiver.await {
             Ok(result) => result,
             Err(inner_masked_error) => {
                 // Log this error so that it does not get lost
                 sh_eprintln!("Internal error while receiving response to the block seal request for transactions {debug_transactions_repr}: {inner_masked_error:?}. Please report.");
-                Err(zksync_error::anvil_zksync::node::SealingBlockFailed {
-                    block_transactions_hashes: debug_transactions_repr.clone(),
-                    details: "Inner error while receiving response to the block seal request."
-                        .to_string(),
-                })
+                Err(zksync_error::anvil_zksync::node::generic_error!("{MSG_INTERNAL_ERROR}"))
             }
         }
     }
