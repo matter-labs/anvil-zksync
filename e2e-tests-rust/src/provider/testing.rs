@@ -112,8 +112,6 @@ impl<'a> AnvilZksyncTesterBuilder<'a> {
                 anvil
                     .port(l1_locked_port.port)
                     .arg("--no-request-size-limit")
-                    .arg("--base-fee")
-                    .arg("1")
             })?;
             let l1_address = format!("http://localhost:{}", l1_locked_port.port);
             (Some(DynProvider::new(l1_provider)), Some(l1_address))
