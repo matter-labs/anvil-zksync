@@ -235,26 +235,37 @@ curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","metho
 
 By default, the tool is just printing the basic information about the executed transactions (like status, gas used etc).
 
-But with --show-calls flag, it can print more detailed call traces, and with --resolve-hashes, it will ask openchain for ABI names.
+To dive deeper into execution details, incremental verbosity flags can now be used to unlock rich debugging output.
+
+### 📢 Verbosity Levels
+
+Use the `-v` flag repeatedly (`-vv`, `-vvv`, etc.) to increase the level of detail shown in logs. Each level adds more granular VM tracing insights:
+
+`-vv`: User-level calls, User L1-L2 logs, and event traces
+`-vvv`:Adds system-level calls, System logs, and event traces
+`-vvvv`: Includes system and user calls, system and user events, and precompiles
 
 ```bash
-anvil-zksync --show-calls=user --resolve-hashes=true replay_tx --fork-url sepolia-testnet 0x7119045573862797257e4441ff48bf5a3bc4d133a00d167c18dc955eda12cfac
+anvil-zksync -vv \
+replay_tx --fork-url sepolia-testnet \
+0x7119045573862797257e4441ff48bf5a3bc4d133a00d167c18dc955eda12cfac
 
-16:19:43  INFO Validating 0x7119045573862797257e4441ff48bf5a3bc4d133a00d167c18dc955eda12cfac
-16:19:43  INFO Executing 0x7119045573862797257e4441ff48bf5a3bc4d133a00d167c18dc955eda12cfac
-16:19:46  INFO 
-16:19:46  INFO ✅  [SUCCESS] Hash: 0x7119045573862797257e4441ff48bf5a3bc4d133a00d167c18dc955eda12cfac
-16:19:46  INFO Initiator: 0x4eaf936c172b5e5511959167e8ab4f7031113ca3
-16:19:46  INFO Payer: 0x4eaf936c172b5e5511959167e8ab4f7031113ca3
-16:19:46  INFO Gas Limit: 2_487_330 | Used: 133_046 | Refunded: 2_354_284
-16:19:46  INFO Paid: 0.0000252787 ETH (133046 gas * 0.19000000 gwei)
-16:19:46  INFO Refunded: 0.0004473140 ETH
-16:19:46  INFO 
-16:19:46  INFO 
-16:19:46  INFO [Transaction Execution] (23 calls)
-16:19:46  INFO Call(Normal) [2_400_300] initiator@0x4eaf936c172b5e5511959167e8ab4f7031113ca3::validateTransaction(bytes32, bytes32, tuple) (18_748)
-16:19:46  INFO Call(Normal) [2_378_250] initiator@0x4eaf936c172b5e5511959167e8ab4f7031113ca3::payForTransaction(bytes32, bytes32, tuple) (8_691)
-16:19:46  INFO Call(Normal) [2_333_268] initiator@0x4eaf936c172b5e5511959167e8ab4f7031113ca3::executeTransaction(bytes32, bytes32, tuple) (10_820)
+✅ [SUCCESS] Hash: 0x7119045573862797257e4441ff48bf5a3bc4d133a00d167c18dc955eda12cfac
+Initiator: 0x4eaf936c172b5e5511959167e8ab4f7031113ca3
+Payer: 0x4eaf936c172b5e5511959167e8ab4f7031113ca3
+Gas Limit: 2_487_330 | Used: 127_813 | Refunded: 2_359_517
+Paid: 0.0000242845 ETH (127813 gas * 0.19000000 gwei)
+Refunded: 0.0004483082 ETH
+
+Traces:
+  [18539] 0x4eaf936c172b5e5511959167e8ab4f7031113ca3::validateTransaction(0x7119045573862797257e4441ff48bf5a3bc4d133a00d167c18dc955eda12cfac, 0x89c19e9b41956859a89a7a263bcefdc9f7836a4001b258f8e5d23d2df73d201e, (2, 449216752821327364111873762331949023955812170915 [4.492e47], 532713687062943204947393888873391921348219087663 [5.327e47], 2487330 [2.487e6], 50000 [5e4], 1380000000 [1.38e9], 1000000000 [1e9], 0, 26, 40804000000000008 [4.08e16], [0, 0, 0, 0], 0x, 0x52da4d91f482131dde68bc08f1a1d8ebb3297ed7ac94e70e9f0f0270dc3c8f8b5b1f0a2e1cfcae078251d507f80fee2f8434af2b199b44536d21a7d72fb779771b, [], 0x, 0x))
+    └─ ← [Success] 202bcce700000000000000000000000000000000000000000000000000000000
+  [8497] 0x4eaf936c172b5e5511959167e8ab4f7031113ca3::payForTransaction(0x7119045573862797257e4441ff48bf5a3bc4d133a00d167c18dc955eda12cfac, 0x89c19e9b41956859a89a7a263bcefdc9f7836a4001b258f8e5d23d2df73d201e, (2, 449216752821327364111873762331949023955812170915 [4.492e47], 532713687062943204947393888873391921348219087663 [5.327e47], 2487330 [2.487e6], 50000 [5e4], 1380000000 [1.38e9], 1000000000 [1e9], 0, 26, 40804000000000008 [4.08e16], [0, 0, 0, 0], 0x, 0x52da4d91f482131dde68bc08f1a1d8ebb3297ed7ac94e70e9f0f0270dc3c8f8b5b1f0a2e1cfcae078251d507f80fee2f8434af2b199b44536d21a7d72fb779771b, [], 0x, 0x))
+    └─ ← [Success]
+  [10622] 0x4eaf936c172b5e5511959167e8ab4f7031113ca3::executeTransaction(0x7119045573862797257e4441ff48bf5a3bc4d133a00d167c18dc955eda12cfac, 0x89c19e9b41956859a89a7a263bcefdc9f7836a4001b258f8e5d23d2df73d201e, (2, 449216752821327364111873762331949023955812170915 [4.492e47], 532713687062943204947393888873391921348219087663 [5.327e47], 2487330 [2.487e6], 50000 [5e4], 1380000000 [1.38e9], 1000000000 [1e9], 0, 26, 40804000000000008 [4.08e16], [0, 0, 0, 0], 0x, 0x52da4d91f482131dde68bc08f1a1d8ebb3297ed7ac94e70e9f0f0270dc3c8f8b5b1f0a2e1cfcae078251d507f80fee2f8434af2b199b44536d21a7d72fb779771b, [], 0x, 0x))
+    ├─ [204] 0x5d4fb5385ed95b65d1cd6a10ed9549613481ab2f::fallback{value: 40804000000000008}() [mimiccall]
+    │   └─ ← [Success]
+    └─ ← [Success] 00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000
 ```
 
 You can use the following options to get more granular information during transaction processing:
@@ -275,12 +286,6 @@ Example:
 
 ```bash
 anvil-zksync --show-storage-logs=all --show-vm-details=all --show-gas-details=all run
-```
-
-This is now even easier with a single flag (`--debug-mode` or `-d`):
-
-```bash
-anvil-zksync -d
 ```
 
 ## 💰 Using Rich Wallets
