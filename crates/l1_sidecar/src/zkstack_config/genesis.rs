@@ -14,6 +14,7 @@ pub struct GenesisConfig {
     pub genesis_protocol_version: ProtocolVersionId,
     pub default_aa_hash: H256,
     pub bootloader_hash: H256,
+    pub evm_emulator_hash: H256,
     pub l1_chain_id: L1ChainId,
     pub l2_chain_id: L2ChainId,
     pub fee_account: Address,

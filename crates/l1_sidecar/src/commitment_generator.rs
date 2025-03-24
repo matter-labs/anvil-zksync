@@ -43,7 +43,7 @@ impl CommitmentGenerator {
         let base_system_contracts_hashes = BaseSystemContractsHashes {
             bootloader: zkstack_config.genesis.bootloader_hash,
             default_aa: zkstack_config.genesis.default_aa_hash,
-            evm_emulator: None,
+            evm_emulator: Some(zkstack_config.genesis.evm_emulator_hash),
         };
 
         // Run realistic genesis commitment computation that should match value from zkstack config
@@ -128,7 +128,7 @@ impl CommitmentGenerator {
             rollup_root_hash: tree_data.hash,
             bootloader_code_hash: self.base_system_contracts_hashes.bootloader,
             default_aa_code_hash: self.base_system_contracts_hashes.default_aa,
-            evm_emulator_code_hash: None,
+            evm_emulator_code_hash: self.base_system_contracts_hashes.evm_emulator,
             protocol_version: ProtocolVersionId::latest(),
         };
         let commitment_input = CommitmentInput::PostBoojum {
