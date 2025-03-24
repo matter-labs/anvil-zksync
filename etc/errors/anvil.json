@@ -1202,6 +1202,64 @@
                   }
                 ]
               }
+            },
+            {
+              "name": "TimestampBackwardsError",
+              "code": 23,
+              "message": "Failed to force the next timestamp to value {timestamp_requested}. It should be greater than the last timestamp {timestamp_now}.",
+              "fields": [
+                {
+                  "name": "timestamp_requested",
+                  "type": "uint"
+                },
+                {
+                  "name": "timestamp_now",
+                  "type": "uint"
+                }
+              ],
+              "doc": {
+                "summary": "Requested block timestamp is earlier than the current timestamp.",
+                "description": [
+                  "This error occurs when attempting to set a future block timestamp to a value that is earlier than the timestamp of the most recently mined block.",
+                  "",
+                  "In anvil-zksync, block timestamps must always increase monotonically. This simulates the behavior of real blockchain networks where time only moves forward. Each new block must have a timestamp greater than its predecessor.",
+                  "",
+                  "Anvil-zksync provides methods to manipulate time for testing purposes (like `evm_increaseTime` and `evm_setNextBlockTimestamp`), but these can only move time forward, never backward.",
+                  "",
+                  "Block timestamps in anvil-zksync are used by:",
+                  "- Smart contracts that rely on `block.timestamp` for time-dependent logic",
+                  "- System contracts that need to track event timing",
+                  "- Time-locked functionality in DeFi applications and governance protocols",
+                  "",
+                  "When testing contracts that have time-dependent logic, it's important to ensure that any manipulated timestamps move forward in time, not backward."
+                ],
+                "likely_causes": [
+                  {
+                    "cause": "Test code attempts to set a block timestamp that is earlier than the current timestamp.",
+                    "fixes": [
+                      "Ensure your test sets timestamps that are greater than the current block timestamp.",
+                      "Query the current block timestamp first using eth_getBlockByNumber before determining a future timestamp value.",
+                      "For testing time-sensitive contracts, plan your time manipulation sequence to always move forward."
+                    ]
+                  },
+                  {
+                    "cause": "Tests manipulating time incorrectly by trying to go back to an earlier point in time.",
+                    "fixes": [
+                      "If you need to test behavior at different timestamps, consider resetting the node state entirely between tests.",
+                      "Use anvil-zksync's snapshot and revert features to create a clean state with the desired initial timestamp.",
+                      "Design your tests to account for the forward-only movement of blockchain time."
+                    ]
+                  },
+                  {
+                    "cause": "Attempting to reset time to an earlier point after advancing it in a previous test.",
+                    "fixes": [
+                      "Restructure your tests to maintain timestamp progression within each test suite.",
+                      "Create separate, isolated test cases for scenarios that require different timestamp starting points.",
+                      "Use separate anvil-zksync instances for tests that require conflicting timestamp sequences."
+                    ]
+                  }
+                ]
+              }
             }
 
 

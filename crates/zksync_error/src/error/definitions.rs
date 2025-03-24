@@ -367,6 +367,26 @@ pub enum AnvilNode {
         transactions_batches: String,
         details: String,
     } = 22u32,
+    #[doc = "# Summary "]
+    #[doc = "Requested block timestamp is earlier than the current timestamp."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "This error occurs when attempting to set a future block timestamp to a value that is earlier than the timestamp of the most recently mined block."]
+    #[doc = ""]
+    #[doc = "In anvil-zksync, block timestamps must always increase monotonically. This simulates the behavior of real blockchain networks where time only moves forward. Each new block must have a timestamp greater than its predecessor."]
+    #[doc = ""]
+    #[doc = "Anvil-zksync provides methods to manipulate time for testing purposes (like `evm_increaseTime` and `evm_setNextBlockTimestamp`), but these can only move time forward, never backward."]
+    #[doc = ""]
+    #[doc = "Block timestamps in anvil-zksync are used by:"]
+    #[doc = "- Smart contracts that rely on `block.timestamp` for time-dependent logic"]
+    #[doc = "- System contracts that need to track event timing"]
+    #[doc = "- Time-locked functionality in DeFi applications and governance protocols"]
+    #[doc = ""]
+    #[doc = "When testing contracts that have time-dependent logic, it's important to ensure that any manipulated timestamps move forward in time, not backward."]
+    TimestampBackwardsError {
+        timestamp_requested: u32,
+        timestamp_now: u32,
+    } = 23u32,
     GenericError {
         message: String,
     } = 0u32,
@@ -461,6 +481,12 @@ impl CustomErrorMessage for AnvilNode {
                 details,
             } => {
                 format ! ("[anvil_zksync-node-22] Failed to seal multiple blocks containing transaction batches: {transactions_batches}.\nDetails: {details}")
+            }
+            AnvilNode::TimestampBackwardsError {
+                timestamp_requested,
+                timestamp_now,
+            } => {
+                format ! ("[anvil_zksync-node-23] Failed to force the next timestamp to value {timestamp_requested}. It should be greater than the last timestamp {timestamp_now}.")
             }
             AnvilNode::GenericError { message } => {
                 format!("[anvil_zksync-node-0] Generic error: {message}")
