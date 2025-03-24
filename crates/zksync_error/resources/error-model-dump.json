@@ -361,6 +361,17 @@
           }
         }
       },
+      "u64": {
+        "name": "u64",
+        "meta": {
+          "description": "64-bit unsigned integer"
+        },
+        "bindings": {
+          "rust": {
+            "expression": "zksync_basic_types::U64"
+          }
+        }
+      },
       "uint": {
         "name": "uint",
         "meta": {
@@ -2306,11 +2317,11 @@
         "fields": [
           {
             "name": "timestamp_requested",
-            "type": "uint"
+            "type": "u64"
           },
           {
             "name": "timestamp_now",
-            "type": "uint"
+            "type": "u64"
           }
         ],
         "documentation": {

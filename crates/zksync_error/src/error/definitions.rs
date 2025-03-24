@@ -384,8 +384,8 @@ pub enum AnvilNode {
     #[doc = ""]
     #[doc = "When testing contracts that have time-dependent logic, it's important to ensure that any manipulated timestamps move forward in time, not backward."]
     TimestampBackwardsError {
-        timestamp_requested: u32,
-        timestamp_now: u32,
+        timestamp_requested: zksync_basic_types::U64,
+        timestamp_now: zksync_basic_types::U64,
     } = 23u32,
     GenericError {
         message: String,

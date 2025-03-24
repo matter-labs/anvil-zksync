@@ -1210,11 +1210,11 @@
               "fields": [
                 {
                   "name": "timestamp_requested",
-                  "type": "uint"
+                  "type": "u64"
                 },
                 {
                   "name": "timestamp_now",
-                  "type": "uint"
+                  "type": "u64"
                 }
               ],
               "doc": {
