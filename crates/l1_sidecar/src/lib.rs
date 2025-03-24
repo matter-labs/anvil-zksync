@@ -3,6 +3,7 @@ use crate::commitment_generator::CommitmentGenerator;
 use crate::l1_sender::{L1Sender, L1SenderHandle};
 use crate::l1_watcher::L1Watcher;
 use crate::zkstack_config::contracts::ContractsConfig;
+use crate::zkstack_config::genesis::GenesisConfig;
 use crate::zkstack_config::ZkstackConfig;
 use alloy::providers::Provider;
 use anvil_zksync_core::node::blockchain::ReadBlockchain;
@@ -250,9 +251,18 @@ impl L1Sidecar {
     pub fn contracts_config(&self) -> anyhow::Result<&ContractsConfig> {
         let Some(inner) = self.inner.as_ref() else {
             return Err(anyhow::anyhow!(
-                "cannot get contracts config is no L1 configured"
+                "cannot get contracts config as there is no L1 configured"
             ));
         };
         Ok(&inner.zkstack_config.contracts)
+    }
+
+    pub fn genesis_config(&self) -> anyhow::Result<&GenesisConfig> {
+        let Some(inner) = self.inner.as_ref() else {
+            return Err(anyhow::anyhow!(
+                "cannot get genesis config as there is no L1 configured"
+            ));
+        };
+        Ok(&inner.zkstack_config.genesis)
     }
 }

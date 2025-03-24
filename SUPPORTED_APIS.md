@@ -147,20 +147,20 @@ The `status` options are:
 | [`NETWORK`](#network-namespace) | [`net_listening`](#net_listening) | `SUPPORTED` | Returns `true` if the client is actively listening for network connections <br />_(hard-coded to `false`)_ |
 | [`WEB3`](#web3-namespace) | [`web3_clientVersion`](#web3_clientversion) | `SUPPORTED` | Returns `zkSync/v2.0` |
 | [`ZKS`](#zks-namespace) | [`zks_estimateFee`](#zks_estimateFee) | `SUPPORTED` | Gets the Fee estimation data for a given Request |
-| `ZKS` | `zks_estimateGasL1ToL2` | `NOT IMPLEMENTED` | Estimate of the gas required for a L1 to L2 transaction |
+| `ZKS` | `zks_estimateGasL1ToL2` | `SUPPORTED` | Estimate of the gas required for a L1 to L2 transaction |
 | [`ZKS`](#zks-namespace) | [`zks_getAllAccountBalances`](#zks_getallaccountbalances) | `SUPPORTED` | Returns all balances for confirmed tokens given by an account address |
 | `ZKS` | `zks_getBatchFeeInput` | `NOT IMPLEMENTED` | Retrieves current batch's fee input |
 | [`ZKS`](#zks-namespace) | [`zks_getBridgeContracts`](#zks_getbridgecontracts) | `SUPPORTED` | Returns L1/L2 addresses of default bridges |
-| [`ZKS`](#zks-namespace) | [`zks_getBridgehubContract`](#zks_getbridgecontracts) | `NOT IMPLEMENTED` | Retrieves the bridge hub contract address |
+| [`ZKS`](#zks-namespace) | [`zks_getBridgehubContract`](#zks_getbridgecontracts) | `SUPPORTED` | Retrieves the bridge hub contract address |
 | [`ZKS`](#zks-namespace) | [`zks_getBlockDetails`](#zks_getblockdetails) | `SUPPORTED` | Returns additional zkSync-specific information about the L2 block |
-| `ZKS` | `zks_getBytecodeByHash` | `NOT IMPLEMENTED` | Returns bytecode of a transaction given by its hash |
+| `ZKS` | `zks_getBytecodeByHash` | `SUPPORTED` | Returns bytecode of a transaction given by its hash |
 | [`ZKS`](#zks-namespace) | [`zks_getConfirmedTokens`](#zks_getconfirmedtokens) | `SUPPORTED` | Returns [address, symbol, name, and decimal] information of all tokens within a range of ids given by parameters `from` and `limit` |
 | [`ZKS`](#zks-namespace) | [`zks_getBaseTokenL1Address`](#zks_getBaseTokenL1Address) | `SUPPORTED` | Returns the L1 base token address <br/>_(hard-coded to `0x0000000000000000000000000000000000000001`)_ |
 | `ZKS` | `zks_getFeeParams` | `NOT IMPLEMENTED` | Retrieves the current fee parameters |
 | `ZKS` | `zks_getL1BatchBlockRange` | `NOT IMPLEMENTED` | Returns the range of blocks contained within a batch given by batch number |
 | `ZKS` | `zks_getL1BatchDetails` | `NOT IMPLEMENTED` | Returns data pertaining to a given batch |
 | `ZKS` | `zks_getL1GasPrice` | `NOT IMPLEMENTED` | Retrieves the current L1 gas price |
-| `ZKS` | `zks_getL2ToL1LogProof` | `NOT IMPLEMENTED` | Given a transaction hash, and an index of the L2 to L1 log produced within the transaction, it returns the proof for the corresponding L2 to L1 log |
+| `ZKS` | `zks_getL2ToL1LogProof` | `SUPPORTED` | Given a transaction hash, and an index of the L2 to L1 log produced within the transaction, it returns the proof for the corresponding L2 to L1 log |
 | `ZKS` | `zks_getL2ToL1MsgProof` | `NOT IMPLEMENTED` | Given a block, a sender, a message, and an optional message log index in the block containing the L1->L2 message, it returns the proof for the message sent via the L1Messenger system contract |
 | `ZKS` | `zks_getMainContract` | `NOT IMPLEMENTED` | Returns the address of the zkSync Era contract |
 | `ZKS` | `zks_getProof` | `NOT IMPLEMENTED` | Generates Merkle proofs for one or more storage values associated with a specific account |
@@ -169,7 +169,7 @@ The `status` options are:
 | `ZKS` | `zks_getTestnetPaymaster` | `NOT IMPLEMENTED` | Returns the address of the testnet paymaster |
 | [`ZKS`](#zks-namespace) | [`zks_getTransactionDetails`](#zks_gettransactiondetails) | `SUPPORTED` | Returns data from a specific transaction given by the transaction hash |
 | `ZKS` | `zks_L1BatchNumber` | `NOT IMPLEMENTED` | Returns the latest L1 batch number |
-| [`ZKS`](#zks-namespace) | [`zks_L1ChainId`](#zks_l1chainid) | `IMPLEMENTED` | Returns the chain id of the underlying L1 |
+| [`ZKS`](#zks-namespace) | [`zks_L1ChainId`](#zks_l1chainid) | `SUPPORTED` | Returns the chain id of the underlying L1 |
 | `ZKS` | `zks_sendRawTransactionWithDetailedOutput` | `NOT IMPLEMENTED` | Executes a transaction with detailed output |
 | `ZKS` | `zks_getTimestampAsserter` | `NOT IMPLEMENTED` | Returns an address of timestamp asserter contract |
 
