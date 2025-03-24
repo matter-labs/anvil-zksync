@@ -71,11 +71,10 @@ impl Time {
     pub(super) fn enforce_next_timestamp(&self, timestamp: u64) -> Result<(), AnvilNodeError> {
         let mut this = self.get_mut();
         if timestamp <= this.current_timestamp {
-            Err(anvil_zksync::node::generic_error!(
-                "timestamp ({}) must be greater than the last used timestamp ({})",
-                timestamp,
-                this.current_timestamp
-            ))
+            Err(anvil_zksync::node::TimestampBackwardsError {
+                timestamp_requested: timestamp.into(),
+                timestamp_now: this.current_timestamp.into(),
+            })
         } else {
             this.next_timestamp.replace(timestamp);
             Ok(())
