@@ -322,7 +322,9 @@ impl InMemoryNode {
         Ok(())
     }
 
-    pub async fn remove_block_timestamp_interval(&self) -> Result<bool> {
+    pub async fn remove_block_timestamp_interval(
+        &self,
+    ) -> std::result::Result<bool, AnvilNodeError> {
         self.node_handle
             .remove_block_timestamp_interval_sync()
             .await
@@ -368,7 +370,10 @@ impl InMemoryNode {
         Ok(())
     }
 
-    pub async fn set_next_block_base_fee_per_gas(&self, base_fee: U256) -> Result<()> {
+    pub async fn set_next_block_base_fee_per_gas(
+        &self,
+        base_fee: U256,
+    ) -> std::result::Result<(), AnvilNodeError> {
         self.node_handle
             .enforce_next_base_fee_per_gas_sync(base_fee)
             .await

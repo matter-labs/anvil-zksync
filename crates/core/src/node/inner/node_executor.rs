@@ -660,19 +660,16 @@ impl NodeExecutorHandle {
     /// timestamp validity to be confirmed. Block might still not be produced by then.
     pub async fn enforce_next_timestamp_sync(&self, timestamp: u64) -> Result<(), AnvilNodeError> {
         let (response_sender, response_receiver) = oneshot::channel();
+
+        let error_msg = error_msg_node_executor_dropped(&format!("enforce next timestamp to {timestamp}"));
+
         self.command_sender
             .send(Command::EnforceNextTimestamp(timestamp, response_sender))
             .await
-            .map_err(|_| {
-                anvil_zksync::node::generic_error!(
-                    "failed to enforce next timestamp as node executor is dropped"
-                )
-            })?;
+            .map_err(|_| anvil_zksync::node::generic_error!("{error_msg}"))?;
         match response_receiver.await {
             Ok(result) => result,
-            Err(_) => Err(anvil_zksync::node::generic_error!(
-                "failed to enforce next timestamp as node executor is dropped"
-            )),
+            Err(_) => Err(anvil_zksync::node::generic_error!("{error_msg}")),
         }
     }
 
@@ -680,19 +677,16 @@ impl NodeExecutorHandle {
     /// change to take place.
     pub async fn set_current_timestamp_sync(&self, timestamp: u64) -> Result<i128, AnvilNodeError> {
         let (response_sender, response_receiver) = oneshot::channel();
+
+        let error_msg = error_msg_node_executor_dropped(&format!("set current timestamp to {timestamp}"));
+
         self.command_sender
             .send(Command::SetCurrentTimestamp(timestamp, response_sender))
             .await
-            .map_err(|_| {
-                anvil_zksync::node::generic_error!(
-                    "failed to set current timestamp as node executor is dropped"
-                )
-            })?;
+            .map_err(|_| anvil_zksync::node::generic_error!("{error_msg}"))?;
         match response_receiver.await {
             Ok(result) => Ok(result),
-            Err(_) => Err(anvil_zksync::node::generic_error!(
-                "failed to set current timestamp as node executor is dropped"
-            )),
+            Err(_) => Err(anvil_zksync::node::generic_error!("{error_msg}")),
         }
     }
 
@@ -707,39 +701,37 @@ impl NodeExecutorHandle {
 
     /// Request [`NodeExecutor`] to remove block timestamp interval. Waits for the change to take
     /// place. Returns `true` if an existing interval was removed, `false` otherwise.
-    pub async fn remove_block_timestamp_interval_sync(&self) -> anyhow::Result<bool> {
+    pub async fn remove_block_timestamp_interval_sync(&self) -> Result<bool, AnvilNodeError> {
         let (response_sender, response_receiver) = oneshot::channel();
+
+        let error_msg = error_msg_node_executor_dropped("remove block interval");
+
         self.command_sender
             .send(Command::RemoveTimestampInterval(response_sender))
             .await
-            .map_err(|_| {
-                anyhow::anyhow!("failed to remove block interval as node executor is dropped")
-            })?;
+            .map_err(|_| anvil_zksync::node::generic_error!("{error_msg}"))?;
 
         match response_receiver.await {
             Ok(result) => Ok(result),
-            Err(_) => anyhow::bail!("failed to remove block interval as node executor is dropped"),
+            Err(_) => Err(anvil_zksync::node::generic_error!("{error_msg}")),
         }
     }
 
     /// Request [`NodeExecutor`] to enforce next block's base fee per gas. Waits for the change to take
     /// place. Block might still not be produced by then.
-    pub async fn enforce_next_base_fee_per_gas_sync(&self, base_fee: U256) -> anyhow::Result<()> {
+    pub async fn enforce_next_base_fee_per_gas_sync(&self, base_fee: U256) -> Result<(), AnvilNodeError> {
         let (response_sender, response_receiver) = oneshot::channel();
+
+        let error_msg = error_msg_node_executor_dropped("enforce next base fee per gas");
+
         self.command_sender
             .send(Command::EnforceNextBaseFeePerGas(base_fee, response_sender))
             .await
-            .map_err(|_| {
-                anyhow::anyhow!(
-                    "failed to enforce next base fee per gas as node executor is dropped"
-                )
-            })?;
+            .map_err(|_| anvil_zksync::node::generic_error!("{error_msg}"))?;
 
         match response_receiver.await {
             Ok(result) => Ok(result),
-            Err(_) => {
-                anyhow::bail!("failed to enforce next base fee per gas as node executor is dropped")
-            }
+            Err(_) => Err(anvil_zksync::node::generic_error!("{error_msg}")),
         }
     }
 }
@@ -876,4 +868,11 @@ pub mod testing {
             }
         }
     }
+}
+
+fn error_msg_node_executor_dropped(action: &str) -> String {
+        format!(
+            "Internal error: failed to {action} because node executor is dropped. \
+            Another error was likely propagated from the main execution loop. \
+            Please, report this as a bug.")
 }
