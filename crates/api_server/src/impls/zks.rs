@@ -102,12 +102,13 @@ impl ZksNamespaceServer for ZksNamespace {
     }
 
     async fn l1_chain_id(&self) -> RpcResult<U64> {
-        Ok(self
-            .node
-            .get_chain_id()
-            .await
-            .map(U64::from)
-            .map_err(RpcError::from)?)
+        Ok(U64::from(
+            self.l1_sidecar
+                .genesis_config()
+                .map_err(RpcError::from)?
+                .l1_chain_id
+                .0,
+        ))
     }
 
     async fn get_confirmed_tokens(&self, from: u32, limit: u8) -> RpcResult<Vec<Token>> {
