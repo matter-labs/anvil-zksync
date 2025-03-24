@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.4.0](https://github.com/matter-labs/anvil-zksync/compare/v0.3.2...v0.4.0) (2025-03-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* support L1-L2 communication ([#630](https://github.com/matter-labs/anvil-zksync/issues/630))
+
+### Features
+
+* add cli option for bytecode compression ([#622](https://github.com/matter-labs/anvil-zksync/issues/622)) ([db06412](https://github.com/matter-labs/anvil-zksync/commit/db0641261a076dee00fcf0468dd22a6e2cf1c073))
+* introduces verbose actionable error messaging ([#592](https://github.com/matter-labs/anvil-zksync/issues/592)) ([690bf89](https://github.com/matter-labs/anvil-zksync/commit/690bf897fc3e22eace4b9d16e5b601bb3e35254a))
+* introduces verbosity cli option with foundry-style traces ([#577](https://github.com/matter-labs/anvil-zksync/issues/577)) ([e7223ff](https://github.com/matter-labs/anvil-zksync/commit/e7223ffca2a3dd4e9034af13e30121045eaa8c90))
+* make VM produce system logs ([#600](https://github.com/matter-labs/anvil-zksync/issues/600)) ([35e4a6c](https://github.com/matter-labs/anvil-zksync/commit/35e4a6c895155c46c4add7ae9f7facf29f0dd3ae))
+* support both spawned and external L1s ([#616](https://github.com/matter-labs/anvil-zksync/issues/616)) ([593f579](https://github.com/matter-labs/anvil-zksync/commit/593f57904edecea1a056c34d578f269ba86e56a5))
+* support L1 priority txs ([#606](https://github.com/matter-labs/anvil-zksync/issues/606)) ([c19092b](https://github.com/matter-labs/anvil-zksync/commit/c19092b55090279ca117e92a7855312cbfe07f23))
+* support L1-L2 communication ([#630](https://github.com/matter-labs/anvil-zksync/issues/630)) ([7e779f7](https://github.com/matter-labs/anvil-zksync/commit/7e779f7cad623eb91b01f90456b1226e6afc1286))
+* support L2 to L1 logs ([#605](https://github.com/matter-labs/anvil-zksync/issues/605)) ([9903df9](https://github.com/matter-labs/anvil-zksync/commit/9903df988eae4299dd2749f128b8d5c5d4afcc11))
+
+
+### Bug Fixes
+
+* make `eth_sendTransaction` construct proper transactions ([#608](https://github.com/matter-labs/anvil-zksync/issues/608)) ([40723c9](https://github.com/matter-labs/anvil-zksync/commit/40723c93cc587bba060a14b8bba005f5fd9e4883))
+* update compression flag and rename to enforce_bytecode_compression ([#624](https://github.com/matter-labs/anvil-zksync/issues/624)) ([f623e72](https://github.com/matter-labs/anvil-zksync/commit/f623e722661b7ff7c986fe54b5ad5e45e0a083d5))
+
 ## [0.3.2](https://github.com/matter-labs/anvil-zksync/compare/v0.3.1...v0.3.2) (2025-02-28)
 
 
