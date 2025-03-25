@@ -1,6 +1,9 @@
 use anvil_zksync_config::types::SystemContractsOptions;
+use flate2::read::GzDecoder;
 use once_cell::sync::Lazy;
 use serde_json::Value;
+use std::collections::HashMap;
+use std::io::Read;
 use zksync_types::system_contracts::get_system_smart_contracts;
 use zksync_types::{
     block::DeployedContract, ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS,
@@ -12,8 +15,8 @@ use zksync_types::{
     L2_ASSET_ROUTER_ADDRESS, L2_BASE_TOKEN_ADDRESS, L2_BRIDGEHUB_ADDRESS,
     L2_GENESIS_UPGRADE_ADDRESS, L2_MESSAGE_ROOT_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS,
     L2_WRAPPED_BASE_TOKEN_IMPL, MSG_VALUE_SIMULATOR_ADDRESS, NONCE_HOLDER_ADDRESS,
-    P256VERIFY_PRECOMPILE_ADDRESS, PUBDATA_CHUNK_PUBLISHER_ADDRESS, SHA256_PRECOMPILE_ADDRESS,
-    SLOAD_CONTRACT_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
+    PUBDATA_CHUNK_PUBLISHER_ADDRESS, SECP256R1_VERIFY_PRECOMPILE_ADDRESS,
+    SHA256_PRECOMPILE_ADDRESS, SLOAD_CONTRACT_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
 };
 use zksync_types::{AccountTreeId, Address, H160};
 
@@ -21,6 +24,33 @@ pub const TIMESTAMP_ASSERTER_ADDRESS: Address = H160([
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x80, 0x80, 0x12,
 ]);
+
+static BUILTIN_CONTRACT_ARTIFACTS: Lazy<HashMap<String, Vec<u8>>> = Lazy::new(|| {
+    let built_in_contracts = include_bytes!("contracts/builtin-contracts-v27.tar.gz");
+    let decoder = GzDecoder::new(built_in_contracts.as_slice());
+    let mut archive = tar::Archive::new(decoder);
+    let mut contract_artifacts = HashMap::new();
+    for file in archive
+        .entries()
+        .expect("failed to decompress built-in contracts")
+    {
+        let mut file = file.expect("failed to read a built-in contract entry");
+        let path = file
+            .header()
+            .path()
+            .expect("contract path is malformed")
+            .file_name()
+            .expect("built-in contract entry does not have a filename")
+            .to_string_lossy()
+            .to_string();
+
+        let mut contents =
+            Vec::with_capacity(file.header().size().expect("contract size is corrupted") as usize);
+        file.read_to_end(&mut contents).unwrap();
+        contract_artifacts.insert(path, contents);
+    }
+    contract_artifacts
+});
 
 pub fn bytecode_from_slice(artifact_name: &str, contents: &[u8]) -> Vec<u8> {
     let artifact: Value = serde_json::from_slice(contents).expect(artifact_name);
@@ -36,207 +66,97 @@ pub fn bytecode_from_slice(artifact_name: &str, contents: &[u8]) -> Vec<u8> {
         .unwrap_or_else(|err| panic!("Can't decode bytecode in {:?}: {}", artifact_name, err))
 }
 
-pub static COMPILED_IN_SYSTEM_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new(|| {
-    let mut deployed_system_contracts = [
-        // *************************************************
-        // *     Kernel contracts (base offset 0x8000)     *
-        // *************************************************
-        (
-            "AccountCodeStorage",
-            ACCOUNT_CODE_STORAGE_ADDRESS,
-            include_bytes!("contracts/AccountCodeStorage.json").to_vec(),
-        ),
-        (
-            "NonceHolder",
-            NONCE_HOLDER_ADDRESS,
-            include_bytes!("contracts/NonceHolder.json").to_vec(),
-        ),
-        (
-            "KnownCodesStorage",
-            KNOWN_CODES_STORAGE_ADDRESS,
-            include_bytes!("contracts/KnownCodesStorage.json").to_vec(),
-        ),
-        (
-            "ImmutableSimulator",
-            IMMUTABLE_SIMULATOR_STORAGE_ADDRESS,
-            include_bytes!("contracts/ImmutableSimulator.json").to_vec(),
-        ),
-        (
-            "ContractDeployer",
-            CONTRACT_DEPLOYER_ADDRESS,
-            include_bytes!("contracts/ContractDeployer.json").to_vec(),
-        ),
-        (
-            "L1Messenger",
-            L1_MESSENGER_ADDRESS,
-            include_bytes!("contracts/L1Messenger.json").to_vec(),
-        ),
-        (
-            "MsgValueSimulator",
-            MSG_VALUE_SIMULATOR_ADDRESS,
-            include_bytes!("contracts/MsgValueSimulator.json").to_vec(),
-        ),
-        (
-            "L2BaseToken",
-            L2_BASE_TOKEN_ADDRESS,
-            include_bytes!("contracts/L2BaseToken.json").to_vec(),
-        ),
-        (
-            "SystemContext",
-            SYSTEM_CONTEXT_ADDRESS,
-            include_bytes!("contracts/SystemContext.json").to_vec(),
-        ),
-        (
-            "BootloaderUtilities",
-            BOOTLOADER_UTILITIES_ADDRESS,
-            include_bytes!("contracts/BootloaderUtilities.json").to_vec(),
-        ),
-        (
-            "EventWriter",
-            EVENT_WRITER_ADDRESS,
-            include_bytes!("contracts/EventWriter.json").to_vec(),
-        ),
-        (
-            "Compressor",
-            COMPRESSOR_ADDRESS,
-            include_bytes!("contracts/Compressor.json").to_vec(),
-        ),
-        (
-            "ComplexUpgrader",
-            COMPLEX_UPGRADER_ADDRESS,
-            include_bytes!("contracts/ComplexUpgrader.json").to_vec(),
-        ),
-        (
-            "PubdataChunkPublisher",
-            PUBDATA_CHUNK_PUBLISHER_ADDRESS,
-            include_bytes!("contracts/PubdataChunkPublisher.json").to_vec(),
-        ),
-        // *************************************************
-        // *  Non-kernel contracts (base offset 0x010000)  *
-        // *************************************************
-        (
-            "Create2Factory",
-            CREATE2_FACTORY_ADDRESS,
-            include_bytes!("contracts/Create2Factory.json").to_vec(),
-        ),
-        (
-            "L2GenesisUpgrade",
-            L2_GENESIS_UPGRADE_ADDRESS,
-            include_bytes!("contracts/L2GenesisUpgrade.json").to_vec(),
-        ),
-        (
-            "Bridgehub",
-            L2_BRIDGEHUB_ADDRESS,
-            include_bytes!("contracts/Bridgehub.json").to_vec(),
-        ),
-        (
-            "L2AssetRouter",
-            L2_ASSET_ROUTER_ADDRESS,
-            include_bytes!("contracts/L2AssetRouter.json").to_vec(),
-        ),
-        (
-            "L2NativeTokenVault",
-            L2_NATIVE_TOKEN_VAULT_ADDRESS,
-            include_bytes!("contracts/L2NativeTokenVault.json").to_vec(),
-        ),
-        (
-            "MessageRoot",
-            L2_MESSAGE_ROOT_ADDRESS,
-            include_bytes!("contracts/MessageRoot.json").to_vec(),
-        ),
-        (
-            "SloadContract",
-            SLOAD_CONTRACT_ADDRESS,
-            include_bytes!("contracts/SloadContract.json").to_vec(),
-        ),
-        (
-            "L2WrappedBaseToken",
-            L2_WRAPPED_BASE_TOKEN_IMPL,
-            include_bytes!("contracts/L2WrappedBaseToken.json").to_vec(),
-        ),
-        // *************************************************
-        // *                 Precompiles                   *
-        // *************************************************
-        (
-            "Keccak256",
-            KECCAK256_PRECOMPILE_ADDRESS,
-            include_bytes!("contracts/Keccak256.json").to_vec(),
-        ),
-        (
-            "SHA256",
-            SHA256_PRECOMPILE_ADDRESS,
-            include_bytes!("contracts/SHA256.json").to_vec(),
-        ),
-        (
-            "Ecrecover",
-            ECRECOVER_PRECOMPILE_ADDRESS,
-            include_bytes!("contracts/Ecrecover.json").to_vec(),
-        ),
-        (
-            "EcAdd",
-            EC_ADD_PRECOMPILE_ADDRESS,
-            include_bytes!("contracts/EcAdd.json").to_vec(),
-        ),
-        (
-            "EcMul",
-            EC_MUL_PRECOMPILE_ADDRESS,
-            include_bytes!("contracts/EcMul.json").to_vec(),
-        ),
-        (
-            "EcPairing",
-            EC_PAIRING_PRECOMPILE_ADDRESS,
-            include_bytes!("contracts/EcPairing.json").to_vec(),
-        ),
-        (
-            "CodeOracle",
-            CODE_ORACLE_ADDRESS,
-            include_bytes!("contracts/CodeOracle.json").to_vec(),
-        ),
-        (
-            "P256Verify",
-            P256VERIFY_PRECOMPILE_ADDRESS,
-            include_bytes!("contracts/P256Verify.json").to_vec(),
-        ),
-        // TODO: It might make more sense to source address for these from zkstack config
-        // *************************************************
-        // *                L2 contracts                   *
-        // *************************************************
-        (
-            "TimestampAsserter",
-            TIMESTAMP_ASSERTER_ADDRESS,
-            include_bytes!("contracts/TimestampAsserter.json").to_vec(),
-        ),
-    ]
-    .map(|(pname, address, contents)| DeployedContract {
-        account_id: AccountTreeId::new(address),
-        bytecode: bytecode_from_slice(pname, &contents),
-    })
-    .to_vec();
+pub fn load_builtin_contract(artifact_name: &str) -> Vec<u8> {
+    let artifact_path = format!("{artifact_name}.json");
+    bytecode_from_slice(
+        artifact_name,
+        BUILTIN_CONTRACT_ARTIFACTS
+            .get(&artifact_path)
+            .unwrap_or_else(|| {
+                panic!("failed to find built-in contract artifact at '{artifact_path}'")
+            }),
+    )
+}
 
-    let empty_bytecode = bytecode_from_slice(
-        "EmptyContract",
-        include_bytes!("contracts/EmptyContract.json"),
-    );
+static BUILTIN_CONTRACT_LOCATIONS: [(&str, Address); 33] = [
+    // *************************************************
+    // *     Kernel contracts (base offset 0x8000)     *
+    // *************************************************
+    ("AccountCodeStorage", ACCOUNT_CODE_STORAGE_ADDRESS),
+    ("NonceHolder", NONCE_HOLDER_ADDRESS),
+    ("KnownCodesStorage", KNOWN_CODES_STORAGE_ADDRESS),
+    ("ImmutableSimulator", IMMUTABLE_SIMULATOR_STORAGE_ADDRESS),
+    ("ContractDeployer", CONTRACT_DEPLOYER_ADDRESS),
+    ("L1Messenger", L1_MESSENGER_ADDRESS),
+    ("MsgValueSimulator", MSG_VALUE_SIMULATOR_ADDRESS),
+    ("L2BaseToken", L2_BASE_TOKEN_ADDRESS),
+    ("SystemContext", SYSTEM_CONTEXT_ADDRESS),
+    ("BootloaderUtilities", BOOTLOADER_UTILITIES_ADDRESS),
+    ("EventWriter", EVENT_WRITER_ADDRESS),
+    ("Compressor", COMPRESSOR_ADDRESS),
+    ("ComplexUpgrader", COMPLEX_UPGRADER_ADDRESS),
+    ("PubdataChunkPublisher", PUBDATA_CHUNK_PUBLISHER_ADDRESS),
+    // *************************************************
+    // *  Non-kernel contracts (base offset 0x010000)  *
+    // *************************************************
+    ("Create2Factory", CREATE2_FACTORY_ADDRESS),
+    ("L2GenesisUpgrade", L2_GENESIS_UPGRADE_ADDRESS),
+    ("Bridgehub", L2_BRIDGEHUB_ADDRESS),
+    ("L2AssetRouter", L2_ASSET_ROUTER_ADDRESS),
+    ("L2NativeTokenVault", L2_NATIVE_TOKEN_VAULT_ADDRESS),
+    ("MessageRoot", L2_MESSAGE_ROOT_ADDRESS),
+    ("SloadContract", SLOAD_CONTRACT_ADDRESS),
+    ("L2WrappedBaseToken", L2_WRAPPED_BASE_TOKEN_IMPL),
+    // *************************************************
+    // *                 Precompiles                   *
+    // *************************************************
+    ("Keccak256", KECCAK256_PRECOMPILE_ADDRESS),
+    ("SHA256", SHA256_PRECOMPILE_ADDRESS),
+    ("Ecrecover", ECRECOVER_PRECOMPILE_ADDRESS),
+    ("EcAdd", EC_ADD_PRECOMPILE_ADDRESS),
+    ("EcMul", EC_MUL_PRECOMPILE_ADDRESS),
+    ("EcPairing", EC_PAIRING_PRECOMPILE_ADDRESS),
+    ("CodeOracle", CODE_ORACLE_ADDRESS),
+    ("P256Verify", SECP256R1_VERIFY_PRECOMPILE_ADDRESS),
+    // TODO: It might make more sense to source address for these from zkstack config
+    // *************************************************
+    // *                L2 contracts                   *
+    // *************************************************
+    ("TimestampAsserter", TIMESTAMP_ASSERTER_ADDRESS),
+    // *************************************************
+    // *               Empty contracts                 *
+    // *************************************************
     // For now, only zero address and the bootloader address have empty bytecode at the init
     // In the future, we might want to set all of the system contracts this way.
-    let empty_system_contracts =
-        [Address::zero(), BOOTLOADER_ADDRESS].map(|address| DeployedContract {
-            account_id: AccountTreeId::new(address),
-            bytecode: empty_bytecode.clone(),
-        });
+    ("EmptyContract", Address::zero()),
+    ("EmptyContract", BOOTLOADER_ADDRESS),
+];
 
-    deployed_system_contracts.extend(empty_system_contracts);
-    deployed_system_contracts
+static BUILTIN_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new(|| {
+    BUILTIN_CONTRACT_LOCATIONS
+        .map(|(artifact_name, address)| DeployedContract {
+            account_id: AccountTreeId::new(address),
+            bytecode: load_builtin_contract(artifact_name),
+        })
+        .to_vec()
 });
 
-pub fn get_deployed_contracts(
-    options: &SystemContractsOptions,
-    use_evm_emulator: bool,
-) -> Vec<zksync_types::block::DeployedContract> {
+pub fn get_deployed_contracts(options: &SystemContractsOptions) -> Vec<DeployedContract> {
     match options {
         SystemContractsOptions::BuiltIn | SystemContractsOptions::BuiltInWithoutSecurity => {
-            COMPILED_IN_SYSTEM_CONTRACTS.clone()
+            BUILTIN_CONTRACTS.clone()
         }
-        SystemContractsOptions::Local => get_system_smart_contracts(use_evm_emulator),
+        SystemContractsOptions::Local => get_system_smart_contracts(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn load_v27_contracts() {
+        let contracts = get_deployed_contracts(&SystemContractsOptions::BuiltIn);
+        assert_eq!(contracts.len(), BUILTIN_CONTRACT_LOCATIONS.len());
     }
 }

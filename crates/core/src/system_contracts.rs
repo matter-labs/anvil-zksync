@@ -1,4 +1,4 @@
-use crate::deps::system_contracts::bytecode_from_slice;
+use crate::deps::system_contracts::load_builtin_contract;
 use crate::node::ImpersonationManager;
 use anvil_zksync_config::types::SystemContractsOptions;
 use zksync_contracts::{
@@ -125,17 +125,13 @@ fn bsc_load_with_bootloader(
     };
 
     let aa_bytecode = match options {
-        SystemContractsOptions::BuiltIn => bytecode_from_slice(
-            "DefaultAccount",
-            include_bytes!("deps/contracts/DefaultAccount.json"),
-        ),
+        SystemContractsOptions::BuiltIn => load_builtin_contract("DefaultAccount"),
         SystemContractsOptions::Local => {
             read_sys_contract_bytecode("", "DefaultAccount", ContractLanguage::Sol)
         }
-        SystemContractsOptions::BuiltInWithoutSecurity => bytecode_from_slice(
-            "DefaultAccountNoSecurity",
-            include_bytes!("deps/contracts/DefaultAccountNoSecurity.json"),
-        ),
+        SystemContractsOptions::BuiltInWithoutSecurity => {
+            load_builtin_contract("DefaultAccountNoSecurity")
+        }
     };
 
     let aa_hash = BytecodeHash::for_bytecode(&aa_bytecode);
@@ -173,10 +169,7 @@ fn bsc_load_with_bootloader(
 fn playground(options: &SystemContractsOptions, use_evm_emulator: bool) -> BaseSystemContracts {
     let bootloader_bytecode = match options {
         SystemContractsOptions::BuiltIn | SystemContractsOptions::BuiltInWithoutSecurity => {
-            bytecode_from_slice(
-                "playground_batch",
-                include_bytes!("deps/contracts/playground_batch.json"),
-            )
+            load_builtin_contract("playground_batch")
         }
         SystemContractsOptions::Local => read_bootloader_code("playground_batch"),
     };
@@ -196,10 +189,7 @@ fn fee_estimate_contracts(
 ) -> BaseSystemContracts {
     let bootloader_bytecode = match options {
         SystemContractsOptions::BuiltIn | SystemContractsOptions::BuiltInWithoutSecurity => {
-            bytecode_from_slice(
-                "fee_estimate",
-                include_bytes!("deps/contracts/fee_estimate.json"),
-            )
+            load_builtin_contract("fee_estimate")
         }
         SystemContractsOptions::Local => read_bootloader_code("fee_estimate"),
     };
@@ -213,10 +203,7 @@ fn fee_estimate_impersonating_contracts(
 ) -> BaseSystemContracts {
     let bootloader_bytecode = match options {
         SystemContractsOptions::BuiltIn | SystemContractsOptions::BuiltInWithoutSecurity => {
-            bytecode_from_slice(
-                "fee_estimate_impersonating",
-                include_bytes!("deps/contracts/fee_estimate_impersonating.json"),
-            )
+            load_builtin_contract("fee_estimate_impersonating")
         }
         // Account impersonating is not supported with the local contracts
         SystemContractsOptions::Local => read_bootloader_code("fee_estimate"),
@@ -231,10 +218,7 @@ fn baseline_contracts(
 ) -> BaseSystemContracts {
     let bootloader_bytecode = match options {
         SystemContractsOptions::BuiltIn | SystemContractsOptions::BuiltInWithoutSecurity => {
-            bytecode_from_slice(
-                "proved_batch",
-                include_bytes!("deps/contracts/proved_batch.json"),
-            )
+            load_builtin_contract("proved_batch")
         }
         SystemContractsOptions::Local => read_bootloader_code("proved_batch"),
     };
@@ -247,10 +231,7 @@ fn baseline_impersonating_contracts(
 ) -> BaseSystemContracts {
     let bootloader_bytecode = match options {
         SystemContractsOptions::BuiltIn | SystemContractsOptions::BuiltInWithoutSecurity => {
-            bytecode_from_slice(
-                "proved_batch_impersonating",
-                include_bytes!("deps/contracts/proved_batch_impersonating.json"),
-            )
+            load_builtin_contract("proved_batch_impersonating")
         }
         // Account impersonating is not supported with the local contracts
         SystemContractsOptions::Local => read_bootloader_code("proved_batch"),

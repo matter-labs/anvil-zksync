@@ -9,6 +9,7 @@ build-contracts:
 	cd contracts/l2-contracts && yarn install --frozen-lockfile; yarn build:foundry;
 	cd etc/test-contracts && yarn install --frozen-lockfile; yarn build:foundry;
 	./scripts/refresh_contracts.sh
+	./scripts/refresh_l1_sidecar_contracts.sh
 	./scripts/refresh_test_contracts.sh
 	./scripts/refresh_e2e_contracts.sh
 

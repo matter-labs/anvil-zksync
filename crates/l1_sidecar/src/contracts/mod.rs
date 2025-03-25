@@ -49,7 +49,8 @@ use alloy::sol_types::{SolCall, SolValue};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::commitment::{serialize_commitments, L1BatchWithMetadata};
 use zksync_types::l1::L1Tx;
-use zksync_types::L2ChainId;
+use zksync_types::web3::keccak256;
+use zksync_types::{L2ChainId, H256};
 
 /// Current commitment encoding version as per protocol.
 pub const SUPPORTED_ENCODING_VERSION: u8 = 0;
@@ -77,6 +78,9 @@ fn commit_calldata(
     batch: &L1BatchWithMetadata,
 ) -> Vec<u8> {
     let stored_batch_info = IExecutor::StoredBatchInfo::from(last_committed_l1_batch);
+    let last_batch_hash = H256(keccak256(stored_batch_info.abi_encode_params().as_slice()));
+    tracing::info!(?last_batch_hash, "preparing commit calldata");
+
     let commit_batch_info = IExecutor::CommitBatchInfo::from((
         batch.header.number.0 as u64,
         batch.header.timestamp,
