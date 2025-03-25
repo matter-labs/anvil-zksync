@@ -39,6 +39,8 @@ static BUILTIN_CONTRACT_ARTIFACTS: Lazy<HashMap<String, Vec<u8>>> = Lazy::new(||
             .header()
             .path()
             .expect("contract path is malformed")
+            .file_name()
+            .expect("built-in contract entry does not have a filename")
             .to_string_lossy()
             .to_string();
 

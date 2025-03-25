@@ -3,9 +3,8 @@ set -xe
 
 BUILTIN_CONTRACTS_OUTPUT_PATH=crates/core/src/deps/contracts/builtin-contracts-v27.tar.gz
 
-# Prepare `tar` command that transforms all paths to be flat (e.g. `contract/l1-contracts/zkout/MessageRoot.sol/MessageRoot.json`
-# becomes `MessageRoot.json`)
-cmd="tar --transform 's/.*\///g' -czvf $BUILTIN_CONTRACTS_OUTPUT_PATH"
+# Prepare `tar` command that will generate the output archive
+cmd="tar -czvf $BUILTIN_CONTRACTS_OUTPUT_PATH"
 
 # Forge JSON artifacts to be packed in the archive
 L1_ARTIFACTS_SRC_DIR=contracts/l1-contracts/zkout
