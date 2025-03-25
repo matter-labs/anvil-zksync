@@ -2,6 +2,7 @@ use crate::node::InMemoryNode;
 use anyhow::Context;
 use std::collections::HashMap;
 use zksync_mini_merkle_tree::MiniMerkleTree;
+use zksync_types::api;
 use zksync_types::fee::Fee;
 use zksync_types::hasher::keccak::KeccakHasher;
 use zksync_types::hasher::Hasher;
@@ -10,7 +11,6 @@ use zksync_types::l2_to_l1_log::{
 };
 use zksync_types::transaction_request::CallRequest;
 use zksync_types::utils::storage_key_for_standard_token_balance;
-use zksync_types::{api, ProtocolVersionId};
 use zksync_types::{h256_to_u256, L1BatchNumber};
 use zksync_types::{
     AccountTreeId, Address, L2BlockNumber, Transaction, H160, H256, L2_BASE_TOKEN_ADDRESS, U256,
@@ -192,7 +192,7 @@ impl InMemoryNode {
             return Ok(None);
         };
         let merkle_tree_leaves = all_l1_logs_in_batch.iter().map(L2ToL1Log::to_bytes);
-        let tree_size = l2_to_l1_logs_tree_size(ProtocolVersionId::latest());
+        let tree_size = l2_to_l1_logs_tree_size(self.blockchain.protocol_version());
 
         let (local_root, proof) = MiniMerkleTree::new(merkle_tree_leaves, Some(tree_size))
             .merkle_root_and_path(l1_log_index);
@@ -237,7 +237,9 @@ impl InMemoryNode {
 mod tests {
     use std::str::FromStr;
 
-    use zksync_types::{api, transaction_request::CallRequest, Address, H160, H256};
+    use zksync_types::{
+        api, transaction_request::CallRequest, Address, ProtocolVersionId, H160, H256,
+    };
     use zksync_types::{u256_to_h256, L1BatchNumber};
 
     use super::*;
@@ -415,7 +417,7 @@ mod tests {
                     "default_aa": "0x0100067d16a5485875b4249040bf421f53e869337fe118ec747cf40a4c777e5f"
                   },
                   "operatorAddress": "0xa9232040bf0e0aea2578a5b2243f2916dbfc0a69",
-                  "protocolVersion": "Version15"
+                  "protocolVersion": ProtocolVersionId::Version26,
               }),
         );
 
@@ -720,7 +722,7 @@ mod tests {
                 "l2TxCount": 0,
                 "number": 0,
                 "operatorAddress": "0x0000000000000000000000000000000000000000",
-                "protocolVersion": "Version16",
+                "protocolVersion": ProtocolVersionId::Version26,
                 "proveTxHash": null,
                 "provenAt": null,
                 "rootHash": "0xdaa77426c30c02a43d9fba4e841a6556c524d47030762eb14dc4af897e605d9b",

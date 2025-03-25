@@ -1,7 +1,32 @@
 #!/bin/bash
 set -xe
 
-BUILTIN_CONTRACTS_OUTPUT_PATH=crates/core/src/deps/contracts/builtin-contracts-v27.tar.gz
+PROTOCOL_VERSION=${1:-v27}
+case $PROTOCOL_VERSION in
+  v26)
+    # HEAD of anvil-zksync-0.4.x-release-v26
+    ERA_CONTRACTS_GIT_COMMIT=50dc0669213366f5d3084a7a29a83541cf3c6435
+    ;;
+  v27)
+    # HEAD of anvil-zksync-0.4.x-release-v27
+    ERA_CONTRACTS_GIT_COMMIT=f0e17d700929e25292be971ea5196368bf120cea
+    ;;
+  *)
+    echo "Unrecognized/unsupported protocol version: $PROTOCOL_VERSION"
+    exit 1
+    ;;
+esac
+
+# Checkout the right revision of contracts and compile them
+cd contracts
+echo "Using era-contracts commit: $ERA_CONTRACTS_GIT_COMMIT"
+git checkout $ERA_CONTRACTS_GIT_COMMIT
+cd system-contracts && yarn install --frozen-lockfile && yarn build:foundry && cd ..
+cd l1-contracts && yarn install --frozen-lockfile && yarn build:foundry && cd ..
+cd l2-contracts && yarn install --frozen-lockfile && yarn build:foundry && cd ..
+cd ..
+
+BUILTIN_CONTRACTS_OUTPUT_PATH="crates/core/src/deps/contracts/builtin-contracts-$PROTOCOL_VERSION.tar.gz"
 
 # Forge JSON artifacts to be packed in the archive
 L1_ARTIFACTS_SRC_DIR=contracts/l1-contracts/zkout

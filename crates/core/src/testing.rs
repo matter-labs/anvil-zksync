@@ -118,7 +118,7 @@ impl MockServer {
                       "default_aa": "0x0100038dc66b69be75ec31653c64cb931678299b9b659472772b2550b703f41c"
                     },
                     "operatorAddress": "0xfeee860e7aae671124e9a4e61139f3a5085dfeee",
-                    "protocolVersion": ProtocolVersionId::Version15,
+                    "protocolVersion": ProtocolVersionId::Version26,
                   },
             }))),
         );
@@ -877,6 +877,7 @@ mod test {
 
         assert_eq!(
             compute_hash(
+                ProtocolVersionId::latest(),
                 L2BlockNumber(1),
                 1001,
                 L2BlockHasher::legacy_hash(L2BlockNumber(0)),

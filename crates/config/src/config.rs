@@ -16,9 +16,13 @@ use std::net::{IpAddr, Ipv4Addr};
 use std::path::PathBuf;
 use std::time::Duration;
 use zksync_types::fee_model::FeeModelConfigV2;
-use zksync_types::U256;
+use zksync_types::{ProtocolVersionId, U256};
 
 pub const VERSION_MESSAGE: &str = concat!(env!("CARGO_PKG_VERSION"));
+
+/// Protocol version that is used in anvil-zksync by default. Should match what is currently
+/// deployed to mainnet.
+pub const DEFAULT_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version26;
 
 const BANNER: &str = r#"
                       _  _         _____ _  __
@@ -71,6 +75,9 @@ pub struct TestNodeConfig {
     pub silent: bool,
     /// Configuration for system contracts
     pub system_contracts_options: SystemContractsOptions,
+    /// Protocol version to use for new blocks. Also affects revision of built-in contracts that
+    /// will get deployed (if applicable)
+    pub protocol_version: Option<ProtocolVersionId>,
     /// Directory to override bytecodes
     pub override_bytecodes_dir: Option<String>,
     /// Enable bytecode compression
@@ -181,6 +188,7 @@ impl Default for TestNodeConfig {
             verbosity: 0,
             silent: false,
             system_contracts_options: Default::default(),
+            protocol_version: None,
             override_bytecodes_dir: None,
             bytecode_compression: false,
             use_evm_emulator: false,
@@ -235,6 +243,21 @@ impl Default for TestNodeConfig {
             preserve_historical_states: false,
             load_state: None,
             l1_config: None,
+        }
+    }
+}
+
+impl TestNodeConfig {
+    pub fn protocol_version(&self) -> ProtocolVersionId {
+        match self.system_contracts_options {
+            SystemContractsOptions::BuiltIn => self
+                .protocol_version
+                .unwrap_or(DEFAULT_PROTOCOL_VERSION),
+            SystemContractsOptions::Local =>
+                self.protocol_version.expect("cannot deduce protocol version when using local contracts; please specify --protocol-version explicitly"),
+            SystemContractsOptions::BuiltInWithoutSecurity => self
+                .protocol_version
+                .unwrap_or(DEFAULT_PROTOCOL_VERSION),
         }
     }
 }
@@ -562,6 +585,13 @@ Address: {address}
         if let Some(option) = option {
             self.system_contracts_options = option;
         }
+        self
+    }
+
+    /// Set the protocol version configuration option
+    #[must_use]
+    pub fn with_protocol_version(mut self, protocol_version: Option<ProtocolVersionId>) -> Self {
+        self.protocol_version = protocol_version;
         self
     }
 

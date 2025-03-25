@@ -38,8 +38,8 @@ use zksync_types::bytecode::BytecodeHash;
 use zksync_types::commitment::{PubdataParams, PubdataType};
 use zksync_types::web3::Bytes;
 use zksync_types::{
-    api, h256_to_address, ExecuteTransactionCommon, L2BlockNumber, L2TxCommonData,
-    ProtocolVersionId, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
+    api, h256_to_address, ExecuteTransactionCommon, L2BlockNumber, L2TxCommonData, Transaction,
+    ACCOUNT_CODE_STORAGE_ADDRESS,
 };
 
 pub struct VmRunner {
@@ -426,7 +426,7 @@ impl VmRunner {
             self.executor_factory.init_main_batch(
                 storage,
                 batch_env.clone(),
-                system_env,
+                system_env.clone(),
                 pubdata_params,
             )
         };
@@ -434,6 +434,7 @@ impl VmRunner {
         // Compute block hash. Note that the computed block hash here will be different than that in production.
         let tx_hashes = txs.iter().map(|t| t.hash()).collect::<Vec<_>>();
         block_ctx.hash = compute_hash(
+            system_env.version,
             (block_ctx.miniblock as u32).into(),
             block_ctx.timestamp,
             block_ctx.prev_block_hash,
@@ -472,6 +473,7 @@ impl VmRunner {
         // TODO: This is the correct hash as reported by VM, but we can't compute it correct above
         //       because we don't know which txs are going to be halted
         block_ctx.hash = compute_hash(
+            system_env.version,
             (block_ctx.miniblock as u32).into(),
             block_ctx.timestamp,
             block_ctx.prev_block_hash,
@@ -490,7 +492,7 @@ impl VmRunner {
                 virtual_block_ctx.timestamp,
                 block_ctx.hash,
             )
-            .finalize(ProtocolVersionId::latest());
+            .finalize(system_env.version);
             let l2_block_env = L2BlockEnv {
                 number: (block_ctx.miniblock + 1) as u32,
                 timestamp: block_ctx.timestamp + 1,
@@ -574,7 +576,9 @@ mod test {
     use zksync_types::fee_model::BatchFeeInput;
     use zksync_types::l2::{L2Tx, TransactionType};
     use zksync_types::utils::deployed_address_create;
-    use zksync_types::{u256_to_h256, K256PrivateKey, L1BatchNumber, L2ChainId, Nonce};
+    use zksync_types::{
+        u256_to_h256, K256PrivateKey, L1BatchNumber, L2ChainId, Nonce, ProtocolVersionId,
+    };
 
     struct VmRunnerTester {
         vm_runner: VmRunner,
@@ -587,11 +591,13 @@ mod test {
             let time = Time::new(0);
             let fork_storage = ForkStorage::new(
                 Fork::new(fork_client, CacheConfig::None),
-                &SystemContractsOptions::BuiltIn,
+                SystemContractsOptions::BuiltIn,
+                ProtocolVersionId::latest(),
                 None,
             );
             let system_contracts = SystemContracts::from_options(
-                &config.system_contracts_options,
+                config.system_contracts_options,
+                ProtocolVersionId::latest(),
                 config.use_evm_emulator,
                 config.use_zkos,
             );

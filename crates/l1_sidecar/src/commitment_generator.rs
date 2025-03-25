@@ -209,7 +209,7 @@ mod tests {
         Block, BlockDetails, BlockId, DebugCall, Log, Transaction, TransactionDetails,
         TransactionReceipt, TransactionVariant,
     };
-    use zksync_types::L2BlockNumber;
+    use zksync_types::{L2BlockNumber, ProtocolVersionId};
 
     // TODO: Consider moving to a separate testing crate
     #[derive(Clone, Debug)]
@@ -235,6 +235,10 @@ mod tests {
     #[async_trait]
     impl ReadBlockchain for MockBlockchain {
         fn dyn_cloned(&self) -> Box<dyn ReadBlockchain> {
+            unimplemented!()
+        }
+
+        fn protocol_version(&self) -> ProtocolVersionId {
             unimplemented!()
         }
 
@@ -368,7 +372,7 @@ mod tests {
 
     #[tokio::test]
     async fn generates_proper_genesis() {
-        let config = ZkstackConfig::builtin();
+        let config = ZkstackConfig::builtin(ProtocolVersionId::latest());
         let blockchain = MockBlockchain::new([]);
         let commitment_generator = CommitmentGenerator::new(&config, Box::new(blockchain));
         let genesis_metadata = commitment_generator
@@ -398,7 +402,7 @@ mod tests {
 
     #[tokio::test]
     async fn returns_none_for_unknown_batch() {
-        let config = ZkstackConfig::builtin();
+        let config = ZkstackConfig::builtin(ProtocolVersionId::latest());
         let blockchain = MockBlockchain::new([]);
         let commitment_generator = CommitmentGenerator::new(&config, Box::new(blockchain));
         let metadata = commitment_generator
@@ -410,7 +414,7 @@ mod tests {
 
     #[tokio::test]
     async fn generates_valid_commitment_for_random_batch() {
-        let config = ZkstackConfig::builtin();
+        let config = ZkstackConfig::builtin(ProtocolVersionId::latest());
         let batch_42_header = L1BatchHeader::new(
             L1BatchNumber(42),
             1042,

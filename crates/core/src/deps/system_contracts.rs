@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::io::Read;
 use zksync_types::system_contracts::get_system_smart_contracts;
 use zksync_types::{
-    block::DeployedContract, ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS,
+    block::DeployedContract, ProtocolVersionId, ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS,
     BOOTLOADER_UTILITIES_ADDRESS, CODE_ORACLE_ADDRESS, COMPLEX_UPGRADER_ADDRESS,
     COMPRESSOR_ADDRESS, CONTRACT_DEPLOYER_ADDRESS, CREATE2_FACTORY_ADDRESS,
     ECRECOVER_PRECOMPILE_ADDRESS, EC_ADD_PRECOMPILE_ADDRESS, EC_MUL_PRECOMPILE_ADDRESS,
@@ -25,32 +25,48 @@ pub const TIMESTAMP_ASSERTER_ADDRESS: Address = H160([
     0x00, 0x80, 0x80, 0x12,
 ]);
 
-static BUILTIN_CONTRACT_ARTIFACTS: Lazy<HashMap<String, Vec<u8>>> = Lazy::new(|| {
-    let built_in_contracts = include_bytes!("contracts/builtin-contracts-v27.tar.gz");
-    let decoder = GzDecoder::new(built_in_contracts.as_slice());
-    let mut archive = tar::Archive::new(decoder);
-    let mut contract_artifacts = HashMap::new();
-    for file in archive
-        .entries()
-        .expect("failed to decompress built-in contracts")
-    {
-        let mut file = file.expect("failed to read a built-in contract entry");
-        let path = file
-            .header()
-            .path()
-            .expect("contract path is malformed")
-            .file_name()
-            .expect("built-in contract entry does not have a filename")
-            .to_string_lossy()
-            .to_string();
+static BUILTIN_CONTRACT_ARCHIVES: [(ProtocolVersionId, &[u8]); 2] = [
+    (
+        ProtocolVersionId::Version26,
+        include_bytes!("contracts/builtin-contracts-v26.tar.gz"),
+    ),
+    (
+        ProtocolVersionId::Version27,
+        include_bytes!("contracts/builtin-contracts-v27.tar.gz"),
+    ),
+];
 
-        let mut contents =
-            Vec::with_capacity(file.header().size().expect("contract size is corrupted") as usize);
-        file.read_to_end(&mut contents).unwrap();
-        contract_artifacts.insert(path, contents);
-    }
-    contract_artifacts
-});
+static BUILTIN_CONTRACT_ARTIFACTS: Lazy<HashMap<ProtocolVersionId, HashMap<String, Vec<u8>>>> =
+    Lazy::new(|| {
+        let mut result = HashMap::new();
+        for (protocol_version, built_in_contracts) in BUILTIN_CONTRACT_ARCHIVES {
+            let decoder = GzDecoder::new(built_in_contracts);
+            let mut archive = tar::Archive::new(decoder);
+            let mut contract_artifacts = HashMap::new();
+            for file in archive
+                .entries()
+                .expect("failed to decompress built-in contracts")
+            {
+                let mut file = file.expect("failed to read a built-in contract entry");
+                let path = file
+                    .header()
+                    .path()
+                    .expect("contract path is malformed")
+                    .file_name()
+                    .expect("built-in contract entry does not have a filename")
+                    .to_string_lossy()
+                    .to_string();
+
+                let mut contents = Vec::with_capacity(
+                    file.header().size().expect("contract size is corrupted") as usize,
+                );
+                file.read_to_end(&mut contents).unwrap();
+                contract_artifacts.insert(path, contents);
+            }
+            result.insert(protocol_version, contract_artifacts);
+        }
+        result
+    });
 
 pub fn bytecode_from_slice(artifact_name: &str, contents: &[u8]) -> Vec<u8> {
     let artifact: Value = serde_json::from_slice(contents).expect(artifact_name);
@@ -66,11 +82,13 @@ pub fn bytecode_from_slice(artifact_name: &str, contents: &[u8]) -> Vec<u8> {
         .unwrap_or_else(|err| panic!("Can't decode bytecode in {:?}: {}", artifact_name, err))
 }
 
-pub fn load_builtin_contract(artifact_name: &str) -> Vec<u8> {
+pub fn load_builtin_contract(protocol_version: ProtocolVersionId, artifact_name: &str) -> Vec<u8> {
     let artifact_path = format!("{artifact_name}.json");
     bytecode_from_slice(
         artifact_name,
         BUILTIN_CONTRACT_ARTIFACTS
+            .get(&protocol_version)
+            .unwrap_or_else(|| panic!("protocol version '{protocol_version}' is not supported"))
             .get(&artifact_path)
             .unwrap_or_else(|| {
                 panic!("failed to find built-in contract artifact at '{artifact_path}'")
@@ -132,19 +150,33 @@ static BUILTIN_CONTRACT_LOCATIONS: [(&str, Address); 33] = [
     ("EmptyContract", BOOTLOADER_ADDRESS),
 ];
 
-static BUILTIN_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new(|| {
-    BUILTIN_CONTRACT_LOCATIONS
-        .map(|(artifact_name, address)| DeployedContract {
-            account_id: AccountTreeId::new(address),
-            bytecode: load_builtin_contract(artifact_name),
-        })
-        .to_vec()
-});
+static BUILTIN_CONTRACTS: Lazy<HashMap<ProtocolVersionId, Vec<DeployedContract>>> =
+    Lazy::new(|| {
+        let mut result = HashMap::new();
+        for (protocol_version, _) in BUILTIN_CONTRACT_ARCHIVES {
+            result.insert(
+                protocol_version,
+                BUILTIN_CONTRACT_LOCATIONS
+                    .map(|(artifact_name, address)| DeployedContract {
+                        account_id: AccountTreeId::new(address),
+                        bytecode: load_builtin_contract(protocol_version, artifact_name),
+                    })
+                    .to_vec(),
+            );
+        }
+        result
+    });
 
-pub fn get_deployed_contracts(options: &SystemContractsOptions) -> Vec<DeployedContract> {
+pub fn get_deployed_contracts(
+    options: SystemContractsOptions,
+    protocol_version: ProtocolVersionId,
+) -> Vec<DeployedContract> {
     match options {
         SystemContractsOptions::BuiltIn | SystemContractsOptions::BuiltInWithoutSecurity => {
-            BUILTIN_CONTRACTS.clone()
+            BUILTIN_CONTRACTS
+                .get(&protocol_version)
+                .unwrap_or_else(|| panic!("protocol version '{protocol_version}' is not supported"))
+                .clone()
         }
         SystemContractsOptions::Local => get_system_smart_contracts(),
     }
@@ -155,8 +187,20 @@ mod tests {
     use super::*;
 
     #[test]
+    fn load_v26_contracts() {
+        let contracts = get_deployed_contracts(
+            SystemContractsOptions::BuiltIn,
+            ProtocolVersionId::Version26,
+        );
+        assert_eq!(contracts.len(), BUILTIN_CONTRACT_LOCATIONS.len());
+    }
+
+    #[test]
     fn load_v27_contracts() {
-        let contracts = get_deployed_contracts(&SystemContractsOptions::BuiltIn);
+        let contracts = get_deployed_contracts(
+            SystemContractsOptions::BuiltIn,
+            ProtocolVersionId::Version27,
+        );
         assert_eq!(contracts.len(), BUILTIN_CONTRACT_LOCATIONS.len());
     }
 }

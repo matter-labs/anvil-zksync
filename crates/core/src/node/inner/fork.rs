@@ -15,7 +15,7 @@ use std::future::Future;
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use tracing::Instrument;
 use url::Url;
-use zksync_types::fee_model::{BaseTokenConversionRatio, FeeModelConfigV2, FeeParams, FeeParamsV2};
+use zksync_types::fee_model::FeeParams;
 use zksync_types::l2::L2Tx;
 use zksync_types::url::SensitiveUrl;
 use zksync_types::web3::Index;
@@ -179,6 +179,8 @@ impl Clone for Box<dyn ForkSource> {
 pub struct ForkDetails {
     /// Chain ID of the fork.
     pub chain_id: L2ChainId,
+    /// Protocol version of the block at which we forked (to be used for all new blocks).
+    pub protocol_version: ProtocolVersionId,
     /// Batch number at which we forked (the next batch to seal locally is `batch_number + 1`).
     pub batch_number: L1BatchNumber,
     /// Block number at which we forked (the next block to seal locally is `block_number + 1`).
@@ -198,38 +200,6 @@ pub struct ForkDetails {
     /// The factor by which to scale the gasLimit.
     pub estimate_gas_scale_factor: f32,
     pub fee_params: FeeParams,
-}
-
-impl Default for ForkDetails {
-    fn default() -> Self {
-        let config = FeeModelConfigV2 {
-            minimal_l2_gas_price: 10_000_000_000,
-            compute_overhead_part: 0.0,
-            pubdata_overhead_part: 1.0,
-            batch_overhead_l1_gas: 800_000,
-            max_gas_per_batch: 200_000_000,
-            max_pubdata_per_batch: 500_000,
-        };
-        Self {
-            chain_id: Default::default(),
-            batch_number: Default::default(),
-            block_number: Default::default(),
-            block_hash: Default::default(),
-            block_timestamp: 0,
-            api_block: Default::default(),
-            l1_gas_price: 0,
-            l2_fair_gas_price: 0,
-            fair_pubdata_price: 0,
-            estimate_gas_price_scale_factor: 0.0,
-            estimate_gas_scale_factor: 0.0,
-            fee_params: FeeParams::V2(FeeParamsV2::new(
-                config,
-                10_000_000_000,
-                5_000_000_000,
-                BaseTokenConversionRatio::default(),
-            )),
-        }
-    }
 }
 
 pub struct ForkConfig {
@@ -305,16 +275,7 @@ impl ForkClient {
         //       instead to ensure `l1BatchNumber` is always present.
         block.l1_batch_number = Some(batch_number.0.into());
 
-        if let Some(protocol_version) = block_details.protocol_version {
-            // TODO: In reality, anvil-zksync only supports one protocol version as we rely on
-            //       compiled contracts from `contracts` submodule.
-            if !SupportedProtocolVersions::is_supported(protocol_version) {
-                anyhow::bail!(
-                    "Block #{block_number} from fork={url} is using unsupported protocol version `{protocol_version}`. \
-                    anvil-zksync only supports the following versions: {SupportedProtocolVersions}."
-                )
-            }
-        } else {
+        let Some(protocol_version) = block_details.protocol_version else {
             // It is possible that some external nodes do not store protocol versions for versions below 9.
             // That's why we assume that whenever a protocol version is not present, it is unsupported by anvil-zksync.
             anyhow::bail!(
@@ -322,11 +283,18 @@ impl ForkClient {
                 Likely you are using an external node with a block for protocol version below 9 which are unsupported in anvil-zksync. \
                 Please report this as a bug if that's not the case."
             )
+        };
+        if !SupportedProtocolVersions::is_supported(protocol_version) {
+            anyhow::bail!(
+                    "Block #{block_number} from fork={url} is using unsupported protocol version `{protocol_version}`. \
+                    anvil-zksync only supports the following versions: {SupportedProtocolVersions}."
+                )
         }
 
         let fee_params = l2_client.get_fee_params().await?;
         let details = ForkDetails {
             chain_id,
+            protocol_version,
             batch_number,
             block_number,
             block_hash: root_hash,
@@ -933,26 +901,8 @@ impl ForkSource for Fork {
 struct SupportedProtocolVersions;
 
 impl SupportedProtocolVersions {
-    const SUPPORTED_VERSIONS: [ProtocolVersionId; 18] = [
-        ProtocolVersionId::Version9,
-        ProtocolVersionId::Version10,
-        ProtocolVersionId::Version11,
-        ProtocolVersionId::Version12,
-        ProtocolVersionId::Version13,
-        ProtocolVersionId::Version14,
-        ProtocolVersionId::Version15,
-        ProtocolVersionId::Version16,
-        ProtocolVersionId::Version17,
-        ProtocolVersionId::Version18,
-        ProtocolVersionId::Version19,
-        ProtocolVersionId::Version20,
-        ProtocolVersionId::Version21,
-        ProtocolVersionId::Version22,
-        ProtocolVersionId::Version23,
-        ProtocolVersionId::Version24,
-        ProtocolVersionId::Version25,
-        ProtocolVersionId::Version26,
-    ];
+    const SUPPORTED_VERSIONS: [ProtocolVersionId; 2] =
+        [ProtocolVersionId::Version26, ProtocolVersionId::Version27];
 
     fn is_supported(version: ProtocolVersionId) -> bool {
         Self::SUPPORTED_VERSIONS.contains(&version)
@@ -976,7 +926,41 @@ mod test {
     use crate::deps::InMemoryStorage;
     use maplit::hashmap;
     use zksync_types::block::{pack_block_info, unpack_block_info};
+    use zksync_types::fee_model::{BaseTokenConversionRatio, FeeModelConfigV2, FeeParamsV2};
     use zksync_types::{h256_to_u256, u256_to_h256, AccountTreeId, StorageKey};
+
+    impl Default for ForkDetails {
+        fn default() -> Self {
+            let config = FeeModelConfigV2 {
+                minimal_l2_gas_price: 10_000_000_000,
+                compute_overhead_part: 0.0,
+                pubdata_overhead_part: 1.0,
+                batch_overhead_l1_gas: 800_000,
+                max_gas_per_batch: 200_000_000,
+                max_pubdata_per_batch: 500_000,
+            };
+            Self {
+                chain_id: Default::default(),
+                protocol_version: ProtocolVersionId::latest(),
+                batch_number: Default::default(),
+                block_number: Default::default(),
+                block_hash: Default::default(),
+                block_timestamp: 0,
+                api_block: Default::default(),
+                l1_gas_price: 0,
+                l2_fair_gas_price: 0,
+                fair_pubdata_price: 0,
+                estimate_gas_price_scale_factor: 0.0,
+                estimate_gas_scale_factor: 0.0,
+                fee_params: FeeParams::V2(FeeParamsV2::new(
+                    config,
+                    10_000_000_000,
+                    5_000_000_000,
+                    BaseTokenConversionRatio::default(),
+                )),
+            }
+        }
+    }
 
     #[tokio::test]
     async fn test_mock_client() {

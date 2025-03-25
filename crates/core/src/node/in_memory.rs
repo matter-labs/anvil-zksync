@@ -80,6 +80,7 @@ pub const MAX_PREVIOUS_STATES: u16 = 128;
 pub const PROTOCOL_VERSION: &str = "zks/1";
 
 pub fn compute_hash<'a>(
+    protocol_version: ProtocolVersionId,
     number: L2BlockNumber,
     timestamp: u64,
     prev_l2_block_hash: H256,
@@ -89,10 +90,11 @@ pub fn compute_hash<'a>(
     for tx_hash in tx_hashes.into_iter() {
         block_hasher.push_tx_hash(*tx_hash);
     }
-    block_hasher.finalize(ProtocolVersionId::latest())
+    block_hasher.finalize(protocol_version)
 }
 
 pub fn create_genesis_from_json(
+    protocol_version: ProtocolVersionId,
     genesis: &Genesis,
     timestamp: Option<u64>,
 ) -> (Block<TransactionVariant>, L1BatchHeader) {
@@ -130,13 +132,16 @@ pub fn create_genesis_from_json(
         L1BatchNumber(0),
         timestamp,
         BaseSystemContractsHashes::default(),
-        ProtocolVersionId::latest(),
+        protocol_version,
     );
 
     (genesis_block, genesis_batch_header)
 }
 
-pub fn create_genesis<TX>(timestamp: Option<u64>) -> (Block<TX>, L1BatchHeader) {
+pub fn create_genesis<TX>(
+    protocol_version: ProtocolVersionId,
+    timestamp: Option<u64>,
+) -> (Block<TX>, L1BatchHeader) {
     let hash = L2BlockHasher::legacy_hash(L2BlockNumber(0));
     let timestamp = timestamp.unwrap_or(NON_FORK_FIRST_BLOCK_TIMESTAMP);
     let batch_env = L1BatchEnv {
@@ -167,7 +172,7 @@ pub fn create_genesis<TX>(timestamp: Option<u64>) -> (Block<TX>, L1BatchHeader) 
         L1BatchNumber(0),
         timestamp,
         BaseSystemContractsHashes::default(),
-        ProtocolVersionId::latest(),
+        protocol_version,
     );
 
     (genesis_block, genesis_batch_header)
@@ -661,7 +666,8 @@ impl InMemoryNode {
         );
         let impersonation = ImpersonationManager::default();
         let system_contracts = SystemContracts::from_options(
-            &config.system_contracts_options,
+            config.system_contracts_options,
+            ProtocolVersionId::latest(),
             config.use_evm_emulator,
             config.use_zkos,
         );

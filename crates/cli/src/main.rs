@@ -247,7 +247,8 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         TestNodeFeeInputProvider::from_fork(fork_client.as_ref().map(|f| &f.details));
     let filters = Arc::new(RwLock::new(EthFilters::default()));
     let system_contracts = SystemContracts::from_options(
-        &config.system_contracts_options,
+        config.system_contracts_options,
+        config.protocol_version(),
         config.use_evm_emulator,
         config.use_zkos,
     );
