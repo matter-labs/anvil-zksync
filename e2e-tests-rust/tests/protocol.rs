@@ -59,3 +59,25 @@ async fn protocol_v27_on_demand() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn protocol_v28_on_demand() -> anyhow::Result<()> {
+    let tester = AnvilZksyncTesterBuilder::default()
+        .with_node_fn(&|node| node.args(["--protocol-version", "28"]))
+        .build()
+        .await?;
+    let receipt = tester.tx().finalize().await?;
+    let block_number = receipt.block_number().unwrap();
+
+    let block_details = tester
+        .l2_provider()
+        .get_block_details(block_number)
+        .await?
+        .unwrap();
+    assert_eq!(
+        block_details.protocol_version,
+        Some("Version28".to_string())
+    );
+
+    Ok(())
+}
