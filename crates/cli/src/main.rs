@@ -282,15 +282,21 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
             .into())
         }
         Some(L1Config::Spawn { port }) => {
-            let (l1_sidecar, l1_sidecar_runner) =
-                L1Sidecar::process(*port, blockchain.clone(), node_handle.clone(), pool.clone())
-                    .await
-                    .map_err(to_domain)?;
+            let (l1_sidecar, l1_sidecar_runner) = L1Sidecar::process(
+                config.protocol_version(),
+                *port,
+                blockchain.clone(),
+                node_handle.clone(),
+                pool.clone(),
+            )
+            .await
+            .map_err(to_domain)?;
             node_service_tasks.push(Box::pin(l1_sidecar_runner.run()));
             l1_sidecar
         }
         Some(L1Config::External { address }) => {
             let (l1_sidecar, l1_sidecar_runner) = L1Sidecar::external(
+                config.protocol_version(),
                 address,
                 blockchain.clone(),
                 node_handle.clone(),

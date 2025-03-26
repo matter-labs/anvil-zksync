@@ -1108,6 +1108,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "hex",
+ "once_cell",
  "semver 1.0.26",
  "serde",
  "serde_json",

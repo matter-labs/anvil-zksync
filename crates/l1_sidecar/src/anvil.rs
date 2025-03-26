@@ -7,7 +7,9 @@ use alloy::rpc::types::TransactionRequest;
 use alloy::transports::RpcError;
 use anvil_zksync_common::sh_println;
 use anyhow::Context;
+use once_cell::sync::Lazy;
 use semver::Version;
+use std::collections::HashMap;
 use std::fs::File;
 use std::process::Stdio;
 use std::sync::Arc;
@@ -15,6 +17,33 @@ use std::time::Duration;
 use tempfile::TempDir;
 use tokio::io::AsyncWriteExt;
 use tokio::process::{Child as AsyncChild, Command as AsyncCommand};
+use zksync_types::ProtocolVersionId;
+
+static L1_STATES: Lazy<HashMap<ProtocolVersionId, &[u8]>> = Lazy::new(|| {
+    HashMap::from_iter([
+        (
+            ProtocolVersionId::Version26,
+            include_bytes!("../../../l1-setup/state/v26-l1-state.json").as_slice(),
+        ),
+        (
+            ProtocolVersionId::Version27,
+            include_bytes!("../../../l1-setup/state/v27-l1-state.json").as_slice(),
+        ),
+    ])
+});
+
+static L1_PAYLOADS: Lazy<HashMap<ProtocolVersionId, &str>> = Lazy::new(|| {
+    HashMap::from_iter([
+        (
+            ProtocolVersionId::Version26,
+            include_str!("../../../l1-setup/state/v26-l1-state-payload.txt"),
+        ),
+        (
+            ProtocolVersionId::Version27,
+            include_str!("../../../l1-setup/state/v27-l1-state-payload.txt"),
+        ),
+    ])
+});
 
 /// Representation of an anvil process spawned onto an event loop.
 ///
@@ -81,7 +110,11 @@ pub async fn spawn_process(
     let anvil_state_path = tmpdir.path().join("l1-state.json");
     let mut anvil_state_file = tokio::fs::File::create(&anvil_state_path).await?;
     anvil_state_file
-        .write_all(include_bytes!("../../../l1-setup/state/l1-state.json"))
+        .write_all(
+            L1_STATES
+                .get(&zkstack_config.genesis.genesis_protocol_version)
+                .expect("zkstack config refers to an unsupported protocol version"),
+        )
         .await?;
     anvil_state_file.flush().await?;
     drop(anvil_state_file);
@@ -116,7 +149,7 @@ pub async fn external(
 ) -> anyhow::Result<(AnvilHandle, Arc<dyn Provider + 'static>)> {
     let env = L1AnvilEnv::External;
     let provider = setup_provider(address, zkstack_config).await?;
-    inject_l1_state(&provider).await?;
+    inject_l1_state(zkstack_config.genesis.genesis_protocol_version, &provider).await?;
 
     // Submit a transaction with very high gas to refresh anvil's fee estimator. Seems like some
     // >=1.0.0 versions are still affected by this bug.
@@ -185,9 +218,15 @@ async fn setup_provider(address: &str, config: &ZkstackConfig) -> anyhow::Result
 }
 
 /// Injects pre-computed L1 state into provider.
-async fn inject_l1_state(provider: &impl Provider) -> anyhow::Result<()> {
+async fn inject_l1_state(
+    protocol_version: ProtocolVersionId,
+    provider: &impl Provider,
+) -> anyhow::Result<()> {
     // Trim trailing EOL and drop the `0x` prefix
-    let state_payload = &include_str!("../../../l1-setup/state/l1-state-payload.txt").trim()[2..];
+    let state_payload = &L1_PAYLOADS
+        .get(&protocol_version)
+        .expect("zkstack config refers to an unsupported protocol version")
+        .trim()[2..];
     let state_payload = Bytes::from(hex::decode(state_payload)?);
     match provider.anvil_load_state(state_payload).await {
         Ok(true) => Ok(()),

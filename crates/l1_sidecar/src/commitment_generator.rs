@@ -10,8 +10,8 @@ use zksync_types::commitment::{
     L1BatchWithMetadata,
 };
 use zksync_types::writes::StateDiffRecord;
+use zksync_types::L1BatchNumber;
 use zksync_types::{Address, H256};
-use zksync_types::{L1BatchNumber, ProtocolVersionId};
 
 /// Node component that can generate batch's metadata (with commitment) on demand.
 #[derive(Debug, Clone)]
@@ -30,20 +30,13 @@ impl CommitmentGenerator {
     ///
     /// Additionally, returns genesis' metadata.
     pub fn new(zkstack_config: &ZkstackConfig, blockchain: Box<dyn ReadBlockchain>) -> Self {
-        assert_eq!(
-            zkstack_config.genesis.genesis_protocol_version,
-            ProtocolVersionId::latest(),
-            "L1 setup is not using the latest protocol version. \
-            Likely protocol version was upgraded in anvil-zksync but not in L1 setup. \
-            To re-generate the setup please follow instructions in `./l1-setup/README.md`."
-        );
         // L1 expects a specific hash for bootloader/AA contracts which might be different from what
         // anvil-zksync is actually using (e.g. it is running with a user-provided bootloader). Thus,
         // we use hash from zkstack genesis config, i.e. what L1 was initialized with.
         let base_system_contracts_hashes = BaseSystemContractsHashes {
             bootloader: zkstack_config.genesis.bootloader_hash,
             default_aa: zkstack_config.genesis.default_aa_hash,
-            evm_emulator: Some(zkstack_config.genesis.evm_emulator_hash),
+            evm_emulator: zkstack_config.genesis.evm_emulator_hash,
         };
 
         // Run realistic genesis commitment computation that should match value from zkstack config
@@ -51,14 +44,14 @@ impl CommitmentGenerator {
             L1BatchNumber(0),
             0,
             base_system_contracts_hashes,
-            ProtocolVersionId::latest(),
+            zkstack_config.genesis.genesis_protocol_version,
         );
         genesis_batch_header.fee_address = zkstack_config.genesis.fee_account;
         let commitment_input = CommitmentInput::for_genesis_batch(
             zkstack_config.genesis.genesis_root,
             zkstack_config.genesis.genesis_rollup_leaf_index,
             base_system_contracts_hashes,
-            ProtocolVersionId::latest(),
+            zkstack_config.genesis.genesis_protocol_version,
         );
         let genesis_metadata =
             Self::generate_metadata_inner(genesis_batch_header, commitment_input);
@@ -122,6 +115,9 @@ impl CommitmentGenerator {
         aggregation_root: H256,
         tree_data: L1BatchTreeData,
     ) -> L1BatchWithMetadata {
+        let protocol_version = header
+            .protocol_version
+            .expect("batch header is missing protocol version");
         let common = CommitmentCommonInput {
             l2_to_l1_logs: header.l2_to_l1_logs.clone(),
             rollup_last_leaf_index: tree_data.rollup_last_leaf_index,
@@ -129,7 +125,7 @@ impl CommitmentGenerator {
             bootloader_code_hash: self.base_system_contracts_hashes.bootloader,
             default_aa_code_hash: self.base_system_contracts_hashes.default_aa,
             evm_emulator_code_hash: self.base_system_contracts_hashes.evm_emulator,
-            protocol_version: ProtocolVersionId::latest(),
+            protocol_version,
         };
         let commitment_input = CommitmentInput::PostBoojum {
             common,
@@ -140,7 +136,7 @@ impl CommitmentGenerator {
                 bootloader_initial_content_commitment: H256::zero(),
             },
             blob_hashes: {
-                let num_blobs = num_blobs_required(&ProtocolVersionId::latest());
+                let num_blobs = num_blobs_required(&protocol_version);
                 vec![Default::default(); num_blobs]
             },
             aggregation_root,
