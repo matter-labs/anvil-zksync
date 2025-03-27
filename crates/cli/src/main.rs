@@ -353,12 +353,9 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
     }
 
     if !transactions_to_replay.is_empty() {
-        node.apply_txs(
-            transactions_to_replay.into_iter().map(Into::into).collect(),
-            config.max_transactions,
-        )
-        .await
-        .map_err(to_domain)?;
+        node.replay_txs(transactions_to_replay)
+            .await
+            .map_err(to_domain)?;
 
         // If we are in replay mode, we don't start the server
         return Ok(());
