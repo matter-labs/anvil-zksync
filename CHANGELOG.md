@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.5.0](https://github.com/matter-labs/anvil-zksync/compare/v0.4.0...v0.5.0) (2025-03-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* support both V26 and V27 at the same time ([#636](https://github.com/matter-labs/anvil-zksync/issues/636))
+
+### Features
+
+* pack built-in contract into .tar.gz archive ([#635](https://github.com/matter-labs/anvil-zksync/issues/635)) ([c3f5a5f](https://github.com/matter-labs/anvil-zksync/commit/c3f5a5ff7bad9e0f3ab76a039cff54a61180203a))
+* support both V26 and V27 at the same time ([#636](https://github.com/matter-labs/anvil-zksync/issues/636)) ([8901610](https://github.com/matter-labs/anvil-zksync/commit/890161094098d3c7fe744723ea12d000a92d1b63))
+* support protocol V28 ([#637](https://github.com/matter-labs/anvil-zksync/issues/637)) ([bdec93c](https://github.com/matter-labs/anvil-zksync/commit/bdec93c4e96c3b17d6666b547c495be6f42f661d))
+* upgrade to v27 protocol ([#627](https://github.com/matter-labs/anvil-zksync/issues/627)) ([0273215](https://github.com/matter-labs/anvil-zksync/commit/02732158b212a5cb408434b6aa445101de123f21))
+
 ## [0.4.0](https://github.com/matter-labs/anvil-zksync/compare/v0.3.2...v0.4.0) (2025-03-24)
 
 
