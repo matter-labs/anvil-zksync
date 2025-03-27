@@ -901,8 +901,11 @@ impl ForkSource for Fork {
 struct SupportedProtocolVersions;
 
 impl SupportedProtocolVersions {
-    const SUPPORTED_VERSIONS: [ProtocolVersionId; 2] =
-        [ProtocolVersionId::Version26, ProtocolVersionId::Version27];
+    const SUPPORTED_VERSIONS: [ProtocolVersionId; 3] = [
+        ProtocolVersionId::Version26,
+        ProtocolVersionId::Version27,
+        ProtocolVersionId::Version28,
+    ];
 
     fn is_supported(version: ProtocolVersionId) -> bool {
         Self::SUPPORTED_VERSIONS.contains(&version)

@@ -29,6 +29,10 @@ static L1_STATES: Lazy<HashMap<ProtocolVersionId, &[u8]>> = Lazy::new(|| {
             ProtocolVersionId::Version27,
             include_bytes!("../../../l1-setup/state/v27-l1-state.json").as_slice(),
         ),
+        (
+            ProtocolVersionId::Version28,
+            include_bytes!("../../../l1-setup/state/v28-l1-state.json").as_slice(),
+        ),
     ])
 });
 
@@ -41,6 +45,10 @@ static L1_PAYLOADS: Lazy<HashMap<ProtocolVersionId, &str>> = Lazy::new(|| {
         (
             ProtocolVersionId::Version27,
             include_str!("../../../l1-setup/state/v27-l1-state-payload.txt"),
+        ),
+        (
+            ProtocolVersionId::Version28,
+            include_str!("../../../l1-setup/state/v28-l1-state-payload.txt"),
         ),
     ])
 });
