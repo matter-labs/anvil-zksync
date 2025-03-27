@@ -6,6 +6,7 @@ use anyhow::{anyhow, Context};
 use std::str::FromStr;
 use std::time::Duration;
 use url::Url;
+use zksync_error::anvil_zksync::node::AnvilNodeError;
 use zksync_types::api::{Block, TransactionVariant};
 use zksync_types::bytecode::BytecodeHash;
 use zksync_types::u256_to_h256;
@@ -55,7 +56,7 @@ impl InMemoryNode {
     ///
     /// # Returns
     /// The difference between the `current_timestamp` and the new timestamp for the InMemoryNodeInner.
-    pub async fn set_time(&self, timestamp: u64) -> Result<i128> {
+    pub async fn set_time(&self, timestamp: u64) -> std::result::Result<i128, AnvilNodeError> {
         self.node_handle.set_current_timestamp_sync(timestamp).await
     }
 
@@ -321,7 +322,9 @@ impl InMemoryNode {
         Ok(())
     }
 
-    pub async fn remove_block_timestamp_interval(&self) -> Result<bool> {
+    pub async fn remove_block_timestamp_interval(
+        &self,
+    ) -> std::result::Result<bool, AnvilNodeError> {
         self.node_handle
             .remove_block_timestamp_interval_sync()
             .await
@@ -367,7 +370,10 @@ impl InMemoryNode {
         Ok(())
     }
 
-    pub async fn set_next_block_base_fee_per_gas(&self, base_fee: U256) -> Result<()> {
+    pub async fn set_next_block_base_fee_per_gas(
+        &self,
+        base_fee: U256,
+    ) -> std::result::Result<(), AnvilNodeError> {
         self.node_handle
             .enforce_next_base_fee_per_gas_sync(base_fee)
             .await

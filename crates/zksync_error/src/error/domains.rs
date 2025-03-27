@@ -7,6 +7,8 @@ use crate::error::definitions::AnvilEnvironment;
 use crate::error::definitions::AnvilEnvironmentCode;
 use crate::error::definitions::AnvilGeneric;
 use crate::error::definitions::AnvilGenericCode;
+use crate::error::definitions::AnvilNode;
+use crate::error::definitions::AnvilNodeCode;
 use crate::error::definitions::EraVM;
 use crate::error::definitions::EraVMCode;
 use crate::error::definitions::ExecutionPlatform;
@@ -96,6 +98,9 @@ impl ZksyncError {
             ZksyncError::AnvilZksync(AnvilZksync::AnvilGeneric(_)) => {
                 Kind::AnvilZksync(AnvilZksyncCode::AnvilGeneric)
             }
+            ZksyncError::AnvilZksync(AnvilZksync::AnvilNode(_)) => {
+                Kind::AnvilZksync(AnvilZksyncCode::AnvilNode)
+            }
             ZksyncError::AnvilZksync(AnvilZksync::Halt(_)) => {
                 Kind::AnvilZksync(AnvilZksyncCode::Halt)
             }
@@ -135,6 +140,9 @@ impl ZksyncError {
             }
             ZksyncError::AnvilZksync(AnvilZksync::AnvilGeneric(error)) => {
                 Into::<AnvilGenericCode>::into(error) as u32
+            }
+            ZksyncError::AnvilZksync(AnvilZksync::AnvilNode(error)) => {
+                Into::<AnvilNodeCode>::into(error) as u32
             }
             ZksyncError::AnvilZksync(AnvilZksync::Halt(error)) => {
                 Into::<HaltCode>::into(error) as u32
@@ -198,6 +206,7 @@ impl std::error::Error for ZksyncError {}
 pub enum AnvilZksync {
     AnvilEnvironment(AnvilEnvironment),
     AnvilGeneric(AnvilGeneric),
+    AnvilNode(AnvilNode),
     Halt(Halt),
     Revert(Revert),
 }
@@ -224,6 +233,16 @@ impl ICustomError<ZksyncError, ZksyncError> for AnvilGeneric {
 impl From<AnvilGeneric> for AnvilZksync {
     fn from(val: AnvilGeneric) -> Self {
         AnvilZksync::AnvilGeneric(val)
+    }
+}
+impl ICustomError<ZksyncError, ZksyncError> for AnvilNode {
+    fn to_unified(&self) -> ZksyncError {
+        AnvilZksync::AnvilNode(self.clone()).to_unified()
+    }
+}
+impl From<AnvilNode> for AnvilZksync {
+    fn from(val: AnvilNode) -> Self {
+        AnvilZksync::AnvilNode(val)
     }
 }
 impl ICustomError<ZksyncError, ZksyncError> for Halt {
@@ -264,6 +283,7 @@ impl crate::documentation::Documented for AnvilZksync {
         match self {
             AnvilZksync::AnvilEnvironment(error) => error.get_documentation(),
             AnvilZksync::AnvilGeneric(error) => error.get_documentation(),
+            AnvilZksync::AnvilNode(error) => error.get_documentation(),
             AnvilZksync::Halt(error) => error.get_documentation(),
             AnvilZksync::Revert(error) => error.get_documentation(),
         }
@@ -274,6 +294,7 @@ impl std::fmt::Display for AnvilZksync {
         match self {
             AnvilZksync::AnvilEnvironment(component) => component.fmt(f),
             AnvilZksync::AnvilGeneric(component) => component.fmt(f),
+            AnvilZksync::AnvilNode(component) => component.fmt(f),
             AnvilZksync::Halt(component) => component.fmt(f),
             AnvilZksync::Revert(component) => component.fmt(f),
         }

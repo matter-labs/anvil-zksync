@@ -79,6 +79,7 @@ impl Identifying for Kind {
         match self {
             Kind::AnvilZksync(AnvilZksyncCode::AnvilEnvironment) => "anvil_zksync-env",
             Kind::AnvilZksync(AnvilZksyncCode::AnvilGeneric) => "anvil_zksync-gen",
+            Kind::AnvilZksync(AnvilZksyncCode::AnvilNode) => "anvil_zksync-node",
             Kind::AnvilZksync(AnvilZksyncCode::Halt) => "anvil_zksync-halt",
             Kind::AnvilZksync(AnvilZksyncCode::Revert) => "anvil_zksync-revert",
             Kind::Compiler(CompilerCode::LLVM_EVM) => "compiler-llvm+evm",
@@ -109,6 +110,11 @@ impl NamedError for Identifier {
             }
             Kind::AnvilZksync(AnvilZksyncCode::AnvilGeneric) => {
                 crate::error::definitions::AnvilGenericCode::from_repr(self.code)
+                    .expect("Internal error")
+                    .get_error_name()
+            }
+            Kind::AnvilZksync(AnvilZksyncCode::AnvilNode) => {
+                crate::error::definitions::AnvilNodeCode::from_repr(self.code)
                     .expect("Internal error")
                     .get_error_name()
             }
