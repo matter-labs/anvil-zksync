@@ -51,6 +51,14 @@ bootloaders=(
   "fee_estimate" "gas_test" "playground_batch" "proved_batch" "proved_batch_impersonating" "fee_estimate_impersonating"
 )
 
+# zksolc 1.5.11 changed where yul artifacts' path
+# TODO: Check is this was intended and get rid of this workaround if not
+if [[ $PROTOCOL_VERSION == v28 ]]; then
+  for bootloader in "${bootloaders[@]}"; do
+    cp "$SYSTEM_ARTIFACTS_SRC_DIR/$bootloader.yul/Bootloader.json" "$SYSTEM_ARTIFACTS_SRC_DIR/$bootloader.yul/$bootloader.json"
+  done
+fi
+
 if [[ ! $PROTOCOL_VERSION < v27 ]]; then
   # New precompile that was added in v27
   precompiles+=("Identity")
