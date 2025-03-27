@@ -443,7 +443,7 @@ impl NodeExecutorHandle {
         const MSG_INTERNAL_ERROR: &str = concat!(
             "Internal error: failed to seal a block because node executor is dropped. ",
             "Another error was likely propagated from the main execution loop. ",
-            "Please, report this as a bug."
+            "Please, report this as a bug if not."
         );
 
         self.command_sender
