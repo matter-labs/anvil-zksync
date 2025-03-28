@@ -15,7 +15,7 @@ use crate::node::inner::storage::ReadStorageDyn;
 use crate::node::inner::time::ReadTime;
 use crate::node::sealer::BlockSealerState;
 use crate::node::state::VersionedState;
-use crate::node::{BlockSealer, BlockSealerMode, NodeExecutor, TxPool};
+use crate::node::{BlockSealer, BlockSealerMode, NodeExecutor, TxBatch, TxPool};
 use crate::observability::Observability;
 use crate::system_contracts::SystemContracts;
 use anvil_zksync_common::cache::CacheConfig;
@@ -327,59 +327,48 @@ impl InMemoryNode {
         }
     }
 
-    /// Applies multiple transactions across multiple blocks. All transactions are expected to be
-    /// executable. Note that on error this method may leave node in partially applied state (i.e.
-    /// some txs have been applied while others have not).
-    pub async fn apply_txs(
-        &self,
-        txs: Vec<Transaction>,
-        max_transactions: usize,
-    ) -> anyhow::Result<()> {
-        tracing::debug!(count = txs.len(), "applying transactions");
+    /// Replays transactions consequently in a new block. All transactions are expected to be
+    /// executable and will become a part of the resulting block.
+    pub async fn replay_txs(&self, txs: Vec<Transaction>) -> anyhow::Result<()> {
+        let tx_batch = TxBatch {
+            impersonating: false,
+            txs,
+        };
+        let expected_tx_hashes = tx_batch
+            .txs
+            .iter()
+            .map(|tx| tx.hash())
+            .collect::<HashSet<_>>();
+        let block_number = self.node_handle.seal_block_sync(tx_batch).await?;
 
-        // Create a temporary tx pool (i.e. state is not shared with the node mempool).
-        let pool = TxPool::new(
-            self.impersonation.clone(),
-            self.inner.read().await.config.transaction_order,
-        );
-        pool.add_txs(txs);
+        // Fetch the block that was just sealed
+        let block = self
+            .blockchain
+            .get_block_by_number(block_number)
+            .await
+            .expect("freshly sealed block could not be found in storage");
 
-        while let Some(tx_batch) = pool.take_uniform(max_transactions) {
-            // Getting contracts is reasonably cheap, so we don't cache them. We may need differing contracts
-            // depending on whether impersonation should be enabled for a block.
-            let expected_tx_hashes = tx_batch
-                .txs
-                .iter()
-                .map(|tx| tx.hash())
-                .collect::<HashSet<_>>();
-            let block_number = self.node_handle.seal_block_sync(tx_batch).await?;
+        // Calculate tx hash set from that block
+        let actual_tx_hashes = block
+            .transactions
+            .iter()
+            .map(|tx| match tx {
+                TransactionVariant::Full(tx) => tx.hash,
+                TransactionVariant::Hash(tx_hash) => *tx_hash,
+            })
+            .collect::<HashSet<_>>();
 
-            // Fetch the block that was just sealed
-            let block = self
-                .blockchain
-                .get_block_by_number(block_number)
-                .await
-                .expect("freshly sealed block could not be found in storage");
-
-            // Calculate tx hash set from that block
-            let actual_tx_hashes = block
-                .transactions
-                .iter()
-                .map(|tx| match tx {
-                    TransactionVariant::Full(tx) => tx.hash,
-                    TransactionVariant::Hash(tx_hash) => *tx_hash,
-                })
-                .collect::<HashSet<_>>();
-
-            // Calculate the difference between expected transaction hash set and the actual one.
-            // If the difference is not empty it means some transactions were not executed (i.e.
-            // were halted).
-            let diff_tx_hashes = expected_tx_hashes
-                .difference(&actual_tx_hashes)
-                .collect::<Vec<_>>();
-            if !diff_tx_hashes.is_empty() {
-                anyhow::bail!("Failed to apply some transactions: {:?}", diff_tx_hashes);
-            }
+        // Calculate the difference between expected transaction hash set and the actual one.
+        // If the difference is not empty it means some transactions were not executed (i.e.
+        // were halted).
+        let diff_tx_hashes = expected_tx_hashes
+            .difference(&actual_tx_hashes)
+            .collect::<Vec<_>>();
+        if !diff_tx_hashes.is_empty() {
+            anyhow::bail!(
+                "Failed to replay some transactions: {:?}. Please report this.",
+                diff_tx_hashes
+            );
         }
 
         Ok(())
@@ -722,5 +711,39 @@ impl InMemoryNode {
             ..Default::default()
         };
         Self::test_config(fork_client_opt, config)
+    }
+}
+
+#[cfg(test)]
+impl InMemoryNode {
+    pub async fn apply_txs(
+        &self,
+        txs: impl IntoIterator<Item = Transaction>,
+    ) -> anyhow::Result<Vec<TransactionReceipt>> {
+        use backon::{ConstantBuilder, Retryable};
+        use std::time::Duration;
+
+        let txs = Vec::from_iter(txs);
+        let expected_tx_hashes = txs.iter().map(|tx| tx.hash()).collect::<Vec<_>>();
+        self.pool.add_txs(txs);
+
+        let mut receipts = Vec::with_capacity(expected_tx_hashes.len());
+        for tx_hash in expected_tx_hashes {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            let receipt = (|| async {
+                self.blockchain
+                    .get_tx_receipt(&tx_hash)
+                    .await
+                    .ok_or(anyhow::anyhow!("missing tx receipt"))
+            })
+            .retry(
+                ConstantBuilder::default()
+                    .with_delay(Duration::from_millis(100))
+                    .with_max_times(3),
+            )
+            .await?;
+            receipts.push(receipt);
+        }
+        Ok(receipts)
     }
 }
