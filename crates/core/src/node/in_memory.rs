@@ -54,6 +54,7 @@ use zksync_multivm::vm_latest::Vm;
 
 use crate::node::fork::{ForkClient, ForkSource};
 use crate::node::keys::StorageKeyLayout;
+use indicatif::{ProgressBar, ProgressStyle};
 use zksync_multivm::vm_latest::{HistoryDisabled, ToTracerPointer};
 use zksync_multivm::VmVersion;
 use zksync_types::api::{Block, DebugCall, TransactionReceipt, TransactionVariant};
@@ -281,7 +282,7 @@ pub struct InMemoryNode {
     pub(crate) blockchain: Box<dyn ReadBlockchain>,
     pub(crate) storage: Box<dyn ReadStorageDyn>,
     pub(crate) fork: Box<dyn ForkSource>,
-    pub(crate) node_handle: NodeExecutorHandle,
+    pub node_handle: NodeExecutorHandle,
     /// List of snapshots of the [InMemoryNodeInner]. This is bounded at runtime by [MAX_SNAPSHOTS].
     pub(crate) snapshots: Arc<RwLock<Vec<Snapshot>>>,
     pub(crate) time: Box<dyn ReadTime>,

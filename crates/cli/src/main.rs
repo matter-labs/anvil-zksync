@@ -22,6 +22,7 @@ use anvil_zksync_core::system_contracts::SystemContracts;
 use anvil_zksync_l1_sidecar::L1Sidecar;
 use anyhow::Context;
 use clap::Parser;
+use indicatif::{ProgressBar, ProgressStyle};
 use std::fs::File;
 use std::future::Future;
 use std::pin::Pin;
@@ -353,9 +354,29 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
     }
 
     if !transactions_to_replay.is_empty() {
+        let spinner = ProgressBar::new_spinner();
+        spinner.set_style(
+            ProgressStyle::default_spinner()
+                .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏", "⠒"])
+                .template("[{spinner}] {msg}")
+                .unwrap(),
+        );
+        spinner.set_message(format!(
+            "Replaying {} transactions...",
+            transactions_to_replay.len()
+        ));
+        spinner.tick();
+
+        node.node_handle
+            .set_progress_bar(Some(spinner.clone()))
+            .await
+            .map_err(to_domain)?;
+
         node.replay_txs(transactions_to_replay)
             .await
             .map_err(to_domain)?;
+
+        spinner.finish_with_message("Done replaying transactions.");
 
         // If we are in replay mode, we don't start the server
         return Ok(());
