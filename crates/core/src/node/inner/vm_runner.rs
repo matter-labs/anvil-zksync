@@ -441,7 +441,7 @@ impl VmRunner {
 
         if self.time.advance_timestamp() != block_ctx.timestamp {
             return Err(anvil_zksync::node::generic_error!(
-                "advancing clock produced different timestamp than expected"
+                "Advancing clock produced different timestamp than expected. This should never happen -- please report this as a bug."
             ));
         };
 
