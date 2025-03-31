@@ -177,11 +177,12 @@ impl VmRunner {
             compression_result,
             call_traces,
         } = executor.execute_tx(tx.clone()).await?;
-        compression_result.map_err(|inner| {
-            anvil_zksync::node::generic_error!(
-                "Compression error while running transaction {tx:?}: {inner}"
-            )
-        })?;
+        compression_result.map_err(|_inner|
+                                   // We ignore `inner` because bytecode compression error currently does not hold any precise information
+                                   anvil_zksync::node::TransactionHalt {
+                                       inner: Box::new(anvil_zksync::halt::FailedToPublishCompressedBytecodes),
+                                       transaction_hash: Box::new(tx.hash()),
+                                   })?;
 
         let spent_on_pubdata =
             tx_result.statistics.gas_used - tx_result.statistics.computational_gas_used as u64;
@@ -296,6 +297,7 @@ impl VmRunner {
             // We do not print the error here, as it was already printed above.
             return Err(anvil_zksync::node::TransactionHalt {
                 inner: Box::new(halt_error),
+                transaction_hash: Box::new(tx_hash),
             });
         }
 

@@ -328,6 +328,7 @@ pub enum AnvilNode {
     #[doc = "When using anvil-zksync for testing, these halts are valuable signals that help you identify issues with your contracts or transactions before deploying to the real ZKSync network."]
     TransactionHalt {
         inner: Box<Halt>,
+        transaction_hash: Box<zksync_basic_types::H256>,
     } = 10u32,
     #[doc = "# Summary "]
     #[doc = "One or more transactions failed during execution in anvil-zksync."]
@@ -462,8 +463,11 @@ impl CustomErrorMessage for AnvilNode {
             } => {
                 format ! ("[anvil_zksync-node-3] Invalid transaction {transaction_hash}: its maxPriorityFeePerGas={max_priority_fee_per_gas} exceeds the limit value maxFeePerGas={max_fee_per_gas}")
             }
-            AnvilNode::TransactionHalt { inner } => {
-                format!("[anvil_zksync-node-10] Transaction execution halted, reason: {inner}")
+            AnvilNode::TransactionHalt {
+                inner,
+                transaction_hash,
+            } => {
+                format ! ("[anvil_zksync-node-10] Transaction {transaction_hash} execution halted, reason: {inner}")
             }
             AnvilNode::TransactionFailed {
                 failed_transactions_hashes,

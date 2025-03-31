@@ -1939,11 +1939,15 @@
         "name": "TransactionHalt",
         "code": 10,
         "identifier": "[anvil_zksync-node-10]",
-        "message": "Transaction execution halted, reason: {inner}",
+        "message": "Transaction {transaction_hash} execution halted, reason: {inner}",
         "fields": [
           {
             "name": "inner",
             "type": "Halt"
+          },
+          {
+            "name": "transaction_hash",
+            "type": "H256"
           }
         ],
         "documentation": {
