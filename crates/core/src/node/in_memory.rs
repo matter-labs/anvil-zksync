@@ -495,7 +495,7 @@ impl InMemoryNode {
         &self,
         address: Address,
         bytecode: Vec<u8>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), AnvilNodeError> {
         self.node_handle.set_code_sync(address, bytecode).await
     }
 

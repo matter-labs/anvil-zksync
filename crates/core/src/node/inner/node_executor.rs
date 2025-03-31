@@ -4,7 +4,6 @@ use crate::node::inner::fork::{ForkClient, ForkSource};
 use crate::node::inner::vm_runner::VmRunner;
 use crate::node::keys::StorageKeyLayout;
 use crate::node::pool::TxBatch;
-use anvil_zksync_common::sh_eprintln;
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot, RwLock};
 use url::Url;
@@ -417,14 +416,8 @@ impl NodeExecutorHandle {
     /// It is sender's responsibility to make sure [`TxBatch`] is constructed correctly (see its
     /// docs).
     pub async fn seal_block(&self, tx_batch: TxBatch) -> Result<(), AnvilNodeError> {
-        let block_transactions_hashes = format!("{:?}", tx_batch.txs);
-        self.command_sender
-            .send(Command::SealBlock(tx_batch, None))
+        self.execute_without_response(Command::SealBlock(tx_batch, None))
             .await
-            .map_err(|inner| anvil_zksync::node::SealingBlockFailed {
-                block_transactions_hashes,
-                details: inner.to_string(),
-            })
     }
 
     /// Request [`NodeExecutor`] to seal a new block from the provided transaction batch. Waits for
@@ -436,33 +429,10 @@ impl NodeExecutorHandle {
         &self,
         tx_batch: TxBatch,
     ) -> Result<L2BlockNumber, AnvilNodeError> {
-        let (response_sender, response_receiver) = oneshot::channel();
-
-        let debug_transactions_repr = format!("{:?}", tx_batch.txs);
-
-        const MSG_INTERNAL_ERROR: &str = concat!(
-            "Internal error: failed to seal a block because node executor is dropped. ",
-            "Another error was likely propagated from the main execution loop. ",
-            "Please, report this as a bug if not."
-        );
-
-        self.command_sender
-            .send(Command::SealBlock(tx_batch, Some(response_sender)))
-            .await
-            .map_err(|_| {
-                zksync_error::anvil_zksync::node::generic_error!("{MSG_INTERNAL_ERROR}")
-            })?;
-
-        match response_receiver.await {
-            Ok(result) => result,
-            Err(inner_masked_error) => {
-                // Log this error so that it does not get lost
-                sh_eprintln!("Internal error while receiving response to the block seal request for transactions {debug_transactions_repr}: {inner_masked_error:?}. Please report.");
-                Err(zksync_error::anvil_zksync::node::generic_error!(
-                    "{MSG_INTERNAL_ERROR}"
-                ))
-            }
-        }
+        self.execute_with_response(|response_sender| {
+            Command::SealBlock(tx_batch, Some(response_sender))
+        })
+        .await?
     }
 
     /// Request [`NodeExecutor`] to seal multiple blocks from the provided transaction batches with
@@ -479,93 +449,60 @@ impl NodeExecutorHandle {
         tx_batches: Vec<TxBatch>,
         interval: u64,
     ) -> Result<Vec<L2BlockNumber>, AnvilNodeError> {
-        let (response_sender, response_receiver) = oneshot::channel();
-        let tx_batches_repr = format!("{tx_batches:?}");
-        self.command_sender
-            .send(Command::SealBlocks(tx_batches, interval, response_sender))
-            .await
-            .map_err(|inner_masked_error| {
-                // Log this error so that it does not get lost
-                sh_eprintln!("Internal error while sending request to seal multiple blocks for transactions {tx_batches_repr}: \n{inner_masked_error:?}. Please report.");
-                anvil_zksync::node::SealingMultipleBlocksFailed {
-                    transactions_batches: tx_batches_repr.clone(),
-                    details: "Failed to seal a block as node executor is dropped".to_string(),
-                }
-            })?;
-
-        match response_receiver.await {
-            Ok(result) => result,
-            Err(inner_masked_error) => {
-                // Log this error so that it does not get lost
-                sh_eprintln!("Internal error while receiving response to the request of sealing multiple blocks for transactions {tx_batches_repr}: \n{inner_masked_error:?}. Please report.");
-                Err(anvil_zksync::node::SealingMultipleBlocksFailed {
-                    transactions_batches: tx_batches_repr,
-                    details: "Failed to seal a block as node executor is dropped".to_string(),
-                })
-            }
-        }
+        self.execute_with_response(|response_sender| {
+            Command::SealBlocks(tx_batches, interval, response_sender)
+        })
+        .await?
     }
 
     /// Request [`NodeExecutor`] to set bytecode for given address. Waits for the change to take place.
-    pub async fn set_code_sync(&self, address: Address, bytecode: Vec<u8>) -> anyhow::Result<()> {
-        let (response_sender, response_receiver) = oneshot::channel();
-        self.command_sender
-            .send(Command::SetCode(address, bytecode, response_sender))
-            .await
-            .map_err(|_| anyhow::anyhow!("failed to set code as node executor is dropped"))?;
-        match response_receiver.await {
-            Ok(()) => Ok(()),
-            Err(_) => {
-                anyhow::bail!("failed to set code as node executor is dropped")
-            }
-        }
+    pub async fn set_code_sync(
+        &self,
+        address: Address,
+        bytecode: Vec<u8>,
+    ) -> Result<(), AnvilNodeError> {
+        self.execute_with_response(|response_sender| {
+            Command::SetCode(address, bytecode, response_sender)
+        })
+        .await
     }
 
     /// Request [`NodeExecutor`] to set storage key-value pair. Waits for the change to take place.
-    pub async fn set_storage_sync(&self, key: StorageKey, value: U256) -> anyhow::Result<()> {
-        let (response_sender, response_receiver) = oneshot::channel();
-        self.command_sender
-            .send(Command::SetStorage(key, value, response_sender))
-            .await
-            .map_err(|_| anyhow::anyhow!("failed to set storage as node executor is dropped"))?;
-        match response_receiver.await {
-            Ok(()) => Ok(()),
-            Err(_) => {
-                anyhow::bail!("failed to set storage as node executor is dropped")
-            }
-        }
+    pub async fn set_storage_sync(
+        &self,
+        key: StorageKey,
+        value: U256,
+    ) -> Result<(), AnvilNodeError> {
+        self.execute_with_response(|response_sender| {
+            Command::SetStorage(key, value, response_sender)
+        })
+        .await
     }
 
     /// Request [`NodeExecutor`] to set account's balance to the given value. Waits for the change
     /// to take place.
-    pub async fn set_balance_sync(&self, address: Address, balance: U256) -> anyhow::Result<()> {
-        let (response_sender, response_receiver) = oneshot::channel();
-        self.command_sender
-            .send(Command::SetBalance(address, balance, response_sender))
-            .await
-            .map_err(|_| anyhow::anyhow!("failed to set balance as node executor is dropped"))?;
-        match response_receiver.await {
-            Ok(()) => Ok(()),
-            Err(_) => {
-                anyhow::bail!("failed to set balance as node executor is dropped")
-            }
-        }
+    pub async fn set_balance_sync(
+        &self,
+        address: Address,
+        balance: U256,
+    ) -> Result<(), AnvilNodeError> {
+        self.execute_with_response(move |response_sender| {
+            Command::SetBalance(address, balance, response_sender)
+        })
+        .await
     }
 
     /// Request [`NodeExecutor`] to set account's nonce to the given value. Waits for the change
     /// to take place.
-    pub async fn set_nonce_sync(&self, address: Address, nonce: U256) -> anyhow::Result<()> {
-        let (response_sender, response_receiver) = oneshot::channel();
-        self.command_sender
-            .send(Command::SetNonce(address, nonce, response_sender))
-            .await
-            .map_err(|_| anyhow::anyhow!("failed to set nonce as node executor is dropped"))?;
-        match response_receiver.await {
-            Ok(()) => Ok(()),
-            Err(_) => {
-                anyhow::bail!("failed to set nonce as node executor is dropped")
-            }
-        }
+    pub async fn set_nonce_sync(
+        &self,
+        address: Address,
+        nonce: U256,
+    ) -> Result<(), AnvilNodeError> {
+        self.execute_with_response(move |response_sender| {
+            Command::SetNonce(address, nonce, response_sender)
+        })
+        .await
     }
 
     /// Request [`NodeExecutor`] to reset fork to given url and block number. All local state will
@@ -575,19 +512,10 @@ impl NodeExecutorHandle {
         url: Url,
         block_number: Option<L2BlockNumber>,
     ) -> Result<(), AnvilNodeError> {
-        let (response_sender, response_receiver) = oneshot::channel();
-        self.command_sender
-            .send(Command::ResetFork(url, block_number, response_sender))
-            .await
-            .map_err(|_| {
-                anvil_zksync::node::generic_error!(
-                    "failed to reset fork as node executor is dropped"
-                )
-            })?;
-
-        response_receiver.await.map_err(|_| {
-            anvil_zksync::node::generic_error!("failed to reset fork as node executor is dropped")
-        })?
+        self.execute_with_response(move |response_sender| {
+            Command::ResetFork(url, block_number, response_sender)
+        })
+        .await?
     }
 
     /// Request [`NodeExecutor`] to reset fork at the given block number. All state will be wiped.
@@ -596,132 +524,61 @@ impl NodeExecutorHandle {
         &self,
         block_number: L2BlockNumber,
     ) -> Result<(), AnvilNodeError> {
-        let (response_sender, response_receiver) = oneshot::channel();
-        self.command_sender
-            .send(Command::ResetForkBlockNumber(block_number, response_sender))
-            .await
-            .map_err(|_| {
-                anvil_zksync::node::generic_error!(
-                    "failed to reset fork block number as node executor is dropped"
-                )
-            })?;
-
-        response_receiver.await.map_err(|_| {
-            anvil_zksync::node::generic_error!(
-                "failed to reset fork block number as node executor is dropped"
-            )
-        })??;
-        Ok(())
+        self.execute_with_response(|response_sender| {
+            Command::ResetForkBlockNumber(block_number, response_sender)
+        })
+        .await?
     }
 
     /// Request [`NodeExecutor`] to set fork's RPC URL without resetting the state. Waits for the
     /// change to take place. Returns `Some(previous_url)` if fork existed and `None` otherwise.
-    pub async fn set_fork_url_sync(&self, url: Url) -> anyhow::Result<Option<Url>> {
-        let (response_sender, response_receiver) = oneshot::channel();
-        self.command_sender
-            .send(Command::SetForkUrl(url, response_sender))
+    pub async fn set_fork_url_sync(&self, url: Url) -> Result<Option<Url>, AnvilNodeError> {
+        self.execute_with_response(move |response_sender| Command::SetForkUrl(url, response_sender))
             .await
-            .map_err(|_| anyhow::anyhow!("failed to set fork URL as node executor is dropped"))?;
-        match response_receiver.await {
-            Ok(result) => Ok(result),
-            Err(_) => {
-                anyhow::bail!("failed to set fork URL as node executor is dropped")
-            }
-        }
     }
 
     /// Request [`NodeExecutor`] to remove fork if there is one. Waits for the change to take place.
-    pub async fn remove_fork_sync(&self) -> anyhow::Result<()> {
-        let (response_sender, response_receiver) = oneshot::channel();
-        self.command_sender
-            .send(Command::RemoveFork(response_sender))
-            .await
-            .map_err(|_| anyhow::anyhow!("failed to remove fork as node executor is dropped"))?;
-        match response_receiver.await {
-            Ok(()) => Ok(()),
-            Err(_) => {
-                anyhow::bail!("failed to remove fork as node executor is dropped")
-            }
-        }
+    pub async fn remove_fork_sync(&self) -> Result<(), AnvilNodeError> {
+        self.execute_with_response(Command::RemoveFork).await
     }
 
     /// Request [`NodeExecutor`] to increase time by the given delta (in seconds). Waits for the
     /// change to take place.
-    pub async fn increase_time_sync(&self, delta: u64) -> anyhow::Result<()> {
-        let (response_sender, response_receiver) = oneshot::channel();
-        self.command_sender
-            .send(Command::IncreaseTime(delta, response_sender))
+    pub async fn increase_time_sync(&self, delta: u64) -> Result<(), AnvilNodeError> {
+        self.execute_with_response(|response_sender| Command::IncreaseTime(delta, response_sender))
             .await
-            .map_err(|_| anyhow::anyhow!("failed to increase time as node executor is dropped"))?;
-        match response_receiver.await {
-            Ok(()) => Ok(()),
-            Err(_) => {
-                anyhow::bail!("failed to increase time as node executor is dropped")
-            }
-        }
     }
 
     /// Request [`NodeExecutor`] to enforce next block's timestamp (in seconds). Waits for the
     /// timestamp validity to be confirmed. Block might still not be produced by then.
     pub async fn enforce_next_timestamp_sync(&self, timestamp: u64) -> Result<(), AnvilNodeError> {
-        let (response_sender, response_receiver) = oneshot::channel();
-
-        let error_msg =
-            error_msg_node_executor_dropped(&format!("enforce next timestamp to {timestamp}"));
-
-        self.command_sender
-            .send(Command::EnforceNextTimestamp(timestamp, response_sender))
-            .await
-            .map_err(|_| anvil_zksync::node::generic_error!("{error_msg}"))?;
-        match response_receiver.await {
-            Ok(result) => result,
-            Err(_) => Err(anvil_zksync::node::generic_error!("{error_msg}")),
-        }
+        self.execute_with_response(|response_sender| {
+            Command::EnforceNextTimestamp(timestamp, response_sender)
+        })
+        .await?
     }
 
     /// Request [`NodeExecutor`] to set current timestamp (in seconds). Waits for the
     /// change to take place.
     pub async fn set_current_timestamp_sync(&self, timestamp: u64) -> Result<i128, AnvilNodeError> {
-        let (response_sender, response_receiver) = oneshot::channel();
-
-        let error_msg =
-            error_msg_node_executor_dropped(&format!("set current timestamp to {timestamp}"));
-
-        self.command_sender
-            .send(Command::SetCurrentTimestamp(timestamp, response_sender))
-            .await
-            .map_err(|_| anvil_zksync::node::generic_error!("{error_msg}"))?;
-        match response_receiver.await {
-            Ok(result) => Ok(result),
-            Err(_) => Err(anvil_zksync::node::generic_error!("{error_msg}")),
-        }
+        self.execute_with_response(|response_sender| {
+            Command::SetCurrentTimestamp(timestamp, response_sender)
+        })
+        .await
     }
 
     /// Request [`NodeExecutor`] to set block timestamp interval (in seconds). Does not wait for the
     /// change to take place.
-    pub async fn set_block_timestamp_interval(&self, seconds: u64) -> anyhow::Result<()> {
-        Ok(self
-            .command_sender
-            .send(Command::SetTimestampInterval(seconds))
-            .await?)
+    pub async fn set_block_timestamp_interval(&self, seconds: u64) -> Result<(), AnvilNodeError> {
+        self.execute_without_response(Command::SetTimestampInterval(seconds))
+            .await
     }
 
     /// Request [`NodeExecutor`] to remove block timestamp interval. Waits for the change to take
     /// place. Returns `true` if an existing interval was removed, `false` otherwise.
     pub async fn remove_block_timestamp_interval_sync(&self) -> Result<bool, AnvilNodeError> {
-        let (response_sender, response_receiver) = oneshot::channel();
-
-        let error_msg = error_msg_node_executor_dropped("remove block interval");
-
-        self.command_sender
-            .send(Command::RemoveTimestampInterval(response_sender))
+        self.execute_with_response(Command::RemoveTimestampInterval)
             .await
-            .map_err(|_| anvil_zksync::node::generic_error!("{error_msg}"))?;
-
-        match response_receiver.await {
-            Ok(result) => Ok(result),
-            Err(_) => Err(anvil_zksync::node::generic_error!("{error_msg}")),
-        }
     }
 
     /// Request [`NodeExecutor`] to enforce next block's base fee per gas. Waits for the change to take
@@ -730,20 +587,50 @@ impl NodeExecutorHandle {
         &self,
         base_fee: U256,
     ) -> Result<(), AnvilNodeError> {
+        self.execute_with_response(|sender| Command::EnforceNextBaseFeePerGas(base_fee, sender))
+            .await
+    }
+
+    async fn execute_without_response(&self, command: Command) -> Result<(), AnvilNodeError> {
+        let action_name = command.readable_description();
+        self.command_sender.send(command).await.map_err(|_| {
+            let error_msg = error_msg_node_executor_dropped(&format!("request to {action_name}"));
+            anvil_zksync::node::generic_error!("{error_msg}")
+        })
+    }
+    async fn execute_with_response<R>(
+        &self,
+        command_gen: impl FnOnce(oneshot::Sender<R>) -> Command,
+    ) -> Result<R, AnvilNodeError> {
         let (response_sender, response_receiver) = oneshot::channel();
 
-        let error_msg = error_msg_node_executor_dropped("enforce next base fee per gas");
-
-        self.command_sender
-            .send(Command::EnforceNextBaseFeePerGas(base_fee, response_sender))
-            .await
-            .map_err(|_| anvil_zksync::node::generic_error!("{error_msg}"))?;
+        let command = command_gen(response_sender);
+        let action_name = command.readable_description();
+        self.command_sender.send(command).await.map_err(|_| {
+            let error_msg = error_msg_node_executor_dropped(&format!("request to {action_name}"));
+            anvil_zksync::node::generic_error!("{error_msg}")
+        })?;
 
         match response_receiver.await {
             Ok(result) => Ok(result),
-            Err(_) => Err(anvil_zksync::node::generic_error!("{error_msg}")),
+            Err(_) => {
+                let error_msg = error_msg_node_executor_dropped(&format!(
+                    "receive a response to the request to {action_name}"
+                ));
+                Err(anvil_zksync::node::generic_error!("{error_msg}"))
+            }
         }
     }
+}
+
+/// Helper function to produce uniform error messages when node executor is
+/// dropped. This happens across several functions in this file.
+fn error_msg_node_executor_dropped(action: &str) -> String {
+    format!(
+        "Internal error: failed to {action} because node executor is dropped. \
+            Another error was likely propagated from the main execution loop. \
+            If this is not the case, please, report this as a bug."
+    )
 }
 
 #[derive(Debug)]
@@ -783,14 +670,63 @@ enum Command {
     EnforceNextBaseFeePerGas(U256, oneshot::Sender<()>),
 }
 
-/// Helper function to produce uniform error messages when node executor is
-/// dropped. This happens across several functions in this file.
-fn error_msg_node_executor_dropped(action: &str) -> String {
-    format!(
-        "Internal error: failed to {action} because node executor is dropped. \
-            Another error was likely propagated from the main execution loop. \
-            Please, report this as a bug."
-    )
+impl Command {
+    ///
+    /// Human-readable command description used for diagnostics.
+    ///
+    fn readable_description(&self) -> String {
+        fn batch_repr(batch: &TxBatch) -> String {
+            format!(
+                "{:?}",
+                batch
+                    .txs
+                    .iter()
+                    .map(|tx| tx.hash().to_string())
+                    .collect::<Vec<_>>()
+            )
+        }
+        match self {
+            Command::SealBlock(tx_batch, _) => {
+                format!("seal a block with transactions {}", batch_repr(tx_batch))
+            }
+            Command::SealBlocks(vec, interval, _) => format!(
+                "seal blocks with intervals of {interval} seconds between consecutive blocks: {:?}",
+                vec.iter().map(batch_repr).collect::<Vec<_>>()
+            ),
+            Command::SetCode(h160, _bytecode, _) => format!("set bytecode for address {h160}"),
+            Command::SetStorage(storage_key, value, _) => {
+                format!("set storage {}={value}", storage_key.key())
+            }
+            Command::SetBalance(account, new_value, _) => {
+                format!("set balance of account {account} to {new_value}")
+            }
+            Command::SetNonce(account, nonce, _) => {
+                format!("set nonce of account {account} to {nonce}")
+            }
+            Command::ResetFork(url, l2_block_number, _) => {
+                format!("reset fork to url {url} and block number {l2_block_number:?}")
+            }
+            Command::ResetForkBlockNumber(l2_block_number, _) => {
+                format!("reset fork block number to {l2_block_number}")
+            }
+            Command::SetForkUrl(url, _) => format!("set fork RPC URL to {url}"),
+            Command::RemoveFork(_) => "remove fork if there was one".into(),
+            Command::IncreaseTime(delta, _) => format!("increase time by {delta} seconds"),
+            Command::EnforceNextTimestamp(timestamp, _) => {
+                format!("enforce next block's timestamp to {timestamp} seconds")
+            }
+            Command::SetCurrentTimestamp(timestamp, _) => {
+                format!("set current timestamp to {timestamp} seconds")
+            }
+            Command::SetTimestampInterval(interval) => {
+                format!("set block timestamp interval to {interval} seconds")
+            }
+            Command::RemoveTimestampInterval(_) => "remove timestamp interval".into(),
+            Command::EnforceNextBaseFeePerGas(base_fee, _) => {
+                format!("enforce next block's base fee per gas to {base_fee}")
+            }
+        }
+    }
 }
 
 #[cfg(test)]
