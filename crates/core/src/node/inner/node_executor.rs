@@ -87,8 +87,8 @@ impl NodeExecutor {
                 Command::EnforceNextBaseFeePerGas(base_fee, reply) => {
                     self.enforce_next_base_fee_per_gas(base_fee, reply).await;
                 }
-                Command::SetProgressBar(bar) => {
-                    self.vm_runner.set_progress_bar(bar);
+                Command::SetProgressReport(bar) => {
+                    self.vm_runner.set_progress_report(bar);
                 }
             }
         }
@@ -700,13 +700,14 @@ impl NodeExecutorHandle {
         }
     }
 
-    /// Tell the node executor to set (or unset) the progress bar for transaction replay.
-    pub async fn set_progress_bar(&self, bar: Option<ProgressBar>) -> anyhow::Result<()> {
-        // We don't need a response, so we ignore a potential oneshot.
+    /// Request [`NodeExecutor`] to set (or unset) the progress bar for transaction replay.
+    pub async fn set_progress_report(&self, bar: Option<ProgressBar>) -> anyhow::Result<()> {
         self.command_sender
-            .send(Command::SetProgressBar(bar))
+            .send(Command::SetProgressReport(bar))
             .await
-            .map_err(|_| anyhow::anyhow!("failed to set progress bar - node executor dropped"))?;
+            .map_err(|_| {
+                anyhow::anyhow!("failed to set progress report - node executor dropped")
+            })?;
         Ok(())
     }
 }
@@ -747,7 +748,7 @@ enum Command {
     // Fee manipulation commands
     EnforceNextBaseFeePerGas(U256, oneshot::Sender<()>),
     // Replay tx progress indicator
-    SetProgressBar(Option<ProgressBar>),
+    SetProgressReport(Option<ProgressBar>),
 }
 
 #[cfg(test)]

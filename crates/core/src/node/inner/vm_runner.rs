@@ -54,7 +54,7 @@ pub struct VmRunner {
     /// Whether VM should generate system logs.
     generate_system_logs: bool,
     /// Optional field for reporting progress while replaying transactions.
-    progress_bar: Option<ProgressBar>,
+    progress_report: Option<ProgressBar>,
 }
 
 pub(super) struct TxBatchExecutionResult {
@@ -88,7 +88,7 @@ impl VmRunner {
             system_contracts,
             console_log_handler: ConsoleLogHandler::default(),
             generate_system_logs,
-            progress_bar: None,
+            progress_report: None,
         }
     }
 }
@@ -453,7 +453,7 @@ impl VmRunner {
         let total = txs.len();
 
         for tx in txs {
-            if let Some(ref spinner) = self.progress_bar {
+            if let Some(ref spinner) = self.progress_report {
                 spinner.set_message(format!(
                     "Replaying transaction {}/{} from 0x{:x}...\n",
                     tx_index + 1,
@@ -474,7 +474,7 @@ impl VmRunner {
                     &node_inner.fee_input_provider,
                 )
                 .await;
-            if let Some(ref pb) = self.progress_bar {
+            if let Some(ref pb) = self.progress_report {
                 pb.inc(1);
             }
             match result {
@@ -562,9 +562,9 @@ impl VmRunner {
         })
     }
 
-    /// Set or unset the progress bar.
-    pub fn set_progress_bar(&mut self, bar: Option<ProgressBar>) {
-        self.progress_bar = bar;
+    /// Set or unset the progress report.
+    pub fn set_progress_report(&mut self, bar: Option<ProgressBar>) {
+        self.progress_report = bar;
     }
 }
 

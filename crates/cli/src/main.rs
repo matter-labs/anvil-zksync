@@ -368,7 +368,7 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         spinner.tick();
 
         node.node_handle
-            .set_progress_bar(Some(spinner.clone()))
+            .set_progress_report(Some(spinner.clone()))
             .await
             .map_err(to_domain)?;
 
