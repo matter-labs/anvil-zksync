@@ -34,6 +34,12 @@ impl SystemContracts {
         use_evm_emulator: bool,
         use_zkos: bool,
     ) -> Self {
+        tracing::info!(
+            %protocol_version,
+            use_evm_emulator,
+            use_zkos,
+            "initializing system contracts"
+        );
         Self {
             protocol_version,
             baseline_contracts: baseline_contracts(options, protocol_version, use_evm_emulator),
@@ -151,7 +157,7 @@ fn bsc_load_with_bootloader(
                 read_sys_contract_bytecode("", "EvmEmulator", ContractLanguage::Yul)
             }
             SystemContractsOptions::BuiltIn | SystemContractsOptions::BuiltInWithoutSecurity => {
-                panic!("no built-in EVM emulator yet")
+                load_builtin_contract(protocol_version, "EvmEmulator")
             }
         };
         let evm_emulator_hash = BytecodeHash::for_bytecode(&evm_emulator_bytecode);

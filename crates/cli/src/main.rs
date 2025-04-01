@@ -15,11 +15,12 @@ use anvil_zksync_core::filters::EthFilters;
 use anvil_zksync_core::node::fork::ForkClient;
 use anvil_zksync_core::node::{
     BlockSealer, BlockSealerMode, ImpersonationManager, InMemoryNode, InMemoryNodeInner,
-    NodeExecutor, StorageKeyLayout, TestNodeFeeInputProvider, TxPool,
+    NodeExecutor, StorageKeyLayout, TestNodeFeeInputProvider, TxBatch, TxPool,
 };
 use anvil_zksync_core::observability::Observability;
 use anvil_zksync_core::system_contracts::SystemContracts;
 use anvil_zksync_l1_sidecar::L1Sidecar;
+use anvil_zksync_types::L2TxBuilder;
 use anyhow::Context;
 use clap::Parser;
 use std::fs::File;
@@ -36,7 +37,7 @@ use zksync_error::anvil_zksync::AnvilZksyncError;
 use zksync_error::{ICustomError, IError as _};
 use zksync_telemetry::{get_telemetry, init_telemetry, TelemetryProps};
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
-use zksync_types::{L2BlockNumber, H160};
+use zksync_types::{Address, L2BlockNumber, Nonce, CONTRACT_DEPLOYER_ADDRESS, H160, U256};
 
 mod bytecode_override;
 mod cli;
@@ -325,7 +326,7 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         blockchain,
         storage,
         fork,
-        node_handle,
+        node_handle.clone(),
         Some(observability),
         time,
         impersonation,
@@ -345,6 +346,42 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
             let _ = telemetry.track_error(Box::new(error.as_ref())).await;
         }
     });
+
+    if config.use_evm_emulator {
+        // We need to enable EVM emulator by setting `allowedBytecodeTypesToDeploy` in `ContractDeployer`
+        // to `1` (i.e. `AllowedBytecodeTypes::EraVmAndEVM`).
+        let service_call_pseudo_caller =
+            Address::from_str("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF").unwrap();
+        node.impersonate_account(service_call_pseudo_caller)
+            .unwrap();
+        node.set_rich_account(service_call_pseudo_caller, U256::from(1_000_000_000_000u64))
+            .await;
+        let tx = L2TxBuilder::new(
+            service_call_pseudo_caller,
+            Nonce(0),
+            U256::from(300_000),
+            U256::from(u32::MAX),
+            node.chain_id().await,
+        )
+        .with_to(CONTRACT_DEPLOYER_ADDRESS)
+        .with_calldata(
+            // cast calldata "setAllowedBytecodeTypesToDeploy(uint8)()" 1
+            hex::decode("fe06380c0000000000000000000000000000000000000000000000000000000000000001")
+                .unwrap(),
+        )
+        .build_impersonated();
+        node_handle
+            .seal_block_sync(TxBatch {
+                impersonating: true,
+                txs: vec![tx.into()],
+            })
+            .await
+            .map_err(to_domain)?;
+        node.set_rich_account(service_call_pseudo_caller, U256::from(0))
+            .await;
+        node.stop_impersonating_account(service_call_pseudo_caller)
+            .unwrap();
+    }
 
     if let Some(ref bytecodes_dir) = config.override_bytecodes_dir {
         override_bytecodes(&node, bytecodes_dir.to_string())

@@ -190,12 +190,8 @@ pub struct Cli {
     /// contracts that will get deployed (if applicable).
     pub protocol_version: Option<ProtocolVersionId>,
 
-    #[arg(
-        long,
-        requires = "dev_system_contracts",
-        help_heading = "System Configuration"
-    )]
-    /// Enables EVM emulation. Requires local system contracts.
+    #[arg(long, help_heading = "System Configuration")]
+    /// Enables EVM emulation.
     pub emulate_evm: bool,
 
     // Logging Configuration
@@ -641,9 +637,9 @@ impl Cli {
                     .map(|address| L1Config::External { address })),
             );
 
-        if self.emulate_evm && self.dev_system_contracts != Some(SystemContractsOptions::Local) {
+        if self.emulate_evm && config.protocol_version() < ProtocolVersionId::Version27 {
             return Err(zksync_error::anvil_zksync::env::InvalidArguments {
-                details: "EVM emulation requires the 'local' system contracts option.".into(),
+                details: "EVM emulation requires protocol version 27 or higher".into(),
                 arguments: debug_self_repr,
             });
         }
