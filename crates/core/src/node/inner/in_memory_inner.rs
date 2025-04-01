@@ -533,7 +533,7 @@ impl InMemoryNodeInner {
                 self.system_contracts.use_zkos,
             );
 
-            if result.statistics.pubdata_published > MAX_VM_PUBDATA_PER_BATCH.try_into().unwrap() {
+            if result.statistics.pubdata_published > (MAX_VM_PUBDATA_PER_BATCH as u32) {
                 return Err(Web3Error::SubmitTransactionError(
                     "exceeds limit for published pubdata".into(),
                     Default::default(),
