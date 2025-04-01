@@ -178,7 +178,9 @@ impl VmRunner {
             call_traces,
         } = executor.execute_tx(tx.clone()).await?;
         compression_result.map_err(|_inner|
-                                   // We ignore `inner` because bytecode compression error currently does not hold any precise information
+                                   // We ignore `inner` because bytecode
+                                   // compression error currently does not hold
+                                   // any precise information
                                    anvil_zksync::node::TransactionHalt {
                                        inner: Box::new(anvil_zksync::halt::FailedToPublishCompressedBytecodes),
                                        transaction_hash: Box::new(tx.hash()),

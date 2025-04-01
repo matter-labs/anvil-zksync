@@ -331,28 +331,6 @@ pub enum AnvilNode {
         transaction_hash: Box<zksync_basic_types::H256>,
     } = 10u32,
     #[doc = "# Summary "]
-    #[doc = "Failed to seal a block."]
-    #[doc = ""]
-    #[doc = "# Description"]
-    #[doc = "This error occurs when anvil-zksync fails to seal (finalize) a block containing the specified transactions during testing."]
-    SealingBlockFailed {
-        block_transactions_hashes: String,
-        details: String,
-    } = 21u32,
-    #[doc = "# Summary "]
-    #[doc = "Request to seal multiple blocks with transaction batches failed."]
-    #[doc = ""]
-    #[doc = "# Description"]
-    #[doc = "This error occurs when anvil-zksync fails to seal multiple blocks containing various batches of transactions."]
-    #[doc = ""]
-    #[doc = "In anvil-zksync, transactions can be organized into batches, where each batch may be assigned to a separate block. When processing multiple batches simultaneously (such as during complex test scenarios or parallel transaction processing), anvil-zksync attempts to seal all corresponding blocks in succession."]
-    #[doc = ""]
-    #[doc = "This error indicates that one or more of these block sealing operations failed. The error contains information about the transaction batches that were attempted to be included in the blocks."]
-    SealingMultipleBlocksFailed {
-        transactions_batches: String,
-        details: String,
-    } = 22u32,
-    #[doc = "# Summary "]
     #[doc = "Requested block timestamp is earlier than the current timestamp."]
     #[doc = ""]
     #[doc = "# Description"]
@@ -371,7 +349,7 @@ pub enum AnvilNode {
     TimestampBackwardsError {
         timestamp_requested: zksync_basic_types::U64,
         timestamp_now: zksync_basic_types::U64,
-    } = 23u32,
+    } = 20u32,
     GenericError {
         message: String,
     } = 0u32,
@@ -453,23 +431,11 @@ impl CustomErrorMessage for AnvilNode {
             } => {
                 format ! ("[anvil_zksync-node-10] Transaction {transaction_hash} execution halted, reason: {inner}")
             }
-            AnvilNode::SealingBlockFailed {
-                block_transactions_hashes,
-                details,
-            } => {
-                format ! ("[anvil_zksync-node-21] Failed to seal a block containing transactions: {block_transactions_hashes}.\nDetails: {details}")
-            }
-            AnvilNode::SealingMultipleBlocksFailed {
-                transactions_batches,
-                details,
-            } => {
-                format ! ("[anvil_zksync-node-22] Failed to seal multiple blocks containing transaction batches: {transactions_batches}.\nDetails: {details}")
-            }
             AnvilNode::TimestampBackwardsError {
                 timestamp_requested,
                 timestamp_now,
             } => {
-                format ! ("[anvil_zksync-node-23] Failed to force the next timestamp to value {timestamp_requested}. It should be greater than the last timestamp {timestamp_now}.")
+                format ! ("[anvil_zksync-node-20] Failed to force the next timestamp to value {timestamp_requested}. It should be greater than the last timestamp {timestamp_now}.")
             }
             AnvilNode::GenericError { message } => {
                 format!("[anvil_zksync-node-0] Generic error: {message}")

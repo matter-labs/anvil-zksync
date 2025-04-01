@@ -1042,110 +1042,8 @@
               }
             },
             {
-              "name": "SealingBlockFailed",
-              "code": 21,
-              "message": "Failed to seal a block containing transactions: {block_transactions_hashes}.\nDetails: {details}",
-              "fields": [
-                {
-                  "name": "block_transactions_hashes",
-                  "type": "string"
-                },
-                {
-                  "name": "details",
-                  "type": "string"
-                }
-              ],
-              "doc": {
-                "summary": "Failed to seal a block.",
-                "description": [
-                  "This error occurs when anvil-zksync fails to seal (finalize) a block containing the specified transactions during testing."
-                ],
-                "likely_causes": [
-                  {
-                    "cause": "Test transaction execution errors or state inconsistencies during testing.",
-                    "fixes": [
-                      "Examine the error details and logs for specific transaction failures within the block.",
-                      "Check that all test transactions are valid and properly formed.",
-                      "Review your test setup to ensure it creates a valid initial state."
-                    ]
-                  },
-                  {
-                    "cause": "Testing complex scenarios that stress anvil-zksync's capabilities.",
-                    "fixes": [
-                      "Break complex test scenarios into smaller, more manageable tests.",
-                      "If testing very large contracts or complex interactions, ensure your test environment has sufficient resources.",
-                      "Consider using anvil-zksync's mining control features to more explicitly manage block creation in tests.",
-                      "For particularly complex tests, try increasing timeout values or resource allocations for the anvil-zksync process."
-                    ]
-                  },
-                  {
-                    "cause": "Anvil-zksync configuration issues or environment-specific problems.",
-                    "fixes": [
-                      "Make sure you are running the latest version of anvil-zksync",
-                      "Check your anvil-zksync configuration settings, particularly those related to block gas limits and state management.",
-                      "Try resetting the anvil-zksync instance between test runs to ensure a clean state.",
-                      "Review the error details and logs for specific hints about the configuration problem."
-                    ]
-                  }
-                ]
-              }
-            },
-            {
-              "name": "SealingMultipleBlocksFailed",
-              "code": 22,
-              "message": "Failed to seal multiple blocks containing transaction batches: {transactions_batches}.\nDetails: {details}",
-              "fields": [
-                {
-                  "name": "transactions_batches",
-                  "type": "string"
-                },
-                {
-                  "name": "details",
-                  "type": "string"
-                }
-              ],
-              "doc": {
-                "summary": "Request to seal multiple blocks with transaction batches failed.",
-                "description": [
-                  "This error occurs when anvil-zksync fails to seal multiple blocks containing various batches of transactions.",
-                  "",
-                  "In anvil-zksync, transactions can be organized into batches, where each batch may be assigned to a separate block. When processing multiple batches simultaneously (such as during complex test scenarios or parallel transaction processing), anvil-zksync attempts to seal all corresponding blocks in succession.",
-                  "",
-                  "This error indicates that one or more of these block sealing operations failed. The error contains information about the transaction batches that were attempted to be included in the blocks."
-                ],
-                "likely_causes": [
-                  {
-                    "cause": "Batch dependency conflicts or transaction ordering issues across multiple blocks.",
-                    "fixes": [
-                      "Review transaction dependencies between batches to ensure they're properly ordered.",
-                      "Check if transactions in later batches depend on state changes from earlier batches that may have failed.",
-                      "Consider breaking your test into smaller sequential batches rather than parallel ones.",
-                      "Use debug traces to identify specific transactions that might be causing conflicts between batches."
-                    ]
-                  },
-                  {
-                    "cause": "State inconsistencies when processing multiple blocks in succession.",
-                    "fixes": [
-                      "Examine the logs to identify which specific batch operations failed.",
-                      "Check for transactions that modify the same state variables across different batches.",
-                      "Ensure your test has proper state setup before attempting to process multiple blocks.",
-                      "Consider using anvil-zksync's snapshot features to create clean states between batch tests."
-                    ]
-                  },
-                  {
-                    "cause": "Resource limitations when processing multiple complex blocks simultaneously.",
-                    "fixes": [
-                      "Reduce the number or complexity of transaction batches being processed at once.",
-                      "Ensure your system has sufficient memory and CPU resources for multi-block processing.",
-                      "Break your test into smaller sequential test cases rather than parallel ones."
-                    ]
-                  }
-                ]
-              }
-            },
-            {
               "name": "TimestampBackwardsError",
-              "code": 23,
+              "code": 20,
               "message": "Failed to force the next timestamp to value {timestamp_requested}. It should be greater than the last timestamp {timestamp_now}.",
               "fields": [
                 {
@@ -1201,7 +1099,6 @@
                 ]
               }
             }
-
 
           ]
         }

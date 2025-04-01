@@ -65,8 +65,6 @@ pub mod anvil_zksync {
     pub mod node {
         pub use crate::error::definitions::AnvilNode as AnvilNodeError;
         pub use crate::error::definitions::AnvilNode::GenericError;
-        pub use crate::error::definitions::AnvilNode::SealingBlockFailed;
-        pub use crate::error::definitions::AnvilNode::SealingMultipleBlocksFailed;
         pub use crate::error::definitions::AnvilNode::TimestampBackwardsError;
         pub use crate::error::definitions::AnvilNode::TransactionHalt;
         pub use crate::error::definitions::AnvilNode::TransactionValidationFailedGasLimit;
