@@ -7,7 +7,7 @@ L1_JSON_ABI_DST_DIR=e2e-tests-rust/src/contracts/artifacts
 
 mkdir -p $L1_JSON_ABI_DST_DIR
 
-l1_contracts=("IBridgehub" "IMailbox" "IL1AssetRouter" "IL1Nullifier")
+l1_contracts=("IBridgehub" "IMailbox" "IL1AssetRouter" "IL1Nullifier" "IExecutor")
 
 for l1_contract in "${l1_contracts[@]}"; do
   cp "$L1_JSON_ABI_SRC_DIR/$l1_contract.sol/$l1_contract.json" $L1_JSON_ABI_DST_DIR
