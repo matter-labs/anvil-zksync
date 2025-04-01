@@ -41,7 +41,7 @@ impl NodeExecutor {
         while let Some(command) = self.command_receiver.recv().await {
             match command {
                 Command::SealBlock(tx_batch, reply) => {
-                    self.seal_block(tx_batch, reply).await;
+                    self.seal_block(tx_batch, reply).await?;
                 }
                 Command::SealBlocks(tx_batches, interval, reply) => {
                     self.seal_blocks(tx_batches, interval, reply).await;
@@ -100,23 +100,23 @@ impl NodeExecutor {
     async fn seal_block(
         &mut self,
         tx_batch: TxBatch,
-        reply: Option<oneshot::Sender<Result<L2BlockNumber, AnvilNodeError>>>,
-    ) {
+        reply_sender: Option<oneshot::Sender<Result<L2BlockNumber, AnvilNodeError>>>,
+    ) -> Result<(), AnvilNodeError> {
         let mut node_inner = self.node_inner.write().await;
         let tx_batch_execution_result = self
             .vm_runner
             .run_tx_batch(tx_batch, &mut node_inner)
-            .await
-            .unwrap();
+            .await?;
+
         let result = node_inner.seal_block(tx_batch_execution_result).await;
         drop(node_inner);
         // Reply to sender if we can, otherwise hold result for further processing
-        let result = if let Some(reply) = reply {
-            if let Err(result) = reply.send(result) {
+        let result = if let Some(reply_sender) = reply_sender {
+            if let Err(error_result) = reply_sender.send(result) {
                 tracing::info!("failed to reply as receiver has been dropped");
-                result
+                error_result
             } else {
-                return;
+                return Ok(());
             }
         } else {
             result
@@ -125,6 +125,7 @@ impl NodeExecutor {
         if let Err(err) = result {
             tracing::error!("failed to seal a block: {:#?}", err);
         }
+        Ok(())
     }
 
     async fn seal_blocks(
@@ -627,9 +628,9 @@ impl NodeExecutorHandle {
 /// dropped. This happens across several functions in this file.
 fn error_msg_node_executor_dropped(action: &str) -> String {
     format!(
-        "Internal error: failed to {action} because node executor is dropped. \
-            Another error was likely propagated from the main execution loop. \
-            If this is not the case, please, report this as a bug."
+        "Failed to {action} because node executor is dropped. \
+         Another error was likely propagated from the main execution loop. \
+         If this is not the case, please, report this as a bug."
     )
 }
 

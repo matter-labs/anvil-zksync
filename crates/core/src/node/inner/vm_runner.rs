@@ -1,7 +1,6 @@
 use crate::bootloader_debug::BootloaderDebug;
 use crate::deps::storage_view::StorageView;
-use crate::formatter;
-use crate::formatter::ExecutionErrorReport;
+use crate::formatter::{self, ExecutionErrorReport};
 use crate::node::batch::{MainBatchExecutorFactory, TraceCalls};
 use crate::node::error::ToHaltError;
 use crate::node::inner::fork_storage::ForkStorage;
@@ -134,26 +133,16 @@ impl VmRunner {
 
         let l2_gas_price = batch_env.fee_input.fair_l2_gas_price();
         if tx_data.fee.max_fee_per_gas < l2_gas_price.into() {
-            sh_eprintln!(
-                "Submitted Tx is Unexecutable {:?} because of MaxFeePerGasTooLow {}",
-                tx_hash,
-                tx_data.fee.max_fee_per_gas
+            return Err(
+                anvil_zksync::node::TransactionValidationFailedMaxFeePerGasTooLow {
+                    max_fee_per_gas: Box::new(tx_data.fee.max_fee_per_gas),
+                    transaction_hash: Box::new(tx_hash),
+                    l2_gas_price: Box::new(l2_gas_price.into()),
+                },
             );
-            let error = anvil_zksync::node::TransactionValidationFailedMaxFeePerGasTooLow {
-                max_fee_per_gas: Box::new(tx_data.fee.max_fee_per_gas),
-                transaction_hash: Box::new(tx_hash),
-                l2_gas_price: Box::new(l2_gas_price.into()),
-            };
-            sh_eprintln!("{error}");
-            return Err(error);
         }
 
         if tx_data.fee.max_fee_per_gas < tx_data.fee.max_priority_fee_per_gas {
-            sh_eprintln!(
-                "Submitted Tx is Unexecutable {:?} because of MaxPriorityFeeGreaterThanMaxFee {}",
-                tx_hash,
-                tx_data.fee.max_fee_per_gas
-            );
             return Err(
                 anvil_zksync::node::TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee {
                     max_fee_per_gas: Box::new(tx_data.fee.max_fee_per_gas),
@@ -167,7 +156,7 @@ impl VmRunner {
 
     async fn run_tx_pretty(
         &mut self,
-        tx: Transaction,
+        tx: &Transaction,
         executor: &mut dyn BatchExecutor<StorageView<ForkStorage>>,
         config: &TestNodeConfig,
         fee_input_provider: &TestNodeFeeInputProvider,
@@ -262,7 +251,7 @@ impl VmRunner {
     #[allow(clippy::too_many_arguments)]
     async fn run_tx(
         &mut self,
-        tx: Transaction,
+        tx: &Transaction,
         tx_index: u64,
         next_log_index: &mut usize,
         block_ctx: &BlockContext,
@@ -275,6 +264,7 @@ impl VmRunner {
         let transaction_type = tx.tx_format();
 
         if let ExecuteTransactionCommon::L2(l2_tx_data) = &tx.common_data {
+            // If the transaction can not be validated, we return immediately
             self.validate_tx(batch_env, tx.hash(), l2_tx_data)?;
         }
 
@@ -283,26 +273,19 @@ impl VmRunner {
             compression_result: _,
             call_traces,
         } = self
-            .run_tx_pretty(tx.clone(), executor, config, fee_input_provider)
+            .run_tx_pretty(&tx, executor, config, fee_input_provider)
             .await?;
 
         if let ExecutionResult::Halt { reason } = result.result {
-            let halt_error = reason.to_halt_error().await;
-
-            let error_report = ExecutionErrorReport::new(&halt_error, Some(&tx));
-            sh_println!("{}", error_report);
-
             // Halt means that something went really bad with the transaction execution
             // (in most cases invalid signature, but it could also be bootloader panic etc).
             // In such cases, we should not persist the VM data and should pretend that
             // the transaction never existed.
-            // We do not print the error here, as it was already printed above.
             return Err(anvil_zksync::node::TransactionHalt {
-                inner: Box::new(halt_error),
+                inner: Box::new(reason.to_halt_error().await),
                 transaction_hash: Box::new(tx_hash),
             });
         }
-
         let saved_factory_deps = VmEvent::extract_bytecodes_marked_as_known(&result.logs.events);
 
         // Get transaction factory deps
@@ -416,7 +399,7 @@ impl VmRunner {
 
         Ok(TransactionResult {
             info: TxExecutionInfo {
-                tx,
+                tx: tx.clone(),
                 batch_number: batch_env.number.0,
                 miniblock_number: block_ctx.miniblock,
             },
@@ -479,7 +462,7 @@ impl VmRunner {
         for tx in txs {
             let result = self
                 .run_tx(
-                    tx,
+                    &tx,
                     tx_index,
                     &mut next_log_index,
                     &block_ctx,
@@ -496,8 +479,27 @@ impl VmRunner {
                     tx_index += 1;
                 }
                 Err(e) => {
-                    sh_err!("Error while executing transaction: {e}");
-                    executor.rollback_last_tx().await?;
+                    match &e {
+                        // Validation errors are reported and the execution proceeds
+                        AnvilNodeError::TransactionValidationFailedGasLimit {..}|
+                        AnvilNodeError::TransactionValidationFailedMaxFeePerGasTooLow {..} |
+                        AnvilNodeError::TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee {..} => {
+                            let error_report = ExecutionErrorReport::new(&e, Some(&tx));
+                            sh_eprintln!("{error_report}");
+                            executor.rollback_last_tx().await?;
+                        },
+                        // Halts are reported and the execution proceeds
+                        AnvilNodeError::TransactionHalt { inner, ..} =>  {
+                            let error_report = ExecutionErrorReport::new(inner.as_ref(), Some(&tx));
+                            sh_eprintln!("{error_report}");
+                            executor.rollback_last_tx().await?;
+                        },
+                        // Other errors are not recoverable so we pass them up
+                        // the execution stack immediately
+                        _ => {
+                            return Err(e)
+                        }
+                    }
                 }
             }
         }
@@ -707,7 +709,7 @@ mod test {
 
             self.vm_runner
                 .run_tx(
-                    tx,
+                    &tx,
                     0,
                     &mut 0,
                     &block_ctx,
