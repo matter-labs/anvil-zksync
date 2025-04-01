@@ -191,7 +191,7 @@ anvil-zksync --cache=disk --cache-dir=/tmp/foo --reset-cache run
 To fork the mainnet:
 
 ```bash
-# Available options mainnet, sepolia-testnet, abstract, abstract-testnet
+# Available options mainnet, sepolia-testnet, abstract, abstract-testnet, sophon, sophon-testnet
 anvil-zksync fork --fork-url mainnet
 ```
 

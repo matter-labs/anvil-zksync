@@ -376,11 +376,13 @@ pub struct ForkArgs {
     ///  - sepolia-testnet
     ///  - abstract (mainnet)
     ///  - abstract-testnet
+    ///  - sophon (mainnet)
+    ///  - sophon-testnet
     ///  - http://XXX:YY
     #[arg(
         long,
         alias = "network",
-        help = "Network to fork from (e.g., http://XXX:YY, mainnet, sepolia-testnet, abstract, abstract-testnet)."
+        help = "Network to fork from (e.g., http://XXX:YY, mainnet, sepolia-testnet, abstract, abstract-testnet, sophon, sophon-testnet)."
     )]
     pub fork_url: ForkUrl,
     // Fork at a given L2 miniblock height.
@@ -411,6 +413,8 @@ pub enum ForkUrl {
     SepoliaTestnet,
     AbstractMainnet,
     AbstractTestnet,
+    SophonMainnet,
+    SophonTestnet,
     Other(Url),
 }
 
@@ -419,6 +423,8 @@ impl ForkUrl {
     const SEPOLIA_TESTNET_URL: &'static str = "https://sepolia.era.zksync.dev:443";
     const ABSTRACT_MAINNET_URL: &'static str = "https://api.mainnet.abs.xyz";
     const ABSTRACT_TESTNET_URL: &'static str = "https://api.testnet.abs.xyz";
+    const SOPHON_MAINNET_URL: &'static str = "https://rpc.sophon.xyz";
+    const SOPHON_TESTNET_URL: &'static str = "https://rpc..testnet.sophon.xyz";
 
     pub fn to_config(&self) -> ForkConfig {
         match self {
@@ -442,6 +448,16 @@ impl ForkUrl {
                 estimate_gas_price_scale_factor: 1.5,
                 estimate_gas_scale_factor: 1.3,
             },
+            ForkUrl::SophonMainnet => ForkConfig {
+                url: Self::SOPHON_MAINNET_URL.parse().unwrap(),
+                estimate_gas_price_scale_factor: 1.5,
+                estimate_gas_scale_factor: 1.3,
+            },
+            ForkUrl::SophonTestnet => ForkConfig {
+                url: Self::SOPHON_TESTNET_URL.parse().unwrap(),
+                estimate_gas_price_scale_factor: 2.0,
+                estimate_gas_scale_factor: 1.3,
+            },
             ForkUrl::Other(url) => ForkConfig::unknown(url.clone()),
         }
     }
@@ -459,6 +475,10 @@ impl FromStr for ForkUrl {
             Ok(ForkUrl::AbstractMainnet)
         } else if s == "abstract-testnet" {
             Ok(ForkUrl::AbstractTestnet)
+        } else if s == "sophon" {
+            Ok(ForkUrl::SophonMainnet)
+        } else if s == "sophon-testnet" {
+            Ok(ForkUrl::SophonTestnet)
         } else {
             Ok(Url::from_str(s).map(ForkUrl::Other)?)
         }
@@ -474,11 +494,13 @@ pub struct ReplayArgs {
     ///  - sepolia-testnet
     ///  - abstract (mainnet)
     ///  - abstract-testnet
+    ///  - sophon (mainnet)
+    ///  - sophon-testnet
     ///  - http://XXX:YY
     #[arg(
         long,
         alias = "network",
-        help = "Network to fork from (e.g., http://XXX:YY, mainnet, sepolia-testnet, abstract, abstract-testnet)."
+        help = "Network to fork from (e.g., http://XXX:YY, mainnet, sepolia-testnet, abstract, abstract-testnet, sophon, sophon-testnet)."
     )]
     pub fork_url: ForkUrl,
     /// Transaction hash to replay.
