@@ -29,7 +29,6 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
-use zksync_error::anvil_zksync;
 use zksync_error::anvil_zksync::node::AnvilNodeError;
 use zksync_error::anvil_zksync::{halt::HaltError, revert::RevertError};
 use zksync_multivm::interface::storage::{ReadStorage, WriteStorage};
@@ -783,9 +782,7 @@ impl InMemoryNodeInner {
     pub async fn snapshot(&self) -> Result<Snapshot, AnvilNodeError> {
         let blockchain = self.blockchain.read().await;
         let filters = self.filters.read().await.clone();
-        let storage = self.fork_storage.inner.read().map_err(|err| {
-            anvil_zksync::node::generic_error!("failed acquiring read lock on storage: {err:?}")
-        })?;
+        let storage = self.fork_storage.inner.read().expect("failed acquiring read lock on storage");
 
         Ok(Snapshot {
             current_batch: blockchain.current_batch,
@@ -808,9 +805,7 @@ impl InMemoryNodeInner {
     /// Restores a previously created [Snapshot] of the node.
     pub async fn restore_snapshot(&mut self, snapshot: Snapshot) -> Result<(), AnvilNodeError> {
         let mut blockchain = self.blockchain.write().await;
-        let mut storage = self.fork_storage.inner.write().map_err(|err| {
-            anvil_zksync::node::generic_error!("failed acquiring write lock on storage: {err:?}")
-        })?;
+        let mut storage = self.fork_storage.inner.write().expect("failed acquiring write lock on storage");
 
         blockchain.current_batch = snapshot.current_batch;
         blockchain.current_block = snapshot.current_block;
