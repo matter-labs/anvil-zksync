@@ -55,8 +55,12 @@ pub struct AnvilZksyncTester<P>
 where
     P: FullZksyncProvider,
 {
+    /// Optional L1 provider when anvil-zksync is being run with L1 sidecar
     l1_provider: Option<DynProvider<Ethereum>>,
+    /// ZKsync L2 provider for anvil-zksync node
     l2_provider: P,
+    /// EVM-compatible L2 provider for anvil-zksync node
+    l2_evm_provider: DynProvider<Ethereum>,
     rich_accounts: Vec<Address>,
 
     /// Underlying anvil-zksync instance's URL
@@ -149,22 +153,29 @@ impl<'a> AnvilZksyncTesterBuilder<'a> {
             wallet.register_signer(signer)
         }
 
-        let provider = zksync_provider()
+        let l2_provider = zksync_provider()
             .with_recommended_fillers()
-            .wallet(wallet)
+            .wallet(wallet.clone())
             .layer(node_layer)
             .on_client(rpc_client);
+        let l2_evm_provider = DynProvider::new(
+            ProviderBuilder::new()
+                .wallet(wallet)
+                .connect(l2_url.as_str())
+                .await?,
+        );
 
         // Wait for anvil-zksync to get up and be able to respond.
         // Ignore error response (should not fail here if provider is used with intentionally wrong
         // configuration for testing purposes).
-        let _ = provider.get_chain_id().await;
+        let _ = l2_provider.get_chain_id().await;
         // Explicitly unlock the port to showcase why we waited above
         drop(locked_port);
 
         Ok(AnvilZksyncTester {
             l1_provider,
-            l2_provider: provider,
+            l2_provider,
+            l2_evm_provider,
             rich_accounts,
 
             l2_url,
@@ -197,6 +208,10 @@ where
 
     pub fn l2_provider_mut(&mut self) -> &mut P {
         &mut self.l2_provider
+    }
+
+    pub fn l2_evm_provider(&self) -> DynProvider<Ethereum> {
+        self.l2_evm_provider.clone()
     }
 }
 

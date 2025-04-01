@@ -24,13 +24,23 @@ for system_contract in "${system_contracts[@]}"; do
   cp "$SYSTEM_JSON_ABI_SRC_DIR/$system_contract.sol/$system_contract.json" $SYSTEM_JSON_ABI_DST_DIR
 done
 
-TEST_CONTRACT_SRC_DIR=etc/test-contracts/zkout
-TEST_CONTRACT_DST_DIR=e2e-tests-rust/src/test_contracts/artifacts
+cd etc/test-contracts
+yarn install --frozen-lockfile
+yarn build:foundry
+yarn build:foundry-zksync
+cd ../..
+
+TEST_CONTRACT_SRC_DIR=etc/test-contracts/out
+TEST_CONTRACT_DST_DIR=e2e-tests-rust/src/test_contracts/evm-artifacts
+ZKSYNC_TEST_CONTRACT_SRC_DIR=etc/test-contracts/zkout
+ZKSYNC_TEST_CONTRACT_DST_DIR=e2e-tests-rust/src/test_contracts/zk-artifacts
 
 mkdir -p $TEST_CONTRACT_DST_DIR
+mkdir -p $ZKSYNC_TEST_CONTRACT_DST_DIR
 
 test_contracts=("Counter")
 
 for test_contract in "${test_contracts[@]}"; do
   cp "$TEST_CONTRACT_SRC_DIR/$test_contract.sol/$test_contract.json" $TEST_CONTRACT_DST_DIR
+  cp "$ZKSYNC_TEST_CONTRACT_SRC_DIR/$test_contract.sol/$test_contract.json" $ZKSYNC_TEST_CONTRACT_DST_DIR
 done
