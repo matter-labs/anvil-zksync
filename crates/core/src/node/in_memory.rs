@@ -375,9 +375,9 @@ impl InMemoryNode {
                 .difference(&actual_tx_hashes)
                 .collect::<Vec<_>>();
             if !diff_tx_hashes.is_empty() {
-                return Err(anvil_zksync::node::TransactionFailed {
-                    failed_transactions_hashes: format!("{diff_tx_hashes:?}"),
-                });
+                return Err(anvil_zksync::node::generic_error!(
+                    "Some transactions could not be applied: {diff_tx_hashes:?}"
+                ));
             }
         }
 

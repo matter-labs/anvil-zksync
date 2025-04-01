@@ -331,22 +331,6 @@ pub enum AnvilNode {
         transaction_hash: Box<zksync_basic_types::H256>,
     } = 10u32,
     #[doc = "# Summary "]
-    #[doc = "One or more transactions failed during execution in anvil-zksync."]
-    #[doc = ""]
-    #[doc = "# Description"]
-    #[doc = "This error is raised when one or more transactions in a batch or block fail during execution."]
-    #[doc = "The error contains a list of transaction hashes that failed, allowing you to identify the problematic transactions in your test suite."]
-    #[doc = ""]
-    #[doc = "Anvil-zksync can process transactions in batches. When testing with multiple transactions, understanding how they interact is important:"]
-    #[doc = "- A batch is a group of transactions executed together"]
-    #[doc = "- When one transaction fails, it doesn't necessarily cause the entire batch to fail"]
-    #[doc = "- If a transaction failed and other transactions depend on it, these transactions may fail too."]
-    #[doc = ""]
-    #[doc = "This error may appear while debugging complex test scenarios with multiple interdependent transactions."]
-    TransactionFailed {
-        failed_transactions_hashes: String,
-    } = 11u32,
-    #[doc = "# Summary "]
     #[doc = "Failed to seal a block."]
     #[doc = ""]
     #[doc = "# Description"]
@@ -468,11 +452,6 @@ impl CustomErrorMessage for AnvilNode {
                 transaction_hash,
             } => {
                 format ! ("[anvil_zksync-node-10] Transaction {transaction_hash} execution halted, reason: {inner}")
-            }
-            AnvilNode::TransactionFailed {
-                failed_transactions_hashes,
-            } => {
-                format ! ("[anvil_zksync-node-11] Failed to execute transactions with hashes: {failed_transactions_hashes}")
             }
             AnvilNode::SealingBlockFailed {
                 block_transactions_hashes,
