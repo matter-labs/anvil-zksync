@@ -48,7 +48,7 @@ pub enum AnvilEnvironment {
     #[doc = ""]
     #[doc = "The host and port used by anvil-zksync are also displayed when you start anvil-zksync:"]
     #[doc = ""]
-    #[doc = "```"]
+    #[doc = "```text"]
     #[doc = "========================================"]
     #[doc = "Listening on 0.0.0.0:8011"]
     #[doc = "========================================"]
