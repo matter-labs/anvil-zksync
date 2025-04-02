@@ -17,7 +17,6 @@ use anvil_zksync_core::{
 use anvil_zksync_types::{
     LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails, TransactionOrder,
 };
-use anyhow::Result;
 use clap::{arg, command, ArgAction, Parser, Subcommand};
 use flate2::read::GzDecoder;
 use futures::FutureExt;
@@ -37,7 +36,7 @@ use std::{
 use tokio::time::{Instant, Interval};
 use url::Url;
 use zksync_telemetry::TelemetryProps;
-use zksync_types::{H256, U256};
+use zksync_types::{ProtocolVersionId, H256, U256};
 
 const DEFAULT_PORT: &str = "8011";
 const DEFAULT_HOST: &str = "0.0.0.0";
@@ -186,12 +185,13 @@ pub struct Cli {
     /// Option for system contracts (default: built-in).
     pub dev_system_contracts: Option<SystemContractsOptions>,
 
-    #[arg(
-        long,
-        requires = "dev_system_contracts",
-        help_heading = "System Configuration"
-    )]
-    /// Enables EVM emulation. Requires local system contracts.
+    #[arg(long, value_parser = protocol_version_from_str, help_heading = "System Configuration")]
+    /// Protocol version to use for new blocks (default: 26). Also affects revision of built-in
+    /// contracts that will get deployed (if applicable).
+    pub protocol_version: Option<ProtocolVersionId>,
+
+    #[arg(long, help_heading = "System Configuration")]
+    /// Enables EVM emulation.
     pub emulate_evm: bool,
 
     // Logging Configuration
@@ -341,6 +341,17 @@ pub struct Cli {
     #[arg(long, default_value = DEFAULT_TX_ORDER)]
     pub order: TransactionOrder,
 
+    #[clap(flatten)]
+    pub l1_group: Option<L1Group>,
+
+    /// Enable automatic execution of L1 batches
+    #[arg(long, requires = "l1_group", default_missing_value = "true", num_args(0..=1), help_heading = "UNSTABLE - L1")]
+    pub auto_execute_l1: Option<bool>,
+}
+
+#[derive(Debug, Clone, clap::Args)]
+#[group(id = "l1_group", multiple = false)]
+pub struct L1Group {
     /// Enable L1 support and spawn L1 anvil node on the provided port (defaults to 8012).
     #[arg(long, conflicts_with = "external_l1", default_missing_value = "8012", num_args(0..=1), help_heading = "UNSTABLE - L1")]
     pub spawn_l1: Option<u16>,
@@ -488,34 +499,34 @@ impl Cli {
         let args: Vec<String> = env::args().collect();
 
         let deprecated_flags: HashMap<&str, &str> = [
-        ("--config", 
+        ("--config",
             "⚠ The '--config' option has been removed. Please migrate to using other configuration options or defaults."),
 
-        ("--show-calls", 
+        ("--show-calls",
             "⚠ The '--show-calls' option is deprecated. Use verbosity levels instead:\n\
              -vv  → Show user calls\n\
              -vvv → Show system calls"),
 
-        ("--show-event-logs", 
+        ("--show-event-logs",
             "⚠ The '--show-event-logs' option is deprecated. Event logs are now included in traces by default.\n\
              Use verbosity levels instead:\n\
              -vv  → Show user calls\n\
              -vvv → Show system calls"),
 
-        ("--resolve-hashes", 
+        ("--resolve-hashes",
             "⚠ The '--resolve-hashes' option is deprecated. Automatic decoding of function and event selectors\n\
              using OpenChain is now enabled by default, unless running in offline mode.\n\
              If needed, disable it explicitly with `--offline`."),
 
-        ("--show-outputs", 
+        ("--show-outputs",
             "⚠ The '--show-outputs' option has been deprecated. Output logs are now included in traces by default."),
 
-        ("--debug", 
+        ("--debug",
             "⚠ The '--debug' (or '-d') option is deprecated. Use verbosity levels instead:\n\
              -vv  → Show user calls\n\
              -vvv → Show system calls"),
 
-        ("-d", 
+        ("-d",
             "⚠ The '-d' option is deprecated. Use verbosity levels instead:\n\
              -vv  → Show user calls\n\
              -vvv → Show system calls"),
@@ -589,6 +600,7 @@ impl Cli {
             .with_show_node_config(self.show_node_config)
             .with_silent(self.silent)
             .with_system_contracts(self.dev_system_contracts)
+            .with_protocol_version(self.protocol_version)
             .with_override_bytecodes_dir(self.override_bytecodes_dir.clone())
             .with_enforce_bytecode_compression(self.enforce_bytecode_compression)
             .with_log_level(self.log)
@@ -630,15 +642,16 @@ impl Cli {
             .with_dump_state(self.dump_state)
             .with_preserve_historical_states(self.preserve_historical_states)
             .with_load_state(self.load_state)
-            .with_l1_config(
-                self.spawn_l1.map(|port| L1Config::Spawn { port }).or(self
+            .with_l1_config(self.l1_group.and_then(|group| {
+                group.spawn_l1.map(|port| L1Config::Spawn { port }).or(group
                     .external_l1
-                    .map(|address| L1Config::External { address })),
-            );
+                    .map(|address| L1Config::External { address }))
+            }))
+            .with_auto_execute_l1(self.auto_execute_l1);
 
-        if self.emulate_evm && self.dev_system_contracts != Some(SystemContractsOptions::Local) {
+        if self.emulate_evm && config.protocol_version() < ProtocolVersionId::Version27 {
             return Err(zksync_error::anvil_zksync::env::InvalidArguments {
-                details: "EVM emulation requires the 'local' system contracts option.".into(),
+                details: "EVM emulation requires protocol version 27 or higher".into(),
                 arguments: debug_self_repr,
             });
         }
@@ -727,6 +740,10 @@ impl Cli {
             .insert(
                 "dev_system_contracts",
                 self.dev_system_contracts.map(|v| format!("{:?}", v)),
+            )
+            .insert(
+                "protocol_version",
+                self.protocol_version.map(|v| v.to_string()),
             )
             .insert_with("emulate_evm", self.emulate_evm, |v| v.then_some(v))
             .insert("log", self.log.map(|v| v.to_string()))
@@ -823,6 +840,11 @@ fn duration_from_secs_f64(s: &str) -> Result<Duration, String> {
         return Err("Duration must be greater than 0".to_string());
     }
     Duration::try_from_secs_f64(s).map_err(|e| e.to_string())
+}
+
+fn protocol_version_from_str(s: &str) -> anyhow::Result<ProtocolVersionId> {
+    let version = s.parse::<u16>()?;
+    Ok(ProtocolVersionId::try_from(version)?)
 }
 
 // Implementation adapted from: https://github.com/foundry-rs/foundry/blob/206dab285437bd6889463ab006b6a5fb984079d8/crates/anvil/src/cmd.rs#L606

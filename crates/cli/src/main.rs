@@ -15,11 +15,12 @@ use anvil_zksync_core::filters::EthFilters;
 use anvil_zksync_core::node::fork::ForkClient;
 use anvil_zksync_core::node::{
     BlockSealer, BlockSealerMode, ImpersonationManager, InMemoryNode, InMemoryNodeInner,
-    NodeExecutor, StorageKeyLayout, TestNodeFeeInputProvider, TxPool,
+    NodeExecutor, StorageKeyLayout, TestNodeFeeInputProvider, TxBatch, TxPool,
 };
 use anvil_zksync_core::observability::Observability;
 use anvil_zksync_core::system_contracts::SystemContracts;
 use anvil_zksync_l1_sidecar::L1Sidecar;
+use anvil_zksync_types::L2TxBuilder;
 use anyhow::Context;
 use clap::Parser;
 use std::fs::File;
@@ -36,7 +37,7 @@ use zksync_error::anvil_zksync::AnvilZksyncError;
 use zksync_error::{ICustomError, IError as _};
 use zksync_telemetry::{get_telemetry, init_telemetry, TelemetryProps};
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
-use zksync_types::{L2BlockNumber, H160};
+use zksync_types::{Address, L2BlockNumber, Nonce, CONTRACT_DEPLOYER_ADDRESS, H160, U256};
 
 mod bytecode_override;
 mod cli;
@@ -247,7 +248,8 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         TestNodeFeeInputProvider::from_fork(fork_client.as_ref().map(|f| &f.details));
     let filters = Arc::new(RwLock::new(EthFilters::default()));
     let system_contracts = SystemContracts::from_options(
-        &config.system_contracts_options,
+        config.system_contracts_options,
+        config.protocol_version(),
         config.use_evm_emulator,
         config.use_zkos,
     );
@@ -281,19 +283,27 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
             .into())
         }
         Some(L1Config::Spawn { port }) => {
-            let (l1_sidecar, l1_sidecar_runner) =
-                L1Sidecar::process(*port, blockchain.clone(), node_handle.clone(), pool.clone())
-                    .await
-                    .map_err(to_domain)?;
+            let (l1_sidecar, l1_sidecar_runner) = L1Sidecar::process(
+                config.protocol_version(),
+                *port,
+                blockchain.clone(),
+                node_handle.clone(),
+                pool.clone(),
+                config.auto_execute_l1,
+            )
+            .await
+            .map_err(to_domain)?;
             node_service_tasks.push(Box::pin(l1_sidecar_runner.run()));
             l1_sidecar
         }
         Some(L1Config::External { address }) => {
             let (l1_sidecar, l1_sidecar_runner) = L1Sidecar::external(
+                config.protocol_version(),
                 address,
                 blockchain.clone(),
                 node_handle.clone(),
                 pool.clone(),
+                config.auto_execute_l1,
             )
             .await
             .map_err(to_domain)?;
@@ -318,7 +328,7 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         blockchain,
         storage,
         fork,
-        node_handle,
+        node_handle.clone(),
         Some(observability),
         time,
         impersonation,
@@ -338,6 +348,42 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         }
     });
 
+    if config.use_evm_emulator {
+        // We need to enable EVM emulator by setting `allowedBytecodeTypesToDeploy` in `ContractDeployer`
+        // to `1` (i.e. `AllowedBytecodeTypes::EraVmAndEVM`).
+        let service_call_pseudo_caller =
+            Address::from_str("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF").unwrap();
+        node.impersonate_account(service_call_pseudo_caller)
+            .unwrap();
+        node.set_rich_account(service_call_pseudo_caller, U256::from(1_000_000_000_000u64))
+            .await;
+        let tx = L2TxBuilder::new(
+            service_call_pseudo_caller,
+            Nonce(0),
+            U256::from(300_000),
+            U256::from(u32::MAX),
+            node.chain_id().await,
+        )
+        .with_to(CONTRACT_DEPLOYER_ADDRESS)
+        .with_calldata(
+            // cast calldata "setAllowedBytecodeTypesToDeploy(uint8)()" 1
+            hex::decode("fe06380c0000000000000000000000000000000000000000000000000000000000000001")
+                .unwrap(),
+        )
+        .build_impersonated();
+        node_handle
+            .seal_block_sync(TxBatch {
+                impersonating: true,
+                txs: vec![tx.into()],
+            })
+            .await
+            .map_err(to_domain)?;
+        node.set_rich_account(service_call_pseudo_caller, U256::from(0))
+            .await;
+        node.stop_impersonating_account(service_call_pseudo_caller)
+            .unwrap();
+    }
+
     if let Some(ref bytecodes_dir) = config.override_bytecodes_dir {
         override_bytecodes(&node, bytecodes_dir.to_string())
             .await
@@ -345,12 +391,9 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
     }
 
     if !transactions_to_replay.is_empty() {
-        node.apply_txs(
-            transactions_to_replay.into_iter().map(Into::into).collect(),
-            config.max_transactions,
-        )
-        .await
-        .map_err(to_domain)?;
+        node.replay_txs(transactions_to_replay)
+            .await
+            .map_err(to_domain)?;
 
         // If we are in replay mode, we don't start the server
         return Ok(());

@@ -8,6 +8,7 @@
 use crate::node::{InMemoryNode, TxBatch, TxExecutionInfo};
 
 use anvil_zksync_config::constants::DEFAULT_ACCOUNT_BALANCE;
+use anvil_zksync_types::L2TxBuilder;
 use httptest::{
     matchers::{eq, json_decoded, request},
     responders::json_encoded,
@@ -17,13 +18,13 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
 use url::Url;
-use zksync_types::api::{BridgeAddresses, DebugCall, DebugCallType, Log, TransactionRequest};
+use zksync_types::api::{BridgeAddresses, DebugCall, DebugCallType, Log};
 use zksync_types::bytecode::BytecodeHash;
 use zksync_types::fee::Fee;
 use zksync_types::l2::L2Tx;
 use zksync_types::{
     Address, ExecuteTransactionCommon, K256PrivateKey, L2BlockNumber, L2ChainId, Nonce,
-    PackedEthSignature, ProtocolVersionId, Transaction, H160, H256, U256, U64,
+    ProtocolVersionId, Transaction, H160, H256, U256, U64,
 };
 use zksync_web3_decl::jsonrpsee::types::TwoPointZero;
 
@@ -118,7 +119,7 @@ impl MockServer {
                       "default_aa": "0x0100038dc66b69be75ec31653c64cb931678299b9b659472772b2550b703f41c"
                     },
                     "operatorAddress": "0xfeee860e7aae671124e9a4e61139f3a5085dfeee",
-                    "protocolVersion": ProtocolVersionId::Version15,
+                    "protocolVersion": ProtocolVersionId::Version26,
                   },
             }))),
         );
@@ -566,32 +567,16 @@ impl TransactionBuilder {
     }
 
     pub fn impersonate(&mut self, to_impersonate: Address) -> L2Tx {
-        let mut tx = L2Tx::new(
-            Some(Address::random()),
-            vec![],
-            Nonce(0),
-            Fee {
-                gas_limit: self.gas_limit,
-                max_fee_per_gas: self.max_fee_per_gas,
-                max_priority_fee_per_gas: self.max_priority_fee_per_gas,
-                gas_per_pubdata_limit: U256::from(50000),
-            },
+        L2TxBuilder::new(
             to_impersonate,
-            U256::one(),
-            vec![],
-            Default::default(),
-        );
-
-        let mut req: TransactionRequest = tx.clone().into();
-        req.chain_id = Some(260);
-        let data = req.get_default_signed_message().unwrap();
-        let sig = PackedEthSignature::sign_raw(&K256PrivateKey::random(), &data).unwrap();
-        let raw = req.get_signed_bytes(&sig).unwrap();
-        let (_, hash) = TransactionRequest::from_bytes_unverified(&raw).unwrap();
-
-        tx.set_input(vec![], hash);
-        tx.common_data.signature = sig.serialize_packed().into();
-        tx
+            Nonce(0),
+            self.gas_limit,
+            self.max_fee_per_gas,
+            260.into(),
+        )
+        .with_to(Address::random())
+        .with_max_priority_fee_per_gas(self.max_priority_fee_per_gas)
+        .build_impersonated()
     }
 }
 
@@ -877,6 +862,7 @@ mod test {
 
         assert_eq!(
             compute_hash(
+                ProtocolVersionId::latest(),
                 L2BlockNumber(1),
                 1001,
                 L2BlockHasher::legacy_hash(L2BlockNumber(0)),

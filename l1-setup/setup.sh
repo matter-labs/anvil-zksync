@@ -3,17 +3,54 @@
 set -e
 
 ANVIL_URL=http://localhost:8545
-ANVIL_STATE_PAYLOAD_PATH="${BASH_SOURCE%/*}/state/l1-state-payload.txt"
 WALLETS_PATH="${BASH_SOURCE%/*}/wallets.yaml"
 # ~75k ETH
 DEFAULT_FUND_AMOUNT=0x10000000000000000000
+
+PROTOCOL_VERSION=${1:-v28}
+case $PROTOCOL_VERSION in
+  v26)
+    # HEAD of anvil-zksync-0.4.x-release-v26
+    ERA_CONTRACTS_GIT_COMMIT=50dc0669213366f5d3084a7a29a83541cf3c6435
+    ERA_TAG=core-v26.8.1
+    ;;
+  v27)
+    # HEAD of anvil-zksync-0.4.x-release-v27
+    ERA_CONTRACTS_GIT_COMMIT=f0e17d700929e25292be971ea5196368bf120cea
+    ERA_TAG=core-v27.0.0
+    ;;
+  v28)
+    # HEAD of anvil-zksync-0.4.x-release-v28
+    ERA_CONTRACTS_GIT_COMMIT=07a789244c66c4e9b2b8623ea4cfe39396ad81c2
+    # HEAD of release-v28
+    ERA_TAG=02da145d3e002c5faaca1a8a771ddbb51264551a
+    ;;
+  *)
+    echo "Unrecognized/unsupported protocol version: $PROTOCOL_VERSION"
+    exit 1
+    ;;
+esac
+
+# Checkout the right revision of contracts
+cd ../contracts
+echo "Using era-contracts commit: $ERA_CONTRACTS_GIT_COMMIT"
+git fetch && git checkout $ERA_CONTRACTS_GIT_COMMIT
+cd ../l1-setup
+
+# Kill all child processes on exit
+trap 'pkill --signal SIGTERM --parent $$' EXIT
+
+# Spawn anvil in background
+anvil --port 8545  --dump-state "state/$PROTOCOL_VERSION-l1-state.json" &
+ANVIL_STATE_PAYLOAD_PATH="${BASH_SOURCE%/*}/state/$PROTOCOL_VERSION-l1-state-payload.txt"
+ANVIL_UPGRADE_TX_PATH="${BASH_SOURCE%/*}/state/$PROTOCOL_VERSION-l2-upgrade-tx.json"
 
 fund_account () {
   local payload='{"method":"anvil_setBalance","params":['\""$1"\"', '\""$DEFAULT_FUND_AMOUNT"\"'],"id":1,"jsonrpc":"2.0"}'
   local output
   output="$(
     curl $ANVIL_URL \
-      -s \
+      --silent --show-error \
       -X POST \
       -H "Content-Type: application/json" \
       --data "$payload"
@@ -34,6 +71,21 @@ then
   exit 1
 fi
 
+echo "* Waiting for anvil to start up..."
+while true
+do
+  EXIT_CODE=0
+  curl $ANVIL_URL \
+    --silent --show-error \
+    -X POST \
+    -H "Content-Type: application/json" \
+    --data '{"method":"eth_accounts","params":[],"id":1,"jsonrpc":"2.0"}' || EXIT_CODE=$?
+  if [[ $EXIT_CODE == 0 ]]; then
+    break
+  fi
+  sleep 1
+done
+
 echo "* Reading chain accounts from $WALLETS_PATH..."
 DEPLOYER_ACCOUNT="$(yq -r '.deployer.address' "$WALLETS_PATH")"
 BLOB_OPERATOR_ACCOUNT="$(yq -r '.blob_operator.address' "$WALLETS_PATH")"
@@ -46,42 +98,58 @@ fund_account "$BLOB_OPERATOR_ACCOUNT"
 fund_account "$GOVERNOR_ACCOUNT"
 echo "* Done"
 
-# Create a new ecosystem in `./anvil_ecosystem` with cloned `zksync-era`
+# Create a new ecosystem in `./anvil_ecosystem_<protocol_version>` with cloned `zksync-era`
 zkstack ecosystem create \
-  --ecosystem-name anvil-ecosystem --l1-network localhost --chain-name anvil --chain-id 260 \
-  --wallet-creation in-file --wallet-path ../wallets.yaml \
+  --ecosystem-name "anvil-ecosystem-$PROTOCOL_VERSION" --l1-network localhost --chain-name "anvil-$PROTOCOL_VERSION" \
+  --chain-id 260 --wallet-creation in-file --wallet-path ../wallets.yaml \
   --prover-mode no-proofs --l1-batch-commit-data-generator-mode rollup --evm-emulator false --start-containers false \
   --base-token-address "0x0000000000000000000000000000000000000001"  --base-token-price-nominator 1 --base-token-price-denominator 1 \
   --link-to-code "" # Indicates that `zksync-era` needs to be cloned
 
+ECOSYSTEM_DIR="anvil_ecosystem_$PROTOCOL_VERSION"
+ECOSYSTEM_ERA_DIR="$ECOSYSTEM_DIR/zksync-era"
+
 echo "* Patching ecosystem..."
+# Checkout correct version of zksync-era
+pushd "./$ECOSYSTEM_ERA_DIR" > /dev/null
+echo "Using zksync-era tag: $ERA_TAG"
+git fetch && git checkout $ERA_TAG
+popd > /dev/null
 # Substitute zksync-era's contracts with anvil-zksync's version
-rm -rf ./anvil_ecosystem/zksync-era/contracts
-ln -s ../../../contracts  ./anvil_ecosystem/zksync-era/contracts
+rm -rf "./$ECOSYSTEM_ERA_DIR/contracts"
+ln -s ../../../contracts  "./$ECOSYSTEM_ERA_DIR/contracts"
 # Patch `genesis.yaml` with anvil-zksync's parameters
-patched_genesis=$(yq '. * load("patches/genesis-patch.yaml")' ./anvil_ecosystem/zksync-era/etc/env/file_based/genesis.yaml)
-echo "$patched_genesis" > ./anvil_ecosystem/zksync-era/etc/env/file_based/genesis.yaml
+patched_genesis=$(yq ". * load(\"patches/$PROTOCOL_VERSION-genesis-patch.yaml\")" "./$ECOSYSTEM_ERA_DIR/etc/env/file_based/genesis.yaml")
+echo "$patched_genesis" > "./$ECOSYSTEM_ERA_DIR/etc/env/file_based/genesis.yaml"
 echo "* Done"
 
 # Initialize ecosystem
 # Note: this requires a running postgres container and builds zksync-era server; neither is needed for us but there is
 #       no current way to turn off this behavior in zkstack
-pushd ./anvil_ecosystem > /dev/null
+pushd "./$ECOSYSTEM_DIR" > /dev/null
 zkstack ecosystem init \
   --deploy-paymaster --deploy-erc20 --deploy-ecosystem \
   --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 --server-db-name=zksync_server_localhost_era \
   --l1-rpc-url=http://localhost:8545 --observability false --update-submodules false
 popd > /dev/null
 
+GENESIS_PROTOCOL_VERSION="$(yq -r '.genesis_protocol_version' "$ECOSYSTEM_DIR/chains/anvil_$PROTOCOL_VERSION/configs/genesis.yaml")"
+if [[ "v$GENESIS_PROTOCOL_VERSION" != "$PROTOCOL_VERSION" ]]; then
+  echo "ERROR: Ecosystem was initialized with protocol version v$GENESIS_PROTOCOL_VERSION when we expected $PROTOCOL_VERSION"
+  echo "Make sure you are using correct version of zkstack and clean ecosystem directory ($ECOSYSTEM_DIR)"
+  exit 1
+fi
+
 # Persist resulting configuration files in anvil-zksync's source control
 echo "* Copying resulting config files..."
-cp ./anvil_ecosystem/chains/anvil/configs/{contracts,genesis}.yaml ./configs/
+cp "./$ECOSYSTEM_DIR/chains/anvil_$PROTOCOL_VERSION/configs/contracts.yaml" "./configs/$PROTOCOL_VERSION-contracts.yaml"
+cp "./$ECOSYSTEM_DIR/chains/anvil_$PROTOCOL_VERSION/configs/genesis.yaml" "./configs/$PROTOCOL_VERSION-genesis.yaml"
 echo "* Done"
 
 echo "* Dumping mandatory upgrade transaction..."
 psql postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era -t -c \
   "select jsonb_agg(transactions) from transactions join protocol_versions on transactions.hash = protocol_versions.upgrade_tx_hash;" \
-  | jq -c '.[0]' | sed -e 's/\\\\x/0x/g' > ./state/upgrade_tx.json
+  | jq -c '.[0]' | sed -e 's/\\\\x/0x/g' > "$ANVIL_UPGRADE_TX_PATH"
 echo "* Done"
 
 echo "* Dumping anvil's state as payload..."

@@ -23,6 +23,7 @@ alloy = { workspace = true, default-features = false, features = ["sol-types", "
 anyhow.workspace = true
 hex.workspace = true
 tempfile.workspace = true
+once_cell.workspace = true
 semver.workspace = true
 serde.workspace = true
 serde_json.workspace = true

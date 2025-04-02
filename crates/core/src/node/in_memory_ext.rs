@@ -405,7 +405,7 @@ mod tests {
     use crate::testing::TransactionBuilder;
     use std::str::FromStr;
     use zksync_multivm::interface::storage::ReadStorage;
-    use zksync_types::{api, L1BatchNumber};
+    use zksync_types::{api, L1BatchNumber, Transaction};
     use zksync_types::{h256_to_u256, L2ChainId, H256};
 
     #[tokio::test]
@@ -570,11 +570,12 @@ mod tests {
             .unwrap();
         assert!(result);
 
-        // construct a tx
-        let tx = TransactionBuilder::new().impersonate(to_impersonate);
+        // construct a random tx each time to avoid hash collision
+        let generate_tx =
+            || Transaction::from(TransactionBuilder::new().impersonate(to_impersonate));
 
         // try to execute the tx- should fail without signature
-        assert!(node.apply_txs(vec![tx.clone().into()], 1).await.is_err());
+        assert!(node.apply_txs([generate_tx()]).await.is_err());
 
         // impersonate the account
         let result = node
@@ -591,7 +592,7 @@ mod tests {
         assert!(!result);
 
         // execution should now succeed
-        assert!(node.apply_txs(vec![tx.clone().into()], 1).await.is_ok());
+        assert!(node.apply_txs([generate_tx()]).await.is_ok());
 
         // stop impersonating the account
         let result = node
@@ -608,7 +609,7 @@ mod tests {
         assert!(!result);
 
         // execution should now fail again
-        assert!(node.apply_txs(vec![tx.into()], 1).await.is_err());
+        assert!(node.apply_txs([generate_tx()]).await.is_err());
     }
 
     #[tokio::test]

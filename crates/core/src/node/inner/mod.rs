@@ -69,6 +69,7 @@ impl InMemoryNodeInner {
                 .unwrap_or(NON_FORK_FIRST_BLOCK_TIMESTAMP),
         );
         let blockchain = Blockchain::new(
+            system_contracts.protocol_version,
             fork_details.as_ref(),
             config.genesis.as_ref(),
             config.genesis_timestamp,
@@ -76,7 +77,8 @@ impl InMemoryNodeInner {
         // TODO: Create read-only/mutable versions of `ForkStorage` like `blockchain` and `time` above
         let fork_storage = ForkStorage::new(
             fork.clone(),
-            &config.system_contracts_options,
+            config.system_contracts_options,
+            system_contracts.protocol_version,
             config.chain_id,
         );
         let vm_runner = VmRunner::new(

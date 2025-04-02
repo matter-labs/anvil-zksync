@@ -31,6 +31,9 @@ pub trait ReadBlockchain: Send + Sync + Debug {
     /// Alternative for [`Clone::clone`] that is object safe.
     fn dyn_cloned(&self) -> Box<dyn ReadBlockchain>;
 
+    /// Current protocol version used by the chain.
+    fn protocol_version(&self) -> ProtocolVersionId;
+
     /// Returns last sealed batch's number. At least one sealed batch is guaranteed to be present
     /// in the storage at any given time.
     async fn current_batch(&self) -> L1BatchNumber;
@@ -169,6 +172,7 @@ impl Clone for Box<dyn ReadBlockchain> {
 #[derive(Debug, Clone)]
 pub(super) struct Blockchain {
     inner: Arc<RwLock<BlockchainState>>,
+    pub(super) protocol_version: ProtocolVersionId,
 }
 
 impl Blockchain {
@@ -229,6 +233,10 @@ impl Blockchain {
 impl ReadBlockchain for Blockchain {
     fn dyn_cloned(&self) -> Box<dyn ReadBlockchain> {
         Box::new(self.clone())
+    }
+
+    fn protocol_version(&self) -> ProtocolVersionId {
+        self.protocol_version
     }
 
     async fn current_batch(&self) -> L1BatchNumber {
@@ -357,7 +365,7 @@ impl ReadBlockchain for Blockchain {
                 base_system_contracts_hashes,
             },
             operator_address: Address::zero(),
-            protocol_version: Some(ProtocolVersionId::latest()),
+            protocol_version: Some(self.protocol_version),
         })
         .await
     }
@@ -517,12 +525,14 @@ impl ReadBlockchain for Blockchain {
 
 impl Blockchain {
     pub(super) fn new(
+        protocol_version: ProtocolVersionId,
         fork_details: Option<&ForkDetails>,
         genesis: Option<&Genesis>,
         genesis_timestamp: Option<u64>,
     ) -> Blockchain {
         let state = if let Some(fork_details) = fork_details {
             BlockchainState {
+                protocol_version: fork_details.protocol_version,
                 current_batch: fork_details.batch_number,
                 current_block: fork_details.block_number,
                 current_block_hash: fork_details.block_hash,
@@ -538,9 +548,9 @@ impl Blockchain {
             }
         } else {
             let (genesis_block, genesis_batch_header) = if let Some(genesis) = genesis {
-                create_genesis_from_json(genesis, genesis_timestamp)
+                create_genesis_from_json(protocol_version, genesis, genesis_timestamp)
             } else {
-                create_genesis(genesis_timestamp)
+                create_genesis(protocol_version, genesis_timestamp)
             };
             let block_hash = genesis_block.hash;
             let genesis_batch_info = StoredL1BatchInfo {
@@ -550,6 +560,7 @@ impl Blockchain {
             };
 
             BlockchainState {
+                protocol_version,
                 current_batch: L1BatchNumber(0),
                 current_block: L2BlockNumber(0),
                 current_block_hash: block_hash,
@@ -559,8 +570,12 @@ impl Blockchain {
                 batches: HashMap::from_iter([(L1BatchNumber(0), genesis_batch_info)]),
             }
         };
+        let protocol_version = state.protocol_version;
         let inner = Arc::new(RwLock::new(state));
-        Self { inner }
+        Self {
+            inner,
+            protocol_version,
+        }
     }
 }
 
@@ -577,6 +592,8 @@ impl Blockchain {
 /// Stores the blockchain data (blocks, transactions)
 #[derive(Debug, Clone)]
 pub(super) struct BlockchainState {
+    /// Protocol version for all produced blocks.
+    pub(super) protocol_version: ProtocolVersionId,
     /// The latest batch number that was already generated.
     /// Next block will go to the batch `current_batch + 1`.
     pub(super) current_batch: L1BatchNumber,
@@ -724,7 +741,7 @@ impl BlockchainState {
             used_contract_hashes: finished_l1_batch.final_execution_state.used_contract_hashes,
             base_system_contracts_hashes,
             system_logs: finished_l1_batch.final_execution_state.system_logs,
-            protocol_version: Some(ProtocolVersionId::latest()),
+            protocol_version: Some(self.protocol_version),
             pubdata_input: finished_l1_batch.pubdata_input,
             fee_address: Default::default(), // TODO: Use real fee address
             batch_fee_input: Default::default(), // TODO: Use real batch fee input

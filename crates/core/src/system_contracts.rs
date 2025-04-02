@@ -7,11 +7,12 @@ use zksync_contracts::{
 };
 use zksync_multivm::interface::TxExecutionMode;
 use zksync_types::bytecode::BytecodeHash;
-use zksync_types::Address;
+use zksync_types::{Address, ProtocolVersionId};
 
 /// Holds the system contracts (and bootloader) that are used by the in-memory node.
 #[derive(Debug, Clone)]
 pub struct SystemContracts {
+    pub protocol_version: ProtocolVersionId,
     baseline_contracts: BaseSystemContracts,
     playground_contracts: BaseSystemContracts,
     fee_estimate_contracts: BaseSystemContracts,
@@ -24,31 +25,38 @@ pub struct SystemContracts {
     pub use_zkos: bool,
 }
 
-impl Default for SystemContracts {
-    /// Creates SystemContracts that use compiled-in contracts.
-    fn default() -> Self {
-        SystemContracts::from_options(&SystemContractsOptions::BuiltIn, false, false)
-    }
-}
-
 impl SystemContracts {
     /// Creates the SystemContracts that use the complied contracts from ZKSYNC_HOME path.
     /// These are loaded at binary runtime.
     pub fn from_options(
-        options: &SystemContractsOptions,
+        options: SystemContractsOptions,
+        protocol_version: ProtocolVersionId,
         use_evm_emulator: bool,
         use_zkos: bool,
     ) -> Self {
+        tracing::info!(
+            %protocol_version,
+            use_evm_emulator,
+            use_zkos,
+            "initializing system contracts"
+        );
         Self {
-            baseline_contracts: baseline_contracts(options, use_evm_emulator),
-            playground_contracts: playground(options, use_evm_emulator),
-            fee_estimate_contracts: fee_estimate_contracts(options, use_evm_emulator),
+            protocol_version,
+            baseline_contracts: baseline_contracts(options, protocol_version, use_evm_emulator),
+            playground_contracts: playground(options, protocol_version, use_evm_emulator),
+            fee_estimate_contracts: fee_estimate_contracts(
+                options,
+                protocol_version,
+                use_evm_emulator,
+            ),
             baseline_impersonating_contracts: baseline_impersonating_contracts(
                 options,
+                protocol_version,
                 use_evm_emulator,
             ),
             fee_estimate_impersonating_contracts: fee_estimate_impersonating_contracts(
                 options,
+                protocol_version,
                 use_evm_emulator,
             ),
             use_evm_emulator,
@@ -114,7 +122,8 @@ impl SystemContracts {
 /// Creates BaseSystemContracts object with a specific bootloader.
 fn bsc_load_with_bootloader(
     bootloader_bytecode: Vec<u8>,
-    options: &SystemContractsOptions,
+    options: SystemContractsOptions,
+    protocol_version: ProtocolVersionId,
     use_evm_emulator: bool,
 ) -> BaseSystemContracts {
     let hash = BytecodeHash::for_bytecode(&bootloader_bytecode);
@@ -125,12 +134,14 @@ fn bsc_load_with_bootloader(
     };
 
     let aa_bytecode = match options {
-        SystemContractsOptions::BuiltIn => load_builtin_contract("DefaultAccount"),
+        SystemContractsOptions::BuiltIn => {
+            load_builtin_contract(protocol_version, "DefaultAccount")
+        }
         SystemContractsOptions::Local => {
             read_sys_contract_bytecode("", "DefaultAccount", ContractLanguage::Sol)
         }
         SystemContractsOptions::BuiltInWithoutSecurity => {
-            load_builtin_contract("DefaultAccountNoSecurity")
+            load_builtin_contract(protocol_version, "DefaultAccountNoSecurity")
         }
     };
 
@@ -146,7 +157,7 @@ fn bsc_load_with_bootloader(
                 read_sys_contract_bytecode("", "EvmEmulator", ContractLanguage::Yul)
             }
             SystemContractsOptions::BuiltIn | SystemContractsOptions::BuiltInWithoutSecurity => {
-                panic!("no built-in EVM emulator yet")
+                load_builtin_contract(protocol_version, "EvmEmulator")
             }
         };
         let evm_emulator_hash = BytecodeHash::for_bytecode(&evm_emulator_bytecode);
@@ -166,15 +177,24 @@ fn bsc_load_with_bootloader(
 }
 
 /// BaseSystemContracts with playground bootloader -  used for handling 'eth_calls'.
-fn playground(options: &SystemContractsOptions, use_evm_emulator: bool) -> BaseSystemContracts {
+fn playground(
+    options: SystemContractsOptions,
+    protocol_version: ProtocolVersionId,
+    use_evm_emulator: bool,
+) -> BaseSystemContracts {
     let bootloader_bytecode = match options {
         SystemContractsOptions::BuiltIn | SystemContractsOptions::BuiltInWithoutSecurity => {
-            load_builtin_contract("playground_batch")
+            load_builtin_contract(protocol_version, "playground_batch")
         }
         SystemContractsOptions::Local => read_bootloader_code("playground_batch"),
     };
 
-    bsc_load_with_bootloader(bootloader_bytecode, options, use_evm_emulator)
+    bsc_load_with_bootloader(
+        bootloader_bytecode,
+        options,
+        protocol_version,
+        use_evm_emulator,
+    )
 }
 
 /// Returns the system contracts for fee estimation.
@@ -184,57 +204,81 @@ fn playground(options: &SystemContractsOptions, use_evm_emulator: bool) -> BaseS
 /// A `BaseSystemContracts` struct containing the system contracts used for handling 'eth_estimateGas'.
 /// It sets ENSURE_RETURNED_MAGIC to 0 and BOOTLOADER_TYPE to 'playground_block'
 fn fee_estimate_contracts(
-    options: &SystemContractsOptions,
+    options: SystemContractsOptions,
+    protocol_version: ProtocolVersionId,
     use_evm_emulator: bool,
 ) -> BaseSystemContracts {
     let bootloader_bytecode = match options {
         SystemContractsOptions::BuiltIn | SystemContractsOptions::BuiltInWithoutSecurity => {
-            load_builtin_contract("fee_estimate")
+            load_builtin_contract(protocol_version, "fee_estimate")
         }
         SystemContractsOptions::Local => read_bootloader_code("fee_estimate"),
     };
 
-    bsc_load_with_bootloader(bootloader_bytecode, options, use_evm_emulator)
+    bsc_load_with_bootloader(
+        bootloader_bytecode,
+        options,
+        protocol_version,
+        use_evm_emulator,
+    )
 }
 
 fn fee_estimate_impersonating_contracts(
-    options: &SystemContractsOptions,
+    options: SystemContractsOptions,
+    protocol_version: ProtocolVersionId,
     use_evm_emulator: bool,
 ) -> BaseSystemContracts {
     let bootloader_bytecode = match options {
         SystemContractsOptions::BuiltIn | SystemContractsOptions::BuiltInWithoutSecurity => {
-            load_builtin_contract("fee_estimate_impersonating")
+            load_builtin_contract(protocol_version, "fee_estimate_impersonating")
         }
         // Account impersonating is not supported with the local contracts
         SystemContractsOptions::Local => read_bootloader_code("fee_estimate"),
     };
 
-    bsc_load_with_bootloader(bootloader_bytecode, options, use_evm_emulator)
+    bsc_load_with_bootloader(
+        bootloader_bytecode,
+        options,
+        protocol_version,
+        use_evm_emulator,
+    )
 }
 
 fn baseline_contracts(
-    options: &SystemContractsOptions,
+    options: SystemContractsOptions,
+    protocol_version: ProtocolVersionId,
     use_evm_emulator: bool,
 ) -> BaseSystemContracts {
     let bootloader_bytecode = match options {
         SystemContractsOptions::BuiltIn | SystemContractsOptions::BuiltInWithoutSecurity => {
-            load_builtin_contract("proved_batch")
+            load_builtin_contract(protocol_version, "proved_batch")
         }
         SystemContractsOptions::Local => read_bootloader_code("proved_batch"),
     };
-    bsc_load_with_bootloader(bootloader_bytecode, options, use_evm_emulator)
+    bsc_load_with_bootloader(
+        bootloader_bytecode,
+        options,
+        protocol_version,
+        use_evm_emulator,
+    )
 }
 
 fn baseline_impersonating_contracts(
-    options: &SystemContractsOptions,
+    options: SystemContractsOptions,
+    protocol_version: ProtocolVersionId,
     use_evm_emulator: bool,
 ) -> BaseSystemContracts {
     let bootloader_bytecode = match options {
         SystemContractsOptions::BuiltIn | SystemContractsOptions::BuiltInWithoutSecurity => {
-            load_builtin_contract("proved_batch_impersonating")
+            load_builtin_contract(protocol_version, "proved_batch_impersonating")
         }
         // Account impersonating is not supported with the local contracts
         SystemContractsOptions::Local => read_bootloader_code("proved_batch"),
     };
-    bsc_load_with_bootloader(bootloader_bytecode, options, use_evm_emulator)
+    bsc_load_with_bootloader(
+        bootloader_bytecode,
+        options,
+        protocol_version,
+        use_evm_emulator,
+    )
 }

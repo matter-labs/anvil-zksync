@@ -126,8 +126,7 @@ impl InMemoryNodeInner {
     ) -> SystemEnv {
         SystemEnv {
             zk_porter_available: false,
-            // TODO: when forking, we could consider taking the protocol version id from the fork itself.
-            version: zksync_types::ProtocolVersionId::latest(),
+            version: self.blockchain.protocol_version,
             base_system_smart_contracts: base_system_contracts,
             bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             execution_mode,
@@ -535,7 +534,7 @@ impl InMemoryNodeInner {
                 self.system_contracts.use_zkos,
             );
 
-            if result.statistics.pubdata_published > MAX_VM_PUBDATA_PER_BATCH.try_into().unwrap() {
+            if result.statistics.pubdata_published > (MAX_VM_PUBDATA_PER_BATCH as u32) {
                 return Err(Web3Error::SubmitTransactionError(
                     "exceeds limit for published pubdata".into(),
                     Default::default(),
@@ -970,6 +969,7 @@ impl InMemoryNodeInner {
     pub async fn reset(&mut self, fork_client_opt: Option<ForkClient>) {
         let fork_details = fork_client_opt.as_ref().map(|client| &client.details);
         let blockchain = Blockchain::new(
+            self.blockchain.protocol_version,
             fork_details,
             self.config.genesis.as_ref(),
             self.config.genesis_timestamp,
@@ -991,7 +991,8 @@ impl InMemoryNodeInner {
         self.fork.reset_fork_client(fork_client_opt);
         let fork_storage = ForkStorage::new(
             self.fork.clone(),
-            &self.config.system_contracts_options,
+            self.config.system_contracts_options,
+            self.blockchain.protocol_version,
             self.config.chain_id,
         );
         let mut old_storage = self.fork_storage.inner.write().unwrap();
@@ -1085,6 +1086,7 @@ impl BlockContext {
 #[cfg(test)]
 pub mod testing {
     use super::*;
+    use zksync_types::ProtocolVersionId;
 
     pub struct InnerNodeTester {
         pub node: Arc<RwLock<InMemoryNodeInner>>,
@@ -1096,7 +1098,8 @@ pub mod testing {
             let fee_provider = TestNodeFeeInputProvider::default();
             let impersonation = ImpersonationManager::default();
             let system_contracts = SystemContracts::from_options(
-                &config.system_contracts_options,
+                config.system_contracts_options,
+                ProtocolVersionId::latest(),
                 config.use_evm_emulator,
                 config.use_zkos,
             );
@@ -1158,10 +1161,12 @@ mod tests {
     use crate::testing;
     use itertools::Itertools;
     use zksync_types::block::L2BlockHasher;
+    use zksync_types::ProtocolVersionId;
 
     #[tokio::test]
     async fn test_create_genesis_creates_block_with_hash_and_zero_parent_hash() {
-        let (first_block, first_batch) = create_genesis::<TransactionVariant>(Some(1000));
+        let (first_block, first_batch) =
+            create_genesis::<TransactionVariant>(ProtocolVersionId::latest(), Some(1000));
 
         assert_eq!(
             first_block.hash,

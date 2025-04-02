@@ -1,20 +1,30 @@
 use alloy::network::{ReceiptResponse, TransactionBuilder};
 use alloy::primitives::{B256, U256};
 use alloy::providers::{DynProvider, Provider, WalletProvider};
+use alloy::rpc::types::{Filter, Log};
+use alloy::sol_types::SolEvent;
 use alloy_zksync::network::receipt_response::ReceiptResponse as ZkReceiptResponse;
 use alloy_zksync::provider::{DepositRequest, ZksyncProvider, ZksyncProviderWithWallet};
 use alloy_zksync::utils::ETHER_L1_ADDRESS;
 use anvil_zksync_e2e_tests::contracts::{
-    Bridgehub, L1AssetRouter, L1Messenger, L2BaseToken, L2Message,
+    BlockExecution, Bridgehub, L1AssetRouter, L1Messenger, L2BaseToken, L2Message,
 };
 use anvil_zksync_e2e_tests::test_contracts::Counter;
 use anvil_zksync_e2e_tests::{AnvilZKsyncApi, AnvilZksyncTesterBuilder, ReceiptExt};
 use anyhow::Context;
+use std::time::Duration;
+use test_casing::{cases, test_casing, TestCases};
 
+const SUPPORTED_PROTOCOL_VERSIONS: TestCases<u16> = cases! {
+    [26, 27, 28]
+};
+
+#[test_casing(3, SUPPORTED_PROTOCOL_VERSIONS)]
 #[tokio::test]
-async fn commit_batch_to_l1() -> anyhow::Result<()> {
+async fn commit_batch_to_l1(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_l1()
+        .with_node_fn(&|node| node.args(["--protocol-version", &protocol_version.to_string()]))
         .build()
         .await?;
 
@@ -60,10 +70,12 @@ async fn commit_batch_to_l1() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[test_casing(3, SUPPORTED_PROTOCOL_VERSIONS)]
 #[tokio::test]
-async fn prove_batch_on_l1() -> anyhow::Result<()> {
+async fn prove_batch_on_l1(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_l1()
+        .with_node_fn(&|node| node.args(["--protocol-version", &protocol_version.to_string()]))
         .build()
         .await?;
 
@@ -119,10 +131,12 @@ async fn prove_batch_on_l1() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[test_casing(3, SUPPORTED_PROTOCOL_VERSIONS)]
 #[tokio::test]
-async fn execute_batch_on_l1() -> anyhow::Result<()> {
+async fn execute_batch_on_l1(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_l1()
+        .with_node_fn(&|node| node.args(["--protocol-version", &protocol_version.to_string()]))
         .build()
         .await?;
 
@@ -188,10 +202,12 @@ async fn execute_batch_on_l1() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[test_casing(3, SUPPORTED_PROTOCOL_VERSIONS)]
 #[tokio::test]
-async fn send_l2_to_l1_message() -> anyhow::Result<()> {
+async fn send_l2_to_l1_message(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_l1()
+        .with_node_fn(&|node| node.args(["--protocol-version", &protocol_version.to_string()]))
         .build()
         .await?;
 
@@ -272,10 +288,12 @@ async fn send_l2_to_l1_message() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[test_casing(3, SUPPORTED_PROTOCOL_VERSIONS)]
 #[tokio::test]
-async fn l1_priority_tx() -> anyhow::Result<()> {
+async fn l1_priority_tx(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_l1()
+        .with_node_fn(&|node| node.args(["--protocol-version", &protocol_version.to_string()]))
         .build()
         .await?;
 
@@ -305,10 +323,12 @@ async fn l1_priority_tx() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[test_casing(3, SUPPORTED_PROTOCOL_VERSIONS)]
 #[tokio::test]
-async fn deposit() -> anyhow::Result<()> {
+async fn deposit(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_l1()
+        .with_node_fn(&|node| node.args(["--protocol-version", &protocol_version.to_string()]))
         .build()
         .await?;
 
@@ -341,10 +361,12 @@ async fn deposit() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[test_casing(3, SUPPORTED_PROTOCOL_VERSIONS)]
 #[tokio::test]
-async fn withdraw() -> anyhow::Result<()> {
+async fn withdraw(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_l1()
+        .with_node_fn(&|node| node.args(["--protocol-version", &protocol_version.to_string()]))
         .build()
         .await?;
 
@@ -402,4 +424,45 @@ async fn withdraw() -> anyhow::Result<()> {
     );
 
     Ok(())
+}
+
+#[test_casing(3, SUPPORTED_PROTOCOL_VERSIONS)]
+#[tokio::test]
+async fn auto_execute_batch(protocol_version: u16) -> anyhow::Result<()> {
+    let tester = AnvilZksyncTesterBuilder::default()
+        .with_l1()
+        .with_node_fn(&|node| {
+            node.args([
+                "--auto-execute-l1",
+                "--protocol-version",
+                &protocol_version.to_string(),
+            ])
+        })
+        .build()
+        .await?;
+
+    let filter = Filter::new().event_signature(BlockExecution::SIGNATURE_HASH);
+    let filter_id = tester.l1_provider().new_filter(&filter).await?;
+
+    const BATCHES: usize = 5;
+
+    // Pre-generate a few batches for the rest of the test
+    for _ in 0..BATCHES {
+        tester.tx().finalize().await?.assert_successful()?;
+    }
+
+    const ATTEMPTS: usize = 10;
+    let mut logs = Vec::with_capacity(BATCHES);
+    for _ in 0..ATTEMPTS {
+        let new_logs = tester
+            .l1_provider()
+            .get_filter_changes::<Log>(filter_id)
+            .await?;
+        logs.extend(new_logs);
+        if logs.len() >= BATCHES {
+            return Ok(());
+        }
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    }
+    anyhow::bail!("failed to produce {BATCHES} batches in time, logs: {logs:?}")
 }
