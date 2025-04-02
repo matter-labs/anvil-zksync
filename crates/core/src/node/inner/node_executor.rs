@@ -4,6 +4,7 @@ use crate::node::inner::fork::{ForkClient, ForkSource};
 use crate::node::inner::vm_runner::VmRunner;
 use crate::node::keys::StorageKeyLayout;
 use crate::node::pool::TxBatch;
+use indicatif::ProgressBar;
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot, RwLock};
 use url::Url;
@@ -85,6 +86,9 @@ impl NodeExecutor {
                 }
                 Command::EnforceNextBaseFeePerGas(base_fee, reply) => {
                     self.enforce_next_base_fee_per_gas(base_fee, reply).await;
+                }
+                Command::SetProgressReport(bar) => {
+                    self.vm_runner.set_progress_report(bar);
                 }
             }
         }
@@ -695,6 +699,17 @@ impl NodeExecutorHandle {
             }
         }
     }
+
+    /// Request [`NodeExecutor`] to set (or unset) the progress bar for transaction replay.
+    pub async fn set_progress_report(&self, bar: Option<ProgressBar>) -> anyhow::Result<()> {
+        self.command_sender
+            .send(Command::SetProgressReport(bar))
+            .await
+            .map_err(|_| {
+                anyhow::anyhow!("failed to set progress report - node executor dropped")
+            })?;
+        Ok(())
+    }
 }
 
 #[derive(Debug)]
@@ -732,6 +747,8 @@ enum Command {
     RemoveTimestampInterval(oneshot::Sender<bool>),
     // Fee manipulation commands
     EnforceNextBaseFeePerGas(U256, oneshot::Sender<()>),
+    // Replay tx progress indicator
+    SetProgressReport(Option<ProgressBar>),
 }
 
 #[cfg(test)]

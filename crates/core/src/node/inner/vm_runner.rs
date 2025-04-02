@@ -24,6 +24,7 @@ use anvil_zksync_traces::{
     identifier::SignaturesIdentifier, render_trace_arena_inner,
 };
 use anvil_zksync_types::{ShowGasDetails, ShowStorageLogs, ShowVMDetails};
+use indicatif::ProgressBar;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use zksync_contracts::BaseSystemContractsHashes;
@@ -52,6 +53,8 @@ pub struct VmRunner {
     console_log_handler: ConsoleLogHandler,
     /// Whether VM should generate system logs.
     generate_system_logs: bool,
+    /// Optional field for reporting progress while replaying transactions.
+    progress_report: Option<ProgressBar>,
 }
 
 pub(super) struct TxBatchExecutionResult {
@@ -85,6 +88,7 @@ impl VmRunner {
             system_contracts,
             console_log_handler: ConsoleLogHandler::default(),
             generate_system_logs,
+            progress_report: None,
         }
     }
 }
@@ -445,7 +449,18 @@ impl VmRunner {
         let mut tx_results = Vec::with_capacity(tx_hashes.len());
         let mut tx_index = 0;
         let mut next_log_index = 0;
+        let total = txs.len();
+
         for tx in txs {
+            if let Some(ref pb) = self.progress_report {
+                pb.set_message(format!(
+                    "Replaying transaction {}/{} from 0x{:x}...",
+                    tx_index + 1,
+                    total,
+                    tx.hash()
+                ));
+            }
+
             let result = self
                 .run_tx(
                     tx,
@@ -459,6 +474,10 @@ impl VmRunner {
                 )
                 .await;
 
+            // Update progress bar
+            if let Some(ref pb) = self.progress_report {
+                pb.inc(1);
+            }
             match result {
                 Ok(tx_result) => {
                     tx_results.push(tx_result);
@@ -541,6 +560,11 @@ impl VmRunner {
             block_ctxs,
             finished_l1_batch,
         })
+    }
+
+    /// Set or unset the progress report.
+    pub fn set_progress_report(&mut self, bar: Option<ProgressBar>) {
+        self.progress_report = bar;
     }
 }
 

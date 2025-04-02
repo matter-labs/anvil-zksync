@@ -581,7 +581,8 @@ Initiator: {initiator:?}
 Payer: {payer:?}
 Gas Limit: {gas_limit} | Used: {used} | Refunded: {refunded}
 Paid: {paid:.10} ETH ({} gas * {l2_gas_price_fmt})
-Refunded: {:.10} ETH"#,
+Refunded: {:.10} ETH
+"#,
         emoji,
         status,
         used_gas,
@@ -595,6 +596,7 @@ Refunded: {:.10} ETH"#,
         paid = paid_in_eth,
         l2_gas_price_fmt = format_gwei(l2_gas_price.into())
     );
+    sh_println!("");
 }
 
 /// Encapsulates the execution error report.

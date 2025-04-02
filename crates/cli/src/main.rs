@@ -3,7 +3,7 @@ use crate::cli::{Cli, Command, ForkUrl, PeriodicStateDumper};
 use crate::utils::update_with_fork_details;
 use anvil_zksync_api_server::NodeServerBuilder;
 use anvil_zksync_common::shell::get_shell;
-use anvil_zksync_common::{sh_eprintln, sh_err, sh_warn};
+use anvil_zksync_common::{sh_eprintln, sh_err, sh_println, sh_warn};
 use anvil_zksync_config::constants::{
     DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
     DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L1_GAS_PRICE, DEFAULT_L2_GAS_PRICE, LEGACY_RICH_WALLETS,
@@ -23,6 +23,8 @@ use anvil_zksync_l1_sidecar::L1Sidecar;
 use anvil_zksync_types::L2TxBuilder;
 use anyhow::Context;
 use clap::Parser;
+use indicatif::{ProgressBar, ProgressStyle};
+use std::fmt::Write;
 use std::fs::File;
 use std::future::Future;
 use std::pin::Pin;
@@ -392,9 +394,30 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
     }
 
     if !transactions_to_replay.is_empty() {
+        sh_println!("Executing transactions from the block.");
+        let total_txs = transactions_to_replay.len() as u64;
+        let pb = ProgressBar::new(total_txs);
+        pb.enable_steady_tick(std::time::Duration::from_secs(1));
+        pb.set_style(
+            ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos}/{len} tx ({eta})")
+                .unwrap()
+                .with_key("eta", |state: &indicatif::ProgressState, w: &mut dyn Write| {
+                    write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap()
+                })
+                .progress_chars("#>-")
+            );
+
+        node.node_handle
+            .set_progress_report(Some(pb.clone()))
+            .await
+            .map_err(to_domain)?;
+
         node.replay_txs(transactions_to_replay)
             .await
             .map_err(to_domain)?;
+
+        pb.finish_and_clear();
+        sh_println!("Done replaying transactions.");
 
         // If we are in replay mode, we don't start the server
         return Ok(());
