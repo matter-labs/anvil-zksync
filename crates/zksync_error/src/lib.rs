@@ -68,6 +68,7 @@ pub mod anvil_zksync {
         pub use crate::error::definitions::AnvilNode::TimestampBackwardsError;
         pub use crate::error::definitions::AnvilNode::TransactionHalt;
         pub use crate::error::definitions::AnvilNode::TransactionValidationFailedGasLimit;
+        pub use crate::error::definitions::AnvilNode::TransactionValidationFailedGasPerPubdataLimit;
         pub use crate::error::definitions::AnvilNode::TransactionValidationFailedMaxFeePerGasTooLow;
         pub use crate::error::definitions::AnvilNode::TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee;
         pub use crate::error::definitions::AnvilNodeCode as ErrorCode;

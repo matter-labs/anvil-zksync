@@ -782,7 +782,11 @@ impl InMemoryNodeInner {
     pub async fn snapshot(&self) -> Result<Snapshot, AnvilNodeError> {
         let blockchain = self.blockchain.read().await;
         let filters = self.filters.read().await.clone();
-        let storage = self.fork_storage.inner.read().expect("failed acquiring read lock on storage");
+        let storage = self
+            .fork_storage
+            .inner
+            .read()
+            .expect("failed acquiring read lock on storage");
 
         Ok(Snapshot {
             current_batch: blockchain.current_batch,
@@ -805,7 +809,11 @@ impl InMemoryNodeInner {
     /// Restores a previously created [Snapshot] of the node.
     pub async fn restore_snapshot(&mut self, snapshot: Snapshot) -> Result<(), AnvilNodeError> {
         let mut blockchain = self.blockchain.write().await;
-        let mut storage = self.fork_storage.inner.write().expect("failed acquiring write lock on storage");
+        let mut storage = self
+            .fork_storage
+            .inner
+            .write()
+            .expect("failed acquiring write lock on storage");
 
         blockchain.current_batch = snapshot.current_batch;
         blockchain.current_block = snapshot.current_block;

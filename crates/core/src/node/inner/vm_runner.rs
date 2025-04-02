@@ -122,13 +122,22 @@ impl VmRunner {
         tx_data: &L2TxCommonData,
     ) -> Result<(), AnvilNodeError> {
         let max_gas = U256::from(u64::MAX);
-        if tx_data.fee.gas_limit > max_gas || tx_data.fee.gas_per_pubdata_limit > max_gas {
+        if tx_data.fee.gas_limit > max_gas {
             return Err(anvil_zksync::node::TransactionValidationFailedGasLimit {
                 transaction_hash: Box::new(tx_hash),
                 tx_gas_limit: Box::new(tx_data.fee.gas_limit),
-                tx_gas_per_pubdata_limit: Box::new(tx_data.fee.gas_per_pubdata_limit),
                 max_gas: Box::new(max_gas),
             });
+        }
+
+        if tx_data.fee.gas_per_pubdata_limit > max_gas {
+            return Err(
+                anvil_zksync::node::TransactionValidationFailedGasPerPubdataLimit {
+                    transaction_hash: Box::new(tx_hash),
+                    tx_gas_per_pubdata_limit: Box::new(tx_data.fee.gas_per_pubdata_limit),
+                    max_gas: Box::new(max_gas),
+                },
+            );
         }
 
         let l2_gas_price = batch_env.fee_input.fair_l2_gas_price();
@@ -186,12 +195,7 @@ impl VmRunner {
 
         // Print transaction summary
         if config.show_tx_summary {
-            formatter::print_transaction_summary(
-                config.get_l2_gas_price(),
-                &tx,
-                &tx_result,
-                status,
-            );
+            formatter::print_transaction_summary(config.get_l2_gas_price(), tx, &tx_result, status);
         }
         // Print gas details if enabled
         if config.show_gas_details != ShowGasDetails::None {
@@ -273,7 +277,7 @@ impl VmRunner {
             compression_result: _,
             call_traces,
         } = self
-            .run_tx_pretty(&tx, executor, config, fee_input_provider)
+            .run_tx_pretty(tx, executor, config, fee_input_provider)
             .await?;
 
         if let ExecutionResult::Halt { reason } = result.result {
@@ -395,7 +399,7 @@ impl VmRunner {
             logs_bloom: Default::default(),
         };
         *next_log_index += result.logs.user_l2_to_l1_logs.len();
-        let debug = create_debug_output(&tx, &result, call_traces).expect("create debug output"); // OK to unwrap here as Halt is handled above
+        let debug = create_debug_output(tx, &result, call_traces).expect("create debug output"); // OK to unwrap here as Halt is handled above
 
         Ok(TransactionResult {
             info: TxExecutionInfo {
@@ -758,7 +762,6 @@ mod test {
         let expected = AnvilNodeError::TransactionValidationFailedGasLimit {
             transaction_hash: Box::new(tx.hash()),
             tx_gas_limit: Box::new(tx.common_data.fee.gas_limit),
-            tx_gas_per_pubdata_limit: Box::new(tx.common_data.fee.gas_per_pubdata_limit),
             max_gas: Box::new(max_gas),
         };
         let err = tester.test_tx(tx.into()).await.unwrap_err();

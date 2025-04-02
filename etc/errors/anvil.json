@@ -789,7 +789,7 @@
             {
               "name": "TransactionValidationFailedGasLimit",
               "code": 1,
-              "message": "Transaction {transaction_hash} with gas limit={tx_gas_limit} and gas per pubdata limit={tx_gas_per_pubdata_limit} exceeds maximum allowed gas {max_gas}",
+              "message": "Gas limit for transaction {transaction_hash} is {tx_gas_limit} which exceeds maximum allowed gas {max_gas}",
               "fields": [
                 {
                   "name": "transaction_hash",
@@ -798,6 +798,36 @@
                 {
                   "name": "tx_gas_limit",
                   "type": "U256"
+                },
+                {
+                  "name": "max_gas",
+                  "type": "U256"
+                }
+              ],
+              "doc": {
+                "summary": "Transaction validation failed due to excessive gas limit.",
+                "description": [
+                  "This error occurs when a transaction's gas limit exceeds the maximum allowed gas.",
+                  "Anvil-zksync enforces gas limits that simulate those of the real ZKSync network to ensure testing accuracy."
+                ],
+                "likely_causes": [
+                  {
+                    "cause": "The transaction's gas limit is set too high relative to the maximum gas limit.",
+                    "fixes": [
+                      "Reduce the transaction's gas limit to be below the maximum allowed gas."
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "name": "TransactionValidationFailedGasPerPubdataLimit",
+              "code": 2,
+              "message": "Gas per pubdata limit for transaction {transaction_hash} is {tx_gas_per_pubdata_limit} which exceeds maximum allowed gas {max_gas}",
+              "fields": [
+                {
+                  "name": "transaction_hash",
+                  "type": "H256"
                 },
                 {
                   "name": "tx_gas_per_pubdata_limit",
@@ -809,40 +839,16 @@
                 }
               ],
               "doc": {
-                "summary": "Transaction validation failed due to excessive gas limit.",
+                "summary": "Transaction validation failed due to excessive gas per pubdata limit.",
                 "description": [
-                  "This error occurs when a transaction's gas limit exceeds the maximum allowed gas for a block.",
-                  "The transaction's gas limit combined with its gas per pubdata limit results in total gas usage that exceeds the block gas limit.",
-                  "",
-                  "In ZKSync, gas usage is calculated using a dual gas model where:",
-                  "1. Regular gas is used for computational resources similar to Ethereum",
-                  "2. 'Pubdata gas' is used for data that would normally be published to L1 in a production environment",
-                  "",
-                  "Even though anvil-zksync is an in-memory testing node that doesn't actually publish data to L1, it still enforces gas limits that simulate those of the real ZKSync network to ensure testing accuracy."
+                  "This error occurs when a transaction's gas per pubdata limit exceeds the maximum allowed gas.",
+                  "Anvil-zksync enforces gas limits that simulate those of the real ZKSync network to ensure testing accuracy."
                 ],
                 "likely_causes": [
                   {
-                    "cause": "The transaction's gas limit is set too high relative to the configured block gas limit in anvil-zksync.",
+                    "cause": "The transaction's gas per pubdata limit is set too high.",
                     "fixes": [
-                      "Reduce the transaction's gas limit to be below the maximum allowed gas.",
-                      "Consider decreasing the gas per pubdata limit since it contributes to the total effective gas used.",
-                      "In testing environments, you can reconfigure anvil-zksync with higher gas limits using available CLI options.",
-                      "If applicable, optimize the transaction to consume less gas."
-                    ]
-                  },
-                  {
-                    "cause": "Transaction involves too many storage operations or contract deployments requiring excessive pubdata.",
-                    "fixes": [
-                      "Optimize your contract to minimize storage operations.",
-                      "Consider using events instead of storage when appropriate.",
-                      "For contract deployments, optimize bytecode size.",
-                      "In a testing context, you may want to test with smaller contracts first to validate your logic."
-                    ]
-                  },
-                  {
-                    "cause": "When using anvil-zksync for testing, the default gas limits may be exceeded by complex test scenarios.",
-                    "fixes": [
-                      "Split complex test cases into multiple smaller transactions."
+                      "Decrease the gas per pubdata limit"
                     ]
                   }
                 ]
@@ -850,7 +856,7 @@
             },
             {
               "name": "TransactionValidationFailedMaxFeePerGasTooLow",
-              "code": 2,
+              "code": 3,
               "message": "Transaction {transaction_hash} allows paying a maximum of {max_fee_per_gas} fee per gar, but the current L2 gas price is {l2_gas_price}, which makes it too expensive.",
               "fields": [
                 {
@@ -908,7 +914,7 @@
             },
             {
               "name": "TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee",
-              "code": 3,
+              "code": 4,
               "message": "Invalid transaction {transaction_hash}: its maxPriorityFeePerGas={max_priority_fee_per_gas} exceeds the limit value maxFeePerGas={max_fee_per_gas}",
               "fields": [
                 {
