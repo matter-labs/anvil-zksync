@@ -1,5 +1,5 @@
 use alloy::contract::SolCallBuilder;
-use alloy::network::ReceiptResponse;
+use alloy::network::{Ethereum, Network, ReceiptResponse};
 use alloy::primitives::{Address, U256};
 use alloy::providers::Provider;
 use alloy_zksync::network::transaction_request::TransactionRequest;
@@ -11,13 +11,18 @@ mod private {
     alloy::sol!(
         #[sol(rpc)]
         Counter,
-        "src/test_contracts/artifacts/Counter.json"
+        "src/test_contracts/zk-artifacts/Counter.json"
+    );
+    alloy::sol!(
+        #[sol(rpc)]
+        CounterEvm,
+        "src/test_contracts/evm-artifacts/Counter.json"
     );
 }
 
-pub struct Counter<P: Provider<Zksync>>(private::Counter::CounterInstance<(), P, Zksync>);
+pub struct Counter<N: Network, P: Provider<N>>(private::Counter::CounterInstance<(), P, N>);
 
-impl<P: Provider<Zksync>> Counter<P> {
+impl<P: Provider<Zksync> + Clone> Counter<Zksync, P> {
     pub async fn deploy(provider: P) -> anyhow::Result<Self> {
         let tx = TransactionRequest::default().with_create_params(
             private::Counter::BYTECODE.clone().into(),
@@ -31,7 +36,20 @@ impl<P: Provider<Zksync>> Counter<P> {
 
         Ok(Self(private::Counter::new(contract_address, provider)))
     }
+}
 
+impl<P: Provider<Ethereum> + Clone> Counter<Ethereum, P> {
+    pub async fn deploy_evm(provider: P) -> anyhow::Result<Self> {
+        let evm_contract = private::CounterEvm::deploy(provider.clone()).await?;
+
+        Ok(Self(private::Counter::new(
+            *evm_contract.address(),
+            provider,
+        )))
+    }
+}
+
+impl<N: Network, P: Provider<N>> Counter<N, P> {
     pub fn address(&self) -> &Address {
         self.0.address()
     }
@@ -43,7 +61,7 @@ impl<P: Provider<Zksync>> Counter<P> {
     pub fn increment(
         &self,
         x: impl TryInto<U256, Error = impl Debug>,
-    ) -> SolCallBuilder<(), &P, private::Counter::incrementCall, Zksync> {
+    ) -> SolCallBuilder<(), &P, private::Counter::incrementCall, N> {
         self.0.increment(x.try_into().unwrap())
     }
 }

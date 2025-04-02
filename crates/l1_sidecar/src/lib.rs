@@ -1,5 +1,6 @@
 use crate::anvil::AnvilHandle;
 use crate::commitment_generator::CommitmentGenerator;
+use crate::l1_executor::L1Executor;
 use crate::l1_sender::{L1Sender, L1SenderHandle};
 use crate::l1_watcher::L1Watcher;
 use crate::upgrade_tx::UpgradeTx;
@@ -11,6 +12,7 @@ use anvil_zksync_core::node::blockchain::ReadBlockchain;
 use anvil_zksync_core::node::node_executor::NodeExecutorHandle;
 use anvil_zksync_core::node::{TxBatch, TxPool};
 use std::sync::Arc;
+use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use zksync_types::protocol_upgrade::ProtocolUpgradeTxCommonData;
 use zksync_types::{
@@ -20,6 +22,7 @@ use zksync_types::{
 mod anvil;
 mod commitment_generator;
 mod contracts;
+mod l1_executor;
 mod l1_sender;
 mod l1_watcher;
 mod upgrade_tx;
@@ -49,6 +52,7 @@ impl L1Sidecar {
         zkstack_config: ZkstackConfig,
         anvil_handle: AnvilHandle,
         anvil_provider: Arc<dyn Provider + 'static>,
+        auto_execute_l1: bool,
     ) -> anyhow::Result<(Self, L1SidecarRunner)> {
         let commitment_generator = CommitmentGenerator::new(&zkstack_config, blockchain);
         let genesis_with_metadata = commitment_generator
@@ -64,6 +68,11 @@ impl L1Sidecar {
         );
         let l1_watcher = L1Watcher::new(&zkstack_config, anvil_provider, pool);
         let protocol_version = zkstack_config.genesis.genesis_protocol_version;
+        let l1_executor = if auto_execute_l1 {
+            L1Executor::auto(commitment_generator.clone(), l1_sender_handle.clone())
+        } else {
+            L1Executor::manual()
+        };
         let this = Self {
             inner: Some(L1SidecarInner {
                 commitment_generator,
@@ -76,6 +85,7 @@ impl L1Sidecar {
             anvil_handle,
             l1_sender,
             l1_watcher,
+            l1_executor,
             upgrade_handle,
         };
         Ok((this, runner))
@@ -87,6 +97,7 @@ impl L1Sidecar {
         blockchain: Box<dyn ReadBlockchain>,
         node_handle: NodeExecutorHandle,
         pool: TxPool,
+        auto_execute_l1: bool,
     ) -> anyhow::Result<(Self, L1SidecarRunner)> {
         let zkstack_config = ZkstackConfig::builtin(protocol_version);
         let (anvil_handle, anvil_provider) = anvil::spawn_process(port, &zkstack_config).await?;
@@ -97,6 +108,7 @@ impl L1Sidecar {
             zkstack_config,
             anvil_handle,
             anvil_provider,
+            auto_execute_l1,
         )
         .await
     }
@@ -107,6 +119,7 @@ impl L1Sidecar {
         blockchain: Box<dyn ReadBlockchain>,
         node_handle: NodeExecutorHandle,
         pool: TxPool,
+        auto_execute_l1: bool,
     ) -> anyhow::Result<(Self, L1SidecarRunner)> {
         let zkstack_config = ZkstackConfig::builtin(protocol_version);
         let (anvil_handle, anvil_provider) = anvil::external(address, &zkstack_config).await?;
@@ -117,6 +130,7 @@ impl L1Sidecar {
             zkstack_config,
             anvil_handle,
             anvil_provider,
+            auto_execute_l1,
         )
         .await
     }
@@ -165,6 +179,7 @@ pub struct L1SidecarRunner {
     anvil_handle: AnvilHandle,
     l1_sender: L1Sender,
     l1_watcher: L1Watcher,
+    l1_executor: L1Executor,
     upgrade_handle: JoinHandle<anyhow::Result<()>>,
 }
 
@@ -172,6 +187,7 @@ impl L1SidecarRunner {
     pub async fn run(self) -> anyhow::Result<()> {
         // We ensure L2 upgrade finishes before the rest of L1 logic can be run.
         self.upgrade_handle.await??;
+        let (_stop_sender, mut stop_receiver) = watch::channel(false);
         tokio::select! {
             result = self.l1_sender.run() => {
                 tracing::trace!("L1 sender was stopped");
@@ -185,6 +201,7 @@ impl L1SidecarRunner {
                 tracing::trace!("L1 anvil exited unexpectedly");
                 result
             },
+            result = self.l1_executor.run(&mut stop_receiver) => result,
         }
     }
 }

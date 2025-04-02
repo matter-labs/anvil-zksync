@@ -62,6 +62,9 @@ fi
 if [[ ! $PROTOCOL_VERSION < v27 ]]; then
   # New precompile that was added in v27
   precompiles+=("Identity")
+  # EVM emulator contracts that were added in v27
+  system_contracts_sol+=("EvmPredeploysManager" "EvmHashesStorage")
+  system_contracts_yul+=("EvmEmulator" "EvmGasManager")
 fi
 
 if [[ ! $PROTOCOL_VERSION < v28 ]]; then

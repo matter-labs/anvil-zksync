@@ -45,7 +45,11 @@ mod private {
     );
 
     alloy::sol!(IMailbox, "src/contracts/artifacts/IMailbox.json");
+
+    alloy::sol!(IExecutor, "src/contracts/artifacts/IExecutor.json");
 }
+
+pub use private::IExecutor::BlockExecution;
 
 const L1_MESSENGER_ADDRESS: Address = address!("0000000000000000000000000000000000008008");
 const L2_BASE_TOKEN_ADDRESS: Address = address!("000000000000000000000000000000000000800a");
