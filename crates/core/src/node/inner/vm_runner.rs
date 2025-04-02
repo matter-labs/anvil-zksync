@@ -447,7 +447,6 @@ impl VmRunner {
 
         // Execute transactions and bootloader
         let mut tx_results = Vec::with_capacity(tx_hashes.len());
-
         let mut tx_index = 0;
         let mut next_log_index = 0;
         let total = txs.len();
@@ -490,7 +489,6 @@ impl VmRunner {
                 }
             }
         }
-
         // TODO: This is the correct hash as reported by VM, but we can't compute it correct above
         //       because we don't know which txs are going to be halted
         block_ctx.hash = compute_hash(
