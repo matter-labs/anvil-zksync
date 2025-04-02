@@ -10,7 +10,8 @@ use zksync_types::{
     BOOTLOADER_UTILITIES_ADDRESS, CODE_ORACLE_ADDRESS, COMPLEX_UPGRADER_ADDRESS,
     COMPRESSOR_ADDRESS, CONTRACT_DEPLOYER_ADDRESS, CREATE2_FACTORY_ADDRESS,
     ECRECOVER_PRECOMPILE_ADDRESS, EC_ADD_PRECOMPILE_ADDRESS, EC_MUL_PRECOMPILE_ADDRESS,
-    EC_PAIRING_PRECOMPILE_ADDRESS, EVENT_WRITER_ADDRESS, IDENTITY_ADDRESS,
+    EC_PAIRING_PRECOMPILE_ADDRESS, EVENT_WRITER_ADDRESS, EVM_GAS_MANAGER_ADDRESS,
+    EVM_HASHES_STORAGE_ADDRESS, EVM_PREDEPLOYS_MANAGER_ADDRESS, IDENTITY_ADDRESS,
     IMMUTABLE_SIMULATOR_STORAGE_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS,
     L1_MESSENGER_ADDRESS, L2_ASSET_ROUTER_ADDRESS, L2_BASE_TOKEN_ADDRESS, L2_BRIDGEHUB_ADDRESS,
     L2_GENESIS_UPGRADE_ADDRESS, L2_MESSAGE_ROOT_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS,
@@ -105,7 +106,7 @@ const V27: ProtocolVersionId = ProtocolVersionId::Version27;
 const V28: ProtocolVersionId = ProtocolVersionId::Version28;
 
 /// Triple containing a name of a contract, its L2 address and minimum supported protocol version
-static BUILTIN_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 35] = [
+static BUILTIN_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 38] = [
     // *************************************************
     // *     Kernel contracts (base offset 0x8000)     *
     // *************************************************
@@ -131,6 +132,9 @@ static BUILTIN_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 35] = [
         PUBDATA_CHUNK_PUBLISHER_ADDRESS,
         V26,
     ),
+    ("EvmGasManager", EVM_GAS_MANAGER_ADDRESS, V27),
+    ("EvmPredeploysManager", EVM_PREDEPLOYS_MANAGER_ADDRESS, V27),
+    ("EvmHashesStorage", EVM_HASHES_STORAGE_ADDRESS, V27),
     // *************************************************
     // *  Non-kernel contracts (base offset 0x010000)  *
     // *************************************************

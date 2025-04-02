@@ -151,6 +151,8 @@ pub struct TestNodeConfig {
     pub load_state: Option<PathBuf>,
     /// L1 configuration, disabled if `None`
     pub l1_config: Option<L1Config>,
+    /// Whether to automatically execute L1 batches
+    pub auto_execute_l1: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -243,6 +245,7 @@ impl Default for TestNodeConfig {
             preserve_historical_states: false,
             load_state: None,
             l1_config: None,
+            auto_execute_l1: false,
         }
     }
 }
@@ -1122,6 +1125,13 @@ Address: {address}
     #[must_use]
     pub fn with_l1_config(mut self, l1_config: Option<L1Config>) -> Self {
         self.l1_config = l1_config;
+        self
+    }
+
+    /// Set the auto L1 execution
+    #[must_use]
+    pub fn with_auto_execute_l1(mut self, auto_execute_l1: Option<bool>) -> Self {
+        self.auto_execute_l1 = auto_execute_l1.unwrap_or(false);
         self
     }
 }
