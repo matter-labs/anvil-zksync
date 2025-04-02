@@ -453,15 +453,15 @@ impl VmRunner {
         let total = txs.len();
 
         for tx in txs {
-            if let Some(ref spinner) = self.progress_report {
-                spinner.set_message(format!(
-                    "Replaying transaction {}/{} from 0x{:x}...\n",
+            if let Some(ref pb) = self.progress_report {
+                pb.set_message(format!(
+                    "Replaying transaction {}/{} from 0x{:x}...",
                     tx_index + 1,
                     total,
                     tx.hash()
                 ));
-                spinner.tick();
             }
+
             let result = self
                 .run_tx(
                     tx,
@@ -474,6 +474,8 @@ impl VmRunner {
                     &node_inner.fee_input_provider,
                 )
                 .await;
+
+            // Update progress bar
             if let Some(ref pb) = self.progress_report {
                 pb.inc(1);
             }

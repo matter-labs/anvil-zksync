@@ -54,7 +54,6 @@ use zksync_multivm::vm_latest::Vm;
 
 use crate::node::fork::{ForkClient, ForkSource};
 use crate::node::keys::StorageKeyLayout;
-use indicatif::{ProgressBar, ProgressStyle};
 use zksync_multivm::vm_latest::{HistoryDisabled, ToTracerPointer};
 use zksync_multivm::VmVersion;
 use zksync_types::api::{Block, DebugCall, TransactionReceipt, TransactionVariant};
