@@ -264,6 +264,7 @@ pub enum AnvilNode {
     #[doc = "# Description"]
     #[doc = "This error occurs when a transaction's gas limit exceeds the maximum allowed gas."]
     #[doc = "Anvil-zksync enforces gas limits that simulate those of the real ZKSync network to ensure testing accuracy."]
+    #[doc = "Note: When anvil-zksync is in forking mode, it lock-in and uses gas price at the forked block"]
     TransactionValidationFailedGasLimit {
         transaction_hash: Box<zksync_basic_types::H256>,
         tx_gas_limit: Box<zksync_basic_types::U256>,
@@ -275,6 +276,7 @@ pub enum AnvilNode {
     #[doc = "# Description"]
     #[doc = "This error occurs when a transaction's gas per pubdata limit exceeds the maximum allowed gas."]
     #[doc = "Anvil-zksync enforces gas limits that simulate those of the real ZKSync network to ensure testing accuracy."]
+    #[doc = "Note: When anvil-zksync is in forking mode, it lock-in and uses gas price at the forked block"]
     TransactionValidationFailedGasPerPubdataLimit {
         transaction_hash: Box<zksync_basic_types::H256>,
         tx_gas_per_pubdata_limit: Box<zksync_basic_types::U256>,
@@ -302,14 +304,9 @@ pub enum AnvilNode {
     #[doc = ""]
     #[doc = "# Description"]
     #[doc = "This error occurs when a transaction's maximum priority fee per gas is greater than its maximum fee per gas in anvil-zksync."]
-    #[doc = "Anvil-zksync implements the EIP-1559 fee model (just like the real ZKSync network), where the total fee consists of a base fee and a priority fee."]
-    #[doc = ""]
-    #[doc = "In this model, even in a testing environment, maxPriorityFeePerGas must always be less than or equal to maxFeePerGas because:"]
-    #[doc = "- maxFeePerGas represents the maximum total fee a user is willing to pay per unit of gas"]
-    #[doc = "- maxPriorityFeePerGas represents the portion of that fee that goes to validators/sequencers"]
-    #[doc = "- The remainder (maxFeePerGas - maxPriorityFeePerGas) is available to cover the base fee"]
-    #[doc = ""]
-    #[doc = "This validation is enforced in anvil-zksync to ensure that your tests accurately simulate transaction behavior on the actual ZKSync network."]
+    #[doc = "In ZKSync, the field `maxPriorityFeePerGas` is ignored, as ZKsync doesn’t have a concept of priority fees."]
+    #[doc = "Instead, `maxFeePerGas` is utilized and includes the base fees."]
+    #[doc = "However, certain transaction types like EIP-1559 or EIP-712 may contain field `maxPriorityFeePerGas`, which should be less or equal to the field `maxFeePerGas`."]
     TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee {
         max_fee_per_gas: Box<zksync_basic_types::U256>,
         max_priority_fee_per_gas: Box<zksync_basic_types::U256>,
