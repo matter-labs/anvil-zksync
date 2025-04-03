@@ -248,16 +248,7 @@ impl<P: Provider<Ethereum>> L1Nullifier<P> {
             .logs()
             .iter()
             .find_map(|log| {
-                if log.address() != L1_MESSENGER_ADDRESS {
-                    return None;
-                }
-                if let Ok(l1_message_sent) =
-                    log.log_decode::<private::IL1Messenger::L1MessageSent>()
-                {
-                    Some(l1_message_sent)
-                } else {
-                    None
-                }
+                    log.log_decode::<private::IL1Messenger::L1MessageSent>().ok()
             })
             .expect("no `L1MessageSent` events found in withdrawal receipt");
         let (l2_to_l1_log_index, _) = withdrawal_l2_receipt
