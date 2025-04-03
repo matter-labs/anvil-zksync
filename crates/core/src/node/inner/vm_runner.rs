@@ -153,11 +153,13 @@ impl VmRunner {
         config: &TestNodeConfig,
         fee_input_provider: &TestNodeFeeInputProvider,
     ) -> anyhow::Result<BatchTransactionExecutionResult> {
-
         // Check if target address has code before executing the transaction
         if let Some(to_address) = tx.recipient_account() {
             let code_key = zksync_types::get_code_key(&to_address);
-            let bytecode_hash = zksync_multivm::interface::storage::ReadStorage::read_value(&mut self.fork_storage, &code_key);
+            let bytecode_hash = zksync_multivm::interface::storage::ReadStorage::read_value(
+                &mut self.fork_storage,
+                &code_key,
+            );
 
             // If bytecode hash is zero, there's no code at this address
             if bytecode_hash == H256::zero() {
