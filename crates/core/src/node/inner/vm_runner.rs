@@ -162,7 +162,7 @@ impl VmRunner {
             // If bytecode hash is zero, there's no code at this address
             if bytecode_hash == H256::zero() {
                 sh_warn!(
-                    "Transaction {} was sent to address {to_address} that is not associated with a contract",
+                    "Transaction {} was sent to address {to_address}, which is not associated with any contract.",
                     tx.hash()
                 );
             }
