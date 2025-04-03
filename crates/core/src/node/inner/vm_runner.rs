@@ -15,7 +15,7 @@ use crate::node::{
 use crate::system_contracts::SystemContracts;
 use crate::utils::create_debug_output;
 use anvil_zksync_common::shell::get_shell;
-use anvil_zksync_common::{sh_eprintln, sh_err, sh_println};
+use anvil_zksync_common::{sh_eprintln, sh_err, sh_println, sh_warn};
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_console::console_log::ConsoleLogHandler;
 use anvil_zksync_traces::decode::CallTraceDecoderBuilder;
@@ -153,6 +153,21 @@ impl VmRunner {
         config: &TestNodeConfig,
         fee_input_provider: &TestNodeFeeInputProvider,
     ) -> anyhow::Result<BatchTransactionExecutionResult> {
+
+        // Check if target address has code before executing the transaction
+        if let Some(to_address) = tx.recipient_account() {
+            let code_key = zksync_types::get_code_key(&to_address);
+            let bytecode_hash = zksync_multivm::interface::storage::ReadStorage::read_value(&mut self.fork_storage, &code_key);
+
+            // If bytecode hash is zero, there's no code at this address
+            if bytecode_hash == H256::zero() {
+                sh_warn!(
+                    "Transaction {} was sent to address {to_address} that is not associated with a contract",
+                    tx.hash()
+                );
+            }
+        }
+
         let BatchTransactionExecutionResult {
             tx_result,
             compression_result,
