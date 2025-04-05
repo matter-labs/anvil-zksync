@@ -1,8 +1,8 @@
-use std::collections::HashSet;
 use crate::formatter::ExecutionErrorReport;
 use crate::node::error::{ToHaltError, ToRevertReason};
 use anvil_zksync_common::{sh_err, sh_println, sh_warn};
 use anyhow::Context as _;
+use std::collections::HashSet;
 use zksync_error::anvil_zksync::{halt::HaltError, revert::RevertError};
 use zksync_multivm::interface::ExecutionResult;
 use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
