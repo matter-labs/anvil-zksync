@@ -481,7 +481,7 @@ pub struct KnownAddress {
 lazy_static! {
     /// Loads the known contact addresses from the JSON file.
     static ref KNOWN_ADDRESSES: HashMap<H160, KnownAddress> = {
-        let json_value = serde_json::from_slice(include_bytes!("data/address_map.json")).unwrap();
+        let json_value = serde_json::from_slice(include_bytes!("../data/address_map.json")).unwrap();
         let pairs: Vec<KnownAddress> = serde_json::from_value(json_value).unwrap();
 
         pairs
