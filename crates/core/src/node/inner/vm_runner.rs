@@ -199,15 +199,16 @@ impl VmRunner {
         let spent_on_pubdata =
             tx_result.statistics.gas_used - tx_result.statistics.computational_gas_used as u64;
 
-        let status = match &tx_result.result {
-            ExecutionResult::Success { .. } => "SUCCESS",
-            ExecutionResult::Revert { .. } => "FAILED",
-            ExecutionResult::Halt { .. } => "HALTED",
-        };
-
         // Print transaction summary
         if config.show_tx_summary {
-            formatter::print_transaction_summary(config.get_l2_gas_price(), tx, &tx_result, status);
+            sh_eprintln!(
+                "{}",
+                formatter::transaction::TransactionSummary::new(
+                    config.get_l2_gas_price(),
+                    &tx,
+                    &tx_result,
+                )
+            );
         }
         // Print gas details if enabled
         if config.show_gas_details != ShowGasDetails::None {
