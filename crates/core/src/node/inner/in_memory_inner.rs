@@ -979,8 +979,13 @@ impl InMemoryNodeInner {
                 .previous_states
                 .get(block_hash)
                 .ok_or_else(|| Web3Error::PrunedBlock(block_number))?;
-            Ok(state.get(&storage_key).copied().unwrap_or_default())
+            if let Some(value) = state.get(&storage_key) {
+                return Ok(*value);
+            }
+            // Block was produced locally but slot hasn't been touched since we forked
+            Ok(self.fork.get_storage_at_forked(address, idx).await?)
         } else {
+            // Block was not produced locally so we assume it comes from fork
             Ok(self.fork.get_storage_at(address, idx, block).await?)
         }
     }

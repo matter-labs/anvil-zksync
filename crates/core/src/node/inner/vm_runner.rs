@@ -611,6 +611,13 @@ mod test {
         }
 
         async fn test_tx(&mut self, tx: Transaction) -> anyhow::Result<TransactionResult> {
+            Ok(self.test_txs(vec![tx]).await?.into_iter().next().unwrap())
+        }
+
+        async fn test_txs(
+            &mut self,
+            txs: Vec<Transaction>,
+        ) -> anyhow::Result<Vec<TransactionResult>> {
             let system_env = SystemEnv {
                 zk_porter_available: false,
                 version: ProtocolVersionId::latest(),
@@ -662,29 +669,25 @@ mod test {
                 PubdataParams::default(),
             );
 
-            self.vm_runner
-                .run_tx(
-                    tx,
-                    0,
-                    &mut 0,
-                    &block_ctx,
-                    &batch_env,
-                    executor.as_mut(),
-                    &self.config,
-                    &TestNodeFeeInputProvider::default(),
-                )
-                .await
-        }
-
-        async fn deploy_contract(
-            &mut self,
-            private_key: &K256PrivateKey,
-            bytecode: Vec<u8>,
-            calldata: Option<Vec<u8>>,
-            nonce: Nonce,
-        ) -> anyhow::Result<TransactionResult> {
-            let tx = TransactionBuilder::deploy_contract(private_key, bytecode, calldata, nonce);
-            self.test_tx(tx.into()).await
+            let mut log_index = 0;
+            let mut results = vec![];
+            for (i, tx) in txs.into_iter().enumerate() {
+                results.push(
+                    self.vm_runner
+                        .run_tx(
+                            tx,
+                            i as u64,
+                            &mut log_index,
+                            &block_ctx,
+                            &batch_env,
+                            executor.as_mut(),
+                            &self.config,
+                            &TestNodeFeeInputProvider::default(),
+                        )
+                        .await?,
+                );
+            }
+            Ok(results)
         }
     }
 
@@ -800,15 +803,12 @@ mod test {
         tester.make_rich(&from_account);
 
         let deployed_address = deployed_address_create(from_account, U256::zero());
-        tester
-            .deploy_contract(
-                &private_key,
-                hex::decode(STORAGE_CONTRACT_BYTECODE).unwrap(),
-                None,
-                Nonce(0),
-            )
-            .await
-            .expect("failed to deploy storage contract");
+        let deploy_tx = TransactionBuilder::deploy_contract(
+            &private_key,
+            hex::decode(STORAGE_CONTRACT_BYTECODE).unwrap(),
+            None,
+            Nonce(0),
+        );
 
         let mut tx = L2Tx::new_signed(
             Some(deployed_address),
@@ -830,15 +830,18 @@ mod test {
         tx.common_data.transaction_type = TransactionType::LegacyTransaction;
         tx.set_input(vec![], H256::repeat_byte(0x2));
 
-        let result = tester.test_tx(tx.into()).await.expect("failed tx");
+        let result = tester
+            .test_txs(vec![deploy_tx.into(), tx.into()])
+            .await
+            .expect("failed tx");
         assert_eq!(
-            result.receipt.status,
+            result[1].receipt.status,
             U64::from(1),
             "invalid status {:?}",
-            result.receipt.status
+            result[1].receipt.status
         );
 
-        let actual = decode_tx_result(&result.debug.output.0, DynSolType::Uint(256));
+        let actual = decode_tx_result(&result[1].debug.output.0, DynSolType::Uint(256));
         let expected = DynSolValue::Uint(AlloyU256::from(1024), 256);
         assert_eq!(expected, actual, "invalid result");
     }
