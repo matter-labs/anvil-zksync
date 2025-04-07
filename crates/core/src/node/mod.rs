@@ -3,6 +3,7 @@
 mod batch;
 mod call_error_tracer;
 mod debug;
+pub mod diagnostics;
 pub mod error;
 mod eth;
 mod fee_model;

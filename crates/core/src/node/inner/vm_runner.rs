@@ -3,6 +3,7 @@ use crate::deps::storage_view::StorageView;
 use crate::formatter;
 use crate::formatter::ExecutionErrorReport;
 use crate::node::batch::{MainBatchExecutorFactory, TraceCalls};
+use crate::node::diagnostics::vm::balance_diff::extract_balance_diffs;
 use crate::node::error::ToHaltError;
 use crate::node::inner::fork_storage::ForkStorage;
 use crate::node::inner::in_memory_inner::BlockContext;
@@ -163,6 +164,22 @@ impl VmRunner {
         let spent_on_pubdata =
             tx_result.statistics.gas_used - tx_result.statistics.computational_gas_used as u64;
 
+        // TODO: This is not enough -- we need to collect more addresses
+        let accounts_tracking_balance: Vec<_> = [
+            Some(tx.payer()),
+            Some(tx.initiator_account()),
+            tx.recipient_account(),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+
+        let balance_diffs: Vec<formatter::transaction::BalanceDiff> =
+            extract_balance_diffs(&accounts_tracking_balance, &tx_result.logs.storage_logs)
+                .into_iter()
+                .map(Into::into)
+                .collect();
+
         // Print transaction summary
         if config.show_tx_summary {
             sh_eprintln!(
@@ -171,6 +188,7 @@ impl VmRunner {
                     config.get_l2_gas_price(),
                     &tx,
                     &tx_result,
+                    balance_diffs,
                 )
             );
         }
