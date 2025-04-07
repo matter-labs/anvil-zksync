@@ -1213,6 +1213,7 @@ mod tests {
                 H256::repeat_byte(0x1),
                 TransactionResult {
                     info: testing::default_tx_execution_info(),
+                    new_bytecodes: vec![],
                     receipt: Default::default(),
                     debug: testing::default_tx_debug_info(),
                 },
@@ -1322,6 +1323,7 @@ mod tests {
                 H256::repeat_byte(0x1),
                 TransactionResult {
                     info: testing::default_tx_execution_info(),
+                    new_bytecodes: vec![],
                     receipt: Default::default(),
                     debug: testing::default_tx_debug_info(),
                 },
@@ -1384,6 +1386,7 @@ mod tests {
                 H256::repeat_byte(0x2),
                 TransactionResult {
                     info: testing::default_tx_execution_info(),
+                    new_bytecodes: vec![],
                     receipt: Default::default(),
                     debug: testing::default_tx_debug_info(),
                 },

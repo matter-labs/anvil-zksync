@@ -1678,6 +1678,7 @@ mod tests {
                     H256::repeat_byte(0x1),
                     TransactionResult {
                         info: testing::default_tx_execution_info(),
+                        new_bytecodes: vec![],
                         receipt: TransactionReceipt {
                             logs: vec![LogBuilder::new()
                                 .set_address(H160::repeat_byte(0xa1))
@@ -1693,6 +1694,7 @@ mod tests {
                     H256::repeat_byte(0x2),
                     TransactionResult {
                         info: testing::default_tx_execution_info(),
+                        new_bytecodes: vec![],
                         receipt: TransactionReceipt {
                             logs: vec![
                                 LogBuilder::new()
@@ -1740,6 +1742,7 @@ mod tests {
                     H256::repeat_byte(0x1),
                     TransactionResult {
                         info: testing::default_tx_execution_info(),
+                        new_bytecodes: vec![],
                         receipt: TransactionReceipt {
                             logs: vec![LogBuilder::new()
                                 .set_address(H160::repeat_byte(0xa1))
@@ -1770,6 +1773,7 @@ mod tests {
                     H256::repeat_byte(0x1),
                     TransactionResult {
                         info: testing::default_tx_execution_info(),
+                        new_bytecodes: vec![],
                         receipt: TransactionReceipt {
                             logs: vec![LogBuilder::new()
                                 .set_address(H160::repeat_byte(0xa1))
@@ -1785,6 +1789,7 @@ mod tests {
                     H256::repeat_byte(0x2),
                     TransactionResult {
                         info: testing::default_tx_execution_info(),
+                        new_bytecodes: vec![],
                         receipt: TransactionReceipt {
                             logs: vec![
                                 LogBuilder::new()
