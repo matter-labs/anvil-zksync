@@ -7,11 +7,10 @@
 
 use std::fmt::Display;
 
+use crate::utils::{calculate_eth_cost, to_human_size};
 use anvil_zksync_config::utils::format_gwei;
 use zksync_multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
 use zksync_types::{Address, Transaction, H256, U256};
-
-use crate::utils::{calculate_eth_cost, to_human_size};
 
 ///
 /// Kind of outcomes of transaction execution.
@@ -44,6 +43,15 @@ pub struct GasDetails {
 }
 
 ///
+/// Holds a fragment of account state before and after transaction.
+///
+pub struct BalanceDiff {
+    pub address: Address,
+    pub balance_before: U256,
+    pub balance_after: U256,
+}
+
+///
 /// A comprehensive summary of transaction execution results.
 /// Contains all details about transaction status, participants,
 /// resources consumed, and costs.
@@ -61,6 +69,8 @@ pub struct TransactionSummary {
     context: TransactionContext,
     /// Gas consumption details
     gas: GasDetails,
+    /// Changes in balances.
+    balance_diffs: Vec<BalanceDiff>,
 }
 
 impl TransactionSummary {
@@ -71,7 +81,12 @@ impl TransactionSummary {
     /// * `l2_gas_price` - The gas price on L2 in wei
     /// * `tx` - The executed transaction
     /// * `tx_result` - The execution results and logs
-    pub fn new(l2_gas_price: u64, tx: &Transaction, tx_result: &VmExecutionResultAndLogs) -> Self {
+    pub fn new(
+        l2_gas_price: u64,
+        tx: &Transaction,
+        tx_result: &VmExecutionResultAndLogs,
+        balance_diffs: Vec<BalanceDiff>,
+    ) -> Self {
         let status: TransactionStatus = (&tx_result.result).into();
         let tx_hash = tx.hash();
         let initiator = tx.initiator_account();
@@ -92,6 +107,7 @@ impl TransactionSummary {
                 used,
                 refunded,
             },
+            balance_diffs,
         }
     }
 }
@@ -105,6 +121,7 @@ impl Display for TransactionSummary {
             payer,
             context: TransactionContext { l2_gas_price },
             gas,
+            balance_diffs,
         } = self;
 
         // Calculate gas costs in ETH
@@ -119,6 +136,14 @@ impl Display for TransactionSummary {
         let emoji = self.status.emoji();
         let l2_gas_price_human = format_gwei(self.context.l2_gas_price.into());
 
+        let mut balance_diffs_formatted_table = tabled::Table::new(
+            balance_diffs
+                .iter()
+                .map(Into::<internal::BalanceDiffRepr>::into)
+                .collect::<Vec<_>>(),
+        );
+        balance_diffs_formatted_table.with(tabled::settings::Style::modern());
+
         // Basic transaction information
         f.write_fmt(format_args!(
             r#"
@@ -127,7 +152,9 @@ Initiator: {initiator:?}
 Payer: {payer:?}
 Gas Limit: {gas_limit_human} | Used: {gas_used_human} | Refunded: {gas_refunded_human}
 Paid: {paid_in_eth:.10} ETH ({gas_used} gas * {l2_gas_price_human})
-Refunded: {refunded_in_eth:.10} ETH"#
+Refunded: {refunded_in_eth:.10} ETH
+{balance_diffs_formatted_table}
+"#
         ))?;
 
         Ok(())
@@ -159,5 +186,61 @@ impl Display for TransactionStatus {
             TransactionStatus::Failure => "FAILED",
             TransactionStatus::Halt => "HALTED",
         })
+    }
+}
+
+impl From<crate::node::diagnostics::vm::balance_diff::BalanceDiff> for BalanceDiff {
+    fn from(value: crate::node::diagnostics::vm::balance_diff::BalanceDiff) -> Self {
+        let crate::node::diagnostics::vm::balance_diff::BalanceDiff {
+            address,
+            balance_before,
+            balance_after,
+        } = value;
+        Self {
+            address,
+            balance_before,
+            balance_after,
+        }
+    }
+}
+mod internal {
+    use anvil_zksync_config::utils::{format_eth, format_gwei};
+    use zksync_types::U256;
+
+    use super::BalanceDiff;
+
+    ///
+    /// Representation of `[BalanceDiff]`, prepared for formatting using `Tabled`
+    ///
+    #[derive(tabled::Tabled)]
+    pub(super) struct BalanceDiffRepr {
+        pub address: String,
+        pub before: String,
+        pub after: String,
+        pub delta: String,
+    }
+
+    fn compute_delta(before: &U256, after: &U256) -> String {
+        match before.cmp(after) {
+            std::cmp::Ordering::Less => format!("+{}", format_gwei(after - before)),
+            std::cmp::Ordering::Equal => "0".to_string(),
+            std::cmp::Ordering::Greater => format!("-{}", format_gwei(before - after)),
+        }
+    }
+
+    impl From<&BalanceDiff> for BalanceDiffRepr {
+        fn from(val: &BalanceDiff) -> Self {
+            let BalanceDiff {
+                address,
+                balance_before,
+                balance_after,
+            } = val;
+            BalanceDiffRepr {
+                address: format!("{address:?}"),
+                before: format_eth(*balance_before),
+                after: format_eth(*balance_after),
+                delta: compute_delta(balance_before, balance_after),
+            }
+        }
     }
 }
