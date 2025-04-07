@@ -204,7 +204,6 @@ impl InMemoryNodeInner {
         tx_results: Vec<TransactionResult>,
         finished_l1_batch: FinishedL1Batch,
         modified_storage_keys: HashMap<StorageKey, StorageValue>,
-        aggregation_root: H256,
     ) {
         // TODO: `apply_batch` is leaking a lot of abstractions and should be wholly contained inside `Blockchain`.
         //       Additionally, a dedicated `PreviousStates` struct would help with separation of concern.
@@ -229,6 +228,7 @@ impl InMemoryNodeInner {
             .iter()
             .flat_map(|tr| tr.new_bytecodes.clone())
             .collect::<Vec<_>>();
+        let aggregation_root = self.read_aggregation_root(&modified_storage_keys);
         storage.apply_batch(
             batch_timestamp,
             base_system_contracts_hashes,
@@ -291,16 +291,23 @@ impl InMemoryNodeInner {
         key
     }
 
-    fn read_aggregation_root(&self) -> H256 {
+    fn read_aggregation_root(
+        &self,
+        modified_storage_keys: &HashMap<StorageKey, StorageValue>,
+    ) -> H256 {
         let agg_tree_height_slot = StorageKey::new(
             AccountTreeId::new(L2_MESSAGE_ROOT_ADDRESS),
             H256::from_low_u64_be(AGG_TREE_HEIGHT_KEY as u64),
         );
 
-        let agg_tree_height = self
-            .fork_storage
-            .read_value_internal(&agg_tree_height_slot)
-            .unwrap();
+        let agg_tree_height = modified_storage_keys
+            .get(&agg_tree_height_slot)
+            .copied()
+            .unwrap_or_else(|| {
+                self.fork_storage
+                    .read_value_internal(&agg_tree_height_slot)
+                    .unwrap()
+            });
         let agg_tree_height = h256_to_u256(agg_tree_height);
 
         // `nodes[height][0]`
@@ -311,9 +318,14 @@ impl InMemoryNodeInner {
             agg_tree_root_hash_key,
         );
 
-        self.fork_storage
-            .read_value_internal(&agg_tree_root_hash_slot)
-            .unwrap()
+        modified_storage_keys
+            .get(&agg_tree_root_hash_slot)
+            .copied()
+            .unwrap_or_else(|| {
+                self.fork_storage
+                    .read_value_internal(&agg_tree_root_hash_slot)
+                    .unwrap()
+            })
     }
 
     pub(super) async fn seal_block(
@@ -328,7 +340,6 @@ impl InMemoryNodeInner {
             finished_l1_batch,
             modified_storage_keys,
         } = tx_batch_execution_result;
-        let aggregation_root = self.read_aggregation_root();
 
         let mut filters = self.filters.write().await;
         for tx_result in &tx_results {
@@ -424,7 +435,6 @@ impl InMemoryNodeInner {
             tx_results,
             finished_l1_batch,
             modified_storage_keys,
-            aggregation_root,
         )
         .await;
 
