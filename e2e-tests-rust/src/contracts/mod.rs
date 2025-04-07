@@ -248,6 +248,9 @@ impl<P: Provider<Ethereum>> L1Nullifier<P> {
             .logs()
             .iter()
             .find_map(|log| {
+                if log.address() != L1_MESSENGER_ADDRESS {
+                    return None;
+                }
                 log.log_decode::<private::IL1Messenger::L1MessageSent>()
                     .ok()
             })
