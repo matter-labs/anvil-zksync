@@ -149,7 +149,7 @@ impl VmRunner {
     async fn run_tx_pretty(
         &mut self,
         tx: Transaction,
-        executor: &mut dyn BatchExecutor<StorageView<ForkStorage>>,
+        executor: &mut dyn BatchExecutor<ForkStorage>,
         config: &TestNodeConfig,
         fee_input_provider: &TestNodeFeeInputProvider,
     ) -> anyhow::Result<BatchTransactionExecutionResult> {
@@ -241,7 +241,7 @@ impl VmRunner {
         next_log_index: &mut usize,
         block_ctx: &BlockContext,
         batch_env: &L1BatchEnv,
-        executor: &mut dyn BatchExecutor<StorageView<ForkStorage>>,
+        executor: &mut dyn BatchExecutor<ForkStorage>,
         config: &TestNodeConfig,
         fee_input_provider: &TestNodeFeeInputProvider,
     ) -> anyhow::Result<TransactionResult> {
@@ -415,7 +415,6 @@ impl VmRunner {
             self.time.advance_timestamp() == block_ctx.timestamp,
             "advancing clock produced different timestamp than expected"
         );
-        let storage = StorageView::new(self.fork_storage.clone());
         let pubdata_params = PubdataParams {
             l2_da_validator_address: Address::zero(),
             pubdata_type: PubdataType::Rollup,
@@ -424,7 +423,7 @@ impl VmRunner {
             todo!("BatchExecutor support for zkos is yet to be implemented")
         } else {
             self.executor_factory.init_main_batch(
-                storage,
+                self.fork_storage.clone(),
                 batch_env.clone(),
                 system_env.clone(),
                 pubdata_params,
@@ -671,9 +670,8 @@ mod test {
                     max_virtual_blocks_to_create: 1,
                 },
             };
-            let storage = StorageView::new(self.vm_runner.fork_storage.clone());
             let mut executor = self.vm_runner.executor_factory.init_batch(
-                storage,
+                self.vm_runner.fork_storage.clone(),
                 batch_env.clone(),
                 system_env,
                 PubdataParams::default(),
