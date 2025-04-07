@@ -1,4 +1,3 @@
-use crate::deps::storage_view::StorageView;
 use crate::filters::EthFilters;
 use crate::formatter::ExecutionErrorReport;
 use crate::node::error::{LoadStateError, ToHaltError, ToRevertReason};
@@ -30,7 +29,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_error::anvil_zksync::{halt::HaltError, revert::RevertError};
-use zksync_multivm::interface::storage::{ReadStorage, WriteStorage};
+use zksync_multivm::interface::storage::{ReadStorage, StorageView, WriteStorage};
 use zksync_multivm::interface::{
     ExecutionResult, FinishedL1Batch, InspectExecutionMode, L1BatchEnv, L2BlockEnv, SystemEnv,
     TxExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt,
@@ -143,7 +142,7 @@ impl InMemoryNodeInner {
         tracing::debug!("creating L1 batch env");
 
         let (last_l1_batch_number, last_l2_block) = self.blockchain.read().await.last_env(
-            &StorageView::new(&self.fork_storage).into_rc_ptr(),
+            &StorageView::new(&self.fork_storage).to_rc_ptr(),
             &self.time,
         );
 
@@ -716,7 +715,7 @@ impl InMemoryNodeInner {
             ExecuteTransactionCommon::ProtocolUpgrade(_) => unimplemented!(),
         }
 
-        let storage = StorageView::new(fork_storage).into_rc_ptr();
+        let storage = StorageView::new(fork_storage).to_rc_ptr();
 
         // The nonce needs to be updated
         let nonce_key = self

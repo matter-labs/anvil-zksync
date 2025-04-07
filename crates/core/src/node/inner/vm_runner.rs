@@ -1,5 +1,4 @@
 use crate::bootloader_debug::BootloaderDebug;
-use crate::deps::storage_view::StorageView;
 use crate::formatter;
 use crate::formatter::ExecutionErrorReport;
 use crate::node::batch::{MainBatchExecutorFactory, TraceCalls};
@@ -568,6 +567,7 @@ mod test {
     use anvil_zksync_config::types::SystemContractsOptions;
     use std::str::FromStr;
     use zksync_multivm::interface::executor::BatchExecutorFactory;
+    use zksync_multivm::interface::storage::StorageView;
     use zksync_multivm::interface::{L2Block, SystemEnv};
     use zksync_multivm::vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT;
     use zksync_multivm::vm_latest::utils::l2_blocks::load_last_l2_block;
@@ -639,7 +639,7 @@ mod test {
                 chain_id: L2ChainId::from(TEST_NODE_NETWORK_ID),
             };
             let last_l2_block = load_last_l2_block(
-                &StorageView::new(self.vm_runner.fork_storage.clone()).into_rc_ptr(),
+                &StorageView::new(self.vm_runner.fork_storage.clone()).to_rc_ptr(),
             )
             .unwrap_or_else(|| L2Block {
                 number: 0,

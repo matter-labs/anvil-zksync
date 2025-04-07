@@ -1,8 +1,8 @@
-use crate::deps::storage_view::StorageView;
 use crate::node::{InMemoryNode, MAX_TX_SIZE};
 use crate::utils::create_debug_output;
 use once_cell::sync::OnceCell;
 use std::sync::Arc;
+use zksync_multivm::interface::storage::StorageView;
 use zksync_multivm::interface::{VmFactory, VmInterface};
 use zksync_multivm::tracers::CallTracer;
 use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
@@ -71,7 +71,7 @@ impl InMemoryNode {
         // update the enforced_base_fee within l1_batch_env to match the logic in zksync_core
         l1_batch_env.enforced_base_fee = Some(l2_tx.common_data.fee.max_fee_per_gas.as_u64());
         let system_env = inner.create_system_env(system_contracts.clone(), execution_mode);
-        let storage = StorageView::new(inner.read_storage()).into_rc_ptr();
+        let storage = StorageView::new(inner.read_storage()).to_rc_ptr();
         let mut vm: Vm<_, HistoryDisabled> = Vm::new(l1_batch_env, system_env, storage);
 
         // We must inject *some* signature (otherwise bootloader code fails to generate hash).
