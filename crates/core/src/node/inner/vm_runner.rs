@@ -27,6 +27,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_multivm::interface::executor::BatchExecutor;
+use zksync_multivm::interface::storage::WriteStorage;
 use zksync_multivm::interface::{
     BatchTransactionExecutionResult, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
     TxExecutionMode, VmEvent, VmExecutionResultAndLogs,
@@ -37,8 +38,8 @@ use zksync_types::bytecode::BytecodeHash;
 use zksync_types::commitment::{PubdataParams, PubdataType};
 use zksync_types::web3::Bytes;
 use zksync_types::{
-    api, h256_to_address, ExecuteTransactionCommon, L2BlockNumber, L2TxCommonData, Transaction,
-    ACCOUNT_CODE_STORAGE_ADDRESS,
+    api, h256_to_address, ExecuteTransactionCommon, L2BlockNumber, L2TxCommonData, StorageKey,
+    StorageValue, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
 };
 
 pub struct VmRunner {
@@ -59,6 +60,7 @@ pub(super) struct TxBatchExecutionResult {
     pub(super) batch_env: L1BatchEnv,
     pub(super) block_ctxs: Vec<BlockContext>,
     pub(super) finished_l1_batch: FinishedL1Batch,
+    pub(super) modified_storage_keys: HashMap<StorageKey, StorageValue>,
 }
 
 impl VmRunner {
@@ -290,32 +292,18 @@ impl VmRunner {
         // are added into the lookup map as well.
         tx_factory_deps.extend(result.dynamic_factory_deps.clone());
 
-        let known_bytecodes = saved_factory_deps.map(|bytecode_hash| {
-            let bytecode = tx_factory_deps.get(&bytecode_hash).unwrap_or_else(|| {
-                panic!(
-                    "Failed to get factory deps on tx: bytecode hash: {:?}, tx hash: {}",
-                    bytecode_hash,
-                    tx.hash()
-                )
-            });
-            (bytecode_hash, bytecode.clone())
-        });
-
-        // Write factory deps
-        for (hash, code) in known_bytecodes {
-            self.fork_storage.store_factory_dep(hash, code)
-        }
-
-        // Write storage logs
-        for storage_log in result
-            .logs
-            .storage_logs
-            .iter()
-            .filter(|log| log.log.is_write())
-        {
-            self.fork_storage
-                .set_value(storage_log.log.key, storage_log.log.value);
-        }
+        let new_bytecodes = saved_factory_deps
+            .map(|bytecode_hash| {
+                let bytecode = tx_factory_deps.get(&bytecode_hash).unwrap_or_else(|| {
+                    panic!(
+                        "Failed to get factory deps on tx: bytecode hash: {:?}, tx hash: {}",
+                        bytecode_hash,
+                        tx.hash()
+                    )
+                });
+                (bytecode_hash, bytecode.clone())
+            })
+            .collect::<Vec<_>>();
 
         let logs = result
             .logs
@@ -390,6 +378,7 @@ impl VmRunner {
                 batch_number: batch_env.number.0,
                 miniblock_number: block_ctx.miniblock,
             },
+            new_bytecodes,
             receipt: tx_receipt,
             debug,
         })
@@ -501,14 +490,22 @@ impl VmRunner {
             block_ctxs.push(virtual_block_ctx);
         }
 
-        let finished_l1_batch = if self.generate_system_logs {
+        let (finished_l1_batch, modified_storage_keys) = if self.generate_system_logs {
             // If system log generation is enabled we run realistic (and time-consuming) bootloader flow
-            Box::new(executor).finish_batch().await?.0
+            let (finished_l1_batch, storage_view) = Box::new(executor).finish_batch().await?;
+            (
+                finished_l1_batch,
+                storage_view.modified_storage_keys().clone(),
+            )
         } else {
             // Otherwise we mock the execution with a single bootloader iteration
             let mut finished_l1_batch = FinishedL1Batch::mock();
-            finished_l1_batch.block_tip_execution_result = executor.bootloader().await?;
-            finished_l1_batch
+            let (bootloader_execution_result, storage_view) = executor.bootloader().await?;
+            finished_l1_batch.block_tip_execution_result = bootloader_execution_result;
+            (
+                finished_l1_batch,
+                storage_view.modified_storage_keys().clone(),
+            )
         };
         assert!(
             !finished_l1_batch
@@ -519,25 +516,13 @@ impl VmRunner {
             finished_l1_batch.block_tip_execution_result.result
         );
 
-        // TODO: Save fictive block's storage logs, events, system/user L2->L1 logs
-        // Write fictive block's storage logs
-        for storage_log in finished_l1_batch
-            .block_tip_execution_result
-            .logs
-            .storage_logs
-            .iter()
-            .filter(|log| log.log.is_write())
-        {
-            self.fork_storage
-                .set_value(storage_log.log.key, storage_log.log.value);
-        }
-
         Ok(TxBatchExecutionResult {
             tx_results,
             base_system_contracts_hashes,
             batch_env,
             block_ctxs,
             finished_l1_batch,
+            modified_storage_keys,
         })
     }
 }

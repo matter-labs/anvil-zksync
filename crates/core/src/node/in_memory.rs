@@ -228,6 +228,7 @@ pub struct TxExecutionInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TransactionResult {
     pub info: TxExecutionInfo,
+    pub new_bytecodes: Vec<(H256, Vec<u8>)>,
     pub receipt: TransactionReceipt,
     pub debug: DebugCall,
 }

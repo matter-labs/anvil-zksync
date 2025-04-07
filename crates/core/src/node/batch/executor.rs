@@ -68,7 +68,9 @@ impl<S: ReadStorage> MainBatchExecutor<S> {
     /// minimum of changes to the state on batch sealing. Not as time-consuming as [`Self::finish_batch`].
     ///
     /// To be deleted once we stop sealing batches on every block.
-    pub(crate) async fn bootloader(&mut self) -> anyhow::Result<VmExecutionResultAndLogs> {
+    pub(crate) async fn bootloader(
+        mut self,
+    ) -> anyhow::Result<(VmExecutionResultAndLogs, StorageView<S>)> {
         let (response_sender, response_receiver) = oneshot::channel();
         let send_failed = self
             .commands
@@ -83,8 +85,9 @@ impl<S: ReadStorage> MainBatchExecutor<S> {
             Ok(batch) => batch,
             Err(_) => return Err(self.handle.wait_for_error().await),
         };
+        let storage_view = self.handle.wait().await?;
 
-        Ok(bootloader_result)
+        Ok((bootloader_result, storage_view))
     }
 }
 

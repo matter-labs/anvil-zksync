@@ -194,13 +194,16 @@ impl InMemoryNodeInner {
         (batch_env, block_ctx)
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn apply_batch(
         &mut self,
         batch_timestamp: u64,
         base_system_contracts_hashes: BaseSystemContractsHashes,
-        blocks: impl IntoIterator<Item = api::Block<api::TransactionVariant>>,
+        block: api::Block<api::TransactionVariant>,
+        virtual_block: Option<api::Block<api::TransactionVariant>>,
         tx_results: Vec<TransactionResult>,
         finished_l1_batch: FinishedL1Batch,
+        modified_storage_keys: HashMap<StorageKey, StorageValue>,
         aggregation_root: H256,
     ) {
         // TODO: `apply_batch` is leaking a lot of abstractions and should be wholly contained inside `Blockchain`.
@@ -222,6 +225,10 @@ impl InMemoryNodeInner {
         }
 
         let mut storage = self.blockchain.write().await;
+        let new_bytecodes = tx_results
+            .iter()
+            .flat_map(|tr| tr.new_bytecodes.clone())
+            .collect::<Vec<_>>();
         storage.apply_batch(
             batch_timestamp,
             base_system_contracts_hashes,
@@ -229,7 +236,33 @@ impl InMemoryNodeInner {
             finished_l1_batch,
             aggregation_root,
         );
-        for (index, block) in blocks.into_iter().enumerate() {
+
+        // archive current state before we produce new batch/blocks
+        archive_state(
+            &mut self.previous_states,
+            self.fork_storage
+                .inner
+                .read()
+                .unwrap()
+                .raw_storage
+                .state
+                .clone(),
+            storage.current_block,
+            storage.current_block_hash,
+        );
+        storage.apply_block(block, 0);
+
+        // Apply new factory deps
+        for (hash, code) in new_bytecodes {
+            self.fork_storage.store_factory_dep(hash, code)
+        }
+
+        // Apply storage writes
+        for (key, value) in modified_storage_keys {
+            self.fork_storage.set_value(key, value);
+        }
+
+        if let Some(virtual_block) = virtual_block {
             // archive current state before we produce new batch/blocks
             archive_state(
                 &mut self.previous_states,
@@ -243,7 +276,7 @@ impl InMemoryNodeInner {
                 storage.current_block,
                 storage.current_block_hash,
             );
-            storage.apply_block(block, index as u32);
+            storage.apply_block(virtual_block, 1);
         }
     }
 
@@ -293,6 +326,7 @@ impl InMemoryNodeInner {
             batch_env,
             block_ctxs,
             finished_l1_batch,
+            modified_storage_keys,
         } = tx_batch_execution_result;
         let aggregation_root = self.read_aggregation_root();
 
@@ -354,7 +388,7 @@ impl InMemoryNodeInner {
             .fold(U256::zero(), |acc, x| acc + x);
 
         // Construct the block
-        let mut blocks = vec![create_block(
+        let block = create_block(
             &batch_env,
             block_ctxs[0].hash,
             block_ctxs[0].prev_block_hash,
@@ -363,11 +397,11 @@ impl InMemoryNodeInner {
             transactions,
             gas_used,
             logs_bloom,
-        )];
+        );
 
         // Make sure optional virtual block gets saved too
-        if block_ctxs.len() == 2 {
-            let virtual_block = create_block(
+        let virtual_block = if block_ctxs.len() == 2 {
+            Some(create_block(
                 &batch_env,
                 block_ctxs[1].hash,
                 block_ctxs[1].prev_block_hash,
@@ -376,25 +410,27 @@ impl InMemoryNodeInner {
                 vec![],
                 U256::zero(),
                 Bloom::zero(),
-            );
-            blocks.push(virtual_block);
-        }
-        let block_hashes = blocks.iter().map(|b| b.hash).collect::<Vec<_>>();
+            ))
+        } else {
+            None
+        };
 
         // Use first block's timestamp as batch timestamp
         self.apply_batch(
             batch_env.timestamp,
             base_system_contracts_hashes,
-            blocks,
+            block,
+            virtual_block,
             tx_results,
             finished_l1_batch,
+            modified_storage_keys,
             aggregation_root,
         )
         .await;
 
         let mut filters = self.filters.write().await;
-        for block_hash in block_hashes {
-            filters.notify_new_block(block_hash);
+        for block_ctx in &block_ctxs {
+            filters.notify_new_block(block_ctx.hash);
         }
         drop(filters);
 
@@ -938,27 +974,12 @@ impl InMemoryNodeInner {
                     error
                 ))),
             }
-        } else if storage.hashes.contains_key(&block_number) {
-            let value = storage
-                .hashes
-                .get(&block_number)
-                .and_then(|block_hash| self.previous_states.get(block_hash))
-                .and_then(|state| state.get(&storage_key))
-                .cloned()
-                .unwrap_or_default();
-            if !value.is_zero() {
-                return Ok(value);
-            }
-            // TODO: Check if the rest of the logic below makes sense.
-            //       AFAIU this branch can only be entered if the block was produced locally, but
-            //       we query the fork regardless?
-            match self.fork_storage.read_value_internal(&storage_key) {
-                Ok(value) => Ok(H256(value.0)),
-                Err(error) => Err(Web3Error::InternalError(anyhow::anyhow!(
-                    "failed to read storage: {}",
-                    error
-                ))),
-            }
+        } else if let Some(block_hash) = storage.hashes.get(&block_number) {
+            let state = self
+                .previous_states
+                .get(block_hash)
+                .ok_or_else(|| Web3Error::PrunedBlock(block_number))?;
+            Ok(state.get(&storage_key).copied().unwrap_or_default())
         } else {
             Ok(self.fork.get_storage_at(address, idx, block).await?)
         }
