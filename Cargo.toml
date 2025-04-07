@@ -78,6 +78,7 @@ strum = "0.26.3"
 strum_macros = "0.26.4"
 serde_yaml = "0.9.33"
 tar = "0.4.44"
+tabled = "0.18.0"
 tempfile = { version = "3.16.0", default-features = false }
 thiserror = "1"
 time = "0.3.36"
