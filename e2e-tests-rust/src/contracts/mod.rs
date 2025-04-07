@@ -86,12 +86,12 @@ pub struct Bridgehub<P: Provider<Ethereum>> {
 impl<P: Provider<Ethereum>> Bridgehub<P> {
     pub async fn new(l1_provider: P, l2_provider: &impl Provider<Zksync>) -> anyhow::Result<Self> {
         let chain_id = l2_provider.get_chain_id().await?;
-        let birdgehub_address = l2_provider
+        let bridgehub_address = l2_provider
             .get_bridgehub_contract()
             .await?
             .context("anvil-zksync does not have bridgehub contract; is it running in L1 mode?")?;
         Ok(Self {
-            instance: private::IBridgehub::new(birdgehub_address, l1_provider),
+            instance: private::IBridgehub::new(bridgehub_address, l1_provider),
             chain_id,
         })
     }
