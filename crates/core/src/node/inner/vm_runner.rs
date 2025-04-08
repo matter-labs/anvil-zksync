@@ -34,7 +34,7 @@ use zksync_multivm::interface::{
     BatchTransactionExecutionResult, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
     TxExecutionMode, VmEvent, VmExecutionResultAndLogs,
 };
-use zksync_multivm::zk_evm_latest::ethereum_types::{Address, H160, H256, U256, U64};
+use zksync_multivm::zk_evm_latest::ethereum_types::{Address, H160, U256, U64};
 use zksync_types::block::L2BlockHasher;
 use zksync_types::bytecode::BytecodeHash;
 use zksync_types::commitment::{PubdataParams, PubdataType};
@@ -122,47 +122,36 @@ impl VmRunner {
     fn validate_tx(
         &self,
         batch_env: &L1BatchEnv,
-        tx_hash: H256,
         tx_data: &L2TxCommonData,
-    ) -> Result<(), AnvilNodeError> {
+    ) -> Result<(), anvil_zksync::tx_invalid::TransactionValidationError> {
         let max_gas = U256::from(u64::MAX);
         if tx_data.fee.gas_limit > max_gas {
-            return Err(anvil_zksync::node::TransactionValidationFailedGasLimit {
-                transaction_hash: Box::new(tx_hash),
+            return Err(anvil_zksync::tx_invalid::InvalidGasLimit {
                 tx_gas_limit: Box::new(tx_data.fee.gas_limit),
                 max_gas: Box::new(max_gas),
             });
         }
 
         if tx_data.fee.gas_per_pubdata_limit > max_gas {
-            return Err(
-                anvil_zksync::node::TransactionValidationFailedGasPerPubdataLimit {
-                    transaction_hash: Box::new(tx_hash),
-                    tx_gas_per_pubdata_limit: Box::new(tx_data.fee.gas_per_pubdata_limit),
-                    max_gas: Box::new(max_gas),
-                },
-            );
+            return Err(anvil_zksync::tx_invalid::GasPerPubdataLimit {
+                tx_gas_per_pubdata_limit: Box::new(tx_data.fee.gas_per_pubdata_limit),
+                max_gas: Box::new(max_gas),
+            });
         }
 
         let l2_gas_price = batch_env.fee_input.fair_l2_gas_price();
         if tx_data.fee.max_fee_per_gas < l2_gas_price.into() {
-            return Err(
-                anvil_zksync::node::TransactionValidationFailedMaxFeePerGasTooLow {
-                    max_fee_per_gas: Box::new(tx_data.fee.max_fee_per_gas),
-                    transaction_hash: Box::new(tx_hash),
-                    l2_gas_price: Box::new(l2_gas_price.into()),
-                },
-            );
+            return Err(anvil_zksync::tx_invalid::MaxFeePerGasTooLow {
+                max_fee_per_gas: Box::new(tx_data.fee.max_fee_per_gas),
+                l2_gas_price: Box::new(l2_gas_price.into()),
+            });
         }
 
         if tx_data.fee.max_fee_per_gas < tx_data.fee.max_priority_fee_per_gas {
-            return Err(
-                anvil_zksync::node::TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee {
-                    max_fee_per_gas: Box::new(tx_data.fee.max_fee_per_gas),
-                    max_priority_fee_per_gas: Box::new(tx_data.fee.max_priority_fee_per_gas),
-                    transaction_hash: Box::new(tx_hash),
-                },
-            );
+            return Err(anvil_zksync::tx_invalid::MaxPriorityFeeGreaterThanMaxFee {
+                max_fee_per_gas: Box::new(tx_data.fee.max_fee_per_gas),
+                max_priority_fee_per_gas: Box::new(tx_data.fee.max_priority_fee_per_gas),
+            });
         }
         Ok(())
     }
@@ -291,7 +280,12 @@ impl VmRunner {
 
         if let ExecuteTransactionCommon::L2(l2_tx_data) = &tx.common_data {
             // If the transaction can not be validated, we return immediately
-            self.validate_tx(batch_env, tx.hash(), l2_tx_data)?;
+            self.validate_tx(batch_env, l2_tx_data).map_err(|e| {
+                anvil_zksync::node::TransactionValidationFailed {
+                    inner: Box::new(e),
+                    transaction_hash: Box::new(tx_hash),
+                }
+            })?;
         }
 
         let BatchTransactionExecutionResult {
@@ -523,24 +517,20 @@ impl VmRunner {
                 Err(e) => {
                     match &e {
                         // Validation errors are reported and the execution proceeds
-                        AnvilNodeError::TransactionValidationFailedGasLimit {..}|
-                        AnvilNodeError::TransactionValidationFailedMaxFeePerGasTooLow {..} |
-                        AnvilNodeError::TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee {..} => {
+                        AnvilNodeError::TransactionValidationFailed { .. } => {
                             let error_report = ExecutionErrorReport::new(&e, Some(&tx));
                             sh_eprintln!("{error_report}");
                             executor.rollback_last_tx().await?;
-                        },
+                        }
                         // Halts are reported and the execution proceeds
-                        AnvilNodeError::TransactionHalt { inner, ..} =>  {
+                        AnvilNodeError::TransactionHalt { inner, .. } => {
                             let error_report = ExecutionErrorReport::new(inner.as_ref(), Some(&tx));
                             sh_eprintln!("{error_report}");
                             executor.rollback_last_tx().await?;
-                        },
+                        }
                         // Other errors are not recoverable so we pass them up
                         // the execution stack immediately
-                        _ => {
-                            return Err(e)
-                        }
+                        _ => return Err(e),
                     }
                 }
             }
@@ -657,7 +647,7 @@ mod test {
     use zksync_types::l2::{L2Tx, TransactionType};
     use zksync_types::utils::deployed_address_create;
     use zksync_types::{
-        u256_to_h256, K256PrivateKey, L1BatchNumber, L2ChainId, Nonce, ProtocolVersionId,
+        u256_to_h256, K256PrivateKey, L1BatchNumber, L2ChainId, Nonce, ProtocolVersionId, H256,
     };
 
     struct VmRunnerTester {
@@ -807,10 +797,12 @@ mod test {
             .set_gas_limit(U256::from(u64::MAX) + 1)
             .build();
         let max_gas = U256::from(u64::MAX);
-        let expected = AnvilNodeError::TransactionValidationFailedGasLimit {
+        let expected = AnvilNodeError::TransactionValidationFailed {
             transaction_hash: Box::new(tx.hash()),
-            tx_gas_limit: Box::new(tx.common_data.fee.gas_limit),
-            max_gas: Box::new(max_gas),
+            inner: Box::new(anvil_zksync::tx_invalid::InvalidGasLimit {
+                tx_gas_limit: Box::new(tx.common_data.fee.gas_limit),
+                max_gas: Box::new(max_gas),
+            }),
         };
         let err = tester.test_tx(tx.into()).await.unwrap_err();
         assert_eq!(err, expected);
@@ -822,10 +814,12 @@ mod test {
         let tx = TransactionBuilder::new()
             .set_max_fee_per_gas(U256::from(DEFAULT_L2_GAS_PRICE - 1))
             .build();
-        let expected = AnvilNodeError::TransactionValidationFailedMaxFeePerGasTooLow {
-            max_fee_per_gas: Box::new(tx.common_data.fee.max_fee_per_gas),
+        let expected = AnvilNodeError::TransactionValidationFailed {
             transaction_hash: Box::new(tx.hash()),
-            l2_gas_price: Box::new(DEFAULT_L2_GAS_PRICE.into()),
+            inner: Box::new(anvil_zksync::tx_invalid::MaxFeePerGasTooLow {
+                max_fee_per_gas: Box::new(tx.common_data.fee.max_fee_per_gas),
+                l2_gas_price: Box::new(DEFAULT_L2_GAS_PRICE.into()),
+            }),
         };
         let err = tester.test_tx(tx.into()).await.unwrap_err();
         assert_eq!(err, expected);
@@ -838,10 +832,13 @@ mod test {
         let tx = TransactionBuilder::new()
             .set_max_priority_fee_per_gas(max_priority_fee_per_gas)
             .build();
-        let expected = AnvilNodeError::TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee {
-            max_fee_per_gas: Box::new(tx.common_data.fee.max_fee_per_gas),
-            max_priority_fee_per_gas: Box::new(tx.common_data.fee.max_priority_fee_per_gas),
+
+        let expected = AnvilNodeError::TransactionValidationFailed {
             transaction_hash: Box::new(tx.hash()),
+            inner: Box::new(anvil_zksync::tx_invalid::MaxPriorityFeeGreaterThanMaxFee {
+                max_fee_per_gas: Box::new(tx.common_data.fee.max_fee_per_gas),
+                max_priority_fee_per_gas: Box::new(tx.common_data.fee.max_priority_fee_per_gas),
+            }),
         };
         let err = tester.test_tx(tx.into()).await.unwrap_err();
         assert_eq!(err, expected);

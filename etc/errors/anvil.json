@@ -782,19 +782,15 @@
           ]
         },
         {
-          "component_name": "AnvilNode",
-          "component_code": 10,
-          "identifier_encoding": "node",
+          "component_name": "TransactionValidation",
+          "component_code": 4,
+          "identifier_encoding": "tx_invalid",
           "errors" : [
             {
-              "name": "TransactionValidationFailedGasLimit",
+              "name": "InvalidGasLimit",
               "code": 1,
-              "message": "Gas limit for transaction {transaction_hash} is {tx_gas_limit} which exceeds maximum allowed gas {max_gas}",
+              "message": "Gas limit for transaction is {tx_gas_limit} which exceeds maximum allowed gas {max_gas}",
               "fields": [
-                {
-                  "name": "transaction_hash",
-                  "type": "H256"
-                },
                 {
                   "name": "tx_gas_limit",
                   "type": "U256"
@@ -822,14 +818,10 @@
               }
             },
             {
-              "name": "TransactionValidationFailedGasPerPubdataLimit",
+              "name": "GasPerPubdataLimit",
               "code": 2,
-              "message": "Gas per pubdata limit for transaction {transaction_hash} is {tx_gas_per_pubdata_limit} which exceeds maximum allowed gas {max_gas}",
+              "message": "Gas per pubdata limit is {tx_gas_per_pubdata_limit} which exceeds maximum allowed gas {max_gas}",
               "fields": [
-                {
-                  "name": "transaction_hash",
-                  "type": "H256"
-                },
                 {
                   "name": "tx_gas_per_pubdata_limit",
                   "type": "U256"
@@ -857,17 +849,13 @@
               }
             },
             {
-              "name": "TransactionValidationFailedMaxFeePerGasTooLow",
+              "name": "MaxFeePerGasTooLow",
               "code": 3,
-              "message": "Transaction {transaction_hash} allows paying a maximum of {max_fee_per_gas} fee per gar, but the current L2 gas price is {l2_gas_price}, which makes it too expensive.",
+              "message": "Max fee per gas: {max_fee_per_gas}, current L2 gas price {l2_gas_price} is too expensive.",
               "fields": [
                 {
                   "name": "max_fee_per_gas",
                   "type": "U256"
-                },
-                {
-                  "name": "transaction_hash",
-                  "type": "H256"
                 },
                 {
                   "name": "l2_gas_price",
@@ -916,9 +904,9 @@
               }
             },
             {
-              "name": "TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee",
+              "name": "MaxPriorityFeeGreaterThanMaxFee",
               "code": 4,
-              "message": "Invalid transaction {transaction_hash}: its maxPriorityFeePerGas={max_priority_fee_per_gas} exceeds the limit value maxFeePerGas={max_fee_per_gas}",
+              "message": "maxPriorityFeePerGas={max_priority_fee_per_gas} exceeds the limit value maxFeePerGas={max_fee_per_gas}",
               "fields": [
                 {
                   "name": "max_fee_per_gas",
@@ -927,10 +915,6 @@
                 {
                   "name": "max_priority_fee_per_gas",
                   "type": "U256"
-                },
-                {
-                  "name": "transaction_hash",
-                  "type": "H256"
                 }
               ],
               "doc": {
@@ -966,10 +950,17 @@
                   }
                 ]
               }
-            },
+            }
+          ]
+        },
+        {
+          "component_name": "AnvilNode",
+          "component_code": 10,
+          "identifier_encoding": "node",
+          "errors" : [
             {
               "name": "TransactionHalt",
-              "code": 10,
+              "code": 1,
               "message": "Transaction {transaction_hash} execution halted, reason: {inner}",
               "fields": [
                 {
@@ -1036,6 +1027,35 @@
               }
             },
             {
+              "name": "TransactionValidationFailed",
+              "code": 10,
+              "message": "Transaction {transaction_hash}: validation failed. Reason: {inner}",
+              "fields": [
+                {
+                  "name": "inner",
+                  "type": "TransactionValidation"
+                },
+                {
+                  "name": "transaction_hash",
+                  "type": "H256"
+                }
+              ],
+              "doc": {
+                "summary": "Transaction validation failed in anvil-zksync.",
+                "description": [
+                  "This error occurs when a transaction validation is failed and it is not executed.",
+                  "This is a wrapper error that contains a more specific validation error inside it, which provides details about the cause of the halt.",
+                  "",
+                  "The validation may for various reasons including:",
+                  "- Gas limit exceedance",
+                  "- Invalid gas limit value",
+                  "- maxFeePerGas exceeding maxPriorityFeePerGas, and so on.",
+                  "",
+                  "When using anvil-zksync for testing, these errors are valuable signals that help you identify issues with your contracts or transactions before deploying to the real ZKSync network."
+                ]
+              }
+            },
+            {
               "name": "TimestampBackwardsError",
               "code": 20,
               "message": "Failed to force the next timestamp to value {timestamp_requested}. It should be greater than the last timestamp {timestamp_now}.",
@@ -1093,7 +1113,6 @@
                 ]
               }
             }
-
           ]
         }
       ]

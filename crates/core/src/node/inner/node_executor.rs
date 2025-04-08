@@ -607,9 +607,10 @@ impl NodeExecutorHandle {
 
     async fn execute_without_response(&self, command: Command) -> Result<(), AnvilNodeError> {
         let action_name = command.readable_action_name();
-        self.command_sender.send(command).await.map_err(|_| {
-            node_executor_dropped_error("request to", &action_name)
-        })
+        self.command_sender
+            .send(command)
+            .await
+            .map_err(|_| node_executor_dropped_error("request to", &action_name))
     }
 
     async fn execute_with_response<R>(
@@ -620,21 +621,24 @@ impl NodeExecutorHandle {
 
         let command = command_gen(response_sender);
         let action_name = command.readable_action_name();
-        self.command_sender.send(command).await.map_err(|_| {
-            node_executor_dropped_error("request to", &action_name)
-        })?;
+        self.command_sender
+            .send(command)
+            .await
+            .map_err(|_| node_executor_dropped_error("request to", &action_name))?;
 
         match response_receiver.await {
             Ok(result) => Ok(result),
-            Err(_) => {
-                Err(node_executor_dropped_error("receive a response to the request to", &action_name))
-            }
+            Err(_) => Err(node_executor_dropped_error(
+                "receive a response to the request to",
+                &action_name,
+            )),
         }
     }
 }
 
 fn node_executor_dropped_error(request_or_receive: &str, action_name: &str) -> AnvilNodeError {
-    anvil_zksync::node::generic_error!(r"Failed to {request_or_receive} {action_name} because node executor is dropped. \
+    anvil_zksync::node::generic_error!(
+        r"Failed to {request_or_receive} {action_name} because node executor is dropped. \
          Another error was likely propagated from the main execution loop. \
          If this is not the case, please, report this as a bug."
     )
@@ -700,7 +704,9 @@ impl Command {
                 "seal blocks with intervals of {interval} seconds between consecutive blocks: {:?}",
                 vec.iter().map(batch_repr).collect::<Vec<_>>()
             ),
-            Command::SetCode(address, _bytecode, _) => format!("set bytecode for address {address}"),
+            Command::SetCode(address, _bytecode, _) => {
+                format!("set bytecode for address {address}")
+            }
             Command::SetStorage(storage_key, value, _) => {
                 format!("set storage {}={value}", storage_key.hashed_key())
             }

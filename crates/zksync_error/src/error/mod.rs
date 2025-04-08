@@ -52,6 +52,9 @@ impl IError<ZksyncError> for ZksyncError {
             ZksyncError::AnvilZksync(AnvilZksync::AnvilNode(error)) => error.get_message(),
             ZksyncError::AnvilZksync(AnvilZksync::Halt(error)) => error.get_message(),
             ZksyncError::AnvilZksync(AnvilZksync::Revert(error)) => error.get_message(),
+            ZksyncError::AnvilZksync(AnvilZksync::TransactionValidation(error)) => {
+                error.get_message()
+            }
             ZksyncError::Compiler(Compiler::LLVM_EVM(error)) => error.get_message(),
             ZksyncError::Compiler(Compiler::LLVM_Era(error)) => error.get_message(),
             ZksyncError::Compiler(Compiler::Solc(error)) => error.get_message(),

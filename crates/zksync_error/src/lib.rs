@@ -67,10 +67,7 @@ pub mod anvil_zksync {
         pub use crate::error::definitions::AnvilNode::GenericError;
         pub use crate::error::definitions::AnvilNode::TimestampBackwardsError;
         pub use crate::error::definitions::AnvilNode::TransactionHalt;
-        pub use crate::error::definitions::AnvilNode::TransactionValidationFailedGasLimit;
-        pub use crate::error::definitions::AnvilNode::TransactionValidationFailedGasPerPubdataLimit;
-        pub use crate::error::definitions::AnvilNode::TransactionValidationFailedMaxFeePerGasTooLow;
-        pub use crate::error::definitions::AnvilNode::TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee;
+        pub use crate::error::definitions::AnvilNode::TransactionValidationFailed;
         pub use crate::error::definitions::AnvilNodeCode as ErrorCode;
         #[macro_export]
         macro_rules ! anvil_zksync_node_generic_error { ($ ($ arg : tt) *) => { zksync_error :: anvil_zksync :: node :: AnvilNodeError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
@@ -143,6 +140,28 @@ pub mod anvil_zksync {
         }
         pub fn to_domain<T: std::fmt::Display>(err: T) -> super::AnvilZksyncError {
             super::AnvilZksyncError::Revert(GenericError {
+                message: err.to_string(),
+            })
+        }
+    }
+    pub mod tx_invalid {
+        pub use crate::error::definitions::TransactionValidation as TransactionValidationError;
+        pub use crate::error::definitions::TransactionValidation::GasPerPubdataLimit;
+        pub use crate::error::definitions::TransactionValidation::GenericError;
+        pub use crate::error::definitions::TransactionValidation::InvalidGasLimit;
+        pub use crate::error::definitions::TransactionValidation::MaxFeePerGasTooLow;
+        pub use crate::error::definitions::TransactionValidation::MaxPriorityFeeGreaterThanMaxFee;
+        pub use crate::error::definitions::TransactionValidationCode as ErrorCode;
+        #[macro_export]
+        macro_rules ! anvil_zksync_tx_invalid_generic_error { ($ ($ arg : tt) *) => { zksync_error :: anvil_zksync :: tx_invalid :: TransactionValidationError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
+        pub use crate::anvil_zksync_tx_invalid_generic_error as generic_error;
+        pub fn to_generic<T: std::fmt::Display>(err: T) -> TransactionValidationError {
+            GenericError {
+                message: err.to_string(),
+            }
+        }
+        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::AnvilZksyncError {
+            super::AnvilZksyncError::TransactionValidation(GenericError {
                 message: err.to_string(),
             })
         }

@@ -267,6 +267,20 @@
           }
         }
       },
+      "TransactionValidation": {
+        "name": "TransactionValidation",
+        "meta": {
+          "description": ""
+        },
+        "bindings": {
+          "rust": {
+            "expression": "Box<TransactionValidation>"
+          },
+          "typescript": {
+            "expression": "Box<TransactionValidation>"
+          }
+        }
+      },
       "U256": {
         "name": "U256",
         "meta": {
@@ -393,7 +407,8 @@
           "AnvilGeneric",
           "AnvilNode",
           "Halt",
-          "Revert"
+          "Revert",
+          "TransactionValidation"
         ],
         "bindings": {
           "rust": "AnvilZksync",
@@ -718,6 +733,20 @@
         "description": "Errors originating in the ZKsync fork of Solidity compiler.",
         "origins": [
           "<default zksync-root.json>"
+        ]
+      },
+      "TransactionValidation": {
+        "name": "TransactionValidation",
+        "code": 4,
+        "domain_name": "AnvilZKsync",
+        "bindings": {
+          "rust": "TransactionValidation",
+          "typescript": "TransactionValidation"
+        },
+        "identifier": "tx_invalid",
+        "description": "",
+        "origins": [
+          "../../etc/errors/anvil.json"
         ]
       },
       "Zksolc": {
@@ -1936,9 +1965,43 @@
       "[anvil_zksync-node-10]": {
         "domain": "AnvilZKsync",
         "component": "AnvilNode",
-        "name": "TransactionHalt",
+        "name": "TransactionValidationFailed",
         "code": 10,
         "identifier": "[anvil_zksync-node-10]",
+        "message": "Transaction {transaction_hash}: validation failed. Reason: {inner}",
+        "fields": [
+          {
+            "name": "inner",
+            "type": "TransactionValidation"
+          },
+          {
+            "name": "transaction_hash",
+            "type": "H256"
+          }
+        ],
+        "documentation": {
+          "description": "This error occurs when a transaction validation is failed and it is not executed.\nThis is a wrapper error that contains a more specific validation error inside it, which provides details about the cause of the halt.\n\nThe validation may for various reasons including:\n- Gas limit exceedance\n- Invalid gas limit value\n- maxFeePerGas exceeding maxPriorityFeePerGas, and so on.\n\nWhen using anvil-zksync for testing, these errors are valuable signals that help you identify issues with your contracts or transactions before deploying to the real ZKSync network.",
+          "summary": "Transaction validation failed in anvil-zksync.",
+          "likely_causes": []
+        },
+        "bindings": {
+          "rust": {
+            "expression": "TransactionValidationFailed"
+          },
+          "typescript": {
+            "expression": "TransactionValidationFailed"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-node-1]": {
+        "domain": "AnvilZKsync",
+        "component": "AnvilNode",
+        "name": "TransactionHalt",
+        "code": 1,
+        "identifier": "[anvil_zksync-node-1]",
         "message": "Transaction {transaction_hash} execution halted, reason: {inner}",
         "fields": [
           {
@@ -2015,54 +2078,6 @@
           "../../etc/errors/anvil.json"
         ]
       },
-      "[anvil_zksync-node-1]": {
-        "domain": "AnvilZKsync",
-        "component": "AnvilNode",
-        "name": "TransactionValidationFailedGasLimit",
-        "code": 1,
-        "identifier": "[anvil_zksync-node-1]",
-        "message": "Gas limit for transaction {transaction_hash} is {tx_gas_limit} which exceeds maximum allowed gas {max_gas}",
-        "fields": [
-          {
-            "name": "transaction_hash",
-            "type": "H256"
-          },
-          {
-            "name": "tx_gas_limit",
-            "type": "U256"
-          },
-          {
-            "name": "max_gas",
-            "type": "U256"
-          }
-        ],
-        "documentation": {
-          "description": "This error occurs when a transaction's gas limit exceeds the maximum allowed gas.\nAnvil-zksync enforces gas limits that simulate those of the real ZKSync network to ensure testing accuracy.\nNote: When anvil-zksync is in forking mode, it lock-in and uses gas price at the forked block",
-          "summary": "Transaction validation failed due to excessive gas limit.",
-          "likely_causes": [
-            {
-              "cause": "The transaction's gas limit is set too high relative to the maximum gas limit.",
-              "fixes": [
-                "Reduce the transaction's gas limit to be below the maximum allowed gas."
-              ],
-              "report": "",
-              "owner": null,
-              "references": []
-            }
-          ]
-        },
-        "bindings": {
-          "rust": {
-            "expression": "TransactionValidationFailedGasLimit"
-          },
-          "typescript": {
-            "expression": "TransactionValidationFailedGasLimit"
-          }
-        },
-        "origins": [
-          "../../etc/errors/anvil.json"
-        ]
-      },
       "[anvil_zksync-node-20]": {
         "domain": "AnvilZKsync",
         "component": "AnvilNode",
@@ -2125,197 +2140,6 @@
           },
           "typescript": {
             "expression": "TimestampBackwardsError"
-          }
-        },
-        "origins": [
-          "../../etc/errors/anvil.json"
-        ]
-      },
-      "[anvil_zksync-node-2]": {
-        "domain": "AnvilZKsync",
-        "component": "AnvilNode",
-        "name": "TransactionValidationFailedGasPerPubdataLimit",
-        "code": 2,
-        "identifier": "[anvil_zksync-node-2]",
-        "message": "Gas per pubdata limit for transaction {transaction_hash} is {tx_gas_per_pubdata_limit} which exceeds maximum allowed gas {max_gas}",
-        "fields": [
-          {
-            "name": "transaction_hash",
-            "type": "H256"
-          },
-          {
-            "name": "tx_gas_per_pubdata_limit",
-            "type": "U256"
-          },
-          {
-            "name": "max_gas",
-            "type": "U256"
-          }
-        ],
-        "documentation": {
-          "description": "This error occurs when a transaction's gas per pubdata limit exceeds the maximum allowed gas.\nAnvil-zksync enforces gas limits that simulate those of the real ZKSync network to ensure testing accuracy.\nNote: When anvil-zksync is in forking mode, it lock-in and uses gas price at the forked block",
-          "summary": "Transaction validation failed due to excessive gas per pubdata limit.",
-          "likely_causes": [
-            {
-              "cause": "The transaction's gas per pubdata limit is set too high.",
-              "fixes": [
-                "Decrease the gas per pubdata limit"
-              ],
-              "report": "",
-              "owner": null,
-              "references": []
-            }
-          ]
-        },
-        "bindings": {
-          "rust": {
-            "expression": "TransactionValidationFailedGasPerPubdataLimit"
-          },
-          "typescript": {
-            "expression": "TransactionValidationFailedGasPerPubdataLimit"
-          }
-        },
-        "origins": [
-          "../../etc/errors/anvil.json"
-        ]
-      },
-      "[anvil_zksync-node-3]": {
-        "domain": "AnvilZKsync",
-        "component": "AnvilNode",
-        "name": "TransactionValidationFailedMaxFeePerGasTooLow",
-        "code": 3,
-        "identifier": "[anvil_zksync-node-3]",
-        "message": "Transaction {transaction_hash} allows paying a maximum of {max_fee_per_gas} fee per gar, but the current L2 gas price is {l2_gas_price}, which makes it too expensive.",
-        "fields": [
-          {
-            "name": "max_fee_per_gas",
-            "type": "U256"
-          },
-          {
-            "name": "transaction_hash",
-            "type": "H256"
-          },
-          {
-            "name": "l2_gas_price",
-            "type": "U256"
-          }
-        ],
-        "documentation": {
-          "description": "This error occurs when the maximum fee per gas specified in the transaction is lower than the current gas price set in the anvil-zksync node.\nTo be considered valid, transactions must specify a maxFeePerGas that is greater or equal to the current gas price\n\nIn anvil-zksync, the gas price can be configured when starting the node using `--l1-gas-price` argument or can be modified dynamically. By default, the node simulates a gas price model similar to the real ZKSync network, including:\n1. A base computation fee (similar to Ethereum's base fee)\n2. A simulated pubdata posting fee\n\nEven though anvil-zksync is a testing environment, it enforces these gas price validations to ensure that your tests accurately reflect how transactions would behave on the actual ZKSync network.",
-          "summary": "Transaction's maxFeePerGas is lower than the current gas price in anvil-zksync.",
-          "likely_causes": [
-            {
-              "cause": "The transaction's maxFeePerGas is set too low compared to the current gas price in the anvil-zksync node.",
-              "fixes": [
-                "Increase the maxFeePerGas to be at least equal to the current gas price.",
-                "Use the eth_gasPrice RPC method to query the current gas price from your anvil-zksync node.",
-                "In testing environments, you can also configure anvil-zksync to use a lower gas price if needed."
-              ],
-              "report": "",
-              "owner": null,
-              "references": []
-            },
-            {
-              "cause": "Gas price has changed in the anvil-zksync node since the transaction was created.",
-              "fixes": [
-                "If you've manually adjusted the gas price in anvil-zksync during testing, ensure your transactions use updated values.",
-                "Query the current gas price before each transaction submission in your tests.",
-                "For testing series of transactions with consistent gas prices, consider setting a fixed gas price when starting anvil-zksync.",
-                "Manipulating gas price can break invariants important for Ethereum tooling, for example, two consequent blocks should not have gas price differ more than 2x."
-              ],
-              "report": "",
-              "owner": null,
-              "references": []
-            },
-            {
-              "cause": "Using hardcoded gas prices in test scripts instead of querying the actual price.",
-              "fixes": [
-                "Always query the current gas price from anvil-zksync before creating transactions.",
-                "Add a small buffer to the queried gas price to account for potential minor fluctuations.",
-                "When writing tests, consider making the gas price configuration explicit to avoid inconsistent test behavior."
-              ],
-              "report": "",
-              "owner": null,
-              "references": []
-            }
-          ]
-        },
-        "bindings": {
-          "rust": {
-            "expression": "TransactionValidationFailedMaxFeePerGasTooLow"
-          },
-          "typescript": {
-            "expression": "TransactionValidationFailedMaxFeePerGasTooLow"
-          }
-        },
-        "origins": [
-          "../../etc/errors/anvil.json"
-        ]
-      },
-      "[anvil_zksync-node-4]": {
-        "domain": "AnvilZKsync",
-        "component": "AnvilNode",
-        "name": "TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee",
-        "code": 4,
-        "identifier": "[anvil_zksync-node-4]",
-        "message": "Invalid transaction {transaction_hash}: its maxPriorityFeePerGas={max_priority_fee_per_gas} exceeds the limit value maxFeePerGas={max_fee_per_gas}",
-        "fields": [
-          {
-            "name": "max_fee_per_gas",
-            "type": "U256"
-          },
-          {
-            "name": "max_priority_fee_per_gas",
-            "type": "U256"
-          },
-          {
-            "name": "transaction_hash",
-            "type": "H256"
-          }
-        ],
-        "documentation": {
-          "description": "This error occurs when a transaction's maximum priority fee per gas is greater than its maximum fee per gas in anvil-zksync.\nIn ZKSync, the field `maxPriorityFeePerGas` is ignored, as ZKsync doesn’t have a concept of priority fees.\nInstead, `maxFeePerGas` is utilized and includes the base fees.\nHowever, certain transaction types like EIP-1559 or EIP-712 may contain field `maxPriorityFeePerGas`, which should be less or equal to the field `maxFeePerGas`. ",
-          "summary": "Transaction's maxPriorityFeePerGas exceeds maxFeePerGas.",
-          "likely_causes": [
-            {
-              "cause": "Incorrect transaction parameter values in your test where `maxPriorityFeePerGas` > `maxFeePerGas`.",
-              "fixes": [
-                "Ensure maxPriorityFeePerGas is less than or equal to maxFeePerGas in your test transactions. Either increase maxFeePerGas or decrease maxPriorityFeePerGas to ensure correct relationship."
-              ],
-              "report": "",
-              "owner": null,
-              "references": []
-            },
-            {
-              "cause": "Test automation that generates random or incorrect fee values.",
-              "fixes": [
-                "Ensure your test framework validates transaction parameters before submission.",
-                "Use helper functions that properly calculate and relate the fee values.",
-                "If using fuzz testing, add constraints to ensure maxPriorityFeePerGas <= maxFeePerGas."
-              ],
-              "report": "",
-              "owner": null,
-              "references": []
-            },
-            {
-              "cause": "When migrating tests from non-EIP-1559 environments to anvil-zksync.",
-              "fixes": [
-                "Update legacy tests that might be using pre-EIP-1559 fee models.",
-                "Ensure all transaction creation code properly handles EIP-1559 style fee parameters.",
-                "Add validation checks in your test setup to catch this type of error early."
-              ],
-              "report": "",
-              "owner": null,
-              "references": []
-            }
-          ]
-        },
-        "bindings": {
-          "rust": {
-            "expression": "TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee"
-          },
-          "typescript": {
-            "expression": "TransactionValidationFailedMaxPriorityFeeGreaterThanMaxFee"
           }
         },
         "origins": [
@@ -2510,6 +2334,253 @@
           },
           "typescript": {
             "expression": "Unknown"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-tx_invalid-0]": {
+        "domain": "AnvilZKsync",
+        "component": "TransactionValidation",
+        "name": "GenericError",
+        "code": 0,
+        "identifier": "[anvil_zksync-tx_invalid-0]",
+        "message": "Generic error: {message}",
+        "fields": [
+          {
+            "name": "message",
+            "type": "string"
+          }
+        ],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "expression": "GenericError"
+          },
+          "typescript": {
+            "expression": "GenericError"
+          }
+        },
+        "origins": []
+      },
+      "[anvil_zksync-tx_invalid-1]": {
+        "domain": "AnvilZKsync",
+        "component": "TransactionValidation",
+        "name": "InvalidGasLimit",
+        "code": 1,
+        "identifier": "[anvil_zksync-tx_invalid-1]",
+        "message": "Gas limit for transaction is {tx_gas_limit} which exceeds maximum allowed gas {max_gas}",
+        "fields": [
+          {
+            "name": "tx_gas_limit",
+            "type": "U256"
+          },
+          {
+            "name": "max_gas",
+            "type": "U256"
+          }
+        ],
+        "documentation": {
+          "description": "This error occurs when a transaction's gas limit exceeds the maximum allowed gas.\nAnvil-zksync enforces gas limits that simulate those of the real ZKSync network to ensure testing accuracy.\nNote: When anvil-zksync is in forking mode, it lock-in and uses gas price at the forked block",
+          "summary": "Transaction validation failed due to excessive gas limit.",
+          "likely_causes": [
+            {
+              "cause": "The transaction's gas limit is set too high relative to the maximum gas limit.",
+              "fixes": [
+                "Reduce the transaction's gas limit to be below the maximum allowed gas."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "expression": "InvalidGasLimit"
+          },
+          "typescript": {
+            "expression": "InvalidGasLimit"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-tx_invalid-2]": {
+        "domain": "AnvilZKsync",
+        "component": "TransactionValidation",
+        "name": "GasPerPubdataLimit",
+        "code": 2,
+        "identifier": "[anvil_zksync-tx_invalid-2]",
+        "message": "Gas per pubdata limit is {tx_gas_per_pubdata_limit} which exceeds maximum allowed gas {max_gas}",
+        "fields": [
+          {
+            "name": "tx_gas_per_pubdata_limit",
+            "type": "U256"
+          },
+          {
+            "name": "max_gas",
+            "type": "U256"
+          }
+        ],
+        "documentation": {
+          "description": "This error occurs when a transaction's gas per pubdata limit exceeds the maximum allowed gas.\nAnvil-zksync enforces gas limits that simulate those of the real ZKSync network to ensure testing accuracy.\nNote: When anvil-zksync is in forking mode, it lock-in and uses gas price at the forked block",
+          "summary": "Transaction validation failed due to excessive gas per pubdata limit.",
+          "likely_causes": [
+            {
+              "cause": "The transaction's gas per pubdata limit is set too high.",
+              "fixes": [
+                "Decrease the gas per pubdata limit"
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "expression": "GasPerPubdataLimit"
+          },
+          "typescript": {
+            "expression": "GasPerPubdataLimit"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-tx_invalid-3]": {
+        "domain": "AnvilZKsync",
+        "component": "TransactionValidation",
+        "name": "MaxFeePerGasTooLow",
+        "code": 3,
+        "identifier": "[anvil_zksync-tx_invalid-3]",
+        "message": "Max fee per gas: {max_fee_per_gas}, current L2 gas price {l2_gas_price} is too expensive.",
+        "fields": [
+          {
+            "name": "max_fee_per_gas",
+            "type": "U256"
+          },
+          {
+            "name": "l2_gas_price",
+            "type": "U256"
+          }
+        ],
+        "documentation": {
+          "description": "This error occurs when the maximum fee per gas specified in the transaction is lower than the current gas price set in the anvil-zksync node.\nTo be considered valid, transactions must specify a maxFeePerGas that is greater or equal to the current gas price\n\nIn anvil-zksync, the gas price can be configured when starting the node using `--l1-gas-price` argument or can be modified dynamically. By default, the node simulates a gas price model similar to the real ZKSync network, including:\n1. A base computation fee (similar to Ethereum's base fee)\n2. A simulated pubdata posting fee\n\nEven though anvil-zksync is a testing environment, it enforces these gas price validations to ensure that your tests accurately reflect how transactions would behave on the actual ZKSync network.",
+          "summary": "Transaction's maxFeePerGas is lower than the current gas price in anvil-zksync.",
+          "likely_causes": [
+            {
+              "cause": "The transaction's maxFeePerGas is set too low compared to the current gas price in the anvil-zksync node.",
+              "fixes": [
+                "Increase the maxFeePerGas to be at least equal to the current gas price.",
+                "Use the eth_gasPrice RPC method to query the current gas price from your anvil-zksync node.",
+                "In testing environments, you can also configure anvil-zksync to use a lower gas price if needed."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
+              "cause": "Gas price has changed in the anvil-zksync node since the transaction was created.",
+              "fixes": [
+                "If you've manually adjusted the gas price in anvil-zksync during testing, ensure your transactions use updated values.",
+                "Query the current gas price before each transaction submission in your tests.",
+                "For testing series of transactions with consistent gas prices, consider setting a fixed gas price when starting anvil-zksync.",
+                "Manipulating gas price can break invariants important for Ethereum tooling, for example, two consequent blocks should not have gas price differ more than 2x."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
+              "cause": "Using hardcoded gas prices in test scripts instead of querying the actual price.",
+              "fixes": [
+                "Always query the current gas price from anvil-zksync before creating transactions.",
+                "Add a small buffer to the queried gas price to account for potential minor fluctuations.",
+                "When writing tests, consider making the gas price configuration explicit to avoid inconsistent test behavior."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "expression": "MaxFeePerGasTooLow"
+          },
+          "typescript": {
+            "expression": "MaxFeePerGasTooLow"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-tx_invalid-4]": {
+        "domain": "AnvilZKsync",
+        "component": "TransactionValidation",
+        "name": "MaxPriorityFeeGreaterThanMaxFee",
+        "code": 4,
+        "identifier": "[anvil_zksync-tx_invalid-4]",
+        "message": "maxPriorityFeePerGas={max_priority_fee_per_gas} exceeds the limit value maxFeePerGas={max_fee_per_gas}",
+        "fields": [
+          {
+            "name": "max_fee_per_gas",
+            "type": "U256"
+          },
+          {
+            "name": "max_priority_fee_per_gas",
+            "type": "U256"
+          }
+        ],
+        "documentation": {
+          "description": "This error occurs when a transaction's maximum priority fee per gas is greater than its maximum fee per gas in anvil-zksync.\nIn ZKSync, the field `maxPriorityFeePerGas` is ignored, as ZKsync doesn’t have a concept of priority fees.\nInstead, `maxFeePerGas` is utilized and includes the base fees.\nHowever, certain transaction types like EIP-1559 or EIP-712 may contain field `maxPriorityFeePerGas`, which should be less or equal to the field `maxFeePerGas`. ",
+          "summary": "Transaction's maxPriorityFeePerGas exceeds maxFeePerGas.",
+          "likely_causes": [
+            {
+              "cause": "Incorrect transaction parameter values in your test where `maxPriorityFeePerGas` > `maxFeePerGas`.",
+              "fixes": [
+                "Ensure maxPriorityFeePerGas is less than or equal to maxFeePerGas in your test transactions. Either increase maxFeePerGas or decrease maxPriorityFeePerGas to ensure correct relationship."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
+              "cause": "Test automation that generates random or incorrect fee values.",
+              "fixes": [
+                "Ensure your test framework validates transaction parameters before submission.",
+                "Use helper functions that properly calculate and relate the fee values.",
+                "If using fuzz testing, add constraints to ensure maxPriorityFeePerGas <= maxFeePerGas."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
+              "cause": "When migrating tests from non-EIP-1559 environments to anvil-zksync.",
+              "fixes": [
+                "Update legacy tests that might be using pre-EIP-1559 fee models.",
+                "Ensure all transaction creation code properly handles EIP-1559 style fee parameters.",
+                "Add validation checks in your test setup to catch this type of error early."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "expression": "MaxPriorityFeeGreaterThanMaxFee"
+          },
+          "typescript": {
+            "expression": "MaxPriorityFeeGreaterThanMaxFee"
           }
         },
         "origins": [

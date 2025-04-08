@@ -34,6 +34,8 @@ use crate::error::definitions::Solc;
 use crate::error::definitions::SolcCode;
 use crate::error::definitions::SolcFork;
 use crate::error::definitions::SolcForkCode;
+use crate::error::definitions::TransactionValidation;
+use crate::error::definitions::TransactionValidationCode;
 use crate::error::definitions::Zksolc;
 use crate::error::definitions::ZksolcCode;
 use crate::error::definitions::Zkvyper;
@@ -107,6 +109,9 @@ impl ZksyncError {
             ZksyncError::AnvilZksync(AnvilZksync::Revert(_)) => {
                 Kind::AnvilZksync(AnvilZksyncCode::Revert)
             }
+            ZksyncError::AnvilZksync(AnvilZksync::TransactionValidation(_)) => {
+                Kind::AnvilZksync(AnvilZksyncCode::TransactionValidation)
+            }
             ZksyncError::Compiler(Compiler::LLVM_EVM(_)) => Kind::Compiler(CompilerCode::LLVM_EVM),
             ZksyncError::Compiler(Compiler::LLVM_Era(_)) => Kind::Compiler(CompilerCode::LLVM_Era),
             ZksyncError::Compiler(Compiler::Solc(_)) => Kind::Compiler(CompilerCode::Solc),
@@ -149,6 +154,9 @@ impl ZksyncError {
             }
             ZksyncError::AnvilZksync(AnvilZksync::Revert(error)) => {
                 Into::<RevertCode>::into(error) as u32
+            }
+            ZksyncError::AnvilZksync(AnvilZksync::TransactionValidation(error)) => {
+                Into::<TransactionValidationCode>::into(error) as u32
             }
             ZksyncError::Compiler(Compiler::LLVM_EVM(error)) => {
                 Into::<LLVM_EVMCode>::into(error) as u32
@@ -209,6 +217,7 @@ pub enum AnvilZksync {
     AnvilNode(AnvilNode),
     Halt(Halt),
     Revert(Revert),
+    TransactionValidation(TransactionValidation),
 }
 impl AnvilZksync {
     pub fn get_name(&self) -> &str {
@@ -265,6 +274,16 @@ impl From<Revert> for AnvilZksync {
         AnvilZksync::Revert(val)
     }
 }
+impl ICustomError<ZksyncError, ZksyncError> for TransactionValidation {
+    fn to_unified(&self) -> ZksyncError {
+        AnvilZksync::TransactionValidation(self.clone()).to_unified()
+    }
+}
+impl From<TransactionValidation> for AnvilZksync {
+    fn from(val: TransactionValidation) -> Self {
+        AnvilZksync::TransactionValidation(val)
+    }
+}
 impl ICustomError<ZksyncError, ZksyncError> for AnvilZksync {
     fn to_unified(&self) -> ZksyncError {
         ZksyncError::AnvilZksync(self.clone())
@@ -286,6 +305,7 @@ impl crate::documentation::Documented for AnvilZksync {
             AnvilZksync::AnvilNode(error) => error.get_documentation(),
             AnvilZksync::Halt(error) => error.get_documentation(),
             AnvilZksync::Revert(error) => error.get_documentation(),
+            AnvilZksync::TransactionValidation(error) => error.get_documentation(),
         }
     }
 }
@@ -297,6 +317,7 @@ impl std::fmt::Display for AnvilZksync {
             AnvilZksync::AnvilNode(component) => component.fmt(f),
             AnvilZksync::Halt(component) => component.fmt(f),
             AnvilZksync::Revert(component) => component.fmt(f),
+            AnvilZksync::TransactionValidation(component) => component.fmt(f),
         }
     }
 }
