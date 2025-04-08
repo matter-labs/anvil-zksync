@@ -209,13 +209,10 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
     if let SystemContractsOptions::Local = config.system_contracts_options {
         // if local system contracts specified, check if the path exists else use env var
         // ZKSYNC_HOME
-        let path: Option<PathBuf> = if let Some(ref custom_path) = config.system_contracts_path {
-            Some(custom_path.clone())
-        } else if let Some(env_val) = env::var_os("ZKSYNC_HOME") {
-            Some(PathBuf::from(env_val))
-        } else {
-            None
-        };
+        let path: Option<PathBuf> = config
+            .system_contracts_path
+            .clone()
+            .or_else(|| env::var_os("ZKSYNC_HOME").map(PathBuf::from));
 
         if let Some(path) = path {
             if !path.exists() || !path.is_dir() {
