@@ -186,7 +186,11 @@ pub struct Cli {
     pub dev_system_contracts: Option<SystemContractsOptions>,
 
     /// Override the location of the compiled system contracts.
-    #[arg(long, help_heading = "System Configuration", value_parser = clap::value_parser!(PathBuf))]
+    #[arg(
+        long,
+        help_heading = "System Configuration",
+        value_parser = clap::value_parser!(PathBuf),
+    )]
     pub system_contracts_path: Option<PathBuf>,
 
     #[arg(long, value_parser = protocol_version_from_str, help_heading = "System Configuration")]

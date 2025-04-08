@@ -27,6 +27,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use std::fmt::Write;
 use std::fs::File;
 use std::future::Future;
+use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
@@ -197,27 +198,33 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         }
     };
 
-    if matches!(
-        config.system_contracts_options,
-        SystemContractsOptions::Local
-    ) {
-        // Local contracts specified check if path is provided
-        // and if it exists
-        if let Some(ref custom_path) = config.system_contracts_path {
-            let path = std::path::Path::new(custom_path);
+    // Ensure that system_contracts_path is only used with Local.
+    if config.system_contracts_options != SystemContractsOptions::Local
+        && config.system_contracts_path.is_some()
+    {
+        return Err(to_domain(generic_error!(
+            "The --system-contracts-path option can only be specified when --dev-system-contracts is set to 'local'."
+        )));
+    }
+    if let SystemContractsOptions::Local = config.system_contracts_options {
+        // if local system contracts specified, check if the path exists else use env var
+        // ZKSYNC_HOME
+        let path: Option<PathBuf> = if let Some(ref custom_path) = config.system_contracts_path {
+            Some(custom_path.clone())
+        } else if let Some(env_val) = env::var_os("ZKSYNC_HOME") {
+            Some(PathBuf::from(env_val))
+        } else {
+            None
+        };
+
+        if let Some(path) = path {
             if !path.exists() || !path.is_dir() {
-                // TODO: Use a proper error type
-                eprintln!(
-                    "Error: The specified path '{}' does not exist or is not a directory.",
-                    custom_path.to_string_lossy()
-                );
-                std::process::exit(1);
+                return Err(to_domain(generic_error!(
+                    "The specified system contracts path '{}' does not exist or is not a directory.",
+                    path.to_string_lossy()
+                )));
             }
             tracing::debug!("Reading local contracts from {:?}", path);
-        } else {
-            if let Some(path) = env::var_os("ZKSYNC_HOME") {
-                tracing::debug!("Reading local contracts from {:?}", path);
-            }
         }
     }
 
