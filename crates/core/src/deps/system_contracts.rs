@@ -4,7 +4,10 @@ use once_cell::sync::Lazy;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::io::Read;
-use zksync_types::system_contracts::get_system_smart_contracts;
+use std::path::Path;
+use zksync_types::system_contracts::{
+    get_system_smart_contracts, get_system_smart_contracts_from_dir,
+};
 use zksync_types::{
     block::DeployedContract, ProtocolVersionId, ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS,
     BOOTLOADER_UTILITIES_ADDRESS, CODE_ORACLE_ADDRESS, COMPLEX_UPGRADER_ADDRESS,
@@ -195,6 +198,7 @@ static BUILTIN_CONTRACTS: Lazy<HashMap<ProtocolVersionId, Vec<DeployedContract>>
 pub fn get_deployed_contracts(
     options: SystemContractsOptions,
     protocol_version: ProtocolVersionId,
+    system_contracts_path: Option<&Path>,
 ) -> Vec<DeployedContract> {
     match options {
         SystemContractsOptions::BuiltIn | SystemContractsOptions::BuiltInWithoutSecurity => {
@@ -203,7 +207,14 @@ pub fn get_deployed_contracts(
                 .unwrap_or_else(|| panic!("protocol version '{protocol_version}' is not supported"))
                 .clone()
         }
-        SystemContractsOptions::Local => get_system_smart_contracts(),
+        SystemContractsOptions::Local => {
+            // checks if system contracts path is provided
+            if let Some(path) = system_contracts_path {
+                get_system_smart_contracts_from_dir(path.to_path_buf())
+            } else {
+                get_system_smart_contracts()
+            }
+        }
     }
 }
 
@@ -223,6 +234,7 @@ mod tests {
         let contracts = get_deployed_contracts(
             SystemContractsOptions::BuiltIn,
             ProtocolVersionId::Version26,
+            None,
         );
         assert_eq!(
             contracts.len(),
@@ -235,6 +247,7 @@ mod tests {
         let contracts = get_deployed_contracts(
             SystemContractsOptions::BuiltIn,
             ProtocolVersionId::Version27,
+            None,
         );
         assert_eq!(
             contracts.len(),
@@ -247,6 +260,7 @@ mod tests {
         let contracts = get_deployed_contracts(
             SystemContractsOptions::BuiltIn,
             ProtocolVersionId::Version28,
+            None,
         );
         assert_eq!(
             contracts.len(),

@@ -14,6 +14,7 @@ use eyre::eyre;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 use std::iter::FromIterator;
+use std::path::Path;
 use std::sync::{Arc, RwLock};
 use zksync_multivm::interface::storage::ReadStorage;
 use zksync_types::bytecode::BytecodeHash;
@@ -51,6 +52,7 @@ impl ForkStorage {
         system_contracts_options: SystemContractsOptions,
         protocol_version: ProtocolVersionId,
         override_chain_id: Option<u32>,
+        system_contracts_path: Option<&Path>,
     ) -> Self {
         let chain_id = if let Some(override_id) = override_chain_id {
             L2ChainId::from(override_id)
@@ -67,6 +69,7 @@ impl ForkStorage {
                     |b| BytecodeHash::for_bytecode(b).value(),
                     system_contracts_options,
                     protocol_version,
+                    system_contracts_path,
                 ),
                 value_read_cache: Default::default(),
                 fork,
@@ -391,7 +394,7 @@ mod tests {
 
         let options = SystemContractsOptions::default();
         let mut fork_storage: ForkStorage =
-            ForkStorage::new(fork, options, ProtocolVersionId::latest(), None);
+            ForkStorage::new(fork, options, ProtocolVersionId::latest(), None, None);
 
         assert!(fork_storage.is_write_initial(&never_written_key));
         assert!(!fork_storage.is_write_initial(&key_with_some_value));
@@ -426,6 +429,7 @@ mod tests {
             fork,
             SystemContractsOptions::default(),
             ProtocolVersionId::latest(),
+            None,
             None,
         );
         let new_chain_id = L2ChainId::from(261);

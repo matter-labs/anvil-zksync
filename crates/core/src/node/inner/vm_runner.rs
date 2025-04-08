@@ -619,9 +619,11 @@ mod test {
                 SystemContractsOptions::BuiltIn,
                 ProtocolVersionId::latest(),
                 None,
+                None,
             );
             let system_contracts = SystemContracts::from_options(
                 config.system_contracts_options,
+                config.system_contracts_path.clone(),
                 ProtocolVersionId::latest(),
                 config.use_evm_emulator,
                 config.use_zkos,

@@ -1028,6 +1028,7 @@ impl InMemoryNodeInner {
             self.config.system_contracts_options,
             self.blockchain.protocol_version,
             self.config.chain_id,
+            self.config.system_contracts_path.as_deref(),
         );
         let mut old_storage = self.fork_storage.inner.write().unwrap();
         let mut new_storage = fork_storage.inner.write().unwrap();
@@ -1133,6 +1134,7 @@ pub mod testing {
             let impersonation = ImpersonationManager::default();
             let system_contracts = SystemContracts::from_options(
                 config.system_contracts_options,
+                config.system_contracts_path.clone(),
                 ProtocolVersionId::latest(),
                 config.use_evm_emulator,
                 config.use_zkos,

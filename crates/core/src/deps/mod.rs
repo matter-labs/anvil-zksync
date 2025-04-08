@@ -1,5 +1,5 @@
 use anvil_zksync_config::types::SystemContractsOptions;
-use std::collections::HashMap;
+use std::{collections::HashMap, path::Path};
 use zksync_multivm::interface::storage::ReadStorage;
 use zksync_types::{
     get_code_key, get_known_code_key, get_system_context_init_logs, L2ChainId, ProtocolVersionId,
@@ -22,9 +22,13 @@ impl InMemoryStorage {
         bytecode_hasher: impl Fn(&[u8]) -> H256,
         system_contracts_options: SystemContractsOptions,
         protocol_version: ProtocolVersionId,
+        system_contracts_path: Option<&Path>,
     ) -> Self {
-        let contracts =
-            system_contracts::get_deployed_contracts(system_contracts_options, protocol_version);
+        let contracts = system_contracts::get_deployed_contracts(
+            system_contracts_options,
+            protocol_version,
+            system_contracts_path,
+        );
 
         let system_context_init_log = get_system_context_init_logs(chain_id);
         let state = contracts

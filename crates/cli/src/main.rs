@@ -18,7 +18,7 @@ use anvil_zksync_core::node::{
     NodeExecutor, StorageKeyLayout, TestNodeFeeInputProvider, TxBatch, TxPool,
 };
 use anvil_zksync_core::observability::Observability;
-use anvil_zksync_core::system_contracts::SystemContracts;
+use anvil_zksync_core::system_contracts::SystemContractsBuilder;
 use anvil_zksync_l1_sidecar::L1Sidecar;
 use anvil_zksync_types::L2TxBuilder;
 use anyhow::Context;
@@ -201,8 +201,23 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         config.system_contracts_options,
         SystemContractsOptions::Local
     ) {
-        if let Some(path) = env::var_os("ZKSYNC_HOME") {
+        // Local contracts specified check if path is provided
+        // and if it exists
+        if let Some(ref custom_path) = config.system_contracts_path {
+            let path = std::path::Path::new(custom_path);
+            if !path.exists() || !path.is_dir() {
+                // TODO: Use a proper error type
+                eprintln!(
+                    "Error: The specified path '{}' does not exist or is not a directory.",
+                    custom_path.to_string_lossy()
+                );
+                std::process::exit(1);
+            }
             tracing::debug!("Reading local contracts from {:?}", path);
+        } else {
+            if let Some(path) = env::var_os("ZKSYNC_HOME") {
+                tracing::debug!("Reading local contracts from {:?}", path);
+            }
         }
     }
 
@@ -249,12 +264,16 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
     let fee_input_provider =
         TestNodeFeeInputProvider::from_fork(fork_client.as_ref().map(|f| &f.details));
     let filters = Arc::new(RwLock::new(EthFilters::default()));
-    let system_contracts = SystemContracts::from_options(
-        config.system_contracts_options,
-        config.protocol_version(),
-        config.use_evm_emulator,
-        config.use_zkos,
-    );
+
+    // Build system contracts
+    let system_contracts = SystemContractsBuilder::new()
+        .system_contracts_options(config.system_contracts_options)
+        .system_contracts_path(config.system_contracts_path.clone())
+        .protocol_version(config.protocol_version())
+        .use_evm_emulator(config.use_evm_emulator)
+        .use_zkos(config.use_zkos)
+        .build();
+
     let storage_key_layout = if config.use_zkos {
         StorageKeyLayout::ZkOs
     } else {

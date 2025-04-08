@@ -80,6 +80,7 @@ impl InMemoryNodeInner {
             config.system_contracts_options,
             system_contracts.protocol_version,
             config.chain_id,
+            config.system_contracts_path.as_deref(),
         );
         let vm_runner = VmRunner::new(
             time.clone(),

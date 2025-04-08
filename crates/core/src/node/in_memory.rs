@@ -656,6 +656,7 @@ impl InMemoryNode {
         let impersonation = ImpersonationManager::default();
         let system_contracts = SystemContracts::from_options(
             config.system_contracts_options,
+            config.system_contracts_path.clone(),
             ProtocolVersionId::latest(),
             config.use_evm_emulator,
             config.use_zkos,
