@@ -2382,12 +2382,13 @@
           }
         ],
         "documentation": {
-          "description": "This error occurs when a transaction's gas limit exceeds the maximum allowed gas.\nAnvil-zksync enforces gas limits that simulate those of the real ZKSync network to ensure testing accuracy.\nNote: When anvil-zksync is in forking mode, it lock-in and uses gas price at the forked block",
-          "summary": "Transaction validation failed due to excessive gas limit.",
+          "description": "This error occurs when a transaction's gas limit exceeds the maximum allowed gas allowed by ZKsync protocol.\nAs of protocol version 27, the gas is limited to 2^50\nNote: When anvil-zksync is in forking mode, it lock-in and uses gas price at the forked block",
+          "summary": "Transaction validation failed due to excessive gas limit -- did you provide invalid gas limit?",
           "likely_causes": [
             {
               "cause": "The transaction's gas limit is set too high relative to the maximum gas limit.",
               "fixes": [
+                "It is likely a typo in the code that builds the transaction -- check if the provided gas limit is correct.",
                 "Reduce the transaction's gas limit to be below the maximum allowed gas."
               ],
               "report": "",
@@ -2426,13 +2427,14 @@
           }
         ],
         "documentation": {
-          "description": "This error occurs when a transaction's gas per pubdata limit exceeds the maximum allowed gas.\nAnvil-zksync enforces gas limits that simulate those of the real ZKSync network to ensure testing accuracy.\nNote: When anvil-zksync is in forking mode, it lock-in and uses gas price at the forked block",
+          "description": "This error occurs when a transaction's gas per pubdata limit exceeds the maximum allowed gas allowed by ZKsync protocol.\nAs of protocol version 27, the gas is limited to 2^50\nNote: When anvil-zksync is in forking mode, it lock-in and uses gas price at the forked block",
           "summary": "Transaction validation failed due to excessive gas per pubdata limit.",
           "likely_causes": [
             {
               "cause": "The transaction's gas per pubdata limit is set too high.",
               "fixes": [
-                "Decrease the gas per pubdata limit"
+                "It is likely a typo in the code that builds the transaction -- check if the provided gas limit is correct.",
+                "Reduce the gas per pubdata limit."
               ],
               "report": "",
               "owner": null,
@@ -2470,7 +2472,7 @@
           }
         ],
         "documentation": {
-          "description": "This error occurs when the maximum fee per gas specified in the transaction is lower than the current gas price set in the anvil-zksync node.\nTo be considered valid, transactions must specify a maxFeePerGas that is greater or equal to the current gas price\n\nIn anvil-zksync, the gas price can be configured when starting the node using `--l1-gas-price` argument or can be modified dynamically. By default, the node simulates a gas price model similar to the real ZKSync network, including:\n1. A base computation fee (similar to Ethereum's base fee)\n2. A simulated pubdata posting fee\n\nEven though anvil-zksync is a testing environment, it enforces these gas price validations to ensure that your tests accurately reflect how transactions would behave on the actual ZKSync network.",
+          "description": "This error occurs when the maximum fee per gas specified in the transaction is lower than the current gas price set in the anvil-zksync node.\nTo be considered valid, transactions must specify a maxFeePerGas that is greater or equal to the current gas price\n\nIn anvil-zksync, the gas price can be configured when starting the node using `--l1-gas-price` argument or can be modified dynamically. By default, the node simulates a gas price model similar to the real ZKSync network, including:\n1. A base computation fee (similar to Ethereum's base fee)\n2. A simulated pubdata posting fee\n\nEven though anvil-zksync is a testing environment, it enforces these gas price validations to ensure that your tests accurately reflect how transactions would behave on the actual ZKSync network.\nNote: When anvil-zksync is in forking mode, it lock-in and uses gas price at the forked block",
           "summary": "Transaction's maxFeePerGas is lower than the current gas price in anvil-zksync.",
           "likely_causes": [
             {

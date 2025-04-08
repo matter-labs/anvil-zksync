@@ -832,11 +832,11 @@ impl CustomErrorMessage for Revert {
 #[non_exhaustive]
 pub enum TransactionValidation {
     #[doc = "# Summary "]
-    #[doc = "Transaction validation failed due to excessive gas limit."]
+    #[doc = "Transaction validation failed due to excessive gas limit -- did you provide invalid gas limit?"]
     #[doc = ""]
     #[doc = "# Description"]
-    #[doc = "This error occurs when a transaction's gas limit exceeds the maximum allowed gas."]
-    #[doc = "Anvil-zksync enforces gas limits that simulate those of the real ZKSync network to ensure testing accuracy."]
+    #[doc = "This error occurs when a transaction's gas limit exceeds the maximum allowed gas allowed by ZKsync protocol."]
+    #[doc = "As of protocol version 27, the gas is limited to 2^50"]
     #[doc = "Note: When anvil-zksync is in forking mode, it lock-in and uses gas price at the forked block"]
     InvalidGasLimit {
         tx_gas_limit: Box<zksync_basic_types::U256>,
@@ -846,8 +846,8 @@ pub enum TransactionValidation {
     #[doc = "Transaction validation failed due to excessive gas per pubdata limit."]
     #[doc = ""]
     #[doc = "# Description"]
-    #[doc = "This error occurs when a transaction's gas per pubdata limit exceeds the maximum allowed gas."]
-    #[doc = "Anvil-zksync enforces gas limits that simulate those of the real ZKSync network to ensure testing accuracy."]
+    #[doc = "This error occurs when a transaction's gas per pubdata limit exceeds the maximum allowed gas allowed by ZKsync protocol."]
+    #[doc = "As of protocol version 27, the gas is limited to 2^50"]
     #[doc = "Note: When anvil-zksync is in forking mode, it lock-in and uses gas price at the forked block"]
     GasPerPubdataLimit {
         tx_gas_per_pubdata_limit: Box<zksync_basic_types::U256>,
@@ -865,6 +865,7 @@ pub enum TransactionValidation {
     #[doc = "2. A simulated pubdata posting fee"]
     #[doc = ""]
     #[doc = "Even though anvil-zksync is a testing environment, it enforces these gas price validations to ensure that your tests accurately reflect how transactions would behave on the actual ZKSync network."]
+    #[doc = "Note: When anvil-zksync is in forking mode, it lock-in and uses gas price at the forked block"]
     MaxFeePerGasTooLow {
         max_fee_per_gas: Box<zksync_basic_types::U256>,
         l2_gas_price: Box<zksync_basic_types::U256>,
