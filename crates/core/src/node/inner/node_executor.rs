@@ -421,8 +421,7 @@ impl NodeExecutorHandle {
     /// It is sender's responsibility to make sure [`TxBatch`] is constructed correctly (see its
     /// docs).
     pub async fn seal_block(&self, tx_batch: TxBatch) -> Result<(), AnvilNodeError> {
-        self.execute_without_response(Command::SealBlock(tx_batch, None))
-            .await
+        execute_without_response(&self.command_sender, Command::SealBlock(tx_batch, None)).await
     }
 
     /// Request [`NodeExecutor`] to seal a new block from the provided transaction batch. Waits for
@@ -434,7 +433,7 @@ impl NodeExecutorHandle {
         &self,
         tx_batch: TxBatch,
     ) -> Result<L2BlockNumber, AnvilNodeError> {
-        self.execute_with_response(|response_sender| {
+        execute_with_response(&self.command_sender, |response_sender| {
             Command::SealBlock(tx_batch, Some(response_sender))
         })
         .await?
@@ -454,7 +453,7 @@ impl NodeExecutorHandle {
         tx_batches: Vec<TxBatch>,
         interval: u64,
     ) -> Result<Vec<L2BlockNumber>, AnvilNodeError> {
-        self.execute_with_response(|response_sender| {
+        execute_with_response(&self.command_sender, |response_sender| {
             Command::SealBlocks(tx_batches, interval, response_sender)
         })
         .await?
@@ -466,7 +465,7 @@ impl NodeExecutorHandle {
         address: Address,
         bytecode: Vec<u8>,
     ) -> Result<(), AnvilNodeError> {
-        self.execute_with_response(|response_sender| {
+        execute_with_response(&self.command_sender, |response_sender| {
             Command::SetCode(address, bytecode, response_sender)
         })
         .await
@@ -478,7 +477,7 @@ impl NodeExecutorHandle {
         key: StorageKey,
         value: U256,
     ) -> Result<(), AnvilNodeError> {
-        self.execute_with_response(|response_sender| {
+        execute_with_response(&self.command_sender, |response_sender| {
             Command::SetStorage(key, value, response_sender)
         })
         .await
@@ -491,7 +490,7 @@ impl NodeExecutorHandle {
         address: Address,
         balance: U256,
     ) -> Result<(), AnvilNodeError> {
-        self.execute_with_response(move |response_sender| {
+        execute_with_response(&self.command_sender, move |response_sender| {
             Command::SetBalance(address, balance, response_sender)
         })
         .await
@@ -504,7 +503,7 @@ impl NodeExecutorHandle {
         address: Address,
         nonce: U256,
     ) -> Result<(), AnvilNodeError> {
-        self.execute_with_response(move |response_sender| {
+        execute_with_response(&self.command_sender, move |response_sender| {
             Command::SetNonce(address, nonce, response_sender)
         })
         .await
@@ -517,7 +516,7 @@ impl NodeExecutorHandle {
         url: Url,
         block_number: Option<L2BlockNumber>,
     ) -> Result<(), AnvilNodeError> {
-        self.execute_with_response(move |response_sender| {
+        execute_with_response(&self.command_sender, move |response_sender| {
             Command::ResetFork(url, block_number, response_sender)
         })
         .await?
@@ -529,7 +528,7 @@ impl NodeExecutorHandle {
         &self,
         block_number: L2BlockNumber,
     ) -> Result<(), AnvilNodeError> {
-        self.execute_with_response(|response_sender| {
+        execute_with_response(&self.command_sender, |response_sender| {
             Command::ResetForkBlockNumber(block_number, response_sender)
         })
         .await?
@@ -538,26 +537,30 @@ impl NodeExecutorHandle {
     /// Request [`NodeExecutor`] to set fork's RPC URL without resetting the state. Waits for the
     /// change to take place. Returns `Some(previous_url)` if fork existed and `None` otherwise.
     pub async fn set_fork_url_sync(&self, url: Url) -> Result<Option<Url>, AnvilNodeError> {
-        self.execute_with_response(move |response_sender| Command::SetForkUrl(url, response_sender))
-            .await
+        execute_with_response(&self.command_sender, move |response_sender| {
+            Command::SetForkUrl(url, response_sender)
+        })
+        .await
     }
 
     /// Request [`NodeExecutor`] to remove fork if there is one. Waits for the change to take place.
     pub async fn remove_fork_sync(&self) -> Result<(), AnvilNodeError> {
-        self.execute_with_response(Command::RemoveFork).await
+        execute_with_response(&self.command_sender, Command::RemoveFork).await
     }
 
     /// Request [`NodeExecutor`] to increase time by the given delta (in seconds). Waits for the
     /// change to take place.
     pub async fn increase_time_sync(&self, delta: u64) -> Result<(), AnvilNodeError> {
-        self.execute_with_response(|response_sender| Command::IncreaseTime(delta, response_sender))
-            .await
+        execute_with_response(&self.command_sender, |response_sender| {
+            Command::IncreaseTime(delta, response_sender)
+        })
+        .await
     }
 
     /// Request [`NodeExecutor`] to enforce next block's timestamp (in seconds). Waits for the
     /// timestamp validity to be confirmed. Block might still not be produced by then.
     pub async fn enforce_next_timestamp_sync(&self, timestamp: u64) -> Result<(), AnvilNodeError> {
-        self.execute_with_response(|response_sender| {
+        execute_with_response(&self.command_sender, |response_sender| {
             Command::EnforceNextTimestamp(timestamp, response_sender)
         })
         .await?
@@ -566,7 +569,7 @@ impl NodeExecutorHandle {
     /// Request [`NodeExecutor`] to set current timestamp (in seconds). Waits for the
     /// change to take place.
     pub async fn set_current_timestamp_sync(&self, timestamp: u64) -> Result<i128, AnvilNodeError> {
-        self.execute_with_response(|response_sender| {
+        execute_with_response(&self.command_sender, |response_sender| {
             Command::SetCurrentTimestamp(timestamp, response_sender)
         })
         .await
@@ -575,15 +578,13 @@ impl NodeExecutorHandle {
     /// Request [`NodeExecutor`] to set block timestamp interval (in seconds). Does not wait for the
     /// change to take place.
     pub async fn set_block_timestamp_interval(&self, seconds: u64) -> Result<(), AnvilNodeError> {
-        self.execute_without_response(Command::SetTimestampInterval(seconds))
-            .await
+        execute_without_response(&self.command_sender, Command::SetTimestampInterval(seconds)).await
     }
 
     /// Request [`NodeExecutor`] to remove block timestamp interval. Waits for the change to take
     /// place. Returns `true` if an existing interval was removed, `false` otherwise.
     pub async fn remove_block_timestamp_interval_sync(&self) -> Result<bool, AnvilNodeError> {
-        self.execute_with_response(Command::RemoveTimestampInterval)
-            .await
+        execute_with_response(&self.command_sender, Command::RemoveTimestampInterval).await
     }
 
     /// Request [`NodeExecutor`] to enforce next block's base fee per gas. Waits for the change to take
@@ -592,8 +593,10 @@ impl NodeExecutorHandle {
         &self,
         base_fee: U256,
     ) -> Result<(), AnvilNodeError> {
-        self.execute_with_response(|sender| Command::EnforceNextBaseFeePerGas(base_fee, sender))
-            .await
+        execute_with_response(&self.command_sender, |sender| {
+            Command::EnforceNextBaseFeePerGas(base_fee, sender)
+        })
+        .await
     }
 
     /// Request [`NodeExecutor`] to set (or unset) the progress bar for transaction replay.
@@ -601,41 +604,42 @@ impl NodeExecutorHandle {
         &self,
         bar: Option<ProgressBar>,
     ) -> Result<(), AnvilNodeError> {
-        self.execute_without_response(Command::SetProgressReport(bar))
-            .await
-    }
-
-    async fn execute_without_response(&self, command: Command) -> Result<(), AnvilNodeError> {
-        let action_name = command.readable_action_name();
-        self.command_sender
-            .send(command)
-            .await
-            .map_err(|_| node_executor_dropped_error("request to", &action_name))
-    }
-
-    async fn execute_with_response<R>(
-        &self,
-        command_gen: impl FnOnce(oneshot::Sender<R>) -> Command,
-    ) -> Result<R, AnvilNodeError> {
-        let (response_sender, response_receiver) = oneshot::channel();
-
-        let command = command_gen(response_sender);
-        let action_name = command.readable_action_name();
-        self.command_sender
-            .send(command)
-            .await
-            .map_err(|_| node_executor_dropped_error("request to", &action_name))?;
-
-        match response_receiver.await {
-            Ok(result) => Ok(result),
-            Err(_) => Err(node_executor_dropped_error(
-                "receive a response to the request to",
-                &action_name,
-            )),
-        }
+        execute_without_response(&self.command_sender, Command::SetProgressReport(bar)).await
     }
 }
 
+async fn execute_without_response(
+    command_sender: &mpsc::Sender<Command>,
+    command: Command,
+) -> Result<(), AnvilNodeError> {
+    let action_name = command.readable_action_name();
+    command_sender
+        .send(command)
+        .await
+        .map_err(|_| node_executor_dropped_error("request to", &action_name))
+}
+
+async fn execute_with_response<R>(
+    command_sender: &mpsc::Sender<Command>,
+    command_gen: impl FnOnce(oneshot::Sender<R>) -> Command,
+) -> Result<R, AnvilNodeError> {
+    let (response_sender, response_receiver) = oneshot::channel();
+
+    let command = command_gen(response_sender);
+    let action_name = command.readable_action_name();
+    command_sender
+        .send(command)
+        .await
+        .map_err(|_| node_executor_dropped_error("request to", &action_name))?;
+
+    match response_receiver.await {
+        Ok(result) => Ok(result),
+        Err(_) => Err(node_executor_dropped_error(
+            "receive a response to the request to",
+            &action_name,
+        )),
+    }
+}
 fn node_executor_dropped_error(request_or_receive: &str, action_name: &str) -> AnvilNodeError {
     anvil_zksync::node::generic_error!(
         r"Failed to {request_or_receive} {action_name} because node executor is dropped. \
