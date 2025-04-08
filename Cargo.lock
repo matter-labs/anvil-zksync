@@ -8606,7 +8606,7 @@ dependencies = [
 [[package]]
 name = "zksync_telemetry"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-telemetry.git?rev=d5c35951843263765079545c31c908dcbaab1f30#d5c35951843263765079545c31c908dcbaab1f30"
+source = "git+https://github.com/matter-labs/zksync-telemetry.git?rev=f6d8618d870a09467ff24ea32ef57e01af8f311e#f6d8618d870a09467ff24ea32ef57e01af8f311e"
 dependencies = [
  "anyhow",
  "chrono",
