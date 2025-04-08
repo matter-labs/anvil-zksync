@@ -14,7 +14,7 @@ use crate::node::{
 use crate::system_contracts::SystemContracts;
 use crate::utils::create_debug_output;
 use anvil_zksync_common::shell::get_shell;
-use anvil_zksync_common::{sh_eprintln, sh_err, sh_println};
+use anvil_zksync_common::{sh_eprintln, sh_err, sh_println, sh_warn};
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_console::console_log::ConsoleLogHandler;
 use anvil_zksync_traces::decode::CallTraceDecoderBuilder;
@@ -23,6 +23,7 @@ use anvil_zksync_traces::{
     identifier::SignaturesIdentifier, render_trace_arena_inner,
 };
 use anvil_zksync_types::{ShowGasDetails, ShowStorageLogs, ShowVMDetails};
+use indicatif::ProgressBar;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use zksync_contracts::BaseSystemContractsHashes;
@@ -53,6 +54,8 @@ pub struct VmRunner {
     console_log_handler: ConsoleLogHandler,
     /// Whether VM should generate system logs.
     generate_system_logs: bool,
+    /// Optional field for reporting progress while replaying transactions.
+    progress_report: Option<ProgressBar>,
 }
 
 pub(super) struct TxBatchExecutionResult {
@@ -86,6 +89,7 @@ impl VmRunner {
             system_contracts,
             console_log_handler: ConsoleLogHandler::default(),
             generate_system_logs,
+            progress_report: None,
         }
     }
 }
@@ -170,6 +174,23 @@ impl VmRunner {
         config: &TestNodeConfig,
         fee_input_provider: &TestNodeFeeInputProvider,
     ) -> Result<BatchTransactionExecutionResult, AnvilNodeError> {
+        // Check if target address has code before executing the transaction
+        if let Some(to_address) = tx.recipient_account() {
+            let code_key = zksync_types::get_code_key(&to_address);
+            let bytecode_hash = zksync_multivm::interface::storage::ReadStorage::read_value(
+                &mut self.fork_storage,
+                &code_key,
+            );
+
+            // If bytecode hash is zero, there's no code at this address
+            if bytecode_hash.is_zero() {
+                sh_warn!(
+                    "Transaction {} was sent to address {to_address}, which is not associated with any contract.",
+                    tx.hash()
+                );
+            }
+        }
+
         let BatchTransactionExecutionResult {
             tx_result,
             compression_result,
@@ -464,7 +485,18 @@ impl VmRunner {
         let mut tx_results = Vec::with_capacity(tx_hashes.len());
         let mut tx_index = 0;
         let mut next_log_index = 0;
+        let total = txs.len();
+
         for tx in txs {
+            if let Some(ref pb) = self.progress_report {
+                pb.set_message(format!(
+                    "Replaying transaction {}/{} from 0x{:x}...",
+                    tx_index + 1,
+                    total,
+                    tx.hash()
+                ));
+            }
+
             let result = self
                 .run_tx(
                     &tx,
@@ -478,6 +510,10 @@ impl VmRunner {
                 )
                 .await;
 
+            // Update progress bar
+            if let Some(ref pb) = self.progress_report {
+                pb.inc(1);
+            }
             match result {
                 Ok(tx_result) => {
                     tx_results.push(tx_result);
@@ -579,6 +615,11 @@ impl VmRunner {
             block_ctxs,
             finished_l1_batch,
         })
+    }
+
+    /// Set or unset the progress report.
+    pub fn set_progress_report(&mut self, bar: Option<ProgressBar>) {
+        self.progress_report = bar;
     }
 }
 

@@ -283,7 +283,7 @@ pub struct InMemoryNode {
     pub(crate) blockchain: Box<dyn ReadBlockchain>,
     pub(crate) storage: Box<dyn ReadStorageDyn>,
     pub(crate) fork: Box<dyn ForkSource>,
-    pub(crate) node_handle: NodeExecutorHandle,
+    pub node_handle: NodeExecutorHandle,
     /// List of snapshots of the [InMemoryNodeInner]. This is bounded at runtime by [MAX_SNAPSHOTS].
     pub(crate) snapshots: Arc<RwLock<Vec<Snapshot>>>,
     pub(crate) time: Box<dyn ReadTime>,
