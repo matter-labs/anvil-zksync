@@ -606,12 +606,12 @@ impl NodeExecutorHandle {
     }
 
     async fn execute_without_response(&self, command: Command) -> Result<(), AnvilNodeError> {
-        let action_name = command.readable_description();
+        let action_name = command.readable_action_name();
         self.command_sender.send(command).await.map_err(|_| {
-            let error_msg = error_msg_node_executor_dropped(&format!("request to {action_name}"));
-            anvil_zksync::node::generic_error!("{error_msg}")
+            node_executor_dropped_error("request to", &action_name)
         })
     }
+
     async fn execute_with_response<R>(
         &self,
         command_gen: impl FnOnce(oneshot::Sender<R>) -> Command,
@@ -619,29 +619,22 @@ impl NodeExecutorHandle {
         let (response_sender, response_receiver) = oneshot::channel();
 
         let command = command_gen(response_sender);
-        let action_name = command.readable_description();
+        let action_name = command.readable_action_name();
         self.command_sender.send(command).await.map_err(|_| {
-            let error_msg = error_msg_node_executor_dropped(&format!("request to {action_name}"));
-            anvil_zksync::node::generic_error!("{error_msg}")
+            node_executor_dropped_error("request to", &action_name)
         })?;
 
         match response_receiver.await {
             Ok(result) => Ok(result),
             Err(_) => {
-                let error_msg = error_msg_node_executor_dropped(&format!(
-                    "receive a response to the request to {action_name}"
-                ));
-                Err(anvil_zksync::node::generic_error!("{error_msg}"))
+                Err(node_executor_dropped_error("receive a response to the request to", &action_name))
             }
         }
     }
 }
 
-/// Helper function to produce uniform error messages when node executor is
-/// dropped. This happens across several functions in this file.
-fn error_msg_node_executor_dropped(action: &str) -> String {
-    format!(
-        "Failed to {action} because node executor is dropped. \
+fn node_executor_dropped_error(request_or_receive: &str, action_name: &str) -> AnvilNodeError {
+    anvil_zksync::node::generic_error!(r"Failed to {request_or_receive} {action_name} because node executor is dropped. \
          Another error was likely propagated from the main execution loop. \
          If this is not the case, please, report this as a bug."
     )
@@ -687,10 +680,8 @@ enum Command {
 }
 
 impl Command {
-    ///
     /// Human-readable command description used for diagnostics.
-    ///
-    fn readable_description(&self) -> String {
+    fn readable_action_name(&self) -> String {
         fn batch_repr(batch: &TxBatch) -> String {
             format!(
                 "{:?}",
@@ -709,9 +700,9 @@ impl Command {
                 "seal blocks with intervals of {interval} seconds between consecutive blocks: {:?}",
                 vec.iter().map(batch_repr).collect::<Vec<_>>()
             ),
-            Command::SetCode(h160, _bytecode, _) => format!("set bytecode for address {h160}"),
+            Command::SetCode(address, _bytecode, _) => format!("set bytecode for address {address}"),
             Command::SetStorage(storage_key, value, _) => {
-                format!("set storage {}={value}", storage_key.key())
+                format!("set storage {}={value}", storage_key.hashed_key())
             }
             Command::SetBalance(account, new_value, _) => {
                 format!("set balance of account {account} to {new_value}")
