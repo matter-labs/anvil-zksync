@@ -6,7 +6,6 @@ use zksync_types::{
     StorageKey, StorageLog, StorageValue, H256,
 };
 
-pub mod storage_view;
 pub mod system_contracts;
 
 /// In-memory storage.

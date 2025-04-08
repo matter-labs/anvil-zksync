@@ -172,6 +172,7 @@ The `status` options are:
 | [`ZKS`](#zks-namespace) | [`zks_L1ChainId`](#zks_l1chainid) | `SUPPORTED` | Returns the chain id of the underlying L1 |
 | `ZKS` | `zks_sendRawTransactionWithDetailedOutput` | `NOT IMPLEMENTED` | Executes a transaction with detailed output |
 | `ZKS` | `zks_getTimestampAsserter` | `NOT IMPLEMENTED` | Returns an address of timestamp asserter contract |
+| `ZKS` | `zks_getL2Multicall3` | `NOT IMPLEMENTED` | Returns the address of Multicall3 contract  |
 
 ## `CONFIG NAMESPACE`
 

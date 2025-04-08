@@ -1,5 +1,4 @@
 use crate::bootloader_debug::BootloaderDebug;
-use crate::deps::storage_view::StorageView;
 use crate::formatter::{self, ExecutionErrorReport};
 use crate::node::batch::{MainBatchExecutorFactory, TraceCalls};
 use crate::node::error::ToHaltError;
@@ -30,6 +29,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_error::anvil_zksync;
 use zksync_error::anvil_zksync::node::{AnvilNodeError, AnvilNodeResult};
 use zksync_multivm::interface::executor::BatchExecutor;
+use zksync_multivm::interface::storage::WriteStorage;
 use zksync_multivm::interface::{
     BatchTransactionExecutionResult, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
     TxExecutionMode, VmEvent, VmExecutionResultAndLogs,
@@ -40,8 +40,8 @@ use zksync_types::bytecode::BytecodeHash;
 use zksync_types::commitment::{PubdataParams, PubdataType};
 use zksync_types::web3::Bytes;
 use zksync_types::{
-    api, h256_to_address, ExecuteTransactionCommon, L2BlockNumber, L2TxCommonData, Transaction,
-    ACCOUNT_CODE_STORAGE_ADDRESS,
+    api, h256_to_address, ExecuteTransactionCommon, L2BlockNumber, L2TxCommonData, StorageKey,
+    StorageValue, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
 };
 
 pub struct VmRunner {
@@ -64,6 +64,7 @@ pub(super) struct TxBatchExecutionResult {
     pub(super) batch_env: L1BatchEnv,
     pub(super) block_ctxs: Vec<BlockContext>,
     pub(super) finished_l1_batch: FinishedL1Batch,
+    pub(super) modified_storage_keys: HashMap<StorageKey, StorageValue>,
 }
 
 impl VmRunner {
@@ -159,7 +160,7 @@ impl VmRunner {
     async fn run_tx_pretty(
         &mut self,
         tx: &Transaction,
-        executor: &mut dyn BatchExecutor<StorageView<ForkStorage>>,
+        executor: &mut dyn BatchExecutor<ForkStorage>,
         config: &TestNodeConfig,
         fee_input_provider: &TestNodeFeeInputProvider,
     ) -> AnvilNodeResult<BatchTransactionExecutionResult> {
@@ -271,7 +272,7 @@ impl VmRunner {
         next_log_index: &mut usize,
         block_ctx: &BlockContext,
         batch_env: &L1BatchEnv,
-        executor: &mut dyn BatchExecutor<StorageView<ForkStorage>>,
+        executor: &mut dyn BatchExecutor<ForkStorage>,
         config: &TestNodeConfig,
         fee_input_provider: &TestNodeFeeInputProvider,
     ) -> AnvilNodeResult<TransactionResult> {
@@ -323,32 +324,18 @@ impl VmRunner {
         // are added into the lookup map as well.
         tx_factory_deps.extend(result.dynamic_factory_deps.clone());
 
-        let known_bytecodes = saved_factory_deps.map(|bytecode_hash| {
-            let bytecode = tx_factory_deps.get(&bytecode_hash).unwrap_or_else(|| {
-                panic!(
-                    "Failed to get factory deps on tx: bytecode hash: {:?}, tx hash: {}",
-                    bytecode_hash,
-                    tx.hash()
-                )
-            });
-            (bytecode_hash, bytecode.clone())
-        });
-
-        // Write factory deps
-        for (hash, code) in known_bytecodes {
-            self.fork_storage.store_factory_dep(hash, code)
-        }
-
-        // Write storage logs
-        for storage_log in result
-            .logs
-            .storage_logs
-            .iter()
-            .filter(|log| log.log.is_write())
-        {
-            self.fork_storage
-                .set_value(storage_log.log.key, storage_log.log.value);
-        }
+        let new_bytecodes = saved_factory_deps
+            .map(|bytecode_hash| {
+                let bytecode = tx_factory_deps.get(&bytecode_hash).unwrap_or_else(|| {
+                    panic!(
+                        "Failed to get factory deps on tx: bytecode hash: {:?}, tx hash: {}",
+                        bytecode_hash,
+                        tx.hash()
+                    )
+                });
+                (bytecode_hash, bytecode.clone())
+            })
+            .collect::<Vec<_>>();
 
         let logs = result
             .logs
@@ -423,6 +410,7 @@ impl VmRunner {
                 batch_number: batch_env.number.0,
                 miniblock_number: block_ctx.miniblock,
             },
+            new_bytecodes,
             receipt: tx_receipt,
             debug,
         })
@@ -450,7 +438,6 @@ impl VmRunner {
             ));
         };
 
-        let storage = StorageView::new(self.fork_storage.clone());
         let pubdata_params = PubdataParams {
             l2_da_validator_address: Address::zero(),
             pubdata_type: PubdataType::Rollup,
@@ -459,7 +446,7 @@ impl VmRunner {
             todo!("BatchExecutor support for zkos is yet to be implemented")
         } else {
             self.executor_factory.init_main_batch(
-                storage,
+                self.fork_storage.clone(),
                 batch_env.clone(),
                 system_env.clone(),
                 pubdata_params,
@@ -568,14 +555,22 @@ impl VmRunner {
             block_ctxs.push(virtual_block_ctx);
         }
 
-        let finished_l1_batch = if self.generate_system_logs {
+        let (finished_l1_batch, modified_storage_keys) = if self.generate_system_logs {
             // If system log generation is enabled we run realistic (and time-consuming) bootloader flow
-            Box::new(executor).finish_batch().await?.0
+            let (finished_l1_batch, storage_view) = Box::new(executor).finish_batch().await?;
+            (
+                finished_l1_batch,
+                storage_view.modified_storage_keys().clone(),
+            )
         } else {
             // Otherwise we mock the execution with a single bootloader iteration
             let mut finished_l1_batch = FinishedL1Batch::mock();
-            finished_l1_batch.block_tip_execution_result = executor.bootloader().await?;
-            finished_l1_batch
+            let (bootloader_execution_result, storage_view) = executor.bootloader().await?;
+            finished_l1_batch.block_tip_execution_result = bootloader_execution_result;
+            (
+                finished_l1_batch,
+                storage_view.modified_storage_keys().clone(),
+            )
         };
         assert!(
             !finished_l1_batch
@@ -586,25 +581,13 @@ impl VmRunner {
             finished_l1_batch.block_tip_execution_result.result
         );
 
-        // TODO: Save fictive block's storage logs, events, system/user L2->L1 logs
-        // Write fictive block's storage logs
-        for storage_log in finished_l1_batch
-            .block_tip_execution_result
-            .logs
-            .storage_logs
-            .iter()
-            .filter(|log| log.log.is_write())
-        {
-            self.fork_storage
-                .set_value(storage_log.log.key, storage_log.log.value);
-        }
-
         Ok(TxBatchExecutionResult {
             tx_results,
             base_system_contracts_hashes,
             batch_env,
             block_ctxs,
             finished_l1_batch,
+            modified_storage_keys,
         })
     }
 
@@ -640,6 +623,7 @@ mod test {
     use anvil_zksync_config::types::SystemContractsOptions;
     use std::str::FromStr;
     use zksync_multivm::interface::executor::BatchExecutorFactory;
+    use zksync_multivm::interface::storage::StorageView;
     use zksync_multivm::interface::{L2Block, SystemEnv};
     use zksync_multivm::vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT;
     use zksync_multivm::vm_latest::utils::l2_blocks::load_last_l2_block;
@@ -698,6 +682,13 @@ mod test {
         }
 
         async fn test_tx(&mut self, tx: Transaction) -> AnvilNodeResult<TransactionResult> {
+            Ok(self.test_txs(vec![tx]).await?.into_iter().next().unwrap())
+        }
+
+        async fn test_txs(
+            &mut self,
+            txs: Vec<Transaction>,
+        ) -> AnvilNodeResult<Vec<TransactionResult>> {
             let system_env = SystemEnv {
                 zk_porter_available: false,
                 version: ProtocolVersionId::latest(),
@@ -711,7 +702,7 @@ mod test {
                 chain_id: L2ChainId::from(TEST_NODE_NETWORK_ID),
             };
             let last_l2_block = load_last_l2_block(
-                &StorageView::new(self.vm_runner.fork_storage.clone()).into_rc_ptr(),
+                &StorageView::new(self.vm_runner.fork_storage.clone()).to_rc_ptr(),
             )
             .unwrap_or_else(|| L2Block {
                 number: 0,
@@ -742,37 +733,32 @@ mod test {
                     max_virtual_blocks_to_create: 1,
                 },
             };
-            let storage = StorageView::new(self.vm_runner.fork_storage.clone());
             let mut executor = self.vm_runner.executor_factory.init_batch(
-                storage,
+                self.vm_runner.fork_storage.clone(),
                 batch_env.clone(),
                 system_env,
                 PubdataParams::default(),
             );
 
-            self.vm_runner
-                .run_tx(
-                    &tx,
-                    0,
-                    &mut 0,
-                    &block_ctx,
-                    &batch_env,
-                    executor.as_mut(),
-                    &self.config,
-                    &TestNodeFeeInputProvider::default(),
-                )
-                .await
-        }
-
-        async fn deploy_contract(
-            &mut self,
-            private_key: &K256PrivateKey,
-            bytecode: Vec<u8>,
-            calldata: Option<Vec<u8>>,
-            nonce: Nonce,
-        ) -> AnvilNodeResult<TransactionResult> {
-            let tx = TransactionBuilder::deploy_contract(private_key, bytecode, calldata, nonce);
-            self.test_tx(tx.into()).await
+            let mut log_index = 0;
+            let mut results = vec![];
+            for (i, tx) in txs.into_iter().enumerate() {
+                results.push(
+                    self.vm_runner
+                        .run_tx(
+                            &tx,
+                            i as u64,
+                            &mut log_index,
+                            &block_ctx,
+                            &batch_env,
+                            executor.as_mut(),
+                            &self.config,
+                            &TestNodeFeeInputProvider::default(),
+                        )
+                        .await?,
+                );
+            }
+            Ok(results)
         }
     }
 
@@ -906,15 +892,12 @@ mod test {
         tester.make_rich(&from_account);
 
         let deployed_address = deployed_address_create(from_account, U256::zero());
-        tester
-            .deploy_contract(
-                &private_key,
-                hex::decode(STORAGE_CONTRACT_BYTECODE).unwrap(),
-                None,
-                Nonce(0),
-            )
-            .await
-            .expect("failed to deploy storage contract");
+        let deploy_tx = TransactionBuilder::deploy_contract(
+            &private_key,
+            hex::decode(STORAGE_CONTRACT_BYTECODE).unwrap(),
+            None,
+            Nonce(0),
+        );
 
         let mut tx = L2Tx::new_signed(
             Some(deployed_address),
@@ -936,15 +919,18 @@ mod test {
         tx.common_data.transaction_type = TransactionType::LegacyTransaction;
         tx.set_input(vec![], H256::repeat_byte(0x2));
 
-        let result = tester.test_tx(tx.into()).await.expect("failed tx");
+        let result = tester
+            .test_txs(vec![deploy_tx.into(), tx.into()])
+            .await
+            .expect("failed tx");
         assert_eq!(
-            result.receipt.status,
+            result[1].receipt.status,
             U64::from(1),
             "invalid status {:?}",
-            result.receipt.status
+            result[1].receipt.status
         );
 
-        let actual = decode_tx_result(&result.debug.output.0, DynSolType::Uint(256));
+        let actual = decode_tx_result(&result[1].debug.output.0, DynSolType::Uint(256));
         let expected = DynSolValue::Uint(AlloyU256::from(1024), 256);
         assert_eq!(expected, actual, "invalid result");
     }

@@ -3,7 +3,6 @@ use super::inner::node_executor::NodeExecutorHandle;
 use super::inner::InMemoryNodeInner;
 use super::vm::AnvilVM;
 use crate::delegate_vm;
-use crate::deps::storage_view::StorageView;
 use crate::deps::InMemoryStorage;
 use crate::filters::EthFilters;
 use crate::node::call_error_tracer::CallErrorTracer;
@@ -45,7 +44,7 @@ use tokio::sync::RwLock;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_error::anvil_zksync;
 use zksync_error::anvil_zksync::node::AnvilNodeResult;
-use zksync_multivm::interface::storage::{ReadStorage, StoragePtr};
+use zksync_multivm::interface::storage::{ReadStorage, StoragePtr, StorageView};
 use zksync_multivm::interface::VmFactory;
 use zksync_multivm::interface::{
     ExecutionResult, InspectExecutionMode, L1BatchEnv, L2BlockEnv, TxExecutionMode, VmInterface,
@@ -231,6 +230,7 @@ pub struct TxExecutionInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TransactionResult {
     pub info: TxExecutionInfo,
+    pub new_bytecodes: Vec<(H256, Vec<u8>)>,
     pub receipt: TransactionReceipt,
     pub debug: DebugCall,
 }
@@ -394,7 +394,7 @@ impl InMemoryNode {
         let (batch_env, _) = inner.create_l1_batch_env().await;
         let system_env = inner.create_system_env(base_contracts, execution_mode);
 
-        let storage = StorageView::new(inner.read_storage()).into_rc_ptr();
+        let storage = StorageView::new(inner.read_storage()).to_rc_ptr();
 
         let mut vm = if self.system_contracts.use_zkos {
             AnvilVM::ZKOs(super::zkos::ZKOsVM::<_, HistoryDisabled>::new(
