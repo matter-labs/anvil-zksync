@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot, RwLock};
 use url::Url;
 use zksync_error::anvil_zksync;
-use zksync_error::anvil_zksync::node::AnvilNodeError;
+use zksync_error::anvil_zksync::node::{AnvilNodeError, AnvilNodeResult};
 use zksync_types::bytecode::BytecodeHash;
 use zksync_types::utils::nonces_to_full_nonce;
 use zksync_types::{get_code_key, u256_to_h256, Address, L2BlockNumber, StorageKey, U256};
@@ -38,7 +38,7 @@ impl NodeExecutor {
         (this, handle)
     }
 
-    pub async fn run(mut self) -> Result<(), AnvilNodeError> {
+    pub async fn run(mut self) -> AnvilNodeResult<()> {
         while let Some(command) = self.command_receiver.recv().await {
             match command {
                 Command::SealBlock(tx_batch, reply) => {
@@ -104,8 +104,8 @@ impl NodeExecutor {
     async fn seal_block(
         &mut self,
         tx_batch: TxBatch,
-        reply_sender: Option<oneshot::Sender<Result<L2BlockNumber, AnvilNodeError>>>,
-    ) -> Result<(), AnvilNodeError> {
+        reply_sender: Option<oneshot::Sender<AnvilNodeResult<L2BlockNumber>>>,
+    ) -> AnvilNodeResult<()> {
         let mut node_inner = self.node_inner.write().await;
         let tx_batch_execution_result = self
             .vm_runner
@@ -136,7 +136,7 @@ impl NodeExecutor {
         &mut self,
         tx_batches: Vec<TxBatch>,
         interval: u64,
-        reply: oneshot::Sender<Result<Vec<L2BlockNumber>, AnvilNodeError>>,
+        reply: oneshot::Sender<AnvilNodeResult<Vec<L2BlockNumber>>>,
     ) {
         let mut node_inner = self.node_inner.write().await;
 
@@ -242,7 +242,7 @@ impl NodeExecutor {
         &mut self,
         url: Url,
         block_number: Option<L2BlockNumber>,
-        reply: oneshot::Sender<Result<(), AnvilNodeError>>,
+        reply: oneshot::Sender<AnvilNodeResult<()>>,
     ) {
         let result = async {
             // We don't know what chain this is so we assume default scale configuration.
@@ -270,7 +270,7 @@ impl NodeExecutor {
     async fn reset_fork_block_number(
         &mut self,
         block_number: L2BlockNumber,
-        reply: oneshot::Sender<Result<(), AnvilNodeError>>,
+        reply: oneshot::Sender<AnvilNodeResult<()>>,
     ) {
         let result = async {
             let node_inner = self.node_inner.write().await;
@@ -341,7 +341,7 @@ impl NodeExecutor {
     async fn enforce_next_timestamp(
         &mut self,
         timestamp: u64,
-        reply: oneshot::Sender<Result<(), AnvilNodeError>>,
+        reply: oneshot::Sender<AnvilNodeResult<()>>,
     ) {
         let result = self
             .node_inner
@@ -420,7 +420,7 @@ impl NodeExecutorHandle {
     ///
     /// It is sender's responsibility to make sure [`TxBatch`] is constructed correctly (see its
     /// docs).
-    pub async fn seal_block(&self, tx_batch: TxBatch) -> Result<(), AnvilNodeError> {
+    pub async fn seal_block(&self, tx_batch: TxBatch) -> AnvilNodeResult<()> {
         execute_without_response(&self.command_sender, Command::SealBlock(tx_batch, None)).await
     }
 
@@ -432,7 +432,7 @@ impl NodeExecutorHandle {
     pub async fn seal_block_sync(
         &self,
         tx_batch: TxBatch,
-    ) -> Result<L2BlockNumber, AnvilNodeError> {
+    ) -> AnvilNodeResult<L2BlockNumber> {
         execute_with_response(&self.command_sender, |response_sender| {
             Command::SealBlock(tx_batch, Some(response_sender))
         })
@@ -452,7 +452,7 @@ impl NodeExecutorHandle {
         &self,
         tx_batches: Vec<TxBatch>,
         interval: u64,
-    ) -> Result<Vec<L2BlockNumber>, AnvilNodeError> {
+    ) -> AnvilNodeResult<Vec<L2BlockNumber>> {
         execute_with_response(&self.command_sender, |response_sender| {
             Command::SealBlocks(tx_batches, interval, response_sender)
         })
@@ -464,7 +464,7 @@ impl NodeExecutorHandle {
         &self,
         address: Address,
         bytecode: Vec<u8>,
-    ) -> Result<(), AnvilNodeError> {
+    ) -> AnvilNodeResult<()> {
         execute_with_response(&self.command_sender, |response_sender| {
             Command::SetCode(address, bytecode, response_sender)
         })
@@ -476,7 +476,7 @@ impl NodeExecutorHandle {
         &self,
         key: StorageKey,
         value: U256,
-    ) -> Result<(), AnvilNodeError> {
+    ) -> AnvilNodeResult<()> {
         execute_with_response(&self.command_sender, |response_sender| {
             Command::SetStorage(key, value, response_sender)
         })
@@ -489,7 +489,7 @@ impl NodeExecutorHandle {
         &self,
         address: Address,
         balance: U256,
-    ) -> Result<(), AnvilNodeError> {
+    ) -> AnvilNodeResult<()> {
         execute_with_response(&self.command_sender, move |response_sender| {
             Command::SetBalance(address, balance, response_sender)
         })
@@ -502,7 +502,7 @@ impl NodeExecutorHandle {
         &self,
         address: Address,
         nonce: U256,
-    ) -> Result<(), AnvilNodeError> {
+    ) -> AnvilNodeResult<()> {
         execute_with_response(&self.command_sender, move |response_sender| {
             Command::SetNonce(address, nonce, response_sender)
         })
@@ -515,7 +515,7 @@ impl NodeExecutorHandle {
         &self,
         url: Url,
         block_number: Option<L2BlockNumber>,
-    ) -> Result<(), AnvilNodeError> {
+    ) -> AnvilNodeResult<()> {
         execute_with_response(&self.command_sender, move |response_sender| {
             Command::ResetFork(url, block_number, response_sender)
         })
@@ -527,7 +527,7 @@ impl NodeExecutorHandle {
     pub async fn reset_fork_block_number_sync(
         &self,
         block_number: L2BlockNumber,
-    ) -> Result<(), AnvilNodeError> {
+    ) -> AnvilNodeResult<()> {
         execute_with_response(&self.command_sender, |response_sender| {
             Command::ResetForkBlockNumber(block_number, response_sender)
         })
@@ -536,7 +536,7 @@ impl NodeExecutorHandle {
 
     /// Request [`NodeExecutor`] to set fork's RPC URL without resetting the state. Waits for the
     /// change to take place. Returns `Some(previous_url)` if fork existed and `None` otherwise.
-    pub async fn set_fork_url_sync(&self, url: Url) -> Result<Option<Url>, AnvilNodeError> {
+    pub async fn set_fork_url_sync(&self, url: Url) -> AnvilNodeResult<Option<Url>> {
         execute_with_response(&self.command_sender, move |response_sender| {
             Command::SetForkUrl(url, response_sender)
         })
@@ -544,13 +544,13 @@ impl NodeExecutorHandle {
     }
 
     /// Request [`NodeExecutor`] to remove fork if there is one. Waits for the change to take place.
-    pub async fn remove_fork_sync(&self) -> Result<(), AnvilNodeError> {
+    pub async fn remove_fork_sync(&self) -> AnvilNodeResult<()> {
         execute_with_response(&self.command_sender, Command::RemoveFork).await
     }
 
     /// Request [`NodeExecutor`] to increase time by the given delta (in seconds). Waits for the
     /// change to take place.
-    pub async fn increase_time_sync(&self, delta: u64) -> Result<(), AnvilNodeError> {
+    pub async fn increase_time_sync(&self, delta: u64) -> AnvilNodeResult<()> {
         execute_with_response(&self.command_sender, |response_sender| {
             Command::IncreaseTime(delta, response_sender)
         })
@@ -559,7 +559,7 @@ impl NodeExecutorHandle {
 
     /// Request [`NodeExecutor`] to enforce next block's timestamp (in seconds). Waits for the
     /// timestamp validity to be confirmed. Block might still not be produced by then.
-    pub async fn enforce_next_timestamp_sync(&self, timestamp: u64) -> Result<(), AnvilNodeError> {
+    pub async fn enforce_next_timestamp_sync(&self, timestamp: u64) -> AnvilNodeResult<()> {
         execute_with_response(&self.command_sender, |response_sender| {
             Command::EnforceNextTimestamp(timestamp, response_sender)
         })
@@ -568,7 +568,7 @@ impl NodeExecutorHandle {
 
     /// Request [`NodeExecutor`] to set current timestamp (in seconds). Waits for the
     /// change to take place.
-    pub async fn set_current_timestamp_sync(&self, timestamp: u64) -> Result<i128, AnvilNodeError> {
+    pub async fn set_current_timestamp_sync(&self, timestamp: u64) -> AnvilNodeResult<i128> {
         execute_with_response(&self.command_sender, |response_sender| {
             Command::SetCurrentTimestamp(timestamp, response_sender)
         })
@@ -577,13 +577,13 @@ impl NodeExecutorHandle {
 
     /// Request [`NodeExecutor`] to set block timestamp interval (in seconds). Does not wait for the
     /// change to take place.
-    pub async fn set_block_timestamp_interval(&self, seconds: u64) -> Result<(), AnvilNodeError> {
+    pub async fn set_block_timestamp_interval(&self, seconds: u64) -> AnvilNodeResult<()> {
         execute_without_response(&self.command_sender, Command::SetTimestampInterval(seconds)).await
     }
 
     /// Request [`NodeExecutor`] to remove block timestamp interval. Waits for the change to take
     /// place. Returns `true` if an existing interval was removed, `false` otherwise.
-    pub async fn remove_block_timestamp_interval_sync(&self) -> Result<bool, AnvilNodeError> {
+    pub async fn remove_block_timestamp_interval_sync(&self) -> AnvilNodeResult<bool> {
         execute_with_response(&self.command_sender, Command::RemoveTimestampInterval).await
     }
 
@@ -592,7 +592,7 @@ impl NodeExecutorHandle {
     pub async fn enforce_next_base_fee_per_gas_sync(
         &self,
         base_fee: U256,
-    ) -> Result<(), AnvilNodeError> {
+    ) -> AnvilNodeResult<()> {
         execute_with_response(&self.command_sender, |sender| {
             Command::EnforceNextBaseFeePerGas(base_fee, sender)
         })
@@ -603,7 +603,7 @@ impl NodeExecutorHandle {
     pub async fn set_progress_report(
         &self,
         bar: Option<ProgressBar>,
-    ) -> Result<(), AnvilNodeError> {
+    ) -> AnvilNodeResult<()> {
         execute_without_response(&self.command_sender, Command::SetProgressReport(bar)).await
     }
 }
@@ -611,7 +611,7 @@ impl NodeExecutorHandle {
 async fn execute_without_response(
     command_sender: &mpsc::Sender<Command>,
     command: Command,
-) -> Result<(), AnvilNodeError> {
+) -> AnvilNodeResult<()> {
     let action_name = command.readable_action_name();
     command_sender
         .send(command)
@@ -622,7 +622,7 @@ async fn execute_without_response(
 async fn execute_with_response<R>(
     command_sender: &mpsc::Sender<Command>,
     command_gen: impl FnOnce(oneshot::Sender<R>) -> Command,
-) -> Result<R, AnvilNodeError> {
+) -> AnvilNodeResult<R> {
     let (response_sender, response_receiver) = oneshot::channel();
 
     let command = command_gen(response_sender);
@@ -653,12 +653,12 @@ enum Command {
     // Block sealing commands
     SealBlock(
         TxBatch,
-        Option<oneshot::Sender<Result<L2BlockNumber, AnvilNodeError>>>,
+        Option<oneshot::Sender<AnvilNodeResult<L2BlockNumber>>>,
     ),
     SealBlocks(
         Vec<TxBatch>,
         u64,
-        oneshot::Sender<Result<Vec<L2BlockNumber>, AnvilNodeError>>,
+        oneshot::Sender<AnvilNodeResult<Vec<L2BlockNumber>>>,
     ),
     // Storage manipulation commands
     SetCode(Address, Vec<u8>, oneshot::Sender<()>),
@@ -669,15 +669,15 @@ enum Command {
     ResetFork(
         Url,
         Option<L2BlockNumber>,
-        oneshot::Sender<Result<(), AnvilNodeError>>,
+        oneshot::Sender<AnvilNodeResult<()>>,
     ),
-    ResetForkBlockNumber(L2BlockNumber, oneshot::Sender<Result<(), AnvilNodeError>>),
+    ResetForkBlockNumber(L2BlockNumber, oneshot::Sender<AnvilNodeResult<()>>),
     SetForkUrl(Url, oneshot::Sender<Option<Url>>),
     RemoveFork(oneshot::Sender<()>),
     // Time manipulation commands. Caveat: reply-able commands can hold user connections alive for
     // a long time (until the command is processed).
     IncreaseTime(u64, oneshot::Sender<()>),
-    EnforceNextTimestamp(u64, oneshot::Sender<Result<(), AnvilNodeError>>),
+    EnforceNextTimestamp(u64, oneshot::Sender<AnvilNodeResult<()>>),
     SetCurrentTimestamp(u64, oneshot::Sender<i128>),
     SetTimestampInterval(u64),
     RemoveTimestampInterval(oneshot::Sender<bool>),

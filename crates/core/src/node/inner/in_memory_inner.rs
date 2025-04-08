@@ -29,7 +29,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
-use zksync_error::anvil_zksync::node::AnvilNodeError;
+use zksync_error::anvil_zksync::node::AnvilNodeResult;
 use zksync_error::anvil_zksync::{halt::HaltError, revert::RevertError};
 use zksync_multivm::interface::storage::{ReadStorage, WriteStorage};
 use zksync_multivm::interface::{
@@ -288,7 +288,7 @@ impl InMemoryNodeInner {
     pub(super) async fn seal_block(
         &mut self,
         tx_batch_execution_result: TxBatchExecutionResult,
-    ) -> Result<L2BlockNumber, AnvilNodeError> {
+    ) -> AnvilNodeResult<L2BlockNumber> {
         let TxBatchExecutionResult {
             tx_results,
             base_system_contracts_hashes,
@@ -778,7 +778,7 @@ impl InMemoryNodeInner {
     }
 
     /// Creates a [Snapshot] of the current state of the node.
-    pub async fn snapshot(&self) -> Result<Snapshot, AnvilNodeError> {
+    pub async fn snapshot(&self) -> AnvilNodeResult<Snapshot> {
         let blockchain = self.blockchain.read().await;
         let filters = self.filters.read().await.clone();
         let storage = self
@@ -806,7 +806,7 @@ impl InMemoryNodeInner {
     }
 
     /// Restores a previously created [Snapshot] of the node.
-    pub async fn restore_snapshot(&mut self, snapshot: Snapshot) -> Result<(), AnvilNodeError> {
+    pub async fn restore_snapshot(&mut self, snapshot: Snapshot) -> AnvilNodeResult<()> {
         let mut blockchain = self.blockchain.write().await;
         let mut storage = self
             .fork_storage

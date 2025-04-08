@@ -44,7 +44,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_error::anvil_zksync;
-use zksync_error::anvil_zksync::node::AnvilNodeError;
+use zksync_error::anvil_zksync::node::AnvilNodeResult;
 use zksync_multivm::interface::storage::{ReadStorage, StoragePtr};
 use zksync_multivm::interface::VmFactory;
 use zksync_multivm::interface::{
@@ -331,7 +331,7 @@ impl InMemoryNode {
 
     /// Replays transactions consequently in a new block. All transactions are expected to be
     /// executable and will become a part of the resulting block.
-    pub async fn replay_txs(&self, txs: Vec<Transaction>) -> Result<(), AnvilNodeError> {
+    pub async fn replay_txs(&self, txs: Vec<Transaction>) -> AnvilNodeResult<()> {
         let tx_batch = TxBatch {
             impersonating: false,
             txs,
@@ -485,7 +485,7 @@ impl InMemoryNode {
         &self,
         address: Address,
         bytecode: Vec<u8>,
-    ) -> Result<(), AnvilNodeError> {
+    ) -> AnvilNodeResult<()> {
         self.node_handle.set_code_sync(address, bytecode).await
     }
 

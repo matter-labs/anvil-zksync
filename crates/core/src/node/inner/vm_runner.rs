@@ -28,7 +28,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_error::anvil_zksync;
-use zksync_error::anvil_zksync::node::AnvilNodeError;
+use zksync_error::anvil_zksync::node::{AnvilNodeError, AnvilNodeResult};
 use zksync_multivm::interface::executor::BatchExecutor;
 use zksync_multivm::interface::{
     BatchTransactionExecutionResult, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
@@ -162,7 +162,7 @@ impl VmRunner {
         executor: &mut dyn BatchExecutor<StorageView<ForkStorage>>,
         config: &TestNodeConfig,
         fee_input_provider: &TestNodeFeeInputProvider,
-    ) -> Result<BatchTransactionExecutionResult, AnvilNodeError> {
+    ) -> AnvilNodeResult<BatchTransactionExecutionResult> {
         // Check if target address has code before executing the transaction
         if let Some(to_address) = tx.recipient_account() {
             let code_key = zksync_types::get_code_key(&to_address);
@@ -274,7 +274,7 @@ impl VmRunner {
         executor: &mut dyn BatchExecutor<StorageView<ForkStorage>>,
         config: &TestNodeConfig,
         fee_input_provider: &TestNodeFeeInputProvider,
-    ) -> Result<TransactionResult, AnvilNodeError> {
+    ) -> AnvilNodeResult<TransactionResult> {
         let tx_hash = tx.hash();
         let transaction_type = tx.tx_format();
 
@@ -432,7 +432,7 @@ impl VmRunner {
         &mut self,
         TxBatch { txs, impersonating }: TxBatch,
         node_inner: &mut InMemoryNodeInner,
-    ) -> Result<TxBatchExecutionResult, AnvilNodeError> {
+    ) -> AnvilNodeResult<TxBatchExecutionResult> {
         let system_contracts = self
             .system_contracts
             .contracts(TxExecutionMode::VerifyExecute, impersonating)
@@ -630,6 +630,7 @@ mod test {
     use crate::testing::{TransactionBuilder, STORAGE_CONTRACT_BYTECODE};
     use alloy::dyn_abi::{DynSolType, DynSolValue};
     use alloy::primitives::U256 as AlloyU256;
+    use anvil_zksync::node::AnvilNodeResult;
     use anvil_zksync_common::cache::CacheConfig;
     use anvil_zksync_config::constants::{
         DEFAULT_ACCOUNT_BALANCE, DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
@@ -696,7 +697,7 @@ mod test {
                 .set_value(key, u256_to_h256(U256::from(DEFAULT_ACCOUNT_BALANCE)));
         }
 
-        async fn test_tx(&mut self, tx: Transaction) -> Result<TransactionResult, AnvilNodeError> {
+        async fn test_tx(&mut self, tx: Transaction) -> AnvilNodeResult<TransactionResult> {
             let system_env = SystemEnv {
                 zk_porter_available: false,
                 version: ProtocolVersionId::latest(),
@@ -769,7 +770,7 @@ mod test {
             bytecode: Vec<u8>,
             calldata: Option<Vec<u8>>,
             nonce: Nonce,
-        ) -> Result<TransactionResult, AnvilNodeError> {
+        ) -> AnvilNodeResult<TransactionResult> {
             let tx = TransactionBuilder::deploy_contract(private_key, bytecode, calldata, nonce);
             self.test_tx(tx.into()).await
         }
