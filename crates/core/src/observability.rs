@@ -37,21 +37,13 @@ impl Observability {
         tracing_subscriber::registry()
             .with(filter)
             .with(
-                tracing_subscriber::fmt::layer().event_format(
-                    tracing_subscriber::fmt::format()
-                        .compact()
-                        .without_time()
-                        .with_target(false),
-                ),
+                tracing_subscriber::fmt::layer()
+                    .event_format(tracing_subscriber::fmt::format().without_time())
+                    .with_ansi(false),
             )
             .with(
                 tracing_subscriber::fmt::layer()
-                    .event_format(
-                        tracing_subscriber::fmt::format()
-                            .compact()
-                            .without_time()
-                            .with_target(false),
-                    )
+                    .event_format(tracing_subscriber::fmt::format().without_time())
                     .with_writer(Mutex::new(log_file))
                     .with_ansi(false),
             )

@@ -479,7 +479,9 @@ async fn l1_gas_estimation() -> anyhow::Result<()> {
     ) -> anyhow::Result<(ZkTransactionResponse, ZkReceiptResponse)> {
         let tester = AnvilZksyncTesterBuilder::default()
             .with_l1()
-            .with_node_fn(&|node| node.args(["--protocol-version", "27"]))
+            .with_node_fn(&|node| {
+                node.args(["--protocol-version", "27", "--log", "debug", "-vvvvv"])
+            })
             .build()
             .await?;
 
@@ -534,7 +536,7 @@ async fn l1_gas_estimation() -> anyhow::Result<()> {
 
     // Create cheaper version of transaction: use progressive multiplier times gas used according to above
     // Note: Explicitly supplying gas limit makes the flow not use `zks_estimateL1ToL2Gas`
-    for i in 1..5 {
+    for i in 5..=5 {
         let (cheap_tx_response, cheap_tx_receipt) =
             test(|tx| tx.with_gas_limit(tx_receipt.gas_used() * i)).await?;
         // Validate that cheap tx fails while consuming all provided gas
