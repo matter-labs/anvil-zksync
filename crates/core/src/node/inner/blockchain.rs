@@ -17,7 +17,7 @@ use zksync_multivm::interface::storage::{ReadStorage, StoragePtr};
 use zksync_multivm::interface::{FinishedL1Batch, L2Block, VmEvent};
 use zksync_multivm::vm_latest::utils::l2_blocks::load_last_l2_block;
 use zksync_types::block::{unpack_block_info, L1BatchHeader, L2BlockHasher};
-use zksync_types::l2::L2Tx;
+use zksync_types::web3::Bytes;
 use zksync_types::writes::StateDiffRecord;
 use zksync_types::{
     api, h256_to_u256, AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber,
@@ -380,21 +380,20 @@ impl ReadBlockchain for Blockchain {
 
     async fn get_tx_api(&self, tx_hash: &H256) -> anyhow::Result<Option<api::Transaction>> {
         self.inspect_tx(tx_hash, |TransactionResult { info, receipt, .. }| {
-            let l2_tx: L2Tx =
-                info.tx.clone().try_into().map_err(|_| {
-                    anyhow::anyhow!("inspection of non-L2 transactions is unsupported")
-                })?;
-            let chain_id = l2_tx
-                .common_data
-                .extract_chain_id()
-                .context("tx has malformed chain id")?;
-            let input_data = l2_tx
-                .common_data
-                .input
-                .context("tx is missing input data")?;
+            let chain_id = 260;
+            let input = match &info.tx.common_data {
+                ExecuteTransactionCommon::L1(_) => Bytes::default(),
+                ExecuteTransactionCommon::L2(l2_common_data) => l2_common_data
+                    .input_data()
+                    .context("tx is missing input data")?
+                    .into(),
+                ExecuteTransactionCommon::ProtocolUpgrade(_) => {
+                    anyhow::bail!("inspection of upgrade transactions is unsupported")
+                }
+            };
             anyhow::Ok(api::Transaction {
                 hash: *tx_hash,
-                nonce: U256::from(l2_tx.common_data.nonce.0),
+                nonce: U256::from(info.tx.nonce().unwrap_or_default().0),
                 // FIXME: This is mega-incorrect but this whole method should be reworked in general
                 block_hash: Some(*tx_hash),
                 block_number: Some(U64::from(info.miniblock_number)),
@@ -403,15 +402,15 @@ impl ReadBlockchain for Blockchain {
                 to: info.tx.recipient_account(),
                 value: info.tx.execute.value,
                 gas_price: Some(U256::from(0)),
-                gas: Default::default(),
-                input: input_data.data.into(),
+                gas: info.tx.gas_limit(),
+                input,
                 v: Some(chain_id.into()),
                 r: Some(U256::zero()), // TODO: Shouldn't we set the signature?
                 s: Some(U256::zero()), // TODO: Shouldn't we set the signature?
                 y_parity: Some(U64::zero()), // TODO: Shouldn't we set the signature?
                 raw: None,
                 transaction_type: {
-                    let tx_type = match l2_tx.common_data.transaction_type {
+                    let tx_type = match info.tx.tx_format() {
                         zksync_types::l2::TransactionType::LegacyTransaction => 0,
                         zksync_types::l2::TransactionType::EIP2930Transaction => 1,
                         zksync_types::l2::TransactionType::EIP1559Transaction => 2,
@@ -422,8 +421,8 @@ impl ReadBlockchain for Blockchain {
                     Some(tx_type.into())
                 },
                 access_list: None,
-                max_fee_per_gas: Some(l2_tx.common_data.fee.max_fee_per_gas),
-                max_priority_fee_per_gas: Some(l2_tx.common_data.fee.max_priority_fee_per_gas),
+                max_fee_per_gas: Some(info.tx.max_fee_per_gas()),
+                max_priority_fee_per_gas: Some(U256::zero()),
                 chain_id: U256::from(chain_id),
                 l1_batch_number: Some(U64::from(info.batch_number as u64)),
                 l1_batch_tx_index: None,

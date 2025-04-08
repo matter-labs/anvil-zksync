@@ -26,6 +26,7 @@ use anyhow::Context as _;
 use itertools::Itertools;
 use std::convert::identity;
 use std::future::Future;
+use std::io::{BufRead, BufReader};
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -140,18 +141,30 @@ impl<'a> AnvilZksyncTesterBuilder<'a> {
         let http = HttpWithMiddleware::with_client(client, l2_url.clone());
         let rpc_client = RpcClient::new(http, true);
 
-        let rich_accounts = node_layer.instance().addresses().to_vec();
-        let default_keys = node_layer.instance().keys().to_vec();
+        let instance = node_layer.instance().read().unwrap();
+        let rich_accounts = instance.addresses().to_vec();
+        let default_keys = instance.keys().to_vec();
         let (default_key, remaining_keys) = default_keys.split_first().ok_or(NoKeysAvailable)?;
 
-        let default_signer = LocalSigner::from(default_key.clone())
-            .with_chain_id(Some(node_layer.instance().chain_id()));
+        let default_signer =
+            LocalSigner::from(default_key.clone()).with_chain_id(Some(instance.chain_id()));
         let mut wallet = ZksyncWallet::from(default_signer);
+        drop(instance);
 
         for key in remaining_keys {
             let signer = LocalSigner::from(key.clone());
             wallet.register_signer(signer)
         }
+
+        let node_layer_clone = node_layer.clone();
+        std::thread::spawn(move || {
+            let mut instance = node_layer_clone.instance().write().unwrap();
+            let stdout = instance.child_mut().stdout.as_mut().unwrap();
+            let reader = BufReader::new(stdout);
+            reader.lines().for_each(|line| {
+                println!("anvil-zksync: {}", line.unwrap());
+            })
+        });
 
         let l2_provider = zksync_provider()
             .with_recommended_fillers()

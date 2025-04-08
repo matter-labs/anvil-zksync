@@ -56,7 +56,8 @@ use zksync_types::web3::{keccak256, Index};
 use zksync_types::{
     api, h256_to_u256, u256_to_h256, AccountTreeId, Address, Bloom, BloomInput,
     ExecuteTransactionCommon, L1BatchNumber, L2BlockNumber, L2ChainId, StorageKey, StorageValue,
-    Transaction, H160, H256, L2_MESSAGE_ROOT_ADDRESS, MAX_L2_TX_GAS_LIMIT, U256, U64,
+    Transaction, DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE, H160, H256, L2_MESSAGE_ROOT_ADDRESS,
+    MAX_L2_TX_GAS_LIMIT, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
 use zksync_web3_decl::error::Web3Error;
 
@@ -461,8 +462,7 @@ impl InMemoryNodeInner {
 
         if let Some(ref mut eip712_meta) = request_with_gas_per_pubdata_overridden.eip712_meta {
             if eip712_meta.gas_per_pubdata == U256::zero() {
-                eip712_meta.gas_per_pubdata =
-                    get_max_gas_per_pubdata_byte(VmVersion::latest()).into();
+                eip712_meta.gas_per_pubdata = U256::from(DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE);
             }
         }
 
@@ -500,8 +500,7 @@ impl InMemoryNodeInner {
 
         if let Some(ref mut eip712_meta) = request_with_gas_per_pubdata_overridden.eip712_meta {
             if eip712_meta.gas_per_pubdata == U256::zero() {
-                eip712_meta.gas_per_pubdata =
-                    get_max_gas_per_pubdata_byte(VmVersion::latest()).into();
+                eip712_meta.gas_per_pubdata = U256::from(REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE);
             }
         }
 
@@ -517,6 +516,7 @@ impl InMemoryNodeInner {
     async fn estimate_gas_inner(&self, mut tx: Transaction) -> Result<Fee, Web3Error> {
         let fee_input = {
             let fee_input = self.fee_input_provider.get_batch_fee_input_scaled();
+            tracing::debug!(?fee_input, "fetched fee input");
             // In order for execution to pass smoothly, we need to ensure that block's required gasPerPubdata will be
             // <= to the one in the transaction itself.
             adjust_pubdata_price_for_tx(
@@ -526,9 +526,11 @@ impl InMemoryNodeInner {
                 VmVersion::latest(),
             )
         };
+        tracing::debug!(?fee_input, "updated fee input");
 
         let (base_fee, gas_per_pubdata_byte) =
             derive_base_fee_and_gas_per_pubdata(fee_input, VmVersion::latest());
+        tracing::debug!(base_fee, gas_per_pubdata_byte, "estimating");
         match &mut tx.common_data {
             ExecuteTransactionCommon::L1(l1_common_data) => {
                 l1_common_data.max_fee_per_gas = base_fee.into();
@@ -594,10 +596,10 @@ impl InMemoryNodeInner {
         let mut upper_bound = MAX_L2_TX_GAS_LIMIT;
         let mut attempt_count = 1;
 
-        tracing::trace!("Starting gas estimation loop");
+        tracing::debug!("Starting gas estimation loop");
         while lower_bound + ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION < upper_bound {
             let mid = (lower_bound + upper_bound) / 2;
-            tracing::trace!(
+            tracing::debug!(
                 "Attempt {} (lower_bound: {}, upper_bound: {}, mid: {})",
                 attempt_count,
                 lower_bound,
@@ -617,22 +619,26 @@ impl InMemoryNodeInner {
             );
 
             if estimate_gas_result.result.is_failed() {
-                tracing::trace!("Attempt {} FAILED", attempt_count);
+                tracing::debug!(
+                    "Attempt {} FAILED: {:?}",
+                    attempt_count,
+                    estimate_gas_result.result
+                );
                 lower_bound = mid + 1;
             } else {
-                tracing::trace!("Attempt {} SUCCEEDED", attempt_count);
+                tracing::debug!("Attempt {} SUCCEEDED", attempt_count);
                 upper_bound = mid;
             }
             attempt_count += 1;
         }
 
-        tracing::trace!("Gas Estimation Values:");
-        tracing::trace!("  Final upper_bound: {}", upper_bound);
-        tracing::trace!(
+        tracing::debug!("Gas Estimation Values:");
+        tracing::debug!("  Final upper_bound: {}", upper_bound);
+        tracing::debug!(
             "  ESTIMATE_GAS_SCALE_FACTOR: {}",
             self.fee_input_provider.estimate_gas_scale_factor
         );
-        tracing::trace!("  MAX_L2_TX_GAS_LIMIT: {}", MAX_L2_TX_GAS_LIMIT);
+        tracing::debug!("  MAX_L2_TX_GAS_LIMIT: {}", MAX_L2_TX_GAS_LIMIT);
         let tx_body_gas_limit = upper_bound;
         let suggested_gas_limit = ((upper_bound + additional_gas_for_pubdata) as f32
             * self.fee_input_provider.estimate_gas_scale_factor)
@@ -705,14 +711,14 @@ impl InMemoryNodeInner {
                     }
                 };
 
-                tracing::trace!("Gas Estimation Results");
-                tracing::trace!("  tx_body_gas_limit: {}", tx_body_gas_limit);
-                tracing::trace!(
+                tracing::debug!("Gas Estimation Results");
+                tracing::debug!("  tx_body_gas_limit: {}", tx_body_gas_limit);
+                tracing::debug!(
                     "  additional_gas_for_pubdata: {}",
                     additional_gas_for_pubdata
                 );
-                tracing::trace!("  overhead: {}", overhead);
-                tracing::trace!("  full_gas_limit: {}", full_gas_limit);
+                tracing::debug!("  overhead: {}", overhead);
+                tracing::debug!("  full_gas_limit: {}", full_gas_limit);
                 let fee = Fee {
                     max_fee_per_gas: base_fee.into(),
                     max_priority_fee_per_gas: 0u32.into(),

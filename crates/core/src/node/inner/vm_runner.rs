@@ -25,6 +25,7 @@ use anvil_zksync_traces::{
 use anvil_zksync_types::{ShowGasDetails, ShowStorageLogs, ShowVMDetails};
 use indicatif::ProgressBar;
 use std::collections::HashMap;
+use std::str::FromStr;
 use std::sync::{Arc, RwLock};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_multivm::interface::executor::BatchExecutor;
@@ -39,8 +40,8 @@ use zksync_types::bytecode::BytecodeHash;
 use zksync_types::commitment::{PubdataParams, PubdataType};
 use zksync_types::web3::Bytes;
 use zksync_types::{
-    api, h256_to_address, ExecuteTransactionCommon, L2BlockNumber, L2TxCommonData, StorageKey,
-    StorageValue, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
+    api, h256_to_address, ExecuteTransactionCommon, L1BatchNumber, L2BlockNumber, L2TxCommonData,
+    StorageKey, StorageValue, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
 };
 
 pub struct VmRunner {
@@ -424,9 +425,18 @@ impl VmRunner {
             self.time.advance_timestamp() == block_ctx.timestamp,
             "advancing clock produced different timestamp than expected"
         );
-        let pubdata_params = PubdataParams {
-            l2_da_validator_address: Address::zero(),
-            pubdata_type: PubdataType::Rollup,
+        let pubdata_params = if batch_env.number == L1BatchNumber(1) {
+            PubdataParams {
+                l2_da_validator_address: Address::zero(),
+                pubdata_type: PubdataType::Rollup,
+            }
+        } else {
+            PubdataParams {
+                l2_da_validator_address: Address::from_str(
+                    "0x1c57609584aa7ca20aefea7d92dded16935b049b",
+                )?,
+                pubdata_type: PubdataType::Rollup,
+            }
         };
         let mut executor = if self.system_contracts.use_zkos {
             todo!("BatchExecutor support for zkos is yet to be implemented")

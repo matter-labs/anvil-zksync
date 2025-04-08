@@ -131,8 +131,12 @@ impl<P: Provider<Ethereum>> Bridgehub<P> {
         let from = tx.from().unwrap();
         let calldata = tx.input().cloned().unwrap_or(Bytes::new());
         let factory_deps = tx.factory_deps().cloned().unwrap_or(vec![]);
+        let gas_limit = if let Some(gas_limit) = tx.gas_limit() {
+            U256::from(gas_limit)
+        } else {
+            l2_provider.estimate_gas_l1_to_l2(tx).await?
+        };
 
-        let gas_limit = l2_provider.estimate_gas_l1_to_l2(tx).await?;
         let base_cost = self
             .instance
             .l2TransactionBaseCost(
