@@ -429,10 +429,7 @@ impl NodeExecutorHandle {
     ///
     /// It is sender's responsibility to make sure [`TxBatch`] is constructed correctly (see its
     /// docs).
-    pub async fn seal_block_sync(
-        &self,
-        tx_batch: TxBatch,
-    ) -> AnvilNodeResult<L2BlockNumber> {
+    pub async fn seal_block_sync(&self, tx_batch: TxBatch) -> AnvilNodeResult<L2BlockNumber> {
         execute_with_response(&self.command_sender, |response_sender| {
             Command::SealBlock(tx_batch, Some(response_sender))
         })
@@ -460,11 +457,7 @@ impl NodeExecutorHandle {
     }
 
     /// Request [`NodeExecutor`] to set bytecode for given address. Waits for the change to take place.
-    pub async fn set_code_sync(
-        &self,
-        address: Address,
-        bytecode: Vec<u8>,
-    ) -> AnvilNodeResult<()> {
+    pub async fn set_code_sync(&self, address: Address, bytecode: Vec<u8>) -> AnvilNodeResult<()> {
         execute_with_response(&self.command_sender, |response_sender| {
             Command::SetCode(address, bytecode, response_sender)
         })
@@ -472,11 +465,7 @@ impl NodeExecutorHandle {
     }
 
     /// Request [`NodeExecutor`] to set storage key-value pair. Waits for the change to take place.
-    pub async fn set_storage_sync(
-        &self,
-        key: StorageKey,
-        value: U256,
-    ) -> AnvilNodeResult<()> {
+    pub async fn set_storage_sync(&self, key: StorageKey, value: U256) -> AnvilNodeResult<()> {
         execute_with_response(&self.command_sender, |response_sender| {
             Command::SetStorage(key, value, response_sender)
         })
@@ -485,11 +474,7 @@ impl NodeExecutorHandle {
 
     /// Request [`NodeExecutor`] to set account's balance to the given value. Waits for the change
     /// to take place.
-    pub async fn set_balance_sync(
-        &self,
-        address: Address,
-        balance: U256,
-    ) -> AnvilNodeResult<()> {
+    pub async fn set_balance_sync(&self, address: Address, balance: U256) -> AnvilNodeResult<()> {
         execute_with_response(&self.command_sender, move |response_sender| {
             Command::SetBalance(address, balance, response_sender)
         })
@@ -498,11 +483,7 @@ impl NodeExecutorHandle {
 
     /// Request [`NodeExecutor`] to set account's nonce to the given value. Waits for the change
     /// to take place.
-    pub async fn set_nonce_sync(
-        &self,
-        address: Address,
-        nonce: U256,
-    ) -> AnvilNodeResult<()> {
+    pub async fn set_nonce_sync(&self, address: Address, nonce: U256) -> AnvilNodeResult<()> {
         execute_with_response(&self.command_sender, move |response_sender| {
             Command::SetNonce(address, nonce, response_sender)
         })
@@ -589,10 +570,7 @@ impl NodeExecutorHandle {
 
     /// Request [`NodeExecutor`] to enforce next block's base fee per gas. Waits for the change to take
     /// place. Block might still not be produced by then.
-    pub async fn enforce_next_base_fee_per_gas_sync(
-        &self,
-        base_fee: U256,
-    ) -> AnvilNodeResult<()> {
+    pub async fn enforce_next_base_fee_per_gas_sync(&self, base_fee: U256) -> AnvilNodeResult<()> {
         execute_with_response(&self.command_sender, |sender| {
             Command::EnforceNextBaseFeePerGas(base_fee, sender)
         })
@@ -600,10 +578,7 @@ impl NodeExecutorHandle {
     }
 
     /// Request [`NodeExecutor`] to set (or unset) the progress bar for transaction replay.
-    pub async fn set_progress_report(
-        &self,
-        bar: Option<ProgressBar>,
-    ) -> AnvilNodeResult<()> {
+    pub async fn set_progress_report(&self, bar: Option<ProgressBar>) -> AnvilNodeResult<()> {
         execute_without_response(&self.command_sender, Command::SetProgressReport(bar)).await
     }
 }
