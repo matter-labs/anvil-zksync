@@ -65,6 +65,7 @@ pub fn into_jsrpc_error(err: Web3Error) -> ErrorObjectOwned {
         Web3Error::SubmitTransactionError(_, _) | Web3Error::SerializationError(_) => {
             ErrorCode::ServerError(3).code()
         }
+        Web3Error::ServerShuttingDown => ErrorCode::ServerIsBusy.code(),
     };
     let message = match &err {
         Web3Error::SubmitTransactionError(_, _) => err.to_string(),
