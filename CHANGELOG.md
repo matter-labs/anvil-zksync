@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.5.0](https://github.com/matter-labs/anvil-zksync/compare/v0.4.0...v0.5.0) (2025-04-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* support both V26 and V27 at the same time ([#636](https://github.com/matter-labs/anvil-zksync/issues/636))
+
+### Features
+
+* add cli option for local system contracts usage ([#659](https://github.com/matter-labs/anvil-zksync/issues/659)) ([d47a8eb](https://github.com/matter-labs/anvil-zksync/commit/d47a8ebce7c82c4301b8eefd5380f16d0b954c91))
+* full support for EVM emulator for protocol V27 and higher ([#644](https://github.com/matter-labs/anvil-zksync/issues/644)) ([b99e7e2](https://github.com/matter-labs/anvil-zksync/commit/b99e7e2bcc5151e3648a885832102f2d275e7a37))
+* pack built-in contract into .tar.gz archive ([#635](https://github.com/matter-labs/anvil-zksync/issues/635)) ([c3f5a5f](https://github.com/matter-labs/anvil-zksync/commit/c3f5a5ff7bad9e0f3ab76a039cff54a61180203a))
+* progress reporting replaying of txs ([#642](https://github.com/matter-labs/anvil-zksync/issues/642)) ([50c1dc1](https://github.com/matter-labs/anvil-zksync/commit/50c1dc1dbbd05f6649e53849c68ff794c3764fc2))
+* support automatic execution of L1 batches ([#647](https://github.com/matter-labs/anvil-zksync/issues/647)) ([da51724](https://github.com/matter-labs/anvil-zksync/commit/da51724279efa7aefe5bb7da78108489f135679c))
+* support both V26 and V27 at the same time ([#636](https://github.com/matter-labs/anvil-zksync/issues/636)) ([8901610](https://github.com/matter-labs/anvil-zksync/commit/890161094098d3c7fe744723ea12d000a92d1b63))
+* support protocol V28 ([#637](https://github.com/matter-labs/anvil-zksync/issues/637)) ([bdec93c](https://github.com/matter-labs/anvil-zksync/commit/bdec93c4e96c3b17d6666b547c495be6f42f661d))
+* support replay of L1 and upgrade transactions ([#638](https://github.com/matter-labs/anvil-zksync/issues/638)) ([f1d7f21](https://github.com/matter-labs/anvil-zksync/commit/f1d7f215b47d440860af0fcb465fbe61bdd1af7a))
+* upgrade to v27 protocol ([#627](https://github.com/matter-labs/anvil-zksync/issues/627)) ([0273215](https://github.com/matter-labs/anvil-zksync/commit/02732158b212a5cb408434b6aa445101de123f21))
+* warn of transactions and calls to non-assigned addresses ([#652](https://github.com/matter-labs/anvil-zksync/issues/652)) ([0ab3915](https://github.com/matter-labs/anvil-zksync/commit/0ab3915c3b496c3504b19ae2f815ef28d36906a1))
+
+
+### Bug Fixes
+
+* allow wider `anvil` versions ([#639](https://github.com/matter-labs/anvil-zksync/issues/639)) ([7ffbd3d](https://github.com/matter-labs/anvil-zksync/commit/7ffbd3d4aa11a3a110430ed0dba3ca6d9082ef73))
+* make sure `eth_getStorageAt` works with historic blocks ([#653](https://github.com/matter-labs/anvil-zksync/issues/653)) ([28316a3](https://github.com/matter-labs/anvil-zksync/commit/28316a31724d11d30af1ae9cf5a1ebe5118d0030))
+* safe usize to u32 conversion for pubdata limit ([f1a0522](https://github.com/matter-labs/anvil-zksync/commit/f1a05225188026b55cef292e3fb240941cc4c308))
+* usize to u32 conversion for pubdata limit ([#650](https://github.com/matter-labs/anvil-zksync/issues/650)) ([f1a0522](https://github.com/matter-labs/anvil-zksync/commit/f1a05225188026b55cef292e3fb240941cc4c308))
+
 ## [0.4.0](https://github.com/matter-labs/anvil-zksync/compare/v0.3.2...v0.4.0) (2025-03-24)
 
 
