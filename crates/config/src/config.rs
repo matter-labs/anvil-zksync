@@ -75,6 +75,8 @@ pub struct TestNodeConfig {
     pub silent: bool,
     /// Configuration for system contracts
     pub system_contracts_options: SystemContractsOptions,
+    /// Path to the system contracts directory
+    pub system_contracts_path: Option<PathBuf>,
     /// Protocol version to use for new blocks. Also affects revision of built-in contracts that
     /// will get deployed (if applicable)
     pub protocol_version: Option<ProtocolVersionId>,
@@ -151,6 +153,8 @@ pub struct TestNodeConfig {
     pub load_state: Option<PathBuf>,
     /// L1 configuration, disabled if `None`
     pub l1_config: Option<L1Config>,
+    /// Whether to automatically execute L1 batches
+    pub auto_execute_l1: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -188,6 +192,7 @@ impl Default for TestNodeConfig {
             verbosity: 0,
             silent: false,
             system_contracts_options: Default::default(),
+            system_contracts_path: None,
             protocol_version: None,
             override_bytecodes_dir: None,
             bytecode_compression: false,
@@ -243,6 +248,7 @@ impl Default for TestNodeConfig {
             preserve_historical_states: false,
             load_state: None,
             l1_config: None,
+            auto_execute_l1: false,
         }
     }
 }
@@ -584,6 +590,15 @@ Address: {address}
     pub fn with_system_contracts(mut self, option: Option<SystemContractsOptions>) -> Self {
         if let Some(option) = option {
             self.system_contracts_options = option;
+        }
+        self
+    }
+
+    /// Set the system contracts path
+    #[must_use]
+    pub fn with_system_contracts_path(mut self, path: Option<PathBuf>) -> Self {
+        if let Some(path) = path {
+            self.system_contracts_path = Some(path);
         }
         self
     }
@@ -1122,6 +1137,13 @@ Address: {address}
     #[must_use]
     pub fn with_l1_config(mut self, l1_config: Option<L1Config>) -> Self {
         self.l1_config = l1_config;
+        self
+    }
+
+    /// Set the auto L1 execution
+    #[must_use]
+    pub fn with_auto_execute_l1(mut self, auto_execute_l1: Option<bool>) -> Self {
+        self.auto_execute_l1 = auto_execute_l1.unwrap_or(false);
         self
     }
 }

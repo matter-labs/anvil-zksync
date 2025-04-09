@@ -3,7 +3,6 @@ use super::inner::node_executor::NodeExecutorHandle;
 use super::inner::InMemoryNodeInner;
 use super::vm::AnvilVM;
 use crate::delegate_vm;
-use crate::deps::storage_view::StorageView;
 use crate::deps::InMemoryStorage;
 use crate::filters::EthFilters;
 use crate::node::call_error_tracer::CallErrorTracer;
@@ -43,7 +42,9 @@ use std::io::{Read, Write};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
-use zksync_multivm::interface::storage::{ReadStorage, StoragePtr};
+use zksync_error::anvil_zksync;
+use zksync_error::anvil_zksync::node::AnvilNodeResult;
+use zksync_multivm::interface::storage::{ReadStorage, StoragePtr, StorageView};
 use zksync_multivm::interface::VmFactory;
 use zksync_multivm::interface::{
     ExecutionResult, InspectExecutionMode, L1BatchEnv, L2BlockEnv, TxExecutionMode, VmInterface,
@@ -229,6 +230,7 @@ pub struct TxExecutionInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TransactionResult {
     pub info: TxExecutionInfo,
+    pub new_bytecodes: Vec<(H256, Vec<u8>)>,
     pub receipt: TransactionReceipt,
     pub debug: DebugCall,
 }
@@ -281,7 +283,7 @@ pub struct InMemoryNode {
     pub(crate) blockchain: Box<dyn ReadBlockchain>,
     pub(crate) storage: Box<dyn ReadStorageDyn>,
     pub(crate) fork: Box<dyn ForkSource>,
-    pub(crate) node_handle: NodeExecutorHandle,
+    pub node_handle: NodeExecutorHandle,
     /// List of snapshots of the [InMemoryNodeInner]. This is bounded at runtime by [MAX_SNAPSHOTS].
     pub(crate) snapshots: Arc<RwLock<Vec<Snapshot>>>,
     pub(crate) time: Box<dyn ReadTime>,
@@ -329,7 +331,7 @@ impl InMemoryNode {
 
     /// Replays transactions consequently in a new block. All transactions are expected to be
     /// executable and will become a part of the resulting block.
-    pub async fn replay_txs(&self, txs: Vec<Transaction>) -> anyhow::Result<()> {
+    pub async fn replay_txs(&self, txs: Vec<Transaction>) -> AnvilNodeResult<()> {
         let tx_batch = TxBatch {
             impersonating: false,
             txs,
@@ -340,7 +342,6 @@ impl InMemoryNode {
             .map(|tx| tx.hash())
             .collect::<HashSet<_>>();
         let block_number = self.node_handle.seal_block_sync(tx_batch).await?;
-
         // Fetch the block that was just sealed
         let block = self
             .blockchain
@@ -365,10 +366,9 @@ impl InMemoryNode {
             .difference(&actual_tx_hashes)
             .collect::<Vec<_>>();
         if !diff_tx_hashes.is_empty() {
-            anyhow::bail!(
-                "Failed to replay some transactions: {:?}. Please report this.",
-                diff_tx_hashes
-            );
+            return Err(anvil_zksync::node::generic_error!(
+                "Failed to replay transactions: {diff_tx_hashes:?}. Please report this."
+            ));
         }
 
         Ok(())
@@ -394,7 +394,7 @@ impl InMemoryNode {
         let (batch_env, _) = inner.create_l1_batch_env().await;
         let system_env = inner.create_system_env(base_contracts, execution_mode);
 
-        let storage = StorageView::new(inner.read_storage()).into_rc_ptr();
+        let storage = StorageView::new(inner.read_storage()).to_rc_ptr();
 
         let mut vm = if self.system_contracts.use_zkos {
             AnvilVM::ZKOs(super::zkos::ZKOsVM::<_, HistoryDisabled>::new(
@@ -485,7 +485,7 @@ impl InMemoryNode {
         &self,
         address: Address,
         bytecode: Vec<u8>,
-    ) -> anyhow::Result<()> {
+    ) -> AnvilNodeResult<()> {
         self.node_handle.set_code_sync(address, bytecode).await
     }
 
@@ -656,6 +656,7 @@ impl InMemoryNode {
         let impersonation = ImpersonationManager::default();
         let system_contracts = SystemContracts::from_options(
             config.system_contracts_options,
+            config.system_contracts_path.clone(),
             ProtocolVersionId::latest(),
             config.use_evm_emulator,
             config.use_zkos,

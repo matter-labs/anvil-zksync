@@ -112,9 +112,16 @@ anvil-zksync --external-l1 http://localhost:8545
 
 The system contract within the node can be specified via the `--dev-system-contracts` option.
 It can take one of the following options:
-   * `built-in`: Use the compiled built-in contracts
-   * `built-in-no-verify`: Use the compiled built-in contracts, but without signature verification
-   * `local`: Load contracts from `ZKSYNC_HOME`
+
+- `built-in`: Use the compiled built-in contracts
+- `built-in-no-verify`: Use the compiled built-in contracts, but without signature verification
+- `local`: Load contracts from `ZKSYNC_HOME` or specify path using `--system-contracts-path`
+
+**Example:**
+
+```bash
+anvil-zksync --dev-system-contracts local --system-contracts-path ./system-contracts --protocol-version 28
+```
 
 ## 📃 Logging
 

@@ -1,4 +1,3 @@
-use crate::deps::storage_view::StorageView;
 use crate::filters::EthFilters;
 use crate::formatter::ExecutionErrorReport;
 use crate::node::error::{LoadStateError, ToHaltError, ToRevertReason};
@@ -29,8 +28,9 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
+use zksync_error::anvil_zksync::node::AnvilNodeResult;
 use zksync_error::anvil_zksync::{halt::HaltError, revert::RevertError};
-use zksync_multivm::interface::storage::{ReadStorage, WriteStorage};
+use zksync_multivm::interface::storage::{ReadStorage, StorageView, WriteStorage};
 use zksync_multivm::interface::{
     ExecutionResult, FinishedL1Batch, InspectExecutionMode, L1BatchEnv, L2BlockEnv, SystemEnv,
     TxExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt,
@@ -143,7 +143,7 @@ impl InMemoryNodeInner {
         tracing::debug!("creating L1 batch env");
 
         let (last_l1_batch_number, last_l2_block) = self.blockchain.read().await.last_env(
-            &StorageView::new(&self.fork_storage).into_rc_ptr(),
+            &StorageView::new(&self.fork_storage).to_rc_ptr(),
             &self.time,
         );
 
@@ -195,14 +195,16 @@ impl InMemoryNodeInner {
         (batch_env, block_ctx)
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn apply_batch(
         &mut self,
         batch_timestamp: u64,
         base_system_contracts_hashes: BaseSystemContractsHashes,
-        blocks: impl IntoIterator<Item = api::Block<api::TransactionVariant>>,
+        block: api::Block<api::TransactionVariant>,
+        virtual_block: Option<api::Block<api::TransactionVariant>>,
         tx_results: Vec<TransactionResult>,
         finished_l1_batch: FinishedL1Batch,
-        aggregation_root: H256,
+        modified_storage_keys: HashMap<StorageKey, StorageValue>,
     ) {
         // TODO: `apply_batch` is leaking a lot of abstractions and should be wholly contained inside `Blockchain`.
         //       Additionally, a dedicated `PreviousStates` struct would help with separation of concern.
@@ -223,6 +225,11 @@ impl InMemoryNodeInner {
         }
 
         let mut storage = self.blockchain.write().await;
+        let new_bytecodes = tx_results
+            .iter()
+            .flat_map(|tr| tr.new_bytecodes.clone())
+            .collect::<Vec<_>>();
+        let aggregation_root = self.read_aggregation_root(&modified_storage_keys);
         storage.apply_batch(
             batch_timestamp,
             base_system_contracts_hashes,
@@ -230,7 +237,33 @@ impl InMemoryNodeInner {
             finished_l1_batch,
             aggregation_root,
         );
-        for (index, block) in blocks.into_iter().enumerate() {
+
+        // archive current state before we produce new batch/blocks
+        archive_state(
+            &mut self.previous_states,
+            self.fork_storage
+                .inner
+                .read()
+                .unwrap()
+                .raw_storage
+                .state
+                .clone(),
+            storage.current_block,
+            storage.current_block_hash,
+        );
+        storage.apply_block(block, 0);
+
+        // Apply new factory deps
+        for (hash, code) in new_bytecodes {
+            self.fork_storage.store_factory_dep(hash, code)
+        }
+
+        // Apply storage writes
+        for (key, value) in modified_storage_keys {
+            self.fork_storage.set_value(key, value);
+        }
+
+        if let Some(virtual_block) = virtual_block {
             // archive current state before we produce new batch/blocks
             archive_state(
                 &mut self.previous_states,
@@ -244,7 +277,7 @@ impl InMemoryNodeInner {
                 storage.current_block,
                 storage.current_block_hash,
             );
-            storage.apply_block(block, index as u32);
+            storage.apply_block(virtual_block, 1);
         }
     }
 
@@ -259,16 +292,23 @@ impl InMemoryNodeInner {
         key
     }
 
-    fn read_aggregation_root(&self) -> H256 {
+    fn read_aggregation_root(
+        &self,
+        modified_storage_keys: &HashMap<StorageKey, StorageValue>,
+    ) -> H256 {
         let agg_tree_height_slot = StorageKey::new(
             AccountTreeId::new(L2_MESSAGE_ROOT_ADDRESS),
             H256::from_low_u64_be(AGG_TREE_HEIGHT_KEY as u64),
         );
 
-        let agg_tree_height = self
-            .fork_storage
-            .read_value_internal(&agg_tree_height_slot)
-            .unwrap();
+        let agg_tree_height = modified_storage_keys
+            .get(&agg_tree_height_slot)
+            .copied()
+            .unwrap_or_else(|| {
+                self.fork_storage
+                    .read_value_internal(&agg_tree_height_slot)
+                    .unwrap()
+            });
         let agg_tree_height = h256_to_u256(agg_tree_height);
 
         // `nodes[height][0]`
@@ -279,23 +319,28 @@ impl InMemoryNodeInner {
             agg_tree_root_hash_key,
         );
 
-        self.fork_storage
-            .read_value_internal(&agg_tree_root_hash_slot)
-            .unwrap()
+        modified_storage_keys
+            .get(&agg_tree_root_hash_slot)
+            .copied()
+            .unwrap_or_else(|| {
+                self.fork_storage
+                    .read_value_internal(&agg_tree_root_hash_slot)
+                    .unwrap()
+            })
     }
 
     pub(super) async fn seal_block(
         &mut self,
         tx_batch_execution_result: TxBatchExecutionResult,
-    ) -> anyhow::Result<L2BlockNumber> {
+    ) -> AnvilNodeResult<L2BlockNumber> {
         let TxBatchExecutionResult {
             tx_results,
             base_system_contracts_hashes,
             batch_env,
             block_ctxs,
             finished_l1_batch,
+            modified_storage_keys,
         } = tx_batch_execution_result;
-        let aggregation_root = self.read_aggregation_root();
 
         let mut filters = self.filters.write().await;
         for tx_result in &tx_results {
@@ -355,7 +400,7 @@ impl InMemoryNodeInner {
             .fold(U256::zero(), |acc, x| acc + x);
 
         // Construct the block
-        let mut blocks = vec![create_block(
+        let block = create_block(
             &batch_env,
             block_ctxs[0].hash,
             block_ctxs[0].prev_block_hash,
@@ -364,11 +409,11 @@ impl InMemoryNodeInner {
             transactions,
             gas_used,
             logs_bloom,
-        )];
+        );
 
         // Make sure optional virtual block gets saved too
-        if block_ctxs.len() == 2 {
-            let virtual_block = create_block(
+        let virtual_block = if block_ctxs.len() == 2 {
+            Some(create_block(
                 &batch_env,
                 block_ctxs[1].hash,
                 block_ctxs[1].prev_block_hash,
@@ -377,25 +422,26 @@ impl InMemoryNodeInner {
                 vec![],
                 U256::zero(),
                 Bloom::zero(),
-            );
-            blocks.push(virtual_block);
-        }
-        let block_hashes = blocks.iter().map(|b| b.hash).collect::<Vec<_>>();
+            ))
+        } else {
+            None
+        };
 
         // Use first block's timestamp as batch timestamp
         self.apply_batch(
             batch_env.timestamp,
             base_system_contracts_hashes,
-            blocks,
+            block,
+            virtual_block,
             tx_results,
             finished_l1_batch,
-            aggregation_root,
+            modified_storage_keys,
         )
         .await;
 
         let mut filters = self.filters.write().await;
-        for block_hash in block_hashes {
-            filters.notify_new_block(block_hash);
+        for block_ctx in &block_ctxs {
+            filters.notify_new_block(block_ctx.hash);
         }
         drop(filters);
 
@@ -533,7 +579,7 @@ impl InMemoryNodeInner {
                 self.system_contracts.use_zkos,
             );
 
-            if result.statistics.pubdata_published > MAX_VM_PUBDATA_PER_BATCH.try_into().unwrap() {
+            if result.statistics.pubdata_published > (MAX_VM_PUBDATA_PER_BATCH as u32) {
                 return Err(Web3Error::SubmitTransactionError(
                     "exceeds limit for published pubdata".into(),
                     Default::default(),
@@ -716,7 +762,7 @@ impl InMemoryNodeInner {
             ExecuteTransactionCommon::ProtocolUpgrade(_) => unimplemented!(),
         }
 
-        let storage = StorageView::new(fork_storage).into_rc_ptr();
+        let storage = StorageView::new(fork_storage).to_rc_ptr();
 
         // The nonce needs to be updated
         let nonce_key = self
@@ -777,14 +823,14 @@ impl InMemoryNodeInner {
     }
 
     /// Creates a [Snapshot] of the current state of the node.
-    pub async fn snapshot(&self) -> Result<Snapshot, String> {
+    pub async fn snapshot(&self) -> AnvilNodeResult<Snapshot> {
         let blockchain = self.blockchain.read().await;
         let filters = self.filters.read().await.clone();
         let storage = self
             .fork_storage
             .inner
             .read()
-            .map_err(|err| format!("failed acquiring read lock on storage: {:?}", err))?;
+            .expect("failed acquiring read lock on storage");
 
         Ok(Snapshot {
             current_batch: blockchain.current_batch,
@@ -805,13 +851,13 @@ impl InMemoryNodeInner {
     }
 
     /// Restores a previously created [Snapshot] of the node.
-    pub async fn restore_snapshot(&mut self, snapshot: Snapshot) -> Result<(), String> {
+    pub async fn restore_snapshot(&mut self, snapshot: Snapshot) -> AnvilNodeResult<()> {
         let mut blockchain = self.blockchain.write().await;
         let mut storage = self
             .fork_storage
             .inner
             .write()
-            .map_err(|err| format!("failed acquiring write lock on storage: {:?}", err))?;
+            .expect("failed acquiring write lock on storage");
 
         blockchain.current_batch = snapshot.current_batch;
         blockchain.current_block = snapshot.current_block;
@@ -939,28 +985,18 @@ impl InMemoryNodeInner {
                     error
                 ))),
             }
-        } else if storage.hashes.contains_key(&block_number) {
-            let value = storage
-                .hashes
-                .get(&block_number)
-                .and_then(|block_hash| self.previous_states.get(block_hash))
-                .and_then(|state| state.get(&storage_key))
-                .cloned()
-                .unwrap_or_default();
-            if !value.is_zero() {
-                return Ok(value);
+        } else if let Some(block_hash) = storage.hashes.get(&block_number) {
+            let state = self
+                .previous_states
+                .get(block_hash)
+                .ok_or_else(|| Web3Error::PrunedBlock(block_number))?;
+            if let Some(value) = state.get(&storage_key) {
+                return Ok(*value);
             }
-            // TODO: Check if the rest of the logic below makes sense.
-            //       AFAIU this branch can only be entered if the block was produced locally, but
-            //       we query the fork regardless?
-            match self.fork_storage.read_value_internal(&storage_key) {
-                Ok(value) => Ok(H256(value.0)),
-                Err(error) => Err(Web3Error::InternalError(anyhow::anyhow!(
-                    "failed to read storage: {}",
-                    error
-                ))),
-            }
+            // Block was produced locally but slot hasn't been touched since we forked
+            Ok(self.fork.get_storage_at_forked(address, idx).await?)
         } else {
+            // Block was not produced locally so we assume it comes from fork
             Ok(self.fork.get_storage_at(address, idx, block).await?)
         }
     }
@@ -993,6 +1029,7 @@ impl InMemoryNodeInner {
             self.config.system_contracts_options,
             self.blockchain.protocol_version,
             self.config.chain_id,
+            self.config.system_contracts_path.as_deref(),
         );
         let mut old_storage = self.fork_storage.inner.write().unwrap();
         let mut new_storage = fork_storage.inner.write().unwrap();
@@ -1098,6 +1135,7 @@ pub mod testing {
             let impersonation = ImpersonationManager::default();
             let system_contracts = SystemContracts::from_options(
                 config.system_contracts_options,
+                config.system_contracts_path.clone(),
                 ProtocolVersionId::latest(),
                 config.use_evm_emulator,
                 config.use_zkos,
@@ -1193,6 +1231,7 @@ mod tests {
                 H256::repeat_byte(0x1),
                 TransactionResult {
                     info: testing::default_tx_execution_info(),
+                    new_bytecodes: vec![],
                     receipt: Default::default(),
                     debug: testing::default_tx_debug_info(),
                 },
@@ -1302,6 +1341,7 @@ mod tests {
                 H256::repeat_byte(0x1),
                 TransactionResult {
                     info: testing::default_tx_execution_info(),
+                    new_bytecodes: vec![],
                     receipt: Default::default(),
                     debug: testing::default_tx_debug_info(),
                 },
@@ -1364,6 +1404,7 @@ mod tests {
                 H256::repeat_byte(0x2),
                 TransactionResult {
                     info: testing::default_tx_execution_info(),
+                    new_bytecodes: vec![],
                     receipt: Default::default(),
                     debug: testing::default_tx_debug_info(),
                 },

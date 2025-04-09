@@ -3,7 +3,7 @@ use crate::cli::{Cli, Command, ForkUrl, PeriodicStateDumper};
 use crate::utils::update_with_fork_details;
 use anvil_zksync_api_server::NodeServerBuilder;
 use anvil_zksync_common::shell::get_shell;
-use anvil_zksync_common::{sh_eprintln, sh_err, sh_warn};
+use anvil_zksync_common::{sh_eprintln, sh_err, sh_println, sh_warn};
 use anvil_zksync_config::constants::{
     DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
     DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L1_GAS_PRICE, DEFAULT_L2_GAS_PRICE, LEGACY_RICH_WALLETS,
@@ -15,15 +15,19 @@ use anvil_zksync_core::filters::EthFilters;
 use anvil_zksync_core::node::fork::ForkClient;
 use anvil_zksync_core::node::{
     BlockSealer, BlockSealerMode, ImpersonationManager, InMemoryNode, InMemoryNodeInner,
-    NodeExecutor, StorageKeyLayout, TestNodeFeeInputProvider, TxPool,
+    NodeExecutor, StorageKeyLayout, TestNodeFeeInputProvider, TxBatch, TxPool,
 };
 use anvil_zksync_core::observability::Observability;
-use anvil_zksync_core::system_contracts::SystemContracts;
+use anvil_zksync_core::system_contracts::SystemContractsBuilder;
 use anvil_zksync_l1_sidecar::L1Sidecar;
+use anvil_zksync_types::L2TxBuilder;
 use anyhow::Context;
 use clap::Parser;
+use indicatif::{ProgressBar, ProgressStyle};
+use std::fmt::Write;
 use std::fs::File;
 use std::future::Future;
+use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
@@ -36,7 +40,7 @@ use zksync_error::anvil_zksync::AnvilZksyncError;
 use zksync_error::{ICustomError, IError as _};
 use zksync_telemetry::{get_telemetry, init_telemetry, TelemetryProps};
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
-use zksync_types::{L2BlockNumber, H160};
+use zksync_types::{Address, L2BlockNumber, Nonce, CONTRACT_DEPLOYER_ADDRESS, H160, U256};
 
 mod bytecode_override;
 mod cli;
@@ -194,11 +198,29 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         }
     };
 
-    if matches!(
-        config.system_contracts_options,
-        SystemContractsOptions::Local
-    ) {
-        if let Some(path) = env::var_os("ZKSYNC_HOME") {
+    // Ensure that system_contracts_path is only used with Local.
+    if config.system_contracts_options != SystemContractsOptions::Local
+        && config.system_contracts_path.is_some()
+    {
+        return Err(to_domain(generic_error!(
+            "The --system-contracts-path option can only be specified when --dev-system-contracts is set to 'local'."
+        )));
+    }
+    if let SystemContractsOptions::Local = config.system_contracts_options {
+        // if local system contracts specified, check if the path exists else use env var
+        // ZKSYNC_HOME
+        let path: Option<PathBuf> = config
+            .system_contracts_path
+            .clone()
+            .or_else(|| env::var_os("ZKSYNC_HOME").map(PathBuf::from));
+
+        if let Some(path) = path {
+            if !path.exists() || !path.is_dir() {
+                return Err(to_domain(generic_error!(
+                    "The specified system contracts path '{}' does not exist or is not a directory.",
+                    path.to_string_lossy()
+                )));
+            }
             tracing::debug!("Reading local contracts from {:?}", path);
         }
     }
@@ -246,12 +268,16 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
     let fee_input_provider =
         TestNodeFeeInputProvider::from_fork(fork_client.as_ref().map(|f| &f.details));
     let filters = Arc::new(RwLock::new(EthFilters::default()));
-    let system_contracts = SystemContracts::from_options(
-        config.system_contracts_options,
-        config.protocol_version(),
-        config.use_evm_emulator,
-        config.use_zkos,
-    );
+
+    // Build system contracts
+    let system_contracts = SystemContractsBuilder::new()
+        .system_contracts_options(config.system_contracts_options)
+        .system_contracts_path(config.system_contracts_path.clone())
+        .protocol_version(config.protocol_version())
+        .use_evm_emulator(config.use_evm_emulator)
+        .use_zkos(config.use_zkos)
+        .build();
+
     let storage_key_layout = if config.use_zkos {
         StorageKeyLayout::ZkOs
     } else {
@@ -288,6 +314,7 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
                 blockchain.clone(),
                 node_handle.clone(),
                 pool.clone(),
+                config.auto_execute_l1,
             )
             .await
             .map_err(to_domain)?;
@@ -301,6 +328,7 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
                 blockchain.clone(),
                 node_handle.clone(),
                 pool.clone(),
+                config.auto_execute_l1,
             )
             .await
             .map_err(to_domain)?;
@@ -325,7 +353,7 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         blockchain,
         storage,
         fork,
-        node_handle,
+        node_handle.clone(),
         Some(observability),
         time,
         impersonation,
@@ -339,12 +367,47 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
     // during replay. Otherwise, replay would send commands and hang.
     tokio::spawn(async move {
         if let Err(err) = node_executor.run().await {
-            let error = err.context("Node executor ended with error");
-            sh_err!("{:?}", error);
+            sh_err!("{err}");
 
-            let _ = telemetry.track_error(Box::new(error.as_ref())).await;
+            let _ = telemetry.track_error(Box::new(&err)).await;
         }
     });
+
+    if config.use_evm_emulator {
+        // We need to enable EVM emulator by setting `allowedBytecodeTypesToDeploy` in `ContractDeployer`
+        // to `1` (i.e. `AllowedBytecodeTypes::EraVmAndEVM`).
+        let service_call_pseudo_caller =
+            Address::from_str("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF").unwrap();
+        node.impersonate_account(service_call_pseudo_caller)
+            .unwrap();
+        node.set_rich_account(service_call_pseudo_caller, U256::from(1_000_000_000_000u64))
+            .await;
+        let tx = L2TxBuilder::new(
+            service_call_pseudo_caller,
+            Nonce(0),
+            U256::from(300_000),
+            U256::from(u32::MAX),
+            node.chain_id().await,
+        )
+        .with_to(CONTRACT_DEPLOYER_ADDRESS)
+        .with_calldata(
+            // cast calldata "setAllowedBytecodeTypesToDeploy(uint8)()" 1
+            hex::decode("fe06380c0000000000000000000000000000000000000000000000000000000000000001")
+                .unwrap(),
+        )
+        .build_impersonated();
+        node_handle
+            .seal_block_sync(TxBatch {
+                impersonating: true,
+                txs: vec![tx.into()],
+            })
+            .await
+            .map_err(to_domain)?;
+        node.set_rich_account(service_call_pseudo_caller, U256::from(0))
+            .await;
+        node.stop_impersonating_account(service_call_pseudo_caller)
+            .unwrap();
+    }
 
     if let Some(ref bytecodes_dir) = config.override_bytecodes_dir {
         override_bytecodes(&node, bytecodes_dir.to_string())
@@ -353,9 +416,30 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
     }
 
     if !transactions_to_replay.is_empty() {
+        sh_println!("Executing transactions from the block.");
+        let total_txs = transactions_to_replay.len() as u64;
+        let pb = ProgressBar::new(total_txs);
+        pb.enable_steady_tick(std::time::Duration::from_secs(1));
+        pb.set_style(
+            ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos}/{len} tx ({eta})")
+                .unwrap()
+                .with_key("eta", |state: &indicatif::ProgressState, w: &mut dyn Write| {
+                    write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap()
+                })
+                .progress_chars("#>-")
+            );
+
+        node.node_handle
+            .set_progress_report(Some(pb.clone()))
+            .await
+            .map_err(to_domain)?;
+
         node.replay_txs(transactions_to_replay)
             .await
             .map_err(to_domain)?;
+
+        pb.finish_and_clear();
+        sh_println!("Done replaying transactions.");
 
         // If we are in replay mode, we don't start the server
         return Ok(());

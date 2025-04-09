@@ -3,3 +3,4 @@ typechain-types
 cache-zk
 artifacts-zk
 build-info
+out

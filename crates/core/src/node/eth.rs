@@ -1,9 +1,8 @@
-use std::collections::HashSet;
-
 use crate::formatter::ExecutionErrorReport;
 use crate::node::error::{ToHaltError, ToRevertReason};
-use anvil_zksync_common::{sh_err, sh_println};
+use anvil_zksync_common::{sh_err, sh_println, sh_warn};
 use anyhow::Context as _;
+use std::collections::HashSet;
 use zksync_error::anvil_zksync::{halt::HaltError, revert::RevertError};
 use zksync_multivm::interface::ExecutionResult;
 use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
@@ -42,6 +41,17 @@ impl InMemoryNode {
             MAX_TX_SIZE,
             self.system_contracts.allow_no_target(),
         )?;
+
+        // Warn if target address has no code
+        if let Some(to_address) = tx.execute.contract_address {
+            let code_key = get_code_key(&to_address);
+            if self.storage.read_value_alt(&code_key).await?.is_zero() {
+                sh_warn!(
+                    "Read only call to address {to_address}, which is not associated with any contract."
+                )
+            }
+        }
+
         tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
         let call_result = self
             .run_l2_call(tx.clone(), system_contracts)
@@ -1678,6 +1688,7 @@ mod tests {
                     H256::repeat_byte(0x1),
                     TransactionResult {
                         info: testing::default_tx_execution_info(),
+                        new_bytecodes: vec![],
                         receipt: TransactionReceipt {
                             logs: vec![LogBuilder::new()
                                 .set_address(H160::repeat_byte(0xa1))
@@ -1693,6 +1704,7 @@ mod tests {
                     H256::repeat_byte(0x2),
                     TransactionResult {
                         info: testing::default_tx_execution_info(),
+                        new_bytecodes: vec![],
                         receipt: TransactionReceipt {
                             logs: vec![
                                 LogBuilder::new()
@@ -1740,6 +1752,7 @@ mod tests {
                     H256::repeat_byte(0x1),
                     TransactionResult {
                         info: testing::default_tx_execution_info(),
+                        new_bytecodes: vec![],
                         receipt: TransactionReceipt {
                             logs: vec![LogBuilder::new()
                                 .set_address(H160::repeat_byte(0xa1))
@@ -1770,6 +1783,7 @@ mod tests {
                     H256::repeat_byte(0x1),
                     TransactionResult {
                         info: testing::default_tx_execution_info(),
+                        new_bytecodes: vec![],
                         receipt: TransactionReceipt {
                             logs: vec![LogBuilder::new()
                                 .set_address(H160::repeat_byte(0xa1))
@@ -1785,6 +1799,7 @@ mod tests {
                     H256::repeat_byte(0x2),
                     TransactionResult {
                         info: testing::default_tx_execution_info(),
+                        new_bytecodes: vec![],
                         receipt: TransactionReceipt {
                             logs: vec![
                                 LogBuilder::new()
