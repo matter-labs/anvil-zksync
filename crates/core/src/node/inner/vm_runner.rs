@@ -230,7 +230,8 @@ impl VmRunner {
             formatter.print_vm_details(&tx_result);
         }
 
-        if !call_traces.is_empty() {
+        let verbosity = get_shell().verbosity;
+        if !call_traces.is_empty() && verbosity >= 2 {
             let mut builder = CallTraceDecoderBuilder::new();
 
             builder = builder.with_signature_identifier(
@@ -244,12 +245,10 @@ impl VmRunner {
             let mut arena = build_call_trace_arena(&call_traces, &tx_result);
             decode_trace_arena(&mut arena, &decoder).await?;
 
-            let verbosity = get_shell().verbosity;
-            if verbosity >= 2 {
-                let filtered_arena = filter_call_trace_arena(&arena, verbosity);
-                let trace_output = render_trace_arena_inner(&filtered_arena, false);
-                sh_println!("\nTraces:\n{}", trace_output);
-            }
+            let filtered_arena = filter_call_trace_arena(&arena, verbosity);
+            let trace_output = render_trace_arena_inner(&filtered_arena, false);
+            sh_println!("\nTraces:\n{}", trace_output);
+
             if !config.disable_console_log {
                 self.console_log_handler
                     .handle_calls_recursive(&call_traces);

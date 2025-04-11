@@ -4,7 +4,9 @@ use anvil_zksync_types::traces::{
 };
 use decode::CallTraceDecoder;
 use writer::TraceWriter;
-use zksync_multivm::interface::{Call, VmExecutionResultAndLogs};
+use zksync_multivm::interface::{
+    Call, ExecutionResult, Halt, VmExecutionResultAndLogs, VmRevertReason,
+};
 use zksync_types::H160;
 
 pub mod abi_utils;
@@ -14,20 +16,31 @@ pub mod writer;
 
 /// Converts a single call into a CallTrace.
 #[inline]
-fn convert_call_to_call_trace(
-    call: &Call,
-    depth: usize,
-    tx_result: &VmExecutionResultAndLogs,
-) -> CallTrace {
+fn convert_call_to_call_trace(call: &Call) -> CallTrace {
     let label = KNOWN_ADDRESSES
         .get(&call.to)
         .map(|known| known.name.clone());
+
+    // Determine the execution result based on individual call
+    let execution_result = if let Some(ref revert_reason) = call.revert_reason {
+        ExecutionResult::Revert {
+            output: VmRevertReason::from(revert_reason.as_bytes()),
+        }
+    } else if let Some(ref err) = call.error {
+        ExecutionResult::Halt {
+            reason: Halt::TracerCustom(err.to_string()),
+        }
+    } else {
+        ExecutionResult::Success {
+            output: call.output.clone(),
+        }
+    };
+
     CallTrace {
-        depth,
-        success: !tx_result.result.is_failed(),
+        success: !execution_result.is_failed(),
         caller: call.from,
         address: call.to,
-        execution_result: tx_result.result.clone(),
+        execution_result,
         decoded: DecodedCallTrace {
             label,
             ..Default::default()
@@ -104,7 +117,7 @@ fn process_call_and_subcalls(
         )
         .collect();
 
-    let call_trace = convert_call_to_call_trace(call, depth, tx_result);
+    let call_trace = convert_call_to_call_trace(call);
 
     let node = CallTraceNode {
         parent: None,

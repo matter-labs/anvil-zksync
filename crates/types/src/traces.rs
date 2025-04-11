@@ -188,8 +188,6 @@ impl CallLog {
 /// A trace of a call with optional decoded data.
 #[derive(Clone, Debug)]
 pub struct CallTrace {
-    /// The depth of the call.
-    pub depth: usize,
     /// Whether the call was successful.
     pub success: bool,
     /// The caller address.
@@ -244,7 +242,6 @@ impl Default for CallTraceNode {
             children: Vec::new(),
             idx: 0,
             trace: CallTrace {
-                depth: 0,
                 success: true,
                 caller: H160::zero(),
                 address: H160::zero(),
@@ -286,7 +283,6 @@ impl Default for CallTraceArena {
             children: Vec::new(),
             idx: 0,
             trace: CallTrace {
-                depth: 0,
                 success: true,
                 caller: H160::zero(),
                 address: H160::zero(),
