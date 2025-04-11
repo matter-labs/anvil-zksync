@@ -62,7 +62,7 @@ pub fn build_call_trace_arena(
     }
 
     for call in calls {
-        process_call_and_subcalls(call, 0, 0, &mut arena, tx_result);
+        process_call_and_subcalls(call, 0, &mut arena, tx_result);
     }
     arena
 }
@@ -71,7 +71,6 @@ pub fn build_call_trace_arena(
 fn process_call_and_subcalls(
     call: &Call,
     parent_idx: usize,
-    depth: usize,
     arena: &mut CallTraceArena,
     tx_result: &VmExecutionResultAndLogs,
 ) {
@@ -133,7 +132,7 @@ fn process_call_and_subcalls(
 
     // Process subcalls under the new parent.
     for subcall in &call.calls {
-        process_call_and_subcalls(subcall, new_parent_idx, depth + 1, arena, tx_result);
+        process_call_and_subcalls(subcall, new_parent_idx, arena, tx_result);
     }
 }
 
