@@ -17,7 +17,7 @@ pub mod writer;
 fn convert_call_to_call_trace(
     call: &Call,
     depth: usize,
-    tx_result: VmExecutionResultAndLogs,
+    tx_result: &VmExecutionResultAndLogs,
 ) -> CallTrace {
     let label = KNOWN_ADDRESSES
         .get(&call.to)
@@ -27,7 +27,7 @@ fn convert_call_to_call_trace(
         success: !tx_result.result.is_failed(),
         caller: call.from,
         address: call.to,
-        execution_result: tx_result,
+        execution_result: tx_result.result.clone(),
         decoded: DecodedCallTrace {
             label,
             ..Default::default()
@@ -45,7 +45,7 @@ pub fn build_call_trace_arena(
 
     // Update the root node's execution result.
     if let Some(root_node) = arena.arena.get_mut(0) {
-        root_node.trace.execution_result = tx_result.clone();
+        root_node.trace.execution_result = tx_result.result.clone();
     }
 
     for call in calls {
@@ -104,7 +104,7 @@ fn process_call_and_subcalls(
         )
         .collect();
 
-    let call_trace = convert_call_to_call_trace(call, depth, tx_result.clone());
+    let call_trace = convert_call_to_call_trace(call, depth, tx_result);
 
     let node = CallTraceNode {
         parent: None,
