@@ -362,7 +362,7 @@ impl<W: Write> TraceWriter<W> {
     /// Writes the footer of a call trace.
     fn write_trace_footer(&mut self, trace: &CallTrace) -> io::Result<()> {
         // Use the custom trait to format the execution result
-        let status_str = trace.execution_result.result.display();
+        let status_str = trace.execution_result.display();
 
         // Write the execution result status using the formatted string
         write!(
@@ -381,7 +381,7 @@ impl<W: Write> TraceWriter<W> {
         // Handle contract creation or output data
         if !self.config.write_bytecodes
             && matches!(trace.call.r#type, CallType::Create)
-            && !trace.execution_result.result.is_failed()
+            && !trace.execution_result.is_failed()
         {
             write!(self.writer, " {} bytes of code", trace.call.output.len())?;
         } else if !trace.call.output.is_empty() {
