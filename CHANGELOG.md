@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.1](https://github.com/matter-labs/anvil-zksync/compare/v0.5.0...v0.5.1) (2025-04-11)
+
+
+### Bug Fixes
+
+* crossbeam-channel dep from rust advisory ([#663](https://github.com/matter-labs/anvil-zksync/issues/663)) ([5c50303](https://github.com/matter-labs/anvil-zksync/commit/5c503037d8a07a64a89abf036d4d55344904b5d1))
+* fix revert messages being appended to every call ([#665](https://github.com/matter-labs/anvil-zksync/issues/665)) ([94ba824](https://github.com/matter-labs/anvil-zksync/commit/94ba824f0b48e428925ae881b368052672d87abc))
+
 ## [0.5.0](https://github.com/matter-labs/anvil-zksync/compare/v0.4.0...v0.5.0) (2025-04-09)
 
 
