@@ -558,11 +558,6 @@ impl InMemoryNode {
         Ok(value)
     }
 
-    pub async fn set_show_tx_summary(&self, value: bool) -> anyhow::Result<bool> {
-        self.inner.write().await.config.show_tx_summary = value;
-        Ok(value)
-    }
-
     pub fn set_log_level(&self, level: LogLevel) -> anyhow::Result<bool> {
         let Some(observability) = &self.observability else {
             anyhow::bail!("Node's logging is not set up.")

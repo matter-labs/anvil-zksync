@@ -94,10 +94,6 @@ pub struct Cli {
     /// If true, prints node config on startup.
     pub show_node_config: Option<bool>,
 
-    #[arg(long, default_value = "true", default_missing_value = "true", num_args(0..=1), help_heading = "Debugging Options")]
-    /// If true, prints transactions and calls summary.
-    pub show_tx_summary: Option<bool>,
-
     // Debugging Options
     #[arg(long, help_heading = "Debugging Options")]
     /// Show storage log information.
@@ -584,7 +580,6 @@ impl Cli {
             .with_l1_gas_price(self.l1_gas_price)
             .with_l2_gas_price(self.l2_gas_price)
             .with_l1_pubdata_price(self.l1_pubdata_price)
-            .with_show_tx_summary(self.show_tx_summary)
             .with_vm_log_detail(self.show_vm_details)
             .with_show_storage_logs(self.show_storage_logs)
             .with_show_gas_details(self.show_gas_details)
@@ -678,9 +673,6 @@ impl Cli {
                 v.map(|_| TELEMETRY_SENSITIVE_VALUE)
             })
             .insert_with("show_node_config", self.show_node_config, |v| {
-                (!v.unwrap_or(false)).then_some(false)
-            })
-            .insert_with("show_tx_summary", self.show_tx_summary, |v| {
                 (!v.unwrap_or(false)).then_some(false)
             })
             .insert(

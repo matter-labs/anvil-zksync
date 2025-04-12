@@ -51,8 +51,6 @@ pub struct TestNodeConfig {
     pub port: u16,
     /// Print node config on startup if true
     pub show_node_config: bool,
-    /// Print transactions and calls summary if true
-    pub show_tx_summary: bool,
     /// Level of detail for storage logs
     pub show_storage_logs: ShowStorageLogs,
     /// Level of detail for VM execution logs
@@ -170,7 +168,6 @@ impl Default for TestNodeConfig {
             config_out: None,
             port: NODE_PORT,
             show_node_config: true,
-            show_tx_summary: true,
             show_storage_logs: Default::default(),
             show_vm_details: Default::default(),
             show_gas_details: Default::default(),
@@ -782,15 +779,6 @@ Address: {address}
     pub fn with_show_node_config(mut self, show_node_config: Option<bool>) -> Self {
         if let Some(show_node_config) = show_node_config {
             self.show_node_config = show_node_config;
-        }
-        self
-    }
-
-    // Enable or disable printing transactions and calls summary
-    #[must_use]
-    pub fn with_show_tx_summary(mut self, show_tx_summary: Option<bool>) -> Self {
-        if let Some(show_tx_summary) = show_tx_summary {
-            self.show_tx_summary = show_tx_summary;
         }
         self
     }

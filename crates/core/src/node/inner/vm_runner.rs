@@ -203,9 +203,7 @@ impl VmRunner {
         };
 
         // Print transaction summary
-        if config.show_tx_summary {
-            formatter::print_transaction_summary(config.get_l2_gas_price(), tx, &tx_result, status);
-        }
+        formatter::print_transaction_summary(config.get_l2_gas_price(), tx, &tx_result, status);
         // Print gas details if enabled
         if config.show_gas_details != ShowGasDetails::None {
             self.display_detailed_gas_info(
