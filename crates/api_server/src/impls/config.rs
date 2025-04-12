@@ -44,14 +44,6 @@ impl ConfigNamespaceServer for ConfigNamespace {
             .map_err(RpcError::from)?)
     }
 
-    async fn set_resolve_hashes(&self, value: bool) -> RpcResult<bool> {
-        Ok(self
-            .node
-            .set_resolve_hashes(value)
-            .await
-            .map_err(RpcError::from)?)
-    }
-
     async fn set_show_node_config(&self, value: bool) -> RpcResult<bool> {
         Ok(self
             .node

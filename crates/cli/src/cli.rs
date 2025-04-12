@@ -119,11 +119,6 @@ pub struct Cli {
     /// Show gas details information.
     pub show_gas_details: Option<ShowGasDetails>,
 
-    #[arg(long, default_missing_value = "true", num_args(0..=1), help_heading = "Debugging Options")]
-    /// If true, the tool will try to resolve ABI and topic names for better readability.
-    /// May decrease performance.
-    pub resolve_hashes: Option<bool>,
-
     /// Increments verbosity each time it is used. (-vv, -vvv)
     ///
     /// Example usage:
@@ -603,7 +598,6 @@ impl Cli {
             .with_show_storage_logs(self.show_storage_logs)
             .with_show_gas_details(self.show_gas_details)
             .with_show_event_logs(self.show_event_logs)
-            .with_resolve_hashes(self.resolve_hashes)
             .with_gas_limit_scale(self.limit_scale_factor)
             .with_price_scale(self.price_scale_factor)
             .with_verbosity_level(self.verbosity)
@@ -717,7 +711,6 @@ impl Cli {
                 "show_gas_details",
                 self.show_gas_details.map(|v| v.to_string()),
             )
-            .insert("resolve_hashes", self.resolve_hashes)
             .insert(
                 "l1_gas_price",
                 self.l1_gas_price.map(serde_json::Number::from),

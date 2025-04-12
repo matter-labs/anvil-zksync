@@ -553,11 +553,6 @@ impl InMemoryNode {
         Ok(show_gas_details.to_string())
     }
 
-    pub async fn set_resolve_hashes(&self, value: bool) -> anyhow::Result<bool> {
-        self.inner.write().await.config.resolve_hashes = value;
-        Ok(value)
-    }
-
     pub async fn set_show_node_config(&self, value: bool) -> anyhow::Result<bool> {
         self.inner.write().await.config.show_node_config = value;
         Ok(value)

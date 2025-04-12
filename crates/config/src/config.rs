@@ -63,8 +63,6 @@ pub struct TestNodeConfig {
     pub show_gas_details: ShowGasDetails,
     /// Numeric verbosity derived from repeated `-v` flags (e.g. -v = 1, -vv = 2, etc.).
     pub verbosity: u8,
-    /// Whether to resolve hash references
-    pub resolve_hashes: bool,
     /// Don’t print anything on startup if true
     pub silent: bool,
     /// Configuration for system contracts
@@ -179,7 +177,6 @@ impl Default for TestNodeConfig {
             show_storage_logs: Default::default(),
             show_vm_details: Default::default(),
             show_gas_details: Default::default(),
-            resolve_hashes: false,
             verbosity: 0,
             silent: false,
             system_contracts_options: Default::default(),
@@ -765,17 +762,7 @@ Address: {address}
     /// Applies the defaults for debug mode.
     #[must_use]
     pub fn with_debug_mode(mut self) -> Self {
-        self.resolve_hashes = true;
         self.show_gas_details = ShowGasDetails::All;
-        self
-    }
-
-    /// Enable or disable resolving hashes
-    #[must_use]
-    pub fn with_resolve_hashes(mut self, resolve: Option<bool>) -> Self {
-        if let Some(resolve) = resolve {
-            self.resolve_hashes = resolve;
-        }
         self
     }
 
@@ -829,11 +816,6 @@ Address: {address}
     /// Get the visibility of event logs
     pub fn get_show_event_logs(&self) -> bool {
         self.show_event_logs
-    }
-
-    /// Check if resolving hashes is enabled
-    pub fn is_resolve_hashes_enabled(&self) -> bool {
-        self.resolve_hashes
     }
 
     /// Set the visibility of storage logs

@@ -41,16 +41,6 @@ pub trait ConfigNamespace {
     #[method(name = "setShowGasDetails")]
     async fn set_show_gas_details(&self, value: ShowGasDetails) -> RpcResult<String>;
 
-    /// Set resolve_hashes for the InMemoryNodeInner
-    ///
-    /// # Parameters
-    /// - `value`: A bool to update resolve_hashes to
-    ///
-    /// # Returns
-    /// The updated `resolve_hashes` value for the InMemoryNodeInner.
-    #[method(name = "setResolveHashes")]
-    async fn set_resolve_hashes(&self, value: bool) -> RpcResult<bool>;
-
     /// Set show_node_config for the InMemoryNodeInner
     ///
     /// # Parameters
