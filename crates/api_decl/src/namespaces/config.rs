@@ -61,16 +61,6 @@ pub trait ConfigNamespace {
     #[method(name = "setShowTxSummary")]
     async fn set_show_tx_summary(&self, value: bool) -> RpcResult<bool>;
 
-    /// Set show_event_logs for the InMemoryNodeInner
-    ///
-    /// # Parameters
-    /// - `value`: A bool to update show_event_logs to
-    ///
-    /// # Returns
-    /// The updated/current `show_event_logs` value for the InMemoryNodeInner.
-    #[method(name = "setShowEventLogs")]
-    async fn set_show_event_logs(&self, value: bool) -> RpcResult<bool>;
-
     /// Set the logging for the InMemoryNodeInner
     ///
     /// # Parameters

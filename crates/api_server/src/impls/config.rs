@@ -60,14 +60,6 @@ impl ConfigNamespaceServer for ConfigNamespace {
             .map_err(RpcError::from)?)
     }
 
-    async fn set_show_event_logs(&self, value: bool) -> RpcResult<bool> {
-        Ok(self
-            .node
-            .set_show_event_logs(value)
-            .await
-            .map_err(RpcError::from)?)
-    }
-
     async fn set_log_level(&self, level: LogLevel) -> RpcResult<bool> {
         Ok(self.node.set_log_level(level).map_err(RpcError::from)?)
     }

@@ -53,8 +53,6 @@ pub struct TestNodeConfig {
     pub show_node_config: bool,
     /// Print transactions and calls summary if true
     pub show_tx_summary: bool,
-    /// If true, logs events.
-    pub show_event_logs: bool,
     /// Level of detail for storage logs
     pub show_storage_logs: ShowStorageLogs,
     /// Level of detail for VM execution logs
@@ -173,7 +171,6 @@ impl Default for TestNodeConfig {
             port: NODE_PORT,
             show_node_config: true,
             show_tx_summary: true,
-            show_event_logs: false,
             show_storage_logs: Default::default(),
             show_vm_details: Default::default(),
             show_gas_details: Default::default(),
@@ -796,19 +793,6 @@ Address: {address}
             self.show_tx_summary = show_tx_summary;
         }
         self
-    }
-    /// Enable or disable logging events
-    #[must_use]
-    pub fn with_show_event_logs(mut self, show_event_logs: Option<bool>) -> Self {
-        if let Some(show_event_logs) = show_event_logs {
-            self.show_event_logs = show_event_logs;
-        }
-        self
-    }
-
-    /// Get the visibility of event logs
-    pub fn get_show_event_logs(&self) -> bool {
-        self.show_event_logs
     }
 
     /// Set the visibility of storage logs
