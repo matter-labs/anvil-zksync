@@ -6,7 +6,7 @@ use alloy::signers::local::PrivateKeySigner;
 use anvil_zksync_common::cache::{CacheConfig, DEFAULT_DISK_CACHE_DIR};
 use anvil_zksync_common::sh_println;
 use anvil_zksync_types::{
-    LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails, TransactionOrder,
+    LogLevel, ShowGasDetails, ShowStorageLogs, ShowVMDetails, TransactionOrder,
 };
 use colored::{Colorize, CustomColor};
 use serde_json::{json, to_writer, Value};
@@ -55,10 +55,6 @@ pub struct TestNodeConfig {
     pub show_tx_summary: bool,
     /// If true, logs events.
     pub show_event_logs: bool,
-    /// Controls visibility of call logs
-    pub show_calls: ShowCalls,
-    /// Whether to show call output data
-    pub show_outputs: bool,
     /// Level of detail for storage logs
     pub show_storage_logs: ShowStorageLogs,
     /// Level of detail for VM execution logs
@@ -180,8 +176,6 @@ impl Default for TestNodeConfig {
             show_node_config: true,
             show_tx_summary: true,
             show_event_logs: false,
-            show_calls: Default::default(),
-            show_outputs: false,
             show_storage_logs: Default::default(),
             show_vm_details: Default::default(),
             show_gas_details: Default::default(),
@@ -771,24 +765,9 @@ Address: {address}
     /// Applies the defaults for debug mode.
     #[must_use]
     pub fn with_debug_mode(mut self) -> Self {
-        self.show_calls = ShowCalls::User;
         self.resolve_hashes = true;
         self.show_gas_details = ShowGasDetails::All;
         self
-    }
-
-    /// Set the visibility of call logs
-    #[must_use]
-    pub fn with_show_calls(mut self, show_calls: Option<ShowCalls>) -> Self {
-        if let Some(show_calls) = show_calls {
-            self.show_calls = show_calls;
-        }
-        self
-    }
-
-    /// Get the visibility of call logs
-    pub fn get_show_calls(&self) -> ShowCalls {
-        self.show_calls
     }
 
     /// Enable or disable resolving hashes
@@ -897,20 +876,6 @@ Address: {address}
     /// Get the visibility of gas usage logs
     pub fn get_show_gas_details(&self) -> ShowGasDetails {
         self.show_gas_details
-    }
-
-    /// Set show outputs
-    #[must_use]
-    pub fn with_show_outputs(mut self, show_outputs: Option<bool>) -> Self {
-        if let Some(show_outputs) = show_outputs {
-            self.show_outputs = show_outputs;
-        }
-        self
-    }
-
-    /// Get show outputs
-    pub fn get_show_outputs(&self) -> bool {
-        self.show_outputs
     }
 
     /// Set the gas limit scale factor

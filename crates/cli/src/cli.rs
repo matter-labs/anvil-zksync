@@ -15,7 +15,7 @@ use anvil_zksync_core::{
     utils::write_json_file,
 };
 use anvil_zksync_types::{
-    LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails, TransactionOrder,
+    LogLevel, ShowGasDetails, ShowStorageLogs, ShowVMDetails, TransactionOrder,
 };
 use clap::{arg, command, ArgAction, Parser, Subcommand};
 use flate2::read::GzDecoder;
@@ -107,19 +107,6 @@ pub struct Cli {
     pub show_event_logs: Option<bool>,
 
     // Debugging Options
-    #[arg(long, help_heading = "Debugging Options")]
-    /// Show call debug information.
-    pub show_calls: Option<ShowCalls>,
-
-    #[arg(
-        default_missing_value = "true", num_args(0..=1),
-        long,
-        requires = "show_calls",
-        help_heading = "Debugging Options"
-    )]
-    /// Show call output information.
-    pub show_outputs: Option<bool>,
-
     #[arg(long, help_heading = "Debugging Options")]
     /// Show storage log information.
     pub show_storage_logs: Option<ShowStorageLogs>,
@@ -612,11 +599,9 @@ impl Cli {
             .with_l1_pubdata_price(self.l1_pubdata_price)
             .with_show_tx_summary(self.show_tx_summary)
             .with_show_event_logs(self.show_event_logs)
-            .with_show_calls(self.show_calls)
             .with_vm_log_detail(self.show_vm_details)
             .with_show_storage_logs(self.show_storage_logs)
             .with_show_gas_details(self.show_gas_details)
-            .with_show_outputs(self.show_outputs)
             .with_show_event_logs(self.show_event_logs)
             .with_resolve_hashes(self.resolve_hashes)
             .with_gas_limit_scale(self.limit_scale_factor)
@@ -720,8 +705,6 @@ impl Cli {
                 (!v.unwrap_or(false)).then_some(false)
             })
             .insert("show_event_logs", self.show_event_logs)
-            .insert("show_calls", self.show_calls.map(|v| v.to_string()))
-            .insert("show_outputs", self.show_outputs)
             .insert(
                 "show_storage_logs",
                 self.show_storage_logs.map(|v| v.to_string()),
