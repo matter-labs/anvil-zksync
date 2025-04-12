@@ -759,13 +759,6 @@ Address: {address}
         &self.log_file_path
     }
 
-    /// Applies the defaults for debug mode.
-    #[must_use]
-    pub fn with_debug_mode(mut self) -> Self {
-        self.show_gas_details = ShowGasDetails::All;
-        self
-    }
-
     /// Sets the numeric verbosity derived from repeated `-v` flags
     #[must_use]
     pub fn with_verbosity_level(mut self, verbosity: u8) -> Self {

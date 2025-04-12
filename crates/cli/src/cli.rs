@@ -90,10 +90,6 @@ pub struct Cli {
     /// Specify chain ID (default: 260).
     pub chain_id: Option<u32>,
 
-    #[arg(short, long, help_heading = "Debugging Options")]
-    /// Enable default settings for debugging contracts.
-    pub debug_mode: bool,
-
     #[arg(long, default_value = "true", default_missing_value = "true", num_args(0..=1), help_heading = "Debugging Options")]
     /// If true, prints node config on startup.
     pub show_node_config: Option<bool>,
@@ -586,7 +582,7 @@ impl Cli {
         let debug_self_repr = format!("{self:#?}");
 
         let genesis_balance = U256::from(self.balance as u128 * 10u128.pow(18));
-        let mut config = TestNodeConfig::default()
+        let config = TestNodeConfig::default()
             .with_port(self.port)
             .with_offline(if self.offline { Some(true) } else { None })
             .with_l1_gas_price(self.l1_gas_price)
@@ -661,10 +657,6 @@ impl Cli {
             });
         }
 
-        if self.debug_mode {
-            config = config.with_debug_mode();
-        }
-
         Ok(config)
     }
 
@@ -691,7 +683,6 @@ impl Cli {
             .insert_with("chain_id", self.chain_id, |v| {
                 v.map(|_| TELEMETRY_SENSITIVE_VALUE)
             })
-            .insert_with("debug_mode", self.debug_mode, |v| v.then_some(v))
             .insert_with("show_node_config", self.show_node_config, |v| {
                 (!v.unwrap_or(false)).then_some(false)
             })
