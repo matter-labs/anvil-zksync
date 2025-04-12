@@ -102,10 +102,6 @@ pub struct Cli {
     /// If true, prints transactions and calls summary.
     pub show_tx_summary: Option<bool>,
 
-    #[arg(long, alias = "no-console-log", default_missing_value = "true", num_args(0..=1), help_heading = "Debugging Options")]
-    /// Disables printing of `console.log` invocations to stdout if true.
-    pub disable_console_log: Option<bool>,
-
     #[arg(long, default_missing_value = "true", num_args(0..=1), help_heading = "Debugging Options")]
     /// If true, logs events.
     pub show_event_logs: Option<bool>,
@@ -616,7 +612,6 @@ impl Cli {
             .with_l1_pubdata_price(self.l1_pubdata_price)
             .with_show_tx_summary(self.show_tx_summary)
             .with_show_event_logs(self.show_event_logs)
-            .with_disable_console_log(self.disable_console_log)
             .with_show_calls(self.show_calls)
             .with_vm_log_detail(self.show_vm_details)
             .with_show_storage_logs(self.show_storage_logs)
@@ -724,7 +719,6 @@ impl Cli {
             .insert_with("show_tx_summary", self.show_tx_summary, |v| {
                 (!v.unwrap_or(false)).then_some(false)
             })
-            .insert("disable_console_log", self.disable_console_log)
             .insert("show_event_logs", self.show_event_logs)
             .insert("show_calls", self.show_calls.map(|v| v.to_string()))
             .insert("show_outputs", self.show_outputs)

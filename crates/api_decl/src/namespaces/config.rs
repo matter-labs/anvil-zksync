@@ -115,16 +115,6 @@ pub trait ConfigNamespace {
     #[method(name = "setShowEventLogs")]
     async fn set_show_event_logs(&self, value: bool) -> RpcResult<bool>;
 
-    /// Set disable_console_log for the InMemoryNodeInner
-    ///
-    /// # Parameters
-    /// - `value`: A bool to update disable_console_log to
-    ///
-    /// # Returns
-    /// The updated/current `disable_console_log` value for the InMemoryNodeInner.
-    #[method(name = "setDisableConsoleLog")]
-    async fn set_disable_console_log(&self, value: bool) -> RpcResult<bool>;
-
     /// Set the logging for the InMemoryNodeInner
     ///
     /// # Parameters

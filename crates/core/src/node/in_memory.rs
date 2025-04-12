@@ -433,12 +433,6 @@ impl InMemoryNode {
             .take()
             .unwrap_or_default();
 
-        if !inner.config.disable_console_log {
-            inner
-                .console_log_handler
-                .handle_calls_recursive(&call_traces);
-        }
-
         let verbosity = get_shell().verbosity;
         if !call_traces.is_empty() && verbosity >= 2 {
             let tx_result_for_arena = tx_result.clone();
@@ -594,11 +588,6 @@ impl InMemoryNode {
 
     pub async fn set_show_event_logs(&self, value: bool) -> anyhow::Result<bool> {
         self.inner.write().await.config.show_event_logs = value;
-        Ok(value)
-    }
-
-    pub async fn set_disable_console_log(&self, value: bool) -> anyhow::Result<bool> {
-        self.inner.write().await.config.disable_console_log = value;
         Ok(value)
     }
 

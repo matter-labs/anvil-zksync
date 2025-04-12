@@ -55,8 +55,6 @@ pub struct TestNodeConfig {
     pub show_tx_summary: bool,
     /// If true, logs events.
     pub show_event_logs: bool,
-    /// Disables printing of `console.log` invocations to stdout if true
-    pub disable_console_log: bool,
     /// Controls visibility of call logs
     pub show_calls: ShowCalls,
     /// Whether to show call output data
@@ -182,7 +180,6 @@ impl Default for TestNodeConfig {
             show_node_config: true,
             show_tx_summary: true,
             show_event_logs: false,
-            disable_console_log: false,
             show_calls: Default::default(),
             show_outputs: false,
             show_storage_logs: Default::default(),
@@ -853,15 +850,6 @@ Address: {address}
     /// Get the visibility of event logs
     pub fn get_show_event_logs(&self) -> bool {
         self.show_event_logs
-    }
-
-    // Enable or disable printing of `console.log` invocations to stdout
-    #[must_use]
-    pub fn with_disable_console_log(mut self, disable_console_log: Option<bool>) -> Self {
-        if let Some(disable_console_log) = disable_console_log {
-            self.disable_console_log = disable_console_log;
-        }
-        self
     }
 
     /// Check if resolving hashes is enabled
