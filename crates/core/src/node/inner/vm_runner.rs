@@ -7,6 +7,7 @@ use crate::node::inner::fork_storage::ForkStorage;
 use crate::node::inner::in_memory_inner::BlockContext;
 use crate::node::storage_logs::print_storage_logs_details;
 use crate::node::time::Time;
+use crate::node::traces::decoder::CallTraceDecoderBuilder;
 use crate::node::{
     compute_hash, InMemoryNodeInner, TestNodeFeeInputProvider, TransactionResult, TxBatch,
     TxExecutionInfo,
@@ -17,7 +18,6 @@ use anvil_zksync_common::shell::get_shell;
 use anvil_zksync_common::{sh_eprintln, sh_err, sh_println, sh_warn};
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_console::console_log::ConsoleLogHandler;
-use anvil_zksync_traces::decode::CallTraceDecoderBuilder;
 use anvil_zksync_traces::{
     build_call_trace_arena, decode_trace_arena, filter_call_trace_arena,
     identifier::SignaturesIdentifier, render_trace_arena_inner,
@@ -250,7 +250,7 @@ impl VmRunner {
         }
 
         if !call_traces.is_empty() {
-            let mut builder = CallTraceDecoderBuilder::new();
+            let mut builder = CallTraceDecoderBuilder::default();
 
             builder = builder.with_signature_identifier(
                 SignaturesIdentifier::new(Some(config.get_cache_dir().into()), config.offline)

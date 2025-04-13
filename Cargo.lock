@@ -1132,7 +1132,6 @@ dependencies = [
  "alloy",
  "anstyle",
  "anvil_zksync_common",
- "anvil_zksync_console",
  "anvil_zksync_types",
  "anyhow",
  "colorchoice",

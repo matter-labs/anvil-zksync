@@ -12,15 +12,11 @@ use alloy::dyn_abi::{DecodedEvent, DynSolValue, EventExt, FunctionExt, JsonAbiEx
 use alloy::json_abi::{Event, Function};
 use alloy::primitives::{hex, LogData, Selector, B256};
 use anvil_zksync_common::utils::format_token;
-use anvil_zksync_console::{ds::abi as ds_abi, hh::abi};
 use anvil_zksync_types::traces::{
     CallTrace, CallTraceNode, DecodedCallData, DecodedCallEvent, DecodedCallTrace, KNOWN_ADDRESSES,
 };
 use itertools::Itertools;
-use std::{
-    collections::{BTreeMap, HashMap},
-    sync::OnceLock,
-};
+use std::collections::{BTreeMap, HashMap};
 use zksync_multivm::interface::VmEvent;
 use zksync_types::{Address, H160};
 
@@ -30,19 +26,29 @@ use revert_decoder::RevertDecoder;
 /// The first four bytes of the call data for a function call specifies the function to be called.
 pub const SELECTOR_LEN: usize = 4;
 
-/// Build a new [CallTraceDecoder].
-#[derive(Default)]
+/// A base struct for builders. If you want to start building from a predefined
+/// [CallTraceDecoder] instance, create your own builder like that:
+///
+/// ```rust,ignore
+/// pub struct CallTraceDecoderBuilder;
+/// impl CallTraceDecoderBuilder {
+/// #[inline]
+/// pub fn default() -> CallTraceDecoderBuilderBase {
+/// // Construct an instance here
+/// }
+/// }
+/// ```
 #[must_use = "builders do nothing unless you call `build` on them"]
-pub struct CallTraceDecoderBuilder {
+pub struct CallTraceDecoderBuilderBase {
     decoder: CallTraceDecoder,
 }
 
-impl CallTraceDecoderBuilder {
+impl CallTraceDecoderBuilderBase {
     /// Create a new builder.
     #[inline]
-    pub fn new() -> Self {
+    pub fn new(starting_decoder_state: CallTraceDecoder) -> Self {
         Self {
-            decoder: CallTraceDecoder::new().clone(),
+            decoder: starting_decoder_state,
         }
     }
 
@@ -95,16 +101,10 @@ pub struct CallTraceDecoder {
 
 impl CallTraceDecoder {
     /// Creates a new call trace decoder.
-    ///
-    /// The call trace decoder always knows how to decode calls of DSTest-style logs
-    pub fn new() -> &'static Self {
-        // If you want to take arguments in this function, assign them to the fields of the cloned
-        // lazy instead of removing it
-        static INIT: OnceLock<CallTraceDecoder> = OnceLock::new();
-        INIT.get_or_init(Self::init)
-    }
-
-    fn init() -> Self {
+    pub fn new(
+        functions: HashMap<Selector, Vec<Function>>,
+        events: BTreeMap<(B256, usize), Vec<Event>>,
+    ) -> Self {
         // Add known addresses (system contracts, precompiles) to the labels
         let labels: HashMap<H160, String> = KNOWN_ADDRESSES
             .iter()
@@ -116,16 +116,8 @@ impl CallTraceDecoder {
             labels,
             receive_contracts: Default::default(),
             fallback_contracts: Default::default(),
-            functions: abi::functions()
-                .into_values()
-                .flatten()
-                .map(|func| (func.selector(), vec![func]))
-                .collect(),
-            events: ds_abi::events()
-                .into_values()
-                .flatten()
-                .map(|event| ((event.selector(), indexed_inputs(&event)), vec![event]))
-                .collect(),
+            functions,
+            events,
             revert_decoder: Default::default(),
             signature_identifier: None,
         }
@@ -374,9 +366,6 @@ fn reconstruct_params(event: &Event, decoded: &DecodedEvent) -> Vec<DynSolValue>
 }
 fn indexed_inputs_zksync(event: &VmEvent) -> usize {
     event.indexed_topics.len()
-}
-fn indexed_inputs(event: &Event) -> usize {
-    event.inputs.iter().filter(|param| param.indexed).count()
 }
 
 /// Given an `Event` without indexed parameters and a `VmEvent`, it tries to
