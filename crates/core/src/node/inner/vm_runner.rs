@@ -222,7 +222,7 @@ impl VmRunner {
                 "{}",
                 formatter::transaction::TransactionSummary::new(
                     config.get_l2_gas_price(),
-                    &tx,
+                    tx,
                     &tx_result,
                     balance_diffs,
                 )
