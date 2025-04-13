@@ -11,29 +11,29 @@
 use super::SELECTOR_LEN;
 use alloy::dyn_abi::JsonAbiExt;
 use alloy::json_abi::{Error, JsonAbi};
-use alloy::primitives::{hex, map::HashMap, Log, Selector};
-use alloy::sol_types::{SolEventInterface, SolInterface, SolValue};
+use alloy::primitives::{hex, map::HashMap, Selector};
+use alloy::sol_types::{SolInterface, SolValue};
 use anvil_zksync_common::utils::format_token;
-use anvil_zksync_console::ds;
+// use anvil_zksync_console::ds;
 use itertools::Itertools;
 use std::sync::OnceLock;
 
 const EMPTY_REVERT_DATA: &str = "<empty revert data>";
 
-/// Decode a set of logs, only returning logs from DSTest logging events and Hardhat's `console.log`
-pub fn decode_console_logs(logs: &[Log]) -> Vec<String> {
-    logs.iter().filter_map(decode_console_log).collect()
-}
+// /// Decode a set of logs, only returning logs from DSTest logging events and Hardhat's `console.log`
+// pub fn decode_console_logs(logs: &[Log]) -> Vec<String> {
+//     logs.iter().filter_map(decode_console_log).collect()
+// }
 
-/// Decode a single log.
-///
-/// This function returns [None] if it is not a DSTest log or the result of a Hardhat
-/// `console.log`.
-pub fn decode_console_log(log: &Log) -> Option<String> {
-    ds::ConsoleEvents::decode_log(log, false)
-        .ok()
-        .map(|decoded| decoded.to_string())
-}
+// /// Decode a single log.
+// ///
+// /// This function returns [None] if it is not a DSTest log or the result of a Hardhat
+// /// `console.log`.
+// pub fn decode_console_log(log: &Log) -> Option<String> {
+//     ds::ConsoleEvents::decode_log(log, false)
+//         .ok()
+//         .map(|decoded| decoded.to_string())
+// }
 
 /// Decodes revert data.
 #[derive(Clone, Debug, Default)]
