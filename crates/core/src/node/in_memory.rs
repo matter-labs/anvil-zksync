@@ -5,7 +5,7 @@ use super::vm::AnvilVM;
 use crate::delegate_vm;
 use crate::deps::InMemoryStorage;
 use crate::filters::EthFilters;
-use crate::node::call_error_tracer::CallErrorTracer;
+use crate::node::traces::call_error::CallErrorTracer;
 use crate::node::error::LoadStateError;
 use crate::node::fee_model::TestNodeFeeInputProvider;
 use crate::node::impersonate::{ImpersonationManager, ImpersonationState};
