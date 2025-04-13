@@ -20,21 +20,6 @@ use std::sync::OnceLock;
 
 const EMPTY_REVERT_DATA: &str = "<empty revert data>";
 
-// /// Decode a set of logs, only returning logs from DSTest logging events and Hardhat's `console.log`
-// pub fn decode_console_logs(logs: &[Log]) -> Vec<String> {
-//     logs.iter().filter_map(decode_console_log).collect()
-// }
-
-// /// Decode a single log.
-// ///
-// /// This function returns [None] if it is not a DSTest log or the result of a Hardhat
-// /// `console.log`.
-// pub fn decode_console_log(log: &Log) -> Option<String> {
-//     ds::ConsoleEvents::decode_log(log, false)
-//         .ok()
-//         .map(|decoded| decoded.to_string())
-// }
-
 /// Decodes revert data.
 #[derive(Clone, Debug, Default)]
 pub struct RevertDecoder {
