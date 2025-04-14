@@ -10,6 +10,9 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+anvil_zksync_common.workspace = true
+
+hex.workspace = true
 zksync_types.workspace = true
 lazy_static.workspace = true
 zksync_multivm.workspace = true

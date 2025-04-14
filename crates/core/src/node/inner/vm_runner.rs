@@ -42,7 +42,7 @@ use zksync_types::commitment::{PubdataParams, PubdataType};
 use zksync_types::web3::Bytes;
 use zksync_types::{
     api, h256_to_address, ExecuteTransactionCommon, L2BlockNumber, L2TxCommonData, StorageKey,
-    StorageValue, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
+    StorageValue, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS, L2_BASE_TOKEN_ADDRESS,
 };
 
 pub struct VmRunner {
@@ -263,6 +263,7 @@ impl VmRunner {
             let mut arena = build_call_trace_arena(&call_traces, &tx_result);
             decode_trace_arena(&mut arena, &decoder).await?;
 
+
             let verbosity = get_shell().verbosity;
             if verbosity >= 2 {
                 let filtered_arena = filter_call_trace_arena(&arena, verbosity);
@@ -377,6 +378,7 @@ impl VmRunner {
                 block_timestamp: Some(block_ctx.timestamp.into()),
             })
             .collect();
+
         let tx_receipt = api::TransactionReceipt {
             transaction_hash: tx_hash,
             transaction_index: U64::from(tx_index),

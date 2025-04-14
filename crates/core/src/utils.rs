@@ -5,9 +5,9 @@ use chrono::{DateTime, Utc};
 use colored::Colorize;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::fmt;
 use std::future::Future;
 use std::sync::Arc;
-use std::{convert::TryInto, fmt};
 use std::{
     fs::File,
     io::{BufWriter, Write},
@@ -19,7 +19,7 @@ use zksync_multivm::interface::{Call, CallType, ExecutionResult, VmExecutionResu
 use zksync_types::{
     api::{BlockNumber, DebugCall, DebugCallType},
     web3::Bytes,
-    Transaction, CONTRACT_DEPLOYER_ADDRESS, H256, U256, U64,
+    Transaction, CONTRACT_DEPLOYER_ADDRESS, U256, U64,
 };
 use zksync_web3_decl::error::Web3Error;
 
@@ -171,25 +171,6 @@ pub fn internal_error(method_name: &'static str, error: impl fmt::Display) -> We
 //     let address = KeyPair::from_secret(private_key)?.address();
 //     Ok(Address::from(address.0))
 // }
-
-/// Converts `h256` value as BE into the u64
-pub fn h256_to_u64(value: H256) -> u64 {
-    let be_u64_bytes: [u8; 8] = value[24..].try_into().unwrap();
-    u64::from_be_bytes(be_u64_bytes)
-}
-
-/// Calculates the cost of a transaction in ETH.
-pub fn calculate_eth_cost(gas_price_in_wei_per_gas: u64, gas_used: u64) -> f64 {
-    // Convert gas price from wei to gwei
-    let gas_price_in_gwei = gas_price_in_wei_per_gas as f64 / 1e9;
-
-    // Calculate total cost in gwei
-    let total_cost_in_gwei = gas_price_in_gwei * gas_used as f64;
-
-    // Convert total cost from gwei to ETH
-    total_cost_in_gwei / 1e9
-}
-
 /// Writes the given serializable object as JSON to the specified file path using pretty printing.
 /// Returns an error if the file cannot be created or if serialization/writing fails.
 pub fn write_json_file<T: Serialize>(path: &Path, obj: &T) -> anyhow::Result<()> {

@@ -1,3 +1,4 @@
+use anvil_zksync_common::utils::format::write_interspersed;
 use lazy_static::lazy_static;
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -5,8 +6,10 @@ use zksync_multivm::interface::{Call, ExecutionResult, VmEvent, VmExecutionResul
 use zksync_types::{
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     web3::Bytes,
-    Address, H160, H256,
+    Address, H160, H256, U256,
 };
+
+use crate::numbers::SignedU256;
 
 /// Enum to represent both user and system L1-L2 logs
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -126,22 +129,234 @@ impl LogData {
     }
 }
 
+pub type Label = String;
+pub type Word32 = [u8; 32];
+pub type Word24 = [u8; 24];
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LabeledAddress {
+    pub label: Option<Label>,
+    pub address: Address,
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Attribution: the type `DecodedValue` was adapted                                                            //
+// from the type `alloy::dyn_abi::DynSolValue` of the crate `alloy_dyn_abi`                                    //
+//                                                                                                             //
+// Full credit goes to its authors. See the original implementation here:                                      //
+// https://github.com/alloy-rs/core/blob/main/crates/dyn-abi/src/dynamic/value.rs                              //
+//                                                                                                             //
+// Note: This type is used under the terms of the original project's license.                                  //
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///
+/// A decoded value in trace.
+///
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DecodedValue {
+    /// A boolean.
+    Bool(bool),
+    /// A signed integer. The second parameter is the number of bits, not bytes.
+    Int(SignedU256),
+    /// An unsigned integer. The second parameter is the number of bits, not bytes.
+    Uint(U256),
+    /// A fixed-length byte array. The second parameter is the number of bytes.
+    FixedBytes(Word32, usize),
+    /// An address.
+    Address(LabeledAddress),
+    /// A function pointer.
+    Function(Word24),
+
+    /// A dynamic-length byte array.
+    Bytes(Vec<u8>),
+    /// A string.
+    String(String),
+
+    /// A dynamically-sized array of values.
+    Array(Vec<DecodedValue>),
+    /// A fixed-size array of values.
+    FixedArray(Vec<DecodedValue>),
+    /// A tuple of values.
+    Tuple(Vec<DecodedValue>),
+
+    /// A named struct, treated as a tuple with a name parameter.
+    CustomStruct {
+        /// The name of the struct.
+        name: String,
+        /// The struct's prop names, in declaration order.
+        prop_names: Vec<String>,
+        /// The inner types.
+        tuple: Vec<DecodedValue>,
+    },
+}
+
+impl std::fmt::Display for LabeledAddress {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let LabeledAddress { label, address } = self;
+
+        if let Some(label) = label {
+            f.write_fmt(format_args!("{label}: "))?;
+        }
+        write!(f, "[{}]", hex::encode(address))
+    }
+}
+
+impl std::fmt::Display for DecodedValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DecodedValue::Bool(inner) => inner.fmt(f),
+            DecodedValue::Int(inner) => inner.fmt(f),
+            DecodedValue::Uint(inner) => inner.fmt(f),
+            DecodedValue::FixedBytes(word, size) => {
+                f.write_fmt(format_args!("0x{}", hex::encode(&word[..*size])))
+            }
+            DecodedValue::Address(labeled_address) => labeled_address.fmt(f),
+            DecodedValue::Function(inner) => f.write_fmt(format_args!("0x{}", hex::encode(inner))),
+            DecodedValue::Bytes(inner) => f.write_fmt(format_args!("0x{}", hex::encode(inner))),
+            DecodedValue::String(inner) => f.write_str(&inner.escape_debug().to_string()),
+            DecodedValue::Array(vec) | DecodedValue::FixedArray(vec) => {
+                f.write_str("[")?;
+                write_interspersed(f, vec.iter(), ", ")?;
+                f.write_str("]")
+            }
+            DecodedValue::Tuple(vec) => {
+                f.write_str("(")?;
+                write_interspersed(f, vec.iter(), ", ")?;
+                f.write_str(")")
+            }
+            DecodedValue::CustomStruct { tuple, .. } => DecodedValue::Tuple(tuple.clone()).fmt(f),
+        }
+    }
+}
+
+impl DecodedValue {
+    pub fn as_bytes(&self) -> Option<&Vec<u8>> {
+        if let Self::Bytes(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+}
+
+impl std::fmt::Display for DecodedError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DecodedError::Empty => write!(f, ""),
+            DecodedError::CustomError { name, fields } => {
+                write!(f, "{name}(")?;
+                write_interspersed(f, fields.iter(), ", ")?;
+                write!(f, ")")
+            }
+            DecodedError::GenericCustomError { selector, raw } => {
+                write!(
+                    f,
+                    "custom error with function selector 0x{}",
+                    hex::encode(selector)
+                )?;
+                if !raw.is_empty() {
+                    write!(f, ": ")?;
+                    match std::str::from_utf8(raw) {
+                        Ok(data) => write!(f, "{}", data),
+                        Err(_) => write!(f, "{}", hex::encode(raw)),
+                    }
+                } else {
+                    Ok(())
+                }
+            }
+            DecodedError::Revert(message) => write!(f, "{}", message),
+            DecodedError::Panic(message) => write!(f, "{}", message),
+            DecodedError::Raw(data) => {
+                if !data.is_empty() {
+                    let var_name = write!(
+                        f,
+                        "{}",
+                        anvil_zksync_common::utils::format::trimmed_hex(data)
+                    );
+                    var_name?;
+                } else {
+                    write!(f, "<empty revert data>")?;
+                }
+                Ok(())
+            }
+            DecodedError::String(message) => write!(f, "{}", message),
+        }
+    }
+}
+
+impl std::fmt::Display for DecodedRevertData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DecodedRevertData::Value(value) => value.fmt(f),
+            DecodedRevertData::Error(error) => error.fmt(f),
+        }
+    }
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DecodedReturnData {
+    NormalReturn(Vec<DecodedValue>),
+    Revert(DecodedRevertData),
+}
+
+impl Default for DecodedReturnData {
+    fn default() -> Self {
+        Self::NormalReturn(vec![])
+    }
+}
+
+impl std::fmt::Display for DecodedReturnData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DecodedReturnData::NormalReturn(values) => {
+                if values.is_empty() {
+                    Ok(())
+                } else {
+                    write_interspersed(f, values.iter(), ", ")
+                }
+            }
+            DecodedReturnData::Revert(revert_data) => revert_data.fmt(f),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DecodedError {
+    Empty,
+    CustomError {
+        name: String,
+        fields: Vec<DecodedValue>,
+    },
+    GenericCustomError {
+        selector: [u8; 4],
+        raw: Vec<u8>,
+    },
+    Revert(String),
+    Panic(String),
+    Raw(Vec<u8>),
+    String(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DecodedRevertData {
+    Value(DecodedValue),
+    Error(DecodedError),
+}
+
 /// Decoded call data.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct DecodedCallData {
     /// The function signature.
     pub signature: String,
     /// The function arguments.
-    pub args: Vec<String>,
+    pub args: Vec<DecodedValue>,
 }
 
 /// Additional decoded data enhancing the [CallTrace].
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct DecodedCallTrace {
     /// Optional decoded label for the call.
-    pub label: Option<String>,
+    pub label: Option<Label>,
     /// Optional decoded return data.
-    pub return_data: Option<String>,
+    pub return_data: DecodedReturnData,
     /// Optional decoded call data.
     pub call_data: Option<DecodedCallData>,
 }
@@ -153,7 +368,7 @@ pub struct DecodedCallLog {
     pub name: Option<String>,
     /// The decoded log parameters, a vector of the parameter name (e.g. foo) and the parameter
     /// value (e.g. 0x9d3...45ca).
-    pub params: Option<Vec<(String, String)>>,
+    pub params: Option<Vec<(String, DecodedValue)>>,
 }
 
 /// A log with optional decoded data.
@@ -215,7 +430,7 @@ pub struct DecodedCallEvent {
     pub name: Option<String>,
     /// The decoded log parameters, a vector of the parameter name (e.g. foo) and the parameter
     /// value (e.g. 0x9d3...45ca).
-    pub params: Option<Vec<(String, String)>>,
+    pub params: Option<Vec<(String, DecodedValue)>>,
 }
 
 /// A node in the arena

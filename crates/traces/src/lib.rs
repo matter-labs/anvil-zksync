@@ -9,6 +9,7 @@ use zksync_types::H160;
 
 pub mod abi_utils;
 pub mod decode;
+pub mod format;
 pub mod identifier;
 pub mod writer;
 
@@ -139,7 +140,7 @@ pub async fn decode_trace_arena(
     decoder: &CallTraceDecoder,
 ) -> Result<(), anyhow::Error> {
     decoder.prefetch_signatures(&arena.arena).await;
-    decoder.populate_traces(&mut arena.arena).await;
+    decoder.populate_traces(&mut arena.arena).await?;
 
     Ok(())
 }

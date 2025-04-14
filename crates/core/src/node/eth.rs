@@ -1,5 +1,6 @@
 use crate::formatter::ExecutionErrorReport;
 use crate::node::error::{ToHaltError, ToRevertReason};
+use anvil_zksync_common::utils::numbers::h256_to_u64;
 use anvil_zksync_common::{sh_err, sh_println, sh_warn};
 use anyhow::Context as _;
 use std::collections::HashSet;
@@ -27,7 +28,7 @@ use zksync_web3_decl::{
 use crate::{
     filters::{FilterType, LogFilter},
     node::{InMemoryNode, MAX_TX_SIZE, PROTOCOL_VERSION},
-    utils::{h256_to_u64, TransparentError},
+    utils::TransparentError,
 };
 
 impl InMemoryNode {

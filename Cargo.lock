@@ -1043,6 +1043,7 @@ version = "0.4.0"
 dependencies = [
  "alloy",
  "anvil_zksync_common",
+ "anvil_zksync_traces",
  "colored",
  "derive_more 1.0.0",
  "foundry-common-fmt",
@@ -1135,11 +1136,13 @@ dependencies = [
  "anvil_zksync_types",
  "anyhow",
  "colorchoice",
+ "colored",
  "eyre",
  "itertools 0.13.0",
  "lazy_static",
  "serde",
  "tempfile",
+ "thiserror 1.0.69",
  "tokio",
  "tracing",
  "zksync_multivm",
@@ -1150,7 +1153,9 @@ dependencies = [
 name = "anvil_zksync_types"
 version = "0.4.0"
 dependencies = [
+ "anvil_zksync_common",
  "clap",
+ "hex",
  "lazy_static",
  "serde",
  "serde_json",
