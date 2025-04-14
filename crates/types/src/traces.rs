@@ -1,7 +1,4 @@
-use anvil_zksync_common::utils::format::write_interspersed;
-use lazy_static::lazy_static;
-use serde::Deserialize;
-use std::collections::HashMap;
+use anvil_zksync_common::{address_map, utils::format::write_interspersed};
 use zksync_multivm::interface::{Call, ExecutionResult, VmEvent, VmExecutionResultAndLogs};
 use zksync_types::{
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
@@ -18,38 +15,7 @@ pub enum L2L1Log {
     System(SystemL2ToL1Log),
 }
 
-// TODO: duplicated types from existing formatter.rs
-// will be consolidated pending feedback
-#[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
-pub enum ContractType {
-    System,
-    Precompile,
-    Popular,
-    Unknown,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-pub struct KnownAddress {
-    pub address: H160,
-    pub name: String,
-    contract_type: ContractType,
-}
-
-lazy_static! {
-    /// Loads the known contact addresses from the JSON file.
-    pub static ref KNOWN_ADDRESSES: HashMap<H160, KnownAddress> = {
-        let json_value = serde_json::from_slice(include_bytes!("./data/address_map.json")).unwrap();
-        let pairs: Vec<KnownAddress> = serde_json::from_value(json_value).unwrap();
-
-        pairs
-            .into_iter()
-            .map(|entry| (entry.address, entry))
-            .collect()
-    };
-}
-
-/// A ZKsync event log object.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+/// A ZKsync event log object. #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct LogData {
     /// The indexed topic list.
     topics: Vec<H256>,
@@ -572,34 +538,16 @@ impl CallTraceArena {
         self.arena.push(Default::default());
     }
 
-    /// Checks if the given address is a precompile based on `KNOWN_ADDRESSES`.
-    pub fn is_precompile(address: &Address) -> bool {
-        if let Some(known) = KNOWN_ADDRESSES.get(address) {
-            matches!(known.contract_type, ContractType::Precompile)
-        } else {
-            false
-        }
-    }
-
     /// Filters out precompile nodes from the arena.
     pub fn filter_out_precompiles(&mut self) {
         self.arena
-            .retain(|node| !Self::is_precompile(&node.trace.address));
-    }
-
-    /// Checks if the given address is a system contract based on `KNOWN_ADDRESSES`.
-    pub fn is_system(address: &Address) -> bool {
-        if let Some(known) = KNOWN_ADDRESSES.get(address) {
-            matches!(known.contract_type, ContractType::System)
-        } else {
-            false
-        }
+            .retain(|node| !address_map::is_precompile(&node.trace.address));
     }
 
     /// Filters out system contracts nodes from the arena.
     pub fn filter_out_system_contracts(&mut self) {
         self.arena
-            .retain(|node| !Self::is_system(&node.trace.address));
+            .retain(|node| !address_map::is_system(&node.trace.address));
     }
 }
 

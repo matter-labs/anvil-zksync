@@ -11,10 +11,11 @@ use crate::identifier::SingleSignaturesIdentifier;
 use alloy::dyn_abi::{DecodedEvent, DynSolValue, EventExt, FunctionExt, JsonAbiExt};
 use alloy::json_abi::{Event, Function};
 use alloy::primitives::{LogData, Selector, Sign, B256};
+use anvil_zksync_common::address_map::KNOWN_ADDRESSES;
 use anvil_zksync_types::numbers::SignedU256;
 use anvil_zksync_types::traces::{
     CallTrace, CallTraceNode, DecodedCallData, DecodedCallEvent, DecodedCallTrace,
-    DecodedReturnData, DecodedRevertData, DecodedValue, LabeledAddress, Word32, KNOWN_ADDRESSES,
+    DecodedReturnData, DecodedRevertData, DecodedValue, LabeledAddress, Word32,
 };
 use error::DecodingError;
 use itertools::Itertools;
