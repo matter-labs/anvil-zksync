@@ -85,11 +85,11 @@ impl ToRevertReason for VmRevertReason {
             VmRevertReason::InnerTxError => RevertError::InnerTxError,
             VmRevertReason::VmError => RevertError::VmError,
             VmRevertReason::Unknown { .. } => RevertError::Unknown {
-                function_selector: message.encode_hex(),
+                function_selector: message,
                 data: data.encode_hex(),
             },
             _ => RevertError::Unknown {
-                function_selector: message.encode_hex(),
+                function_selector: message,
                 data: data.encode_hex(),
             },
         }

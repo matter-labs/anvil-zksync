@@ -440,7 +440,8 @@ impl InMemoryNode {
                 .handle_calls_recursive(&call_traces);
         }
 
-        if !call_traces.is_empty() {
+        let verbosity = get_shell().verbosity;
+        if !call_traces.is_empty() && verbosity >= 2 {
             let tx_result_for_arena = tx_result.clone();
             let mut builder = CallTraceDecoderBuilder::default();
             builder = builder.with_signature_identifier(
@@ -470,12 +471,9 @@ impl InMemoryNode {
                 inner_result
             })?;
 
-            let verbosity = get_shell().verbosity;
-            if verbosity >= 2 {
-                let filtered_arena = filter_call_trace_arena(&arena, verbosity);
-                let trace_output = render_trace_arena_inner(&filtered_arena, false);
-                sh_println!("\nTraces:\n{}", trace_output);
-            }
+            let filtered_arena = filter_call_trace_arena(&arena, verbosity);
+            let trace_output = render_trace_arena_inner(&filtered_arena, false);
+            sh_println!("\nTraces:\n{}", trace_output);
         }
 
         Ok(tx_result.result)

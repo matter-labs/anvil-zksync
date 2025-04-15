@@ -1130,7 +1130,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_common"
-version = "0.4.0"
+version = "0.5.1"
 dependencies = [
  "alloy",
  "anstream",
@@ -1152,7 +1152,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_config"
-version = "0.4.0"
+version = "0.5.1"
 dependencies = [
  "alloy",
  "anvil_zksync_common",
@@ -1169,7 +1169,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_console"
-version = "0.4.0"
+version = "0.5.1"
 dependencies = [
  "alloy",
  "anvil_zksync_common",
@@ -1184,7 +1184,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_core"
-version = "0.4.0"
+version = "0.5.1"
 dependencies = [
  "alloy",
  "anvil_zksync_common",
@@ -1226,7 +1226,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_traces"
-version = "0.4.0"
+version = "0.5.1"
 dependencies = [
  "alloy",
  "anstyle",
@@ -1247,7 +1247,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_types"
-version = "0.4.0"
+version = "0.5.1"
 dependencies = [
  "clap",
  "lazy_static",
@@ -8206,7 +8206,7 @@ dependencies = [
 [[package]]
 name = "zksync-error-codegen"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-error?rev=76e8e471b048461d2754092fa159c87a47db5972#76e8e471b048461d2754092fa159c87a47db5972"
+source = "git+https://github.com/matter-labs/zksync-error?rev=fa6e84e06191a1b66323d69ab909fd83ae76e0d2#fa6e84e06191a1b66323d69ab909fd83ae76e0d2"
 dependencies = [
  "cargo_metadata",
  "derive_more 2.0.1",
@@ -8233,7 +8233,7 @@ dependencies = [
 [[package]]
 name = "zksync-error-description"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-error?rev=76e8e471b048461d2754092fa159c87a47db5972#76e8e471b048461d2754092fa159c87a47db5972"
+source = "git+https://github.com/matter-labs/zksync-error?rev=fa6e84e06191a1b66323d69ab909fd83ae76e0d2#fa6e84e06191a1b66323d69ab909fd83ae76e0d2"
 dependencies = [
  "serde",
  "serde_json",
@@ -8243,7 +8243,7 @@ dependencies = [
 [[package]]
 name = "zksync-error-model"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-error?rev=76e8e471b048461d2754092fa159c87a47db5972#76e8e471b048461d2754092fa159c87a47db5972"
+source = "git+https://github.com/matter-labs/zksync-error?rev=fa6e84e06191a1b66323d69ab909fd83ae76e0d2#fa6e84e06191a1b66323d69ab909fd83ae76e0d2"
 dependencies = [
  "derive_more 2.0.1",
  "serde",
@@ -8386,7 +8386,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_error"
-version = "0.4.0"
+version = "0.5.1"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -8395,6 +8395,7 @@ dependencies = [
  "strum 0.26.3",
  "strum_macros 0.26.4",
  "zksync-error-description",
+ "zksync_basic_types",
 ]
 
 [[package]]

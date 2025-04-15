@@ -111,5 +111,6 @@ jobs:
         with:
           name: 'anvil-zksync ${{ inputs.prerelease_name}} ${{ steps.release_tag.outputs.tag }}'
           tag_name: ${{ steps.release_tag.outputs.tag }}
+          target_commitish: ${{ github.sha }}
           prerelease: true
           files: 'artifacts/**/anvil-zksync*.tar.gz'

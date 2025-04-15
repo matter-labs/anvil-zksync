@@ -272,7 +272,8 @@ impl VmRunner {
             formatter.print_vm_details(&tx_result);
         }
 
-        if !call_traces.is_empty() {
+        let verbosity = get_shell().verbosity;
+        if !call_traces.is_empty() && verbosity >= 2 {
             let mut builder = CallTraceDecoderBuilder::default();
 
             builder = builder.with_signature_identifier(

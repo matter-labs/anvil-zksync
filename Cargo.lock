@@ -927,7 +927,7 @@ dependencies = [
 
 [[package]]
 name = "anvil-zksync"
-version = "0.4.0"
+version = "0.5.1"
 dependencies = [
  "alloy",
  "anvil_zksync_api_server",
@@ -962,7 +962,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_api_decl"
-version = "0.4.0"
+version = "0.5.1"
 dependencies = [
  "anvil_zksync_types",
  "jsonrpsee",
@@ -973,7 +973,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_api_server"
-version = "0.4.0"
+version = "0.5.1"
 dependencies = [
  "anvil_zksync_api_decl",
  "anvil_zksync_common",
@@ -999,7 +999,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_common"
-version = "0.4.0"
+version = "0.5.1"
 dependencies = [
  "alloy",
  "anstream",
@@ -1022,7 +1022,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_config"
-version = "0.4.0"
+version = "0.5.1"
 dependencies = [
  "alloy",
  "anvil_zksync_common",
@@ -1039,7 +1039,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_console"
-version = "0.4.0"
+version = "0.5.1"
 dependencies = [
  "alloy",
  "anvil_zksync_common",
@@ -1055,7 +1055,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_core"
-version = "0.4.0"
+version = "0.5.1"
 dependencies = [
  "alloy",
  "anvil_zksync_common",
@@ -1103,7 +1103,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_l1_sidecar"
-version = "0.4.0"
+version = "0.5.1"
 dependencies = [
  "alloy",
  "anvil_zksync_common",
@@ -1128,7 +1128,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_traces"
-version = "0.4.0"
+version = "0.5.1"
 dependencies = [
  "alloy",
  "anstyle",
@@ -1151,7 +1151,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_types"
-version = "0.4.0"
+version = "0.5.1"
 dependencies = [
  "anvil_zksync_common",
  "clap",
@@ -2360,9 +2360,9 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-channel"
-version = "0.5.13"
+version = "0.5.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "33480d6946193aa8033910124896ca395333cae7e2d1113d1fef6c3272217df2"
+checksum = "82b8f8f868b36967f9606790d1903570de9ceaf870a7bf9fbbd3016d636a2cb2"
 dependencies = [
  "crossbeam-utils",
 ]
@@ -8548,7 +8548,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_error"
-version = "0.4.0"
+version = "0.5.1"
 dependencies = [
  "anyhow",
  "lazy_static",
