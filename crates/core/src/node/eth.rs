@@ -1,6 +1,5 @@
 use crate::formatter::ExecutionErrorReport;
 use crate::node::error::{ToHaltError, ToRevertReason};
-use anvil_zksync_common::utils::numbers::h256_to_u64;
 use anvil_zksync_common::{sh_err, sh_println, sh_warn};
 use anyhow::Context as _;
 use std::collections::HashSet;
@@ -272,7 +271,7 @@ impl InMemoryNode {
     ) -> anyhow::Result<U256> {
         let nonce_key = self.storage_key_layout.get_nonce_key(&address);
         match self.storage.read_value_alt(&nonce_key).await {
-            Ok(result) => Ok(h256_to_u64(result).into()),
+            Ok(result) => Ok(h256_to_u256(result).into()),
             Err(error) => Err(anyhow::anyhow!("failed to read nonce storage: {error}")),
         }
     }
