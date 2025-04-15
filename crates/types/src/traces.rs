@@ -99,7 +99,7 @@ pub type Label = String;
 pub type Word32 = [u8; 32];
 pub type Word24 = [u8; 24];
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct LabeledAddress {
     pub label: Option<Label>,
     pub address: Address,

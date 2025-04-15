@@ -10,6 +10,7 @@ use std::fmt::Display;
 use crate::utils::to_human_size;
 use anvil_zksync_common::utils::cost::calculate_eth_cost;
 use anvil_zksync_config::utils::format_gwei;
+use anvil_zksync_types::traces::LabeledAddress;
 use zksync_multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
 use zksync_types::{Address, Transaction, H256, U256};
 
@@ -47,7 +48,7 @@ pub struct GasDetails {
 /// Holds a fragment of account state before and after transaction.
 ///
 pub struct BalanceDiff {
-    pub address: Address,
+    pub address: LabeledAddress,
     pub balance_before: U256,
     pub balance_after: U256,
 }
@@ -237,7 +238,7 @@ mod internal {
                 balance_after,
             } = val;
             BalanceDiffRepr {
-                address: format!("{address:?}"),
+                address: address.to_string(),
                 before: format_eth(*balance_before),
                 after: format_eth(*balance_after),
                 delta: compute_delta(balance_before, balance_after),

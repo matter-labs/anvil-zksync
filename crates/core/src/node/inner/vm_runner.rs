@@ -1,7 +1,10 @@
 use crate::bootloader_debug::BootloaderDebug;
 use crate::formatter::{self, ExecutionErrorReport};
 use crate::node::batch::{MainBatchExecutorFactory, TraceCalls};
-use crate::node::diagnostics::vm::balance_diff::extract_balance_diffs;
+use crate::node::diagnostics::vm::balance_diff::{
+    extract_balance_diffs, known_addresses_after_transaction,
+};
+use crate::node::diagnostics::vm::traces::extract_addresses;
 use crate::node::error::ToHaltError;
 use crate::node::inner::fork_storage::ForkStorage;
 use crate::node::inner::in_memory_inner::BlockContext;
@@ -200,18 +203,38 @@ impl VmRunner {
         let spent_on_pubdata =
             tx_result.statistics.gas_used - tx_result.statistics.computational_gas_used as u64;
 
-        // TODO: This is not enough -- we need to collect more addresses
-        let accounts_tracking_balance: Vec<_> = [
-            Some(tx.payer()),
-            Some(tx.initiator_account()),
-            tx.recipient_account(),
-        ]
-        .into_iter()
-        .flatten()
-        .collect();
+        let mut known_addresses = known_addresses_after_transaction(tx);
+        let mut trace_output = None;
+
+        if !call_traces.is_empty() {
+            let mut builder = CallTraceDecoderBuilder::default();
+
+            builder = builder.with_signature_identifier(
+                SignaturesIdentifier::new(Some(config.get_cache_dir().into()), config.offline)
+                    .map_err(|err| {
+                        anyhow::anyhow!("Failed to create SignaturesIdentifier: {:#}", err)
+                    })?,
+            );
+
+            let decoder = builder.build();
+            let mut arena = build_call_trace_arena(&call_traces, &tx_result);
+            decode_trace_arena(&mut arena, &decoder).await?;
+
+            extract_addresses(&arena, &mut known_addresses);
+
+            let verbosity = get_shell().verbosity;
+            if verbosity >= 2 {
+                let filtered_arena = filter_call_trace_arena(&arena, verbosity);
+                trace_output = Some(render_trace_arena_inner(&filtered_arena, false));
+            }
+            if !config.disable_console_log {
+                self.console_log_handler
+                    .handle_calls_recursive(&call_traces);
+            }
+        }
 
         let balance_diffs: Vec<formatter::transaction::BalanceDiff> =
-            extract_balance_diffs(&accounts_tracking_balance, &tx_result.logs.storage_logs)
+            extract_balance_diffs(&known_addresses, &tx_result.logs.storage_logs)
                 .into_iter()
                 .map(Into::into)
                 .collect();
@@ -227,6 +250,15 @@ impl VmRunner {
                     balance_diffs,
                 )
             );
+        }
+
+        if let Some(trace_output) = trace_output {
+            sh_println!("\nTraces:\n{}", trace_output);
+        }
+
+        if !call_traces.is_empty() && !config.disable_console_log {
+            self.console_log_handler
+                .handle_calls_recursive(&call_traces);
         }
         // Print gas details if enabled
         if config.show_gas_details != ShowGasDetails::None {
@@ -262,7 +294,20 @@ impl VmRunner {
             let decoder = builder.build();
             let mut arena = build_call_trace_arena(&call_traces, &tx_result);
             decode_trace_arena(&mut arena, &decoder).await?;
-
+            for node in arena.nodes().iter() {
+                if let Some(ref call_data) = node.trace.decoded.call_data {
+                    for arg in &call_data.args {
+                        if let anvil_zksync_types::traces::DecodedValue::Address(
+                            anvil_zksync_types::traces::LabeledAddress { label, address },
+                        ) = arg
+                        {
+                            if !known_addresses.contains_key(address) {
+                                known_addresses.entry(*address).or_insert(label.clone());
+                            }
+                        }
+                    }
+                }
+            }
             let verbosity = get_shell().verbosity;
             if verbosity >= 2 {
                 let filtered_arena = filter_call_trace_arena(&arena, verbosity);
