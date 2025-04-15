@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use anvil_zksync_common::address_map::KNOWN_ADDRESSES;
 use zksync_types::{Address, Transaction};
 
-
 pub fn known_addresses_after_transaction(tx: &Transaction) -> HashMap<Address, Option<String>> {
     let mut known_addresses: HashMap<Address, Option<String>> = KNOWN_ADDRESSES
         .iter()

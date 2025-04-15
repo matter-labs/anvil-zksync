@@ -1,6 +1,7 @@
 use crate::bootloader_debug::BootloaderDebug;
 use crate::formatter::{self, ExecutionErrorReport};
 use crate::node::batch::{MainBatchExecutorFactory, TraceCalls};
+use crate::node::diagnostics::account_has_code;
 use crate::node::diagnostics::transaction::known_addresses_after_transaction;
 use crate::node::diagnostics::vm::balance_diff::extract_balance_diffs;
 use crate::node::diagnostics::vm::traces::extract_addresses;
@@ -167,23 +168,14 @@ impl VmRunner {
         config: &TestNodeConfig,
         fee_input_provider: &TestNodeFeeInputProvider,
     ) -> AnvilNodeResult<BatchTransactionExecutionResult> {
-        // Check if target address has code before executing the transaction
         if let Some(to_address) = tx.recipient_account() {
-            let code_key = zksync_types::get_code_key(&to_address);
-            let bytecode_hash = zksync_multivm::interface::storage::ReadStorage::read_value(
-                &mut self.fork_storage,
-                &code_key,
-            );
-
-            // If bytecode hash is zero, there's no code at this address
-            if bytecode_hash.is_zero() {
+            if !account_has_code(to_address, &mut self.fork_storage) {
                 sh_warn!(
                     "Transaction {} was sent to address {to_address}, which is not associated with any contract.",
                     tx.hash()
                 );
             }
         }
-
         let BatchTransactionExecutionResult {
             tx_result,
             compression_result,
