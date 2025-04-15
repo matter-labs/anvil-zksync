@@ -206,6 +206,8 @@ impl From<crate::node::diagnostics::vm::balance_diff::BalanceDiff> for BalanceDi
     }
 }
 mod internal {
+    use std::cmp::Ordering;
+
     use anvil_zksync_config::utils::{format_eth, format_gwei};
     use zksync_types::U256;
 
@@ -224,9 +226,9 @@ mod internal {
 
     fn compute_delta(before: &U256, after: &U256) -> String {
         match before.cmp(after) {
-            std::cmp::Ordering::Less => format!("+{}", format_gwei(after - before)),
-            std::cmp::Ordering::Equal => "0".to_string(),
-            std::cmp::Ordering::Greater => format!("-{}", format_gwei(before - after)),
+            Ordering::Less => format!("+{}", format_gwei(after - before)),
+            Ordering::Equal => "0".to_string(),
+            Ordering::Greater => format!("-{}", format_gwei(before - after)),
         }
     }
 
