@@ -4,13 +4,14 @@ pub mod transaction;
 use crate::bootloader_debug::BootloaderDebug;
 use crate::utils::to_human_size;
 use alloy::hex::ToHexExt;
+use anvil_zksync_common::address_map::ContractType;
+use anvil_zksync_common::address_map::KNOWN_ADDRESSES;
 use anvil_zksync_common::sh_println;
 use anvil_zksync_config::utils::format_gwei;
 use colored::Colorize;
-use lazy_static::lazy_static;
 use serde::Deserialize;
 use std::fmt;
-use std::{collections::HashMap, str};
+use std::str;
 use zksync_error::{documentation::Documented, CustomErrorMessage, NamedError};
 use zksync_error_description::ErrorDocumentation;
 use zksync_multivm::interface::VmExecutionResultAndLogs;
@@ -463,34 +464,6 @@ fn build_prefix(sibling_stack: &[bool], is_last_sibling: bool) -> String {
         prefix.push_str(branch);
     }
     prefix
-}
-
-#[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
-pub enum ContractType {
-    System,
-    Precompile,
-    Popular,
-    Unknown,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-pub struct KnownAddress {
-    address: H160,
-    name: String,
-    contract_type: ContractType,
-}
-
-lazy_static! {
-    /// Loads the known contact addresses from the JSON file.
-    static ref KNOWN_ADDRESSES: HashMap<H160, KnownAddress> = {
-        let json_value = serde_json::from_slice(include_bytes!("../data/address_map.json")).unwrap();
-        let pairs: Vec<KnownAddress> = serde_json::from_value(json_value).unwrap();
-
-        pairs
-            .into_iter()
-            .map(|entry| (entry.address, entry))
-            .collect()
-    };
 }
 
 fn format_known_address(address: H160) -> Option<String> {

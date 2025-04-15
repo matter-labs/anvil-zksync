@@ -16,7 +16,7 @@ pub enum ContractType {
 pub struct KnownAddress {
     pub address: H160,
     pub name: String,
-    contract_type: ContractType,
+    pub contract_type: ContractType,
 }
 
 lazy_static! {
