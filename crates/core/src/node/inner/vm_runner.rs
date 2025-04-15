@@ -1,9 +1,8 @@
 use crate::bootloader_debug::BootloaderDebug;
 use crate::formatter::{self, ExecutionErrorReport};
 use crate::node::batch::{MainBatchExecutorFactory, TraceCalls};
-use crate::node::diagnostics::vm::balance_diff::{
-    extract_balance_diffs, known_addresses_after_transaction,
-};
+use crate::node::diagnostics::transaction::known_addresses_after_transaction;
+use crate::node::diagnostics::vm::balance_diff::extract_balance_diffs;
 use crate::node::diagnostics::vm::traces::extract_addresses;
 use crate::node::error::ToHaltError;
 use crate::node::inner::fork_storage::ForkStorage;
