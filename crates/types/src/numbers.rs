@@ -30,7 +30,9 @@ impl std::fmt::Display for SignedU256 {
 }
 
 impl<T> From<T> for SignedU256
-where T: Into<U256> {
+where
+    T: Into<U256>,
+{
     fn from(val: T) -> Self {
         SignedU256 {
             sign: Sign::NonNegative,
@@ -101,7 +103,7 @@ impl std::fmt::Display for NumberExponentialRepr {
             mantissa,
             exponent,
         } = self;
-        let sign = if sign == &Sign::Negative {"-"} else {""};
+        let sign = if sign == &Sign::Negative { "-" } else { "" };
         f.write_fmt(format_args!("{sign}{mantissa}e{exponent}"))?;
         Ok(())
     }
