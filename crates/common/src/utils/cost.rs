@@ -1,11 +1,15 @@
-/// Calculates the cost of a transaction in ETH.
-pub fn calculate_eth_cost(gas_price_in_wei_per_gas: u64, gas_used: u64) -> f64 {
-    // Convert gas price from wei to gwei
-    let gas_price_in_gwei = gas_price_in_wei_per_gas as f64 / 1e9;
+use alloy::primitives::utils::format_ether;
+use alloy::primitives::utils::format_units;
+use zksync_types::U256;
 
-    // Calculate total cost in gwei
-    let total_cost_in_gwei = gas_price_in_gwei * gas_used as f64;
-
-    // Convert total cost from gwei to ETH
-    total_cost_in_gwei / 1e9
+/// Formats a `U256` value as Ether without capping decimal points.
+pub fn format_eth(value: U256) -> String {
+    let value = alloy::primitives::U256::from_limbs(value.0);
+    let var_name = format!("{} ETH", format_ether(value));
+    var_name
+}
+/// Formats a `U256` value as Gwei without capping decimal points.
+pub fn format_gwei(value: U256) -> String {
+    let value = alloy::primitives::U256::from_limbs(value.0);
+    format!("{:.8} gwei", format_units(value, "gwei").unwrap())
 }

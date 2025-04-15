@@ -8,8 +8,7 @@
 use std::fmt::Display;
 
 use crate::utils::to_human_size;
-use anvil_zksync_common::utils::cost::calculate_eth_cost;
-use anvil_zksync_config::utils::format_gwei;
+use anvil_zksync_common::utils::cost::{format_eth, format_gwei};
 use anvil_zksync_types::traces::LabeledAddress;
 use zksync_multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
 use zksync_types::{Address, Transaction, H256, U256};
@@ -127,8 +126,8 @@ impl Display for TransactionSummary {
         } = self;
 
         // Calculate gas costs in ETH
-        let paid_in_eth = calculate_eth_cost(*l2_gas_price, gas.used.as_u64());
-        let refunded_in_eth = calculate_eth_cost(*l2_gas_price, gas.refunded);
+        let paid = U256::from(*l2_gas_price) * gas.used;
+        let refunded = U256::from(*l2_gas_price) * gas.refunded;
 
         // Format human-readable values
         let gas_used = gas.used;
@@ -153,10 +152,12 @@ impl Display for TransactionSummary {
 Initiator: {initiator:?}
 Payer: {payer:?}
 Gas Limit: {gas_limit_human} | Used: {gas_used_human} | Refunded: {gas_refunded_human}
-Paid: {paid_in_eth:.10} ETH ({gas_used} gas * {l2_gas_price_human})
-Refunded: {refunded_in_eth:.10} ETH
+Paid: {paid_in_eth} ({gas_used} gas * {l2_gas_price_human})
+Refunded: {refunded_in_eth}
 {balance_diffs_formatted_table}
-"#
+"#,
+            paid_in_eth = format_eth(paid),
+            refunded_in_eth = format_eth(refunded),
         ))?;
 
         Ok(())
@@ -208,7 +209,7 @@ impl From<crate::node::diagnostics::vm::balance_diff::BalanceDiff> for BalanceDi
 mod internal {
     use std::cmp::Ordering;
 
-    use anvil_zksync_config::utils::{format_eth, format_gwei};
+    use anvil_zksync_common::utils::cost::{format_eth, format_gwei};
     use zksync_types::U256;
 
     use super::BalanceDiff;

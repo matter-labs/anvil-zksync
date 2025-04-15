@@ -7,7 +7,7 @@ use alloy::hex::ToHexExt;
 use anvil_zksync_common::address_map::ContractType;
 use anvil_zksync_common::address_map::KNOWN_ADDRESSES;
 use anvil_zksync_common::sh_println;
-use anvil_zksync_config::utils::format_gwei;
+use anvil_zksync_common::utils::cost::format_gwei;
 use colored::Colorize;
 use serde::Deserialize;
 use std::fmt;
