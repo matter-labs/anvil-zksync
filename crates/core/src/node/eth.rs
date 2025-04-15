@@ -271,7 +271,7 @@ impl InMemoryNode {
     ) -> anyhow::Result<U256> {
         let nonce_key = self.storage_key_layout.get_nonce_key(&address);
         match self.storage.read_value_alt(&nonce_key).await {
-            Ok(result) => Ok(h256_to_u256(result).into()),
+            Ok(result) => Ok(h256_to_u256(result)),
             Err(error) => Err(anyhow::anyhow!("failed to read nonce storage: {error}")),
         }
     }
