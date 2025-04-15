@@ -28,11 +28,13 @@ impl std::fmt::Display for SignedU256 {
         write!(f, "{inner}")
     }
 }
-impl From<U256> for SignedU256 {
-    fn from(val: U256) -> Self {
+
+impl<T> From<T> for SignedU256
+where T: Into<U256> {
+    fn from(val: T) -> Self {
         SignedU256 {
             sign: Sign::NonNegative,
-            inner: val,
+            inner: val.into(),
         }
     }
 }
@@ -99,7 +101,32 @@ impl std::fmt::Display for NumberExponentialRepr {
             mantissa,
             exponent,
         } = self;
+        let sign = if sign == &Sign::Negative {"-"} else {""};
         f.write_fmt(format_args!("{sign}{mantissa}e{exponent}"))?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::numbers::{to_exp_notation, SignedU256};
+
+    #[test]
+    fn test_format_to_exponential_notation() {
+        let value = 1234124124u64;
+
+        let formatted = to_exp_notation(SignedU256::from(value), 4, false);
+        assert_eq!(formatted.to_string(), "1.234e9");
+
+        let formatted = to_exp_notation(SignedU256::from(value), 3, false);
+        assert_eq!(formatted.to_string(), "1.23e9");
+
+        let value = 10000000u64;
+
+        let formatted = to_exp_notation(SignedU256::from(value), 4, false);
+        assert_eq!(formatted.to_string(), "1.000e7");
+
+        let formatted = to_exp_notation(SignedU256::from(value), 3, true);
+        assert_eq!(formatted.to_string(), "1e7");
     }
 }

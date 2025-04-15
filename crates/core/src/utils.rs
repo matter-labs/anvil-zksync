@@ -1,18 +1,8 @@
-use alloy::primitives::{Sign, I256, U256 as AlloyU256};
 use anvil_zksync_common::sh_err;
-use anyhow::Context;
 use chrono::{DateTime, Utc};
-use colored::Colorize;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 use std::fmt;
 use std::future::Future;
 use std::sync::Arc;
-use std::{
-    fs::File,
-    io::{BufWriter, Write},
-    path::Path,
-};
 use tokio::runtime::Builder;
 use tokio::sync::{RwLock, RwLockReadGuard};
 use zksync_multivm::interface::{Call, CallType, ExecutionResult, VmExecutionResultAndLogs};
@@ -204,58 +194,6 @@ impl<T> ArcRLock<T> {
     }
 }
 
-/// Returns the number expressed as a string in exponential notation
-/// with the given precision (number of significant figures),
-/// optionally removing trailing zeros from the mantissa.
-#[inline]
-pub fn to_exp_notation(
-    value: AlloyU256,
-    precision: usize,
-    trim_end_zeros: bool,
-    sign: Sign,
-) -> String {
-    let stringified = value.to_string();
-    let exponent = stringified.len() - 1;
-    let mut mantissa = stringified.chars().take(precision).collect::<String>();
-
-    // optionally remove trailing zeros
-    if trim_end_zeros {
-        mantissa = mantissa.trim_end_matches('0').to_string();
-    }
-
-    // Place a decimal point only if needed
-    // e.g. 1234 -> 1.234e3 (needed)
-    //      5 -> 5 (not needed)
-    if mantissa.len() > 1 {
-        mantissa.insert(1, '.');
-    }
-
-    format!("{sign}{mantissa}e{exponent}")
-}
-
-/// Formats a U256 number to string, adding an exponential notation _hint_ if it
-/// is larger than `10_000`, with a precision of `4` figures, and trimming the
-/// trailing zeros.
-pub fn format_uint_exp(num: AlloyU256) -> String {
-    if num < AlloyU256::from(10_000) {
-        return num.to_string();
-    }
-
-    let exp = to_exp_notation(num, 4, true, Sign::Positive);
-    format!("{num} {}", format!("[{exp}]").dimmed())
-}
-
-/// Formats a U256 number to string, adding an exponential notation _hint_.
-pub fn format_int_exp(num: I256) -> String {
-    let (sign, abs) = num.into_sign_and_abs();
-    if abs < AlloyU256::from(10_000) {
-        return format!("{sign}{abs}");
-    }
-
-    let exp = to_exp_notation(abs, 4, true, sign);
-    format!("{sign}{abs} {}", format!("[{exp}]").dimmed())
-}
-
 #[cfg(test)]
 mod tests {
     use zksync_types::U256;
@@ -312,24 +250,5 @@ mod tests {
     fn test_to_real_block_number_number() {
         let actual = to_real_block_number(BlockNumber::Number(U64::from(5)), U64::from(10));
         assert_eq!(U64::from(5), actual);
-    }
-
-    #[test]
-    fn test_format_to_exponential_notation() {
-        let value = 1234124124u64;
-
-        let formatted = to_exp_notation(AlloyU256::from(value), 4, false, Sign::Positive);
-        assert_eq!(formatted, "1.234e9");
-
-        let formatted = to_exp_notation(AlloyU256::from(value), 3, true, Sign::Positive);
-        assert_eq!(formatted, "1.23e9");
-
-        let value = 10000000u64;
-
-        let formatted = to_exp_notation(AlloyU256::from(value), 4, false, Sign::Positive);
-        assert_eq!(formatted, "1.000e7");
-
-        let formatted = to_exp_notation(AlloyU256::from(value), 3, true, Sign::Positive);
-        assert_eq!(formatted, "1e7");
     }
 }
