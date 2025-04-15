@@ -1,4 +1,5 @@
-use alloy::primitives::map::HashMap;
+use std::collections::HashMap;
+
 use lazy_static::lazy_static;
 use serde::Deserialize;
 use zksync_types::{Address, H160};
