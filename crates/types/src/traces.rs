@@ -162,7 +162,7 @@ impl std::fmt::Display for LabeledAddress {
         if let Some(label) = label {
             f.write_fmt(format_args!("{label}: "))?;
         }
-        write!(f, "[{}]", hex::encode(address))
+        write!(f, "[0x{}]", hex::encode(address))
     }
 }
 
