@@ -1117,6 +1117,83 @@
               }
             }
           ]
+        },
+        {
+          "component_name": "StateLoader",
+          "component_code": 11,
+          "identifier_encoding": "state",
+          "errors" : [
+            {
+              "name": "LoadingStateOverExistingState",
+              "code": 1,
+              "message": "Loading state into a node with existing state is not allowed.",
+              "doc" : {
+                "summary": "It is not allowed to load a state overriding the existing node state.",
+                "description": "It is not allowed to load a state overriding the existing node state. If you have a use case for that, please create an issue."
+              }
+            },
+            {
+              "name": "LoadEmptyState",
+              "code": 2,
+              "message": "Loading a state without blocks is not allowed.",
+              "doc" : {
+                "summary": "Attempt to load a state with no blocks",
+                "description": "It is not allowed to load a state without any blocks in it.",
+                "likely_causes": [
+                  "You meant to provide a different state."
+                ]
+              }
+            },
+            {
+              "name": "StateDecompression",
+              "code": 3,
+              "message": "Failed to decompress state: {details}.",
+              "fields": [
+                {
+                  "name": "details",
+                  "type": "string"
+                }
+              ]
+            },
+            {
+              "name": "StateDeserialization",
+              "code": 4,
+              "message": "Failed to deserialize state: {details}",
+              "fields": [
+                {
+                  "name": "details",
+                  "type": "string"
+                }
+              ]
+            },
+            {
+              "name": "UnknownStateVersion",
+              "code": 5,
+              "message": "Unknown version of the state: {version}.",
+              "fields": [
+                {
+                  "name": "version",
+                  "type": "uint"
+                }
+              ]
+            },
+            {
+              "name": "LoadState",
+              "code": 6,
+              "message": "Error while attempting to access the state located at `{path}`. Reason: {reason}.",
+              "fields": [
+                {
+                  "name": "path",
+                  "type": "string"
+                },
+                {
+                  "name": "reason",
+                  "type": "string"
+                }
+              ]
+
+            }
+          ]
         }
       ]
     }
