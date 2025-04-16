@@ -6,7 +6,7 @@ use alloy::providers::WalletProvider;
 use alloy::{primitives::U256, signers::local::PrivateKeySigner};
 use alloy_zksync::node_bindings::AnvilZKsync;
 use anvil_zksync_core::node::VersionedState;
-use anvil_zksync_core::utils::write_json_file;
+use anvil_zksync_common::utils::io::write_json_file;
 use anvil_zksync_e2e_tests::{
     get_node_binary_path, AnvilZKsyncApi, AnvilZksyncTesterBuilder, LockedPort, ReceiptExt,
     ResponseHeadersInspector, ZksyncWalletProviderExt, DEFAULT_TX_VALUE,
