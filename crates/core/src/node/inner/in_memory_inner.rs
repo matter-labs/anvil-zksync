@@ -1,6 +1,6 @@
 use crate::filters::EthFilters;
 use crate::formatter::ExecutionErrorReport;
-use crate::node::error::{LoadStateError, ToHaltError, ToRevertReason};
+use crate::node::error::{ToHaltError, ToRevertReason};
 use crate::node::inner::blockchain::Blockchain;
 use crate::node::inner::fork::{Fork, ForkClient, ForkSource};
 use crate::node::inner::fork_storage::{ForkStorage, SerializableStorage};
@@ -28,6 +28,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_error::anvil_zksync::node::AnvilNodeResult;
+use zksync_error::anvil_zksync::state::{StateLoaderError, StateLoaderResult};
 use zksync_error::anvil_zksync::{halt::HaltError, revert::RevertError};
 use zksync_multivm::interface::storage::{ReadStorage, StorageView, WriteStorage};
 use zksync_multivm::interface::{
@@ -902,24 +903,26 @@ impl InMemoryNodeInner {
         }))
     }
 
-    pub async fn load_state(&mut self, state: VersionedState) -> Result<bool, LoadStateError> {
+    pub async fn load_state(&mut self, state: VersionedState) -> StateLoaderResult<bool> {
         let mut storage = self.blockchain.write().await;
         if storage.blocks.len() > 1 {
             tracing::debug!(
                 blocks = storage.blocks.len(),
                 "node has existing state; refusing to load new state"
             );
-            return Err(LoadStateError::HasExistingState);
+            return Err(StateLoaderError::LoadingStateOverExistingState);
         }
         let state = match state {
             VersionedState::V1 { state, .. } => state,
             VersionedState::Unknown { version } => {
-                return Err(LoadStateError::UnknownStateVersion(version))
+                return Err(StateLoaderError::UnknownStateVersion {
+                    version: version.into(),
+                })
             }
         };
         if state.blocks.is_empty() {
             tracing::debug!("new state has no blocks; refusing to load");
-            return Err(LoadStateError::EmptyState);
+            return Err(StateLoaderError::LoadEmptyState);
         }
 
         storage.load_blocks(&mut self.time, state.blocks);

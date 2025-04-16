@@ -267,6 +267,20 @@
           }
         }
       },
+      "StateLoader": {
+        "name": "StateLoader",
+        "meta": {
+          "description": ""
+        },
+        "bindings": {
+          "rust": {
+            "expression": "Box<StateLoader>"
+          },
+          "typescript": {
+            "expression": "Box<StateLoader>"
+          }
+        }
+      },
       "TransactionValidation": {
         "name": "TransactionValidation",
         "meta": {
@@ -408,6 +422,7 @@
           "AnvilNode",
           "Halt",
           "Revert",
+          "StateLoader",
           "TransactionValidation"
         ],
         "bindings": {
@@ -733,6 +748,20 @@
         "description": "Errors originating in the ZKsync fork of Solidity compiler.",
         "origins": [
           "<default zksync-root.json>"
+        ]
+      },
+      "StateLoader": {
+        "name": "StateLoader",
+        "code": 11,
+        "domain_name": "AnvilZKsync",
+        "bindings": {
+          "rust": "StateLoader",
+          "typescript": "StateLoader"
+        },
+        "identifier": "state",
+        "description": "",
+        "origins": [
+          "../../etc/errors/anvil.json"
         ]
       },
       "TransactionValidation": {
@@ -2334,6 +2363,196 @@
           },
           "typescript": {
             "expression": "Unknown"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-state-0]": {
+        "domain": "AnvilZKsync",
+        "component": "StateLoader",
+        "name": "GenericError",
+        "code": 0,
+        "identifier": "[anvil_zksync-state-0]",
+        "message": "Generic error: {message}",
+        "fields": [
+          {
+            "name": "message",
+            "type": "string"
+          }
+        ],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "expression": "GenericError"
+          },
+          "typescript": {
+            "expression": "GenericError"
+          }
+        },
+        "origins": []
+      },
+      "[anvil_zksync-state-1]": {
+        "domain": "AnvilZKsync",
+        "component": "StateLoader",
+        "name": "LoadingStateOverExistingState",
+        "code": 1,
+        "identifier": "[anvil_zksync-state-1]",
+        "message": "Loading state into a node with existing state is not allowed.",
+        "fields": [],
+        "documentation": {
+          "description": "It is not allowed to load a state overriding the existing node state. If you have a use case for that, please create an issue.",
+          "summary": "It is not allowed to load a state overriding the existing node state.",
+          "likely_causes": []
+        },
+        "bindings": {
+          "rust": {
+            "expression": "LoadingStateOverExistingState"
+          },
+          "typescript": {
+            "expression": "LoadingStateOverExistingState"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-state-2]": {
+        "domain": "AnvilZKsync",
+        "component": "StateLoader",
+        "name": "LoadEmptyState",
+        "code": 2,
+        "identifier": "[anvil_zksync-state-2]",
+        "message": "Loading a state without blocks is not allowed.",
+        "fields": [],
+        "documentation": {
+          "description": "It is not allowed to load a state without any blocks in it.",
+          "summary": "Attempt to load a state with no blocks",
+          "likely_causes": [
+            {
+              "cause": "You meant to provide a different state.",
+              "fixes": [],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "expression": "LoadEmptyState"
+          },
+          "typescript": {
+            "expression": "LoadEmptyState"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-state-3]": {
+        "domain": "AnvilZKsync",
+        "component": "StateLoader",
+        "name": "StateDecompression",
+        "code": 3,
+        "identifier": "[anvil_zksync-state-3]",
+        "message": "Failed to decompress state: {details}.",
+        "fields": [
+          {
+            "name": "details",
+            "type": "string"
+          }
+        ],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "expression": "StateDecompression"
+          },
+          "typescript": {
+            "expression": "StateDecompression"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-state-4]": {
+        "domain": "AnvilZKsync",
+        "component": "StateLoader",
+        "name": "StateDeserialization",
+        "code": 4,
+        "identifier": "[anvil_zksync-state-4]",
+        "message": "Failed to deserialize state: {details}",
+        "fields": [
+          {
+            "name": "details",
+            "type": "string"
+          }
+        ],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "expression": "StateDeserialization"
+          },
+          "typescript": {
+            "expression": "StateDeserialization"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-state-5]": {
+        "domain": "AnvilZKsync",
+        "component": "StateLoader",
+        "name": "UnknownStateVersion",
+        "code": 5,
+        "identifier": "[anvil_zksync-state-5]",
+        "message": "Unknown version of the state: {version}.",
+        "fields": [
+          {
+            "name": "version",
+            "type": "uint"
+          }
+        ],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "expression": "UnknownStateVersion"
+          },
+          "typescript": {
+            "expression": "UnknownStateVersion"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-state-6]": {
+        "domain": "AnvilZKsync",
+        "component": "StateLoader",
+        "name": "LoadState",
+        "code": 6,
+        "identifier": "[anvil_zksync-state-6]",
+        "message": "Error while attempting to access the state located at `{path}`. Reason: {reason}.",
+        "fields": [
+          {
+            "name": "path",
+            "type": "string"
+          },
+          {
+            "name": "reason",
+            "type": "string"
+          }
+        ],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "expression": "LoadState"
+          },
+          "typescript": {
+            "expression": "LoadState"
           }
         },
         "origins": [

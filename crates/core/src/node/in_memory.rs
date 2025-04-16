@@ -5,7 +5,6 @@ use super::vm::AnvilVM;
 use crate::delegate_vm;
 use crate::deps::InMemoryStorage;
 use crate::filters::EthFilters;
-use crate::node::error::LoadStateError;
 use crate::node::fee_model::TestNodeFeeInputProvider;
 use crate::node::impersonate::{ImpersonationManager, ImpersonationState};
 use crate::node::inner::blockchain::ReadBlockchain;
@@ -45,6 +44,7 @@ use tokio::sync::RwLock;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_error::anvil_zksync;
 use zksync_error::anvil_zksync::node::AnvilNodeResult;
+use zksync_error::anvil_zksync::state::{StateLoaderError, StateLoaderResult};
 use zksync_multivm::interface::storage::{ReadStorage, StoragePtr, StorageView};
 use zksync_multivm::interface::VmFactory;
 use zksync_multivm::interface::{
@@ -494,7 +494,7 @@ impl InMemoryNode {
         Ok(encoder.finish()?.into())
     }
 
-    pub async fn load_state(&self, buf: Bytes) -> Result<bool, LoadStateError> {
+    pub async fn load_state(&self, buf: Bytes) -> StateLoaderResult<bool> {
         let orig_buf = &buf.0[..];
         let mut decoder = GzDecoder::new(orig_buf);
         let mut decoded_data = Vec::new();
@@ -502,16 +502,21 @@ impl InMemoryNode {
         // Support both compressed and non-compressed state format
         let decoded = if decoder.header().is_some() {
             tracing::trace!(bytes = buf.0.len(), "decompressing state");
-            decoder
-                .read_to_end(decoded_data.as_mut())
-                .map_err(LoadStateError::FailedDecompress)?;
+            decoder.read_to_end(decoded_data.as_mut()).map_err(|e| {
+                StateLoaderError::StateDecompression {
+                    details: e.to_string(),
+                }
+            })?;
             &decoded_data
         } else {
             &buf.0
         };
         tracing::trace!(bytes = decoded.len(), "deserializing state");
-        let state: VersionedState =
-            serde_json::from_slice(decoded).map_err(LoadStateError::FailedDeserialize)?;
+        let state: VersionedState = serde_json::from_slice(decoded).map_err(|e| {
+            StateLoaderError::StateDeserialization {
+                details: e.to_string(),
+            }
+        })?;
 
         self.inner.write().await.load_state(state).await
     }
