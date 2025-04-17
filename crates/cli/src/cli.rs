@@ -8,7 +8,7 @@ use anvil_zksync_common::{
 };
 use anvil_zksync_config::constants::{DEFAULT_MNEMONIC, TEST_NODE_NETWORK_ID};
 use anvil_zksync_config::types::{AccountGenerator, Genesis, SystemContractsOptions};
-use anvil_zksync_config::{L1Config, TestNodeConfig};
+use anvil_zksync_config::{BaseTokenConfig, L1Config, TestNodeConfig};
 use anvil_zksync_core::node::fork::ForkConfig;
 use anvil_zksync_core::{
     node::{InMemoryNode, VersionedState},
@@ -20,11 +20,13 @@ use anvil_zksync_types::{
 use clap::{arg, command, ArgAction, Parser, Subcommand};
 use flate2::read::GzDecoder;
 use futures::FutureExt;
+use num::rational::Ratio;
 use rand::{rngs::StdRng, SeedableRng};
 use std::collections::HashMap;
 use std::env;
 use std::io::Read;
 use std::net::IpAddr;
+use std::num::NonZeroU64;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::time::Duration;
@@ -36,6 +38,7 @@ use std::{
 use tokio::time::{Instant, Interval};
 use url::Url;
 use zksync_telemetry::TelemetryProps;
+use zksync_types::fee_model::BaseTokenConversionRatio;
 use zksync_types::{ProtocolVersionId, H256, U256};
 
 const DEFAULT_PORT: &str = "8011";
@@ -321,6 +324,14 @@ pub struct Cli {
     /// Enable automatic execution of L1 batches
     #[arg(long, requires = "l1_group", default_missing_value = "true", num_args(0..=1), help_heading = "UNSTABLE - L1")]
     pub auto_execute_l1: Option<bool>,
+
+    /// Base token symbol to use instead of 'ETH'.
+    #[arg(long, help_heading = "Custom Base Token")]
+    pub base_token_symbol: Option<String>,
+
+    /// Base token conversion ratio (e.g., '40000', '628/17').
+    #[arg(long, help_heading = "Custom Base Token")]
+    pub base_token_ratio: Option<Ratio<u64>>,
 }
 
 #[derive(Debug, Clone, clap::Args)]
@@ -637,7 +648,19 @@ impl Cli {
                     .external_l1
                     .map(|address| L1Config::External { address }))
             }))
-            .with_auto_execute_l1(self.auto_execute_l1);
+            .with_auto_execute_l1(self.auto_execute_l1)
+            .with_base_token_config({
+                let ratio = self.base_token_ratio.unwrap_or(Ratio::ONE);
+                BaseTokenConfig {
+                    symbol: self.base_token_symbol.unwrap_or("ETH".to_string()),
+                    ratio: BaseTokenConversionRatio {
+                        numerator: NonZeroU64::new(*ratio.numer())
+                            .expect("base token conversion ratio cannot have 0 as numerator"),
+                        denominator: NonZeroU64::new(*ratio.denom())
+                            .expect("base token conversion ratio cannot have 0 as denominator"),
+                    },
+                }
+            });
 
         if self.emulate_evm && config.protocol_version() < ProtocolVersionId::Version27 {
             return Err(zksync_error::anvil_zksync::env::InvalidArguments {

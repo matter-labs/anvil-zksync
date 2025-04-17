@@ -265,8 +265,10 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
     }
     let pool = TxPool::new(impersonation.clone(), config.transaction_order);
 
-    let fee_input_provider =
-        TestNodeFeeInputProvider::from_fork(fork_client.as_ref().map(|f| &f.details));
+    let fee_input_provider = TestNodeFeeInputProvider::from_fork(
+        fork_client.as_ref().map(|f| &f.details),
+        &config.base_token_config,
+    );
     let filters = Arc::new(RwLock::new(EthFilters::default()));
 
     // Build system contracts

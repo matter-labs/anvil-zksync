@@ -560,12 +560,13 @@ pub fn print_transaction_summary(
     tx: &Transaction,
     tx_result: &VmExecutionResultAndLogs,
     status: &str,
+    base_token_symbol: &str,
 ) {
     // Calculate used and refunded gas
     let used_gas = tx.gas_limit() - tx_result.refunds.gas_refunded;
-    let paid_in_eth = calculate_eth_cost(l2_gas_price, used_gas.as_u64());
+    let paid_base_token = calculate_eth_cost(l2_gas_price, used_gas.as_u64());
     let refunded_gas = tx_result.refunds.gas_refunded;
-    let refunded_in_eth = calculate_eth_cost(l2_gas_price, refunded_gas);
+    let refunded_base_token = calculate_eth_cost(l2_gas_price, refunded_gas);
 
     let emoji = match status {
         "SUCCESS" => "✅",
@@ -576,24 +577,19 @@ pub fn print_transaction_summary(
 
     sh_println!(
         r#"
-{} [{}] Hash: {tx_hash:?}
+{emoji} [{status}] Hash: {tx_hash:?}
 Initiator: {initiator:?}
 Payer: {payer:?}
 Gas Limit: {gas_limit} | Used: {used} | Refunded: {refunded}
-Paid: {paid:.10} ETH ({} gas * {l2_gas_price_fmt})
-Refunded: {:.10} ETH
+Paid: {paid_base_token:.10} {base_token_symbol} ({used_gas} gas * {l2_gas_price_fmt})
+Refunded: {refunded_base_token:.10} {base_token_symbol}
 "#,
-        emoji,
-        status,
-        used_gas,
-        refunded_in_eth,
         tx_hash = tx.hash(),
         initiator = tx.initiator_account(),
         payer = tx.payer(),
         gas_limit = to_human_size(tx.gas_limit()),
         used = to_human_size(used_gas),
         refunded = to_human_size(tx_result.refunds.gas_refunded.into()),
-        paid = paid_in_eth,
         l2_gas_price_fmt = format_gwei(l2_gas_price.into())
     );
     sh_println!("");
