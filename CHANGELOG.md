@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.0](https://github.com/matter-labs/anvil-zksync/compare/v0.5.1...v0.6.0) (2025-04-17)
+
+
+### ⚠ BREAKING CHANGES
+
+* drop unused formatting CLI options ([#666](https://github.com/matter-labs/anvil-zksync/issues/666))
+
+### Features
+
+* drop unused formatting CLI options ([#666](https://github.com/matter-labs/anvil-zksync/issues/666)) ([c13f3f0](https://github.com/matter-labs/anvil-zksync/commit/c13f3f06bee78e2e7b9c094877c159fb691a61ec))
+* show tx effect on ETH balances ([#656](https://github.com/matter-labs/anvil-zksync/issues/656)) ([6c6ae1e](https://github.com/matter-labs/anvil-zksync/commit/6c6ae1e87722fcf8755fbb11e8b1df397a4e806f))
+
 ## [0.5.1](https://github.com/matter-labs/anvil-zksync/compare/v0.5.0...v0.5.1) (2025-04-11)
 
 
