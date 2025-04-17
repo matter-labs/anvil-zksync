@@ -200,7 +200,9 @@ impl VmRunner {
             builder = builder.with_signature_identifier(
                 SignaturesIdentifier::new(Some(config.get_cache_dir().into()), config.offline)
                     .map_err(|err| {
-                        anyhow::anyhow!("Failed to create SignaturesIdentifier: {:#}", err)
+                        anvil_zksync::node::generic_error!(
+                            "Failed to create SignaturesIdentifier: {err:#}"
+                        )
                     })?,
             );
 
@@ -223,15 +225,15 @@ impl VmRunner {
                 .map(Into::into)
                 .collect();
 
-            sh_eprintln!(
-                "{}",
-                formatter::transaction::TransactionSummary::new(
-                    config.get_l2_gas_price(),
-                    tx,
-                    &tx_result,
-                    balance_diffs,
-                )
-            );
+        sh_println!(
+            "{}",
+            formatter::transaction::TransactionSummary::new(
+                config.get_l2_gas_price(),
+                tx,
+                &tx_result,
+                balance_diffs,
+            )
+        );
 
         if let Some(trace_output) = trace_output {
             sh_println!("\nTraces:\n{}", trace_output);
@@ -256,43 +258,6 @@ impl VmRunner {
         if config.show_vm_details != ShowVMDetails::None {
             let mut formatter = formatter::Formatter::new();
             formatter.print_vm_details(&tx_result);
-        }
-
-        let verbosity = get_shell().verbosity;
-        if !call_traces.is_empty() && verbosity >= 2 {
-            let mut builder = CallTraceDecoderBuilder::default();
-
-            builder = builder.with_signature_identifier(
-                SignaturesIdentifier::new(Some(config.get_cache_dir().into()), config.offline)
-                    .map_err(|err| {
-                        anyhow::anyhow!("Failed to create SignaturesIdentifier: {:#}", err)
-                    })?,
-            );
-
-            let decoder = builder.build();
-            let mut arena = build_call_trace_arena(&call_traces, &tx_result);
-            decode_trace_arena(&mut arena, &decoder).await?;
-
-            for node in arena.nodes().iter() {
-                if let Some(ref call_data) = node.trace.decoded.call_data {
-                    for arg in &call_data.args {
-                        if let anvil_zksync_types::traces::DecodedValue::Address(
-                            anvil_zksync_types::traces::LabeledAddress { label, address },
-                        ) = arg
-                        {
-                            if !known_addresses.contains_key(address) {
-                                known_addresses.entry(*address).or_insert(label.clone());
-                            }
-                        }
-                    }
-                }
-            }
-            let verbosity = get_shell().verbosity;
-            if verbosity >= 2 {
-                let filtered_arena = filter_call_trace_arena(&arena, verbosity);
-                let trace_output = render_trace_arena_inner(&filtered_arena, false);
-                sh_println!("\nTraces:\n{}", trace_output);
-            }
         }
 
         Ok(BatchTransactionExecutionResult {

@@ -154,6 +154,7 @@ Payer: {payer:?}
 Gas Limit: {gas_limit_human} | Used: {gas_used_human} | Refunded: {gas_refunded_human}
 Paid: {paid_in_eth} ({gas_used} gas * {l2_gas_price_human})
 Refunded: {refunded_in_eth}
+
 {balance_diffs_formatted_table}
 "#,
             paid_in_eth = format_eth(paid),
