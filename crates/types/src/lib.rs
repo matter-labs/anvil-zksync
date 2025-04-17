@@ -11,6 +11,6 @@ pub use self::{
     l2_tx_builder::L2TxBuilder,
     log::LogLevel,
     serde_helpers::Numeric,
-    show_details::{ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails},
+    show_details::{ShowGasDetails, ShowStorageLogs, ShowVMDetails},
     transaction_order::{TransactionOrder, TransactionPriority},
 };

@@ -29,7 +29,7 @@ use anvil_zksync_traces::{
     identifier::SignaturesIdentifier, render_trace_arena_inner,
 };
 use anvil_zksync_types::{
-    traces::CallTraceArena, LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails,
+    traces::CallTraceArena, LogLevel, ShowGasDetails, ShowStorageLogs, ShowVMDetails,
 };
 use anyhow::{anyhow, Context};
 use flate2::read::GzDecoder;
@@ -434,12 +434,6 @@ impl InMemoryNode {
             .take()
             .unwrap_or_default();
 
-        if !inner.config.disable_console_log {
-            inner
-                .console_log_handler
-                .handle_calls_recursive(&call_traces);
-        }
-
         let verbosity = get_shell().verbosity;
         if !call_traces.is_empty() && verbosity >= 2 {
             let tx_result_for_arena = tx_result.clone();
@@ -532,26 +526,8 @@ impl InMemoryNode {
             .unwrap_or(TEST_NODE_NETWORK_ID))
     }
 
-    pub async fn get_show_calls(&self) -> anyhow::Result<String> {
-        Ok(self.inner.read().await.config.show_calls.to_string())
-    }
-
-    pub async fn get_show_outputs(&self) -> anyhow::Result<bool> {
-        Ok(self.inner.read().await.config.show_outputs)
-    }
-
     pub fn get_current_timestamp(&self) -> anyhow::Result<u64> {
         Ok(self.time.current_timestamp())
-    }
-
-    pub async fn set_show_calls(&self, show_calls: ShowCalls) -> anyhow::Result<String> {
-        self.inner.write().await.config.show_calls = show_calls;
-        Ok(show_calls.to_string())
-    }
-
-    pub async fn set_show_outputs(&self, value: bool) -> anyhow::Result<bool> {
-        self.inner.write().await.config.show_outputs = value;
-        Ok(value)
     }
 
     pub async fn set_show_storage_logs(
@@ -578,28 +554,8 @@ impl InMemoryNode {
         Ok(show_gas_details.to_string())
     }
 
-    pub async fn set_resolve_hashes(&self, value: bool) -> anyhow::Result<bool> {
-        self.inner.write().await.config.resolve_hashes = value;
-        Ok(value)
-    }
-
     pub async fn set_show_node_config(&self, value: bool) -> anyhow::Result<bool> {
         self.inner.write().await.config.show_node_config = value;
-        Ok(value)
-    }
-
-    pub async fn set_show_tx_summary(&self, value: bool) -> anyhow::Result<bool> {
-        self.inner.write().await.config.show_tx_summary = value;
-        Ok(value)
-    }
-
-    pub async fn set_show_event_logs(&self, value: bool) -> anyhow::Result<bool> {
-        self.inner.write().await.config.show_event_logs = value;
-        Ok(value)
-    }
-
-    pub async fn set_disable_console_log(&self, value: bool) -> anyhow::Result<bool> {
-        self.inner.write().await.config.disable_console_log = value;
         Ok(value)
     }
 

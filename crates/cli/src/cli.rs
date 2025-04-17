@@ -13,7 +13,7 @@ use anvil_zksync_config::{L1Config, TestNodeConfig};
 use anvil_zksync_core::node::fork::ForkConfig;
 use anvil_zksync_core::node::{InMemoryNode, VersionedState};
 use anvil_zksync_types::{
-    LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails, TransactionOrder,
+    LogLevel, ShowGasDetails, ShowStorageLogs, ShowVMDetails, TransactionOrder,
 };
 use clap::{arg, command, ArgAction, Parser, Subcommand};
 use flate2::read::GzDecoder;
@@ -88,40 +88,11 @@ pub struct Cli {
     /// Specify chain ID (default: 260).
     pub chain_id: Option<u32>,
 
-    #[arg(short, long, help_heading = "Debugging Options")]
-    /// Enable default settings for debugging contracts.
-    pub debug_mode: bool,
-
     #[arg(long, default_value = "true", default_missing_value = "true", num_args(0..=1), help_heading = "Debugging Options")]
     /// If true, prints node config on startup.
     pub show_node_config: Option<bool>,
 
-    #[arg(long, default_value = "true", default_missing_value = "true", num_args(0..=1), help_heading = "Debugging Options")]
-    /// If true, prints transactions and calls summary.
-    pub show_tx_summary: Option<bool>,
-
-    #[arg(long, alias = "no-console-log", default_missing_value = "true", num_args(0..=1), help_heading = "Debugging Options")]
-    /// Disables printing of `console.log` invocations to stdout if true.
-    pub disable_console_log: Option<bool>,
-
-    #[arg(long, default_missing_value = "true", num_args(0..=1), help_heading = "Debugging Options")]
-    /// If true, logs events.
-    pub show_event_logs: Option<bool>,
-
     // Debugging Options
-    #[arg(long, help_heading = "Debugging Options")]
-    /// Show call debug information.
-    pub show_calls: Option<ShowCalls>,
-
-    #[arg(
-        default_missing_value = "true", num_args(0..=1),
-        long,
-        requires = "show_calls",
-        help_heading = "Debugging Options"
-    )]
-    /// Show call output information.
-    pub show_outputs: Option<bool>,
-
     #[arg(long, help_heading = "Debugging Options")]
     /// Show storage log information.
     pub show_storage_logs: Option<ShowStorageLogs>,
@@ -133,11 +104,6 @@ pub struct Cli {
     #[arg(long, help_heading = "Debugging Options")]
     /// Show gas details information.
     pub show_gas_details: Option<ShowGasDetails>,
-
-    #[arg(long, default_missing_value = "true", num_args(0..=1), help_heading = "Debugging Options")]
-    /// If true, the tool will try to resolve ABI and topic names for better readability.
-    /// May decrease performance.
-    pub resolve_hashes: Option<bool>,
 
     /// Increments verbosity each time it is used. (-vv, -vvv)
     ///
@@ -606,22 +572,15 @@ impl Cli {
         let debug_self_repr = format!("{self:#?}");
 
         let genesis_balance = U256::from(self.balance as u128 * 10u128.pow(18));
-        let mut config = TestNodeConfig::default()
+        let config = TestNodeConfig::default()
             .with_port(self.port)
             .with_offline(if self.offline { Some(true) } else { None })
             .with_l1_gas_price(self.l1_gas_price)
             .with_l2_gas_price(self.l2_gas_price)
             .with_l1_pubdata_price(self.l1_pubdata_price)
-            .with_show_tx_summary(self.show_tx_summary)
-            .with_show_event_logs(self.show_event_logs)
-            .with_disable_console_log(self.disable_console_log)
-            .with_show_calls(self.show_calls)
             .with_vm_log_detail(self.show_vm_details)
             .with_show_storage_logs(self.show_storage_logs)
             .with_show_gas_details(self.show_gas_details)
-            .with_show_outputs(self.show_outputs)
-            .with_show_event_logs(self.show_event_logs)
-            .with_resolve_hashes(self.resolve_hashes)
             .with_gas_limit_scale(self.limit_scale_factor)
             .with_price_scale(self.price_scale_factor)
             .with_verbosity_level(self.verbosity)
@@ -685,10 +644,6 @@ impl Cli {
             });
         }
 
-        if self.debug_mode {
-            config = config.with_debug_mode();
-        }
-
         Ok(config)
     }
 
@@ -715,17 +670,9 @@ impl Cli {
             .insert_with("chain_id", self.chain_id, |v| {
                 v.map(|_| TELEMETRY_SENSITIVE_VALUE)
             })
-            .insert_with("debug_mode", self.debug_mode, |v| v.then_some(v))
             .insert_with("show_node_config", self.show_node_config, |v| {
                 (!v.unwrap_or(false)).then_some(false)
             })
-            .insert_with("show_tx_summary", self.show_tx_summary, |v| {
-                (!v.unwrap_or(false)).then_some(false)
-            })
-            .insert("disable_console_log", self.disable_console_log)
-            .insert("show_event_logs", self.show_event_logs)
-            .insert("show_calls", self.show_calls.map(|v| v.to_string()))
-            .insert("show_outputs", self.show_outputs)
             .insert(
                 "show_storage_logs",
                 self.show_storage_logs.map(|v| v.to_string()),
@@ -738,7 +685,6 @@ impl Cli {
                 "show_gas_details",
                 self.show_gas_details.map(|v| v.to_string()),
             )
-            .insert("resolve_hashes", self.resolve_hashes)
             .insert(
                 "l1_gas_price",
                 self.l1_gas_price.map(serde_json::Number::from),

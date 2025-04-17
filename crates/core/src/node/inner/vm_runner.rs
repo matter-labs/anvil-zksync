@@ -20,7 +20,6 @@ use crate::utils::create_debug_output;
 use anvil_zksync_common::shell::get_shell;
 use anvil_zksync_common::{sh_eprintln, sh_err, sh_println, sh_warn};
 use anvil_zksync_config::TestNodeConfig;
-use anvil_zksync_console::console_log::ConsoleLogHandler;
 use anvil_zksync_traces::{
     build_call_trace_arena, decode_trace_arena, filter_call_trace_arena,
     identifier::SignaturesIdentifier, render_trace_arena_inner,
@@ -55,7 +54,6 @@ pub struct VmRunner {
     time: Time,
     fork_storage: ForkStorage,
     system_contracts: SystemContracts,
-    console_log_handler: ConsoleLogHandler,
     /// Whether VM should generate system logs.
     generate_system_logs: bool,
     /// Optional field for reporting progress while replaying transactions.
@@ -92,7 +90,6 @@ impl VmRunner {
             time,
             fork_storage,
             system_contracts,
-            console_log_handler: ConsoleLogHandler::default(),
             generate_system_logs,
             progress_report: None,
         }
@@ -218,10 +215,6 @@ impl VmRunner {
                 let filtered_arena = filter_call_trace_arena(&arena, verbosity);
                 trace_output = Some(render_trace_arena_inner(&filtered_arena, false));
             }
-            if !config.disable_console_log {
-                self.console_log_handler
-                    .handle_calls_recursive(&call_traces);
-            }
         }
 
         let balance_diffs: Vec<formatter::transaction::BalanceDiff> =
@@ -230,8 +223,6 @@ impl VmRunner {
                 .map(Into::into)
                 .collect();
 
-        // Print transaction summary
-        if config.show_tx_summary {
             sh_eprintln!(
                 "{}",
                 formatter::transaction::TransactionSummary::new(
@@ -241,16 +232,11 @@ impl VmRunner {
                     balance_diffs,
                 )
             );
-        }
 
         if let Some(trace_output) = trace_output {
             sh_println!("\nTraces:\n{}", trace_output);
         }
 
-        if !call_traces.is_empty() && !config.disable_console_log {
-            self.console_log_handler
-                .handle_calls_recursive(&call_traces);
-        }
         // Print gas details if enabled
         if config.show_gas_details != ShowGasDetails::None {
             self.display_detailed_gas_info(
@@ -286,6 +272,7 @@ impl VmRunner {
             let decoder = builder.build();
             let mut arena = build_call_trace_arena(&call_traces, &tx_result);
             decode_trace_arena(&mut arena, &decoder).await?;
+
             for node in arena.nodes().iter() {
                 if let Some(ref call_data) = node.trace.decoded.call_data {
                     for arg in &call_data.args {
@@ -305,10 +292,6 @@ impl VmRunner {
                 let filtered_arena = filter_call_trace_arena(&arena, verbosity);
                 let trace_output = render_trace_arena_inner(&filtered_arena, false);
                 sh_println!("\nTraces:\n{}", trace_output);
-            }
-            if !config.disable_console_log {
-                self.console_log_handler
-                    .handle_calls_recursive(&call_traces);
             }
         }
 
