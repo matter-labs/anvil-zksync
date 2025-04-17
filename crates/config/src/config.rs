@@ -15,7 +15,7 @@ use std::fs::File;
 use std::net::{IpAddr, Ipv4Addr};
 use std::path::PathBuf;
 use std::time::Duration;
-use zksync_types::fee_model::FeeModelConfigV2;
+use zksync_types::fee_model::{BaseTokenConversionRatio, FeeModelConfigV2};
 use zksync_types::{ProtocolVersionId, U256};
 
 pub const VERSION_MESSAGE: &str = concat!(env!("CARGO_PKG_VERSION"));
@@ -143,6 +143,8 @@ pub struct TestNodeConfig {
     pub l1_config: Option<L1Config>,
     /// Whether to automatically execute L1 batches
     pub auto_execute_l1: bool,
+    /// Base token configuration
+    pub base_token_config: BaseTokenConfig,
 }
 
 #[derive(Debug, Clone)]
@@ -157,6 +159,23 @@ pub enum L1Config {
         /// Address of L1 node's JSON-RPC endpoint
         address: String,
     },
+}
+
+#[derive(Debug, Clone)]
+pub struct BaseTokenConfig {
+    /// Base token symbol to use instead of 'ETH'.
+    pub symbol: String,
+    /// Base token conversion ratio (e.g., '40000', '628/17').
+    pub ratio: BaseTokenConversionRatio,
+}
+
+impl Default for BaseTokenConfig {
+    fn default() -> Self {
+        Self {
+            symbol: "ETH".to_string(),
+            ratio: BaseTokenConversionRatio::default(),
+        }
+    }
 }
 
 impl Default for TestNodeConfig {
@@ -231,6 +250,7 @@ impl Default for TestNodeConfig {
             load_state: None,
             l1_config: None,
             auto_execute_l1: false,
+            base_token_config: BaseTokenConfig::default(),
         }
     }
 }
@@ -1044,6 +1064,13 @@ Address: {address}
     #[must_use]
     pub fn with_auto_execute_l1(mut self, auto_execute_l1: Option<bool>) -> Self {
         self.auto_execute_l1 = auto_execute_l1.unwrap_or(false);
+        self
+    }
+
+    /// Set the base token config
+    #[must_use]
+    pub fn with_base_token_config(mut self, base_token_config: BaseTokenConfig) -> Self {
+        self.base_token_config = base_token_config;
         self
     }
 }
