@@ -1,7 +1,7 @@
 use super::executor::{Command, MainBatchExecutor};
 use super::shared::Sealed;
 use crate::bootloader_debug::{BootloaderDebug, BootloaderDebugTracer};
-use crate::node::call_error_tracer::CallErrorTracer;
+use crate::node::traces::call_error::CallErrorTracer;
 use anyhow::Context as _;
 use once_cell::sync::OnceCell;
 use std::sync::RwLock;

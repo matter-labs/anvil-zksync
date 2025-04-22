@@ -26,6 +26,7 @@ serde_json = "1"
 tower = "0.5"
 http = "1.1.0"
 anvil_zksync_core = { path = "../crates/core" }
+anvil_zksync_common = { path = "../crates/common" }
 tempdir = "0.3.7"
 flate2 = "1.0"
 hex = "0.4"

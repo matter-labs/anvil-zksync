@@ -1,5 +1,6 @@
 use crate::formatter::ExecutionErrorReport;
 use crate::node::error::{ToHaltError, ToRevertReason};
+use anvil_zksync_common::utils::numbers::h256_to_u64;
 use anvil_zksync_common::{sh_err, sh_println, sh_warn};
 use anyhow::Context as _;
 use std::collections::HashSet;
@@ -27,7 +28,7 @@ use zksync_web3_decl::{
 use crate::{
     filters::{FilterType, LogFilter},
     node::{InMemoryNode, MAX_TX_SIZE, PROTOCOL_VERSION},
-    utils::{h256_to_u64, TransparentError},
+    utils::TransparentError,
 };
 
 impl InMemoryNode {
@@ -271,7 +272,17 @@ impl InMemoryNode {
     ) -> anyhow::Result<U256> {
         let nonce_key = self.storage_key_layout.get_nonce_key(&address);
         match self.storage.read_value_alt(&nonce_key).await {
-            Ok(result) => Ok(h256_to_u64(result).into()),
+            Ok(result) => {
+                // The storage slot contains the full nonce.
+                // Full nonce is a composite one: it includes both account nonce
+                // (number of transactions initiated by the account) and
+                // deployer nonce (number of smart contracts deployed by the
+                // account).
+                // We need to cut the lowest 64 bits to get an account nonce.
+                // See functions: `decompose_full_nonce`, `nonces_to_full_nonce`
+                // https://github.com/matter-labs/zksync-era/blob/8063281579e4e02482823f09997244de153db87e/core/lib/types/src/utils.rs#L42-L52
+                Ok(h256_to_u64(result).into())
+            }
             Err(error) => Err(anyhow::anyhow!("failed to read nonce storage: {error}")),
         }
     }

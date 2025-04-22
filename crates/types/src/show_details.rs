@@ -2,40 +2,6 @@ use clap::Parser;
 use serde::Deserialize;
 use std::{fmt::Display, str::FromStr};
 
-#[derive(
-    Deserialize, Debug, Default, clap::Parser, Copy, Clone, clap::ValueEnum, PartialEq, Eq,
-)]
-pub enum ShowCalls {
-    #[default]
-    None,
-    User,
-    System,
-    All,
-}
-
-impl FromStr for ShowCalls {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_ref() {
-            "none" => Ok(ShowCalls::None),
-            "user" => Ok(ShowCalls::User),
-            "system" => Ok(ShowCalls::System),
-            "all" => Ok(ShowCalls::All),
-            _ => Err(format!(
-                "Unknown ShowCalls value {} - expected one of none|user|system|all.",
-                s
-            )),
-        }
-    }
-}
-
-impl Display for ShowCalls {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(f, "{:?}", self)
-    }
-}
-
 #[derive(Deserialize, Debug, Default, Parser, Copy, Clone, clap::ValueEnum, PartialEq, Eq)]
 pub enum ShowStorageLogs {
     #[default]

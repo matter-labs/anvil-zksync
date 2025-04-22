@@ -11,8 +11,10 @@
 use alloy::dyn_abi::{DynSolType, DynSolValue, FunctionExt, JsonAbiExt};
 use alloy::json_abi::{Error, Event, Function, Param};
 use alloy::primitives::hex;
-use anvil_zksync_types::traces::LogData;
+use anvil_zksync_types::traces::{DecodedValue, LogData};
 use eyre::{Context, Result};
+
+use crate::decode::decode_value;
 
 pub fn encode_args<I, S>(inputs: &[Param], args: I) -> Result<Vec<DynSolValue>>
 where
@@ -57,7 +59,7 @@ pub fn abi_decode_calldata(
     calldata: &str,
     input: bool,
     fn_selector: bool,
-) -> Result<Vec<DynSolValue>> {
+) -> Result<Vec<DecodedValue>> {
     let func = get_func(sig)?;
     let calldata = hex::decode(calldata)?;
 
@@ -76,9 +78,9 @@ pub fn abi_decode_calldata(
     // in case the decoding worked but nothing was decoded
     if res.is_empty() {
         eyre::bail!("no data was decoded")
+    } else {
+        Ok(res.into_iter().flat_map(decode_value).collect())
     }
-
-    Ok(res)
 }
 
 /// Given a function signature string, it tries to parse it as a `Function`

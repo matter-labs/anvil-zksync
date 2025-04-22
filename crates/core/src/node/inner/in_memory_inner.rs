@@ -21,7 +21,6 @@ use anvil_zksync_config::constants::{
     LEGACY_RICH_WALLETS, NON_FORK_FIRST_BLOCK_TIMESTAMP, RICH_WALLETS,
 };
 use anvil_zksync_config::TestNodeConfig;
-use anvil_zksync_console::console_log::ConsoleLogHandler;
 use indexmap::IndexMap;
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
@@ -77,7 +76,6 @@ pub struct InMemoryNodeInner {
     pub(super) fork: Fork,
     // Configuration.
     pub config: TestNodeConfig,
-    pub console_log_handler: ConsoleLogHandler,
     system_contracts: SystemContracts,
     impersonation: ImpersonationManager,
     pub rich_accounts: HashSet<H160>,
@@ -109,7 +107,6 @@ impl InMemoryNodeInner {
             fork_storage,
             fork,
             config,
-            console_log_handler: ConsoleLogHandler::default(),
             system_contracts,
             impersonation,
             rich_accounts: HashSet::new(),
