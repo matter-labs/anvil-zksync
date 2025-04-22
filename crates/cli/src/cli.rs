@@ -403,7 +403,7 @@ impl ForkUrl {
     const ABSTRACT_MAINNET_URL: &'static str = "https://api.mainnet.abs.xyz";
     const ABSTRACT_TESTNET_URL: &'static str = "https://api.testnet.abs.xyz";
     const SOPHON_MAINNET_URL: &'static str = "https://rpc.sophon.xyz";
-    const SOPHON_TESTNET_URL: &'static str = "https://rpc..testnet.sophon.xyz";
+    const SOPHON_TESTNET_URL: &'static str = "https://rpc.testnet.sophon.xyz";
 
     pub fn to_config(&self) -> ForkConfig {
         match self {
