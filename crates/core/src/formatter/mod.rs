@@ -1,14 +1,17 @@
 //! Helper methods to display transaction data in more human readable way.
+pub mod transaction;
+
 use crate::bootloader_debug::BootloaderDebug;
-use crate::utils::{calculate_eth_cost, to_human_size};
+use crate::utils::to_human_size;
 use alloy::hex::ToHexExt;
+use anvil_zksync_common::address_map::ContractType;
+use anvil_zksync_common::address_map::KNOWN_ADDRESSES;
 use anvil_zksync_common::sh_println;
-use anvil_zksync_config::utils::format_gwei;
+use anvil_zksync_common::utils::cost::format_gwei;
 use colored::Colorize;
-use lazy_static::lazy_static;
 use serde::Deserialize;
 use std::fmt;
-use std::{collections::HashMap, str};
+use std::str;
 use zksync_error::{documentation::Documented, CustomErrorMessage, NamedError};
 use zksync_error_description::ErrorDocumentation;
 use zksync_multivm::interface::VmExecutionResultAndLogs;
@@ -463,34 +466,6 @@ fn build_prefix(sibling_stack: &[bool], is_last_sibling: bool) -> String {
     prefix
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
-pub enum ContractType {
-    System,
-    Precompile,
-    Popular,
-    Unknown,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-pub struct KnownAddress {
-    address: H160,
-    name: String,
-    contract_type: ContractType,
-}
-
-lazy_static! {
-    /// Loads the known contact addresses from the JSON file.
-    static ref KNOWN_ADDRESSES: HashMap<H160, KnownAddress> = {
-        let json_value = serde_json::from_slice(include_bytes!("data/address_map.json")).unwrap();
-        let pairs: Vec<KnownAddress> = serde_json::from_value(json_value).unwrap();
-
-        pairs
-            .into_iter()
-            .map(|entry| (entry.address, entry))
-            .collect()
-    };
-}
-
 fn format_known_address(address: H160) -> Option<String> {
     KNOWN_ADDRESSES.get(&address).map(|known_address| {
         let name = match known_address.contract_type {
@@ -551,48 +526,6 @@ impl PubdataBytesInfo {
             PubdataBytesInfo::PaidAlready => false,
         }
     }
-}
-
-// @dev Separate from Formatter as it does not make use of structured log format.
-/// Print the transaction summary.
-pub fn print_transaction_summary(
-    l2_gas_price: u64,
-    tx: &Transaction,
-    tx_result: &VmExecutionResultAndLogs,
-    status: &str,
-    base_token_symbol: &str,
-) {
-    // Calculate used and refunded gas
-    let used_gas = tx.gas_limit() - tx_result.refunds.gas_refunded;
-    let paid_base_token = calculate_eth_cost(l2_gas_price, used_gas.as_u64());
-    let refunded_gas = tx_result.refunds.gas_refunded;
-    let refunded_base_token = calculate_eth_cost(l2_gas_price, refunded_gas);
-
-    let emoji = match status {
-        "SUCCESS" => "✅",
-        "FAILED" => "❌",
-        "HALTED" => "⏸️",
-        _ => "⚠️",
-    };
-
-    sh_println!(
-        r#"
-{emoji} [{status}] Hash: {tx_hash:?}
-Initiator: {initiator:?}
-Payer: {payer:?}
-Gas Limit: {gas_limit} | Used: {used} | Refunded: {refunded}
-Paid: {paid_base_token:.10} {base_token_symbol} ({used_gas} gas * {l2_gas_price_fmt})
-Refunded: {refunded_base_token:.10} {base_token_symbol}
-"#,
-        tx_hash = tx.hash(),
-        initiator = tx.initiator_account(),
-        payer = tx.payer(),
-        gas_limit = to_human_size(tx.gas_limit()),
-        used = to_human_size(used_gas),
-        refunded = to_human_size(tx_result.refunds.gas_refunded.into()),
-        l2_gas_price_fmt = format_gwei(l2_gas_price.into())
-    );
-    sh_println!("");
 }
 
 /// Encapsulates the execution error report.

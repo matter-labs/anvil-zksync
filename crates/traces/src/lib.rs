@@ -1,6 +1,7 @@
+use anvil_zksync_common::address_map::{self, KNOWN_ADDRESSES};
 use anvil_zksync_types::traces::{
     CallLog, CallTrace, CallTraceArena, CallTraceNode, DecodedCallEvent, DecodedCallTrace, L2L1Log,
-    L2L1Logs, TraceMemberOrder, KNOWN_ADDRESSES,
+    L2L1Logs, TraceMemberOrder,
 };
 use decode::CallTraceDecoder;
 use writer::TraceWriter;
@@ -11,6 +12,7 @@ use zksync_types::H160;
 
 pub mod abi_utils;
 pub mod decode;
+pub mod format;
 pub mod identifier;
 pub mod writer;
 
@@ -151,7 +153,7 @@ pub async fn decode_trace_arena(
     decoder: &CallTraceDecoder,
 ) -> Result<(), anyhow::Error> {
     decoder.prefetch_signatures(&arena.arena).await;
-    decoder.populate_traces(&mut arena.arena).await;
+    decoder.populate_traces(&mut arena.arena).await?;
 
     Ok(())
 }
@@ -234,8 +236,8 @@ fn filter_node_recursively(
 /// - 5+: everything (future-proof)
 #[inline]
 fn should_include_call(address: &H160, verbosity: u8) -> bool {
-    let is_system = CallTraceArena::is_system(address);
-    let is_precompile = CallTraceArena::is_precompile(address);
+    let is_system = address_map::is_system(address);
+    let is_precompile = address_map::is_precompile(address);
 
     match verbosity {
         // -v or less => 0 or 1 => show nothing

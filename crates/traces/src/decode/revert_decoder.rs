@@ -8,32 +8,13 @@
 // Note: These methods are used under the terms of the original project's license.  //
 //////////////////////////////////////////////////////////////////////////////////////
 
-use super::SELECTOR_LEN;
+use super::{decode_value, SELECTOR_LEN};
 use alloy::dyn_abi::JsonAbiExt;
 use alloy::json_abi::{Error, JsonAbi};
-use alloy::primitives::{hex, map::HashMap, Log, Selector};
-use alloy::sol_types::{SolEventInterface, SolInterface, SolValue};
-use anvil_zksync_common::utils::format_token;
-use anvil_zksync_console::ds;
-use itertools::Itertools;
+use alloy::primitives::{map::HashMap, Selector};
+use alloy::sol_types::{SolInterface, SolValue};
+use anvil_zksync_types::traces::DecodedError;
 use std::sync::OnceLock;
-
-const EMPTY_REVERT_DATA: &str = "<empty revert data>";
-
-/// Decode a set of logs, only returning logs from DSTest logging events and Hardhat's `console.log`
-pub fn decode_console_logs(logs: &[Log]) -> Vec<String> {
-    logs.iter().filter_map(decode_console_log).collect()
-}
-
-/// Decode a single log.
-///
-/// This function returns [None] if it is not a DSTest log or the result of a Hardhat
-/// `console.log`.
-pub fn decode_console_log(log: &Log) -> Option<String> {
-    ds::ConsoleEvents::decode_log(log, false)
-        .ok()
-        .map(|decoded| decoded.to_string())
-}
 
 /// Decodes revert data.
 #[derive(Clone, Debug, Default)]
@@ -104,12 +85,13 @@ impl RevertDecoder {
     ///
     /// Note that this is just a best-effort guess, and should not be relied upon for anything other
     /// than user output.
-    pub fn decode(&self, err: &[u8]) -> String {
+    pub fn decode(&self, err: &[u8]) -> DecodedError {
         self.maybe_decode(err).unwrap_or_else(|| {
             if err.is_empty() {
-                EMPTY_REVERT_DATA.to_string()
+                // Empty revert data
+                DecodedError::Empty
             } else {
-                trimmed_hex(err)
+                DecodedError::Raw(err.to_vec())
             }
         })
     }
@@ -117,12 +99,12 @@ impl RevertDecoder {
     /// Tries to decode an error message from the given revert bytes.
     ///
     /// See [`decode`](Self::decode) for more information.
-    pub fn maybe_decode(&self, err: &[u8]) -> Option<String> {
+    pub fn maybe_decode(&self, err: &[u8]) -> Option<DecodedError> {
         let Some((selector, data)) = err.split_first_chunk::<SELECTOR_LEN>() else {
             return if err.is_empty() {
                 None
             } else {
-                Some(format!("custom error bytes {}", hex::encode_prefixed(err)))
+                Some(DecodedError::Raw(err.to_vec()))
             };
         };
 
@@ -130,7 +112,15 @@ impl RevertDecoder {
         if let Ok(e) =
             alloy::sol_types::ContractError::<std::convert::Infallible>::abi_decode(err, false)
         {
-            return Some(e.to_string());
+            return match e {
+                alloy::sol_types::ContractError::CustomError(_) => unreachable!(),
+                alloy::sol_types::ContractError::Revert(revert) => {
+                    Some(DecodedError::Revert(revert.reason))
+                }
+                alloy::sol_types::ContractError::Panic(panic) => {
+                    Some(DecodedError::Panic(panic.to_string()))
+                }
+            };
         }
 
         // Custom errors.
@@ -138,66 +128,30 @@ impl RevertDecoder {
             for error in errors {
                 // If we don't decode, don't return an error, try to decode as a string later.
                 if let Ok(decoded) = error.abi_decode_input(data, false) {
-                    return Some(format!(
-                        "{}({})",
-                        error.name,
-                        decoded.iter().map(|v| format_token(v, false)).format(", ")
-                    ));
+                    return Some(DecodedError::CustomError {
+                        name: error.name.to_owned(),
+                        fields: decoded.into_iter().flat_map(decode_value).collect(),
+                    });
                 }
             }
         }
 
         // ABI-encoded `string`.
         if let Ok(s) = String::abi_decode(err, true) {
-            return Some(s);
+            return Some(DecodedError::Revert(s));
         }
 
         // ASCII string.
         if err.is_ascii() {
-            return Some(std::str::from_utf8(err).unwrap().to_string());
+            return Some(DecodedError::Revert(
+                std::str::from_utf8(err).unwrap().to_string(),
+            ));
         }
 
         // Generic custom error.
-        Some({
-            let mut s = format!("custom error {}", hex::encode_prefixed(selector));
-            if !data.is_empty() {
-                s.push_str(": ");
-                match std::str::from_utf8(data) {
-                    Ok(data) => s.push_str(data),
-                    Err(_) => s.push_str(&hex::encode(data)),
-                }
-            }
-            s
+        Some(DecodedError::GenericCustomError {
+            selector: *selector,
+            raw: data.to_vec(),
         })
-    }
-}
-
-fn trimmed_hex(s: &[u8]) -> String {
-    let n = 32;
-    if s.len() <= n {
-        hex::encode(s)
-    } else {
-        format!(
-            "{}…{} ({} bytes)",
-            &hex::encode(&s[..n / 2]),
-            &hex::encode(&s[s.len() - n / 2..]),
-            s.len(),
-        )
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn test_trimmed_hex() {
-        assert_eq!(
-            trimmed_hex(&hex::decode("1234567890").unwrap()),
-            "1234567890"
-        );
-        assert_eq!(
-            trimmed_hex(&hex::decode("492077697368207275737420737570706F72746564206869676865722D6B696E646564207479706573").unwrap()),
-            "49207769736820727573742073757070…6865722d6b696e646564207479706573 (41 bytes)"
-        );
     }
 }

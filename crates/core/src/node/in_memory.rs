@@ -5,7 +5,6 @@ use super::vm::AnvilVM;
 use crate::delegate_vm;
 use crate::deps::InMemoryStorage;
 use crate::filters::EthFilters;
-use crate::node::call_error_tracer::CallErrorTracer;
 use crate::node::error::LoadStateError;
 use crate::node::fee_model::TestNodeFeeInputProvider;
 use crate::node::impersonate::{ImpersonationManager, ImpersonationState};
@@ -14,6 +13,8 @@ use crate::node::inner::storage::ReadStorageDyn;
 use crate::node::inner::time::ReadTime;
 use crate::node::sealer::BlockSealerState;
 use crate::node::state::VersionedState;
+use crate::node::traces::call_error::CallErrorTracer;
+use crate::node::traces::decoder::CallTraceDecoderBuilder;
 use crate::node::{BlockSealer, BlockSealerMode, NodeExecutor, TxBatch, TxPool};
 use crate::observability::Observability;
 use crate::system_contracts::SystemContracts;
@@ -24,8 +25,8 @@ use anvil_zksync_config::constants::{NON_FORK_FIRST_BLOCK_TIMESTAMP, TEST_NODE_N
 use anvil_zksync_config::types::Genesis;
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_traces::{
-    build_call_trace_arena, decode::CallTraceDecoderBuilder, decode_trace_arena,
-    filter_call_trace_arena, identifier::SignaturesIdentifier, render_trace_arena_inner,
+    build_call_trace_arena, decode_trace_arena, filter_call_trace_arena,
+    identifier::SignaturesIdentifier, render_trace_arena_inner,
 };
 use anvil_zksync_types::{
     traces::CallTraceArena, LogLevel, ShowGasDetails, ShowStorageLogs, ShowVMDetails,
@@ -436,7 +437,7 @@ impl InMemoryNode {
         let verbosity = get_shell().verbosity;
         if !call_traces.is_empty() && verbosity >= 2 {
             let tx_result_for_arena = tx_result.clone();
-            let mut builder = CallTraceDecoderBuilder::new();
+            let mut builder = CallTraceDecoderBuilder::default();
             builder = builder.with_signature_identifier(
                 SignaturesIdentifier::new(
                     Some(inner.config.get_cache_dir().into()),

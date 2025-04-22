@@ -5,15 +5,13 @@ use alloy::signers::local::coins_bip39::{English, Mnemonic};
 use anvil_zksync_common::{
     cache::{CacheConfig, CacheType, DEFAULT_DISK_CACHE_DIR},
     sh_err, sh_warn,
+    utils::io::write_json_file,
 };
 use anvil_zksync_config::constants::{DEFAULT_MNEMONIC, TEST_NODE_NETWORK_ID};
 use anvil_zksync_config::types::{AccountGenerator, Genesis, SystemContractsOptions};
 use anvil_zksync_config::{BaseTokenConfig, L1Config, TestNodeConfig};
 use anvil_zksync_core::node::fork::ForkConfig;
-use anvil_zksync_core::{
-    node::{InMemoryNode, VersionedState},
-    utils::write_json_file,
-};
+use anvil_zksync_core::node::{InMemoryNode, VersionedState};
 use anvil_zksync_types::{
     LogLevel, ShowGasDetails, ShowStorageLogs, ShowVMDetails, TransactionOrder,
 };
@@ -416,7 +414,7 @@ impl ForkUrl {
     const ABSTRACT_MAINNET_URL: &'static str = "https://api.mainnet.abs.xyz";
     const ABSTRACT_TESTNET_URL: &'static str = "https://api.testnet.abs.xyz";
     const SOPHON_MAINNET_URL: &'static str = "https://rpc.sophon.xyz";
-    const SOPHON_TESTNET_URL: &'static str = "https://rpc..testnet.sophon.xyz";
+    const SOPHON_TESTNET_URL: &'static str = "https://rpc.testnet.sophon.xyz";
 
     pub fn to_config(&self) -> ForkConfig {
         match self {
