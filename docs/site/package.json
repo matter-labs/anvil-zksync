@@ -1,0 +1,23 @@
+{
+  "name": "anvil-zksync",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vocs dev",
+    "build": "vocs build",
+    "preview": "vocs preview"
+  },
+  "dependencies": {
+    "lucide-react": "^0.503.0",
+    "react": "latest",
+    "react-dom": "latest",
+    "unplugin-icons": "^22.1.0",
+    "vite-plugin-mkcert": "^1.17.8",
+    "vocs": "latest"
+  },
+  "devDependencies": {
+    "@types/react": "latest",
+    "typescript": "latest"
+  }
+}

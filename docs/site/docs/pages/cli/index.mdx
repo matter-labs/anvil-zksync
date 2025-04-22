@@ -1,0 +1,71 @@
+---
+title: anvil‑zksync
+description: Fast local zkSync node for testing & debugging
+layout: cli
+sidebar_position: 1
+command: anvil-zksync
+usage: anvil-zksync [OPTIONS] [COMMAND]
+---
+
+import { Copy } from '../../components/Copy';
+import { OptionTable } from '../../components/OptionTable';
+import { Command } from '../../components/Command';
+import { Row } from '../../components/Row';
+
+# `anvil-zksync`
+
+A single‑binary **local node** that behaves like zkSync mainnet—perfect for
+integration tests, fork‑based debugging, and offline experiments.
+
+## Install  
+
+```bash // [anvil-zksync]
+// [!include ~/components/snippets/install.ts]
+```
+
+## Usage
+
+```bash // [anvil-zksync]
+anvil-zksync [OPTIONS] [COMMAND]
+```
+
+## Global options
+
+### Chain initialisation
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--timestamp <NUM>` | u64 | Genesis block timestamp override. |
+| `--state <PATH>` | file/dir | Load + dump snapshot on exit. |
+
+### Network
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--port <PORT>` <br />(*default 8011*) | u16 | RPC port. |
+
+
+## Sub‑commands
+
+| Command | What it does |
+|---------|--------------|
+| [`run`](./run) | Start a brand‑new empty network. |
+| [`fork`](./fork) | Fork an existing chain into a local instance. |
+| [`replay_tx`](./replay_tx) | Fork + replay a historical L2 transaction. |
+
+
+## Quick starts
+
+```bash // [run with user traces]
+# 1. Fresh network that auto‑mines
+anvil-zksync run -vv
+```
+
+```bash // [fork ZKsync Era mainnet]
+# 2. Fork mainnet at the latest block
+anvil-zksync fork mainnet
+```
+
+---
+
+### See also
