@@ -880,7 +880,7 @@ impl InMemoryNodeInner {
     pub async fn dump_state(
         &self,
         preserve_historical_states: bool,
-    ) -> anyhow::Result<VersionedState> {
+    ) -> AnvilNodeResult<VersionedState> {
         let blockchain = self.blockchain.read().await;
         let blocks = blockchain.blocks.values().cloned().collect();
         let transactions = blockchain.tx_results.values().cloned().collect();

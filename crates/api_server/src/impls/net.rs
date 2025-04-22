@@ -1,9 +1,10 @@
-use crate::error::RpcError;
 use anvil_zksync_api_decl::NetNamespaceServer;
 use anvil_zksync_core::node::InMemoryNode;
 use anvil_zksync_core::utils::block_on;
 use jsonrpsee::core::RpcResult;
 use zksync_types::U256;
+
+use crate::error::JsonRPCAdapter;
 
 pub struct NetNamespace {
     node: InMemoryNode,
@@ -19,7 +20,8 @@ impl NetNamespace {
 impl NetNamespaceServer for NetNamespace {
     fn version(&self) -> RpcResult<String> {
         let node = self.node.clone();
-        let chain_id = block_on(async move { node.get_chain_id().await.map_err(RpcError::from) })?;
+        let chain_id =
+            block_on(async move { node.get_chain_id().await.map_err(JsonRPCAdapter::from) })?;
         Ok(chain_id.to_string())
     }
 

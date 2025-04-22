@@ -28,6 +28,8 @@ use crate::error::definitions::LLVM_Era;
 use crate::error::definitions::LLVM_EraCode;
 use crate::error::definitions::Revert;
 use crate::error::definitions::RevertCode;
+use crate::error::definitions::Rpc;
+use crate::error::definitions::RpcCode;
 use crate::error::definitions::Sequencer;
 use crate::error::definitions::SequencerCode;
 use crate::error::definitions::Solc;
@@ -38,6 +40,8 @@ use crate::error::definitions::StateLoader;
 use crate::error::definitions::StateLoaderCode;
 use crate::error::definitions::TransactionValidation;
 use crate::error::definitions::TransactionValidationCode;
+use crate::error::definitions::Web3;
+use crate::error::definitions::Web3Code;
 use crate::error::definitions::Zksolc;
 use crate::error::definitions::ZksolcCode;
 use crate::error::definitions::Zkvyper;
@@ -111,6 +115,9 @@ impl ZksyncError {
             ZksyncError::AnvilZksync(AnvilZksync::Revert(_)) => {
                 Kind::AnvilZksync(AnvilZksyncCode::Revert)
             }
+            ZksyncError::AnvilZksync(AnvilZksync::Rpc(_)) => {
+                Kind::AnvilZksync(AnvilZksyncCode::Rpc)
+            }
             ZksyncError::AnvilZksync(AnvilZksync::StateLoader(_)) => {
                 Kind::AnvilZksync(AnvilZksyncCode::StateLoader)
             }
@@ -129,6 +136,7 @@ impl ZksyncError {
                 Kind::Core(CoreCode::ExecutionPlatform)
             }
             ZksyncError::Core(Core::Sequencer(_)) => Kind::Core(CoreCode::Sequencer),
+            ZksyncError::Core(Core::Web3(_)) => Kind::Core(CoreCode::Web3),
             ZksyncError::Foundry(Foundry::FoundryUpstream(_)) => {
                 Kind::Foundry(FoundryCode::FoundryUpstream)
             }
@@ -160,6 +168,9 @@ impl ZksyncError {
             ZksyncError::AnvilZksync(AnvilZksync::Revert(error)) => {
                 Into::<RevertCode>::into(error) as u32
             }
+            ZksyncError::AnvilZksync(AnvilZksync::Rpc(error)) => {
+                Into::<RpcCode>::into(error) as u32
+            }
             ZksyncError::AnvilZksync(AnvilZksync::StateLoader(error)) => {
                 Into::<StateLoaderCode>::into(error) as u32
             }
@@ -188,6 +199,7 @@ impl ZksyncError {
                 Into::<ExecutionPlatformCode>::into(error) as u32
             }
             ZksyncError::Core(Core::Sequencer(error)) => Into::<SequencerCode>::into(error) as u32,
+            ZksyncError::Core(Core::Web3(error)) => Into::<Web3Code>::into(error) as u32,
             ZksyncError::Foundry(Foundry::FoundryUpstream(error)) => {
                 Into::<FoundryUpstreamCode>::into(error) as u32
             }
@@ -225,6 +237,7 @@ pub enum AnvilZksync {
     AnvilNode(AnvilNode),
     Halt(Halt),
     Revert(Revert),
+    Rpc(Rpc),
     StateLoader(StateLoader),
     TransactionValidation(TransactionValidation),
 }
@@ -283,6 +296,16 @@ impl From<Revert> for AnvilZksync {
         AnvilZksync::Revert(val)
     }
 }
+impl ICustomError<ZksyncError, ZksyncError> for Rpc {
+    fn to_unified(&self) -> ZksyncError {
+        AnvilZksync::Rpc(self.clone()).to_unified()
+    }
+}
+impl From<Rpc> for AnvilZksync {
+    fn from(val: Rpc) -> Self {
+        AnvilZksync::Rpc(val)
+    }
+}
 impl ICustomError<ZksyncError, ZksyncError> for StateLoader {
     fn to_unified(&self) -> ZksyncError {
         AnvilZksync::StateLoader(self.clone()).to_unified()
@@ -324,6 +347,7 @@ impl crate::documentation::Documented for AnvilZksync {
             AnvilZksync::AnvilNode(error) => error.get_documentation(),
             AnvilZksync::Halt(error) => error.get_documentation(),
             AnvilZksync::Revert(error) => error.get_documentation(),
+            AnvilZksync::Rpc(error) => error.get_documentation(),
             AnvilZksync::StateLoader(error) => error.get_documentation(),
             AnvilZksync::TransactionValidation(error) => error.get_documentation(),
         }
@@ -337,6 +361,7 @@ impl std::fmt::Display for AnvilZksync {
             AnvilZksync::AnvilNode(component) => component.fmt(f),
             AnvilZksync::Halt(component) => component.fmt(f),
             AnvilZksync::Revert(component) => component.fmt(f),
+            AnvilZksync::Rpc(component) => component.fmt(f),
             AnvilZksync::StateLoader(component) => component.fmt(f),
             AnvilZksync::TransactionValidation(component) => component.fmt(f),
         }
@@ -487,6 +512,7 @@ pub enum Core {
     EraVM(EraVM),
     ExecutionPlatform(ExecutionPlatform),
     Sequencer(Sequencer),
+    Web3(Web3),
 }
 impl Core {
     pub fn get_name(&self) -> &str {
@@ -533,6 +559,16 @@ impl From<Sequencer> for Core {
         Core::Sequencer(val)
     }
 }
+impl ICustomError<ZksyncError, ZksyncError> for Web3 {
+    fn to_unified(&self) -> ZksyncError {
+        Core::Web3(self.clone()).to_unified()
+    }
+}
+impl From<Web3> for Core {
+    fn from(val: Web3) -> Self {
+        Core::Web3(val)
+    }
+}
 impl ICustomError<ZksyncError, ZksyncError> for Core {
     fn to_unified(&self) -> ZksyncError {
         ZksyncError::Core(self.clone())
@@ -553,6 +589,7 @@ impl crate::documentation::Documented for Core {
             Core::EraVM(error) => error.get_documentation(),
             Core::ExecutionPlatform(error) => error.get_documentation(),
             Core::Sequencer(error) => error.get_documentation(),
+            Core::Web3(error) => error.get_documentation(),
         }
     }
 }
@@ -563,6 +600,7 @@ impl std::fmt::Display for Core {
             Core::EraVM(component) => component.fmt(f),
             Core::ExecutionPlatform(component) => component.fmt(f),
             Core::Sequencer(component) => component.fmt(f),
+            Core::Web3(component) => component.fmt(f),
         }
     }
 }

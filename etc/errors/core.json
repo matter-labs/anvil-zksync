@@ -1,0 +1,132 @@
+{
+  "types": [],
+  "domains": [
+    {
+      "domain_name": "Core",
+      "domain_code": 1,
+      "identifier_encoding": "core",
+      "components": [
+        {
+          "component_name": "Web3",
+          "component_code": 10,
+          "identifier_encoding": "web3",
+          "errors": [
+            {
+              "name": "NoBlock",
+              "code": 1,
+              "message": "Block with such an ID doesn't exist yet"
+            },
+            {
+              "name": "PrunedBlock",
+              "code": 2,
+              "message": "Block with such an ID is pruned; the first retained block is {first_retained_block}",
+              "fields": [
+                {
+                  "name": "first_retained_block",
+                  "type": "uint"
+                }
+              ]
+            },
+            {
+              "name": "PrunedL1Batch",
+              "code": 3,
+              "message": "L1 batch with such an ID is pruned; the first retained L1 batch is {first_retained_batch}",
+              "fields": [
+                {
+                  "name": "first_retained_batch",
+                  "type": "uint"
+                }
+              ]
+            },
+            {
+              "name": "ProxyError",
+              "code": 4,
+              "message": "{details}",
+              "fields": [
+                {
+                  "name": "details",
+                  "type": "string"
+                }
+              ]
+            },
+            {
+              "name": "SubmitTransactionError",
+              "code": 5,
+              "message": "{error}",
+              "fields": [
+                {
+                  "name": "error",
+                  "type": "string"
+                },
+                {
+                  "name": "data",
+                  "type": "bytes"
+                }
+              ]
+            },
+            {
+              "name": "SerializationError",
+              "code": 6,
+              "message": "Failed to serialize transaction: {details}",
+              "fields": [
+                {
+                  "name": "details",
+                  "type": "string"
+                }
+              ]
+            },
+            {
+              "name": "TooManyTopics",
+              "code": 7,
+              "message": "More than four topics in filter"
+            },
+            {
+              "name": "FilterNotFound",
+              "code": 8,
+              "message": "Filter not found"
+            },
+            {
+              "name": "LogsLimitExceeded",
+              "code": 9,
+              "message": "Query returned more than {limit} results. Try with this block range [{from_block:#x}, {to_block:#x}].",
+              "fields": [
+                {
+                  "name": "limit",
+                  "type": "uint"
+                },
+                {
+                  "name": "from_block",
+                  "type": "uint"
+                },
+                {
+                  "name": "to_block",
+                  "type": "uint"
+                }
+              ]
+            },
+            {
+              "name": "InvalidFilterBlockHash",
+              "code": 10,
+              "message": "Invalid filter: if blockHash is supplied fromBlock and toBlock must not be"
+            },
+            {
+              "name": "MethodNotImplemented",
+              "code": 11,
+              "message": "Method not implemented"
+            },
+            {
+              "name": "TreeApiUnavailable",
+              "code": 12,
+              "message": "Tree API is temporarily unavailable"
+            },
+            {
+              "name": "ServerShuttingDown",
+              "code": 14,
+              "message": "Server is shutting down"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

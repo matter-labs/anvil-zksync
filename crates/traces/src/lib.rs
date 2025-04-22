@@ -3,7 +3,7 @@ use anvil_zksync_types::traces::{
     CallLog, CallTrace, CallTraceArena, CallTraceNode, DecodedCallEvent, DecodedCallTrace, L2L1Log,
     L2L1Logs, TraceMemberOrder,
 };
-use decode::CallTraceDecoder;
+use decode::{error::DecodingError, CallTraceDecoder};
 use writer::TraceWriter;
 use zksync_multivm::interface::{
     Call, ExecutionResult, Halt, VmExecutionResultAndLogs, VmRevertReason,
@@ -151,7 +151,7 @@ pub fn render_trace_arena_inner(arena: &CallTraceArena, with_bytecodes: bool) ->
 pub async fn decode_trace_arena(
     arena: &mut CallTraceArena,
     decoder: &CallTraceDecoder,
-) -> Result<(), anyhow::Error> {
+) -> Result<(), DecodingError> {
     decoder.prefetch_signatures(&arena.arena).await;
     decoder.populate_traces(&mut arena.arena).await?;
 
