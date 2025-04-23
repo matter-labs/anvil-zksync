@@ -1,0 +1,68 @@
+name: Bump Homebrew formula
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  bump-formula:
+    # only run on stable semver tags (v1.2.3, not v1.2.3-rc, or pre-releases)
+    if: startsWith(github.event.release.tag_name, 'v') && !contains(github.event.release.tag_name, '-')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up variables
+        id: vars
+        run: |
+          TAG=${{ github.event.release.tag_name }}
+          VER=${TAG#v}
+          echo "VER=$VER" >> $GITHUB_ENV
+
+          # architectures to process
+          echo "arches=(
+            aarch64-apple-darwin
+            x86_64-apple-darwin
+            aarch64-unknown-linux-gnu
+            x86_64-unknown-linux-gnu
+          )" >> $GITHUB_ENV
+
+      - name: Download tarballs & compute checksums
+        run: |
+          for arch in "${arches[@]}"; do
+            URL="https://github.com/matter-labs/anvil-zksync/releases/download/$TAG/anvil-zksync-$TAG-$arch.tar.gz"
+            SHA=$(curl -sL "$URL" | sha256sum | awk '{print $1}')
+            # export each as ENV var: SHA_aarch64_apple_darwin, etc.
+            varname="SHA_${arch//[-]/_}"
+            echo "$varname=$SHA" >> $GITHUB_ENV
+          done
+
+      - name: Patch Formula/anvil-zksync.rb
+        run: |
+          sed -i.bak \
+            -e "s/^  version \".*\"/  version \"$VER\"/" \
+            Formula/anvil-zksync.rb
+
+          # update each sha256 line by matching the URL suffix
+          declare -A Mappings=(
+            [aarch64_apple_darwin]="${SHA_aarch64_apple_darwin}"
+            [x86_64_apple_darwin]="${SHA_x86_64_apple_darwin}"
+            [aarch64_unknown_linux_gnu]="${SHA_aarch64_unknown_linux_gnu}"
+            [x86_64_unknown_linux_gnu]="${SHA_x86_64_unknown_linux_gnu}"
+          )
+
+          for key in "${!Mappings[@]}"; do
+            arch="${key//_/[-]/g}"
+            sha="${Mappings[$key]}"
+            # replace the old sha for the matching tarball line
+            sed -i.bak \
+              -E "/anvil-zksync-v\${VER}-$arch\\.tar\\.gz/ s/sha256 \".*\"/sha256 \"$sha\"/" \
+              Formula/anvil-zksync.rb
+          done
+
+      - name: Commit & push bump
+        run: |
+            TODO
