@@ -55,7 +55,7 @@ jobs:
             
             for arch in "${!checksums[@]}"; do
                 sha="${checksums[$arch]}"
-                sed -i -E "/anvil-zksync-v${VER}-${arch}\.tar\.gz\"/{
+                sed -i -E "/${arch}\.tar\.gz\"/{
                     n
                     s|sha256 \".*\"|sha256 \"${sha}\"|
                 }" Formula/anvil-zksync.rb
