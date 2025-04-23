@@ -1,7 +1,7 @@
 class AnvilZksync < Formula
     desc "An in-memory ZKSync node for fast Elastic Network ZK chain development"
     homepage "https://github.com/matter-labs/anvil-zksync"
-    version "0.5.0"
+    version "0.5.1"
   
     on_macos do
       if Hardware::CPU.arm?
