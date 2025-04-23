@@ -6,6 +6,8 @@ on:
 
 jobs:
   bump-formula:
+    permissions:
+      contents: write
     # only run on stable semver tags (v1.2.3, not v1.2.3-rc, or pre-releases)
     if: startsWith(github.event.release.tag_name, 'v') && !contains(github.event.release.tag_name, '-')
     runs-on: ubuntu-latest
@@ -13,56 +15,63 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+          ref: ${{ github.event.repository.default_branch }}
+          token: ${{ secrets.RELEASE_TOKEN }}
 
-      - name: Set up variables
-        id: vars
+      - name: Set up version
         run: |
-          TAG=${{ github.event.release.tag_name }}
-          VER=${TAG#v}
-          echo "VER=$VER" >> $GITHUB_ENV
-
-          # architectures to process
-          echo "arches=(
-            aarch64-apple-darwin
-            x86_64-apple-darwin
-            aarch64-unknown-linux-gnu
-            x86_64-unknown-linux-gnu
-          )" >> $GITHUB_ENV
+            TAG=${{ github.event.release.tag_name }}
+            VER=${TAG#v}
+            echo "TAG=$TAG" >> $GITHUB_ENV
+            echo "VER=$VER" >> $GITHUB_ENV
 
       - name: Download tarballs & compute checksums
         run: |
-          for arch in "${arches[@]}"; do
-            URL="https://github.com/matter-labs/anvil-zksync/releases/download/$TAG/anvil-zksync-$TAG-$arch.tar.gz"
-            SHA=$(curl -sL "$URL" | sha256sum | awk '{print $1}')
-            # export each as ENV var: SHA_aarch64_apple_darwin, etc.
-            varname="SHA_${arch//[-]/_}"
-            echo "$varname=$SHA" >> $GITHUB_ENV
-          done
+            arches=(
+                aarch64-apple-darwin
+                x86_64-apple-darwin
+                aarch64-unknown-linux-gnu
+                x86_64-unknown-linux-gnu
+            )
+
+            for arch in "${arches[@]}"; do
+                url="https://github.com/matter-labs/anvil-zksync/releases/download/v${VER}/anvil-zksync-v${VER}-${arch}.tar.gz"
+                sha=$(curl -sL "$url" | sha256sum | awk '{print $1}')
+                varname="SHA_${arch//[-]/_}"
+                echo "$varname=$sha" >> $GITHUB_ENV
+            done
 
       - name: Patch Formula/anvil-zksync.rb
         run: |
-          sed -i.bak \
-            -e "s/^  version \".*\"/  version \"$VER\"/" \
-            Formula/anvil-zksync.rb
+            sed -i -E "s|version \".*\"|version \"${VER}\"|" Formula/anvil-zksync.rb
 
-          # update each sha256 line by matching the URL suffix
-          declare -A Mappings=(
-            [aarch64_apple_darwin]="${SHA_aarch64_apple_darwin}"
-            [x86_64_apple_darwin]="${SHA_x86_64_apple_darwin}"
-            [aarch64_unknown_linux_gnu]="${SHA_aarch64_unknown_linux_gnu}"
-            [x86_64_unknown_linux_gnu]="${SHA_x86_64_unknown_linux_gnu}"
-          )
+            declare -A checksums=(
+                ["aarch64-apple-darwin"]="${SHA_aarch64_apple_darwin}"
+                ["x86_64-apple-darwin"]="${SHA_x86_64_apple_darwin}"
+                ["aarch64-unknown-linux-gnu"]="${SHA_aarch64_unknown_linux_gnu}"
+                ["x86_64-unknown-linux-gnu"]="${SHA_x86_64_unknown_linux_gnu}"
+            )
+            
+            for arch in "${!checksums[@]}"; do
+                sha="${checksums[$arch]}"
+                sed -i -E "/${arch}\.tar\.gz\"/{
+                    n
+                    s|sha256 \".*\"|sha256 \"${sha}\"|
+                }" Formula/anvil-zksync.rb
+            done
 
-          for key in "${!Mappings[@]}"; do
-            arch="${key//_/[-]/g}"
-            sha="${Mappings[$key]}"
-            # replace the old sha for the matching tarball line
-            sed -i.bak \
-              -E "/anvil-zksync-v\${VER}-$arch\\.tar\\.gz/ s/sha256 \".*\"/sha256 \"$sha\"/" \
-              Formula/anvil-zksync.rb
-          done
-
-      - name: Commit & push bump
-        run: |
-            TODO
+            git add Formula/anvil-zksync.rb
+    
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.RELEASE_TOKEN }}
+          commit-message: 'chore: bump homebrew formula to ${{ env.VER }}'
+          title: 'chore: bump homebrew formula to ${{ env.VER }}'
+          body: |
+            Bump Homebrew formula for anvil-zksync to version ${{ env.VER }}
+            SHA256 checksums updated for all architectures.
+          branch: bump-homebrew-${{ env.VER }}
+          base: ${{ github.event.repository.default_branch }}
+          add-paths: Formula/anvil-zksync.rb
