@@ -1,8 +1,9 @@
 name: Bump Homebrew formula
 
 on:
-  release:
-    types: [published]
+ pull_request:
+    branches:
+        - main
 
 jobs:
   bump-formula:
