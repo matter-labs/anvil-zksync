@@ -73,7 +73,7 @@ jobs:
           commit-message: 'chore: bump hombrew formula to ${{ env.VER }}'
           title: 'chore: bump hombrew formula to ${{ env.VER }}'
           body: |
-            Bump Homebrew formula for anvil-zksync to version $VER
+            Bump Homebrew formula for anvil-zksync to version ${{ env.VER }}
             SHA256 checksums updated for all architectures.
           branch: bump-homebrew-formula
           base: main
