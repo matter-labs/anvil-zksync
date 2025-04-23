@@ -50,7 +50,7 @@ lint-fix:
 	cd e2e-tests-rust && cargo clippy --fix
 	cd spec-tests && cargo fmt --all
 	cd spec-tests && cargo clippy --fix
-	cd docs/site && yarn && yarn lint && yarn format
+	cd docs/site && bun install && bun run lint && bun run format
 
 # Run unit tests for Rust code
 test:
