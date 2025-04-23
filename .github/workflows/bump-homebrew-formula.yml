@@ -42,27 +42,23 @@ jobs:
 
       - name: Patch Formula/anvil-zksync.rb
         run: |
-            sed -i.bak -E \
-                "s|^  version \".*\"|  version \"${VER}\"|" \
-                Formula/anvil-zksync.rb
+            sed -i -E \
+            "s|^  version \".*\"|  version \"${VER}\"|" \
+            Formula/anvil-zksync.rb
 
             declare -A Mappings=(
-                [aarch64_apple_darwin]="${SHA_aarch64_apple_darwin}"
-                [x86_64_apple_darwin]="${SHA_x86_64_apple_darwin}"
-                [aarch64_unknown_linux_gnu]="${SHA_aarch64_unknown_linux_gnu}"
-                [x86_64_unknown_linux_gnu]="${SHA_x86_64_unknown_linux_gnu}"
+            [aarch64-apple-darwin]="${SHA_aarch64_apple_darwin}"
+            [x86_64-apple-darwin]="${SHA_x86_64_apple_darwin}"
+            [aarch64-unknown-linux-gnu]="${SHA_aarch64_unknown_linux_gnu}"
+            [x86_64-unknown-linux-gnu]="${SHA_x86_64_unknown_linux_gnu}"
             )
-
-            for key in "${!Mappings[@]}"; do
-                # convert JSON-style key to the actual tarball arch string
-                arch_pattern="${key//_/-}"
-                sha="${Mappings[$key]}"
-                sed -i.bak -E \
-                "/anvil-zksync-v${VER}-${arch_pattern}\.tar\.gz/ s|sha256 \".*\"|sha256 \"${sha}\"|" \
+            for arch in "${!Mappings[@]}"; do
+            sha="${Mappings[$arch]}"
+            sed -i -E \
+                "/anvil-zksync-v${VER}-${arch}\.tar\.gz/ s|sha256 \".*\"|sha256 \"${sha}\"|" \
                 Formula/anvil-zksync.rb
             done
 
-            git rm -f Formula/anvil-zksync.rb.bak || true
             git add Formula/anvil-zksync.rb
 
       - name: Create Pull Request
