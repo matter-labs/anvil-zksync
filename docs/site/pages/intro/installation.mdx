@@ -1,0 +1,76 @@
+---
+title: Installation
+description: Install and set up anvil-zksync
+layout: docs
+showOutline: 1
+---
+
+# Installation
+
+You have three simple ways to get up and running with **anvil-zksync**:
+
+1. **Installation script** (bundles `forge`, `cast`, and `anvil-zksync`)
+2. **Pre-built binaries** (download & extract)
+3. **Build from source** (requires Rust/Cargo)
+
+## 1. Installation script (recommended)
+
+The easiest path: grab and run the `foundryup-zksync` installer.
+
+```bash
+curl -L https://raw.githubusercontent.com/matter-labs/foundry-zksync/main/install-foundry-zksync \
+  | bash
+```
+
+> This installs `forge`, `cast`, **and** `anvil-zksync` into your `PATH`. **Note:** This will
+> override existing `foundry` installations.
+
+Then start your local ZK chain node:
+
+```bash
+anvil-zksync
+```
+
+## 2. Pre-built binaries
+
+1. Download the latest release for your platform from  
+   [GitHub Releases](https://github.com/matter-labs/anvil-zksync/releases/latest).
+2. Extract and install:
+
+   ```bash
+   tar xzf anvil-zksync-<version>-<os>.tar.gz -C /usr/local/bin/
+   chmod +x /usr/local/bin/anvil-zksync
+   ```
+
+3. Verify and run:
+
+   ```bash
+   anvil-zksync --version
+   anvil-zksync
+   ```
+
+## 3. Build from source
+
+> Requires Rust & Cargo installed.
+
+```bash
+gh repo clone matter-labs/anvil-zksync
+cd anvil-zksync
+cargo build --release
+```
+
+The `anvil-zksync` binary will be at `target/release/`. To make it globally available:
+
+```bash
+cp target/release/anvil-zksync /usr/local/bin/
+```
+
+With any method above, you can immediately begin:
+
+```bash
+# Launch default (equivalent to `run`)
+anvil-zksync
+
+# Or fork with tracing enabled:
+anvil-zksync -vv fork --fork-url mainnet
+```
