@@ -17,53 +17,49 @@ jobs:
         with:
           token: ${{ secrets.RELEASE_TOKEN }}
 
-      - name: Set up variables
-        id: vars
+      - name: Set up version
         run: |
-          TAG=0.5.1
-          VER=${TAG#v}
-          echo "VER=$VER" >> $GITHUB_ENV
+            TAG="v0.5.1"
+            VER=${TAG#v}
+            echo "TAG=$TAG" >> $GITHUB_ENV
+            echo "VER=$VER" >> $GITHUB_ENV
 
-          # architectures to process
-          echo "arches=(
+      - name: Download tarballs & compute checksums
+        run: |
+            arches=(
             aarch64-apple-darwin
             x86_64-apple-darwin
             aarch64-unknown-linux-gnu
             x86_64-unknown-linux-gnu
-          )" >> $GITHUB_ENV
+            )
 
-      - name: Download tarballs & compute checksums
-        run: |
-          for arch in "${arches[@]}"; do
-            URL="https://github.com/matter-labs/anvil-zksync/releases/download/$TAG/anvil-zksync-$TAG-$arch.tar.gz"
-            SHA=$(curl -sL "$URL" | sha256sum | awk '{print $1}')
-            # export each as ENV var: SHA_aarch64_apple_darwin, etc.
+            for arch in "${arches[@]}"; do
+            url="https://github.com/matter-labs/anvil-zksync/releases/download/v${VER}/anvil-zksync-v${VER}-${arch}.tar.gz"
+            sha=$(curl -sL "$url" | sha256sum | awk '{print $1}')
             varname="SHA_${arch//[-]/_}"
-            echo "$varname=$SHA" >> $GITHUB_ENV
-          done
+            echo "$varname=$sha" >> $GITHUB_ENV
+            done
 
       - name: Patch Formula/anvil-zksync.rb
         run: |
-          sed -i.bak \
-            -e "s/^  version \".*\"/  version \"$VER\"/" \
-            Formula/anvil-zksync.rb
-
-          # update each sha256 line by matching the URL suffix
-          declare -A Mappings=(
-            [aarch64_apple_darwin]="${SHA_aarch64_apple_darwin}"
-            [x86_64_apple_darwin]="${SHA_x86_64_apple_darwin}"
-            [aarch64_unknown_linux_gnu]="${SHA_aarch64_unknown_linux_gnu}"
-            [x86_64_unknown_linux_gnu]="${SHA_x86_64_unknown_linux_gnu}"
-          )
-
-          for key in "${!Mappings[@]}"; do
-            arch="${key//_/[-]/g}"
-            sha="${Mappings[$key]}"
-            # replace the old sha for the matching tarball line
             sed -i.bak \
-              -E "/anvil-zksync-v\${VER}-$arch\\.tar\\.gz/ s/sha256 \".*\"/sha256 \"$sha\"/" \
-              Formula/anvil-zksync.rb
-          done
+                -e "s/^  version \".*\"/  version \"$VER\"/" \
+                Formula/anvil-zksync.rb
+
+            declare -A Mappings=(
+                [aarch64_apple_darwin]="${SHA_aarch64_apple_darwin}"
+                [x86_64_apple_darwin]="${SHA_x86_64_apple_darwin}"
+                [aarch64_unknown_linux_gnu]="${SHA_aarch64_unknown_linux_gnu}"
+                [x86_64_unknown_linux_gnu]="${SHA_x86_64_unknown_linux_gnu}"
+            )
+
+            for key in "${!Mappings[@]}"; do
+                arch_pattern="${key//_/[-]/g}"
+                sha="${Mappings[$key]}"
+                sed -i.bak -E \
+                "/anvil-zksync-v${VER}-${arch_pattern}\.tar\.gz/ s/sha256 \".*\"/sha256 \"$sha\"/" \
+                Formula/anvil-zksync.rb
+            done
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v7
