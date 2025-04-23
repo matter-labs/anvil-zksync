@@ -76,5 +76,5 @@ jobs:
             Bump Homebrew formula for anvil-zksync to version ${{ env.VER }}
             SHA256 checksums updated for all architectures.
           branch: bump-homebrew-formula
-          base: main
+          base: ${{ github.event.repository.default_branch }}
           add-paths: Formula/anvil-zksync.rb
