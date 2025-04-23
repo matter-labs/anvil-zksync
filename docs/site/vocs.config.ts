@@ -52,9 +52,9 @@ export default defineConfig({
         tipBorder: { light: '#0C18EC', dark: '#13D5D3' },
         tipText: { light: '#000000', dark: '#FFFFFF' },
 
-        warningBackground: { light: '#FD402C', dark: '#2E0000' },
-        warningBorder: { light: '#FD402C', dark: '#FD402C' },
-        warningText: { light: '#FFFFFF', dark: '#FD402C' },
+        warningBackground: { light: '#BFF351', dark: '#BFF351' },
+        warningBorder: { light: '#0C18EC', dark: '#13D5D3' },
+        warningText: { light: '#000000', dark: '#000000' },
 
         // success/good messages
         successBackground: { light: '#BFF351', dark: '#0A2009' },
