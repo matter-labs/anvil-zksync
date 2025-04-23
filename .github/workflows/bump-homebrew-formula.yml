@@ -6,6 +6,9 @@ on:
 
 jobs:
   bump-formula:
+    permissions:
+      contents: write
+      pull-requests: write
     # only run on stable semver tags (v1.2.3, not v1.2.3-rc, or pre-releases)
     if: startsWith(github.event.release.tag_name, 'v') && !contains(github.event.release.tag_name, '-')
     runs-on: ubuntu-latest
@@ -13,7 +16,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.RELEASE_TOKEN }}
 
       - name: Set up variables
         id: vars
@@ -63,6 +66,15 @@ jobs:
               Formula/anvil-zksync.rb
           done
 
-      - name: Commit & push bump
-        run: |
-            TODO
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.RELEASE_TOKEN }}
+          commit-message: 'Bump Homebrew formula'
+          title: 'Bump Homebrew formula'
+          body: |
+            Bump Homebrew formula for anvil-zksync to version $VER
+            SHA256 checksums updated for all architectures.
+          branch: bump-homebrew-formula
+          base: main
+          add-paths: Formula/anvil-zksync.rb
