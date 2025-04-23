@@ -36,4 +36,3 @@ class AnvilZksync < Formula
       regex(/^v?(\d+(?:\.\d+)+)$/i)
     end
   end
-  
