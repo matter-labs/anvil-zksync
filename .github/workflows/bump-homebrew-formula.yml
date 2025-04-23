@@ -2,15 +2,14 @@ name: Bump Homebrew formula
 
 on:
  pull_request:
-    branches:
-        - main
+    branches: [main]
 
 jobs:
   bump-formula:
     permissions:
       contents: read
     # only run on stable semver tags (v1.2.3, not v1.2.3-rc, or pre-releases)
-    if: startsWith(github.event.release.tag_name, 'v') && !contains(github.event.release.tag_name, '-')
+    # if: startsWith(github.event.release.tag_name, 'v') && !contains(github.event.release.tag_name, '-')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
