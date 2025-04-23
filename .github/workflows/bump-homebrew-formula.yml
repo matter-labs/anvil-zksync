@@ -20,7 +20,7 @@ jobs:
       - name: Set up variables
         id: vars
         run: |
-          TAG=${{ github.event.release.tag_name }}
+          TAG=0.5.1
           VER=${TAG#v}
           echo "VER=$VER" >> $GITHUB_ENV
 
