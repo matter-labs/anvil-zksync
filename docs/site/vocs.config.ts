@@ -101,7 +101,10 @@ export default defineConfig({
     {
       text: 'Guides',
       collapsed: true,
-      items: [{ text: 'Local Hardhat Testing', link: '/guides/local_hardhat_testing' }],
+      items: [
+        { text: 'Local Hardhat Testing', link: '/guides/local_hardhat_testing' },
+        { text: 'Anvil-ZKsync CI', link: '/guides/anvil_zksync_action' },
+      ],
     },
     {
       text: 'RPC Reference',
