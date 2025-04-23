@@ -9,11 +9,28 @@ showOutline: 1
 
 You have three simple ways to get up and running with **anvil-zksync**:
 
-1. **Installation script** (bundles `forge`, `cast`, and `anvil-zksync`)
-2. **Pre-built binaries** (download & extract)
-3. **Build from source** (requires Rust/Cargo)
+1. **Homebrew** (recommended)
+2. **Installation script** (bundles `forge`, `cast`, and `anvil-zksync`)
+3. **Pre-built binaries** (download & extract)
+4. **Build from source** (requires Rust/Cargo)
 
-## 1. Installation script (recommended)
+## 1. Homebrew (recommended)
+
+If you're on macOS or Linux, the easiest and most up-to-date way is via Homebrew:
+
+```bash
+# Tap the official anvil-zksync formula
+brew tap matter-labs/anvil-zksync
+
+# Install
+brew install anvil-zksync
+
+# To update later:
+brew update
+brew upgrade anvil-zksync
+```
+
+## 2. Installation script
 
 The easiest path: grab and run the `foundryup-zksync` installer.
 
@@ -31,7 +48,7 @@ Then start your local ZK chain node:
 anvil-zksync
 ```
 
-## 2. Pre-built binaries
+## 3. Pre-built binaries
 
 1. Download the latest release for your platform from  
    [GitHub Releases](https://github.com/matter-labs/anvil-zksync/releases/latest).
@@ -49,7 +66,7 @@ anvil-zksync
    anvil-zksync
    ```
 
-## 3. Build from source
+## 4. Build from source
 
 > Requires Rust & Cargo installed.
 
