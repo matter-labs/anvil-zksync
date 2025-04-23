@@ -39,7 +39,7 @@ lint:
 	cargo clippy --tests -p anvil-zksync -- -D warnings --allow clippy::unwrap_used
 	cd e2e-tests-rust && cargo clippy --tests -- -D warnings --allow clippy::unwrap_used
 	cd spec-tests && cargo clippy --tests -- -D warnings --allow clippy::unwrap_used
-	cd docs/site && yarn && yarn check-lint && yarn check-format
+	cd docs/site && bun install && bun run check-lint && bun run check-format
 
 # Fix lint errors
 lint-fix:
