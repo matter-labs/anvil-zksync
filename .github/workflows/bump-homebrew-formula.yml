@@ -62,6 +62,9 @@ jobs:
                 Formula/anvil-zksync.rb
             done
 
+            git rm -f Formula/anvil-zksync.rb.bak || true
+            git add Formula/anvil-zksync.rb
+
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v7
         with:
