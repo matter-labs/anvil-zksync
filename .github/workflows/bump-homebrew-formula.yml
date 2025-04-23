@@ -42,8 +42,8 @@ jobs:
 
       - name: Patch Formula/anvil-zksync.rb
         run: |
-            sed -i.bak \
-                -e "s/^  version \".*\"/  version \"$VER\"/" \
+            sed -i.bak -E \
+                "s|^  version \".*\"|  version \"${VER}\"|" \
                 Formula/anvil-zksync.rb
 
             declare -A Mappings=(
@@ -54,10 +54,11 @@ jobs:
             )
 
             for key in "${!Mappings[@]}"; do
-                arch_pattern="${key//_/[-]/g}"
+                # convert JSON-style key to the actual tarball arch string
+                arch_pattern="${key//_/-}"
                 sha="${Mappings[$key]}"
                 sed -i.bak -E \
-                "/anvil-zksync-v${VER}-${arch_pattern}\.tar\.gz/ s/sha256 \".*\"/sha256 \"$sha\"/" \
+                "/anvil-zksync-v${VER}-${arch_pattern}\.tar\.gz/ s|sha256 \".*\"|sha256 \"${sha}\"|" \
                 Formula/anvil-zksync.rb
             done
 
@@ -65,8 +66,8 @@ jobs:
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.RELEASE_TOKEN }}
-          commit-message: 'chore: bump hombrew formula to ${{ env.VER }}'
-          title: 'chore: bump hombrew formula to ${{ env.VER }}'
+          commit-message: 'chore: bump homebrew formula to ${{ env.VER }}'
+          title: 'chore: bump homebrew formula to ${{ env.VER }}'
           body: |
             Bump Homebrew formula for anvil-zksync to version ${{ env.VER }}
             SHA256 checksums updated for all architectures.
