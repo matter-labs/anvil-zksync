@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["DEFAULT_DISK_CACHE_DIR"],"enum":["CacheConfig","CacheType"],"struct":["Cache"]};
