@@ -50,8 +50,6 @@ All **global flags** (verbosity, cache, gas tuning, etc.) are also available.
 
 ## Examples
 
-::::steps
-
 ### 1. Replay a swap transaction from Era mainnet
 
 ```bash
@@ -75,8 +73,6 @@ anvil-zksync -vv replay_tx \
   --fork-url mainnet \
   0x9419f4eb8d553dd4f4d254badfd28efb0b2416c4b0eb26076f90e1226501a3e0
 ```
-
-::::
 
 ## See also
 

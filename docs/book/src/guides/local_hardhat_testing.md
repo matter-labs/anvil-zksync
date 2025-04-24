@@ -14,25 +14,9 @@ npx hardhat
 
 Install the ZKsync Hardhat plugin, ethers provider, and test tools:
 
-:::code-group
-
-```bash [pnpm]
-pnpm add -D @matterlabs/hardhat-zksync zksync-ethers ethers mocha chai @types/mocha @types/chai
-```
-
-```bash [npm]
-npm install --save-dev @matterlabs/hardhat-zksync zksync-ethers ethers mocha chai @types/mocha @types/chai
-```
-
 ```bash [yarn]
 yarn add -D @matterlabs/hardhat-zksync zksync-ethers ethers mocha chai @types/mocha @types/chai
 ```
-
-```bash [bun]
-bun add -d @matterlabs/hardhat-zksync zksync-ethers ethers mocha chai @types/mocha @types/chai
-```
-
-:::
 
 ## 3. Configure Hardhat
 
