@@ -1,0 +1,133 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/config/src/constants.rs`."><title>constants.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-916cea96.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="anvil_zksync_config" data-themes="" data-resource-suffix="" data-rustdoc-version="1.87.0-nightly (75530e9f7 2025-03-18)" data-channel="nightly" data-search-js="search-e7298875.js" data-settings-js="settings-d72f25bb.js" ><script src="../../static.files/storage-d8ac8691.js"></script><script defer src="../../static.files/src-script-b8d3f215.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-fb8c74a8.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">anvil_zksync_config/</div>constants.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span>alloy::primitives::hex;
+<a href=#2 id=2 data-nosnippet>2</a><span class="kw">use </span>zksync_types::H160;
+<a href=#3 id=3 data-nosnippet>3</a>
+<a href=#4 id=4 data-nosnippet>4</a><span class="doccomment">/// Default L1 gas price for transactions
+<a href=#5 id=5 data-nosnippet>5</a></span><span class="kw">pub const </span>DEFAULT_L1_GAS_PRICE: u64 = <span class="number">2_365_348_956</span>;
+<a href=#6 id=6 data-nosnippet>6</a><span class="doccomment">/// Default L2 gas price for transactions if not provided via CLI
+<a href=#7 id=7 data-nosnippet>7</a></span><span class="kw">pub const </span>DEFAULT_L2_GAS_PRICE: u64 = <span class="number">45_250_000</span>;
+<a href=#8 id=8 data-nosnippet>8</a><span class="doccomment">/// Default price for fair pubdata based on predefined value
+<a href=#9 id=9 data-nosnippet>9</a></span><span class="kw">pub const </span>DEFAULT_FAIR_PUBDATA_PRICE: u64 = <span class="number">1</span>;
+<a href=#10 id=10 data-nosnippet>10</a><span class="doccomment">/// Scale factor for estimating L1 gas prices
+<a href=#11 id=11 data-nosnippet>11</a></span><span class="kw">pub const </span>DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR: f64 = <span class="number">2.0</span>;
+<a href=#12 id=12 data-nosnippet>12</a><span class="doccomment">/// Scale factor for estimating gas limits
+<a href=#13 id=13 data-nosnippet>13</a></span><span class="kw">pub const </span>DEFAULT_ESTIMATE_GAS_SCALE_FACTOR: f32 = <span class="number">1.3</span>;
+<a href=#14 id=14 data-nosnippet>14</a><span class="doccomment">/// Default port for the test node server
+<a href=#15 id=15 data-nosnippet>15</a></span><span class="kw">pub const </span>NODE_PORT: u16 = <span class="number">8011</span>;
+<a href=#16 id=16 data-nosnippet>16</a><span class="doccomment">/// Network ID for the test node
+<a href=#17 id=17 data-nosnippet>17</a></span><span class="kw">pub const </span>TEST_NODE_NETWORK_ID: u32 = <span class="number">260</span>;
+<a href=#18 id=18 data-nosnippet>18</a><span class="doccomment">/// Default derivation path for the test node
+<a href=#19 id=19 data-nosnippet>19</a></span><span class="kw">pub const </span>DERIVATION_PATH: <span class="kw-2">&amp;</span>str = <span class="string">"m/44'/60'/0'/0/0"</span>;
+<a href=#20 id=20 data-nosnippet>20</a><span class="doccomment">/// Default log file path for the test node
+<a href=#21 id=21 data-nosnippet>21</a></span><span class="kw">pub const </span>DEFAULT_LOG_FILE_PATH: <span class="kw-2">&amp;</span>str = <span class="string">"anvil-zksync.log"</span>;
+<a href=#22 id=22 data-nosnippet>22</a><span class="doccomment">/// Default mnemonic phrase for the test node
+<a href=#23 id=23 data-nosnippet>23</a></span><span class="kw">pub const </span>DEFAULT_MNEMONIC: <span class="kw-2">&amp;</span>str = <span class="string">"test test test test test test test test test test test junk"</span>;
+<a href=#24 id=24 data-nosnippet>24</a><span class="doccomment">/// Timestamp of the first block (if not running in fork mode).
+<a href=#25 id=25 data-nosnippet>25</a></span><span class="kw">pub const </span>NON_FORK_FIRST_BLOCK_TIMESTAMP: u64 = <span class="number">1_000</span>;
+<a href=#26 id=26 data-nosnippet>26</a><span class="doccomment">/// Default account balance for the dev accounts
+<a href=#27 id=27 data-nosnippet>27</a></span><span class="comment">// TODO: Test-only constant, move to a test utils crate
+<a href=#28 id=28 data-nosnippet>28</a></span><span class="kw">pub const </span>DEFAULT_ACCOUNT_BALANCE: u128 = <span class="number">1_000 </span>* <span class="number">10u128</span>.pow(<span class="number">18</span>);
+<a href=#29 id=29 data-nosnippet>29</a>
+<a href=#30 id=30 data-nosnippet>30</a><span class="doccomment">/// Pseudo caller that is allowed to call system-only methods
+<a href=#31 id=31 data-nosnippet>31</a></span><span class="kw">pub const </span>PSEUDO_CALLER: H160 = H160([<span class="number">0xff</span>; <span class="number">20</span>]);
+<a href=#32 id=32 data-nosnippet>32</a><span class="doccomment">/// Calldata to allow EVM bytecode in ContractDeployer
+<a href=#33 id=33 data-nosnippet>33</a></span><span class="kw">pub const </span>EVM_EMULATOR_ENABLER_CALLDATA: <span class="kw-2">&amp;</span>[u8] = <span class="kw-2">&amp;</span><span class="macro">hex!</span>(
+<a href=#34 id=34 data-nosnippet>34</a>    <span class="string">"fe06380c" </span><span class="comment">// selector setAllowedBytecodeTypesToDeploy(uint8)
+<a href=#35 id=35 data-nosnippet>35</a>    </span><span class="string">"0000000000000000000000000000000000000000000000000000000000000001"
+<a href=#36 id=36 data-nosnippet>36</a></span>);
+<a href=#37 id=37 data-nosnippet>37</a><span class="comment">// List of wallets (address, private key, mnemonic) that we seed with tokens at start.
+<a href=#38 id=38 data-nosnippet>38</a></span><span class="kw">pub const </span>RICH_WALLETS: [(<span class="kw-2">&amp;</span>str, <span class="kw-2">&amp;</span>str, <span class="kw-2">&amp;</span>str); <span class="number">10</span>] = [
+<a href=#39 id=39 data-nosnippet>39</a>    (
+<a href=#40 id=40 data-nosnippet>40</a>        <span class="string">"0xBC989fDe9e54cAd2aB4392Af6dF60f04873A033A"</span>,
+<a href=#41 id=41 data-nosnippet>41</a>        <span class="string">"0x3d3cbc973389cb26f657686445bcc75662b415b656078503592ac8c1abb8810e"</span>,
+<a href=#42 id=42 data-nosnippet>42</a>        <span class="string">"mass wild lava ripple clog cabbage witness shell unable tribe rubber enter"</span>,
+<a href=#43 id=43 data-nosnippet>43</a>    ),
+<a href=#44 id=44 data-nosnippet>44</a>    (
+<a href=#45 id=45 data-nosnippet>45</a>        <span class="string">"0x55bE1B079b53962746B2e86d12f158a41DF294A6"</span>,
+<a href=#46 id=46 data-nosnippet>46</a>        <span class="string">"0x509ca2e9e6acf0ba086477910950125e698d4ea70fa6f63e000c5a22bda9361c"</span>,
+<a href=#47 id=47 data-nosnippet>47</a>        <span class="string">"crumble clutch mammal lecture lazy broken nominee visit gentle gather gym erupt"</span>,
+<a href=#48 id=48 data-nosnippet>48</a>    ),
+<a href=#49 id=49 data-nosnippet>49</a>    (
+<a href=#50 id=50 data-nosnippet>50</a>        <span class="string">"0xCE9e6063674DC585F6F3c7eaBe82B9936143Ba6C"</span>,
+<a href=#51 id=51 data-nosnippet>51</a>        <span class="string">"0x71781d3a358e7a65150e894264ccc594993fbc0ea12d69508a340bc1d4f5bfbc"</span>,
+<a href=#52 id=52 data-nosnippet>52</a>        <span class="string">"illegal okay stereo tattoo between alien road nuclear blind wolf champion regular"</span>,
+<a href=#53 id=53 data-nosnippet>53</a>    ),
+<a href=#54 id=54 data-nosnippet>54</a>    (
+<a href=#55 id=55 data-nosnippet>55</a>        <span class="string">"0xd986b0cB0D1Ad4CCCF0C4947554003fC0Be548E9"</span>,
+<a href=#56 id=56 data-nosnippet>56</a>        <span class="string">"0x379d31d4a7031ead87397f332aab69ef5cd843ba3898249ca1046633c0c7eefe"</span>,
+<a href=#57 id=57 data-nosnippet>57</a>        <span class="string">"point donor practice wear alien abandon frozen glow they practice raven shiver"</span>,
+<a href=#58 id=58 data-nosnippet>58</a>    ),
+<a href=#59 id=59 data-nosnippet>59</a>    (
+<a href=#60 id=60 data-nosnippet>60</a>        <span class="string">"0x87d6ab9fE5Adef46228fB490810f0F5CB16D6d04"</span>,
+<a href=#61 id=61 data-nosnippet>61</a>        <span class="string">"0x105de4e75fe465d075e1daae5647a02e3aad54b8d23cf1f70ba382b9f9bee839"</span>,
+<a href=#62 id=62 data-nosnippet>62</a>        <span class="string">"giraffe organ club limb install nest journey client chunk settle slush copy"</span>,
+<a href=#63 id=63 data-nosnippet>63</a>    ),
+<a href=#64 id=64 data-nosnippet>64</a>    (
+<a href=#65 id=65 data-nosnippet>65</a>        <span class="string">"0x78cAD996530109838eb016619f5931a03250489A"</span>,
+<a href=#66 id=66 data-nosnippet>66</a>        <span class="string">"0x7becc4a46e0c3b512d380ca73a4c868f790d1055a7698f38fb3ca2b2ac97efbb"</span>,
+<a href=#67 id=67 data-nosnippet>67</a>        <span class="string">"awful organ version habit giraffe amused wire table begin gym pistol clean"</span>,
+<a href=#68 id=68 data-nosnippet>68</a>    ),
+<a href=#69 id=69 data-nosnippet>69</a>    (
+<a href=#70 id=70 data-nosnippet>70</a>        <span class="string">"0xc981b213603171963F81C687B9fC880d33CaeD16"</span>,
+<a href=#71 id=71 data-nosnippet>71</a>        <span class="string">"0xe0415469c10f3b1142ce0262497fe5c7a0795f0cbfd466a6bfa31968d0f70841"</span>,
+<a href=#72 id=72 data-nosnippet>72</a>        <span class="string">"exotic someone fall kitten salute nerve chimney enlist pair display over inside"</span>,
+<a href=#73 id=73 data-nosnippet>73</a>    ),
+<a href=#74 id=74 data-nosnippet>74</a>    (
+<a href=#75 id=75 data-nosnippet>75</a>        <span class="string">"0x42F3dc38Da81e984B92A95CBdAAA5fA2bd5cb1Ba"</span>,
+<a href=#76 id=76 data-nosnippet>76</a>        <span class="string">"0x4d91647d0a8429ac4433c83254fb9625332693c848e578062fe96362f32bfe91"</span>,
+<a href=#77 id=77 data-nosnippet>77</a>        <span class="string">"catch tragic rib twelve buffalo also gorilla toward cost enforce artefact slab"</span>,
+<a href=#78 id=78 data-nosnippet>78</a>    ),
+<a href=#79 id=79 data-nosnippet>79</a>    (
+<a href=#80 id=80 data-nosnippet>80</a>        <span class="string">"0x64F47EeD3dC749d13e49291d46Ea8378755fB6DF"</span>,
+<a href=#81 id=81 data-nosnippet>81</a>        <span class="string">"0x41c9f9518aa07b50cb1c0cc160d45547f57638dd824a8d85b5eb3bf99ed2bdeb"</span>,
+<a href=#82 id=82 data-nosnippet>82</a>        <span class="string">"arrange price fragile dinner device general vital excite penalty monkey major faculty"</span>,
+<a href=#83 id=83 data-nosnippet>83</a>    ),
+<a href=#84 id=84 data-nosnippet>84</a>    (
+<a href=#85 id=85 data-nosnippet>85</a>        <span class="string">"0xe2b8Cb53a43a56d4d2AB6131C81Bd76B86D3AFe5"</span>,
+<a href=#86 id=86 data-nosnippet>86</a>        <span class="string">"0xb0680d66303a0163a19294f1ef8c95cd69a9d7902a4aca99c05f3e134e68a11a"</span>,
+<a href=#87 id=87 data-nosnippet>87</a>        <span class="string">"increase pulp sing wood guilt cement satoshi tiny forum nuclear sudden thank"</span>,
+<a href=#88 id=88 data-nosnippet>88</a>    ),
+<a href=#89 id=89 data-nosnippet>89</a>];
+<a href=#90 id=90 data-nosnippet>90</a>
+<a href=#91 id=91 data-nosnippet>91</a><span class="doccomment">/// List of legacy wallets (address, private key) that we seed with tokens at start.
+<a href=#92 id=92 data-nosnippet>92</a></span><span class="kw">pub const </span>LEGACY_RICH_WALLETS: [(<span class="kw-2">&amp;</span>str, <span class="kw-2">&amp;</span>str); <span class="number">10</span>] = [
+<a href=#93 id=93 data-nosnippet>93</a>    (
+<a href=#94 id=94 data-nosnippet>94</a>        <span class="string">"0x36615Cf349d7F6344891B1e7CA7C72883F5dc049"</span>,
+<a href=#95 id=95 data-nosnippet>95</a>        <span class="string">"0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"</span>,
+<a href=#96 id=96 data-nosnippet>96</a>    ),
+<a href=#97 id=97 data-nosnippet>97</a>    (
+<a href=#98 id=98 data-nosnippet>98</a>        <span class="string">"0xa61464658AfeAf65CccaaFD3a512b69A83B77618"</span>,
+<a href=#99 id=99 data-nosnippet>99</a>        <span class="string">"0xac1e735be8536c6534bb4f17f06f6afc73b2b5ba84ac2cfb12f7461b20c0bbe3"</span>,
+<a href=#100 id=100 data-nosnippet>100</a>    ),
+<a href=#101 id=101 data-nosnippet>101</a>    (
+<a href=#102 id=102 data-nosnippet>102</a>        <span class="string">"0x0D43eB5B8a47bA8900d84AA36656c92024e9772e"</span>,
+<a href=#103 id=103 data-nosnippet>103</a>        <span class="string">"0xd293c684d884d56f8d6abd64fc76757d3664904e309a0645baf8522ab6366d9e"</span>,
+<a href=#104 id=104 data-nosnippet>104</a>    ),
+<a href=#105 id=105 data-nosnippet>105</a>    (
+<a href=#106 id=106 data-nosnippet>106</a>        <span class="string">"0xA13c10C0D5bd6f79041B9835c63f91de35A15883"</span>,
+<a href=#107 id=107 data-nosnippet>107</a>        <span class="string">"0x850683b40d4a740aa6e745f889a6fdc8327be76e122f5aba645a5b02d0248db8"</span>,
+<a href=#108 id=108 data-nosnippet>108</a>    ),
+<a href=#109 id=109 data-nosnippet>109</a>    (
+<a href=#110 id=110 data-nosnippet>110</a>        <span class="string">"0x8002cD98Cfb563492A6fB3E7C8243b7B9Ad4cc92"</span>,
+<a href=#111 id=111 data-nosnippet>111</a>        <span class="string">"0xf12e28c0eb1ef4ff90478f6805b68d63737b7f33abfa091601140805da450d93"</span>,
+<a href=#112 id=112 data-nosnippet>112</a>    ),
+<a href=#113 id=113 data-nosnippet>113</a>    (
+<a href=#114 id=114 data-nosnippet>114</a>        <span class="string">"0x4F9133D1d3F50011A6859807C837bdCB31Aaab13"</span>,
+<a href=#115 id=115 data-nosnippet>115</a>        <span class="string">"0xe667e57a9b8aaa6709e51ff7d093f1c5b73b63f9987e4ab4aa9a5c699e024ee8"</span>,
+<a href=#116 id=116 data-nosnippet>116</a>    ),
+<a href=#117 id=117 data-nosnippet>117</a>    (
+<a href=#118 id=118 data-nosnippet>118</a>        <span class="string">"0xbd29A1B981925B94eEc5c4F1125AF02a2Ec4d1cA"</span>,
+<a href=#119 id=119 data-nosnippet>119</a>        <span class="string">"0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959"</span>,
+<a href=#120 id=120 data-nosnippet>120</a>    ),
+<a href=#121 id=121 data-nosnippet>121</a>    (
+<a href=#122 id=122 data-nosnippet>122</a>        <span class="string">"0xedB6F5B4aab3dD95C7806Af42881FF12BE7e9daa"</span>,
+<a href=#123 id=123 data-nosnippet>123</a>        <span class="string">"0x74d8b3a188f7260f67698eb44da07397a298df5427df681ef68c45b34b61f998"</span>,
+<a href=#124 id=124 data-nosnippet>124</a>    ),
+<a href=#125 id=125 data-nosnippet>125</a>    (
+<a href=#126 id=126 data-nosnippet>126</a>        <span class="string">"0xe706e60ab5Dc512C36A4646D719b889F398cbBcB"</span>,
+<a href=#127 id=127 data-nosnippet>127</a>        <span class="string">"0xbe79721778b48bcc679b78edac0ce48306a8578186ffcb9f2ee455ae6efeace1"</span>,
+<a href=#128 id=128 data-nosnippet>128</a>    ),
+<a href=#129 id=129 data-nosnippet>129</a>    (
+<a href=#130 id=130 data-nosnippet>130</a>        <span class="string">"0xE90E12261CCb0F3F7976Ae611A29e84a6A85f424"</span>,
+<a href=#131 id=131 data-nosnippet>131</a>        <span class="string">"0x3eb15da85647edd9a1159a4a13b9e7c56877c4eb33f614546d4db06a51868b1c"</span>,
+<a href=#132 id=132 data-nosnippet>132</a>    ),
+<a href=#133 id=133 data-nosnippet>133</a>];</code></pre></div></section></main></body></html>
