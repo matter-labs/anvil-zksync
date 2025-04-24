@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["compute_gas_details"],"struct":["Formatter","GasDetails"]};

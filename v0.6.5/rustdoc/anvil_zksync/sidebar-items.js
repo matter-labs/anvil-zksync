@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["POSTHOG_API_KEY","TELEMETRY_CONFIG_NAME"],"fn":["main","start_program"],"mod":["bytecode_override","cli","utils"]};
