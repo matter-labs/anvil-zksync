@@ -1,0 +1,632 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Protocol Upgrade Steps - Anvil-ZKsync Documentation</title>
+
+
+        <!-- Custom HTML head -->
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../css/version-box.css">
+        <link rel="stylesheet" href=".././css/mdbook-admonish.css">
+
+        <!-- MathJax -->
+        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Anvil-ZKsync Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/anvil-zksync/tree/main/docs/book" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/anvil-zksync/tree/main/docs/book/src/guides/protocol-upgrade-steps.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="updating-anvil-zksync-to-support-a-new-protocol-version"><a class="header" href="#updating-anvil-zksync-to-support-a-new-protocol-version">Updating <code>anvil-zksync</code> to Support a New Protocol Version</a></h1>
+<p>This guide describes the step-by-step process for adding support for a new protocol version in <code>anvil-zksync</code>, using the <a href="https://github.com/matter-labs/anvil-zksync/pull/637">v28 support PR (#637)</a> as a reference.</p>
+<h2 id="1-prepare-a-versioned-contract-branch-with-anvil-zksync-debug-support"><a class="header" href="#1-prepare-a-versioned-contract-branch-with-anvil-zksync-debug-support">1. Prepare a Versioned Contract Branch with Anvil-ZKsync Debug Support</a></h2>
+<p><code>anvil-zksync</code> relies on a customized version of the <code>era-contracts</code> repository to enable debugging, impersonation, and other test-specific features. This requires:</p>
+<ul>
+<li>Inserting special debug markers,</li>
+<li>Adding a no-security default account contract,</li>
+<li>Adjusting the preprocessing pipeline.</li>
+</ul>
+<p>You can use the following diff as a reference:
+<a href="https://github.com/matter-labs/era-contracts/compare/release-v28...anvil-zksync-0.4.x-release-v28">anvil-zksync-0.4.x-release-v28 vs release-v28</a></p>
+<h3 id="required-customizations"><a class="header" href="#required-customizations">Required Customizations</a></h3>
+<p>The following markers and blocks are used to encapsulate <code>anvil-zksync</code>-specific changes:</p>
+<ul>
+<li><code>DEBUG SUPPORT START</code> / <code>DEBUG SUPPORT END</code></li>
+<li><code>FOUNDRY SUPPORT START</code> / <code>FOUNDRY SUPPORT END</code></li>
+<li><code>&lt;!-- @ifndef ACCOUNT_IMPERSONATING --&gt;</code> (Yul preprocessing)</li>
+<li><code>For impersonating block start</code> / <code>For impersonating block end</code> in bootloader preprocessing</li>
+</ul>
+<p>You must also include a special test contract:</p>
+<ul>
+<li><a href="https://github.com/matter-labs/era-contracts/blob/anvil-zksync-0.4.x-release-v28/system-contracts/contracts/DefaultAccountNoSecurity.sol"><code>system-contracts/contracts/DefaultAccountNoSecurity.sol</code></a></li>
+</ul>
+<h3 id="files-to-modify"><a class="header" href="#files-to-modify">Files to Modify</a></h3>
+<p>Apply the above debug customizations to the following files in your <code>era-contracts</code> release branch:</p>
+<ul>
+<li><code>l1-contracts/contracts/state-transition/chain-deps/facets/Executor.sol</code></li>
+<li><code>system-contracts/bootloader/bootloader.yul</code></li>
+<li><code>system-contracts/contracts/DefaultAccount.sol</code></li>
+<li><code>system-contracts/contracts/interfaces/IAccount.sol</code></li>
+<li><code>system-contracts/contracts/DefaultAccountNoSecurity.sol</code> (new)</li>
+<li><code>system-contracts/scripts/preprocess-bootloader.ts</code></li>
+</ul>
+<h3 id="branch-naming-convention"><a class="header" href="#branch-naming-convention">Branch Naming Convention</a></h3>
+<p>Create a new branch from the official release branch (e.g. <code>release-v29</code>) using the format:</p>
+<pre><code class="language-bash">anvil-zksync-&lt;anvil-version&gt;-release-&lt;protocol-version&gt;
+</code></pre>
+<p>For example:</p>
+<pre><code class="language-bash">anvil-zksync-0.6.x-release-v29
+</code></pre>
+<p>This branch will contain the upstream contracts from the specified protocol version, augmented with the <code>anvil-zksync</code> debug and testing support described above.</p>
+<p>Once the debug-ready contracts are prepared in this custom branch, they can be integrated into the <code>anvil-zksync</code> repository as part of the protocol support update.</p>
+<h2 id="2-determine-the-target-version-and-affected-crates"><a class="header" href="#2-determine-the-target-version-and-affected-crates">2. Determine the Target Version and Affected Crates</a></h2>
+<p>Identify the new protocol version to support, such as <code>v29</code>, and locate the corresponding tag or commit in the <a href="https://github.com/matter-labs/zksync-era"><code>zksync-era</code></a> repository. This is typically a tag like <code>core-v29.0.0</code>.</p>
+<p>Next, identify all crates in <code>anvil-zksync</code> that rely on upstream <code>zksync-era</code> components. The crates to be updated include:</p>
+<ul>
+<li><code>zksync_mini_merkle_tree</code></li>
+<li><code>zksync_multivm</code></li>
+<li><code>zksync_contracts</code></li>
+<li><code>zksync_basic_types</code></li>
+<li><code>zksync_types</code></li>
+<li><code>zksync_vm_interface</code></li>
+<li><code>zksync_web3_decl</code></li>
+</ul>
+<h2 id="21-patch-zksync-era-dependencies-in-cargo"><a class="header" href="#21-patch-zksync-era-dependencies-in-cargo">2.1. Patch <code>zksync-era</code> Dependencies in Cargo</a></h2>
+<p>Update the zksync-era related dependencies section of the workspace <code>Cargo.toml</code> to pin all required crates to the appropriate tag. This ensures all crates across the workspace resolve to a consistent and correct version.</p>
+<p>Example update for protocol version <code>v29</code>:</p>
+<pre><code class="language-toml">zksync_mini_merkle_tree = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v29.0.0" }
+zksync_multivm          = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v29.0.0" }
+zksync_contracts        = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v29.0.0" }
+zksync_basic_types      = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v29.0.0" }
+zksync_types            = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v29.0.0" }
+zksync_vm_interface     = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v29.0.0" }
+zksync_web3_decl        = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v29.0.0" }
+</code></pre>
+<blockquote>
+<p>Note: Although the protocol version is typically aligned with the crate tags (e.g. <code>core-v29.0.0</code>), this is not guaranteed. Always verify the correct tag by inspecting the upstream changelog or repository releases.</p>
+</blockquote>
+<p>Once dependencies are patched, run:</p>
+<pre><code class="language-bash">cargo check --workspace
+</code></pre>
+<p>to confirm that all crates resolve successfully and that no incompatible API changes were introduced. Resolve breaking changes incrementally as needed.</p>
+<h2 id="4-add-the-new-protocol-version-and-contract-artifacts"><a class="header" href="#4-add-the-new-protocol-version-and-contract-artifacts">4. Add the New Protocol Version and Contract Artifacts</a></h2>
+<p>Once your versioned contracts branch is prepared, the next step is to integrate it into <code>anvil-zksync</code> by updating the contract refresh pipeline and accounting for any new contracts introduced in the protocol upgrade.</p>
+<h3 id="41-update-the-refresh_contractssh-script"><a class="header" href="#41-update-the-refresh_contractssh-script">4.1 Update the <code>refresh_contracts.sh</code> Script</a></h3>
+<p>Modify the <code>scripts/refresh_contracts.sh</code> script to register the new protocol version. This script downloads, compiles, and bundles contract artifacts for use by <code>anvil-zksync</code>.</p>
+<ol>
+<li>Add a new <code>v29</code> entry to the <code>case</code> statement and set the corresponding <code>ERA_CONTRACTS_GIT_COMMIT</code>. This should point to the HEAD commit of your custom <code>anvil-zksync-&lt;version&gt;-release-v29</code> branch:</li>
+</ol>
+<pre><code class="language-bash">PROTOCOL_VERSION=${1:-v29}
+case $PROTOCOL_VERSION in
+  v26)
+    ERA_CONTRACTS_GIT_COMMIT=50dc0669213366f5d3084a7a29a83541cf3c6435
+    ;;
+  v27)
+    ERA_CONTRACTS_GIT_COMMIT=f0e17d700929e25292be971ea5196368bf120cea
+    ;;
+  v28)
+    ERA_CONTRACTS_GIT_COMMIT=054a4745385119e7275dad801a2e830105f21e3e
+    ;;
+  v29)
+    ERA_CONTRACTS_GIT_COMMIT=&lt;COMMIT-HASH&gt; # HEAD of anvil-zksync-0.6.x-release-v29
+    ;;
+  *)
+    echo "Unrecognized/unsupported protocol version: $PROTOCOL_VERSION"
+    exit 1
+    ;;
+esac
+</code></pre>
+<blockquote>
+<p>Replace <code>&lt;COMMIT-HASH&gt;</code> with the actual commit hash of the latest commit in your <code>anvil-zksync-0.6.x-release-v29</code> branch.</p>
+</blockquote>
+<h3 id="42-add-new-contracts"><a class="header" href="#42-add-new-contracts">4.2 Add New Contracts</a></h3>
+<p>If the protocol upgrade introduced any new contracts, append them to the relevant contract groups in the script.</p>
+<p>For example, to include a new L1 contract named <code>ChainAssetHandler</code> added in v29:</p>
+<pre><code class="language-bash">if [[ $PROTOCOL_VERSION == v29 ]]; then
+  l1_artifacts+=("ChainAssetHandler")
+fi
+</code></pre>
+<p>Apply the same approach for L2 contracts, system contracts, or bootloader components.</p>
+<p>For reference, see how this was handled for v28 <a href="https://github.com/matter-labs/anvil-zksync/pull/637/files#diff-94249b93923d8c01fe26a91770ce4b7262fab4c16c89548e259f544e78eabd1d">here</a>.</p>
+<h3 id="43-generate-the-contract-bundle"><a class="header" href="#43-generate-the-contract-bundle">4.3 Generate the Contract Bundle</a></h3>
+<p>Run the updated script to fetch, compile, and package the contract artifacts for the new version:</p>
+<pre><code class="language-bash">./scripts/refresh_contracts.sh v29
+</code></pre>
+<p>This will produce a compressed archive at:</p>
+<pre><code class="language-bash">crates/core/src/deps/contracts/builtin-contracts-v29.tar.gz
+</code></pre>
+<p>This archive includes all compiled artifacts required for bootstrapping and executing system contracts under <code>--protocol-version 29</code>.</p>
+<h3 id="44-refresh-other-artifacts"><a class="header" href="#44-refresh-other-artifacts">4.4 Refresh Other Artifacts</a></h3>
+<p>Depending on what changed in the protocol upgrade, you may also need to refresh:</p>
+<ul>
+<li>End-to-end contracts: <code>scripts/refresh_e2e_contracts.sh</code></li>
+<li>L1 sidecar artifacts: <code>scripts/refresh_l1_sidecar_contracts.sh</code></li>
+<li>Test contracts: <code>scripts/refresh_test_contracts.sh</code></li>
+</ul>
+<p>Each script behaves similarly—updating contracts for its respective domain.</p>
+<blockquote>
+<p>Tip: There is a <code>make</code> command to run the scripts: <code>make build-contracts</code>.</p>
+</blockquote>
+<h3 id="45-add-protocol-version-support-for-l1-setup"><a class="header" href="#45-add-protocol-version-support-for-l1-setup">4.5 Add Protocol Version Support for <code>l1-setup</code></a></h3>
+<p>In addition to refreshing contracts, you must also update the <code>l1-setup/setup.sh</code> script to support the new protocol version. This step generates the genesis state, upgrade transaction, and configuration files required for bootstrapping an L1 sidecar instance tied to a specific protocol version.</p>
+<h4 id="1-register-the-new-protocol-in-setupsh"><a class="header" href="#1-register-the-new-protocol-in-setupsh">1. Register the New Protocol in <code>setup.sh</code></a></h4>
+<p>Locate the <code>case</code> block in <code>l1-setup/setup.sh</code> and add a new entry for the protocol version, pointing to the HEAD commit of your custom <code>anvil-zksync-&lt;version&gt;-release-&lt;protocol-version&gt;</code> branch and its matching <code>core-vXX.Y.Z</code> tag:</p>
+<pre><code class="language-bash">PROTOCOL_VERSION=${1:-v29}
+case $PROTOCOL_VERSION in
+  v26)
+    ERA_CONTRACTS_GIT_COMMIT=50dc0669213366f5d3084a7a29a83541cf3c6435
+    ERA_TAG=core-v26.8.1
+    ;;
+  v27)
+    ERA_CONTRACTS_GIT_COMMIT=f0e17d700929e25292be971ea5196368bf120cea
+    ERA_TAG=core-v27.0.0
+    ;;
+  v28)
+    ERA_CONTRACTS_GIT_COMMIT=054a4745385119e7275dad801a2e830105f21e3e
+    ERA_TAG=core-v28.0.0
+    ;;
+  v29)
+    ERA_CONTRACTS_GIT_COMMIT=&lt;COMMIT-HASH&gt; # HEAD of anvil-zksync-0.6.x-release-v29
+    ERA_TAG=core-v29.0.0
+    ;;
+  *)
+    echo "Unrecognized/unsupported protocol version: $PROTOCOL_VERSION"
+    exit 1
+    ;;
+esac
+</code></pre>
+<blockquote>
+<p>Be sure to replace <code>&lt;COMMIT-HASH&gt;</code> with the actual commit hash of your branch and ensure the matching <code>ERA_TAG</code> exists upstream.</p>
+</blockquote>
+<h4 id="2-run-the-setup-script"><a class="header" href="#2-run-the-setup-script">2. Run the Setup Script</a></h4>
+<p>From the <code>l1-setup/</code> directory, invoke the setup script to generate the artifacts:</p>
+<pre><code class="language-bash">./setup.sh v29
+</code></pre>
+<p>This will:</p>
+<ul>
+<li>Spin up a temporary <code>anvil</code> instance</li>
+<li>Deploy and configure L1 contracts and L2 upgrade transaction</li>
+<li>Clone and patch the correct version of <code>zksync-era</code></li>
+<li>Generate and persist the following:</li>
+</ul>
+<h4 id="output-artifacts"><a class="header" href="#output-artifacts">Output Artifacts</a></h4>
+<p>All outputs are stored under <code>l1-setup/</code>:</p>
+<ul>
+<li><code>configs/v29-genesis.yaml</code>: L2 genesis metadata</li>
+<li><code>configs/v29-contracts.yaml</code>: Deployed contract addresses</li>
+<li><code>state/v29-l2-upgrade-tx.json</code>: L1 upgrade transaction payload</li>
+<li><code>state/v29-l1-state-payload.txt</code>: Compressed <code>anvil</code> state loadable via <code>anvil_loadState</code></li>
+<li><code>state/v29-l1-state.json</code>: Full uncompressed state JSON</li>
+</ul>
+<h4 id="caveats"><a class="header" href="#caveats">Caveats</a></h4>
+<ul>
+<li>The process uses a randomized salt when deploying via <code>CREATE2</code>, so running it multiple times will produce non-deterministic results.</li>
+<li>Do <strong>not</strong> commit changes to the <code>contracts</code> submodule that may appear after running the script.</li>
+</ul>
+<h4 id="2-register-protocol-version-in-l1-sidecar"><a class="header" href="#2-register-protocol-version-in-l1-sidecar">2. Register Protocol Version in <code>l1-sidecar</code></a></h4>
+<p>After generating the files, register the new version in the following locations within the <code>l1-sidecar</code> and <code>l1-setup</code> crate.</p>
+<h5 id="cratesl1_sidecarsrczkstack_configmodrs"><a class="header" href="#cratesl1_sidecarsrczkstack_configmodrs"><code>crates/l1_sidecar/src/zkstack_config/mod.rs</code></a></h5>
+<p>Add a new mapping for the v29 configuration:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>(
+    ProtocolVersionId::Version29,
+    ZkstackConfig {
+        contracts: serde_yaml::from_slice(include_bytes!(
+            "../../../../l1-setup/configs/v29-contracts.yaml"
+        ))
+        .unwrap(),
+        genesis: serde_yaml::from_slice(include_bytes!(
+            "../../../../l1-setup/configs/v29-genesis.yaml"
+        ))
+        .unwrap(),
+        wallets,
+    },
+),
+<span class="boring">}</span></code></pre></pre>
+<h5 id="cratesl1_sidecarsrcupgrade_txrs"><a class="header" href="#cratesl1_sidecarsrcupgrade_txrs"><code>crates/l1_sidecar/src/upgrade_tx.rs</code></a></h5>
+<p>Include the upgrade transaction for v29:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>(
+    ProtocolVersionId::Version29,
+    serde_json::from_slice::&lt;UpgradeTx&gt;(include_bytes!(
+        "../../../l1-setup/state/v29-l2-upgrade-tx.json"
+    ))
+    .unwrap(),
+),
+<span class="boring">}</span></code></pre></pre>
+<h5 id="cratesl1_sidecarsrcanvilrs"><a class="header" href="#cratesl1_sidecarsrcanvilrs"><code>crates/l1_sidecar/src/anvil.rs</code></a></h5>
+<p>Add the L1 state and payload for v29:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>(
+    ProtocolVersionId::Version29,
+    include_bytes!("../../../l1-setup/state/v29-l1-state.json").as_slice(),
+),
+<span class="boring">}</span></code></pre></pre>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>(
+    ProtocolVersionId::Version29,
+    include_str!("../../../l1-setup/state/v29-l1-state-payload.txt"),
+),
+<span class="boring">}</span></code></pre></pre>
+<h2 id="5-register-the-protocol-version-and-new-contracts-in-system_contractsrs"><a class="header" href="#5-register-the-protocol-version-and-new-contracts-in-system_contractsrs">5. Register the Protocol Version and New Contracts in <code>system_contracts.rs</code></a></h2>
+<p>Once contract artifacts have been bundled via the refresh scripts, you must register the new protocol version and any newly introduced contracts in <code>crates/deps/system_contracts.rs</code>. This ensures <code>anvil-zksync</code> can load and deploy the correct system contracts when bootstrapping a chain at this protocol version.</p>
+<h3 id="51-import-new-addresses-from-zksync_types"><a class="header" href="#51-import-new-addresses-from-zksync_types">5.1 Import New Addresses from <code>zksync_types</code></a></h3>
+<p>Start by importing the relevant contract address constant from <code>zksync_types</code>. For example, if the protocol introduces a new <code>ChainAssetHandler</code> contract:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use zksync_types::L2_CHAIN_ASSET_HANDLER_ADDRESS;
+<span class="boring">}</span></code></pre></pre>
+<h3 id="52-extend-the-builtin_contract_archives-array"><a class="header" href="#52-extend-the-builtin_contract_archives-array">5.2 Extend the <code>BUILTIN_CONTRACT_ARCHIVES</code> Array</a></h3>
+<p>Add the <code>v29</code> contract archive to the <code>BUILTIN_CONTRACT_ARCHIVES</code>:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>static BUILTIN_CONTRACT_ARCHIVES: [(ProtocolVersionId, &amp;[u8]); 4] = [
+    (
+        ProtocolVersionId::Version26,
+        include_bytes!("contracts/builtin-contracts-v26.tar.gz"),
+    ),
+    (
+        ProtocolVersionId::Version27,
+        include_bytes!("contracts/builtin-contracts-v27.tar.gz"),
+    ),
+    (
+        ProtocolVersionId::Version28,
+        include_bytes!("contracts/builtin-contracts-v28.tar.gz"),
+    ),
+    (
+        ProtocolVersionId::Version29,
+        include_bytes!("contracts/builtin-contracts-v29.tar.gz"),
+    ),
+];
+<span class="boring">}</span></code></pre></pre>
+<h3 id="53-add-a-constant-for-v29"><a class="header" href="#53-add-a-constant-for-v29">5.3 Add a Constant for V29</a></h3>
+<p>Declare a constant identifier for use in contract registration:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>const V29: ProtocolVersionId = ProtocolVersionId::Version29;
+<span class="boring">}</span></code></pre></pre>
+<h3 id="54-register-the-new-contract-in-non_kernel_contract_locations-or-builtin_contract_locations"><a class="header" href="#54-register-the-new-contract-in-non_kernel_contract_locations-or-builtin_contract_locations">5.4 Register the New Contract in <code>NON_KERNEL_CONTRACT_LOCATIONS</code> (or <code>BUILTIN_CONTRACT_LOCATIONS</code>)</a></h3>
+<p>If the new contract is a non-kernel system contract, add it to <code>NON_KERNEL_CONTRACT_LOCATIONS</code>:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub static NON_KERNEL_CONTRACT_LOCATIONS: [(&amp;str, Address, ProtocolVersionId); 9] = [
+    // ... existing entries ...
+    ("L2WrappedBaseToken", L2_WRAPPED_BASE_TOKEN_IMPL, V26),
+    ("ChainAssetHandler", L2_CHAIN_ASSET_HANDLER_ADDRESS, V29),
+];
+<span class="boring">}</span></code></pre></pre>
+<blockquote>
+<p>If the contract is kernel-level or categorized differently (e.g. a precompile), place it in the corresponding section within <code>BUILTIN_CONTRACT_LOCATIONS</code>.</p>
+</blockquote>
+<h3 id="55-verify-get_deployed_contracts-loads-the-correct-contracts"><a class="header" href="#55-verify-get_deployed_contracts-loads-the-correct-contracts">5.5 Verify <code>get_deployed_contracts</code> Loads the Correct Contracts</a></h3>
+<p>The static <code>BUILTIN_CONTRACTS</code> map is automatically constructed from the entries in <code>BUILTIN_CONTRACT_LOCATIONS</code> and <code>NON_KERNEL_CONTRACT_LOCATIONS</code>. If the mappings above are correct, the logic will automatically pick up your new contract when bootstrapping a chain with <code>--protocol-version 29</code>.</p>
+<h3 id="56-add-a-unit-test"><a class="header" href="#56-add-a-unit-test">5.6 Add a Unit Test</a></h3>
+<p>Consider duplicating an existing protocol-specific test to ensure the correct number of contracts are loaded for v29:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[test]
+fn load_v29_contracts() {
+    let contracts = get_deployed_contracts(
+        SystemContractsOptions::BuiltIn,
+        ProtocolVersionId::Version29,
+        None,
+    );
+    assert_eq!(
+        contracts.len(),
+        count_protocol_contracts(ProtocolVersionId::Version29)
+    );
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="6-register-the-new-protocol-version-in-forkrs"><a class="header" href="#6-register-the-new-protocol-version-in-forkrs">6 Register the New Protocol Version in <code>fork.rs</code></a></h3>
+<p>To enable forking against chains using the new protocol version, update the list of supported protocol versions in <code>crates/core/src/node/inner/fork.rs</code>.</p>
+<h4 id="extend-supported_versions"><a class="header" href="#extend-supported_versions">Extend <code>SUPPORTED_VERSIONS</code></a></h4>
+<p>Locate the <code>SUPPORTED_VERSIONS</code> constant inside the <code>SupportedProtocolVersions</code> implementation and add your new entry:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>impl SupportedProtocolVersions {
+    const SUPPORTED_VERSIONS: [ProtocolVersionId; 4] = [
+        ProtocolVersionId::Version26,
+        ProtocolVersionId::Version27,
+        ProtocolVersionId::Version28,
+        ProtocolVersionId::Version29,
+    ];
+}
+<span class="boring">}</span></code></pre></pre>
+<blockquote>
+<p>Update the array length (<code>4</code> in this case) accordingly to reflect the number of supported versions.</p>
+</blockquote>
+<h2 id="7-update-tests"><a class="header" href="#7-update-tests">7. Update Tests</a></h2>
+<p>With support for the new protocol version in place, add test coverage to ensure it is fully integrated and behaves as expected.</p>
+<h3 id="71-add-protocol-version-test-in-protocolrs"><a class="header" href="#71-add-protocol-version-test-in-protocolrs">7.1 Add Protocol Version Test in <code>protocol.rs</code></a></h3>
+<p>Navigate to <code>e2e-tests-rust/tests/protocol.rs</code> and add a dedicated test to verify that a node launched with the new protocol version (e.g. v29) reports it correctly via <code>eth_getBlockByNumber</code> or <code>zks_getBlockDetails</code>.</p>
+<p>Example:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[tokio::test]
+async fn protocol_v29_on_demand() -&gt; anyhow::Result&lt;()&gt; {
+    let tester = AnvilZksyncTesterBuilder::default()
+        .with_node_fn(&amp;|node| node.args(["--protocol-version", "29"]))
+        .build()
+        .await?;
+
+    let receipt = tester.tx().finalize().await?;
+    let block_number = receipt.block_number().unwrap();
+
+    let block_details = tester
+        .l2_provider()
+        .get_block_details(block_number)
+        .await?
+        .unwrap();
+
+    assert_eq!(
+        block_details.protocol_version,
+        Some("Version29".to_string())
+    );
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="72-update-l1-compatibility-test-in-l1rs"><a class="header" href="#72-update-l1-compatibility-test-in-l1rs">7.2 Update L1 Compatibility Test in <code>l1.rs</code></a></h3>
+<p>In <code>e2e-tests-rust/tests/l1.rs</code>, bump the <code>#[test_casing]</code> macro to reflect the updated set of supported protocol versions:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[test_casing(4, SUPPORTED_PROTOCOL_VERSIONS)]
+#[tokio::test]
+async fn l1_priority_tx(protocol_version: u16) -&gt; anyhow::Result&lt;()&gt; {
+    // ...
+}
+<span class="boring">}</span></code></pre></pre>
+<blockquote>
+<p>Adjust the first argument (<code>4</code> in this case) to match the current number of supported versions.</p>
+</blockquote>
+<p>This ensures your tests automatically run against all supported protocol configurations.</p>
+<h3 id="73-run-and-validate-the-full-test-suite"><a class="header" href="#73-run-and-validate-the-full-test-suite">7.3 Run and Validate the Full Test Suite</a></h3>
+<p>After all test updates are complete, validate your changes across both unit and end-to-end tests.</p>
+<pre><code class="language-bash"># Run all Rust unit tests
+make test
+
+# Run Rust-based e2e tests (requires a running anvil-zksync instance)
+cd e2e-tests-rust &amp;&amp; cargo test
+
+# Run full e2e suite (requires a running anvil-zksync instance)
+make test-e2e
+</code></pre>
+<p>Confirm that all test suites pass successfully under the new protocol version to ensure correctness and regression safety.</p>
+<h2 id="8-final-checklist"><a class="header" href="#8-final-checklist">8. Final Checklist</a></h2>
+<p>Use the following checklist to ensure all steps for adding a new protocol version (e.g. v29) have been completed:</p>
+<ul>
+<li><input disabled="" type="checkbox"/>
+<code>era-contracts</code> fork updated with debug support</li>
+<li><input disabled="" type="checkbox"/>
+Upstream dependencies patched</li>
+<li><input disabled="" type="checkbox"/>
+New protocol feature added</li>
+<li><input disabled="" type="checkbox"/>
+<code>refresh_contracts.sh</code> updated</li>
+<li><input disabled="" type="checkbox"/>
+L1 setup (<code>l1-setup/setup.sh</code>) updated</li>
+<li><input disabled="" type="checkbox"/>
+<code>l1-sidecar</code> integration completed</li>
+<li><input disabled="" type="checkbox"/>
+<code>system_contracts.rs</code> updated</li>
+<li><input disabled="" type="checkbox"/>
+Forking logic updated</li>
+<li><input disabled="" type="checkbox"/>
+Tests written and updated</li>
+<li><input disabled="" type="checkbox"/>
+Test suites executed and passing</li>
+<li><input disabled="" type="checkbox"/>
+Documentation &amp; Lint</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../guides/bootloader_debugging.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../rpc/index.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../guides/bootloader_debugging.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../rpc/index.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../ace.js"></script>
+        <script src="../editor.js"></script>
+        <script src="../mode-rust.js"></script>
+        <script src="../theme-dawn.js"></script>
+        <script src="../theme-tomorrow_night.js"></script>
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../js/version-box.js"></script>
+        <script src="../js/mermaid-init.js"></script>
+
+
+    </div>
+    </body>
+</html>
