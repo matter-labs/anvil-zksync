@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ContractType"],"fn":["is_precompile","is_system"],"static":["KNOWN_ADDRESSES"],"struct":["KnownAddress"]};

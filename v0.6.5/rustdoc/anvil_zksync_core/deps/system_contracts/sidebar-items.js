@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["TIMESTAMP_ASSERTER_ADDRESS"],"fn":["bytecode_from_slice","get_deployed_contracts","load_builtin_contract"],"static":["NON_KERNEL_CONTRACT_LOCATIONS"]};

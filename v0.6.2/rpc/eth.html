@@ -1,0 +1,538 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>eth_ - Anvil-ZKsync Documentation</title>
+
+
+        <!-- Custom HTML head -->
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../css/version-box.css">
+        <link rel="stylesheet" href=".././css/mdbook-admonish.css">
+
+        <!-- MathJax -->
+        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Anvil-ZKsync Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/anvil-zksync/tree/main/docs/book" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/anvil-zksync/tree/main/docs/book/src/rpc/eth.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="eth_-namespace"><a class="header" href="#eth_-namespace"><code>eth_*</code> namespace</a></h1>
+<p>Standard Ethereum JSON-RPC calls supported by <strong>anvil-zksync</strong>.<br />
+Unless marked ✗, behavior matches the same call on an actual ZK chain endpoint.</p>
+<pre><code class="language-bash // [Example]">curl -X POST http://localhost:8011 \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":[]}'
+</code></pre>
+<h2 id="method-index"><a class="header" href="#method-index">Method index</a></h2>
+<h3 id="accounts--keys"><a class="header" href="#accounts--keys">Accounts &amp; keys</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓ / ✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="#eth_accounts"><code>eth_accounts</code></a></td><td>✓</td><td>List dev accounts</td></tr>
+<tr><td><code>eth_coinbase</code></td><td>✗</td><td>Coinbase address</td></tr>
+<tr><td><a href="#eth_gettransactioncount"><code>eth_getTransactionCount</code></a></td><td>✓</td><td>Nonce for address</td></tr>
+</tbody></table>
+</div>
+<h3 id="blocks--chain"><a class="header" href="#blocks--chain">Blocks &amp; chain</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓ / ✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="#eth_blocknumber"><code>eth_blockNumber</code></a></td><td>✓</td><td>Latest block height</td></tr>
+<tr><td><a href="#eth_chainid"><code>eth_chainId</code></a></td><td>✓</td><td>Configured chain ID (<code>260</code> default)</td></tr>
+<tr><td><a href="#eth_getblockbynumber"><code>eth_getBlockByNumber</code></a></td><td>✓</td><td>Block by number</td></tr>
+<tr><td><a href="#eth_getblockbyhash"><code>eth_getBlockByHash</code></a></td><td>✓</td><td>Block by hash</td></tr>
+<tr><td><code>eth_getUncleByBlockNumberAndIndex</code></td><td>✗</td><td>Uncle data</td></tr>
+<tr><td><code>eth_getUncleCountByBlockHash</code></td><td>✗</td><td>Uncle count</td></tr>
+</tbody></table>
+</div>
+<h3 id="transactions"><a class="header" href="#transactions">Transactions</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓ / ✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="#eth_sendrawtransaction"><code>eth_sendRawTransaction</code></a></td><td>✓</td><td>Broadcast signed tx</td></tr>
+<tr><td><a href="#eth_sendtransaction"><code>eth_sendTransaction</code></a></td><td>✓</td><td>Broadcast <em>unsigned</em> tx (dev wallets)</td></tr>
+<tr><td><a href="#eth_gettransactionbyhash"><code>eth_getTransactionByHash</code></a></td><td>✓</td><td>Tx by hash</td></tr>
+<tr><td><a href="#eth_gettransactionreceipt"><code>eth_getTransactionReceipt</code></a></td><td>✓</td><td>Tx receipt</td></tr>
+<tr><td><a href="#eth_estimategas"><code>eth_estimateGas</code></a></td><td>✓</td><td>Gas estimate</td></tr>
+<tr><td><a href="#eth_call"><code>eth_call</code></a></td><td>✓</td><td>Stateless call</td></tr>
+<tr><td><code>eth_sign</code></td><td>✗</td><td>Sign message</td></tr>
+<tr><td><code>eth_signTypedData</code></td><td>✗</td><td>Sign typed data</td></tr>
+</tbody></table>
+</div>
+<h3 id="logs--filters"><a class="header" href="#logs--filters">Logs &amp; filters</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓ / ✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="#eth_getlogs"><code>eth_getLogs</code></a></td><td>✓</td><td>Logs by filter object</td></tr>
+<tr><td><a href="#eth_newfilter"><code>eth_newFilter</code></a></td><td>✓</td><td>Create log filter</td></tr>
+<tr><td><a href="#eth_getfilterchanges"><code>eth_getFilterChanges</code></a></td><td>✓</td><td>Poll filter</td></tr>
+<tr><td><a href="#eth_uninstallfilter"><code>eth_uninstallFilter</code></a></td><td>✓</td><td>Remove filter</td></tr>
+<tr><td><code>eth_subscribe</code></td><td>✗</td><td>Open websocket subscription</td></tr>
+</tbody></table>
+</div>
+<h3 id="gas--fees"><a class="header" href="#gas--fees">Gas &amp; fees</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓ / ✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="#eth_gasprice"><code>eth_gasPrice</code></a></td><td>✓</td><td>Current gas price (hardcoded <code>50_000_000</code>)</td></tr>
+<tr><td><a href="#eth_feehistory"><code>eth_feeHistory</code></a></td><td>✓</td><td>Historical fee data (stubbed)</td></tr>
+<tr><td><code>eth_maxPriorityFeePerGas</code></td><td>✗</td><td>EIP-1559 priority fee</td></tr>
+</tbody></table>
+</div>
+<h3 id="misc--sync"><a class="header" href="#misc--sync">Misc &amp; sync</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓ / ✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="#eth_syncing"><code>eth_syncing</code></a></td><td>✓</td><td>Always <code>false</code> (instant sync)</td></tr>
+<tr><td><a href="#eth_protocolversion"><code>eth_protocolVersion</code></a></td><td>✓</td><td>Protocol version</td></tr>
+<tr><td><code>eth_hashrate</code></td><td>✗</td><td>Miner hashrate</td></tr>
+</tbody></table>
+</div>
+<h2 id="method-reference"><a class="header" href="#method-reference">Method reference</a></h2>
+<blockquote>
+<p>We keep this section lightweight — for full parameter and return definitions see the official
+Ethereum JSON-RPC <a href="https://ethereum.org/en/developers/docs/apis/json-rpc/">spec ↗︎</a>.</p>
+</blockquote>
+<h3 id="eth_accounts"><a class="header" href="#eth_accounts">eth_accounts <a id="eth_accounts" /></a></h3>
+<p>Returns a list of addresses owned by the local node (e.g. dev accounts).</p>
+<pre><code class="language-bash filename=&quot;eth_accounts.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"eth_accounts","params":[]}'
+</code></pre>
+<h3 id="eth_gettransactioncount"><a class="header" href="#eth_gettransactioncount">eth_getTransactionCount <a id="eth_gettransactioncount" /></a></h3>
+<p>Returns the nonce (transaction count) for an address.</p>
+<pre><code class="language-bash filename=&quot;eth_getTransactionCount.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"eth_getTransactionCount",
+        "params":["0x6fC1E2F6c7381BF9b7205F3a14e0ccabe9d9a8F8", "latest"]
+      }'
+</code></pre>
+<blockquote>
+<p>Replace the address with one from <code>eth_accounts</code> if you’re running dev mode.</p>
+</blockquote>
+<h3 id="eth_blocknumber"><a class="header" href="#eth_blocknumber">eth_blockNumber <a id="eth_blocknumber" /></a></h3>
+<p>Returns the latest block height.</p>
+<pre><code class="language-bash filename=&quot;eth_blockNumber.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":[]}'
+</code></pre>
+<h3 id="eth_chainid"><a class="header" href="#eth_chainid">eth_chainId <a id="eth_chainid" /></a></h3>
+<p>Returns the chain ID of the node (default: <code>260</code> / <code>0x104</code>).</p>
+<pre><code class="language-bash filename=&quot;eth_chainId.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}'
+</code></pre>
+<h3 id="eth_getblockbynumber"><a class="header" href="#eth_getblockbynumber">eth_getBlockByNumber <a id="eth_getblockbynumber" /></a></h3>
+<p>Returns block details by block number.</p>
+<pre><code class="language-bash filename=&quot;eth_getBlockByNumber.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"eth_getBlockByNumber",
+        "params":["latest", true]
+      }'
+</code></pre>
+<blockquote>
+<p><code>true</code> returns full transaction objects; <code>false</code> returns only tx hashes.</p>
+</blockquote>
+<h3 id="eth_getblockbyhash"><a class="header" href="#eth_getblockbyhash">eth_getBlockByHash <a id="eth_getblockbyhash" /></a></h3>
+<p>Returns block details by hash.</p>
+<pre><code class="language-bash filename=&quot;eth_getBlockByHash.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"eth_getBlockByHash",
+        "params":["0xabc123...blockHash...", true]
+      }'
+</code></pre>
+<blockquote>
+<p>Replace the hash with a real block hash from your node (e.g. via <code>eth_getLogs</code> or block explorer).</p>
+</blockquote>
+<h3 id="eth_sendrawtransaction"><a class="header" href="#eth_sendrawtransaction">eth_sendRawTransaction <a id="eth_sendrawtransaction" /></a></h3>
+<p>Broadcasts a raw signed transaction.<br />
+Use this with pre-signed transactions (e.g. from Foundry or viem).</p>
+<pre><code class="language-bash filename=&quot;eth_sendRawTransaction.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"eth_sendRawTransaction",
+        "params":["0x02f8..."]  // replace with actual signed tx
+      }'
+</code></pre>
+<Callout title="Auto-mining">
+  Unless the node is started with <code>--no-mining</code>, the transaction is mined immediately.
+</Callout>
+<h3 id="eth_sendtransaction"><a class="header" href="#eth_sendtransaction">eth_sendTransaction <a id="eth_sendtransaction" /></a></h3>
+<p>Broadcasts an <strong>unsigned</strong> transaction using dev accounts (in local mode only).<br />
+Automatically signs and sends the tx.</p>
+<pre><code class="language-bash filename=&quot;eth_sendTransaction.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"eth_sendTransaction",
+        "params":[{
+          "from": "0x6fC1E2F6c7381BF9b7205F3a14e0ccabe9d9a8F8",
+          "to": "0x0000000000000000000000000000000000000000",
+          "value": "0x2386F26FC10000"  // 0.01 ETH
+        }]
+      }'
+</code></pre>
+<h3 id="eth_gettransactionbyhash"><a class="header" href="#eth_gettransactionbyhash">eth_getTransactionByHash <a id="eth_gettransactionbyhash" /></a></h3>
+<p>Returns a transaction by its hash.</p>
+<pre><code class="language-bash filename=&quot;eth_getTransactionByHash.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"eth_getTransactionByHash",
+        "params":["0x...transactionHash..."]
+      }'
+</code></pre>
+<h3 id="eth_gettransactionreceipt"><a class="header" href="#eth_gettransactionreceipt">eth_getTransactionReceipt <a id="eth_gettransactionreceipt" /></a></h3>
+<p>Returns the receipt for a transaction hash (after it has been mined).</p>
+<pre><code class="language-bash filename=&quot;eth_getTransactionReceipt.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"eth_getTransactionReceipt",
+        "params":["0x...transactionHash..."]
+      }'
+</code></pre>
+<h3 id="eth_estimategas"><a class="header" href="#eth_estimategas">eth_estimateGas <a id="eth_estimategas" /></a></h3>
+<p>Estimates how much gas a transaction will consume.</p>
+<pre><code class="language-bash filename=&quot;eth_estimateGas.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"eth_estimateGas",
+        "params":[{
+          "from": "0x6fC1E2F6c7381BF9b7205F3a14e0ccabe9d9a8F8",
+          "to": "0x0000000000000000000000000000000000000000",
+          "data": "0x"
+        }]
+      }'
+</code></pre>
+<h3 id="eth_call"><a class="header" href="#eth_call">eth_call <a id="eth_call" /></a></h3>
+<p>Simulates a read-only call to a contract (does not submit a tx).</p>
+<pre><code class="language-bash filename=&quot;eth_call.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"eth_call",
+        "params":[{
+          "from": "0x6fC1E2F6c7381BF9b7205F3a14e0ccabe9d9a8F8",
+          "to": "0x0000000000000000000000000000000000000000",
+          "data": "0x..."
+        }, "latest"]
+      }'
+</code></pre>
+<blockquote>
+<p>Replace <code>data</code> with the ABI-encoded call data for the method you wish to simulate.</p>
+</blockquote>
+<h3 id="eth_getlogs"><a class="header" href="#eth_getlogs">eth_getLogs <a id="eth_getlogs" /></a></h3>
+<p>Returns logs matching the specified filter object.</p>
+<pre><code class="language-bash filename=&quot;eth_getLogs.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"eth_getLogs",
+        "params":[{
+          "fromBlock": "0x0",
+          "toBlock": "latest",
+          "address": "0x0000000000000000000000000000000000000000",
+          "topics": []
+        }]
+      }'
+</code></pre>
+<h3 id="eth_newfilter"><a class="header" href="#eth_newfilter">eth_newFilter <a id="eth_newfilter" /></a></h3>
+<p>Creates a new log filter on the node and returns its ID.</p>
+<pre><code class="language-bash filename=&quot;eth_newFilter.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"eth_newFilter",
+        "params":[{
+          "fromBlock": "0x0",
+          "toBlock": "latest",
+          "address": "0x0000000000000000000000000000000000000000",
+          "topics": []
+        }]
+      }'
+</code></pre>
+<h3 id="eth_getfilterchanges"><a class="header" href="#eth_getfilterchanges">eth_getFilterChanges <a id="eth_getfilterchanges" /></a></h3>
+<p>Polls the filter for new changes (e.g. logs or block hashes since last call).</p>
+<pre><code class="language-bash filename=&quot;eth_getFilterChanges.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"eth_getFilterChanges",
+        "params":["0x1"]
+      }'
+</code></pre>
+<blockquote>
+<p>Replace <code>0x1</code> with the filter ID returned by <code>eth_newFilter</code>.</p>
+</blockquote>
+<h3 id="eth_uninstallfilter"><a class="header" href="#eth_uninstallfilter">eth_uninstallFilter <a id="eth_uninstallfilter" /></a></h3>
+<p>Removes a previously created filter.</p>
+<pre><code class="language-bash filename=&quot;eth_uninstallFilter.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"eth_uninstallFilter",
+        "params":["0x1"]
+      }'
+</code></pre>
+<blockquote>
+<p>After removal, the filter ID becomes invalid and cannot be polled.</p>
+</blockquote>
+<h3 id="eth_gasprice"><a class="header" href="#eth_gasprice">eth_gasPrice <a id="eth_gasprice" /></a></h3>
+<p>Returns the current gas price.<br />
+In <code>anvil-zksync</code>, this is hardcoded to <code>50_000_000</code> gwei (<code>0x2FAF080</code>).</p>
+<pre><code class="language-bash filename=&quot;eth_gasPrice.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"eth_gasPrice","params":[]}'
+</code></pre>
+<h3 id="eth_feehistory"><a class="header" href="#eth_feehistory">eth_feeHistory <a id="eth_feehistory" /></a></h3>
+<p>Returns a stubbed gas fee history.<br />
+Parameters include block count, reference block, and optional reward percentiles.</p>
+<pre><code class="language-bash filename=&quot;eth_feeHistory.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"eth_feeHistory",
+        "params":["0x5", "latest", [25, 50, 75]]
+      }'
+</code></pre>
+<h3 id="eth_syncing"><a class="header" href="#eth_syncing">eth_syncing <a id="eth_syncing" /></a></h3>
+<p>Returns <code>false</code> — the node is always considered fully synced.</p>
+<pre><code class="language-bash filename=&quot;eth_syncing.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"eth_syncing","params":[]}'
+</code></pre>
+<h3 id="eth_protocolversion"><a class="header" href="#eth_protocolversion">eth_protocolVersion <a id="eth_protocolversion" /></a></h3>
+<p>Returns the Ethereum protocol version as a hex string.</p>
+<pre><code class="language-bash filename=&quot;eth_protocolVersion.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"eth_protocolVersion","params":[]}'
+</code></pre>
+<h2 id="unimplemented-stubs"><a class="header" href="#unimplemented-stubs">Unimplemented stubs</a></h2>
+<p>The following methods currently return <strong><code>Method not found</code></strong>:</p>
+<ul>
+<li><code>eth_getCompilers</code></li>
+<li><code>eth_sign</code></li>
+<li><code>eth_subscribe</code></li>
+<li><code>eth_hashrate</code></li>
+<li><code>eth_maxPriorityFeePerGas</code></li>
+<li><code>eth_coinbase</code></li>
+<li><code>eth_signTypedData</code></li>
+<li><code>eth_getUncleByBlockNumberAndIndex</code></li>
+<li><code>eth_getUncleCountByBlockHash</code></li>
+<li><code>eth_getUncleByBlockHashAndIndex</code></li>
+<li><code>eth_getUncleCountByBlockNumber</code></li>
+<li><code>eth_getUncleByBlockNumberAndIndex</code></li>
+</ul>
+<hr />
+<h2 id="see-also"><a class="header" href="#see-also">See also</a></h2>
+<ul>
+<li><a href="./zks.html"><code>zks_*</code></a> — ZKsync specific extensions</li>
+<li><a href="./misc.html"><code>debug_*</code></a> — Execution traces &amp; state inspection</li>
+<li><a href="./anvil.html"><code>anvil_*</code></a> — Node testing helpers</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../rpc/index.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../rpc/zks.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../rpc/index.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../rpc/zks.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../ace.js"></script>
+        <script src="../editor.js"></script>
+        <script src="../mode-rust.js"></script>
+        <script src="../theme-dawn.js"></script>
+        <script src="../theme-tomorrow_night.js"></script>
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../js/version-box.js"></script>
+        <script src="../js/mermaid-init.js"></script>
+
+
+    </div>
+    </body>
+</html>

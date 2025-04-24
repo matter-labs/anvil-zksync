@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["pack","pack_unified","serialized","serialized_ref"],"struct":["PackedError"]};

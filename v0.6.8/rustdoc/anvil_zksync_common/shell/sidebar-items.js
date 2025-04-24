@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["ERROR","WARN"],"enum":["ColorChoice","OutputMode"],"fn":["get_shell","set_shell"],"struct":["Shell"]};

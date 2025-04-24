@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["DocumentationError"],"struct":["model"],"trait":["Documented"]};
