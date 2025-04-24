@@ -43,8 +43,8 @@ zksync_types = { git = "https://github.com/matter-labs/zksync-era", rev = "core-
 zksync_vm_interface = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v27.2.0" }
 zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v27.2.0" }
 zksync_telemetry = { git = "https://github.com/matter-labs/zksync-telemetry.git", rev = "f6d8618d870a09467ff24ea32ef57e01af8f311e" }
-zksync-error-codegen = { git = "https://github.com/matter-labs/zksync-error", rev = "fa6e84e06191a1b66323d69ab909fd83ae76e0d2", default-features = false }
-zksync-error-description = { git = "https://github.com/matter-labs/zksync-error", rev = "fa6e84e06191a1b66323d69ab909fd83ae76e0d2" }
+zksync-error-codegen = { git = "https://github.com/matter-labs/zksync-error", rev = "c2ca62ae104389369e2a7cc372b12f764896878d", default-features = false }
+zksync-error-description = { git = "https://github.com/matter-labs/zksync-error", rev = "c2ca62ae104389369e2a7cc372b12f764896878d" }
 
 #########################
 # External dependencies #
