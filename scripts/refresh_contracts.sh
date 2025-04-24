@@ -52,7 +52,7 @@ system_contracts_sol=(
   "AccountCodeStorage" "BootloaderUtilities" "Compressor" "ComplexUpgrader" "ContractDeployer" "DefaultAccount"
   "EmptyContract" "ImmutableSimulator" "KnownCodesStorage" "L1Messenger" "L2BaseToken"
   "MsgValueSimulator" "NonceHolder" "SystemContext" "PubdataChunkPublisher" "Create2Factory" "L2GenesisUpgrade"
-  "SloadContract" "L2MessageRootStorage" "InteropAccount" "StandardTriggerAccount"
+  "SloadContract" "L2InteropRootStorage" "InteropAccount" "StandardTriggerAccount"
   "DefaultAccountNoSecurity"
 )
 system_contracts_yul=("EventWriter")
