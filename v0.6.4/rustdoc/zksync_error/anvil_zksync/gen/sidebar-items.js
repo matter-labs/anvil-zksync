@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["AnvilGenericError","ErrorCode"],"fn":["to_domain","to_generic"],"macro":["generic_error"],"type":["AnvilGenericResult"]};

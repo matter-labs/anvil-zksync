@@ -1,0 +1,9 @@
+(function() {
+    var implementors = Object.fromEntries([["anvil_zksync",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/str/traits/trait.FromStr.html\" title=\"trait core::str::traits::FromStr\">FromStr</a> for <a class=\"enum\" href=\"anvil_zksync/cli/enum.ForkUrl.html\" title=\"enum anvil_zksync::cli::ForkUrl\">ForkUrl</a>"]]],["anvil_zksync_types",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/str/traits/trait.FromStr.html\" title=\"trait core::str::traits::FromStr\">FromStr</a> for <a class=\"enum\" href=\"anvil_zksync_types/enum.ShowGasDetails.html\" title=\"enum anvil_zksync_types::ShowGasDetails\">ShowGasDetails</a>"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/str/traits/trait.FromStr.html\" title=\"trait core::str::traits::FromStr\">FromStr</a> for <a class=\"enum\" href=\"anvil_zksync_types/enum.ShowStorageLogs.html\" title=\"enum anvil_zksync_types::ShowStorageLogs\">ShowStorageLogs</a>"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/str/traits/trait.FromStr.html\" title=\"trait core::str::traits::FromStr\">FromStr</a> for <a class=\"enum\" href=\"anvil_zksync_types/enum.ShowVMDetails.html\" title=\"enum anvil_zksync_types::ShowVMDetails\">ShowVMDetails</a>"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/str/traits/trait.FromStr.html\" title=\"trait core::str::traits::FromStr\">FromStr</a> for <a class=\"enum\" href=\"anvil_zksync_types/enum.TransactionOrder.html\" title=\"enum anvil_zksync_types::TransactionOrder\">TransactionOrder</a>"]]]]);
+    if (window.register_implementors) {
+        window.register_implementors(implementors);
+    } else {
+        window.pending_implementors = implementors;
+    }
+})()
+//{"start":57,"fragment_lengths":[299,1251]}
