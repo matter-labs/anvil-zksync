@@ -1,0 +1,537 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Server trait implementation for the `AnvilNamespace` RPC API."><title>AnvilNamespaceServer in anvil_zksync_api_decl - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-916cea96.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="anvil_zksync_api_decl" data-themes="" data-resource-suffix="" data-rustdoc-version="1.87.0 (17067e9ac 2025-05-09)" data-channel="1.87.0" data-search-js="search-e7298875.js" data-settings-js="settings-d72f25bb.js" ><script src="../static.files/storage-82c7156e.js"></script><script defer src="sidebar-items.js"></script><script defer src="../static.files/main-fb8c74a8.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc trait"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../anvil_zksync_api_decl/index.html">anvil_<wbr>zksync_<wbr>api_<wbr>decl</a><span class="version">0.6.5</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Anvil<wbr>Namespace<wbr>Server</a></h2><h3><a href="#required-methods">Required Methods</a></h3><ul class="block"><li><a href="#tymethod.anvil_mine" title="anvil_mine">anvil_mine</a></li><li><a href="#tymethod.auto_impersonate_account" title="auto_impersonate_account">auto_impersonate_account</a></li><li><a href="#tymethod.drop_all_transactions" title="drop_all_transactions">drop_all_transactions</a></li><li><a href="#tymethod.drop_transaction" title="drop_transaction">drop_transaction</a></li><li><a href="#tymethod.dump_state" title="dump_state">dump_state</a></li><li><a href="#tymethod.get_auto_mine" title="get_auto_mine">get_auto_mine</a></li><li><a href="#tymethod.impersonate_account" title="impersonate_account">impersonate_account</a></li><li><a href="#tymethod.increase_time" title="increase_time">increase_time</a></li><li><a href="#tymethod.load_state" title="load_state">load_state</a></li><li><a href="#tymethod.mine_detailed" title="mine_detailed">mine_detailed</a></li><li><a href="#tymethod.remove_block_timestamp_interval" title="remove_block_timestamp_interval">remove_block_timestamp_interval</a></li><li><a href="#tymethod.remove_pool_transactions" title="remove_pool_transactions">remove_pool_transactions</a></li><li><a href="#tymethod.reset_network" title="reset_network">reset_network</a></li><li><a href="#tymethod.revert" title="revert">revert</a></li><li><a href="#tymethod.set_auto_mine" title="set_auto_mine">set_auto_mine</a></li><li><a href="#tymethod.set_balance" title="set_balance">set_balance</a></li><li><a href="#tymethod.set_block_timestamp_interval" title="set_block_timestamp_interval">set_block_timestamp_interval</a></li><li><a href="#tymethod.set_chain_id" title="set_chain_id">set_chain_id</a></li><li><a href="#tymethod.set_code" title="set_code">set_code</a></li><li><a href="#tymethod.set_interval_mining" title="set_interval_mining">set_interval_mining</a></li><li><a href="#tymethod.set_logging_enabled" title="set_logging_enabled">set_logging_enabled</a></li><li><a href="#tymethod.set_min_gas_price" title="set_min_gas_price">set_min_gas_price</a></li><li><a href="#tymethod.set_next_block_base_fee_per_gas" title="set_next_block_base_fee_per_gas">set_next_block_base_fee_per_gas</a></li><li><a href="#tymethod.set_next_block_timestamp" title="set_next_block_timestamp">set_next_block_timestamp</a></li><li><a href="#tymethod.set_nonce" title="set_nonce">set_nonce</a></li><li><a href="#tymethod.set_rpc_url" title="set_rpc_url">set_rpc_url</a></li><li><a href="#tymethod.set_storage_at" title="set_storage_at">set_storage_at</a></li><li><a href="#tymethod.set_time" title="set_time">set_time</a></li><li><a href="#tymethod.snapshot" title="snapshot">snapshot</a></li><li><a href="#tymethod.stop_impersonating_account" title="stop_impersonating_account">stop_impersonating_account</a></li></ul><h3><a href="#provided-methods">Provided Methods</a></h3><ul class="block"><li><a href="#method.into_rpc" title="into_rpc">into_rpc</a></li></ul><h3><a href="#dyn-compatibility">Dyn Compatibility</a></h3><h3><a href="#implementors">Implementors</a></h3></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="index.html">In crate anvil_<wbr>zksync_<wbr>api_<wbr>decl</a></h2></div></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="index.html">anvil_zksync_api_decl</a></div><h1>Trait <span class="trait">AnvilNamespaceServer</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/anvil_zksync_api_decl/namespaces/anvil.rs.html#9">Source</a> </span></div><pre class="rust item-decl"><code>pub trait AnvilNamespaceServer:
+    <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>
+    + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a>
+    + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a>
+    + 'static {
+<details class="toggle type-contents-toggle"><summary class="hideme"><span>Show 31 methods</span></summary>    // Required methods
+    fn <a href="#tymethod.dump_state" class="fn">dump_state</a>&lt;'life0, 'async_trait&gt;(
+        &amp;'life0 self,
+        preserve_historical_states: <a class="enum" href="https://doc.rust-lang.org/1.87.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.bool.html">bool</a>&gt;,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;Bytes&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait</span>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.load_state" class="fn">load_state</a>&lt;'life0, 'async_trait&gt;(
+        &amp;'life0 self,
+        bytes: Bytes,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.bool.html">bool</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait</span>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.mine_detailed" class="fn">mine_detailed</a>&lt;'life0, 'async_trait&gt;(
+        &amp;'life0 self,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;Block&lt;DetailedTransaction&gt;&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait</span>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.set_rpc_url" class="fn">set_rpc_url</a>&lt;'life0, 'async_trait&gt;(
+        &amp;'life0 self,
+        url: <a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.unit.html">()</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait</span>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.set_next_block_base_fee_per_gas" class="fn">set_next_block_base_fee_per_gas</a>&lt;'life0, 'async_trait&gt;(
+        &amp;'life0 self,
+        base_fee: U256,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.unit.html">()</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait</span>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.drop_transaction" class="fn">drop_transaction</a>&lt;'life0, 'async_trait&gt;(
+        &amp;'life0 self,
+        hash: H256,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="enum" href="https://doc.rust-lang.org/1.87.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;H256&gt;&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait</span>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.drop_all_transactions" class="fn">drop_all_transactions</a>&lt;'life0, 'async_trait&gt;(
+        &amp;'life0 self,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.unit.html">()</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait</span>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.remove_pool_transactions" class="fn">remove_pool_transactions</a>&lt;'life0, 'async_trait&gt;(
+        &amp;'life0 self,
+        address: Address,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.unit.html">()</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait</span>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.get_auto_mine" class="fn">get_auto_mine</a>&lt;'life0, 'async_trait&gt;(
+        &amp;'life0 self,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.bool.html">bool</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait</span>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.set_auto_mine" class="fn">set_auto_mine</a>&lt;'life0, 'async_trait&gt;(
+        &amp;'life0 self,
+        enable: <a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.bool.html">bool</a>,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.unit.html">()</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait</span>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.set_interval_mining" class="fn">set_interval_mining</a>&lt;'life0, 'async_trait&gt;(
+        &amp;'life0 self,
+        seconds: <a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.u64.html">u64</a>,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.unit.html">()</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait</span>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.set_block_timestamp_interval" class="fn">set_block_timestamp_interval</a>&lt;'life0, 'async_trait&gt;(
+        &amp;'life0 self,
+        seconds: <a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.u64.html">u64</a>,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.unit.html">()</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait</span>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.remove_block_timestamp_interval" class="fn">remove_block_timestamp_interval</a>&lt;'life0, 'async_trait&gt;(
+        &amp;'life0 self,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.bool.html">bool</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait</span>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.set_min_gas_price" class="fn">set_min_gas_price</a>&lt;'life0, 'async_trait&gt;(
+        &amp;'life0 self,
+        gas: U256,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.unit.html">()</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait</span>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.set_logging_enabled" class="fn">set_logging_enabled</a>&lt;'life0, 'async_trait&gt;(
+        &amp;'life0 self,
+        enable: <a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.bool.html">bool</a>,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.unit.html">()</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait</span>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.snapshot" class="fn">snapshot</a>&lt;'life0, 'async_trait&gt;(
+        &amp;'life0 self,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;U64&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait</span>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.revert" class="fn">revert</a>&lt;'life0, 'async_trait&gt;(
+        &amp;'life0 self,
+        id: U64,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.bool.html">bool</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait</span>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.set_time" class="fn">set_time</a>&lt;'life0, 'async_trait&gt;(
+        &amp;'life0 self,
+        timestamp: Numeric,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.i128.html">i128</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait</span>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.increase_time" class="fn">increase_time</a>&lt;'life0, 'async_trait&gt;(
+        &amp;'life0 self,
+        seconds: Numeric,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.u64.html">u64</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait</span>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.set_next_block_timestamp" class="fn">set_next_block_timestamp</a>&lt;'life0, 'async_trait&gt;(
+        &amp;'life0 self,
+        timestamp: Numeric,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.unit.html">()</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait</span>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.auto_impersonate_account" class="fn">auto_impersonate_account</a>&lt;'life0, 'async_trait&gt;(
+        &amp;'life0 self,
+        enabled: <a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.bool.html">bool</a>,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.unit.html">()</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait</span>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.set_balance" class="fn">set_balance</a>&lt;'life0, 'async_trait&gt;(
+        &amp;'life0 self,
+        address: Address,
+        balance: U256,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.bool.html">bool</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait</span>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.set_nonce" class="fn">set_nonce</a>&lt;'life0, 'async_trait&gt;(
+        &amp;'life0 self,
+        address: Address,
+        nonce: U256,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.bool.html">bool</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait</span>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.anvil_mine" class="fn">anvil_mine</a>&lt;'life0, 'async_trait&gt;(
+        &amp;'life0 self,
+        num_blocks: <a class="enum" href="https://doc.rust-lang.org/1.87.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;U64&gt;,
+        interval: <a class="enum" href="https://doc.rust-lang.org/1.87.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;U64&gt;,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.unit.html">()</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait</span>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.reset_network" class="fn">reset_network</a>&lt;'life0, 'async_trait&gt;(
+        &amp;'life0 self,
+        reset_spec: <a class="enum" href="https://doc.rust-lang.org/1.87.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;ResetRequest&gt;,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.bool.html">bool</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait</span>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.impersonate_account" class="fn">impersonate_account</a>&lt;'life0, 'async_trait&gt;(
+        &amp;'life0 self,
+        address: Address,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.unit.html">()</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait</span>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.stop_impersonating_account" class="fn">stop_impersonating_account</a>&lt;'life0, 'async_trait&gt;(
+        &amp;'life0 self,
+        address: Address,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.unit.html">()</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait</span>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.set_code" class="fn">set_code</a>&lt;'life0, 'async_trait&gt;(
+        &amp;'life0 self,
+        address: Address,
+        code: <a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.unit.html">()</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait</span>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.set_storage_at" class="fn">set_storage_at</a>&lt;'life0, 'async_trait&gt;(
+        &amp;'life0 self,
+        address: Address,
+        slot: U256,
+        value: U256,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.bool.html">bool</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait</span>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.set_chain_id" class="fn">set_chain_id</a>&lt;'life0, 'async_trait&gt;(
+        &amp;'life0 self,
+        id: <a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.u32.html">u32</a>,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.unit.html">()</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait</span>;
+
+    // Provided method
+    fn <a href="#method.into_rpc" class="fn">into_rpc</a>(self) -&gt; RpcModule&lt;Self&gt; { ... }
+</details>}</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Server trait implementation for the <code>AnvilNamespace</code> RPC API.</p>
+</div></details><h2 id="required-methods" class="section-header">Required Methods<a href="#required-methods" class="anchor">§</a></h2><div class="methods"><details class="toggle method-toggle" open><summary><section id="tymethod.dump_state" class="method"><a class="src rightside" href="../src/anvil_zksync_api_decl/namespaces/anvil.rs.html#21">Source</a><h4 class="code-header">fn <a href="#tymethod.dump_state" class="fn">dump_state</a>&lt;'life0, 'async_trait&gt;(
+    &amp;'life0 self,
+    preserve_historical_states: <a class="enum" href="https://doc.rust-lang.org/1.87.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.bool.html">bool</a>&gt;,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;Bytes&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Create a buffer that represents all state on the chain, which can be loaded to separate
+process by calling <code>anvil_loadState</code>.</p>
+<h5 id="arguments"><a class="doc-anchor" href="#arguments">§</a>Arguments</h5>
+<ul>
+<li><code>preserve_historical_states</code> - Whether to preserve historical states</li>
+</ul>
+<h5 id="returns"><a class="doc-anchor" href="#returns">§</a>Returns</h5>
+<p>Buffer representing the chain state.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.load_state" class="method"><a class="src rightside" href="../src/anvil_zksync_api_decl/namespaces/anvil.rs.html#33">Source</a><h4 class="code-header">fn <a href="#tymethod.load_state" class="fn">load_state</a>&lt;'life0, 'async_trait&gt;(
+    &amp;'life0 self,
+    bytes: Bytes,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.bool.html">bool</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Append chain state buffer to current chain. Will overwrite any conflicting addresses or
+storage.</p>
+<h5 id="arguments-1"><a class="doc-anchor" href="#arguments-1">§</a>Arguments</h5>
+<ul>
+<li><code>bytes</code> - Buffer containing the chain state</li>
+</ul>
+<h5 id="returns-1"><a class="doc-anchor" href="#returns-1">§</a>Returns</h5>
+<p><code>true</code> if a snapshot was reverted, otherwise <code>false</code>.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.mine_detailed" class="method"><a class="src rightside" href="../src/anvil_zksync_api_decl/namespaces/anvil.rs.html#40">Source</a><h4 class="code-header">fn <a href="#tymethod.mine_detailed" class="fn">mine_detailed</a>&lt;'life0, 'async_trait&gt;(
+    &amp;'life0 self,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;Block&lt;DetailedTransaction&gt;&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Mines a single block in the same way as <code>evm_mine</code> but returns extra fields.</p>
+<h5 id="returns-2"><a class="doc-anchor" href="#returns-2">§</a>Returns</h5>
+<p>Freshly mined block’s representation along with extra fields.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.set_rpc_url" class="method"><a class="src rightside" href="../src/anvil_zksync_api_decl/namespaces/anvil.rs.html#48">Source</a><h4 class="code-header">fn <a href="#tymethod.set_rpc_url" class="fn">set_rpc_url</a>&lt;'life0, 'async_trait&gt;(
+    &amp;'life0 self,
+    url: <a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.unit.html">()</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Sets the fork RPC url. Assumes the underlying chain is the same as before.</p>
+<h5 id="arguments-2"><a class="doc-anchor" href="#arguments-2">§</a>Arguments</h5>
+<ul>
+<li><code>url</code> - Fork’s new URL</li>
+</ul>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.set_next_block_base_fee_per_gas" class="method"><a class="src rightside" href="../src/anvil_zksync_api_decl/namespaces/anvil.rs.html#56">Source</a><h4 class="code-header">fn <a href="#tymethod.set_next_block_base_fee_per_gas" class="fn">set_next_block_base_fee_per_gas</a>&lt;'life0, 'async_trait&gt;(
+    &amp;'life0 self,
+    base_fee: U256,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.unit.html">()</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Sets the base fee of the next block.</p>
+<h5 id="arguments-3"><a class="doc-anchor" href="#arguments-3">§</a>Arguments</h5>
+<ul>
+<li><code>base_fee</code> - Value to be set as base fee for the next block</li>
+</ul>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.drop_transaction" class="method"><a class="src rightside" href="../src/anvil_zksync_api_decl/namespaces/anvil.rs.html#67">Source</a><h4 class="code-header">fn <a href="#tymethod.drop_transaction" class="fn">drop_transaction</a>&lt;'life0, 'async_trait&gt;(
+    &amp;'life0 self,
+    hash: H256,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="enum" href="https://doc.rust-lang.org/1.87.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;H256&gt;&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Removes a transaction from the pool.</p>
+<h5 id="arguments-4"><a class="doc-anchor" href="#arguments-4">§</a>Arguments</h5>
+<ul>
+<li><code>hash</code> - Hash of the transaction to be removed from the pool</li>
+</ul>
+<h5 id="returns-3"><a class="doc-anchor" href="#returns-3">§</a>Returns</h5>
+<p><code>Some(hash)</code> if transaction was in the pool before being removed, <code>None</code> otherwise</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.drop_all_transactions" class="method"><a class="src rightside" href="../src/anvil_zksync_api_decl/namespaces/anvil.rs.html#71">Source</a><h4 class="code-header">fn <a href="#tymethod.drop_all_transactions" class="fn">drop_all_transactions</a>&lt;'life0, 'async_trait&gt;(
+    &amp;'life0 self,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.unit.html">()</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Remove all transactions from the pool.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.remove_pool_transactions" class="method"><a class="src rightside" href="../src/anvil_zksync_api_decl/namespaces/anvil.rs.html#79">Source</a><h4 class="code-header">fn <a href="#tymethod.remove_pool_transactions" class="fn">remove_pool_transactions</a>&lt;'life0, 'async_trait&gt;(
+    &amp;'life0 self,
+    address: Address,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.unit.html">()</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Remove all transactions from the pool by sender address.</p>
+<h5 id="arguments-5"><a class="doc-anchor" href="#arguments-5">§</a>Arguments</h5>
+<ul>
+<li><code>address</code> - Sender which transactions should be removed from the pool</li>
+</ul>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.get_auto_mine" class="method"><a class="src rightside" href="../src/anvil_zksync_api_decl/namespaces/anvil.rs.html#86">Source</a><h4 class="code-header">fn <a href="#tymethod.get_auto_mine" class="fn">get_auto_mine</a>&lt;'life0, 'async_trait&gt;(
+    &amp;'life0 self,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.bool.html">bool</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Gets node’s auto mining status.</p>
+<h5 id="returns-4"><a class="doc-anchor" href="#returns-4">§</a>Returns</h5>
+<p><code>true</code> if auto mining is enabled, <code>false</code> otherwise</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.set_auto_mine" class="method"><a class="src rightside" href="../src/anvil_zksync_api_decl/namespaces/anvil.rs.html#95">Source</a><h4 class="code-header">fn <a href="#tymethod.set_auto_mine" class="fn">set_auto_mine</a>&lt;'life0, 'async_trait&gt;(
+    &amp;'life0 self,
+    enable: <a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.bool.html">bool</a>,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.unit.html">()</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Enables or disables, based on the single boolean argument, the automatic mining of new
+blocks with each new transaction submitted to the network.</p>
+<h5 id="arguments-6"><a class="doc-anchor" href="#arguments-6">§</a>Arguments</h5>
+<ul>
+<li><code>enable</code> - if <code>true</code> automatic mining will be enabled, disabled otherwise</li>
+</ul>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.set_interval_mining" class="method"><a class="src rightside" href="../src/anvil_zksync_api_decl/namespaces/anvil.rs.html#103">Source</a><h4 class="code-header">fn <a href="#tymethod.set_interval_mining" class="fn">set_interval_mining</a>&lt;'life0, 'async_trait&gt;(
+    &amp;'life0 self,
+    seconds: <a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.u64.html">u64</a>,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.unit.html">()</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Sets the mining behavior to interval with the given interval (seconds).</p>
+<h5 id="arguments-7"><a class="doc-anchor" href="#arguments-7">§</a>Arguments</h5>
+<ul>
+<li><code>seconds</code> - Frequency of automatic block production (in seconds)</li>
+</ul>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.set_block_timestamp_interval" class="method"><a class="src rightside" href="../src/anvil_zksync_api_decl/namespaces/anvil.rs.html#113">Source</a><h4 class="code-header">fn <a href="#tymethod.set_block_timestamp_interval" class="fn">set_block_timestamp_interval</a>&lt;'life0, 'async_trait&gt;(
+    &amp;'life0 self,
+    seconds: <a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.u64.html">u64</a>,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.unit.html">()</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Sets the block timestamp interval. All future blocks’ timestamps will
+have the provided amount of seconds in-between of them. Does not affect
+the block production interval.</p>
+<h5 id="arguments-8"><a class="doc-anchor" href="#arguments-8">§</a>Arguments</h5>
+<ul>
+<li><code>seconds</code> - The interval between two consecutive blocks (in seconds)</li>
+</ul>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.remove_block_timestamp_interval" class="method"><a class="src rightside" href="../src/anvil_zksync_api_decl/namespaces/anvil.rs.html#120">Source</a><h4 class="code-header">fn <a href="#tymethod.remove_block_timestamp_interval" class="fn">remove_block_timestamp_interval</a>&lt;'life0, 'async_trait&gt;(
+    &amp;'life0 self,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.bool.html">bool</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Removes the block timestamp interval if it exists.</p>
+<h5 id="returns-5"><a class="doc-anchor" href="#returns-5">§</a>Returns</h5>
+<p><code>true</code> if an existing interval was removed, <code>false</code> otherwise</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.set_min_gas_price" class="method"><a class="src rightside" href="../src/anvil_zksync_api_decl/namespaces/anvil.rs.html#129">Source</a><h4 class="code-header">fn <a href="#tymethod.set_min_gas_price" class="fn">set_min_gas_price</a>&lt;'life0, 'async_trait&gt;(
+    &amp;'life0 self,
+    gas: U256,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.unit.html">()</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Set the minimum gas price for the node. Unsupported for ZKsync as it is only relevant for
+pre-EIP1559 chains.</p>
+<h5 id="arguments-9"><a class="doc-anchor" href="#arguments-9">§</a>Arguments</h5>
+<ul>
+<li><code>gas</code> - The minimum gas price to be set</li>
+</ul>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.set_logging_enabled" class="method"><a class="src rightside" href="../src/anvil_zksync_api_decl/namespaces/anvil.rs.html#137">Source</a><h4 class="code-header">fn <a href="#tymethod.set_logging_enabled" class="fn">set_logging_enabled</a>&lt;'life0, 'async_trait&gt;(
+    &amp;'life0 self,
+    enable: <a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.bool.html">bool</a>,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.unit.html">()</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Enable or disable logging.</p>
+<h5 id="arguments-10"><a class="doc-anchor" href="#arguments-10">§</a>Arguments</h5>
+<ul>
+<li><code>enable</code> - if <code>true</code> logging will be enabled, disabled otherwise</li>
+</ul>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.snapshot" class="method"><a class="src rightside" href="../src/anvil_zksync_api_decl/namespaces/anvil.rs.html#147">Source</a><h4 class="code-header">fn <a href="#tymethod.snapshot" class="fn">snapshot</a>&lt;'life0, 'async_trait&gt;(
+    &amp;'life0 self,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;U64&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Snapshot the state of the blockchain at the current block. Takes no parameters. Returns the id of the snapshot
+that was created. A snapshot can only be reverted once. After a successful <code>anvil_revert</code>, the same snapshot id cannot
+be used again. Consider creating a new snapshot after each <code>anvil_revert</code> if you need to revert to the same
+point multiple times.</p>
+<h5 id="returns-6"><a class="doc-anchor" href="#returns-6">§</a>Returns</h5>
+<p>The <code>U64</code> identifier for this snapshot.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.revert" class="method"><a class="src rightside" href="../src/anvil_zksync_api_decl/namespaces/anvil.rs.html#160">Source</a><h4 class="code-header">fn <a href="#tymethod.revert" class="fn">revert</a>&lt;'life0, 'async_trait&gt;(
+    &amp;'life0 self,
+    id: U64,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.bool.html">bool</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Revert the state of the blockchain to a previous snapshot. Takes a single parameter,
+which is the snapshot id to revert to. This deletes the given snapshot, as well as any snapshots
+taken after (e.g.: reverting to id 0x1 will delete snapshots with ids 0x1, 0x2, etc.)</p>
+<h5 id="arguments-11"><a class="doc-anchor" href="#arguments-11">§</a>Arguments</h5>
+<ul>
+<li><code>id</code> - The snapshot id to revert</li>
+</ul>
+<h5 id="returns-7"><a class="doc-anchor" href="#returns-7">§</a>Returns</h5>
+<p><code>true</code> if a snapshot was reverted, otherwise <code>false</code>.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.set_time" class="method"><a class="src rightside" href="../src/anvil_zksync_api_decl/namespaces/anvil.rs.html#173">Source</a><h4 class="code-header">fn <a href="#tymethod.set_time" class="fn">set_time</a>&lt;'life0, 'async_trait&gt;(
+    &amp;'life0 self,
+    timestamp: Numeric,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.i128.html">i128</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Set the current timestamp for the node.
+Warning: This will allow you to move backwards in time, which may cause new blocks to appear to be
+mined before old blocks. This will result in an invalid state.</p>
+<h5 id="arguments-12"><a class="doc-anchor" href="#arguments-12">§</a>Arguments</h5>
+<ul>
+<li><code>time</code> - The timestamp to set the time to</li>
+</ul>
+<h5 id="returns-8"><a class="doc-anchor" href="#returns-8">§</a>Returns</h5>
+<p>The difference between the current timestamp and the new timestamp.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.increase_time" class="method"><a class="src rightside" href="../src/anvil_zksync_api_decl/namespaces/anvil.rs.html#184">Source</a><h4 class="code-header">fn <a href="#tymethod.increase_time" class="fn">increase_time</a>&lt;'life0, 'async_trait&gt;(
+    &amp;'life0 self,
+    seconds: Numeric,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.u64.html">u64</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Increase the current timestamp for the node</p>
+<h5 id="arguments-13"><a class="doc-anchor" href="#arguments-13">§</a>Arguments</h5>
+<ul>
+<li><code>seconds</code> - The number of seconds to increase time by</li>
+</ul>
+<h5 id="returns-9"><a class="doc-anchor" href="#returns-9">§</a>Returns</h5>
+<p>The applied time delta to the current timestamp in seconds.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.set_next_block_timestamp" class="method"><a class="src rightside" href="../src/anvil_zksync_api_decl/namespaces/anvil.rs.html#192">Source</a><h4 class="code-header">fn <a href="#tymethod.set_next_block_timestamp" class="fn">set_next_block_timestamp</a>&lt;'life0, 'async_trait&gt;(
+    &amp;'life0 self,
+    timestamp: Numeric,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.unit.html">()</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Set timestamp for the next block. The timestamp must be in future.</p>
+<h5 id="arguments-14"><a class="doc-anchor" href="#arguments-14">§</a>Arguments</h5>
+<ul>
+<li><code>timestamp</code> - The timestamp to set the time to</li>
+</ul>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.auto_impersonate_account" class="method"><a class="src rightside" href="../src/anvil_zksync_api_decl/namespaces/anvil.rs.html#204">Source</a><h4 class="code-header">fn <a href="#tymethod.auto_impersonate_account" class="fn">auto_impersonate_account</a>&lt;'life0, 'async_trait&gt;(
+    &amp;'life0 self,
+    enabled: <a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.bool.html">bool</a>,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.unit.html">()</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Sets auto impersonation status.</p>
+<h5 id="arguments-15"><a class="doc-anchor" href="#arguments-15">§</a>Arguments</h5>
+<ul>
+<li><code>enabled</code> - <code>true</code> makes every account impersonated, <code>false</code> disables this behavior</li>
+</ul>
+<h5 id="returns-10"><a class="doc-anchor" href="#returns-10">§</a>Returns</h5>
+<p>A <code>BoxFuture</code> containing a <code>Result</code> representing the success of the operation.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.set_balance" class="method"><a class="src rightside" href="../src/anvil_zksync_api_decl/namespaces/anvil.rs.html#217">Source</a><h4 class="code-header">fn <a href="#tymethod.set_balance" class="fn">set_balance</a>&lt;'life0, 'async_trait&gt;(
+    &amp;'life0 self,
+    address: Address,
+    balance: U256,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.bool.html">bool</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Sets the balance of the given address to the given balance.</p>
+<h5 id="arguments-16"><a class="doc-anchor" href="#arguments-16">§</a>Arguments</h5>
+<ul>
+<li><code>address</code> - The <code>Address</code> whose balance will be edited</li>
+<li><code>balance</code> - The new balance to set for the given address, in wei</li>
+</ul>
+<h5 id="returns-11"><a class="doc-anchor" href="#returns-11">§</a>Returns</h5>
+<p>A <code>BoxFuture</code> containing a <code>Result</code> with a <code>bool</code> representing the success of the operation.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.set_nonce" class="method"><a class="src rightside" href="../src/anvil_zksync_api_decl/namespaces/anvil.rs.html#230">Source</a><h4 class="code-header">fn <a href="#tymethod.set_nonce" class="fn">set_nonce</a>&lt;'life0, 'async_trait&gt;(
+    &amp;'life0 self,
+    address: Address,
+    nonce: U256,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.bool.html">bool</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Modifies an account’s nonce by overwriting it.</p>
+<h5 id="arguments-17"><a class="doc-anchor" href="#arguments-17">§</a>Arguments</h5>
+<ul>
+<li><code>address</code> - The <code>Address</code> whose nonce is to be changed</li>
+<li><code>nonce</code> - The new nonce</li>
+</ul>
+<h5 id="returns-12"><a class="doc-anchor" href="#returns-12">§</a>Returns</h5>
+<p>A <code>BoxFuture</code> containing a <code>Result</code> with a <code>bool</code> representing the success of the operation.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.anvil_mine" class="method"><a class="src rightside" href="../src/anvil_zksync_api_decl/namespaces/anvil.rs.html#245">Source</a><h4 class="code-header">fn <a href="#tymethod.anvil_mine" class="fn">anvil_mine</a>&lt;'life0, 'async_trait&gt;(
+    &amp;'life0 self,
+    num_blocks: <a class="enum" href="https://doc.rust-lang.org/1.87.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;U64&gt;,
+    interval: <a class="enum" href="https://doc.rust-lang.org/1.87.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;U64&gt;,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.unit.html">()</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Sometimes you may want to advance the latest block number of the network by a large number of blocks.
+One way to do this would be to call the evm_mine RPC method multiple times, but this is too slow if you want to mine thousands of blocks.
+The <code>anvil_mine</code> method can mine any number of blocks at once, in constant time. (It exhibits the same performance no matter how many blocks are mined.)</p>
+<h5 id="arguments-18"><a class="doc-anchor" href="#arguments-18">§</a>Arguments</h5>
+<ul>
+<li><code>num_blocks</code> - The number of blocks to mine, defaults to 1</li>
+<li><code>interval</code> - The interval between the timestamps of each block, in seconds, and it also defaults to 1</li>
+</ul>
+<h5 id="returns-13"><a class="doc-anchor" href="#returns-13">§</a>Returns</h5>
+<p>A <code>BoxFuture</code> containing a <code>Result</code> with a <code>bool</code> representing the success of the operation.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.reset_network" class="method"><a class="src rightside" href="../src/anvil_zksync_api_decl/namespaces/anvil.rs.html#257">Source</a><h4 class="code-header">fn <a href="#tymethod.reset_network" class="fn">reset_network</a>&lt;'life0, 'async_trait&gt;(
+    &amp;'life0 self,
+    reset_spec: <a class="enum" href="https://doc.rust-lang.org/1.87.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;ResetRequest&gt;,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.bool.html">bool</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Reset the state of the network back to a fresh forked state, or disable forking.</p>
+<h5 id="arguments-19"><a class="doc-anchor" href="#arguments-19">§</a>Arguments</h5>
+<ul>
+<li><code>reset_spec</code> - The requested state, defaults to resetting the current network.</li>
+</ul>
+<h5 id="returns-14"><a class="doc-anchor" href="#returns-14">§</a>Returns</h5>
+<p>A <code>BoxFuture</code> containing a <code>Result</code> with a <code>bool</code> representing the success of the operation.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.impersonate_account" class="method"><a class="src rightside" href="../src/anvil_zksync_api_decl/namespaces/anvil.rs.html#272">Source</a><h4 class="code-header">fn <a href="#tymethod.impersonate_account" class="fn">impersonate_account</a>&lt;'life0, 'async_trait&gt;(
+    &amp;'life0 self,
+    address: Address,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.unit.html">()</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>anvil-zksync allows transactions impersonating specific account and contract addresses.
+To impersonate an account use this method, passing the address to impersonate as its parameter.
+After calling this method, any transactions with this sender will be executed without verification.
+Multiple addresses can be impersonated at once.</p>
+<h5 id="arguments-20"><a class="doc-anchor" href="#arguments-20">§</a>Arguments</h5>
+<ul>
+<li><code>address</code> - The address to impersonate</li>
+</ul>
+<h5 id="returns-15"><a class="doc-anchor" href="#returns-15">§</a>Returns</h5>
+<p>A <code>BoxFuture</code> containing a <code>Result</code> with a <code>bool</code> representing the success of the operation.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.stop_impersonating_account" class="method"><a class="src rightside" href="../src/anvil_zksync_api_decl/namespaces/anvil.rs.html#285">Source</a><h4 class="code-header">fn <a href="#tymethod.stop_impersonating_account" class="fn">stop_impersonating_account</a>&lt;'life0, 'async_trait&gt;(
+    &amp;'life0 self,
+    address: Address,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.unit.html">()</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Use this method to stop impersonating an account after having previously used <code>anvil_impersonateAccount</code>
+The method returns <code>true</code> if the account was being impersonated and <code>false</code> otherwise.</p>
+<h5 id="arguments-21"><a class="doc-anchor" href="#arguments-21">§</a>Arguments</h5>
+<ul>
+<li><code>address</code> - The address to stop impersonating.</li>
+</ul>
+<h5 id="returns-16"><a class="doc-anchor" href="#returns-16">§</a>Returns</h5>
+<p>A <code>BoxFuture</code> containing a <code>Result</code> with a <code>bool</code> representing the success of the operation.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.set_code" class="method"><a class="src rightside" href="../src/anvil_zksync_api_decl/namespaces/anvil.rs.html#298">Source</a><h4 class="code-header">fn <a href="#tymethod.set_code" class="fn">set_code</a>&lt;'life0, 'async_trait&gt;(
+    &amp;'life0 self,
+    address: Address,
+    code: <a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.unit.html">()</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Modifies the bytecode stored at an account’s address.</p>
+<h5 id="arguments-22"><a class="doc-anchor" href="#arguments-22">§</a>Arguments</h5>
+<ul>
+<li><code>address</code> - The address where the given code should be stored.</li>
+<li><code>code</code> - The code to be stored.</li>
+</ul>
+<h5 id="returns-17"><a class="doc-anchor" href="#returns-17">§</a>Returns</h5>
+<p>A <code>BoxFuture</code> containing a <code>Result</code> with a <code>bool</code> representing the success of the operation.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.set_storage_at" class="method"><a class="src rightside" href="../src/anvil_zksync_api_decl/namespaces/anvil.rs.html#312">Source</a><h4 class="code-header">fn <a href="#tymethod.set_storage_at" class="fn">set_storage_at</a>&lt;'life0, 'async_trait&gt;(
+    &amp;'life0 self,
+    address: Address,
+    slot: U256,
+    value: U256,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.bool.html">bool</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Directly modifies the storage of a contract at a specified slot.</p>
+<h5 id="arguments-23"><a class="doc-anchor" href="#arguments-23">§</a>Arguments</h5>
+<ul>
+<li><code>address</code> - The contract address whose storage is to be modified.</li>
+<li><code>slot</code> - The storage slot to modify.</li>
+<li><code>value</code> - The value to be set at the specified slot.</li>
+</ul>
+<h5 id="returns-18"><a class="doc-anchor" href="#returns-18">§</a>Returns</h5>
+<p>A <code>BoxFuture</code> containing a <code>Result</code> with a <code>bool</code> representing the success of the operation.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.set_chain_id" class="method"><a class="src rightside" href="../src/anvil_zksync_api_decl/namespaces/anvil.rs.html#320">Source</a><h4 class="code-header">fn <a href="#tymethod.set_chain_id" class="fn">set_chain_id</a>&lt;'life0, 'async_trait&gt;(
+    &amp;'life0 self,
+    id: <a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.u32.html">u32</a>,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.87.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.87.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = RpcResult&lt;<a class="primitive" href="https://doc.rust-lang.org/1.87.0/std/primitive.unit.html">()</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.87.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Sets the chain id.</p>
+<h5 id="arguments-24"><a class="doc-anchor" href="#arguments-24">§</a>Arguments</h5>
+<ul>
+<li><code>id</code> - The chain id to be set.</li>
+</ul>
+</div></details></div><h2 id="provided-methods" class="section-header">Provided Methods<a href="#provided-methods" class="anchor">§</a></h2><div class="methods"><details class="toggle method-toggle" open><summary><section id="method.into_rpc" class="method"><a class="src rightside" href="../src/anvil_zksync_api_decl/namespaces/anvil.rs.html#9">Source</a><h4 class="code-header">fn <a href="#method.into_rpc" class="fn">into_rpc</a>(self) -&gt; RpcModule&lt;Self&gt;</h4></section></summary><div class="docblock"><p>Collects all the methods and subscriptions defined in the trait and adds them into a single <code>RpcModule</code>.</p>
+</div></details></div><h2 id="dyn-compatibility" class="section-header">Dyn Compatibility<a href="#dyn-compatibility" class="anchor">§</a></h2><div class="dyn-compatibility-info"><p>This trait is <b>not</b> <a href="https://doc.rust-lang.org/1.87.0/reference/items/traits.html#dyn-compatibility">dyn compatible</a>.</p><p><i>In older versions of Rust, dyn compatibility was called "object safety", so this trait is not object safe.</i></p></div><h2 id="implementors" class="section-header">Implementors<a href="#implementors" class="anchor">§</a></h2><div id="implementors-list"></div><script src="../trait.impl/anvil_zksync_api_decl/namespaces/anvil/trait.AnvilNamespaceServer.js" async></script></section></div></main></body></html>
