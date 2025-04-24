@@ -1,7 +1,7 @@
 #!/bin/bash
 set -xe
 
-PROTOCOL_VERSION=${1:-v29}
+PROTOCOL_VERSION=${1:-v30}
 case $PROTOCOL_VERSION in
   v26)
     # HEAD of anvil-zksync-0.4.x-release-v26
@@ -17,6 +17,9 @@ case $PROTOCOL_VERSION in
     ;;
   v29)
     ERA_CONTRACTS_GIT_COMMIT=cd9906af3988e0dbde825bc51fcb50b21498c321
+    ;;
+  v30)
+    ERA_CONTRACTS_GIT_COMMIT=8113cd505f358dfe4f09d11bc4bc68552b5c5c51
     ;;
   *)
     echo "Unrecognized/unsupported protocol version: $PROTOCOL_VERSION"
@@ -43,13 +46,13 @@ L1_ARTIFACTS_SRC_DIR=contracts/l1-contracts/zkout
 L2_ARTIFACTS_SRC_DIR=contracts/l2-contracts/zkout
 SYSTEM_ARTIFACTS_SRC_DIR=contracts/system-contracts/zkout
 
-l1_artifacts=("MessageRoot" "Bridgehub" "L2AssetRouter" "L2NativeTokenVault" "L2WrappedBaseToken" "L2MessageVerification")
+l1_artifacts=("MessageRoot" "Bridgehub" "L2AssetRouter" "InteropCenter" "AssetTracker" "InteropHandler" "L2NativeTokenVault" "L2WrappedBaseToken" "L2MessageVerification")
 l2_artifacts=("TimestampAsserter")
 system_contracts_sol=(
   "AccountCodeStorage" "BootloaderUtilities" "Compressor" "ComplexUpgrader" "ContractDeployer" "DefaultAccount"
   "EmptyContract" "ImmutableSimulator" "KnownCodesStorage" "L1Messenger" "L2BaseToken"
   "MsgValueSimulator" "NonceHolder" "SystemContext" "PubdataChunkPublisher" "Create2Factory" "L2GenesisUpgrade"
-  "SloadContract" "L2MessageRootStorage"
+  "SloadContract" "L2MessageRootStorage" "InteropAccount" "StandardTriggerAccount"
   "DefaultAccountNoSecurity"
 )
 system_contracts_yul=("EventWriter")

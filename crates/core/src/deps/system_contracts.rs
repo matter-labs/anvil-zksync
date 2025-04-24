@@ -16,12 +16,14 @@ use zksync_types::{
     EC_PAIRING_PRECOMPILE_ADDRESS, EVENT_WRITER_ADDRESS, EVM_GAS_MANAGER_ADDRESS,
     EVM_HASHES_STORAGE_ADDRESS, EVM_PREDEPLOYS_MANAGER_ADDRESS, IDENTITY_ADDRESS,
     IMMUTABLE_SIMULATOR_STORAGE_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS,
-    L1_MESSENGER_ADDRESS, L2_ASSET_ROUTER_ADDRESS, L2_BASE_TOKEN_ADDRESS, L2_BRIDGEHUB_ADDRESS,
-    L2_GENESIS_UPGRADE_ADDRESS, L2_INTEROP_ROOT_STORAGE_ADDRESS, L2_MESSAGE_ROOT_ADDRESS,
-    L2_MESSAGE_VERIFICATION_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS, L2_WRAPPED_BASE_TOKEN_IMPL,
-    MODEXP_PRECOMPILE_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS, NONCE_HOLDER_ADDRESS,
-    PUBDATA_CHUNK_PUBLISHER_ADDRESS, SECP256R1_VERIFY_PRECOMPILE_ADDRESS,
-    SHA256_PRECOMPILE_ADDRESS, SLOAD_CONTRACT_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
+    L1_MESSENGER_ADDRESS, L2_ASSET_ROUTER_ADDRESS, L2_ASSET_TRACKER_ADDRESS, L2_BASE_TOKEN_ADDRESS, 
+    L2_BRIDGEHUB_ADDRESS, L2_GENESIS_UPGRADE_ADDRESS, L2_INTEROP_CENTER_ADDRESS, 
+    L2_INTEROP_HANDLER_ADDRESS, L2_INTEROP_ROOT_STORAGE_ADDRESS, L2_MESSAGE_ROOT_ADDRESS,
+    L2_MESSAGE_VERIFICATION_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS, L2_STANDARD_TRIGGER_ACCOUNT_ADDRESS, 
+    L2_WRAPPED_BASE_TOKEN_IMPL, INTEROP_ACCOUNT_ADDRESS, MODEXP_PRECOMPILE_ADDRESS, 
+    MSG_VALUE_SIMULATOR_ADDRESS, NONCE_HOLDER_ADDRESS, PUBDATA_CHUNK_PUBLISHER_ADDRESS, 
+    SECP256R1_VERIFY_PRECOMPILE_ADDRESS, SHA256_PRECOMPILE_ADDRESS, SLOAD_CONTRACT_ADDRESS, 
+    SYSTEM_CONTEXT_ADDRESS,
 };
 use zksync_types::{AccountTreeId, Address, H160};
 
@@ -30,7 +32,7 @@ pub const TIMESTAMP_ASSERTER_ADDRESS: Address = H160([
     0x00, 0x80, 0x80, 0x12,
 ]);
 
-static BUILTIN_CONTRACT_ARCHIVES: [(ProtocolVersionId, &[u8]); 4] = [
+static BUILTIN_CONTRACT_ARCHIVES: [(ProtocolVersionId, &[u8]); 5] = [
     (
         ProtocolVersionId::Version26,
         include_bytes!("contracts/builtin-contracts-v26.tar.gz"),
@@ -44,8 +46,12 @@ static BUILTIN_CONTRACT_ARCHIVES: [(ProtocolVersionId, &[u8]); 4] = [
         include_bytes!("contracts/builtin-contracts-v28.tar.gz"),
     ),
     (
-        ProtocolVersionId::Version28,
+        ProtocolVersionId::Version29,
         include_bytes!("contracts/builtin-contracts-v29.tar.gz"),
+    ),
+    (
+        ProtocolVersionId::Version30,
+        include_bytes!("contracts/builtin-contracts-v30.tar.gz"),
     ),
 ];
 
@@ -125,9 +131,10 @@ const V26: ProtocolVersionId = ProtocolVersionId::Version26;
 const V27: ProtocolVersionId = ProtocolVersionId::Version27;
 const V28: ProtocolVersionId = ProtocolVersionId::Version28;
 const V29: ProtocolVersionId = ProtocolVersionId::Version29;
+const V30: ProtocolVersionId = ProtocolVersionId::Version30;
 
 /// Triple containing a name of a contract, its L2 address and minimum supported protocol version
-static BUILTIN_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 40] = [
+static BUILTIN_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 45] = [
     // *************************************************
     // *     Kernel contracts (base offset 0x8000)     *
     // *************************************************
@@ -172,6 +179,19 @@ static BUILTIN_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 40] = [
         "L2MessageVerification",
         L2_MESSAGE_VERIFICATION_ADDRESS,
         V29,
+    ),
+    ("InteropCenter", L2_INTEROP_CENTER_ADDRESS, V30),
+    ("InteropAccount", INTEROP_ACCOUNT_ADDRESS, V30),
+    ("StandardTriggerAccount", L2_STANDARD_TRIGGER_ACCOUNT_ADDRESS, V30),
+    (
+        "AssetTracker",
+        L2_ASSET_TRACKER_ADDRESS,
+        V30,
+    ),
+    (
+        "InteropHandler",
+        L2_INTEROP_HANDLER_ADDRESS,
+        V30,
     ),
     // *************************************************
     // *                 Precompiles                   *
