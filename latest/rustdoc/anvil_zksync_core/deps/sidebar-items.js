@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["system_contracts"],"struct":["InMemoryStorage"]};
