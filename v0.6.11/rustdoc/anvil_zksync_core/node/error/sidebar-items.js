@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["format_revert_reason_hex"],"trait":["ToHaltError","ToRevertReason"]};

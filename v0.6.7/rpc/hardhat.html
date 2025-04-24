@@ -1,0 +1,367 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>hardhat_ - Anvil-ZKsync Documentation</title>
+
+
+        <!-- Custom HTML head -->
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../css/version-box.css">
+        <link rel="stylesheet" href=".././css/mdbook-admonish.css">
+
+        <!-- MathJax -->
+        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Anvil-ZKsync Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/anvil-zksync/tree/main/docs/book" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/anvil-zksync/tree/main/docs/book/src/rpc/hardhat.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="hardhat_-namespace"><a class="header" href="#hardhat_-namespace"><code>hardhat_*</code> namespace</a></h1>
+<p>Utility methods that mimic <strong>Hardhat Network</strong> behavior (impersonation, snapshot resets, on demand
+mining, etc.).<br />
+Perfect for Hardhat test suites, Foundry scripts, or any framework that expects the Hardhat JSON-RPC
+surface.</p>
+<pre><code class="language-bash // [Example]">curl -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"hardhat_impersonateAccount","params":["0x…address…"]}'
+</code></pre>
+<h2 id="method-index"><a class="header" href="#method-index">Method index</a></h2>
+<h3 id="impersonation"><a class="header" href="#impersonation">Impersonation</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓ / ✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="#hardhat_impersonateaccount"><code>hardhat_impersonateAccount</code></a></td><td>✓</td><td>Start impersonating an address</td></tr>
+<tr><td><a href="#hardhat_stopimpersonatingaccount"><code>hardhat_stopImpersonatingAccount</code></a></td><td>✓</td><td>Stop impersonation</td></tr>
+</tbody></table>
+</div>
+<h3 id="mining--automine"><a class="header" href="#mining--automine">Mining &amp; automine</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓ / ✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="#hardhat_getautomine"><code>hardhat_getAutomine</code></a></td><td>▲</td><td>Always returns <code>true</code> (auto‑mine)</td></tr>
+<tr><td><a href="#hardhat_mine"><code>hardhat_mine</code></a></td><td>✓</td><td>Mine <em>N</em> blocks instantly</td></tr>
+</tbody></table>
+</div>
+<h3 id="chain-reset"><a class="header" href="#chain-reset">Chain reset</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓ / ✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="#hardhat_reset"><code>hardhat_reset</code></a></td><td>▲</td><td>Reset chain (blocknumber only when forked)</td></tr>
+</tbody></table>
+</div>
+<h3 id="state-modification"><a class="header" href="#state-modification">State modification</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓ / ✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="#hardhat_setbalance"><code>hardhat_setBalance</code></a></td><td>✓</td><td>Set account balance</td></tr>
+<tr><td><a href="#hardhat_setcode"><code>hardhat_setCode</code></a></td><td>✓</td><td>Set account bytecode</td></tr>
+<tr><td><a href="#hardhat_setnonce"><code>hardhat_setNonce</code></a></td><td>✓</td><td>Set account nonce</td></tr>
+<tr><td><a href="#hardhat_setstorageat"><code>hardhat_setStorageAt</code></a></td><td>✓</td><td>Set storage slot</td></tr>
+</tbody></table>
+</div>
+<h2 id="method-reference"><a class="header" href="#method-reference">Method reference</a></h2>
+<blockquote>
+<p>Hardhat’s full spec is in the <a href="https://hardhat.org/hardhat-network">Hardhat Network docs ↗︎</a>.</p>
+</blockquote>
+<h3 id="hardhat_impersonateaccount"><a class="header" href="#hardhat_impersonateaccount">hardhat_impersonateAccount <a id="hardhat_impersonateaccount" /></a></h3>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"hardhat_impersonateAccount",
+        "params":["0x…targetAddress…"]
+      }'
+</code></pre>
+<h3 id="hardhat_stopimpersonatingaccount"><a class="header" href="#hardhat_stopimpersonatingaccount">hardhat_stopImpersonatingAccount <a id="hardhat_stopimpersonatingaccount" /></a></h3>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"hardhat_stopImpersonatingAccount",
+        "params":["0x…targetAddress…"]
+      }'
+</code></pre>
+<h3 id="hardhat_getautomine-"><a class="header" href="#hardhat_getautomine-">hardhat_getAutomine ▲ <a id="hardhat_getautomine" /></a></h3>
+<p>Returns <code>true</code>.</p>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"hardhat_getAutomine","params":[]}'
+</code></pre>
+<h3 id="hardhat_mine"><a class="header" href="#hardhat_mine">hardhat_mine <a id="hardhat_mine" /></a></h3>
+<p>Mine one block <strong>or</strong> <code>N</code> blocks instantly.</p>
+<pre><code class="language-bash"># mine 1 block
+curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"hardhat_mine","params":[]}'
+</code></pre>
+<pre><code class="language-bash"># mine 5 blocks
+curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":2,"method":"hardhat_mine","params":["0x5"]}'
+</code></pre>
+<h3 id="hardhat_reset-"><a class="header" href="#hardhat_reset-">hardhat_reset ▲ <a id="hardhat_reset" /></a></h3>
+<p>Resets the chain state.<br />
+Blocknumber rewinds only work while running in <strong>fork mode</strong>.</p>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"hardhat_reset","params":[]}'
+</code></pre>
+<h3 id="hardhat_setbalance"><a class="header" href="#hardhat_setbalance">hardhat_setBalance <a id="hardhat_setbalance" /></a></h3>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"hardhat_setBalance",
+        "params":["0x…targetAddress…", "0xDE0B6B3A7640000"]  // 1 ETH
+      }'
+</code></pre>
+<h3 id="hardhat_setcode"><a class="header" href="#hardhat_setcode">hardhat_setCode <a id="hardhat_setcode" /></a></h3>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"hardhat_setCode",
+        "params":["0x…targetAddress…", "0x60006000…"]  // EVM bytecode
+      }'
+</code></pre>
+<h3 id="hardhat_setnonce"><a class="header" href="#hardhat_setnonce">hardhat_setNonce <a id="hardhat_setnonce" /></a></h3>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"hardhat_setNonce",
+        "params":["0x…targetAddress…", "0xA"]  // nonce = 10
+      }'
+</code></pre>
+<h3 id="hardhat_setstorageat"><a class="header" href="#hardhat_setstorageat">hardhat_setStorageAt <a id="hardhat_setstorageat" /></a></h3>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"hardhat_setStorageAt",
+        "params":[
+          "0x…targetAddress…",
+          "0x0",                    // storage slot
+          "0x0000000000000000000000000000000000000000000000000000000000000042"
+        ]
+      }'
+</code></pre>
+<h2 id="unimplemented-stubs"><a class="header" href="#unimplemented-stubs">Unimplemented stubs</a></h2>
+<p>The following methods are not yet implemented and will return <code>Method not found</code>:</p>
+<ul>
+<li><code>hardhat_addCompilationResult</code></li>
+<li><code>hardhat_dropTransaction</code></li>
+<li><code>hardhat_metadata</code></li>
+<li><code>hardhat_setCoinbase</code></li>
+<li><code>hardhat_setLoggingEnabled</code></li>
+<li><code>hardhat_setMinGasPrice</code></li>
+<li><code>hardhat_setNextBlockBaseFeePerGas</code></li>
+<li><code>hardhat_setPrevRandao</code></li>
+</ul>
+<h2 id="see-also"><a class="header" href="#see-also">See also</a></h2>
+<ul>
+<li><a href="./eth.html"><code>eth_*</code></a> — Ethereum compatible base methods</li>
+<li><a href="./zks.html"><code>zks_*</code></a> — ZKsync specific extensions</li>
+<li><a href="./anvil.html"><code>anvil_*</code></a> — node management helpers</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../rpc/anvil.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../rpc/misc.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../rpc/anvil.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../rpc/misc.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../ace.js"></script>
+        <script src="../editor.js"></script>
+        <script src="../mode-rust.js"></script>
+        <script src="../theme-dawn.js"></script>
+        <script src="../theme-tomorrow_night.js"></script>
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../js/version-box.js"></script>
+        <script src="../js/mermaid-init.js"></script>
+
+
+    </div>
+    </body>
+</html>

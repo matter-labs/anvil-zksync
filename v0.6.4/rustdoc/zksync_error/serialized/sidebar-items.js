@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["serialize","serialize_ref","unpack_typed","unpack_untyped"],"struct":["SerializedError"],"type":["ErrorCode"]};

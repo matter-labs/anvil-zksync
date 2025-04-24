@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["PubdataBytesInfo"],"fn":["compute_gas_details"],"mod":["transaction"],"struct":["ExecutionErrorReport","Formatter","GasDetails"]};

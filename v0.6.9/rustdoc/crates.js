@@ -1,0 +1,2 @@
+window.ALL_CRATES = ["anvil_zksync","anvil_zksync_api_decl","anvil_zksync_api_server","anvil_zksync_common","anvil_zksync_config","anvil_zksync_console","anvil_zksync_core","anvil_zksync_l1_sidecar","anvil_zksync_traces","anvil_zksync_types","zksync_error"];
+//{"start":21,"fragment_lengths":[14,24,26,22,22,23,20,26,22,21,15]}
