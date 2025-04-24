@@ -28,7 +28,7 @@ rust-doc:
 
 # Serve docs site locally
 docs-site:
-	cd docs/site && bun install && bun run dev
+	cd docs/book && mdbook serve --open
 
 # Lint checks
 lint:
@@ -39,7 +39,6 @@ lint:
 	cargo clippy --tests -p anvil-zksync -- -D warnings --allow clippy::unwrap_used
 	cd e2e-tests-rust && cargo clippy --tests -- -D warnings --allow clippy::unwrap_used
 	cd spec-tests && cargo clippy --tests -- -D warnings --allow clippy::unwrap_used
-	cd docs/site && yarn && yarn check-lint && yarn check-format
 
 # Fix lint errors
 lint-fix:
@@ -50,7 +49,6 @@ lint-fix:
 	cd e2e-tests-rust && cargo clippy --fix
 	cd spec-tests && cargo fmt --all
 	cd spec-tests && cargo clippy --fix
-	cd docs/site && yarn && yarn lint && yarn format
 
 # Run unit tests for Rust code
 test:
