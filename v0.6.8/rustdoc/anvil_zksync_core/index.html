@@ -1,0 +1,44 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="anvil-zksync"><title>anvil_zksync_core - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-916cea96.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="anvil_zksync_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.87.0-nightly (75530e9f7 2025-03-18)" data-channel="nightly" data-search-js="search-e7298875.js" data-settings-js="settings-d72f25bb.js" ><script src="../static.files/storage-d8ac8691.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-fb8c74a8.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../anvil_zksync_core/index.html">anvil_<wbr>zksync_<wbr>core</a><span class="version">0.6.8</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#overview" title="Overview">Overview</a></li><li><a href="#features" title="Features">Features</a></li><li><a href="#limitations" title="Limitations">Limitations</a></li><li><a href="#usage" title="Usage">Usage</a></li><li><a href="#contributions" title="Contributions">Contributions</a></li></ul><h3><a href="#modules">Crate Items</a></h3><ul class="block"><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#macros" title="Macros">Macros</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Crate <span>anvil_zksync_core</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/anvil_zksync_core/lib.rs.html#1-56">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>anvil-zksync</p>
+<p>The <code>anvil-zksync</code> crate provides an in-memory node designed primarily for local testing.
+It supports forking the state from other networks, making it a valuable tool for integration testing,
+bootloader and system contract testing, and prototyping.</p>
+<h3 id="overview"><a class="doc-anchor" href="#overview">§</a>Overview</h3>
+<ul>
+<li>
+<p><strong>In-Memory Database</strong>: The node uses an in-memory database for storing state information,
+and employs simplified hashmaps for tracking blocks and transactions.</p>
+</li>
+<li>
+<p><strong>Forking</strong>: In fork mode, the node fetches missing storage data from a remote source if not available locally.</p>
+</li>
+<li>
+<p><strong>Remote Server Interaction</strong>: The node can use the remote server (openchain) to resolve the ABI and topics
+to human-readable names.</p>
+</li>
+<li>
+<p><strong>Local Testing</strong>: Designed for local testing, this node is not intended for production use.</p>
+</li>
+</ul>
+<h3 id="features"><a class="doc-anchor" href="#features">§</a>Features</h3>
+<ul>
+<li>Fork the state of mainnet, testnet, or a custom network.</li>
+<li>Replay existing mainnet or testnet transactions.</li>
+<li>Use local bootloader and system contracts.</li>
+<li>Operate deterministically in non-fork mode.</li>
+<li>Start quickly with pre-configured ‘rich’ accounts.</li>
+<li>Resolve names of ABI functions and Events using openchain.</li>
+</ul>
+<h3 id="limitations"><a class="doc-anchor" href="#limitations">§</a>Limitations</h3>
+<ul>
+<li>No communication between Layer 1 and Layer 2.</li>
+<li>Many APIs are not yet implemented.</li>
+<li>No support for accessing historical data.</li>
+<li>Only one transaction allowed per Layer 1 batch.</li>
+</ul>
+<h3 id="usage"><a class="doc-anchor" href="#usage">§</a>Usage</h3>
+<p>To start the node, use the command <code>anvil-zksync run</code>. For more advanced functionalities like forking or
+replaying transactions, refer to the <a href="https://era.zksync.io/docs/tools/testing/anvil-zksync.html">official documentation</a>.</p>
+<h3 id="contributions"><a class="doc-anchor" href="#contributions">§</a>Contributions</h3>
+<p>Contributions to improve <code>anvil-zksync</code> are welcome. Please refer to the <a href="https://github.com/matter-labs/anvil-zksync/blob/main/.github/CONTRIBUTING.md">contribution guidelines</a> for more details.</p>
+</div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="bootloader_debug/index.html" title="mod anvil_zksync_core::bootloader_debug">bootloader_<wbr>debug</a></dt><dt><a class="mod" href="deps/index.html" title="mod anvil_zksync_core::deps">deps</a></dt><dt><a class="mod" href="filters/index.html" title="mod anvil_zksync_core::filters">filters</a></dt><dt><a class="mod" href="formatter/index.html" title="mod anvil_zksync_core::formatter">formatter</a></dt><dd>Format various types of transaction data in a human-readable format for
+displaying in the anvil-zksync output.</dd><dt><a class="mod" href="node/index.html" title="mod anvil_zksync_core::node">node</a></dt><dd>anvil-zksync, that supports forking other networks.</dd><dt><a class="mod" href="observability/index.html" title="mod anvil_zksync_core::observability">observability</a></dt><dt><a class="mod" href="system_contracts/index.html" title="mod anvil_zksync_core::system_contracts">system_<wbr>contracts</a></dt><dt><a class="mod" href="utils/index.html" title="mod anvil_zksync_core::utils">utils</a></dt></dl><h2 id="macros" class="section-header">Macros<a href="#macros" class="anchor">§</a></h2><dl class="item-table"><dt><a class="macro" href="macro.delegate_vm.html" title="macro anvil_zksync_core::delegate_vm">delegate_<wbr>vm</a></dt></dl></section></div></main></body></html>

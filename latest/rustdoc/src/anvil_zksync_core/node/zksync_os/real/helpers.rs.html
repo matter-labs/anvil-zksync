@@ -1,0 +1,738 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/core/src/node/zksync_os/real/helpers.rs`."><title>helpers.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../../static.files/rustdoc-916cea96.css"><meta name="rustdoc-vars" data-root-path="../../../../../" data-static-root-path="../../../../../static.files/" data-current-crate="anvil_zksync_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.87.0-nightly (75530e9f7 2025-03-18)" data-channel="nightly" data-search-js="search-e7298875.js" data-settings-js="settings-d72f25bb.js" ><script src="../../../../../static.files/storage-d8ac8691.js"></script><script defer src="../../../../../static.files/src-script-b8d3f215.js"></script><script defer src="../../../../../src-files.js"></script><script defer src="../../../../../static.files/main-fb8c74a8.js"></script><noscript><link rel="stylesheet" href="../../../../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">anvil_zksync_core/node/zksync_os/real/</div>helpers.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Collection of non-public helper functions for the `zksync_os` module.
+<a href=#2 id=2 data-nosnippet>2</a>//! Keep in mind that this module can be only conditionally available depending on the
+<a href=#3 id=3 data-nosnippet>3</a>//! `zksync_os` feature flag.
+<a href=#4 id=4 data-nosnippet>4</a>
+<a href=#5 id=5 data-nosnippet>5</a></span><span class="kw">use </span>std::{alloc::Global, collections::HashMap, vec};
+<a href=#6 id=6 data-nosnippet>6</a>
+<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>basic_system::system_implementation::flat_storage_model::{
+<a href=#8 id=8 data-nosnippet>8</a>    ACCOUNT_PROPERTIES_STORAGE_ADDRESS, AccountProperties, TestingTree,
+<a href=#9 id=9 data-nosnippet>9</a>    address_into_special_storage_key, bytecode_padding_len,
+<a href=#10 id=10 data-nosnippet>10</a>};
+<a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span>forward_system::run::{
+<a href=#12 id=12 data-nosnippet>12</a>    StorageCommitment,
+<a href=#13 id=13 data-nosnippet>13</a>    test_impl::{InMemoryPreimageSource, InMemoryTree, NoopTxCallback, TxListSource},
+<a href=#14 id=14 data-nosnippet>14</a>};
+<a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span>ruint::aliases::B160;
+<a href=#16 id=16 data-nosnippet>16</a><span class="kw">use </span>system_hooks::addresses_constants::{ACCOUNT_CODE_STORAGE_STORAGE_ADDRESS, BASE_TOKEN_ADDRESS};
+<a href=#17 id=17 data-nosnippet>17</a><span class="kw">use </span>zk_ee::{
+<a href=#18 id=18 data-nosnippet>18</a>    common_structs::derive_flat_storage_key, execution_environment_type::ExecutionEnvironmentType,
+<a href=#19 id=19 data-nosnippet>19</a>    utils::Bytes32,
+<a href=#20 id=20 data-nosnippet>20</a>};
+<a href=#21 id=21 data-nosnippet>21</a><span class="kw">use </span>zksync_multivm::interface::{
+<a href=#22 id=22 data-nosnippet>22</a>    ExecutionResult, L1BatchEnv, Refunds, VmExecutionLogs, VmExecutionResultAndLogs,
+<a href=#23 id=23 data-nosnippet>23</a>    VmRevertReason,
+<a href=#24 id=24 data-nosnippet>24</a>    storage::{StoragePtr, WriteStorage},
+<a href=#25 id=25 data-nosnippet>25</a>};
+<a href=#26 id=26 data-nosnippet>26</a>
+<a href=#27 id=27 data-nosnippet>27</a><span class="kw">use </span>zksync_types::{
+<a href=#28 id=28 data-nosnippet>28</a>    AccountTreeId, Address, ExecuteTransactionCommon, H160, H256, StorageKey, StorageLog,
+<a href=#29 id=29 data-nosnippet>29</a>    StorageLogWithPreviousValue, Transaction, U256, address_to_h256, get_code_key, u256_to_h256,
+<a href=#30 id=30 data-nosnippet>30</a>    web3::keccak256,
+<a href=#31 id=31 data-nosnippet>31</a>};
+<a href=#32 id=32 data-nosnippet>32</a>
+<a href=#33 id=33 data-nosnippet>33</a><span class="kw">use </span><span class="kw">crate</span>::deps::InMemoryStorage;
+<a href=#34 id=34 data-nosnippet>34</a><span class="kw">use </span>once_cell::sync::Lazy;
+<a href=#35 id=35 data-nosnippet>35</a><span class="kw">use </span>std::sync::Mutex;
+<a href=#36 id=36 data-nosnippet>36</a>
+<a href=#37 id=37 data-nosnippet>37</a><span class="kw">pub const </span>ZKSYNC_OS_CALL_GAS_LIMIT: u64 = <span class="number">100_000_000</span>;
+<a href=#38 id=38 data-nosnippet>38</a>
+<a href=#39 id=39 data-nosnippet>39</a><span class="kw">static </span>BATCH_WITNESS: Lazy&lt;Mutex&lt;HashMap&lt;u32, Vec&lt;u8&gt;&gt;&gt;&gt; = Lazy::new(|| {
+<a href=#40 id=40 data-nosnippet>40</a>    <span class="kw">let </span>m = HashMap::new();
+<a href=#41 id=41 data-nosnippet>41</a>    Mutex::new(m)
+<a href=#42 id=42 data-nosnippet>42</a>});
+<a href=#43 id=43 data-nosnippet>43</a>
+<a href=#44 id=44 data-nosnippet>44</a><span class="comment">// TODO: we're using some unused spot.
+<a href=#45 id=45 data-nosnippet>45</a>// As nonces are normally kept inside account properties, and here we only 'simulate' putting them in some
+<a href=#46 id=46 data-nosnippet>46</a>// location, so that the rest of the anvil can work.
+<a href=#47 id=47 data-nosnippet>47</a>// But if we tried reading stuff from 0x8003, where nonces are normally located - we might be reading some garbage.
+<a href=#48 id=48 data-nosnippet>48</a></span><span class="kw">const </span>FAKE_NONCE_ADDRESS: B160 = B160::from_limbs([<span class="number">0x8153_u64</span>, <span class="number">0</span>, <span class="number">0</span>]);
+<a href=#49 id=49 data-nosnippet>49</a>
+<a href=#50 id=50 data-nosnippet>50</a><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>set_batch_witness(key: u32, value: Vec&lt;u8&gt;) {
+<a href=#51 id=51 data-nosnippet>51</a>    <span class="kw">let </span><span class="kw-2">mut </span>map = BATCH_WITNESS.lock().unwrap();
+<a href=#52 id=52 data-nosnippet>52</a>    map.insert(key, value);
+<a href=#53 id=53 data-nosnippet>53</a>}
+<a href=#54 id=54 data-nosnippet>54</a>
+<a href=#55 id=55 data-nosnippet>55</a><span class="kw">pub fn </span>zksync_os_get_batch_witness(key: <span class="kw-2">&amp;</span>u32) -&gt; <span class="prelude-ty">Option</span>&lt;Vec&lt;u8&gt;&gt; {
+<a href=#56 id=56 data-nosnippet>56</a>    <span class="kw">let </span>map = BATCH_WITNESS.lock().unwrap();
+<a href=#57 id=57 data-nosnippet>57</a>    map.get(key).cloned()
+<a href=#58 id=58 data-nosnippet>58</a>}
+<a href=#59 id=59 data-nosnippet>59</a>
+<a href=#60 id=60 data-nosnippet>60</a><span class="kw">pub fn </span>zksync_os_get_nonce_key(account: <span class="kw-2">&amp;</span>Address) -&gt; StorageKey {
+<a href=#61 id=61 data-nosnippet>61</a>    <span class="kw">let </span>nonce_manager = AccountTreeId::new(b160_to_h160(FAKE_NONCE_ADDRESS));
+<a href=#62 id=62 data-nosnippet>62</a>
+<a href=#63 id=63 data-nosnippet>63</a>    <span class="comment">// The `minNonce` (used as nonce for EOAs) is stored in a mapping inside the `NONCE_HOLDER` system contract
+<a href=#64 id=64 data-nosnippet>64</a>    </span><span class="kw">let </span>key = address_to_h256(account);
+<a href=#65 id=65 data-nosnippet>65</a>
+<a href=#66 id=66 data-nosnippet>66</a>    StorageKey::new(nonce_manager, key)
+<a href=#67 id=67 data-nosnippet>67</a>}
+<a href=#68 id=68 data-nosnippet>68</a>
+<a href=#69 id=69 data-nosnippet>69</a><span class="kw">pub fn </span>zksync_os_storage_key_for_eth_balance(address: <span class="kw-2">&amp;</span>Address) -&gt; StorageKey {
+<a href=#70 id=70 data-nosnippet>70</a>    zkos_storage_key_for_standard_token_balance(
+<a href=#71 id=71 data-nosnippet>71</a>        AccountTreeId::new(b160_to_h160(BASE_TOKEN_ADDRESS)),
+<a href=#72 id=72 data-nosnippet>72</a>        address,
+<a href=#73 id=73 data-nosnippet>73</a>    )
+<a href=#74 id=74 data-nosnippet>74</a>}
+<a href=#75 id=75 data-nosnippet>75</a>
+<a href=#76 id=76 data-nosnippet>76</a><span class="comment">// Helper methods for different convertions.
+<a href=#77 id=77 data-nosnippet>77</a></span><span class="kw">fn </span>bytes32_to_h256(data: Bytes32) -&gt; H256 {
+<a href=#78 id=78 data-nosnippet>78</a>    H256::from(data.as_u8_array_ref())
+<a href=#79 id=79 data-nosnippet>79</a>}
+<a href=#80 id=80 data-nosnippet>80</a>
+<a href=#81 id=81 data-nosnippet>81</a><span class="kw">fn </span>h256_to_bytes32(data: <span class="kw-2">&amp;</span>H256) -&gt; Bytes32 {
+<a href=#82 id=82 data-nosnippet>82</a>    Bytes32::from(<span class="kw-2">*</span>data.as_fixed_bytes())
+<a href=#83 id=83 data-nosnippet>83</a>}
+<a href=#84 id=84 data-nosnippet>84</a>
+<a href=#85 id=85 data-nosnippet>85</a><span class="kw">fn </span>b160_to_h160(data: B160) -&gt; H160 {
+<a href=#86 id=86 data-nosnippet>86</a>    H160::from_slice(<span class="kw-2">&amp;</span>data.to_be_bytes_vec())
+<a href=#87 id=87 data-nosnippet>87</a>}
+<a href=#88 id=88 data-nosnippet>88</a>
+<a href=#89 id=89 data-nosnippet>89</a><span class="kw">fn </span>pad_to_word(input: <span class="kw-2">&amp;</span>[u8]) -&gt; Vec&lt;u8&gt; {
+<a href=#90 id=90 data-nosnippet>90</a>    <span class="kw">let </span><span class="kw-2">mut </span>data = input.to_owned();
+<a href=#91 id=91 data-nosnippet>91</a>    <span class="kw">let </span>remainder = input.len().div_ceil(<span class="number">32</span>) * <span class="number">32 </span>- input.len();
+<a href=#92 id=92 data-nosnippet>92</a>    data.extend(std::iter::repeat_n(<span class="number">0u8</span>, remainder));
+<a href=#93 id=93 data-nosnippet>93</a>    data
+<a href=#94 id=94 data-nosnippet>94</a>}
+<a href=#95 id=95 data-nosnippet>95</a>
+<a href=#96 id=96 data-nosnippet>96</a><span class="kw">fn </span>h160_to_b160(data: <span class="kw-2">&amp;</span>H160) -&gt; B160 {
+<a href=#97 id=97 data-nosnippet>97</a>    B160::from_be_bytes(<span class="kw-2">*</span>data.as_fixed_bytes())
+<a href=#98 id=98 data-nosnippet>98</a>}
+<a href=#99 id=99 data-nosnippet>99</a>
+<a href=#100 id=100 data-nosnippet>100</a><span class="comment">// Helper methods to add data to the Vec&lt;u8&gt; in the format expected by ZKOS.
+<a href=#101 id=101 data-nosnippet>101</a></span><span class="kw">fn </span>append_address(data: <span class="kw-2">&amp;mut </span>Vec&lt;u8&gt;, address: <span class="kw-2">&amp;</span>H160) {
+<a href=#102 id=102 data-nosnippet>102</a>    <span class="kw">let </span><span class="kw-2">mut </span>pp = <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">32</span>];
+<a href=#103 id=103 data-nosnippet>103</a>    <span class="kw">let </span>ap1 = address.as_fixed_bytes();
+<a href=#104 id=104 data-nosnippet>104</a>    pp[<span class="number">12</span>..(<span class="number">20 </span>+ <span class="number">12</span>)].copy_from_slice(ap1);
+<a href=#105 id=105 data-nosnippet>105</a>    data.append(<span class="kw-2">&amp;mut </span>pp);
+<a href=#106 id=106 data-nosnippet>106</a>}
+<a href=#107 id=107 data-nosnippet>107</a>
+<a href=#108 id=108 data-nosnippet>108</a><span class="kw">fn </span>append_u256(data: <span class="kw-2">&amp;mut </span>Vec&lt;u8&gt;, payload: <span class="kw-2">&amp;</span>zksync_types::U256) {
+<a href=#109 id=109 data-nosnippet>109</a>    <span class="kw">let </span><span class="kw-2">mut </span>pp = [<span class="number">0u8</span>; <span class="number">32</span>];
+<a href=#110 id=110 data-nosnippet>110</a>    payload.to_big_endian(<span class="kw-2">&amp;mut </span>pp);
+<a href=#111 id=111 data-nosnippet>111</a>
+<a href=#112 id=112 data-nosnippet>112</a>    data.append(<span class="kw-2">&amp;mut </span>pp.to_vec());
+<a href=#113 id=113 data-nosnippet>113</a>}
+<a href=#114 id=114 data-nosnippet>114</a><span class="kw">fn </span>append_u64(data: <span class="kw-2">&amp;mut </span>Vec&lt;u8&gt;, payload: u64) {
+<a href=#115 id=115 data-nosnippet>115</a>    <span class="kw">let </span><span class="kw-2">mut </span>pp = [<span class="number">0u8</span>; <span class="number">32</span>];
+<a href=#116 id=116 data-nosnippet>116</a>    <span class="kw">let </span>pp1 = payload.to_be_bytes();
+<a href=#117 id=117 data-nosnippet>117</a>    pp[<span class="number">24</span>..(<span class="number">8 </span>+ <span class="number">24</span>)].copy_from_slice(<span class="kw-2">&amp;</span>pp1);
+<a href=#118 id=118 data-nosnippet>118</a>    data.append(<span class="kw-2">&amp;mut </span>pp.to_vec());
+<a href=#119 id=119 data-nosnippet>119</a>}
+<a href=#120 id=120 data-nosnippet>120</a>
+<a href=#121 id=121 data-nosnippet>121</a><span class="kw">fn </span>append_usize(data: <span class="kw-2">&amp;mut </span>Vec&lt;u8&gt;, payload: usize) {
+<a href=#122 id=122 data-nosnippet>122</a>    <span class="kw">let </span><span class="kw-2">mut </span>pp = [<span class="number">0u8</span>; <span class="number">32</span>];
+<a href=#123 id=123 data-nosnippet>123</a>    <span class="kw">let </span>pp1 = payload.to_be_bytes();
+<a href=#124 id=124 data-nosnippet>124</a>    pp[<span class="number">24</span>..(<span class="number">8 </span>+ <span class="number">24</span>)].copy_from_slice(<span class="kw-2">&amp;</span>pp1);
+<a href=#125 id=125 data-nosnippet>125</a>    data.append(<span class="kw-2">&amp;mut </span>pp.to_vec());
+<a href=#126 id=126 data-nosnippet>126</a>}
+<a href=#127 id=127 data-nosnippet>127</a>
+<a href=#128 id=128 data-nosnippet>128</a><span class="doccomment">/// Iterates over raw storage and creates a tree from it.
+<a href=#129 id=129 data-nosnippet>129</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>create_tree_from_full_state(
+<a href=#130 id=130 data-nosnippet>130</a>    raw_storage: <span class="kw-2">&amp;</span>InMemoryStorage,
+<a href=#131 id=131 data-nosnippet>131</a>) -&gt; (InMemoryTree, InMemoryPreimageSource) {
+<a href=#132 id=132 data-nosnippet>132</a>    <span class="kw">let </span>original_state = <span class="kw-2">&amp;</span>raw_storage.state;
+<a href=#133 id=133 data-nosnippet>133</a>    <span class="kw">let </span><span class="kw-2">mut </span>tree = InMemoryTree {
+<a href=#134 id=134 data-nosnippet>134</a>        storage_tree: TestingTree::new_in(Global),
+<a href=#135 id=135 data-nosnippet>135</a>        cold_storage: HashMap::new(),
+<a href=#136 id=136 data-nosnippet>136</a>    };
+<a href=#137 id=137 data-nosnippet>137</a>    <span class="kw">let </span><span class="kw-2">mut </span>preimage_source = InMemoryPreimageSource {
+<a href=#138 id=138 data-nosnippet>138</a>        inner: HashMap::new(),
+<a href=#139 id=139 data-nosnippet>139</a>    };
+<a href=#140 id=140 data-nosnippet>140</a>    <span class="kw">for </span>entry <span class="kw">in </span><span class="kw-2">&amp;</span>raw_storage.factory_deps {
+<a href=#141 id=141 data-nosnippet>141</a>        preimage_source
+<a href=#142 id=142 data-nosnippet>142</a>            .inner
+<a href=#143 id=143 data-nosnippet>143</a>            .insert(h256_to_bytes32(entry.<span class="number">0</span>), entry.<span class="number">1</span>.clone());
+<a href=#144 id=144 data-nosnippet>144</a>    }
+<a href=#145 id=145 data-nosnippet>145</a>
+<a href=#146 id=146 data-nosnippet>146</a>    <span class="kw">for </span>entry <span class="kw">in </span>original_state {
+<a href=#147 id=147 data-nosnippet>147</a>        <span class="kw">let </span>kk = derive_flat_storage_key(
+<a href=#148 id=148 data-nosnippet>148</a>            <span class="kw-2">&amp;</span>h160_to_b160(entry.<span class="number">0</span>.address()),
+<a href=#149 id=149 data-nosnippet>149</a>            <span class="kw-2">&amp;</span>h256_to_bytes32(entry.<span class="number">0</span>.key()),
+<a href=#150 id=150 data-nosnippet>150</a>        );
+<a href=#151 id=151 data-nosnippet>151</a>        <span class="kw">let </span>vv = h256_to_bytes32(entry.<span class="number">1</span>);
+<a href=#152 id=152 data-nosnippet>152</a>
+<a href=#153 id=153 data-nosnippet>153</a>        <span class="kw">let </span>aa = h256_to_bytes32(entry.<span class="number">0</span>.key());
+<a href=#154 id=154 data-nosnippet>154</a>        <span class="kw">let </span>cc = B160::try_from_be_slice(<span class="kw-2">&amp;</span>aa.as_u8_array()[<span class="number">12</span>..]).unwrap();
+<a href=#155 id=155 data-nosnippet>155</a>
+<a href=#156 id=156 data-nosnippet>156</a>        <span class="kw">if </span>entry.<span class="number">0</span>.address() == <span class="kw-2">&amp;</span>b160_to_h160(FAKE_NONCE_ADDRESS) {
+<a href=#157 id=157 data-nosnippet>157</a>            set_account_properties(
+<a href=#158 id=158 data-nosnippet>158</a>                <span class="kw-2">&amp;mut </span>tree,
+<a href=#159 id=159 data-nosnippet>159</a>                <span class="kw-2">&amp;mut </span>preimage_source,
+<a href=#160 id=160 data-nosnippet>160</a>                cc,
+<a href=#161 id=161 data-nosnippet>161</a>                <span class="prelude-val">None</span>,
+<a href=#162 id=162 data-nosnippet>162</a>                <span class="prelude-val">Some</span>(entry.<span class="number">1</span>.to_low_u64_be()),
+<a href=#163 id=163 data-nosnippet>163</a>                <span class="prelude-val">None</span>,
+<a href=#164 id=164 data-nosnippet>164</a>            );
+<a href=#165 id=165 data-nosnippet>165</a>        }
+<a href=#166 id=166 data-nosnippet>166</a>
+<a href=#167 id=167 data-nosnippet>167</a>        <span class="kw">if </span>entry.<span class="number">0</span>.address() == <span class="kw-2">&amp;</span>b160_to_h160(BASE_TOKEN_ADDRESS) {
+<a href=#168 id=168 data-nosnippet>168</a>            set_account_properties(
+<a href=#169 id=169 data-nosnippet>169</a>                <span class="kw-2">&amp;mut </span>tree,
+<a href=#170 id=170 data-nosnippet>170</a>                <span class="kw-2">&amp;mut </span>preimage_source,
+<a href=#171 id=171 data-nosnippet>171</a>                cc,
+<a href=#172 id=172 data-nosnippet>172</a>                <span class="prelude-val">Some</span>(ruint::aliases::U256::from_be_slice(entry.<span class="number">1</span>.as_bytes())),
+<a href=#173 id=173 data-nosnippet>173</a>                <span class="prelude-val">None</span>,
+<a href=#174 id=174 data-nosnippet>174</a>                <span class="prelude-val">None</span>,
+<a href=#175 id=175 data-nosnippet>175</a>            );
+<a href=#176 id=176 data-nosnippet>176</a>        }
+<a href=#177 id=177 data-nosnippet>177</a>
+<a href=#178 id=178 data-nosnippet>178</a>        <span class="kw">if </span>entry.<span class="number">0</span>.address() == <span class="kw-2">&amp;</span>b160_to_h160(ACCOUNT_CODE_STORAGE_STORAGE_ADDRESS) {
+<a href=#179 id=179 data-nosnippet>179</a>            <span class="macro">println!</span>(<span class="string">"Setting bytecode for {:?}"</span>, entry.<span class="number">0</span>.key());
+<a href=#180 id=180 data-nosnippet>180</a>            <span class="kw">if </span>entry.<span class="number">0</span>.key().is_zero() {
+<a href=#181 id=181 data-nosnippet>181</a>                <span class="kw">continue</span>;
+<a href=#182 id=182 data-nosnippet>182</a>            }
+<a href=#183 id=183 data-nosnippet>183</a>            <span class="kw">if </span>entry.<span class="number">1</span>.is_zero() {
+<a href=#184 id=184 data-nosnippet>184</a>                <span class="kw">continue</span>;
+<a href=#185 id=185 data-nosnippet>185</a>            }
+<a href=#186 id=186 data-nosnippet>186</a>
+<a href=#187 id=187 data-nosnippet>187</a>            <span class="kw">let </span>bytecode_hash = entry.<span class="number">1</span>;
+<a href=#188 id=188 data-nosnippet>188</a>            <span class="kw">let </span>bytecode = raw_storage
+<a href=#189 id=189 data-nosnippet>189</a>                .factory_deps
+<a href=#190 id=190 data-nosnippet>190</a>                .get(bytecode_hash)
+<a href=#191 id=191 data-nosnippet>191</a>                .unwrap_or_else(|| <span class="macro">panic!</span>(<span class="string">"Cannot find bytecode for {:?}"</span>, bytecode_hash));
+<a href=#192 id=192 data-nosnippet>192</a>            set_account_properties(
+<a href=#193 id=193 data-nosnippet>193</a>                <span class="kw-2">&amp;mut </span>tree,
+<a href=#194 id=194 data-nosnippet>194</a>                <span class="kw-2">&amp;mut </span>preimage_source,
+<a href=#195 id=195 data-nosnippet>195</a>                cc,
+<a href=#196 id=196 data-nosnippet>196</a>                <span class="prelude-val">None</span>,
+<a href=#197 id=197 data-nosnippet>197</a>                <span class="prelude-val">None</span>,
+<a href=#198 id=198 data-nosnippet>198</a>                <span class="prelude-val">Some</span>(bytecode.clone()),
+<a href=#199 id=199 data-nosnippet>199</a>            );
+<a href=#200 id=200 data-nosnippet>200</a>        }
+<a href=#201 id=201 data-nosnippet>201</a>
+<a href=#202 id=202 data-nosnippet>202</a>        tree.storage_tree.insert(<span class="kw-2">&amp;</span>kk, <span class="kw-2">&amp;</span>vv);
+<a href=#203 id=203 data-nosnippet>203</a>        tree.cold_storage.insert(kk, vv);
+<a href=#204 id=204 data-nosnippet>204</a>    }
+<a href=#205 id=205 data-nosnippet>205</a>
+<a href=#206 id=206 data-nosnippet>206</a>    (tree, preimage_source)
+<a href=#207 id=207 data-nosnippet>207</a>}
+<a href=#208 id=208 data-nosnippet>208</a>
+<a href=#209 id=209 data-nosnippet>209</a><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>add_elem_to_tree(tree: <span class="kw-2">&amp;mut </span>InMemoryTree, k: <span class="kw-2">&amp;</span>StorageKey, v: <span class="kw-2">&amp;</span>H256) {
+<a href=#210 id=210 data-nosnippet>210</a>    <span class="kw">let </span>kk = derive_flat_storage_key(<span class="kw-2">&amp;</span>h160_to_b160(k.address()), <span class="kw-2">&amp;</span>h256_to_bytes32(k.key()));
+<a href=#211 id=211 data-nosnippet>211</a>    <span class="kw">let </span>vv = h256_to_bytes32(v);
+<a href=#212 id=212 data-nosnippet>212</a>
+<a href=#213 id=213 data-nosnippet>213</a>    tree.storage_tree.insert(<span class="kw-2">&amp;</span>kk, <span class="kw-2">&amp;</span>vv);
+<a href=#214 id=214 data-nosnippet>214</a>    tree.cold_storage.insert(kk, vv);
+<a href=#215 id=215 data-nosnippet>215</a>}
+<a href=#216 id=216 data-nosnippet>216</a>
+<a href=#217 id=217 data-nosnippet>217</a><span class="comment">// Serialize Transaction to ZKOS format.
+<a href=#218 id=218 data-nosnippet>218</a>// Should match the code in basic_bootloader/src/bootloader/transaction/mod.rs
+<a href=#219 id=219 data-nosnippet>219</a></span><span class="kw">fn </span>transaction_to_zkos_vec(tx: <span class="kw-2">&amp;</span>Transaction) -&gt; Vec&lt;u8&gt; {
+<a href=#220 id=220 data-nosnippet>220</a>    <span class="kw">let </span><span class="kw-2">mut </span>tx_raw: Vec&lt;u8&gt; = <span class="macro">vec!</span>[];
+<a href=#221 id=221 data-nosnippet>221</a>    <span class="kw">let </span>tx_type_id = <span class="kw">match </span>tx.tx_format() {
+<a href=#222 id=222 data-nosnippet>222</a>        zksync_types::l2::TransactionType::LegacyTransaction =&gt; <span class="number">0u8</span>,
+<a href=#223 id=223 data-nosnippet>223</a>        zksync_types::l2::TransactionType::EIP2930Transaction =&gt; <span class="number">1u8</span>,
+<a href=#224 id=224 data-nosnippet>224</a>        zksync_types::l2::TransactionType::EIP1559Transaction =&gt; <span class="number">2u8</span>,
+<a href=#225 id=225 data-nosnippet>225</a>        zksync_types::l2::TransactionType::EIP712Transaction =&gt; <span class="macro">todo!</span>(),
+<a href=#226 id=226 data-nosnippet>226</a>        zksync_types::l2::TransactionType::PriorityOpTransaction =&gt; <span class="macro">todo!</span>(),
+<a href=#227 id=227 data-nosnippet>227</a>        zksync_types::l2::TransactionType::ProtocolUpgradeTransaction =&gt; <span class="macro">todo!</span>(),
+<a href=#228 id=228 data-nosnippet>228</a>    };
+<a href=#229 id=229 data-nosnippet>229</a>    <span class="kw">let </span>common_data = <span class="kw">match </span><span class="kw-2">&amp;</span>tx.common_data {
+<a href=#230 id=230 data-nosnippet>230</a>        zksync_types::ExecuteTransactionCommon::L1(<span class="kw">_</span>) =&gt; <span class="macro">todo!</span>(),
+<a href=#231 id=231 data-nosnippet>231</a>        zksync_types::ExecuteTransactionCommon::L2(l2_tx_common_data) =&gt; l2_tx_common_data,
+<a href=#232 id=232 data-nosnippet>232</a>        zksync_types::ExecuteTransactionCommon::ProtocolUpgrade(<span class="kw">_</span>) =&gt; <span class="macro">todo!</span>(),
+<a href=#233 id=233 data-nosnippet>233</a>    };
+<a href=#234 id=234 data-nosnippet>234</a>    <span class="comment">// tx_type
+<a href=#235 id=235 data-nosnippet>235</a>    </span>tx_raw.append(<span class="kw-2">&amp;mut </span><span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">31</span>]);
+<a href=#236 id=236 data-nosnippet>236</a>    tx_raw.append(<span class="kw-2">&amp;mut </span><span class="macro">vec!</span>[tx_type_id; <span class="number">1</span>]);
+<a href=#237 id=237 data-nosnippet>237</a>
+<a href=#238 id=238 data-nosnippet>238</a>    <span class="comment">// from
+<a href=#239 id=239 data-nosnippet>239</a>    </span>append_address(<span class="kw-2">&amp;mut </span>tx_raw, <span class="kw-2">&amp;</span>common_data.initiator_address);
+<a href=#240 id=240 data-nosnippet>240</a>    <span class="comment">// to
+<a href=#241 id=241 data-nosnippet>241</a>    </span>append_address(
+<a href=#242 id=242 data-nosnippet>242</a>        <span class="kw-2">&amp;mut </span>tx_raw,
+<a href=#243 id=243 data-nosnippet>243</a>        <span class="kw-2">&amp;</span>tx.execute.contract_address.unwrap_or(H160::zero()),
+<a href=#244 id=244 data-nosnippet>244</a>    );
+<a href=#245 id=245 data-nosnippet>245</a>
+<a href=#246 id=246 data-nosnippet>246</a>    <span class="kw">let </span>gas_limit = common_data.fee.gas_limit;
+<a href=#247 id=247 data-nosnippet>247</a>    <span class="comment">// gas limit
+<a href=#248 id=248 data-nosnippet>248</a>    </span>append_u256(<span class="kw-2">&amp;mut </span>tx_raw, <span class="kw-2">&amp;</span>gas_limit);
+<a href=#249 id=249 data-nosnippet>249</a>    <span class="comment">// gas per pubdata limit
+<a href=#250 id=250 data-nosnippet>250</a>    </span>append_u256(<span class="kw-2">&amp;mut </span>tx_raw, <span class="kw-2">&amp;</span>common_data.fee.gas_per_pubdata_limit);
+<a href=#251 id=251 data-nosnippet>251</a>
+<a href=#252 id=252 data-nosnippet>252</a>    <span class="kw">let </span>fee_per_gas = common_data.fee.max_fee_per_gas;
+<a href=#253 id=253 data-nosnippet>253</a>
+<a href=#254 id=254 data-nosnippet>254</a>    <span class="comment">// max fee per gas
+<a href=#255 id=255 data-nosnippet>255</a>    </span>append_u256(<span class="kw-2">&amp;mut </span>tx_raw, <span class="kw-2">&amp;</span>fee_per_gas);
+<a href=#256 id=256 data-nosnippet>256</a>    <span class="comment">// max priority fee per gas.
+<a href=#257 id=257 data-nosnippet>257</a>    // TODO: hack for legacy tx (verify!!)
+<a href=#258 id=258 data-nosnippet>258</a>    </span>append_u256(<span class="kw-2">&amp;mut </span>tx_raw, <span class="kw-2">&amp;</span>common_data.fee.max_priority_fee_per_gas);
+<a href=#259 id=259 data-nosnippet>259</a>
+<a href=#260 id=260 data-nosnippet>260</a>    <span class="comment">// paymaster
+<a href=#261 id=261 data-nosnippet>261</a>    </span>append_u64(<span class="kw-2">&amp;mut </span>tx_raw, <span class="number">0</span>);
+<a href=#262 id=262 data-nosnippet>262</a>
+<a href=#263 id=263 data-nosnippet>263</a>    <span class="comment">// nonce
+<a href=#264 id=264 data-nosnippet>264</a>    </span>append_u64(<span class="kw-2">&amp;mut </span>tx_raw, common_data.nonce.<span class="number">0</span>.into());
+<a href=#265 id=265 data-nosnippet>265</a>
+<a href=#266 id=266 data-nosnippet>266</a>    append_u256(<span class="kw-2">&amp;mut </span>tx_raw, <span class="kw-2">&amp;</span>tx.execute.value);
+<a href=#267 id=267 data-nosnippet>267</a>
+<a href=#268 id=268 data-nosnippet>268</a>    <span class="kw">let </span><span class="kw-2">mut </span>reserved = [<span class="number">0u64</span>; <span class="number">4</span>];
+<a href=#269 id=269 data-nosnippet>269</a>
+<a href=#270 id=270 data-nosnippet>270</a>    <span class="comment">// TODO: should check chain_id
+<a href=#271 id=271 data-nosnippet>271</a>    </span><span class="kw">if </span>tx_type_id == <span class="number">0 </span>{
+<a href=#272 id=272 data-nosnippet>272</a>        reserved[<span class="number">0</span>] = <span class="number">1</span>;
+<a href=#273 id=273 data-nosnippet>273</a>    }
+<a href=#274 id=274 data-nosnippet>274</a>
+<a href=#275 id=275 data-nosnippet>275</a>    <span class="kw">if </span>tx.execute.contract_address.is_none() {
+<a href=#276 id=276 data-nosnippet>276</a>        reserved[<span class="number">1</span>] = <span class="number">1</span>;
+<a href=#277 id=277 data-nosnippet>277</a>    }
+<a href=#278 id=278 data-nosnippet>278</a>
+<a href=#279 id=279 data-nosnippet>279</a>    <span class="kw">for </span><span class="kw-2">&amp;</span>value <span class="kw">in </span>reserved.iter().take(<span class="number">4</span>) {
+<a href=#280 id=280 data-nosnippet>280</a>        append_u64(<span class="kw-2">&amp;mut </span>tx_raw, value);
+<a href=#281 id=281 data-nosnippet>281</a>    }
+<a href=#282 id=282 data-nosnippet>282</a>
+<a href=#283 id=283 data-nosnippet>283</a>    <span class="kw">let </span>signature_u256 = common_data.signature.len().div_ceil(<span class="number">32</span>) <span class="kw">as </span>u64;
+<a href=#284 id=284 data-nosnippet>284</a>
+<a href=#285 id=285 data-nosnippet>285</a>    <span class="kw">let </span>execute_calldata_words = tx.execute.calldata.len().div_ceil(<span class="number">32</span>) <span class="kw">as </span>u64;
+<a href=#286 id=286 data-nosnippet>286</a>
+<a href=#287 id=287 data-nosnippet>287</a>    <span class="kw">let </span><span class="kw-2">mut </span>current_offset = <span class="number">19</span>;
+<a href=#288 id=288 data-nosnippet>288</a>
+<a href=#289 id=289 data-nosnippet>289</a>    <span class="comment">// data offset
+<a href=#290 id=290 data-nosnippet>290</a>    </span>append_u64(<span class="kw-2">&amp;mut </span>tx_raw, current_offset * <span class="number">32</span>);
+<a href=#291 id=291 data-nosnippet>291</a>    <span class="comment">// lent
+<a href=#292 id=292 data-nosnippet>292</a>    </span>current_offset += <span class="number">1 </span>+ execute_calldata_words;
+<a href=#293 id=293 data-nosnippet>293</a>    <span class="comment">// signature offset (stupid -- this doesn't include the padding!!)
+<a href=#294 id=294 data-nosnippet>294</a>    </span>append_u64(<span class="kw-2">&amp;mut </span>tx_raw, current_offset * <span class="number">32</span>);
+<a href=#295 id=295 data-nosnippet>295</a>    current_offset += <span class="number">1 </span>+ signature_u256;
+<a href=#296 id=296 data-nosnippet>296</a>
+<a href=#297 id=297 data-nosnippet>297</a>    <span class="comment">// factory deps
+<a href=#298 id=298 data-nosnippet>298</a>    </span>append_u64(<span class="kw-2">&amp;mut </span>tx_raw, current_offset * <span class="number">32</span>);
+<a href=#299 id=299 data-nosnippet>299</a>    current_offset += <span class="number">1</span>;
+<a href=#300 id=300 data-nosnippet>300</a>    <span class="comment">// paymaster
+<a href=#301 id=301 data-nosnippet>301</a>    </span>append_u64(<span class="kw-2">&amp;mut </span>tx_raw, current_offset * <span class="number">32</span>);
+<a href=#302 id=302 data-nosnippet>302</a>    current_offset += <span class="number">1</span>;
+<a href=#303 id=303 data-nosnippet>303</a>    <span class="comment">// reserved
+<a href=#304 id=304 data-nosnippet>304</a>    </span>append_u64(<span class="kw-2">&amp;mut </span>tx_raw, current_offset * <span class="number">32</span>);
+<a href=#305 id=305 data-nosnippet>305</a>
+<a href=#306 id=306 data-nosnippet>306</a>    <span class="comment">// len - data.
+<a href=#307 id=307 data-nosnippet>307</a>    </span>append_usize(<span class="kw-2">&amp;mut </span>tx_raw, tx.execute.calldata.len());
+<a href=#308 id=308 data-nosnippet>308</a>    tx_raw.append(<span class="kw-2">&amp;mut </span>pad_to_word(<span class="kw-2">&amp;</span>tx.execute.calldata));
+<a href=#309 id=309 data-nosnippet>309</a>
+<a href=#310 id=310 data-nosnippet>310</a>    <span class="comment">// len - signature.
+<a href=#311 id=311 data-nosnippet>311</a>    </span>append_usize(<span class="kw-2">&amp;mut </span>tx_raw, common_data.signature.len());
+<a href=#312 id=312 data-nosnippet>312</a>    tx_raw.append(<span class="kw-2">&amp;mut </span>pad_to_word(<span class="kw-2">&amp;</span>common_data.signature));
+<a href=#313 id=313 data-nosnippet>313</a>
+<a href=#314 id=314 data-nosnippet>314</a>    <span class="comment">// factory deps
+<a href=#315 id=315 data-nosnippet>315</a>    </span>append_u64(<span class="kw-2">&amp;mut </span>tx_raw, <span class="number">0</span>);
+<a href=#316 id=316 data-nosnippet>316</a>    <span class="comment">// paymaster
+<a href=#317 id=317 data-nosnippet>317</a>    </span>append_u64(<span class="kw-2">&amp;mut </span>tx_raw, <span class="number">0</span>);
+<a href=#318 id=318 data-nosnippet>318</a>    <span class="comment">// reserved
+<a href=#319 id=319 data-nosnippet>319</a>    </span>append_u64(<span class="kw-2">&amp;mut </span>tx_raw, <span class="number">0</span>);
+<a href=#320 id=320 data-nosnippet>320</a>    tx_raw
+<a href=#321 id=321 data-nosnippet>321</a>}
+<a href=#322 id=322 data-nosnippet>322</a>
+<a href=#323 id=323 data-nosnippet>323</a><span class="attr">#[allow(clippy::too_many_arguments)]
+<a href=#324 id=324 data-nosnippet>324</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>execute_tx_in_zkos&lt;W: WriteStorage&gt;(
+<a href=#325 id=325 data-nosnippet>325</a>    tx: <span class="kw-2">&amp;</span>Transaction,
+<a href=#326 id=326 data-nosnippet>326</a>    tree: <span class="kw-2">&amp;</span>InMemoryTree,
+<a href=#327 id=327 data-nosnippet>327</a>    preimage_source: <span class="kw-2">&amp;</span>InMemoryPreimageSource,
+<a href=#328 id=328 data-nosnippet>328</a>    storage: <span class="kw-2">&amp;mut </span>StoragePtr&lt;W&gt;,
+<a href=#329 id=329 data-nosnippet>329</a>    simulate_only: bool,
+<a href=#330 id=330 data-nosnippet>330</a>    batch_env: <span class="kw-2">&amp;</span>L1BatchEnv,
+<a href=#331 id=331 data-nosnippet>331</a>    chain_id: u64,
+<a href=#332 id=332 data-nosnippet>332</a>    <span class="comment">// if zkos_path is passed, it will also compute witness.
+<a href=#333 id=333 data-nosnippet>333</a>    </span>zkos_path: <span class="prelude-ty">Option</span>&lt;String&gt;,
+<a href=#334 id=334 data-nosnippet>334</a>) -&gt; (VmExecutionResultAndLogs, <span class="prelude-ty">Option</span>&lt;Vec&lt;u8&gt;&gt;) {
+<a href=#335 id=335 data-nosnippet>335</a>    <span class="kw">let </span>batch_context = zk_ee::system::metadata::BlockMetadataFromOracle {
+<a href=#336 id=336 data-nosnippet>336</a>        <span class="comment">// TODO: get fee from batch_env.
+<a href=#337 id=337 data-nosnippet>337</a>        </span>eip1559_basefee: ruint::aliases::U256::from(<span class="kw">if </span>simulate_only { <span class="number">0u64 </span>} <span class="kw">else </span>{ <span class="number">1000u64 </span>}),
+<a href=#338 id=338 data-nosnippet>338</a>        block_number: batch_env.number.<span class="number">0 </span><span class="kw">as </span>u64,
+<a href=#339 id=339 data-nosnippet>339</a>        timestamp: batch_env.timestamp,
+<a href=#340 id=340 data-nosnippet>340</a>        gas_per_pubdata: ruint::aliases::U256::from(<span class="number">1u64</span>),
+<a href=#341 id=341 data-nosnippet>341</a>        chain_id,
+<a href=#342 id=342 data-nosnippet>342</a>        <span class="comment">// TODO: set proper values
+<a href=#343 id=343 data-nosnippet>343</a>        </span>block_hashes: Default::default(),
+<a href=#344 id=344 data-nosnippet>344</a>        coinbase: B160::ZERO,
+<a href=#345 id=345 data-nosnippet>345</a>        <span class="comment">// TODO: investigate
+<a href=#346 id=346 data-nosnippet>346</a>        </span>native_price: ruint::aliases::U256::from(<span class="number">10u64</span>),
+<a href=#347 id=347 data-nosnippet>347</a>        gas_limit: <span class="number">100_000_000</span>,
+<a href=#348 id=348 data-nosnippet>348</a>        <span class="comment">// TODO: set proper value if needed
+<a href=#349 id=349 data-nosnippet>349</a>        </span>mix_hash: Default::default(),
+<a href=#350 id=350 data-nosnippet>350</a>    };
+<a href=#351 id=351 data-nosnippet>351</a>
+<a href=#352 id=352 data-nosnippet>352</a>    <span class="kw">let </span>storage_commitment = StorageCommitment {
+<a href=#353 id=353 data-nosnippet>353</a>        root: <span class="kw-2">*</span>tree.storage_tree.root(),
+<a href=#354 id=354 data-nosnippet>354</a>        next_free_slot: tree.storage_tree.next_free_slot,
+<a href=#355 id=355 data-nosnippet>355</a>    };
+<a href=#356 id=356 data-nosnippet>356</a>
+<a href=#357 id=357 data-nosnippet>357</a>    <span class="kw">let </span><span class="kw-2">mut </span>tx = tx.clone();
+<a href=#358 id=358 data-nosnippet>358</a>    <span class="kw">if </span>simulate_only {
+<a href=#359 id=359 data-nosnippet>359</a>        <span class="comment">// Currently zkos doesn't do validation when running a simulated transaction.
+<a href=#360 id=360 data-nosnippet>360</a>        // This results in lower gas estimation - which might cause issues for the user.
+<a href=#361 id=361 data-nosnippet>361</a>        // So here, we're manually adjusting the gas limit to account for the expected validation cost.
+<a href=#362 id=362 data-nosnippet>362</a>        </span><span class="kw">const </span>ZKOS_EXPECTED_VALIDATION_COST: u64 = <span class="number">6_000</span>;
+<a href=#363 id=363 data-nosnippet>363</a>        <span class="kw">let </span>new_gas_limit = tx
+<a href=#364 id=364 data-nosnippet>364</a>            .gas_limit()
+<a href=#365 id=365 data-nosnippet>365</a>            .saturating_sub(U256::from(ZKOS_EXPECTED_VALIDATION_COST));
+<a href=#366 id=366 data-nosnippet>366</a>        <span class="kw">match </span><span class="kw-2">&amp;mut </span>tx.common_data {
+<a href=#367 id=367 data-nosnippet>367</a>            ExecuteTransactionCommon::L1(data) =&gt; data.gas_limit = new_gas_limit,
+<a href=#368 id=368 data-nosnippet>368</a>            ExecuteTransactionCommon::L2(data) =&gt; data.fee.gas_limit = new_gas_limit,
+<a href=#369 id=369 data-nosnippet>369</a>            ExecuteTransactionCommon::ProtocolUpgrade(data) =&gt; data.gas_limit = new_gas_limit,
+<a href=#370 id=370 data-nosnippet>370</a>        };
+<a href=#371 id=371 data-nosnippet>371</a>
+<a href=#372 id=372 data-nosnippet>372</a>        <span class="comment">// FIXME: currently zkos requires gas price to be &gt;0 (otherwise it fails with out of resources during validation)
+<a href=#373 id=373 data-nosnippet>373</a>        </span><span class="kw">if </span>tx.max_fee_per_gas() == <span class="number">0</span>.into() {
+<a href=#374 id=374 data-nosnippet>374</a>            <span class="kw">let </span>new_gas_price = <span class="number">100</span>.into();
+<a href=#375 id=375 data-nosnippet>375</a>            <span class="kw">if let </span>ExecuteTransactionCommon::L2(data) = <span class="kw-2">&amp;mut </span>tx.common_data {
+<a href=#376 id=376 data-nosnippet>376</a>                data.fee.max_fee_per_gas = new_gas_price;
+<a href=#377 id=377 data-nosnippet>377</a>                data.fee.max_priority_fee_per_gas = new_gas_price;
+<a href=#378 id=378 data-nosnippet>378</a>            };
+<a href=#379 id=379 data-nosnippet>379</a>        }
+<a href=#380 id=380 data-nosnippet>380</a>    }
+<a href=#381 id=381 data-nosnippet>381</a>
+<a href=#382 id=382 data-nosnippet>382</a>    <span class="kw">let </span>tx_raw = transaction_to_zkos_vec(<span class="kw-2">&amp;</span>tx);
+<a href=#383 id=383 data-nosnippet>383</a>
+<a href=#384 id=384 data-nosnippet>384</a>    <span class="kw">let </span><span class="kw-2">mut </span>witness = <span class="prelude-val">None</span>;
+<a href=#385 id=385 data-nosnippet>385</a>
+<a href=#386 id=386 data-nosnippet>386</a>    <span class="kw">let </span>(output, dynamic_factory_deps, storage_logs) = <span class="kw">if </span>simulate_only {
+<a href=#387 id=387 data-nosnippet>387</a>        (
+<a href=#388 id=388 data-nosnippet>388</a>            forward_system::run::simulate_tx(
+<a href=#389 id=389 data-nosnippet>389</a>                tx_raw,
+<a href=#390 id=390 data-nosnippet>390</a>                batch_context,
+<a href=#391 id=391 data-nosnippet>391</a>                tree.clone(),
+<a href=#392 id=392 data-nosnippet>392</a>                preimage_source.clone(),
+<a href=#393 id=393 data-nosnippet>393</a>            )
+<a href=#394 id=394 data-nosnippet>394</a>            .unwrap(),
+<a href=#395 id=395 data-nosnippet>395</a>            Default::default(), <span class="comment">// dynamic factory deps
+<a href=#396 id=396 data-nosnippet>396</a>            </span><span class="macro">vec!</span>[],             <span class="comment">// storage logs
+<a href=#397 id=397 data-nosnippet>397</a>        </span>)
+<a href=#398 id=398 data-nosnippet>398</a>    } <span class="kw">else </span>{
+<a href=#399 id=399 data-nosnippet>399</a>        <span class="kw">let </span>tx_source = TxListSource {
+<a href=#400 id=400 data-nosnippet>400</a>            transactions: <span class="macro">vec!</span>[tx_raw].into(),
+<a href=#401 id=401 data-nosnippet>401</a>        };
+<a href=#402 id=402 data-nosnippet>402</a>        <span class="kw">let </span>noop = NoopTxCallback {};
+<a href=#403 id=403 data-nosnippet>403</a>        <span class="kw">let </span>batch_output = forward_system::run::run_batch(
+<a href=#404 id=404 data-nosnippet>404</a>            batch_context,
+<a href=#405 id=405 data-nosnippet>405</a>            <span class="comment">// TODO: FIXME
+<a href=#406 id=406 data-nosnippet>406</a>            </span>tree.clone(),
+<a href=#407 id=407 data-nosnippet>407</a>            preimage_source.clone(),
+<a href=#408 id=408 data-nosnippet>408</a>            tx_source.clone(),
+<a href=#409 id=409 data-nosnippet>409</a>            noop,
+<a href=#410 id=410 data-nosnippet>410</a>        )
+<a href=#411 id=411 data-nosnippet>411</a>        .unwrap();
+<a href=#412 id=412 data-nosnippet>412</a>
+<a href=#413 id=413 data-nosnippet>413</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(zkos_path) = zkos_path {
+<a href=#414 id=414 data-nosnippet>414</a>            <span class="kw">let </span>result = zksync_os_api::run_batch_generate_witness(
+<a href=#415 id=415 data-nosnippet>415</a>                batch_context,
+<a href=#416 id=416 data-nosnippet>416</a>                tree.clone(),
+<a href=#417 id=417 data-nosnippet>417</a>                preimage_source.clone(),
+<a href=#418 id=418 data-nosnippet>418</a>                tx_source,
+<a href=#419 id=419 data-nosnippet>419</a>                storage_commitment,
+<a href=#420 id=420 data-nosnippet>420</a>                <span class="kw-2">&amp;</span>zkos_path,
+<a href=#421 id=421 data-nosnippet>421</a>            );
+<a href=#422 id=422 data-nosnippet>422</a>
+<a href=#423 id=423 data-nosnippet>423</a>            witness = <span class="prelude-val">Some</span>(result.iter().flat_map(|x| x.to_be_bytes()).collect());
+<a href=#424 id=424 data-nosnippet>424</a>        }
+<a href=#425 id=425 data-nosnippet>425</a>
+<a href=#426 id=426 data-nosnippet>426</a>        <span class="kw">let </span><span class="kw-2">mut </span>storage_ptr = storage.borrow_mut();
+<a href=#427 id=427 data-nosnippet>427</a>
+<a href=#428 id=428 data-nosnippet>428</a>        <span class="kw">let </span><span class="kw-2">mut </span>storage_logs = <span class="macro">vec!</span>[];
+<a href=#429 id=429 data-nosnippet>429</a>
+<a href=#430 id=430 data-nosnippet>430</a>        <span class="comment">// apply storage writes..
+<a href=#431 id=431 data-nosnippet>431</a>        </span><span class="kw">for </span>write <span class="kw">in </span>batch_output.storage_writes {
+<a href=#432 id=432 data-nosnippet>432</a>            <span class="kw">let </span>storage_key = StorageKey::new(
+<a href=#433 id=433 data-nosnippet>433</a>                AccountTreeId::new(Address::from_slice(<span class="kw-2">&amp;</span>write.account.to_be_bytes_vec())),
+<a href=#434 id=434 data-nosnippet>434</a>                H256::from(write.account_key.as_u8_array_ref()),
+<a href=#435 id=435 data-nosnippet>435</a>            );
+<a href=#436 id=436 data-nosnippet>436</a>            <span class="kw">let </span>storage_value = H256::from(write.value.as_u8_array_ref());
+<a href=#437 id=437 data-nosnippet>437</a>            <span class="kw">let </span>prev_value = storage_ptr.set_value(storage_key, storage_value);
+<a href=#438 id=438 data-nosnippet>438</a>
+<a href=#439 id=439 data-nosnippet>439</a>            <span class="kw">let </span>storage_log = StorageLog {
+<a href=#440 id=440 data-nosnippet>440</a>                <span class="comment">// TODO: FIXME - should distinguish between initial write and repeated write.
+<a href=#441 id=441 data-nosnippet>441</a>                </span>kind: zksync_types::StorageLogKind::InitialWrite,
+<a href=#442 id=442 data-nosnippet>442</a>                key: storage_key,
+<a href=#443 id=443 data-nosnippet>443</a>                value: storage_value,
+<a href=#444 id=444 data-nosnippet>444</a>            };
+<a href=#445 id=445 data-nosnippet>445</a>            storage_logs.push(StorageLogWithPreviousValue {
+<a href=#446 id=446 data-nosnippet>446</a>                log: storage_log,
+<a href=#447 id=447 data-nosnippet>447</a>                previous_value: prev_value,
+<a href=#448 id=448 data-nosnippet>448</a>            });
+<a href=#449 id=449 data-nosnippet>449</a>            <span class="kw">if </span>write.account == ACCOUNT_PROPERTIES_STORAGE_ADDRESS {
+<a href=#450 id=450 data-nosnippet>450</a>                <span class="comment">// also update a balance &amp; nonce.
+<a href=#451 id=451 data-nosnippet>451</a>
+<a href=#452 id=452 data-nosnippet>452</a>                // find preimage in batch output.published_preimages
+<a href=#453 id=453 data-nosnippet>453</a>                </span><span class="kw">let </span>dst_address = <span class="kw-2">&amp;</span>write.account_key.as_u8_ref()[<span class="number">12</span>..];
+<a href=#454 id=454 data-nosnippet>454</a>                <span class="kw">let </span>dst_address = zksync_types::Address::from_slice(dst_address);
+<a href=#455 id=455 data-nosnippet>455</a>                <span class="kw">let </span><span class="kw-2">mut </span>found = <span class="bool-val">false</span>;
+<a href=#456 id=456 data-nosnippet>456</a>
+<a href=#457 id=457 data-nosnippet>457</a>                <span class="kw">for </span>preimage <span class="kw">in </span>batch_output.published_preimages.iter() {
+<a href=#458 id=458 data-nosnippet>458</a>                    <span class="kw">if </span>preimage.<span class="number">0 </span>== write.value {
+<a href=#459 id=459 data-nosnippet>459</a>                        found = <span class="bool-val">true</span>;
+<a href=#460 id=460 data-nosnippet>460</a>                        <span class="kw">let </span>account_properties =
+<a href=#461 id=461 data-nosnippet>461</a>                            AccountProperties::decode(<span class="kw-2">&amp;</span>preimage.<span class="number">1</span>.clone().try_into().unwrap());
+<a href=#462 id=462 data-nosnippet>462</a>                        <span class="kw">let </span>balance = account_properties.balance;
+<a href=#463 id=463 data-nosnippet>463</a>                        <span class="kw">let </span>nonce = account_properties.nonce;
+<a href=#464 id=464 data-nosnippet>464</a>                        <span class="kw">let </span>bytecode_hash = account_properties.bytecode_hash;
+<a href=#465 id=465 data-nosnippet>465</a>
+<a href=#466 id=466 data-nosnippet>466</a>                        <span class="macro">println!</span>(
+<a href=#467 id=467 data-nosnippet>467</a>                            <span class="string">"For account :{:?} nonce is {:?} balance is {:?}, bytecode_hash is {:?} preimage hash is {:?}"</span>,
+<a href=#468 id=468 data-nosnippet>468</a>                            dst_address, nonce, balance, bytecode_hash, preimage.<span class="number">0
+<a href=#469 id=469 data-nosnippet>469</a>                        </span>);
+<a href=#470 id=470 data-nosnippet>470</a>
+<a href=#471 id=471 data-nosnippet>471</a>                        <span class="kw">for </span>(key, value) <span class="kw">in </span>[
+<a href=#472 id=472 data-nosnippet>472</a>                            (
+<a href=#473 id=473 data-nosnippet>473</a>                                zksync_os_get_nonce_key(<span class="kw-2">&amp;</span>dst_address),
+<a href=#474 id=474 data-nosnippet>474</a>                                u256_to_h256(U256::from(nonce)),
+<a href=#475 id=475 data-nosnippet>475</a>                            ),
+<a href=#476 id=476 data-nosnippet>476</a>                            (
+<a href=#477 id=477 data-nosnippet>477</a>                                zkos_storage_key_for_standard_token_balance(
+<a href=#478 id=478 data-nosnippet>478</a>                                    AccountTreeId::new(b160_to_h160(BASE_TOKEN_ADDRESS)),
+<a href=#479 id=479 data-nosnippet>479</a>                                    <span class="kw-2">&amp;</span>dst_address,
+<a href=#480 id=480 data-nosnippet>480</a>                                ),
+<a href=#481 id=481 data-nosnippet>481</a>                                H256::from_slice(<span class="kw-2">&amp;</span>balance.to_be_bytes_vec()),
+<a href=#482 id=482 data-nosnippet>482</a>                            ),
+<a href=#483 id=483 data-nosnippet>483</a>                            (
+<a href=#484 id=484 data-nosnippet>484</a>                                get_code_key(<span class="kw-2">&amp;</span>dst_address),
+<a href=#485 id=485 data-nosnippet>485</a>                                H256::from(bytecode_hash.as_u8_array_ref()),
+<a href=#486 id=486 data-nosnippet>486</a>                            ),
+<a href=#487 id=487 data-nosnippet>487</a>                        ] {
+<a href=#488 id=488 data-nosnippet>488</a>                            <span class="kw">let </span>storage_log = StorageLog {
+<a href=#489 id=489 data-nosnippet>489</a>                                <span class="comment">// TODO: FIXME - should distinguish between initial write and repeated write.
+<a href=#490 id=490 data-nosnippet>490</a>                                </span>kind: zksync_types::StorageLogKind::InitialWrite,
+<a href=#491 id=491 data-nosnippet>491</a>                                key,
+<a href=#492 id=492 data-nosnippet>492</a>                                value,
+<a href=#493 id=493 data-nosnippet>493</a>                            };
+<a href=#494 id=494 data-nosnippet>494</a>                            <span class="comment">// Create storage write, only if actually something has changed.
+<a href=#495 id=495 data-nosnippet>495</a>                            </span><span class="kw">let </span>prev_value = storage_ptr.read_value(<span class="kw-2">&amp;</span>key);
+<a href=#496 id=496 data-nosnippet>496</a>                            <span class="kw">if </span>prev_value != value {
+<a href=#497 id=497 data-nosnippet>497</a>                                <span class="kw">let </span>prev_value = storage_ptr.set_value(key, value);
+<a href=#498 id=498 data-nosnippet>498</a>
+<a href=#499 id=499 data-nosnippet>499</a>                                storage_logs.push(StorageLogWithPreviousValue {
+<a href=#500 id=500 data-nosnippet>500</a>                                    log: storage_log,
+<a href=#501 id=501 data-nosnippet>501</a>                                    previous_value: prev_value,
+<a href=#502 id=502 data-nosnippet>502</a>                                })
+<a href=#503 id=503 data-nosnippet>503</a>                            };
+<a href=#504 id=504 data-nosnippet>504</a>                        }
+<a href=#505 id=505 data-nosnippet>505</a>                    }
+<a href=#506 id=506 data-nosnippet>506</a>                }
+<a href=#507 id=507 data-nosnippet>507</a>                <span class="kw">if </span>!found {
+<a href=#508 id=508 data-nosnippet>508</a>                    <span class="macro">panic!</span>(<span class="string">"Failed to find preimage for account_properties"</span>);
+<a href=#509 id=509 data-nosnippet>509</a>                }
+<a href=#510 id=510 data-nosnippet>510</a>            }
+<a href=#511 id=511 data-nosnippet>511</a>        }
+<a href=#512 id=512 data-nosnippet>512</a>        <span class="kw">let </span><span class="kw-2">mut </span>f_deps = HashMap::new();
+<a href=#513 id=513 data-nosnippet>513</a>
+<a href=#514 id=514 data-nosnippet>514</a>        <span class="kw">for </span>factory_dep <span class="kw">in </span>batch_output.published_preimages {
+<a href=#515 id=515 data-nosnippet>515</a>            f_deps.insert(bytes32_to_h256(factory_dep.<span class="number">0</span>), factory_dep.<span class="number">1</span>);
+<a href=#516 id=516 data-nosnippet>516</a>        }
+<a href=#517 id=517 data-nosnippet>517</a>
+<a href=#518 id=518 data-nosnippet>518</a>        (batch_output.tx_results[<span class="number">0</span>].clone(), f_deps, storage_logs)
+<a href=#519 id=519 data-nosnippet>519</a>    };
+<a href=#520 id=520 data-nosnippet>520</a>
+<a href=#521 id=521 data-nosnippet>521</a>    <span class="kw">let </span>(tx_output, gas_refunded) = <span class="kw">match </span>output.as_ref() {
+<a href=#522 id=522 data-nosnippet>522</a>        <span class="prelude-val">Ok</span>(tx_output) =&gt; <span class="kw">match </span><span class="kw-2">&amp;</span>tx_output.execution_result {
+<a href=#523 id=523 data-nosnippet>523</a>            forward_system::run::ExecutionResult::Success(output) =&gt; <span class="kw">match </span><span class="kw-2">&amp;</span>output {
+<a href=#524 id=524 data-nosnippet>524</a>                forward_system::run::ExecutionOutput::Call(data) =&gt; (data, tx_output.gas_refunded),
+<a href=#525 id=525 data-nosnippet>525</a>                forward_system::run::ExecutionOutput::Create(data, <span class="kw">_</span>) =&gt; {
+<a href=#526 id=526 data-nosnippet>526</a>                    (data, tx_output.gas_refunded)
+<a href=#527 id=527 data-nosnippet>527</a>                }
+<a href=#528 id=528 data-nosnippet>528</a>            },
+<a href=#529 id=529 data-nosnippet>529</a>            forward_system::run::ExecutionResult::Revert(data) =&gt; {
+<a href=#530 id=530 data-nosnippet>530</a>                <span class="kw">return </span>(
+<a href=#531 id=531 data-nosnippet>531</a>                    VmExecutionResultAndLogs {
+<a href=#532 id=532 data-nosnippet>532</a>                        result: ExecutionResult::Revert {
+<a href=#533 id=533 data-nosnippet>533</a>                            output: VmRevertReason::General {
+<a href=#534 id=534 data-nosnippet>534</a>                                msg: <span class="string">"Transaction reverted"</span>.to_string(),
+<a href=#535 id=535 data-nosnippet>535</a>                                data: data.clone(),
+<a href=#536 id=536 data-nosnippet>536</a>                            },
+<a href=#537 id=537 data-nosnippet>537</a>                        },
+<a href=#538 id=538 data-nosnippet>538</a>                        logs: VmExecutionLogs {
+<a href=#539 id=539 data-nosnippet>539</a>                            <span class="comment">// TODO: check if we should return storage_logs on revert.
+<a href=#540 id=540 data-nosnippet>540</a>                            </span>storage_logs,
+<a href=#541 id=541 data-nosnippet>541</a>                            events: Default::default(),
+<a href=#542 id=542 data-nosnippet>542</a>                            user_l2_to_l1_logs: Default::default(),
+<a href=#543 id=543 data-nosnippet>543</a>                            system_l2_to_l1_logs: Default::default(),
+<a href=#544 id=544 data-nosnippet>544</a>                            total_log_queries_count: Default::default(),
+<a href=#545 id=545 data-nosnippet>545</a>                        },
+<a href=#546 id=546 data-nosnippet>546</a>                        statistics: Default::default(),
+<a href=#547 id=547 data-nosnippet>547</a>                        refunds: Refunds {
+<a href=#548 id=548 data-nosnippet>548</a>                            gas_refunded: tx_output.gas_refunded,
+<a href=#549 id=549 data-nosnippet>549</a>                            operator_suggested_refund: tx_output.gas_refunded,
+<a href=#550 id=550 data-nosnippet>550</a>                        },
+<a href=#551 id=551 data-nosnippet>551</a>                        dynamic_factory_deps,
+<a href=#552 id=552 data-nosnippet>552</a>                    },
+<a href=#553 id=553 data-nosnippet>553</a>                    witness,
+<a href=#554 id=554 data-nosnippet>554</a>                );
+<a href=#555 id=555 data-nosnippet>555</a>            }
+<a href=#556 id=556 data-nosnippet>556</a>        },
+<a href=#557 id=557 data-nosnippet>557</a>        <span class="prelude-val">Err</span>(invalid_tx) =&gt; {
+<a href=#558 id=558 data-nosnippet>558</a>            <span class="kw">return </span>(
+<a href=#559 id=559 data-nosnippet>559</a>                VmExecutionResultAndLogs {
+<a href=#560 id=560 data-nosnippet>560</a>                    result: ExecutionResult::Revert {
+<a href=#561 id=561 data-nosnippet>561</a>                        output: VmRevertReason::General {
+<a href=#562 id=562 data-nosnippet>562</a>                            msg: <span class="macro">format!</span>(<span class="string">"{:?}"</span>, invalid_tx),
+<a href=#563 id=563 data-nosnippet>563</a>                            data: <span class="macro">vec!</span>[],
+<a href=#564 id=564 data-nosnippet>564</a>                        },
+<a href=#565 id=565 data-nosnippet>565</a>                    },
+<a href=#566 id=566 data-nosnippet>566</a>                    logs: Default::default(),
+<a href=#567 id=567 data-nosnippet>567</a>                    statistics: Default::default(),
+<a href=#568 id=568 data-nosnippet>568</a>                    refunds: Default::default(),
+<a href=#569 id=569 data-nosnippet>569</a>                    dynamic_factory_deps: Default::default(),
+<a href=#570 id=570 data-nosnippet>570</a>                },
+<a href=#571 id=571 data-nosnippet>571</a>                witness,
+<a href=#572 id=572 data-nosnippet>572</a>            );
+<a href=#573 id=573 data-nosnippet>573</a>        }
+<a href=#574 id=574 data-nosnippet>574</a>    };
+<a href=#575 id=575 data-nosnippet>575</a>
+<a href=#576 id=576 data-nosnippet>576</a>    (
+<a href=#577 id=577 data-nosnippet>577</a>        VmExecutionResultAndLogs {
+<a href=#578 id=578 data-nosnippet>578</a>            result: ExecutionResult::Success {
+<a href=#579 id=579 data-nosnippet>579</a>                output: tx_output.clone(),
+<a href=#580 id=580 data-nosnippet>580</a>            },
+<a href=#581 id=581 data-nosnippet>581</a>            logs: VmExecutionLogs {
+<a href=#582 id=582 data-nosnippet>582</a>                storage_logs,
+<a href=#583 id=583 data-nosnippet>583</a>                events: Default::default(),
+<a href=#584 id=584 data-nosnippet>584</a>                user_l2_to_l1_logs: Default::default(),
+<a href=#585 id=585 data-nosnippet>585</a>                system_l2_to_l1_logs: Default::default(),
+<a href=#586 id=586 data-nosnippet>586</a>                total_log_queries_count: Default::default(),
+<a href=#587 id=587 data-nosnippet>587</a>            },
+<a href=#588 id=588 data-nosnippet>588</a>            statistics: Default::default(),
+<a href=#589 id=589 data-nosnippet>589</a>            refunds: Refunds {
+<a href=#590 id=590 data-nosnippet>590</a>                gas_refunded,
+<a href=#591 id=591 data-nosnippet>591</a>                operator_suggested_refund: gas_refunded,
+<a href=#592 id=592 data-nosnippet>592</a>            },
+<a href=#593 id=593 data-nosnippet>593</a>            dynamic_factory_deps,
+<a href=#594 id=594 data-nosnippet>594</a>        },
+<a href=#595 id=595 data-nosnippet>595</a>        witness,
+<a href=#596 id=596 data-nosnippet>596</a>    )
+<a href=#597 id=597 data-nosnippet>597</a>}
+<a href=#598 id=598 data-nosnippet>598</a>
+<a href=#599 id=599 data-nosnippet>599</a><span class="kw">fn </span>zksync_os_key_for_eth_balance(address: <span class="kw-2">&amp;</span>Address) -&gt; H256 {
+<a href=#600 id=600 data-nosnippet>600</a>    address_to_h256(address)
+<a href=#601 id=601 data-nosnippet>601</a>}
+<a href=#602 id=602 data-nosnippet>602</a>
+<a href=#603 id=603 data-nosnippet>603</a><span class="doccomment">/// Create a `key` part of `StorageKey` to access the balance from ERC20 contract balances
+<a href=#604 id=604 data-nosnippet>604</a></span><span class="kw">fn </span>zksync_os_key_for_erc20_balance(address: <span class="kw-2">&amp;</span>Address) -&gt; H256 {
+<a href=#605 id=605 data-nosnippet>605</a>    <span class="kw">let </span>address_h256 = address_to_h256(address);
+<a href=#606 id=606 data-nosnippet>606</a>
+<a href=#607 id=607 data-nosnippet>607</a>    <span class="comment">// 20 bytes address first gets aligned to 32 bytes with index of `balanceOf` storage slot
+<a href=#608 id=608 data-nosnippet>608</a>    // of default ERC20 contract and to then to 64 bytes.
+<a href=#609 id=609 data-nosnippet>609</a>    </span><span class="kw">let </span>slot_index = H256::from_low_u64_be(<span class="number">51</span>);
+<a href=#610 id=610 data-nosnippet>610</a>    <span class="kw">let </span><span class="kw-2">mut </span>bytes = [<span class="number">0_u8</span>; <span class="number">64</span>];
+<a href=#611 id=611 data-nosnippet>611</a>    bytes[..<span class="number">32</span>].copy_from_slice(address_h256.as_bytes());
+<a href=#612 id=612 data-nosnippet>612</a>    bytes[<span class="number">32</span>..].copy_from_slice(slot_index.as_bytes());
+<a href=#613 id=613 data-nosnippet>613</a>    H256(keccak256(<span class="kw-2">&amp;</span>bytes))
+<a href=#614 id=614 data-nosnippet>614</a>}
+<a href=#615 id=615 data-nosnippet>615</a>
+<a href=#616 id=616 data-nosnippet>616</a><span class="kw">fn </span>zkos_storage_key_for_standard_token_balance(
+<a href=#617 id=617 data-nosnippet>617</a>    token_contract: AccountTreeId,
+<a href=#618 id=618 data-nosnippet>618</a>    address: <span class="kw-2">&amp;</span>Address,
+<a href=#619 id=619 data-nosnippet>619</a>) -&gt; StorageKey {
+<a href=#620 id=620 data-nosnippet>620</a>    <span class="comment">// We have different implementation of the standard ERC20 contract and native
+<a href=#621 id=621 data-nosnippet>621</a>    // eth contract. The key for the balance is different for each.
+<a href=#622 id=622 data-nosnippet>622</a>    </span><span class="kw">let </span>key = <span class="kw">if </span>token_contract.address() == <span class="kw-2">&amp;</span>b160_to_h160(BASE_TOKEN_ADDRESS) {
+<a href=#623 id=623 data-nosnippet>623</a>        zksync_os_key_for_eth_balance(address)
+<a href=#624 id=624 data-nosnippet>624</a>    } <span class="kw">else </span>{
+<a href=#625 id=625 data-nosnippet>625</a>        zksync_os_key_for_erc20_balance(address)
+<a href=#626 id=626 data-nosnippet>626</a>    };
+<a href=#627 id=627 data-nosnippet>627</a>
+<a href=#628 id=628 data-nosnippet>628</a>    StorageKey::new(token_contract, key)
+<a href=#629 id=629 data-nosnippet>629</a>}
+<a href=#630 id=630 data-nosnippet>630</a>
+<a href=#631 id=631 data-nosnippet>631</a><span class="comment">// Stuff copied from RIG TODO: consider merging with RIG.
+<a href=#632 id=632 data-nosnippet>632</a>
+<a href=#633 id=633 data-nosnippet>633</a></span><span class="kw">fn </span>get_account_properties(
+<a href=#634 id=634 data-nosnippet>634</a>    state_tree: <span class="kw-2">&amp;</span>InMemoryTree,
+<a href=#635 id=635 data-nosnippet>635</a>    preimage_source: <span class="kw-2">&amp;mut </span>InMemoryPreimageSource,
+<a href=#636 id=636 data-nosnippet>636</a>    address: <span class="kw-2">&amp;</span>B160,
+<a href=#637 id=637 data-nosnippet>637</a>) -&gt; AccountProperties {
+<a href=#638 id=638 data-nosnippet>638</a>    <span class="kw">use </span>forward_system::run::PreimageSource;
+<a href=#639 id=639 data-nosnippet>639</a>    <span class="kw">let </span>key = address_into_special_storage_key(address);
+<a href=#640 id=640 data-nosnippet>640</a>    <span class="kw">let </span>flat_key = derive_flat_storage_key(<span class="kw-2">&amp;</span>ACCOUNT_PROPERTIES_STORAGE_ADDRESS, <span class="kw-2">&amp;</span>key);
+<a href=#641 id=641 data-nosnippet>641</a>    <span class="kw">match </span>state_tree.cold_storage.get(<span class="kw-2">&amp;</span>flat_key) {
+<a href=#642 id=642 data-nosnippet>642</a>        <span class="prelude-val">None </span>=&gt; AccountProperties::default(),
+<a href=#643 id=643 data-nosnippet>643</a>        <span class="prelude-val">Some</span>(account_hash) =&gt; {
+<a href=#644 id=644 data-nosnippet>644</a>            <span class="kw">if </span>account_hash.is_zero() {
+<a href=#645 id=645 data-nosnippet>645</a>                <span class="comment">// Empty (default) account
+<a href=#646 id=646 data-nosnippet>646</a>                </span>AccountProperties::default()
+<a href=#647 id=647 data-nosnippet>647</a>            } <span class="kw">else </span>{
+<a href=#648 id=648 data-nosnippet>648</a>                <span class="comment">// Get from preimage:
+<a href=#649 id=649 data-nosnippet>649</a>                </span><span class="kw">let </span>encoded = preimage_source
+<a href=#650 id=650 data-nosnippet>650</a>                    .get_preimage(<span class="kw-2">*</span>account_hash)
+<a href=#651 id=651 data-nosnippet>651</a>                    .unwrap_or_else(|| {
+<a href=#652 id=652 data-nosnippet>652</a>                        <span class="macro">panic!</span>(<span class="string">"Missing preimage for {:?} and {:?}"</span>, address, account_hash)
+<a href=#653 id=653 data-nosnippet>653</a>                    });
+<a href=#654 id=654 data-nosnippet>654</a>
+<a href=#655 id=655 data-nosnippet>655</a>                AccountProperties::decode(<span class="kw-2">&amp;</span>encoded.try_into().unwrap())
+<a href=#656 id=656 data-nosnippet>656</a>            }
+<a href=#657 id=657 data-nosnippet>657</a>        }
+<a href=#658 id=658 data-nosnippet>658</a>    }
+<a href=#659 id=659 data-nosnippet>659</a>}
+<a href=#660 id=660 data-nosnippet>660</a>
+<a href=#661 id=661 data-nosnippet>661</a><span class="kw">fn </span>set_account_properties(
+<a href=#662 id=662 data-nosnippet>662</a>    state_tree: <span class="kw-2">&amp;mut </span>InMemoryTree,
+<a href=#663 id=663 data-nosnippet>663</a>    preimage_source: <span class="kw-2">&amp;mut </span>InMemoryPreimageSource,
+<a href=#664 id=664 data-nosnippet>664</a>
+<a href=#665 id=665 data-nosnippet>665</a>    address: B160,
+<a href=#666 id=666 data-nosnippet>666</a>    balance: <span class="prelude-ty">Option</span>&lt;ruint::aliases::U256&gt;,
+<a href=#667 id=667 data-nosnippet>667</a>    nonce: <span class="prelude-ty">Option</span>&lt;u64&gt;,
+<a href=#668 id=668 data-nosnippet>668</a>    bytecode: <span class="prelude-ty">Option</span>&lt;Vec&lt;u8&gt;&gt;,
+<a href=#669 id=669 data-nosnippet>669</a>) {
+<a href=#670 id=670 data-nosnippet>670</a>    <span class="kw">let </span><span class="kw-2">mut </span>account_properties = get_account_properties(state_tree, preimage_source, <span class="kw-2">&amp;</span>address);
+<a href=#671 id=671 data-nosnippet>671</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(bytecode) = bytecode {
+<a href=#672 id=672 data-nosnippet>672</a>        <span class="kw">let </span>bytecode_and_artifacts;
+<a href=#673 id=673 data-nosnippet>673</a>        (account_properties, bytecode_and_artifacts) =
+<a href=#674 id=674 data-nosnippet>674</a>            evm_bytecode_into_account_properties(<span class="kw-2">&amp;</span>bytecode);
+<a href=#675 id=675 data-nosnippet>675</a>        <span class="comment">// Save bytecode preimage
+<a href=#676 id=676 data-nosnippet>676</a>        </span>preimage_source
+<a href=#677 id=677 data-nosnippet>677</a>            .inner
+<a href=#678 id=678 data-nosnippet>678</a>            .insert(account_properties.bytecode_hash, bytecode_and_artifacts);
+<a href=#679 id=679 data-nosnippet>679</a>    }
+<a href=#680 id=680 data-nosnippet>680</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(nominal_token_balance) = balance {
+<a href=#681 id=681 data-nosnippet>681</a>        account_properties.balance = nominal_token_balance;
+<a href=#682 id=682 data-nosnippet>682</a>    }
+<a href=#683 id=683 data-nosnippet>683</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(nonce) = nonce {
+<a href=#684 id=684 data-nosnippet>684</a>        account_properties.nonce = nonce;
+<a href=#685 id=685 data-nosnippet>685</a>    }
+<a href=#686 id=686 data-nosnippet>686</a>
+<a href=#687 id=687 data-nosnippet>687</a>    <span class="kw">let </span>encoding = account_properties.encoding();
+<a href=#688 id=688 data-nosnippet>688</a>    <span class="kw">let </span>properties_hash = account_properties.compute_hash();
+<a href=#689 id=689 data-nosnippet>689</a>
+<a href=#690 id=690 data-nosnippet>690</a>    <span class="kw">let </span>key = address_into_special_storage_key(<span class="kw-2">&amp;</span>address);
+<a href=#691 id=691 data-nosnippet>691</a>    <span class="kw">let </span>flat_key = derive_flat_storage_key(<span class="kw-2">&amp;</span>ACCOUNT_PROPERTIES_STORAGE_ADDRESS, <span class="kw-2">&amp;</span>key);
+<a href=#692 id=692 data-nosnippet>692</a>
+<a href=#693 id=693 data-nosnippet>693</a>    <span class="comment">// Save preimage
+<a href=#694 id=694 data-nosnippet>694</a>    </span>preimage_source
+<a href=#695 id=695 data-nosnippet>695</a>        .inner
+<a href=#696 id=696 data-nosnippet>696</a>        .insert(properties_hash, encoding.to_vec());
+<a href=#697 id=697 data-nosnippet>697</a>    state_tree.cold_storage.insert(flat_key, properties_hash);
+<a href=#698 id=698 data-nosnippet>698</a>    state_tree.storage_tree.insert(<span class="kw-2">&amp;</span>flat_key, <span class="kw-2">&amp;</span>properties_hash);
+<a href=#699 id=699 data-nosnippet>699</a>}
+<a href=#700 id=700 data-nosnippet>700</a>
+<a href=#701 id=701 data-nosnippet>701</a><span class="doccomment">/// Copied from https://github.com/matter-labs/zksync-os/blob/5e69d4483243bb0d166b7e2137fa54a8bb05925a/tests/rig/src/utils.rs#L426
+<a href=#702 id=702 data-nosnippet>702</a>/// To avoid bringing in `rig` as a dependency.
+<a href=#703 id=703 data-nosnippet>703</a></span><span class="kw">pub fn </span>evm_bytecode_into_account_properties(deployed_code: <span class="kw-2">&amp;</span>[u8]) -&gt; (AccountProperties, Vec&lt;u8&gt;) {
+<a href=#704 id=704 data-nosnippet>704</a>    <span class="kw">use </span>crypto::MiniDigest;
+<a href=#705 id=705 data-nosnippet>705</a>    <span class="kw">use </span>crypto::blake2s::Blake2s256;
+<a href=#706 id=706 data-nosnippet>706</a>    <span class="kw">use </span>crypto::sha3::Keccak256;
+<a href=#707 id=707 data-nosnippet>707</a>    <span class="kw">use </span>evm_interpreter;
+<a href=#708 id=708 data-nosnippet>708</a>
+<a href=#709 id=709 data-nosnippet>709</a>    <span class="kw">let </span>unpadded_code_len = deployed_code.len();
+<a href=#710 id=710 data-nosnippet>710</a>    <span class="kw">let </span>artifacts =
+<a href=#711 id=711 data-nosnippet>711</a>        evm_interpreter::BytecodePreprocessingData::create_artifacts_inner(Global, deployed_code);
+<a href=#712 id=712 data-nosnippet>712</a>    <span class="kw">let </span>artifacts = artifacts.as_slice();
+<a href=#713 id=713 data-nosnippet>713</a>    <span class="kw">let </span>artifacts_len = artifacts.len();
+<a href=#714 id=714 data-nosnippet>714</a>    <span class="kw">let </span>padding_len = bytecode_padding_len(unpadded_code_len);
+<a href=#715 id=715 data-nosnippet>715</a>    <span class="kw">let </span>full_len = unpadded_code_len + padding_len + artifacts_len;
+<a href=#716 id=716 data-nosnippet>716</a>    <span class="kw">let </span><span class="kw-2">mut </span>bytecode_and_artifacts: Vec&lt;u8&gt; = <span class="macro">vec!</span>[<span class="number">0u8</span>; full_len];
+<a href=#717 id=717 data-nosnippet>717</a>    bytecode_and_artifacts[..unpadded_code_len].copy_from_slice(deployed_code);
+<a href=#718 id=718 data-nosnippet>718</a>    <span class="kw">let </span>bitmap_offset = unpadded_code_len + padding_len;
+<a href=#719 id=719 data-nosnippet>719</a>    bytecode_and_artifacts[bitmap_offset..].copy_from_slice(artifacts);
+<a href=#720 id=720 data-nosnippet>720</a>
+<a href=#721 id=721 data-nosnippet>721</a>    <span class="kw">let </span>observable_bytecode_hash = Bytes32::from_array(Keccak256::digest(deployed_code));
+<a href=#722 id=722 data-nosnippet>722</a>    <span class="kw">let </span>bytecode_hash = Bytes32::from_array(Blake2s256::digest(<span class="kw-2">&amp;</span>bytecode_and_artifacts));
+<a href=#723 id=723 data-nosnippet>723</a>    <span class="kw">let </span><span class="kw-2">mut </span>result = AccountProperties::TRIVIAL_VALUE;
+<a href=#724 id=724 data-nosnippet>724</a>    result.observable_bytecode_hash = observable_bytecode_hash;
+<a href=#725 id=725 data-nosnippet>725</a>    result.bytecode_hash = bytecode_hash;
+<a href=#726 id=726 data-nosnippet>726</a>    result.versioning_data.set_as_deployed();
+<a href=#727 id=727 data-nosnippet>727</a>    result
+<a href=#728 id=728 data-nosnippet>728</a>        .versioning_data
+<a href=#729 id=729 data-nosnippet>729</a>        .set_ee_version(ExecutionEnvironmentType::EVM <span class="kw">as </span>u8);
+<a href=#730 id=730 data-nosnippet>730</a>    result
+<a href=#731 id=731 data-nosnippet>731</a>        .versioning_data
+<a href=#732 id=732 data-nosnippet>732</a>        .set_code_version(evm_interpreter::ARTIFACTS_CACHING_CODE_VERSION_BYTE);
+<a href=#733 id=733 data-nosnippet>733</a>    result.unpadded_code_len = unpadded_code_len <span class="kw">as </span>u32;
+<a href=#734 id=734 data-nosnippet>734</a>    result.artifacts_len = artifacts_len <span class="kw">as </span>u32;
+<a href=#735 id=735 data-nosnippet>735</a>    result.observable_bytecode_len = unpadded_code_len <span class="kw">as </span>u32;
+<a href=#736 id=736 data-nosnippet>736</a>
+<a href=#737 id=737 data-nosnippet>737</a>    (result, bytecode_and_artifacts)
+<a href=#738 id=738 data-nosnippet>738</a>}</code></pre></div></section></main></body></html>
