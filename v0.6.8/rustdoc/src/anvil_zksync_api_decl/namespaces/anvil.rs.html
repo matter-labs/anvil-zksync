@@ -1,0 +1,321 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/api_decl/src/namespaces/anvil.rs`."><title>anvil.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-916cea96.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="anvil_zksync_api_decl" data-themes="" data-resource-suffix="" data-rustdoc-version="1.87.0-nightly (75530e9f7 2025-03-18)" data-channel="nightly" data-search-js="search-e7298875.js" data-settings-js="settings-d72f25bb.js" ><script src="../../../static.files/storage-d8ac8691.js"></script><script defer src="../../../static.files/src-script-b8d3f215.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-fb8c74a8.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">anvil_zksync_api_decl/namespaces/</div>anvil.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span>anvil_zksync_types::api::{DetailedTransaction, ResetRequest};
+<a href=#2 id=2 data-nosnippet>2</a><span class="kw">use </span>anvil_zksync_types::Numeric;
+<a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span>jsonrpsee::core::RpcResult;
+<a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>jsonrpsee::proc_macros::rpc;
+<a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>zksync_types::api::Block;
+<a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>zksync_types::web3::Bytes;
+<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>zksync_types::{Address, H256, U256, U64};
+<a href=#8 id=8 data-nosnippet>8</a>
+<a href=#9 id=9 data-nosnippet>9</a><span class="attr">#[rpc(server, namespace = <span class="string">"anvil"</span>)]
+<a href=#10 id=10 data-nosnippet>10</a></span><span class="kw">pub trait </span>AnvilNamespace {
+<a href=#11 id=11 data-nosnippet>11</a>    <span class="doccomment">/// Create a buffer that represents all state on the chain, which can be loaded to separate
+<a href=#12 id=12 data-nosnippet>12</a>    /// process by calling `anvil_loadState`.
+<a href=#13 id=13 data-nosnippet>13</a>    ///
+<a href=#14 id=14 data-nosnippet>14</a>    /// # Arguments
+<a href=#15 id=15 data-nosnippet>15</a>    ///
+<a href=#16 id=16 data-nosnippet>16</a>    /// * `preserve_historical_states` - Whether to preserve historical states
+<a href=#17 id=17 data-nosnippet>17</a>    ///
+<a href=#18 id=18 data-nosnippet>18</a>    /// # Returns
+<a href=#19 id=19 data-nosnippet>19</a>    /// Buffer representing the chain state.
+<a href=#20 id=20 data-nosnippet>20</a>    </span><span class="attr">#[method(name = <span class="string">"dumpState"</span>, aliases = [<span class="string">"hardhat_dumpState"</span>]</span>)]
+<a href=#21 id=21 data-nosnippet>21</a>    <span class="kw">async fn </span>dump_state(<span class="kw-2">&amp;</span><span class="self">self</span>, preserve_historical_states: <span class="prelude-ty">Option</span>&lt;bool&gt;) -&gt; RpcResult&lt;Bytes&gt;;
+<a href=#22 id=22 data-nosnippet>22</a>
+<a href=#23 id=23 data-nosnippet>23</a>    <span class="doccomment">/// Append chain state buffer to current chain. Will overwrite any conflicting addresses or
+<a href=#24 id=24 data-nosnippet>24</a>    /// storage.
+<a href=#25 id=25 data-nosnippet>25</a>    ///
+<a href=#26 id=26 data-nosnippet>26</a>    /// # Arguments
+<a href=#27 id=27 data-nosnippet>27</a>    ///
+<a href=#28 id=28 data-nosnippet>28</a>    /// * `bytes` - Buffer containing the chain state
+<a href=#29 id=29 data-nosnippet>29</a>    ///
+<a href=#30 id=30 data-nosnippet>30</a>    /// # Returns
+<a href=#31 id=31 data-nosnippet>31</a>    /// `true` if a snapshot was reverted, otherwise `false`.
+<a href=#32 id=32 data-nosnippet>32</a>    </span><span class="attr">#[method(name = <span class="string">"loadState"</span>, aliases = [<span class="string">"hardhat_loadState"</span>]</span>)]
+<a href=#33 id=33 data-nosnippet>33</a>    <span class="kw">async fn </span>load_state(<span class="kw-2">&amp;</span><span class="self">self</span>, bytes: Bytes) -&gt; RpcResult&lt;bool&gt;;
+<a href=#34 id=34 data-nosnippet>34</a>
+<a href=#35 id=35 data-nosnippet>35</a>    <span class="doccomment">/// Mines a single block in the same way as `evm_mine` but returns extra fields.
+<a href=#36 id=36 data-nosnippet>36</a>    ///
+<a href=#37 id=37 data-nosnippet>37</a>    /// # Returns
+<a href=#38 id=38 data-nosnippet>38</a>    /// Freshly mined block's representation along with extra fields.
+<a href=#39 id=39 data-nosnippet>39</a>    </span><span class="attr">#[method(name = <span class="string">"mine_detailed"</span>, aliases = [<span class="string">"evm_mine_detailed"</span>]</span>)]
+<a href=#40 id=40 data-nosnippet>40</a>    <span class="kw">async fn </span>mine_detailed(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; RpcResult&lt;Block&lt;DetailedTransaction&gt;&gt;;
+<a href=#41 id=41 data-nosnippet>41</a>
+<a href=#42 id=42 data-nosnippet>42</a>    <span class="doccomment">/// Sets the fork RPC url. Assumes the underlying chain is the same as before.
+<a href=#43 id=43 data-nosnippet>43</a>    ///
+<a href=#44 id=44 data-nosnippet>44</a>    /// # Arguments
+<a href=#45 id=45 data-nosnippet>45</a>    ///
+<a href=#46 id=46 data-nosnippet>46</a>    /// * `url` - Fork's new URL
+<a href=#47 id=47 data-nosnippet>47</a>    </span><span class="attr">#[method(name = <span class="string">"setRpcUrl"</span>)]
+<a href=#48 id=48 data-nosnippet>48</a>    </span><span class="kw">async fn </span>set_rpc_url(<span class="kw-2">&amp;</span><span class="self">self</span>, url: String) -&gt; RpcResult&lt;()&gt;;
+<a href=#49 id=49 data-nosnippet>49</a>
+<a href=#50 id=50 data-nosnippet>50</a>    <span class="doccomment">/// Sets the base fee of the next block.
+<a href=#51 id=51 data-nosnippet>51</a>    ///
+<a href=#52 id=52 data-nosnippet>52</a>    /// # Arguments
+<a href=#53 id=53 data-nosnippet>53</a>    ///
+<a href=#54 id=54 data-nosnippet>54</a>    /// * `base_fee` - Value to be set as base fee for the next block
+<a href=#55 id=55 data-nosnippet>55</a>    </span><span class="attr">#[method(name = <span class="string">"setNextBlockBaseFeePerGas"</span>, aliases = [<span class="string">"hardhat_setNextBlockBaseFeePerGas"</span>]</span>)]
+<a href=#56 id=56 data-nosnippet>56</a>    <span class="kw">async fn </span>set_next_block_base_fee_per_gas(<span class="kw-2">&amp;</span><span class="self">self</span>, base_fee: U256) -&gt; RpcResult&lt;()&gt;;
+<a href=#57 id=57 data-nosnippet>57</a>
+<a href=#58 id=58 data-nosnippet>58</a>    <span class="doccomment">/// Removes a transaction from the pool.
+<a href=#59 id=59 data-nosnippet>59</a>    ///
+<a href=#60 id=60 data-nosnippet>60</a>    /// # Arguments
+<a href=#61 id=61 data-nosnippet>61</a>    ///
+<a href=#62 id=62 data-nosnippet>62</a>    /// * `hash` - Hash of the transaction to be removed from the pool
+<a href=#63 id=63 data-nosnippet>63</a>    ///
+<a href=#64 id=64 data-nosnippet>64</a>    /// # Returns
+<a href=#65 id=65 data-nosnippet>65</a>    /// `Some(hash)` if transaction was in the pool before being removed, `None` otherwise
+<a href=#66 id=66 data-nosnippet>66</a>    </span><span class="attr">#[method(name = <span class="string">"dropTransaction"</span>, aliases = [<span class="string">"hardhat_dropTransaction"</span>]</span>)]
+<a href=#67 id=67 data-nosnippet>67</a>    <span class="kw">async fn </span>drop_transaction(<span class="kw-2">&amp;</span><span class="self">self</span>, hash: H256) -&gt; RpcResult&lt;<span class="prelude-ty">Option</span>&lt;H256&gt;&gt;;
+<a href=#68 id=68 data-nosnippet>68</a>
+<a href=#69 id=69 data-nosnippet>69</a>    <span class="doccomment">/// Remove all transactions from the pool.
+<a href=#70 id=70 data-nosnippet>70</a>    </span><span class="attr">#[method(name = <span class="string">"dropAllTransactions"</span>, aliases = [<span class="string">"hardhat_dropAllTransactions"</span>]</span>)]
+<a href=#71 id=71 data-nosnippet>71</a>    <span class="kw">async fn </span>drop_all_transactions(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; RpcResult&lt;()&gt;;
+<a href=#72 id=72 data-nosnippet>72</a>
+<a href=#73 id=73 data-nosnippet>73</a>    <span class="doccomment">/// Remove all transactions from the pool by sender address.
+<a href=#74 id=74 data-nosnippet>74</a>    ///
+<a href=#75 id=75 data-nosnippet>75</a>    /// # Arguments
+<a href=#76 id=76 data-nosnippet>76</a>    ///
+<a href=#77 id=77 data-nosnippet>77</a>    /// * `address` - Sender which transactions should be removed from the pool
+<a href=#78 id=78 data-nosnippet>78</a>    </span><span class="attr">#[method(name = <span class="string">"removePoolTransactions"</span>)]
+<a href=#79 id=79 data-nosnippet>79</a>    </span><span class="kw">async fn </span>remove_pool_transactions(<span class="kw-2">&amp;</span><span class="self">self</span>, address: Address) -&gt; RpcResult&lt;()&gt;;
+<a href=#80 id=80 data-nosnippet>80</a>
+<a href=#81 id=81 data-nosnippet>81</a>    <span class="doccomment">/// Gets node's auto mining status.
+<a href=#82 id=82 data-nosnippet>82</a>    ///
+<a href=#83 id=83 data-nosnippet>83</a>    /// # Returns
+<a href=#84 id=84 data-nosnippet>84</a>    /// `true` if auto mining is enabled, `false` otherwise
+<a href=#85 id=85 data-nosnippet>85</a>    </span><span class="attr">#[method(name = <span class="string">"getAutomine"</span>, aliases = [<span class="string">"hardhat_getAutomine"</span>]</span>)]
+<a href=#86 id=86 data-nosnippet>86</a>    <span class="kw">async fn </span>get_auto_mine(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; RpcResult&lt;bool&gt;;
+<a href=#87 id=87 data-nosnippet>87</a>
+<a href=#88 id=88 data-nosnippet>88</a>    <span class="doccomment">/// Enables or disables, based on the single boolean argument, the automatic mining of new
+<a href=#89 id=89 data-nosnippet>89</a>    /// blocks with each new transaction submitted to the network.
+<a href=#90 id=90 data-nosnippet>90</a>    ///
+<a href=#91 id=91 data-nosnippet>91</a>    /// # Arguments
+<a href=#92 id=92 data-nosnippet>92</a>    ///
+<a href=#93 id=93 data-nosnippet>93</a>    /// * `enable` - if `true` automatic mining will be enabled, disabled otherwise
+<a href=#94 id=94 data-nosnippet>94</a>    </span><span class="attr">#[method(name = <span class="string">"setAutomine"</span>, aliases = [<span class="string">"evm_setAutomine"</span>]</span>)]
+<a href=#95 id=95 data-nosnippet>95</a>    <span class="kw">async fn </span>set_auto_mine(<span class="kw-2">&amp;</span><span class="self">self</span>, enable: bool) -&gt; RpcResult&lt;()&gt;;
+<a href=#96 id=96 data-nosnippet>96</a>
+<a href=#97 id=97 data-nosnippet>97</a>    <span class="doccomment">/// Sets the mining behavior to interval with the given interval (seconds).
+<a href=#98 id=98 data-nosnippet>98</a>    ///
+<a href=#99 id=99 data-nosnippet>99</a>    /// # Arguments
+<a href=#100 id=100 data-nosnippet>100</a>    ///
+<a href=#101 id=101 data-nosnippet>101</a>    /// * `seconds` - Frequency of automatic block production (in seconds)
+<a href=#102 id=102 data-nosnippet>102</a>    </span><span class="attr">#[method(name = <span class="string">"setIntervalMining"</span>, aliases = [<span class="string">"evm_setIntervalMining"</span>]</span>)]
+<a href=#103 id=103 data-nosnippet>103</a>    <span class="kw">async fn </span>set_interval_mining(<span class="kw-2">&amp;</span><span class="self">self</span>, seconds: u64) -&gt; RpcResult&lt;()&gt;;
+<a href=#104 id=104 data-nosnippet>104</a>
+<a href=#105 id=105 data-nosnippet>105</a>    <span class="doccomment">/// Sets the block timestamp interval. All future blocks' timestamps will
+<a href=#106 id=106 data-nosnippet>106</a>    /// have the provided amount of seconds in-between of them. Does not affect
+<a href=#107 id=107 data-nosnippet>107</a>    /// the block production interval.
+<a href=#108 id=108 data-nosnippet>108</a>    ///
+<a href=#109 id=109 data-nosnippet>109</a>    /// # Arguments
+<a href=#110 id=110 data-nosnippet>110</a>    ///
+<a href=#111 id=111 data-nosnippet>111</a>    /// * `seconds` - The interval between two consecutive blocks (in seconds)
+<a href=#112 id=112 data-nosnippet>112</a>    </span><span class="attr">#[method(name = <span class="string">"setBlockTimestampInterval"</span>)]
+<a href=#113 id=113 data-nosnippet>113</a>    </span><span class="kw">async fn </span>set_block_timestamp_interval(<span class="kw-2">&amp;</span><span class="self">self</span>, seconds: u64) -&gt; RpcResult&lt;()&gt;;
+<a href=#114 id=114 data-nosnippet>114</a>
+<a href=#115 id=115 data-nosnippet>115</a>    <span class="doccomment">/// Removes the block timestamp interval if it exists.
+<a href=#116 id=116 data-nosnippet>116</a>    ///
+<a href=#117 id=117 data-nosnippet>117</a>    /// # Returns
+<a href=#118 id=118 data-nosnippet>118</a>    /// `true` if an existing interval was removed, `false` otherwise
+<a href=#119 id=119 data-nosnippet>119</a>    </span><span class="attr">#[method(name = <span class="string">"removeBlockTimestampInterval"</span>)]
+<a href=#120 id=120 data-nosnippet>120</a>    </span><span class="kw">async fn </span>remove_block_timestamp_interval(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; RpcResult&lt;bool&gt;;
+<a href=#121 id=121 data-nosnippet>121</a>
+<a href=#122 id=122 data-nosnippet>122</a>    <span class="doccomment">/// Set the minimum gas price for the node. Unsupported for ZKsync as it is only relevant for
+<a href=#123 id=123 data-nosnippet>123</a>    /// pre-EIP1559 chains.
+<a href=#124 id=124 data-nosnippet>124</a>    ///
+<a href=#125 id=125 data-nosnippet>125</a>    /// # Arguments
+<a href=#126 id=126 data-nosnippet>126</a>    ///
+<a href=#127 id=127 data-nosnippet>127</a>    /// * `gas` - The minimum gas price to be set
+<a href=#128 id=128 data-nosnippet>128</a>    </span><span class="attr">#[method(name = <span class="string">"setMinGasPrice"</span>, aliases = [<span class="string">"hardhat_setMinGasPrice"</span>]</span>)]
+<a href=#129 id=129 data-nosnippet>129</a>    <span class="kw">async fn </span>set_min_gas_price(<span class="kw-2">&amp;</span><span class="self">self</span>, gas: U256) -&gt; RpcResult&lt;()&gt;;
+<a href=#130 id=130 data-nosnippet>130</a>
+<a href=#131 id=131 data-nosnippet>131</a>    <span class="doccomment">/// Enable or disable logging.
+<a href=#132 id=132 data-nosnippet>132</a>    ///
+<a href=#133 id=133 data-nosnippet>133</a>    /// # Arguments
+<a href=#134 id=134 data-nosnippet>134</a>    ///
+<a href=#135 id=135 data-nosnippet>135</a>    /// * `enable` - if `true` logging will be enabled, disabled otherwise
+<a href=#136 id=136 data-nosnippet>136</a>    </span><span class="attr">#[method(name = <span class="string">"setLoggingEnabled"</span>, aliases = [<span class="string">"hardhat_setLoggingEnabled"</span>]</span>)]
+<a href=#137 id=137 data-nosnippet>137</a>    <span class="kw">async fn </span>set_logging_enabled(<span class="kw-2">&amp;</span><span class="self">self</span>, enable: bool) -&gt; RpcResult&lt;()&gt;;
+<a href=#138 id=138 data-nosnippet>138</a>
+<a href=#139 id=139 data-nosnippet>139</a>    <span class="doccomment">/// Snapshot the state of the blockchain at the current block. Takes no parameters. Returns the id of the snapshot
+<a href=#140 id=140 data-nosnippet>140</a>    /// that was created. A snapshot can only be reverted once. After a successful `anvil_revert`, the same snapshot id cannot
+<a href=#141 id=141 data-nosnippet>141</a>    /// be used again. Consider creating a new snapshot after each `anvil_revert` if you need to revert to the same
+<a href=#142 id=142 data-nosnippet>142</a>    /// point multiple times.
+<a href=#143 id=143 data-nosnippet>143</a>    ///
+<a href=#144 id=144 data-nosnippet>144</a>    /// # Returns
+<a href=#145 id=145 data-nosnippet>145</a>    /// The `U64` identifier for this snapshot.
+<a href=#146 id=146 data-nosnippet>146</a>    </span><span class="attr">#[method(name = <span class="string">"snapshot"</span>, aliases = [<span class="string">"evm_snapshot"</span>]</span>)]
+<a href=#147 id=147 data-nosnippet>147</a>    <span class="kw">async fn </span>snapshot(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; RpcResult&lt;U64&gt;;
+<a href=#148 id=148 data-nosnippet>148</a>
+<a href=#149 id=149 data-nosnippet>149</a>    <span class="doccomment">/// Revert the state of the blockchain to a previous snapshot. Takes a single parameter,
+<a href=#150 id=150 data-nosnippet>150</a>    /// which is the snapshot id to revert to. This deletes the given snapshot, as well as any snapshots
+<a href=#151 id=151 data-nosnippet>151</a>    /// taken after (e.g.: reverting to id 0x1 will delete snapshots with ids 0x1, 0x2, etc.)
+<a href=#152 id=152 data-nosnippet>152</a>    ///
+<a href=#153 id=153 data-nosnippet>153</a>    /// # Arguments
+<a href=#154 id=154 data-nosnippet>154</a>    ///
+<a href=#155 id=155 data-nosnippet>155</a>    /// * `id` - The snapshot id to revert
+<a href=#156 id=156 data-nosnippet>156</a>    ///
+<a href=#157 id=157 data-nosnippet>157</a>    /// # Returns
+<a href=#158 id=158 data-nosnippet>158</a>    /// `true` if a snapshot was reverted, otherwise `false`.
+<a href=#159 id=159 data-nosnippet>159</a>    </span><span class="attr">#[method(name = <span class="string">"revert"</span>, aliases = [<span class="string">"evm_revert"</span>]</span>)]
+<a href=#160 id=160 data-nosnippet>160</a>    <span class="kw">async fn </span>revert(<span class="kw-2">&amp;</span><span class="self">self</span>, id: U64) -&gt; RpcResult&lt;bool&gt;;
+<a href=#161 id=161 data-nosnippet>161</a>
+<a href=#162 id=162 data-nosnippet>162</a>    <span class="doccomment">/// Set the current timestamp for the node.
+<a href=#163 id=163 data-nosnippet>163</a>    /// Warning: This will allow you to move backwards in time, which may cause new blocks to appear to be
+<a href=#164 id=164 data-nosnippet>164</a>    /// mined before old blocks. This will result in an invalid state.
+<a href=#165 id=165 data-nosnippet>165</a>    ///
+<a href=#166 id=166 data-nosnippet>166</a>    /// # Arguments
+<a href=#167 id=167 data-nosnippet>167</a>    ///
+<a href=#168 id=168 data-nosnippet>168</a>    /// * `time` - The timestamp to set the time to
+<a href=#169 id=169 data-nosnippet>169</a>    ///
+<a href=#170 id=170 data-nosnippet>170</a>    /// # Returns
+<a href=#171 id=171 data-nosnippet>171</a>    /// The difference between the current timestamp and the new timestamp.
+<a href=#172 id=172 data-nosnippet>172</a>    </span><span class="attr">#[method(name = <span class="string">"setTime"</span>, aliases = [<span class="string">"evm_setTime"</span>]</span>)]
+<a href=#173 id=173 data-nosnippet>173</a>    <span class="kw">async fn </span>set_time(<span class="kw-2">&amp;</span><span class="self">self</span>, timestamp: Numeric) -&gt; RpcResult&lt;i128&gt;;
+<a href=#174 id=174 data-nosnippet>174</a>
+<a href=#175 id=175 data-nosnippet>175</a>    <span class="doccomment">/// Increase the current timestamp for the node
+<a href=#176 id=176 data-nosnippet>176</a>    ///
+<a href=#177 id=177 data-nosnippet>177</a>    /// # Arguments
+<a href=#178 id=178 data-nosnippet>178</a>    ///
+<a href=#179 id=179 data-nosnippet>179</a>    /// * `seconds` - The number of seconds to increase time by
+<a href=#180 id=180 data-nosnippet>180</a>    ///
+<a href=#181 id=181 data-nosnippet>181</a>    /// # Returns
+<a href=#182 id=182 data-nosnippet>182</a>    /// The applied time delta to the current timestamp in seconds.
+<a href=#183 id=183 data-nosnippet>183</a>    </span><span class="attr">#[method(name = <span class="string">"increaseTime"</span>, aliases = [<span class="string">"evm_increaseTime"</span>]</span>)]
+<a href=#184 id=184 data-nosnippet>184</a>    <span class="kw">async fn </span>increase_time(<span class="kw-2">&amp;</span><span class="self">self</span>, seconds: Numeric) -&gt; RpcResult&lt;u64&gt;;
+<a href=#185 id=185 data-nosnippet>185</a>
+<a href=#186 id=186 data-nosnippet>186</a>    <span class="doccomment">/// Set timestamp for the next block. The timestamp must be in future.
+<a href=#187 id=187 data-nosnippet>187</a>    ///
+<a href=#188 id=188 data-nosnippet>188</a>    /// # Arguments
+<a href=#189 id=189 data-nosnippet>189</a>    ///
+<a href=#190 id=190 data-nosnippet>190</a>    /// * `timestamp` - The timestamp to set the time to
+<a href=#191 id=191 data-nosnippet>191</a>    </span><span class="attr">#[method(name = <span class="string">"setNextBlockTimestamp"</span>, aliases = [<span class="string">"evm_setNextBlockTimestamp"</span>]</span>)]
+<a href=#192 id=192 data-nosnippet>192</a>    <span class="kw">async fn </span>set_next_block_timestamp(<span class="kw-2">&amp;</span><span class="self">self</span>, timestamp: Numeric) -&gt; RpcResult&lt;()&gt;;
+<a href=#193 id=193 data-nosnippet>193</a>
+<a href=#194 id=194 data-nosnippet>194</a>    <span class="doccomment">/// Sets auto impersonation status.
+<a href=#195 id=195 data-nosnippet>195</a>    ///
+<a href=#196 id=196 data-nosnippet>196</a>    /// # Arguments
+<a href=#197 id=197 data-nosnippet>197</a>    ///
+<a href=#198 id=198 data-nosnippet>198</a>    /// * `enabled` - `true` makes every account impersonated, `false` disables this behavior
+<a href=#199 id=199 data-nosnippet>199</a>    ///
+<a href=#200 id=200 data-nosnippet>200</a>    /// # Returns
+<a href=#201 id=201 data-nosnippet>201</a>    ///
+<a href=#202 id=202 data-nosnippet>202</a>    /// A `BoxFuture` containing a `Result` representing the success of the operation.
+<a href=#203 id=203 data-nosnippet>203</a>    </span><span class="attr">#[method(name = <span class="string">"autoImpersonateAccount"</span>, aliases = [<span class="string">"hardhat_autoImpersonateAccount"</span>]</span>)]
+<a href=#204 id=204 data-nosnippet>204</a>    <span class="kw">async fn </span>auto_impersonate_account(<span class="kw-2">&amp;</span><span class="self">self</span>, enabled: bool) -&gt; RpcResult&lt;()&gt;;
+<a href=#205 id=205 data-nosnippet>205</a>
+<a href=#206 id=206 data-nosnippet>206</a>    <span class="doccomment">/// Sets the balance of the given address to the given balance.
+<a href=#207 id=207 data-nosnippet>207</a>    ///
+<a href=#208 id=208 data-nosnippet>208</a>    /// # Arguments
+<a href=#209 id=209 data-nosnippet>209</a>    ///
+<a href=#210 id=210 data-nosnippet>210</a>    /// * `address` - The `Address` whose balance will be edited
+<a href=#211 id=211 data-nosnippet>211</a>    /// * `balance` - The new balance to set for the given address, in wei
+<a href=#212 id=212 data-nosnippet>212</a>    ///
+<a href=#213 id=213 data-nosnippet>213</a>    /// # Returns
+<a href=#214 id=214 data-nosnippet>214</a>    ///
+<a href=#215 id=215 data-nosnippet>215</a>    /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
+<a href=#216 id=216 data-nosnippet>216</a>    </span><span class="attr">#[method(name = <span class="string">"setBalance"</span>, aliases = [<span class="string">"hardhat_setBalance"</span>]</span>)]
+<a href=#217 id=217 data-nosnippet>217</a>    <span class="kw">async fn </span>set_balance(<span class="kw-2">&amp;</span><span class="self">self</span>, address: Address, balance: U256) -&gt; RpcResult&lt;bool&gt;;
+<a href=#218 id=218 data-nosnippet>218</a>
+<a href=#219 id=219 data-nosnippet>219</a>    <span class="doccomment">/// Modifies an account's nonce by overwriting it.
+<a href=#220 id=220 data-nosnippet>220</a>    ///
+<a href=#221 id=221 data-nosnippet>221</a>    /// # Arguments
+<a href=#222 id=222 data-nosnippet>222</a>    ///
+<a href=#223 id=223 data-nosnippet>223</a>    /// * `address` - The `Address` whose nonce is to be changed
+<a href=#224 id=224 data-nosnippet>224</a>    /// * `nonce` - The new nonce
+<a href=#225 id=225 data-nosnippet>225</a>    ///
+<a href=#226 id=226 data-nosnippet>226</a>    /// # Returns
+<a href=#227 id=227 data-nosnippet>227</a>    ///
+<a href=#228 id=228 data-nosnippet>228</a>    /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
+<a href=#229 id=229 data-nosnippet>229</a>    </span><span class="attr">#[method(name = <span class="string">"setNonce"</span>, aliases = [<span class="string">"hardhat_setNonce"</span>, <span class="string">"evm_setAccountNonce"</span>]</span>)]
+<a href=#230 id=230 data-nosnippet>230</a>    <span class="kw">async fn </span>set_nonce(<span class="kw-2">&amp;</span><span class="self">self</span>, address: Address, nonce: U256) -&gt; RpcResult&lt;bool&gt;;
+<a href=#231 id=231 data-nosnippet>231</a>
+<a href=#232 id=232 data-nosnippet>232</a>    <span class="doccomment">/// Sometimes you may want to advance the latest block number of the network by a large number of blocks.
+<a href=#233 id=233 data-nosnippet>233</a>    /// One way to do this would be to call the evm_mine RPC method multiple times, but this is too slow if you want to mine thousands of blocks.
+<a href=#234 id=234 data-nosnippet>234</a>    /// The `anvil_mine` method can mine any number of blocks at once, in constant time. (It exhibits the same performance no matter how many blocks are mined.)
+<a href=#235 id=235 data-nosnippet>235</a>    ///
+<a href=#236 id=236 data-nosnippet>236</a>    /// # Arguments
+<a href=#237 id=237 data-nosnippet>237</a>    ///
+<a href=#238 id=238 data-nosnippet>238</a>    /// * `num_blocks` - The number of blocks to mine, defaults to 1
+<a href=#239 id=239 data-nosnippet>239</a>    /// * `interval` - The interval between the timestamps of each block, in seconds, and it also defaults to 1
+<a href=#240 id=240 data-nosnippet>240</a>    ///
+<a href=#241 id=241 data-nosnippet>241</a>    /// # Returns
+<a href=#242 id=242 data-nosnippet>242</a>    ///
+<a href=#243 id=243 data-nosnippet>243</a>    /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
+<a href=#244 id=244 data-nosnippet>244</a>    </span><span class="attr">#[method(name = <span class="string">"mine"</span>, aliases = [<span class="string">"hardhat_mine"</span>]</span>)]
+<a href=#245 id=245 data-nosnippet>245</a>    <span class="kw">async fn </span>anvil_mine(<span class="kw-2">&amp;</span><span class="self">self</span>, num_blocks: <span class="prelude-ty">Option</span>&lt;U64&gt;, interval: <span class="prelude-ty">Option</span>&lt;U64&gt;) -&gt; RpcResult&lt;()&gt;;
+<a href=#246 id=246 data-nosnippet>246</a>
+<a href=#247 id=247 data-nosnippet>247</a>    <span class="doccomment">/// Reset the state of the network back to a fresh forked state, or disable forking.
+<a href=#248 id=248 data-nosnippet>248</a>    ///
+<a href=#249 id=249 data-nosnippet>249</a>    /// # Arguments
+<a href=#250 id=250 data-nosnippet>250</a>    ///
+<a href=#251 id=251 data-nosnippet>251</a>    /// * `reset_spec` - The requested state, defaults to resetting the current network.
+<a href=#252 id=252 data-nosnippet>252</a>    ///
+<a href=#253 id=253 data-nosnippet>253</a>    /// # Returns
+<a href=#254 id=254 data-nosnippet>254</a>    ///
+<a href=#255 id=255 data-nosnippet>255</a>    /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
+<a href=#256 id=256 data-nosnippet>256</a>    </span><span class="attr">#[method(name = <span class="string">"reset"</span>, aliases = [<span class="string">"hardhat_reset"</span>]</span>)]
+<a href=#257 id=257 data-nosnippet>257</a>    <span class="kw">async fn </span>reset_network(<span class="kw-2">&amp;</span><span class="self">self</span>, reset_spec: <span class="prelude-ty">Option</span>&lt;ResetRequest&gt;) -&gt; RpcResult&lt;bool&gt;;
+<a href=#258 id=258 data-nosnippet>258</a>
+<a href=#259 id=259 data-nosnippet>259</a>    <span class="doccomment">/// anvil-zksync allows transactions impersonating specific account and contract addresses.
+<a href=#260 id=260 data-nosnippet>260</a>    /// To impersonate an account use this method, passing the address to impersonate as its parameter.
+<a href=#261 id=261 data-nosnippet>261</a>    /// After calling this method, any transactions with this sender will be executed without verification.
+<a href=#262 id=262 data-nosnippet>262</a>    /// Multiple addresses can be impersonated at once.
+<a href=#263 id=263 data-nosnippet>263</a>    ///
+<a href=#264 id=264 data-nosnippet>264</a>    /// # Arguments
+<a href=#265 id=265 data-nosnippet>265</a>    ///
+<a href=#266 id=266 data-nosnippet>266</a>    /// * `address` - The address to impersonate
+<a href=#267 id=267 data-nosnippet>267</a>    ///
+<a href=#268 id=268 data-nosnippet>268</a>    /// # Returns
+<a href=#269 id=269 data-nosnippet>269</a>    ///
+<a href=#270 id=270 data-nosnippet>270</a>    /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
+<a href=#271 id=271 data-nosnippet>271</a>    </span><span class="attr">#[method(name = <span class="string">"impersonateAccount"</span>, aliases = [<span class="string">"hardhat_impersonateAccount"</span>]</span>)]
+<a href=#272 id=272 data-nosnippet>272</a>    <span class="kw">async fn </span>impersonate_account(<span class="kw-2">&amp;</span><span class="self">self</span>, address: Address) -&gt; RpcResult&lt;()&gt;;
+<a href=#273 id=273 data-nosnippet>273</a>
+<a href=#274 id=274 data-nosnippet>274</a>    <span class="doccomment">/// Use this method to stop impersonating an account after having previously used `anvil_impersonateAccount`
+<a href=#275 id=275 data-nosnippet>275</a>    /// The method returns `true` if the account was being impersonated and `false` otherwise.
+<a href=#276 id=276 data-nosnippet>276</a>    ///
+<a href=#277 id=277 data-nosnippet>277</a>    /// # Arguments
+<a href=#278 id=278 data-nosnippet>278</a>    ///
+<a href=#279 id=279 data-nosnippet>279</a>    /// * `address` - The address to stop impersonating.
+<a href=#280 id=280 data-nosnippet>280</a>    ///
+<a href=#281 id=281 data-nosnippet>281</a>    /// # Returns
+<a href=#282 id=282 data-nosnippet>282</a>    ///
+<a href=#283 id=283 data-nosnippet>283</a>    /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
+<a href=#284 id=284 data-nosnippet>284</a>    </span><span class="attr">#[method(name = <span class="string">"stopImpersonatingAccount"</span>, aliases = [<span class="string">"hardhat_stopImpersonatingAccount"</span>]</span>)]
+<a href=#285 id=285 data-nosnippet>285</a>    <span class="kw">async fn </span>stop_impersonating_account(<span class="kw-2">&amp;</span><span class="self">self</span>, address: Address) -&gt; RpcResult&lt;()&gt;;
+<a href=#286 id=286 data-nosnippet>286</a>
+<a href=#287 id=287 data-nosnippet>287</a>    <span class="doccomment">/// Modifies the bytecode stored at an account's address.
+<a href=#288 id=288 data-nosnippet>288</a>    ///
+<a href=#289 id=289 data-nosnippet>289</a>    /// # Arguments
+<a href=#290 id=290 data-nosnippet>290</a>    ///
+<a href=#291 id=291 data-nosnippet>291</a>    /// * `address` - The address where the given code should be stored.
+<a href=#292 id=292 data-nosnippet>292</a>    /// * `code` - The code to be stored.
+<a href=#293 id=293 data-nosnippet>293</a>    ///
+<a href=#294 id=294 data-nosnippet>294</a>    /// # Returns
+<a href=#295 id=295 data-nosnippet>295</a>    ///
+<a href=#296 id=296 data-nosnippet>296</a>    /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
+<a href=#297 id=297 data-nosnippet>297</a>    </span><span class="attr">#[method(name = <span class="string">"setCode"</span>, aliases = [<span class="string">"hardhat_setCode"</span>]</span>)]
+<a href=#298 id=298 data-nosnippet>298</a>    <span class="kw">async fn </span>set_code(<span class="kw-2">&amp;</span><span class="self">self</span>, address: Address, code: String) -&gt; RpcResult&lt;()&gt;;
+<a href=#299 id=299 data-nosnippet>299</a>
+<a href=#300 id=300 data-nosnippet>300</a>    <span class="doccomment">/// Directly modifies the storage of a contract at a specified slot.
+<a href=#301 id=301 data-nosnippet>301</a>    ///
+<a href=#302 id=302 data-nosnippet>302</a>    /// # Arguments
+<a href=#303 id=303 data-nosnippet>303</a>    ///
+<a href=#304 id=304 data-nosnippet>304</a>    /// * `address` - The contract address whose storage is to be modified.
+<a href=#305 id=305 data-nosnippet>305</a>    /// * `slot` - The storage slot to modify.
+<a href=#306 id=306 data-nosnippet>306</a>    /// * `value` - The value to be set at the specified slot.
+<a href=#307 id=307 data-nosnippet>307</a>    ///
+<a href=#308 id=308 data-nosnippet>308</a>    /// # Returns
+<a href=#309 id=309 data-nosnippet>309</a>    ///
+<a href=#310 id=310 data-nosnippet>310</a>    /// A `BoxFuture` containing a `Result` with a `bool` representing the success of the operation.
+<a href=#311 id=311 data-nosnippet>311</a>    </span><span class="attr">#[method(name = <span class="string">"setStorageAt"</span>, aliases = [<span class="string">"hardhat_setStorageAt"</span>]</span>)]
+<a href=#312 id=312 data-nosnippet>312</a>    <span class="kw">async fn </span>set_storage_at(<span class="kw-2">&amp;</span><span class="self">self</span>, address: Address, slot: U256, value: U256) -&gt; RpcResult&lt;bool&gt;;
+<a href=#313 id=313 data-nosnippet>313</a>
+<a href=#314 id=314 data-nosnippet>314</a>    <span class="doccomment">/// Sets the chain id.
+<a href=#315 id=315 data-nosnippet>315</a>    ///
+<a href=#316 id=316 data-nosnippet>316</a>    /// # Arguments
+<a href=#317 id=317 data-nosnippet>317</a>    ///
+<a href=#318 id=318 data-nosnippet>318</a>    /// * `id` - The chain id to be set.
+<a href=#319 id=319 data-nosnippet>319</a>    </span><span class="attr">#[method(name = <span class="string">"setChainId"</span>)]
+<a href=#320 id=320 data-nosnippet>320</a>    </span><span class="kw">async fn </span>set_chain_id(<span class="kw-2">&amp;</span><span class="self">self</span>, id: u32) -&gt; RpcResult&lt;()&gt;;
+<a href=#321 id=321 data-nosnippet>321</a>}</code></pre></div></section></main></body></html>

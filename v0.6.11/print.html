@@ -1,0 +1,2540 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Anvil-ZKsync Documentation</title>
+        <meta name="robots" content="noindex">
+
+
+        <!-- Custom HTML head -->
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="css/version-box.css">
+        <link rel="stylesheet" href="./css/mdbook-admonish.css">
+
+        <!-- MathJax -->
+        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Anvil-ZKsync Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/matter-labs/anvil-zksync/tree/main/docs/book" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="introduction"><a class="header" href="#introduction">Introduction</a></h1>
+<p>Welcome to the <strong>anvil-zkSync</strong> documentation—your single stop for spinning up a local ZK chain node, forking mainnet or testnets, and debugging smart-contract workflows.</p>
+<blockquote>
+<p><strong>At a glance:</strong><br />
+• <strong>Fast in-memory node</strong> for Elastic Network ZK chains
+• Drop-in <em>anvil</em> CLI parity (forking, snapshots, impersonation, …)<br />
+• Rich RPC surface for integration tests and L1↔L2 scenarios</p>
+</blockquote>
+<h2 id="documentation-map"><a class="header" href="#documentation-map">Documentation map</a></h2>
+<ul>
+<li><strong><a href="./cli/index.html">CLI Reference</a></strong></li>
+<li><strong><a href="./rpc/index.html">RPC Reference</a></strong></li>
+<li><strong><a href="./guides/local_hardhat_testing.html">Guides</a></strong></li>
+</ul>
+<h2 id="getting-started-in-30-seconds"><a class="header" href="#getting-started-in-30-seconds">Getting started in 30 seconds</a></h2>
+<pre><code class="language-bash"># 1. Install via Cargo (recommended)
+brew tap matter-labs/anvil-zksync https://github.com/matter-labs/anvil-zksync.git 
+brew install anvil-zksync
+
+# 2. Launch a fresh local node
+anvil-zksync run
+
+# 3. Or fork Era mainnet at the latest block
+anvil-zksync fork --fork-url mainnet
+</code></pre>
+<p>Once running, visit <a href="http://localhost:8011"><code>http://localhost:8011</code></a>.</p>
+<h2 id="where-to-next"><a class="header" href="#where-to-next">Where to next?</a></h2>
+<ul>
+<li><strong>New to zkSync?</strong> Start with <a href="./intro/getting-started.html">Getting Started</a> for a quick architectural primer.</li>
+<li><strong>Deep dive into flags?</strong> Head over to the <a href="./cli/index.html">CLI Reference</a>.</li>
+<li><strong>Building an L1↔L2 bridge?</strong> Check the <a href="./guides/local_hardhat_testing.html">Guides</a> section.</li>
+<li><strong>Looking for Rust book?</strong> Head over to the <a href="https://matter-labs.github.io/anvil-zksync/latest/rustdoc/anvil_zksync/index.html">Anzil-ZKsync Rust book</a>.</li>
+</ul>
+<p>Thank you for using <strong>anvil-zkSync</strong> —happy building!<br />
+If you spot an issue or have an idea for improvement, open an issue or <a href="">pull request</a> on GitHub.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="why-anvil-zksync"><a class="header" href="#why-anvil-zksync">Why anvil-zksync</a></h1>
+<p>Developers building on Elastic Network chains need a local node that <strong>understands EraVM</strong>, supports
+rapid iteration, and handles cross-chain workflows. <strong>anvil-zksync</strong> fills that gap.</p>
+<p>Why not just use <code>anvil</code>?</p>
+<p>Anvil is great but it is built to target Ethereum’s EVM but <strong>EraVM is not EVM-equivalent</strong>. EraVM
+is a custom virtual machine that powers ZKsync Era and other Elastic Network chains. It has its own
+opcodes, gas costs, and execution model. This means that anvil’s EVM-based execution environment is
+not compatible with EraVM bytecode.</p>
+<p><strong>anvil-zksync</strong> is a drop-in replacement for Anvil, delivering the same fast local development
+workflow—but with native EraVM support.</p>
+<h2 id="rapid-testing-debugging--prototyping"><a class="header" href="#rapid-testing-debugging--prototyping">Rapid testing, debugging &amp; prototyping</a></h2>
+<ul>
+<li><strong>Spin up a fresh network</strong> in milliseconds with <code>anvil-zksync run</code>.</li>
+<li><strong>Fork any Elastic Network ZK chain</strong> at the latest block or a historic block number with <code>fork</code>.</li>
+<li><strong>Auto-mine or mine on demand</strong>, so you can exercise blocks exactly when you need them.</li>
+<li><strong>Verbose VM tracing</strong> helps you introspect failing txs, gas usage, and internal state.</li>
+</ul>
+<h2 id="forking-elastic-network-zk-chains"><a class="header" href="#forking-elastic-network-zk-chains">Forking Elastic Network ZK chains</a></h2>
+<p>With <code>--fork-url</code> you can point at any supported network <code>mainnet</code>, <code>sepolia-testnet</code>, <code>abstract</code>,
+<code>sophon</code>, etc. and get a local fork that includes all state (accounts, contracts, balances). Perfect
+for:</p>
+<ul>
+<li><strong>Integration tests</strong></li>
+<li><strong>Debugging live issues</strong></li>
+<li><strong>Prototyping</strong></li>
+<li><strong>dApp development</strong></li>
+<li><strong>Gas cost analysis</strong></li>
+</ul>
+<h2 id="l2l1-communication"><a class="header" href="#l2l1-communication">L2→L1 communication</a></h2>
+<p><code>anvil-zksync</code> supports local L2-L1 communication:</p>
+<ul>
+<li><strong>L1→L2 deposits</strong> and <strong>L2→L1 withdrawals</strong></li>
+<li><strong>L2→L1 messaging</strong></li>
+<li><strong>Priority queue transactions</strong></li>
+<li><strong>Upgrade and governance txs</strong></li>
+</ul>
+<h2 id="custom-base-token-support"><a class="header" href="#custom-base-token-support">Custom base-token support</a></h2>
+<p>Not every chain uses ETH for gas.</p>
+<p>Configure a <strong>custom base token symbol</strong> and <strong>conversion ratio</strong>, and all gas estimations and
+balances will “just work” for non-ETH base tokens.</p>
+<h2 id="protocol--system-contract-development"><a class="header" href="#protocol--system-contract-development">Protocol &amp; system-contract development</a></h2>
+<p>For protocol engineers:</p>
+<ul>
+<li><strong>Test system contracts and bootloader changes</strong> locally quickly and easily</li>
+<li><strong>Experiment with new protocol versions</strong> (<code>--protocol-version</code>)</li>
+<li><strong>Validate compression, pubdata costs, and bytecode overrides</strong></li>
+</ul>
+<h2 id="evm-usage"><a class="header" href="#evm-usage">EVM usage</a></h2>
+<p>Starting in the v27 protocol upgrade, <code>anvil-zksync</code> supports running the EVM interpreter on top of
+EraVM. This is useful if you need to:</p>
+<ul>
+<li>Test, debug, and prototype with EVM contracts on EraVM</li>
+<li>Compare EraVM vs EVM interpreter behavior</li>
+</ul>
+<pre><code class="language-bash">anvil-zksync --evm-interpreter
+</code></pre>
+<h2 id="replay-and-trace-historical-transactions"><a class="header" href="#replay-and-trace-historical-transactions">Replay and trace historical transactions</a></h2>
+<p>Replay any transaction:</p>
+<pre><code class="language-bash">anvil-zksync -vv replay_tx \
+  --fork-url mainnet \
+  0xe12b1924faa45881beb324adca1f8429d553d7ad56a2a030dcebea715e1ec1e4
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="installation"><a class="header" href="#installation">Installation</a></h1>
+<p>You have the following ways to get up and running with <strong>anvil-zksync</strong>:</p>
+<ol>
+<li><strong>Homebrew</strong> (recommended)</li>
+<li><strong>Installation script</strong> (bundles <code>forge</code>, <code>cast</code>, and <code>anvil-zksync</code> from <code>foundry-zksync</code>)</li>
+<li><strong>Pre-built binaries</strong> (download &amp; extract)</li>
+<li><strong>Docker</strong></li>
+<li><strong>Build from source</strong> (requires Rust/Cargo)</li>
+</ol>
+<h2 id="1-homebrew-recommended"><a class="header" href="#1-homebrew-recommended">1. Homebrew (recommended)</a></h2>
+<p>If you’re on macOS or Linux, the easiest and most up-to-date way is via Homebrew:</p>
+<pre><code class="language-bash"># Tap the official anvil-zksync formula
+brew tap matter-labs/anvil-zksync https://github.com/matter-labs/anvil-zksync.git 
+brew install anvil-zksync
+
+# Install
+brew install anvil-zksync
+
+# To update later:
+brew update
+brew upgrade anvil-zksync
+</code></pre>
+<h2 id="2-installation-script"><a class="header" href="#2-installation-script">2. Installation script</a></h2>
+<p>The easiest path: grab and run the <code>foundryup-zksync</code> installer.</p>
+<pre><code class="language-bash">curl -L https://raw.githubusercontent.com/matter-labs/foundry-zksync/main/install-foundry-zksync \
+  | bash
+</code></pre>
+<blockquote>
+<p>This installs <code>forge</code>, <code>cast</code>, <strong>and</strong> <code>anvil-zksync</code> into your <code>PATH</code>. <strong>Note:</strong> This will
+override existing <code>foundry</code> installations.</p>
+</blockquote>
+<p>Then start your local ZK chain node:</p>
+<pre><code class="language-bash">anvil-zksync
+</code></pre>
+<h2 id="3-pre-built-binaries"><a class="header" href="#3-pre-built-binaries">3. Pre-built binaries</a></h2>
+<ol>
+<li>
+<p>Download the latest release for your platform from<br />
+<a href="https://github.com/matter-labs/anvil-zksync/releases/latest">GitHub Releases</a>.</p>
+</li>
+<li>
+<p>Extract and install:</p>
+<pre><code class="language-bash">tar xzf anvil-zksync-&lt;version&gt;-&lt;os&gt;.tar.gz -C /usr/local/bin/
+chmod +x /usr/local/bin/anvil-zksync
+</code></pre>
+</li>
+<li>
+<p>Verify and run:</p>
+<pre><code class="language-bash">anvil-zksync --version
+anvil-zksync
+</code></pre>
+</li>
+</ol>
+<h3 id="convenience-download-links"><a class="header" href="#convenience-download-links">Convenience download links</a></h3>
+<p>These URLs always fetch the <strong>latest</strong> published build:</p>
+<ul>
+<li><a href="https://github.com/matter-labs/anvil-zksync/releases/latest/download/anvil-zksync-v0.6.0-aarch64-apple-darwin.tar.gz"><code>anvil-zksync-aarch64-apple-darwin.tar.gz</code></a></li>
+<li><a href="https://github.com/matter-labs/anvil-zksync/releases/latest/download/anvil-zksync-v0.6.0-aarch64-unknown-linux-gnu.tar.gz"><code>anvil-zksync-aarch64-unknown-linux-gnu.tar.gz</code></a></li>
+<li><a href="https://github.com/matter-labs/anvil-zksync/releases/latest/download/anvil-zksync-v0.6.0-x86_64-apple-darwin.tar.gz"><code>anvil-zksync-x86_64-apple-darwin.tar.gz</code></a></li>
+<li><a href="https://github.com/matter-labs/anvil-zksync/releases/latest/download/anvil-zksync-v0.6.0-x86_64-unknown-linux-gnu.tar.gz"><code>anvil-zksync-x86_64-unknown-linux-gnu.tar.gz</code></a></li>
+</ul>
+<h2 id="4-docker"><a class="header" href="#4-docker">4. Docker</a></h2>
+<p><code>anvil-zksync</code> is available as Docker image that supports Linux x64 and arm64.</p>
+<pre><code class="language-bash">docker pull ghcr.io/matter-labs/anvil-zksync:v0.6.0
+</code></pre>
+<p><strong>Run it (interactive):</strong></p>
+<pre><code class="language-bash">docker run --rm -it ghcr.io/matter-labs/anvil-zksync:v0.6.0 \
+  anvil-zksync
+</code></pre>
+<h2 id="5-build-from-source"><a class="header" href="#5-build-from-source">5. Build from source</a></h2>
+<p>Requires Rust &amp; Cargo installed.</p>
+<pre><code class="language-bash">gh repo clone matter-labs/anvil-zksync
+cd anvil-zksync
+cargo build --release
+</code></pre>
+<p>The <code>anvil-zksync</code> binary will be at <code>target/release/</code>. To make it globally available:</p>
+<pre><code class="language-bash">cp target/release/anvil-zksync /usr/local/bin/
+</code></pre>
+<h2 id="checking-installation"><a class="header" href="#checking-installation">Checking installation</a></h2>
+<p>After installation, verify that <strong>anvil-zksync</strong> is available:</p>
+<pre><code class="language-bash">anvil-zksync --version
+# 0.5.1
+</code></pre>
+<p>With any method above, you can immediately begin:</p>
+<pre><code class="language-bash"># Launch default (equivalent to `run`)
+anvil-zksync
+
+# Or fork with tracing enabled:
+anvil-zksync -vv fork --fork-url era
+</code></pre>
+<p>If you installed via script or binaries and see a “command not found” error, you may need to add the
+install directory to your PATH.</p>
+<h2 id="adding-to-your-path"><a class="header" href="#adding-to-your-path">Adding to your <code>PATH</code></a></h2>
+<p>First, determine what shell you’re using:</p>
+<pre><code class="language-bash">echo $SHELL
+</code></pre>
+<p>Then add these lines below to bottom of your shell’s configuration file.</p>
+<pre><code class="language-bash">export ANVIL_ZKSYNC_HOME="$HOME/.anvil-zksync"
+export PATH="$ANVIL_ZKSYNC_HOME/bin:$PATH"
+</code></pre>
+<p>Save the file. You’ll need to open a new shell/terminal window for the changes to take effect.</p>
+<h2 id="upgrading"><a class="header" href="#upgrading">Upgrading</a></h2>
+<ul>
+<li><strong>Homebrew</strong>: <code>brew upgrade anvil-zksync</code></li>
+<li><strong>Installation script</strong>: re-run the install script to pull the latest</li>
+<li><strong>Docker</strong>: <code>docker pull ghcr.io/matter-labs/anvil-zksync:latest</code></li>
+<li><strong>Source build</strong>: pull latest, <code>cargo build --release</code>, then replace the binary</li>
+</ul>
+<h2 id="uninstall"><a class="header" href="#uninstall">Uninstall</a></h2>
+<h3 id="homebrew"><a class="header" href="#homebrew">Homebrew</a></h3>
+<pre><code class="language-bash">brew uninstall anvil-zksync
+</code></pre>
+<h3 id="script"><a class="header" href="#script">Script</a></h3>
+<pre><code class="language-bash">rm -f ~/.foundry/bin/anvil-zksync
+</code></pre>
+<h3 id="docker"><a class="header" href="#docker">Docker</a></h3>
+<pre><code class="language-bash">docker rmi ghcr.io/matter-labs/anvil-zksync
+</code></pre>
+<h3 id="binaries"><a class="header" href="#binaries">Binaries</a></h3>
+<pre><code class="language-bash">rm /usr/local/bin/anvil-zksync
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="getting-started"><a class="header" href="#getting-started">Getting Started</a></h1>
+<p>Get up and running in four steps: start your node, interact via RPC, deploy a contract, and replay a
+transaction.</p>
+<h2 id="1-start-your-local-node"><a class="header" href="#1-start-your-local-node">1. Start your local node</a></h2>
+<p>By default, <code>run</code> is the active command:</p>
+<pre><code class="language-bash">anvil-zksync
+</code></pre>
+<ul>
+<li><strong>RPC endpoint:</strong> <code>http://localhost:8011</code></li>
+<li><strong>Dev accounts:</strong> 10 pre-funded wallets</li>
+</ul>
+<p>To see VM traces and call stacks, add <code>-vv</code> (increase verbosity level for more detail):</p>
+<pre><code class="language-bash">anvil-zksync -vv
+</code></pre>
+<h2 id="2-send-an-rpc-call"><a class="header" href="#2-send-an-rpc-call">2. Send an RPC call</a></h2>
+<p>Use <code>curl</code> or Foundry’s <code>cast</code> against your local node:</p>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":[]}'
+</code></pre>
+<pre><code class="language-bash">cast block-number --rpc-url http://localhost:8011
+</code></pre>
+<h2 id="3-deploy-a-contract"><a class="header" href="#3-deploy-a-contract">3. Deploy a contract</a></h2>
+<p>Compile with zkSync support, then deploy via <code>forge</code>:</p>
+<pre><code class="language-bash">forge build --zksync
+forge create \
+  contracts/Greeter.sol:Greeter \
+  --constructor-args "Hello, zkSync!" \
+  --rpc-url http://localhost:8011 \
+  --chain 260 \
+  --zksync
+</code></pre>
+<h2 id="4-replay-a-historical-transaction"><a class="header" href="#4-replay-a-historical-transaction">4. Replay a historical transaction</a></h2>
+<p>Fork and replay any on-chain tx locally, with verbose tracing:</p>
+<pre><code class="language-bash">anvil-zksync -vv replay_tx \
+  --fork-url mainnet \
+  0xe12b1924faa45881beb324adca1f8429d553d7ad56a2a030dcebea715e1ec1e4
+</code></pre>
+<h2 id="next-steps"><a class="header" href="#next-steps">Next steps</a></h2>
+<ul>
+<li><a href="intro/../cli/index.html">CLI commands</a></li>
+<li><a href="intro/../rpc/index.html">RPC methods</a></li>
+<li><a href="intro/../guides/local_hardhat_testing.html">Guides</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="anvil-zksync"><a class="header" href="#anvil-zksync"><code>anvil-zksync</code></a></h1>
+<p>A single binary <strong>local ZK chain node</strong> that can impersonate <em>any</em> ZKsync powered or Elastic Network
+ZK chain. Ideal for integration tests, fork based debugging, quick prototyping, and offline
+experiments.</p>
+<h2 id="installation-1"><a class="header" href="#installation-1">Installation</a></h2>
+<pre><code class="language-bash">brew tap matter-labs/anvil-zksync https://github.com/matter-labs/anvil-zksync.git 
+brew install anvil-zksync
+</code></pre>
+<h2 id="usage"><a class="header" href="#usage">Usage</a></h2>
+<pre><code class="language-bash // [anvil-zksync]">anvil-zksync [OPTIONS] [COMMAND]
+</code></pre>
+<h2 id="quick-start"><a class="header" href="#quick-start">Quick start</a></h2>
+<pre><code class="language-bash // [run with user traces]"># 1. Fresh network that auto‑mines
+anvil-zksync run -vv
+</code></pre>
+<pre><code class="language-bash // [fork ZKsync Era mainnet]"># 2. Fork mainnet at the latest block
+anvil-zksync fork mainnet
+</code></pre>
+<pre><code class="language-bash // [Replay tx from Abstract]"># 3. Replay tx from Abstract mainnet with user vm traces
+anvil-zksync -vv replay_tx --fork-url abstract \
+0xea5a45976f8013fd937ac267211fa575bc5968350a0ae3d8932bad75651d933c
+</code></pre>
+<h2 id="commands"><a class="header" href="#commands">Commands</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Command</th><th>Purpose</th><th>Docs</th></tr></thead><tbody>
+<tr><td><strong>run</strong></td><td>Start a brand new empty network</td><td><a href="cli/./run.html"><code>run</code></a></td></tr>
+<tr><td><strong>fork</strong></td><td>Fork an existing chain into a local instance</td><td><a href="cli/./fork.html"><code>fork</code></a></td></tr>
+<tr><td><strong>replay_tx</strong></td><td>Fork + replay a historical L2 transaction</td><td><a href="cli/./replay_tx.html"><code>replay_tx</code></a></td></tr>
+<tr><td><strong>help</strong></td><td>Show help for any command</td><td>-</td></tr>
+</tbody></table>
+</div>
+<h2 id="global-options"><a class="header" href="#global-options">Global options</a></h2>
+<h3 id="chain-initialization"><a class="header" href="#chain-initialization">Chain initialization</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Flag</th><th>Description</th><th>Default</th></tr></thead><tbody>
+<tr><td><code>--timestamp &lt;NUM&gt;</code></td><td>Override genesis block timestamp</td><td>-</td></tr>
+<tr><td><code>--init &lt;PATH&gt;</code></td><td>Load full <code>genesis.json</code> definition</td><td>-</td></tr>
+<tr><td><code>--state &lt;PATH&gt;</code></td><td>Load then dump snapshot on exit</td><td>-</td></tr>
+<tr><td><code>-s, --state-interval &lt;SECONDS&gt;</code></td><td>Auto-dump state every <em>n</em> seconds</td><td>-</td></tr>
+<tr><td><code>--dump-state &lt;PATH&gt;</code></td><td>Dump state snapshot on exit only</td><td>-</td></tr>
+<tr><td><code>--preserve-historical-states</code></td><td>Keep in-memory states for past blocks</td><td>off</td></tr>
+<tr><td><code>--load-state &lt;PATH&gt;</code></td><td>Restore from an existing snapshot</td><td>-</td></tr>
+</tbody></table>
+</div>
+<h3 id="mining--mempool"><a class="header" href="#mining--mempool">Mining &amp; mempool</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Flag</th><th>Description</th><th>Default</th></tr></thead><tbody>
+<tr><td><code>--no-mining</code></td><td>Mine on demand only</td><td><code>auto-mine</code></td></tr>
+<tr><td><code>--order &lt;order&gt;</code></td><td>Transaction ordering strategy</td><td><code>fifo</code></td></tr>
+</tbody></table>
+</div>
+<h3 id="general"><a class="header" href="#general">General</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Flag</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>--offline</code></td><td>Disable <strong>all</strong> network requests</td></tr>
+<tr><td><code>--health-check-endpoint</code></td><td>Expose <code>GET /health</code> returning <code>200 OK</code></td></tr>
+<tr><td><code>--config-out &lt;FILE&gt;</code></td><td>Write effective JSON config to disk</td></tr>
+<tr><td><code>-h, --help</code></td><td>Show help</td></tr>
+<tr><td><code>-V, --version</code></td><td>Show version</td></tr>
+</tbody></table>
+</div>
+<h3 id="network"><a class="header" href="#network">Network</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Flag</th><th>Description</th><th>Default</th></tr></thead><tbody>
+<tr><td><code>--port &lt;PORT&gt;</code></td><td>RPC port</td><td><code>8011</code></td></tr>
+<tr><td><code>--host &lt;IP&gt;</code></td><td>Bind address (env <code>ANVIL_ZKSYNC_IP_ADDR</code>)</td><td><code>0.0.0.0</code></td></tr>
+<tr><td><code>--chain-id &lt;ID&gt;</code></td><td>Chain ID</td><td><code>260</code></td></tr>
+</tbody></table>
+</div>
+<h3 id="debugging"><a class="header" href="#debugging">Debugging</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Flag</th><th>Description</th><th>Values / Notes</th></tr></thead><tbody>
+<tr><td><code>--show-node-config[=&lt;bool&gt;]</code></td><td>Print node config on startup</td><td><code>true</code></td></tr>
+<tr><td><code>--show-storage-logs &lt;mode&gt;</code></td><td>Storage log details</td><td><code>none</code>, <code>read</code>, <code>write</code>, <code>paid</code>, <code>all</code></td></tr>
+<tr><td><code>--show-vm-details &lt;mode&gt;</code></td><td>VM execution details</td><td><code>none</code>, <code>all</code></td></tr>
+<tr><td><code>--show-gas-details &lt;mode&gt;</code></td><td>Gas cost breakdown</td><td><code>none</code>, <code>all</code></td></tr>
+<tr><td><code>-v, --verbosity…</code></td><td>Increment log detail (<code>-vvv</code> = system + user traces)</td><td>up to <code>-vvvvv</code></td></tr>
+</tbody></table>
+</div>
+<h3 id="gas-configuration"><a class="header" href="#gas-configuration">Gas configuration</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Flag</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>--l1-gas-price &lt;wei&gt;</code></td><td>Custom L1 gas price</td></tr>
+<tr><td><code>--l2-gas-price &lt;wei&gt;</code></td><td>Custom L2 gas price</td></tr>
+<tr><td><code>--l1-pubdata-price &lt;wei&gt;</code></td><td>Custom pubdata price</td></tr>
+<tr><td><code>--price-scale-factor &lt;x&gt;</code></td><td>Price estimation multiplier</td></tr>
+<tr><td><code>--limit-scale-factor &lt;x&gt;</code></td><td>Gas limit estimation multiplier</td></tr>
+</tbody></table>
+</div>
+<h3 id="system"><a class="header" href="#system">System</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Flag</th><th>Description</th><th>Default / Values</th></tr></thead><tbody>
+<tr><td><code>--override-bytecodes-dir &lt;DIR&gt;</code></td><td>Override deployed bytecodes</td><td>-</td></tr>
+<tr><td><code>--enforce-bytecode-compression=&lt;bool&gt;</code></td><td>Enforce compression</td><td><code>false</code></td></tr>
+<tr><td><code>--dev-system-contracts &lt;mode&gt;</code></td><td>Built‑in / local / no-security</td><td><code>built-in</code></td></tr>
+<tr><td><code>--system-contracts-path &lt;PATH&gt;</code></td><td>Custom system contract build</td><td>-</td></tr>
+<tr><td><code>--protocol-version &lt;N&gt;</code></td><td>Protocol version for new blocks</td><td><code>26</code></td></tr>
+<tr><td><code>--evm-interpreter</code></td><td>Enable EVM interpreter</td><td>false</td></tr>
+</tbody></table>
+</div>
+<h3 id="logging"><a class="header" href="#logging">Logging</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Flag</th><th>Description</th><th>Default</th></tr></thead><tbody>
+<tr><td><code>--log &lt;level&gt;</code></td><td>Log level</td><td><code>info</code></td></tr>
+<tr><td><code>--log-file-path &lt;PATH&gt;</code></td><td>Persist logs</td><td><code>anvil-zksync.log</code></td></tr>
+<tr><td><code>--silent[=&lt;bool&gt;]</code></td><td>Suppress startup banner</td><td><code>false</code></td></tr>
+</tbody></table>
+</div>
+<h3 id="cache"><a class="header" href="#cache">Cache</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Flag</th><th>Description</th><th>Default</th></tr></thead><tbody>
+<tr><td><code>--cache &lt;option&gt;</code></td><td>Cache backend. Available options: <code>none</code>, <code>memory</code>,<code>disk</code></td><td><code>disk</code></td></tr>
+<tr><td><code>--reset-cache=&lt;bool&gt;</code></td><td>Wipe local cache on start</td><td><code>false</code></td></tr>
+<tr><td><code>--cache-dir &lt;DIR&gt;</code></td><td>Cache directory</td><td><code>.cache</code></td></tr>
+</tbody></table>
+</div>
+<h3 id="accounts"><a class="header" href="#accounts">Accounts</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Flag</th><th>Description</th><th>Default</th></tr></thead><tbody>
+<tr><td><code>-a, --accounts &lt;N&gt;</code></td><td>Dev accounts to generate</td><td><code>10</code></td></tr>
+<tr><td><code>--balance &lt;ETH&gt;</code></td><td>Balance per dev account</td><td><code>10000</code></td></tr>
+<tr><td><code>--mnemonic &lt;PHRASE&gt;</code></td><td>Custom BIP-39 mnemonic</td><td>-</td></tr>
+<tr><td><code>--mnemonic-random[=&lt;words&gt;]</code></td><td>Generate random mnemonic</td><td><code>12</code> words</td></tr>
+<tr><td><code>--mnemonic-seed-unsafe &lt;seed&gt;</code></td><td>Derive from seed (<strong>testing only</strong>)</td><td>-</td></tr>
+<tr><td><code>--derivation-path &lt;path&gt;</code></td><td>HD derivation path</td><td><code>m/44'/60'/0'/0/</code></td></tr>
+<tr><td><code>--auto-impersonate</code></td><td>Unlock any sender (aka <code>--auto-unlock</code>)</td><td>-</td></tr>
+</tbody></table>
+</div>
+<h3 id="block-sealing"><a class="header" href="#block-sealing">Block sealing</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Flag</th><th>Description</th><th>Default</th></tr></thead><tbody>
+<tr><td><code>-b, --block-time &lt;sec&gt;</code></td><td>Fixed block interval. If unset, seal instantly</td><td>-</td></tr>
+</tbody></table>
+</div>
+<h3 id="server"><a class="header" href="#server">Server</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Flag</th><th>Description</th><th>Default</th></tr></thead><tbody>
+<tr><td><code>--allow-origin &lt;origins&gt;</code></td><td>CORS <code>Access-Control-Allow-Origin</code></td><td><code>*</code></td></tr>
+<tr><td><code>--no-cors</code></td><td>Disable CORS</td><td>-</td></tr>
+</tbody></table>
+</div>
+<h3 id="l1-unstable"><a class="header" href="#l1-unstable">L1 (unstable)</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Flag</th><th>Description</th><th>Default</th></tr></thead><tbody>
+<tr><td><code>--spawn-l1[=&lt;port&gt;]</code></td><td>Start colocated L1 Anvil node</td><td><code>8012</code></td></tr>
+<tr><td><code>--external-l1 &lt;URL&gt;</code></td><td>Use external L1 JSON-RPC</td><td>-</td></tr>
+<tr><td><code>--auto-execute-l1[=&lt;bool&gt;]</code></td><td>Auto execute L1 batches</td><td><code>false</code></td></tr>
+</tbody></table>
+</div>
+<h3 id="custom-base-token"><a class="header" href="#custom-base-token">Custom base token</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Flag</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>--base-token-symbol &lt;SYM&gt;</code></td><td>Replace <code>ETH</code> symbol</td></tr>
+<tr><td><code>--base-token-ratio &lt;ratio&gt;</code></td><td>Conversion ratio (<code>40000</code>, <code>628/17</code>)</td></tr>
+</tbody></table>
+</div>
+<h2 id="next-steps-1"><a class="header" href="#next-steps-1">Next steps</a></h2>
+<ul>
+<li><strong>Start a local chain</strong> → <a href="cli/./run.html"><code>run</code></a></li>
+<li><strong>Fork Elastic Network chains</strong> → <a href="cli/./fork.html"><code>fork</code></a></li>
+<li><strong>Replay transaction</strong> → <a href="cli/./replay_tx.html"><code>replay_tx</code></a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="run"><a class="header" href="#run"><code>run</code></a></h1>
+<p>Launch an Elastic Network ZK chain for integration tests, debugging, or rapid prototyping.</p>
+<h2 id="synopsis"><a class="header" href="#synopsis">Synopsis</a></h2>
+<pre><code class="language-bash">anvil-zksync [OPTIONS]
+</code></pre>
+<h2 id="key-options"><a class="header" href="#key-options">Key options</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Flag</th><th>Description</th><th>Default</th></tr></thead><tbody>
+<tr><td><code>--no-mining</code></td><td>Mine blocks only when RPC clients call <code>evm_mine</code></td><td><em>auto-mine</em></td></tr>
+<tr><td><code>--block-time &lt;sec&gt;</code></td><td>Seal blocks at a fixed interval</td><td><em>instant on tx</em></td></tr>
+<tr><td><code>--state &lt;PATH&gt;</code></td><td>Load + dump snapshot on exit</td><td>-</td></tr>
+<tr><td><code>--timestamp &lt;NUM&gt;</code></td><td>Override genesis timestamp</td><td><em>now</em></td></tr>
+<tr><td><code>-a, --accounts &lt;N&gt;</code></td><td>Pre-funded dev accounts</td><td><code>10</code></td></tr>
+<tr><td><code>--balance &lt;ETH&gt;</code></td><td>Balance per dev account</td><td><code>10000</code></td></tr>
+<tr><td><code>-v, --verbosity…</code></td><td>Show increasingly detailed traces</td><td>-</td></tr>
+</tbody></table>
+</div>
+<p>All <strong>global flags</strong> (network, gas, logging, cache, etc.) are also accepted.</p>
+<h2 id="experimental-l1-mode-"><a class="header" href="#experimental-l1-mode-">Experimental L1 mode 🚧</a></h2>
+<p>Enable a companion <strong>Layer 1 Anvil</strong> while running your L2 node.<br />
+Useful for testing bridge flows and deposit/withdraw paths.</p>
+<div class="table-wrapper"><table><thead><tr><th>Flag</th><th>Description</th><th>Default</th></tr></thead><tbody>
+<tr><td><code>--spawn-l1[=&lt;port&gt;]</code></td><td>Start an L1 Anvil instance on the given port</td><td><code>8012</code></td></tr>
+<tr><td><code>--external-l1 &lt;URL&gt;</code></td><td>Use an <strong>external</strong> L1 JSON-RPC endpoint instead of spawning</td><td>-</td></tr>
+<tr><td><code>--auto-execute-l1[=&lt;bool&gt;]</code></td><td>Auto-execute L1 batches after L2 sealing</td><td><code>false</code></td></tr>
+</tbody></table>
+</div>
+<blockquote>
+<p>⚠️ <em>L1 support is marked <strong>UNSTABLE</strong>; interfaces and behavior may change between releases.</em></p>
+</blockquote>
+<h3 id="l1-quick-start"><a class="header" href="#l1-quick-start">L1 quick start</a></h3>
+<pre><code class="language-bash">anvil-zksync --spawn-l1 --auto-execute-l1 -vv
+</code></pre>
+<h3 id="connect-to-an-existing-l1-node"><a class="header" href="#connect-to-an-existing-l1-node">Connect to an existing L1 node</a></h3>
+<pre><code class="language-bash">anvil-zksync --external-l1 http://127.0.0.1:8545
+</code></pre>
+<p>When running the L1 node (anvil) alongside <code>anvil-zksync</code>,
+make sure to start it with the <code>--no-request-size-limit</code> flag to avoid data payload issues:</p>
+<pre><code class="language-bash">anvil --no-request-size-limit
+</code></pre>
+<h2 id="behavior"><a class="header" href="#behavior">Behavior</a></h2>
+<ul>
+<li>Starts with a <strong>clean L2 state</strong> (no contracts, no history).</li>
+<li>Auto-mines each submitted transaction unless you pass <code>--no-mining</code> or set a fixed <code>--block-time</code>.</li>
+<li>Generates deterministic dev accounts unless you provide a custom mnemonic.</li>
+<li>When <code>--spawn-l1</code> or <code>--external-l1</code> is enabled, cross-chain calls target that L1 endpoint and
+deposit logs are emitted as usual.</li>
+</ul>
+<h2 id="examples"><a class="header" href="#examples">Examples</a></h2>
+<h3 id="1-quick-start-with-verbose-traces"><a class="header" href="#1-quick-start-with-verbose-traces">1. Quick start with verbose traces</a></h3>
+<pre><code class="language-bash">anvil-zksync -vv
+</code></pre>
+<h3 id="2-manual-mining-workflow"><a class="header" href="#2-manual-mining-workflow">2. Manual mining workflow</a></h3>
+<pre><code class="language-bash">anvil-zksync --no-mining
+# elsewhere:
+cast rpc evm_mine
+</code></pre>
+<h3 id="3-pre-load-a-snapshot--dump-on-exit"><a class="header" href="#3-pre-load-a-snapshot--dump-on-exit">3. Pre-load a snapshot &amp; dump on exit</a></h3>
+<pre><code class="language-bash">anvil-zksync --state ./snapshot.json
+</code></pre>
+<h2 id="see-also"><a class="header" href="#see-also">See also</a></h2>
+<ul>
+<li><a href="cli/./fork.html"><code>fork</code></a> — fork an existing network</li>
+<li><a href="cli/./replay_tx.html"><code>replay_tx</code></a> — fork &amp; replay a transaction</li>
+<li><a href="cli/./index.html">CLI overview</a> — all global flags and usage</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="fork"><a class="header" href="#fork"><code>fork</code></a></h1>
+<p>Create a <strong>local <code>anvil-zksync</code> node pre-loaded with live state</strong> from a remote network. All
+subsequent transactions are mined locally, so you can experiment freely without touching the real
+chain.</p>
+<h2 id="synopsis-1"><a class="header" href="#synopsis-1">Synopsis</a></h2>
+<pre><code class="language-bash">anvil-zksync fork --fork-url &lt;FORK_URL&gt; [OPTIONS]
+</code></pre>
+<blockquote>
+<p><code>--fork-url</code> is <strong>required</strong>. It accepts either an HTTP/S endpoint or a short-hand alias such as:
+<code>mainnet</code>, <code>sepolia-testnet</code>, <code>abstract</code>, etc.</p>
+</blockquote>
+<h3 id="named-chain-aliases"><a class="header" href="#named-chain-aliases">Named chain aliases</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Alias</th><th>RPC endpoint</th></tr></thead><tbody>
+<tr><td><code>era</code>, <code>mainnet</code></td><td><code>https://mainnet.era.zksync.io</code></td></tr>
+<tr><td><code>era-testnet</code>, <code>sepolia-testnet</code></td><td><code>https://sepolia.era.zksync.dev</code></td></tr>
+<tr><td><code>abstract</code></td><td><code>https://api.mainnet.abs.xyz</code></td></tr>
+<tr><td><code>abstract-testnet</code></td><td><code>https://api.testnet.abs.xyz</code></td></tr>
+<tr><td><code>sophon</code></td><td><code>https://rpc.sophon.xyz</code></td></tr>
+<tr><td><code>sophon-testnet</code></td><td><code>https://rpc.testnet.sophon.xyz</code></td></tr>
+<tr><td><code>cronos</code></td><td><code>https://mainnet.zkevm.cronos.org</code></td></tr>
+<tr><td><code>cronos-testnet</code></td><td><code>https://testnet.zkevm.cronos.org</code></td></tr>
+<tr><td><code>lens</code></td><td><code>https://rpc.lens.xyz</code></td></tr>
+<tr><td><code>lens-testnet</code></td><td><code>https://rpc.testnet.lens.xyz</code></td></tr>
+<tr><td><code>openzk</code></td><td><code>https://rpc.openzk.net</code></td></tr>
+<tr><td><code>openzk-testnet</code></td><td><code>https://openzk-testnet.rpc.caldera.xyz/http</code></td></tr>
+<tr><td><code>zkcandy</code></td><td><code>https://rpc.zkcandy.io</code></td></tr>
+</tbody></table>
+</div>
+<h2 id="options"><a class="header" href="#options">Options</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Flag</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>--fork-url &lt;FORK_URL&gt;</code></td><td>Network to fork from (HTTP/S endpoint or alias). <strong>Required.</strong></td></tr>
+<tr><td><code>--fork-block-number &lt;BLOCK&gt;</code></td><td>Import state at a specific <strong>block number</strong>.</td></tr>
+<tr><td><code>--fork-transaction-hash &lt;HASH&gt;</code></td><td>Import state just <strong>before</strong> a given transaction.</td></tr>
+</tbody></table>
+</div>
+<h2 id="behavior-1"><a class="header" href="#behavior-1">Behavior</a></h2>
+<ul>
+<li>The forked state is loaded <strong>once</strong> at startup; changes made locally never propagate back to the
+remote network.</li>
+<li>If neither <code>--fork-block-number</code> nor <code>--fork-transaction-hash</code> is supplied, <code>anvil-zksync</code> fetches
+the <strong>latest</strong> block.</li>
+<li>All global flags (logging, gas, cache, etc.) still apply.</li>
+</ul>
+<h2 id="examples-1"><a class="header" href="#examples-1">Examples</a></h2>
+<h3 id="1-fork-era-mainnet-at-the-latest-block"><a class="header" href="#1-fork-era-mainnet-at-the-latest-block">1. Fork Era mainnet at the latest block</a></h3>
+<pre><code class="language-bash">anvil-zksync fork --fork-url mainnet
+</code></pre>
+<h3 id="2-fork-a-local-node-over-http"><a class="header" href="#2-fork-a-local-node-over-http">2. Fork a local node over HTTP</a></h3>
+<pre><code class="language-bash">anvil-zksync fork --fork-url http://127.0.0.1:3050
+</code></pre>
+<h3 id="3-fork-mainnet-at-block-59473098"><a class="header" href="#3-fork-mainnet-at-block-59473098">3. Fork mainnet at block 59,473,098</a></h3>
+<pre><code class="language-bash">anvil-zksync fork --fork-url mainnet --fork-block-number 59473098
+</code></pre>
+<h3 id="4-fork-abstract"><a class="header" href="#4-fork-abstract">4. Fork Abstract</a></h3>
+<pre><code class="language-bash">anvil-zksync fork --fork-url abstract
+</code></pre>
+<h2 id="see-also-1"><a class="header" href="#see-also-1">See also</a></h2>
+<ul>
+<li><a href="cli/./run.html"><code>run</code></a> — start a clean chain</li>
+<li><a href="cli/./replay_tx.html"><code>replay_tx</code></a> — fork &amp; replay a specific transaction</li>
+<li><a href="cli/./index.html"><code>CLI Overview</code></a> — global flags and usage</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="replay_tx"><a class="header" href="#replay_tx"><code>replay_tx</code></a></h1>
+<p>Spin up an <strong>anvil-zksync</strong> node that forks a remote network and immediately re-executes a chosen L2
+transaction.</p>
+<p>Perfect for step-through debugging or gas cost inspection of real world transactions and contract
+interactions.</p>
+<h2 id="synopsis-2"><a class="header" href="#synopsis-2">Synopsis</a></h2>
+<pre><code class="language-bash // [replay_tx]">anvil-zksync replay_tx --fork-url &lt;FORK_URL&gt; &lt;TX&gt;
+</code></pre>
+<p>Both parameters are <strong>required</strong>:</p>
+<ul>
+<li><code>--fork-url &lt;FORK_URL&gt;</code> - remote endpoint or chain alias</li>
+<li><code>&lt;TX&gt;</code> - L2 <strong>transaction hash</strong> to replay</li>
+</ul>
+<h3 id="named-chain-aliases-1"><a class="header" href="#named-chain-aliases-1">Named chain aliases</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Alias</th><th>RPC endpoint</th></tr></thead><tbody>
+<tr><td><code>era</code>, <code>mainnet</code></td><td><code>https://mainnet.era.zksync.io</code></td></tr>
+<tr><td><code>era-testnet</code>, <code>sepolia-testnet</code></td><td><code>https://sepolia.era.zksync.dev</code></td></tr>
+<tr><td><code>abstract</code></td><td><code>https://api.mainnet.abs.xyz</code></td></tr>
+<tr><td><code>abstract-testnet</code></td><td><code>https://api.testnet.abs.xyz</code></td></tr>
+<tr><td><code>sophon</code></td><td><code>https://rpc.sophon.xyz</code></td></tr>
+<tr><td><code>sophon-testnet</code></td><td><code>https://rpc.testnet.sophon.xyz</code></td></tr>
+<tr><td><code>cronos</code></td><td><code>https://mainnet.zkevm.cronos.org</code></td></tr>
+<tr><td><code>cronos-testnet</code></td><td><code>https://testnet.zkevm.cronos.org</code></td></tr>
+<tr><td><code>lens</code></td><td><code>https://rpc.lens.xyz</code></td></tr>
+<tr><td><code>lens-testnet</code></td><td><code>https://rpc.testnet.lens.xyz</code></td></tr>
+<tr><td><code>openzk</code></td><td><code>https://rpc.openzk.net</code></td></tr>
+<tr><td><code>openzk-testnet</code></td><td><code>https://openzk-testnet.rpc.caldera.xyz/http</code></td></tr>
+<tr><td><code>zkcandy</code></td><td><code>https://rpc.zkcandy.io</code></td></tr>
+</tbody></table>
+</div>
+<h2 id="arguments"><a class="header" href="#arguments">Arguments</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Name</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>&lt;TX&gt;</code></td><td>Transaction hash (<code>0x…</code>, 32 bytes). <strong>Required.</strong></td></tr>
+</tbody></table>
+</div>
+<h2 id="options-1"><a class="header" href="#options-1">Options</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Flag</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>--fork-url &lt;FORK_URL&gt;</code></td><td>Network to fork from (endpoint or alias). <strong>Required.</strong></td></tr>
+</tbody></table>
+</div>
+<p>All <strong>global flags</strong> (verbosity, cache, gas tuning, etc.) are also available.</p>
+<h2 id="behavior-2"><a class="header" href="#behavior-2">Behavior</a></h2>
+<ol>
+<li>Downloads block state up to (but not including) <code>&lt;TX&gt;</code>.</li>
+<li>Replays the transaction <strong>locally</strong>, reproducing calldata &amp; timestamp.</li>
+<li>Provides full VM traces, logs, and storage-diff when <code>-vv</code> or higher is enabled.</li>
+</ol>
+<h2 id="examples-2"><a class="header" href="#examples-2">Examples</a></h2>
+<h3 id="1-replay-a-swap-transaction-from-era-mainnet"><a class="header" href="#1-replay-a-swap-transaction-from-era-mainnet">1. Replay a swap transaction from Era mainnet</a></h3>
+<pre><code class="language-bash">anvil-zksync replay_tx \
+  --fork-url mainnet \
+  0xe56fd585309971c7c68b19c6c75a39c4b450731f9884c7b73e13276bb6db9b5b
+</code></pre>
+<h3 id="2-replay-a-tx-from-a-local-node"><a class="header" href="#2-replay-a-tx-from-a-local-node">2. Replay a tx from a local node</a></h3>
+<pre><code class="language-bash">anvil-zksync replay_tx \
+  --fork-url http://127.0.0.1:3050 \
+  0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef
+</code></pre>
+<h3 id="3-replay-a-failed-transaction-with-user-vm-tracing"><a class="header" href="#3-replay-a-failed-transaction-with-user-vm-tracing">3. Replay a failed transaction with user VM tracing</a></h3>
+<pre><code class="language-bash">anvil-zksync -vv replay_tx \
+  --fork-url mainnet \
+  0x9419f4eb8d553dd4f4d254badfd28efb0b2416c4b0eb26076f90e1226501a3e0
+</code></pre>
+<h2 id="see-also-2"><a class="header" href="#see-also-2">See also</a></h2>
+<ul>
+<li><a href="cli/./fork.html"><code>fork</code></a> — fork without replay</li>
+<li><a href="cli/./run.html"><code>run</code></a> — fresh, empty chain</li>
+<li><a href="cli/./index.html">CLI overview</a> — global flags and usage</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="debug-trace"><a class="header" href="#debug-trace"><code>debug-trace</code></a></h1>
+<p>Spin up an <strong>anvil-zksync</strong> node that forks a remote network and attaches to the <strong>debug API</strong> for a given transaction.</p>
+<p>Outputs either:</p>
+<ul>
+<li>A <strong>formatted call trace</strong> (human-readable), or</li>
+<li>The <strong>raw debug JSON</strong> (if requested).</li>
+</ul>
+<p>Perfect for diagnosing <strong>why a transaction reverted</strong>, inspecting <strong>nested calls</strong>, or analyzing <strong>low-level VM execution</strong>.</p>
+<hr />
+<h2 id="synopsis-3"><a class="header" href="#synopsis-3">Synopsis</a></h2>
+<pre><code class="language-bash // [debug-trace]">anvil-zksync debug-trace --rpc-url &lt;FORK_URL&gt; &lt;TX&gt;
+</code></pre>
+<p>Both parameters are <strong>required</strong>:</p>
+<ul>
+<li><code>--rpc-url &lt;FORK_URL&gt;</code> - remote endpoint or chain alias</li>
+<li><code>&lt;TX&gt;</code> - L2 <strong>transaction hash</strong> to debug</li>
+</ul>
+<hr />
+<h3 id="named-chain-aliases-2"><a class="header" href="#named-chain-aliases-2">Named chain aliases</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Alias</th><th>RPC endpoint</th></tr></thead><tbody>
+<tr><td><code>era</code>, <code>mainnet</code></td><td><code>https://mainnet.era.zksync.io</code></td></tr>
+<tr><td><code>era-testnet</code>, <code>sepolia-testnet</code></td><td><code>https://sepolia.era.zksync.dev</code></td></tr>
+<tr><td><code>abstract</code></td><td><code>https://api.mainnet.abs.xyz</code></td></tr>
+<tr><td><code>abstract-testnet</code></td><td><code>https://api.testnet.abs.xyz</code></td></tr>
+<tr><td><code>sophon</code></td><td><code>https://rpc.sophon.xyz</code></td></tr>
+<tr><td><code>sophon-testnet</code></td><td><code>https://rpc.testnet.sophon.xyz</code></td></tr>
+<tr><td><code>cronos</code></td><td><code>https://mainnet.zkevm.cronos.org</code></td></tr>
+<tr><td><code>cronos-testnet</code></td><td><code>https://testnet.zkevm.cronos.org</code></td></tr>
+<tr><td><code>lens</code></td><td><code>https://rpc.lens.xyz</code></td></tr>
+<tr><td><code>lens-testnet</code></td><td><code>https://rpc.testnet.lens.xyz</code></td></tr>
+<tr><td><code>openzk</code></td><td><code>https://rpc.openzk.net</code></td></tr>
+<tr><td><code>openzk-testnet</code></td><td><code>https://openzk-testnet.rpc.caldera.xyz/http</code></td></tr>
+<tr><td><code>zkcandy</code></td><td><code>https://rpc.zkcandy.io</code></td></tr>
+</tbody></table>
+</div>
+<hr />
+<h2 id="arguments-1"><a class="header" href="#arguments-1">Arguments</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Name</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>&lt;TX&gt;</code></td><td>Transaction hash (<code>0x…</code>, 32 bytes). <strong>Required.</strong></td></tr>
+</tbody></table>
+</div>
+<hr />
+<h2 id="options-2"><a class="header" href="#options-2">Options</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Flag</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>--rpc-url &lt;FORK_URL&gt;</code></td><td>Network to fork from (endpoint or alias). <strong>Required.</strong></td></tr>
+<tr><td><code>--only-top</code></td><td>Restrict trace output to <strong>only the top-level call</strong> (skip internal calls).</td></tr>
+<tr><td><code>--raw</code></td><td>Print <strong>raw debug JSON</strong> instead of formatted trace.</td></tr>
+</tbody></table>
+</div>
+<hr />
+<h2 id="behavior-3"><a class="header" href="#behavior-3">Behavior</a></h2>
+<ol>
+<li>
+<p>Queries the <strong>debug_traceTransaction</strong> RPC using the URL and TX provided.</p>
+</li>
+<li>
+<p>Depending on flags:</p>
+<ul>
+<li><code>--only-top</code>: prints only the root call.</li>
+<li><code>--raw</code>: dumps the raw JSON response.</li>
+<li>Otherwise: prints a <strong>formatted tree trace</strong> with calls, gas, and status.</li>
+</ul>
+</li>
+</ol>
+<hr />
+<h2 id="examples-3"><a class="header" href="#examples-3">Examples</a></h2>
+<h3 id="1-debug-a-successful-swap-tx-on-era-mainnet"><a class="header" href="#1-debug-a-successful-swap-tx-on-era-mainnet">1. Debug a successful swap tx on Era mainnet</a></h3>
+<pre><code class="language-bash">anvil-zksync debug-trace \
+  --rpc-url mainnet \
+  0x977b31d564042b7e14044c5d1fd7c1f95454e8f9ef643febd40a9c0d082d09cb
+</code></pre>
+<h3 id="2-show-only-the-top-level-call"><a class="header" href="#2-show-only-the-top-level-call">2. Show only the top-level call</a></h3>
+<pre><code class="language-bash">anvil-zksync debug-trace \
+  --rpc-url mainnet \
+  --only-top \
+  0x977b31d564042b7e14044c5d1fd7c1f95454e8f9ef643febd40a9c0d082d09cb
+</code></pre>
+<h3 id="3-dump-the-raw-debug-json"><a class="header" href="#3-dump-the-raw-debug-json">3. Dump the raw debug JSON</a></h3>
+<pre><code class="language-bash">anvil-zksync debug-trace \
+  --rpc-url mainnet \
+  --raw \
+  0x977b31d564042b7e14044c5d1fd7c1f95454e8f9ef643febd40a9c0d082d09cb
+</code></pre>
+<hr />
+<h2 id="see-also-3"><a class="header" href="#see-also-3">See also</a></h2>
+<ul>
+<li><a href="cli/./replay_tx.html"><code>replay_tx</code></a> — fork &amp; re-execute a transaction</li>
+<li><a href="cli/./fork.html"><code>fork</code></a> — fork without replay</li>
+<li><a href="cli/./run.html"><code>run</code></a> — fresh, empty chain</li>
+<li><a href="cli/./index.html">CLI overview</a> — global flags and usage</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="anvil-zksync-action-"><a class="header" href="#anvil-zksync-action-">anvil-zksync Action 🚀</a></h1>
+<p>A lightweight GitHub Action that starts an
+<a href="https://github.com/matter-labs/anvil-zksync">anvil-zksync</a> node inside your workflow, so you can
+run tests or scripts against a local ZK chain.</p>
+<h2 id="quickstart"><a class="header" href="#quickstart">Quickstart</a></h2>
+<pre><code class="language-yaml">jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start anvil-zksync
+        uses: dutterbutter/anvil-zksync-action@v1.3.0
+        with:
+          mode: run
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run tests
+        run: |
+          # e.g. point your tests at http://localhost:8011
+          yarn test:contracts
+</code></pre>
+<h2 id="example-forking-mainnet"><a class="header" href="#example-forking-mainnet">Example: Forking Mainnet</a></h2>
+<pre><code class="language-yaml">- name: Start anvil-zksync in fork mode
+  uses: dutterbutter/anvil-zksync-action@v1.3.0
+  with:
+    mode: fork
+    forkUrl: mainnet
+    forkBlockNumber: 59_485_781
+    port: 8015
+    token: ${{ secrets.GITHUB_TOKEN }}
+</code></pre>
+<h2 id="inputs"><a class="header" href="#inputs">Inputs</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Input</th><th>Description</th><th>Default</th></tr></thead><tbody>
+<tr><td><code>mode</code></td><td>Operation mode: <code>run</code> or <code>fork</code></td><td><code>run</code></td></tr>
+<tr><td><code>forkUrl</code></td><td>JSON-RPC endpoint to fork from (requires <code>fork</code>)</td><td>—</td></tr>
+<tr><td><code>forkBlockNumber</code></td><td>Block number to snapshot (fork mode only)</td><td>—</td></tr>
+<tr><td><code>port</code></td><td>Port for the node’s RPC server</td><td><code>8011</code></td></tr>
+<tr><td><code>releaseTag</code></td><td>Release tag to download from</td><td><code>latest</code></td></tr>
+<tr><td><code>host</code></td><td>Host address to bind</td><td><code>127.0.0.1</code></td></tr>
+<tr><td><code>chainId</code></td><td>Chain ID exposed by the node</td><td><code>260</code></td></tr>
+<tr><td><code>logLevel</code></td><td>Verbosity: <code>debug</code>, <code>info</code>, <code>warn</code>, <code>error</code></td><td><code>info</code></td></tr>
+<tr><td><code>logFile</code></td><td>File path to write logs (if set, action waits)</td><td>—</td></tr>
+</tbody></table>
+</div>
+<p>For an exhausted list of available inputs, see the
+<a href="https://github.com/dutterbutter/anvil-zksync-action?tab=readme-ov-file#inputs-">anvil-zksync-action</a>
+readme.</p>
+<h2 id="uploading-logs"><a class="header" href="#uploading-logs">Uploading Logs</a></h2>
+<pre><code class="language-yaml">- name: Upload anvil logs
+  uses: actions/upload-artifact@v4
+  with:
+    name: anvil-zksync-log
+    path: anvil-zksync.log
+</code></pre>
+<p>For more options and detailed CLI flags, see the <a href="guides/../cli/index.html">anvil-zksync CLI reference</a>.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="testing-with-anvil-zksync"><a class="header" href="#testing-with-anvil-zksync">Testing with anvil-zksync</a></h1>
+<p>Use Hardhat, Mocha &amp; Chai to write and run tests against a live <code>anvil-zksync</code> node.</p>
+<h2 id="1-scaffold-a-hardhat-project"><a class="header" href="#1-scaffold-a-hardhat-project">1. Scaffold a Hardhat project</a></h2>
+<pre><code class="language-bash">npm init -y
+npm install --save-dev hardhat
+npx hardhat
+</code></pre>
+<h2 id="2-install-zksync--test-libraries"><a class="header" href="#2-install-zksync--test-libraries">2. Install ZKsync &amp; test libraries</a></h2>
+<p>Install the ZKsync Hardhat plugin, ethers provider, and test tools:</p>
+<pre><code class="language-bash [yarn]">yarn add -D @matterlabs/hardhat-zksync zksync-ethers ethers mocha chai @types/mocha @types/chai
+</code></pre>
+<h2 id="3-configure-hardhat"><a class="header" href="#3-configure-hardhat">3. Configure Hardhat</a></h2>
+<p>Edit <code>hardhat.config.ts</code> (or <code>.js</code>) to point tests at your local node:</p>
+<pre><code class="language-ts">import '@matterlabs/hardhat-zksync';
+
+export default {
+  zksolc: { version: '1.5.13', settings: {} },
+  defaultNetwork: 'anvil_zksync',
+  networks: {
+    hardhat: { zksync: true },
+    anvil_zksync: {
+      url: 'http://localhost:8011',
+      ethNetwork: 'http://localhost:8545',
+      zksync: true,
+    },
+  },
+  solidity: { version: '0.8.17' },
+};
+</code></pre>
+<h2 id="4-add-a-test-script"><a class="header" href="#4-add-a-test-script">4. Add a test script</a></h2>
+<p>In your <code>package.json</code>, add:</p>
+<pre><code class="language-json">"scripts": {
+  "test": "mocha --recursive --exit"
+}
+</code></pre>
+<h2 id="5-write-a-sample-test"><a class="header" href="#5-write-a-sample-test">5. Write a sample test</a></h2>
+<p>Create <code>test/Greeter.test.ts</code>:</p>
+<pre><code class="language-ts">import { expect } from 'chai';
+import { Wallet, Provider } from 'zksync-ethers';
+import * as hre from 'hardhat';
+import { Deployer } from '@matterlabs/hardhat-zksync';
+
+const RICH_PK = '0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110';
+
+describe('Greeter', function () {
+  it('deploys and greets', async function () {
+    const provider = Provider.getDefaultProvider();
+    const wallet = new Wallet(RICH_PK, provider);
+    const deployer = new Deployer(hre, wallet);
+
+    // compile &amp; deploy
+    const artifact = await deployer.loadArtifact('Greeter');
+    const greeter = await deployer.deploy(artifact, ['Hello, zkSync!']);
+
+    // call and assert
+    expect(await greeter.greet()).to.equal('Hello, zkSync!');
+  });
+});
+</code></pre>
+<h2 id="6-run-your-node--tests"><a class="header" href="#6-run-your-node--tests">6. Run your node &amp; tests</a></h2>
+<ol>
+<li>
+<p><strong>Terminal A:</strong></p>
+<pre><code class="language-bash">anvil-zksync
+</code></pre>
+</li>
+<li>
+<p><strong>Terminal B:</strong></p>
+<pre><code class="language-bash">npm test
+</code></pre>
+</li>
+</ol>
+<p>Your tests will connect to <code>http://localhost:8011</code> and run against your local ZK chain node.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="anvil-zksync-action--1"><a class="header" href="#anvil-zksync-action--1">anvil-zksync Action 🚀</a></h1>
+<p>A lightweight GitHub Action that starts an
+<a href="https://github.com/matter-labs/anvil-zksync">anvil-zksync</a> node inside your workflow, so you can
+run tests or scripts against a local ZK chain.</p>
+<h2 id="quickstart-1"><a class="header" href="#quickstart-1">Quickstart</a></h2>
+<pre><code class="language-yaml">jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start anvil-zksync
+        uses: dutterbutter/anvil-zksync-action@v1.3.0
+        with:
+          mode: run
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run tests
+        run: |
+          # e.g. point your tests at http://localhost:8011
+          yarn test:contracts
+</code></pre>
+<h2 id="example-forking-mainnet-1"><a class="header" href="#example-forking-mainnet-1">Example: Forking Mainnet</a></h2>
+<pre><code class="language-yaml">- name: Start anvil-zksync in fork mode
+  uses: dutterbutter/anvil-zksync-action@v1.3.0
+  with:
+    mode: fork
+    forkUrl: mainnet
+    forkBlockNumber: 59_485_781
+    port: 8015
+    token: ${{ secrets.GITHUB_TOKEN }}
+</code></pre>
+<h2 id="inputs-1"><a class="header" href="#inputs-1">Inputs</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Input</th><th>Description</th><th>Default</th></tr></thead><tbody>
+<tr><td><code>mode</code></td><td>Operation mode: <code>run</code> or <code>fork</code></td><td><code>run</code></td></tr>
+<tr><td><code>forkUrl</code></td><td>JSON-RPC endpoint to fork from (requires <code>fork</code>)</td><td>—</td></tr>
+<tr><td><code>forkBlockNumber</code></td><td>Block number to snapshot (fork mode only)</td><td>—</td></tr>
+<tr><td><code>port</code></td><td>Port for the node’s RPC server</td><td><code>8011</code></td></tr>
+<tr><td><code>releaseTag</code></td><td>Release tag to download from</td><td><code>latest</code></td></tr>
+<tr><td><code>host</code></td><td>Host address to bind</td><td><code>127.0.0.1</code></td></tr>
+<tr><td><code>chainId</code></td><td>Chain ID exposed by the node</td><td><code>260</code></td></tr>
+<tr><td><code>logLevel</code></td><td>Verbosity: <code>debug</code>, <code>info</code>, <code>warn</code>, <code>error</code></td><td><code>info</code></td></tr>
+<tr><td><code>logFile</code></td><td>File path to write logs (if set, action waits)</td><td>—</td></tr>
+</tbody></table>
+</div>
+<p>For an exhausted list of available inputs, see the
+<a href="https://github.com/dutterbutter/anvil-zksync-action?tab=readme-ov-file#inputs-">anvil-zksync-action</a>
+readme.</p>
+<h2 id="uploading-logs-1"><a class="header" href="#uploading-logs-1">Uploading Logs</a></h2>
+<pre><code class="language-yaml">- name: Upload anvil logs
+  uses: actions/upload-artifact@v4
+  with:
+    name: anvil-zksync-log
+    path: anvil-zksync.log
+</code></pre>
+<p>For more options and detailed CLI flags, see the <a href="guides/../cli/index.html">anvil-zksync CLI reference</a>.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="bootloader-debugging"><a class="header" href="#bootloader-debugging">Bootloader Debugging</a></h1>
+<p>Let’s assume you have a mainnet transaction that you would like to investigate in-depth. It could be halting, reverting without apparent reason, taking too much gas etc. You have tried looking at the trace, but it is not enough to figure out what the problem is. With <code>anvil-zksync</code> you can replay that transaction locally and reliably* reproduce the execution flow.</p>
+<p>* with some caveats, like slight mismatch in gas consumption due to the difference in touched slots</p>
+<p>Replaying a transaction locally means we have access to low-level ZK EVM and hence can in theory debug it step by step. That being said, this is a time-consuming process and is overkill for most scenarios. Instead, you can debug bootloader by observing (and adding your own) debug prints. Bootloader exposes a system hook that allows to log arbitrary strings:</p>
+<pre><code>/// @dev This method accepts the message and some 1-word data associated with it
+/// It triggers a VM hook that allows the server to observe the behavior of the system.
+function debugLog(msg, data) {
+    storeVmHookParam(0, msg)
+    storeVmHookParam(1, data)
+    setHook(VM_HOOK_DEBUG_LOG())
+}
+</code></pre>
+<p>This hook is used by <code>zksync_multivm</code> crate to propagate the logs into <code>tracing</code>:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>/// Accepts a vm hook and, if it requires to output some debug log, outputs it.
+pub(crate) fn print_debug_if_needed&lt;H: HistoryMode&gt;(
+    hook: &amp;VmHook,
+    state: &amp;VmLocalStateData&lt;'_&gt;,
+    memory: &amp;SimpleMemory&lt;H&gt;,
+) {
+    let log = match hook {
+        VmHook::DebugLog =&gt; get_debug_log(state, memory),
+        VmHook::DebugReturnData =&gt; get_debug_returndata(memory),
+        _ =&gt; return,
+    };
+
+    tracing::trace!("{}", log);
+}
+<span class="boring">}</span></code></pre></pre>
+<p>If you run <code>anvil-zksync</code> with <code>RUST_LOG=zksync_multivm=trace</code> you will see these logs being printed to your console:</p>
+<pre><code>$ RUST_LOG=zksync_multivm=trace anvil-zksync -vv replay_tx --fork-url https://genlayer-testnet.rpc.caldera.xyz/http 0x3ef55f45c8ad0580604aaff5371fc669aaef3b518b4b70599bf4c4222fd86aa6
+...
+TRACE Bootloader transaction 0: txPtr: 52056224
+TRACE Bootloader transaction 0: execute: 1
+TRACE Bootloader transaction 0: ethCall: 0
+TRACE Bootloader transaction 0: Setting new L2 block: : 20520
+TRACE Bootloader transaction 0: Setting new L2 block: : 1743956487
+TRACE Bootloader transaction 0: Setting new L2 block: : 0x9f60ca85c6a78283453674a4809f59d40c4bd6584cf54c91e80b1cfe8e7f039a
+TRACE Bootloader transaction 0: Setting new L2 block: : 1
+...
+</code></pre>
+<p>Now, lets assume this is not enough, and you want to instrument some part of bootloader yourself. To do this you can open <code>contracts/system-contracts/bootloader/bootloader.yul</code> and modify it as you see fit. For the purposes of this demonstration I will add a new log at the very start of the transaction processing:</p>
+<pre><code>////////////////////////////////////////////////////////////////////////////
+//                      Main Transaction Processing
+////////////////////////////////////////////////////////////////////////////
+
+debugLog("hello world")
+</code></pre>
+<p>Now rebuild bootloader:</p>
+<pre><code>$ cd contracts/system-contracts
+$ yarn install --frozen-lockfile
+$ yarn build:foundry
+</code></pre>
+<p>Finally, run <code>anvil-zksync</code> with your local version of contracts:</p>
+<pre><code>$ RUST_LOG=zksync_multivm=trace anvil-zksync --dev-system-contracts local --system-contracts-path $YOUR_PATH/contracts/system-contracts -vv replay_tx --fork-url https://genlayer-testnet.rpc.caldera.xyz/http 0x3ef55f45c8ad0580604aaff5371fc669aaef3b518b4b70599bf4c4222fd86aa6
+...
+TRACE Bootloader transaction 0: hello world
+...
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="updating-anvil-zksync-to-support-a-new-protocol-version"><a class="header" href="#updating-anvil-zksync-to-support-a-new-protocol-version">Updating <code>anvil-zksync</code> to Support a New Protocol Version</a></h1>
+<p>This guide describes the step-by-step process for adding support for a new protocol version in <code>anvil-zksync</code>, using the <a href="https://github.com/matter-labs/anvil-zksync/pull/637">v28 support PR (#637)</a> as a reference.</p>
+<h2 id="1-prepare-a-versioned-contract-branch-with-anvil-zksync-debug-support"><a class="header" href="#1-prepare-a-versioned-contract-branch-with-anvil-zksync-debug-support">1. Prepare a Versioned Contract Branch with Anvil-ZKsync Debug Support</a></h2>
+<p><code>anvil-zksync</code> relies on a customized version of the <code>era-contracts</code> repository to enable debugging, impersonation, and other test-specific features. This requires:</p>
+<ul>
+<li>Inserting special debug markers,</li>
+<li>Adding a no-security default account contract,</li>
+<li>Adjusting the preprocessing pipeline.</li>
+</ul>
+<p>You can use the following diff as a reference:
+<a href="https://github.com/matter-labs/era-contracts/compare/release-v28...anvil-zksync-0.4.x-release-v28">anvil-zksync-0.4.x-release-v28 vs release-v28</a></p>
+<h3 id="required-customizations"><a class="header" href="#required-customizations">Required Customizations</a></h3>
+<p>The following markers and blocks are used to encapsulate <code>anvil-zksync</code>-specific changes:</p>
+<ul>
+<li><code>DEBUG SUPPORT START</code> / <code>DEBUG SUPPORT END</code></li>
+<li><code>FOUNDRY SUPPORT START</code> / <code>FOUNDRY SUPPORT END</code></li>
+<li><code>&lt;!-- @ifndef ACCOUNT_IMPERSONATING --&gt;</code> (Yul preprocessing)</li>
+<li><code>For impersonating block start</code> / <code>For impersonating block end</code> in bootloader preprocessing</li>
+</ul>
+<p>You must also include a special test contract:</p>
+<ul>
+<li><a href="https://github.com/matter-labs/era-contracts/blob/anvil-zksync-0.4.x-release-v28/system-contracts/contracts/DefaultAccountNoSecurity.sol"><code>system-contracts/contracts/DefaultAccountNoSecurity.sol</code></a></li>
+</ul>
+<h3 id="files-to-modify"><a class="header" href="#files-to-modify">Files to Modify</a></h3>
+<p>Apply the above debug customizations to the following files in your <code>era-contracts</code> release branch:</p>
+<ul>
+<li><code>l1-contracts/contracts/state-transition/chain-deps/facets/Executor.sol</code></li>
+<li><code>system-contracts/bootloader/bootloader.yul</code></li>
+<li><code>system-contracts/contracts/DefaultAccount.sol</code></li>
+<li><code>system-contracts/contracts/interfaces/IAccount.sol</code></li>
+<li><code>system-contracts/contracts/DefaultAccountNoSecurity.sol</code> (new)</li>
+<li><code>system-contracts/scripts/preprocess-bootloader.ts</code></li>
+</ul>
+<h3 id="branch-naming-convention"><a class="header" href="#branch-naming-convention">Branch Naming Convention</a></h3>
+<p>Create a new branch from the official release branch (e.g. <code>release-v29</code>) using the format:</p>
+<pre><code class="language-bash">anvil-zksync-&lt;anvil-version&gt;-release-&lt;protocol-version&gt;
+</code></pre>
+<p>For example:</p>
+<pre><code class="language-bash">anvil-zksync-0.6.x-release-v29
+</code></pre>
+<p>This branch will contain the upstream contracts from the specified protocol version, augmented with the <code>anvil-zksync</code> debug and testing support described above.</p>
+<p>Once the debug-ready contracts are prepared in this custom branch, they can be integrated into the <code>anvil-zksync</code> repository as part of the protocol support update.</p>
+<h2 id="2-determine-the-target-version-and-affected-crates"><a class="header" href="#2-determine-the-target-version-and-affected-crates">2. Determine the Target Version and Affected Crates</a></h2>
+<p>Identify the new protocol version to support, such as <code>v29</code>, and locate the corresponding tag or commit in the <a href="https://github.com/matter-labs/zksync-era"><code>zksync-era</code></a> repository. This is typically a tag like <code>core-v29.0.0</code>.</p>
+<p>Next, identify all crates in <code>anvil-zksync</code> that rely on upstream <code>zksync-era</code> components. The crates to be updated include:</p>
+<ul>
+<li><code>zksync_mini_merkle_tree</code></li>
+<li><code>zksync_multivm</code></li>
+<li><code>zksync_contracts</code></li>
+<li><code>zksync_basic_types</code></li>
+<li><code>zksync_types</code></li>
+<li><code>zksync_vm_interface</code></li>
+<li><code>zksync_web3_decl</code></li>
+</ul>
+<h2 id="21-patch-zksync-era-dependencies-in-cargo"><a class="header" href="#21-patch-zksync-era-dependencies-in-cargo">2.1. Patch <code>zksync-era</code> Dependencies in Cargo</a></h2>
+<p>Update the zksync-era related dependencies section of the workspace <code>Cargo.toml</code> to pin all required crates to the appropriate tag. This ensures all crates across the workspace resolve to a consistent and correct version.</p>
+<p>Example update for protocol version <code>v29</code>:</p>
+<pre><code class="language-toml">zksync_mini_merkle_tree = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v29.0.0" }
+zksync_multivm          = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v29.0.0" }
+zksync_contracts        = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v29.0.0" }
+zksync_basic_types      = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v29.0.0" }
+zksync_types            = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v29.0.0" }
+zksync_vm_interface     = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v29.0.0" }
+zksync_web3_decl        = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v29.0.0" }
+</code></pre>
+<blockquote>
+<p>Note: Although the protocol version is typically aligned with the crate tags (e.g. <code>core-v29.0.0</code>), this is not guaranteed. Always verify the correct tag by inspecting the upstream changelog or repository releases.</p>
+</blockquote>
+<p>Once dependencies are patched, run:</p>
+<pre><code class="language-bash">cargo check --workspace
+</code></pre>
+<p>to confirm that all crates resolve successfully and that no incompatible API changes were introduced. Resolve breaking changes incrementally as needed.</p>
+<h2 id="4-add-the-new-protocol-version-and-contract-artifacts"><a class="header" href="#4-add-the-new-protocol-version-and-contract-artifacts">4. Add the New Protocol Version and Contract Artifacts</a></h2>
+<p>Once your versioned contracts branch is prepared, the next step is to integrate it into <code>anvil-zksync</code> by updating the contract refresh pipeline and accounting for any new contracts introduced in the protocol upgrade.</p>
+<h3 id="41-update-the-refresh_contractssh-script"><a class="header" href="#41-update-the-refresh_contractssh-script">4.1 Update the <code>refresh_contracts.sh</code> Script</a></h3>
+<p>Modify the <code>scripts/refresh_contracts.sh</code> script to register the new protocol version. This script downloads, compiles, and bundles contract artifacts for use by <code>anvil-zksync</code>.</p>
+<ol>
+<li>Add a new <code>v29</code> entry to the <code>case</code> statement and set the corresponding <code>ERA_CONTRACTS_GIT_COMMIT</code>. This should point to the HEAD commit of your custom <code>anvil-zksync-&lt;version&gt;-release-v29</code> branch:</li>
+</ol>
+<pre><code class="language-bash">PROTOCOL_VERSION=${1:-v29}
+case $PROTOCOL_VERSION in
+  v26)
+    ERA_CONTRACTS_GIT_COMMIT=50dc0669213366f5d3084a7a29a83541cf3c6435
+    ;;
+  v27)
+    ERA_CONTRACTS_GIT_COMMIT=f0e17d700929e25292be971ea5196368bf120cea
+    ;;
+  v28)
+    ERA_CONTRACTS_GIT_COMMIT=054a4745385119e7275dad801a2e830105f21e3e
+    ;;
+  v29)
+    ERA_CONTRACTS_GIT_COMMIT=&lt;COMMIT-HASH&gt; # HEAD of anvil-zksync-0.6.x-release-v29
+    ;;
+  *)
+    echo "Unrecognized/unsupported protocol version: $PROTOCOL_VERSION"
+    exit 1
+    ;;
+esac
+</code></pre>
+<blockquote>
+<p>Replace <code>&lt;COMMIT-HASH&gt;</code> with the actual commit hash of the latest commit in your <code>anvil-zksync-0.6.x-release-v29</code> branch.</p>
+</blockquote>
+<h3 id="42-add-new-contracts"><a class="header" href="#42-add-new-contracts">4.2 Add New Contracts</a></h3>
+<p>If the protocol upgrade introduced any new contracts, append them to the relevant contract groups in the script.</p>
+<p>For example, to include a new L1 contract named <code>ChainAssetHandler</code> added in v29:</p>
+<pre><code class="language-bash">if [[ $PROTOCOL_VERSION == v29 ]]; then
+  l1_artifacts+=("ChainAssetHandler")
+fi
+</code></pre>
+<p>Apply the same approach for L2 contracts, system contracts, or bootloader components.</p>
+<p>For reference, see how this was handled for v28 <a href="https://github.com/matter-labs/anvil-zksync/pull/637/files#diff-94249b93923d8c01fe26a91770ce4b7262fab4c16c89548e259f544e78eabd1d">here</a>.</p>
+<h3 id="43-generate-the-contract-bundle"><a class="header" href="#43-generate-the-contract-bundle">4.3 Generate the Contract Bundle</a></h3>
+<p>Run the updated script to fetch, compile, and package the contract artifacts for the new version:</p>
+<pre><code class="language-bash">./scripts/refresh_contracts.sh v29
+</code></pre>
+<p>This will produce a compressed archive at:</p>
+<pre><code class="language-bash">crates/core/src/deps/contracts/builtin-contracts-v29.tar.gz
+</code></pre>
+<p>This archive includes all compiled artifacts required for bootstrapping and executing system contracts under <code>--protocol-version 29</code>.</p>
+<h3 id="44-refresh-other-artifacts"><a class="header" href="#44-refresh-other-artifacts">4.4 Refresh Other Artifacts</a></h3>
+<p>Depending on what changed in the protocol upgrade, you may also need to refresh:</p>
+<ul>
+<li>End-to-end contracts: <code>scripts/refresh_e2e_contracts.sh</code></li>
+<li>L1 sidecar artifacts: <code>scripts/refresh_l1_sidecar_contracts.sh</code></li>
+<li>Test contracts: <code>scripts/refresh_test_contracts.sh</code></li>
+</ul>
+<p>Each script behaves similarly—updating contracts for its respective domain.</p>
+<blockquote>
+<p>Tip: There is a <code>make</code> command to run the scripts: <code>make build-contracts</code>.</p>
+</blockquote>
+<h3 id="45-add-protocol-version-support-for-l1-setup"><a class="header" href="#45-add-protocol-version-support-for-l1-setup">4.5 Add Protocol Version Support for <code>l1-setup</code></a></h3>
+<p>In addition to refreshing contracts, you must also update the <code>l1-setup/setup.sh</code> script to support the new protocol version. This step generates the genesis state, upgrade transaction, and configuration files required for bootstrapping an L1 sidecar instance tied to a specific protocol version.</p>
+<h4 id="1-register-the-new-protocol-in-setupsh"><a class="header" href="#1-register-the-new-protocol-in-setupsh">1. Register the New Protocol in <code>setup.sh</code></a></h4>
+<p>Locate the <code>case</code> block in <code>l1-setup/setup.sh</code> and add a new entry for the protocol version, pointing to the HEAD commit of your custom <code>anvil-zksync-&lt;version&gt;-release-&lt;protocol-version&gt;</code> branch and its matching <code>core-vXX.Y.Z</code> tag:</p>
+<pre><code class="language-bash">PROTOCOL_VERSION=${1:-v29}
+case $PROTOCOL_VERSION in
+  v26)
+    ERA_CONTRACTS_GIT_COMMIT=50dc0669213366f5d3084a7a29a83541cf3c6435
+    ERA_TAG=core-v26.8.1
+    ;;
+  v27)
+    ERA_CONTRACTS_GIT_COMMIT=f0e17d700929e25292be971ea5196368bf120cea
+    ERA_TAG=core-v27.0.0
+    ;;
+  v28)
+    ERA_CONTRACTS_GIT_COMMIT=054a4745385119e7275dad801a2e830105f21e3e
+    ERA_TAG=core-v28.0.0
+    ;;
+  v29)
+    ERA_CONTRACTS_GIT_COMMIT=&lt;COMMIT-HASH&gt; # HEAD of anvil-zksync-0.6.x-release-v29
+    ERA_TAG=core-v29.0.0
+    ;;
+  *)
+    echo "Unrecognized/unsupported protocol version: $PROTOCOL_VERSION"
+    exit 1
+    ;;
+esac
+</code></pre>
+<blockquote>
+<p>Be sure to replace <code>&lt;COMMIT-HASH&gt;</code> with the actual commit hash of your branch and ensure the matching <code>ERA_TAG</code> exists upstream.</p>
+</blockquote>
+<h4 id="2-run-the-setup-script"><a class="header" href="#2-run-the-setup-script">2. Run the Setup Script</a></h4>
+<p>From the <code>l1-setup/</code> directory, invoke the setup script to generate the artifacts:</p>
+<pre><code class="language-bash">./setup.sh v29
+</code></pre>
+<p>This will:</p>
+<ul>
+<li>Spin up a temporary <code>anvil</code> instance</li>
+<li>Deploy and configure L1 contracts and L2 upgrade transaction</li>
+<li>Clone and patch the correct version of <code>zksync-era</code></li>
+<li>Generate and persist the following:</li>
+</ul>
+<h4 id="output-artifacts"><a class="header" href="#output-artifacts">Output Artifacts</a></h4>
+<p>All outputs are stored under <code>l1-setup/</code>:</p>
+<ul>
+<li><code>configs/v29-genesis.yaml</code>: L2 genesis metadata</li>
+<li><code>configs/v29-contracts.yaml</code>: Deployed contract addresses</li>
+<li><code>state/v29-l2-upgrade-tx.json</code>: L1 upgrade transaction payload</li>
+<li><code>state/v29-l1-state-payload.txt</code>: Compressed <code>anvil</code> state loadable via <code>anvil_loadState</code></li>
+<li><code>state/v29-l1-state.json</code>: Full uncompressed state JSON</li>
+</ul>
+<h4 id="caveats"><a class="header" href="#caveats">Caveats</a></h4>
+<ul>
+<li>The process uses a randomized salt when deploying via <code>CREATE2</code>, so running it multiple times will produce non-deterministic results.</li>
+<li>Do <strong>not</strong> commit changes to the <code>contracts</code> submodule that may appear after running the script.</li>
+</ul>
+<h4 id="2-register-protocol-version-in-l1-sidecar"><a class="header" href="#2-register-protocol-version-in-l1-sidecar">2. Register Protocol Version in <code>l1-sidecar</code></a></h4>
+<p>After generating the files, register the new version in the following locations within the <code>l1-sidecar</code> and <code>l1-setup</code> crate.</p>
+<h5 id="cratesl1_sidecarsrczkstack_configmodrs"><a class="header" href="#cratesl1_sidecarsrczkstack_configmodrs"><code>crates/l1_sidecar/src/zkstack_config/mod.rs</code></a></h5>
+<p>Add a new mapping for the v29 configuration:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>(
+    ProtocolVersionId::Version29,
+    ZkstackConfig {
+        contracts: serde_yaml::from_slice(include_bytes!(
+            "../../../../l1-setup/configs/v29-contracts.yaml"
+        ))
+        .unwrap(),
+        genesis: serde_yaml::from_slice(include_bytes!(
+            "../../../../l1-setup/configs/v29-genesis.yaml"
+        ))
+        .unwrap(),
+        wallets,
+    },
+),
+<span class="boring">}</span></code></pre></pre>
+<h5 id="cratesl1_sidecarsrcupgrade_txrs"><a class="header" href="#cratesl1_sidecarsrcupgrade_txrs"><code>crates/l1_sidecar/src/upgrade_tx.rs</code></a></h5>
+<p>Include the upgrade transaction for v29:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>(
+    ProtocolVersionId::Version29,
+    serde_json::from_slice::&lt;UpgradeTx&gt;(include_bytes!(
+        "../../../l1-setup/state/v29-l2-upgrade-tx.json"
+    ))
+    .unwrap(),
+),
+<span class="boring">}</span></code></pre></pre>
+<h5 id="cratesl1_sidecarsrcanvilrs"><a class="header" href="#cratesl1_sidecarsrcanvilrs"><code>crates/l1_sidecar/src/anvil.rs</code></a></h5>
+<p>Add the L1 state and payload for v29:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>(
+    ProtocolVersionId::Version29,
+    include_bytes!("../../../l1-setup/state/v29-l1-state.json").as_slice(),
+),
+<span class="boring">}</span></code></pre></pre>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>(
+    ProtocolVersionId::Version29,
+    include_str!("../../../l1-setup/state/v29-l1-state-payload.txt"),
+),
+<span class="boring">}</span></code></pre></pre>
+<h2 id="5-register-the-protocol-version-and-new-contracts-in-system_contractsrs"><a class="header" href="#5-register-the-protocol-version-and-new-contracts-in-system_contractsrs">5. Register the Protocol Version and New Contracts in <code>system_contracts.rs</code></a></h2>
+<p>Once contract artifacts have been bundled via the refresh scripts, you must register the new protocol version and any newly introduced contracts in <code>crates/deps/system_contracts.rs</code>. This ensures <code>anvil-zksync</code> can load and deploy the correct system contracts when bootstrapping a chain at this protocol version.</p>
+<h3 id="51-import-new-addresses-from-zksync_types"><a class="header" href="#51-import-new-addresses-from-zksync_types">5.1 Import New Addresses from <code>zksync_types</code></a></h3>
+<p>Start by importing the relevant contract address constant from <code>zksync_types</code>. For example, if the protocol introduces a new <code>ChainAssetHandler</code> contract:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use zksync_types::L2_CHAIN_ASSET_HANDLER_ADDRESS;
+<span class="boring">}</span></code></pre></pre>
+<h3 id="52-extend-the-builtin_contract_archives-array"><a class="header" href="#52-extend-the-builtin_contract_archives-array">5.2 Extend the <code>BUILTIN_CONTRACT_ARCHIVES</code> Array</a></h3>
+<p>Add the <code>v29</code> contract archive to the <code>BUILTIN_CONTRACT_ARCHIVES</code>:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>static BUILTIN_CONTRACT_ARCHIVES: [(ProtocolVersionId, &amp;[u8]); 4] = [
+    (
+        ProtocolVersionId::Version26,
+        include_bytes!("contracts/builtin-contracts-v26.tar.gz"),
+    ),
+    (
+        ProtocolVersionId::Version27,
+        include_bytes!("contracts/builtin-contracts-v27.tar.gz"),
+    ),
+    (
+        ProtocolVersionId::Version28,
+        include_bytes!("contracts/builtin-contracts-v28.tar.gz"),
+    ),
+    (
+        ProtocolVersionId::Version29,
+        include_bytes!("contracts/builtin-contracts-v29.tar.gz"),
+    ),
+];
+<span class="boring">}</span></code></pre></pre>
+<h3 id="53-add-a-constant-for-v29"><a class="header" href="#53-add-a-constant-for-v29">5.3 Add a Constant for V29</a></h3>
+<p>Declare a constant identifier for use in contract registration:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>const V29: ProtocolVersionId = ProtocolVersionId::Version29;
+<span class="boring">}</span></code></pre></pre>
+<h3 id="54-register-the-new-contract-in-non_kernel_contract_locations-or-builtin_contract_locations"><a class="header" href="#54-register-the-new-contract-in-non_kernel_contract_locations-or-builtin_contract_locations">5.4 Register the New Contract in <code>NON_KERNEL_CONTRACT_LOCATIONS</code> (or <code>BUILTIN_CONTRACT_LOCATIONS</code>)</a></h3>
+<p>If the new contract is a non-kernel system contract, add it to <code>NON_KERNEL_CONTRACT_LOCATIONS</code>:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub static NON_KERNEL_CONTRACT_LOCATIONS: [(&amp;str, Address, ProtocolVersionId); 9] = [
+    // ... existing entries ...
+    ("L2WrappedBaseToken", L2_WRAPPED_BASE_TOKEN_IMPL, V26),
+    ("ChainAssetHandler", L2_CHAIN_ASSET_HANDLER_ADDRESS, V29),
+];
+<span class="boring">}</span></code></pre></pre>
+<blockquote>
+<p>If the contract is kernel-level or categorized differently (e.g. a precompile), place it in the corresponding section within <code>BUILTIN_CONTRACT_LOCATIONS</code>.</p>
+</blockquote>
+<h3 id="55-verify-get_deployed_contracts-loads-the-correct-contracts"><a class="header" href="#55-verify-get_deployed_contracts-loads-the-correct-contracts">5.5 Verify <code>get_deployed_contracts</code> Loads the Correct Contracts</a></h3>
+<p>The static <code>BUILTIN_CONTRACTS</code> map is automatically constructed from the entries in <code>BUILTIN_CONTRACT_LOCATIONS</code> and <code>NON_KERNEL_CONTRACT_LOCATIONS</code>. If the mappings above are correct, the logic will automatically pick up your new contract when bootstrapping a chain with <code>--protocol-version 29</code>.</p>
+<h3 id="56-add-a-unit-test"><a class="header" href="#56-add-a-unit-test">5.6 Add a Unit Test</a></h3>
+<p>Consider duplicating an existing protocol-specific test to ensure the correct number of contracts are loaded for v29:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[test]
+fn load_v29_contracts() {
+    let contracts = get_deployed_contracts(
+        SystemContractsOptions::BuiltIn,
+        ProtocolVersionId::Version29,
+        None,
+    );
+    assert_eq!(
+        contracts.len(),
+        count_protocol_contracts(ProtocolVersionId::Version29)
+    );
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="6-register-the-new-protocol-version-in-forkrs"><a class="header" href="#6-register-the-new-protocol-version-in-forkrs">6 Register the New Protocol Version in <code>fork.rs</code></a></h3>
+<p>To enable forking against chains using the new protocol version, update the list of supported protocol versions in <code>crates/core/src/node/inner/fork.rs</code>.</p>
+<h4 id="extend-supported_versions"><a class="header" href="#extend-supported_versions">Extend <code>SUPPORTED_VERSIONS</code></a></h4>
+<p>Locate the <code>SUPPORTED_VERSIONS</code> constant inside the <code>SupportedProtocolVersions</code> implementation and add your new entry:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>impl SupportedProtocolVersions {
+    const SUPPORTED_VERSIONS: [ProtocolVersionId; 4] = [
+        ProtocolVersionId::Version26,
+        ProtocolVersionId::Version27,
+        ProtocolVersionId::Version28,
+        ProtocolVersionId::Version29,
+    ];
+}
+<span class="boring">}</span></code></pre></pre>
+<blockquote>
+<p>Update the array length (<code>4</code> in this case) accordingly to reflect the number of supported versions.</p>
+</blockquote>
+<h2 id="7-update-tests"><a class="header" href="#7-update-tests">7. Update Tests</a></h2>
+<p>With support for the new protocol version in place, add test coverage to ensure it is fully integrated and behaves as expected.</p>
+<h3 id="71-add-protocol-version-test-in-protocolrs"><a class="header" href="#71-add-protocol-version-test-in-protocolrs">7.1 Add Protocol Version Test in <code>protocol.rs</code></a></h3>
+<p>Navigate to <code>e2e-tests-rust/tests/protocol.rs</code> and add a dedicated test to verify that a node launched with the new protocol version (e.g. v29) reports it correctly via <code>eth_getBlockByNumber</code> or <code>zks_getBlockDetails</code>.</p>
+<p>Example:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[tokio::test]
+async fn protocol_v29_on_demand() -&gt; anyhow::Result&lt;()&gt; {
+    let tester = AnvilZksyncTesterBuilder::default()
+        .with_node_fn(&amp;|node| node.args(["--protocol-version", "29"]))
+        .build()
+        .await?;
+
+    let receipt = tester.tx().finalize().await?;
+    let block_number = receipt.block_number().unwrap();
+
+    let block_details = tester
+        .l2_provider()
+        .get_block_details(block_number)
+        .await?
+        .unwrap();
+
+    assert_eq!(
+        block_details.protocol_version,
+        Some("Version29".to_string())
+    );
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="72-update-l1-compatibility-test-in-l1rs"><a class="header" href="#72-update-l1-compatibility-test-in-l1rs">7.2 Update L1 Compatibility Test in <code>l1.rs</code></a></h3>
+<p>In <code>e2e-tests-rust/tests/l1.rs</code>, bump the <code>#[test_casing]</code> macro to reflect the updated set of supported protocol versions:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[test_casing(4, SUPPORTED_PROTOCOL_VERSIONS)]
+#[tokio::test]
+async fn l1_priority_tx(protocol_version: u16) -&gt; anyhow::Result&lt;()&gt; {
+    // ...
+}
+<span class="boring">}</span></code></pre></pre>
+<blockquote>
+<p>Adjust the first argument (<code>4</code> in this case) to match the current number of supported versions.</p>
+</blockquote>
+<p>This ensures your tests automatically run against all supported protocol configurations.</p>
+<h3 id="73-run-and-validate-the-full-test-suite"><a class="header" href="#73-run-and-validate-the-full-test-suite">7.3 Run and Validate the Full Test Suite</a></h3>
+<p>After all test updates are complete, validate your changes across both unit and end-to-end tests.</p>
+<pre><code class="language-bash"># Run all Rust unit tests
+make test
+
+# Run Rust-based e2e tests (requires a running anvil-zksync instance)
+cd e2e-tests-rust &amp;&amp; cargo test
+
+# Run full e2e suite (requires a running anvil-zksync instance)
+make test-e2e
+</code></pre>
+<p>Confirm that all test suites pass successfully under the new protocol version to ensure correctness and regression safety.</p>
+<h2 id="8-final-checklist"><a class="header" href="#8-final-checklist">8. Final Checklist</a></h2>
+<p>Use the following checklist to ensure all steps for adding a new protocol version (e.g. v29) have been completed:</p>
+<ul>
+<li><input disabled="" type="checkbox"/>
+<code>era-contracts</code> fork updated with debug support</li>
+<li><input disabled="" type="checkbox"/>
+Upstream dependencies patched</li>
+<li><input disabled="" type="checkbox"/>
+New protocol feature added</li>
+<li><input disabled="" type="checkbox"/>
+<code>refresh_contracts.sh</code> updated</li>
+<li><input disabled="" type="checkbox"/>
+L1 setup (<code>l1-setup/setup.sh</code>) updated</li>
+<li><input disabled="" type="checkbox"/>
+<code>l1-sidecar</code> integration completed</li>
+<li><input disabled="" type="checkbox"/>
+<code>system_contracts.rs</code> updated</li>
+<li><input disabled="" type="checkbox"/>
+Forking logic updated</li>
+<li><input disabled="" type="checkbox"/>
+Tests written and updated</li>
+<li><input disabled="" type="checkbox"/>
+Test suites executed and passing</li>
+<li><input disabled="" type="checkbox"/>
+Documentation &amp; Lint</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="l1--l2-message-testing-with-anvil-zksync"><a class="header" href="#l1--l2-message-testing-with-anvil-zksync">L1 → L2 Message Testing with Anvil-ZKsync</a></h1>
+<p>This guide shows you how to locally test a cross-chain message from L1 → L2 using <code>anvil</code> and <code>anvil-zksync</code>.</p>
+<h2 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h2>
+<ul>
+<li><a href="https://book.getfoundry.sh/anvil/"><code>anvil</code></a> installed</li>
+<li><a href="https://github.com/matter-labs/anvil-zksync"><code>anvil-zksync</code></a> installed</li>
+<li>Node.js + Hardhat dev setup</li>
+</ul>
+<hr />
+<h2 id="1-start-local-nodes"><a class="header" href="#1-start-local-nodes">1. Start Local Nodes</a></h2>
+<p>Start the <strong>L1</strong> and <strong>L2</strong> nodes in two terminals:</p>
+<pre><code class="language-bash"># L1 (Anvil)
+anvil --no-request-size-limit --port 8012
+
+# L2 (Anvil-ZkSync)
+anvil-zksync --evm-interpreter --external-l1=http://127.0.0.1:8012
+</code></pre>
+<p>The <code>--evm-interpreter</code> flag enables deploying EVM contracts to L2, simplifying Hardhat workflows.</p>
+<p>You now have:</p>
+<ul>
+<li>L1 RPC at <code>http://127.0.0.1:8012</code></li>
+<li>L2 RPC at <code>http://127.0.0.1:8011</code></li>
+</ul>
+<hr />
+<h2 id="2-clone-the-example-repo"><a class="header" href="#2-clone-the-example-repo">2. Clone the Example Repo</a></h2>
+<pre><code class="language-bash">git clone git@github.com:dutterbutter/cross-chain-example.git
+cd cross-chain-example
+npm install
+</code></pre>
+<p>Repo layout:</p>
+<pre><code class="language-bash">├── contracts             # AccessKey (L1) &amp; Vault (L2)
+├── test/l1-l2.spec.ts    # Full e2e test using Hardhat + ethers
+</code></pre>
+<hr />
+<h2 id="3-what-the-contracts-do"><a class="header" href="#3-what-the-contracts-do">3. What the Contracts Do</a></h2>
+<h3 id="accesskeysol-l1"><a class="header" href="#accesskeysol-l1"><code>AccessKey.sol</code> (L1)</a></h3>
+<p>Sends a cross-chain message to unlock a vault on L2 via the <code>Bridgehub</code>.</p>
+<h3 id="vaultsol-l2"><a class="header" href="#vaultsol-l2"><code>Vault.sol</code> (L2)</a></h3>
+<p>Accepts an <code>unlock()</code> call and marks itself as <code>unlocked</code>. Validates the caller using aliased L1 address logic.</p>
+<hr />
+<h2 id="environment-variables"><a class="header" href="#environment-variables">Environment Variables</a></h2>
+<p>Ensure <code>.env</code> contains:</p>
+<pre><code class="language-env">PRIVATE_KEY=0x...      # Use pre-funded dev accounts from anvil-zksync
+</code></pre>
+<h2 id="4-run-the-test"><a class="header" href="#4-run-the-test">4. Run the Test</a></h2>
+<p>This test:</p>
+<ul>
+<li>Deploys <code>AccessKey</code> to L1</li>
+<li>Deploys <code>Vault</code> to L2 with the aliased address of the L1 AccessKey</li>
+<li>Calls <code>AccessKey.unlockVaultOnL2(...)</code> to dispatch a message via <code>Bridgehub</code></li>
+<li>Waits for L2 state change to confirm message success</li>
+</ul>
+<p>Compile contracts first:</p>
+<pre><code class="language-bash">npm run compile
+</code></pre>
+<p>Run the test:</p>
+<pre><code class="language-bash">npm run test
+</code></pre>
+<hr />
+<h2 id="want-eravm-contracts-instead"><a class="header" href="#want-eravm-contracts-instead">Want EraVM Contracts Instead?</a></h2>
+<p>If you’re interested in deploying <strong>EraVM contracts</strong> instead of EVM contracts using <code>@matterlabs/hardhat-zksync</code>, check out the <a href="https://github.com/dutterbutter/cross-chain-example/tree/eravm-test"><code>eravm-test</code></a> branch of the repository. Everything else stays the same — nodes, config, and test flow.</p>
+<hr />
+<h2 id="-success-criteria"><a class="header" href="#-success-criteria">✅ Success Criteria</a></h2>
+<p>At the end of the test, you should see:</p>
+<pre><code class="language-bash">✓ should deploy AccessKey on L1, Vault on L2, then unlock (XXXXms)
+</code></pre>
+<p>And <code>Vault.isVaultUnlocked()</code> on L2 should return <code>true</code>.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="json-rpc-reference"><a class="header" href="#json-rpc-reference">JSON-RPC Reference</a></h1>
+<p><code>anvil-zksync</code> exposes several JSON-RPC namespaces. Click a namespace to view available methods:</p>
+<div class="table-wrapper"><table><thead><tr><th>Namespace</th><th>Description</th></tr></thead><tbody>
+<tr><td><a href="rpc/./eth.html"><code>eth_*</code></a></td><td>Ethereum compatible base methods</td></tr>
+<tr><td><a href="rpc/./zks.html"><code>zks_*</code></a></td><td>ZKsync specific extensions</td></tr>
+<tr><td><a href="rpc/./anvil.html"><code>anvil_*</code></a></td><td>Anvil node controls</td></tr>
+<tr><td><a href="rpc/./hardhat.html"><code>hardhat_*</code></a></td><td>Hardhat style testing helpers</td></tr>
+<tr><td><a href="rpc/./misc.html"><code>evm_*</code>, <code>net_*</code>, <code>web3_*</code>, <code>debug_*</code></a></td><td>Miscellaneous utilities &amp; tracing</td></tr>
+</tbody></table>
+</div><div style="break-before: page; page-break-before: always;"></div><h1 id="eth_-namespace"><a class="header" href="#eth_-namespace"><code>eth_*</code> namespace</a></h1>
+<p>Standard Ethereum JSON-RPC calls supported by <strong>anvil-zksync</strong>.<br />
+Unless marked ✗, behavior matches the same call on an actual ZK chain endpoint.</p>
+<pre><code class="language-bash // [Example]">curl -X POST http://localhost:8011 \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":[]}'
+</code></pre>
+<h2 id="method-index"><a class="header" href="#method-index">Method index</a></h2>
+<h3 id="accounts--keys"><a class="header" href="#accounts--keys">Accounts &amp; keys</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓ / ✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="rpc/eth.html#eth_accounts"><code>eth_accounts</code></a></td><td>✓</td><td>List dev accounts</td></tr>
+<tr><td><code>eth_coinbase</code></td><td>✗</td><td>Coinbase address</td></tr>
+<tr><td><a href="rpc/eth.html#eth_gettransactioncount"><code>eth_getTransactionCount</code></a></td><td>✓</td><td>Nonce for address</td></tr>
+</tbody></table>
+</div>
+<h3 id="blocks--chain"><a class="header" href="#blocks--chain">Blocks &amp; chain</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓ / ✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="rpc/eth.html#eth_blocknumber"><code>eth_blockNumber</code></a></td><td>✓</td><td>Latest block height</td></tr>
+<tr><td><a href="rpc/eth.html#eth_chainid"><code>eth_chainId</code></a></td><td>✓</td><td>Configured chain ID (<code>260</code> default)</td></tr>
+<tr><td><a href="rpc/eth.html#eth_getblockbynumber"><code>eth_getBlockByNumber</code></a></td><td>✓</td><td>Block by number</td></tr>
+<tr><td><a href="rpc/eth.html#eth_getblockbyhash"><code>eth_getBlockByHash</code></a></td><td>✓</td><td>Block by hash</td></tr>
+<tr><td><code>eth_getUncleByBlockNumberAndIndex</code></td><td>✗</td><td>Uncle data</td></tr>
+<tr><td><code>eth_getUncleCountByBlockHash</code></td><td>✗</td><td>Uncle count</td></tr>
+</tbody></table>
+</div>
+<h3 id="transactions"><a class="header" href="#transactions">Transactions</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓ / ✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="rpc/eth.html#eth_sendrawtransaction"><code>eth_sendRawTransaction</code></a></td><td>✓</td><td>Broadcast signed tx</td></tr>
+<tr><td><a href="rpc/eth.html#eth_sendtransaction"><code>eth_sendTransaction</code></a></td><td>✓</td><td>Broadcast <em>unsigned</em> tx (dev wallets)</td></tr>
+<tr><td><a href="rpc/eth.html#eth_gettransactionbyhash"><code>eth_getTransactionByHash</code></a></td><td>✓</td><td>Tx by hash</td></tr>
+<tr><td><a href="rpc/eth.html#eth_gettransactionreceipt"><code>eth_getTransactionReceipt</code></a></td><td>✓</td><td>Tx receipt</td></tr>
+<tr><td><a href="rpc/eth.html#eth_estimategas"><code>eth_estimateGas</code></a></td><td>✓</td><td>Gas estimate</td></tr>
+<tr><td><a href="rpc/eth.html#eth_call"><code>eth_call</code></a></td><td>✓</td><td>Stateless call</td></tr>
+<tr><td><code>eth_sign</code></td><td>✗</td><td>Sign message</td></tr>
+<tr><td><code>eth_signTypedData</code></td><td>✗</td><td>Sign typed data</td></tr>
+</tbody></table>
+</div>
+<h3 id="logs--filters"><a class="header" href="#logs--filters">Logs &amp; filters</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓ / ✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="rpc/eth.html#eth_getlogs"><code>eth_getLogs</code></a></td><td>✓</td><td>Logs by filter object</td></tr>
+<tr><td><a href="rpc/eth.html#eth_newfilter"><code>eth_newFilter</code></a></td><td>✓</td><td>Create log filter</td></tr>
+<tr><td><a href="rpc/eth.html#eth_getfilterchanges"><code>eth_getFilterChanges</code></a></td><td>✓</td><td>Poll filter</td></tr>
+<tr><td><a href="rpc/eth.html#eth_uninstallfilter"><code>eth_uninstallFilter</code></a></td><td>✓</td><td>Remove filter</td></tr>
+<tr><td><code>eth_subscribe</code></td><td>✗</td><td>Open websocket subscription</td></tr>
+</tbody></table>
+</div>
+<h3 id="gas--fees"><a class="header" href="#gas--fees">Gas &amp; fees</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓ / ✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="rpc/eth.html#eth_gasprice"><code>eth_gasPrice</code></a></td><td>✓</td><td>Current gas price (hardcoded <code>50_000_000</code>)</td></tr>
+<tr><td><a href="rpc/eth.html#eth_feehistory"><code>eth_feeHistory</code></a></td><td>✓</td><td>Historical fee data (stubbed)</td></tr>
+<tr><td><code>eth_maxPriorityFeePerGas</code></td><td>✗</td><td>EIP-1559 priority fee</td></tr>
+</tbody></table>
+</div>
+<h3 id="misc--sync"><a class="header" href="#misc--sync">Misc &amp; sync</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓ / ✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="rpc/eth.html#eth_syncing"><code>eth_syncing</code></a></td><td>✓</td><td>Always <code>false</code> (instant sync)</td></tr>
+<tr><td><a href="rpc/eth.html#eth_protocolversion"><code>eth_protocolVersion</code></a></td><td>✓</td><td>Protocol version</td></tr>
+<tr><td><code>eth_hashrate</code></td><td>✗</td><td>Miner hashrate</td></tr>
+</tbody></table>
+</div>
+<h2 id="method-reference"><a class="header" href="#method-reference">Method reference</a></h2>
+<blockquote>
+<p>We keep this section lightweight — for full parameter and return definitions see the official
+Ethereum JSON-RPC <a href="https://ethereum.org/en/developers/docs/apis/json-rpc/">spec ↗︎</a>.</p>
+</blockquote>
+<h3 id="eth_accounts"><a class="header" href="#eth_accounts">eth_accounts <a id="eth_accounts" /></a></h3>
+<p>Returns a list of addresses owned by the local node (e.g. dev accounts).</p>
+<pre><code class="language-bash filename=&quot;eth_accounts.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"eth_accounts","params":[]}'
+</code></pre>
+<h3 id="eth_gettransactioncount"><a class="header" href="#eth_gettransactioncount">eth_getTransactionCount <a id="eth_gettransactioncount" /></a></h3>
+<p>Returns the nonce (transaction count) for an address.</p>
+<pre><code class="language-bash filename=&quot;eth_getTransactionCount.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"eth_getTransactionCount",
+        "params":["0x6fC1E2F6c7381BF9b7205F3a14e0ccabe9d9a8F8", "latest"]
+      }'
+</code></pre>
+<blockquote>
+<p>Replace the address with one from <code>eth_accounts</code> if you’re running dev mode.</p>
+</blockquote>
+<h3 id="eth_blocknumber"><a class="header" href="#eth_blocknumber">eth_blockNumber <a id="eth_blocknumber" /></a></h3>
+<p>Returns the latest block height.</p>
+<pre><code class="language-bash filename=&quot;eth_blockNumber.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":[]}'
+</code></pre>
+<h3 id="eth_chainid"><a class="header" href="#eth_chainid">eth_chainId <a id="eth_chainid" /></a></h3>
+<p>Returns the chain ID of the node (default: <code>260</code> / <code>0x104</code>).</p>
+<pre><code class="language-bash filename=&quot;eth_chainId.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}'
+</code></pre>
+<h3 id="eth_getblockbynumber"><a class="header" href="#eth_getblockbynumber">eth_getBlockByNumber <a id="eth_getblockbynumber" /></a></h3>
+<p>Returns block details by block number.</p>
+<pre><code class="language-bash filename=&quot;eth_getBlockByNumber.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"eth_getBlockByNumber",
+        "params":["latest", true]
+      }'
+</code></pre>
+<blockquote>
+<p><code>true</code> returns full transaction objects; <code>false</code> returns only tx hashes.</p>
+</blockquote>
+<h3 id="eth_getblockbyhash"><a class="header" href="#eth_getblockbyhash">eth_getBlockByHash <a id="eth_getblockbyhash" /></a></h3>
+<p>Returns block details by hash.</p>
+<pre><code class="language-bash filename=&quot;eth_getBlockByHash.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"eth_getBlockByHash",
+        "params":["0xabc123...blockHash...", true]
+      }'
+</code></pre>
+<blockquote>
+<p>Replace the hash with a real block hash from your node (e.g. via <code>eth_getLogs</code> or block explorer).</p>
+</blockquote>
+<h3 id="eth_sendrawtransaction"><a class="header" href="#eth_sendrawtransaction">eth_sendRawTransaction <a id="eth_sendrawtransaction" /></a></h3>
+<p>Broadcasts a raw signed transaction.<br />
+Use this with pre-signed transactions (e.g. from Foundry or viem).</p>
+<pre><code class="language-bash filename=&quot;eth_sendRawTransaction.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"eth_sendRawTransaction",
+        "params":["0x02f8..."]  // replace with actual signed tx
+      }'
+</code></pre>
+<Callout title="Auto-mining">
+  Unless the node is started with <code>--no-mining</code>, the transaction is mined immediately.
+</Callout>
+<h3 id="eth_sendtransaction"><a class="header" href="#eth_sendtransaction">eth_sendTransaction <a id="eth_sendtransaction" /></a></h3>
+<p>Broadcasts an <strong>unsigned</strong> transaction using dev accounts (in local mode only).<br />
+Automatically signs and sends the tx.</p>
+<pre><code class="language-bash filename=&quot;eth_sendTransaction.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"eth_sendTransaction",
+        "params":[{
+          "from": "0x6fC1E2F6c7381BF9b7205F3a14e0ccabe9d9a8F8",
+          "to": "0x0000000000000000000000000000000000000000",
+          "value": "0x2386F26FC10000"  // 0.01 ETH
+        }]
+      }'
+</code></pre>
+<h3 id="eth_gettransactionbyhash"><a class="header" href="#eth_gettransactionbyhash">eth_getTransactionByHash <a id="eth_gettransactionbyhash" /></a></h3>
+<p>Returns a transaction by its hash.</p>
+<pre><code class="language-bash filename=&quot;eth_getTransactionByHash.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"eth_getTransactionByHash",
+        "params":["0x...transactionHash..."]
+      }'
+</code></pre>
+<h3 id="eth_gettransactionreceipt"><a class="header" href="#eth_gettransactionreceipt">eth_getTransactionReceipt <a id="eth_gettransactionreceipt" /></a></h3>
+<p>Returns the receipt for a transaction hash (after it has been mined).</p>
+<pre><code class="language-bash filename=&quot;eth_getTransactionReceipt.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"eth_getTransactionReceipt",
+        "params":["0x...transactionHash..."]
+      }'
+</code></pre>
+<h3 id="eth_estimategas"><a class="header" href="#eth_estimategas">eth_estimateGas <a id="eth_estimategas" /></a></h3>
+<p>Estimates how much gas a transaction will consume.</p>
+<pre><code class="language-bash filename=&quot;eth_estimateGas.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"eth_estimateGas",
+        "params":[{
+          "from": "0x6fC1E2F6c7381BF9b7205F3a14e0ccabe9d9a8F8",
+          "to": "0x0000000000000000000000000000000000000000",
+          "data": "0x"
+        }]
+      }'
+</code></pre>
+<h3 id="eth_call"><a class="header" href="#eth_call">eth_call <a id="eth_call" /></a></h3>
+<p>Simulates a read-only call to a contract (does not submit a tx).</p>
+<pre><code class="language-bash filename=&quot;eth_call.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"eth_call",
+        "params":[{
+          "from": "0x6fC1E2F6c7381BF9b7205F3a14e0ccabe9d9a8F8",
+          "to": "0x0000000000000000000000000000000000000000",
+          "data": "0x..."
+        }, "latest"]
+      }'
+</code></pre>
+<blockquote>
+<p>Replace <code>data</code> with the ABI-encoded call data for the method you wish to simulate.</p>
+</blockquote>
+<h3 id="eth_getlogs"><a class="header" href="#eth_getlogs">eth_getLogs <a id="eth_getlogs" /></a></h3>
+<p>Returns logs matching the specified filter object.</p>
+<pre><code class="language-bash filename=&quot;eth_getLogs.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"eth_getLogs",
+        "params":[{
+          "fromBlock": "0x0",
+          "toBlock": "latest",
+          "address": "0x0000000000000000000000000000000000000000",
+          "topics": []
+        }]
+      }'
+</code></pre>
+<h3 id="eth_newfilter"><a class="header" href="#eth_newfilter">eth_newFilter <a id="eth_newfilter" /></a></h3>
+<p>Creates a new log filter on the node and returns its ID.</p>
+<pre><code class="language-bash filename=&quot;eth_newFilter.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"eth_newFilter",
+        "params":[{
+          "fromBlock": "0x0",
+          "toBlock": "latest",
+          "address": "0x0000000000000000000000000000000000000000",
+          "topics": []
+        }]
+      }'
+</code></pre>
+<h3 id="eth_getfilterchanges"><a class="header" href="#eth_getfilterchanges">eth_getFilterChanges <a id="eth_getfilterchanges" /></a></h3>
+<p>Polls the filter for new changes (e.g. logs or block hashes since last call).</p>
+<pre><code class="language-bash filename=&quot;eth_getFilterChanges.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"eth_getFilterChanges",
+        "params":["0x1"]
+      }'
+</code></pre>
+<blockquote>
+<p>Replace <code>0x1</code> with the filter ID returned by <code>eth_newFilter</code>.</p>
+</blockquote>
+<h3 id="eth_uninstallfilter"><a class="header" href="#eth_uninstallfilter">eth_uninstallFilter <a id="eth_uninstallfilter" /></a></h3>
+<p>Removes a previously created filter.</p>
+<pre><code class="language-bash filename=&quot;eth_uninstallFilter.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"eth_uninstallFilter",
+        "params":["0x1"]
+      }'
+</code></pre>
+<blockquote>
+<p>After removal, the filter ID becomes invalid and cannot be polled.</p>
+</blockquote>
+<h3 id="eth_gasprice"><a class="header" href="#eth_gasprice">eth_gasPrice <a id="eth_gasprice" /></a></h3>
+<p>Returns the current gas price.<br />
+In <code>anvil-zksync</code>, this is hardcoded to <code>50_000_000</code> gwei (<code>0x2FAF080</code>).</p>
+<pre><code class="language-bash filename=&quot;eth_gasPrice.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"eth_gasPrice","params":[]}'
+</code></pre>
+<h3 id="eth_feehistory"><a class="header" href="#eth_feehistory">eth_feeHistory <a id="eth_feehistory" /></a></h3>
+<p>Returns a stubbed gas fee history.<br />
+Parameters include block count, reference block, and optional reward percentiles.</p>
+<pre><code class="language-bash filename=&quot;eth_feeHistory.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"eth_feeHistory",
+        "params":["0x5", "latest", [25, 50, 75]]
+      }'
+</code></pre>
+<h3 id="eth_syncing"><a class="header" href="#eth_syncing">eth_syncing <a id="eth_syncing" /></a></h3>
+<p>Returns <code>false</code> — the node is always considered fully synced.</p>
+<pre><code class="language-bash filename=&quot;eth_syncing.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"eth_syncing","params":[]}'
+</code></pre>
+<h3 id="eth_protocolversion"><a class="header" href="#eth_protocolversion">eth_protocolVersion <a id="eth_protocolversion" /></a></h3>
+<p>Returns the Ethereum protocol version as a hex string.</p>
+<pre><code class="language-bash filename=&quot;eth_protocolVersion.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"eth_protocolVersion","params":[]}'
+</code></pre>
+<h2 id="unimplemented-stubs"><a class="header" href="#unimplemented-stubs">Unimplemented stubs</a></h2>
+<p>The following methods currently return <strong><code>Method not found</code></strong>:</p>
+<ul>
+<li><code>eth_getCompilers</code></li>
+<li><code>eth_sign</code></li>
+<li><code>eth_subscribe</code></li>
+<li><code>eth_hashrate</code></li>
+<li><code>eth_maxPriorityFeePerGas</code></li>
+<li><code>eth_coinbase</code></li>
+<li><code>eth_signTypedData</code></li>
+<li><code>eth_getUncleByBlockNumberAndIndex</code></li>
+<li><code>eth_getUncleCountByBlockHash</code></li>
+<li><code>eth_getUncleByBlockHashAndIndex</code></li>
+<li><code>eth_getUncleCountByBlockNumber</code></li>
+<li><code>eth_getUncleByBlockNumberAndIndex</code></li>
+</ul>
+<hr />
+<h2 id="see-also-4"><a class="header" href="#see-also-4">See also</a></h2>
+<ul>
+<li><a href="rpc/./zks.html"><code>zks_*</code></a> — ZKsync specific extensions</li>
+<li><a href="rpc/./misc.html"><code>debug_*</code></a> — Execution traces &amp; state inspection</li>
+<li><a href="rpc/./anvil.html"><code>anvil_*</code></a> — Node testing helpers</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="zks_-namespace"><a class="header" href="#zks_-namespace"><code>zks_*</code> namespace</a></h1>
+<p>These calls expose Elastic Network specific data such as L1→L2 fees, bridge contract addresses, and
+batch details.</p>
+<p>Unless marked ✗, they behave the same as on a public ZKsync endpoint.</p>
+<pre><code class="language-bash // [Example]">curl -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"zks_L1ChainId","params":[]}'
+</code></pre>
+<h2 id="method-index-1"><a class="header" href="#method-index-1">Method index</a></h2>
+<h3 id="fees--gas"><a class="header" href="#fees--gas">Fees &amp; gas</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓ / ✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="rpc/zks.html#zks_estimatefee"><code>zks_estimateFee</code></a></td><td>✓</td><td>Fee estimate for an L2 tx</td></tr>
+<tr><td><a href="rpc/zks.html#zks_estimategasl1tol2"><code>zks_estimateGasL1ToL2</code></a></td><td>✓</td><td>Gas estimate for L1→L2 call</td></tr>
+<tr><td><code>zks_getFeeParams</code></td><td>✗</td><td>Current fee params</td></tr>
+</tbody></table>
+</div>
+<h3 id="blocks--batches"><a class="header" href="#blocks--batches">Blocks &amp; batches</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓ / ✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="rpc/zks.html#zks_getblockdetails"><code>zks_getBlockDetails</code></a></td><td>✓</td><td>Extra zkSync block info</td></tr>
+<tr><td><a href="rpc/zks.html#zks_getrawblocktransactions"><code>zks_getRawBlockTransactions</code></a></td><td>✓</td><td>Raw txs in a block</td></tr>
+<tr><td><code>zks_getL1BatchBlockRange</code></td><td>✗</td><td>Block range in batch</td></tr>
+<tr><td><code>zks_getL1BatchDetails</code></td><td>✗</td><td>Batch details</td></tr>
+<tr><td><code>zks_L1BatchNumber</code></td><td>✗</td><td>Latest L1 batch number</td></tr>
+</tbody></table>
+</div>
+<h3 id="proofs"><a class="header" href="#proofs">Proofs</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓ / ✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="rpc/zks.html#zks_getl2to1logproof"><code>zks_getL2ToL1LogProof</code></a></td><td>✓</td><td>Proof for L2→L1 log</td></tr>
+<tr><td><code>zks_getL2ToL1MsgProof</code></td><td>✗</td><td>Proof for L1 Messenger msg</td></tr>
+<tr><td><code>zks_getProof</code></td><td>✗</td><td>Storage Merkle proof</td></tr>
+</tbody></table>
+</div>
+<h3 id="accounts--tokens"><a class="header" href="#accounts--tokens">Accounts &amp; tokens</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓ / ✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="rpc/zks.html#zks_getallaccountbalances"><code>zks_getAllAccountBalances</code></a></td><td>deprecated</td><td>All token balances</td></tr>
+<tr><td><a href="rpc/zks.html#zks_getconfirmedtokens"><code>zks_getConfirmedTokens</code></a></td><td>deprecated</td><td>Token list slice</td></tr>
+<tr><td><a href="rpc/zks.html#zks_getbasetokenl1address"><code>zks_getBaseTokenL1Address</code></a></td><td>✓</td><td>Base‑token L1 addr</td></tr>
+</tbody></table>
+</div>
+<h3 id="bridges--contracts"><a class="header" href="#bridges--contracts">Bridges &amp; contracts</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓ / ✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="rpc/zks.html#zks_getbridgecontracts"><code>zks_getBridgeContracts</code></a></td><td>✓</td><td>Default bridge addrs</td></tr>
+<tr><td><a href="rpc/zks.html#zks_getbridgehubcontract"><code>zks_getBridgehubContract</code></a></td><td>✓</td><td>Bridgehub addr</td></tr>
+<tr><td><code>zks_getMainContract</code></td><td>✗</td><td>zkSync Era main contract</td></tr>
+<tr><td><code>zks_getTimestampAsserter</code></td><td>✗</td><td>Timestamp asserter</td></tr>
+<tr><td><code>zks_getL2Multicall3</code></td><td>✗</td><td>Multicall3 addr</td></tr>
+</tbody></table>
+</div>
+<h3 id="misc--system"><a class="header" href="#misc--system">Misc &amp; system</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓ / ✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="rpc/zks.html#zks_l1chainid"><code>zks_L1ChainId</code></a></td><td>✓</td><td>Underlying L1 chain‑id</td></tr>
+<tr><td><code>zks_getBatchFeeInput</code></td><td>✗</td><td>Current batch fee input</td></tr>
+<tr><td><code>zks_getL1GasPrice</code></td><td>✗</td><td>Current L1 gas price</td></tr>
+<tr><td><code>zks_sendRawTransactionWithDetailedOutput</code></td><td>✗</td><td>Tx with trace output</td></tr>
+</tbody></table>
+</div>
+<h2 id="method-reference-1"><a class="header" href="#method-reference-1">Method reference</a></h2>
+<blockquote>
+<p>Full schemas live in the <a href="https://era.zksync.io/docs/api/">official zkSync JSON-RPC docs ↗︎</a>.</p>
+</blockquote>
+<h3 id="zks_estimatefee"><a class="header" href="#zks_estimatefee">zks_estimateFee <a id="zks_estimatefee" /></a></h3>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,"method":"zks_estimateFee",
+        "params":[{
+          "from":"0x…","to":"0x…","data":"0x…"
+        }]
+      }'
+</code></pre>
+<h3 id="zks_estimategasl1tol2"><a class="header" href="#zks_estimategasl1tol2">zks_estimateGasL1ToL2 <a id="zks_estimategasl1tol2" /></a></h3>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,"method":"zks_estimateGasL1ToL2",
+        "params":[{
+          "from":"0x…","to":"0x…","gasPerPubdata":"0x0"
+        }]
+      }'
+</code></pre>
+<h3 id="deprecated-zks_getallaccountbalances"><a class="header" href="#deprecated-zks_getallaccountbalances">Deprecated zks_getAllAccountBalances <a id="zks_getallaccountbalances" /></a></h3>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,"method":"zks_getAllAccountBalances",
+        "params":["0x…account…"]
+      }'
+</code></pre>
+<h3 id="zks_getbridgecontracts"><a class="header" href="#zks_getbridgecontracts">zks_getBridgeContracts <a id="zks_getbridgecontracts" /></a></h3>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"zks_getBridgeContracts","params":[]}'
+</code></pre>
+<h3 id="zks_getbridgehubcontract"><a class="header" href="#zks_getbridgehubcontract">zks_getBridgehubContract <a id="zks_getbridgehubcontract" /></a></h3>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"zks_getBridgehubContract","params":[]}'
+</code></pre>
+<h3 id="zks_getblockdetails"><a class="header" href="#zks_getblockdetails">zks_getBlockDetails <a id="zks_getblockdetails" /></a></h3>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"zks_getBlockDetails","params":["0x1a"]}'
+</code></pre>
+<h3 id="zks_getbytecodebyhash"><a class="header" href="#zks_getbytecodebyhash">zks_getBytecodeByHash <a id="zks_getbytecodebyhash" /></a></h3>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"zks_getBytecodeByHash","params":["0x…hash…"]}'
+</code></pre>
+<h3 id="deprecated-zks_getconfirmedtokens"><a class="header" href="#deprecated-zks_getconfirmedtokens">Deprecated zks_getConfirmedTokens <a id="zks_getconfirmedtokens" /></a></h3>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"zks_getConfirmedTokens","params":[0, 50]}'
+</code></pre>
+<h3 id="zks_getbasetokenl1address"><a class="header" href="#zks_getbasetokenl1address">zks_getBaseTokenL1Address <a id="zks_getbasetokenl1address" /></a></h3>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"zks_getBaseTokenL1Address","params":[]}'
+</code></pre>
+<h3 id="zks_getl2tol1logproof"><a class="header" href="#zks_getl2tol1logproof">zks_getL2ToL1LogProof <a id="zks_getl2to1logproof" /></a></h3>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,"method":"zks_getL2ToL1LogProof",
+        "params":["0x…txHash…", 0]
+      }'
+</code></pre>
+<h3 id="zks_getrawblocktransactions"><a class="header" href="#zks_getrawblocktransactions">zks_getRawBlockTransactions <a id="zks_getrawblocktransactions" /></a></h3>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"zks_getRawBlockTransactions","params":["0x1a"]}'
+</code></pre>
+<h3 id="zks_gettransactiondetails"><a class="header" href="#zks_gettransactiondetails">zks_getTransactionDetails <a id="zks_gettransactiondetails" /></a></h3>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"zks_getTransactionDetails","params":["0x…txHash…"]}'
+</code></pre>
+<h3 id="zks_l1chainid"><a class="header" href="#zks_l1chainid">zks_L1ChainId <a id="zks_l1chainid" /></a></h3>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"zks_L1ChainId","params":[]}'
+</code></pre>
+<h2 id="unimplemented-stubs-1"><a class="header" href="#unimplemented-stubs-1">Unimplemented stubs</a></h2>
+<p>The following methods are not yet implemented and will return <code>Method not found</code>:</p>
+<ul>
+<li><code>zks_getBatchFeeInput</code></li>
+<li><code>zks_getFeeParams</code></li>
+<li><code>zks_getL1BatchBlockRange</code></li>
+<li><code>zks_getL1BatchDetails</code></li>
+<li><code>zks_getL1GasPrice</code></li>
+<li><code>zks_getL2ToL1MsgProof</code></li>
+<li><code>zks_getMainContract</code></li>
+<li><code>zks_getProof</code></li>
+<li><code>zks_getProtocolVersion</code></li>
+<li><code>zks_getTestnetPaymaster</code></li>
+<li><code>zks_sendRawTransactionWithDetailedOutput</code></li>
+<li><code>zks_getTimestampAsserter</code></li>
+<li><code>zks_getL2Multicall3</code></li>
+</ul>
+<h2 id="see-also-5"><a class="header" href="#see-also-5">See also</a></h2>
+<ul>
+<li><a href="rpc/./eth.html"><code>eth_*</code></a> — Ethereum compatible base methods</li>
+<li><a href="rpc/./misc.html"><code>debug_*</code></a> — Execution traces &amp; state inspection</li>
+<li><a href="rpc/./anvil.html"><code>anvil_*</code></a> — Node testing helpers</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="anvil_-namespace"><a class="header" href="#anvil_-namespace"><code>anvil_*</code> namespace</a></h1>
+<p>Low level node controls that <strong>anvil-zksync</strong> exposes on top of the standard Ethereum RPC and zks
+RPC. They let devs mine blocks on demand, timetravel, impersonate accounts, edit balances/code, and
+tweak automine behaviour.</p>
+<pre><code class="language-bash // [Example]">curl -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"anvil_mine","params":[]}'
+</code></pre>
+<h2 id="method-index-2"><a class="header" href="#method-index-2">Method index</a></h2>
+<h3 id="mining--mempool-1"><a class="header" href="#mining--mempool-1">Mining &amp; mempool</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓ / ✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="rpc/anvil.html#anvil_mine"><code>anvil_mine</code></a></td><td>✓</td><td>Mine <em>N</em> blocks instantly</td></tr>
+<tr><td><a href="rpc/anvil.html#anvil_mine_detailed"><code>anvil_mine_detailed</code></a></td><td>✓</td><td>Mine &amp; return extra data</td></tr>
+<tr><td><a href="rpc/anvil.html#anvil_droptransaction"><code>anvil_dropTransaction</code></a></td><td>✓</td><td>Remove tx by hash</td></tr>
+<tr><td><a href="rpc/anvil.html#anvil_dropalltransactions"><code>anvil_dropAllTransactions</code></a></td><td>✓</td><td>Clear mempool</td></tr>
+<tr><td><a href="rpc/anvil.html#anvil_removepooltransactions"><code>anvil_removePoolTransactions</code></a></td><td>✓</td><td>Drop txs by sender</td></tr>
+</tbody></table>
+</div>
+<h3 id="automine--intervals"><a class="header" href="#automine--intervals">Automine &amp; intervals</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓ / ✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="rpc/anvil.html#anvil_getautomine"><code>anvil_getAutomine</code></a></td><td>✓</td><td>Query automine</td></tr>
+<tr><td><a href="rpc/anvil.html#anvil_setautomine"><code>anvil_setAutomine</code></a></td><td>✓</td><td>Toggle automine</td></tr>
+<tr><td><a href="rpc/anvil.html#anvil_setintervalmining"><code>anvil_setIntervalMining</code></a></td><td>✓</td><td>Mine every <em>N</em> ms</td></tr>
+<tr><td><a href="rpc/anvil.html#anvil_setnextblockbasefeepergas"><code>anvil_setNextBlockBaseFeePerGas</code></a></td><td>✓</td><td>Next block base fee</td></tr>
+<tr><td><a href="rpc/anvil.html#anvil_setblocktimestampinterval"><code>anvil_setBlockTimestampInterval</code></a></td><td>✓</td><td>Auto timestamp +Δ</td></tr>
+<tr><td><a href="rpc/anvil.html#anvil_removeblocktimestampinterval"><code>anvil_removeBlockTimestampInterval</code></a></td><td>✓</td><td>Clear timestamp Δ</td></tr>
+</tbody></table>
+</div>
+<h3 id="state-snapshots"><a class="header" href="#state-snapshots">State snapshots</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓ / ✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="rpc/anvil.html#anvil_snapshot"><code>anvil_snapshot</code></a></td><td>✓</td><td>Take snapshot</td></tr>
+<tr><td><a href="rpc/anvil.html#anvil_revert"><code>anvil_revert</code></a></td><td>✓</td><td>Revert to snapshot</td></tr>
+<tr><td><a href="rpc/anvil.html#anvil_reset"><code>anvil_reset</code></a></td><td>✓</td><td>Reset chain - fork aware</td></tr>
+</tbody></table>
+</div>
+<h3 id="time-travel"><a class="header" href="#time-travel">Time travel</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓ / ✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="rpc/anvil.html#anvil_settime"><code>anvil_setTime</code></a></td><td>✓</td><td>Set wall clock</td></tr>
+<tr><td><a href="rpc/anvil.html#anvil_increasetime"><code>anvil_increaseTime</code></a></td><td>✓</td><td>Jump forward Δ sec</td></tr>
+<tr><td><a href="rpc/anvil.html#anvil_setnextblocktimestamp"><code>anvil_setNextBlockTimestamp</code></a></td><td>✓</td><td>Timestamp of next block</td></tr>
+</tbody></table>
+</div>
+<h3 id="accounts--impersonation"><a class="header" href="#accounts--impersonation">Accounts &amp; impersonation</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓ / ✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="rpc/anvil.html#anvil_impersonateaccount"><code>anvil_impersonateAccount</code></a></td><td>✓</td><td>Start impersonation</td></tr>
+<tr><td><a href="rpc/anvil.html#anvil_stopimpersonatingaccount"><code>anvil_stopImpersonatingAccount</code></a></td><td>✓</td><td>Stop impersonation</td></tr>
+<tr><td><a href="rpc/anvil.html#anvil_autoimpersonateaccount"><code>anvil_autoImpersonateAccount</code></a></td><td>✓</td><td>Toggle auto impersonate</td></tr>
+<tr><td><a href="rpc/anvil.html#anvil_setbalance"><code>anvil_setBalance</code></a></td><td>✓</td><td>Set balance</td></tr>
+<tr><td><a href="rpc/anvil.html#anvil_setcode"><code>anvil_setCode</code></a></td><td>✓</td><td>Set bytecode</td></tr>
+<tr><td><a href="rpc/anvil.html#anvil_setstorageat"><code>anvil_setStorageAt</code></a></td><td>✓</td><td>Set storage slot</td></tr>
+<tr><td><a href="rpc/anvil.html#anvil_setnonce"><code>anvil_setNonce</code></a></td><td>✓</td><td>Set nonce</td></tr>
+</tbody></table>
+</div>
+<h3 id="chain-parameters--logging"><a class="header" href="#chain-parameters--logging">Chain parameters &amp; logging</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓ / ✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="rpc/anvil.html#anvil_setchainid"><code>anvil_setChainId</code></a></td><td>✓</td><td>Change <code>chainId</code></td></tr>
+<tr><td><a href="rpc/anvil.html#anvil_setrpcurl"><code>anvil_setRpcUrl</code></a></td><td>✓</td><td>Hot swap fork URL</td></tr>
+<tr><td><a href="rpc/anvil.html#anvil_setloggingenabled"><code>anvil_setLoggingEnabled</code></a></td><td>✓</td><td>Toggle RPC logging</td></tr>
+<tr><td><code>anvil_setMinGasPrice</code></td><td>✗</td><td>(pre EIP-1559 only)</td></tr>
+</tbody></table>
+</div>
+<h2 id="method-reference-2"><a class="header" href="#method-reference-2">Method reference</a></h2>
+<blockquote>
+<p>Full schema lives in the <a href="https://book.getfoundry.sh/anvil/">Anvil docs ↗︎</a>.</p>
+</blockquote>
+<h3 id="anvil_mine"><a class="header" href="#anvil_mine">anvil_mine <a id="anvil_mine" /></a></h3>
+<p>Mine one or more blocks instantly.</p>
+<pre><code class="language-bash"># mine 1 block
+curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"anvil_mine","params":[]}'
+</code></pre>
+<pre><code class="language-bash"># mine 12 blocks
+curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":2,"method":"anvil_mine","params":["0xc"]}'
+</code></pre>
+<h3 id="anvil_mine_detailed"><a class="header" href="#anvil_mine_detailed">anvil_mine_detailed <a id="anvil_mine_detailed" /></a></h3>
+<p>Same as <code>anvil_mine</code> but returns block hash, timestamp, gas used, etc.</p>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"anvil_mine_detailed","params":[]}'
+</code></pre>
+<h3 id="anvil_getautomine"><a class="header" href="#anvil_getautomine">anvil_getAutomine <a id="anvil_getautomine" /></a></h3>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"anvil_getAutomine","params":[]}'
+</code></pre>
+<h3 id="anvil_setautomine"><a class="header" href="#anvil_setautomine">anvil_setAutomine <a id="anvil_setautomine" /></a></h3>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"anvil_setAutomine","params":[false]}'
+</code></pre>
+<h3 id="anvil_snapshot"><a class="header" href="#anvil_snapshot">anvil_snapshot <a id="anvil_snapshot" /></a></h3>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"anvil_snapshot","params":[]}'
+</code></pre>
+<p>Stores the snapshot ID returned. Revert with <code>anvil_revert</code>.</p>
+<h3 id="anvil_revert"><a class="header" href="#anvil_revert">anvil_revert <a id="anvil_revert" /></a></h3>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"anvil_revert","params":["0x1"]}'
+</code></pre>
+<blockquote>
+<p>Snapshot IDs are hex strings (<code>"0x1"</code>, <code>"0x2"</code>…).</p>
+</blockquote>
+<h3 id="anvil_impersonateaccount"><a class="header" href="#anvil_impersonateaccount">anvil_impersonateAccount <a id="anvil_impersonateaccount" /></a></h3>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"anvil_impersonateAccount","params":["0x…addr…"]}'
+</code></pre>
+<h3 id="anvil_setbalance"><a class="header" href="#anvil_setbalance">anvil_setBalance <a id="anvil_setbalance" /></a></h3>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,"method":"anvil_setBalance",
+        "params":["0x…addr…", "0x8AC7230489E80000"]  // 10 ETH
+      }'
+</code></pre>
+<h3 id="anvil_setrpcurl"><a class="header" href="#anvil_setrpcurl">anvil_setRpcUrl <a id="anvil_setrpcurl" /></a></h3>
+<p>Hot swap the upstream fork URL (must be same chain).</p>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"anvil_setRpcUrl","params":["https://mainnet.era.zksync.io"]}'
+</code></pre>
+<h2 id="unimplemented-stubs-2"><a class="header" href="#unimplemented-stubs-2">Unimplemented stubs</a></h2>
+<p>The following method is not yet implemented and will return <code>Method not found</code>:</p>
+<ul>
+<li><code>anvil_setMinGasPrice</code></li>
+</ul>
+<h2 id="see-also-6"><a class="header" href="#see-also-6">See also</a></h2>
+<ul>
+<li><a href="rpc/./eth.html"><code>eth_*</code></a> — Ethereum compatible base methods</li>
+<li><a href="rpc/./hardhat.html"><code>hardhat_*</code></a> — Hardhat style helpers</li>
+<li><a href="rpc/./zks.html"><code>zks_*</code></a> — ZKsync specific extensions</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="hardhat_-namespace"><a class="header" href="#hardhat_-namespace"><code>hardhat_*</code> namespace</a></h1>
+<p>Utility methods that mimic <strong>Hardhat Network</strong> behavior (impersonation, snapshot resets, on demand
+mining, etc.).<br />
+Perfect for Hardhat test suites, Foundry scripts, or any framework that expects the Hardhat JSON-RPC
+surface.</p>
+<pre><code class="language-bash // [Example]">curl -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"hardhat_impersonateAccount","params":["0x…address…"]}'
+</code></pre>
+<h2 id="method-index-3"><a class="header" href="#method-index-3">Method index</a></h2>
+<h3 id="impersonation"><a class="header" href="#impersonation">Impersonation</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓ / ✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="rpc/hardhat.html#hardhat_impersonateaccount"><code>hardhat_impersonateAccount</code></a></td><td>✓</td><td>Start impersonating an address</td></tr>
+<tr><td><a href="rpc/hardhat.html#hardhat_stopimpersonatingaccount"><code>hardhat_stopImpersonatingAccount</code></a></td><td>✓</td><td>Stop impersonation</td></tr>
+</tbody></table>
+</div>
+<h3 id="mining--automine"><a class="header" href="#mining--automine">Mining &amp; automine</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓ / ✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="rpc/hardhat.html#hardhat_getautomine"><code>hardhat_getAutomine</code></a></td><td>▲</td><td>Always returns <code>true</code> (auto‑mine)</td></tr>
+<tr><td><a href="rpc/hardhat.html#hardhat_mine"><code>hardhat_mine</code></a></td><td>✓</td><td>Mine <em>N</em> blocks instantly</td></tr>
+</tbody></table>
+</div>
+<h3 id="chain-reset"><a class="header" href="#chain-reset">Chain reset</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓ / ✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="rpc/hardhat.html#hardhat_reset"><code>hardhat_reset</code></a></td><td>▲</td><td>Reset chain (blocknumber only when forked)</td></tr>
+</tbody></table>
+</div>
+<h3 id="state-modification"><a class="header" href="#state-modification">State modification</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓ / ✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="rpc/hardhat.html#hardhat_setbalance"><code>hardhat_setBalance</code></a></td><td>✓</td><td>Set account balance</td></tr>
+<tr><td><a href="rpc/hardhat.html#hardhat_setcode"><code>hardhat_setCode</code></a></td><td>✓</td><td>Set account bytecode</td></tr>
+<tr><td><a href="rpc/hardhat.html#hardhat_setnonce"><code>hardhat_setNonce</code></a></td><td>✓</td><td>Set account nonce</td></tr>
+<tr><td><a href="rpc/hardhat.html#hardhat_setstorageat"><code>hardhat_setStorageAt</code></a></td><td>✓</td><td>Set storage slot</td></tr>
+</tbody></table>
+</div>
+<h2 id="method-reference-3"><a class="header" href="#method-reference-3">Method reference</a></h2>
+<blockquote>
+<p>Hardhat’s full spec is in the <a href="https://hardhat.org/hardhat-network">Hardhat Network docs ↗︎</a>.</p>
+</blockquote>
+<h3 id="hardhat_impersonateaccount"><a class="header" href="#hardhat_impersonateaccount">hardhat_impersonateAccount <a id="hardhat_impersonateaccount" /></a></h3>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"hardhat_impersonateAccount",
+        "params":["0x…targetAddress…"]
+      }'
+</code></pre>
+<h3 id="hardhat_stopimpersonatingaccount"><a class="header" href="#hardhat_stopimpersonatingaccount">hardhat_stopImpersonatingAccount <a id="hardhat_stopimpersonatingaccount" /></a></h3>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"hardhat_stopImpersonatingAccount",
+        "params":["0x…targetAddress…"]
+      }'
+</code></pre>
+<h3 id="hardhat_getautomine-"><a class="header" href="#hardhat_getautomine-">hardhat_getAutomine ▲ <a id="hardhat_getautomine" /></a></h3>
+<p>Returns <code>true</code>.</p>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"hardhat_getAutomine","params":[]}'
+</code></pre>
+<h3 id="hardhat_mine"><a class="header" href="#hardhat_mine">hardhat_mine <a id="hardhat_mine" /></a></h3>
+<p>Mine one block <strong>or</strong> <code>N</code> blocks instantly.</p>
+<pre><code class="language-bash"># mine 1 block
+curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"hardhat_mine","params":[]}'
+</code></pre>
+<pre><code class="language-bash"># mine 5 blocks
+curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":2,"method":"hardhat_mine","params":["0x5"]}'
+</code></pre>
+<h3 id="hardhat_reset-"><a class="header" href="#hardhat_reset-">hardhat_reset ▲ <a id="hardhat_reset" /></a></h3>
+<p>Resets the chain state.<br />
+Blocknumber rewinds only work while running in <strong>fork mode</strong>.</p>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"hardhat_reset","params":[]}'
+</code></pre>
+<h3 id="hardhat_setbalance"><a class="header" href="#hardhat_setbalance">hardhat_setBalance <a id="hardhat_setbalance" /></a></h3>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"hardhat_setBalance",
+        "params":["0x…targetAddress…", "0xDE0B6B3A7640000"]  // 1 ETH
+      }'
+</code></pre>
+<h3 id="hardhat_setcode"><a class="header" href="#hardhat_setcode">hardhat_setCode <a id="hardhat_setcode" /></a></h3>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"hardhat_setCode",
+        "params":["0x…targetAddress…", "0x60006000…"]  // EVM bytecode
+      }'
+</code></pre>
+<h3 id="hardhat_setnonce"><a class="header" href="#hardhat_setnonce">hardhat_setNonce <a id="hardhat_setnonce" /></a></h3>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"hardhat_setNonce",
+        "params":["0x…targetAddress…", "0xA"]  // nonce = 10
+      }'
+</code></pre>
+<h3 id="hardhat_setstorageat"><a class="header" href="#hardhat_setstorageat">hardhat_setStorageAt <a id="hardhat_setstorageat" /></a></h3>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,
+        "method":"hardhat_setStorageAt",
+        "params":[
+          "0x…targetAddress…",
+          "0x0",                    // storage slot
+          "0x0000000000000000000000000000000000000000000000000000000000000042"
+        ]
+      }'
+</code></pre>
+<h2 id="unimplemented-stubs-3"><a class="header" href="#unimplemented-stubs-3">Unimplemented stubs</a></h2>
+<p>The following methods are not yet implemented and will return <code>Method not found</code>:</p>
+<ul>
+<li><code>hardhat_addCompilationResult</code></li>
+<li><code>hardhat_dropTransaction</code></li>
+<li><code>hardhat_metadata</code></li>
+<li><code>hardhat_setCoinbase</code></li>
+<li><code>hardhat_setLoggingEnabled</code></li>
+<li><code>hardhat_setMinGasPrice</code></li>
+<li><code>hardhat_setNextBlockBaseFeePerGas</code></li>
+<li><code>hardhat_setPrevRandao</code></li>
+</ul>
+<h2 id="see-also-7"><a class="header" href="#see-also-7">See also</a></h2>
+<ul>
+<li><a href="rpc/./eth.html"><code>eth_*</code></a> — Ethereum compatible base methods</li>
+<li><a href="rpc/./zks.html"><code>zks_*</code></a> — ZKsync specific extensions</li>
+<li><a href="rpc/./anvil.html"><code>anvil_*</code></a> — node management helpers</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="evm_-net_-web3_-and-debug_-namespaces"><a class="header" href="#evm_-net_-web3_-and-debug_-namespaces"><code>evm_*</code>, <code>net_*</code>, <code>web3_*</code>, and <code>debug_*</code> namespaces</a></h1>
+<p>These helper methods cover developer tooling (<code>evm_*</code>), network status (<code>net_*</code>), client metadata
+(<code>web3_*</code>), and execution tracing (<code>debug_*</code>).</p>
+<p>Use them alongside the core <a href="rpc/./eth.html"><code>eth_*</code></a> and <a href="rpc/./zks.html"><code>zks_*</code></a> calls for full
+functionality.</p>
+<pre><code class="language-bash // [Example: trace a contract call]">curl -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"debug_traceCall","params":[{ "to":"0x…", "data":"0x…"}, "latest", {}]}'
+</code></pre>
+<h2 id="method-index-4"><a class="header" href="#method-index-4">Method index</a></h2>
+<h3 id="evm_--developer-utility-calls"><a class="header" href="#evm_--developer-utility-calls"><code>evm_*</code> — Developer utility calls</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓/✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="rpc/misc.html#evm_snapshot"><code>evm_snapshot</code></a></td><td>✓</td><td>Take blockchain snapshot</td></tr>
+<tr><td><a href="rpc/misc.html#evm_revert"><code>evm_revert</code></a></td><td>✓</td><td>Revert to a snapshot</td></tr>
+<tr><td><a href="rpc/misc.html#evm_increasetime"><code>evm_increaseTime</code></a></td><td>✓</td><td>Jump forward in time</td></tr>
+<tr><td><a href="rpc/misc.html#evm_mine"><code>evm_mine</code></a></td><td>✓</td><td>Mine a single block</td></tr>
+<tr><td><a href="rpc/misc.html#evm_setnextblocktimestamp"><code>evm_setNextBlockTimestamp</code></a></td><td>✓</td><td>Set next block’s timestamp</td></tr>
+<tr><td><a href="rpc/misc.html#evm_settime"><code>evm_setTime</code></a></td><td>✓</td><td>Override internal clock</td></tr>
+<tr><td><a href="rpc/misc.html#evm_setaccountnonce"><code>evm_setAccountNonce</code></a></td><td>✓</td><td>Set account nonce</td></tr>
+</tbody></table>
+</div>
+<h3 id="net_--network-diagnostics"><a class="header" href="#net_--network-diagnostics"><code>net_*</code> — Network diagnostics</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓/✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="rpc/misc.html#net_version"><code>net_version</code></a></td><td>✓</td><td>Returns network ID (<code>260</code>)</td></tr>
+<tr><td><a href="rpc/misc.html#net_peercount"><code>net_peerCount</code></a></td><td>✓</td><td>Number of connected peers (<code>0</code>)</td></tr>
+<tr><td><a href="rpc/misc.html#net_listening"><code>net_listening</code></a></td><td>✓</td><td>Is P2P listening? (<code>false</code>)</td></tr>
+</tbody></table>
+</div>
+<h3 id="web3_--client-metadata"><a class="header" href="#web3_--client-metadata"><code>web3_*</code> — Client metadata</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓/✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="rpc/misc.html#web3_clientversion"><code>web3_clientVersion</code></a></td><td>✓</td><td>Returns <code>zkSync/v2.0</code></td></tr>
+</tbody></table>
+</div>
+<h3 id="debug_--execution-tracing"><a class="header" href="#debug_--execution-tracing"><code>debug_*</code> — Execution tracing</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>✓/✗</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="rpc/misc.html#debug_tracecall"><code>debug_traceCall</code></a></td><td>✓</td><td>Trace a single call</td></tr>
+<tr><td><a href="rpc/misc.html#debug_traceblockbyhash"><code>debug_traceBlockByHash</code></a></td><td>✓</td><td>Trace all ops in a block by hash</td></tr>
+<tr><td><a href="rpc/misc.html#debug_traceblockbynumber"><code>debug_traceBlockByNumber</code></a></td><td>✓</td><td>Trace all ops in a block by number</td></tr>
+<tr><td><a href="rpc/misc.html#debug_tracetransaction"><code>debug_traceTransaction</code></a></td><td>✓</td><td>Trace a single transaction by hash</td></tr>
+</tbody></table>
+</div>
+<h2 id="method-reference-4"><a class="header" href="#method-reference-4">Method reference</a></h2>
+<h3 id="evm_snapshot"><a class="header" href="#evm_snapshot">evm_snapshot <a id="evm_snapshot" /></a></h3>
+<pre><code class="language-bash filename=&quot;evm_snapshot.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"evm_snapshot","params":[]}'
+</code></pre>
+<h3 id="evm_revert"><a class="header" href="#evm_revert">evm_revert <a id="evm_revert" /></a></h3>
+<pre><code class="language-bash filename=&quot;evm_revert.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"evm_revert","params":["0x1"]}'
+</code></pre>
+<blockquote>
+<p>Use the snapshot ID returned by <code>evm_snapshot</code>.</p>
+</blockquote>
+<h3 id="evm_increasetime"><a class="header" href="#evm_increasetime">evm_increaseTime <a id="evm_increasetime" /></a></h3>
+<pre><code class="language-bash filename=&quot;evm_increaseTime.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"evm_increaseTime","params":[3600]}'
+</code></pre>
+<h3 id="evm_mine"><a class="header" href="#evm_mine">evm_mine <a id="evm_mine" /></a></h3>
+<pre><code class="language-bash filename=&quot;evm_mine.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"evm_mine","params":[]}'
+</code></pre>
+<h3 id="evm_setnextblocktimestamp"><a class="header" href="#evm_setnextblocktimestamp">evm_setNextBlockTimestamp <a id="evm_setnextblocktimestamp" /></a></h3>
+<pre><code class="language-bash filename=&quot;evm_setNextBlockTimestamp.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"evm_setNextBlockTimestamp","params":[1700000000]}'
+</code></pre>
+<h3 id="evm_settime"><a class="header" href="#evm_settime">evm_setTime <a id="evm_settime" /></a></h3>
+<pre><code class="language-bash filename=&quot;evm_setTime.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"evm_setTime","params":[1700000000]}'
+</code></pre>
+<h3 id="evm_setaccountnonce"><a class="header" href="#evm_setaccountnonce">evm_setAccountNonce <a id="evm_setaccountnonce" /></a></h3>
+<pre><code class="language-bash filename=&quot;evm_setAccountNonce.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"evm_setAccountNonce","params":["0x…addr…", "0xA"]}'
+</code></pre>
+<h3 id="net_version"><a class="header" href="#net_version">net_version <a id="net_version" /></a></h3>
+<pre><code class="language-bash filename=&quot;net_version.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"net_version","params":[]}'
+</code></pre>
+<h3 id="net_peercount"><a class="header" href="#net_peercount">net_peerCount <a id="net_peercount" /></a></h3>
+<pre><code class="language-bash filename=&quot;net_peerCount.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"net_peerCount","params":[]}'
+</code></pre>
+<h3 id="net_listening"><a class="header" href="#net_listening">net_listening <a id="net_listening" /></a></h3>
+<pre><code class="language-bash filename=&quot;net_listening.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"net_listening","params":[]}'
+</code></pre>
+<h3 id="web3_clientversion"><a class="header" href="#web3_clientversion">web3_clientVersion <a id="web3_clientversion" /></a></h3>
+<pre><code class="language-bash filename=&quot;web3_clientVersion.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"web3_clientVersion","params":[]}'
+</code></pre>
+<h3 id="debug_tracecall"><a class="header" href="#debug_tracecall">debug_traceCall <a id="debug_tracecall" /></a></h3>
+<pre><code class="language-bash filename=&quot;debug_traceCall.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,"method":"debug_traceCall",
+        "params":[{ "to":"0x…","data":"0x…"}, "latest", {}]
+      }'
+</code></pre>
+<Callout title="Note">
+  `debug_traceCall` returns full VM execution traces. Responses can be large.
+</Callout>
+<h3 id="debug_traceblockbyhash"><a class="header" href="#debug_traceblockbyhash">debug_traceBlockByHash <a id="debug_traceblockbyhash" /></a></h3>
+<pre><code class="language-bash filename=&quot;debug_traceBlockByHash.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{
+        "jsonrpc":"2.0","id":1,"method":"debug_traceBlockByHash",
+        "params":["0x…blockHash…", {}]
+      }'
+</code></pre>
+<h3 id="debug_traceblockbynumber"><a class="header" href="#debug_traceblockbynumber">debug_traceBlockByNumber <a id="debug_traceblockbynumber" /></a></h3>
+<pre><code class="language-bash filename=&quot;debug_traceBlockByNumber.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"debug_traceBlockByNumber","params":["latest", {}]}'
+</code></pre>
+<h3 id="debug_tracetransaction"><a class="header" href="#debug_tracetransaction">debug_traceTransaction <a id="debug_tracetransaction" /></a></h3>
+<pre><code class="language-bash filename=&quot;debug_traceTransaction.sh&quot; // [!code hl]">curl -s -X POST http://localhost:8011 \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"debug_traceTransaction","params":["0x…txHash…", {}]}'
+</code></pre>
+<h2 id="unimplemented-stubs-4"><a class="header" href="#unimplemented-stubs-4">Unimplemented stubs</a></h2>
+<ul>
+<li><code>evm_addAccount</code></li>
+<li><code>evm_removeAccount</code></li>
+<li><code>evm_setAccountBalance</code></li>
+<li><code>evm_setAccountCode</code></li>
+<li><code>evm_setAccountStorageAt</code></li>
+<li><code>evm_setAutomine</code></li>
+<li><code>evm_setBlockGasLimit</code></li>
+<li><code>evm_setIntervalMining</code></li>
+</ul>
+<h2 id="see-also-8"><a class="header" href="#see-also-8">See also</a></h2>
+<ul>
+<li><a href="rpc/./eth.html"><code>eth_*</code></a> — Ethereum compatible base methods</li>
+<li><a href="rpc/./zks.html"><code>zks_*</code></a> — ZKsync specific extensions</li>
+<li><a href="rpc/./hardhat.html"><code>hardhat_*</code></a> — Hardhat style helpers</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="ace.js"></script>
+        <script src="editor.js"></script>
+        <script src="mode-rust.js"></script>
+        <script src="theme-dawn.js"></script>
+        <script src="theme-tomorrow_night.js"></script>
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="js/version-box.js"></script>
+        <script src="js/mermaid-init.js"></script>
+
+        <script>
+        window.addEventListener('load', function() {
+            MathJax.Hub.Register.StartupHook('End', function() {
+                window.setTimeout(window.print, 100);
+            });
+        });
+        </script>
+
+    </div>
+    </body>
+</html>
