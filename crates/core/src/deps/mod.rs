@@ -1,12 +1,11 @@
 use anvil_zksync_config::types::SystemContractsOptions;
-use std::collections::HashMap;
+use std::{collections::HashMap, path::Path};
 use zksync_multivm::interface::storage::ReadStorage;
 use zksync_types::{
     get_code_key, get_known_code_key, get_system_context_init_logs, L2BlockNumber, L2ChainId,
-    SLChainId, StorageKey, StorageLog, StorageValue, H256, ProtocolVersionId
+    ProtocolVersionId, SLChainId, StorageKey, StorageLog, StorageValue, H256,
 };
 
-pub mod storage_view;
 pub mod system_contracts;
 
 /// In-memory storage.
@@ -23,9 +22,13 @@ impl InMemoryStorage {
         bytecode_hasher: impl Fn(&[u8]) -> H256,
         system_contracts_options: SystemContractsOptions,
         protocol_version: ProtocolVersionId,
+        system_contracts_path: Option<&Path>,
     ) -> Self {
-        let contracts =
-            system_contracts::get_deployed_contracts(system_contracts_options, protocol_version);
+        let contracts = system_contracts::get_deployed_contracts(
+            system_contracts_options,
+            protocol_version,
+            system_contracts_path,
+        );
 
         let system_context_init_log = get_system_context_init_logs(chain_id);
         let state = contracts
@@ -84,14 +87,6 @@ impl ReadStorage for &InMemoryStorage {
         //       This should happen as the migration of Boojum completes
         Some(0_u64)
     }
-
-    fn get_message_root(
-        &mut self,
-        _chain_id: SLChainId,
-        _block_number: L2BlockNumber,
-    ) -> Option<H256> {
-        None
-    }
 }
 
 impl ReadStorage for InMemoryStorage {
@@ -109,13 +104,5 @@ impl ReadStorage for InMemoryStorage {
 
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
         (&*self).get_enumeration_index(key)
-    }
-
-    fn get_message_root(
-        &mut self,
-        chain_id: SLChainId,
-        block_number: L2BlockNumber,
-    ) -> Option<H256> {
-        None
     }
 }

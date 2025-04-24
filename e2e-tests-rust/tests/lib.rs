@@ -1,10 +1,12 @@
 use alloy::network::ReceiptResponse;
+use alloy::primitives::{address, keccak256, Address, B256};
 use alloy::providers::ext::AnvilApi;
 use alloy::providers::Provider;
+use alloy::providers::WalletProvider;
 use alloy::{primitives::U256, signers::local::PrivateKeySigner};
 use alloy_zksync::node_bindings::AnvilZKsync;
+use anvil_zksync_common::utils::io::write_json_file;
 use anvil_zksync_core::node::VersionedState;
-use anvil_zksync_core::utils::write_json_file;
 use anvil_zksync_e2e_tests::{
     get_node_binary_path, AnvilZKsyncApi, AnvilZksyncTesterBuilder, LockedPort, ReceiptExt,
     ResponseHeadersInspector, ZksyncWalletProviderExt, DEFAULT_TX_VALUE,
@@ -869,6 +871,37 @@ async fn test_server_port_fallback() -> anyhow::Result<()> {
 
     drop(node1);
     drop(node2);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn storage_at_historical() -> anyhow::Result<()> {
+    // Test that we can query historical storage slots
+    let tester = AnvilZksyncTesterBuilder::default().build().await?;
+
+    tester.tx().finalize().await?;
+    tester.tx().finalize().await?;
+    tester.tx().finalize().await?;
+
+    const NONCE_HOLDER_ADDRESS: Address = address!("0000000000000000000000000000000000008003");
+    let address = B256::left_padding_from(tester.l2_provider().default_signer_address().as_ref());
+    let key = keccak256(address.concat_const::<32, 64>(B256::ZERO));
+    let fetch_nonce = async |n: u64| {
+        tester
+            .l2_provider()
+            .get_storage_at(NONCE_HOLDER_ADDRESS, key.into())
+            .number(n)
+            .await
+    };
+    // Make sure nonce starts from 0 and then increases by 1 every block (excluding virtual ones).
+    assert_eq!(fetch_nonce(0).await?, U256::from(0));
+    assert_eq!(fetch_nonce(1).await?, U256::from(1));
+    assert_eq!(fetch_nonce(2).await?, U256::from(1));
+    assert_eq!(fetch_nonce(3).await?, U256::from(2));
+    assert_eq!(fetch_nonce(4).await?, U256::from(2));
+    assert_eq!(fetch_nonce(5).await?, U256::from(3));
+    assert_eq!(fetch_nonce(6).await?, U256::from(3));
 
     Ok(())
 }

@@ -12,6 +12,7 @@ categories.workspace = true
 
 [dependencies]
 anvil_zksync_common.workspace = true
+anvil_zksync_traces.workspace = true
 
 zksync_types.workspace = true
 zksync_multivm.workspace = true

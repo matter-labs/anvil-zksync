@@ -5,17 +5,15 @@ use alloy::signers::local::coins_bip39::{English, Mnemonic};
 use anvil_zksync_common::{
     cache::{CacheConfig, CacheType, DEFAULT_DISK_CACHE_DIR},
     sh_err, sh_warn,
+    utils::io::write_json_file,
 };
 use anvil_zksync_config::constants::{DEFAULT_MNEMONIC, TEST_NODE_NETWORK_ID};
 use anvil_zksync_config::types::{AccountGenerator, Genesis, SystemContractsOptions};
 use anvil_zksync_config::{L1Config, TestNodeConfig};
 use anvil_zksync_core::node::fork::ForkConfig;
-use anvil_zksync_core::{
-    node::{InMemoryNode, VersionedState},
-    utils::write_json_file,
-};
+use anvil_zksync_core::node::{InMemoryNode, VersionedState};
 use anvil_zksync_types::{
-    LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails, TransactionOrder,
+    LogLevel, ShowGasDetails, ShowStorageLogs, ShowVMDetails, TransactionOrder,
 };
 use clap::{arg, command, ArgAction, Parser, Subcommand};
 use flate2::read::GzDecoder;
@@ -90,40 +88,11 @@ pub struct Cli {
     /// Specify chain ID (default: 260).
     pub chain_id: Option<u32>,
 
-    #[arg(short, long, help_heading = "Debugging Options")]
-    /// Enable default settings for debugging contracts.
-    pub debug_mode: bool,
-
     #[arg(long, default_value = "true", default_missing_value = "true", num_args(0..=1), help_heading = "Debugging Options")]
     /// If true, prints node config on startup.
     pub show_node_config: Option<bool>,
 
-    #[arg(long, default_value = "true", default_missing_value = "true", num_args(0..=1), help_heading = "Debugging Options")]
-    /// If true, prints transactions and calls summary.
-    pub show_tx_summary: Option<bool>,
-
-    #[arg(long, alias = "no-console-log", default_missing_value = "true", num_args(0..=1), help_heading = "Debugging Options")]
-    /// Disables printing of `console.log` invocations to stdout if true.
-    pub disable_console_log: Option<bool>,
-
-    #[arg(long, default_missing_value = "true", num_args(0..=1), help_heading = "Debugging Options")]
-    /// If true, logs events.
-    pub show_event_logs: Option<bool>,
-
     // Debugging Options
-    #[arg(long, help_heading = "Debugging Options")]
-    /// Show call debug information.
-    pub show_calls: Option<ShowCalls>,
-
-    #[arg(
-        default_missing_value = "true", num_args(0..=1),
-        long,
-        requires = "show_calls",
-        help_heading = "Debugging Options"
-    )]
-    /// Show call output information.
-    pub show_outputs: Option<bool>,
-
     #[arg(long, help_heading = "Debugging Options")]
     /// Show storage log information.
     pub show_storage_logs: Option<ShowStorageLogs>,
@@ -135,11 +104,6 @@ pub struct Cli {
     #[arg(long, help_heading = "Debugging Options")]
     /// Show gas details information.
     pub show_gas_details: Option<ShowGasDetails>,
-
-    #[arg(long, default_missing_value = "true", num_args(0..=1), help_heading = "Debugging Options")]
-    /// If true, the tool will try to resolve ABI and topic names for better readability.
-    /// May decrease performance.
-    pub resolve_hashes: Option<bool>,
 
     /// Increments verbosity each time it is used. (-vv, -vvv)
     ///
@@ -185,17 +149,21 @@ pub struct Cli {
     /// Option for system contracts (default: built-in).
     pub dev_system_contracts: Option<SystemContractsOptions>,
 
+    /// Override the location of the compiled system contracts.
+    #[arg(
+        long,
+        help_heading = "System Configuration",
+        value_parser = clap::value_parser!(PathBuf),
+    )]
+    pub system_contracts_path: Option<PathBuf>,
+
     #[arg(long, value_parser = protocol_version_from_str, help_heading = "System Configuration")]
     /// Protocol version to use for new blocks (default: 26). Also affects revision of built-in
     /// contracts that will get deployed (if applicable).
     pub protocol_version: Option<ProtocolVersionId>,
 
-    #[arg(
-        long,
-        requires = "dev_system_contracts",
-        help_heading = "System Configuration"
-    )]
-    /// Enables EVM emulation. Requires local system contracts.
+    #[arg(long, help_heading = "System Configuration")]
+    /// Enables EVM emulation.
     pub emulate_evm: bool,
 
     // Logging Configuration
@@ -345,6 +313,17 @@ pub struct Cli {
     #[arg(long, default_value = DEFAULT_TX_ORDER)]
     pub order: TransactionOrder,
 
+    #[clap(flatten)]
+    pub l1_group: Option<L1Group>,
+
+    /// Enable automatic execution of L1 batches
+    #[arg(long, requires = "l1_group", default_missing_value = "true", num_args(0..=1), help_heading = "UNSTABLE - L1")]
+    pub auto_execute_l1: Option<bool>,
+}
+
+#[derive(Debug, Clone, clap::Args)]
+#[group(id = "l1_group", multiple = false)]
+pub struct L1Group {
     /// Enable L1 support and spawn L1 anvil node on the provided port (defaults to 8012).
     #[arg(long, conflicts_with = "external_l1", default_missing_value = "8012", num_args(0..=1), help_heading = "UNSTABLE - L1")]
     pub spawn_l1: Option<u16>,
@@ -376,11 +355,13 @@ pub struct ForkArgs {
     ///  - sepolia-testnet
     ///  - abstract (mainnet)
     ///  - abstract-testnet
+    ///  - sophon (mainnet)
+    ///  - sophon-testnet
     ///  - http://XXX:YY
     #[arg(
         long,
         alias = "network",
-        help = "Network to fork from (e.g., http://XXX:YY, mainnet, sepolia-testnet, abstract, abstract-testnet)."
+        help = "Network to fork from (e.g., http://XXX:YY, mainnet, sepolia-testnet, abstract, abstract-testnet, sophon, sophon-testnet)."
     )]
     pub fork_url: ForkUrl,
     // Fork at a given L2 miniblock height.
@@ -411,6 +392,8 @@ pub enum ForkUrl {
     SepoliaTestnet,
     AbstractMainnet,
     AbstractTestnet,
+    SophonMainnet,
+    SophonTestnet,
     Other(Url),
 }
 
@@ -419,6 +402,8 @@ impl ForkUrl {
     const SEPOLIA_TESTNET_URL: &'static str = "https://sepolia.era.zksync.dev:443";
     const ABSTRACT_MAINNET_URL: &'static str = "https://api.mainnet.abs.xyz";
     const ABSTRACT_TESTNET_URL: &'static str = "https://api.testnet.abs.xyz";
+    const SOPHON_MAINNET_URL: &'static str = "https://rpc.sophon.xyz";
+    const SOPHON_TESTNET_URL: &'static str = "https://rpc.testnet.sophon.xyz";
 
     pub fn to_config(&self) -> ForkConfig {
         match self {
@@ -442,6 +427,16 @@ impl ForkUrl {
                 estimate_gas_price_scale_factor: 1.5,
                 estimate_gas_scale_factor: 1.3,
             },
+            ForkUrl::SophonMainnet => ForkConfig {
+                url: Self::SOPHON_MAINNET_URL.parse().unwrap(),
+                estimate_gas_price_scale_factor: 1.5,
+                estimate_gas_scale_factor: 1.3,
+            },
+            ForkUrl::SophonTestnet => ForkConfig {
+                url: Self::SOPHON_TESTNET_URL.parse().unwrap(),
+                estimate_gas_price_scale_factor: 2.0,
+                estimate_gas_scale_factor: 1.3,
+            },
             ForkUrl::Other(url) => ForkConfig::unknown(url.clone()),
         }
     }
@@ -459,6 +454,10 @@ impl FromStr for ForkUrl {
             Ok(ForkUrl::AbstractMainnet)
         } else if s == "abstract-testnet" {
             Ok(ForkUrl::AbstractTestnet)
+        } else if s == "sophon" {
+            Ok(ForkUrl::SophonMainnet)
+        } else if s == "sophon-testnet" {
+            Ok(ForkUrl::SophonTestnet)
         } else {
             Ok(Url::from_str(s).map(ForkUrl::Other)?)
         }
@@ -474,11 +473,13 @@ pub struct ReplayArgs {
     ///  - sepolia-testnet
     ///  - abstract (mainnet)
     ///  - abstract-testnet
+    ///  - sophon (mainnet)
+    ///  - sophon-testnet
     ///  - http://XXX:YY
     #[arg(
         long,
         alias = "network",
-        help = "Network to fork from (e.g., http://XXX:YY, mainnet, sepolia-testnet, abstract, abstract-testnet)."
+        help = "Network to fork from (e.g., http://XXX:YY, mainnet, sepolia-testnet, abstract, abstract-testnet, sophon, sophon-testnet)."
     )]
     pub fork_url: ForkUrl,
     /// Transaction hash to replay.
@@ -571,28 +572,22 @@ impl Cli {
         let debug_self_repr = format!("{self:#?}");
 
         let genesis_balance = U256::from(self.balance as u128 * 10u128.pow(18));
-        let mut config = TestNodeConfig::default()
+        let config = TestNodeConfig::default()
             .with_port(self.port)
             .with_offline(if self.offline { Some(true) } else { None })
             .with_l1_gas_price(self.l1_gas_price)
             .with_l2_gas_price(self.l2_gas_price)
             .with_l1_pubdata_price(self.l1_pubdata_price)
-            .with_show_tx_summary(self.show_tx_summary)
-            .with_show_event_logs(self.show_event_logs)
-            .with_disable_console_log(self.disable_console_log)
-            .with_show_calls(self.show_calls)
             .with_vm_log_detail(self.show_vm_details)
             .with_show_storage_logs(self.show_storage_logs)
             .with_show_gas_details(self.show_gas_details)
-            .with_show_outputs(self.show_outputs)
-            .with_show_event_logs(self.show_event_logs)
-            .with_resolve_hashes(self.resolve_hashes)
             .with_gas_limit_scale(self.limit_scale_factor)
             .with_price_scale(self.price_scale_factor)
             .with_verbosity_level(self.verbosity)
             .with_show_node_config(self.show_node_config)
             .with_silent(self.silent)
             .with_system_contracts(self.dev_system_contracts)
+            .with_system_contracts_path(self.system_contracts_path.clone())
             .with_protocol_version(self.protocol_version)
             .with_override_bytecodes_dir(self.override_bytecodes_dir.clone())
             .with_enforce_bytecode_compression(self.enforce_bytecode_compression)
@@ -635,21 +630,18 @@ impl Cli {
             .with_dump_state(self.dump_state)
             .with_preserve_historical_states(self.preserve_historical_states)
             .with_load_state(self.load_state)
-            .with_l1_config(
-                self.spawn_l1.map(|port| L1Config::Spawn { port }).or(self
+            .with_l1_config(self.l1_group.and_then(|group| {
+                group.spawn_l1.map(|port| L1Config::Spawn { port }).or(group
                     .external_l1
-                    .map(|address| L1Config::External { address })),
-            );
+                    .map(|address| L1Config::External { address }))
+            }))
+            .with_auto_execute_l1(self.auto_execute_l1);
 
-        if self.emulate_evm && self.dev_system_contracts != Some(SystemContractsOptions::Local) {
+        if self.emulate_evm && config.protocol_version() < ProtocolVersionId::Version27 {
             return Err(zksync_error::anvil_zksync::env::InvalidArguments {
-                details: "EVM emulation requires the 'local' system contracts option.".into(),
+                details: "EVM emulation requires protocol version 27 or higher".into(),
                 arguments: debug_self_repr,
             });
-        }
-
-        if self.debug_mode {
-            config = config.with_debug_mode();
         }
 
         Ok(config)
@@ -678,17 +670,9 @@ impl Cli {
             .insert_with("chain_id", self.chain_id, |v| {
                 v.map(|_| TELEMETRY_SENSITIVE_VALUE)
             })
-            .insert_with("debug_mode", self.debug_mode, |v| v.then_some(v))
             .insert_with("show_node_config", self.show_node_config, |v| {
                 (!v.unwrap_or(false)).then_some(false)
             })
-            .insert_with("show_tx_summary", self.show_tx_summary, |v| {
-                (!v.unwrap_or(false)).then_some(false)
-            })
-            .insert("disable_console_log", self.disable_console_log)
-            .insert("show_event_logs", self.show_event_logs)
-            .insert("show_calls", self.show_calls.map(|v| v.to_string()))
-            .insert("show_outputs", self.show_outputs)
             .insert(
                 "show_storage_logs",
                 self.show_storage_logs.map(|v| v.to_string()),
@@ -701,7 +685,6 @@ impl Cli {
                 "show_gas_details",
                 self.show_gas_details.map(|v| v.to_string()),
             )
-            .insert("resolve_hashes", self.resolve_hashes)
             .insert(
                 "l1_gas_price",
                 self.l1_gas_price.map(serde_json::Number::from),

@@ -12,8 +12,8 @@ use alloy::json_abi::{Error, Event, Function};
 use alloy::primitives::hex;
 use anvil_zksync_common::{
     resolver::{SelectorType, SignEthClient},
-    utils::read_json_file,
-    utils::write_json_file,
+    utils::io::read_json_file,
+    utils::io::write_json_file,
 };
 use serde::{Deserialize, Serialize};
 use std::{

@@ -1,9 +1,9 @@
-use std::collections::HashSet;
-
 use crate::formatter::ExecutionErrorReport;
 use crate::node::error::{ToHaltError, ToRevertReason};
-use anvil_zksync_common::{sh_err, sh_println};
+use anvil_zksync_common::utils::numbers::h256_to_u64;
+use anvil_zksync_common::{sh_err, sh_println, sh_warn};
 use anyhow::Context as _;
+use std::collections::HashSet;
 use zksync_error::anvil_zksync::{halt::HaltError, revert::RevertError};
 use zksync_multivm::interface::ExecutionResult;
 use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
@@ -28,7 +28,7 @@ use zksync_web3_decl::{
 use crate::{
     filters::{FilterType, LogFilter},
     node::{InMemoryNode, MAX_TX_SIZE, PROTOCOL_VERSION},
-    utils::{h256_to_u64, TransparentError},
+    utils::TransparentError,
 };
 
 impl InMemoryNode {
@@ -42,6 +42,17 @@ impl InMemoryNode {
             MAX_TX_SIZE,
             self.system_contracts.allow_no_target(),
         )?;
+
+        // Warn if target address has no code
+        if let Some(to_address) = tx.execute.contract_address {
+            let code_key = get_code_key(&to_address);
+            if self.storage.read_value_alt(&code_key).await?.is_zero() {
+                sh_warn!(
+                    "Read only call to address {to_address}, which is not associated with any contract."
+                )
+            }
+        }
+
         tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
         let call_result = self
             .run_l2_call(tx.clone(), system_contracts)
@@ -261,7 +272,17 @@ impl InMemoryNode {
     ) -> anyhow::Result<U256> {
         let nonce_key = self.storage_key_layout.get_nonce_key(&address);
         match self.storage.read_value_alt(&nonce_key).await {
-            Ok(result) => Ok(h256_to_u64(result).into()),
+            Ok(result) => {
+                // The storage slot contains the full nonce.
+                // Full nonce is a composite one: it includes both account nonce
+                // (number of transactions initiated by the account) and
+                // deployer nonce (number of smart contracts deployed by the
+                // account).
+                // We need to cut the lowest 64 bits to get an account nonce.
+                // See functions: `decompose_full_nonce`, `nonces_to_full_nonce`
+                // https://github.com/matter-labs/zksync-era/blob/8063281579e4e02482823f09997244de153db87e/core/lib/types/src/utils.rs#L42-L52
+                Ok(h256_to_u64(result).into())
+            }
             Err(error) => Err(anyhow::anyhow!("failed to read nonce storage: {error}")),
         }
     }
@@ -1678,6 +1699,7 @@ mod tests {
                     H256::repeat_byte(0x1),
                     TransactionResult {
                         info: testing::default_tx_execution_info(),
+                        new_bytecodes: vec![],
                         receipt: TransactionReceipt {
                             logs: vec![LogBuilder::new()
                                 .set_address(H160::repeat_byte(0xa1))
@@ -1693,6 +1715,7 @@ mod tests {
                     H256::repeat_byte(0x2),
                     TransactionResult {
                         info: testing::default_tx_execution_info(),
+                        new_bytecodes: vec![],
                         receipt: TransactionReceipt {
                             logs: vec![
                                 LogBuilder::new()
@@ -1740,6 +1763,7 @@ mod tests {
                     H256::repeat_byte(0x1),
                     TransactionResult {
                         info: testing::default_tx_execution_info(),
+                        new_bytecodes: vec![],
                         receipt: TransactionReceipt {
                             logs: vec![LogBuilder::new()
                                 .set_address(H160::repeat_byte(0xa1))
@@ -1770,6 +1794,7 @@ mod tests {
                     H256::repeat_byte(0x1),
                     TransactionResult {
                         info: testing::default_tx_execution_info(),
+                        new_bytecodes: vec![],
                         receipt: TransactionReceipt {
                             logs: vec![LogBuilder::new()
                                 .set_address(H160::repeat_byte(0xa1))
@@ -1785,6 +1810,7 @@ mod tests {
                     H256::repeat_byte(0x2),
                     TransactionResult {
                         info: testing::default_tx_execution_info(),
+                        new_bytecodes: vec![],
                         receipt: TransactionReceipt {
                             logs: vec![
                                 LogBuilder::new()

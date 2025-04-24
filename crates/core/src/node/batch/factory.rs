@@ -1,7 +1,7 @@
 use super::executor::{Command, MainBatchExecutor};
 use super::shared::Sealed;
 use crate::bootloader_debug::{BootloaderDebug, BootloaderDebugTracer};
-use crate::node::call_error_tracer::CallErrorTracer;
+use crate::node::traces::call_error::CallErrorTracer;
 use anyhow::Context as _;
 use once_cell::sync::OnceCell;
 use std::sync::RwLock;
@@ -361,12 +361,6 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                 Command::StartNextL2Block(l2_block_env, resp) => {
                     println!("Starting new L2 block {:?}", l2_block_env);
                     vm.start_new_l2_block(l2_block_env);
-                    if resp.send(()).is_err() {
-                        break;
-                    }
-                }
-                Command::InsertMessageRoot(msg_root, resp) => {
-                    // vm.insert_message_root(msg_root)?;
                     if resp.send(()).is_err() {
                         break;
                     }

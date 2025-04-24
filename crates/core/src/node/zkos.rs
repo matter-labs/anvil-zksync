@@ -11,7 +11,7 @@ use zksync_multivm::{
     vm_latest::TracerPointer,
     HistoryMode,
 };
-use zksync_types::{message_root::MessageRoot, Address, StorageKey, Transaction};
+use zksync_types::{ Address, StorageKey, Transaction};
 
 use crate::deps::InMemoryStorage;
 
@@ -89,10 +89,6 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for ZKOsVM<S, H> {
     }
 
     fn start_new_l2_block(&mut self, _l2_block_env: zksync_multivm::interface::L2BlockEnv) {
-        todo!()
-    }
-
-    fn insert_message_root(&mut self, msg_root: MessageRoot) {
         todo!()
     }
 

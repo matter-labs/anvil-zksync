@@ -12,7 +12,6 @@ categories.workspace = true
 
 [dependencies]
 anvil_zksync_types.workspace = true
-anvil_zksync_console.workspace = true
 anvil_zksync_common.workspace = true
 
 zksync_multivm.workspace = true
@@ -20,9 +19,11 @@ zksync_types.workspace = true
 
 alloy = { workspace = true, default-features = false, features = ["json-abi", "dyn-abi",] }
 anyhow.workspace = true
+colored.workspace = true
 serde.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+thiserror.workspace = true
 lazy_static.workspace = true
 anstyle.workspace = true
 colorchoice.workspace = true

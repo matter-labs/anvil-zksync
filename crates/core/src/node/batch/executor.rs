@@ -11,7 +11,7 @@ use zksync_multivm::interface::{
     storage::{ReadStorage, StorageView},
     BatchTransactionExecutionResult, FinishedL1Batch, L2BlockEnv, VmExecutionResultAndLogs,
 };
-use zksync_types::{message_root::MessageRoot, Transaction};
+use zksync_types::Transaction;
 
 #[derive(Debug)]
 enum HandleOrError<S> {
@@ -68,7 +68,9 @@ impl<S: ReadStorage> MainBatchExecutor<S> {
     /// minimum of changes to the state on batch sealing. Not as time-consuming as [`Self::finish_batch`].
     ///
     /// To be deleted once we stop sealing batches on every block.
-    pub(crate) async fn bootloader(&mut self) -> anyhow::Result<VmExecutionResultAndLogs> {
+    pub(crate) async fn bootloader(
+        mut self,
+    ) -> anyhow::Result<(VmExecutionResultAndLogs, StorageView<S>)> {
         let (response_sender, response_receiver) = oneshot::channel();
         let send_failed = self
             .commands
@@ -83,8 +85,9 @@ impl<S: ReadStorage> MainBatchExecutor<S> {
             Ok(batch) => batch,
             Err(_) => return Err(self.handle.wait_for_error().await),
         };
+        let storage_view = self.handle.wait().await?;
 
-        Ok(bootloader_result)
+        Ok((bootloader_result, storage_view))
     }
 }
 
@@ -177,10 +180,6 @@ where
         let storage_view = self.handle.wait().await?;
         Ok((finished_batch, storage_view))
     }
-
-    async fn insert_message_root(&mut self, _msg_root: MessageRoot) -> anyhow::Result<()> {
-        todo!()
-    }
 }
 
 #[derive(Debug)]
@@ -190,7 +189,6 @@ pub(super) enum Command {
         oneshot::Sender<BatchTransactionExecutionResult>,
     ),
     StartNextL2Block(L2BlockEnv, oneshot::Sender<()>),
-    InsertMessageRoot(MessageRoot, oneshot::Sender<()>),
     RollbackLastTx(oneshot::Sender<()>),
     FinishBatch(oneshot::Sender<FinishedL1Batch>),
     Bootloader(oneshot::Sender<VmExecutionResultAndLogs>),

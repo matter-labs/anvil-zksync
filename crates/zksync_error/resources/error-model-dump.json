@@ -14,12 +14,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<API>",
-            "path": ""
+            "expression": "Box<API>"
           },
           "typescript": {
-            "name": "Box<API>",
-            "path": ""
+            "expression": "Box<API>"
           }
         }
       },
@@ -30,12 +28,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<AnvilEnvironment>",
-            "path": ""
+            "expression": "Box<AnvilEnvironment>"
           },
           "typescript": {
-            "name": "Box<AnvilEnvironment>",
-            "path": ""
+            "expression": "Box<AnvilEnvironment>"
           }
         }
       },
@@ -46,12 +42,24 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<AnvilGeneric>",
-            "path": ""
+            "expression": "Box<AnvilGeneric>"
           },
           "typescript": {
-            "name": "Box<AnvilGeneric>",
-            "path": ""
+            "expression": "Box<AnvilGeneric>"
+          }
+        }
+      },
+      "AnvilNode": {
+        "name": "AnvilNode",
+        "meta": {
+          "description": ""
+        },
+        "bindings": {
+          "rust": {
+            "expression": "Box<AnvilNode>"
+          },
+          "typescript": {
+            "expression": "Box<AnvilNode>"
           }
         }
       },
@@ -62,12 +70,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<EraVM>",
-            "path": ""
+            "expression": "Box<EraVM>"
           },
           "typescript": {
-            "name": "Box<EraVM>",
-            "path": ""
+            "expression": "Box<EraVM>"
           }
         }
       },
@@ -78,12 +84,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<ExecutionPlatform>",
-            "path": ""
+            "expression": "Box<ExecutionPlatform>"
           },
           "typescript": {
-            "name": "Box<ExecutionPlatform>",
-            "path": ""
+            "expression": "Box<ExecutionPlatform>"
           }
         }
       },
@@ -94,12 +98,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<FoundryUpstream>",
-            "path": ""
+            "expression": "Box<FoundryUpstream>"
           },
           "typescript": {
-            "name": "Box<FoundryUpstream>",
-            "path": ""
+            "expression": "Box<FoundryUpstream>"
           }
         }
       },
@@ -110,12 +112,32 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<FoundryZksync>",
-            "path": ""
+            "expression": "Box<FoundryZksync>"
           },
           "typescript": {
-            "name": "Box<FoundryZksync>",
-            "path": ""
+            "expression": "Box<FoundryZksync>"
+          }
+        }
+      },
+      "H160": {
+        "name": "H160",
+        "meta": {
+          "description": "160-bit hash"
+        },
+        "bindings": {
+          "rust": {
+            "expression": "Box<zksync_basic_types::H160>"
+          }
+        }
+      },
+      "H256": {
+        "name": "H256",
+        "meta": {
+          "description": "256-bit hash"
+        },
+        "bindings": {
+          "rust": {
+            "expression": "Box<zksync_basic_types::H256>"
           }
         }
       },
@@ -126,12 +148,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<Halt>",
-            "path": ""
+            "expression": "Box<Halt>"
           },
           "typescript": {
-            "name": "Box<Halt>",
-            "path": ""
+            "expression": "Box<Halt>"
           }
         }
       },
@@ -142,12 +162,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<HardhatUpstream>",
-            "path": ""
+            "expression": "Box<HardhatUpstream>"
           },
           "typescript": {
-            "name": "Box<HardhatUpstream>",
-            "path": ""
+            "expression": "Box<HardhatUpstream>"
           }
         }
       },
@@ -158,12 +176,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<HardhatZksync>",
-            "path": ""
+            "expression": "Box<HardhatZksync>"
           },
           "typescript": {
-            "name": "Box<HardhatZksync>",
-            "path": ""
+            "expression": "Box<HardhatZksync>"
           }
         }
       },
@@ -174,12 +190,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<LLVM_EVM>",
-            "path": ""
+            "expression": "Box<LLVM_EVM>"
           },
           "typescript": {
-            "name": "Box<LLVM_EVM>",
-            "path": ""
+            "expression": "Box<LLVM_EVM>"
           }
         }
       },
@@ -190,12 +204,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<LLVM_Era>",
-            "path": ""
+            "expression": "Box<LLVM_Era>"
           },
           "typescript": {
-            "name": "Box<LLVM_Era>",
-            "path": ""
+            "expression": "Box<LLVM_Era>"
           }
         }
       },
@@ -206,12 +218,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<Revert>",
-            "path": ""
+            "expression": "Box<Revert>"
           },
           "typescript": {
-            "name": "Box<Revert>",
-            "path": ""
+            "expression": "Box<Revert>"
           }
         }
       },
@@ -222,12 +232,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<Sequencer>",
-            "path": ""
+            "expression": "Box<Sequencer>"
           },
           "typescript": {
-            "name": "Box<Sequencer>",
-            "path": ""
+            "expression": "Box<Sequencer>"
           }
         }
       },
@@ -238,12 +246,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<Solc>",
-            "path": ""
+            "expression": "Box<Solc>"
           },
           "typescript": {
-            "name": "Box<Solc>",
-            "path": ""
+            "expression": "Box<Solc>"
           }
         }
       },
@@ -254,12 +260,35 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<SolcFork>",
-            "path": ""
+            "expression": "Box<SolcFork>"
           },
           "typescript": {
-            "name": "Box<SolcFork>",
-            "path": ""
+            "expression": "Box<SolcFork>"
+          }
+        }
+      },
+      "TransactionValidation": {
+        "name": "TransactionValidation",
+        "meta": {
+          "description": ""
+        },
+        "bindings": {
+          "rust": {
+            "expression": "Box<TransactionValidation>"
+          },
+          "typescript": {
+            "expression": "Box<TransactionValidation>"
+          }
+        }
+      },
+      "U256": {
+        "name": "U256",
+        "meta": {
+          "description": "256-bit unsigned integer"
+        },
+        "bindings": {
+          "rust": {
+            "expression": "Box<zksync_basic_types::U256>"
           }
         }
       },
@@ -270,8 +299,7 @@
         },
         "bindings": {
           "rust": {
-            "name": "serde_json::Value",
-            "path": ""
+            "expression": "serde_json::Value"
           }
         }
       },
@@ -282,12 +310,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<Zksolc>",
-            "path": ""
+            "expression": "Box<Zksolc>"
           },
           "typescript": {
-            "name": "Box<Zksolc>",
-            "path": ""
+            "expression": "Box<Zksolc>"
           }
         }
       },
@@ -298,12 +324,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "Box<Zkvyper>",
-            "path": ""
+            "expression": "Box<Zkvyper>"
           },
           "typescript": {
-            "name": "Box<Zkvyper>",
-            "path": ""
+            "expression": "Box<Zkvyper>"
           }
         }
       },
@@ -314,8 +338,7 @@
         },
         "bindings": {
           "rust": {
-            "name": "Vec<u8>",
-            "path": ""
+            "expression": "Vec<u8>"
           }
         }
       },
@@ -326,8 +349,7 @@
         },
         "bindings": {
           "rust": {
-            "name": "i32",
-            "path": ""
+            "expression": "i32"
           }
         }
       },
@@ -338,8 +360,7 @@
         },
         "bindings": {
           "rust": {
-            "name": "Vec<(String,String)>",
-            "path": ""
+            "expression": "Vec<(String,String)>"
           }
         }
       },
@@ -350,8 +371,18 @@
         },
         "bindings": {
           "rust": {
-            "name": "String",
-            "path": ""
+            "expression": "String"
+          }
+        }
+      },
+      "u64": {
+        "name": "u64",
+        "meta": {
+          "description": "64-bit unsigned integer"
+        },
+        "bindings": {
+          "rust": {
+            "expression": "zksync_basic_types::U64"
           }
         }
       },
@@ -362,8 +393,7 @@
         },
         "bindings": {
           "rust": {
-            "name": "u32",
-            "path": ""
+            "expression": "u32"
           }
         }
       }
@@ -375,8 +405,10 @@
         "components": [
           "AnvilEnvironment",
           "AnvilGeneric",
+          "AnvilNode",
           "Halt",
-          "Revert"
+          "Revert",
+          "TransactionValidation"
         ],
         "bindings": {
           "rust": "AnvilZksync",
@@ -502,6 +534,20 @@
           "typescript": "AnvilGeneric"
         },
         "identifier": "gen",
+        "description": "",
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "AnvilNode": {
+        "name": "AnvilNode",
+        "code": 10,
+        "domain_name": "AnvilZKsync",
+        "bindings": {
+          "rust": "AnvilNode",
+          "typescript": "AnvilNode"
+        },
+        "identifier": "node",
         "description": "",
         "origins": [
           "../../etc/errors/anvil.json"
@@ -689,6 +735,20 @@
           "<default zksync-root.json>"
         ]
       },
+      "TransactionValidation": {
+        "name": "TransactionValidation",
+        "code": 4,
+        "domain_name": "AnvilZKsync",
+        "bindings": {
+          "rust": "TransactionValidation",
+          "typescript": "TransactionValidation"
+        },
+        "identifier": "tx_invalid",
+        "description": "",
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
       "Zksolc": {
         "name": "Zksolc",
         "code": 5,
@@ -735,12 +795,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -799,12 +857,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "LogFileAccessFailed",
-            "path": ""
+            "expression": "LogFileAccessFailed"
           },
           "typescript": {
-            "name": "LogFileAccessFailed",
-            "path": ""
+            "expression": "LogFileAccessFailed"
           }
         },
         "origins": [
@@ -865,12 +921,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "LogFileWriteFailed",
-            "path": ""
+            "expression": "LogFileWriteFailed"
           },
           "typescript": {
-            "name": "LogFileWriteFailed",
-            "path": ""
+            "expression": "LogFileWriteFailed"
           }
         },
         "origins": [
@@ -911,12 +965,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "InvalidArguments",
-            "path": ""
+            "expression": "InvalidArguments"
           },
           "typescript": {
-            "name": "InvalidArguments",
-            "path": ""
+            "expression": "InvalidArguments"
           }
         },
         "origins": [
@@ -972,12 +1024,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "ServerStartupFailed",
-            "path": ""
+            "expression": "ServerStartupFailed"
           },
           "typescript": {
-            "name": "ServerStartupFailed",
-            "path": ""
+            "expression": "ServerStartupFailed"
           }
         },
         "origins": [
@@ -1000,12 +1050,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -1026,12 +1074,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -1068,12 +1114,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "UnexpectedVMBehavior",
-            "path": ""
+            "expression": "UnexpectedVMBehavior"
           },
           "typescript": {
-            "name": "UnexpectedVMBehavior",
-            "path": ""
+            "expression": "UnexpectedVMBehavior"
           }
         },
         "origins": [
@@ -1106,12 +1150,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "BootloaderOutOfGas",
-            "path": ""
+            "expression": "BootloaderOutOfGas"
           },
           "typescript": {
-            "name": "BootloaderOutOfGas",
-            "path": ""
+            "expression": "BootloaderOutOfGas"
           }
         },
         "origins": [
@@ -1144,12 +1186,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "ValidationOutOfGas",
-            "path": ""
+            "expression": "ValidationOutOfGas"
           },
           "typescript": {
-            "name": "ValidationOutOfGas",
-            "path": ""
+            "expression": "ValidationOutOfGas"
           }
         },
         "origins": [
@@ -1181,12 +1221,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "TooBigGasLimit",
-            "path": ""
+            "expression": "TooBigGasLimit"
           },
           "typescript": {
-            "name": "TooBigGasLimit",
-            "path": ""
+            "expression": "TooBigGasLimit"
           }
         },
         "origins": [
@@ -1219,12 +1257,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "NotEnoughGasProvided",
-            "path": ""
+            "expression": "NotEnoughGasProvided"
           },
           "typescript": {
-            "name": "NotEnoughGasProvided",
-            "path": ""
+            "expression": "NotEnoughGasProvided"
           }
         },
         "origins": [
@@ -1256,12 +1292,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "MissingInvocationLimitReached",
-            "path": ""
+            "expression": "MissingInvocationLimitReached"
           },
           "typescript": {
-            "name": "MissingInvocationLimitReached",
-            "path": ""
+            "expression": "MissingInvocationLimitReached"
           }
         },
         "origins": [
@@ -1299,12 +1333,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "FailedToSetL2Block",
-            "path": ""
+            "expression": "FailedToSetL2Block"
           },
           "typescript": {
-            "name": "FailedToSetL2Block",
-            "path": ""
+            "expression": "FailedToSetL2Block"
           }
         },
         "origins": [
@@ -1342,12 +1374,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "FailedToAppendTransactionToL2Block",
-            "path": ""
+            "expression": "FailedToAppendTransactionToL2Block"
           },
           "typescript": {
-            "name": "FailedToAppendTransactionToL2Block",
-            "path": ""
+            "expression": "FailedToAppendTransactionToL2Block"
           }
         },
         "origins": [
@@ -1379,12 +1409,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "VMPanic",
-            "path": ""
+            "expression": "VMPanic"
           },
           "typescript": {
-            "name": "VMPanic",
-            "path": ""
+            "expression": "VMPanic"
           }
         },
         "origins": [
@@ -1421,12 +1449,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "TracerCustom",
-            "path": ""
+            "expression": "TracerCustom"
           },
           "typescript": {
-            "name": "TracerCustom",
-            "path": ""
+            "expression": "TracerCustom"
           }
         },
         "origins": [
@@ -1476,12 +1502,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "ValidationFailed",
-            "path": ""
+            "expression": "ValidationFailed"
           },
           "typescript": {
-            "name": "ValidationFailed",
-            "path": ""
+            "expression": "ValidationFailed"
           }
         },
         "origins": [
@@ -1513,12 +1537,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "FailedToPublishCompressedBytecodes",
-            "path": ""
+            "expression": "FailedToPublishCompressedBytecodes"
           },
           "typescript": {
-            "name": "FailedToPublishCompressedBytecodes",
-            "path": ""
+            "expression": "FailedToPublishCompressedBytecodes"
           }
         },
         "origins": [
@@ -1551,12 +1573,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "FailedBlockTimestampAssertion",
-            "path": ""
+            "expression": "FailedBlockTimestampAssertion"
           },
           "typescript": {
-            "name": "FailedBlockTimestampAssertion",
-            "path": ""
+            "expression": "FailedBlockTimestampAssertion"
           }
         },
         "origins": [
@@ -1598,12 +1618,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "PaymasterValidationFailed",
-            "path": ""
+            "expression": "PaymasterValidationFailed"
           },
           "typescript": {
-            "name": "PaymasterValidationFailed",
-            "path": ""
+            "expression": "PaymasterValidationFailed"
           }
         },
         "origins": [
@@ -1646,12 +1664,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "PrePaymasterPreparationFailed",
-            "path": ""
+            "expression": "PrePaymasterPreparationFailed"
           },
           "typescript": {
-            "name": "PrePaymasterPreparationFailed",
-            "path": ""
+            "expression": "PrePaymasterPreparationFailed"
           }
         },
         "origins": [
@@ -1701,12 +1717,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "PayForTxFailed",
-            "path": ""
+            "expression": "PayForTxFailed"
           },
           "typescript": {
-            "name": "PayForTxFailed",
-            "path": ""
+            "expression": "PayForTxFailed"
           }
         },
         "origins": [
@@ -1747,12 +1761,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "FailedToMarkFactoryDependencies",
-            "path": ""
+            "expression": "FailedToMarkFactoryDependencies"
           },
           "typescript": {
-            "name": "FailedToMarkFactoryDependencies",
-            "path": ""
+            "expression": "FailedToMarkFactoryDependencies"
           }
         },
         "origins": [
@@ -1802,12 +1814,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "FailedToChargeFee",
-            "path": ""
+            "expression": "FailedToChargeFee"
           },
           "typescript": {
-            "name": "FailedToChargeFee",
-            "path": ""
+            "expression": "FailedToChargeFee"
           }
         },
         "origins": [
@@ -1839,12 +1849,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "FromIsNotAnAccount",
-            "path": ""
+            "expression": "FromIsNotAnAccount"
           },
           "typescript": {
-            "name": "FromIsNotAnAccount",
-            "path": ""
+            "expression": "FromIsNotAnAccount"
           }
         },
         "origins": [
@@ -1876,12 +1884,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "InnerTxError",
-            "path": ""
+            "expression": "InnerTxError"
           },
           "typescript": {
-            "name": "InnerTxError",
-            "path": ""
+            "expression": "InnerTxError"
           }
         },
         "origins": [
@@ -1922,12 +1928,218 @@
         },
         "bindings": {
           "rust": {
-            "name": "Unknown",
-            "path": ""
+            "expression": "Unknown"
           },
           "typescript": {
-            "name": "Unknown",
-            "path": ""
+            "expression": "Unknown"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-node-0]": {
+        "domain": "AnvilZKsync",
+        "component": "AnvilNode",
+        "name": "GenericError",
+        "code": 0,
+        "identifier": "[anvil_zksync-node-0]",
+        "message": "Generic error: {message}",
+        "fields": [
+          {
+            "name": "message",
+            "type": "string"
+          }
+        ],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "expression": "GenericError"
+          },
+          "typescript": {
+            "expression": "GenericError"
+          }
+        },
+        "origins": []
+      },
+      "[anvil_zksync-node-10]": {
+        "domain": "AnvilZKsync",
+        "component": "AnvilNode",
+        "name": "TransactionValidationFailed",
+        "code": 10,
+        "identifier": "[anvil_zksync-node-10]",
+        "message": "Transaction {transaction_hash}: validation failed. Reason: {inner}",
+        "fields": [
+          {
+            "name": "inner",
+            "type": "TransactionValidation"
+          },
+          {
+            "name": "transaction_hash",
+            "type": "H256"
+          }
+        ],
+        "documentation": {
+          "description": "This error occurs when a transaction validation is failed and it is not executed.\nThis is a wrapper error that contains a more specific validation error inside it, which provides details about the cause of the halt.\n\nThe validation may for various reasons including:\n- Gas limit exceedance\n- Invalid gas limit value\n- maxFeePerGas exceeding maxPriorityFeePerGas, and so on.\n\nWhen using anvil-zksync for testing, these errors are valuable signals that help you identify issues with your contracts or transactions before deploying to the real ZKSync network.",
+          "summary": "Transaction validation failed in anvil-zksync.",
+          "likely_causes": []
+        },
+        "bindings": {
+          "rust": {
+            "expression": "TransactionValidationFailed"
+          },
+          "typescript": {
+            "expression": "TransactionValidationFailed"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-node-1]": {
+        "domain": "AnvilZKsync",
+        "component": "AnvilNode",
+        "name": "TransactionHalt",
+        "code": 1,
+        "identifier": "[anvil_zksync-node-1]",
+        "message": "Transaction {transaction_hash} execution halted, reason: {inner}",
+        "fields": [
+          {
+            "name": "inner",
+            "type": "Halt"
+          },
+          {
+            "name": "transaction_hash",
+            "type": "H256"
+          }
+        ],
+        "documentation": {
+          "description": "This error occurs when a transaction execution is halted due to an error in the anvil-zksync virtual machine execution.\nThis is a wrapper error that contains a more specific halt error inside it, which provides details about the cause of the halt.\n\nThe VM may halt execution for various reasons including:\n- Account validation failures (signature issues, nonce mismatches)\n- Paymaster-related errors (when testing account abstraction features)\n- Gas limit exceedance\n- Storage access limitations\n- Contract execution failures\n\nWhen using anvil-zksync for testing, these halts are valuable signals that help you identify issues with your contracts or transactions before deploying to the real ZKSync network.",
+          "summary": "Transaction execution halted in anvil-zksync.",
+          "likely_causes": [
+            {
+              "cause": "Transaction execution in your test encountered a condition that forced it to halt prematurely.",
+              "fixes": [
+                "Fix the underlying issue based on the specific halt reason provided in the inner error.",
+                "Use anvil-zksync's debugging capabilities to trace the execution and identify the exact point of failure.",
+                "For account-related halts, check account balance, nonce, and signature in your test setup."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
+              "cause": "Test transaction interacts with ZKSync-specific components like paymasters or account abstraction features incorrectly.",
+              "fixes": [
+                "If testing account abstraction features, ensure your test paymaster implementation follows proper specifications.",
+                "Review the test transaction's paymaster parameters and allowances if applicable.",
+                "Check factory dependencies for contract deployments in your test environment.",
+                "Use anvil-zksync's tracing capabilities to debug complex transactions."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
+              "cause": "Test involves operations that behave differently in ZKSync compared to standard Ethereum.",
+              "fixes": [
+                "Review ZKSync documentation for operation-specific limitations compared to Ethereum.",
+                "Adapt your tests to account for ZKSync-specific behavior.",
+                "Use anvil-zksync's configuration options to match the specific ZKSync environment you're targeting.",
+                "Consider writing separate test cases for Ethereum and ZKSync-specific behaviors."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
+              "cause": "Test environment setup issue in anvil-zksync.",
+              "fixes": [
+                "Verify that your anvil-zksync instance is properly configured for your test case.",
+                "Check if you need to deploy or fund specific accounts before running your test transactions.",
+                "Ensure system contracts are properly initialized in your test environment if you're testing complex ZKSync features.",
+                "Consider resetting the anvil-zksync instance between test runs for a clean state."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "expression": "TransactionHalt"
+          },
+          "typescript": {
+            "expression": "TransactionHalt"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-node-20]": {
+        "domain": "AnvilZKsync",
+        "component": "AnvilNode",
+        "name": "TimestampBackwardsError",
+        "code": 20,
+        "identifier": "[anvil_zksync-node-20]",
+        "message": "Failed to force the next timestamp to value {timestamp_requested}. It should be greater than the last timestamp {timestamp_now}.",
+        "fields": [
+          {
+            "name": "timestamp_requested",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp_now",
+            "type": "u64"
+          }
+        ],
+        "documentation": {
+          "description": "This error occurs when attempting to set a future block timestamp to a value that is earlier than the timestamp of the most recently mined block.\n\nIn anvil-zksync, block timestamps must always increase monotonically. This simulates the behavior of real blockchain networks where time only moves forward. Each new block must have a timestamp greater than its predecessor.\n\nAnvil-zksync provides methods to manipulate time for testing purposes (like `evm_increaseTime` and `evm_setNextBlockTimestamp`), but these can only move time forward, never backward.\n\nBlock timestamps in anvil-zksync are used by:\n- Smart contracts that rely on `block.timestamp` for time-dependent logic\n- System contracts that need to track event timing\n- Time-locked functionality in DeFi applications and governance protocols\n\nWhen testing contracts that have time-dependent logic, it's important to ensure that any manipulated timestamps move forward in time, not backward.",
+          "summary": "Requested block timestamp is earlier than the current timestamp.",
+          "likely_causes": [
+            {
+              "cause": "Test code attempts to set a block timestamp that is earlier than the current timestamp.",
+              "fixes": [
+                "Ensure your test sets timestamps that are greater than the current block timestamp.",
+                "Query the current block timestamp first using eth_getBlockByNumber before determining a future timestamp value.",
+                "For testing time-sensitive contracts, plan your time manipulation sequence to always move forward."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
+              "cause": "Tests manipulating time incorrectly by trying to go back to an earlier point in time.",
+              "fixes": [
+                "If you need to test behavior at different timestamps, consider resetting the node state entirely between tests.",
+                "Use anvil-zksync's snapshot and revert features to create a clean state with the desired initial timestamp.",
+                "Design your tests to account for the forward-only movement of blockchain time."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
+              "cause": "Attempting to reset time to an earlier point after advancing it in a previous test.",
+              "fixes": [
+                "Restructure your tests to maintain timestamp progression within each test suite.",
+                "Create separate, isolated test cases for scenarios that require different timestamp starting points.",
+                "Use separate anvil-zksync instances for tests that require conflicting timestamp sequences."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "expression": "TimestampBackwardsError"
+          },
+          "typescript": {
+            "expression": "TimestampBackwardsError"
           }
         },
         "origins": [
@@ -1950,12 +2162,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -1996,12 +2206,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "General",
-            "path": ""
+            "expression": "General"
           },
           "typescript": {
-            "name": "General",
-            "path": ""
+            "expression": "General"
           }
         },
         "origins": [
@@ -2034,12 +2242,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "InnerTxError",
-            "path": ""
+            "expression": "InnerTxError"
           },
           "typescript": {
-            "name": "InnerTxError",
-            "path": ""
+            "expression": "InnerTxError"
           }
         },
         "origins": [
@@ -2071,12 +2277,10 @@
         },
         "bindings": {
           "rust": {
-            "name": "VmError",
-            "path": ""
+            "expression": "VmError"
           },
           "typescript": {
-            "name": "VmError",
-            "path": ""
+            "expression": "VmError"
           }
         },
         "origins": [
@@ -2126,12 +2330,259 @@
         },
         "bindings": {
           "rust": {
-            "name": "Unknown",
-            "path": ""
+            "expression": "Unknown"
           },
           "typescript": {
-            "name": "Unknown",
-            "path": ""
+            "expression": "Unknown"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-tx_invalid-0]": {
+        "domain": "AnvilZKsync",
+        "component": "TransactionValidation",
+        "name": "GenericError",
+        "code": 0,
+        "identifier": "[anvil_zksync-tx_invalid-0]",
+        "message": "Generic error: {message}",
+        "fields": [
+          {
+            "name": "message",
+            "type": "string"
+          }
+        ],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "expression": "GenericError"
+          },
+          "typescript": {
+            "expression": "GenericError"
+          }
+        },
+        "origins": []
+      },
+      "[anvil_zksync-tx_invalid-1]": {
+        "domain": "AnvilZKsync",
+        "component": "TransactionValidation",
+        "name": "InvalidGasLimit",
+        "code": 1,
+        "identifier": "[anvil_zksync-tx_invalid-1]",
+        "message": "Gas limit for transaction is {tx_gas_limit} which exceeds maximum allowed gas {max_gas}",
+        "fields": [
+          {
+            "name": "tx_gas_limit",
+            "type": "U256"
+          },
+          {
+            "name": "max_gas",
+            "type": "U256"
+          }
+        ],
+        "documentation": {
+          "description": "This error occurs when a transaction's gas limit exceeds the maximum allowed gas allowed by ZKsync protocol.\nAs of protocol version 27, the gas is limited to 2^50\nNote: When anvil-zksync is in forking mode, it lock-in and uses gas price at the forked block",
+          "summary": "Transaction validation failed due to excessive gas limit -- did you provide invalid gas limit?",
+          "likely_causes": [
+            {
+              "cause": "The transaction's gas limit is set too high relative to the maximum gas limit.",
+              "fixes": [
+                "It is likely a typo in the code that builds the transaction -- check if the provided gas limit is correct.",
+                "Reduce the transaction's gas limit to be below the maximum allowed gas."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "expression": "InvalidGasLimit"
+          },
+          "typescript": {
+            "expression": "InvalidGasLimit"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-tx_invalid-2]": {
+        "domain": "AnvilZKsync",
+        "component": "TransactionValidation",
+        "name": "GasPerPubdataLimit",
+        "code": 2,
+        "identifier": "[anvil_zksync-tx_invalid-2]",
+        "message": "Gas per pubdata limit is {tx_gas_per_pubdata_limit} which exceeds maximum allowed gas {max_gas}",
+        "fields": [
+          {
+            "name": "tx_gas_per_pubdata_limit",
+            "type": "U256"
+          },
+          {
+            "name": "max_gas",
+            "type": "U256"
+          }
+        ],
+        "documentation": {
+          "description": "This error occurs when a transaction's gas per pubdata limit exceeds the maximum allowed gas allowed by ZKsync protocol.\nAs of protocol version 27, the gas is limited to 2^50\nNote: When anvil-zksync is in forking mode, it lock-in and uses gas price at the forked block",
+          "summary": "Transaction validation failed due to excessive gas per pubdata limit.",
+          "likely_causes": [
+            {
+              "cause": "The transaction's gas per pubdata limit is set too high.",
+              "fixes": [
+                "It is likely a typo in the code that builds the transaction -- check if the provided gas limit is correct.",
+                "Reduce the gas per pubdata limit."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "expression": "GasPerPubdataLimit"
+          },
+          "typescript": {
+            "expression": "GasPerPubdataLimit"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-tx_invalid-3]": {
+        "domain": "AnvilZKsync",
+        "component": "TransactionValidation",
+        "name": "MaxFeePerGasTooLow",
+        "code": 3,
+        "identifier": "[anvil_zksync-tx_invalid-3]",
+        "message": "Max fee per gas: {max_fee_per_gas}, current L2 gas price {l2_gas_price} is too expensive.",
+        "fields": [
+          {
+            "name": "max_fee_per_gas",
+            "type": "U256"
+          },
+          {
+            "name": "l2_gas_price",
+            "type": "U256"
+          }
+        ],
+        "documentation": {
+          "description": "This error occurs when the maximum fee per gas specified in the transaction is lower than the current gas price set in the anvil-zksync node.\nTo be considered valid, transactions must specify a maxFeePerGas that is greater or equal to the current gas price\n\nIn anvil-zksync, the gas price can be configured when starting the node using `--l1-gas-price` argument or can be modified dynamically. By default, the node simulates a gas price model similar to the real ZKSync network, including:\n1. A base computation fee (similar to Ethereum's base fee)\n2. A simulated pubdata posting fee\n\nEven though anvil-zksync is a testing environment, it enforces these gas price validations to ensure that your tests accurately reflect how transactions would behave on the actual ZKSync network.\nNote: When anvil-zksync is in forking mode, it lock-in and uses gas price at the forked block",
+          "summary": "Transaction's maxFeePerGas is lower than the current gas price in anvil-zksync.",
+          "likely_causes": [
+            {
+              "cause": "The transaction's maxFeePerGas is set too low compared to the current gas price in the anvil-zksync node.",
+              "fixes": [
+                "Increase the maxFeePerGas to be at least equal to the current gas price.",
+                "Use the eth_gasPrice RPC method to query the current gas price from your anvil-zksync node.",
+                "In testing environments, you can also configure anvil-zksync to use a lower gas price if needed."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
+              "cause": "Gas price has changed in the anvil-zksync node since the transaction was created.",
+              "fixes": [
+                "If you've manually adjusted the gas price in anvil-zksync during testing, ensure your transactions use updated values.",
+                "Query the current gas price before each transaction submission in your tests.",
+                "For testing series of transactions with consistent gas prices, consider setting a fixed gas price when starting anvil-zksync.",
+                "Manipulating gas price can break invariants important for Ethereum tooling, for example, two consequent blocks should not have gas price differ more than 2x."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
+              "cause": "Using hardcoded gas prices in test scripts instead of querying the actual price.",
+              "fixes": [
+                "Always query the current gas price from anvil-zksync before creating transactions.",
+                "Add a small buffer to the queried gas price to account for potential minor fluctuations.",
+                "When writing tests, consider making the gas price configuration explicit to avoid inconsistent test behavior."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "expression": "MaxFeePerGasTooLow"
+          },
+          "typescript": {
+            "expression": "MaxFeePerGasTooLow"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-tx_invalid-4]": {
+        "domain": "AnvilZKsync",
+        "component": "TransactionValidation",
+        "name": "MaxPriorityFeeGreaterThanMaxFee",
+        "code": 4,
+        "identifier": "[anvil_zksync-tx_invalid-4]",
+        "message": "maxPriorityFeePerGas={max_priority_fee_per_gas} exceeds the limit value maxFeePerGas={max_fee_per_gas}",
+        "fields": [
+          {
+            "name": "max_fee_per_gas",
+            "type": "U256"
+          },
+          {
+            "name": "max_priority_fee_per_gas",
+            "type": "U256"
+          }
+        ],
+        "documentation": {
+          "description": "This error occurs when a transaction's maximum priority fee per gas is greater than its maximum fee per gas in anvil-zksync.\nIn ZKSync, the field `maxPriorityFeePerGas` is ignored, as ZKsync doesn’t have a concept of priority fees.\nInstead, `maxFeePerGas` is utilized and includes the base fees.\nHowever, certain transaction types like EIP-1559 or EIP-712 may contain field `maxPriorityFeePerGas`, which should be less or equal to the field `maxFeePerGas`. ",
+          "summary": "Transaction's maxPriorityFeePerGas exceeds maxFeePerGas.",
+          "likely_causes": [
+            {
+              "cause": "Incorrect transaction parameter values in your test where `maxPriorityFeePerGas` > `maxFeePerGas`.",
+              "fixes": [
+                "Ensure maxPriorityFeePerGas is less than or equal to maxFeePerGas in your test transactions. Either increase maxFeePerGas or decrease maxPriorityFeePerGas to ensure correct relationship."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
+              "cause": "Test automation that generates random or incorrect fee values.",
+              "fixes": [
+                "Ensure your test framework validates transaction parameters before submission.",
+                "Use helper functions that properly calculate and relate the fee values.",
+                "If using fuzz testing, add constraints to ensure maxPriorityFeePerGas <= maxFeePerGas."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
+              "cause": "When migrating tests from non-EIP-1559 environments to anvil-zksync.",
+              "fixes": [
+                "Update legacy tests that might be using pre-EIP-1559 fee models.",
+                "Ensure all transaction creation code properly handles EIP-1559 style fee parameters.",
+                "Add validation checks in your test setup to catch this type of error early."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "expression": "MaxPriorityFeeGreaterThanMaxFee"
+          },
+          "typescript": {
+            "expression": "MaxPriorityFeeGreaterThanMaxFee"
           }
         },
         "origins": [
@@ -2154,12 +2605,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -2180,12 +2629,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -2206,12 +2653,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -2232,12 +2677,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -2258,12 +2701,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -2284,12 +2725,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -2310,12 +2749,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -2336,12 +2773,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -2362,12 +2797,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -2388,12 +2821,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -2414,12 +2845,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericSequencerError",
-            "path": ""
+            "expression": "GenericSequencerError"
           },
           "typescript": {
-            "name": "GenericSequencerError",
-            "path": ""
+            "expression": "GenericSequencerError"
           }
         },
         "origins": [
@@ -2442,12 +2871,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -2468,12 +2895,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -2494,12 +2919,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []
@@ -2520,12 +2943,10 @@
         "documentation": null,
         "bindings": {
           "rust": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           },
           "typescript": {
-            "name": "GenericError",
-            "path": ""
+            "expression": "GenericError"
           }
         },
         "origins": []

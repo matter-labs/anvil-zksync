@@ -29,6 +29,10 @@ static L1_STATES: Lazy<HashMap<ProtocolVersionId, &[u8]>> = Lazy::new(|| {
             ProtocolVersionId::Version27,
             include_bytes!("../../../l1-setup/state/v27-l1-state.json").as_slice(),
         ),
+        (
+            ProtocolVersionId::Version28,
+            include_bytes!("../../../l1-setup/state/v28-l1-state.json").as_slice(),
+        ),
     ])
 });
 
@@ -41,6 +45,10 @@ static L1_PAYLOADS: Lazy<HashMap<ProtocolVersionId, &str>> = Lazy::new(|| {
         (
             ProtocolVersionId::Version27,
             include_str!("../../../l1-setup/state/v27-l1-state-payload.txt"),
+        ),
+        (
+            ProtocolVersionId::Version28,
+            include_str!("../../../l1-setup/state/v28-l1-state-payload.txt"),
         ),
     ])
 });
@@ -86,12 +94,12 @@ async fn ensure_anvil_1_x_x() -> anyhow::Result<()> {
         })?;
     let version = Version::parse(version)?;
     tracing::debug!(%version, "detected installed anvil version");
-    // Allow any version above `1.0.0-rc` (including `1.0.0-stable`)
-    if version > Version::parse("1.0.0-rc")? {
+    // Allow any non-0.x version (including `1.0.0-stable`, `1.0.0-nightly` and other pre-releases)
+    if version.major >= 1 {
         Ok(())
     } else {
         Err(anyhow::anyhow!(
-            "unsupported `anvil` version ({}), please upgrade to >1.0.0-rc",
+            "unsupported `anvil` version ({}), please upgrade to >=1.0.0",
             version
         ))
     }

@@ -16,11 +16,11 @@ use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use tracing::Instrument;
 use url::Url;
 use zksync_types::fee_model::FeeParams;
-use zksync_types::l2::L2Tx;
 use zksync_types::url::SensitiveUrl;
 use zksync_types::web3::Index;
 use zksync_types::{
-    api, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, H256, U256,
+    api, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
+    U256,
 };
 use zksync_web3_decl::client::{DynClient, L2};
 use zksync_web3_decl::error::Web3Error;
@@ -343,7 +343,7 @@ impl ForkClient {
     pub async fn at_before_tx(
         config: ForkConfig,
         tx_hash: H256,
-    ) -> anyhow::Result<(Self, Vec<L2Tx>)> {
+    ) -> anyhow::Result<(Self, Vec<Transaction>)> {
         let l2_client =
             zksync_web3_decl::client::Client::http(SensitiveUrl::from(config.url.clone()))?.build();
         let tx_details = l2_client
@@ -369,10 +369,7 @@ impl ForkClient {
         let mut earlier_txs = Vec::new();
         for tx in l2_client.get_raw_block_transactions(block_number).await? {
             let hash = tx.hash();
-            let l2_tx: L2Tx = tx
-                .try_into()
-                .map_err(|e| anyhow::anyhow!("Failed to convert to L2 transaction: {e}"))?;
-            earlier_txs.push(l2_tx);
+            earlier_txs.push(tx);
 
             if hash == tx_hash {
                 break;
@@ -901,8 +898,12 @@ impl ForkSource for Fork {
 struct SupportedProtocolVersions;
 
 impl SupportedProtocolVersions {
-    const SUPPORTED_VERSIONS: [ProtocolVersionId; 3] =
-        [ProtocolVersionId::Version26, ProtocolVersionId::Version27, ProtocolVersionId::Version28];
+    const SUPPORTED_VERSIONS: [ProtocolVersionId; 4] = [
+        ProtocolVersionId::Version26,
+        ProtocolVersionId::Version27,
+        ProtocolVersionId::Version28,
+        ProtocolVersionId::Version29,
+    ];
 
     fn is_supported(version: ProtocolVersionId) -> bool {
         Self::SUPPORTED_VERSIONS.contains(&version)

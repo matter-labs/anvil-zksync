@@ -1,33 +1,48 @@
+use anvil_zksync_common::address_map::{self, KNOWN_ADDRESSES};
 use anvil_zksync_types::traces::{
     CallLog, CallTrace, CallTraceArena, CallTraceNode, DecodedCallEvent, DecodedCallTrace, L2L1Log,
-    L2L1Logs, TraceMemberOrder, KNOWN_ADDRESSES,
+    L2L1Logs, TraceMemberOrder,
 };
 use decode::CallTraceDecoder;
 use writer::TraceWriter;
-use zksync_multivm::interface::{Call, VmExecutionResultAndLogs};
+use zksync_multivm::interface::{
+    Call, ExecutionResult, Halt, VmExecutionResultAndLogs, VmRevertReason,
+};
 use zksync_types::H160;
 
 pub mod abi_utils;
 pub mod decode;
+pub mod format;
 pub mod identifier;
 pub mod writer;
 
 /// Converts a single call into a CallTrace.
 #[inline]
-fn convert_call_to_call_trace(
-    call: &Call,
-    depth: usize,
-    tx_result: VmExecutionResultAndLogs,
-) -> CallTrace {
+fn convert_call_to_call_trace(call: &Call) -> CallTrace {
     let label = KNOWN_ADDRESSES
         .get(&call.to)
         .map(|known| known.name.clone());
+
+    // Determine the execution result based on individual call
+    let execution_result = if let Some(ref revert_reason) = call.revert_reason {
+        ExecutionResult::Revert {
+            output: VmRevertReason::from(revert_reason.as_bytes()),
+        }
+    } else if let Some(ref err) = call.error {
+        ExecutionResult::Halt {
+            reason: Halt::TracerCustom(err.to_string()),
+        }
+    } else {
+        ExecutionResult::Success {
+            output: call.output.clone(),
+        }
+    };
+
     CallTrace {
-        depth,
-        success: !tx_result.result.is_failed(),
+        success: !execution_result.is_failed(),
         caller: call.from,
         address: call.to,
-        execution_result: tx_result,
+        execution_result,
         decoded: DecodedCallTrace {
             label,
             ..Default::default()
@@ -45,11 +60,11 @@ pub fn build_call_trace_arena(
 
     // Update the root node's execution result.
     if let Some(root_node) = arena.arena.get_mut(0) {
-        root_node.trace.execution_result = tx_result.clone();
+        root_node.trace.execution_result = tx_result.result.clone();
     }
 
     for call in calls {
-        process_call_and_subcalls(call, 0, 0, &mut arena, tx_result);
+        process_call_and_subcalls(call, 0, &mut arena, tx_result);
     }
     arena
 }
@@ -58,7 +73,6 @@ pub fn build_call_trace_arena(
 fn process_call_and_subcalls(
     call: &Call,
     parent_idx: usize,
-    depth: usize,
     arena: &mut CallTraceArena,
     tx_result: &VmExecutionResultAndLogs,
 ) {
@@ -104,7 +118,7 @@ fn process_call_and_subcalls(
         )
         .collect();
 
-    let call_trace = convert_call_to_call_trace(call, depth, tx_result.clone());
+    let call_trace = convert_call_to_call_trace(call);
 
     let node = CallTraceNode {
         parent: None,
@@ -120,7 +134,7 @@ fn process_call_and_subcalls(
 
     // Process subcalls under the new parent.
     for subcall in &call.calls {
-        process_call_and_subcalls(subcall, new_parent_idx, depth + 1, arena, tx_result);
+        process_call_and_subcalls(subcall, new_parent_idx, arena, tx_result);
     }
 }
 
@@ -139,7 +153,7 @@ pub async fn decode_trace_arena(
     decoder: &CallTraceDecoder,
 ) -> Result<(), anyhow::Error> {
     decoder.prefetch_signatures(&arena.arena).await;
-    decoder.populate_traces(&mut arena.arena).await;
+    decoder.populate_traces(&mut arena.arena).await?;
 
     Ok(())
 }
@@ -222,8 +236,8 @@ fn filter_node_recursively(
 /// - 5+: everything (future-proof)
 #[inline]
 fn should_include_call(address: &H160, verbosity: u8) -> bool {
-    let is_system = CallTraceArena::is_system(address);
-    let is_precompile = CallTraceArena::is_precompile(address);
+    let is_system = address_map::is_system(address);
+    let is_precompile = address_map::is_precompile(address);
 
     match verbosity {
         // -v or less => 0 or 1 => show nothing

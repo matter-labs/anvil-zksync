@@ -4,9 +4,9 @@ use alloy::dyn_abi::JsonAbiExt;
 use alloy::json_abi::{Function, Param, StateMutability};
 use alloy::primitives::Selector;
 use anvil_zksync_common::sh_println;
-use anvil_zksync_common::utils::format_token;
+use anvil_zksync_traces::decode::decode_value;
+use anvil_zksync_traces::format::PrettyDecodedValue;
 use colored::Colorize;
-use itertools::Itertools;
 use zksync_multivm::interface::Call;
 use zksync_types::H160;
 
@@ -77,7 +77,13 @@ impl ConsoleLogHandler {
                     tokens.map_or("Failed to parse inputs for log.".to_owned(), |tokens| {
                         tokens
                             .iter()
-                            .map(|t| format_token(t, false).trim_matches('"').to_string())
+                            .map(|t| {
+                                PrettyDecodedValue(
+                                    &decode_value(t.clone()).expect("Address decoding error"),
+                                )
+                                .to_string()
+                            })
+                            .collect::<Vec<_>>()
                             .join(" ")
                     })
                 });

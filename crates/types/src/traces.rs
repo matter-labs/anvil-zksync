@@ -1,12 +1,12 @@
-use lazy_static::lazy_static;
-use serde::Deserialize;
-use std::collections::HashMap;
-use zksync_multivm::interface::{Call, ExecutionResult, VmEvent, VmExecutionResultAndLogs};
+use anvil_zksync_common::{address_map, utils::format::write_interspersed};
+use zksync_multivm::interface::{Call, ExecutionResult, VmEvent};
 use zksync_types::{
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     web3::Bytes,
-    Address, H160, H256,
+    Address, H160, H256, U256,
 };
+
+use crate::numbers::SignedU256;
 
 /// Enum to represent both user and system L1-L2 logs
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -15,38 +15,7 @@ pub enum L2L1Log {
     System(SystemL2ToL1Log),
 }
 
-// TODO: duplicated types from existing formatter.rs
-// will be consolidated pending feedback
-#[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
-pub enum ContractType {
-    System,
-    Precompile,
-    Popular,
-    Unknown,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-pub struct KnownAddress {
-    pub address: H160,
-    pub name: String,
-    contract_type: ContractType,
-}
-
-lazy_static! {
-    /// Loads the known contact addresses from the JSON file.
-    pub static ref KNOWN_ADDRESSES: HashMap<H160, KnownAddress> = {
-        let json_value = serde_json::from_slice(include_bytes!("./data/address_map.json")).unwrap();
-        let pairs: Vec<KnownAddress> = serde_json::from_value(json_value).unwrap();
-
-        pairs
-            .into_iter()
-            .map(|entry| (entry.address, entry))
-            .collect()
-    };
-}
-
-/// A ZKsync event log object.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+/// A ZKsync event log object. #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct LogData {
     /// The indexed topic list.
     topics: Vec<H256>,
@@ -126,22 +95,234 @@ impl LogData {
     }
 }
 
+pub type Label = String;
+pub type Word32 = [u8; 32];
+pub type Word24 = [u8; 24];
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct LabeledAddress {
+    pub label: Option<Label>,
+    pub address: Address,
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Attribution: the type `DecodedValue` was adapted                                                            //
+// from the type `alloy::dyn_abi::DynSolValue` of the crate `alloy_dyn_abi`                                    //
+//                                                                                                             //
+// Full credit goes to its authors. See the original implementation here:                                      //
+// https://github.com/alloy-rs/core/blob/main/crates/dyn-abi/src/dynamic/value.rs                              //
+//                                                                                                             //
+// Note: This type is used under the terms of the original project's license.                                  //
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///
+/// A decoded value in trace.
+///
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DecodedValue {
+    /// A boolean.
+    Bool(bool),
+    /// A signed integer. The second parameter is the number of bits, not bytes.
+    Int(SignedU256),
+    /// An unsigned integer. The second parameter is the number of bits, not bytes.
+    Uint(U256),
+    /// A fixed-length byte array. The second parameter is the number of bytes.
+    FixedBytes(Word32, usize),
+    /// An address.
+    Address(LabeledAddress),
+    /// A function pointer.
+    Function(Word24),
+
+    /// A dynamic-length byte array.
+    Bytes(Vec<u8>),
+    /// A string.
+    String(String),
+
+    /// A dynamically-sized array of values.
+    Array(Vec<DecodedValue>),
+    /// A fixed-size array of values.
+    FixedArray(Vec<DecodedValue>),
+    /// A tuple of values.
+    Tuple(Vec<DecodedValue>),
+
+    /// A named struct, treated as a tuple with a name parameter.
+    CustomStruct {
+        /// The name of the struct.
+        name: String,
+        /// The struct's prop names, in declaration order.
+        prop_names: Vec<String>,
+        /// The inner types.
+        tuple: Vec<DecodedValue>,
+    },
+}
+
+impl std::fmt::Display for LabeledAddress {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let LabeledAddress { label, address } = self;
+
+        if let Some(label) = label {
+            f.write_fmt(format_args!("{label}: "))?;
+        }
+        write!(f, "[0x{}]", hex::encode(address))
+    }
+}
+
+impl std::fmt::Display for DecodedValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DecodedValue::Bool(inner) => inner.fmt(f),
+            DecodedValue::Int(inner) => inner.fmt(f),
+            DecodedValue::Uint(inner) => inner.fmt(f),
+            DecodedValue::FixedBytes(word, size) => {
+                f.write_fmt(format_args!("0x{}", hex::encode(&word[..*size])))
+            }
+            DecodedValue::Address(labeled_address) => labeled_address.fmt(f),
+            DecodedValue::Function(inner) => f.write_fmt(format_args!("0x{}", hex::encode(inner))),
+            DecodedValue::Bytes(inner) => f.write_fmt(format_args!("0x{}", hex::encode(inner))),
+            DecodedValue::String(inner) => f.write_str(&inner.escape_debug().to_string()),
+            DecodedValue::Array(vec) | DecodedValue::FixedArray(vec) => {
+                f.write_str("[")?;
+                write_interspersed(f, vec.iter(), ", ")?;
+                f.write_str("]")
+            }
+            DecodedValue::Tuple(vec) => {
+                f.write_str("(")?;
+                write_interspersed(f, vec.iter(), ", ")?;
+                f.write_str(")")
+            }
+            DecodedValue::CustomStruct { tuple, .. } => DecodedValue::Tuple(tuple.clone()).fmt(f),
+        }
+    }
+}
+
+impl DecodedValue {
+    pub fn as_bytes(&self) -> Option<&Vec<u8>> {
+        if let Self::Bytes(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+}
+
+impl std::fmt::Display for DecodedError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DecodedError::Empty => write!(f, ""),
+            DecodedError::CustomError { name, fields } => {
+                write!(f, "{name}(")?;
+                write_interspersed(f, fields.iter(), ", ")?;
+                write!(f, ")")
+            }
+            DecodedError::GenericCustomError { selector, raw } => {
+                write!(
+                    f,
+                    "custom error with function selector 0x{}",
+                    hex::encode(selector)
+                )?;
+                if !raw.is_empty() {
+                    write!(f, ": ")?;
+                    match std::str::from_utf8(raw) {
+                        Ok(data) => write!(f, "{}", data),
+                        Err(_) => write!(f, "{}", hex::encode(raw)),
+                    }
+                } else {
+                    Ok(())
+                }
+            }
+            DecodedError::Revert(message) => write!(f, "{}", message),
+            DecodedError::Panic(message) => write!(f, "{}", message),
+            DecodedError::Raw(data) => {
+                if !data.is_empty() {
+                    let var_name = write!(
+                        f,
+                        "{}",
+                        anvil_zksync_common::utils::format::trimmed_hex(data)
+                    );
+                    var_name?;
+                } else {
+                    write!(f, "<empty revert data>")?;
+                }
+                Ok(())
+            }
+            DecodedError::String(message) => write!(f, "{}", message),
+        }
+    }
+}
+
+impl std::fmt::Display for DecodedRevertData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DecodedRevertData::Value(value) => value.fmt(f),
+            DecodedRevertData::Error(error) => error.fmt(f),
+        }
+    }
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DecodedReturnData {
+    NormalReturn(Vec<DecodedValue>),
+    Revert(DecodedRevertData),
+}
+
+impl Default for DecodedReturnData {
+    fn default() -> Self {
+        Self::NormalReturn(vec![])
+    }
+}
+
+impl std::fmt::Display for DecodedReturnData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DecodedReturnData::NormalReturn(values) => {
+                if values.is_empty() {
+                    Ok(())
+                } else {
+                    write_interspersed(f, values.iter(), ", ")
+                }
+            }
+            DecodedReturnData::Revert(revert_data) => revert_data.fmt(f),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DecodedError {
+    Empty,
+    CustomError {
+        name: String,
+        fields: Vec<DecodedValue>,
+    },
+    GenericCustomError {
+        selector: [u8; 4],
+        raw: Vec<u8>,
+    },
+    Revert(String),
+    Panic(String),
+    Raw(Vec<u8>),
+    String(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DecodedRevertData {
+    Value(DecodedValue),
+    Error(DecodedError),
+}
+
 /// Decoded call data.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct DecodedCallData {
     /// The function signature.
     pub signature: String,
     /// The function arguments.
-    pub args: Vec<String>,
+    pub args: Vec<DecodedValue>,
 }
 
 /// Additional decoded data enhancing the [CallTrace].
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct DecodedCallTrace {
     /// Optional decoded label for the call.
-    pub label: Option<String>,
+    pub label: Option<Label>,
     /// Optional decoded return data.
-    pub return_data: Option<String>,
+    pub return_data: DecodedReturnData,
     /// Optional decoded call data.
     pub call_data: Option<DecodedCallData>,
 }
@@ -153,7 +334,7 @@ pub struct DecodedCallLog {
     pub name: Option<String>,
     /// The decoded log parameters, a vector of the parameter name (e.g. foo) and the parameter
     /// value (e.g. 0x9d3...45ca).
-    pub params: Option<Vec<(String, String)>>,
+    pub params: Option<Vec<(String, DecodedValue)>>,
 }
 
 /// A log with optional decoded data.
@@ -188,8 +369,6 @@ impl CallLog {
 /// A trace of a call with optional decoded data.
 #[derive(Clone, Debug)]
 pub struct CallTrace {
-    /// The depth of the call.
-    pub depth: usize,
     /// Whether the call was successful.
     pub success: bool,
     /// The caller address.
@@ -201,7 +380,7 @@ pub struct CallTrace {
     /// - [`CallKind::Create`] and alike: the address of the created contract
     pub address: Address,
     /// The execution result of the call.
-    pub execution_result: VmExecutionResultAndLogs,
+    pub execution_result: ExecutionResult,
     /// Optional complementary decoded call data.
     pub decoded: DecodedCallTrace,
     /// The call trace
@@ -215,7 +394,7 @@ pub struct DecodedCallEvent {
     pub name: Option<String>,
     /// The decoded log parameters, a vector of the parameter name (e.g. foo) and the parameter
     /// value (e.g. 0x9d3...45ca).
-    pub params: Option<Vec<(String, String)>>,
+    pub params: Option<Vec<(String, DecodedValue)>>,
 }
 
 /// A node in the arena
@@ -244,13 +423,10 @@ impl Default for CallTraceNode {
             children: Vec::new(),
             idx: 0,
             trace: CallTrace {
-                depth: 0,
                 success: true,
                 caller: H160::zero(),
                 address: H160::zero(),
-                execution_result: VmExecutionResultAndLogs::mock(ExecutionResult::Success {
-                    output: vec![],
-                }),
+                execution_result: ExecutionResult::Success { output: vec![] },
                 decoded: DecodedCallTrace::default(),
                 call: Call::default(),
             },
@@ -288,13 +464,10 @@ impl Default for CallTraceArena {
             children: Vec::new(),
             idx: 0,
             trace: CallTrace {
-                depth: 0,
                 success: true,
                 caller: H160::zero(),
                 address: H160::zero(),
-                execution_result: VmExecutionResultAndLogs::mock(ExecutionResult::Success {
-                    output: vec![],
-                }),
+                execution_result: ExecutionResult::Success { output: vec![] },
                 decoded: DecodedCallTrace::default(),
                 call: Call::default(),
             },
@@ -357,34 +530,16 @@ impl CallTraceArena {
         self.arena.push(Default::default());
     }
 
-    /// Checks if the given address is a precompile based on `KNOWN_ADDRESSES`.
-    pub fn is_precompile(address: &Address) -> bool {
-        if let Some(known) = KNOWN_ADDRESSES.get(address) {
-            matches!(known.contract_type, ContractType::Precompile)
-        } else {
-            false
-        }
-    }
-
     /// Filters out precompile nodes from the arena.
     pub fn filter_out_precompiles(&mut self) {
         self.arena
-            .retain(|node| !Self::is_precompile(&node.trace.address));
-    }
-
-    /// Checks if the given address is a system contract based on `KNOWN_ADDRESSES`.
-    pub fn is_system(address: &Address) -> bool {
-        if let Some(known) = KNOWN_ADDRESSES.get(address) {
-            matches!(known.contract_type, ContractType::System)
-        } else {
-            false
-        }
+            .retain(|node| !address_map::is_precompile(&node.trace.address));
     }
 
     /// Filters out system contracts nodes from the arena.
     pub fn filter_out_system_contracts(&mut self) {
         self.arena
-            .retain(|node| !Self::is_system(&node.trace.address));
+            .retain(|node| !address_map::is_system(&node.trace.address));
     }
 }
 

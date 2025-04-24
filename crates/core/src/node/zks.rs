@@ -298,6 +298,7 @@ mod tests {
                     H256::repeat_byte(0x1),
                     TransactionResult {
                         info: testing::default_tx_execution_info(),
+                        new_bytecodes: vec![],
                         receipt: api::TransactionReceipt {
                             logs: vec![],
                             gas_used: Some(U256::from(10_000)),
@@ -575,6 +576,7 @@ mod tests {
                     txn.hash,
                     TransactionResult {
                         info: testing::default_tx_execution_info(),
+                        new_bytecodes: vec![],
                         receipt: api::TransactionReceipt {
                             logs: vec![],
                             gas_used: Some(U256::from(10_000)),

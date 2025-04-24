@@ -2,6 +2,11 @@
 
 set -xe
 
+cd etc/test-contracts
+yarn install --frozen-lockfile
+yarn build:foundry-zksync
+cd ../..
+
 TEST_CONTRACT_ARTIFACTS="etc/test-contracts/zkout"
 TEST_CONTRACT_TARGET="crates/core/src/deps/test-contracts"
 

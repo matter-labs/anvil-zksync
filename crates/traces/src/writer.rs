@@ -21,6 +21,8 @@ use std::str;
 use zksync_multivm::interface::CallType;
 use zksync_types::zk_evm_types::FarCallOpcode;
 
+use crate::format::PrettyDecodedValue;
+
 const PIPE: &str = "  │ ";
 const EDGE: &str = "  └─ ";
 const BRANCH: &str = "  ├─ ";
@@ -255,7 +257,13 @@ impl<W: Write> TraceWriter<W> {
                 let (func_name, inputs) = match &trace.decoded.call_data {
                     Some(DecodedCallData { signature, args }) => {
                         let name = signature.split('(').next().unwrap();
-                        (name.to_string(), args.join(", "))
+                        (
+                            name.to_string(),
+                            args.iter()
+                                .map(|v| PrettyDecodedValue(v).to_string())
+                                .collect::<Vec<_>>()
+                                .join(", "),
+                        )
                     }
                     None => {
                         if trace.call.input.len() < 4 {
@@ -362,7 +370,7 @@ impl<W: Write> TraceWriter<W> {
     /// Writes the footer of a call trace.
     fn write_trace_footer(&mut self, trace: &CallTrace) -> io::Result<()> {
         // Use the custom trait to format the execution result
-        let status_str = trace.execution_result.result.display();
+        let status_str = trace.execution_result.display();
 
         // Write the execution result status using the formatted string
         write!(
@@ -373,15 +381,16 @@ impl<W: Write> TraceWriter<W> {
         )?;
 
         // Write decoded return data if available
-        if let Some(decoded) = &trace.decoded.return_data {
+        let decoded_return_data = &trace.decoded.return_data.to_string();
+        if !decoded_return_data.is_empty() {
             write!(self.writer, " ")?;
-            return self.writer.write_all(decoded.as_bytes());
+            return self.writer.write_all(decoded_return_data.as_bytes());
         }
 
         // Handle contract creation or output data
         if !self.config.write_bytecodes
             && matches!(trace.call.r#type, CallType::Create)
-            && !trace.execution_result.result.is_failed()
+            && !trace.execution_result.is_failed()
         {
             write!(self.writer, " {} bytes of code", trace.call.output.len())?;
         } else if !trace.call.output.is_empty() {

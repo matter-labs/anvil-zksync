@@ -19,6 +19,13 @@ static BUILTIN_UPGRADE_TXS: Lazy<HashMap<ProtocolVersionId, UpgradeTx>> = Lazy::
             ))
             .unwrap(),
         ),
+        (
+            ProtocolVersionId::Version28,
+            serde_json::from_slice::<UpgradeTx>(include_bytes!(
+                "../../../l1-setup/state/v28-l2-upgrade-tx.json"
+            ))
+            .unwrap(),
+        ),
     ])
 });
 

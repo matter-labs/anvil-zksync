@@ -49,6 +49,8 @@ flate2.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true
 url.workspace = true
+indicatif.workspace = true
+tabled.workspace = true
 
 [dev-dependencies]
 maplit.workspace = true
