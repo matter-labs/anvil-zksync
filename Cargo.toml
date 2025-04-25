@@ -35,13 +35,14 @@ categories = ["cryptography"]
 #########################
 # ZKsync dependencies  #
 #########################
-zksync_mini_merkle_tree = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v27.2.0" }
-zksync_multivm = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v27.2.0" }
-zksync_contracts = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v27.2.0" }
-zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v27.2.0" }
-zksync_types = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v27.2.0" }
-zksync_vm_interface = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v27.2.0" }
-zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v27.2.0" }
+zksync_mini_merkle_tree = { git = "https://github.com/matter-labs/zksync-era", branch = "kl/reduced-interop-support" }
+zksync_multivm = { git = "https://github.com/matter-labs/zksync-era", branch = "kl/reduced-interop-support" }
+zksync_contracts = { git = "https://github.com/matter-labs/zksync-era", branch = "kl/reduced-interop-support" }
+zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era", branch = "kl/reduced-interop-support" }
+zksync_system_constants = { git = "https://github.com/matter-labs/zksync-era", branch = "kl/reduced-interop-support" }
+zksync_types = { git = "http://github.com/matter-labs/zksync-era", branch = "kl/reduced-interop-support" }
+zksync_vm_interface = { git = "https://github.com/matter-labs/zksync-era", branch = "kl/reduced-interop-support" }
+zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era", branch = "kl/reduced-interop-support" }
 zksync_telemetry = { git = "https://github.com/matter-labs/zksync-telemetry.git", rev = "f6d8618d870a09467ff24ea32ef57e01af8f311e" }
 zksync-error-codegen = { git = "https://github.com/matter-labs/zksync-error", rev = "fa6e84e06191a1b66323d69ab909fd83ae76e0d2", default-features = false }
 zksync-error-description = { git = "https://github.com/matter-labs/zksync-error", rev = "fa6e84e06191a1b66323d69ab909fd83ae76e0d2" }
@@ -126,4 +127,4 @@ anvil_zksync_traces = { path = "crates/traces" }
 derive_more = { version = "1.0", features = ["full"] }
 
 [patch.crates-io]
-vise = { git = "https://github.com/matter-labs/vise.git", rev = "51669f42f60c50b3a521662a4ecd71212a303299" }
+vise = { git = "http://github.com/matter-labs/vise.git", rev = "51669f42f60c50b3a521662a4ecd71212a303299" }

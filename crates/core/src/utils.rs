@@ -6,6 +6,8 @@ use std::sync::Arc;
 use tokio::runtime::Builder;
 use tokio::sync::{RwLock, RwLockReadGuard};
 use zksync_multivm::interface::{Call, CallType, ExecutionResult, VmExecutionResultAndLogs};
+use zksync_multivm::utils::bytecode::bytes_to_be_words;
+use zksync_types::bytecode::BytecodeHash;
 use zksync_types::{
     api::{BlockNumber, DebugCall, DebugCallType},
     web3::Bytes,
@@ -31,6 +33,15 @@ pub fn to_human_size(input: U256) -> String {
         .collect();
     tmp.iter().rev().collect()
 }
+
+// pub fn bytecode_to_factory_dep(bytecode: Vec<u8>) -> Result<(U256, Vec<U256>), anyhow::Error> {
+//     zksync_basic_types::bytecode::validate_bytecode(&bytecode).context("Invalid bytecode")?;
+//     let bytecode_hash = zksync_types::bytecode::BytecodeHash::for_bytecode(&bytecode).value_u256();
+
+//     let bytecode_words = bytes_to_be_words(&bytecode);
+
+//     Ok((bytecode_hash, bytecode_words))
+// }
 
 /// Returns the actual [U64] block number from [BlockNumber].
 ///

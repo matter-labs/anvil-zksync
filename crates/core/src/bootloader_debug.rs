@@ -1,6 +1,6 @@
 use std::sync::{Arc, RwLock};
 use zksync_multivm::{
-    interface::tracer::VmExecutionStopReason, tracers::dynamic::vm_1_5_0::DynTracer,
+    interface::tracer::VmExecutionStopReason, tracers::dynamic::vm_1_5_2::DynTracer,
     IntoOldVmTracer,
 };
 
