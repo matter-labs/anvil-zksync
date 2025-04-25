@@ -29,7 +29,8 @@ fn main() -> ExitCode {
 
     let arguments = GenerationArguments {
         verbose: true,
-        input_links: vec![root_link.into()],
+        input_links: vec![root_link.into(),
+                          local_core_path],
         override_links: vec![
             ( "https://raw.githubusercontent.com/matter-labs/anvil-zksync/refs/heads/main/etc/errors/anvil.json".to_owned(),
                local_anvil_path)
