@@ -6,8 +6,8 @@ use jsonrpsee::core::{async_trait, RpcResult};
 use std::collections::HashMap;
 use zksync_types::api::state_override::StateOverride;
 use zksync_types::api::{
-    BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion,
-    TransactionDetailedResult, TransactionDetails,LogProofTarget
+    BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, LogProofTarget, Proof,
+    ProtocolVersion, TransactionDetailedResult, TransactionDetails,
 };
 use zksync_types::fee::Fee;
 use zksync_types::fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput};
@@ -160,6 +160,15 @@ impl ZksNamespaceServer for ZksNamespace {
     ) -> RpcResult<Option<L2ToL1LogProof>> {
         Ok(None)
     }
+
+    async fn get_l2_to_l1_log_proof_precommit(
+        &self,
+        tx_hash: H256,
+        index: Option<usize>,
+        l2_message_index: Option<usize>,
+    ) -> RpcResult<Option<L2ToL1LogProof>> {
+        Ok(None)
+    } //
 
     async fn get_l1_batch_number(&self) -> RpcResult<U64> {
         Err(RpcError::Unsupported.into())
