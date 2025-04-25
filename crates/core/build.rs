@@ -27,7 +27,11 @@ fn main() -> ExitCode {
 
     let arguments = GenerationArguments {
         verbose: true,
-        root_link: root_link.into(),
+        input_links: vec![root_link.into()],
+        override_links: vec![
+            ( "https://raw.githubusercontent.com/matter-labs/anvil-zksync/refs/heads/main/etc/errors/anvil.json".to_owned(),
+               local_anvil_path)
+        ],
         outputs: vec![
             // Overwrite the crate `zksync-error`, add the converter from
             // `anyhow` to a generic error of the appropriate domain.
@@ -39,8 +43,7 @@ fn main() -> ExitCode {
                     ("generate_cargo_toml".to_owned(), "false".to_owned()),
                 ],
             },
-        ],
-        input_links: vec![local_anvil_path],
+            ],
     };
     if let Err(e) = zksync_error_codegen::load_and_generate(arguments) {
         println!("{e}");
