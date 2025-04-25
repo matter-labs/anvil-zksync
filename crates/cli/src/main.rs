@@ -290,8 +290,9 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         StorageKeyLayout::ZkEra
     };
 
+    let is_fork_mode = fork_client.is_some();
     let (node_inner, storage, blockchain, time, fork, vm_runner) = InMemoryNodeInner::init(
-        fork_client.clone(), // TODO: remove this clone
+        fork_client,
         fee_input_provider.clone(),
         filters,
         config.clone(),
@@ -402,7 +403,7 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         );
 
         // If evm emulator is enabled, and not in fork mode, deploy pre-deploys for dev convenience
-        if fork_client.is_none() {
+        if !is_fork_mode {
             let mut nonce = Nonce(1);
             for pd in PREDEPLOYS.iter() {
                 let data = encode_predeploy_manager(pd.address, &pd.constructor_input).unwrap();
@@ -410,7 +411,7 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
                     L2TxBuilder::new(
                         PSEUDO_CALLER,
                         nonce,
-                        U256::from(10_000_000),
+                        U256::from(10_000_000), // high limit for pre-deploys
                         U256::from(u32::MAX),
                         chain_id,
                     )
