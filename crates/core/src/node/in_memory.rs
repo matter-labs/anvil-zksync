@@ -616,6 +616,7 @@ impl InMemoryNode {
     pub fn test_config(fork_client_opt: Option<ForkClient>, config: TestNodeConfig) -> Self {
         let fee_provider = TestNodeFeeInputProvider::from_fork(
             fork_client_opt.as_ref().map(|client| &client.details),
+            &config.base_token_config,
         );
         let impersonation = ImpersonationManager::default();
         let system_contracts = SystemContracts::from_options(
