@@ -232,7 +232,7 @@ impl VmRunner {
                 config.get_l2_gas_price(),
                 tx,
                 &tx_result,
-                balance_diffs,
+                (verbosity >= 1).then_some(balance_diffs),
             )
         );
 
