@@ -165,6 +165,8 @@ impl VmRunner {
         config: &TestNodeConfig,
         fee_input_provider: &TestNodeFeeInputProvider,
     ) -> AnvilNodeResult<BatchTransactionExecutionResult> {
+        let verbosity = get_shell().verbosity;
+
         if let Some(to_address) = tx.recipient_account() {
             if !account_has_code(to_address, &mut self.fork_storage) {
                 sh_warn!(
@@ -212,7 +214,6 @@ impl VmRunner {
 
             extract_addresses(&arena, &mut known_addresses);
 
-            let verbosity = get_shell().verbosity;
             if verbosity >= 2 {
                 let filtered_arena = filter_call_trace_arena(&arena, verbosity);
                 trace_output = Some(render_trace_arena_inner(&filtered_arena, false));
