@@ -167,14 +167,8 @@ impl VmRunner {
     ) -> AnvilNodeResult<BatchTransactionExecutionResult> {
         let verbosity = get_shell().verbosity;
 
-        if let Some(to_address) = tx.recipient_account() {
-            if !account_has_code(to_address, &mut self.fork_storage) {
-                sh_warn!(
-                    "Transaction {} was sent to address {to_address}, which is not associated with any contract.",
-                    tx.hash()
-                );
-            }
-        }
+        warn_if_tx_recipient_no_code(tx, &mut self.fork_storage);
+
         let BatchTransactionExecutionResult {
             tx_result,
             compression_result,
@@ -610,6 +604,17 @@ fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) 
         }
     }
     None
+}
+
+fn warn_if_tx_recipient_no_code(tx: &Transaction, storage: &mut ForkStorage) {
+    if let Some(to_address) = tx.recipient_account() {
+        if !account_has_code(to_address, storage) {
+            sh_warn!(
+                    "Transaction {} was sent to address {to_address}, which is not associated with any contract.",
+                    tx.hash()
+                );
+        }
+    }
 }
 
 #[cfg(test)]
