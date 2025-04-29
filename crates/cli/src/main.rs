@@ -4,12 +4,13 @@ use crate::utils::update_with_fork_details;
 use alloy::primitives::Bytes;
 use anvil_zksync_api_server::NodeServerBuilder;
 use anvil_zksync_common::shell::get_shell;
-use anvil_zksync_common::utils::predeploys::encode_predeploy_manager;
+use anvil_zksync_common::utils::predeploys::PREDEPLOYS;
 use anvil_zksync_common::{sh_eprintln, sh_err, sh_println, sh_warn};
 use anvil_zksync_config::constants::{
     DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
-    DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L1_GAS_PRICE, DEFAULT_L2_GAS_PRICE, ENABLER_CALLDATA,
-    LEGACY_RICH_WALLETS, PSEUDO_CALLER, RICH_WALLETS, TEST_NODE_NETWORK_ID,
+    DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L1_GAS_PRICE, DEFAULT_L2_GAS_PRICE,
+    EVM_EMULATOR_ENABLER_CALLDATA, LEGACY_RICH_WALLETS, PSEUDO_CALLER, RICH_WALLETS,
+    TEST_NODE_NETWORK_ID,
 };
 use anvil_zksync_config::types::SystemContractsOptions;
 use anvil_zksync_config::{ForkPrintInfo, L1Config};
@@ -22,7 +23,7 @@ use anvil_zksync_core::node::{
 use anvil_zksync_core::observability::Observability;
 use anvil_zksync_core::system_contracts::SystemContractsBuilder;
 use anvil_zksync_l1_sidecar::L1Sidecar;
-use anvil_zksync_types::{L2TxBuilder, PREDEPLOYS};
+use anvil_zksync_types::L2TxBuilder;
 use anyhow::Context;
 use clap::Parser;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -397,7 +398,7 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
                 chain_id,
             )
             .with_to(CONTRACT_DEPLOYER_ADDRESS)
-            .with_calldata(Bytes::from_static(ENABLER_CALLDATA).to_vec())
+            .with_calldata(Bytes::from_static(EVM_EMULATOR_ENABLER_CALLDATA).to_vec())
             .build_impersonated()
             .into(),
         );
@@ -406,7 +407,7 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         if !is_fork_mode {
             let mut nonce = Nonce(1);
             for pd in PREDEPLOYS.iter() {
-                let data = encode_predeploy_manager(pd.address, &pd.constructor_input).unwrap();
+                let data = pd.encode_manager_call().unwrap();
                 txs.push(
                     L2TxBuilder::new(
                         PSEUDO_CALLER,
