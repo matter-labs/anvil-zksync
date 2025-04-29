@@ -29,7 +29,8 @@ pub const DEFAULT_ACCOUNT_BALANCE: u128 = 1_000 * 10u128.pow(18);
 
 /// Pseudo caller that is allowed to call system-only methods
 pub const PSEUDO_CALLER: H160 = H160([0xff; 20]);
-pub const ENABLER_CALLDATA: &[u8] = &hex!(
+/// Calldata to allow EVM bytecode in ContractDeployer
+pub const EVM_EMULATOR_ENABLER_CALLDATA: &[u8] = &hex!(
     "fe06380c" // selector setAllowedBytecodeTypesToDeploy(uint8)
     "0000000000000000000000000000000000000000000000000000000000000001"
 );
