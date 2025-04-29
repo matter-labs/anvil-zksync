@@ -30,7 +30,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_error::anvil_zksync;
-use zksync_error::anvil_zksync::node::{to_generic, AnvilNodeError, AnvilNodeResult};
+use zksync_error::anvil_zksync::node::{AnvilNodeError, AnvilNodeResult};
 use zksync_multivm::interface::executor::BatchExecutor;
 use zksync_multivm::interface::storage::WriteStorage;
 use zksync_multivm::interface::{
@@ -204,9 +204,7 @@ impl VmRunner {
 
             let decoder = builder.build();
             let mut arena = build_call_trace_arena(&call_traces, &tx_result);
-            decode_trace_arena(&mut arena, &decoder)
-                .await
-                .map_err(to_generic)?;
+            decode_trace_arena(&mut arena, &decoder).await;
 
             extract_addresses(&arena, &mut known_addresses);
 

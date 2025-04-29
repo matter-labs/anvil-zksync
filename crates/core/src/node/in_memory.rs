@@ -454,9 +454,7 @@ impl InMemoryNode {
                     let mut arena = build_call_trace_arena(&call_traces, &tx_result_for_arena);
                     let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
                     rt.block_on(async {
-                        decode_trace_arena(&mut arena, &decoder)
-                            .await
-                            .map_err(|e| generic_error!("Failed to decode trace arena: {e}"))?;
+                        decode_trace_arena(&mut arena, &decoder).await;
                         Ok(arena)
                     })
                 })
