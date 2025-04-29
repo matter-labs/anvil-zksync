@@ -165,14 +165,10 @@ impl VmRunner {
         config: &TestNodeConfig,
         fee_input_provider: &TestNodeFeeInputProvider,
     ) -> AnvilNodeResult<BatchTransactionExecutionResult> {
-        if let Some(to_address) = tx.recipient_account() {
-            if !account_has_code(to_address, &mut self.fork_storage) {
-                sh_warn!(
-                    "Transaction {} was sent to address {to_address}, which is not associated with any contract.",
-                    tx.hash()
-                );
-            }
-        }
+        let verbosity = get_shell().verbosity;
+
+        warn_if_tx_recipient_no_code(tx, &mut self.fork_storage);
+
         let BatchTransactionExecutionResult {
             tx_result,
             compression_result,
@@ -212,7 +208,6 @@ impl VmRunner {
 
             extract_addresses(&arena, &mut known_addresses);
 
-            let verbosity = get_shell().verbosity;
             if verbosity >= 2 {
                 let filtered_arena = filter_call_trace_arena(&arena, verbosity);
                 trace_output = Some(render_trace_arena_inner(&filtered_arena, false));
@@ -231,7 +226,7 @@ impl VmRunner {
                 config.get_l2_gas_price(),
                 tx,
                 &tx_result,
-                balance_diffs,
+                (verbosity >= 1).then_some(balance_diffs),
             )
         );
 
@@ -311,35 +306,8 @@ impl VmRunner {
                 transaction_hash: Box::new(tx_hash),
             });
         }
-        let saved_factory_deps = VmEvent::extract_bytecodes_marked_as_known(&result.logs.events);
 
-        // Get transaction factory deps
-        let factory_deps = &tx.execute.factory_deps;
-        let mut tx_factory_deps: HashMap<_, _> = factory_deps
-            .iter()
-            .map(|bytecode| {
-                (
-                    BytecodeHash::for_bytecode(bytecode).value(),
-                    bytecode.clone(),
-                )
-            })
-            .collect();
-        // Ensure that *dynamic* factory deps (ones that may be created when executing EVM contracts)
-        // are added into the lookup map as well.
-        tx_factory_deps.extend(result.dynamic_factory_deps.clone());
-
-        let new_bytecodes = saved_factory_deps
-            .map(|bytecode_hash| {
-                let bytecode = tx_factory_deps.get(&bytecode_hash).unwrap_or_else(|| {
-                    panic!(
-                        "Failed to get factory deps on tx: bytecode hash: {:?}, tx hash: {}",
-                        bytecode_hash,
-                        tx.hash()
-                    )
-                });
-                (bytecode_hash, bytecode.clone())
-            })
-            .collect::<Vec<_>>();
+        let new_bytecodes = new_bytecodes(tx, &result);
 
         let logs = result
             .logs
@@ -602,6 +570,40 @@ impl VmRunner {
     }
 }
 
+fn new_bytecodes(
+    tx: &Transaction,
+    result: &VmExecutionResultAndLogs,
+) -> Vec<(zksync_types::H256, Vec<u8>)> {
+    let saved_factory_deps = VmEvent::extract_bytecodes_marked_as_known(&result.logs.events);
+
+    // Get transaction factory deps
+    let factory_deps = &tx.execute.factory_deps;
+    let mut tx_factory_deps: HashMap<_, _> = factory_deps
+        .iter()
+        .map(|bytecode| {
+            (
+                BytecodeHash::for_bytecode(bytecode).value(),
+                bytecode.clone(),
+            )
+        })
+        .collect();
+    // Ensure that *dynamic* factory deps (ones that may be created when executing EVM contracts)
+    // are added into the lookup map as well.
+    tx_factory_deps.extend(result.dynamic_factory_deps.clone());
+    saved_factory_deps
+        .map(|bytecode_hash| {
+            let bytecode = tx_factory_deps.get(&bytecode_hash).unwrap_or_else(|| {
+                panic!(
+                    "Failed to get factory deps on tx: bytecode hash: {:?}, tx hash: {}",
+                    bytecode_hash,
+                    tx.hash()
+                )
+            });
+            (bytecode_hash, bytecode.clone())
+        })
+        .collect::<Vec<_>>()
+}
+
 fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) -> Option<H160> {
     for query in execution_result.logs.storage_logs.iter().rev() {
         if query.log.is_write() && query.log.key.address() == &ACCOUNT_CODE_STORAGE_ADDRESS {
@@ -609,6 +611,17 @@ fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) 
         }
     }
     None
+}
+
+fn warn_if_tx_recipient_no_code(tx: &Transaction, storage: &mut ForkStorage) {
+    if let Some(to_address) = tx.recipient_account() {
+        if !account_has_code(to_address, storage) {
+            sh_warn!(
+                    "Transaction {} was sent to address {to_address}, which is not associated with any contract.",
+                    tx.hash()
+                );
+        }
+    }
 }
 
 #[cfg(test)]
