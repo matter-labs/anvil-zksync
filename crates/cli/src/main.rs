@@ -1,6 +1,7 @@
 use crate::bytecode_override::override_bytecodes;
 use crate::cli::{Cli, Command, ForkUrl, PeriodicStateDumper};
 use crate::utils::update_with_fork_details;
+use anvil_zksync_api_server::node::InMemoryNode;
 use anvil_zksync_api_server::NodeServerBuilder;
 use anvil_zksync_common::shell::get_shell;
 use anvil_zksync_common::{sh_eprintln, sh_err, sh_println, sh_warn};
@@ -14,8 +15,8 @@ use anvil_zksync_config::{ForkPrintInfo, L1Config};
 use anvil_zksync_core::filters::EthFilters;
 use anvil_zksync_core::node::fork::ForkClient;
 use anvil_zksync_core::node::{
-    BlockSealer, BlockSealerMode, ImpersonationManager, InMemoryNode, InMemoryNodeInner,
-    NodeExecutor, StorageKeyLayout, TestNodeFeeInputProvider, TxBatch, TxPool,
+    BlockSealer, BlockSealerMode, ImpersonationManager, InMemoryNodeInner, NodeExecutor,
+    StorageKeyLayout, TestNodeFeeInputProvider, TxBatch, TxPool,
 };
 use anvil_zksync_core::observability::Observability;
 use anvil_zksync_core::system_contracts::SystemContractsBuilder;

@@ -16,11 +16,16 @@ anvil_zksync_core.workspace = true
 anvil_zksync_l1_sidecar.workspace = true
 anvil_zksync_types.workspace = true
 anvil_zksync_common.workspace = true
+anvil_zksync_traces.workspace = true
+anvil_zksync_config.workspace = true
 
 zksync_types.workspace = true
 zksync_web3_decl.workspace = true
 zksync_error.workspace = true
 zksync_telemetry.workspace = true
+zksync_multivm.workspace = true
+zksync_contracts.workspace = true
+zksync_mini_merkle_tree.workspace = true
 
 anyhow.workspace = true
 function_name.workspace = true
@@ -34,3 +39,15 @@ tower.workspace = true
 tower-http.workspace = true
 tracing.workspace = true
 serde_json.workspace = true
+once_cell.workspace = true
+flate2.workspace = true
+indexmap.workspace = true
+serde.workspace = true
+url.workspace = true
+backon.workspace = true
+
+[dev-dependencies]
+alloy = { workspace = true, default-features = false, features = ["json-abi", "dyn-abi", "sol-types", "eip712"] }
+
+httptest.workspace = true
+itertools.workspace = true

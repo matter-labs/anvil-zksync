@@ -1,6 +1,5 @@
-use super::pool::TxBatch;
-use super::sealer::BlockSealerMode;
 use super::InMemoryNode;
+use anvil_zksync_core::node::{BlockSealerMode, TxBatch};
 use anvil_zksync_types::api::{DetailedTransaction, ResetRequest};
 use anyhow::{anyhow, Context};
 use std::str::FromStr;
@@ -396,8 +395,8 @@ impl InMemoryNode {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::node::testing::TransactionBuilder;
     use crate::node::InMemoryNode;
-    use crate::testing::TransactionBuilder;
     use std::str::FromStr;
     use zksync_multivm::interface::storage::ReadStorage;
     use zksync_types::{api, L1BatchNumber, Transaction};

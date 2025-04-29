@@ -1,5 +1,6 @@
 mod error;
 mod impls;
+pub mod node;
 mod server;
 
 pub use impls::{

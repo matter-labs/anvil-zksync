@@ -1,5 +1,5 @@
 use anvil_zksync_api_decl::ZksNamespaceServer;
-use anvil_zksync_core::node::InMemoryNode;
+use crate::node::InMemoryNode;
 use anvil_zksync_l1_sidecar::L1Sidecar;
 use function_name::named;
 use jsonrpsee::core::{async_trait, RpcResult};

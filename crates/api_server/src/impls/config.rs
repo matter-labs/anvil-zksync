@@ -1,5 +1,5 @@
 use anvil_zksync_api_decl::ConfigNamespaceServer;
-use anvil_zksync_core::node::InMemoryNode;
+use crate::node::InMemoryNode;
 use anvil_zksync_types::{LogLevel, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
 use jsonrpsee::core::{async_trait, RpcResult};
 

@@ -1,5 +1,5 @@
 use anvil_zksync_api_decl::EthNamespaceServer;
-use anvil_zksync_core::node::InMemoryNode;
+use crate::node::InMemoryNode;
 use function_name::named;
 use jsonrpsee::core::{async_trait, RpcResult};
 use zksync_types::api::state_override::StateOverride;

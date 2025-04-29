@@ -1,5 +1,5 @@
 use anvil_zksync_api_decl::NetNamespaceServer;
-use anvil_zksync_core::node::InMemoryNode;
+use crate::node::InMemoryNode;
 use anvil_zksync_core::utils::block_on;
 use jsonrpsee::core::RpcResult;
 use zksync_types::U256;

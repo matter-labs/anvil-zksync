@@ -2,6 +2,7 @@ use crate::utils::{
     get_cli_command_telemetry_props, parse_genesis_file, TELEMETRY_SENSITIVE_VALUE,
 };
 use alloy::signers::local::coins_bip39::{English, Mnemonic};
+use anvil_zksync_api_server::node::InMemoryNode;
 use anvil_zksync_common::{
     cache::{CacheConfig, CacheType, DEFAULT_DISK_CACHE_DIR},
     sh_err, sh_warn,
@@ -11,7 +12,7 @@ use anvil_zksync_config::constants::{DEFAULT_MNEMONIC, TEST_NODE_NETWORK_ID};
 use anvil_zksync_config::types::{AccountGenerator, Genesis, SystemContractsOptions};
 use anvil_zksync_config::{BaseTokenConfig, L1Config, TestNodeConfig};
 use anvil_zksync_core::node::fork::ForkConfig;
-use anvil_zksync_core::node::{InMemoryNode, VersionedState};
+use anvil_zksync_core::node::VersionedState;
 use anvil_zksync_types::{
     LogLevel, ShowGasDetails, ShowStorageLogs, ShowVMDetails, TransactionOrder,
 };
@@ -968,7 +969,7 @@ mod tests {
     use crate::cli::PeriodicStateDumper;
 
     use super::Cli;
-    use anvil_zksync_core::node::InMemoryNode;
+    use anvil_zksync_api_server::node::InMemoryNode;
     use clap::Parser;
     use serde_json::{json, Value};
     use std::{

@@ -1,6 +1,6 @@
 use anvil_zksync_api_decl::AnvilNamespaceServer;
 use anvil_zksync_common::sh_warn;
-use anvil_zksync_core::node::InMemoryNode;
+use crate::node::InMemoryNode;
 use anvil_zksync_types::api::{DetailedTransaction, ResetRequest};
 use anvil_zksync_types::Numeric;
 use jsonrpsee::core::{async_trait, RpcResult};

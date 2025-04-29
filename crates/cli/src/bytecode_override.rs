@@ -1,4 +1,4 @@
-use anvil_zksync_core::node::InMemoryNode;
+use anvil_zksync_api_server::node::InMemoryNode;
 use anyhow::Context;
 use hex::FromHex;
 use serde::Deserialize;

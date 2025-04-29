@@ -1,28 +1,25 @@
 //! In-memory node, that supports forking other networks.
-use super::inner::node_executor::NodeExecutorHandle;
-use super::inner::InMemoryNodeInner;
-use super::vm::AnvilVM;
-use crate::delegate_vm;
-use crate::deps::InMemoryStorage;
-use crate::filters::EthFilters;
-use crate::node::fee_model::TestNodeFeeInputProvider;
-use crate::node::impersonate::{ImpersonationManager, ImpersonationState};
-use crate::node::inner::blockchain::ReadBlockchain;
-use crate::node::inner::storage::ReadStorageDyn;
-use crate::node::inner::time::ReadTime;
-use crate::node::sealer::BlockSealerState;
-use crate::node::state::VersionedState;
-use crate::node::traces::call_error::CallErrorTracer;
-use crate::node::traces::decoder::CallTraceDecoderBuilder;
-use crate::node::{BlockSealer, BlockSealerMode, NodeExecutor, TxBatch, TxPool};
-use crate::observability::Observability;
-use crate::system_contracts::SystemContracts;
 use anvil_zksync_common::cache::CacheConfig;
 use anvil_zksync_common::sh_println;
 use anvil_zksync_common::shell::get_shell;
-use anvil_zksync_config::constants::{NON_FORK_FIRST_BLOCK_TIMESTAMP, TEST_NODE_NETWORK_ID};
-use anvil_zksync_config::types::Genesis;
+use anvil_zksync_config::constants::TEST_NODE_NETWORK_ID;
 use anvil_zksync_config::TestNodeConfig;
+use anvil_zksync_core::delegate_vm;
+use anvil_zksync_core::node::fork::{ForkClient, ForkSource};
+use anvil_zksync_core::node::inner::blockchain::ReadBlockchain;
+use anvil_zksync_core::node::inner::node_executor::NodeExecutorHandle;
+use anvil_zksync_core::node::inner::storage::ReadStorageDyn;
+use anvil_zksync_core::node::inner::time::ReadTime;
+use anvil_zksync_core::node::inner::InMemoryNodeInner;
+use anvil_zksync_core::node::traces::call_error::CallErrorTracer;
+use anvil_zksync_core::node::traces::decoder::CallTraceDecoderBuilder;
+use anvil_zksync_core::node::VersionedState;
+use anvil_zksync_core::node::{AnvilVM, StorageKeyLayout};
+use anvil_zksync_core::node::{BlockSealer, BlockSealerMode, NodeExecutor, TxBatch, TxPool};
+use anvil_zksync_core::node::{BlockSealerState, ImpersonationManager, Snapshot};
+use anvil_zksync_core::node::{TestNodeFeeInputProvider, ZKOsVM};
+use anvil_zksync_core::observability::Observability;
+use anvil_zksync_core::system_contracts::SystemContracts;
 use anvil_zksync_traces::{
     build_call_trace_arena, decode_trace_arena, filter_call_trace_arena,
     identifier::SignaturesIdentifier, render_trace_arena_inner,
@@ -33,246 +30,31 @@ use anvil_zksync_types::{
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
-use indexmap::IndexMap;
 use once_cell::sync::OnceCell;
-use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::io::{Read, Write};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
+use zksync_contracts::BaseSystemContracts;
 use zksync_error::anvil_zksync::node::{
     generic_error, to_generic, AnvilNodeError, AnvilNodeResult,
 };
 use zksync_error::anvil_zksync::state::{StateLoaderError, StateLoaderResult};
-use zksync_multivm::interface::storage::{ReadStorage, StoragePtr, StorageView};
+use zksync_multivm::interface::storage::StorageView;
 use zksync_multivm::interface::VmFactory;
 use zksync_multivm::interface::{
-    ExecutionResult, InspectExecutionMode, L1BatchEnv, L2BlockEnv, TxExecutionMode, VmInterface,
+    ExecutionResult, InspectExecutionMode, TxExecutionMode, VmInterface,
 };
 use zksync_multivm::tracers::CallTracer;
-use zksync_multivm::utils::{get_batch_base_fee, get_max_batch_gas_limit};
 use zksync_multivm::vm_latest::Vm;
 
-use crate::node::fork::{ForkClient, ForkSource};
-use crate::node::keys::StorageKeyLayout;
 use zksync_multivm::vm_latest::{HistoryDisabled, ToTracerPointer};
-use zksync_multivm::VmVersion;
-use zksync_types::api::{Block, DebugCall, TransactionReceipt, TransactionVariant};
-use zksync_types::block::{unpack_block_info, L1BatchHeader, L2BlockHasher};
-use zksync_types::fee_model::BatchFeeInput;
+use zksync_types::api::TransactionVariant;
 use zksync_types::l2::L2Tx;
-use zksync_types::storage::{
-    EMPTY_UNCLES_HASH, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
-};
 use zksync_types::web3::Bytes;
 use zksync_types::{
-    h256_to_u256, AccountTreeId, Address, Bloom, L1BatchNumber, L2BlockNumber, L2ChainId,
-    PackedEthSignature, ProtocolVersionId, StorageKey, StorageValue, Transaction, H160, H256, H64,
-    U256, U64,
+    Address, L2ChainId, PackedEthSignature, ProtocolVersionId, Transaction, H160, U256,
 };
-
-/// Max possible size of an ABI encoded tx (in bytes).
-pub const MAX_TX_SIZE: usize = 1_000_000;
-/// Acceptable gas overestimation limit.
-pub const ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION: u64 = 1_000;
-/// The maximum number of previous blocks to store the state for.
-pub const MAX_PREVIOUS_STATES: u16 = 128;
-/// The zks protocol version.
-pub const PROTOCOL_VERSION: &str = "zks/1";
-
-pub fn compute_hash<'a>(
-    protocol_version: ProtocolVersionId,
-    number: L2BlockNumber,
-    timestamp: u64,
-    prev_l2_block_hash: H256,
-    tx_hashes: impl IntoIterator<Item = &'a H256>,
-) -> H256 {
-    let mut block_hasher = L2BlockHasher::new(number, timestamp, prev_l2_block_hash);
-    for tx_hash in tx_hashes.into_iter() {
-        block_hasher.push_tx_hash(*tx_hash);
-    }
-    block_hasher.finalize(protocol_version)
-}
-
-pub fn create_genesis_from_json(
-    protocol_version: ProtocolVersionId,
-    genesis: &Genesis,
-    timestamp: Option<u64>,
-) -> (Block<TransactionVariant>, L1BatchHeader) {
-    let hash = L2BlockHasher::legacy_hash(L2BlockNumber(0));
-    let timestamp = timestamp
-        .or(genesis.timestamp)
-        .unwrap_or(NON_FORK_FIRST_BLOCK_TIMESTAMP);
-
-    let l1_batch_env = genesis.l1_batch_env.clone().unwrap_or_else(|| L1BatchEnv {
-        previous_batch_hash: None,
-        number: L1BatchNumber(0),
-        timestamp,
-        fee_input: BatchFeeInput::pubdata_independent(0, 0, 0),
-        fee_account: Address::zero(),
-        enforced_base_fee: None,
-        first_l2_block: L2BlockEnv {
-            number: 0,
-            timestamp,
-            prev_block_hash: H256::zero(),
-            max_virtual_blocks_to_create: 0,
-        },
-    });
-
-    let genesis_block = create_block(
-        &l1_batch_env,
-        hash,
-        genesis.parent_hash.unwrap_or_else(H256::zero),
-        genesis.block_number.unwrap_or(0),
-        timestamp,
-        genesis.transactions.clone().unwrap_or_default(),
-        genesis.gas_used.unwrap_or_else(U256::zero),
-        genesis.logs_bloom.unwrap_or_else(Bloom::zero),
-    );
-    let genesis_batch_header = L1BatchHeader::new(
-        L1BatchNumber(0),
-        timestamp,
-        BaseSystemContractsHashes::default(),
-        protocol_version,
-    );
-
-    (genesis_block, genesis_batch_header)
-}
-
-pub fn create_genesis<TX>(
-    protocol_version: ProtocolVersionId,
-    timestamp: Option<u64>,
-) -> (Block<TX>, L1BatchHeader) {
-    let hash = L2BlockHasher::legacy_hash(L2BlockNumber(0));
-    let timestamp = timestamp.unwrap_or(NON_FORK_FIRST_BLOCK_TIMESTAMP);
-    let batch_env = L1BatchEnv {
-        previous_batch_hash: None,
-        number: L1BatchNumber(0),
-        timestamp,
-        fee_input: BatchFeeInput::pubdata_independent(0, 0, 0),
-        fee_account: Default::default(),
-        enforced_base_fee: None,
-        first_l2_block: L2BlockEnv {
-            number: 0,
-            timestamp,
-            prev_block_hash: Default::default(),
-            max_virtual_blocks_to_create: 0,
-        },
-    };
-    let genesis_block = create_block(
-        &batch_env,
-        hash,
-        H256::zero(),
-        0,
-        timestamp,
-        vec![],
-        U256::zero(),
-        Bloom::zero(),
-    );
-    let genesis_batch_header = L1BatchHeader::new(
-        L1BatchNumber(0),
-        timestamp,
-        BaseSystemContractsHashes::default(),
-        protocol_version,
-    );
-
-    (genesis_block, genesis_batch_header)
-}
-
-#[allow(clippy::too_many_arguments)]
-pub fn create_block<TX>(
-    batch_env: &L1BatchEnv,
-    hash: H256,
-    parent_hash: H256,
-    number: u64,
-    timestamp: u64,
-    transactions: Vec<TX>,
-    gas_used: U256,
-    logs_bloom: Bloom,
-) -> Block<TX> {
-    Block {
-        hash,
-        parent_hash,
-        uncles_hash: EMPTY_UNCLES_HASH, // Static for non-PoW chains, see EIP-3675
-        number: U64::from(number),
-        l1_batch_number: Some(U64::from(batch_env.number.0)),
-        base_fee_per_gas: U256::from(get_batch_base_fee(batch_env, VmVersion::latest())),
-        timestamp: U256::from(timestamp),
-        l1_batch_timestamp: Some(U256::from(batch_env.timestamp)),
-        transactions,
-        gas_used,
-        gas_limit: U256::from(get_max_batch_gas_limit(VmVersion::latest())),
-        logs_bloom,
-        author: Address::default(), // Matches core's behavior, irrelevant for ZKsync
-        state_root: H256::default(), // Intentionally empty as blocks in ZKsync don't have state - batches do
-        transactions_root: H256::default(), // Intentionally empty as blocks in ZKsync don't have state - batches do
-        receipts_root: H256::default(), // Intentionally empty as blocks in ZKsync don't have state - batches do
-        extra_data: Bytes::default(),   // Matches core's behavior, not used in ZKsync
-        difficulty: U256::default(), // Empty for non-PoW chains, see EIP-3675, TODO: should be 2500000000000000 to match DIFFICULTY opcode
-        total_difficulty: U256::default(), // Empty for non-PoW chains, see EIP-3675
-        seal_fields: vec![],         // Matches core's behavior, TODO: remove
-        uncles: vec![],              // Empty for non-PoW chains, see EIP-3675
-        size: U256::default(),       // Matches core's behavior, TODO: perhaps it should be computed
-        mix_hash: H256::default(),   // Empty for non-PoW chains, see EIP-3675
-        nonce: H64::default(),       // Empty for non-PoW chains, see EIP-3675
-    }
-}
-
-/// Information about the executed transaction.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TxExecutionInfo {
-    pub tx: Transaction,
-    // Batch number where transaction was executed.
-    pub batch_number: u32,
-    pub miniblock_number: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TransactionResult {
-    pub info: TxExecutionInfo,
-    pub new_bytecodes: Vec<(H256, Vec<u8>)>,
-    pub receipt: TransactionReceipt,
-    pub debug: DebugCall,
-}
-
-impl TransactionResult {
-    /// Returns the debug information for the transaction.
-    /// If `only_top` is true - will only return the top level call.
-    pub fn debug_info(&self, only_top: bool) -> DebugCall {
-        let calls = if only_top {
-            vec![]
-        } else {
-            self.debug.calls.clone()
-        };
-        DebugCall {
-            calls,
-            ..self.debug.clone()
-        }
-    }
-}
-
-/// Creates a restorable snapshot for the [InMemoryNodeInner]. The snapshot contains all the necessary
-/// data required to restore the [InMemoryNodeInner] state to a previous point in time.
-#[derive(Debug, Clone, Default)]
-pub struct Snapshot {
-    pub(crate) current_batch: L1BatchNumber,
-    pub(crate) current_block: L2BlockNumber,
-    pub(crate) current_block_hash: H256,
-    // Currently, the fee is static and the fee input provider is immutable during the test node life cycle,
-    // but in the future, it may contain some mutable state.
-    pub(crate) fee_input_provider: TestNodeFeeInputProvider,
-    pub(crate) tx_results: HashMap<H256, TransactionResult>,
-    pub(crate) blocks: HashMap<H256, Block<TransactionVariant>>,
-    pub(crate) hashes: HashMap<L2BlockNumber, H256>,
-    pub(crate) filters: EthFilters,
-    pub(crate) impersonation_state: ImpersonationState,
-    pub(crate) rich_accounts: HashSet<H160>,
-    pub(crate) previous_states: IndexMap<H256, HashMap<StorageKey, StorageValue>>,
-    pub(crate) raw_storage: InMemoryStorage,
-    pub(crate) value_read_cache: HashMap<StorageKey, H256>,
-    pub(crate) factory_dep_cache: HashMap<H256, Option<Vec<u8>>>,
-}
 
 /// In-memory node, that can be used for local & unit testing.
 /// It also supports the option of forking testnet/mainnet.
@@ -398,7 +180,7 @@ impl InMemoryNode {
         let storage = StorageView::new(inner.read_storage()).to_rc_ptr();
 
         let mut vm = if self.system_contracts.use_zkos {
-            AnvilVM::ZKOs(super::zkos::ZKOsVM::<_, HistoryDisabled>::new(
+            AnvilVM::ZKOs(ZKOsVM::<_, HistoryDisabled>::new(
                 batch_env,
                 system_env,
                 storage,
@@ -591,23 +373,6 @@ impl InMemoryNode {
     }
 }
 
-pub fn load_last_l1_batch<S: ReadStorage>(storage: StoragePtr<S>) -> Option<(u64, u64)> {
-    // Get block number and timestamp
-    let current_l1_batch_info_key = StorageKey::new(
-        AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
-        SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
-    );
-    let mut storage_ptr = storage.borrow_mut();
-    let current_l1_batch_info = storage_ptr.read_value(&current_l1_batch_info_key);
-    let (batch_number, batch_timestamp) = unpack_block_info(h256_to_u256(current_l1_batch_info));
-    let block_number = batch_number as u32;
-    if block_number == 0 {
-        // The block does not exist yet
-        return None;
-    }
-    Some((batch_number, batch_timestamp))
-}
-
 // Test utils
 // TODO: Consider builder pattern with sensible defaults
 // #[cfg(test)]
@@ -685,7 +450,7 @@ impl InMemoryNode {
     pub async fn apply_txs(
         &self,
         txs: impl IntoIterator<Item = Transaction>,
-    ) -> AnvilNodeResult<Vec<TransactionReceipt>> {
+    ) -> AnvilNodeResult<Vec<zksync_types::api::TransactionReceipt>> {
         use backon::{ConstantBuilder, Retryable};
         use std::time::Duration;
 
@@ -695,7 +460,6 @@ impl InMemoryNode {
 
         let mut receipts = Vec::with_capacity(expected_tx_hashes.len());
         for tx_hash in expected_tx_hashes {
-            tokio::time::sleep(Duration::from_millis(100)).await;
             let receipt = (|| async {
                 self.blockchain
                     .get_tx_receipt(&tx_hash)
@@ -704,8 +468,8 @@ impl InMemoryNode {
             })
             .retry(
                 ConstantBuilder::default()
-                    .with_delay(Duration::from_millis(100))
-                    .with_max_times(3),
+                    .with_delay(Duration::from_millis(500))
+                    .with_max_times(5),
             )
             .await?;
             receipts.push(receipt);

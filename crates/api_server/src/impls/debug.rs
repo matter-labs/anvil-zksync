@@ -1,5 +1,5 @@
 use anvil_zksync_api_decl::DebugNamespaceServer;
-use anvil_zksync_core::node::InMemoryNode;
+use crate::node::InMemoryNode;
 use jsonrpsee::core::{async_trait, RpcResult};
 use zksync_types::api::{BlockNumber, CallTracerBlockResult, CallTracerResult, TracerConfig};
 use zksync_types::transaction_request::CallRequest;

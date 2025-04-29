@@ -7,7 +7,7 @@ use anvil_zksync_api_decl::{
     EthNamespaceServer, EthTestNamespaceServer, EvmNamespaceServer, NetNamespaceServer,
     Web3NamespaceServer, ZksNamespaceServer,
 };
-use anvil_zksync_core::node::InMemoryNode;
+use crate::node::InMemoryNode;
 use anvil_zksync_l1_sidecar::L1Sidecar;
 use futures::future::BoxFuture;
 use futures::FutureExt;
