@@ -466,12 +466,12 @@ impl BuiltinNetwork {
     pub fn to_fork_config(&self) -> ForkConfig {
         match self {
             BuiltinNetwork::Era => ForkConfig {
-                url: "https://mainnet.era.zksync.io:443".parse().unwrap(),
+                url: "https://mainnet.era.zksync.io".parse().unwrap(),
                 estimate_gas_price_scale_factor: 1.5,
                 estimate_gas_scale_factor: 1.3,
             },
             BuiltinNetwork::EraTestnet => ForkConfig {
-                url: "https://sepolia.era.zksync.dev:443".parse().unwrap(),
+                url: "https://sepolia.era.zksync.dev".parse().unwrap(),
                 estimate_gas_price_scale_factor: 2.0,
                 estimate_gas_scale_factor: 1.3,
             },

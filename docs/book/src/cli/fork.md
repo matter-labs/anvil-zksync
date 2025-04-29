@@ -17,8 +17,8 @@ anvil-zksync fork --fork-url <FORK_URL> [OPTIONS]
 
 | Alias                             | RPC endpoint                                          |
 |-----------------------------------|-------------------------------------------------------|
-| `era`, `mainnet`                  | `https://mainnet.era.zksync.io:443`                   |
-| `era-testnet`, `sepolia-testnet`  | `https://sepolia.era.zksync.dev:443`                  |
+| `era`, `mainnet`                  | `https://mainnet.era.zksync.io`                   |
+| `era-testnet`, `sepolia-testnet`  | `https://sepolia.era.zksync.dev`                  |
 | `abstract`                        | `https://api.mainnet.abs.xyz`                         |
 | `abstract-testnet`                | `https://api.testnet.abs.xyz`                         |
 | `sophon`                          | `https://rpc.sophon.xyz`                              |
