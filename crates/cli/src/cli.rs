@@ -371,7 +371,6 @@ pub struct ForkArgs {
     ///   • `lens` / `lens-testnet`
     ///   • `openzk` / `openzk-testnet`
     ///   • `wonderchain-testnet`
-    ///   • `xsolla-testnet`
     ///   • `zkcandy`
     ///  - http://XXX:YY
     #[arg(
@@ -417,7 +416,6 @@ pub struct ReplayArgs {
     ///   • `lens` / `lens-testnet`
     ///   • `openzk` / `openzk-testnet`
     ///   • `wonderchain-testnet`
-    ///   • `xsolla-testnet`
     ///   • `zkcandy`
     ///   • custom HTTP(S) URL
     ///  - http://XXX:YY
@@ -443,6 +441,7 @@ pub enum BuiltinNetwork {
     EraTestnet,
     Abstract,
     AbstractTestnet,
+    #[value(alias = "sophon-mainnet")]
     Sophon,
     SophonTestnet,
     Cronos,
