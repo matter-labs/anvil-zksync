@@ -1211,14 +1211,14 @@ mod tests {
             "/some/path",
             "fork",
             "--fork-url",
-            "mainnet",
+            "era",
         ])
         .into_telemetry_props();
         let json = args.to_inner();
         let expected_json: serde_json::Value = json!({
             "command": {
                 "args": {
-                    "fork_url": "Mainnet"
+                    "fork_url": "Builtin(Era)"
                 },
                 "name": "fork"
             },
