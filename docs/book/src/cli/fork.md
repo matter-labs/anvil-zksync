@@ -15,14 +15,22 @@ anvil-zksync fork --fork-url <FORK_URL> [OPTIONS]
 
 ### Named chain aliases
 
-| Alias              | RPC endpoint                      |
-| ------------------ | --------------------------------- |
-| `mainnet`          | `https://mainnet.era.zksync.io`   |
-| `sepolia-testnet`  | `https://sepolia.era.zksync.dev`  |
-| `abstract`         | `https://api.mainnet.abs.xyz/`    |
-| `abstract-testnet` | `https://api.testnet.abs.xyz`     |
-| `sophon`           | `https://rpc.sophon.xyz/`         |
-| `sophon-testnet`   | `https://rpc.testnet.sophon.xyz/` |
+| Alias                             | RPC endpoint                                          |
+|-----------------------------------|-------------------------------------------------------|
+| `era`, `mainnet`                  | `https://mainnet.era.zksync.io`                   |
+| `era-testnet`, `sepolia-testnet`  | `https://sepolia.era.zksync.dev`                  |
+| `abstract`                        | `https://api.mainnet.abs.xyz`                         |
+| `abstract-testnet`                | `https://api.testnet.abs.xyz`                         |
+| `sophon`                          | `https://rpc.sophon.xyz`                              |
+| `sophon-testnet`                  | `https://rpc.testnet.sophon.xyz`                      |
+| `cronos`                          | `https://mainnet.zkevm.cronos.org`                    |
+| `cronos-testnet`                  | `https://testnet.zkevm.cronos.org`                    |
+| `lens`                            | `https://rpc.lens.xyz`                                |
+| `lens-testnet`                    | `https://rpc.testnet.lens.xyz`                        |
+| `openzk`                          | `https://rpc.openzk.net`                              |
+| `openzk-testnet`                  | `https://openzk-testnet.rpc.caldera.xyz/http`         |
+| `wonderchain-testnet`             | `https://rpc.testnet.wonderchain.org`                 |
+| `zkcandy`                         | `https://rpc.zkcandy.io`                              |
 
 ## Options
 
