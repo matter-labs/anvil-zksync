@@ -27,7 +27,7 @@ pub const NON_FORK_FIRST_BLOCK_TIMESTAMP: u64 = 1_000;
 // TODO: Test-only constant, move to a test utils crate
 pub const DEFAULT_ACCOUNT_BALANCE: u128 = 1_000 * 10u128.pow(18);
 
-/// EVM emulator
+/// Pseudo caller that is allowed to call system-only methods
 pub const PSEUDO_CALLER: H160 = H160([0xff; 20]);
 pub const ENABLER_CALLDATA: &[u8] = &hex!(
     "fe06380c" // selector setAllowedBytecodeTypesToDeploy(uint8)
