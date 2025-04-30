@@ -1155,7 +1155,6 @@ dependencies = [
 name = "anvil_zksync_types"
 version = "0.5.1"
 dependencies = [
- "alloy",
  "anvil_zksync_common",
  "clap",
  "hex",
