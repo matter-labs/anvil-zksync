@@ -1,5 +1,5 @@
 use crate::bytecode_override::override_bytecodes;
-use crate::cli::{Cli, Command, ForkUrl, PeriodicStateDumper};
+use crate::cli::{BuiltinNetwork, Cli, Command, ForkUrl, PeriodicStateDumper};
 use crate::utils::update_with_fork_details;
 use alloy::primitives::Bytes;
 use anvil_zksync_api_server::NodeServerBuilder;
@@ -130,9 +130,12 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
                 (None, Vec::new())
             } else {
                 // Initialize the client to get the fee params
-                let client = ForkClient::at_block_number(ForkUrl::Mainnet.to_config(), None)
-                    .await
-                    .map_err(to_domain)?;
+                let client = ForkClient::at_block_number(
+                    ForkUrl::Builtin(BuiltinNetwork::Era).to_config(),
+                    None,
+                )
+                .await
+                .map_err(to_domain)?;
                 let fee = client.get_fee_params().await.map_err(to_domain)?;
 
                 match fee {

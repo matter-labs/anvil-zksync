@@ -38,7 +38,7 @@ pub const TELEMETRY_SENSITIVE_VALUE: &str = "***";
 
 pub fn get_cli_command_telemetry_props(command: Option<Command>) -> Option<TelemetryProps> {
     let get_sensitive_fork_url = |fork_url| match fork_url {
-        ForkUrl::Other(_) => Some(TELEMETRY_SENSITIVE_VALUE.to_string()),
+        ForkUrl::Custom(_) => Some(TELEMETRY_SENSITIVE_VALUE.to_string()),
         _ => Some(format!("{:?}", fork_url)),
     };
 
