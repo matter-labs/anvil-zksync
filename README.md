@@ -80,46 +80,46 @@ cargo build --release
 
 ## ⚡️ Quick‑start
 
-1. **Start your local zkSync node**
+**Start a local ZK chain node**
 
-   ```bash
-   anvil-zksync run
-   ```
+```bash
+anvil-zksync run
+```
 
-   Launches a fast, in-memory ZK chain for local development.
+Launches a fast, in-memory ZK chain for local development.
 
-2. **(Optional) Fork any Elastic Network chain**
+**Fork any Elastic Network chain**
 
-   ```bash
-   anvil-zksync fork --fork-url era
-   ```
+```bash
+anvil-zksync fork --fork-url era
+```
 
-   Mirror mainnet, testnet, any Elastic ZK chain, or use an RPC
+Mirror mainnet, testnet, or any Elastic ZK chain using a custom RPC.
 
-3. **Replay transactions**
+**Replay transactions**
 
-   ```bash
-   anvil-zksync -vv replay_tx --fork-url era 0x0820a939dfe83221f44a6f0f81f8059ec8a7a4e17006965a8b0c146a2c4a00c2
-   ```
+```bash
+anvil-zksync -vv replay_tx --fork-url era 0x0820a939dfe83221f44a6f0f81f8059ec8a7a4e17006965a8b0c146a2c4a00c2
+```
 
-   Debug live transactions with full VM call‑trace and verbose output.
+Debug live transactions with full VM call‑trace and verbose output.
 
-4. **Integrate an L1 node**
+**Integrate an L1 node**
 
-   For L1–L2 interactions, choose one of the following flags:
+For L1–L2 interactions, choose one of the following:
 
-   - **Spawn a local L1** (defaults to port `8012`):
+- **Spawn a local L1** (defaults to port `8012`):
 
-     ```bash
-     anvil-zksync --spawn-l1 [port]
-     ```
+  ```bash
+  anvil-zksync --spawn-l1 [port]
+  ```
 
-   - **Connect to an external L1** (ensure it’s started with `--no-request-size-limit`):
+- **Connect to an external L1** (must be started with `--no-request-size-limit`):
 
-     ```bash
-     anvil --no-request-size-limit
-     anvil-zksync --external-l1 http://localhost:8545
-     ```
+  ```bash
+  anvil --no-request-size-limit
+  anvil-zksync --external-l1 http://localhost:8545
+  ```
 
 > **Note:** `--spawn-l1` and `--external-l1` are mutually exclusive.
 
