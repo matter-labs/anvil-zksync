@@ -1,12 +1,11 @@
 use anvil_zksync_config::types::SystemContractsOptions;
-use std::collections::HashMap;
+use std::{collections::HashMap, path::Path};
 use zksync_multivm::interface::storage::ReadStorage;
 use zksync_types::{
-    get_code_key, get_system_context_init_logs, L2ChainId, StorageKey, StorageLog, StorageValue,
-    H256,
+    get_code_key, get_known_code_key, get_system_context_init_logs, L2ChainId, ProtocolVersionId,
+    StorageKey, StorageLog, StorageValue, H256,
 };
 
-pub mod storage_view;
 pub mod system_contracts;
 
 /// In-memory storage.
@@ -21,19 +20,29 @@ impl InMemoryStorage {
     pub fn with_system_contracts_and_chain_id(
         chain_id: L2ChainId,
         bytecode_hasher: impl Fn(&[u8]) -> H256,
-        system_contracts_options: &SystemContractsOptions,
-        use_evm_emulator: bool,
+        system_contracts_options: SystemContractsOptions,
+        protocol_version: ProtocolVersionId,
+        system_contracts_path: Option<&Path>,
     ) -> Self {
-        let contracts =
-            system_contracts::get_deployed_contracts(system_contracts_options, use_evm_emulator);
+        let contracts = system_contracts::get_deployed_contracts(
+            system_contracts_options,
+            protocol_version,
+            system_contracts_path,
+        );
 
         let system_context_init_log = get_system_context_init_logs(chain_id);
-
         let state = contracts
             .iter()
-            .map(|contract| {
+            .flat_map(|contract| {
+                let bytecode_hash = bytecode_hasher(&contract.bytecode);
+
                 let deployer_code_key = get_code_key(contract.account_id.address());
-                StorageLog::new_write_log(deployer_code_key, bytecode_hasher(&contract.bytecode))
+                let is_known_code_key = get_known_code_key(&bytecode_hash);
+
+                [
+                    StorageLog::new_write_log(deployer_code_key, bytecode_hash),
+                    StorageLog::new_write_log(is_known_code_key, H256::from_low_u64_be(1)),
+                ]
             })
             .chain(system_context_init_log)
             .filter_map(|log| (log.is_write()).then_some((log.key, log.value)))
@@ -47,6 +56,10 @@ impl InMemoryStorage {
             state,
             factory_deps,
         }
+    }
+
+    pub fn read_value_opt(&self, key: &StorageKey) -> Option<StorageValue> {
+        self.state.get(key).copied()
     }
 
     /// Sets the storage `value` at the specified `key`.

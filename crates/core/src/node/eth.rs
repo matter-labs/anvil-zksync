@@ -1,10 +1,12 @@
-use std::collections::HashSet;
-
+use crate::formatter::ExecutionErrorReport;
+use crate::node::error::{ToHaltError, ToRevertReason};
+use anvil_zksync_common::utils::numbers::h256_to_u64;
+use anvil_zksync_common::{sh_err, sh_println, sh_warn};
 use anyhow::Context as _;
-use colored::Colorize;
+use std::collections::HashSet;
+use zksync_error::anvil_zksync::{halt::HaltError, revert::RevertError};
 use zksync_multivm::interface::ExecutionResult;
 use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
-use zksync_types::h256_to_u256;
 use zksync_types::{
     api,
     api::{Block, BlockIdVariant, BlockNumber, TransactionVariant},
@@ -13,6 +15,7 @@ use zksync_types::{
     transaction_request::TransactionRequest,
     PackedEthSignature, MAX_L1_TRANSACTION_GAS_LIMIT,
 };
+use zksync_types::{h256_to_u256, Transaction};
 use zksync_types::{
     web3::{self, Bytes},
     Address, H160, H256, U256, U64,
@@ -25,7 +28,7 @@ use zksync_web3_decl::{
 use crate::{
     filters::{FilterType, LogFilter},
     node::{InMemoryNode, MAX_TX_SIZE, PROTOCOL_VERSION},
-    utils::{h256_to_u64, TransparentError},
+    utils::TransparentError,
 };
 
 impl InMemoryNode {
@@ -39,9 +42,20 @@ impl InMemoryNode {
             MAX_TX_SIZE,
             self.system_contracts.allow_no_target(),
         )?;
+
+        // Warn if target address has no code
+        if let Some(to_address) = tx.execute.contract_address {
+            let code_key = get_code_key(&to_address);
+            if self.storage.read_value_alt(&code_key).await?.is_zero() {
+                sh_warn!(
+                    "Read only call to address {to_address}, which is not associated with any contract."
+                )
+            }
+        }
+
         tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
         let call_result = self
-            .run_l2_call(tx, system_contracts)
+            .run_l2_call(tx.clone(), system_contracts)
             .await
             .context("Invalid data due to invalid name")?;
 
@@ -55,7 +69,11 @@ impl InMemoryNode {
                     message
                 );
 
-                tracing::info!("{}", pretty_message.on_red());
+                let revert_reason: RevertError = output.clone().to_revert_reason().await;
+                let tx = Transaction::from(tx);
+                let error_report = ExecutionErrorReport::new(&revert_reason, Some(&tx));
+                sh_println!("{}", error_report);
+
                 Err(Web3Error::SubmitTransactionError(
                     pretty_message,
                     output.encoded_data(),
@@ -69,7 +87,11 @@ impl InMemoryNode {
                     message
                 );
 
-                tracing::info!("{}", pretty_message.on_red());
+                let halt_error: HaltError = reason.clone().to_halt_error().await;
+                let tx = Transaction::from(tx);
+                let error_report = ExecutionErrorReport::new(&halt_error, Some(&tx));
+                sh_println!("{}", error_report);
+
                 Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
             }
         }
@@ -90,61 +112,61 @@ impl InMemoryNode {
             return Err(err.into());
         };
 
-        self.pool.add_tx(l2_tx);
+        self.pool.add_tx(l2_tx.into());
         Ok(hash)
     }
 
     pub async fn send_transaction_impl(
         &self,
-        tx: zksync_types::transaction_request::CallRequest,
+        mut tx: zksync_types::transaction_request::CallRequest,
     ) -> Result<H256, Web3Error> {
         let (chain_id, l2_gas_price) = {
             let reader = self.inner.read().await;
             (self.chain_id().await, reader.fee_input_provider.gas_price())
         };
 
-        let mut tx_req = TransactionRequest::from(tx.clone());
         // Users might expect a "sensible default"
         if tx.gas.is_none() {
-            tx_req.gas = U256::from(MAX_L1_TRANSACTION_GAS_LIMIT);
+            tx.gas = Some(U256::from(MAX_L1_TRANSACTION_GAS_LIMIT));
         }
-
-        tx_req.chain_id = Some(chain_id.as_u64());
 
         // EIP-1559 gas fields should be processed separately
         if tx.gas_price.is_some() {
             if tx.max_fee_per_gas.is_some() || tx.max_priority_fee_per_gas.is_some() {
                 let err = "Transaction contains unsupported fields: max_fee_per_gas or max_priority_fee_per_gas";
-                tracing::error!("{err}");
+                sh_err!("{err}");
                 return Err(TransparentError(err.into()).into());
             }
         } else {
-            tx_req.gas_price = tx.max_fee_per_gas.unwrap_or(U256::from(l2_gas_price));
-            tx_req.max_priority_fee_per_gas = tx.max_priority_fee_per_gas;
-            if tx_req.transaction_type.is_none() {
-                tx_req.transaction_type = Some(zksync_types::EIP_1559_TX_TYPE.into());
+            tx.gas_price = Some(tx.max_fee_per_gas.unwrap_or(U256::from(l2_gas_price)));
+            tx.max_priority_fee_per_gas = Some(tx.max_priority_fee_per_gas.unwrap_or(U256::zero()));
+            if tx.transaction_type.is_none() {
+                tx.transaction_type = Some(zksync_types::EIP_1559_TX_TYPE.into());
             }
         }
-        // Needed to calculate hash
-        tx_req.r = Some(U256::default());
-        tx_req.s = Some(U256::default());
-        tx_req.v = Some(U64::from(27));
+        if tx.nonce.is_none() {
+            let nonce_key = self.storage_key_layout.get_nonce_key(&tx.from.unwrap());
+            tx.nonce = Some(h256_to_u256(self.storage.read_value_alt(&nonce_key).await?) + 1);
+        }
 
-        let hash = tx_req.get_tx_hash()?;
+        let mut tx_req = TransactionRequest::from(tx.clone());
+        tx_req.chain_id = Some(chain_id.as_u64());
+        // Needed to calculate hash. `v` is set to 0 as EIP1559 tx hash calculation uses boolean
+        // parity instead of raw `v` value (i.e. 27 becomes 0, 28 becomes 1).
+        tx_req.r = Some(U256::zero());
+        tx_req.s = Some(U256::zero());
+        tx_req.v = Some(U64::from(0));
+
         let bytes = tx_req.get_signed_bytes(&PackedEthSignature::from_rsv(
-            &H256::default(),
-            &H256::default(),
-            27,
+            &H256::zero(),
+            &H256::zero(),
+            0,
         ))?;
 
+        let (mut tx_req, hash) = TransactionRequest::from_bytes(&bytes, chain_id)?;
+        tx_req.from = tx.from;
         let mut l2_tx: L2Tx =
             L2Tx::from_request(tx_req, MAX_TX_SIZE, self.system_contracts.allow_no_target())?;
-
-        // `v` was overwritten with 0 during converting into l2 tx
-        let mut signature = vec![0u8; 65];
-        signature[64] = 27;
-        l2_tx.common_data.signature = signature;
-
         l2_tx.set_input(bytes, hash);
 
         if !self
@@ -155,11 +177,11 @@ impl InMemoryNode {
                 "Initiator address {:?} is not allowed to perform transactions",
                 l2_tx.common_data.initiator_address
             );
-            tracing::error!("{err}");
+            tracing::error!("\n{err}");
             return Err(TransparentError(err).into());
         }
 
-        self.pool.add_tx(l2_tx);
+        self.pool.add_tx(l2_tx.into());
         Ok(hash)
     }
 }
@@ -250,7 +272,17 @@ impl InMemoryNode {
     ) -> anyhow::Result<U256> {
         let nonce_key = self.storage_key_layout.get_nonce_key(&address);
         match self.storage.read_value_alt(&nonce_key).await {
-            Ok(result) => Ok(h256_to_u64(result).into()),
+            Ok(result) => {
+                // The storage slot contains the full nonce.
+                // Full nonce is a composite one: it includes both account nonce
+                // (number of transactions initiated by the account) and
+                // deployer nonce (number of smart contracts deployed by the
+                // account).
+                // We need to cut the lowest 64 bits to get an account nonce.
+                // See functions: `decompose_full_nonce`, `nonces_to_full_nonce`
+                // https://github.com/matter-labs/zksync-era/blob/8063281579e4e02482823f09997244de153db87e/core/lib/types/src/utils.rs#L42-L52
+                Ok(h256_to_u64(result).into())
+            }
             Err(error) => Err(anyhow::anyhow!("failed to read nonce storage: {error}")),
         }
     }
@@ -525,7 +557,7 @@ mod tests {
     use crate::node::fork::{ForkClient, ForkConfig};
     use crate::node::TransactionResult;
     use crate::{
-        node::{compute_hash, InMemoryNode},
+        node::InMemoryNode,
         testing::{
             self, default_tx_debug_info, ForkBlockConfig, LogBuilder, MockServer,
             TransactionResponseBuilder,
@@ -537,6 +569,7 @@ mod tests {
     use maplit::hashmap;
     use url::Url;
     use zksync_multivm::utils::get_max_batch_gas_limit;
+    use zksync_types::block::L2BlockHasher;
     use zksync_types::l2::TransactionType;
     use zksync_types::vm::VmVersion;
     use zksync_types::{
@@ -611,7 +644,7 @@ mod tests {
     async fn test_get_fee_history_with_multiple_blocks() {
         // Arrange
         let node = InMemoryNode::test(None);
-        testing::apply_tx(&node, H256::repeat_byte(0x01)).await;
+        testing::apply_tx(&node).await;
 
         // Act
         let latest_block = node
@@ -662,7 +695,7 @@ mod tests {
             .expect("no block");
 
         assert_eq!(0, block.number.as_u64());
-        assert_eq!(compute_hash(0, []), block.hash);
+        assert_eq!(L2BlockHasher::legacy_hash(L2BlockNumber(0)), block.hash);
     }
 
     #[tokio::test]
@@ -670,7 +703,10 @@ mod tests {
         let node = InMemoryNode::test(None);
 
         let block = node
-            .get_block_impl(api::BlockId::Hash(compute_hash(0, [])), false)
+            .get_block_impl(
+                api::BlockId::Hash(L2BlockHasher::legacy_hash(L2BlockNumber(0))),
+                false,
+            )
             .await
             .expect("failed fetching block by hash")
             .expect("no block");
@@ -681,7 +717,7 @@ mod tests {
     #[tokio::test]
     async fn test_node_produces_blocks_with_parent_hash_links() {
         let node = InMemoryNode::test(None);
-        testing::apply_tx(&node, H256::repeat_byte(0x01)).await;
+        testing::apply_tx(&node).await;
 
         let genesis_block = node
             .get_block_impl(api::BlockId::Number(BlockNumber::from(0)), false)
@@ -706,8 +742,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_block_by_hash_for_produced_block() {
         let node = InMemoryNode::test(None);
-        let tx_hash = H256::repeat_byte(0x01);
-        let (expected_block_hash, _, _) = testing::apply_tx(&node, tx_hash).await;
+        let (expected_block_hash, _, tx) = testing::apply_tx(&node).await;
         let genesis_block = node
             .get_block_impl(api::BlockId::Number(BlockNumber::from(0)), false)
             .await
@@ -741,7 +776,7 @@ mod tests {
             total_difficulty: Default::default(),
             seal_fields: vec![],
             uncles: vec![],
-            transactions: vec![TransactionVariant::Hash(tx_hash)],
+            transactions: vec![TransactionVariant::Hash(tx.hash())],
             size: Default::default(),
             mix_hash: Default::default(),
             nonce: Default::default(),
@@ -826,8 +861,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_block_by_number_for_produced_block() {
         let node = InMemoryNode::test(None);
-        let tx_hash = H256::repeat_byte(0x01);
-        let (expected_block_hash, _, _) = testing::apply_tx(&node, tx_hash).await;
+        let (expected_block_hash, _, tx) = testing::apply_tx(&node).await;
         let expected_block_number = 1;
         let genesis_block = node
             .get_block_impl(api::BlockId::Number(BlockNumber::from(0)), false)
@@ -865,7 +899,7 @@ mod tests {
             total_difficulty: Default::default(),
             seal_fields: vec![],
             uncles: vec![],
-            transactions: vec![TransactionVariant::Hash(tx_hash)],
+            transactions: vec![TransactionVariant::Hash(tx.hash())],
             size: Default::default(),
             mix_hash: Default::default(),
             nonce: Default::default(),
@@ -883,8 +917,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_block_by_number_for_produced_block_full_txs() {
         let node = InMemoryNode::test(None);
-        let tx_hash = H256::repeat_byte(0x01);
-        let (block_hash, _, tx) = testing::apply_tx(&node, tx_hash).await;
+        let (block_hash, _, tx) = testing::apply_tx(&node).await;
         let expected_block_number = 1;
 
         let mut actual_block = node
@@ -902,7 +935,7 @@ mod tests {
             TransactionVariant::Hash(_) => unreachable!(),
         };
         let expected_tx = api::Transaction {
-            hash: tx_hash,
+            hash: tx.hash(),
             nonce: U256::from(0),
             block_hash: Some(block_hash),
             block_number: Some(U64::from(expected_block_number)),
@@ -963,7 +996,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_block_by_number_for_latest_block_produced_locally() {
         let node = InMemoryNode::test(None);
-        testing::apply_tx(&node, H256::repeat_byte(0x01)).await;
+        testing::apply_tx(&node).await;
 
         // The latest block, will be the 'virtual' one with 0 transactions (block 2).
         let virtual_block = node
@@ -1065,7 +1098,7 @@ mod tests {
     async fn test_get_block_transaction_count_by_hash_for_produced_block() {
         let node = InMemoryNode::test(None);
 
-        let (expected_block_hash, _, _) = testing::apply_tx(&node, H256::repeat_byte(0x01)).await;
+        let (expected_block_hash, _, _) = testing::apply_tx(&node).await;
         let actual_transaction_count = node
             .get_block_transaction_count_impl(api::BlockId::Hash(expected_block_hash))
             .await
@@ -1107,7 +1140,7 @@ mod tests {
     async fn test_get_block_transaction_count_by_number_for_produced_block() {
         let node = InMemoryNode::test(None);
 
-        testing::apply_tx(&node, H256::repeat_byte(0x01)).await;
+        testing::apply_tx(&node).await;
         let actual_transaction_count = node
             .get_block_transaction_count_impl(api::BlockId::Number(api::BlockNumber::Number(
                 U64::from(1),
@@ -1213,11 +1246,10 @@ mod tests {
     #[tokio::test]
     async fn test_get_transaction_receipt_uses_produced_block_hash() {
         let node = InMemoryNode::test(None);
-        let tx_hash = H256::repeat_byte(0x01);
-        let (expected_block_hash, _, _) = testing::apply_tx(&node, tx_hash).await;
+        let (expected_block_hash, _, tx) = testing::apply_tx(&node).await;
 
         let actual_tx_receipt = node
-            .get_transaction_receipt_impl(tx_hash)
+            .get_transaction_receipt_impl(tx.hash())
             .await
             .expect("failed fetching transaction receipt by hash")
             .expect("no transaction receipt");
@@ -1296,7 +1328,7 @@ mod tests {
             .new_block_filter_impl()
             .await
             .expect("failed creating filter");
-        let (block_hash, _, _) = testing::apply_tx(&node, H256::repeat_byte(0x1)).await;
+        let (block_hash, _, _) = testing::apply_tx(&node).await;
 
         match node
             .get_filter_changes_impl(filter_id)
@@ -1334,7 +1366,7 @@ mod tests {
             })
             .await
             .expect("failed creating filter");
-        testing::apply_tx(&node, H256::repeat_byte(0x1)).await;
+        testing::apply_tx(&node).await;
 
         match node
             .get_filter_changes_impl(filter_id)
@@ -1362,14 +1394,14 @@ mod tests {
             .new_pending_transaction_filter_impl()
             .await
             .expect("failed creating filter");
-        testing::apply_tx(&node, H256::repeat_byte(0x1)).await;
+        let (_, _, tx) = testing::apply_tx(&node).await;
 
         match node
             .get_filter_changes_impl(filter_id)
             .await
             .expect("failed getting filter changes")
         {
-            FilterChanges::Hashes(result) => assert_eq!(vec![H256::repeat_byte(0x1)], result),
+            FilterChanges::Hashes(result) => assert_eq!(vec![tx.hash()], result),
             changes => panic!("unexpected filter changes: {:?}", changes),
         }
 
@@ -1399,7 +1431,7 @@ mod tests {
             .set_value(input_storage_key, input_storage_value);
         let initial_miniblock = node.blockchain.current_block_number().await;
 
-        testing::apply_tx(&node, H256::repeat_byte(0x1)).await;
+        testing::apply_tx(&node).await;
         let current_miniblock = node.blockchain.current_block_number().await;
 
         for miniblock in initial_miniblock.0..current_miniblock.0 {
@@ -1579,7 +1611,6 @@ mod tests {
 
         testing::deploy_contract(
             &node,
-            H256::repeat_byte(0x1),
             &private_key,
             hex::decode(testing::STORAGE_CONTRACT_BYTECODE).unwrap(),
             None,
@@ -1613,7 +1644,6 @@ mod tests {
 
         let initial_block_hash = testing::deploy_contract(
             &node,
-            H256::repeat_byte(0x1),
             &private_key,
             hex::decode(testing::STORAGE_CONTRACT_BYTECODE).unwrap(),
             None,
@@ -1622,7 +1652,7 @@ mod tests {
         .await;
 
         // simulate a tx modifying the storage
-        testing::apply_tx(&node, H256::repeat_byte(0x2)).await;
+        testing::apply_tx(&node).await;
         let key = StorageKey::new(
             AccountTreeId::new(deployed_address),
             u256_to_h256(U256::from(0)),
@@ -1669,6 +1699,7 @@ mod tests {
                     H256::repeat_byte(0x1),
                     TransactionResult {
                         info: testing::default_tx_execution_info(),
+                        new_bytecodes: vec![],
                         receipt: TransactionReceipt {
                             logs: vec![LogBuilder::new()
                                 .set_address(H160::repeat_byte(0xa1))
@@ -1684,6 +1715,7 @@ mod tests {
                     H256::repeat_byte(0x2),
                     TransactionResult {
                         info: testing::default_tx_execution_info(),
+                        new_bytecodes: vec![],
                         receipt: TransactionReceipt {
                             logs: vec![
                                 LogBuilder::new()
@@ -1731,6 +1763,7 @@ mod tests {
                     H256::repeat_byte(0x1),
                     TransactionResult {
                         info: testing::default_tx_execution_info(),
+                        new_bytecodes: vec![],
                         receipt: TransactionReceipt {
                             logs: vec![LogBuilder::new()
                                 .set_address(H160::repeat_byte(0xa1))
@@ -1761,6 +1794,7 @@ mod tests {
                     H256::repeat_byte(0x1),
                     TransactionResult {
                         info: testing::default_tx_execution_info(),
+                        new_bytecodes: vec![],
                         receipt: TransactionReceipt {
                             logs: vec![LogBuilder::new()
                                 .set_address(H160::repeat_byte(0xa1))
@@ -1776,6 +1810,7 @@ mod tests {
                     H256::repeat_byte(0x2),
                     TransactionResult {
                         info: testing::default_tx_execution_info(),
+                        new_bytecodes: vec![],
                         receipt: TransactionReceipt {
                             logs: vec![
                                 LogBuilder::new()
@@ -1846,8 +1881,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_transaction_by_block_hash_and_index_returns_none_for_invalid_block_hash() {
         let node = InMemoryNode::test(None);
-        let input_tx_hash = H256::repeat_byte(0x01);
-        let (input_block_hash, _, _) = testing::apply_tx(&node, input_tx_hash).await;
+        let (input_block_hash, _, _) = testing::apply_tx(&node).await;
         let invalid_block_hash = H256::repeat_byte(0xab);
         assert_ne!(input_block_hash, invalid_block_hash);
 
@@ -1865,8 +1899,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_transaction_by_block_hash_and_index_returns_none_for_invalid_index() {
         let node = InMemoryNode::test(None);
-        let input_tx_hash = H256::repeat_byte(0x01);
-        let (input_block_hash, _, _) = testing::apply_tx(&node, input_tx_hash).await;
+        let (input_block_hash, _, _) = testing::apply_tx(&node).await;
 
         let result = node
             .get_transaction_by_block_and_index_impl(
@@ -1882,8 +1915,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_transaction_by_block_hash_and_index_returns_transaction_for_valid_input() {
         let node = InMemoryNode::test(None);
-        let input_tx_hash = H256::repeat_byte(0x01);
-        let (input_block_hash, _, _) = testing::apply_tx(&node, input_tx_hash).await;
+        let (input_block_hash, _, tx) = testing::apply_tx(&node).await;
 
         let actual_tx = node
             .get_transaction_by_block_and_index_impl(
@@ -1894,7 +1926,7 @@ mod tests {
             .expect("failed fetching transaction")
             .expect("no transaction");
 
-        assert_eq!(input_tx_hash, actual_tx.hash);
+        assert_eq!(tx.hash(), actual_tx.hash);
     }
 
     #[tokio::test]
@@ -1938,8 +1970,7 @@ mod tests {
     async fn test_get_transaction_by_block_number_and_index_returns_none_for_invalid_block_number()
     {
         let node = InMemoryNode::test(None);
-        let input_tx_hash = H256::repeat_byte(0x01);
-        let (input_block_hash, _, _) = testing::apply_tx(&node, input_tx_hash).await;
+        let (input_block_hash, _, _) = testing::apply_tx(&node).await;
         let invalid_block_hash = H256::repeat_byte(0xab);
         assert_ne!(input_block_hash, invalid_block_hash);
 
@@ -1957,8 +1988,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_transaction_by_block_number_and_index_returns_none_for_invalid_index() {
         let node = InMemoryNode::test(None);
-        let input_tx_hash = H256::repeat_byte(0x01);
-        testing::apply_tx(&node, input_tx_hash).await;
+        testing::apply_tx(&node).await;
 
         let result = node
             .get_transaction_by_block_and_index_impl(
@@ -1974,19 +2004,18 @@ mod tests {
     #[tokio::test]
     async fn test_get_transaction_by_block_number_and_index_returns_transaction_for_valid_input() {
         let node = InMemoryNode::test(None);
-        let input_tx_hash = H256::repeat_byte(0x01);
-        let (_, input_block_number, _) = testing::apply_tx(&node, input_tx_hash).await;
+        let (_, input_block_number, tx) = testing::apply_tx(&node).await;
 
         let actual_tx = node
             .get_transaction_by_block_and_index_impl(
-                api::BlockId::Number(BlockNumber::Number(input_block_number)),
+                api::BlockId::Number(BlockNumber::Number(U64::from(input_block_number.0))),
                 U64::from(0),
             )
             .await
             .expect("failed fetching transaction")
             .expect("no transaction");
 
-        assert_eq!(input_tx_hash, actual_tx.hash);
+        assert_eq!(tx.hash(), actual_tx.hash);
     }
 
     #[tokio::test]

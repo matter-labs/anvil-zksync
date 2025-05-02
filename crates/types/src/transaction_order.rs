@@ -1,6 +1,6 @@
 use std::fmt;
 use std::str::FromStr;
-use zksync_types::{l2::L2Tx, U256};
+use zksync_types::{Transaction, U256};
 
 /// Metric value for the priority of a transaction.
 ///
@@ -25,10 +25,10 @@ pub enum TransactionOrder {
 
 impl TransactionOrder {
     /// Returns the priority of the transactions
-    pub fn priority(&self, tx: &L2Tx) -> TransactionPriority {
+    pub fn priority(&self, tx: &Transaction) -> TransactionPriority {
         match self {
             Self::Fifo => TransactionPriority::default(),
-            Self::Fees => TransactionPriority(tx.common_data.fee.max_fee_per_gas),
+            Self::Fees => TransactionPriority(tx.max_fee_per_gas()),
         }
     }
 }

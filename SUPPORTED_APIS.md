@@ -42,19 +42,11 @@ The `status` options are:
 | `ANVIL` | `anvil_setCode` | `SUPPORTED` | Sets the bytecode of a given account |
 | `ANVIL` | `anvil_setStorageAt` | `SUPPORTED` | Sets the storage value at a given key for a given account |
 | `ANVIL` | `anvil_setChainId` | `SUPPORTED` | Sets the chain id |
-| [`CONFIG`](#config-namespace) | [`config_getShowCalls`](#config_getshowcalls) | `SUPPORTED` | Gets the current value of `show_calls` that's originally set with `--show-calls` option |
-| [`CONFIG`](#config-namespace) | [`config_getShowOutputs`](#config_getshowoutputs) | `SUPPORTED` | Gets the current value of `show_outputs` that's originally set with `--show-outputs` option |
 | [`CONFIG`](#config-namespace) | [`config_getCurrentTimestamp`](#config_getcurrenttimestamp) | `SUPPORTED` | Gets the value of `current_timestamp` for the node |
-| [`CONFIG`](#config-namespace) | [`config_setResolveHashes`](#config_setresolvehashes) | `SUPPORTED` | Updates `resolve-hashes` to call OpenChain for human-readable ABI names in call traces |
-| [`CONFIG`](#config-namespace) | [`config_setShowCalls`](#config_setshowcalls) | `SUPPORTED` | Updates `show_calls` to print more detailed call traces |
-| [`CONFIG`](#config-namespace) | [`config_setShowOutputs`](#config_setshowoutputs) | `SUPPORTED` | Updates `show_outputs` to print calls outputs |
 | [`CONFIG`](#config-namespace) | [`config_setShowStorageLogs`](#config_setshowstoragelogs) | `SUPPORTED` | Updates `show_storage_logs` to print storage log reads/writes |
 | [`CONFIG`](#config-namespace) | [`config_setShowVmDetails`](#config_setshowvmdetails) | `SUPPORTED` | Updates `show_vm_details` to print more detailed results from vm execution |
 | [`CONFIG`](#config-namespace) | [`config_setShowGasDetails`](#config_setshowgasdetails) | `SUPPORTED` | Updates `show_gas_details` to print more details about gas estimation and usage |
 | [`CONFIG`](#config-namespace) | [`config_setShowNodeConfig`](#config_setshownodeconfig) | `SUPPORTED` | Updates `show_node_config` to print node config on startup |
-| [`CONFIG`](#config-namespace) | [`config_setShowTxSummary`](#config_setshowtxsummary) | `SUPPORTED` | Updates `show_tx_summary` to print transactions and calls summary |
-| [`CONFIG`](#config-namespace) | [`config_setDisableConsoleLog`](#config_setdisableconsolelog) | `SUPPORTED` | Updates `disable_console_log` to disable printing of `console.log` invocations to stdout |
-| [`CONFIG`](#config-namespace) | [`config_setShowEventLogs`](#config_setshoweventlogs) | `SUPPORTED` | Updates `show_event_logs` to log events |
 | [`CONFIG`](#config-namespace) | [`config_setLogLevel`](#config_setloglevel) | `SUPPORTED` | Sets the logging level for the node and only displays the node logs. |
 | [`CONFIG`](#config-namespace) | [`config_setLogging`](#config_setlogging) | `SUPPORTED` | Sets the fine-tuned logging levels for the node and any of its dependencies |
 | [`DEBUG`](#debug-namespace) | [`debug_traceCall`](#debug_tracecall) | `SUPPORTED` | Performs a call and returns structured traces of the execution |
@@ -147,20 +139,20 @@ The `status` options are:
 | [`NETWORK`](#network-namespace) | [`net_listening`](#net_listening) | `SUPPORTED` | Returns `true` if the client is actively listening for network connections <br />_(hard-coded to `false`)_ |
 | [`WEB3`](#web3-namespace) | [`web3_clientVersion`](#web3_clientversion) | `SUPPORTED` | Returns `zkSync/v2.0` |
 | [`ZKS`](#zks-namespace) | [`zks_estimateFee`](#zks_estimateFee) | `SUPPORTED` | Gets the Fee estimation data for a given Request |
-| `ZKS` | `zks_estimateGasL1ToL2` | `NOT IMPLEMENTED` | Estimate of the gas required for a L1 to L2 transaction |
+| `ZKS` | `zks_estimateGasL1ToL2` | `SUPPORTED` | Estimate of the gas required for a L1 to L2 transaction |
 | [`ZKS`](#zks-namespace) | [`zks_getAllAccountBalances`](#zks_getallaccountbalances) | `SUPPORTED` | Returns all balances for confirmed tokens given by an account address |
 | `ZKS` | `zks_getBatchFeeInput` | `NOT IMPLEMENTED` | Retrieves current batch's fee input |
 | [`ZKS`](#zks-namespace) | [`zks_getBridgeContracts`](#zks_getbridgecontracts) | `SUPPORTED` | Returns L1/L2 addresses of default bridges |
-| [`ZKS`](#zks-namespace) | [`zks_getBridgehubContract`](#zks_getbridgecontracts) | `NOT IMPLEMENTED` | Retrieves the bridge hub contract address |
+| [`ZKS`](#zks-namespace) | [`zks_getBridgehubContract`](#zks_getbridgecontracts) | `SUPPORTED` | Retrieves the bridge hub contract address |
 | [`ZKS`](#zks-namespace) | [`zks_getBlockDetails`](#zks_getblockdetails) | `SUPPORTED` | Returns additional zkSync-specific information about the L2 block |
-| `ZKS` | `zks_getBytecodeByHash` | `NOT IMPLEMENTED` | Returns bytecode of a transaction given by its hash |
+| `ZKS` | `zks_getBytecodeByHash` | `SUPPORTED` | Returns bytecode of a transaction given by its hash |
 | [`ZKS`](#zks-namespace) | [`zks_getConfirmedTokens`](#zks_getconfirmedtokens) | `SUPPORTED` | Returns [address, symbol, name, and decimal] information of all tokens within a range of ids given by parameters `from` and `limit` |
 | [`ZKS`](#zks-namespace) | [`zks_getBaseTokenL1Address`](#zks_getBaseTokenL1Address) | `SUPPORTED` | Returns the L1 base token address <br/>_(hard-coded to `0x0000000000000000000000000000000000000001`)_ |
 | `ZKS` | `zks_getFeeParams` | `NOT IMPLEMENTED` | Retrieves the current fee parameters |
 | `ZKS` | `zks_getL1BatchBlockRange` | `NOT IMPLEMENTED` | Returns the range of blocks contained within a batch given by batch number |
 | `ZKS` | `zks_getL1BatchDetails` | `NOT IMPLEMENTED` | Returns data pertaining to a given batch |
 | `ZKS` | `zks_getL1GasPrice` | `NOT IMPLEMENTED` | Retrieves the current L1 gas price |
-| `ZKS` | `zks_getL2ToL1LogProof` | `NOT IMPLEMENTED` | Given a transaction hash, and an index of the L2 to L1 log produced within the transaction, it returns the proof for the corresponding L2 to L1 log |
+| `ZKS` | `zks_getL2ToL1LogProof` | `SUPPORTED` | Given a transaction hash, and an index of the L2 to L1 log produced within the transaction, it returns the proof for the corresponding L2 to L1 log |
 | `ZKS` | `zks_getL2ToL1MsgProof` | `NOT IMPLEMENTED` | Given a block, a sender, a message, and an optional message log index in the block containing the L1->L2 message, it returns the proof for the message sent via the L1Messenger system contract |
 | `ZKS` | `zks_getMainContract` | `NOT IMPLEMENTED` | Returns the address of the zkSync Era contract |
 | `ZKS` | `zks_getProof` | `NOT IMPLEMENTED` | Generates Merkle proofs for one or more storage values associated with a specific account |
@@ -169,57 +161,12 @@ The `status` options are:
 | `ZKS` | `zks_getTestnetPaymaster` | `NOT IMPLEMENTED` | Returns the address of the testnet paymaster |
 | [`ZKS`](#zks-namespace) | [`zks_getTransactionDetails`](#zks_gettransactiondetails) | `SUPPORTED` | Returns data from a specific transaction given by the transaction hash |
 | `ZKS` | `zks_L1BatchNumber` | `NOT IMPLEMENTED` | Returns the latest L1 batch number |
-| [`ZKS`](#zks-namespace) | [`zks_L1ChainId`](#zks_l1chainid) | `IMPLEMENTED` | Returns the chain id of the underlying L1 |
+| [`ZKS`](#zks-namespace) | [`zks_L1ChainId`](#zks_l1chainid) | `SUPPORTED` | Returns the chain id of the underlying L1 |
 | `ZKS` | `zks_sendRawTransactionWithDetailedOutput` | `NOT IMPLEMENTED` | Executes a transaction with detailed output |
 | `ZKS` | `zks_getTimestampAsserter` | `NOT IMPLEMENTED` | Returns an address of timestamp asserter contract |
+| `ZKS` | `zks_getL2Multicall3` | `NOT IMPLEMENTED` | Returns the address of Multicall3 contract  |
 
 ## `CONFIG NAMESPACE`
-
-### `config_getShowCalls`
-
-[source](src/node/config_api.rs)
-
-Gets the current value of `show_calls` that's originally set with `--show-calls` option
-
-#### Arguments
-
-+ _NONE_
-
-#### Status
-
-`SUPPORTED`
-
-#### Example
-
-```bash
-curl --request POST \
-  --url http://localhost:8011/ \
-  --header 'content-type: application/json' \
-  --data '{"jsonrpc": "2.0","id": "1","method": "config_getShowCalls","params": []}'
-```
-
-### `config_getShowOutputs`
-
-[source](src/node/config_api.rs)
-
-Gets the current value of `show_outputs` that's originally set with `--show-outputs` option
-
-#### Arguments
-
-+ _NONE_
-
-#### Status
-
-`SUPPORTED`
-
-#### Example
-
-```bash
-curl --request POST \
-  --url http://localhost:8011/ \
-  --header 'content-type: application/json' \
-  --data '{"jsonrpc": "2.0","id": "1","method": "config_getShowOutputs","params": []}'
-```
 
 ### `config_getCurrentTimestamp`
 
@@ -242,52 +189,6 @@ curl --request POST \
   --url http://localhost:8011/ \
   --header 'content-type: application/json' \
   --data '{"jsonrpc": "2.0","id": "1","method": "config_getCurrentTimestamp","params": []}'
-```
-
-### `config_setShowCalls`
-
-[source](src/node/config_api.rs)
-
-Updates `show_calls` to print more detailed call traces
-
-#### Arguments
-
-+ `value: String ('None', 'User', 'System', 'All')`
-
-#### Status
-
-`SUPPORTED`
-
-#### Example
-
-```bash
-curl --request POST \
-  --url http://localhost:8011/ \
-  --header 'content-type: application/json' \
-  --data '{"jsonrpc": "2.0","id": "1","method": "config_setShowCalls","params": ["all"]}'
-```
-
-### `config_setShowOutputs`
-
-[source](src/node/config_api.rs)
-
-Updates `show_outputs` to print calls outputs
-
-#### Arguments
-
-+ `value: boolean`
-
-#### Status
-
-`SUPPORTED`
-
-#### Example
-
-```bash
-curl --request POST \
-  --url http://localhost:8011/ \
-  --header 'content-type: application/json' \
-  --data '{"jsonrpc": "2.0","id": "1","method": "config_setShowOutputs","params": [true]}'
 ```
 
 ### `config_setShowStorageLogs`
@@ -359,29 +260,6 @@ curl --request POST \
   --data '{"jsonrpc": "2.0","id": "1","method": "config_setShowGasDetails","params": ["all"]}'
 ```
 
-### `config_setResolveHashes`
-
-[source](src/node/config_api.rs)
-
-Updates `resolve-hashes` to call OpenChain for human-readable ABI names in call traces
-
-#### Arguments
-
-+ `value: boolean`
-
-#### Status
-
-`SUPPORTED`
-
-#### Example
-
-```bash
-curl --request POST \
-  --url http://localhost:8011/ \
-  --header 'content-type: application/json' \
-  --data '{"jsonrpc": "2.0","id": "1","method": "config_setResolveHashes","params": [true]}'
-```
-
 ### `config_setShowNodeConfig`
 
 [source](src/node/config_api.rs)
@@ -402,68 +280,6 @@ curl --request POST \
   --url http://localhost:8011/ \
   --header 'content-type: application/json' \
   --data '{"jsonrpc": "2.0","id": "1","method": "config_setShowNodeConfig","params": [true]}'
-```
-
-### `config_setShowTxSummary`
-
-[source](src/node/config_api.rs)
-
-Updates `show_tx_summary` to print transactions and calls summary
-#### Arguments
-
-+ `value: boolean`
-
-#### Status
-
-`SUPPORTED`
-
-#### Example
-
-```bash
-curl --request POST \
-  --url http://localhost:8011/ \
-  --header 'content-type: application/json' \
-  --data '{"jsonrpc": "2.0","id": "1","method": "config_setShowTxSummary","params": [true]}'
-```
-
-### `config_setDisableConsoleLog`
-
-[source](src/node/config_api.rs)
-
-Updates `disable_console_log` to disable printing of `console.log` invocations to stdout
-#### Arguments
-
-+ `value: boolean`
-
-#### Status
-
-`SUPPORTED`
-
-#### Example
-
-```bash
-curl --request POST \
-  --url http://localhost:8011/ \
-  --header 'content-type: application/json' \
-  --data '{"jsonrpc": "2.0","id": "1","method": "config_setDisableConsoleLog","params": [true]}'
-```
-
-Updates `show_event_logs` to log events to stdout
-#### Arguments
-
-+ `value: boolean`
-
-#### Status
-
-`SUPPORTED`
-
-#### Example
-
-```bash
-curl --request POST \
-  --url http://localhost:8011/ \
-  --header 'content-type: application/json' \
-  --data '{"jsonrpc": "2.0","id": "1","method": "config_setShowEventLogs","params": [true]}'
 ```
 
 ### `config_setLogLevel`

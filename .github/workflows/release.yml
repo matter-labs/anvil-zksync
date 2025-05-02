@@ -24,9 +24,9 @@ jobs:
       matrix:
         include:
           - arch: x86_64-unknown-linux-gnu
-            platform: ubuntu-24.04
+            platform: ubuntu-22.04
           - arch: aarch64-unknown-linux-gnu
-            platform: ubuntu-24.04
+            platform: ubuntu-22.04-arm
           - arch: x86_64-apple-darwin
             platform: macos-latest
           - arch: aarch64-apple-darwin
@@ -43,26 +43,17 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
-          rustflags: ""
-
-      - name: Install target
-        run: rustup target add ${{ matrix.arch }}
-
-      - name: Install cross v0.2.5 from source
-        run: cargo install cross --git https://github.com/cross-rs/cross --tag v0.2.5
+          target: ${{ matrix.arch }}
 
       - name: Build anvil-zksync for ${{ matrix.arch }}
         run: |
-          if [[ "${{ matrix.arch }}" == *"linux"* ]]; then
-            make build-static-${{ matrix.arch }}
-          else
-            make build-${{ matrix.arch }}
-          fi
+          cargo build --bin anvil-zksync --release --target ${{ matrix.arch }}
 
       - name: Pack anvil-zksync
         run: |
-          tar -czf anvil-zksync-${{ inputs.tag || inputs.prerelease_name }}-${{ matrix.arch }}.tar.gz \
-            ./target/${{ matrix.arch }}/release/anvil-zksync
+          tar -C ./target/${{ matrix.arch }}/release -czf \
+            anvil-zksync-${{ inputs.tag || inputs.prerelease_name }}-${{ matrix.arch }}.tar.gz \
+            anvil-zksync
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -93,7 +84,7 @@ jobs:
         shell: 'bash -ex {0}'
         run: |
           [ ! -z "${{ inputs.tag }}" ] && TAG="${{ inputs.tag }}" \
-            || TAG="$(git rev-parse --short HEAD)" 
+            || TAG="$(git rev-parse --short HEAD)"
           echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
 
       - name: Download artifacts
@@ -120,5 +111,6 @@ jobs:
         with:
           name: 'anvil-zksync ${{ inputs.prerelease_name}} ${{ steps.release_tag.outputs.tag }}'
           tag_name: ${{ steps.release_tag.outputs.tag }}
+          target_commitish: ${{ github.sha }}
           prerelease: true
           files: 'artifacts/**/anvil-zksync*.tar.gz'

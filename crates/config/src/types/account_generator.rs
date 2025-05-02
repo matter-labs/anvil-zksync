@@ -1,7 +1,7 @@
 use crate::constants::{DERIVATION_PATH, TEST_NODE_NETWORK_ID};
-use alloy_signer::Signer;
-use alloy_signer_local::coins_bip39::{English, Mnemonic};
-use alloy_signer_local::{MnemonicBuilder, PrivateKeySigner};
+use alloy::signers::local::coins_bip39::{English, Mnemonic};
+use alloy::signers::local::{MnemonicBuilder, PrivateKeySigner};
+use alloy::signers::Signer;
 use serde::Deserialize;
 
 /// Account Generator

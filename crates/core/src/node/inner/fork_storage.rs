@@ -14,13 +14,14 @@ use eyre::eyre;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 use std::iter::FromIterator;
+use std::path::Path;
 use std::sync::{Arc, RwLock};
 use zksync_multivm::interface::storage::ReadStorage;
 use zksync_types::bytecode::BytecodeHash;
 use zksync_types::web3::Bytes;
 use zksync_types::{
-    get_system_context_key, h256_to_u256, L2ChainId, StorageKey, StorageValue, H256,
-    SYSTEM_CONTEXT_CHAIN_ID_POSITION,
+    get_system_context_key, h256_to_u256, L2ChainId, ProtocolVersionId, StorageKey, StorageValue,
+    H256, SYSTEM_CONTEXT_CHAIN_ID_POSITION,
 };
 
 /// In memory storage, that allows 'forking' from other network.
@@ -48,9 +49,10 @@ pub struct ForkStorageInner {
 impl ForkStorage {
     pub(super) fn new(
         fork: Fork,
-        system_contracts_options: &SystemContractsOptions,
-        use_evm_emulator: bool,
+        system_contracts_options: SystemContractsOptions,
+        protocol_version: ProtocolVersionId,
         override_chain_id: Option<u32>,
+        system_contracts_path: Option<&Path>,
     ) -> Self {
         let chain_id = if let Some(override_id) = override_chain_id {
             L2ChainId::from(override_id)
@@ -66,7 +68,8 @@ impl ForkStorage {
                     chain_id,
                     |b| BytecodeHash::for_bytecode(b).value(),
                     system_contracts_options,
-                    use_evm_emulator,
+                    protocol_version,
+                    system_contracts_path,
                 ),
                 value_read_cache: Default::default(),
                 fork,
@@ -77,17 +80,15 @@ impl ForkStorage {
     }
 
     pub fn read_value_internal(&self, key: &StorageKey) -> eyre::Result<StorageValue> {
-        let fork = {
-            let mut writer = self.inner.write().unwrap();
-            let local_storage = writer.raw_storage.read_value(key);
-            if local_storage != H256::zero() {
-                return Ok(local_storage);
-            }
-            if let Some(value) = writer.value_read_cache.get(key) {
-                return Ok(*value);
-            }
-            writer.fork.clone()
-        };
+        let inner = self.inner.read().unwrap();
+        if let Some(local_value) = inner.raw_storage.read_value_opt(key) {
+            return Ok(local_value);
+        }
+        if let Some(cached_value) = inner.value_read_cache.get(key) {
+            return Ok(*cached_value);
+        }
+        let fork = inner.fork.clone();
+        drop(inner);
         let address = *key.account().address();
         let idx = h256_to_u256(*key.key());
         let value =
@@ -349,13 +350,14 @@ mod tests {
     use super::ForkStorage;
     use crate::deps::InMemoryStorage;
     use crate::node::fork::{Fork, ForkClient, ForkDetails};
+    use anvil_zksync_common::cache::CacheConfig;
     use anvil_zksync_config::constants::{
         DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
         DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L2_GAS_PRICE, TEST_NODE_NETWORK_ID,
     };
-    use anvil_zksync_config::types::{CacheConfig, SystemContractsOptions};
+    use anvil_zksync_config::types::SystemContractsOptions;
     use zksync_multivm::interface::storage::ReadStorage;
-    use zksync_types::{api::TransactionVariant, L2BlockNumber, StorageKey};
+    use zksync_types::{api::TransactionVariant, L2BlockNumber, ProtocolVersionId, StorageKey};
     use zksync_types::{
         get_system_context_key, AccountTreeId, L1BatchNumber, L2ChainId, H256,
         SYSTEM_CONTEXT_CHAIN_ID_POSITION,
@@ -389,7 +391,8 @@ mod tests {
         let fork = Fork::new(Some(client), CacheConfig::None);
 
         let options = SystemContractsOptions::default();
-        let mut fork_storage: ForkStorage = ForkStorage::new(fork, &options, false, None);
+        let mut fork_storage: ForkStorage =
+            ForkStorage::new(fork, options, ProtocolVersionId::latest(), None, None);
 
         assert!(fork_storage.is_write_initial(&never_written_key));
         assert!(!fork_storage.is_write_initial(&key_with_some_value));
@@ -420,8 +423,13 @@ mod tests {
         };
         let client = ForkClient::mock(fork_details, InMemoryStorage::default());
         let fork = Fork::new(Some(client), CacheConfig::None);
-        let mut fork_storage: ForkStorage =
-            ForkStorage::new(fork, &SystemContractsOptions::default(), false, None);
+        let mut fork_storage: ForkStorage = ForkStorage::new(
+            fork,
+            SystemContractsOptions::default(),
+            ProtocolVersionId::latest(),
+            None,
+            None,
+        );
         let new_chain_id = L2ChainId::from(261);
         fork_storage.set_chain_id(new_chain_id);
 

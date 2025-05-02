@@ -112,4 +112,25 @@ describe("Greeter Smart Contract", function () {
     const eventInterface = new ethers.Interface(["event LogString(string value)"]);
     expect(eventInterface.parseLog(filterChanges[0])?.args[0]).to.equal("Greeting is being updated to Darth Vader");
   });
+
+  it("Should filter new transactions", async function () {
+    const wallet = new Wallet(RichAccounts[0].PrivateKey);
+    const deployer = new Deployer(hre, wallet);
+    const greeter = await deployContract(deployer, "Greeter", ["Hi"]);
+
+    // Create filter
+    const filterId = await provider.send("eth_newPendingTransactionFilter", []);
+
+    // New filter should be empty
+    let filterChanges: Log[] = await provider.send("eth_getFilterChanges", [filterId]);
+    expect(filterChanges).to.empty;
+
+    // Submit a tx and filter should contain it
+    const setGreetingTx = await greeter.setGreeting("Luke Skywalker");
+    const receipt: TransactionReceipt = await setGreetingTx.wait();
+    filterChanges = await provider.send("eth_getFilterChanges", [filterId]);
+
+    expect(filterChanges.length).to.eq(1);
+    expect(filterChanges[0]).to.eq(receipt.hash);
+  });
 });

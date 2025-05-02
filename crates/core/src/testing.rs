@@ -5,8 +5,10 @@
 
 #![cfg(test)]
 
-use crate::node::{InMemoryNode, TxExecutionInfo};
+use crate::node::{InMemoryNode, TxBatch, TxExecutionInfo};
 
+use anvil_zksync_config::constants::DEFAULT_ACCOUNT_BALANCE;
+use anvil_zksync_types::L2TxBuilder;
 use httptest::{
     matchers::{eq, json_decoded, request},
     responders::json_encoded,
@@ -14,14 +16,15 @@ use httptest::{
 };
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use std::str::FromStr;
 use std::sync::{Arc, RwLock};
 use url::Url;
 use zksync_types::api::{BridgeAddresses, DebugCall, DebugCallType, Log};
+use zksync_types::bytecode::BytecodeHash;
 use zksync_types::fee::Fee;
 use zksync_types::l2::L2Tx;
 use zksync_types::{
-    Address, K256PrivateKey, L2ChainId, Nonce, ProtocolVersionId, H160, H256, U256, U64,
+    Address, ExecuteTransactionCommon, K256PrivateKey, L2BlockNumber, L2ChainId, Nonce,
+    ProtocolVersionId, Transaction, H160, H256, U256, U64,
 };
 use zksync_web3_decl::jsonrpsee::types::TwoPointZero;
 
@@ -116,7 +119,7 @@ impl MockServer {
                       "default_aa": "0x0100038dc66b69be75ec31653c64cb931678299b9b659472772b2550b703f41c"
                     },
                     "operatorAddress": "0xfeee860e7aae671124e9a4e61139f3a5085dfeee",
-                    "protocolVersion": ProtocolVersionId::Version15,
+                    "protocolVersion": ProtocolVersionId::Version26,
                   },
             }))),
         );
@@ -432,7 +435,6 @@ impl RawTransactionsResponseBuilder {
 
 #[derive(Debug, Clone)]
 pub struct TransactionBuilder {
-    tx_hash: H256,
     from_account_private_key: K256PrivateKey,
     gas_limit: U256,
     max_fee_per_gas: U256,
@@ -442,7 +444,6 @@ pub struct TransactionBuilder {
 impl Default for TransactionBuilder {
     fn default() -> Self {
         Self {
-            tx_hash: H256::repeat_byte(0x01),
             from_account_private_key: K256PrivateKey::from_bytes(H256::random()).unwrap(),
             gas_limit: U256::from(4_000_000),
             max_fee_per_gas: U256::from(50_000_000),
@@ -456,9 +457,78 @@ impl TransactionBuilder {
         Self::default()
     }
 
-    pub fn set_hash(&mut self, hash: H256) -> &mut Self {
-        self.tx_hash = hash;
-        self
+    pub fn deploy_contract(
+        private_key: &K256PrivateKey,
+        bytecode: Vec<u8>,
+        calldata: Option<Vec<u8>>,
+        nonce: Nonce,
+    ) -> L2Tx {
+        use alloy::dyn_abi::{DynSolValue, JsonAbiExt};
+        use alloy::json_abi::{Function, Param, StateMutability};
+
+        let salt = [0u8; 32];
+        let bytecode_hash = BytecodeHash::for_bytecode(&bytecode).value().0;
+        let call_data = calldata.unwrap_or_default();
+
+        let create = Function {
+            name: "create".to_string(),
+            inputs: vec![
+                Param {
+                    name: "_salt".to_string(),
+                    ty: "bytes32".to_string(),
+                    components: vec![],
+                    internal_type: None,
+                },
+                Param {
+                    name: "_bytecodeHash".to_string(),
+                    ty: "bytes32".to_string(),
+                    components: vec![],
+                    internal_type: None,
+                },
+                Param {
+                    name: "_input".to_string(),
+                    ty: "bytes".to_string(),
+                    components: vec![],
+                    internal_type: None,
+                },
+            ],
+            outputs: vec![Param {
+                name: "".to_string(),
+                ty: "address".to_string(),
+                components: vec![],
+                internal_type: None,
+            }],
+            state_mutability: StateMutability::Payable,
+        };
+
+        let data = create
+            .abi_encode_input(&[
+                DynSolValue::FixedBytes(salt.into(), salt.len()),
+                DynSolValue::FixedBytes(
+                    bytecode_hash[..].try_into().expect("invalid hash length"),
+                    bytecode_hash.len(),
+                ),
+                DynSolValue::Bytes(call_data),
+            ])
+            .expect("failed to encode function data");
+
+        L2Tx::new_signed(
+            Some(zksync_types::CONTRACT_DEPLOYER_ADDRESS),
+            data.to_vec(),
+            nonce,
+            Fee {
+                gas_limit: U256::from(400_000_000),
+                max_fee_per_gas: U256::from(50_000_000),
+                max_priority_fee_per_gas: U256::from(50_000_000),
+                gas_per_pubdata_limit: U256::from(50000),
+            },
+            U256::from(0),
+            zksync_types::L2ChainId::from(260),
+            private_key,
+            vec![bytecode],
+            Default::default(),
+        )
+        .expect("failed signing tx")
     }
 
     pub fn set_gas_limit(&mut self, gas_limit: U256) -> &mut Self {
@@ -477,7 +547,7 @@ impl TransactionBuilder {
     }
 
     pub fn build(&mut self) -> L2Tx {
-        let mut tx = L2Tx::new_signed(
+        L2Tx::new_signed(
             Some(Address::random()),
             vec![],
             Nonce(0),
@@ -493,34 +563,68 @@ impl TransactionBuilder {
             vec![],
             Default::default(),
         )
-        .unwrap();
-        tx.set_input(
-            tx.common_data.input_data().unwrap_or_default().into(),
-            self.tx_hash,
-        );
-        tx
+        .unwrap()
+    }
+
+    pub fn impersonate(&mut self, to_impersonate: Address) -> L2Tx {
+        L2TxBuilder::new(
+            to_impersonate,
+            Nonce(0),
+            self.gas_limit,
+            self.max_fee_per_gas,
+            260.into(),
+        )
+        .with_to(Address::random())
+        .with_max_priority_fee_per_gas(self.max_priority_fee_per_gas)
+        .build_impersonated()
     }
 }
 
 /// Applies a transaction with a given hash to the node and returns the block hash.
-pub async fn apply_tx(node: &InMemoryNode, tx_hash: H256) -> (H256, U64, L2Tx) {
-    node.inner.write().await.apply_tx(tx_hash).await
+pub async fn apply_tx(node: &InMemoryNode) -> (H256, L2BlockNumber, L2Tx) {
+    let tx = TransactionBuilder::new().build();
+    node.set_rich_account(tx.initiator_account(), U256::from(DEFAULT_ACCOUNT_BALANCE))
+        .await;
+    let block_number = node
+        .node_handle
+        .seal_block_sync(TxBatch {
+            txs: vec![tx.clone().into()],
+            impersonating: false,
+        })
+        .await
+        .unwrap();
+
+    let block_hash = node
+        .blockchain
+        .get_block_hash_by_number(block_number)
+        .await
+        .unwrap();
+
+    (block_hash, block_number, tx)
 }
 
 /// Deploys a contract with the given bytecode.
 pub async fn deploy_contract(
     node: &InMemoryNode,
-    tx_hash: H256,
     private_key: &K256PrivateKey,
     bytecode: Vec<u8>,
     calldata: Option<Vec<u8>>,
     nonce: Nonce,
 ) -> H256 {
-    node.inner
-        .write()
+    let tx = TransactionBuilder::deploy_contract(private_key, bytecode, calldata, nonce);
+    let block_number = node
+        .node_handle
+        .seal_block_sync(TxBatch {
+            txs: vec![tx.into()],
+            impersonating: false,
+        })
         .await
-        .deploy_contract(tx_hash, private_key, bytecode, calldata, nonce)
+        .unwrap();
+
+    node.blockchain
+        .get_block_hash_by_number(block_number)
         .await
+        .unwrap()
 }
 
 /// Builds transaction logs
@@ -599,15 +703,10 @@ pub const STORAGE_CONTRACT_BYTECODE: &str    = "0000008003000039000000400030043f
 /// Returns a default instance for a successful [TxExecutionInfo]
 pub fn default_tx_execution_info() -> TxExecutionInfo {
     TxExecutionInfo {
-        tx: L2Tx {
-            execute: zksync_types::Execute {
-                contract_address: Default::default(),
-                calldata: Default::default(),
-                value: Default::default(),
-                factory_deps: Default::default(),
-            },
-            common_data: Default::default(),
-            received_timestamp_ms: Default::default(),
+        tx: Transaction {
+            common_data: ExecuteTransactionCommon::L2(Default::default()),
+            execute: Default::default(),
+            received_timestamp_ms: 0,
             raw_bytes: None,
         },
         batch_number: Default::default(),
@@ -669,6 +768,8 @@ pub fn assert_bridge_addresses_eq(
 
 mod test {
     use super::*;
+    use crate::node::compute_hash;
+    use zksync_types::block::L2BlockHasher;
 
     #[test]
     fn test_block_response_builder_set_hash() {
@@ -757,15 +858,19 @@ mod test {
     #[tokio::test]
     async fn test_apply_tx() {
         let node = InMemoryNode::test(None);
-        let (actual_block_hash, actual_block_number, _) =
-            apply_tx(&node, H256::repeat_byte(0x01)).await;
+        let (actual_block_hash, actual_block_number, tx) = apply_tx(&node).await;
 
         assert_eq!(
-            H256::from_str("0xd97ba6a5ab0f2d7fbfc697251321cce20bff3da2b0ddaf12c80f80f0ab270b15")
-                .unwrap(),
+            compute_hash(
+                ProtocolVersionId::latest(),
+                L2BlockNumber(1),
+                1001,
+                L2BlockHasher::legacy_hash(L2BlockNumber(0)),
+                [&tx.hash()]
+            ),
             actual_block_hash,
         );
-        assert_eq!(U64::from(1), actual_block_number);
+        assert_eq!(L2BlockNumber(1), actual_block_number);
 
         assert!(
             node.blockchain

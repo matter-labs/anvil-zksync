@@ -1,22 +1,15 @@
-use anyhow::Context;
+use anvil_zksync_common::sh_err;
 use chrono::{DateTime, Utc};
-use serde::Serialize;
+use std::fmt;
 use std::future::Future;
 use std::sync::Arc;
-use std::{convert::TryInto, fmt};
-use std::{
-    fs::File,
-    io::{BufWriter, Write},
-    path::Path,
-};
 use tokio::runtime::Builder;
 use tokio::sync::{RwLock, RwLockReadGuard};
 use zksync_multivm::interface::{Call, CallType, ExecutionResult, VmExecutionResultAndLogs};
 use zksync_types::{
     api::{BlockNumber, DebugCall, DebugCallType},
-    l2::L2Tx,
     web3::Bytes,
-    CONTRACT_DEPLOYER_ADDRESS, H256, U256, U64,
+    Transaction, CONTRACT_DEPLOYER_ADDRESS, U256, U64,
 };
 use zksync_web3_decl::error::Web3Error;
 
@@ -63,11 +56,11 @@ pub fn to_real_block_number(block_number: BlockNumber, latest_block_number: U64)
 
 /// Creates a [DebugCall] from a [L2Tx], [VmExecutionResultAndLogs] and a list of [Call]s.
 pub fn create_debug_output(
-    l2_tx: &L2Tx,
+    tx: &Transaction,
     result: &VmExecutionResultAndLogs,
     traces: Vec<Call>,
 ) -> Result<DebugCall, Web3Error> {
-    let calltype = if l2_tx
+    let calltype = if tx
         .recipient_account()
         .map(|addr| addr == CONTRACT_DEPLOYER_ADDRESS)
         .unwrap_or_default()
@@ -81,11 +74,11 @@ pub fn create_debug_output(
             gas_used: result.statistics.gas_used.into(),
             output: output.clone().into(),
             r#type: calltype,
-            from: l2_tx.initiator_account(),
-            to: l2_tx.recipient_account().unwrap_or_default(),
-            gas: l2_tx.common_data.fee.gas_limit,
-            value: l2_tx.execute.value,
-            input: l2_tx.execute.calldata().into(),
+            from: tx.initiator_account(),
+            to: tx.recipient_account().unwrap_or_default(),
+            gas: tx.gas_limit(),
+            value: tx.execute.value,
+            input: tx.execute.calldata().into(),
             error: None,
             revert_reason: None,
             calls: traces.into_iter().map(call_to_debug_call).collect(),
@@ -94,11 +87,11 @@ pub fn create_debug_output(
             gas_used: result.statistics.gas_used.into(),
             output: output.encoded_data().into(),
             r#type: calltype,
-            from: l2_tx.initiator_account(),
-            to: l2_tx.recipient_account().unwrap_or_default(),
-            gas: l2_tx.common_data.fee.gas_limit,
-            value: l2_tx.execute.value,
-            input: l2_tx.execute.calldata().into(),
+            from: tx.initiator_account(),
+            to: tx.recipient_account().unwrap_or_default(),
+            gas: tx.gas_limit(),
+            value: tx.execute.value,
+            input: tx.execute.calldata().into(),
             error: None,
             revert_reason: Some(output.to_string()),
             calls: traces.into_iter().map(call_to_debug_call).collect(),
@@ -159,48 +152,8 @@ impl From<TransparentError> for Web3Error {
 }
 
 pub fn internal_error(method_name: &'static str, error: impl fmt::Display) -> Web3Error {
-    tracing::error!("Internal error in method {method_name}: {error}");
+    sh_err!("Internal error in method {method_name}: {error}");
     Web3Error::InternalError(anyhow::Error::msg(error.to_string()))
-}
-
-// pub fn addresss_from_private_key(private_key: &K256PrivateKey) {
-//     let private_key = H256::from_slice(&private_key.0);
-//     let address = KeyPair::from_secret(private_key)?.address();
-//     Ok(Address::from(address.0))
-// }
-
-/// Converts `h256` value as BE into the u64
-pub fn h256_to_u64(value: H256) -> u64 {
-    let be_u64_bytes: [u8; 8] = value[24..].try_into().unwrap();
-    u64::from_be_bytes(be_u64_bytes)
-}
-
-/// Calculates the cost of a transaction in ETH.
-pub fn calculate_eth_cost(gas_price_in_wei_per_gas: u64, gas_used: u64) -> f64 {
-    // Convert gas price from wei to gwei
-    let gas_price_in_gwei = gas_price_in_wei_per_gas as f64 / 1e9;
-
-    // Calculate total cost in gwei
-    let total_cost_in_gwei = gas_price_in_gwei * gas_used as f64;
-
-    // Convert total cost from gwei to ETH
-    total_cost_in_gwei / 1e9
-}
-
-/// Writes the given serializable object as JSON to the specified file path using pretty printing.
-/// Returns an error if the file cannot be created or if serialization/writing fails.
-pub fn write_json_file<T: Serialize>(path: &Path, obj: &T) -> anyhow::Result<()> {
-    let file = File::create(path)
-        .with_context(|| format!("Failed to create file '{}'", path.display()))?;
-    let mut writer = BufWriter::new(file);
-    // Note: intentionally using pretty printing for better readability.
-    serde_json::to_writer_pretty(&mut writer, obj)
-        .with_context(|| format!("Failed to write JSON to '{}'", path.display()))?;
-    writer
-        .flush()
-        .with_context(|| format!("Failed to flush writer for '{}'", path.display()))?;
-
-    Ok(())
 }
 
 pub fn block_on<F: Future + Send + 'static>(future: F) -> F::Output

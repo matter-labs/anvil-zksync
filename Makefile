@@ -4,21 +4,15 @@ fetch-contracts:
 
 # Build the system contracts
 build-contracts:
-	cd contracts/system-contracts && yarn install --frozen-lockfile; yarn build;
-	cd contracts/l2-contracts && yarn install --frozen-lockfile; yarn build;
 	./scripts/refresh_contracts.sh
+	./scripts/refresh_l1_sidecar_contracts.sh
+	./scripts/refresh_test_contracts.sh
+	./scripts/refresh_e2e_contracts.sh
 
 # Clean the system contracts
 clean-contracts:
 	cd contracts/system-contracts && yarn clean
 	rm -rf src/deps/contracts
-
-# Rebuild the system contracts
-rebuild-contracts:
-	cd contracts/system-contracts && yarn build;
-	cd contracts/l2-contracts && yarn build;
-	./scripts/refresh_contracts.sh
-	./scripts/refresh_test_contracts.sh
 
 # Build the Rust project
 rust-build:
@@ -28,19 +22,15 @@ rust-build:
 run: all
 	./target/release/anvil-zksync run
 
-# Build the Rust project for a specific target. Primarily used for CI.
-build-%:
-	cross build --bin anvil-zksync --target $* --release
-
-# Build the Rust project for a specific target (static build).
-build-static-%:
-	RUSTFLAGS='-C target-feature=+crt-static' OPENSSL_STATIC=1 cross build --bin anvil-zksync --target $* --release
-
 # Build the Rust documentation
 rust-doc:
 	cargo doc --no-deps --open
 
-# Lint checks for Rust code
+# Serve docs site locally
+docs-site:
+	cd docs/book && mdbook serve --open
+
+# Lint checks
 lint:
 	cd e2e-tests && yarn && yarn lint && yarn fmt && yarn typecheck
 	cd e2e-tests-rust && cargo fmt --all -- --check
@@ -50,7 +40,7 @@ lint:
 	cd e2e-tests-rust && cargo clippy --tests -- -D warnings --allow clippy::unwrap_used
 	cd spec-tests && cargo clippy --tests -- -D warnings --allow clippy::unwrap_used
 
-# Fix lint errors for Rust code
+# Fix lint errors
 lint-fix:
 	cd e2e-tests && yarn && yarn lint:fix && yarn fmt:fix
 	cargo clippy --fix
@@ -85,4 +75,4 @@ new-release-tag:
 book:
 	mdbook build docs/rustbook
 
-.PHONY: build-contracts clean-contracts rebuild-contracts rust-build lint test test-e2e all clean build-% new-release-tag book
+.PHONY: build-contracts clean-contracts rust-build lint test test-e2e all clean build-% new-release-tag book

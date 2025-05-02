@@ -1,8 +1,9 @@
 mod namespaces;
 
+// TODO: @dutterbutter rename ZKOSNamespaceServer
 pub use namespaces::{
-    AnvilNamespaceServer, ConfigNamespaceServer, EthTestNamespaceServer, EvmNamespaceServer,
-    ZKOSNamespaceServer,
+    AnvilNamespaceServer, AnvilZksNamespaceServer, ConfigNamespaceServer, EthTestNamespaceServer,
+    EvmNamespaceServer, ZKOSNamespaceServer,
 };
 
 // Re-export available namespaces from zksync-era

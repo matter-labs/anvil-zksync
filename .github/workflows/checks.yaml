@@ -22,9 +22,9 @@ jobs:
           toolchain: stable
           components: rustfmt, clippy
 
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
-          node-version: 18.x
+          node-version: 22.x
           cache: "yarn"
           cache-dependency-path: 'e2e-tests/yarn.lock'
 
@@ -45,6 +45,13 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
+
+      - name: Install Foundry-ZKsync
+        uses: dutterbutter/foundry-zksync-toolchain@v1
+        with:
+          version: foundry-zksync-v0.0.10
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Code
         run: make all
