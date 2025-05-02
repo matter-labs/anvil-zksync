@@ -54,7 +54,7 @@ impl SystemContractsBuilder {
     /// Enable or disable ZKOS
     pub fn use_zkos(mut self, flag: bool) -> Self {
         self.zkos_config.use_zkos = flag;
-         self
+        self
     }
 
     /// Set the ZKOS configuration

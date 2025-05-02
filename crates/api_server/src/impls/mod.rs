@@ -14,5 +14,5 @@ mod zks;
 pub use self::{
     anvil::AnvilNamespace, anvil_zks::AnvilZksNamespace, config::ConfigNamespace,
     debug::DebugNamespace, eth::EthNamespace, eth_test::EthTestNamespace, evm::EvmNamespace,
-    net::NetNamespace, web3::Web3Namespace, zks::ZksNamespace, zkos::ZKOSNamespace
+    net::NetNamespace, web3::Web3Namespace, zkos::ZKOSNamespace, zks::ZksNamespace,
 };

@@ -7,7 +7,7 @@ use crate::{
 use anvil_zksync_api_decl::{
     AnvilNamespaceServer, AnvilZksNamespaceServer, ConfigNamespaceServer, DebugNamespaceServer,
     EthNamespaceServer, EthTestNamespaceServer, EvmNamespaceServer, NetNamespaceServer,
-    Web3NamespaceServer, ZksNamespaceServer, ZKOSNamespaceServer
+    Web3NamespaceServer, ZKOSNamespaceServer, ZksNamespaceServer,
 };
 use anvil_zksync_core::node::InMemoryNode;
 use anvil_zksync_l1_sidecar::L1Sidecar;
