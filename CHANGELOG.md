@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.6.1](https://github.com/matter-labs/anvil-zksync/compare/v0.6.0...v0.6.1) (2025-05-05)
+
+
+### Features
+
+* use V28 multivm ([#645](https://github.com/matter-labs/anvil-zksync/issues/645)) ([4789878](https://github.com/matter-labs/anvil-zksync/commit/478987815fa207a336399024809274ebf3b75ea9))
+
+
+### Bug Fixes
+
+* addresses issue with computing sha for binaries for homebrew installation ([#694](https://github.com/matter-labs/anvil-zksync/issues/694)) ([88e8402](https://github.com/matter-labs/anvil-zksync/commit/88e8402d2fd2c2ce27557147e0b8817225a268ca))
+* fix sha mismatch from workflow ([#689](https://github.com/matter-labs/anvil-zksync/issues/689)) ([bea090e](https://github.com/matter-labs/anvil-zksync/commit/bea090ef000ebeaf24ca60223e715e3ef4468e36))
+* update docker buildx for proper containers caching ([#691](https://github.com/matter-labs/anvil-zksync/issues/691)) ([0f6a1ab](https://github.com/matter-labs/anvil-zksync/commit/0f6a1abb028a404f77c5913e1bfb134bed4c5063))
+
 ## [0.6.0](https://github.com/matter-labs/anvil-zksync/compare/v0.5.1...v0.6.0) (2025-04-30)
 
 
