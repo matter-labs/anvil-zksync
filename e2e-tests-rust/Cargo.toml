@@ -35,6 +35,3 @@ hex = "0.4"
 test-casing = "0.1.3"
 
 [workspace] # ignore higher-level workspace
-
-[patch.crates-io]
-vise = { git = "https://github.com/matter-labs/vise.git", rev = "51669f42f60c50b3a521662a4ecd71212a303299" }
