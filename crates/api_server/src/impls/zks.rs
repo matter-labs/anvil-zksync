@@ -68,18 +68,14 @@ impl ZksNamespaceServer for ZksNamespace {
         ))
     }
 
+    #[named]
     async fn get_main_l1_contract(&self) -> RpcResult<Address> {
-        Err(JsonRpcAdapter::from(RpcError::UnsupportedMethod {
-            method_name: "get_main_l1_contract".to_owned(),
-        })
-        .into())
+        rpc_unsupported(function_name!())
     }
 
+    #[named]
     async fn get_testnet_paymaster(&self) -> RpcResult<Option<Address>> {
-        Err(JsonRpcAdapter::from(RpcError::UnsupportedMethod {
-            method_name: "get_testnet_paymaster".to_owned(),
-        })
-        .into())
+        rpc_unsupported(function_name!())
     }
 
     async fn get_bridge_contracts(&self) -> RpcResult<BridgeAddresses> {
@@ -139,6 +135,7 @@ impl ZksNamespaceServer for ZksNamespace {
             .map_err(JsonRpcAdapter::from)?)
     }
 
+    #[named]
     async fn get_l2_to_l1_msg_proof(
         &self,
         _block: L2BlockNumber,
@@ -146,10 +143,7 @@ impl ZksNamespaceServer for ZksNamespace {
         _msg: H256,
         _l2_log_position: Option<usize>,
     ) -> RpcResult<Option<L2ToL1LogProof>> {
-        Err(JsonRpcAdapter::from(RpcError::UnsupportedMethod {
-            method_name: "get_l2_to_l1_msg_proof".to_owned(),
-        })
-        .into())
+        rpc_unsupported(function_name!())
     }
 
     async fn get_l2_to_l1_log_proof(
