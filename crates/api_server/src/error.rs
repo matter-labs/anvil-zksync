@@ -10,7 +10,7 @@ use zksync_web3_decl::error::Web3Error as LegacyWeb3Error;
 // TODO This datatype may be erased once we port Web3Error from ZKsync to
 // zksync-error
 #[derive(Debug, thiserror::Error)]
-pub enum JsonRPCAdapter {
+pub enum JsonRpcAdapter {
     LegacyWeb3(#[from] LegacyWeb3Error),
     Node(#[from] AnvilNodeError),
     Web3(#[from] Web3Error),
@@ -19,29 +19,29 @@ pub enum JsonRPCAdapter {
     Anyhow(#[from] anyhow::Error),
 }
 
-impl std::fmt::Display for JsonRPCAdapter {
+impl std::fmt::Display for JsonRpcAdapter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!("{self:#?}"))
     }
 }
 
-impl From<JsonRPCAdapter> for ErrorObjectOwned {
-    fn from(val: JsonRPCAdapter) -> Self {
+impl From<JsonRpcAdapter> for ErrorObjectOwned {
+    fn from(val: JsonRpcAdapter) -> Self {
         let rpc_error = match val {
-            JsonRPCAdapter::LegacyWeb3(web3_error) => RpcError::Web3Error {
+            JsonRpcAdapter::LegacyWeb3(web3_error) => RpcError::Web3Error {
                 inner: Box::new(legacy_web3_adapter(web3_error)),
             },
-            JsonRPCAdapter::Node(anvil_node) => RpcError::NodeError {
+            JsonRpcAdapter::Node(anvil_node) => RpcError::NodeError {
                 inner: Box::new(anvil_node),
             },
-            JsonRPCAdapter::Web3(web3) => RpcError::Web3Error {
+            JsonRpcAdapter::Web3(web3) => RpcError::Web3Error {
                 inner: Box::new(web3),
             },
-            JsonRPCAdapter::LoadState(state_loader) => RpcError::LoadStateError {
+            JsonRpcAdapter::LoadState(state_loader) => RpcError::LoadStateError {
                 inner: Box::new(state_loader),
             },
-            JsonRPCAdapter::Rpc(rpc) => rpc,
-            JsonRPCAdapter::Anyhow(error) => RpcError::GenericError {
+            JsonRpcAdapter::Rpc(rpc) => rpc,
+            JsonRpcAdapter::Anyhow(error) => RpcError::GenericError {
                 message: error.to_string(),
             },
         };
@@ -136,7 +136,7 @@ pub fn into_json_rpc(error: RpcError) -> ErrorObjectOwned {
 }
 
 pub fn rpc_unsupported<T>(method_name: &str) -> jsonrpsee::core::RpcResult<T> {
-    Err(JsonRPCAdapter::Rpc(RpcError::UnsupportedMethod {
+    Err(JsonRpcAdapter::Rpc(RpcError::UnsupportedMethod {
         method_name: method_name.to_owned(),
     })
     .into())

@@ -4,7 +4,7 @@ use jsonrpsee::core::{async_trait, RpcResult};
 use zksync_types::transaction_request::CallRequest;
 use zksync_types::H256;
 
-use crate::error::JsonRPCAdapter;
+use crate::error::JsonRpcAdapter;
 
 pub struct EthTestNamespace {
     node: InMemoryNode,
@@ -23,6 +23,6 @@ impl EthTestNamespaceServer for EthTestNamespace {
             .node
             .send_transaction_impl(tx)
             .await
-            .map_err(JsonRPCAdapter::from)?)
+            .map_err(JsonRpcAdapter::from)?)
     }
 }

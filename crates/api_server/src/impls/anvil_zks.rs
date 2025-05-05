@@ -3,7 +3,7 @@ use anvil_zksync_l1_sidecar::L1Sidecar;
 use jsonrpsee::core::{async_trait, RpcResult};
 use zksync_types::{L1BatchNumber, H256};
 
-use crate::error::JsonRPCAdapter;
+use crate::error::JsonRpcAdapter;
 
 pub struct AnvilZksNamespace {
     l1_sidecar: L1Sidecar,
@@ -22,7 +22,7 @@ impl AnvilZksNamespaceServer for AnvilZksNamespace {
             .l1_sidecar
             .commit_batch(batch_number)
             .await
-            .map_err(JsonRPCAdapter::from)?)
+            .map_err(JsonRpcAdapter::from)?)
     }
 
     async fn prove_batch(&self, batch_number: L1BatchNumber) -> RpcResult<H256> {
@@ -30,7 +30,7 @@ impl AnvilZksNamespaceServer for AnvilZksNamespace {
             .l1_sidecar
             .prove_batch(batch_number)
             .await
-            .map_err(JsonRPCAdapter::from)?)
+            .map_err(JsonRpcAdapter::from)?)
     }
 
     async fn execute_batch(&self, batch_number: L1BatchNumber) -> RpcResult<H256> {
@@ -38,6 +38,6 @@ impl AnvilZksNamespaceServer for AnvilZksNamespace {
             .l1_sidecar
             .execute_batch(batch_number)
             .await
-            .map_err(JsonRPCAdapter::from)?)
+            .map_err(JsonRpcAdapter::from)?)
     }
 }

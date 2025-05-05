@@ -17,7 +17,7 @@ use zksync_types::web3::Bytes;
 use zksync_types::{Address, L1BatchNumber, L2BlockNumber, Transaction, H256, U256, U64};
 use zksync_web3_decl::types::Token;
 
-use crate::error::{rpc_unsupported, JsonRPCAdapter};
+use crate::error::{rpc_unsupported, JsonRpcAdapter};
 
 pub struct ZksNamespace {
     node: InMemoryNode,
@@ -42,7 +42,7 @@ impl ZksNamespaceServer for ZksNamespace {
             .node
             .estimate_fee_impl(req)
             .await
-            .map_err(JsonRPCAdapter::from)?)
+            .map_err(JsonRpcAdapter::from)?)
     }
 
     async fn estimate_gas_l1_to_l2(
@@ -55,28 +55,28 @@ impl ZksNamespaceServer for ZksNamespace {
             .node
             .estimate_gas_l1_to_l2(req)
             .await
-            .map_err(JsonRPCAdapter::from)?)
+            .map_err(JsonRpcAdapter::from)?)
     }
 
     async fn get_bridgehub_contract(&self) -> RpcResult<Option<Address>> {
         Ok(Some(
             self.l1_sidecar
                 .contracts_config()
-                .map_err(JsonRPCAdapter::from)?
+                .map_err(JsonRpcAdapter::from)?
                 .ecosystem_contracts
                 .bridgehub_proxy_addr,
         ))
     }
 
     async fn get_main_l1_contract(&self) -> RpcResult<Address> {
-        Err(JsonRPCAdapter::from(RpcError::UnsupportedMethod {
+        Err(JsonRpcAdapter::from(RpcError::UnsupportedMethod {
             method_name: "get_main_l1_contract".to_owned(),
         })
         .into())
     }
 
     async fn get_testnet_paymaster(&self) -> RpcResult<Option<Address>> {
-        Err(JsonRPCAdapter::from(RpcError::UnsupportedMethod {
+        Err(JsonRpcAdapter::from(RpcError::UnsupportedMethod {
             method_name: "get_testnet_paymaster".to_owned(),
         })
         .into())
@@ -99,7 +99,7 @@ impl ZksNamespaceServer for ZksNamespace {
             .node
             .get_bridge_contracts_impl()
             .await
-            .map_err(JsonRPCAdapter::from)?)
+            .map_err(JsonRpcAdapter::from)?)
     }
 
     async fn get_base_token_l1_address(&self) -> RpcResult<Address> {
@@ -107,14 +107,14 @@ impl ZksNamespaceServer for ZksNamespace {
             .node
             .get_base_token_l1_address_impl()
             .await
-            .map_err(JsonRPCAdapter::from)?)
+            .map_err(JsonRpcAdapter::from)?)
     }
 
     async fn l1_chain_id(&self) -> RpcResult<U64> {
         Ok(U64::from(
             self.l1_sidecar
                 .genesis_config()
-                .map_err(JsonRPCAdapter::from)?
+                .map_err(JsonRpcAdapter::from)?
                 .l1_chain_id
                 .0,
         ))
@@ -125,7 +125,7 @@ impl ZksNamespaceServer for ZksNamespace {
             .node
             .get_confirmed_tokens_impl(from, limit)
             .await
-            .map_err(JsonRPCAdapter::from)?)
+            .map_err(JsonRpcAdapter::from)?)
     }
 
     async fn get_all_account_balances(
@@ -136,7 +136,7 @@ impl ZksNamespaceServer for ZksNamespace {
             .node
             .get_all_account_balances_impl(address)
             .await
-            .map_err(JsonRPCAdapter::from)?)
+            .map_err(JsonRpcAdapter::from)?)
     }
 
     async fn get_l2_to_l1_msg_proof(
@@ -146,7 +146,7 @@ impl ZksNamespaceServer for ZksNamespace {
         _msg: H256,
         _l2_log_position: Option<usize>,
     ) -> RpcResult<Option<L2ToL1LogProof>> {
-        Err(JsonRPCAdapter::from(RpcError::UnsupportedMethod {
+        Err(JsonRpcAdapter::from(RpcError::UnsupportedMethod {
             method_name: "get_l2_to_l1_msg_proof".to_owned(),
         })
         .into())
@@ -161,7 +161,7 @@ impl ZksNamespaceServer for ZksNamespace {
             .node
             .get_l2_to_l1_log_proof_impl(tx_hash, index)
             .await
-            .map_err(JsonRPCAdapter::from)?)
+            .map_err(JsonRpcAdapter::from)?)
     }
 
     #[named]
@@ -182,7 +182,7 @@ impl ZksNamespaceServer for ZksNamespace {
             .node
             .get_block_details_impl(block_number)
             .await
-            .map_err(JsonRPCAdapter::from)?)
+            .map_err(JsonRpcAdapter::from)?)
     }
 
     async fn get_transaction_details(&self, hash: H256) -> RpcResult<Option<TransactionDetails>> {
@@ -190,7 +190,7 @@ impl ZksNamespaceServer for ZksNamespace {
             .node
             .get_transaction_details_impl(hash)
             .await
-            .map_err(JsonRPCAdapter::from)?)
+            .map_err(JsonRpcAdapter::from)?)
     }
 
     async fn get_raw_block_transactions(
@@ -201,7 +201,7 @@ impl ZksNamespaceServer for ZksNamespace {
             .node
             .get_raw_block_transactions_impl(block_number)
             .await
-            .map_err(JsonRPCAdapter::from)?)
+            .map_err(JsonRpcAdapter::from)?)
     }
 
     #[named]
@@ -217,7 +217,7 @@ impl ZksNamespaceServer for ZksNamespace {
             .node
             .get_bytecode_by_hash_impl(hash)
             .await
-            .map_err(JsonRPCAdapter::from)?)
+            .map_err(JsonRpcAdapter::from)?)
     }
 
     #[named]

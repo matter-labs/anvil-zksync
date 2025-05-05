@@ -5,7 +5,7 @@ use zksync_types::api::{BlockNumber, CallTracerBlockResult, CallTracerResult, Tr
 use zksync_types::transaction_request::CallRequest;
 use zksync_types::{api, H256};
 
-use crate::error::JsonRPCAdapter;
+use crate::error::JsonRpcAdapter;
 
 pub struct DebugNamespace {
     node: InMemoryNode,
@@ -28,7 +28,7 @@ impl DebugNamespaceServer for DebugNamespace {
             .node
             .trace_block_impl(api::BlockId::Number(block), options)
             .await
-            .map_err(JsonRPCAdapter::from)?)
+            .map_err(JsonRpcAdapter::from)?)
     }
 
     async fn trace_block_by_hash(
@@ -40,7 +40,7 @@ impl DebugNamespaceServer for DebugNamespace {
             .node
             .trace_block_impl(api::BlockId::Hash(hash), options)
             .await
-            .map_err(JsonRPCAdapter::from)?)
+            .map_err(JsonRpcAdapter::from)?)
     }
 
     async fn trace_call(
@@ -53,7 +53,7 @@ impl DebugNamespaceServer for DebugNamespace {
             .node
             .trace_call_impl(request, block, options)
             .await
-            .map_err(JsonRPCAdapter::from)?)
+            .map_err(JsonRpcAdapter::from)?)
     }
 
     async fn trace_transaction(
@@ -65,6 +65,6 @@ impl DebugNamespaceServer for DebugNamespace {
             .node
             .trace_transaction_impl(tx_hash, options)
             .await
-            .map_err(JsonRPCAdapter::from)?)
+            .map_err(JsonRpcAdapter::from)?)
     }
 }
