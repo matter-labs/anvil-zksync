@@ -1,12 +1,10 @@
 //! In-memory node, that supports forking other networks.
-use super::inner::fork::ForkDetails;
 use super::inner::node_executor::NodeExecutorHandle;
 use super::inner::InMemoryNodeInner;
 use super::vm::AnvilVM;
-use crate::deps::storage_view::StorageView;
+use crate::delegate_vm;
 use crate::deps::InMemoryStorage;
 use crate::filters::EthFilters;
-use crate::node::call_error_tracer::CallErrorTracer;
 use crate::node::error::LoadStateError;
 use crate::node::fee_model::TestNodeFeeInputProvider;
 use crate::node::impersonate::{ImpersonationManager, ImpersonationState};
@@ -15,17 +13,25 @@ use crate::node::inner::storage::ReadStorageDyn;
 use crate::node::inner::time::ReadTime;
 use crate::node::sealer::BlockSealerState;
 use crate::node::state::VersionedState;
-use crate::node::{BlockSealer, BlockSealerMode, NodeExecutor, TxPool};
+use crate::node::traces::call_error::CallErrorTracer;
+use crate::node::traces::decoder::CallTraceDecoderBuilder;
+use crate::node::{BlockSealer, BlockSealerMode, NodeExecutor, TxBatch, TxPool};
 use crate::observability::Observability;
 use crate::system_contracts::SystemContracts;
-use crate::{delegate_vm, formatter};
-use anvil_zksync_config::constants::{
-    LEGACY_RICH_WALLETS, NON_FORK_FIRST_BLOCK_TIMESTAMP, RICH_WALLETS, TEST_NODE_NETWORK_ID,
-};
+use anvil_zksync_common::cache::CacheConfig;
+use anvil_zksync_common::sh_println;
+use anvil_zksync_common::shell::get_shell;
+use anvil_zksync_config::constants::{NON_FORK_FIRST_BLOCK_TIMESTAMP, TEST_NODE_NETWORK_ID};
 use anvil_zksync_config::types::Genesis;
 use anvil_zksync_config::TestNodeConfig;
-use anvil_zksync_types::{LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails};
-use colored::Colorize;
+use anvil_zksync_traces::{
+    build_call_trace_arena, decode_trace_arena, filter_call_trace_arena,
+    identifier::SignaturesIdentifier, render_trace_arena_inner,
+};
+use anvil_zksync_types::{
+    traces::CallTraceArena, LogLevel, ShowGasDetails, ShowStorageLogs, ShowVMDetails,
+};
+use anyhow::{anyhow, Context};
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
@@ -34,11 +40,12 @@ use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::io::{Read, Write};
-use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use zksync_contracts::BaseSystemContracts;
-use zksync_multivm::interface::storage::{ReadStorage, StoragePtr};
+use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
+use zksync_error::anvil_zksync;
+use zksync_error::anvil_zksync::node::AnvilNodeResult;
+use zksync_multivm::interface::storage::{ReadStorage, StoragePtr, StorageView};
 use zksync_multivm::interface::VmFactory;
 use zksync_multivm::interface::{
     ExecutionResult, InspectExecutionMode, L1BatchEnv, L2BlockEnv, TxExecutionMode, VmInterface,
@@ -47,20 +54,22 @@ use zksync_multivm::tracers::CallTracer;
 use zksync_multivm::utils::{get_batch_base_fee, get_max_batch_gas_limit};
 use zksync_multivm::vm_latest::Vm;
 
+use crate::node::fork::{ForkClient, ForkSource};
 use crate::node::keys::StorageKeyLayout;
 use zksync_multivm::vm_latest::{HistoryDisabled, ToTracerPointer};
 use zksync_multivm::VmVersion;
 use zksync_types::api::{Block, DebugCall, TransactionReceipt, TransactionVariant};
-use zksync_types::block::unpack_block_info;
+use zksync_types::block::{unpack_block_info, L1BatchHeader, L2BlockHasher};
 use zksync_types::fee_model::BatchFeeInput;
 use zksync_types::l2::L2Tx;
 use zksync_types::storage::{
     EMPTY_UNCLES_HASH, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_BLOCK_INFO_POSITION,
 };
-use zksync_types::web3::{keccak256, Bytes};
+use zksync_types::web3::Bytes;
 use zksync_types::{
     h256_to_u256, AccountTreeId, Address, Bloom, L1BatchNumber, L2BlockNumber, L2ChainId,
-    PackedEthSignature, StorageKey, StorageValue, Transaction, H160, H256, H64, U256, U64,
+    PackedEthSignature, ProtocolVersionId, StorageKey, StorageValue, Transaction, H160, H256, H64,
+    U256, U64,
 };
 
 /// Max possible size of an ABI encoded tx (in bytes).
@@ -72,21 +81,26 @@ pub const MAX_PREVIOUS_STATES: u16 = 128;
 /// The zks protocol version.
 pub const PROTOCOL_VERSION: &str = "zks/1";
 
-// TODO: Use L2BlockNumber
-pub fn compute_hash<'a>(block_number: u64, tx_hashes: impl IntoIterator<Item = &'a H256>) -> H256 {
-    let tx_bytes = tx_hashes
-        .into_iter()
-        .flat_map(|h| h.to_fixed_bytes())
-        .collect::<Vec<_>>();
-    let digest = [&block_number.to_be_bytes()[..], tx_bytes.as_slice()].concat();
-    H256(keccak256(&digest))
+pub fn compute_hash<'a>(
+    protocol_version: ProtocolVersionId,
+    number: L2BlockNumber,
+    timestamp: u64,
+    prev_l2_block_hash: H256,
+    tx_hashes: impl IntoIterator<Item = &'a H256>,
+) -> H256 {
+    let mut block_hasher = L2BlockHasher::new(number, timestamp, prev_l2_block_hash);
+    for tx_hash in tx_hashes.into_iter() {
+        block_hasher.push_tx_hash(*tx_hash);
+    }
+    block_hasher.finalize(protocol_version)
 }
 
 pub fn create_genesis_from_json(
+    protocol_version: ProtocolVersionId,
     genesis: &Genesis,
     timestamp: Option<u64>,
-) -> Block<TransactionVariant> {
-    let hash = genesis.hash.unwrap_or_else(|| compute_hash(0, []));
+) -> (Block<TransactionVariant>, L1BatchHeader) {
+    let hash = L2BlockHasher::legacy_hash(L2BlockNumber(0));
     let timestamp = timestamp
         .or(genesis.timestamp)
         .unwrap_or(NON_FORK_FIRST_BLOCK_TIMESTAMP);
@@ -106,7 +120,7 @@ pub fn create_genesis_from_json(
         },
     });
 
-    create_block(
+    let genesis_block = create_block(
         &l1_batch_env,
         hash,
         genesis.parent_hash.unwrap_or_else(H256::zero),
@@ -115,11 +129,22 @@ pub fn create_genesis_from_json(
         genesis.transactions.clone().unwrap_or_default(),
         genesis.gas_used.unwrap_or_else(U256::zero),
         genesis.logs_bloom.unwrap_or_else(Bloom::zero),
-    )
+    );
+    let genesis_batch_header = L1BatchHeader::new(
+        L1BatchNumber(0),
+        timestamp,
+        BaseSystemContractsHashes::default(),
+        protocol_version,
+    );
+
+    (genesis_block, genesis_batch_header)
 }
 
-pub fn create_genesis<TX>(timestamp: Option<u64>) -> Block<TX> {
-    let hash = compute_hash(0, []);
+pub fn create_genesis<TX>(
+    protocol_version: ProtocolVersionId,
+    timestamp: Option<u64>,
+) -> (Block<TX>, L1BatchHeader) {
+    let hash = L2BlockHasher::legacy_hash(L2BlockNumber(0));
     let timestamp = timestamp.unwrap_or(NON_FORK_FIRST_BLOCK_TIMESTAMP);
     let batch_env = L1BatchEnv {
         previous_batch_hash: None,
@@ -135,7 +160,7 @@ pub fn create_genesis<TX>(timestamp: Option<u64>) -> Block<TX> {
             max_virtual_blocks_to_create: 0,
         },
     };
-    create_block(
+    let genesis_block = create_block(
         &batch_env,
         hash,
         H256::zero(),
@@ -144,7 +169,15 @@ pub fn create_genesis<TX>(timestamp: Option<u64>) -> Block<TX> {
         vec![],
         U256::zero(),
         Bloom::zero(),
-    )
+    );
+    let genesis_batch_header = L1BatchHeader::new(
+        L1BatchNumber(0),
+        timestamp,
+        BaseSystemContractsHashes::default(),
+        protocol_version,
+    );
+
+    (genesis_block, genesis_batch_header)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -189,7 +222,7 @@ pub fn create_block<TX>(
 /// Information about the executed transaction.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TxExecutionInfo {
-    pub tx: L2Tx,
+    pub tx: Transaction,
     // Batch number where transaction was executed.
     pub batch_number: u32,
     pub miniblock_number: u64,
@@ -198,6 +231,7 @@ pub struct TxExecutionInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TransactionResult {
     pub info: TxExecutionInfo,
+    pub new_bytecodes: Vec<(H256, Vec<u8>)>,
     pub receipt: TransactionReceipt,
     pub debug: DebugCall,
 }
@@ -249,7 +283,8 @@ pub struct InMemoryNode {
     pub(crate) inner: Arc<RwLock<InMemoryNodeInner>>,
     pub(crate) blockchain: Box<dyn ReadBlockchain>,
     pub(crate) storage: Box<dyn ReadStorageDyn>,
-    pub(crate) node_handle: NodeExecutorHandle,
+    pub(crate) fork: Box<dyn ForkSource>,
+    pub node_handle: NodeExecutorHandle,
     /// List of snapshots of the [InMemoryNodeInner]. This is bounded at runtime by [MAX_SNAPSHOTS].
     pub(crate) snapshots: Arc<RwLock<Vec<Snapshot>>>,
     pub(crate) time: Box<dyn ReadTime>,
@@ -268,6 +303,7 @@ impl InMemoryNode {
         inner: Arc<RwLock<InMemoryNodeInner>>,
         blockchain: Box<dyn ReadBlockchain>,
         storage: Box<dyn ReadStorageDyn>,
+        fork: Box<dyn ForkSource>,
         node_handle: NodeExecutorHandle,
         observability: Option<Observability>,
         time: Box<dyn ReadTime>,
@@ -281,6 +317,7 @@ impl InMemoryNode {
             inner,
             blockchain,
             storage,
+            fork,
             node_handle,
             snapshots: Default::default(),
             time,
@@ -293,78 +330,46 @@ impl InMemoryNode {
         }
     }
 
-    pub async fn reset(&self, fork: Option<ForkDetails>) -> Result<(), String> {
-        self.inner.write().await.reset(fork).await;
-        self.snapshots.write().await.clear();
+    /// Replays transactions consequently in a new block. All transactions are expected to be
+    /// executable and will become a part of the resulting block.
+    pub async fn replay_txs(&self, txs: Vec<Transaction>) -> AnvilNodeResult<()> {
+        let tx_batch = TxBatch {
+            impersonating: false,
+            txs,
+        };
+        let expected_tx_hashes = tx_batch
+            .txs
+            .iter()
+            .map(|tx| tx.hash())
+            .collect::<HashSet<_>>();
+        let block_number = self.node_handle.seal_block_sync(tx_batch).await?;
+        // Fetch the block that was just sealed
+        let block = self
+            .blockchain
+            .get_block_by_number(block_number)
+            .await
+            .expect("freshly sealed block could not be found in storage");
 
-        for wallet in LEGACY_RICH_WALLETS.iter() {
-            let address = wallet.0;
-            self.set_rich_account(
-                H160::from_str(address).unwrap(),
-                U256::from(100u128 * 10u128.pow(18)),
-            )
-            .await;
-        }
-        for wallet in RICH_WALLETS.iter() {
-            let address = wallet.0;
-            self.set_rich_account(
-                H160::from_str(address).unwrap(),
-                U256::from(100u128 * 10u128.pow(18)),
-            )
-            .await;
-        }
-        Ok(())
-    }
+        // Calculate tx hash set from that block
+        let actual_tx_hashes = block
+            .transactions
+            .iter()
+            .map(|tx| match tx {
+                TransactionVariant::Full(tx) => tx.hash,
+                TransactionVariant::Hash(tx_hash) => *tx_hash,
+            })
+            .collect::<HashSet<_>>();
 
-    /// Applies multiple transactions across multiple blocks. All transactions are expected to be
-    /// executable. Note that on error this method may leave node in partially applied state (i.e.
-    /// some txs have been applied while others have not).
-    pub async fn apply_txs(&self, txs: Vec<L2Tx>, max_transactions: usize) -> anyhow::Result<()> {
-        tracing::debug!(count = txs.len(), "applying transactions");
-
-        // Create a temporary tx pool (i.e. state is not shared with the node mempool).
-        let pool = TxPool::new(
-            self.impersonation.clone(),
-            self.inner.read().await.config.transaction_order,
-        );
-        pool.add_txs(txs);
-
-        while let Some(tx_batch) = pool.take_uniform(max_transactions) {
-            // Getting contracts is reasonably cheap, so we don't cache them. We may need differing contracts
-            // depending on whether impersonation should be enabled for a block.
-            let expected_tx_hashes = tx_batch
-                .txs
-                .iter()
-                .map(|tx| tx.hash())
-                .collect::<HashSet<_>>();
-            let block_numer = self.node_handle.seal_block_sync(tx_batch).await?;
-
-            // Fetch the block that was just sealed
-            let block = self
-                .blockchain
-                .get_block_by_number(block_numer)
-                .await
-                .expect("freshly sealed block could not be found in storage");
-
-            // Calculate tx hash set from that block
-            let actual_tx_hashes = block
-                .transactions
-                .iter()
-                .map(|tx| match tx {
-                    TransactionVariant::Full(tx) => tx.hash,
-                    TransactionVariant::Hash(tx_hash) => *tx_hash,
-                })
-                .collect::<HashSet<_>>();
-
-            // Calculate the difference between expected transaction hash set and the actual one.
-            // If the difference is not empty it means some transactions were not executed (i.e.
-            // were halted).
-            let diff_tx_hashes = expected_tx_hashes
-                .difference(&actual_tx_hashes)
-                .collect::<Vec<_>>();
-            if !diff_tx_hashes.is_empty() {
-                anyhow::bail!("Failed to apply some transactions: {:?}", diff_tx_hashes);
-            }
+        // Calculate the difference between expected transaction hash set and the actual one.
+        // If the difference is not empty it means some transactions were not executed (i.e.
+        // were halted).
+        let diff_tx_hashes = expected_tx_hashes
+            .difference(&actual_tx_hashes)
+            .collect::<Vec<_>>();
+        if !diff_tx_hashes.is_empty() {
+            return Err(anvil_zksync::node::generic_error!(
+                "Failed to replay transactions: {diff_tx_hashes:?}. Please report this."
+            ));
         }
 
         Ok(())
@@ -390,7 +395,7 @@ impl InMemoryNode {
         let (batch_env, _) = inner.create_l1_batch_env().await;
         let system_env = inner.create_system_env(base_contracts, execution_mode);
 
-        let storage = StorageView::new(inner.read_storage()).into_rc_ptr();
+        let storage = StorageView::new(inner.read_storage()).to_rc_ptr();
 
         let mut vm = if self.system_contracts.use_zkos() {
             AnvilVM::ZKOs(super::zkos::ZKOsVM::<_, HistoryDisabled>::new(
@@ -414,9 +419,10 @@ impl InMemoryNode {
         delegate_vm!(vm, push_transaction(tx.clone()));
 
         let call_tracer_result = Arc::new(OnceCell::default());
+        let error_flags_result = Arc::new(OnceCell::new());
 
         let tracers = vec![
-            CallErrorTracer::new().into_tracer_pointer(),
+            CallErrorTracer::new(error_flags_result.clone()).into_tracer_pointer(),
             CallTracer::new(call_tracer_result.clone()).into_tracer_pointer(),
         ];
         let tx_result = delegate_vm!(
@@ -429,49 +435,40 @@ impl InMemoryNode {
             .take()
             .unwrap_or_default();
 
-        if inner.config.show_tx_summary {
-            tracing::info!("");
-            match &tx_result.result {
-                ExecutionResult::Success { output } => {
-                    tracing::info!("Call: {}", "SUCCESS".green());
-                    let output_bytes = zksync_types::web3::Bytes::from(output.clone());
-                    tracing::info!("Output: {}", serde_json::to_string(&output_bytes).unwrap());
-                }
-                ExecutionResult::Revert { output } => {
-                    tracing::info!("Call: {}: {}", "FAILED".red(), output);
-                }
-                ExecutionResult::Halt { reason } => {
-                    tracing::info!("Call: {} {}", "HALTED".red(), reason)
-                }
-            };
-        }
-
-        if !inner.config.disable_console_log {
-            inner
-                .console_log_handler
-                .handle_calls_recursive(&call_traces);
-        }
-
-        if inner.config.show_calls != ShowCalls::None {
-            tracing::info!("");
-            tracing::info!(
-                "[Transaction Execution] ({} calls)",
-                call_traces[0].calls.len()
+        let verbosity = get_shell().verbosity;
+        if !call_traces.is_empty() && verbosity >= 2 {
+            let tx_result_for_arena = tx_result.clone();
+            let mut builder = CallTraceDecoderBuilder::default();
+            builder = builder.with_signature_identifier(
+                SignaturesIdentifier::new(
+                    Some(inner.config.get_cache_dir().into()),
+                    inner.config.offline,
+                )
+                .map_err(|err| anyhow!("Failed to create SignaturesIdentifier: {:#}", err))?,
             );
-            let num_calls = call_traces.len();
-            for (i, call) in call_traces.iter().enumerate() {
-                let is_last_sibling = i == num_calls - 1;
-                let mut formatter = formatter::Formatter::new();
-                formatter.print_call(
-                    tx.initiator_account(),
-                    tx.execute.contract_address,
-                    call,
-                    is_last_sibling,
-                    inner.config.show_calls,
-                    inner.config.show_outputs,
-                    inner.config.resolve_hashes,
-                );
-            }
+
+            let decoder = builder.build();
+            let arena: CallTraceArena = futures::executor::block_on(async {
+                let blocking_result = tokio::task::spawn_blocking(move || {
+                    let mut arena = build_call_trace_arena(&call_traces, &tx_result_for_arena);
+                    let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
+                    rt.block_on(async {
+                        decode_trace_arena(&mut arena, &decoder)
+                            .await
+                            .context("Failed to decode trace arena")?;
+                        Ok::<CallTraceArena, anyhow::Error>(arena)
+                    })
+                })
+                .await;
+
+                let inner_result: Result<CallTraceArena, anyhow::Error> =
+                    blocking_result.expect("spawn_blocking failed");
+                inner_result
+            })?;
+
+            let filtered_arena = filter_call_trace_arena(&arena, verbosity);
+            let trace_output = render_trace_arena_inner(&filtered_arena, false);
+            sh_println!("\nTraces:\n{}", trace_output);
         }
 
         Ok(tx_result.result)
@@ -482,7 +479,7 @@ impl InMemoryNode {
         &self,
         address: Address,
         bytecode: Vec<u8>,
-    ) -> anyhow::Result<()> {
+    ) -> AnvilNodeResult<()> {
         self.node_handle.set_code_sync(address, bytecode).await
     }
 
@@ -530,26 +527,8 @@ impl InMemoryNode {
             .unwrap_or(TEST_NODE_NETWORK_ID))
     }
 
-    pub async fn get_show_calls(&self) -> anyhow::Result<String> {
-        Ok(self.inner.read().await.config.show_calls.to_string())
-    }
-
-    pub async fn get_show_outputs(&self) -> anyhow::Result<bool> {
-        Ok(self.inner.read().await.config.show_outputs)
-    }
-
     pub fn get_current_timestamp(&self) -> anyhow::Result<u64> {
         Ok(self.time.current_timestamp())
-    }
-
-    pub async fn set_show_calls(&self, show_calls: ShowCalls) -> anyhow::Result<String> {
-        self.inner.write().await.config.show_calls = show_calls;
-        Ok(show_calls.to_string())
-    }
-
-    pub async fn set_show_outputs(&self, value: bool) -> anyhow::Result<bool> {
-        self.inner.write().await.config.show_outputs = value;
-        Ok(value)
     }
 
     pub async fn set_show_storage_logs(
@@ -576,28 +555,8 @@ impl InMemoryNode {
         Ok(show_gas_details.to_string())
     }
 
-    pub async fn set_resolve_hashes(&self, value: bool) -> anyhow::Result<bool> {
-        self.inner.write().await.config.resolve_hashes = value;
-        Ok(value)
-    }
-
     pub async fn set_show_node_config(&self, value: bool) -> anyhow::Result<bool> {
         self.inner.write().await.config.show_node_config = value;
-        Ok(value)
-    }
-
-    pub async fn set_show_tx_summary(&self, value: bool) -> anyhow::Result<bool> {
-        self.inner.write().await.config.show_tx_summary = value;
-        Ok(value)
-    }
-
-    pub async fn set_show_event_logs(&self, value: bool) -> anyhow::Result<bool> {
-        self.inner.write().await.config.show_event_logs = value;
-        Ok(value)
-    }
-
-    pub async fn set_disable_console_log(&self, value: bool) -> anyhow::Result<bool> {
-        self.inner.write().await.config.disable_console_log = value;
         Ok(value)
     }
 
@@ -605,7 +564,7 @@ impl InMemoryNode {
         let Some(observability) = &self.observability else {
             anyhow::bail!("Node's logging is not set up.")
         };
-        tracing::info!("setting log level to '{}'", level);
+        tracing::debug!("setting log level to '{}'", level);
         observability.set_log_level(level)?;
         Ok(true)
     }
@@ -614,7 +573,7 @@ impl InMemoryNode {
         let Some(observability) = &self.observability else {
             anyhow::bail!("Node's logging is not set up.")
         };
-        tracing::info!("setting logging to '{}'", directive);
+        tracing::debug!("setting logging to '{}'", directive);
         observability.set_logging(directive)?;
         Ok(true)
     }
@@ -646,11 +605,16 @@ pub fn load_last_l1_batch<S: ReadStorage>(storage: StoragePtr<S>) -> Option<(u64
 // #[cfg(test)]
 // TODO: Mark with #[cfg(test)] once it is not used in other modules
 impl InMemoryNode {
-    pub fn test_config(fork: Option<ForkDetails>, config: TestNodeConfig) -> Self {
-        let fee_provider = TestNodeFeeInputProvider::from_fork(fork.as_ref());
+    pub fn test_config(fork_client_opt: Option<ForkClient>, config: TestNodeConfig) -> Self {
+        let fee_provider = TestNodeFeeInputProvider::from_fork(
+            fork_client_opt.as_ref().map(|client| &client.details),
+            &config.base_token_config,
+        );
         let impersonation = ImpersonationManager::default();
         let system_contracts = SystemContracts::from_options(
-            &config.system_contracts_options,
+            config.system_contracts_options,
+            config.system_contracts_path.clone(),
+            ProtocolVersionId::latest(),
             config.use_evm_emulator,
             config.zkos_config.clone(),
         );
@@ -659,17 +623,18 @@ impl InMemoryNode {
         } else {
             StorageKeyLayout::ZkEra
         };
-        let (inner, storage, blockchain, time) = InMemoryNodeInner::init(
-            fork,
+        let (inner, storage, blockchain, time, fork, vm_runner) = InMemoryNodeInner::init(
+            fork_client_opt,
             fee_provider,
             Arc::new(RwLock::new(Default::default())),
             config,
             impersonation.clone(),
             system_contracts.clone(),
             storage_key_layout,
+            false,
         );
         let (node_executor, node_handle) =
-            NodeExecutor::new(inner.clone(), system_contracts.clone(), storage_key_layout);
+            NodeExecutor::new(inner.clone(), vm_runner, storage_key_layout);
         let pool = TxPool::new(
             impersonation.clone(),
             anvil_zksync_types::TransactionOrder::Fifo,
@@ -686,6 +651,7 @@ impl InMemoryNode {
             inner,
             blockchain,
             storage,
+            fork,
             node_handle,
             None,
             time,
@@ -697,8 +663,45 @@ impl InMemoryNode {
         )
     }
 
-    pub fn test(fork: Option<ForkDetails>) -> Self {
-        let config = TestNodeConfig::default();
-        Self::test_config(fork, config)
+    pub fn test(fork_client_opt: Option<ForkClient>) -> Self {
+        let config = TestNodeConfig {
+            cache_config: CacheConfig::None,
+            ..Default::default()
+        };
+        Self::test_config(fork_client_opt, config)
+    }
+}
+
+#[cfg(test)]
+impl InMemoryNode {
+    pub async fn apply_txs(
+        &self,
+        txs: impl IntoIterator<Item = Transaction>,
+    ) -> anyhow::Result<Vec<TransactionReceipt>> {
+        use backon::{ConstantBuilder, Retryable};
+        use std::time::Duration;
+
+        let txs = Vec::from_iter(txs);
+        let expected_tx_hashes = txs.iter().map(|tx| tx.hash()).collect::<Vec<_>>();
+        self.pool.add_txs(txs);
+
+        let mut receipts = Vec::with_capacity(expected_tx_hashes.len());
+        for tx_hash in expected_tx_hashes {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            let receipt = (|| async {
+                self.blockchain
+                    .get_tx_receipt(&tx_hash)
+                    .await
+                    .ok_or(anyhow::anyhow!("missing tx receipt"))
+            })
+            .retry(
+                ConstantBuilder::default()
+                    .with_delay(Duration::from_millis(100))
+                    .with_max_times(3),
+            )
+            .await?;
+            receipts.push(receipt);
+        }
+        Ok(receipts)
     }
 }

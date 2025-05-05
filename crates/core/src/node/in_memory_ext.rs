@@ -1,10 +1,12 @@
-use super::inner::fork::ForkDetails;
 use super::pool::TxBatch;
 use super::sealer::BlockSealerMode;
 use super::InMemoryNode;
 use anvil_zksync_types::api::{DetailedTransaction, ResetRequest};
 use anyhow::{anyhow, Context};
+use std::str::FromStr;
 use std::time::Duration;
+use url::Url;
+use zksync_error::anvil_zksync::node::AnvilNodeResult;
 use zksync_types::api::{Block, TransactionVariant};
 use zksync_types::bytecode::BytecodeHash;
 use zksync_types::u256_to_h256;
@@ -54,7 +56,7 @@ impl InMemoryNode {
     ///
     /// # Returns
     /// The difference between the `current_timestamp` and the new timestamp for the InMemoryNodeInner.
-    pub async fn set_time(&self, timestamp: u64) -> Result<i128> {
+    pub async fn set_time(&self, timestamp: u64) -> AnvilNodeResult<i128> {
         self.node_handle.set_current_timestamp_sync(timestamp).await
     }
 
@@ -73,7 +75,7 @@ impl InMemoryNode {
         });
 
         let block_number = self.node_handle.seal_block_sync(tx_batch).await?;
-        tracing::info!("👷 Mined block #{}", block_number);
+        tracing::info!("Mined block #{}", block_number);
         Ok(block_number)
     }
 
@@ -124,7 +126,7 @@ impl InMemoryNode {
         let snapshot = reader.snapshot().await.map_err(|err| anyhow!("{}", err))?;
         let mut snapshots = snapshots.write().await;
         snapshots.push(snapshot);
-        tracing::info!("Created snapshot '{}'", snapshots.len());
+        tracing::debug!("Created snapshot '{}'", snapshots.len());
         Ok(U64::from(snapshots.len()))
     }
 
@@ -152,12 +154,12 @@ impl InMemoryNode {
             .next()
             .expect("unexpected failure, value must exist");
 
-        tracing::info!("Reverting node to snapshot '{snapshot_id:?}'");
+        tracing::debug!("Reverting node to snapshot '{snapshot_id:?}'");
         writer
             .restore_snapshot(selected_snapshot)
             .await
             .map(|_| {
-                tracing::info!("Reverting node to snapshot '{snapshot_id:?}'");
+                tracing::debug!("Reverting node to snapshot '{snapshot_id:?}'");
                 true
             })
             .map_err(|err| anyhow!("{}", err))
@@ -166,7 +168,7 @@ impl InMemoryNode {
     pub async fn set_balance(&self, address: Address, balance: U256) -> anyhow::Result<bool> {
         self.node_handle.set_balance_sync(address, balance).await?;
         tracing::info!(
-            "👷 Balance for address {:?} has been manually set to {} Wei",
+            "Balance for address {:?} has been manually set to {} Wei",
             address,
             balance
         );
@@ -176,7 +178,7 @@ impl InMemoryNode {
     pub async fn set_nonce(&self, address: Address, nonce: U256) -> anyhow::Result<bool> {
         self.node_handle.set_nonce_sync(address, nonce).await?;
         tracing::info!(
-            "👷 Nonces for address {:?} have been set to {}",
+            "Nonces for address {:?} have been set to {}",
             address,
             nonce
         );
@@ -207,7 +209,7 @@ impl InMemoryNode {
         self.node_handle
             .seal_blocks_sync(tx_batches, interval_sec)
             .await?;
-        tracing::info!("👷 Mined {} blocks", num_blocks);
+        tracing::info!("Mined {} blocks", num_blocks);
 
         Ok(())
     }
@@ -222,56 +224,32 @@ impl InMemoryNode {
     }
 
     pub async fn reset_network(&self, reset_spec: Option<ResetRequest>) -> Result<bool> {
-        let (opt_url, block_number) = if let Some(spec) = reset_spec {
+        if let Some(spec) = reset_spec {
             if let Some(to) = spec.to {
                 if spec.forking.is_some() {
                     return Err(anyhow!(
                         "Only one of 'to' and 'forking' attributes can be specified"
                     ));
                 }
-                let url = match self.inner.read().await.fork_storage.get_fork_url() {
-                    Ok(url) => url,
-                    Err(error) => {
-                        tracing::error!("For returning to past local state, mark it with `evm_snapshot`, then revert to it with `evm_revert`.");
-                        return Err(anyhow!(error.to_string()));
-                    }
-                };
-                (Some(url), Some(to.as_u64()))
+                self.node_handle
+                    .reset_fork_block_number_sync(L2BlockNumber(to.as_u32()))
+                    .await?;
             } else if let Some(forking) = spec.forking {
-                let block_number = forking.block_number.map(|n| n.as_u64());
-                (Some(forking.json_rpc_url), block_number)
+                let url = Url::from_str(&forking.json_rpc_url).context("malformed fork URL")?;
+                let block_number = forking.block_number.map(|n| L2BlockNumber(n.as_u32()));
+                self.node_handle.reset_fork_sync(url, block_number).await?;
             } else {
-                (None, None)
+                self.node_handle.remove_fork_sync().await?;
             }
         } else {
-            (None, None)
-        };
-
-        let fork_details = if let Some(url) = opt_url {
-            let cache_config = self
-                .inner
-                .read()
-                .await
-                .fork_storage
-                .get_cache_config()
-                .map_err(|err| anyhow!(err))?;
-            match ForkDetails::from_url(url, block_number, cache_config) {
-                Ok(fd) => Some(fd),
-                Err(error) => {
-                    return Err(anyhow!(error.to_string()));
-                }
-            }
-        } else {
-            None
-        };
-
-        match self.reset(fork_details).await {
-            Ok(()) => {
-                tracing::info!("👷 Network reset");
-                Ok(true)
-            }
-            Err(error) => Err(anyhow!(error.to_string())),
+            self.node_handle.remove_fork_sync().await?;
         }
+
+        self.snapshots.write().await.clear();
+
+        tracing::debug!("Network reset");
+
+        Ok(true)
     }
 
     pub fn auto_impersonate_account(&self, enabled: bool) {
@@ -280,21 +258,21 @@ impl InMemoryNode {
 
     pub fn impersonate_account(&self, address: Address) -> Result<bool> {
         if self.impersonation.impersonate(address) {
-            tracing::info!("🕵️ Account {:?} has been impersonated", address);
+            tracing::debug!("Account {:?} has been impersonated", address);
             Ok(true)
         } else {
-            tracing::info!("🕵️ Account {:?} was already impersonated", address);
+            tracing::debug!("Account {:?} was already impersonated", address);
             Ok(false)
         }
     }
 
     pub fn stop_impersonating_account(&self, address: Address) -> Result<bool> {
         if self.impersonation.stop_impersonating(&address) {
-            tracing::info!("🕵️ Stopped impersonating account {:?}", address);
+            tracing::debug!("Stopped impersonating account {:?}", address);
             Ok(true)
         } else {
-            tracing::info!(
-                "🕵️ Account {:?} was not impersonated, nothing to stop",
+            tracing::debug!(
+                "Account {:?} was not impersonated, nothing to stop",
                 address
             );
             Ok(false)
@@ -344,7 +322,7 @@ impl InMemoryNode {
         Ok(())
     }
 
-    pub async fn remove_block_timestamp_interval(&self) -> Result<bool> {
+    pub async fn remove_block_timestamp_interval(&self) -> AnvilNodeResult<bool> {
         self.node_handle
             .remove_block_timestamp_interval_sync()
             .await
@@ -386,34 +364,19 @@ impl InMemoryNode {
 
     pub fn remove_pool_transactions(&self, address: Address) -> Result<()> {
         self.pool
-            .drop_transactions(|tx| tx.transaction.common_data.initiator_address == address);
+            .drop_transactions(|tx| tx.transaction.initiator_account() == address);
         Ok(())
     }
 
-    pub async fn set_next_block_base_fee_per_gas(&self, base_fee: U256) -> Result<()> {
-        self.inner
-            .write()
+    pub async fn set_next_block_base_fee_per_gas(&self, base_fee: U256) -> AnvilNodeResult<()> {
+        self.node_handle
+            .enforce_next_base_fee_per_gas_sync(base_fee)
             .await
-            .fee_input_provider
-            .set_base_fee(base_fee.as_u64());
-        Ok(())
     }
 
     pub async fn set_rpc_url(&self, url: String) -> Result<()> {
-        let inner = self.inner.read().await;
-        let mut fork_storage = inner
-            .fork_storage
-            .inner
-            .write()
-            .map_err(|err| anyhow!("failed acquiring lock: {:?}", err))?;
-        if let Some(fork) = &mut fork_storage.fork {
-            let old_url = fork.fork_source.get_fork_url().map_err(|e| {
-                anyhow::anyhow!(
-                    "failed to resolve current fork's RPC URL: {}",
-                    e.to_string()
-                )
-            })?;
-            fork.set_rpc_url(url.clone());
+        let url = Url::from_str(&url).context("malformed fork URL")?;
+        if let Some(old_url) = self.node_handle.set_fork_url_sync(url.clone()).await? {
             tracing::info!("Updated fork rpc from \"{}\" to \"{}\"", old_url, url);
         } else {
             tracing::info!("Non-forking node tried to switch RPC URL to '{url}'. Call `anvil_reset` instead if you wish to switch to forking mode");
@@ -434,10 +397,11 @@ impl InMemoryNode {
 mod tests {
     use super::*;
     use crate::node::InMemoryNode;
+    use crate::testing::TransactionBuilder;
     use std::str::FromStr;
     use zksync_multivm::interface::storage::ReadStorage;
-    use zksync_types::{api, fee::Fee, l2::L2Tx, L1BatchNumber, PackedEthSignature};
-    use zksync_types::{h256_to_u256, L2ChainId, Nonce, H256};
+    use zksync_types::{api, L1BatchNumber, Transaction};
+    use zksync_types::{h256_to_u256, L2ChainId, H256};
 
     #[tokio::test]
     async fn test_set_balance() {
@@ -601,29 +565,12 @@ mod tests {
             .unwrap();
         assert!(result);
 
-        // construct a tx
-        let mut tx = L2Tx::new(
-            Some(Address::random()),
-            vec![],
-            Nonce(0),
-            Fee {
-                gas_limit: U256::from(100_000_000),
-                max_fee_per_gas: U256::from(50_000_000),
-                max_priority_fee_per_gas: U256::from(50_000_000),
-                gas_per_pubdata_limit: U256::from(50000),
-            },
-            to_impersonate,
-            U256::one(),
-            vec![],
-            Default::default(),
-        );
-        tx.set_input(vec![], H256::random());
-        if tx.common_data.signature.is_empty() {
-            tx.common_data.signature = PackedEthSignature::default().serialize_packed().into();
-        }
+        // construct a random tx each time to avoid hash collision
+        let generate_tx =
+            || Transaction::from(TransactionBuilder::new().impersonate(to_impersonate));
 
         // try to execute the tx- should fail without signature
-        assert!(node.apply_txs(vec![tx.clone()], 1).await.is_err());
+        assert!(node.apply_txs([generate_tx()]).await.is_err());
 
         // impersonate the account
         let result = node
@@ -640,7 +587,7 @@ mod tests {
         assert!(!result);
 
         // execution should now succeed
-        assert!(node.apply_txs(vec![tx.clone()], 1).await.is_ok());
+        assert!(node.apply_txs([generate_tx()]).await.is_ok());
 
         // stop impersonating the account
         let result = node
@@ -657,7 +604,7 @@ mod tests {
         assert!(!result);
 
         // execution should now fail again
-        assert!(node.apply_txs(vec![tx], 1).await.is_err());
+        assert!(node.apply_txs([generate_tx()]).await.is_err());
     }
 
     #[tokio::test]

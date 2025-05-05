@@ -1,9 +1,12 @@
 use crate::constants::*;
 use crate::types::*;
-use crate::utils::{format_eth, format_gwei};
-use alloy_signer_local::PrivateKeySigner;
+use alloy::primitives::hex;
+use alloy::signers::local::PrivateKeySigner;
+use anvil_zksync_common::cache::{CacheConfig, DEFAULT_DISK_CACHE_DIR};
+use anvil_zksync_common::sh_println;
+use anvil_zksync_common::utils::cost::{format_eth, format_gwei};
 use anvil_zksync_types::{
-    LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails, TransactionOrder,
+    LogLevel, ShowGasDetails, ShowStorageLogs, ShowVMDetails, TransactionOrder,
 };
 use colored::{Colorize, CustomColor};
 use serde_json::{json, to_writer, Value};
@@ -12,10 +15,14 @@ use std::fs::File;
 use std::net::{IpAddr, Ipv4Addr};
 use std::path::PathBuf;
 use std::time::Duration;
-use zksync_types::fee_model::FeeModelConfigV2;
-use zksync_types::U256;
+use zksync_types::fee_model::{BaseTokenConversionRatio, FeeModelConfigV2};
+use zksync_types::{ProtocolVersionId, U256};
 
 pub const VERSION_MESSAGE: &str = concat!(env!("CARGO_PKG_VERSION"));
+
+/// Protocol version that is used in anvil-zksync by default. Should match what is currently
+/// deployed to mainnet.
+pub const DEFAULT_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version26;
 
 const BANNER: &str = r#"
                       _  _         _____ _  __
@@ -32,7 +39,7 @@ pub struct ForkPrintInfo {
     pub l2_block: String,
     pub block_timestamp: String,
     pub fork_block_hash: String,
-    pub fee_model_config_v2: Option<FeeModelConfigV2>,
+    pub fee_model_config_v2: FeeModelConfigV2,
 }
 
 /// Defines the configuration parameters for the [InMemoryNode].
@@ -44,30 +51,27 @@ pub struct TestNodeConfig {
     pub port: u16,
     /// Print node config on startup if true
     pub show_node_config: bool,
-    /// Print transactions and calls summary if true
-    pub show_tx_summary: bool,
-    /// If true, logs events.
-    pub show_event_logs: bool,
-    /// Disables printing of `console.log` invocations to stdout if true
-    pub disable_console_log: bool,
-    /// Controls visibility of call logs
-    pub show_calls: ShowCalls,
-    /// Whether to show call output data
-    pub show_outputs: bool,
     /// Level of detail for storage logs
     pub show_storage_logs: ShowStorageLogs,
     /// Level of detail for VM execution logs
     pub show_vm_details: ShowVMDetails,
     /// Level of detail for gas usage logs
     pub show_gas_details: ShowGasDetails,
-    /// Whether to resolve hash references
-    pub resolve_hashes: bool,
+    /// Numeric verbosity derived from repeated `-v` flags (e.g. -v = 1, -vv = 2, etc.).
+    pub verbosity: u8,
     /// Don’t print anything on startup if true
     pub silent: bool,
     /// Configuration for system contracts
     pub system_contracts_options: SystemContractsOptions,
+    /// Path to the system contracts directory
+    pub system_contracts_path: Option<PathBuf>,
+    /// Protocol version to use for new blocks. Also affects revision of built-in contracts that
+    /// will get deployed (if applicable)
+    pub protocol_version: Option<ProtocolVersionId>,
     /// Directory to override bytecodes
     pub override_bytecodes_dir: Option<String>,
+    /// Enable bytecode compression
+    pub bytecode_compression: bool,
     /// Enables EVM emulation mode
     pub use_evm_emulator: bool,
     /// ZKOS configuration
@@ -88,6 +92,8 @@ pub struct TestNodeConfig {
     pub log_level: LogLevel,
     /// Path to the log file
     pub log_file_path: String,
+    /// Directory to store cache files (defaults to `./cache`)
+    pub cache_dir: String,
     /// Cache configuration for the test node
     pub cache_config: CacheConfig,
     /// Signer accounts that will be initialized with `genesis_balance` in the genesis block.
@@ -133,6 +139,43 @@ pub struct TestNodeConfig {
     pub preserve_historical_states: bool,
     /// State to load
     pub load_state: Option<PathBuf>,
+    /// L1 configuration, disabled if `None`
+    pub l1_config: Option<L1Config>,
+    /// Whether to automatically execute L1 batches
+    pub auto_execute_l1: bool,
+    /// Base token configuration
+    pub base_token_config: BaseTokenConfig,
+}
+
+#[derive(Debug, Clone)]
+pub enum L1Config {
+    /// Spawn a separate `anvil` process and initialize it to use as L1.
+    Spawn {
+        /// Port the spawned L1 anvil node will listen on
+        port: u16,
+    },
+    /// Use externally set up L1.
+    External {
+        /// Address of L1 node's JSON-RPC endpoint
+        address: String,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub struct BaseTokenConfig {
+    /// Base token symbol to use instead of 'ETH'.
+    pub symbol: String,
+    /// Base token conversion ratio (e.g., '40000', '628/17').
+    pub ratio: BaseTokenConversionRatio,
+}
+
+impl Default for BaseTokenConfig {
+    fn default() -> Self {
+        Self {
+            symbol: "ETH".to_string(),
+            ratio: BaseTokenConversionRatio::default(),
+        }
+    }
 }
 
 impl Default for TestNodeConfig {
@@ -144,18 +187,16 @@ impl Default for TestNodeConfig {
             config_out: None,
             port: NODE_PORT,
             show_node_config: true,
-            show_tx_summary: true,
-            show_event_logs: false,
-            disable_console_log: false,
-            show_calls: Default::default(),
-            show_outputs: false,
             show_storage_logs: Default::default(),
             show_vm_details: Default::default(),
             show_gas_details: Default::default(),
-            resolve_hashes: false,
+            verbosity: 0,
             silent: false,
             system_contracts_options: Default::default(),
+            system_contracts_path: None,
+            protocol_version: None,
             override_bytecodes_dir: None,
+            bytecode_compression: false,
             use_evm_emulator: false,
             zkos_config: Default::default(),
             chain_id: None,
@@ -172,6 +213,7 @@ impl Default for TestNodeConfig {
             log_file_path: String::from(DEFAULT_LOG_FILE_PATH),
 
             // Cache configuration default
+            cache_dir: String::from(DEFAULT_DISK_CACHE_DIR),
             cache_config: Default::default(),
 
             // Account generator
@@ -206,20 +248,34 @@ impl Default for TestNodeConfig {
             state_interval: None,
             preserve_historical_states: false,
             load_state: None,
+            l1_config: None,
+            auto_execute_l1: false,
+            base_token_config: BaseTokenConfig::default(),
+        }
+    }
+}
+
+impl TestNodeConfig {
+    pub fn protocol_version(&self) -> ProtocolVersionId {
+        match self.system_contracts_options {
+            SystemContractsOptions::BuiltIn => self
+                .protocol_version
+                .unwrap_or(DEFAULT_PROTOCOL_VERSION),
+            SystemContractsOptions::Local =>
+                self.protocol_version.expect("cannot deduce protocol version when using local contracts; please specify --protocol-version explicitly"),
+            SystemContractsOptions::BuiltInWithoutSecurity => self
+                .protocol_version
+                .unwrap_or(DEFAULT_PROTOCOL_VERSION),
         }
     }
 }
 
 impl TestNodeConfig {
     pub fn print(&self, fork_details: Option<&ForkPrintInfo>) {
-        if self.config_out.is_some() {
-            let config_out = self.config_out.as_deref().unwrap();
-            to_writer(
-                &File::create(config_out)
-                    .expect("Unable to create anvil-zksync config description file"),
-                &self.as_json(fork_details),
-            )
-            .expect("Failed writing json");
+        if let Some(config_out) = self.config_out.as_deref() {
+            let file = File::create(config_out)
+                .expect("Unable to create anvil-zksync config description file");
+            to_writer(&file, &self.as_json(fork_details)).expect("Failed writing json");
         }
 
         if self.silent || !self.show_node_config {
@@ -228,146 +284,175 @@ impl TestNodeConfig {
 
         let color = CustomColor::new(13, 71, 198);
 
-        println!("{}", BANNER.custom_color(color));
+        // Banner, version and repository section.
+        sh_println!(
+            r#"
+{} 
+Version:        {}
+Repository:     {}
 
-        tracing::info!("Version:        {}", VERSION_MESSAGE.green());
-        tracing::info!(
-            "Repository:     {}",
+"#,
+            BANNER.custom_color(color),
+            VERSION_MESSAGE.green(),
             "https://github.com/matter-labs/anvil-zksync".green()
         );
-        println!("\n");
 
-        tracing::info!("Rich Accounts");
-        tracing::info!("========================");
+        // Rich Accounts.
         let balance = format_eth(self.genesis_balance);
+        let mut rich_accounts = String::new();
         for (idx, account) in self.genesis_accounts.iter().enumerate() {
-            tracing::info!("({}) {} ({balance})", idx, account.address());
+            rich_accounts.push_str(&format!("({}) {} ({})\n", idx, account.address(), balance));
         }
-        println!("\n");
+        sh_println!(
+            r#"
+Rich Accounts
+========================
+{}
+"#,
+            rich_accounts
+        );
 
-        tracing::info!("Private Keys");
-        tracing::info!("========================");
+        // Private Keys.
+        let mut private_keys = String::new();
         for (idx, account) in self.genesis_accounts.iter().enumerate() {
             let private_key = hex::encode(account.credential().to_bytes());
-            tracing::info!("({}) 0x{}", idx, private_key);
+            private_keys.push_str(&format!("({}) 0x{}\n", idx, private_key));
         }
-        println!("\n");
+        sh_println!(
+            r#"
+Private Keys
+========================
+{}
+"#,
+            private_keys
+        );
 
+        // Wallet configuration.
         if let Some(ref generator) = self.account_generator {
-            tracing::info!("Wallet");
-            tracing::info!("========================");
-            tracing::info!("Mnemonic:            {}", generator.get_phrase().green());
-            tracing::info!(
-                "Derivation path:     {}",
+            sh_println!(
+                r#"
+Wallet
+========================
+Mnemonic:            {}
+Derivation path:     {}
+"#,
+                generator.get_phrase().green(),
                 generator.get_derivation_path().green()
             );
         }
-        println!("\n");
 
+        // Either print Fork Details (if provided) or the Network Configuration.
         if let Some(fd) = fork_details {
-            tracing::info!("Fork Details");
-            tracing::info!("========================");
-            tracing::info!("Network RPC:               {}", fd.network_rpc.green());
-            tracing::info!(
-                "Chain ID:                  {}",
-                self.get_chain_id().to_string().green()
+            sh_println!(
+                r#"
+Fork Details
+========================
+Network RPC:               {}
+Chain ID:                  {}
+L1 Batch #:                {}
+L2 Block #:                {}
+Block Timestamp:           {}
+Fork Block Hash:           {}
+Compute Overhead Part:     {}
+Pubdata Overhead Part:     {}
+Batch Overhead L1 Gas:     {}
+Max Gas Per Batch:         {}
+Max Pubdata Per Batch:     {}
+"#,
+                fd.network_rpc.green(),
+                self.get_chain_id().to_string().green(),
+                fd.l1_block.green(),
+                fd.l2_block.green(),
+                fd.block_timestamp.to_string().green(),
+                format!("{:#}", fd.fork_block_hash).green(),
+                fd.fee_model_config_v2
+                    .compute_overhead_part
+                    .to_string()
+                    .green(),
+                fd.fee_model_config_v2
+                    .pubdata_overhead_part
+                    .to_string()
+                    .green(),
+                fd.fee_model_config_v2
+                    .batch_overhead_l1_gas
+                    .to_string()
+                    .green(),
+                fd.fee_model_config_v2.max_gas_per_batch.to_string().green(),
+                fd.fee_model_config_v2
+                    .max_pubdata_per_batch
+                    .to_string()
+                    .green()
             );
-            tracing::info!("L1 Batch #:                {}", fd.l1_block.green());
-            tracing::info!("L2 Block #:                {}", fd.l2_block.green());
-            tracing::info!(
-                "Block Timestamp:           {}",
-                fd.block_timestamp.to_string().green()
-            );
-            tracing::info!(
-                "Fork Block Hash:           {}",
-                format!("{:#}", fd.fork_block_hash).green()
-            );
-            if let Some(fee_config) = &fd.fee_model_config_v2 {
-                tracing::info!(
-                    "Compute Overhead Part:     {}",
-                    fee_config.compute_overhead_part.to_string().green()
-                );
-                tracing::info!(
-                    "Pubdata Overhead Part:     {}",
-                    fee_config.pubdata_overhead_part.to_string().green()
-                );
-                tracing::info!(
-                    "Batch Overhead L1 Gas:     {}",
-                    fee_config.batch_overhead_l1_gas.to_string().green()
-                );
-                tracing::info!(
-                    "Max Gas Per Batch:         {}",
-                    fee_config.max_gas_per_batch.to_string().green()
-                );
-                tracing::info!(
-                    "Max Pubdata Per Batch:     {}",
-                    fee_config.max_pubdata_per_batch.to_string().green()
-                );
-            }
-            println!("\n");
         } else {
-            tracing::info!("Network Configuration");
-            tracing::info!("========================");
-            tracing::info!(
-                "Chain ID: {}",
+            sh_println!(
+                r#"
+Network Configuration
+========================
+Chain ID: {}
+"#,
                 self.chain_id
                     .unwrap_or(TEST_NODE_NETWORK_ID)
                     .to_string()
                     .green()
             );
-            println!("\n");
         }
-        tracing::info!("Gas Configuration");
-        tracing::info!("========================");
-        tracing::info!(
-            "L1 Gas Price (gwei):               {}",
-            format_gwei(self.get_l1_gas_price().into()).green()
-        );
-        tracing::info!(
-            "L2 Gas Price (gwei):               {}",
-            format_gwei(self.get_l2_gas_price().into()).green()
-        );
-        tracing::info!(
-            "L1 Pubdata Price (gwei):           {}",
-            format_gwei(self.get_l1_pubdata_price().into()).green()
-        );
-        tracing::info!(
-            "Estimated Gas Price Scale Factor:  {}",
-            self.get_price_scale().to_string().green()
-        );
-        tracing::info!(
-            "Estimated Gas Limit Scale Factor:  {}",
+
+        // Gas Configuration.
+        sh_println!(
+            r#"
+Gas Configuration
+========================
+L1 Gas Price (gwei):               {}
+L2 Gas Price (gwei):               {}
+L1 Pubdata Price (gwei):           {}
+Estimated Gas Price Scale Factor:  {}
+Estimated Gas Limit Scale Factor:  {}
+"#,
+            format_gwei(self.get_l1_gas_price().into()).green(),
+            format_gwei(self.get_l2_gas_price().into()).green(),
+            format_gwei(self.get_l1_pubdata_price().into()).green(),
+            self.get_price_scale().to_string().green(),
             self.get_gas_limit_scale().to_string().green()
         );
-        println!("\n");
 
-        tracing::info!("Genesis Timestamp");
-        tracing::info!("========================");
-        tracing::info!("{}", self.get_genesis_timestamp().to_string().green());
-        println!("\n");
+        // Genesis Timestamp.
+        sh_println!(
+            r#"
+Genesis Timestamp
+========================
+{}
+"#,
+            self.get_genesis_timestamp().to_string().green()
+        );
 
-        tracing::info!("Node Configuration");
-        tracing::info!("========================");
-        tracing::info!("Port:               {}", self.port);
-        tracing::info!(
-            "EVM Emulator:       {}",
+        // Node Configuration.
+        sh_println!(
+            r#"
+Node Configuration
+========================
+Port:                  {}
+EVM Emulator:          {}
+Health Check Endpoint: {}
+ZK OS:                 {}
+L1:                    {}
+"#,
+            self.port,
             if self.use_evm_emulator {
                 "Enabled".green()
             } else {
                 "Disabled".red()
-            }
-        );
-        tracing::info!(
-            "Health Check Endpoint: {}",
+            },
             if self.health_check_endpoint {
                 "Enabled".green()
             } else {
                 "Disabled".red()
-            }
-        );
-        tracing::info!(
-            "ZK OS:              {}",
-            if self.zkos_config.use_zkos {
+            },
+            if self.use_zkos {
+                "Enabled".green()
+            } else {
+                "Disabled".red()
+            },
+            if self.l1_config.is_some() {
                 "Enabled".green()
             } else {
                 "Disabled".red()
@@ -384,17 +469,41 @@ impl TestNodeConfig {
             );
         }
 
-        println!("\n");
-        tracing::info!("========================================");
+        // L1 Configuration
+        match self.l1_config.as_ref() {
+            Some(L1Config::Spawn { port }) => {
+                sh_println!(
+                    r#"
+L1 Configuration (Spawned)
+========================
+Port: {port}
+"#
+                );
+            }
+            Some(L1Config::External { address }) => {
+                sh_println!(
+                    r#"
+L1 Configuration (External)
+========================
+Address: {address}
+"#
+                );
+            }
+            None => {}
+        }
+
+        // Listening addresses.
+        let mut listening = String::new();
+        listening.push_str("\n========================================\n");
         for host in &self.host {
-            tracing::info!(
-                "  Listening on {}:{}",
+            listening.push_str(&format!(
+                "  Listening on {}:{}\n",
                 host.to_string().green(),
                 self.port.to_string().green()
-            );
+            ));
         }
-        tracing::info!("========================================");
-        println!("\n");
+        listening.push_str("========================================\n");
+        sh_println!("{}", listening);
     }
 
     fn as_json(&self, fork: Option<&ForkPrintInfo>) -> Value {
@@ -497,6 +606,22 @@ impl TestNodeConfig {
         self
     }
 
+    /// Set the system contracts path
+    #[must_use]
+    pub fn with_system_contracts_path(mut self, path: Option<PathBuf>) -> Self {
+        if let Some(path) = path {
+            self.system_contracts_path = Some(path);
+        }
+        self
+    }
+
+    /// Set the protocol version configuration option
+    #[must_use]
+    pub fn with_protocol_version(mut self, protocol_version: Option<ProtocolVersionId>) -> Self {
+        self.protocol_version = protocol_version;
+        self
+    }
+
     /// Get the system contracts configuration option
     pub fn get_system_contracts(&self) -> SystemContractsOptions {
         self.system_contracts_options
@@ -514,6 +639,20 @@ impl TestNodeConfig {
     /// Get the override bytecodes directory
     pub fn get_override_bytecodes_dir(&self) -> Option<&String> {
         self.override_bytecodes_dir.as_ref()
+    }
+
+    /// Set whether bytecode compression is enforced
+    #[must_use]
+    pub fn with_enforce_bytecode_compression(mut self, enforce: Option<bool>) -> Self {
+        if let Some(enforce) = enforce {
+            self.bytecode_compression = enforce;
+        }
+        self
+    }
+
+    /// Check if bytecode compression enforcement is enabled
+    pub fn is_bytecode_compression_enforced(&self) -> bool {
+        self.bytecode_compression
     }
 
     /// Enable or disable EVM emulation
@@ -609,6 +748,20 @@ impl TestNodeConfig {
         self.log_level
     }
 
+    /// Gets the cache directory
+    pub fn get_cache_dir(&self) -> &str {
+        &self.cache_dir
+    }
+
+    /// Set the cache directory
+    #[must_use]
+    pub fn with_cache_dir(mut self, dir: Option<String>) -> Self {
+        if let Some(dir) = dir {
+            self.cache_dir = dir;
+        }
+        self
+    }
+
     /// Set the cache configuration
     #[must_use]
     pub fn with_cache_config(mut self, config: Option<CacheConfig>) -> Self {
@@ -637,36 +790,16 @@ impl TestNodeConfig {
         &self.log_file_path
     }
 
-    /// Applies the defaults for debug mode.
+    /// Sets the numeric verbosity derived from repeated `-v` flags
     #[must_use]
-    pub fn with_debug_mode(mut self) -> Self {
-        self.show_calls = ShowCalls::User;
-        self.resolve_hashes = true;
-        self.show_gas_details = ShowGasDetails::All;
+    pub fn with_verbosity_level(mut self, verbosity: u8) -> Self {
+        self.verbosity = verbosity;
         self
     }
 
-    /// Set the visibility of call logs
-    #[must_use]
-    pub fn with_show_calls(mut self, show_calls: Option<ShowCalls>) -> Self {
-        if let Some(show_calls) = show_calls {
-            self.show_calls = show_calls;
-        }
-        self
-    }
-
-    /// Get the visibility of call logs
-    pub fn get_show_calls(&self) -> ShowCalls {
-        self.show_calls
-    }
-
-    /// Enable or disable resolving hashes
-    #[must_use]
-    pub fn with_resolve_hashes(mut self, resolve: Option<bool>) -> Self {
-        if let Some(resolve) = resolve {
-            self.resolve_hashes = resolve;
-        }
-        self
+    /// Get the numeric verbosity derived from repeated `-v` flags
+    pub fn get_verbosity_level(&self) -> u8 {
+        self.verbosity
     }
 
     /// Enable or disable silent mode
@@ -685,42 +818,6 @@ impl TestNodeConfig {
             self.show_node_config = show_node_config;
         }
         self
-    }
-
-    // Enable or disable printing transactions and calls summary
-    #[must_use]
-    pub fn with_show_tx_summary(mut self, show_tx_summary: Option<bool>) -> Self {
-        if let Some(show_tx_summary) = show_tx_summary {
-            self.show_tx_summary = show_tx_summary;
-        }
-        self
-    }
-    /// Enable or disable logging events
-    #[must_use]
-    pub fn with_show_event_logs(mut self, show_event_logs: Option<bool>) -> Self {
-        if let Some(show_event_logs) = show_event_logs {
-            self.show_event_logs = show_event_logs;
-        }
-        self
-    }
-
-    /// Get the visibility of event logs
-    pub fn get_show_event_logs(&self) -> bool {
-        self.show_event_logs
-    }
-
-    // Enable or disable printing of `console.log` invocations to stdout
-    #[must_use]
-    pub fn with_disable_console_log(mut self, disable_console_log: Option<bool>) -> Self {
-        if let Some(disable_console_log) = disable_console_log {
-            self.disable_console_log = disable_console_log;
-        }
-        self
-    }
-
-    /// Check if resolving hashes is enabled
-    pub fn is_resolve_hashes_enabled(&self) -> bool {
-        self.resolve_hashes
     }
 
     /// Set the visibility of storage logs
@@ -763,20 +860,6 @@ impl TestNodeConfig {
     /// Get the visibility of gas usage logs
     pub fn get_show_gas_details(&self) -> ShowGasDetails {
         self.show_gas_details
-    }
-
-    /// Set show outputs
-    #[must_use]
-    pub fn with_show_outputs(mut self, show_outputs: Option<bool>) -> Self {
-        if let Some(show_outputs) = show_outputs {
-            self.show_outputs = show_outputs;
-        }
-        self
-    }
-
-    /// Get show outputs
-    pub fn get_show_outputs(&self) -> bool {
-        self.show_outputs
     }
 
     /// Set the gas limit scale factor
@@ -984,6 +1067,27 @@ impl TestNodeConfig {
     #[must_use]
     pub fn with_load_state(mut self, load_state: Option<PathBuf>) -> Self {
         self.load_state = load_state;
+        self
+    }
+
+    /// Set the L1 config
+    #[must_use]
+    pub fn with_l1_config(mut self, l1_config: Option<L1Config>) -> Self {
+        self.l1_config = l1_config;
+        self
+    }
+
+    /// Set the auto L1 execution
+    #[must_use]
+    pub fn with_auto_execute_l1(mut self, auto_execute_l1: Option<bool>) -> Self {
+        self.auto_execute_l1 = auto_execute_l1.unwrap_or(false);
+        self
+    }
+
+    /// Set the base token config
+    #[must_use]
+    pub fn with_base_token_config(mut self, base_token_config: BaseTokenConfig) -> Self {
+        self.base_token_config = base_token_config;
         self
     }
 }

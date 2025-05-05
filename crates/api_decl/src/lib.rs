@@ -1,8 +1,8 @@
 mod namespaces;
 
 pub use namespaces::{
-    AnvilNamespaceServer, ConfigNamespaceServer, EthTestNamespaceServer, EvmNamespaceServer,
-    ZKOSNamespaceServer,
+    AnvilNamespaceServer, AnvilZksNamespaceServer, ConfigNamespaceServer, EthTestNamespaceServer,
+    EvmNamespaceServer, ZKOSNamespaceServer,
 };
 
 // Re-export available namespaces from zksync-era

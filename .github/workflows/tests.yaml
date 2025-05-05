@@ -14,12 +14,12 @@ jobs:
     name: unit-tests
     strategy:
       matrix:
-        platform: [macos-latest, ubuntu-22.04-github-hosted-16core]
+        platform: [macos-latest, ubuntu-24.04-github-hosted-16core]
     runs-on: ${{ matrix.platform }}
 
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Install Rust
       uses: actions-rust-lang/setup-rust-toolchain@v1

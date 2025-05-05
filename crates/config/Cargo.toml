@@ -12,16 +12,16 @@ categories.workspace = true
 
 [dependencies]
 anvil_zksync_types.workspace = true
+anvil_zksync_common.workspace = true
 
 zksync_types.workspace = true
 zksync_vm_interface.workspace = true
+zksync_error.workspace = true
 
-alloy-signer.workspace = true
-alloy-signer-local.workspace = true
+alloy = { workspace = true, default-features = false, features = ["signer-mnemonic"] }
+
 clap.workspace = true
 colored.workspace = true
-hex.workspace = true
 rand.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-tracing.workspace = true

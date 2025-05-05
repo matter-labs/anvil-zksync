@@ -1,7 +1,7 @@
-use super::fork::ForkDetails;
 use crate::filters::LogFilter;
+use crate::node::inner::fork::ForkDetails;
 use crate::node::time::{ReadTime, Time};
-use crate::node::{compute_hash, create_genesis, create_genesis_from_json, TransactionResult};
+use crate::node::{create_genesis, create_genesis_from_json, TransactionResult};
 use crate::utils::utc_datetime_from_epoch_ms;
 use anvil_zksync_config::types::Genesis;
 use anvil_zksync_types::api::DetailedTransaction;
@@ -9,13 +9,16 @@ use anyhow::Context;
 use async_trait::async_trait;
 use itertools::Itertools;
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::sync::Arc;
 use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_multivm::interface::storage::{ReadStorage, StoragePtr};
-use zksync_multivm::interface::L2Block;
+use zksync_multivm::interface::{FinishedL1Batch, L2Block, VmEvent};
 use zksync_multivm::vm_latest::utils::l2_blocks::load_last_l2_block;
-use zksync_types::block::{unpack_block_info, L2BlockHasher};
+use zksync_types::block::{unpack_block_info, L1BatchHeader, L2BlockHasher};
+use zksync_types::l2::L2Tx;
+use zksync_types::writes::StateDiffRecord;
 use zksync_types::{
     api, h256_to_u256, AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber,
     L2BlockNumber, ProtocolVersionId, StorageKey, H256, SYSTEM_CONTEXT_ADDRESS,
@@ -24,9 +27,12 @@ use zksync_types::{
 
 /// Read-only view on blockchain state.
 #[async_trait]
-pub trait ReadBlockchain: Send + Sync {
+pub trait ReadBlockchain: Send + Sync + Debug {
     /// Alternative for [`Clone::clone`] that is object safe.
     fn dyn_cloned(&self) -> Box<dyn ReadBlockchain>;
+
+    /// Current protocol version used by the chain.
+    fn protocol_version(&self) -> ProtocolVersionId;
 
     /// Returns last sealed batch's number. At least one sealed batch is guaranteed to be present
     /// in the storage at any given time.
@@ -143,6 +149,18 @@ pub trait ReadBlockchain: Send + Sync {
 
     /// Retrieve all logs matching given filter. Does not return matching logs from pre-fork blocks.
     async fn get_filter_logs(&self, log_filter: &LogFilter) -> Vec<api::Log>;
+
+    /// Retrieve batch header by its number.
+    async fn get_batch_header(&self, batch_number: L1BatchNumber) -> Option<L1BatchHeader>;
+
+    /// Retrieve batch state diffs by its number.
+    async fn get_batch_state_diffs(
+        &self,
+        batch_number: L1BatchNumber,
+    ) -> Option<Vec<StateDiffRecord>>;
+
+    /// Retrieve batch aggregation root by its number.
+    async fn get_batch_aggregation_root(&self, batch_number: L1BatchNumber) -> Option<H256>;
 }
 
 impl Clone for Box<dyn ReadBlockchain> {
@@ -151,9 +169,10 @@ impl Clone for Box<dyn ReadBlockchain> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub(super) struct Blockchain {
     inner: Arc<RwLock<BlockchainState>>,
+    pub(super) protocol_version: ProtocolVersionId,
 }
 
 impl Blockchain {
@@ -193,6 +212,14 @@ impl Blockchain {
         Some(f(self.inner.read().await.tx_results.get(tx_hash)?))
     }
 
+    async fn inspect_batch<T>(
+        &self,
+        batch_number: &L1BatchNumber,
+        f: impl FnOnce(&StoredL1BatchInfo) -> T,
+    ) -> Option<T> {
+        Some(f(self.inner.read().await.batches.get(batch_number)?))
+    }
+
     // FIXME: Do not use for new functionality and delete once its only usage is migrated away.
     async fn inspect_all_txs<T>(
         &self,
@@ -206,6 +233,10 @@ impl Blockchain {
 impl ReadBlockchain for Blockchain {
     fn dyn_cloned(&self) -> Box<dyn ReadBlockchain> {
         Box::new(self.clone())
+    }
+
+    fn protocol_version(&self) -> ProtocolVersionId {
+        self.protocol_version
     }
 
     async fn current_batch(&self) -> L1BatchNumber {
@@ -334,7 +365,7 @@ impl ReadBlockchain for Blockchain {
                 base_system_contracts_hashes,
             },
             operator_address: Address::zero(),
-            protocol_version: Some(ProtocolVersionId::latest()),
+            protocol_version: Some(self.protocol_version),
         })
         .await
     }
@@ -349,20 +380,21 @@ impl ReadBlockchain for Blockchain {
 
     async fn get_tx_api(&self, tx_hash: &H256) -> anyhow::Result<Option<api::Transaction>> {
         self.inspect_tx(tx_hash, |TransactionResult { info, receipt, .. }| {
-            let input_data = info
-                .tx
-                .common_data
-                .input
-                .clone()
-                .context("tx is missing input data")?;
-            let chain_id = info
-                .tx
+            let l2_tx: L2Tx =
+                info.tx.clone().try_into().map_err(|_| {
+                    anyhow::anyhow!("inspection of non-L2 transactions is unsupported")
+                })?;
+            let chain_id = l2_tx
                 .common_data
                 .extract_chain_id()
                 .context("tx has malformed chain id")?;
+            let input_data = l2_tx
+                .common_data
+                .input
+                .context("tx is missing input data")?;
             anyhow::Ok(api::Transaction {
                 hash: *tx_hash,
-                nonce: U256::from(info.tx.common_data.nonce.0),
+                nonce: U256::from(l2_tx.common_data.nonce.0),
                 // FIXME: This is mega-incorrect but this whole method should be reworked in general
                 block_hash: Some(*tx_hash),
                 block_number: Some(U64::from(info.miniblock_number)),
@@ -379,7 +411,7 @@ impl ReadBlockchain for Blockchain {
                 y_parity: Some(U64::zero()), // TODO: Shouldn't we set the signature?
                 raw: None,
                 transaction_type: {
-                    let tx_type = match info.tx.common_data.transaction_type {
+                    let tx_type = match l2_tx.common_data.transaction_type {
                         zksync_types::l2::TransactionType::LegacyTransaction => 0,
                         zksync_types::l2::TransactionType::EIP2930Transaction => 1,
                         zksync_types::l2::TransactionType::EIP1559Transaction => 2,
@@ -390,8 +422,8 @@ impl ReadBlockchain for Blockchain {
                     Some(tx_type.into())
                 },
                 access_list: None,
-                max_fee_per_gas: Some(info.tx.common_data.fee.max_fee_per_gas),
-                max_priority_fee_per_gas: Some(info.tx.common_data.fee.max_priority_fee_per_gas),
+                max_fee_per_gas: Some(l2_tx.common_data.fee.max_fee_per_gas),
+                max_priority_fee_per_gas: Some(l2_tx.common_data.fee.max_priority_fee_per_gas),
                 chain_id: U256::from(chain_id),
                 l1_batch_number: Some(U64::from(info.batch_number as u64)),
                 l1_batch_tx_index: None,
@@ -425,7 +457,7 @@ impl ReadBlockchain for Blockchain {
                 // if these are not set, fee is effectively 0
                 fee: receipt.effective_gas_price.unwrap_or_default()
                     * receipt.gas_used.unwrap_or_default(),
-                gas_per_pubdata: info.tx.common_data.fee.gas_per_pubdata_limit,
+                gas_per_pubdata: info.tx.gas_per_pubdata_byte_limit(),
                 initiator_address: info.tx.initiator_account(),
                 received_at: utc_datetime_from_epoch_ms(info.tx.received_timestamp_ms),
                 eth_commit_tx_hash: None,
@@ -437,15 +469,8 @@ impl ReadBlockchain for Blockchain {
     }
 
     async fn get_zksync_tx(&self, tx_hash: &H256) -> Option<zksync_types::Transaction> {
-        self.inspect_tx(tx_hash, |TransactionResult { info, .. }| {
-            zksync_types::Transaction {
-                common_data: ExecuteTransactionCommon::L2(info.tx.common_data.clone()),
-                execute: info.tx.execute.clone(),
-                received_timestamp_ms: info.tx.received_timestamp_ms,
-                raw_bytes: info.tx.raw_bytes.clone(),
-            }
-        })
-        .await
+        self.inspect_tx(tx_hash, |TransactionResult { info, .. }| info.tx.clone())
+            .await
     }
 
     async fn get_filter_logs(&self, log_filter: &LogFilter) -> Vec<api::Log> {
@@ -468,46 +493,89 @@ impl ReadBlockchain for Blockchain {
         })
         .await
     }
+
+    async fn get_batch_header(&self, batch_number: L1BatchNumber) -> Option<L1BatchHeader> {
+        self.inspect_batch(&batch_number, |StoredL1BatchInfo { header, .. }| {
+            header.clone()
+        })
+        .await
+    }
+
+    async fn get_batch_state_diffs(
+        &self,
+        batch_number: L1BatchNumber,
+    ) -> Option<Vec<StateDiffRecord>> {
+        self.inspect_batch(
+            &batch_number,
+            |StoredL1BatchInfo { state_diffs, .. }| state_diffs.clone(),
+        )
+        .await
+    }
+
+    async fn get_batch_aggregation_root(&self, batch_number: L1BatchNumber) -> Option<H256> {
+        self.inspect_batch(
+            &batch_number,
+            |StoredL1BatchInfo {
+                 aggregation_root, ..
+             }| *aggregation_root,
+        )
+        .await
+    }
 }
 
 impl Blockchain {
     pub(super) fn new(
-        fork: Option<&ForkDetails>,
+        protocol_version: ProtocolVersionId,
+        fork_details: Option<&ForkDetails>,
         genesis: Option<&Genesis>,
         genesis_timestamp: Option<u64>,
     ) -> Blockchain {
-        let state = if let Some(fork) = fork {
+        let state = if let Some(fork_details) = fork_details {
             BlockchainState {
-                current_batch: fork.l1_block,
-                current_block: L2BlockNumber(fork.l2_miniblock as u32),
-                current_block_hash: fork.l2_miniblock_hash,
+                protocol_version: fork_details.protocol_version,
+                current_batch: fork_details.batch_number,
+                current_block: fork_details.block_number,
+                current_block_hash: fork_details.block_hash,
                 tx_results: Default::default(),
-                blocks: HashMap::from_iter([(fork.l2_block.hash, fork.l2_block.clone())]),
-                hashes: HashMap::from_iter([(
-                    fork.l2_block.number.as_u32().into(),
-                    fork.l2_block.hash,
+                blocks: HashMap::from_iter([(
+                    fork_details.block_hash,
+                    fork_details.api_block.clone(),
                 )]),
+                hashes: HashMap::from_iter([(fork_details.block_number, fork_details.block_hash)]),
+                // As we do not support L1-L2 communication when running in forking mode, batches are
+                // irrelevant.
+                batches: HashMap::from_iter([]),
             }
         } else {
-            let block_hash = compute_hash(0, []);
-            let genesis_block: api::Block<api::TransactionVariant> = if let Some(genesis) = genesis
-            {
-                create_genesis_from_json(genesis, genesis_timestamp)
+            let (genesis_block, genesis_batch_header) = if let Some(genesis) = genesis {
+                create_genesis_from_json(protocol_version, genesis, genesis_timestamp)
             } else {
-                create_genesis(genesis_timestamp)
+                create_genesis(protocol_version, genesis_timestamp)
+            };
+            let block_hash = genesis_block.hash;
+            let genesis_batch_info = StoredL1BatchInfo {
+                header: genesis_batch_header,
+                state_diffs: Vec::new(),
+                aggregation_root: H256::zero(),
             };
 
             BlockchainState {
+                protocol_version,
                 current_batch: L1BatchNumber(0),
                 current_block: L2BlockNumber(0),
                 current_block_hash: block_hash,
                 tx_results: Default::default(),
                 blocks: HashMap::from_iter([(block_hash, genesis_block)]),
                 hashes: HashMap::from_iter([(L2BlockNumber(0), block_hash)]),
+                batches: HashMap::from_iter([(L1BatchNumber(0), genesis_batch_info)]),
             }
         };
+        let protocol_version = state.protocol_version;
         let inner = Arc::new(RwLock::new(state));
-        Self { inner }
+        Self {
+            inner,
+            protocol_version,
+        }
     }
 }
 
@@ -522,8 +590,10 @@ impl Blockchain {
 }
 
 /// Stores the blockchain data (blocks, transactions)
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub(super) struct BlockchainState {
+    /// Protocol version for all produced blocks.
+    pub(super) protocol_version: ProtocolVersionId,
     /// The latest batch number that was already generated.
     /// Next block will go to the batch `current_batch + 1`.
     pub(super) current_batch: L1BatchNumber,
@@ -538,6 +608,18 @@ pub(super) struct BlockchainState {
     pub(super) blocks: HashMap<H256, api::Block<api::TransactionVariant>>,
     /// Map from block number to a block hash.
     pub(super) hashes: HashMap<L2BlockNumber, H256>,
+    /// Map from batch number to batch info. Hash is not used as the key because it is not
+    /// necessarily computed by the time this entry is inserted (i.e. it is not an inherent property
+    /// of a batch).
+    batches: HashMap<L1BatchNumber, StoredL1BatchInfo>,
+}
+
+/// Represents stored information about a particular batch.
+#[derive(Debug, Clone)]
+struct StoredL1BatchInfo {
+    header: L1BatchHeader,
+    state_diffs: Vec<StateDiffRecord>,
+    aggregation_root: H256,
 }
 
 impl BlockchainState {
@@ -618,6 +700,63 @@ impl BlockchainState {
         self.hashes
             .insert(L2BlockNumber(block.number.as_u32()), block.hash);
         self.blocks.insert(block.hash, block);
+    }
+
+    pub(super) fn apply_batch(
+        &mut self,
+        batch_timestamp: u64,
+        base_system_contracts_hashes: BaseSystemContractsHashes,
+        tx_results: Vec<TransactionResult>,
+        finished_l1_batch: FinishedL1Batch,
+        aggregation_root: H256,
+    ) {
+        self.current_batch += 1;
+
+        let l2_to_l1_messages = VmEvent::extract_long_l2_to_l1_messages(
+            &finished_l1_batch.final_execution_state.events,
+        );
+        let l1_tx_count = tx_results
+            .iter()
+            .filter(|tx| matches!(tx.info.tx.common_data, ExecuteTransactionCommon::L1(_)))
+            .count() as u16;
+        let priority_ops_onchain_data = tx_results
+            .iter()
+            .filter_map(|tx| match &tx.info.tx.common_data {
+                ExecuteTransactionCommon::L1(l1_tx) => {
+                    Some(l1_tx.onchain_metadata().onchain_data.clone())
+                }
+                ExecuteTransactionCommon::L2(_) => None,
+                ExecuteTransactionCommon::ProtocolUpgrade(_) => None,
+            })
+            .collect();
+        let header = L1BatchHeader {
+            number: self.current_batch,
+            timestamp: batch_timestamp,
+            l1_tx_count,
+            l2_tx_count: tx_results.len() as u16 - l1_tx_count,
+            priority_ops_onchain_data,
+            l2_to_l1_logs: finished_l1_batch.final_execution_state.user_l2_to_l1_logs,
+            l2_to_l1_messages,
+            bloom: Default::default(), // This is unused in core
+            used_contract_hashes: finished_l1_batch.final_execution_state.used_contract_hashes,
+            base_system_contracts_hashes,
+            system_logs: finished_l1_batch.final_execution_state.system_logs,
+            protocol_version: Some(self.protocol_version),
+            pubdata_input: finished_l1_batch.pubdata_input,
+            fee_address: Default::default(), // TODO: Use real fee address
+            batch_fee_input: Default::default(), // TODO: Use real batch fee input
+        };
+        let batch_info = StoredL1BatchInfo {
+            header,
+            state_diffs: finished_l1_batch.state_diffs.unwrap_or_default(),
+            aggregation_root,
+        };
+        self.batches.insert(self.current_batch, batch_info);
+        self.tx_results.extend(
+            tx_results
+                .into_iter()
+                .map(|r| (r.receipt.transaction_hash, r)),
+        );
     }
 
     pub(super) fn load_blocks(

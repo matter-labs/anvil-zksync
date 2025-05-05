@@ -1,288 +1,134 @@
-# 🚀 anvil-zksync 🚀
+<div align="center">
 
-> [!IMPORTANT]  
-> This repository has been renamed from **era-test-node** to **anvil-zksync**. All references to the previous name have been updated to reflect this change.
+# 🚀 anvil‑zksync 🚀
 
-This crate provides an in-memory node that supports forking the state from other networks.
+*Elastic power for the Elastic Network – spin up blazing‑fast local ZK chain nodes in a snap*
 
-The goal of this crate is to offer a fast solution for integration testing, bootloader and system contract testing, and prototyping.
+[![CI Status](https://github.com/matter-labs/anvil-zksync/actions/workflows/checks.yaml/badge.svg)](https://github.com/matter-labs/anvil-zksync/actions/workflows/checks.yaml)
+[![Release](https://img.shields.io/github/v/release/matter-labs/anvil-zksync?label=version)](https://github.com/matter-labs/anvil-zksync/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![X: @zksync](https://img.shields.io/badge/follow-@zksync-1DA1F2?logo=x)](https://x.com/zksync)
+[![User Book](https://img.shields.io/badge/docs-user%20book-brightgreen)](https://matter-labs.github.io/anvil-zksync/latest/)
 
-🔗 **For a detailed walkthrough, refer to the following resources:**
+</div>
 
-- [Official documentation: Anvil-ZKsync](https://docs.zksync.io/build/test-and-debug/in-memory-node)
-- [Foundry Book: Anvil for zkSync](https://foundry-book.zksync.io/reference/anvil-zksync/)
-- [Rust Book: Anvil-ZKsync](https://matter-labs.github.io/era-test-node/era_test_node/index.html)
+<p align="center">
+  <b>
+    <a href="https://matter-labs.github.io/anvil-zksync/latest/intro/installation.html">Install</a> ·
+    <a href="https://matter-labs.github.io/anvil-zksync/latest/">User Book</a> ·
+    <a href="https://matter-labs.github.io/anvil-zksync/latest/rustdoc/anvil_zksync/index.html">Rust Book</a> ·
+    <a href="./.github/CONTRIBUTING.md">Contributing</a>
+  </b>
+</p>
 
-## 📌 Overview
+---
 
-`anvil-zksync` is designed for local testing and uses an in-memory database for storing state information. It also employs simplified hashmaps for tracking blocks and transactions. When in fork mode, it fetches missing storage data from a remote source if not available locally. Additionally, it uses the remote server (openchain) to resolve the ABI and topics to human-readable names.
+## ✨ Features
 
-## ⚠️ Caution
+- **Instant local node** – in‑memory execution for lightning‑fast startup
+- **Seamless forking** – mirror any Elastic Network ZK chain or any custom RPC
+- **Rich dev accounts** – pre-funded wallets for immediate testing
+- **Transaction replay** – debug any live tx with full VM call‑trace introspection
+- **Custom base token** – simulate fee tokens & gas ratios for custom base token ZK chains
+- **Protocol development** – target non-builtin system contracts for quick protocol testing
 
-Please note that `anvil-zksync` is still in its **alpha** stage. Some features might not be fully supported yet and may not work as intended. However, it is open-sourced, and contributions are welcome!
+## 📦 Installation
 
-## 📊 Limitations & Features
+Install `anvil-zksync` with your preferred method from the below options:
 
-| 🚫 Limitations                                  | ✅ Features                                                 |
-| ----------------------------------------------- | ----------------------------------------------------------- |
-| No communication between Layer 1 and Layer 2.   | Can fork the state of mainnet, testnet, or custom network.  |
-| No support for accessing historical data.       | Uses local bootloader and system contracts.                 |
-| Only one transaction allowed per Layer 1 batch. | Operates deterministically in non-fork mode.                |
-| Redeploy requires MetaMask cache reset.         | Supports hardhat's console.log debugging.                   |
-|                                                 | Resolves names of ABI functions and Events using openchain. |
-|                                                 | Can replay existing mainnet or testnet transactions.        |
-|                                                 | Starts up quickly with pre-configured 'rich' accounts.      |
-
-## 🛠 Prerequisites
-
-1. **Rust**: `anvil-zksync` is written in Rust. Ensure you have Rust installed on your machine. [Download Rust here](https://www.rust-lang.org/tools/install).
-
-2. **Other Dependencies**: This crate relies on rocksDB. If you face any compile errors due to rocksDB, install the necessary dependencies with:
-   ```bash
-   apt-get install -y cmake pkg-config libssl-dev clang
-   ```
-
-## 📥 Installation & Setup
-
-### Using the installation script
-
-1. Download the installation script and mark as executable:
-   ```bash
-   curl --proto '=https' -sSf https://raw.githubusercontent.com/matter-labs/anvil-zksync/main/scripts/install.sh > install.sh
-   chmod +x install.sh
-   ```
-
-2. Run the script with `sudo` (version can optionally be specified via the `--version` argument):
-   ```bash
-   sudo ./install.sh
-   ```
-
-3. Start the node:
-   ```bash
-   anvil-zksync run
-   ```
-
-### Manually
-
-1. Download `anvil-zksync` from latest [Release](https://github.com/matter-labs/anvil-zksync/releases/latest)
-
-2. Extract the binary and mark as executable:
-   ```bash
-   tar xz -f anvil-zksync.tar.gz -C /usr/local/bin/
-   chmod +x /usr/local/bin/anvil-zksync
-   ```
-
-3. Start the node:
-   ```bash
-   anvil-zksync run
-   ```
-
-## 🧑‍💻 Running Locally
-
-1. Compile Rust project and start the node:
-   ```bash
-   make run
-   ```
-
-## 📄 System Contracts
-
-The system contract within the node can be specified via the `--dev-system-contracts` option.
-It can take one of the following options:
-   * `built-in`: Use the compiled built-in contracts
-   * `built-in-no-verify`: Use the compiled built-in contracts, but without signature verification
-   * `local`: Load contracts from `ZKSYNC_HOME`
-
-## 📃 Logging
-
-The node may be started in either of `debug`, `info`, `warn` or `error` logging levels via the `--log` option:
-```bash
-anvil-zksync --log=error run
-```
-
-Additionally, the file path can be provided via the `--log-file-path` option (defaults to `./anvil-zksync.log`):
-```bash
-anvil-zksync --log=error --log-file-path=run.log run
-```
-
-The logging can be configured during runtime via the [`config_setLogLevel`](./SUPPORTED_APIS.md#config_setloglevel) and [`config_setLogging`](./SUPPORTED_APIS.md#config_setlogging) methods.
-
-## 📃 Caching
-
-The node will cache certain network request by default to disk in the `.cache` directory. Alternatively the caching can be disabled or set to in-memory only
-via the `--cache=none|memory|disk` parameter.
+<details>
+<summary><strong>Homebrew</strong></summary>
 
 ```bash
-anvil-zksync --cache=none run
+brew tap matter-labs/anvil-zksync https://github.com/matter-labs/anvil-zksync.git
+brew install anvil-zksync
 ```
+
+</details>
+
+<details>
+<summary><strong>Script (installs forge-zksync, cast-zksync & anvil‑zksync)</strong></summary>
 
 ```bash
-anvil-zksync --cache=memory run
+curl -L https://raw.githubusercontent.com/matter-labs/foundry-zksync/main/install-foundry-zksync | bash
 ```
 
-Additionally when using `--cache=disk`, the cache directory may be specified via `--cache-dir` and the cache may
-be reset on startup via `--reset-cache` parameters.
-```bash
-anvil-zksync --cache=disk --cache-dir=/tmp/foo --reset-cache run
-```
+</details>
 
-## 🌐 Network Details
-
-- L2 RPC: http://localhost:8011
-- Network Id: 260
-
-> Note: The existing implementation does not support communication with Layer 1. As a result, an L1 RPC is not available.
-
-## 🍴 Forking Networks
-
-To fork the mainnet:
+<details>
+<summary><strong>Pre‑built binaries</strong></summary>
 
 ```bash
-anvil-zksync fork fork-url mainnet
+# download and unpack the latest release
+tar -xzf anvil-zksync_x.y.z_<platform>.tar.gz -C /usr/local/bin
+chmod +x /usr/local/bin/anvil-zksync
 ```
 
-> Tip: You can also fork the zkSync Sepolia testnet with `anvil-zksync fork fork-url sepolia-testnet`.
+</details>
 
-## 🔄 Replay Remote Transactions Locally
-
-If you wish to replay a remote transaction locally for deep debugging, use the following command:
+<details>
+<summary><strong>Build from source</strong></summary>
 
 ```bash
-anvil-zksync replay_tx <network> <transaction_hash>
+# clone and build from source
+git clone git@github.com:matter-labs/anvil-zksync.git
+cd anvil-zksync
+cargo build --release
 ```
 
-## Replacing bytecodes
+</details>
 
-You can also replace / override the contract bytecode with the local version. This is especially useful if you are replaying some mainnet transactions and would like to see how they would behave on the different bytecode. Or when you want to fork mainnet to see how your code would
-behave on mainnet state.
+## ⚡️ Quick‑start
 
-You have to prepare a directory, with files in format `0xabc..93f.json` that contain the json outputs that you can get from zkout directories from your compiler.
-
-Then you have to add `--override-bytecodes-dir=XX` flag to point at that directory. See the `example_override` dir for more details.
+**Start a local ZK chain node**
 
 ```bash
-cargo run -- --override-bytecodes-dir=example_override --show-storage-logs all fork mainnet
+anvil-zksync run
 ```
 
-## 📞 Sending Network Calls
+Launches a fast, in-memory ZK chain for local development.
 
-You can send network calls against a running `anvil-zksync`. For example, to check the testnet LINK balance or mainnet USDT, use `curl` or `foundry-zksync`.
+**Fork any Elastic Network chain**
 
 ```bash
-curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"eth_call","params":[{"to":"0x40609141Db628BeEE3BfAB8034Fc2D8278D0Cc78", "data":"0x06fdde03"}, "latest"],"id":1}' http://localhost:8011
+anvil-zksync fork --fork-url era
 ```
 
-## 🔍 Seeing more details of the transactions
+Mirror mainnet, testnet, or any Elastic ZK chain using a custom RPC.
 
-By default, the tool is just printing the basic information about the executed transactions (like status, gas used etc).
-
-But with --show-calls flag, it can print more detailed call traces, and with --resolve-hashes, it will ask openchain for ABI names.
+**Replay transactions**
 
 ```bash
-anvil-zksync --show-calls=user --resolve-hashes replay_tx sepolia-testnet 0x7119045573862797257e4441ff48bf5a3bc4d133a00d167c18dc955eda12cfac
-
-Executing 0x7119045573862797257e4441ff48bf5a3bc4d133a00d167c18dc955eda12cfac
-┌─────────────────────────┐
-│   TRANSACTION SUMMARY   │
-└─────────────────────────┘
-Transaction: SUCCESS
-Initiator: 0x4eaf936c172b5e5511959167e8ab4f7031113ca3
-Payer: 0x4eaf936c172b5e5511959167e8ab4f7031113ca3
-Gas - Limit: 2_487_330 | Used: 969_330 | Refunded: 1_518_000
-Use --show-gas-details flag or call config_setShowGasDetails to display more info
-
-==== Console logs:
-
-==== 22 call traces.  Use --show-calls flag or call config_setShowCalls to display more info.
-  Call(Normal) 0x4eaf936c172b5e5511959167e8ab4f7031113ca3           validateTransaction(bytes32, bytes32, tuple)   1830339
-    Call(Normal) 0x0000000000000000000000000000000000000001                 0x89c19e9b   1766835
-  Call(Normal) 0x4eaf936c172b5e5511959167e8ab4f7031113ca3           payForTransaction(bytes32, bytes32, tuple)   1789767
-  Call(Normal) 0x4eaf936c172b5e5511959167e8ab4f7031113ca3           executeTransaction(bytes32, bytes32, tuple)   1671012
-      Call(Mimic) 0x5d4fb5385ed95b65d1cd6a10ed9549613481ab2f           0x   1443393
+anvil-zksync -vv replay_tx --fork-url era 0x0820a939dfe83221f44a6f0f81f8059ec8a7a4e17006965a8b0c146a2c4a00c2
 ```
 
-You can use the following options to get more granular information during transaction processing:
+Debug live transactions with full VM call‑trace and verbose output.
 
-- `--show-storage-logs <SHOW_STORAGE_LOGS>`: Show storage log information.
-  [default: none]
-  [possible values: none, read, paid, write, all]
+**Integrate an L1 node**
 
-- `--show-vm-details <SHOW_VM_DETAILS>`: Show VM details information.
-  [default: none]
-  [possible values: none, all]
+For L1–L2 interactions, choose one of the following:
 
-- `--show-gas-details <SHOW_GAS_DETAILS>`: Show Gas details information.
-  [default: none]
-  [possible values: none, all]
+- **Spawn a local L1** (defaults to port `8012`):
 
-Example:
+  ```bash
+  anvil-zksync --spawn-l1 [port]
+  ```
 
-```bash
-anvil-zksync --show-storage-logs=all --show-vm-details=all --show-gas-details=all run
-```
+- **Connect to an external L1** (must be started with `--no-request-size-limit`):
 
-This is now even easier with a single flag (`--debug-mode` or `-d`):
+  ```bash
+  anvil --no-request-size-limit
+  anvil-zksync --external-l1 http://localhost:8545
+  ```
 
-```bash
-anvil-zksync -d
-```
+> **Note:** `--spawn-l1` and `--external-l1` are mutually exclusive.
 
-## 💰 Using Rich Wallets
-
-For testing and development purposes, the `anvil-zksync` comes pre-configured with a set of 'rich' wallets. These wallets are loaded with test funds, allowing you to simulate transactions and interactions without the need for real assets.
-
-Here's a list of the available rich wallets:
-```
-18:02:50  INFO Rich Accounts
-18:02:50  INFO ========================
-18:02:50  INFO (0) 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 (10000 ETH)
-18:02:50  INFO (1) 0x70997970C51812dc3A010C7d01b50e0d17dc79C8 (10000 ETH)
-18:02:50  INFO (2) 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC (10000 ETH)
-18:02:50  INFO (3) 0x90F79bf6EB2c4f870365E785982E1f101E93b906 (10000 ETH)
-18:02:50  INFO (4) 0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65 (10000 ETH)
-18:02:50  INFO (5) 0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc (10000 ETH)
-18:02:50  INFO (6) 0x976EA74026E726554dB657fA54763abd0C3a0aa9 (10000 ETH)
-18:02:50  INFO (7) 0x14dC79964da2C08b23698B3D3cc7Ca32193d9955 (10000 ETH)
-18:02:50  INFO (8) 0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f (10000 ETH)
-18:02:50  INFO (9) 0xa0Ee7A142d267C1f36714E4a8F75612F20a79720 (10000 ETH)
-```
-
-Feel free to use these wallets in your tests, but remember, they are for development purposes only and should not be used in production or with real assets.
-
-## 🔧 Supported APIs
-
-See our list of [Supported APIs here](SUPPORTED_APIS.md).
-
-## 🤖 CI/CD Testing with GitHub Actions
-
-A GitHub Action is available for integrating `anvil-zksync` into your CI/CD environments. This action offers high configurability and streamlines the process of testing your applications in an automated way.
-
-You can find this GitHub Action in the marketplace [here](https://github.com/marketplace/actions/anvil-zksync-action).
-
-### 📝 Example Usage
-
-Below is an example `yaml` configuration to use the `anvil-zksync` GitHub Action in your workflow:
-
-```yml
-name: Run anvil-zksync Action
-
-on:
-  push:
-    branches: [ main ]
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
-
-    - name: Run anvil-zksync
-      uses: dutterbutter/anvil-zksync-action@latest
-```
+**For the full CLI reference and advanced usage, see the user docs: https://matter-labs.github.io/anvil-zksync/latest**
 
 ## 🤝 Contributing
 
-We welcome contributions from the community! If you're interested in contributing to the anvil-zksync, please take a look at our [CONTRIBUTING.md](./.github/CONTRIBUTING.md) for guidelines and details on the process.
+Bug reports, fixes and new features are welcome! Please read the [contributing guide](.github/CONTRIBUTING.md) to get started.
 
-Thank you for making anvil-zksync better! 🙌
+## 📜 License
+
+This project is licensed under the terms of the **MIT License** / **Apache License** – see the [LICENSE-MIT](LICENSE-MIT), [LICENSE-APACHE](LICENSE-APACHE) and  file for details.

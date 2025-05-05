@@ -42,6 +42,8 @@
   },
   "scripts": {
     "build": "hardhat compile",
+    "build:foundry": "forge build",
+    "build:foundry-zksync": "forge build --zksync",
     "clean": "hardhat clean"
   },
   "packageManager": "yarn@1.22.19"
