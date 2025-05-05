@@ -18,7 +18,7 @@ pub struct SystemContractsBuilder {
     system_contracts_path: Option<PathBuf>,
     protocol_version: Option<ProtocolVersionId>,
     use_evm_emulator: bool,
-    use_zkos: bool,
+    zkos_config: ZKOSConfig,
 }
 
 impl SystemContractsBuilder {
@@ -51,9 +51,8 @@ impl SystemContractsBuilder {
         self
     }
 
-    /// Enable or disable ZKOS
-    pub fn use_zkos(mut self, flag: bool) -> Self {
-        self.use_zkos = flag;
+    pub fn use_zkos_config(mut self, zkos_config: &ZKOSConfig) -> Self {
+        self.zkos_config = zkos_config.clone();
         self
     }
 
@@ -70,7 +69,7 @@ impl SystemContractsBuilder {
             .unwrap_or_else(ProtocolVersionId::latest);
 
         tracing::debug!(
-            %protocol_version, use_evm_emulator = self.use_evm_emulator, use_zkos = self.use_zkos,
+            %protocol_version, use_evm_emulator = self.use_evm_emulator, use_zkos = self.zkos_config.use_zkos,
             "Building SystemContracts"
         );
 
@@ -79,7 +78,7 @@ impl SystemContractsBuilder {
             self.system_contracts_path,
             protocol_version,
             self.use_evm_emulator,
-            self.use_zkos,
+            self.zkos_config,
         )
     }
 }
@@ -118,7 +117,7 @@ impl SystemContracts {
         tracing::info!(
             %protocol_version,
             use_evm_emulator,
-            use_zkos,
+            zkos_config.use_zkos,
             "initializing system contracts"
         );
         let path = system_contracts_path.unwrap_or_else(|| SystemContractsRepo::default().root);

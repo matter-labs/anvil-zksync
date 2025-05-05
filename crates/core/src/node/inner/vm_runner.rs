@@ -415,7 +415,7 @@ impl VmRunner {
             l2_da_validator_address: Address::zero(),
             pubdata_type: PubdataType::Rollup,
         };
-        let mut executor = if self.system_contracts.use_zkos {
+        let mut executor = if self.system_contracts.use_zkos() {
             todo!("BatchExecutor support for zkos is yet to be implemented")
         } else {
             self.executor_factory.init_main_batch(
@@ -674,7 +674,7 @@ mod test {
                 config.system_contracts_path.clone(),
                 ProtocolVersionId::latest(),
                 config.use_evm_emulator,
-                config.use_zkos,
+                config.zkos_config.clone(),
             );
             let vm_runner = VmRunner::new(
                 time,

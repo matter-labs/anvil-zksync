@@ -24,6 +24,7 @@ use anvil_zksync_common::shell::get_shell;
 use anvil_zksync_config::constants::{
     LEGACY_RICH_WALLETS, NON_FORK_FIRST_BLOCK_TIMESTAMP, RICH_WALLETS,
 };
+use anvil_zksync_config::types::ZKOSConfig;
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_traces::identifier::SignaturesIdentifier;
 use anvil_zksync_traces::{
@@ -615,15 +616,18 @@ impl InMemoryNodeInner {
             );
             let try_gas_limit = additional_gas_for_pubdata + mid;
 
-            let estimate_gas_result = self.estimate_gas_step(
-                l2_tx.clone(),
-                gas_per_pubdata_byte,
-                try_gas_limit,
-                batch_env.clone(),
-                system_env.clone(),
-                &self.fork_storage,
-                self.system_contracts.use_zkos,
-            );
+            let estimate_gas_result = self
+                .estimate_gas_step(
+                    tx.clone(),
+                    gas_per_pubdata_byte,
+                    try_gas_limit,
+                    batch_env.clone(),
+                    system_env.clone(),
+                    &self.fork_storage,
+                    &self.system_contracts.zkos_config,
+                    false,
+                )
+                .tx_result;
 
             if estimate_gas_result.result.is_failed() {
                 tracing::trace!("Attempt {} FAILED", attempt_count);
@@ -647,15 +651,18 @@ impl InMemoryNodeInner {
             * self.fee_input_provider.estimate_gas_scale_factor)
             as u64;
 
-        let estimate_gas_result = self.estimate_gas_step(
-            l2_tx.clone(),
-            gas_per_pubdata_byte,
-            suggested_gas_limit,
-            batch_env,
-            system_env,
-            &self.fork_storage,
-            self.system_contracts.use_zkos,
-        );
+        let estimate_gas_result = self
+            .estimate_gas_step(
+                tx.clone(),
+                gas_per_pubdata_byte,
+                suggested_gas_limit,
+                batch_env,
+                system_env,
+                &self.fork_storage,
+                &self.system_contracts.zkos_config,
+                false,
+            )
+            .tx_result;
 
         let overhead = derive_overhead(
             suggested_gas_limit,
@@ -743,10 +750,9 @@ impl InMemoryNodeInner {
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         fork_storage: &ForkStorage,
-        is_zkos: bool,
-    ) -> VmExecutionResultAndLogs {
-        let tx: Transaction = l2_tx.clone().into();
-
+        zkos_config: &ZKOSConfig,
+        trace_calls: bool,
+    ) -> BatchTransactionExecutionResult {
         // Set gas_limit for transaction
         let gas_limit_with_overhead = tx_gas_limit
             + derive_overhead(
@@ -877,7 +883,7 @@ impl InMemoryNodeInner {
             batch_env,
             system_env,
             &self.fork_storage,
-            self.system_contracts.use_zkos,
+            &self.system_contracts.zkos_config,
             true,
         );
 
@@ -1253,155 +1259,49 @@ impl BlockContext {
 
 // Test utils
 #[cfg(test)]
-impl InMemoryNodeInner {
-    pub fn test_config(config: TestNodeConfig) -> Arc<RwLock<Self>> {
-        let fee_provider = TestNodeFeeInputProvider::default();
-        let impersonation = ImpersonationManager::default();
-        let system_contracts = SystemContracts::from_options(
-            &config.system_contracts_options,
-            config.use_evm_emulator,
-            config.use_zkos,
-        );
-        let storage_key_layout = if config.use_zkos {
-            StorageKeyLayout::ZkOs
-        } else {
-            StorageKeyLayout::ZkEra
-        };
-        let (inner, _, _, _) = InMemoryNodeInner::init(
-            None,
-            fee_provider,
-            Arc::new(RwLock::new(Default::default())),
-            config,
-            impersonation.clone(),
-            system_contracts.clone(),
-            storage_key_layout,
-        );
-        inner
+pub mod testing {
+    use super::*;
+    use zksync_types::ProtocolVersionId;
+
+    pub struct InnerNodeTester {
+        pub node: Arc<RwLock<InMemoryNodeInner>>,
     }
 
-    pub fn test() -> Arc<RwLock<Self>> {
-        Self::test_config(TestNodeConfig::default())
+    impl InnerNodeTester {
+        pub fn test() -> Self {
+            let config = TestNodeConfig::default();
+            let fee_provider = TestNodeFeeInputProvider::default();
+            let impersonation = ImpersonationManager::default();
+            let system_contracts = SystemContracts::from_options(
+                config.system_contracts_options,
+                config.system_contracts_path.clone(),
+                ProtocolVersionId::latest(),
+                config.use_evm_emulator,
+                config.zkos_config.clone(),
+            );
+            let storage_key_layout = if config.zkos_config.use_zkos {
+                StorageKeyLayout::ZkOs
+            } else {
+                StorageKeyLayout::ZkEra
+            };
+            let (node, _, _, _, _, _) = InMemoryNodeInner::init(
+                None,
+                fee_provider,
+                Arc::new(RwLock::new(Default::default())),
+                config,
+                impersonation.clone(),
+                system_contracts.clone(),
+                storage_key_layout,
+                false,
+            );
+            InnerNodeTester { node }
+        }
     }
 
-    /// Deploys a contract with the given bytecode.
-    pub async fn deploy_contract(
-        &mut self,
-        tx_hash: H256,
-        private_key: &zksync_types::K256PrivateKey,
-        bytecode: Vec<u8>,
-        calldata: Option<Vec<u8>>,
-        nonce: zksync_types::Nonce,
-    ) -> H256 {
-        use ethers::abi::Function;
-        use ethers::types::Bytes;
-        use zksync_web3_rs::eip712;
-
-        let salt = [0u8; 32];
-        let bytecode_hash = eip712::hash_bytecode(&bytecode).expect("invalid bytecode");
-        let call_data: Bytes = calldata.unwrap_or_default().into();
-        let create: Function = serde_json::from_str(
-            r#"{
-            "inputs": [
-              {
-                "internalType": "bytes32",
-                "name": "_salt",
-                "type": "bytes32"
-              },
-              {
-                "internalType": "bytes32",
-                "name": "_bytecodeHash",
-                "type": "bytes32"
-              },
-              {
-                "internalType": "bytes",
-                "name": "_input",
-                "type": "bytes"
-              }
-            ],
-            "name": "create",
-            "outputs": [
-              {
-                "internalType": "address",
-                "name": "",
-                "type": "address"
-              }
-            ],
-            "stateMutability": "payable",
-            "type": "function"
-          }"#,
-        )
-        .unwrap();
-
-        let data =
-            ethers::contract::encode_function_data(&create, (salt, bytecode_hash, call_data))
-                .expect("failed encoding function data");
-
-        let mut tx = L2Tx::new_signed(
-            Some(zksync_types::CONTRACT_DEPLOYER_ADDRESS),
-            data.to_vec(),
-            nonce,
-            Fee {
-                gas_limit: U256::from(400_000_000),
-                max_fee_per_gas: U256::from(50_000_000),
-                max_priority_fee_per_gas: U256::from(50_000_000),
-                gas_per_pubdata_limit: U256::from(50000),
-            },
-            U256::from(0),
-            zksync_types::L2ChainId::from(260),
-            private_key,
-            vec![bytecode],
-            Default::default(),
-        )
-        .expect("failed signing tx");
-        tx.set_input(vec![], tx_hash);
-
-        let system_contracts = self
-            .system_contracts
-            .system_contracts_for_initiator(&self.impersonation, &tx.initiator_account());
-        let block_number = self
-            .seal_block(vec![tx], system_contracts)
-            .await
-            .expect("failed deploying contract");
-
-        self.blockchain
-            .read()
-            .await
-            .get_block_hash_by_number(block_number)
-            .unwrap()
-    }
-
-    // TODO: Return L2BlockNumber
-    /// Applies a transaction with a given hash to the node and returns the block hash.
-    pub async fn apply_tx(&mut self, tx_hash: H256) -> (H256, U64, L2Tx) {
-        let tx = crate::testing::TransactionBuilder::new()
-            .set_hash(tx_hash)
-            .build();
-
-        self.set_rich_account(
-            tx.common_data.initiator_address,
-            U256::from(100u128 * 10u128.pow(18)),
-        );
-        let system_contracts = self
-            .system_contracts
-            .system_contracts_for_initiator(&self.impersonation, &tx.initiator_account());
-        let block_number = self
-            .seal_block(vec![tx.clone()], system_contracts)
-            .await
-            .expect("failed applying tx");
-
-        let block_hash = self
-            .blockchain
-            .read()
-            .await
-            .get_block_hash_by_number(block_number)
-            .unwrap();
-
-        (block_hash, U64::from(block_number.0), tx)
-    }
-
-    pub async fn insert_block(&mut self, hash: H256, block: api::Block<TransactionVariant>) {
-        self.blockchain.write().await.blocks.insert(hash, block);
-    }
+    impl InMemoryNodeInner {
+        pub async fn insert_block(&mut self, hash: H256, block: api::Block<TransactionVariant>) {
+            self.blockchain.write().await.blocks.insert(hash, block);
+        }
 
         pub async fn insert_block_hash(&mut self, number: L2BlockNumber, hash: H256) {
             self.blockchain.write().await.hashes.insert(number, hash);

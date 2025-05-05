@@ -285,10 +285,10 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         .system_contracts_path(config.system_contracts_path.clone())
         .protocol_version(config.protocol_version())
         .use_evm_emulator(config.use_evm_emulator)
-        .use_zkos(config.use_zkos)
+        .use_zkos_config(&config.zkos_config)
         .build();
 
-    let storage_key_layout = if config.use_zkos {
+    let storage_key_layout = if config.zkos_config.use_zkos {
         StorageKeyLayout::ZkOs
     } else {
         StorageKeyLayout::ZkEra

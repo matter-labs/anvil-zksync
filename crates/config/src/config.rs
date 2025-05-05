@@ -447,7 +447,7 @@ L1:                    {}
             } else {
                 "Disabled".red()
             },
-            if self.use_zkos {
+            if self.zkos_config.use_zkos {
                 "Enabled".green()
             } else {
                 "Disabled".red()
@@ -459,7 +459,7 @@ L1:                    {}
             }
         );
         if self.zkos_config.use_zkos {
-            tracing::info!(
+            sh_println!(
                 "ZK bin:             {}",
                 if let Some(path) = self.zkos_config.zkos_bin_path.as_ref() {
                     path.green()
