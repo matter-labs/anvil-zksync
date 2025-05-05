@@ -15,7 +15,6 @@ pub enum JsonRpcAdapter {
     Node(#[from] AnvilNodeError),
     Web3(#[from] Web3Error),
     LoadState(#[from] StateLoaderError),
-    Rpc(#[from] RpcError),
     Anyhow(#[from] anyhow::Error),
 }
 
@@ -40,7 +39,6 @@ impl From<JsonRpcAdapter> for ErrorObjectOwned {
             JsonRpcAdapter::LoadState(state_loader) => RpcError::LoadStateError {
                 inner: Box::new(state_loader),
             },
-            JsonRpcAdapter::Rpc(rpc) => rpc,
             JsonRpcAdapter::Anyhow(error) => RpcError::GenericError {
                 message: error.to_string(),
             },
@@ -136,10 +134,9 @@ pub fn into_json_rpc(error: RpcError) -> ErrorObjectOwned {
 }
 
 pub fn rpc_unsupported<T>(method_name: &str) -> jsonrpsee::core::RpcResult<T> {
-    Err(JsonRpcAdapter::Rpc(RpcError::UnsupportedMethod {
-        method_name: method_name.to_owned(),
-    })
-    .into())
+    Err(into_json_rpc(RpcError::UnsupportedMethod {
+            method_name: method_name.to_owned(),
+        }))
 }
 
 mod code_remap {

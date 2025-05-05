@@ -4,7 +4,6 @@ use anvil_zksync_l1_sidecar::L1Sidecar;
 use function_name::named;
 use jsonrpsee::core::{async_trait, RpcResult};
 use std::collections::HashMap;
-use zksync_error::anvil_zksync::rpc::RpcError;
 use zksync_types::api::state_override::StateOverride;
 use zksync_types::api::{
     BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion,
