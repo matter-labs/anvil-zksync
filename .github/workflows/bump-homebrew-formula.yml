@@ -38,7 +38,7 @@ jobs:
     
             for ARCH in "${!ARCHES[@]}"; do
               FILE="anvil-zksync-v${VER}-${ARCH}.tar.gz"
-              URL="https://github.com/dutterbutter/anvil-zksync/releases/download/v${VER}/${FILE}"
+              URL="https://github.com/matter-labs/anvil-zksync/releases/download/v${VER}/${FILE}"
     
               TMP=$(mktemp)
               echo "::group::Downloading $FILE"
