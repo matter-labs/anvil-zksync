@@ -1,13 +1,13 @@
-use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
-use zksync_multivm::VmVersion;
-use zksync_types::fee_model::{
-    BaseTokenConversionRatio, BatchFeeInput, FeeModelConfigV2, FeeParams, FeeParamsV2,
-};
-
 use crate::node::fork::ForkDetails;
 use anvil_zksync_config::constants::{
     DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
     DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L1_GAS_PRICE, DEFAULT_L2_GAS_PRICE,
+};
+use anvil_zksync_config::BaseTokenConfig;
+use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
+use zksync_multivm::VmVersion;
+use zksync_types::fee_model::{
+    BaseTokenConversionRatio, BatchFeeInput, FeeModelConfigV2, FeeParams, FeeParamsV2,
 };
 
 #[derive(Debug, Clone)]
@@ -42,7 +42,7 @@ impl PartialEq for TestNodeFeeInputProvider {
 }
 
 impl TestNodeFeeInputProvider {
-    pub fn from_fork(fork: Option<&ForkDetails>) -> Self {
+    pub fn from_fork(fork: Option<&ForkDetails>, base_token_config: &BaseTokenConfig) -> Self {
         if let Some(fork) = fork {
             TestNodeFeeInputProvider::from_fee_params_and_estimate_scale_factors(
                 fork.fee_params,
@@ -50,7 +50,35 @@ impl TestNodeFeeInputProvider {
                 fork.estimate_gas_scale_factor,
             )
         } else {
-            TestNodeFeeInputProvider::default()
+            let ratio = base_token_config.ratio;
+            let l1_gas_price = ((DEFAULT_L1_GAS_PRICE as u128)
+                * u128::from(ratio.denominator.get())
+                / u128::from(ratio.numerator.get()))
+            .try_into()
+            .expect("L1 gas price exceeded 2^64; base token ratio is too large");
+            let fair_pubdata_price = ((DEFAULT_FAIR_PUBDATA_PRICE as u128)
+                * u128::from(ratio.denominator.get())
+                / u128::from(ratio.numerator.get()))
+            .try_into()
+            .expect("pubdata gas price exceeded 2^64; base token ratio is too large");
+            Self {
+                estimate_gas_price_scale_factor: DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
+                estimate_gas_scale_factor: DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
+                fee_params: FeeParamsV2::new(
+                    FeeModelConfigV2 {
+                        minimal_l2_gas_price: DEFAULT_L2_GAS_PRICE,
+                        compute_overhead_part: 0.0,
+                        pubdata_overhead_part: 1.0,
+                        batch_overhead_l1_gas: 800000,
+                        max_gas_per_batch: 200000000,
+                        max_pubdata_per_batch: 500000,
+                    },
+                    l1_gas_price,
+                    fair_pubdata_price,
+                    ratio,
+                ),
+                forced_base_fee: None,
+            }
         }
     }
 

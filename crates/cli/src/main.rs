@@ -1,13 +1,16 @@
 use crate::bytecode_override::override_bytecodes;
-use crate::cli::{Cli, Command, ForkUrl, PeriodicStateDumper};
+use crate::cli::{BuiltinNetwork, Cli, Command, ForkUrl, PeriodicStateDumper};
 use crate::utils::update_with_fork_details;
+use alloy::primitives::Bytes;
 use anvil_zksync_api_server::NodeServerBuilder;
 use anvil_zksync_common::shell::get_shell;
+use anvil_zksync_common::utils::predeploys::PREDEPLOYS;
 use anvil_zksync_common::{sh_eprintln, sh_err, sh_println, sh_warn};
 use anvil_zksync_config::constants::{
     DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
-    DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L1_GAS_PRICE, DEFAULT_L2_GAS_PRICE, LEGACY_RICH_WALLETS,
-    RICH_WALLETS, TEST_NODE_NETWORK_ID,
+    DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L1_GAS_PRICE, DEFAULT_L2_GAS_PRICE,
+    EVM_EMULATOR_ENABLER_CALLDATA, LEGACY_RICH_WALLETS, PSEUDO_CALLER, RICH_WALLETS,
+    TEST_NODE_NETWORK_ID,
 };
 use anvil_zksync_config::types::SystemContractsOptions;
 use anvil_zksync_config::{ForkPrintInfo, L1Config};
@@ -40,7 +43,9 @@ use zksync_error::anvil_zksync::AnvilZksyncError;
 use zksync_error::{ICustomError, IError as _};
 use zksync_telemetry::{get_telemetry, init_telemetry, TelemetryProps};
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
-use zksync_types::{Address, L2BlockNumber, Nonce, CONTRACT_DEPLOYER_ADDRESS, H160, U256};
+use zksync_types::{
+    L2BlockNumber, Nonce, CONTRACT_DEPLOYER_ADDRESS, EVM_PREDEPLOYS_MANAGER_ADDRESS, H160, U256,
+};
 
 mod bytecode_override;
 mod cli;
@@ -125,9 +130,12 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
                 (None, Vec::new())
             } else {
                 // Initialize the client to get the fee params
-                let client = ForkClient::at_block_number(ForkUrl::Mainnet.to_config(), None)
-                    .await
-                    .map_err(to_domain)?;
+                let client = ForkClient::at_block_number(
+                    ForkUrl::Builtin(BuiltinNetwork::Era).to_config(),
+                    None,
+                )
+                .await
+                .map_err(to_domain)?;
                 let fee = client.get_fee_params().await.map_err(to_domain)?;
 
                 match fee {
@@ -265,8 +273,10 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
     }
     let pool = TxPool::new(impersonation.clone(), config.transaction_order);
 
-    let fee_input_provider =
-        TestNodeFeeInputProvider::from_fork(fork_client.as_ref().map(|f| &f.details));
+    let fee_input_provider = TestNodeFeeInputProvider::from_fork(
+        fork_client.as_ref().map(|f| &f.details),
+        &config.base_token_config,
+    );
     let filters = Arc::new(RwLock::new(EthFilters::default()));
 
     // Build system contracts
@@ -284,6 +294,7 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         StorageKeyLayout::ZkEra
     };
 
+    let is_fork_mode = fork_client.is_some();
     let (node_inner, storage, blockchain, time, fork, vm_runner) = InMemoryNodeInner::init(
         fork_client,
         fee_input_provider.clone(),
@@ -376,37 +387,56 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
     if config.use_evm_emulator {
         // We need to enable EVM emulator by setting `allowedBytecodeTypesToDeploy` in `ContractDeployer`
         // to `1` (i.e. `AllowedBytecodeTypes::EraVmAndEVM`).
-        let service_call_pseudo_caller =
-            Address::from_str("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF").unwrap();
-        node.impersonate_account(service_call_pseudo_caller)
-            .unwrap();
-        node.set_rich_account(service_call_pseudo_caller, U256::from(1_000_000_000_000u64))
+        node.impersonate_account(PSEUDO_CALLER).unwrap();
+        node.set_rich_account(PSEUDO_CALLER, U256::from(1_000_000_000_000u64))
             .await;
-        let tx = L2TxBuilder::new(
-            service_call_pseudo_caller,
-            Nonce(0),
-            U256::from(300_000),
-            U256::from(u32::MAX),
-            node.chain_id().await,
-        )
-        .with_to(CONTRACT_DEPLOYER_ADDRESS)
-        .with_calldata(
-            // cast calldata "setAllowedBytecodeTypesToDeploy(uint8)()" 1
-            hex::decode("fe06380c0000000000000000000000000000000000000000000000000000000000000001")
-                .unwrap(),
-        )
-        .build_impersonated();
+        let chain_id = node.chain_id().await;
+        let mut txs = Vec::with_capacity(PREDEPLOYS.len() + 1);
+        txs.push(
+            L2TxBuilder::new(
+                PSEUDO_CALLER,
+                Nonce(0),
+                U256::from(300_000),
+                U256::from(u32::MAX),
+                chain_id,
+            )
+            .with_to(CONTRACT_DEPLOYER_ADDRESS)
+            .with_calldata(Bytes::from_static(EVM_EMULATOR_ENABLER_CALLDATA).to_vec())
+            .build_impersonated()
+            .into(),
+        );
+
+        // If evm emulator is enabled, and not in fork mode, deploy pre-deploys for dev convenience
+        if !is_fork_mode {
+            let mut nonce = Nonce(1);
+            for pd in PREDEPLOYS.iter() {
+                let data = pd.encode_manager_call().unwrap();
+                txs.push(
+                    L2TxBuilder::new(
+                        PSEUDO_CALLER,
+                        nonce,
+                        U256::from(10_000_000), // high limit for pre-deploys
+                        U256::from(u32::MAX),
+                        chain_id,
+                    )
+                    .with_to(EVM_PREDEPLOYS_MANAGER_ADDRESS)
+                    .with_calldata(data)
+                    .build_impersonated()
+                    .into(),
+                );
+                nonce += 1;
+            }
+        }
+
         node_handle
             .seal_block_sync(TxBatch {
                 impersonating: true,
-                txs: vec![tx.into()],
+                txs,
             })
             .await
             .map_err(to_domain)?;
-        node.set_rich_account(service_call_pseudo_caller, U256::from(0))
-            .await;
-        node.stop_impersonating_account(service_call_pseudo_caller)
-            .unwrap();
+        node.set_rich_account(PSEUDO_CALLER, U256::from(0)).await;
+        node.stop_impersonating_account(PSEUDO_CALLER).unwrap();
     }
 
     if let Some(ref bytecodes_dir) = config.override_bytecodes_dir {

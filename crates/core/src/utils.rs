@@ -1,25 +1,15 @@
-use alloy::primitives::{Sign, I256, U256 as AlloyU256};
 use anvil_zksync_common::sh_err;
-use anyhow::Context;
 use chrono::{DateTime, Utc};
-use colored::Colorize;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
+use std::fmt;
 use std::future::Future;
 use std::sync::Arc;
-use std::{convert::TryInto, fmt};
-use std::{
-    fs::File,
-    io::{BufWriter, Write},
-    path::Path,
-};
 use tokio::runtime::Builder;
 use tokio::sync::{RwLock, RwLockReadGuard};
 use zksync_multivm::interface::{Call, CallType, ExecutionResult, VmExecutionResultAndLogs};
 use zksync_types::{
     api::{BlockNumber, DebugCall, DebugCallType},
     web3::Bytes,
-    Transaction, CONTRACT_DEPLOYER_ADDRESS, H256, U256, U64,
+    Transaction, CONTRACT_DEPLOYER_ADDRESS, U256, U64,
 };
 use zksync_web3_decl::error::Web3Error;
 
@@ -166,56 +156,6 @@ pub fn internal_error(method_name: &'static str, error: impl fmt::Display) -> We
     Web3Error::InternalError(anyhow::Error::msg(error.to_string()))
 }
 
-// pub fn addresss_from_private_key(private_key: &K256PrivateKey) {
-//     let private_key = H256::from_slice(&private_key.0);
-//     let address = KeyPair::from_secret(private_key)?.address();
-//     Ok(Address::from(address.0))
-// }
-
-/// Converts `h256` value as BE into the u64
-pub fn h256_to_u64(value: H256) -> u64 {
-    let be_u64_bytes: [u8; 8] = value[24..].try_into().unwrap();
-    u64::from_be_bytes(be_u64_bytes)
-}
-
-/// Calculates the cost of a transaction in ETH.
-pub fn calculate_eth_cost(gas_price_in_wei_per_gas: u64, gas_used: u64) -> f64 {
-    // Convert gas price from wei to gwei
-    let gas_price_in_gwei = gas_price_in_wei_per_gas as f64 / 1e9;
-
-    // Calculate total cost in gwei
-    let total_cost_in_gwei = gas_price_in_gwei * gas_used as f64;
-
-    // Convert total cost from gwei to ETH
-    total_cost_in_gwei / 1e9
-}
-
-/// Writes the given serializable object as JSON to the specified file path using pretty printing.
-/// Returns an error if the file cannot be created or if serialization/writing fails.
-pub fn write_json_file<T: Serialize>(path: &Path, obj: &T) -> anyhow::Result<()> {
-    let file = File::create(path)
-        .with_context(|| format!("Failed to create file '{}'", path.display()))?;
-    let mut writer = BufWriter::new(file);
-    // Note: intentionally using pretty printing for better readability.
-    serde_json::to_writer_pretty(&mut writer, obj)
-        .with_context(|| format!("Failed to write JSON to '{}'", path.display()))?;
-    writer
-        .flush()
-        .with_context(|| format!("Failed to flush writer for '{}'", path.display()))?;
-
-    Ok(())
-}
-
-/// Reads the JSON file at the specified path and deserializes it into the provided type.
-/// Returns an error if the file cannot be read or deserialization fails.
-pub fn read_json_file<T: DeserializeOwned>(path: &Path) -> anyhow::Result<T> {
-    let file_content = std::fs::read_to_string(path)
-        .with_context(|| format!("Failed to read file '{}'", path.display()))?;
-
-    serde_json::from_str(&file_content)
-        .with_context(|| format!("Failed to deserialize JSON from '{}'", path.display()))
-}
-
 pub fn block_on<F: Future + Send + 'static>(future: F) -> F::Output
 where
     F::Output: Send,
@@ -252,58 +192,6 @@ impl<T> ArcRLock<T> {
     pub async fn read(&self) -> RwLockReadGuard<T> {
         self.0.read().await
     }
-}
-
-/// Returns the number expressed as a string in exponential notation
-/// with the given precision (number of significant figures),
-/// optionally removing trailing zeros from the mantissa.
-#[inline]
-pub fn to_exp_notation(
-    value: AlloyU256,
-    precision: usize,
-    trim_end_zeros: bool,
-    sign: Sign,
-) -> String {
-    let stringified = value.to_string();
-    let exponent = stringified.len() - 1;
-    let mut mantissa = stringified.chars().take(precision).collect::<String>();
-
-    // optionally remove trailing zeros
-    if trim_end_zeros {
-        mantissa = mantissa.trim_end_matches('0').to_string();
-    }
-
-    // Place a decimal point only if needed
-    // e.g. 1234 -> 1.234e3 (needed)
-    //      5 -> 5 (not needed)
-    if mantissa.len() > 1 {
-        mantissa.insert(1, '.');
-    }
-
-    format!("{sign}{mantissa}e{exponent}")
-}
-
-/// Formats a U256 number to string, adding an exponential notation _hint_ if it
-/// is larger than `10_000`, with a precision of `4` figures, and trimming the
-/// trailing zeros.
-pub fn format_uint_exp(num: AlloyU256) -> String {
-    if num < AlloyU256::from(10_000) {
-        return num.to_string();
-    }
-
-    let exp = to_exp_notation(num, 4, true, Sign::Positive);
-    format!("{num} {}", format!("[{exp}]").dimmed())
-}
-
-/// Formats a U256 number to string, adding an exponential notation _hint_.
-pub fn format_int_exp(num: I256) -> String {
-    let (sign, abs) = num.into_sign_and_abs();
-    if abs < AlloyU256::from(10_000) {
-        return format!("{sign}{abs}");
-    }
-
-    let exp = to_exp_notation(abs, 4, true, sign);
-    format!("{sign}{abs} {}", format!("[{exp}]").dimmed())
 }
 
 #[cfg(test)]
@@ -362,24 +250,5 @@ mod tests {
     fn test_to_real_block_number_number() {
         let actual = to_real_block_number(BlockNumber::Number(U64::from(5)), U64::from(10));
         assert_eq!(U64::from(5), actual);
-    }
-
-    #[test]
-    fn test_format_to_exponential_notation() {
-        let value = 1234124124u64;
-
-        let formatted = to_exp_notation(AlloyU256::from(value), 4, false, Sign::Positive);
-        assert_eq!(formatted, "1.234e9");
-
-        let formatted = to_exp_notation(AlloyU256::from(value), 3, true, Sign::Positive);
-        assert_eq!(formatted, "1.23e9");
-
-        let value = 10000000u64;
-
-        let formatted = to_exp_notation(AlloyU256::from(value), 4, false, Sign::Positive);
-        assert_eq!(formatted, "1.000e7");
-
-        let formatted = to_exp_notation(AlloyU256::from(value), 3, true, Sign::Positive);
-        assert_eq!(formatted, "1e7");
     }
 }

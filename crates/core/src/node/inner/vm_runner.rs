@@ -1,11 +1,16 @@
 use crate::bootloader_debug::BootloaderDebug;
 use crate::formatter::{self, ExecutionErrorReport};
 use crate::node::batch::{MainBatchExecutorFactory, TraceCalls};
+use crate::node::diagnostics::account_has_code;
+use crate::node::diagnostics::transaction::known_addresses_after_transaction;
+use crate::node::diagnostics::vm::balance_diff::extract_balance_diffs;
+use crate::node::diagnostics::vm::traces::extract_addresses;
 use crate::node::error::ToHaltError;
 use crate::node::inner::fork_storage::ForkStorage;
 use crate::node::inner::in_memory_inner::BlockContext;
 use crate::node::storage_logs::print_storage_logs_details;
 use crate::node::time::Time;
+use crate::node::traces::decoder::CallTraceDecoderBuilder;
 use crate::node::{
     compute_hash, InMemoryNodeInner, TestNodeFeeInputProvider, TransactionResult, TxBatch,
     TxExecutionInfo,
@@ -15,8 +20,6 @@ use crate::utils::create_debug_output;
 use anvil_zksync_common::shell::get_shell;
 use anvil_zksync_common::{sh_eprintln, sh_err, sh_println, sh_warn};
 use anvil_zksync_config::TestNodeConfig;
-use anvil_zksync_console::console_log::ConsoleLogHandler;
-use anvil_zksync_traces::decode::CallTraceDecoderBuilder;
 use anvil_zksync_traces::{
     build_call_trace_arena, decode_trace_arena, filter_call_trace_arena,
     identifier::SignaturesIdentifier, render_trace_arena_inner,
@@ -51,7 +54,6 @@ pub struct VmRunner {
     time: Time,
     fork_storage: ForkStorage,
     system_contracts: SystemContracts,
-    console_log_handler: ConsoleLogHandler,
     /// Whether VM should generate system logs.
     generate_system_logs: bool,
     /// Optional field for reporting progress while replaying transactions.
@@ -88,7 +90,6 @@ impl VmRunner {
             time,
             fork_storage,
             system_contracts,
-            console_log_handler: ConsoleLogHandler::default(),
             generate_system_logs,
             progress_report: None,
         }
@@ -164,22 +165,9 @@ impl VmRunner {
         config: &TestNodeConfig,
         fee_input_provider: &TestNodeFeeInputProvider,
     ) -> AnvilNodeResult<BatchTransactionExecutionResult> {
-        // Check if target address has code before executing the transaction
-        if let Some(to_address) = tx.recipient_account() {
-            let code_key = zksync_types::get_code_key(&to_address);
-            let bytecode_hash = zksync_multivm::interface::storage::ReadStorage::read_value(
-                &mut self.fork_storage,
-                &code_key,
-            );
+        let verbosity = get_shell().verbosity;
 
-            // If bytecode hash is zero, there's no code at this address
-            if bytecode_hash.is_zero() {
-                sh_warn!(
-                    "Transaction {} was sent to address {to_address}, which is not associated with any contract.",
-                    tx.hash()
-                );
-            }
-        }
+        warn_if_tx_recipient_no_code(tx, &mut self.fork_storage);
 
         let BatchTransactionExecutionResult {
             tx_result,
@@ -199,16 +187,53 @@ impl VmRunner {
         let spent_on_pubdata =
             tx_result.statistics.gas_used - tx_result.statistics.computational_gas_used as u64;
 
-        let status = match &tx_result.result {
-            ExecutionResult::Success { .. } => "SUCCESS",
-            ExecutionResult::Revert { .. } => "FAILED",
-            ExecutionResult::Halt { .. } => "HALTED",
-        };
+        let mut known_addresses = known_addresses_after_transaction(tx);
+        let mut trace_output = None;
 
-        // Print transaction summary
-        if config.show_tx_summary {
-            formatter::print_transaction_summary(config.get_l2_gas_price(), tx, &tx_result, status);
+        if !call_traces.is_empty() {
+            let mut builder = CallTraceDecoderBuilder::default();
+
+            builder = builder.with_signature_identifier(
+                SignaturesIdentifier::new(Some(config.get_cache_dir().into()), config.offline)
+                    .map_err(|err| {
+                        anvil_zksync::node::generic_error!(
+                            "Failed to create SignaturesIdentifier: {err:#}"
+                        )
+                    })?,
+            );
+
+            let decoder = builder.build();
+            let mut arena = build_call_trace_arena(&call_traces, &tx_result);
+            decode_trace_arena(&mut arena, &decoder).await?;
+
+            extract_addresses(&arena, &mut known_addresses);
+
+            if verbosity >= 2 {
+                let filtered_arena = filter_call_trace_arena(&arena, verbosity);
+                trace_output = Some(render_trace_arena_inner(&filtered_arena, false));
+            }
         }
+
+        let balance_diffs: Vec<formatter::transaction::BalanceDiff> =
+            extract_balance_diffs(&known_addresses, &tx_result.logs.storage_logs)
+                .into_iter()
+                .map(Into::into)
+                .collect();
+
+        sh_println!(
+            "{}",
+            formatter::transaction::TransactionSummary::new(
+                config.get_l2_gas_price(),
+                tx,
+                &tx_result,
+                (verbosity >= 1).then_some(balance_diffs),
+            )
+        );
+
+        if let Some(trace_output) = trace_output {
+            sh_println!("\nTraces:\n{}", trace_output);
+        }
+
         // Print gas details if enabled
         if config.show_gas_details != ShowGasDetails::None {
             self.display_detailed_gas_info(
@@ -228,32 +253,6 @@ impl VmRunner {
         if config.show_vm_details != ShowVMDetails::None {
             let mut formatter = formatter::Formatter::new();
             formatter.print_vm_details(&tx_result);
-        }
-
-        if !call_traces.is_empty() {
-            let mut builder = CallTraceDecoderBuilder::new();
-
-            builder = builder.with_signature_identifier(
-                SignaturesIdentifier::new(Some(config.get_cache_dir().into()), config.offline)
-                    .map_err(|err| {
-                        anyhow::anyhow!("Failed to create SignaturesIdentifier: {:#}", err)
-                    })?,
-            );
-
-            let decoder = builder.build();
-            let mut arena = build_call_trace_arena(&call_traces, &tx_result);
-            decode_trace_arena(&mut arena, &decoder).await?;
-
-            let verbosity = get_shell().verbosity;
-            if verbosity >= 2 {
-                let filtered_arena = filter_call_trace_arena(&arena, verbosity);
-                let trace_output = render_trace_arena_inner(&filtered_arena, false);
-                sh_println!("\nTraces:\n{}", trace_output);
-            }
-            if !config.disable_console_log {
-                self.console_log_handler
-                    .handle_calls_recursive(&call_traces);
-            }
         }
 
         Ok(BatchTransactionExecutionResult {
@@ -307,35 +306,8 @@ impl VmRunner {
                 transaction_hash: Box::new(tx_hash),
             });
         }
-        let saved_factory_deps = VmEvent::extract_bytecodes_marked_as_known(&result.logs.events);
 
-        // Get transaction factory deps
-        let factory_deps = &tx.execute.factory_deps;
-        let mut tx_factory_deps: HashMap<_, _> = factory_deps
-            .iter()
-            .map(|bytecode| {
-                (
-                    BytecodeHash::for_bytecode(bytecode).value(),
-                    bytecode.clone(),
-                )
-            })
-            .collect();
-        // Ensure that *dynamic* factory deps (ones that may be created when executing EVM contracts)
-        // are added into the lookup map as well.
-        tx_factory_deps.extend(result.dynamic_factory_deps.clone());
-
-        let new_bytecodes = saved_factory_deps
-            .map(|bytecode_hash| {
-                let bytecode = tx_factory_deps.get(&bytecode_hash).unwrap_or_else(|| {
-                    panic!(
-                        "Failed to get factory deps on tx: bytecode hash: {:?}, tx hash: {}",
-                        bytecode_hash,
-                        tx.hash()
-                    )
-                });
-                (bytecode_hash, bytecode.clone())
-            })
-            .collect::<Vec<_>>();
+        let new_bytecodes = new_bytecodes(tx, &result);
 
         let logs = result
             .logs
@@ -358,6 +330,7 @@ impl VmRunner {
                 block_timestamp: Some(block_ctx.timestamp.into()),
             })
             .collect();
+
         let tx_receipt = api::TransactionReceipt {
             transaction_hash: tx_hash,
             transaction_index: U64::from(tx_index),
@@ -597,6 +570,40 @@ impl VmRunner {
     }
 }
 
+fn new_bytecodes(
+    tx: &Transaction,
+    result: &VmExecutionResultAndLogs,
+) -> Vec<(zksync_types::H256, Vec<u8>)> {
+    let saved_factory_deps = VmEvent::extract_bytecodes_marked_as_known(&result.logs.events);
+
+    // Get transaction factory deps
+    let factory_deps = &tx.execute.factory_deps;
+    let mut tx_factory_deps: HashMap<_, _> = factory_deps
+        .iter()
+        .map(|bytecode| {
+            (
+                BytecodeHash::for_bytecode(bytecode).value(),
+                bytecode.clone(),
+            )
+        })
+        .collect();
+    // Ensure that *dynamic* factory deps (ones that may be created when executing EVM contracts)
+    // are added into the lookup map as well.
+    tx_factory_deps.extend(result.dynamic_factory_deps.clone());
+    saved_factory_deps
+        .map(|bytecode_hash| {
+            let bytecode = tx_factory_deps.get(&bytecode_hash).unwrap_or_else(|| {
+                panic!(
+                    "Failed to get factory deps on tx: bytecode hash: {:?}, tx hash: {}",
+                    bytecode_hash,
+                    tx.hash()
+                )
+            });
+            (bytecode_hash, bytecode.clone())
+        })
+        .collect::<Vec<_>>()
+}
+
 fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) -> Option<H160> {
     for query in execution_result.logs.storage_logs.iter().rev() {
         if query.log.is_write() && query.log.key.address() == &ACCOUNT_CODE_STORAGE_ADDRESS {
@@ -604,6 +611,17 @@ fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) 
         }
     }
     None
+}
+
+fn warn_if_tx_recipient_no_code(tx: &Transaction, storage: &mut ForkStorage) {
+    if let Some(to_address) = tx.recipient_account() {
+        if !account_has_code(to_address, storage) {
+            sh_warn!(
+                    "Transaction {} was sent to address {to_address}, which is not associated with any contract.",
+                    tx.hash()
+                );
+        }
+    }
 }
 
 #[cfg(test)]

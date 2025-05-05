@@ -27,6 +27,7 @@ tracing.workspace = true
 tokio.workspace = true
 colored.workspace = true
 anyhow.workspace = true
+once_cell.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

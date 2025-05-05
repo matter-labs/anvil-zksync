@@ -1,5 +1,7 @@
 use crate::filters::EthFilters;
 use crate::formatter::ExecutionErrorReport;
+use crate::node::diagnostics::transaction::known_addresses_after_transaction;
+use crate::node::diagnostics::vm::traces::extract_addresses;
 use crate::node::error::{LoadStateError, ToHaltError, ToRevertReason};
 use crate::node::inner::blockchain::Blockchain;
 use crate::node::inner::fork::{Fork, ForkClient, ForkSource};
@@ -8,6 +10,7 @@ use crate::node::inner::time::Time;
 use crate::node::inner::vm_runner::TxBatchExecutionResult;
 use crate::node::keys::StorageKeyLayout;
 use crate::node::state::StateV1;
+use crate::node::traces::decoder::CallTraceDecoderBuilder;
 use crate::node::vm::AnvilVM;
 use crate::node::zkos::ZKOsVM;
 use crate::node::{
@@ -17,12 +20,18 @@ use crate::node::{
 use crate::system_contracts::SystemContracts;
 use crate::{delegate_vm, utils};
 use anvil_zksync_common::sh_println;
+use anvil_zksync_common::shell::get_shell;
 use anvil_zksync_config::constants::{
     LEGACY_RICH_WALLETS, NON_FORK_FIRST_BLOCK_TIMESTAMP, RICH_WALLETS,
 };
 use anvil_zksync_config::TestNodeConfig;
-use anvil_zksync_console::console_log::ConsoleLogHandler;
+use anvil_zksync_traces::identifier::SignaturesIdentifier;
+use anvil_zksync_traces::{
+    build_call_trace_arena, decode_trace_arena, filter_call_trace_arena, render_trace_arena_inner,
+};
+use colored::Colorize;
 use indexmap::IndexMap;
+use once_cell::sync::OnceCell;
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -32,9 +41,11 @@ use zksync_error::anvil_zksync::node::AnvilNodeResult;
 use zksync_error::anvil_zksync::{halt::HaltError, revert::RevertError};
 use zksync_multivm::interface::storage::{ReadStorage, StorageView, WriteStorage};
 use zksync_multivm::interface::{
-    ExecutionResult, FinishedL1Batch, InspectExecutionMode, L1BatchEnv, L2BlockEnv, SystemEnv,
-    TxExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt,
+    BatchTransactionExecutionResult, ExecutionResult, FinishedL1Batch, InspectExecutionMode,
+    L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionResultAndLogs, VmFactory,
+    VmInterface,
 };
+use zksync_multivm::tracers::{CallTracer, TracerDispatcher};
 use zksync_multivm::utils::{
     adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
     get_max_gas_per_pubdata_byte,
@@ -43,7 +54,7 @@ use zksync_multivm::vm_latest::constants::{
     BATCH_COMPUTATIONAL_GAS_LIMIT, BATCH_GAS_LIMIT, MAX_VM_PUBDATA_PER_BATCH,
 };
 use zksync_multivm::vm_latest::{HistoryDisabled, Vm};
-use zksync_multivm::VmVersion;
+use zksync_multivm::{MultiVmTracer, VmVersion};
 use zksync_types::api::{BlockIdVariant, TransactionVariant};
 use zksync_types::block::build_bloom;
 use zksync_types::fee::Fee;
@@ -77,7 +88,6 @@ pub struct InMemoryNodeInner {
     pub(super) fork: Fork,
     // Configuration.
     pub config: TestNodeConfig,
-    pub console_log_handler: ConsoleLogHandler,
     system_contracts: SystemContracts,
     impersonation: ImpersonationManager,
     pub rich_accounts: HashSet<H160>,
@@ -109,7 +119,6 @@ impl InMemoryNodeInner {
             fork_storage,
             fork,
             config,
-            console_log_handler: ConsoleLogHandler::default(),
             system_contracts,
             impersonation,
             rich_accounts: HashSet::new(),
@@ -567,17 +576,16 @@ impl InMemoryNodeInner {
             // For L2 transactions, we estimate the amount of gas needed to cover for the pubdata by creating a transaction with infinite gas limit.
             // And getting how much pubdata it used.
 
-            // In theory, if the transaction has failed with such large gas limit, we could have returned an API error here right away,
-            // but doing it later on keeps the code more lean.
-            let result = self.estimate_gas_step(
-                tx.clone(),
-                gas_per_pubdata_byte,
-                BATCH_GAS_LIMIT,
-                batch_env.clone(),
-                system_env.clone(),
-                &self.fork_storage,
-                self.system_contracts.use_zkos,
-            );
+            // If the transaction has failed with such a large gas limit, we return an API error here right away,
+            // since the inferred gas bounds would be unreliable in this case.
+            let result = self
+                .check_if_executable(
+                    tx.clone(),
+                    gas_per_pubdata_byte,
+                    batch_env.clone(),
+                    system_env.clone(),
+                )
+                .await?;
 
             if result.statistics.pubdata_published > (MAX_VM_PUBDATA_PER_BATCH as u32) {
                 return Err(Web3Error::SubmitTransactionError(
@@ -607,15 +615,18 @@ impl InMemoryNodeInner {
             );
             let try_gas_limit = additional_gas_for_pubdata + mid;
 
-            let estimate_gas_result = self.estimate_gas_step(
-                tx.clone(),
-                gas_per_pubdata_byte,
-                try_gas_limit,
-                batch_env.clone(),
-                system_env.clone(),
-                &self.fork_storage,
-                self.system_contracts.use_zkos,
-            );
+            let estimate_gas_result = self
+                .estimate_gas_step(
+                    tx.clone(),
+                    gas_per_pubdata_byte,
+                    try_gas_limit,
+                    batch_env.clone(),
+                    system_env.clone(),
+                    &self.fork_storage,
+                    self.system_contracts.use_zkos,
+                    false,
+                )
+                .tx_result;
 
             if estimate_gas_result.result.is_failed() {
                 tracing::trace!("Attempt {} FAILED", attempt_count);
@@ -639,15 +650,18 @@ impl InMemoryNodeInner {
             * self.fee_input_provider.estimate_gas_scale_factor)
             as u64;
 
-        let estimate_gas_result = self.estimate_gas_step(
-            tx.clone(),
-            gas_per_pubdata_byte,
-            suggested_gas_limit,
-            batch_env,
-            system_env,
-            &self.fork_storage,
-            self.system_contracts.use_zkos,
-        );
+        let estimate_gas_result = self
+            .estimate_gas_step(
+                tx.clone(),
+                gas_per_pubdata_byte,
+                suggested_gas_limit,
+                batch_env,
+                system_env,
+                &self.fork_storage,
+                self.system_contracts.use_zkos,
+                false,
+            )
+            .tx_result;
 
         let overhead = derive_overhead(
             suggested_gas_limit,
@@ -736,7 +750,8 @@ impl InMemoryNodeInner {
         system_env: SystemEnv,
         fork_storage: &ForkStorage,
         is_zkos: bool,
-    ) -> VmExecutionResultAndLogs {
+        trace_calls: bool,
+    ) -> BatchTransactionExecutionResult {
         // Set gas_limit for transaction
         let gas_limit_with_overhead = tx_gas_limit
             + derive_overhead(
@@ -819,7 +834,129 @@ impl InMemoryNodeInner {
         };
 
         delegate_vm!(vm, push_transaction(tx));
-        delegate_vm!(vm, execute(InspectExecutionMode::OneTx))
+
+        let call_tracer_result = Arc::new(OnceCell::default());
+        let tracer_dispatcher = if trace_calls {
+            let tracers: Vec<Box<dyn MultiVmTracer<StorageView<&ForkStorage>, HistoryDisabled>>> =
+                vec![CallTracer::new(call_tracer_result.clone()).into_tracer_pointer()];
+            TracerDispatcher::from(tracers)
+        } else {
+            Default::default()
+        };
+
+        let tx_result = match &mut vm {
+            AnvilVM::ZKOs(vm) => vm.inspect(&mut Default::default(), InspectExecutionMode::OneTx),
+            AnvilVM::ZKSync(vm) => {
+                vm.inspect(&mut tracer_dispatcher.into(), InspectExecutionMode::OneTx)
+            }
+        };
+        let call_traces = Arc::try_unwrap(call_tracer_result)
+            .expect("failed extracting call traces")
+            .take()
+            .unwrap_or_default();
+        BatchTransactionExecutionResult {
+            tx_result: Box::new(tx_result),
+            compression_result: Ok(()),
+            call_traces,
+        }
+    }
+
+    async fn check_if_executable(
+        &self,
+        tx: Transaction,
+        gas_per_pubdata_byte: u64,
+        batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+    ) -> Result<VmExecutionResultAndLogs, Web3Error> {
+        let verbosity = get_shell().verbosity;
+        let mut known_addresses = known_addresses_after_transaction(&tx);
+        let BatchTransactionExecutionResult {
+            tx_result,
+            call_traces,
+            ..
+        } = self.estimate_gas_step(
+            tx.clone(),
+            gas_per_pubdata_byte,
+            BATCH_GAS_LIMIT,
+            batch_env,
+            system_env,
+            &self.fork_storage,
+            self.system_contracts.use_zkos,
+            true,
+        );
+
+        let error = match tx_result.result {
+            ExecutionResult::Success { .. } => {
+                // Transaction is executable with max gas, proceed with gas estimation
+                return Ok(*tx_result);
+            }
+            ExecutionResult::Revert { ref output } => {
+                let message = output.to_string();
+                let pretty_message = format!(
+                    "execution reverted{}{}",
+                    if message.is_empty() { "" } else { ": " },
+                    message
+                );
+                let data = output.encoded_data();
+
+                if verbosity >= 1 {
+                    let revert_reason: RevertError = output.clone().to_revert_reason().await;
+                    let error_report = ExecutionErrorReport::new(&revert_reason, Some(&tx));
+                    sh_println!(
+                        "{}: {}\n{}",
+                        "error".red().bold(),
+                        "Gas estimation encountered unexecutable transaction".red(),
+                        error_report
+                    );
+                }
+
+                Web3Error::SubmitTransactionError(pretty_message, data)
+            }
+            ExecutionResult::Halt { ref reason } => {
+                let message = reason.to_string();
+                let pretty_message = format!(
+                    "execution reverted{}{}",
+                    if message.is_empty() { "" } else { ": " },
+                    message
+                );
+
+                if verbosity >= 1 {
+                    let halt_error: HaltError = reason.clone().to_halt_error().await;
+                    let error_report = ExecutionErrorReport::new(&halt_error, Some(&tx));
+                    sh_println!(
+                        "{}: {}\n{}",
+                        "error".red().bold(),
+                        "Gas estimation encountered unexecutable transaction".red(),
+                        error_report
+                    );
+                }
+
+                Web3Error::SubmitTransactionError(pretty_message, vec![])
+            }
+        };
+
+        if !call_traces.is_empty() && verbosity >= 2 {
+            let mut builder = CallTraceDecoderBuilder::default();
+
+            builder = builder.with_signature_identifier(
+                SignaturesIdentifier::new(
+                    Some(self.config.get_cache_dir().into()),
+                    self.config.offline,
+                )
+                .map_err(|err| anyhow::anyhow!("Failed to create SignaturesIdentifier: {err:#}"))?,
+            );
+
+            let decoder = builder.build();
+            let mut arena = build_call_trace_arena(&call_traces, &tx_result);
+            decode_trace_arena(&mut arena, &decoder).await?;
+
+            extract_addresses(&arena, &mut known_addresses);
+
+            let filtered_arena = filter_call_trace_arena(&arena, verbosity);
+            let trace_output = render_trace_arena_inner(&filtered_arena, false);
+            sh_println!("\nTraces:\n{}", trace_output);
+        }
+        Err(error)
     }
 
     /// Creates a [Snapshot] of the current state of the node.

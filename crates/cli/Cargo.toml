@@ -41,6 +41,7 @@ tower-http.workspace = true
 flate2.workspace = true
 url.workspace = true
 indicatif.workspace = true
+num.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

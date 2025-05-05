@@ -5,7 +5,6 @@ use super::vm::AnvilVM;
 use crate::delegate_vm;
 use crate::deps::InMemoryStorage;
 use crate::filters::EthFilters;
-use crate::node::call_error_tracer::CallErrorTracer;
 use crate::node::error::LoadStateError;
 use crate::node::fee_model::TestNodeFeeInputProvider;
 use crate::node::impersonate::{ImpersonationManager, ImpersonationState};
@@ -14,6 +13,8 @@ use crate::node::inner::storage::ReadStorageDyn;
 use crate::node::inner::time::ReadTime;
 use crate::node::sealer::BlockSealerState;
 use crate::node::state::VersionedState;
+use crate::node::traces::call_error::CallErrorTracer;
+use crate::node::traces::decoder::CallTraceDecoderBuilder;
 use crate::node::{BlockSealer, BlockSealerMode, NodeExecutor, TxBatch, TxPool};
 use crate::observability::Observability;
 use crate::system_contracts::SystemContracts;
@@ -24,11 +25,11 @@ use anvil_zksync_config::constants::{NON_FORK_FIRST_BLOCK_TIMESTAMP, TEST_NODE_N
 use anvil_zksync_config::types::Genesis;
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_traces::{
-    build_call_trace_arena, decode::CallTraceDecoderBuilder, decode_trace_arena,
-    filter_call_trace_arena, identifier::SignaturesIdentifier, render_trace_arena_inner,
+    build_call_trace_arena, decode_trace_arena, filter_call_trace_arena,
+    identifier::SignaturesIdentifier, render_trace_arena_inner,
 };
 use anvil_zksync_types::{
-    traces::CallTraceArena, LogLevel, ShowCalls, ShowGasDetails, ShowStorageLogs, ShowVMDetails,
+    traces::CallTraceArena, LogLevel, ShowGasDetails, ShowStorageLogs, ShowVMDetails,
 };
 use anyhow::{anyhow, Context};
 use flate2::read::GzDecoder;
@@ -433,15 +434,10 @@ impl InMemoryNode {
             .take()
             .unwrap_or_default();
 
-        if !inner.config.disable_console_log {
-            inner
-                .console_log_handler
-                .handle_calls_recursive(&call_traces);
-        }
-
-        if !call_traces.is_empty() {
+        let verbosity = get_shell().verbosity;
+        if !call_traces.is_empty() && verbosity >= 2 {
             let tx_result_for_arena = tx_result.clone();
-            let mut builder = CallTraceDecoderBuilder::new();
+            let mut builder = CallTraceDecoderBuilder::default();
             builder = builder.with_signature_identifier(
                 SignaturesIdentifier::new(
                     Some(inner.config.get_cache_dir().into()),
@@ -469,12 +465,9 @@ impl InMemoryNode {
                 inner_result
             })?;
 
-            let verbosity = get_shell().verbosity;
-            if verbosity >= 2 {
-                let filtered_arena = filter_call_trace_arena(&arena, verbosity);
-                let trace_output = render_trace_arena_inner(&filtered_arena, false);
-                sh_println!("\nTraces:\n{}", trace_output);
-            }
+            let filtered_arena = filter_call_trace_arena(&arena, verbosity);
+            let trace_output = render_trace_arena_inner(&filtered_arena, false);
+            sh_println!("\nTraces:\n{}", trace_output);
         }
 
         Ok(tx_result.result)
@@ -533,26 +526,8 @@ impl InMemoryNode {
             .unwrap_or(TEST_NODE_NETWORK_ID))
     }
 
-    pub async fn get_show_calls(&self) -> anyhow::Result<String> {
-        Ok(self.inner.read().await.config.show_calls.to_string())
-    }
-
-    pub async fn get_show_outputs(&self) -> anyhow::Result<bool> {
-        Ok(self.inner.read().await.config.show_outputs)
-    }
-
     pub fn get_current_timestamp(&self) -> anyhow::Result<u64> {
         Ok(self.time.current_timestamp())
-    }
-
-    pub async fn set_show_calls(&self, show_calls: ShowCalls) -> anyhow::Result<String> {
-        self.inner.write().await.config.show_calls = show_calls;
-        Ok(show_calls.to_string())
-    }
-
-    pub async fn set_show_outputs(&self, value: bool) -> anyhow::Result<bool> {
-        self.inner.write().await.config.show_outputs = value;
-        Ok(value)
     }
 
     pub async fn set_show_storage_logs(
@@ -579,28 +554,8 @@ impl InMemoryNode {
         Ok(show_gas_details.to_string())
     }
 
-    pub async fn set_resolve_hashes(&self, value: bool) -> anyhow::Result<bool> {
-        self.inner.write().await.config.resolve_hashes = value;
-        Ok(value)
-    }
-
     pub async fn set_show_node_config(&self, value: bool) -> anyhow::Result<bool> {
         self.inner.write().await.config.show_node_config = value;
-        Ok(value)
-    }
-
-    pub async fn set_show_tx_summary(&self, value: bool) -> anyhow::Result<bool> {
-        self.inner.write().await.config.show_tx_summary = value;
-        Ok(value)
-    }
-
-    pub async fn set_show_event_logs(&self, value: bool) -> anyhow::Result<bool> {
-        self.inner.write().await.config.show_event_logs = value;
-        Ok(value)
-    }
-
-    pub async fn set_disable_console_log(&self, value: bool) -> anyhow::Result<bool> {
-        self.inner.write().await.config.disable_console_log = value;
         Ok(value)
     }
 
@@ -652,6 +607,7 @@ impl InMemoryNode {
     pub fn test_config(fork_client_opt: Option<ForkClient>, config: TestNodeConfig) -> Self {
         let fee_provider = TestNodeFeeInputProvider::from_fork(
             fork_client_opt.as_ref().map(|client| &client.details),
+            &config.base_token_config,
         );
         let impersonation = ImpersonationManager::default();
         let system_contracts = SystemContracts::from_options(

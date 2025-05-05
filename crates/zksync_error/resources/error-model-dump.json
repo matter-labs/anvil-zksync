@@ -417,8 +417,8 @@
         "identifier": "anvil_zksync",
         "description": "Errors originating in Anvil for ZKsync.",
         "origins": [
-          "<default zksync-root.json>",
-          "../../etc/errors/anvil.json"
+          "../../etc/errors/anvil.json",
+          "<default zksync-root.json>"
         ]
       },
       "Compiler": {

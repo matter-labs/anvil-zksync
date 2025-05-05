@@ -58,6 +58,10 @@ impl InMemoryStorage {
         }
     }
 
+    pub fn read_value_opt(&self, key: &StorageKey) -> Option<StorageValue> {
+        self.state.get(key).copied()
+    }
+
     /// Sets the storage `value` at the specified `key`.
     pub fn set_value(&mut self, key: StorageKey, value: StorageValue) {
         self.state.insert(key, value);
